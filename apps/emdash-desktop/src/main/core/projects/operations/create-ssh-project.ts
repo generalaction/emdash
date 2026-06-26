@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { err, ok, withLease } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
+import { statAbsolute } from '@main/core/runtime/files-helpers';
 import { runtimeManager } from '@main/core/runtime/runtime-manager';
-import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -24,26 +23,32 @@ export type CreateSshProjectParams = {
 export async function createSshProject(
   params: CreateSshProjectParams
 ): Promise<CreateProjectResult> {
-  const sshProxy = await sshConnectionManager.connect(params.connectionId);
+  const runtimeLease = await runtimeManager.acquire({
+    kind: 'ssh',
+    connectionId: params.connectionId,
+  });
 
-  const sshFs = new SshFileSystem(sshProxy, params.path);
-  const pathEntry = await sshFs.stat('');
-  if (!pathEntry || pathEntry.type !== 'dir') {
-    return err({
-      type: 'invalid-directory',
-      path: params.path,
-      message: 'Invalid directory',
-    });
+  let gitInfo;
+  try {
+    const pathEntry = await statAbsolute(runtimeLease.value.files, params.path);
+    if (!pathEntry.success || pathEntry.data.type !== 'directory') {
+      return err({
+        type: 'invalid-directory',
+        path: params.path,
+        message: 'Invalid directory',
+      });
+    }
+
+    const repositoryResult = await ensureProjectRepository(
+      runtimeLease.value.git,
+      params.path,
+      params.initGitRepository
+    );
+    if (!repositoryResult.success) return repositoryResult;
+    gitInfo = repositoryResult.data;
+  } finally {
+    await runtimeLease.release();
   }
-  const repositoryResult = await withLease(
-    runtimeManager.acquire({
-      kind: 'ssh',
-      connectionId: params.connectionId,
-    }),
-    (runtime) => ensureProjectRepository(runtime.git, params.path, params.initGitRepository)
-  );
-  if (!repositoryResult.success) return repositoryResult;
-  const gitInfo = repositoryResult.data;
 
   const [row] = await db
     .insert(projects)
@@ -91,15 +96,13 @@ export async function getSshProjectPathStatus(
   connectionId: string
 ): Promise<ProjectPathStatus> {
   try {
-    const sshProxy = await sshConnectionManager.connect(connectionId);
-    const sshFs = new SshFileSystem(sshProxy, path);
-    const pathEntry = await sshFs.stat('');
-    if (!pathEntry || pathEntry.type !== 'dir') {
-      return { isDirectory: false, isGitRepo: false };
-    }
-
     const runtimeLease = await runtimeManager.acquire({ kind: 'ssh', connectionId });
     try {
+      const pathEntry = await statAbsolute(runtimeLease.value.files, path);
+      if (!pathEntry.success || pathEntry.data.type !== 'directory') {
+        return { isDirectory: false, isGitRepo: false };
+      }
+
       const inspection = await runtimeLease.value.git.inspectPath(path);
       if (inspection.kind === 'inspect-failed') {
         return {

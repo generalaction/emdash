@@ -58,7 +58,8 @@ class ProjectSessionManager
           createProvider(project),
           project.type === 'ssh' ? SSH_PROVIDER_TIMEOUT_MS : LOCAL_PROVIDER_TIMEOUT_MS
         );
-        return ok(provider);
+        if (!provider.success) return err({ type: 'error', message: provider.error.message });
+        return ok(provider.data);
       } catch (e) {
         const initError = toInitError(e);
         log.error('ProjectManager: error during project initialization', {

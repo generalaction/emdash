@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { isFileNotFoundCode } from '@emdash/core/files';
 import { err, ok, withLease } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
+import { statAbsolute } from '@main/core/runtime/files-helpers';
 import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
@@ -84,20 +86,24 @@ export async function createLocalProject(
 }
 
 export async function getLocalProjectPathStatus(path: string): Promise<ProjectPathStatus> {
-  const directoryStatus = getDirectoryStatus(path);
-  if (directoryStatus.kind === 'inspect-failed') {
-    return {
-      isDirectory: false,
-      isGitRepo: false,
-      error: { type: 'inspect-failed', path, message: directoryStatus.message },
-    };
-  }
-  if (directoryStatus.kind !== 'directory') {
-    return { isDirectory: false, isGitRepo: false };
-  }
-
   const runtimeLease = await runtimeManager.acquire({ kind: 'local' });
   try {
+    const pathEntry = await statAbsolute(runtimeLease.value.files, path);
+    if (!pathEntry.success) {
+      const code = 'code' in pathEntry.error ? pathEntry.error.code : undefined;
+      if (isFileNotFoundCode(code)) {
+        return { isDirectory: false, isGitRepo: false };
+      }
+      return {
+        isDirectory: false,
+        isGitRepo: false,
+        error: { type: 'inspect-failed', path, message: pathEntry.error.message },
+      };
+    }
+    if (pathEntry.data.type !== 'directory') {
+      return { isDirectory: false, isGitRepo: false };
+    }
+
     const inspection = await runtimeLease.value.git.inspectPath(path);
     if (inspection.kind === 'inspect-failed') {
       return {

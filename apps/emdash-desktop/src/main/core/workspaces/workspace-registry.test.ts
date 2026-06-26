@@ -16,7 +16,8 @@ function makeWorkspace(id: string): {
     workspace: {
       id,
       path: `/tmp/${id}`,
-      fs: {} as Workspace['fs'],
+      configPath: `/tmp/${id}/.emdash.json`,
+      fileSystem: {} as Workspace['fileSystem'],
       fileTree: { dispose: fileTreeDispose } as unknown as Workspace['fileTree'],
       gitWorktree: { dispose: gitDispose } as unknown as Workspace['gitWorktree'],
       settings: {} as Workspace['settings'],
@@ -41,8 +42,8 @@ describe('WorkspaceRegistry', () => {
     const first = await registry.acquire('branch:main', 'test-project', factory);
     const second = await registry.acquire('branch:main', 'test-project', factory);
 
-    expect(first).toBe(workspace);
-    expect(second).toBe(workspace);
+    expect(first.workspace).toBe(workspace);
+    expect(second.workspace).toBe(workspace);
     expect(factory).toHaveBeenCalledTimes(1);
     expect(registry.get('branch:main')).toBe(workspace);
     expect(registry.refCount('branch:main')).toBe(2);
@@ -65,8 +66,8 @@ describe('WorkspaceRegistry', () => {
     expect(factory).toHaveBeenCalledTimes(1);
     resolveFactory?.({ workspace });
 
-    await expect(first).resolves.toBe(workspace);
-    await expect(second).resolves.toBe(workspace);
+    await expect(first.then((acquired) => acquired.workspace)).resolves.toBe(workspace);
+    await expect(second.then((acquired) => acquired.workspace)).resolves.toBe(workspace);
     expect(registry.refCount('branch:main')).toBe(2);
   });
 
@@ -146,9 +147,9 @@ describe('WorkspaceRegistry', () => {
     });
     const factory = vi.fn(async () => ({ workspace, onCreate }));
 
-    const acquired = registry.acquire('branch:main', 'test-project', factory).then((ws) => {
+    const acquired = registry.acquire('branch:main', 'test-project', factory).then((result) => {
       order.push('acquired');
-      return ws;
+      return result.workspace;
     });
 
     await acquired;

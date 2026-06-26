@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { Result } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLocalProject, getLocalProjectPathStatus } from './create-local-project';
 import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
@@ -20,27 +20,13 @@ const mocks = vi.hoisted(() => ({
   insertMock: vi.fn(),
   valuesMock: vi.fn(),
   returningMock: vi.fn(),
-  sshConnectMock: vi.fn(),
-  sshStatMock: vi.fn(),
+  fileSystemMock: vi.fn(),
+  statMock: vi.fn(),
 }));
 
 vi.mock('@main/core/runtime/runtime-manager', () => ({
   runtimeManager: {
     acquire: mocks.acquireRuntimeMock,
-  },
-}));
-
-vi.mock('@main/core/fs/impl/ssh-fs', () => ({
-  SshFileSystem: vi.fn(function MockSshFileSystem() {
-    return {
-      stat: mocks.sshStatMock,
-    };
-  }),
-}));
-
-vi.mock('@main/core/ssh/lifecycle/production-ssh-connection-manager', () => ({
-  sshConnectionManager: {
-    connect: mocks.sshConnectMock,
   },
 }));
 
@@ -63,6 +49,24 @@ function expectOk<T, E>(result: Result<T, E>): T {
   return result.data;
 }
 
+function makeFilesRuntime() {
+  return {
+    path: {
+      join: (...parts: string[]) => path.posix.join(...parts),
+      dirname: (value: string) => path.posix.dirname(value),
+      basename: (value: string) => path.posix.basename(value),
+      isAbsolute: (value: string) => path.posix.isAbsolute(value),
+      relative: (from: string, to: string) => path.posix.relative(from, to),
+      contains: () => true,
+    },
+    fileSystem: mocks.fileSystemMock.mockImplementation(() =>
+      ok({
+        stat: mocks.statMock,
+      })
+    ),
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 
@@ -72,6 +76,7 @@ beforeEach(() => {
   mocks.getProjectMock.mockReturnValue(undefined);
   mocks.acquireRuntimeMock.mockResolvedValue({
     value: {
+      files: makeFilesRuntime(),
       git: {
         ensureRepository: mocks.ensureRepositoryMock,
         inspectPath: mocks.inspectPathMock,
@@ -98,8 +103,7 @@ beforeEach(() => {
   });
   mocks.repoGetRefsMock.mockResolvedValue({ branches: [] });
   mocks.repoGetDefaultBranchMock.mockResolvedValue('main');
-  mocks.sshConnectMock.mockResolvedValue({ id: 'ssh-proxy' });
-  mocks.sshStatMock.mockResolvedValue({ path: '', type: 'dir' });
+  mocks.statMock.mockResolvedValue(ok({ path: 'worktree', type: 'directory' }));
 });
 
 describe('createLocalProject', () => {
@@ -384,6 +388,40 @@ describe('getLocalProjectPathStatus', () => {
     });
     expect(mocks.inspectPathMock).toHaveBeenCalledWith(projectPath);
   });
+
+  it('does not inspect git status for local paths that are not directories', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-project-'));
+    tempDirs.push(projectPath);
+    mocks.statMock.mockResolvedValueOnce(ok({ path: path.basename(projectPath), type: 'file' }));
+
+    const status = await getLocalProjectPathStatus(projectPath);
+
+    expect(status).toEqual({ isDirectory: false, isGitRepo: false });
+    expect(mocks.inspectPathMock).not.toHaveBeenCalled();
+  });
+
+  it('returns local stat failures as inspection failures', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-project-'));
+    tempDirs.push(projectPath);
+    mocks.statMock.mockResolvedValueOnce({
+      success: false,
+      error: {
+        type: 'fs-error',
+        path: projectPath,
+        message: 'Permission denied',
+        code: 'EACCES',
+      },
+    });
+
+    const status = await getLocalProjectPathStatus(projectPath);
+
+    expect(status).toEqual({
+      isDirectory: false,
+      isGitRepo: false,
+      error: { type: 'inspect-failed', path: projectPath, message: 'Permission denied' },
+    });
+    expect(mocks.inspectPathMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('createSshProject', () => {
@@ -415,11 +453,12 @@ describe('createSshProject', () => {
       })
     );
 
-    expect(mocks.sshStatMock).toHaveBeenCalledWith('');
     expect(mocks.acquireRuntimeMock).toHaveBeenCalledWith({
       kind: 'ssh',
       connectionId: 'connection-id',
     });
+    expect(mocks.fileSystemMock).toHaveBeenCalledWith();
+    expect(mocks.statMock).toHaveBeenCalledWith(projectPath);
     expect(mocks.ensureRepositoryMock).toHaveBeenCalledWith(projectPath, {
       initIfMissing: true,
     });
@@ -466,7 +505,7 @@ describe('createSshProject', () => {
   });
 
   it('rejects invalid remote directories', async () => {
-    mocks.sshStatMock.mockResolvedValueOnce(null);
+    mocks.statMock.mockResolvedValueOnce(ok({ path: 'worktree', type: 'file' }));
 
     await expect(
       createSshProject({
@@ -526,7 +565,7 @@ describe('getSshProjectPathStatus', () => {
   const projectPath = '/remote/worktree';
 
   it('returns invalid status when remote directory does not exist', async () => {
-    mocks.sshStatMock.mockResolvedValueOnce(null);
+    mocks.statMock.mockResolvedValueOnce(ok({ path: 'worktree', type: 'file' }));
 
     const status = await getSshProjectPathStatus(projectPath, 'connection-id');
 

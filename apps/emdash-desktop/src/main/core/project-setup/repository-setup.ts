@@ -1,11 +1,10 @@
 import path from 'node:path';
+import type { FileError, IFileSystem } from '@emdash/core/files';
 import type { CloneRepositoryError, GitHeadModel, IGitWorktree } from '@emdash/core/git';
-import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import type { FileSystemProvider } from '@main/core/fs/types';
+import { ensureAbsoluteDir, openFileSystem, statAbsolute } from '@main/core/runtime/files-helpers';
 import { runtimeManager } from '@main/core/runtime/runtime-manager';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 import type { MachineRef } from '@main/core/runtime/types';
-import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 
 export type GitRepositorySetupResult = { success: true } | { success: false; error: string };
 
@@ -30,14 +29,6 @@ function parentPathForMachine(targetPath: string, machine: MachineRef): string {
   return machine.kind === 'ssh' ? path.posix.dirname(targetPath) : path.dirname(targetPath);
 }
 
-async function createProjectFs(root: string, machine: MachineRef): Promise<FileSystemProvider> {
-  if (machine.kind === 'ssh') {
-    const proxy = await sshConnectionManager.connect(machine.connectionId);
-    return new SshFileSystem(proxy, root);
-  }
-  return new LocalFileSystem(root);
-}
-
 function cloneRepositoryErrorMessage(error: CloneRepositoryError): string {
   switch (error.type) {
     case 'target_exists':
@@ -47,6 +38,10 @@ function cloneRepositoryErrorMessage(error: CloneRepositoryError): string {
     case 'git_error':
       return error.message;
   }
+}
+
+function fileErrorMessage(error: FileError): string {
+  return error.message;
 }
 
 function initialReadmeContent(name: string, description: string | undefined): string {
@@ -75,11 +70,15 @@ export async function cloneProjectRepository(
   params: CloneProjectRepositoryParams
 ): Promise<GitRepositorySetupResult> {
   const machine = machineForConnection(params.connectionId);
-  const parentFs = await createProjectFs(parentPathForMachine(params.targetPath, machine), machine);
-  await parentFs.mkdir('.', { recursive: true });
-
   const runtimeLease = await runtimeManager.acquire(machine);
   try {
+    const madeParentDir = await ensureAbsoluteDir(
+      runtimeLease.value.files,
+      parentPathForMachine(params.targetPath, machine)
+    );
+    if (!madeParentDir.success) {
+      return { success: false, error: fileErrorMessage(madeParentDir.error) };
+    }
     const result = await runtimeLease.value.git.cloneRepository(
       params.repositoryUrl,
       params.targetPath
@@ -97,25 +96,23 @@ export async function initializeProjectRepository(
   params: InitializeProjectRepositoryParams
 ): Promise<GitRepositorySetupResult> {
   const machine = machineForConnection(params.connectionId);
-  const projectFs = await createProjectFs(params.targetPath, machine);
-
-  if (!(await projectFs.exists('.'))) {
-    return { success: false, error: 'Local path does not exist' };
-  }
-
-  const writeResult = await projectFs.write(
-    'README.md',
-    initialReadmeContent(params.name, params.description)
-  );
-  if (!writeResult.success) {
-    return { success: false, error: writeResult.error || 'Failed to write README.md' };
-  }
-
   const runtimeLease = await runtimeManager.acquire(machine);
   try {
+    const projectFs = await ensureProjectDirectory(runtimeLease.value.files, params.targetPath);
+    if (!projectFs.success) return { success: false, error: projectFs.error };
+
+    const readmePath = runtimeLease.value.files.path.join(params.targetPath, 'README.md');
+    const writeResult = await projectFs.data.writeText(
+      readmePath,
+      initialReadmeContent(params.name, params.description)
+    );
+    if (!writeResult.success) {
+      return { success: false, error: fileErrorMessage(writeResult.error) };
+    }
+
     const worktreeLease = await runtimeLease.value.git.openWorktree(params.targetPath);
     try {
-      const stageResult = await worktreeLease.value.stage(['README.md']);
+      const stageResult = await worktreeLease.value.stage([readmePath]);
       if (!stageResult.success) return { success: false, error: stageResult.error.message };
       const commitResult = await worktreeLease.value.commit('Initial commit');
       if (!commitResult.success) return { success: false, error: commitResult.error.message };
@@ -126,4 +123,18 @@ export async function initializeProjectRepository(
   } finally {
     await runtimeLease.release();
   }
+}
+
+async function ensureProjectDirectory(
+  files: IFilesRuntime,
+  targetPath: string
+): Promise<{ success: true; data: IFileSystem } | { success: false; error: string }> {
+  const stat = await statAbsolute(files, targetPath);
+  if (!stat.success) return { success: false, error: 'Local path does not exist' };
+  if (stat.data.type !== 'directory') {
+    return { success: false, error: `Path is not a directory: ${targetPath}` };
+  }
+  const opened = openFileSystem(files);
+  if (!opened.success) return { success: false, error: fileErrorMessage(opened.error) };
+  return { success: true, data: opened.data };
 }

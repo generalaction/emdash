@@ -1,13 +1,22 @@
-import { promises as fsPromises } from 'node:fs';
+import type { IFileSystem } from '@emdash/core/files';
 import type { GitBranchRef } from '@emdash/core/git';
 import { err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { FileSystemProvider } from '@main/core/fs/types';
+import {
+  ensureAbsoluteDir,
+  openFileSystem,
+  realPathAbsolute,
+} from '@main/core/runtime/files-helpers';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 import { log } from '@main/lib/logger';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
+import {
+  isSafePreservePattern,
+  preservedDestinationPath,
+  preservedRepoRelativePath,
+} from '../settings/preserve-pattern-safety';
 import type { ProjectSettingsProvider } from '../settings/provider';
-import type { WorktreeHost } from './hosts/worktree-host';
 
 export type ServeWorktreeError =
   | { type: 'worktree-setup-failed'; cause: unknown }
@@ -18,13 +27,13 @@ export class WorktreeService {
   private readonly resolveWorktreePoolPath: () => Promise<string>;
   private readonly repoPath: string;
   private readonly ctx: IExecutionContext;
-  private readonly host: WorktreeHost;
+  private readonly files: IFilesRuntime;
   private readonly projectSettings: ProjectSettingsProvider;
 
   constructor(args: {
     repoPath: string;
     ctx: IExecutionContext;
-    host: WorktreeHost;
+    files: IFilesRuntime;
     projectSettings: ProjectSettingsProvider;
     resolveWorktreePoolPath: () => Promise<string>;
   }) {
@@ -32,7 +41,7 @@ export class WorktreeService {
     this.repoPath = args.repoPath;
     this.projectSettings = args.projectSettings;
     this.ctx = args.ctx;
-    this.host = args.host;
+    this.files = args.files;
 
     this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
   }
@@ -45,20 +54,8 @@ export class WorktreeService {
 
   private async isValidWorktree(worktreePath: string): Promise<boolean> {
     // A linked worktree contains a .git FILE pointing to the main repo's worktrees
-    // directory. For local execution we bypass host path-restriction checks and use
-    // fs directly so external worktrees (outside allowedRoots) are still detected.
-    // For SSH we rely on the host (SshWorktreeHost has no root restrictions).
-    let hasGitFile = false;
-    if (this.ctx.supportsLocalSpawn) {
-      try {
-        await fsPromises.access(this.host.pathApi.join(worktreePath, '.git'));
-        hasGitFile = true;
-      } catch {
-        return false;
-      }
-    } else {
-      hasGitFile = await this.host.existsAbsolute(this.host.pathApi.join(worktreePath, '.git'));
-    }
+    // directory.
+    const hasGitFile = await this.existsAbsolute(this.files.path.join(worktreePath, '.git'));
     if (!hasGitFile) return false;
 
     try {
@@ -79,21 +76,25 @@ export class WorktreeService {
     return this.resolveWorktreePoolPath();
   }
 
-  private async ensureWorktreePoolDirExists(): Promise<void> {
-    await this.host.mkdirAbsolute(await this.resolveWorktreePoolPath(), { recursive: true });
+  private async ensureWorktreePoolDirExists(): Promise<Result<void, ServeWorktreeError>> {
+    const result = await ensureAbsoluteDir(this.files, await this.resolveWorktreePoolPath());
+    return result.success ? ok() : err({ type: 'worktree-setup-failed', cause: result.error });
   }
 
   private async removePathForReuse(targetPath: string): Promise<void> {
-    const result = await this.host.removeAbsolute(targetPath, { recursive: true });
-    if (!result.success) {
+    const poolPath = await this.resolveWorktreePoolPath();
+    if (!this.files.path.contains(poolPath, targetPath)) {
+      throw new Error(`Refusing to remove worktree path outside pool: "${targetPath}"`);
+    }
+
+    const removed = await this.removeAbsolute(targetPath, { recursive: true });
+    if (!removed.success) {
       throw new Error(
-        result.error
-          ? `Failed to remove stale worktree directory "${targetPath}": ${result.error}`
-          : `Failed to remove stale worktree directory "${targetPath}"`
+        `Failed to remove stale worktree directory "${targetPath}": ${removed.error.message}`
       );
     }
 
-    if (await this.host.existsAbsolute(targetPath)) {
+    if (await this.existsAbsolute(targetPath)) {
       throw new Error(
         `Failed to remove stale worktree directory "${targetPath}": path still exists`
       );
@@ -109,15 +110,29 @@ export class WorktreeService {
   }
 
   async existsAtAbsolutePath(absPath: string): Promise<boolean> {
-    if (this.ctx.supportsLocalSpawn) {
-      try {
-        await fsPromises.access(absPath);
-        return true;
-      } catch {
-        return false;
-      }
+    return this.existsAbsolute(absPath);
+  }
+
+  private async existsAbsolute(absPath: string): Promise<boolean> {
+    if (!this.files.path.isAbsolute(absPath)) return false;
+    const opened = this.files.fileSystem();
+    if (!opened.success) return false;
+    const exists = await opened.data.exists(absPath);
+    return exists.success ? exists.data : false;
+  }
+
+  private async removeAbsolute(
+    absPath: string,
+    options?: { recursive?: boolean }
+  ): Promise<Result<void, { message: string }>> {
+    if (!this.files.path.isAbsolute(absPath)) {
+      return err({ message: `Expected absolute path: ${absPath}` });
     }
-    return this.host.existsAbsolute(absPath);
+    const fs = openFileSystem(this.files);
+    if (!fs.success) return err({ message: fs.error.message });
+    const removed = await fs.data.remove(absPath, options);
+    if (!removed.success) return err({ message: removed.error.message });
+    return ok<void>();
   }
 
   async findBranchAnywhere(branchName: string): Promise<string | undefined> {
@@ -196,8 +211,8 @@ export class WorktreeService {
 
   async getWorktree(branchName: string): Promise<string | undefined> {
     const worktreePoolPath = await this.resolveWorktreePoolPath();
-    const worktreePath = this.host.pathApi.join(worktreePoolPath, branchName);
-    if (await this.host.existsAbsolute(worktreePath)) {
+    const worktreePath = this.files.path.join(worktreePoolPath, branchName);
+    if (await this.existsAbsolute(worktreePath)) {
       if (await this.isValidWorktree(worktreePath)) return worktreePath;
       try {
         await this.removePathForReuse(worktreePath);
@@ -207,14 +222,16 @@ export class WorktreeService {
     }
 
     try {
-      const realPoolPath = await this.host.realPathAbsolute(worktreePoolPath);
+      const realPoolPath = await realPathAbsolute(this.files, worktreePoolPath);
+      if (!realPoolPath.success) return undefined;
       const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
       const branchLine = `branch refs/heads/${branchName}`;
       for (const block of stdout.split('\n\n')) {
         if (block.split('\n').some((line) => line === branchLine)) {
           const match = /^worktree (.+)$/m.exec(block);
           const candidatePath = match?.[1];
-          if (!candidatePath?.startsWith(realPoolPath)) continue;
+          if (!candidatePath || !this.files.path.contains(realPoolPath.data, candidatePath))
+            continue;
           if (await this.isValidWorktree(candidatePath)) return candidatePath;
           await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
         }
@@ -228,7 +245,8 @@ export class WorktreeService {
     branchName: string,
     options: { copyPreservedFiles?: boolean } = {}
   ): Promise<Result<string, ServeWorktreeError>> {
-    await this.ensureWorktreePoolDirExists();
+    const poolDir = await this.ensureWorktreePoolDirExists();
+    if (!poolDir.success) return poolDir;
     return this.enqueueGitOp(() =>
       this.doCheckoutBranchWorktree(sourceBranch, branchName, options)
     );
@@ -246,8 +264,8 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = this.host.pathApi.join(await this.resolveWorktreePoolPath(), branchName);
-    if (await this.host.existsAbsolute(targetPath)) {
+    const targetPath = this.files.path.join(await this.resolveWorktreePoolPath(), branchName);
+    if (await this.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) {
         await this.ensureBranchBaseConfig(branchName, baseConfigValue);
         return ok(targetPath);
@@ -276,7 +294,8 @@ export class WorktreeService {
       }
       await this.ensureBranchBaseConfig(branchName, baseConfigValue);
 
-      await this.host.mkdirAbsolute(this.host.pathApi.dirname(targetPath), { recursive: true });
+      const parentDir = await ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath));
+      if (!parentDir.success) return err({ type: 'worktree-setup-failed', cause: parentDir.error });
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
     } catch (cause) {
@@ -299,7 +318,8 @@ export class WorktreeService {
     branchName: string,
     options: { copyPreservedFiles?: boolean } = {}
   ): Promise<Result<string, ServeWorktreeError>> {
-    await this.ensureWorktreePoolDirExists();
+    const poolDir = await this.ensureWorktreePoolDirExists();
+    if (!poolDir.success) return poolDir;
     return this.enqueueGitOp(() => this.doCheckoutExistingBranch(branchName, options));
   }
 
@@ -327,10 +347,10 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = this.host.pathApi.join(await this.resolveWorktreePoolPath(), branchName);
+    const targetPath = this.files.path.join(await this.resolveWorktreePoolPath(), branchName);
     const remoteCandidates = await this.getRemoteCandidates();
 
-    if (await this.host.existsAbsolute(targetPath)) {
+    if (await this.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
       try {
         await this.removePathForReuse(targetPath);
@@ -341,7 +361,8 @@ export class WorktreeService {
     }
 
     try {
-      await this.host.mkdirAbsolute(this.host.pathApi.dirname(targetPath), { recursive: true });
+      const parentDir = await ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath));
+      if (!parentDir.success) return err({ type: 'worktree-setup-failed', cause: parentDir.error });
       for (const remoteName of remoteCandidates) {
         await this.ctx.exec('git', ['fetch', remoteName]).catch(() => {});
       }
@@ -403,24 +424,16 @@ export class WorktreeService {
     });
   }
 
-  private taskConfigFs(targetPath: string): Pick<FileSystemProvider, 'exists' | 'read'> {
-    return {
-      exists: (filePath) => this.host.existsAbsolute(this.host.pathApi.join(targetPath, filePath)),
-      read: async (filePath) => {
-        const content = await this.host.readFileAbsolute(
-          this.host.pathApi.join(targetPath, filePath)
-        );
-        return {
-          content,
-          truncated: false,
-          totalSize: Buffer.byteLength(content),
-        };
-      },
-    };
+  private taskConfigFs(): IFileSystem | null {
+    const opened = this.files.fileSystem();
+    if (opened.success) return opened.data;
+    log.warn('WorktreeService: failed to open task config filesystem', opened.error);
+    return null;
   }
 
-  private async isTrackedSourcePath(relPath: string): Promise<boolean> {
+  private async isTrackedSourcePath(absPath: string): Promise<boolean> {
     try {
+      const relPath = this.files.path.relative(this.repoPath, absPath);
       await this.ctx.exec('git', ['ls-files', '--error-unmatch', '--', relPath]);
       return true;
     } catch {
@@ -429,24 +442,48 @@ export class WorktreeService {
   }
 
   private async copyPreservedFiles(targetPath: string): Promise<void> {
+    const taskFs = this.taskConfigFs();
+    if (!taskFs) return;
+
     const settings = await getEffectiveTaskSettings({
       projectSettings: this.projectSettings,
-      taskFs: this.taskConfigFs(targetPath) as FileSystemProvider,
+      taskFs,
+      taskConfigPath: this.files.path.join(targetPath, '.emdash.json'),
     });
     const patterns = settings.preservePatterns ?? [];
+    const repoFs = this.files.fileSystem();
+    if (!repoFs.success) {
+      log.warn('WorktreeService: failed to open repo filesystem for preserved files', repoFs.error);
+      return;
+    }
     for (const pattern of patterns) {
-      const matches = await this.host.globAbsolute(pattern, {
-        cwd: this.repoPath,
-        dot: true,
-      });
-      for (const relPath of matches) {
-        if (relPath === '.emdash.json' || (await this.isTrackedSourcePath(relPath))) continue;
-        const src = this.host.pathApi.join(this.repoPath, relPath);
-        const stat = await this.host.statAbsolute(src).catch(() => null);
-        if (!stat || stat.type !== 'file') continue;
-        const dest = this.host.pathApi.join(targetPath, relPath);
-        await this.host.mkdirAbsolute(this.host.pathApi.dirname(dest), { recursive: true });
-        await this.host.copyFileAbsolute(src, dest);
+      if (!isSafePreservePattern(this.files.path, pattern)) {
+        log.warn('WorktreeService: skipping unsafe preserve pattern', { pattern });
+        continue;
+      }
+      const matches = repoFs.data.glob([pattern], { cwd: this.repoPath, dot: true });
+      if (!matches.success) {
+        log.warn('WorktreeService: failed to match preserve pattern', {
+          pattern,
+          error: matches.error,
+        });
+        continue;
+      }
+      for await (const absPath of matches.data) {
+        const relPath = preservedRepoRelativePath(this.files.path, this.repoPath, absPath);
+        if (!relPath || (await this.isTrackedSourcePath(absPath))) continue;
+        const stat = await repoFs.data.stat(absPath);
+        if (!stat.success || stat.data.type !== 'file') continue;
+        const destPath = preservedDestinationPath(this.files.path, targetPath, relPath);
+        if (!destPath) continue;
+        const copied = await repoFs.data.copyFile(absPath, destPath);
+        if (!copied.success) {
+          log.warn('WorktreeService: failed to copy preserved file', {
+            sourcePath: absPath,
+            destPath,
+            error: copied.error,
+          });
+        }
       }
     }
   }
