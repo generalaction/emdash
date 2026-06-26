@@ -31,7 +31,6 @@ export const BrowserPane = observer(function BrowserPane({
   const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
-  const pendingUrlRef = useRef<string | null>(null);
   const [adapter, setAdapter] = useState<BrowserWebviewAdapter | null>(null);
   const [webviewElement, setWebviewElement] = useState<BrowserWebviewElement | null>(null);
   const [webviewMount, setWebviewMount] = useState<{
@@ -117,7 +116,6 @@ export const BrowserPane = observer(function BrowserPane({
   const loadUrl = useCallback(
     (url: string) => {
       if (!sessionBrowserId) return;
-      pendingUrlRef.current = url;
       browserSessionStore.updateSession(sessionBrowserId, {
         currentUrl: url,
         faviconUrl: null,
@@ -125,7 +123,6 @@ export const BrowserPane = observer(function BrowserPane({
         loadError: null,
       });
       if (adapter) {
-        pendingUrlRef.current = null;
         void adapter.loadUrl(url);
         return;
       }
@@ -219,13 +216,6 @@ export const BrowserPane = observer(function BrowserPane({
       },
     });
   }, [sessionBrowserId, webviewElement]);
-
-  useEffect(() => {
-    if (!adapter || !pendingUrlRef.current) return;
-    const pendingUrl = pendingUrlRef.current;
-    pendingUrlRef.current = null;
-    void adapter.loadUrl(pendingUrl);
-  }, [adapter]);
 
   useEffect(() => {
     if (!sessionBrowserId) return;
