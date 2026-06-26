@@ -4,8 +4,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, describe, expect, it } from 'vitest';
 import type { GitWorktreeUpdate } from '@emdash/core/git';
+import { afterEach, describe, expect, it } from 'vitest';
 import { FALLBACK_REMOTE_SHELL_PROFILE } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { invalidateLegacySshGitWorktreeStatus, LegacySshGitRuntime } from './ssh-git';
 
@@ -95,9 +95,7 @@ describe('LegacySshGitRuntime', () => {
           (update) =>
             update.kind === 'status' &&
             update.model.kind === 'ok' &&
-            update.model.unstaged.some(
-              (change) => change.path === path.posix.join(repo, 'test.ts')
-            )
+            update.model.unstaged.some((change) => change.path === path.posix.join(repo, 'test.ts'))
         )
           ? true
           : undefined
@@ -132,9 +130,7 @@ describe('LegacySshGitRuntime', () => {
           (update) =>
             update.kind === 'status' &&
             update.model.kind === 'ok' &&
-            update.model.unstaged.some(
-              (change) => change.path === path.posix.join(repo, 'test.ts')
-            )
+            update.model.unstaged.some((change) => change.path === path.posix.join(repo, 'test.ts'))
         )
           ? true
           : undefined
