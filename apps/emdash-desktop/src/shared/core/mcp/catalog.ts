@@ -246,6 +246,16 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     docsUrl: 'https://docs.parallel.ai/integrations/mcp/search-mcp',
     credentialKeys: [],
   },
+  openrouter: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.openrouter.ai/mcp',
+    },
+    name: 'OpenRouter',
+    description: 'Search live models, rankings, benchmarks, credits, and OpenRouter docs',
+    docsUrl: 'https://openrouter.ai/docs/mcp-server',
+    credentialKeys: [],
+  },
   resend: {
     config: {
       command: 'npx',
