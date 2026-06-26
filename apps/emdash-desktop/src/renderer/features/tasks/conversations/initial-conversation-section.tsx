@@ -6,7 +6,6 @@ import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-sel
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { Field } from '@renderer/lib/ui/field';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import {
   Select,
   SelectContent,
@@ -232,46 +231,53 @@ export function InitialConversationField({
           </div>
         </div>
 
-        {/* Issue context pill */}
+        {/* Issue context pill — click to insert as editable text in the prompt */}
         {state.issueContext && linkedIssue && (
           <div className="px-2 py-1">
-            <Popover>
-              <PopoverTrigger
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                state.setPrompt((current) =>
+                  appendInitialConversationText(current, state.issueContext ?? '')
+                );
+                state.setIssueContext(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  state.setPrompt((current) =>
+                    appendInitialConversationText(current, state.issueContext ?? '')
+                  );
+                  state.setIssueContext(null);
+                }
+              }}
+              className={cn(
+                'group relative flex items-center gap-1.5 rounded bg-background-2 py-0.5 pr-6 pl-2 text-xs text-foreground-muted',
+                'hover:bg-background-3 cursor-pointer'
+              )}
+            >
+              <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
+              <span className="font-mono">{linkedIssue.identifier}</span>
+              {linkedIssue.title && (
+                <span className="max-w-48 truncate text-foreground-passive">
+                  {linkedIssue.title}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  state.setIssueContext(null);
+                }}
                 className={cn(
-                  'group relative flex items-center gap-1.5 rounded bg-background-2 py-0.5 pr-6 pl-2 text-xs text-foreground-muted',
-                  'hover:bg-background-3 cursor-pointer'
+                  'absolute right-1 flex items-center justify-center rounded p-0.5',
+                  'text-foreground-passive opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100'
                 )}
               >
-                <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
-                <span className="font-mono">{linkedIssue.identifier}</span>
-                {linkedIssue.title && (
-                  <span className="max-w-48 truncate text-foreground-passive">
-                    {linkedIssue.title}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    state.setIssueContext(null);
-                  }}
-                  className={cn(
-                    'absolute right-1 flex items-center justify-center rounded p-0.5',
-                    'text-foreground-passive opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100'
-                  )}
-                >
-                  <X className="size-3" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent side="bottom" align="start" sideOffset={6} className="w-80 gap-0 p-2">
-                <Textarea
-                  value={state.issueContext ?? ''}
-                  onChange={(e) => state.setIssueContext(e.target.value || null)}
-                  placeholder="Edit the issue context sent to the agent..."
-                  className="max-h-64 min-h-32 resize-none font-mono text-xs"
-                />
-              </PopoverContent>
-            </Popover>
+                <X className="size-3" />
+              </button>
+            </div>
           </div>
         )}
 
