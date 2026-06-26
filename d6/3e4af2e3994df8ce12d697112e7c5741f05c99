@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_35e303dc60a2b9::t_84d468fcd2b3a8 266-272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d63e4af2e3994df8ce12d697112e7c5741f05c99",
+  "prompts": {},
+  "sessions": {
+    "s_35e303dc60a2b9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "76559f16-4a8f-4da5-b958-106cdb1a806a",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
