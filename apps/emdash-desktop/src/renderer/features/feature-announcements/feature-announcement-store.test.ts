@@ -68,18 +68,19 @@ describe('FeatureAnnouncementStore', () => {
   it('persists dismissed announcement ids', async () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
-    await store.markPresented();
+    await store.dismiss();
 
     expect(settings).toEqual({ initialized: true, dismissedIds: ['test-announcement'] });
   });
 
-  it('does not persist preview presentation', async () => {
+  it('does not persist preview dismissal', async () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
     store.isPreview = true;
-    await store.markPresented();
+    await store.dismiss();
 
     expect(settings).toEqual({ initialized: false, dismissedIds: [] });
+    expect(store.isPreview).toBe(false);
   });
 
   it('initializes fresh-install dismissal state when manifest fetch fails', async () => {
