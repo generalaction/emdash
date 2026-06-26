@@ -5,13 +5,13 @@ import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { events } from '@main/lib/events';
@@ -45,6 +45,7 @@ export class SshConversationProvider implements ConversationProvider {
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
+  private readonly filesRuntime: IFilesRuntime;
 
   constructor({
     projectId,
@@ -55,6 +56,7 @@ export class SshConversationProvider implements ConversationProvider {
     shellSetup,
     ctx,
     proxy,
+    filesRuntime,
   }: {
     projectId: string;
     taskPath: string;
@@ -64,6 +66,7 @@ export class SshConversationProvider implements ConversationProvider {
     shellSetup?: string;
     ctx: IExecutionContext;
     proxy: SshClientProxy;
+    filesRuntime: IFilesRuntime;
   }) {
     this.projectId = projectId;
     this.taskPath = taskPath;
@@ -73,6 +76,7 @@ export class SshConversationProvider implements ConversationProvider {
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.proxy = proxy;
+    this.filesRuntime = filesRuntime;
   }
 
   async startSession(
@@ -114,9 +118,9 @@ export class SshConversationProvider implements ConversationProvider {
     try {
       await workspaceTrustService.maybeAutoTrustSsh({
         providerId: conversation.providerId,
-        cwd: this.taskPath,
+        workspacePath: this.taskPath,
         ctx: this.ctx,
-        remoteFs: new SshFileSystem(this.proxy, '/'),
+        files: this.filesRuntime,
         force: conversation.autoApprove === true,
       });
 
@@ -188,7 +192,12 @@ export class SshConversationProvider implements ConversationProvider {
           sessionId,
           error: result.error.message,
         });
-        throw new Error(result.error.message);
+        this.supervisor.failSpawn(sessionId, spawnToken);
+        events.emit(agentSessionExitedChannel, {
+          conversationId: conversation.id,
+          taskId: conversation.taskId,
+        });
+        return;
       }
 
       const pty = result.data;
