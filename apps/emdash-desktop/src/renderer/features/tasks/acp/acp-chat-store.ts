@@ -95,6 +95,7 @@ export class AcpChatStore {
       model: computed,
       permissionQueue: computed,
       lastStopReason: computed,
+      usage: computed,
       applySnapshot: action,
       submitPrompt: action,
       stop: action,
@@ -126,6 +127,11 @@ export class AcpChatStore {
   /** The stop reason from the last completed turn. Used for notice bands. */
   get lastStopReason(): string | null {
     return this.snapshot?.lastStopReason ?? null;
+  }
+
+  /** Latest context-window and cost figures; null until the first usage_update arrives. */
+  get usage(): SessionSnapshot['usage'] {
+    return this.snapshot?.usage ?? null;
   }
 
   /** Derived UI affordances — stable reference when snapshot inputs are unchanged. */

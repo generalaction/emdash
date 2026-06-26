@@ -1,10 +1,6 @@
 import { dirname } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 
-// ---------------------------------------------------------------------------
-// AcpTerminalProcess: uniform view of a running terminal command
-// ---------------------------------------------------------------------------
-
 /** Exit status of a terminal command — mirrors the ACP WaitForTerminalExitResponse shape. */
 export interface AcpTerminalExit {
   exitCode: number | null;
@@ -31,10 +27,6 @@ export interface AcpTerminalProcess {
   kill(signal?: NodeJS.Signals): void;
 }
 
-// ---------------------------------------------------------------------------
-// AcpProcessHandle: uniform view of a running agent process
-// ---------------------------------------------------------------------------
-
 /**
  * Uniform view of a running agent process, regardless of whether it is a local
  * child process or a remote SSH exec channel.
@@ -55,10 +47,6 @@ export interface AcpProcessHandle {
   /** Send a termination signal to the process. */
   kill(signal?: NodeJS.Signals): void;
 }
-
-// ---------------------------------------------------------------------------
-// AcpFs: minimal fs surface needed by the ACP client handler
-// ---------------------------------------------------------------------------
 
 export interface AcpFs {
   readFile(path: string, encoding: 'utf8'): Promise<string>;
@@ -83,9 +71,6 @@ export async function writeTextFile(fs: AcpFs, path: string, content: string): P
   await fs.writeFile(path, content, 'utf8');
 }
 
-// ---------------------------------------------------------------------------
-// AcpProcessHost: per-machine spawn + fs abstraction
-// ---------------------------------------------------------------------------
 
 /**
  * Represents a specific machine's ACP process host: can resolve the agent

@@ -4,7 +4,6 @@ import {
   type AcpPromptImage,
   type AcpRuntimeError,
   type AcpRuntimeListener,
-  type AcpRuntimeLog,
   type ChatHistory,
   type IAcpSessionRuntime,
   type ResolveAcpProvider,
@@ -13,11 +12,11 @@ import {
 } from '@emdash/core/acp';
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import type { getPlugin } from '@main/core/agents/plugin-registry';
 import { machineKey, type MachineRef } from '@main/core/runtime/types';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { setSessionId } from '../conversations/set-session-id';
-import type { updateConversationModel } from '../conversations/updateConversationModel';
 
 export interface AcpSessionManagerDeps {
   /** Resolves the getPlugin result for a given provider id. */
@@ -28,9 +27,7 @@ export interface AcpSessionManagerDeps {
   listener: AcpRuntimeListener;
   /** Persistence port for agent-assigned session ids. */
   setSessionId: typeof setSessionId;
-  /** Persistence port for model selections. */
-  updateConversationModel: typeof updateConversationModel;
-  log: AcpRuntimeLog;
+  log: Logger;
 }
 
 /**
@@ -144,6 +141,7 @@ export class AcpSessionManager {
         configOptions: [],
         availableCommands: [],
         lastStopReason: null,
+        usage: null,
       };
     }
     return rt.getSessionState(conversationId);
@@ -180,10 +178,8 @@ export class AcpSessionManager {
       host,
       persistSessionId: (conversationId, sessionId) =>
         this.deps.setSessionId(conversationId, sessionId),
-      persistModel: (conversationId, model) =>
-        this.deps.updateConversationModel(conversationId, model),
       listener: this.deps.listener,
-      log: this.deps.log,
+      logger: this.deps.log,
     });
 
     this.runtimes.set(key, runtime);

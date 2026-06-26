@@ -1,4 +1,5 @@
 import type { AcpRuntimeListener } from '@emdash/core/acp';
+import { noopLogger } from '@emdash/shared/logger';
 /**
  * Tests for the thin @main AcpSessionManager router.
  *
@@ -20,8 +21,6 @@ import { FakeAcpProcessHost, makeConversation } from './acp-test-support';
 
 function makeManagerDeps(overrides: Partial<AcpSessionManagerDeps> = {}): AcpSessionManagerDeps {
   const fakeHost = new FakeAcpProcessHost();
-  const noop = () => {};
-  const noopLog = { debug: noop, info: noop, warn: noop, error: noop };
 
   const listener: AcpRuntimeListener = {
     onSnapshot: vi.fn(),
@@ -60,8 +59,7 @@ function makeManagerDeps(overrides: Partial<AcpSessionManagerDeps> = {}): AcpSes
     acquireProcessHost: vi.fn().mockResolvedValue(fakeHost),
     listener,
     setSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
-    updateConversationModel: vi.fn().mockResolvedValue(undefined),
-    log: noopLog,
+    log: noopLogger,
     ...overrides,
   };
 }

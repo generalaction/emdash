@@ -1,9 +1,5 @@
 import type { AcpTerminalExit } from './transport';
 
-// ---------------------------------------------------------------------------
-// TerminalSnapshot: point-in-time view of a managed terminal
-// ---------------------------------------------------------------------------
-
 /**
  * Serializable snapshot of a managed terminal's state.
  * Returned by IAcpSessionRuntime.getTerminals() so that a renderer reload

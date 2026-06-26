@@ -8,14 +8,10 @@
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { Client } from '@agentclientprotocol/sdk';
+import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
-import type {
-  AcpRuntimeListener,
-  AcpRuntimeLog,
-  AcpSessionRuntimeDeps,
-  AcpStartInput,
-} from './runtime';
+import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
 import type {
   AcpProcessHandle,
   AcpProcessHost,
@@ -23,11 +19,7 @@ import type {
   AcpTerminalExit,
   AcpTerminalProcess,
 } from './transport';
-import type { AcpTurn, SessionSnapshot } from './turns';
-
-// ---------------------------------------------------------------------------
-// Recording listener
-// ---------------------------------------------------------------------------
+import type { AcpTurn, SessionSnapshot } from './state';
 
 /**
  * Creates a recording AcpRuntimeListener.
@@ -95,10 +87,6 @@ export function createRecordingListener() {
     },
   };
 }
-
-// ---------------------------------------------------------------------------
-// FakeAcpAgent
-// ---------------------------------------------------------------------------
 
 /**
  * An injectable fake that implements AcpAgentApi.
@@ -182,10 +170,6 @@ export class FakeAcpTerminalProcess extends EventEmitter implements AcpTerminalP
   }
 }
 
-// ---------------------------------------------------------------------------
-// FakeAcpProcessHandle
-// ---------------------------------------------------------------------------
-
 export class FakeAcpProcessHandle extends EventEmitter implements AcpProcessHandle {
   readonly stdin = new PassThrough();
   readonly stdout = new PassThrough();
@@ -213,10 +197,6 @@ export class FakeAcpProcessHandle extends EventEmitter implements AcpProcessHand
 
 // Alias for backward compat.
 export { FakeAcpProcessHandle as FakeChildProcess };
-
-// ---------------------------------------------------------------------------
-// FakeAcpProcessHost
-// ---------------------------------------------------------------------------
 
 export const fakeAcpFs: AcpFs = {
   readFile: vi.fn().mockResolvedValue(''),
@@ -290,17 +270,10 @@ export class FakeAcpProcessHost implements AcpProcessHost {
   }
 }
 
-// ---------------------------------------------------------------------------
-// makeAcpHarness
-// ---------------------------------------------------------------------------
-
 export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}) {
   const recording = createRecordingListener();
   const agent = new FakeAcpAgent();
   const fakeHost = new FakeAcpProcessHost();
-
-  const noop = () => {};
-  const noopLog: AcpRuntimeLog = { debug: noop, info: noop, warn: noop, error: noop };
 
   const deps: AcpSessionRuntimeDeps = {
     resolveAcp: () => ({
@@ -311,9 +284,8 @@ export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}
     }),
     host: fakeHost,
     persistSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
-    persistModel: vi.fn().mockResolvedValue(undefined),
     listener: recording.listener,
-    log: noopLog,
+    logger: noopLogger,
     ...depOverrides,
   };
 
@@ -341,10 +313,6 @@ export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}
     },
   };
 }
-
-// ---------------------------------------------------------------------------
-// AcpStartInput factory
-// ---------------------------------------------------------------------------
 
 export function makeStartInput(
   overrides: Partial<AcpStartInput> & { conversationId?: string } = {}

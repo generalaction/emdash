@@ -2,7 +2,7 @@ export { createAcpAgentConnection } from './acp-agent-connection';
 export type { AcpAgentConnection } from './acp-agent-connection';
 export { AcpSessionRuntime } from './acp-session-runtime';
 export { AgentTerminalManager } from './agent-terminal-manager';
-export type { AgentTerminalListener } from './agent-terminal-manager';
+export type { AgentTerminalHooks as AgentTerminalListener } from './agent-terminal-manager';
 export type { AcpRuntimeError } from './errors';
 export type { AcpPermissionOption, AcpPermissionRequest } from './permissions';
 export type {
@@ -12,10 +12,11 @@ export type {
   SessionLifecycle,
   SessionSnapshot,
   SessionState,
+  SessionUsage,
   TurnSource,
   TurnStatus,
-} from './turns';
-export { toSessionSnapshot } from './turns';
+} from './state';
+export { toSessionSnapshot } from './state';
 export type {
   AcpFs,
   AcpProcessHandle,
@@ -27,7 +28,6 @@ export { readTextFile, writeTextFile } from './transport';
 export type { TerminalSnapshot } from './terminals';
 export type {
   AcpRuntimeListener,
-  AcpRuntimeLog,
   AcpSessionRuntimeDeps,
   AcpStartInput,
   IAcpSessionRuntime,

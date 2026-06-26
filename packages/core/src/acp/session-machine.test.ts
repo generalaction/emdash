@@ -9,11 +9,8 @@ import {
   initialMachineState,
   activeTurnFromPhase,
   phaseToLifecycle,
+  SessionMachine,
 } from './session-machine';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 const CONV_ID = 'conv-test';
 
@@ -56,10 +53,6 @@ const permRequest: AcpPermissionRequest = {
   options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }],
 };
 
-// ---------------------------------------------------------------------------
-// initialMachineState
-// ---------------------------------------------------------------------------
-
 describe('initialMachineState', () => {
   it('starts in "starting" phase', () => {
     const s = initialMachineState(CONV_ID);
@@ -68,10 +61,6 @@ describe('initialMachineState', () => {
     expect(s.pendingPermissions).toHaveLength(0);
   });
 });
-
-// ---------------------------------------------------------------------------
-// decide — Prompt
-// ---------------------------------------------------------------------------
 
 describe('decide Prompt', () => {
   it('accepted when ready', () => {
@@ -106,10 +95,6 @@ describe('decide Prompt', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// decide — Cancel
-// ---------------------------------------------------------------------------
-
 describe('decide Cancel', () => {
   it('accepted (produces CancellationRequested) when working', () => {
     const s = makeWorking();
@@ -137,10 +122,6 @@ describe('decide Cancel', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// decide — ResolvePermission
-// ---------------------------------------------------------------------------
-
 describe('decide ResolvePermission', () => {
   it('accepted when requestId is in queue', () => {
     let s = makeWorking();
@@ -157,10 +138,6 @@ describe('decide ResolvePermission', () => {
     expect(result.error.type).toBe('invalid_state');
   });
 });
-
-// ---------------------------------------------------------------------------
-// decide — SetMode
-// ---------------------------------------------------------------------------
 
 describe('decide SetMode', () => {
   it('rejected when modes is null', () => {
@@ -199,10 +176,6 @@ describe('decide SetMode', () => {
     expect(isOk(result)).toBe(true);
   });
 });
-
-// ---------------------------------------------------------------------------
-// evolve — lifecycle transitions
-// ---------------------------------------------------------------------------
 
 describe('evolve — startup', () => {
   it('starting → replaying via ReplayStarted', () => {
@@ -265,10 +238,6 @@ describe('evolve — working lifecycle', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// evolve — Updated does NOT change lifecycle
-// ---------------------------------------------------------------------------
-
 describe('evolve Updated', () => {
   it('Updated while working does not change lifecycle', () => {
     const s0 = makeWorking();
@@ -293,10 +262,6 @@ describe('evolve Updated', () => {
     expect(state.nextSeq).toBe(seqBefore + 1);
   });
 });
-
-// ---------------------------------------------------------------------------
-// evolve — cancel path
-// ---------------------------------------------------------------------------
 
 describe('evolve cancel path', () => {
   it('CancellationRequested → cancelling and drains permissions', () => {
@@ -331,10 +296,6 @@ describe('evolve cancel path', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// evolve — MetaChanged accepted in ready and working
-// ---------------------------------------------------------------------------
-
 describe('evolve MetaChanged', () => {
   it('updates modes and configOptions when ready', () => {
     const s0 = makeReady();
@@ -361,10 +322,6 @@ describe('evolve MetaChanged', () => {
     expect(s.modes).toBeNull(); // untouched
   });
 });
-
-// ---------------------------------------------------------------------------
-// evolve — ProcessClosed
-// ---------------------------------------------------------------------------
 
 describe('evolve ProcessClosed', () => {
   it('transitions to closed with exitCode', () => {
@@ -405,10 +362,6 @@ describe('evolve ProcessClosed', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// evolve — PermissionRequested / PermissionResolved
-// ---------------------------------------------------------------------------
-
 describe('evolve permissions', () => {
   it('PermissionRequested adds to queue', () => {
     const s0 = makeWorking();
@@ -424,10 +377,6 @@ describe('evolve permissions', () => {
     expect(s.pendingPermissions).toHaveLength(0);
   });
 });
-
-// ---------------------------------------------------------------------------
-// evolve — turn id stability
-// ---------------------------------------------------------------------------
 
 describe('turn id stability', () => {
   it('turn ids are deterministic from conversationId and index', () => {
@@ -445,10 +394,6 @@ describe('turn id stability', () => {
     expect(turn2.id).toBe(`turn-${CONV_ID}-1`);
   });
 });
-
-// ---------------------------------------------------------------------------
-// evolve — effects
-// ---------------------------------------------------------------------------
 
 describe('effects', () => {
   it('PromptStarted emits state, update, and agentEvent(start)', () => {
@@ -474,5 +419,75 @@ describe('effects', () => {
     const s0 = makeWorking();
     const { effects } = evolve(s0, { type: 'TurnEnded', outcome: { kind: 'errored' } });
     expect(effects.some((e) => e.type === 'agentEvent' && e.phase === 'error')).toBe(true);
+  });
+});
+
+describe('SessionUsage', () => {
+  it('MetaChanged with usage updates state.usage and emits a meta effect', () => {
+    const s0 = makeReady();
+    const { state, effects } = evolve(s0, {
+      type: 'MetaChanged',
+      usage: { contextSize: 200000, contextUsed: 42000, cost: null },
+    });
+
+    expect(state.usage).toEqual({ contextSize: 200000, contextUsed: 42000, cost: null });
+    expect(effects.some((e) => e.type === 'meta')).toBe(true);
+  });
+
+  it('MetaChanged without usage leaves state.usage unchanged', () => {
+    const s0 = makeReady();
+    const { state: s1 } = evolve(s0, {
+      type: 'MetaChanged',
+      usage: { contextSize: 100000, contextUsed: 10000, cost: null },
+    });
+    const { state: s2 } = evolve(s1, {
+      type: 'MetaChanged',
+      configOptions: [],
+      // no usage field
+    });
+
+    expect(s2.usage).toEqual({ contextSize: 100000, contextUsed: 10000, cost: null });
+  });
+
+  it('MetaChanged with cost propagates cost to state.usage', () => {
+    const s0 = makeReady();
+    const { state } = evolve(s0, {
+      type: 'MetaChanged',
+      usage: { contextSize: 50000, contextUsed: 5000, cost: { amount: 0.12, currency: 'USD' } },
+    });
+
+    expect(state.usage?.cost).toEqual({ amount: 0.12, currency: 'USD' });
+  });
+
+  it('sessionState() surfaces usage from the machine', () => {
+    const sm = new SessionMachine(CONV_ID);
+    sm.apply({ type: 'SessionReady' });
+    sm.apply({
+      type: 'MetaChanged',
+      usage: { contextSize: 80000, contextUsed: 8000, cost: null },
+    });
+
+    const state = sm.sessionState();
+    expect(state.usage).toEqual({ contextSize: 80000, contextUsed: 8000, cost: null });
+  });
+
+  it('applySnapshot restores usage from snapshot', () => {
+    const sm = new SessionMachine(CONV_ID);
+    sm.applySnapshot({
+      lifecycle: 'ready',
+      activeTurnId: null,
+      pendingPermissions: [],
+      modes: null,
+      configOptions: [],
+      availableCommands: [],
+      lastStopReason: null,
+      usage: { contextSize: 999, contextUsed: 111, cost: { amount: 0.5, currency: 'EUR' } },
+    });
+
+    expect(sm.sessionState().usage).toEqual({
+      contextSize: 999,
+      contextUsed: 111,
+      cost: { amount: 0.5, currency: 'EUR' },
+    });
   });
 });

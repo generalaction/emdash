@@ -1045,3 +1045,162 @@ describe('AcpSessionRuntime – enrich', () => {
     expect(stored?.parentToolCallId).toBe('parent-42');
   });
 });
+
+// ---------------------------------------------------------------------------
+// SessionUsage routing
+// ---------------------------------------------------------------------------
+
+describe('AcpSessionRuntime – usage_update routing', () => {
+  it('usage_update emits a snapshot with usage populated and no turn Updated event', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+
+    await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+    h.recording.clear();
+
+    await h.client().sessionUpdate({
+      sessionId: 'sess-1',
+      update: { sessionUpdate: 'usage_update', size: 200000, used: 45000 },
+    });
+
+    // A snapshot must have been emitted with usage filled
+    expect(h.recording.snapshots).toHaveLength(1);
+    expect(h.recording.snapshots[0].snapshot.usage).toEqual({
+      contextSize: 200000,
+      contextUsed: 45000,
+      cost: null,
+    });
+
+    // No turn update emitted — usage_update is a meta event, not a turn event
+    expect(h.recording.updates).toHaveLength(0);
+  });
+
+  it('usage_update with cost propagates cost into the snapshot', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+
+    await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+    h.recording.clear();
+
+    await h.client().sessionUpdate({
+      sessionId: 'sess-1',
+      update: {
+        sessionUpdate: 'usage_update',
+        size: 100000,
+        used: 20000,
+        cost: { amount: 0.25, currency: 'USD' },
+      },
+    });
+
+    expect(h.recording.snapshots[0].snapshot.usage?.cost).toEqual({
+      amount: 0.25,
+      currency: 'USD',
+    });
+  });
+
+  it('getSessionState returns usage after a usage_update', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+
+    await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+
+    await h.client().sessionUpdate({
+      sessionId: 'sess-1',
+      update: { sessionUpdate: 'usage_update', size: 50000, used: 10000 },
+    });
+
+    const state = rt.getSessionState('conv-1');
+    expect(state.usage).toEqual({ contextSize: 50000, contextUsed: 10000, cost: null });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Model re-apply gating
+// ---------------------------------------------------------------------------
+
+describe('AcpSessionRuntime – model re-apply', () => {
+  it('applies the creation-time model via setSessionConfigOption on a fresh newSession', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+    h.agent.setSessionConfigOption.mockResolvedValue({ configOptions: [] });
+
+    await rt.start(makeStartInput({ conversationId: 'conv-1', model: 'claude-3-7-sonnet' }));
+
+    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith(
+      expect.objectContaining({ configId: 'model', value: 'claude-3-7-sonnet' })
+    );
+  });
+
+  it('does NOT re-apply the model when resuming via loadSession', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.loadSession.mockResolvedValue({
+      configOptions: [
+        {
+          id: 'model',
+          type: 'select',
+          name: 'Model',
+          currentValue: 'claude-3-5-sonnet',
+          options: [],
+        },
+      ],
+    });
+
+    await rt.start(
+      makeStartInput({
+        conversationId: 'conv-1',
+        sessionId: 'existing-session',
+        model: 'claude-3-7-sonnet',
+      })
+    );
+
+    expect(h.agent.loadSession).toHaveBeenCalled();
+    expect(h.agent.newSession).not.toHaveBeenCalled();
+    expect(h.agent.setSessionConfigOption).not.toHaveBeenCalled();
+  });
+
+  it('re-applies the model when loadSession fails and falls back to newSession', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.loadSession.mockRejectedValue(new Error('load failed'));
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-fallback' });
+    h.agent.setSessionConfigOption.mockResolvedValue({ configOptions: [] });
+
+    await rt.start(
+      makeStartInput({
+        conversationId: 'conv-1',
+        sessionId: 'old-session',
+        model: 'claude-3-7-sonnet',
+      })
+    );
+
+    expect(h.agent.newSession).toHaveBeenCalled();
+    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith(
+      expect.objectContaining({ configId: 'model', value: 'claude-3-7-sonnet' })
+    );
+  });
+
+  it('setModel calls setSessionConfigOption but does not write to persistModel', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+    h.agent.setSessionConfigOption.mockResolvedValue({ configOptions: [] });
+
+    await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+    h.agent.setSessionConfigOption.mockClear();
+
+    await rt.setModel('conv-1', 'claude-3-5-sonnet');
+
+    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith(
+      expect.objectContaining({ configId: 'model', value: 'claude-3-5-sonnet' })
+    );
+    // persistModel was removed from deps — the mere absence of the property is
+    // the correctness check; we verify the call count on setSessionConfigOption
+    // stayed exactly at 1 (no extra persistence side-effects).
+    expect(h.agent.setSessionConfigOption).toHaveBeenCalledTimes(1);
+  });
+});

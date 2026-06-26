@@ -2,12 +2,7 @@ import { ManagedAgentTerminal } from './managed-agent-terminal';
 import type { TerminalSnapshot } from './terminals';
 import type { AcpProcessHost } from './transport';
 
-// ---------------------------------------------------------------------------
-// Minimal listener surface the manager needs — avoids importing the full
-// AcpRuntimeListener so this file stays self-contained.
-// ---------------------------------------------------------------------------
-
-export interface AgentTerminalListener {
+export interface AgentTerminalHooks {
   onTerminalCreated(e: {
     conversationId: string;
     terminalId: string;
@@ -29,24 +24,8 @@ export interface AgentTerminalListener {
   onTerminalReleased(e: { conversationId: string; terminalId: string }): void;
 }
 
-// ---------------------------------------------------------------------------
-// AgentTerminalManager
-// ---------------------------------------------------------------------------
-
 /**
  * Host-scoped registry of all ACP agent-requested terminals.
- *
- * One instance lives on the per-host AcpSessionRuntime (the runtime is 1:1
- * with a MachineRef). Every conversation's terminals are registered here,
- * which enables host-level operations (listAll, killAll) that per-conversation
- * tracking cannot provide.
- *
- * Responsibilities:
- *   - Spawn terminals via the host and wrap them in ManagedAgentTerminal.
- *   - Maintain a host-wide id → entry map and a conversation → id-set index.
- *   - Forward output/exit events to the listener (closing over conversationId).
- *   - Release individual terminals, all terminals for a conversation, or every
- *     terminal on the host.
  */
 export class AgentTerminalManager {
   private readonly byId = new Map<
@@ -57,7 +36,7 @@ export class AgentTerminalManager {
 
   constructor(
     private readonly host: AcpProcessHost,
-    private readonly listener: AgentTerminalListener
+    private readonly hooks: AgentTerminalHooks
   ) {}
 
   /** True when the host supports spawning agent terminals. */
@@ -96,10 +75,10 @@ export class AgentTerminalManager {
       spec.cwd,
       proc,
       (chunk, truncated) => {
-        this.listener.onTerminalOutput({ conversationId, terminalId, chunk, truncated });
+        this.hooks.onTerminalOutput({ conversationId, terminalId, chunk, truncated });
       },
       (exitStatus) => {
-        this.listener.onTerminalExit({ conversationId, terminalId, exitStatus });
+        this.hooks.onTerminalExit({ conversationId, terminalId, exitStatus });
       },
       spec.outputByteLimit
     );
@@ -112,7 +91,7 @@ export class AgentTerminalManager {
     }
     ids.add(terminalId);
 
-    this.listener.onTerminalCreated({
+    this.hooks.onTerminalCreated({
       conversationId,
       terminalId,
       command: spec.command,
@@ -163,7 +142,7 @@ export class AgentTerminalManager {
     if (this.byConversation.get(conversationId)?.size === 0) {
       this.byConversation.delete(conversationId);
     }
-    this.listener.onTerminalReleased({ conversationId, terminalId });
+    this.hooks.onTerminalReleased({ conversationId, terminalId });
   }
 
   /**
@@ -178,7 +157,7 @@ export class AgentTerminalManager {
       if (!entry) continue;
       entry.terminal.dispose();
       this.byId.delete(terminalId);
-      this.listener.onTerminalReleased({ conversationId, terminalId });
+      this.hooks.onTerminalReleased({ conversationId, terminalId });
     }
     this.byConversation.delete(conversationId);
   }
@@ -190,7 +169,7 @@ export class AgentTerminalManager {
   killAll(): void {
     for (const [terminalId, { conversationId, terminal }] of this.byId) {
       terminal.dispose();
-      this.listener.onTerminalReleased({ conversationId, terminalId });
+      this.hooks.onTerminalReleased({ conversationId, terminalId });
     }
     this.byId.clear();
     this.byConversation.clear();

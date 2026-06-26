@@ -44,13 +44,14 @@ import type {
   ChatHistory,
   SessionSnapshot,
   SessionState,
+  SessionUsage,
   TurnSource,
   TurnStatus,
-} from './turns';
+} from './state';
 
 // Re-export the snapshot mirror primitives so renderer-safe consumers can import
 // them from this node-free entry instead of the full `@emdash/core/acp` barrel.
-export { toSessionSnapshot, type SessionSnapshot } from './turns';
+export { toSessionSnapshot, type SessionSnapshot } from './state';
 
 // ---------------------------------------------------------------------------
 // Phase (discriminated union carrying the active turn in-line)
@@ -114,6 +115,8 @@ export interface SessionMachineState {
    * if no turn has completed yet. Drives the composer's notice band.
    */
   readonly lastStopReason: StopReason | null;
+  /** Latest context-window and cost figures from usage_update, null until the first notification. */
+  readonly usage: SessionUsage | null;
   /** Monotonic sequence counter — shared across all turns of a conversation. */
   readonly nextSeq: number;
   /** Counter used to generate unique, stable turn ids. */
@@ -130,6 +133,7 @@ export function initialMachineState(conversationId: string): SessionMachineState
     configOptions: [],
     availableCommands: [],
     lastStopReason: null,
+    usage: null,
     nextSeq: 0,
     nextTurnIndex: 0,
   };
@@ -190,12 +194,13 @@ export type DomainEvent =
   | { type: 'PermissionRequested'; request: AcpPermissionRequest }
   /** A pending permission was resolved (by user or by drain). */
   | { type: 'PermissionResolved'; requestId: string }
-  /** Session-scoped metadata changed (modes / configOptions / availableCommands). */
+  /** Session-scoped metadata changed (modes / configOptions / availableCommands / usage). */
   | {
       type: 'MetaChanged';
       modes?: SessionModeState | null;
       configOptions?: readonly SessionConfigOption[] | null;
       availableCommands?: readonly AvailableCommand[] | null;
+      usage?: SessionUsage | null;
     }
   /** The agent process exited or the connection closed. */
   | { type: 'ProcessClosed'; exitCode: number | null };
@@ -511,6 +516,7 @@ export function evolve(
             ev.availableCommands !== undefined
               ? (ev.availableCommands ?? s.availableCommands)
               : s.availableCommands,
+          usage: ev.usage !== undefined ? (ev.usage ?? s.usage) : s.usage,
         },
         effects: [{ type: 'meta' }],
       };
@@ -755,6 +761,7 @@ export class SessionMachine {
       configOptions: s.configOptions,
       availableCommands: s.availableCommands,
       lastStopReason: s.lastStopReason,
+      usage: s.usage,
     };
   }
 
@@ -771,6 +778,7 @@ export class SessionMachine {
       configOptions: structuredClone([...this._state.configOptions]),
       availableCommands: structuredClone([...this._state.availableCommands]),
       lastStopReason: this._state.lastStopReason,
+      usage: this._state.usage ? structuredClone(this._state.usage) : null,
     };
   }
 

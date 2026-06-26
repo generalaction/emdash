@@ -14,13 +14,13 @@ import type {
   AcpProcessHandle,
   AcpProcessHost,
   AcpRuntimeListener,
-  AcpRuntimeLog,
   AcpSessionRuntimeDeps,
   AcpStartInput,
   AcpTerminalExit,
   AcpTurn,
   SessionSnapshot,
 } from '@emdash/core/acp';
+import { noopLogger } from '@emdash/shared/logger';
 import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
 import { vi } from 'vitest';
 import type { AcpSessionManagerDeps } from './acp-session-manager';
@@ -211,9 +211,6 @@ export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}
   const agent = new FakeAcpAgent();
   const fakeHost = new FakeAcpProcessHost();
 
-  const noop = () => {};
-  const noopLog: AcpRuntimeLog = { debug: noop, info: noop, warn: noop, error: noop };
-
   const deps: AcpSessionRuntimeDeps = {
     resolveAcp: () => ({
       behavior: {
@@ -223,9 +220,8 @@ export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}
     }),
     host: fakeHost,
     persistSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
-    persistModel: vi.fn().mockResolvedValue(undefined),
     listener: recording.listener,
-    log: noopLog,
+    logger: noopLogger,
     ...depOverrides,
   };
 

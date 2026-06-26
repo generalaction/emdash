@@ -27,8 +27,6 @@ function agentThought(text: string): SessionUpdate {
   };
 }
 
-// ── toAgentUpdate ─────────────────────────────────────────────────────────────
-
 describe('toAgentUpdate', () => {
   // ── message variants ──────────────────────────────────────────────────────
 

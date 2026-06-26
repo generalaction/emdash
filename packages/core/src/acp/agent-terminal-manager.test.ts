@@ -6,10 +6,6 @@ import {
 } from './acp-test-support';
 import { AgentTerminalManager } from './agent-terminal-manager';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeManager() {
   const host = new FakeAcpProcessHost();
   const recording = createRecordingListener();
@@ -33,10 +29,6 @@ async function createTerminal(
   });
 }
 
-// ---------------------------------------------------------------------------
-// supportsTerminals
-// ---------------------------------------------------------------------------
-
 describe('AgentTerminalManager.supportsTerminals()', () => {
   it('returns true when host.spawnTerminal is present', () => {
     const { manager } = makeManager();
@@ -52,10 +44,6 @@ describe('AgentTerminalManager.supportsTerminals()', () => {
     expect(manager.supportsTerminals()).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// create
-// ---------------------------------------------------------------------------
 
 describe('AgentTerminalManager.create()', () => {
   it('spawns via host and emits onTerminalCreated', async () => {
@@ -113,10 +101,6 @@ describe('AgentTerminalManager.create()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// get
-// ---------------------------------------------------------------------------
-
 describe('AgentTerminalManager.get()', () => {
   it('returns the terminal after creation', async () => {
     const { host, manager } = makeManager();
@@ -129,10 +113,6 @@ describe('AgentTerminalManager.get()', () => {
     expect(manager.get('unknown-id')).toBeUndefined();
   });
 });
-
-// ---------------------------------------------------------------------------
-// listByConversation / listAll
-// ---------------------------------------------------------------------------
 
 describe('AgentTerminalManager listing', () => {
   it("listByConversation returns only that conversation's terminals", async () => {
@@ -165,10 +145,6 @@ describe('AgentTerminalManager listing', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// release
-// ---------------------------------------------------------------------------
-
 describe('AgentTerminalManager.release()', () => {
   it('disposes the terminal and emits onTerminalReleased', async () => {
     const { host, recording, manager } = makeManager();
@@ -190,10 +166,6 @@ describe('AgentTerminalManager.release()', () => {
     expect(recording.terminalReleased).toHaveLength(0);
   });
 });
-
-// ---------------------------------------------------------------------------
-// disposeConversation
-// ---------------------------------------------------------------------------
 
 describe('AgentTerminalManager.disposeConversation()', () => {
   it('disposes all terminals for a conversation and emits onTerminalReleased for each', async () => {
@@ -222,10 +194,6 @@ describe('AgentTerminalManager.disposeConversation()', () => {
     expect(recording.terminalReleased).toHaveLength(0);
   });
 });
-
-// ---------------------------------------------------------------------------
-// killAll
-// ---------------------------------------------------------------------------
 
 describe('AgentTerminalManager.killAll()', () => {
   it('disposes every terminal and emits onTerminalReleased for each', async () => {

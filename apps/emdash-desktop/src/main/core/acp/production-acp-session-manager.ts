@@ -3,7 +3,6 @@ import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { isAppFocused } from '@main/core/agent-hooks/notification';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { setSessionId } from '@main/core/conversations/set-session-id';
-import { updateConversationModel } from '@main/core/conversations/updateConversationModel';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import {
@@ -66,6 +65,5 @@ export const acpSessionManager = new AcpSessionManager({
   acquireProcessHost: (machine) => acpProcessHostManager.get(machine),
   listener,
   setSessionId,
-  updateConversationModel,
   log,
 });

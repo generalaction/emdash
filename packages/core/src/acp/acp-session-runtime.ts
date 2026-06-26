@@ -38,8 +38,8 @@ import type { Command, DomainEvent, Effect } from './session-machine';
 import type { TerminalSnapshot } from './terminals';
 import type { AcpProcessHandle } from './transport';
 import { readTextFile, writeTextFile } from './transport';
-import type { AcpPromptImage, ChatHistory, SessionState } from './turns';
-import { toSessionSnapshot } from './turns';
+import type { AcpPromptImage, ChatHistory, SessionState } from './state';
+import { toSessionSnapshot } from './state';
 
 interface AcpConversation {
   conversationId: string;
@@ -85,10 +85,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   private permissionResolvers = new Map<string, (r: RequestPermissionResponse) => void>();
 
   constructor(deps: AcpSessionRuntimeDeps) {
-    const noop = () => {};
-    const noopLog = { debug: noop, info: noop, warn: noop, error: noop };
-    const log = deps.log ?? noopLog;
-    this.deps = { ...deps, log };
+    this.deps = { ...deps };
     this.terminals = new AgentTerminalManager(this.deps.host, this.deps.listener);
   }
 
@@ -96,7 +93,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     const { conversationId, providerId, workspaceId, cwd, sessionId, model, initialPrompt } = input;
 
     if (this.conversationIndex.has(conversationId)) {
-      this.deps.log.debug('AcpSessionRuntime: conversation already running', { conversationId });
+      this.deps.logger.debug('AcpSessionRuntime: conversation already running', { conversationId });
       const conv = this.resolveConv(conversationId);
       if (conv) this.applyEvent(conv, { type: 'state' } as unknown as DomainEvent);
       return ok();
@@ -139,6 +136,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     try {
       // Assigned in all success paths; TypeScript needs the initializer for control flow
       let acpSessionId = '';
+      // True only when a fresh newSession was started (not a loadSession resume).
+      // The creation-time model is re-applied only on fresh sessions so that a
+      // resumed session can trust the agent's authoritative configOptions instead.
+      let establishedViaNewSession = false;
 
       if (conv.acpSessionId && proc.supportsLoadSession && proc.agent.loadSession) {
         const originalSessionId = conv.acpSessionId;
@@ -173,7 +174,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         }
 
         if (!loadedSuccessfully) {
-          this.deps.log.warn('AcpSessionRuntime: loadSession failed, starting new session', {
+          this.deps.logger.warn('AcpSessionRuntime: loadSession failed, starting new session', {
             conversationId,
           });
           // Commit the replay turn as 'complete' even on failure: the session continues
@@ -188,6 +189,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           try {
             const newResp = await proc.agent.newSession(this.buildNewSessionRequest(cwd));
             acpSessionId = newResp.sessionId;
+            establishedViaNewSession = true;
             this.applyEvent(conv, {
               type: 'SessionReady',
               modes: newResp.modes,
@@ -203,6 +205,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         try {
           const newResp = await proc.agent.newSession(this.buildNewSessionRequest(cwd));
           acpSessionId = newResp.sessionId;
+          establishedViaNewSession = true;
           this.applyEvent(conv, {
             type: 'SessionReady',
             modes: newResp.modes,
@@ -222,7 +225,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         .persistSessionId(conversationId, acpSessionId)
         .then((result) => {
           if (!result.success) {
-            this.deps.log.warn('AcpSessionRuntime: failed to persist session id', {
+            this.deps.logger.warn('AcpSessionRuntime: failed to persist session id', {
               conversationId,
               error: result.error.type,
             });
@@ -230,15 +233,16 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         })
         .catch(() => {});
 
-      // Apply pending model from persisted config as a setSessionConfigOption call
-      if (model && proc.agent.setSessionConfigOption) {
+      // Re-apply the creation-time model only for fresh sessions. Resumed sessions
+      // trust the agent's authoritative configOptions from loadSession instead.
+      if (establishedViaNewSession && model && proc.agent.setSessionConfigOption) {
         await this.applyConfigOptionInternal(proc.agent, acpSessionId, 'model', model, conv);
       }
 
       if (initialPrompt?.trim()) {
         const promptResult = await this.sendPromptInternal(proc, conv, initialPrompt);
         if (!promptResult.success) {
-          this.deps.log.warn('AcpSessionRuntime: initial prompt failed', {
+          this.deps.logger.warn('AcpSessionRuntime: initial prompt failed', {
             conversationId,
             error: promptResult.error.type,
           });
@@ -247,7 +251,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
       return ok();
     } catch (err) {
-      this.deps.log.error('AcpSessionRuntime: unexpected error during start', {
+      this.deps.logger.error('AcpSessionRuntime: unexpected error during start', {
         conversationId,
         error: err instanceof Error ? err.message : String(err),
       });
@@ -286,7 +290,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       await proc.agent.cancel({ sessionId: entry.acpSessionId! });
     } catch (e) {
       const err = acpErr.cancelFailed(toSerializedError(e));
-      this.deps.log.warn('AcpSessionRuntime: cancel failed', {
+      this.deps.logger.warn('AcpSessionRuntime: cancel failed', {
         conversationId,
         error: err.error.type,
       });
@@ -305,14 +309,13 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
     const resolver = this.permissionResolvers.get(requestId);
     if (!resolver) {
-      this.deps.log.warn('AcpSessionRuntime: resolvePermission for unknown requestId', {
+      this.deps.logger.warn('AcpSessionRuntime: resolvePermission for unknown requestId', {
         conversationId,
         requestId,
       });
       return acpErr.invalidState(`No resolver for requestId '${requestId}'`);
     }
 
-    // Validate via dispatch first
     const dispatchResult = this.dispatch(conv, {
       type: 'ResolvePermission',
       requestId,
@@ -344,7 +347,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     const conv = proc.conversations.get(conversationId);
 
     if (conv?.acpSessionId && proc.agent.closeSession) {
-      void proc.agent.closeSession({ sessionId: conv.acpSessionId }).catch(() => {});
+      proc.agent.closeSession({ sessionId: conv.acpSessionId }).catch(() => {});
       proc.sessionToConversation.delete(conv.acpSessionId);
     }
 
@@ -385,14 +388,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       );
       if (!result.success) return result;
     }
-
-    void this.deps.persistModel(conversationId, model).catch((err) => {
-      this.deps.log.warn('AcpSessionRuntime: failed to persist model selection', {
-        conversationId,
-        model,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
 
     return ok();
   }
@@ -450,6 +445,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         configOptions: [],
         availableCommands: [],
         lastStopReason: null,
+        usage: null,
       };
     }
     return conv.machine.sessionState();
@@ -466,10 +462,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   killAllTerminals(): void {
     this.terminals.killAll();
   }
-
-  // -------------------------------------------------------------------------
-  // State machine integration
-  // -------------------------------------------------------------------------
 
   /**
    * Validate a command, apply the resulting events, and interpret all effects.
@@ -559,13 +551,13 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           break;
 
         case 'warn':
-          this.deps.log.warn(`AcpSessionRuntime: ${effect.message}`, {
+          this.deps.logger.warn(`AcpSessionRuntime: ${effect.message}`, {
             conversationId: conv.conversationId,
           });
           break;
       }
     } catch (err) {
-      this.deps.log.error('AcpSessionRuntime: effect interpreter caught listener error', {
+      this.deps.logger.error('AcpSessionRuntime: effect interpreter caught listener error', {
         conversationId: conv.conversationId,
         effectType: effect.type,
         error: err instanceof Error ? err.message : String(err),
@@ -581,10 +573,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     });
   }
 
-  // -------------------------------------------------------------------------
-  // Process management
-  // -------------------------------------------------------------------------
-
   /**
    * Provisions a fully-initialized `AcpAgentProcess`. Called by `LifecycleMap.provision`
    * with deduplication, so concurrent `start()` calls on the same key wait for the
@@ -598,7 +586,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     binding: { behavior: IAcpBehavior }
   ): Promise<Result<AcpAgentProcess, AcpRuntimeError>> {
     const connResult = await createAcpAgentConnection(
-      { host: this.deps.host, behavior: binding.behavior, logger: this.deps.log },
+      { host: this.deps.host, behavior: binding.behavior, logger: this.deps.logger },
       {
         providerId,
         cwd,
@@ -651,7 +639,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       this.terminals.disposeConversation(conv.conversationId);
     }
 
-    this.deps.log.debug('AcpSessionRuntime: process closed', {
+    this.deps.logger.debug('AcpSessionRuntime: process closed', {
       processKey,
       exitCode,
       conversationCount: proc.conversations.size,
@@ -662,10 +650,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
     this.processes.teardown(processKey, async () => ok());
   }
-
-  // -------------------------------------------------------------------------
-  // Client handler (built once per process, routes by sessionId)
-  // -------------------------------------------------------------------------
 
   private buildClientHandler(processKey: string): Client {
     return {
@@ -683,7 +667,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           }
         }
         if (!conversationId) {
-          this.deps.log.warn('AcpSessionRuntime: sessionUpdate for unknown sessionId', {
+          this.deps.logger.warn('AcpSessionRuntime: sessionUpdate for unknown sessionId', {
             sessionId: params.sessionId,
           });
           return;
@@ -723,6 +707,20 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
             return;
           }
 
+          case 'usage_update': {
+            this.applyEvent(conv, {
+              type: 'MetaChanged',
+              usage: {
+                contextSize: rawUpdate.size,
+                contextUsed: rawUpdate.used,
+                cost: rawUpdate.cost
+                  ? { amount: rawUpdate.cost.amount, currency: rawUpdate.cost.currency }
+                  : null,
+              },
+            });
+            return;
+          }
+
           default:
             break;
         }
@@ -738,7 +736,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         const conv = conversationId ? proc?.conversations.get(conversationId) : undefined;
 
         if (!proc || !conv || !conversationId) {
-          this.deps.log.warn('AcpSessionRuntime: requestPermission for unknown session', {
+          this.deps.logger.warn('AcpSessionRuntime: requestPermission for unknown session', {
             sessionId: params.sessionId,
           });
           return Promise.resolve({ outcome: { outcome: 'cancelled' } });
@@ -758,7 +756,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           })),
         };
 
-        this.deps.log.debug('AcpSessionRuntime: requesting user permission', {
+        this.deps.logger.debug('AcpSessionRuntime: requesting user permission', {
           conversationId,
           requestId,
           title: payload.title,
@@ -838,10 +836,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     };
   }
 
-  // -------------------------------------------------------------------------
-  // Internal helpers
-  // -------------------------------------------------------------------------
-
   /** Resolve a conversation by ACP sessionId, throwing if not found. */
   private convForSession(proc: AcpAgentProcess, sessionId: string): AcpConversation {
     const conversationId = proc.sessionToConversation.get(sessionId);
@@ -900,7 +894,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       return ok();
     } catch (e) {
       const errResult = acpErr.promptFailed(toSerializedError(e));
-      this.deps.log.error('AcpSessionRuntime: prompt error', {
+      this.deps.logger.error('AcpSessionRuntime: prompt error', {
         conversationId: conv.conversationId,
         error: errResult.error.type,
       });
@@ -927,7 +921,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       return ok();
     } catch (e) {
       const errResult = acpErr.setConfigFailed(toSerializedError(e));
-      this.deps.log.warn('AcpSessionRuntime: failed to apply config option', {
+      this.deps.logger.warn('AcpSessionRuntime: failed to apply config option', {
         conversationId: conv.conversationId,
         configId,
         error: errResult.error.type,

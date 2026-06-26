@@ -1,10 +1,11 @@
+import { Logger } from '@emdash/shared/logger';
 import type { Result } from '@emdash/shared/result';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AgentUpdate } from './agent-update';
 import type { AcpRuntimeError } from './errors';
 import type { TerminalSnapshot } from './terminals';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
-import type { AcpPromptImage, AcpTurn, ChatHistory, SessionSnapshot, SessionState } from './turns';
+import type { AcpPromptImage, AcpTurn, ChatHistory, SessionSnapshot, SessionState } from './state';
 
 /**
  * Minimal per-conversation input to AcpSessionRuntime.start().
@@ -95,10 +96,9 @@ export interface AcpSessionRuntimeDeps {
     conversationId: string,
     sessionId: string
   ) => Promise<Result<void, SetSessionIdError>>;
-  /** Persist model selection changes. */
-  persistModel: (conversationId: string, model: string) => Promise<void>;
   /** Outbound event sink (mapped to IPC channels by the desktop adapter). */
   listener: AcpRuntimeListener;
+  logger: Logger;
 }
 
 /**

@@ -6,7 +6,6 @@
  * prompt() stopReason.  The renderer queries this data on mount rather than
  * reconstructing it from a replay event stream.
  */
-
 import type {
   AvailableCommand,
   SessionConfigOption,
@@ -15,6 +14,19 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { AgentUpdate } from './agent-update';
 import type { AcpPermissionRequest } from './permissions';
+
+/**
+ * Provider-neutral snapshot of ACP usage_update data.
+ * Tracks context-window consumption and cumulative session cost.
+ */
+export interface SessionUsage {
+  /** Total context window size in tokens. */
+  contextSize: number;
+  /** Tokens currently in context. */
+  contextUsed: number;
+  /** Cumulative session cost, if the agent reports it. */
+  cost: { amount: number; currency: string } | null;
+}
 
 /**
  * An image to include in a prompt, sent to the agent as an ACP `image` content
@@ -98,6 +110,8 @@ export interface SessionSnapshot {
   configOptions: SessionConfigOption[];
   availableCommands: AvailableCommand[];
   lastStopReason: StopReason | null;
+  /** Latest context-window and cost figures from usage_update, null until the first notification. */
+  usage: SessionUsage | null;
 }
 
 /** Project `SessionState` down to a `SessionSnapshot` (drops the full activeTurn). */
@@ -110,6 +124,7 @@ export function toSessionSnapshot(s: SessionState): SessionSnapshot {
     configOptions: s.configOptions,
     availableCommands: s.availableCommands,
     lastStopReason: s.lastStopReason,
+    usage: s.usage,
   };
 }
 
@@ -142,4 +157,6 @@ export interface SessionState {
    * no turn has completed yet. Drives the composer's notice band.
    */
   lastStopReason: StopReason | null;
+  /** Latest context-window and cost figures from usage_update, null until the first notification. */
+  usage: SessionUsage | null;
 }
