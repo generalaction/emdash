@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Octokit } from '@octokit/rest';
-import { and, eq, inArray, lt, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, ne } from 'drizzle-orm';
 import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
@@ -44,7 +44,7 @@ import {
   toPrApiError,
   type PrSyncEngineError,
 } from './pr-sync-errors';
-import { assemblePullRequest } from './pr-utils';
+import { assemblePullRequest, pullRequestRepositoryScope } from './pr-utils';
 
 const PR_SYNC_MAX_COUNT = 300;
 const PR_ARCHIVE_AGE_MONTHS = 6;
@@ -183,6 +183,8 @@ export class PrSyncEngine {
   // Per-repository in-flight promise + AbortController
   private readonly _inflight = new Map<string, Promise<RepositorySyncResult>>();
   private readonly _controllers = new Map<string, AbortController>();
+  // Repositories whose mergedAt-backfill check has already run this process lifetime.
+  private readonly _mergedAtBackfillChecked = new Set<string>();
   // Per-operation deduplication for single-PR and check-run syncs
   private readonly _singleInflight = new Map<
     string,
@@ -216,7 +218,8 @@ export class PrSyncEngine {
     const ctrl = new AbortController();
     this._controllers.set(key, ctrl);
 
-    const promise = this._getFullSyncCursor(repositoryUrl)
+    const promise = this._ensureMergedAtBackfill(repositoryUrl)
+      .then(() => this._getFullSyncCursor(repositoryUrl))
       .then((cursor) => {
         if (ctrl.signal.aborted) return err(syncCancelledError());
         return cursor?.done
@@ -1483,6 +1486,43 @@ export class PrSyncEngine {
 
   private async _getFullSyncCursor(repositoryUrl: string): Promise<{ done: boolean } | null> {
     return (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
+  }
+
+  /**
+   * If any merged PR in this repository is missing its `mergedAt` (legacy rows
+   * from before the column was added), reset the full/incremental sync cursors
+   * so the next sync re-pulls and back-fills the field. Cached per process.
+   */
+  private async _ensureMergedAtBackfill(repositoryUrl: string): Promise<void> {
+    if (this._mergedAtBackfillChecked.has(repositoryUrl)) return;
+    this._mergedAtBackfillChecked.add(repositoryUrl);
+
+    try {
+      const rows = await db
+        .select({ url: pullRequests.url })
+        .from(pullRequests)
+        .where(
+          and(
+            pullRequestRepositoryScope([repositoryUrl]),
+            eq(pullRequests.status, 'merged'),
+            isNull(pullRequests.mergedAt)
+          )
+        )
+        .limit(1);
+
+      if (rows.length === 0) return;
+
+      log.info('PrSyncEngine: backfilling mergedAt — resetting sync cursors', { repositoryUrl });
+      await Promise.all([
+        this.kv.del(`fullsync:${repositoryUrl}`),
+        this.kv.del(`incrementalsync:${repositoryUrl}`),
+      ]);
+    } catch (e: unknown) {
+      log.warn('PrSyncEngine: mergedAt backfill check failed', {
+        repositoryUrl,
+        error: String(e),
+      });
+    }
   }
 }
 
