@@ -1,12 +1,7 @@
 import path from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
 import {
-  IGNORED_PATH_SEGMENTS,
   isIgnored,
-  normalizeRelPath,
-  normalizeRelPaths,
   type FileChange,
-  type FileEnumeration,
   type FileChangeSubscription,
   type FileChangeUpdate,
   type FileChangeWatchOptions,
@@ -18,23 +13,31 @@ import {
   type FileTreeSequences,
   type FileTreeSnapshot,
   type FileTreeUpdate,
+  type IFileSystem,
   type IFileTree,
-  type IFilesRuntime,
   type NodeId,
-  type RelPath,
   type SubscribedSnapshot,
 } from '@emdash/core/files';
 import { LiveCollection, ResourceMap, type KeyedOp } from '@emdash/core/lib';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import type { ClientChannel } from 'ssh2';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { FileSystemError, FileSystemErrorCodes } from '@main/core/fs/types';
-import type { FileEntry } from '@main/core/fs/types';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { FileWatchEvent } from '@shared/core/fs/fs';
+import { LegacySshFileSystem } from './ssh-file-system';
+import { SshFileSystem } from './ssh-legacy-fs';
+import { FileSystemError, FileSystemErrorCodes } from './ssh-legacy-fs-types';
+import type { FileEntry } from './ssh-legacy-fs-types';
+import {
+  containsRemotePath,
+  normalizeRemoteAbsolutePath,
+  normalizeRemoteRootPath,
+  toRemoteAbsolutePath,
+} from './ssh-paths';
+import { buildFindPruneExpression } from './ssh-remote-enumerate';
 
 const SSH_FILE_TREE_POLL_MS = 4_000;
 const SSH_FILE_CHANGE_POLL_MS = 4_000;
@@ -62,6 +65,8 @@ type LegacySshSnapshotEntry = {
  * behavior until the core runtime can run inside the remote workspace server.
  */
 export class LegacySshFilesRuntime implements IFilesRuntime {
+  readonly path: IFilesRuntime['path'] = posixMachinePath;
+
   private readonly trees: ResourceMap<LegacySshFileTree>;
   private readonly changeFeeds = new Set<ChangeFeedHandle>();
   private disposeRequested = false;
@@ -78,17 +83,18 @@ export class LegacySshFilesRuntime implements IFilesRuntime {
   }
 
   async openTree(rootPath: string): Promise<Result<FileTreeLease, FileTreeError>> {
-    const normalizedRoot = normalizeRemoteRootPath(rootPath);
+    const normalizedRoot = normalizeRemoteAbsolutePath(rootPath);
+    if (!normalizedRoot.success) return err(normalizedRoot.error);
     if (this.disposeRequested) {
       return err({
         type: 'fs-error',
-        path: '',
+        path: normalizedRoot.data,
         message: 'LegacySshFilesRuntime disposed',
       });
     }
 
-    const lease = await this.trees.acquire(normalizedRoot, async () => {
-      return new LegacySshFileTree(this.proxy, normalizedRoot, (context, error) =>
+    const lease = await this.trees.acquire(normalizedRoot.data, async () => {
+      return new LegacySshFileTree(this.proxy, normalizedRoot.data, (context, error) =>
         log.warn('LegacySshFilesRuntime: background error', {
           context,
           error: String(error),
@@ -109,16 +115,51 @@ export class LegacySshFilesRuntime implements IFilesRuntime {
     }
   }
 
-  enumerate(rootPath: string): Result<FileEnumeration, FileError> {
-    const normalizedRoot = normalizeRemoteRootPath(rootPath);
+  fileSystem(): Result<IFileSystem, FileError> {
     if (this.disposeRequested) {
       return err({
         type: 'fs-error',
-        path: normalizedRoot,
+        path: '',
         message: 'LegacySshFilesRuntime disposed',
       });
     }
-    return ok(enumerateRemoteWorkspace(this.proxy, normalizedRoot));
+    return ok(new LegacySshFileSystem(this.proxy));
+  }
+
+  async copyFile(src: string, dest: string): Promise<Result<void, FileError>> {
+    const sourcePath = normalizeRemoteAbsolutePath(src);
+    if (!sourcePath.success) return sourcePath;
+    const destPath = normalizeRemoteAbsolutePath(dest);
+    if (!destPath.success) return destPath;
+
+    if (this.disposeRequested) {
+      return err({
+        type: 'fs-error',
+        path: destPath.data,
+        message: 'LegacySshFilesRuntime disposed',
+      });
+    }
+
+    try {
+      const destParent = path.posix.dirname(destPath.data);
+      const result = await execRemoteBuffer(
+        this.proxy,
+        [
+          `mkdir -p ${quoteShellArg(destParent)}`,
+          `cp -p ${quoteShellArg(sourcePath.data)} ${quoteShellArg(destPath.data)}`,
+        ].join(' && ')
+      );
+      if (result.exitCode !== 0) {
+        return err({
+          type: 'fs-error',
+          path: destPath.data,
+          message: result.stderr || `Remote copy exited with code ${result.exitCode}`,
+        });
+      }
+      return ok<void>();
+    } catch (error) {
+      return err(toFileError(error, destPath.data));
+    }
   }
 
   watchChanges(
@@ -126,22 +167,23 @@ export class LegacySshFilesRuntime implements IFilesRuntime {
     cb: (update: FileChangeUpdate) => void,
     options: FileChangeWatchOptions = {}
   ): Result<FileChangeSubscription, FileError> {
-    const normalizedRoot = normalizeRemoteRootPath(rootPath);
+    const normalizedRoot = normalizeRemoteAbsolutePath(rootPath);
+    if (!normalizedRoot.success) return normalizedRoot;
     if (this.disposeRequested) {
       return err({
         type: 'fs-error',
-        path: normalizedRoot,
+        path: normalizedRoot.data,
         message: 'LegacySshFilesRuntime disposed',
       });
     }
 
-    const paths = normalizeWatchedPaths(options.paths);
+    const paths = normalizeWatchedPaths(normalizedRoot.data, options.paths);
     if (!paths.success) return paths;
 
-    if (watchesWholeRoot(paths.data)) {
+    if (watchesWholeRoot(normalizedRoot.data, paths.data)) {
       const feed = new LegacySshRecursiveChangeFeed(
         this.proxy,
-        normalizedRoot,
+        normalizedRoot.data,
         cb,
         (context, error) =>
           log.warn('LegacySshFilesRuntime: background error', {
@@ -166,10 +208,10 @@ export class LegacySshFilesRuntime implements IFilesRuntime {
       });
     }
 
-    const fs = new SshFileSystem(this.proxy, normalizedRoot);
+    const fs = new SshFileSystem(this.proxy, '/');
     const watcher = fs.watch(
       (events) => {
-        const changes = eventsToChanges(events);
+        const changes = eventsToChanges('/', events);
         if (changes.length > 0) cb({ kind: 'changes', changes });
       },
       { debounceMs: options.debounceMs }
@@ -199,6 +241,18 @@ export class LegacySshFilesRuntime implements IFilesRuntime {
     await this.trees.dispose();
   }
 }
+
+const posixMachinePath: IFilesRuntime['path'] = {
+  join: (...parts) => path.posix.join(...parts),
+  dirname: (value) => path.posix.dirname(value),
+  basename: (value) => path.posix.basename(value),
+  isAbsolute: (value) => path.posix.isAbsolute(value),
+  relative: (from, to) => path.posix.relative(from, to),
+  contains: (parent, child) => {
+    const rel = path.posix.relative(parent, child);
+    return rel === '' || (rel !== '..' && !rel.startsWith('../') && !path.posix.isAbsolute(rel));
+  },
+};
 
 class LegacySshRecursiveChangeFeed implements ChangeFeedHandle {
   private snapshot: Map<string, LegacySshSnapshotEntry> | null = null;
@@ -278,7 +332,7 @@ class LegacySshRecursiveChangeFeed implements ChangeFeedHandle {
           message: result.stderr || `Remote file snapshot exited with code ${result.exitCode}`,
         });
       }
-      return ok(parseRecursiveSnapshot(result.stdout));
+      return ok(parseRecursiveSnapshot(this.rootPath, result.stdout));
     } catch (error) {
       return err(toFileError(error, this.rootPath));
     }
@@ -369,15 +423,25 @@ class LegacySshFileTree implements IFileTree {
   async revealPath(pathToReveal: string): Promise<Result<FileTreeSequences, FileTreeError>> {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
-    const normalized = normalizeRelPath(pathToReveal);
+    const normalized = normalizeRemoteAbsolutePath(pathToReveal);
     if (!normalized.success) return normalized;
+    if (!containsRemotePath(this.rootPath, normalized.data)) {
+      return err({
+        type: 'invalid-path',
+        path: pathToReveal,
+        message: 'Path is outside the file-tree root',
+      });
+    }
 
-    const parts = normalized.data.split('/').filter(Boolean);
+    const relPath = path.posix.relative(this.rootPath, normalized.data);
+    const parts = relPath.split('/').filter(Boolean);
     let sequences: FileTreeSequences = {};
     for (let index = 0; index < parts.length; index += 1) {
-      const relPath = parts.slice(0, index + 1).join('/');
-      const node = this.getByPath(relPath);
-      if (!node) return err({ type: 'not-found', path: relPath });
+      const absPath = normalizeRemoteRootPath(
+        path.posix.join(this.rootPath, ...parts.slice(0, index + 1))
+      );
+      const node = this.getByPath(absPath);
+      if (!node) return err({ type: 'not-found', path: absPath });
       const shouldExpand = index < parts.length - 1 || node.type === 'directory';
       if (!shouldExpand) continue;
       if (node.type !== 'directory') {
@@ -443,7 +507,7 @@ class LegacySshFileTree implements IFileTree {
       return err({ type: 'not-directory', id: dirNode.id, path: dirNode.path });
     }
 
-    const dirPath = dirNode?.path ?? '';
+    const dirPath = dirNode?.path ?? this.rootPath;
     const listed = await this.listChildren(dirPath);
     if (!listed.success) return listed;
 
@@ -468,17 +532,24 @@ class LegacySshFileTree implements IFileTree {
   }
 
   private async listChildren(dirPath: string): Promise<Result<LegacyListedEntry[], FileTreeError>> {
-    const normalized = normalizeRelPath(dirPath, { allowEmpty: true });
+    const normalized = normalizeRemoteAbsolutePath(dirPath);
     if (!normalized.success) return normalized;
+    if (!containsRemotePath(this.rootPath, normalized.data)) {
+      return err({
+        type: 'invalid-path',
+        path: dirPath,
+        message: 'Path is outside the file-tree root',
+      });
+    }
 
     try {
       const result = await this.fs.list(normalized.data, { includeHidden: true });
       const entries: LegacyListedEntry[] = [];
       for (const entry of result.entries) {
-        const relPath = entry.path.replace(/\\/g, '/');
-        if (isIgnored(relPath)) continue;
+        const absPath = toRemoteAbsolutePath(this.rootPath, entry.path);
+        if (isIgnored(absPath)) continue;
         if (entry.type !== 'dir' && entry.type !== 'file') continue;
-        entries.push(toListedEntry(entry));
+        entries.push(toListedEntry(this.rootPath, entry));
       }
       entries.sort((a, b) => {
         if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
@@ -612,44 +683,61 @@ class LegacySshFileTree implements IFileTree {
   }
 }
 
-function normalizeWatchedPaths(paths: string[] | undefined): Result<string[], FileError> {
-  if (!paths || paths.length === 0) return ok(['']);
-  return normalizeRelPaths(paths, { allowEmpty: true });
+function normalizeWatchedPaths(
+  rootPath: string,
+  paths: string[] | undefined
+): Result<string[], FileError> {
+  if (!paths || paths.length === 0) return ok([rootPath]);
+
+  const normalizedPaths: string[] = [];
+  for (const pathValue of paths) {
+    if (pathValue.includes('\0')) {
+      return err({ type: 'invalid-path', path: pathValue, message: 'Path contains a null byte' });
+    }
+
+    const normalized = normalizeRemoteAbsolutePath(pathValue);
+    if (!normalized.success) return normalized;
+
+    if (!containsRemotePath(rootPath, normalized.data)) {
+      return err({
+        type: 'invalid-path',
+        path: pathValue,
+        message: 'Path is outside the watch root',
+      });
+    }
+
+    normalizedPaths.push(normalized.data);
+  }
+
+  return ok(normalizedPaths);
 }
 
-function watchesWholeRoot(paths: string[]): boolean {
-  return paths.includes('');
+function watchesWholeRoot(rootPath: string, paths: string[]): boolean {
+  return paths.includes(rootPath);
 }
 
-function eventsToChanges(events: FileWatchEvent[]): FileChange[] {
+function eventsToChanges(rootPath: string, events: FileWatchEvent[]): FileChange[] {
   const changes: FileChange[] = [];
   for (const event of events) {
-    if (isIgnored(event.path)) continue;
+    const eventPath = toRemoteAbsolutePath(rootPath, event.path);
+    if (isIgnored(eventPath)) continue;
     if (event.type === 'rename') {
-      if (event.oldPath && !isIgnored(event.oldPath)) {
-        changes.push({ kind: 'delete', path: event.oldPath, entryType: event.entryType });
+      if (event.oldPath) {
+        const oldPath = toRemoteAbsolutePath(rootPath, event.oldPath);
+        if (!isIgnored(oldPath)) {
+          changes.push({ kind: 'delete', path: oldPath, entryType: event.entryType });
+        }
       }
-      changes.push({ kind: 'create', path: event.path, entryType: event.entryType });
+      changes.push({ kind: 'create', path: eventPath, entryType: event.entryType });
       continue;
     }
     changes.push({
       kind: event.type === 'modify' ? 'update' : event.type,
-      path: event.path,
+      path: eventPath,
       entryType: event.entryType,
     });
   }
   return changes;
-}
-
-async function* enumerateRemoteWorkspace(
-  proxy: SshClientProxy,
-  rootPath: string
-): AsyncIterable<RelPath> {
-  for await (const rawPath of execRemoteNulFields(proxy, buildRemoteEnumerationCommand(rootPath))) {
-    const normalized = normalizeRelPath(rawPath);
-    if (!normalized.success || isIgnored(normalized.data)) continue;
-    yield normalized.data;
-  }
 }
 
 function diffRecursiveSnapshots(
@@ -739,95 +827,6 @@ function readExecStream(
   });
 }
 
-async function* execRemoteNulFields(proxy: SshClientProxy, command: string): AsyncIterable<string> {
-  const profile = await proxy.getRemoteShellProfile();
-  const fullCommand = buildRemoteShellCommand(profile, command);
-  const decoder = new StringDecoder('utf8');
-  const queue: string[] = [];
-  let stream: ClientChannel | undefined;
-  let pending = '';
-  let stderr = '';
-  let done = false;
-  let error: unknown;
-  let notify: (() => void) | undefined;
-
-  const wake = () => {
-    notify?.();
-    notify = undefined;
-  };
-  const waitForEvent = () =>
-    new Promise<void>((resolve) => {
-      notify = resolve;
-    });
-
-  await new Promise<void>((resolve, reject) => {
-    proxy.exec(fullCommand, (err, channel) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      stream = channel;
-      channel.on('data', (chunk: Buffer) => {
-        const text = pending + decoder.write(chunk);
-        const parts = text.split('\0');
-        pending = parts.pop() ?? '';
-        queue.push(...parts);
-        wake();
-      });
-      channel.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString('utf8');
-      });
-      channel.on('close', (exitCode: number | null) => {
-        const tail = pending + decoder.end();
-        if (tail) queue.push(tail);
-        pending = '';
-        if ((exitCode ?? 0) !== 0) {
-          error = new Error(stderr.trim() || `Remote command exited with code ${exitCode}`);
-        }
-        done = true;
-        wake();
-      });
-      channel.on('error', (streamError: Error) => {
-        error = streamError;
-        done = true;
-        wake();
-      });
-      resolve();
-    });
-  });
-
-  try {
-    while (!done || queue.length > 0) {
-      while (queue.length > 0) {
-        const item = queue.shift();
-        if (item) yield item;
-      }
-      if (error) throw error;
-      if (!done) await waitForEvent();
-    }
-    if (error) throw error;
-  } finally {
-    if (!done) stream?.destroy();
-  }
-}
-
-function buildRemoteEnumerationCommand(rootPath: string): string {
-  const pruneExpression = buildFindPruneExpression();
-  const enumerateScript = `
-for p do
-  rel=\${p#./}
-  [ "$rel" = "." ] && continue
-  printf '%s\\0' "$rel"
-done
-`.trim();
-
-  return [
-    `cd ${quoteShellArg(rootPath)} || exit 1`,
-    `find . ${pruneExpression}-type f -exec sh -c ${quoteShellArg(enumerateScript)} sh {} +`,
-  ].join('\n');
-}
-
 function buildRecursiveSnapshotCommand(rootPath: string): string {
   const pruneExpression = buildFindPruneExpression();
   const snapshotScript = `
@@ -857,14 +856,10 @@ done
   ].join('\n');
 }
 
-function buildFindPruneExpression(): string {
-  const ignoredNames = IGNORED_PATH_SEGMENTS.map((name) => `-name ${quoteShellArg(name)}`).join(
-    ' -o '
-  );
-  return ignoredNames ? `\\( ${ignoredNames} \\) -prune -o ` : '';
-}
-
-function parseRecursiveSnapshot(stdout: Buffer): Map<string, LegacySshSnapshotEntry> {
+function parseRecursiveSnapshot(
+  rootPath: string,
+  stdout: Buffer
+): Map<string, LegacySshSnapshotEntry> {
   const entries = new Map<string, LegacySshSnapshotEntry>();
   const fields = stdout.toString('utf8').split('\0');
 
@@ -874,10 +869,10 @@ function parseRecursiveSnapshot(stdout: Buffer): Map<string, LegacySshSnapshotEn
 
     const size = fields[index + 1];
     const mtime = fields[index + 2];
-    const normalized = normalizeRelPath(fields[index + 3]);
-    if (!normalized.success || isIgnored(normalized.data)) continue;
+    const absPath = toRemoteAbsolutePath(rootPath, fields[index + 3]);
+    if (isIgnored(absPath)) continue;
 
-    entries.set(normalized.data, {
+    entries.set(absPath, {
       entryType,
       size,
       mtime,
@@ -892,11 +887,11 @@ function parseSnapshotEntryType(raw: string): Exclude<FileEntryType, 'unknown'> 
   return null;
 }
 
-function toListedEntry(entry: FileEntry): LegacyListedEntry {
-  const relPath = entry.path.replace(/\\/g, '/');
+function toListedEntry(rootPath: string, entry: FileEntry): LegacyListedEntry {
+  const absPath = toRemoteAbsolutePath(rootPath, entry.path);
   return {
-    path: relPath,
-    name: path.posix.basename(relPath),
+    path: absPath,
+    name: path.posix.basename(absPath),
     type: entry.type === 'dir' ? 'directory' : 'file',
   };
 }
@@ -929,11 +924,6 @@ function toFileError(error: unknown, path: string): FileError {
     return { type: 'fs-error', path, message: error.message };
   }
   return { type: 'fs-error', path, message: String(error) };
-}
-
-function normalizeRemoteRootPath(rootPath: string): string {
-  const normalized = path.posix.normalize(rootPath.replace(/\\/g, '/'));
-  return path.posix.isAbsolute(normalized) ? normalized : path.posix.resolve('/', normalized);
 }
 
 function mergeSequences(left: FileTreeSequences, right: FileTreeSequences): FileTreeSequences {

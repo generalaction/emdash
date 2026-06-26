@@ -48,11 +48,11 @@ import type {
 import { LiveModel, ResourceMap } from '@emdash/core/lib';
 import { err, ok, type Lease, type Result, type Unsubscribe } from '@emdash/shared';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitService } from '@main/core/git/legacy/git-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import type { ImageReadResult as LegacyImageReadResult } from '@shared/core/git/types';
+import { LegacySshFileSystem } from './ssh-file-system';
 
 const STATUS_POLL_MS = 10_000;
 const UNTRACKED_STATUS_POLL_MS = 30_000;
@@ -224,7 +224,7 @@ export class LegacySshGitRuntime implements IGitRuntime {
   }
 
   private createGit(root: string): GitService {
-    const fs = new SshFileSystem(this.proxy, root);
+    const fs = new LegacySshFileSystem(this.proxy);
     const ctx = new SshExecutionContext(this.proxy, { root });
     return new GitService(ctx, fs);
   }
@@ -485,27 +485,28 @@ class LegacySshGitWorktree implements IGitWorktree {
   }
 
   isFileCleanlyTracked(filePath: string): Promise<boolean> {
-    return this.git.isFileCleanlyTracked(filePath);
+    return this.git.isFileCleanlyTracked(this.toGitPath(filePath));
   }
 
-  getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
-    return this.git.getChangedFiles(base) as Promise<GitChange[]>;
+  async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
+    return (await this.git.getChangedFiles(base)).map((change) => this.toAbsChange(change));
   }
 
   getFileAtRef(filePath: string, ref: string): Promise<string | null> {
-    return this.git.getFileAtRef(filePath, ref);
+    return this.git.getFileAtRef(this.toGitPath(filePath), ref);
   }
 
   getFileAtIndex(filePath: string): Promise<string | null> {
-    return this.git.getFileAtIndex(filePath);
+    return this.git.getFileAtIndex(this.toGitPath(filePath));
   }
 
   async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
-    return mapImageReadResult(await this.git.getImageAtRef(filePath, ref));
+    const gitPath = this.toGitPath(filePath);
+    return mapImageReadResult(await this.git.getImageAtRef(gitPath, ref));
   }
 
   async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
-    return mapImageReadResult(await this.git.getImageAtIndex(filePath));
+    return mapImageReadResult(await this.git.getImageAtIndex(this.toGitPath(filePath)));
   }
 
   getLog(options?: GitLogOptions): Promise<GitLogResult> {
@@ -518,7 +519,7 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   async stage(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
     try {
-      await this.git.stageFiles(paths);
+      await this.git.stageFiles(this.toGitPaths(paths));
       return ok(await this.refreshStatus());
     } catch (error) {
       return err(toGitCommandError(error));
@@ -536,7 +537,7 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   async unstage(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
     try {
-      await this.git.unstageFiles(paths);
+      await this.git.unstageFiles(this.toGitPaths(paths));
       return ok(await this.refreshStatus());
     } catch (error) {
       return err(toGitCommandError(error));
@@ -554,7 +555,7 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   async revert(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
     try {
-      await this.git.revertFiles(paths);
+      await this.git.revertFiles(this.toGitPaths(paths));
       return ok(await this.refreshStatus());
     } catch (error) {
       return err(toGitCommandError(error));
@@ -604,8 +605,8 @@ class LegacySshGitWorktree implements IGitWorktree {
       const status = await this.git.getFullStatus();
       return {
         kind: 'ok',
-        staged: status.staged,
-        unstaged: status.unstaged,
+        staged: status.staged.map((change) => this.toAbsChange(change)),
+        unstaged: status.unstaged.map((change) => this.toAbsChange(change)),
         stagedAdded: status.totalAdded,
         stagedDeleted: status.totalDeleted,
       };
@@ -619,6 +620,24 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   private async computeHead(): Promise<GitHeadModel> {
     return this.git.getHeadInfo();
+  }
+
+  private toAbsChange(change: GitChange): GitChange {
+    return { ...change, path: this.toAbsPath(change.path) };
+  }
+
+  private toAbsPath(filePath: string): string {
+    if (path.posix.isAbsolute(filePath)) return path.posix.normalize(filePath);
+    return path.posix.join(this.worktree, filePath);
+  }
+
+  private toGitPath(filePath: string): string {
+    if (!path.posix.isAbsolute(filePath)) return filePath;
+    return path.posix.relative(this.worktree, filePath);
+  }
+
+  private toGitPaths(paths: string[]): string[] {
+    return paths.map((filePath) => this.toGitPath(filePath));
   }
 
   private async refreshStatus(): Promise<GitSequences> {

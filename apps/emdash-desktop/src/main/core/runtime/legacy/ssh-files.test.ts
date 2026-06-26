@@ -1,10 +1,10 @@
 import { EventEmitter } from 'node:events';
 import type { ClientChannel } from 'ssh2';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import type { FileWatchEvent } from '@shared/core/fs/fs';
 import { LegacySshFilesRuntime } from './ssh-files';
+import { SshFileSystem } from './ssh-legacy-fs';
 
 type SnapshotRecord = {
   kind: 'file' | 'directory';
@@ -35,20 +35,20 @@ describe('LegacySshFilesRuntime', () => {
     const runtime = new LegacySshFilesRuntime({} as never);
     const updates: unknown[] = [];
     const subscription = runtime.watchChanges('/repo', (update) => updates.push(update), {
-      paths: ['src'],
+      paths: ['/repo/src'],
     });
     expect(subscription.success).toBe(true);
-    expect(update).toHaveBeenCalledWith(['src']);
+    expect(update).toHaveBeenCalledWith(['/repo/src']);
 
     emitLegacyEvents?.([
-      { type: 'modify', entryType: 'file', path: 'src/notes.md' },
-      { type: 'modify', entryType: 'file', path: 'src/node_modules/pkg/index.js' },
+      { type: 'modify', entryType: 'file', path: '/repo/src/notes.md' },
+      { type: 'modify', entryType: 'file', path: '/repo/src/node_modules/pkg/index.js' },
     ]);
 
     expect(updates).toEqual([
       {
         kind: 'changes',
-        changes: [{ kind: 'update', entryType: 'file', path: 'src/notes.md' }],
+        changes: [{ kind: 'update', entryType: 'file', path: '/repo/src/notes.md' }],
       },
     ]);
 
@@ -76,7 +76,6 @@ describe('LegacySshFilesRuntime', () => {
     const runtime = new LegacySshFilesRuntime(proxy);
     const updates: unknown[] = [];
     const subscription = runtime.watchChanges('/repo', (update) => updates.push(update), {
-      paths: [''],
       debounceMs: 100,
     });
 
@@ -95,9 +94,9 @@ describe('LegacySshFilesRuntime', () => {
       {
         kind: 'changes',
         changes: [
-          { kind: 'update', path: 'src/a.ts', entryType: 'file' },
-          { kind: 'create', path: 'src/b.ts', entryType: 'file' },
-          { kind: 'delete', path: 'README.md', entryType: 'file' },
+          { kind: 'update', path: '/repo/src/a.ts', entryType: 'file' },
+          { kind: 'create', path: '/repo/src/b.ts', entryType: 'file' },
+          { kind: 'delete', path: '/repo/README.md', entryType: 'file' },
         ],
       },
     ]);
@@ -112,11 +111,15 @@ describe('LegacySshFilesRuntime', () => {
     ]);
     const runtime = new LegacySshFilesRuntime(proxy);
 
-    const result = runtime.enumerate('/repo');
+    const fileSystem = runtime.fileSystem();
+    expect(fileSystem.success).toBe(true);
+    if (!fileSystem.success) return;
+
+    const result = fileSystem.data.enumerate('/repo');
     expect(result.success).toBe(true);
     if (!result.success) return;
 
-    await expect(collect(result.data)).resolves.toEqual(['README.md', 'src/a.ts']);
+    await expect(collect(result.data)).resolves.toEqual(['/repo/README.md', '/repo/src/a.ts']);
     expect(exec).toHaveBeenCalledTimes(1);
 
     await runtime.dispose();

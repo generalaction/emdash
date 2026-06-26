@@ -1,4 +1,5 @@
-import { FilesRuntime } from '@emdash/core/files';
+import nodePath from 'node:path';
+import { contains, FilesRuntime } from '@emdash/core/files';
 import { GitRuntime } from '@emdash/core/git';
 import { ResourceMap } from '@emdash/core/lib';
 import type { Lease } from '@emdash/shared';
@@ -7,14 +8,32 @@ import { log } from '@main/lib/logger';
 import { ConstantHealthSource } from './health';
 import { LegacySshFilesRuntime } from './legacy/ssh-files';
 import { LegacySshGitRuntime } from './legacy/ssh-git';
-import { machineKey, type MachineRef, type MachineRuntime, type RuntimeManager } from './types';
+import {
+  machineKey,
+  type MachineRef,
+  type MachineRuntime,
+  type RuntimeManager,
+  type RuntimePath,
+} from './types';
+
+const nativeRuntimePath: RuntimePath = {
+  join: (...parts) => nodePath.join(...parts),
+  dirname: (p) => nodePath.dirname(p),
+  basename: (p) => nodePath.basename(p),
+  isAbsolute: (p) => nodePath.isAbsolute(p),
+  relative: (from, to) => nodePath.relative(from, to),
+  contains,
+};
 
 class LocalMachineRuntime implements MachineRuntime {
   readonly machine: MachineRef = { kind: 'local' };
-  readonly files = new FilesRuntime({
-    onError: (context, error) =>
-      log.warn('Local file runtime background error', { context, error: String(error) }),
-  });
+  readonly files = Object.assign(
+    new FilesRuntime({
+      onError: (context, error) =>
+        log.warn('Local file runtime background error', { context, error: String(error) }),
+    }),
+    { path: nativeRuntimePath }
+  );
   readonly git = new GitRuntime({
     onError: (context, error) =>
       log.warn('Local GitRuntime background error', { context, error: String(error) }),

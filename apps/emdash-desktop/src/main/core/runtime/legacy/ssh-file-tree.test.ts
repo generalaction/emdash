@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import type { FileEntry, FileListResult } from '@main/core/fs/types';
 import { LegacySshFilesRuntime } from './ssh-files';
+import { SshFileSystem } from './ssh-legacy-fs';
+import type { FileEntry, FileListResult } from './ssh-legacy-fs-types';
 
 function listResult(entries: FileEntry[]): FileListResult {
   return { entries, total: entries.length };
@@ -33,9 +33,9 @@ describe('LegacySshFilesRuntime file tree', () => {
   });
 
   it('loads children for expanded remote directory scopes', async () => {
-    vi.spyOn(SshFileSystem.prototype, 'list').mockImplementation(async (dirPath = '') => {
-      if (dirPath === '') return listResult([dirEntry('src')]);
-      if (dirPath === 'src') return listResult([fileEntry('src/index.ts')]);
+    vi.spyOn(SshFileSystem.prototype, 'list').mockImplementation(async (dirPath = '/repo') => {
+      if (dirPath === '/repo') return listResult([dirEntry('/repo/src')]);
+      if (dirPath === '/repo/src') return listResult([fileEntry('/repo/src/index.ts')]);
       return listResult([]);
     });
 
@@ -49,8 +49,8 @@ describe('LegacySshFilesRuntime file tree', () => {
     expect(rootSnapshot.success).toBe(true);
     if (!rootSnapshot.success) return;
 
-    const src = rootSnapshot.data.entries.find(([, node]) => node.path === 'src')?.[1];
-    expect(src).toMatchObject({ path: 'src', type: 'directory', parentId: null });
+    const src = rootSnapshot.data.entries.find(([, node]) => node.path === '/repo/src')?.[1];
+    expect(src).toMatchObject({ path: '/repo/src', type: 'directory', parentId: null });
     expect(src).toBeDefined();
     if (!src) return;
 
@@ -62,11 +62,11 @@ describe('LegacySshFilesRuntime file tree', () => {
     if (!expandedSnapshot.success) return;
 
     expect(expandedSnapshot.data.entries.map(([, node]) => node.path).sort()).toEqual([
-      'src',
-      'src/index.ts',
+      '/repo/src',
+      '/repo/src/index.ts',
     ]);
     expect(
-      expandedSnapshot.data.entries.find(([, node]) => node.path === 'src/index.ts')?.[1]
+      expandedSnapshot.data.entries.find(([, node]) => node.path === '/repo/src/index.ts')?.[1]
     ).toMatchObject({ parentId: src.id });
 
     await opened.data.release();
