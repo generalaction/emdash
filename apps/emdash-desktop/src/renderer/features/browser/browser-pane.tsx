@@ -1,15 +1,25 @@
+import { ExternalLink, RotateCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
+import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { events, rpc } from '@renderer/lib/ipc';
+import { Button } from '@renderer/lib/ui/button';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
 import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { browserControlsRegistry } from './browser-controls-registry';
+import {
+  browserLoadErrorCode,
+  describeBrowserLoadError,
+  hostLabel,
+  type BrowserLoadErrorPresentation,
+} from './browser-load-error';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
 import { BrowserStartPage } from './browser-start-page';
 import { BrowserToolbar } from './browser-toolbar';
+import { canOpenBrowserUrlExternally, openBrowserUrlExternally } from './browser-toolbar-actions';
 import { bindBrowserWebviewEvents } from './browser-webview-events';
 import {
   createBrowserWebviewAdapter,
@@ -43,6 +53,16 @@ export const BrowserPane = observer(function BrowserPane({
   const sessionBrowserId = session?.browserId;
   const sessionPartition = session?.partition;
   const showStartPage = session?.currentUrl === 'about:blank' && !session.isLoading;
+  const loadError = session && !session.isLoading ? session.loadError : undefined;
+  const loadErrorUrl = loadError ? (loadError.url ?? session?.currentUrl ?? '') : '';
+  const loadErrorPresentation = useMemo<BrowserLoadErrorPresentation | undefined>(
+    () => (loadError ? describeBrowserLoadError(loadError, loadErrorUrl) : undefined),
+    [loadError, loadErrorUrl]
+  );
+  const canOpenLoadErrorExternal = useMemo(
+    () => (loadError ? canOpenBrowserUrlExternally(loadErrorUrl) : false),
+    [loadError, loadErrorUrl]
+  );
 
   useEffect(() => {
     if (!sessionBrowserId || !sessionPartition || !session) {
@@ -250,7 +270,16 @@ export const BrowserPane = observer(function BrowserPane({
         }}
       />
       <div className="emlight min-h-0 flex-1 bg-background">
-        {showStartPage ? (
+        {loadError && loadErrorPresentation ? (
+          <BrowserLoadErrorView
+            url={loadErrorUrl}
+            presentation={loadErrorPresentation}
+            code={browserLoadErrorCode(loadError)}
+            canOpenExternal={canOpenLoadErrorExternal}
+            onReload={reload}
+            onOpenExternal={() => openBrowserUrlExternally(loadErrorUrl)}
+          />
+        ) : showStartPage ? (
           <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
           <webview
@@ -268,3 +297,90 @@ export const BrowserPane = observer(function BrowserPane({
     </div>
   );
 });
+
+function BrowserLoadErrorDetail({
+  detail,
+  host,
+  url,
+}: {
+  detail: string;
+  host: string;
+  url: string;
+}) {
+  if (detail.startsWith(host)) {
+    return (
+      <p className="text-base leading-relaxed text-foreground-muted" title={url}>
+        <span className="font-medium text-foreground">{host}</span>
+        {detail.slice(host.length)}
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-base leading-relaxed text-foreground-muted" title={url}>
+      {detail}
+    </p>
+  );
+}
+
+function BrowserLoadErrorView({
+  presentation,
+  code,
+  url,
+  canOpenExternal,
+  onReload,
+  onOpenExternal,
+}: {
+  presentation: BrowserLoadErrorPresentation;
+  code: string | null;
+  url: string;
+  canOpenExternal: boolean;
+  onReload: () => void;
+  onOpenExternal: () => void;
+}) {
+  const host = hostLabel(url);
+
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center overflow-auto px-10 py-14">
+      <div className="flex w-full max-w-lg flex-col gap-7">
+        <EmdashLogo height={18} className="text-foreground" />
+        <div className="flex flex-col gap-3">
+          <h1 className="text-2xl font-medium tracking-tight text-foreground">
+            {presentation.heading}
+          </h1>
+          <BrowserLoadErrorDetail detail={presentation.detail} host={host} url={url} />
+        </div>
+        {presentation.suggestions.length > 0 && (
+          <div className="flex flex-col gap-2.5">
+            <span className="text-sm font-medium text-foreground">Try:</span>
+            <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed text-foreground-muted marker:text-foreground-tertiary-muted">
+              {presentation.suggestions.map((suggestion) => (
+                <li key={suggestion}>{suggestion}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {code && (
+          <div className="font-mono text-xs tracking-wide text-foreground-tertiary-muted">
+            {code}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2.5 pt-1">
+          <Button type="button" onClick={onReload}>
+            <RotateCcw className="size-4" />
+            Reload
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!canOpenExternal}
+            onClick={onOpenExternal}
+          >
+            <ExternalLink className="size-4" />
+            Open externally
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
