@@ -132,10 +132,10 @@ void app.whenReady().then(async () => {
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
   remoteTmuxReaperService.initialize();
-  autoCleanupScheduler.initialize();
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
+  autoCleanupScheduler.initialize();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();

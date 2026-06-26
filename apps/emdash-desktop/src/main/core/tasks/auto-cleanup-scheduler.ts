@@ -99,6 +99,7 @@ export class AutoCleanupScheduler {
       .where(
         and(
           isNull(tasks.archivedAt),
+          eq(tasks.type, 'task'),
           eq(pullRequests.status, 'merged'),
           lte(lastActivity, cutoffIso)
         )

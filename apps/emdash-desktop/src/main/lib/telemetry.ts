@@ -150,6 +150,7 @@ class TelemetryService implements IInitializable, IDisposable {
       'automation_id',
       'trigger_kind',
       'duration_ms',
+      'delay_ms',
       'error_step',
       'error_code',
     ]);
@@ -170,7 +171,7 @@ class TelemetryService implements IInitializable, IDisposable {
         } else if (typeof value === 'number') {
           if (key === 'event_ts_ms') {
             sanitized[key] = Math.max(0, Math.min(Math.trunc(value), MAX_EVENT_TS_MS));
-          } else if (key === 'duration_ms') {
+          } else if (key === 'duration_ms' || key === 'delay_ms') {
             sanitized[key] = Math.max(0, Math.min(Math.trunc(value), MAX_DURATION_MS));
           } else {
             sanitized[key] = Math.max(-MAX_GENERIC_NUMBER, Math.min(value, MAX_GENERIC_NUMBER));

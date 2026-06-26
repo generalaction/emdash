@@ -289,7 +289,12 @@ export const AutoCleanupMergedTasksRow: React.FC = () => {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
-    taskSettings.updateAutoCleanupMergedDelayMs(durationToMs(value, nextUnit));
+    // Prefer the currently typed draft over the persisted value so a unit
+    // switch immediately after typing reflects what the user sees.
+    const draftNumber = Number(draftValue);
+    const baseValue =
+      Number.isFinite(draftNumber) && draftNumber >= 1 ? Math.floor(draftNumber) : value;
+    taskSettings.updateAutoCleanupMergedDelayMs(durationToMs(baseValue, nextUnit));
   };
 
   const anyOverridden =
@@ -308,7 +313,7 @@ export const AutoCleanupMergedTasksRow: React.FC = () => {
   return (
     <SettingRow
       title="Auto-cleanup merged tasks"
-      description="When a task's pull request has been merged for the configured delay, automatically archive or delete the task."
+      description="When a task's pull request has been merged and the task has been idle for the configured delay, automatically archive or delete it. Delete removes the task and its worktree; optionally also delete the branch."
       control={
         <div className="flex flex-col items-end gap-3">
           <div className="flex items-center gap-2">
