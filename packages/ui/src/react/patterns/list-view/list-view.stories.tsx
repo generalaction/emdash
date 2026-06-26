@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 import { SearchInput } from '../../primitives/search-input';
-import { ToggleGroup, ToggleGroupItem } from '../../primitives/toggle';
+import { Tabs, TabsList, TabsTab } from '../../primitives/tabs';
 import * as s from '../../story-layout.css';
 import { ListView } from './index';
 
@@ -217,15 +217,14 @@ function FullListViewDemo() {
       <ListView>
         <ListView.Toolbar>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ToggleGroup
-              value={[status]}
-              onValueChange={(v) => setStatus((v as string[])[0] ?? 'all')}
-            >
-              <ToggleGroupItem value="all">All</ToggleGroupItem>
-              <ToggleGroupItem value="open">Open</ToggleGroupItem>
-              <ToggleGroupItem value="closed">Closed</ToggleGroupItem>
-              <ToggleGroupItem value="merged">Merged</ToggleGroupItem>
-            </ToggleGroup>
+            <Tabs value={status} onValueChange={(v) => setStatus(v ?? 'all')}>
+              <TabsList>
+                <TabsTab value="all">All</TabsTab>
+                <TabsTab value="open">Open</TabsTab>
+                <TabsTab value="closed">Closed</TabsTab>
+                <TabsTab value="merged">Merged</TabsTab>
+              </TabsList>
+            </Tabs>
             <SearchInput
               size="sm"
               value={query}
@@ -436,14 +435,13 @@ function AgentsViewDemo() {
     <div className={s.w96} style={{ height: '40rem', display: 'flex', flexDirection: 'column' }}>
       <ListView>
         <ListView.Toolbar>
-          <ToggleGroup
-            value={[filter]}
-            onValueChange={(v) => setFilter(((v as string[])[0] ?? 'all') as typeof filter)}
-          >
-            <ToggleGroupItem value="all">All</ToggleGroupItem>
-            <ToggleGroupItem value="installed">Installed</ToggleGroupItem>
-            <ToggleGroupItem value="not-installed">Not installed</ToggleGroupItem>
-          </ToggleGroup>
+          <Tabs value={filter} onValueChange={(v) => setFilter((v ?? 'all') as typeof filter)}>
+            <TabsList>
+              <TabsTab value="all">All</TabsTab>
+              <TabsTab value="installed">Installed</TabsTab>
+              <TabsTab value="not-installed">Not installed</TabsTab>
+            </TabsList>
+          </Tabs>
           <SearchInput
             size="sm"
             value={query}
