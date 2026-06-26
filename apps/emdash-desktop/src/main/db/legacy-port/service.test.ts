@@ -60,8 +60,7 @@ function createAppDb(): Database.Database {
       workspace_provider_data TEXT,
       workspace_intent TEXT,
       type TEXT NOT NULL DEFAULT 'task',
-      automation_run_id TEXT,
-      auto_cleanup_opt_out INTEGER NOT NULL DEFAULT 0
+      automation_run_id TEXT
     );
 
     CREATE TABLE workspaces (

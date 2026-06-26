@@ -1,1 +1,0 @@
-ALTER TABLE `pull_requests` DROP COLUMN `merged_at`;

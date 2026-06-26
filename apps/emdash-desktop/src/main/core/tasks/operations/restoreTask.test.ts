@@ -47,7 +47,7 @@ describe('restoreTask', () => {
     expect(mocks.updateSet).toHaveBeenCalledWith(
       expect.objectContaining({
         archivedAt: null,
-        autoCleanupOptOut: true,
+        lastInteractedAt: expect.anything(),
         updatedAt: expect.anything(),
       })
     );
