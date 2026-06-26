@@ -12,6 +12,8 @@ export class FeatureAnnouncementStore {
   status: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   isPreview = false;
   dismissedIds = new Set<string>();
+  presentationReady = false;
+  dismissedPreviewId: string | null = null;
 
   constructor() {
     makeObservable(this, {
@@ -19,6 +21,8 @@ export class FeatureAnnouncementStore {
       status: observable,
       isPreview: observable,
       dismissedIds: observable,
+      presentationReady: observable,
+      dismissedPreviewId: observable,
       shouldPresent: computed,
       setManifest: action,
       setStatus: action,
@@ -28,7 +32,9 @@ export class FeatureAnnouncementStore {
 
   get shouldPresent(): boolean {
     if (!this.manifest) return false;
+    if (this.dismissedPreviewId === this.manifest.id) return false;
     if (this.isPreview) return true;
+    if (!this.presentationReady) return false;
     return !this.dismissedIds.has(this.manifest.id);
   }
 
@@ -44,6 +50,7 @@ export class FeatureAnnouncementStore {
     if (!this.manifest) return;
 
     if (this.isPreview) {
+      this.dismissedPreviewId = this.manifest.id;
       this.isPreview = false;
       return;
     }
@@ -61,10 +68,15 @@ export class FeatureAnnouncementStore {
     if (!this.manifest) return;
     const announcementId = this.manifest.id;
     this.dismissedIds = new Set([...this.dismissedIds].filter((id) => id !== announcementId));
+    this.dismissedPreviewId = null;
     await clearAnnouncementDismissal(announcementId);
   }
 
   async start(options?: { isFreshInstall?: boolean }): Promise<void> {
+    runInAction(() => {
+      this.presentationReady = false;
+    });
+
     await Promise.all([this.refresh(), this.loadDismissalState()]);
 
     if (options?.isFreshInstall) {
@@ -74,6 +86,10 @@ export class FeatureAnnouncementStore {
       });
       await this.loadDismissalState();
     }
+
+    runInAction(() => {
+      this.presentationReady = true;
+    });
   }
 
   async loadDismissalState(): Promise<void> {
@@ -89,6 +105,9 @@ export class FeatureAnnouncementStore {
     runInAction(() => {
       this.status = 'loading';
       this.isPreview = Boolean(options?.preview);
+      if (options?.preview) {
+        this.dismissedPreviewId = null;
+      }
     });
 
     try {

@@ -2,8 +2,8 @@ import { ChevronRight, XIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
+import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { appState } from '@renderer/lib/stores/app-state';
 import { cn } from '@renderer/utils/utils';
 import type { FeatureAnnouncementCtaAction } from '@shared/feature-announcements/constants';
@@ -114,7 +114,7 @@ export const FeatureAnnouncementSidebarToast = observer(function FeatureAnnounce
     >
       <div
         className={cn(
-          'pointer-events-auto overflow-hidden rounded-xl border border-border/60 bg-background-quaternary shadow-lg ring-1 ring-black/5 animate-panel-blur-in',
+          'pointer-events-auto overflow-hidden rounded-xl border border-border/60 bg-background-quaternary shadow-lg ring-1 ring-black/5 animate-panel-blur-in'
         )}
       >
         <div className="relative px-3.5 pt-3 pb-2.5">

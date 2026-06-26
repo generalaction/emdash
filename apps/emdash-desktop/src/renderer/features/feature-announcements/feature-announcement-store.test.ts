@@ -53,14 +53,16 @@ describe('FeatureAnnouncementStore', () => {
   it('does not present dismissed announcements', () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
+    store.presentationReady = true;
     store.dismissForTest(manifest.id);
 
     expect(store.shouldPresent).toBe(false);
   });
 
-  it('presents unseen announcements', () => {
+  it('presents unseen announcements after dismissal state loads', () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
+    store.presentationReady = true;
 
     expect(store.shouldPresent).toBe(true);
   });
@@ -81,6 +83,14 @@ describe('FeatureAnnouncementStore', () => {
 
     expect(settings).toEqual({ initialized: false, dismissedIds: [] });
     expect(store.isPreview).toBe(false);
+    expect(store.shouldPresent).toBe(false);
+  });
+
+  it('does not present before dismissal state is ready', () => {
+    const store = new FeatureAnnouncementStore();
+    store.setManifest(manifest);
+
+    expect(store.shouldPresent).toBe(false);
   });
 
   it('initializes fresh-install dismissal state when manifest fetch fails', async () => {
@@ -91,5 +101,6 @@ describe('FeatureAnnouncementStore', () => {
 
     expect(store.status).toBe('error');
     expect(settings).toEqual({ initialized: true, dismissedIds: [] });
+    expect(store.presentationReady).toBe(true);
   });
 });
