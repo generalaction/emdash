@@ -33,7 +33,7 @@ export interface SearchInputProps
  *   />
  */
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
-  { className, size = 'base', onClear, value, ...props },
+  { className, size = 'base', onClear, value, style: consumerStyle, ...props },
   ref
 ) {
   const hasValue = value !== undefined && value !== '';
@@ -44,7 +44,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
   const paddingRight = onClear != null ? '1.875rem' : undefined;
 
   return (
-    <div data-slot="search-input" className={styles.container}>
+    <div data-slot="search-input" className={styles.container} style={consumerStyle}>
       <span className={styles.icon} aria-hidden>
         <SearchIcon />
       </span>
@@ -54,10 +54,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
         type="search"
         size={size}
         value={value}
-        className={cx(
-          // Override the input's default padding to accommodate icons
-          className
-        )}
+        className={cx(className)}
         style={{ paddingLeft, paddingRight }}
         {...props}
       />
