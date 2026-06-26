@@ -52,7 +52,7 @@ export const TabBarActions = observer(function TabBarActions() {
                 onSuccess: ({ conversationId, openBrowserTab, openTerminalTab }) => {
                   pane.open('conversation', { conversationId, preview: false });
                   if (openBrowserTab) pane.open('browser', {});
-                  if (openTerminalTab) void taskView.openNewTerminalTab();
+                  if (openTerminalTab) void taskView.openNewTerminalTab({ pane });
                 },
               })
             }

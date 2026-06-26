@@ -27,7 +27,7 @@ export function PaneEmptyState() {
         onSuccess: ({ conversationId, openBrowserTab, openTerminalTab }) => {
           pane.open('conversation', { conversationId, preview: false });
           if (openBrowserTab) pane.open('browser', {});
-          if (openTerminalTab) void taskView.openNewTerminalTab();
+          if (openTerminalTab) void taskView.openNewTerminalTab({ pane });
         },
       }),
     () => showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined }),

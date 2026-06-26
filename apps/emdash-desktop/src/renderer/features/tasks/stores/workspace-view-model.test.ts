@@ -218,6 +218,23 @@ afterEach(() => {
 });
 
 describe('WorkspaceViewModel terminal drawer snapshot', () => {
+  it('opens a new terminal task tab in the provided pane target', async () => {
+    const terminals = makeTerminalManager({ terminalIds: [], isLoaded: true });
+    terminals.createDefaultTerminal.mockResolvedValue(makeTerminal('terminal-1').data);
+    terminalRegistryEntries().set('task-1', terminals);
+    const viewModel = makeViewModel();
+    const pane = { openKind: vi.fn() };
+
+    await viewModel.openNewTerminalTab({ pane });
+
+    expect(terminals.createDefaultTerminal).toHaveBeenCalledWith(undefined);
+    expect(pane.openKind).toHaveBeenCalledWith('terminal', {
+      terminalId: 'terminal-1',
+      preview: false,
+    });
+    expect(viewModel.activePane.resolvedTabs).toHaveLength(0);
+  });
+
   it('persists and restores the active terminal drawer item', () => {
     const source = makeViewModel();
     source.setTerminalDrawerActiveItem({ kind: 'script', id: 'script-lifecycle-run' });

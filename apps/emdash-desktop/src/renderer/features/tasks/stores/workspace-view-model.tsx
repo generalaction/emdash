@@ -36,6 +36,15 @@ export type RendererKind =
   | 'terminal'
   | 'other-file';
 
+interface TerminalTabPaneTarget {
+  openKind(kind: string, args: unknown): void;
+}
+
+interface OpenNewTerminalTabOptions {
+  shell?: TerminalShellId;
+  pane?: TerminalTabPaneTarget;
+}
+
 export class WorkspaceViewModel implements ILifecycle {
   sidebarTab: SidebarTab;
   isSidebarCollapsed: boolean;
@@ -438,13 +447,14 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   /** Creates a new terminal session and opens it as a tab in the focused task pane. */
-  async openNewTerminalTab(shell?: TerminalShellId): Promise<string | undefined> {
+  async openNewTerminalTab(options: OpenNewTerminalTabOptions = {}): Promise<string | undefined> {
     this.setFocusedRegion('main');
 
+    const { shell, pane = this.paneLayout.focusedPane } = options;
     const terminalId = await this._createDefaultTerminal(shell);
     if (!terminalId) return undefined;
     runInAction(() => {
-      this.paneLayout.open('terminal', { terminalId, preview: false });
+      pane.openKind('terminal', { terminalId, preview: false });
     });
     return terminalId;
   }
