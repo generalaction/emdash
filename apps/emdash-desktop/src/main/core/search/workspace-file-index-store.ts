@@ -1,5 +1,4 @@
 import { basename } from 'node:path';
-import type { RelPath } from '@emdash/core/files';
 import { sqlite } from '@main/db/client';
 import { log } from '@main/lib/logger';
 
@@ -7,6 +6,7 @@ export type FileHit = { path: string; filename: string };
 export type FileIndexStatus = 'complete' | 'stale' | 'truncated';
 export type FileIndexTruncateReason = 'maxEntries' | 'timeBudget';
 export type FileIndexMeta = {
+  rootPath: string;
   status: FileIndexStatus;
   fileCount: number;
   truncateReason: FileIndexTruncateReason | null;
@@ -17,7 +17,7 @@ export interface IWorkspaceFileIndexStore {
   getMeta(workspaceId: string): FileIndexMeta | null;
   recordMeta(workspaceId: string, meta: FileIndexMeta): void;
   refreshMetaTimestamp(workspaceId: string): void;
-  syncRows(workspaceId: string, paths: RelPath[]): void;
+  syncRows(workspaceId: string, paths: string[]): void;
   insertPath(workspaceId: string, path: string): boolean;
   deletePath(workspaceId: string, path: string): boolean;
   deleteSubtree(workspaceId: string, path: string): void;
@@ -36,16 +36,17 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
     try {
       const row = sqlite
         .prepare(
-          `SELECT status, file_count, truncate_reason
+          `SELECT root_path, status, file_count, truncate_reason
            FROM workspace_file_index_meta
            WHERE workspace_id = ?`
         )
         .get(workspaceId) as
-        | { status: string; file_count: number; truncate_reason: string | null }
+        | { root_path: string; status: string; file_count: number; truncate_reason: string | null }
         | undefined;
 
       if (!row || !isFileIndexStatus(row.status)) return null;
       return {
+        rootPath: row.root_path,
         status: row.status,
         fileCount: row.file_count,
         truncateReason: isFileIndexTruncateReason(row.truncate_reason) ? row.truncate_reason : null,
@@ -62,13 +63,14 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
         `INSERT OR REPLACE INTO workspace_file_index_meta (
            workspace_id,
            indexed_at,
+           root_path,
            status,
            file_count,
            truncate_reason
          )
-         VALUES (?, unixepoch(), ?, ?, ?)`
+         VALUES (?, unixepoch(), ?, ?, ?, ?)`
       )
-      .run(workspaceId, meta.status, meta.fileCount, meta.truncateReason);
+      .run(workspaceId, meta.rootPath, meta.status, meta.fileCount, meta.truncateReason);
   }
 
   refreshMetaTimestamp(workspaceId: string): void {
@@ -88,7 +90,7 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
     }
   }
 
-  syncRows(workspaceId: string, paths: RelPath[]): void {
+  syncRows(workspaceId: string, paths: string[]): void {
     const existingPaths = this.indexedPathSet(workspaceId);
     const desiredPaths = new Set<string>(paths);
     const deletePath = sqlite.prepare(

@@ -1,4 +1,4 @@
-import type { IFilesRuntime, RelPath } from '@emdash/core/files';
+import type { IFileSystem, IFilesRuntime } from '@emdash/core/files';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   FileHit,
@@ -17,21 +17,26 @@ describe('WorkspaceFileIndexService', () => {
 
   it('delegates initialize and search to the store', async () => {
     const store = new FakeStore();
-    store.searchResults = [{ path: 'src/index.ts', filename: 'index.ts' }];
+    store.searchResults = [{ path: '/repo/src/index.ts', filename: 'index.ts' }];
     const service = await createService(store);
 
     service.initialize();
 
     expect(store.evictedDays).toBe(14);
     expect(service.search('ws-1', 'index')).toEqual([
-      { path: 'src/index.ts', filename: 'index.ts' },
+      { path: '/repo/src/index.ts', filename: 'index.ts' },
     ]);
     expect(store.operations).toContain('search:index');
   });
 
   it('refreshes complete metadata on activation without enumerating', async () => {
     const store = new FakeStore();
-    store.meta.set('ws-1', { status: 'complete', fileCount: 1, truncateReason: null });
+    store.meta.set('ws-1', {
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 1,
+      truncateReason: null,
+    });
     const service = await createService(store);
 
     await service.onWorkspaceActivated('ws-1', {
@@ -44,17 +49,44 @@ describe('WorkspaceFileIndexService', () => {
     expect(store.operations).toEqual(['refresh:ws-1']);
   });
 
+  it('reindexes when a complete index belongs to an old workspace root', async () => {
+    const store = new FakeStore();
+    store.meta.set('ws-1', {
+      rootPath: '/old-repo',
+      status: 'complete',
+      fileCount: 1,
+      truncateReason: null,
+    });
+    store.paths.set('ws-1', new Set(['/old-repo/stale.ts']));
+    const service = await createService(store);
+
+    await service.onWorkspaceActivated('ws-1', {
+      rootPath: '/repo',
+      filesRuntime: filesRuntime(() => ['/repo/fresh.ts']),
+    });
+
+    expect([...store.pathSet('ws-1')]).toEqual(['/repo/fresh.ts']);
+    expect(store.meta.get('ws-1')).toEqual({
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 1,
+      truncateReason: null,
+    });
+    expect(store.operations).toContain('deleteIndex:ws-1');
+  });
+
   it('indexes from enumeration when metadata is missing', async () => {
     const store = new FakeStore();
     const service = await createService(store);
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['README.md', 'src/index.ts']),
+      filesRuntime: filesRuntime(() => ['/repo/README.md', '/repo/src/index.ts']),
     });
 
-    expect([...store.pathSet('ws-1')].sort()).toEqual(['README.md', 'src/index.ts']);
+    expect([...store.pathSet('ws-1')].sort()).toEqual(['/repo/README.md', '/repo/src/index.ts']);
     expect(store.meta.get('ws-1')).toEqual({
+      rootPath: '/repo',
       status: 'complete',
       fileCount: 2,
       truncateReason: null,
@@ -64,46 +96,58 @@ describe('WorkspaceFileIndexService', () => {
   it('debounces and coalesces resync requests', async () => {
     vi.useFakeTimers();
     const store = new FakeStore();
-    store.meta.set('ws-1', { status: 'complete', fileCount: 1, truncateReason: null });
+    store.meta.set('ws-1', {
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 1,
+      truncateReason: null,
+    });
     const service = await createService(store, { reindexDebounceMs: 5 });
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['fresh.ts']),
+      filesRuntime: filesRuntime(() => ['/repo/fresh.ts']),
     });
     service.onWorkspaceFileChange('ws-1', { kind: 'resync' });
     service.onWorkspaceFileChange('ws-1', { kind: 'resync' });
 
     await vi.advanceTimersByTimeAsync(5);
 
-    expect(store.operations.filter((op) => op.startsWith('sync:'))).toEqual(['sync:fresh.ts']);
+    expect(store.operations.filter((op) => op.startsWith('sync:'))).toEqual([
+      'sync:/repo/fresh.ts',
+    ]);
     expect(store.meta.get('ws-1')).toMatchObject({ status: 'complete', fileCount: 1 });
   });
 
   it('applies deletes before creates, ignores updates, and recounts once for subtree deletes', async () => {
     const store = new FakeStore();
-    store.meta.set('ws-1', { status: 'complete', fileCount: 3, truncateReason: null });
-    store.paths.set('ws-1', new Set(['changed.ts', 'dir/a.ts', 'old.ts']));
+    store.meta.set('ws-1', {
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 3,
+      truncateReason: null,
+    });
+    store.paths.set('ws-1', new Set(['/repo/changed.ts', '/repo/dir/a.ts', '/repo/old.ts']));
     const service = await createService(store);
 
     service.onWorkspaceFileChange('ws-1', {
       kind: 'changes',
       changes: [
-        { kind: 'create', path: 'new.ts', entryType: 'file' },
-        { kind: 'update', path: 'missing.ts', entryType: 'file' },
-        { kind: 'delete', path: 'old.ts', entryType: 'file' },
-        { kind: 'delete', path: 'dir', entryType: 'unknown' },
+        { kind: 'create', path: '/repo/new.ts', entryType: 'file' },
+        { kind: 'update', path: '/repo/missing.ts', entryType: 'file' },
+        { kind: 'delete', path: '/repo/old.ts', entryType: 'file' },
+        { kind: 'delete', path: '/repo/dir', entryType: 'unknown' },
       ],
     });
 
-    expect([...store.pathSet('ws-1')].sort()).toEqual(['changed.ts', 'new.ts']);
+    expect([...store.pathSet('ws-1')].sort()).toEqual(['/repo/changed.ts', '/repo/new.ts']);
     expect(store.operations).toEqual([
       'transaction',
       'count:ws-1',
-      'deletePath:old.ts',
-      'deleteSubtree:dir',
+      'deletePath:/repo/old.ts',
+      'deleteSubtree:/repo/dir',
       'count:ws-1',
-      'insert:new.ts',
+      'insert:/repo/new.ts',
       'count:ws-1',
       'record:complete:2',
     ]);
@@ -112,38 +156,48 @@ describe('WorkspaceFileIndexService', () => {
   it('marks the index stale when creates would exceed the cap', async () => {
     vi.useFakeTimers();
     const store = new FakeStore();
-    store.meta.set('ws-1', { status: 'complete', fileCount: 2, truncateReason: null });
-    store.paths.set('ws-1', new Set(['a.ts', 'b.ts']));
+    store.meta.set('ws-1', {
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 2,
+      truncateReason: null,
+    });
+    store.paths.set('ws-1', new Set(['/repo/a.ts', '/repo/b.ts']));
     const service = await createService(store, { maxFiles: 2, reindexDebounceMs: 1_000 });
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['a.ts', 'b.ts', 'c.ts']),
+      filesRuntime: filesRuntime(() => ['/repo/a.ts', '/repo/b.ts', '/repo/c.ts']),
     });
     service.onWorkspaceFileChange('ws-1', {
       kind: 'changes',
       changes: [
-        { kind: 'delete', path: 'missing.ts', entryType: 'file' },
-        { kind: 'create', path: 'c.ts', entryType: 'file' },
+        { kind: 'delete', path: '/repo/missing.ts', entryType: 'file' },
+        { kind: 'create', path: '/repo/c.ts', entryType: 'file' },
       ],
     });
 
-    expect([...store.pathSet('ws-1')].sort()).toEqual(['a.ts', 'b.ts']);
+    expect([...store.pathSet('ws-1')].sort()).toEqual(['/repo/a.ts', '/repo/b.ts']);
     expect(store.meta.get('ws-1')).toMatchObject({ status: 'stale', fileCount: 2 });
   });
 
   it('ignores incremental changes while the current index is truncated', async () => {
     const store = new FakeStore();
-    store.meta.set('ws-1', { status: 'truncated', fileCount: 2, truncateReason: 'maxEntries' });
-    store.paths.set('ws-1', new Set(['a.ts', 'b.ts']));
+    store.meta.set('ws-1', {
+      rootPath: '/repo',
+      status: 'truncated',
+      fileCount: 2,
+      truncateReason: 'maxEntries',
+    });
+    store.paths.set('ws-1', new Set(['/repo/a.ts', '/repo/b.ts']));
     const service = await createService(store);
 
     service.onWorkspaceFileChange('ws-1', {
       kind: 'changes',
-      changes: [{ kind: 'create', path: 'c.ts', entryType: 'file' }],
+      changes: [{ kind: 'create', path: '/repo/c.ts', entryType: 'file' }],
     });
 
-    expect([...store.pathSet('ws-1')].sort()).toEqual(['a.ts', 'b.ts']);
+    expect([...store.pathSet('ws-1')].sort()).toEqual(['/repo/a.ts', '/repo/b.ts']);
     expect(store.operations).toEqual([]);
   });
 });
@@ -157,6 +211,17 @@ async function createService(
 }
 
 function filesRuntime(readPaths: () => readonly string[]): IFilesRuntime {
+  const fileSystem = {
+    enumerate: () => ({
+      success: true as const,
+      data: (async function* () {
+        for (const path of readPaths()) {
+          yield path;
+        }
+      })(),
+    }),
+  } as unknown as IFileSystem;
+
   return {
     openTree: async () => {
       throw new Error('openTree is not used by WorkspaceFileIndexService tests');
@@ -164,14 +229,7 @@ function filesRuntime(readPaths: () => readonly string[]): IFilesRuntime {
     watchChanges: () => {
       throw new Error('watchChanges is not used by WorkspaceFileIndexService tests');
     },
-    enumerate: () => ({
-      success: true,
-      data: (async function* () {
-        for (const path of readPaths()) {
-          yield path as RelPath;
-        }
-      })(),
-    }),
+    fileSystem: () => ({ success: true, data: fileSystem }),
     dispose: async () => {},
   };
 }
@@ -201,7 +259,7 @@ class FakeStore implements IWorkspaceFileIndexStore {
     this.operations.push(`refresh:${workspaceId}`);
   }
 
-  syncRows(workspaceId: string, paths: RelPath[]): void {
+  syncRows(workspaceId: string, paths: string[]): void {
     this.operations.push(`sync:${paths.join(',')}`);
     this.paths.set(workspaceId, new Set(paths));
   }

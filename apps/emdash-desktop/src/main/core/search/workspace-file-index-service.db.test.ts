@@ -1,13 +1,14 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { IFilesRuntime, RelPath } from '@emdash/core/files';
+import type { IFileSystem, IFilesRuntime } from '@emdash/core/files';
 import type BetterSqlite3 from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceFileIndexServiceOptions } from './workspace-file-index-service';
 
 type LoadedService = Awaited<ReturnType<typeof loadService>>;
 type FileIndexMetaRow = {
+  root_path: string;
   status: string;
   file_count: number;
   truncate_reason: string | null;
@@ -34,17 +35,18 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['README.md', 'src/index.ts']),
+      filesRuntime: filesRuntime(() => ['/repo/README.md', '/repo/src/index.ts']),
     });
 
-    expect(indexedPaths(sqlite)).toEqual(['README.md', 'src/index.ts']);
+    expect(indexedPaths(sqlite)).toEqual(['/repo/README.md', '/repo/src/index.ts']);
     expect(indexMeta(sqlite)).toEqual({
+      root_path: '/repo',
       status: 'complete',
       file_count: 2,
       truncate_reason: null,
     });
     expect(service.search('ws-1', 'index')).toEqual([
-      { path: 'src/index.ts', filename: 'index.ts' },
+      { path: '/repo/src/index.ts', filename: 'index.ts' },
     ]);
   });
 
@@ -54,20 +56,20 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['src/changed.ts', 'src/old.ts']),
+      filesRuntime: filesRuntime(() => ['/repo/src/changed.ts', '/repo/src/old.ts']),
     });
 
     service.onWorkspaceFileChange('ws-1', {
       kind: 'changes',
       changes: [
-        { kind: 'create', path: 'src/new.ts', entryType: 'file' },
-        { kind: 'update', path: 'src/changed.ts', entryType: 'file' },
-        { kind: 'update', path: 'src/missing.ts', entryType: 'file' },
-        { kind: 'delete', path: 'src/old.ts', entryType: 'file' },
+        { kind: 'create', path: '/repo/src/new.ts', entryType: 'file' },
+        { kind: 'update', path: '/repo/src/changed.ts', entryType: 'file' },
+        { kind: 'update', path: '/repo/src/missing.ts', entryType: 'file' },
+        { kind: 'delete', path: '/repo/src/old.ts', entryType: 'file' },
       ],
     });
 
-    expect(indexedPaths(sqlite)).toEqual(['src/changed.ts', 'src/new.ts']);
+    expect(indexedPaths(sqlite)).toEqual(['/repo/src/changed.ts', '/repo/src/new.ts']);
     expect(indexMeta(sqlite)).toMatchObject({ status: 'complete', file_count: 2 });
   });
 
@@ -77,15 +79,19 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['other.ts', 'src/a.ts', 'src/nested/b.ts']),
+      filesRuntime: filesRuntime(() => [
+        '/repo/other.ts',
+        '/repo/src/a.ts',
+        '/repo/src/nested/b.ts',
+      ]),
     });
 
     service.onWorkspaceFileChange('ws-1', {
       kind: 'changes',
-      changes: [{ kind: 'delete', path: 'src', entryType: 'unknown' }],
+      changes: [{ kind: 'delete', path: '/repo/src', entryType: 'unknown' }],
     });
 
-    expect(indexedPaths(sqlite)).toEqual(['other.ts']);
+    expect(indexedPaths(sqlite)).toEqual(['/repo/other.ts']);
     expect(indexMeta(sqlite)).toMatchObject({ status: 'complete', file_count: 1 });
   });
 
@@ -93,19 +99,19 @@ describe('WorkspaceFileIndexService', () => {
     vi.useFakeTimers();
     loadedService = await loadService({ reindexDebounceMs: 1 });
     const { service, sqlite } = loadedService;
-    let paths = ['stale.ts'];
+    let paths = ['/repo/stale.ts'];
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
       filesRuntime: filesRuntime(() => paths),
     });
-    expect(indexedPaths(sqlite)).toEqual(['stale.ts']);
+    expect(indexedPaths(sqlite)).toEqual(['/repo/stale.ts']);
 
-    paths = ['fresh.ts'];
+    paths = ['/repo/fresh.ts'];
     service.onWorkspaceFileChange('ws-1', { kind: 'resync' });
     await vi.advanceTimersByTimeAsync(1);
 
-    expect(indexedPaths(sqlite)).toEqual(['fresh.ts']);
+    expect(indexedPaths(sqlite)).toEqual(['/repo/fresh.ts']);
     expect(indexMeta(sqlite)).toMatchObject({ status: 'complete', file_count: 1 });
   });
 
@@ -115,11 +121,12 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['a.ts', 'b.ts', 'c.ts']),
+      filesRuntime: filesRuntime(() => ['/repo/a.ts', '/repo/b.ts', '/repo/c.ts']),
     });
 
-    expect(indexedPaths(sqlite)).toEqual(['a.ts', 'b.ts']);
+    expect(indexedPaths(sqlite)).toEqual(['/repo/a.ts', '/repo/b.ts']);
     expect(indexMeta(sqlite)).toEqual({
+      root_path: '/repo',
       status: 'truncated',
       file_count: 2,
       truncate_reason: 'maxEntries',
@@ -127,10 +134,10 @@ describe('WorkspaceFileIndexService', () => {
 
     service.onWorkspaceFileChange('ws-1', {
       kind: 'changes',
-      changes: [{ kind: 'create', path: 'd.ts', entryType: 'file' }],
+      changes: [{ kind: 'create', path: '/repo/d.ts', entryType: 'file' }],
     });
 
-    expect(indexedPaths(sqlite)).toEqual(['a.ts', 'b.ts']);
+    expect(indexedPaths(sqlite)).toEqual(['/repo/a.ts', '/repo/b.ts']);
     expect(indexMeta(sqlite)).toMatchObject({ status: 'truncated', file_count: 2 });
   });
 
@@ -140,15 +147,15 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['a.ts', 'b.ts']),
+      filesRuntime: filesRuntime(() => ['/repo/a.ts', '/repo/b.ts']),
     });
 
     service.onWorkspaceFileChange('ws-1', {
       kind: 'changes',
-      changes: [{ kind: 'create', path: 'c.ts', entryType: 'file' }],
+      changes: [{ kind: 'create', path: '/repo/c.ts', entryType: 'file' }],
     });
 
-    expect(indexedPaths(sqlite)).toEqual(['a.ts', 'b.ts']);
+    expect(indexedPaths(sqlite)).toEqual(['/repo/a.ts', '/repo/b.ts']);
     expect(indexMeta(sqlite)).toMatchObject({ status: 'stale', file_count: 2 });
   });
 });
@@ -182,6 +189,7 @@ function createFileIndexTables(sqlite: BetterSqlite3.Database): void {
     CREATE TABLE workspace_file_index_meta (
       workspace_id     TEXT PRIMARY KEY,
       indexed_at       INTEGER NOT NULL,
+      root_path        TEXT NOT NULL,
       status           TEXT NOT NULL
         CHECK (status IN ('complete', 'stale', 'truncated')),
       file_count       INTEGER NOT NULL,
@@ -192,6 +200,17 @@ function createFileIndexTables(sqlite: BetterSqlite3.Database): void {
 }
 
 function filesRuntime(readPaths: () => readonly string[]): IFilesRuntime {
+  const fileSystem = {
+    enumerate: () => ({
+      success: true as const,
+      data: (async function* () {
+        for (const path of readPaths()) {
+          yield path;
+        }
+      })(),
+    }),
+  } as unknown as IFileSystem;
+
   return {
     openTree: async () => {
       throw new Error('openTree is not used by WorkspaceFileIndexService tests');
@@ -199,14 +218,7 @@ function filesRuntime(readPaths: () => readonly string[]): IFilesRuntime {
     watchChanges: () => {
       throw new Error('watchChanges is not used by WorkspaceFileIndexService tests');
     },
-    enumerate: () => ({
-      success: true,
-      data: (async function* () {
-        for (const path of readPaths()) {
-          yield path as RelPath;
-        }
-      })(),
-    }),
+    fileSystem: () => ({ success: true, data: fileSystem }),
     dispose: async () => {},
   };
 }
@@ -222,7 +234,7 @@ function indexedPaths(sqlite: BetterSqlite3.Database): string[] {
 function indexMeta(sqlite: BetterSqlite3.Database): FileIndexMetaRow | undefined {
   return sqlite
     .prepare(
-      `SELECT status, file_count, truncate_reason
+      `SELECT root_path, status, file_count, truncate_reason
        FROM workspace_file_index_meta
        WHERE workspace_id = 'ws-1'`
     )

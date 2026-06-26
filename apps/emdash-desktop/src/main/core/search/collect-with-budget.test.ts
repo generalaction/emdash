@@ -1,4 +1,3 @@
-import type { RelPath } from '@emdash/core/files';
 import { describe, expect, it } from 'vitest';
 import { collectWithBudget } from './collect-with-budget';
 
@@ -48,8 +47,8 @@ describe('collectWithBudget', () => {
   });
 });
 
-async function* paths(values: string[]): AsyncIterable<RelPath> {
+async function* paths(values: string[]): AsyncIterable<string> {
   for (const value of values) {
-    yield value as RelPath;
+    yield value;
   }
 }

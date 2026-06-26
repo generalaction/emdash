@@ -91,7 +91,7 @@ function ensureSearchIndex(connection: BetterSqlite3.Database): void {
  * changes without a full Drizzle migration.
  */
 function ensureFileIndex(connection: BetterSqlite3.Database): void {
-  const FILE_INDEX_VERSION = '2';
+  const FILE_INDEX_VERSION = '3';
 
   const row = connection.prepare(`SELECT value FROM kv WHERE key = 'file_index_version'`).get() as
     | { value: string }
@@ -113,6 +113,7 @@ function ensureFileIndex(connection: BetterSqlite3.Database): void {
     CREATE TABLE workspace_file_index_meta (
       workspace_id     TEXT PRIMARY KEY,
       indexed_at       INTEGER NOT NULL,
+      root_path        TEXT NOT NULL,
       status           TEXT NOT NULL
         CHECK (status IN ('complete', 'stale', 'truncated')),
       file_count       INTEGER NOT NULL,

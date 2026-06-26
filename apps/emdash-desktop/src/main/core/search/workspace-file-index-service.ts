@@ -70,6 +70,12 @@ export class WorkspaceFileIndexService {
     this.activeSources.set(workspaceId, source);
     const meta = this.store.getMeta(workspaceId);
 
+    if (meta && meta.rootPath !== source.rootPath) {
+      this.store.deleteIndex(workspaceId);
+      await this.reindex(workspaceId);
+      return;
+    }
+
     if (meta?.status === 'complete') {
       this.store.refreshMetaTimestamp(workspaceId);
       return;
@@ -108,7 +114,16 @@ export class WorkspaceFileIndexService {
         const source = this.activeSources.get(workspaceId);
         if (!source) return;
 
-        const enumeration = source.filesRuntime.enumerate(source.rootPath);
+        const fileSystem = source.filesRuntime.fileSystem();
+        if (!fileSystem.success) {
+          log.warn('WorkspaceFileIndexService: failed to open filesystem', {
+            workspaceId,
+            error: fileSystem.error,
+          });
+          return;
+        }
+
+        const enumeration = fileSystem.data.enumerate(source.rootPath);
         if (!enumeration.success) {
           log.warn('WorkspaceFileIndexService: enumerate failed to start', {
             workspaceId,
@@ -122,11 +137,12 @@ export class WorkspaceFileIndexService {
           timeoutMs: this.reindexTimeoutMs,
           now: this.options.now,
         });
-        if (!this.activeSources.has(workspaceId)) return;
+        if (this.activeSources.get(workspaceId) !== source) return;
 
         this.store.transaction(() => {
           this.store.syncRows(workspaceId, result.paths);
           this.store.recordMeta(workspaceId, {
+            rootPath: source.rootPath,
             status: result.truncated ? 'truncated' : 'complete',
             fileCount: result.paths.length,
             truncateReason: result.truncateReason ?? null,
@@ -207,6 +223,7 @@ export class WorkspaceFileIndexService {
       }
 
       this.store.recordMeta(workspaceId, {
+        rootPath: this.metaRootPath(workspaceId),
         status: 'complete',
         fileCount: this.store.countIndexedFiles(workspaceId),
         truncateReason: null,
@@ -243,6 +260,7 @@ export class WorkspaceFileIndexService {
   private markStale(workspaceId: string): void {
     try {
       this.store.recordMeta(workspaceId, {
+        rootPath: this.metaRootPath(workspaceId),
         status: 'stale',
         fileCount: this.store.countIndexedFiles(workspaceId),
         truncateReason: null,
@@ -262,6 +280,14 @@ export class WorkspaceFileIndexService {
 
   private get reindexDebounceMs(): number {
     return this.options.reindexDebounceMs ?? DEFAULT_REINDEX_DEBOUNCE_MS;
+  }
+
+  private metaRootPath(workspaceId: string): string {
+    return (
+      this.activeSources.get(workspaceId)?.rootPath ??
+      this.store.getMeta(workspaceId)?.rootPath ??
+      ''
+    );
   }
 }
 

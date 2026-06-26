@@ -1,4 +1,3 @@
-import type { RelPath } from '@emdash/core/files';
 import type { FileIndexTruncateReason } from './workspace-file-index-store';
 
 export type CollectWithBudgetOptions = {
@@ -8,22 +7,22 @@ export type CollectWithBudgetOptions = {
 };
 
 export type BudgetedFileCollection = {
-  paths: RelPath[];
+  paths: string[];
   truncated: boolean;
   truncateReason?: FileIndexTruncateReason;
 };
 
 export async function collectWithBudget(
-  paths: AsyncIterable<RelPath>,
+  paths: AsyncIterable<string>,
   options: CollectWithBudgetOptions
 ): Promise<BudgetedFileCollection> {
   const now = options.now ?? Date.now;
   const startTime = now();
-  const collected: RelPath[] = [];
+  const collected: string[] = [];
   let truncated = false;
   let truncateReason: FileIndexTruncateReason | undefined;
 
-  for await (const relPath of paths) {
+  for await (const filePath of paths) {
     if (now() - startTime > options.timeoutMs) {
       truncated = true;
       truncateReason = 'timeBudget';
@@ -34,7 +33,7 @@ export async function collectWithBudget(
       truncateReason = 'maxEntries';
       break;
     }
-    collected.push(relPath);
+    collected.push(filePath);
   }
 
   return { paths: collected, truncated, truncateReason };

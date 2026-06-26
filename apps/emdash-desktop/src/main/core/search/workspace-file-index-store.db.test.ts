@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { RelPath } from '@emdash/core/files';
 import type BetterSqlite3 from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,12 +24,14 @@ describe('WorkspaceFileIndexStore', () => {
     const { store } = loadedStore;
 
     store.recordMeta('ws-1', {
+      rootPath: '/repo',
       status: 'truncated',
       fileCount: 50_000,
       truncateReason: 'maxEntries',
     });
 
     expect(store.getMeta('ws-1')).toEqual({
+      rootPath: '/repo',
       status: 'truncated',
       fileCount: 50_000,
       truncateReason: 'maxEntries',
@@ -41,10 +42,10 @@ describe('WorkspaceFileIndexStore', () => {
     loadedStore = await loadStore();
     const { store, sqlite } = loadedStore;
 
-    store.syncRows('ws-1', relPaths(['a.ts', 'b.ts']));
-    store.syncRows('ws-1', relPaths(['b.ts', 'c.ts']));
+    store.syncRows('ws-1', paths(['/repo/a.ts', '/repo/b.ts']));
+    store.syncRows('ws-1', paths(['/repo/b.ts', '/repo/c.ts']));
 
-    expect(indexedPaths(sqlite, 'ws-1')).toEqual(['b.ts', 'c.ts']);
+    expect(indexedPaths(sqlite, 'ws-1')).toEqual(['/repo/b.ts', '/repo/c.ts']);
     expect(store.countIndexedFiles('ws-1')).toBe(2);
   });
 
@@ -52,10 +53,10 @@ describe('WorkspaceFileIndexStore', () => {
     loadedStore = await loadStore();
     const { store, sqlite } = loadedStore;
 
-    expect(store.insertPath('ws-1', 'src/index.ts')).toBe(true);
-    expect(store.insertPath('ws-1', 'src/index.ts')).toBe(false);
+    expect(store.insertPath('ws-1', '/repo/src/index.ts')).toBe(true);
+    expect(store.insertPath('ws-1', '/repo/src/index.ts')).toBe(false);
 
-    expect(indexedPaths(sqlite, 'ws-1')).toEqual(['src/index.ts']);
+    expect(indexedPaths(sqlite, 'ws-1')).toEqual(['/repo/src/index.ts']);
     expect(store.countIndexedFiles('ws-1')).toBe(1);
   });
 
@@ -63,28 +64,38 @@ describe('WorkspaceFileIndexStore', () => {
     loadedStore = await loadStore();
     const { store } = loadedStore;
 
-    store.syncRows('ws-1', relPaths(['README.md', 'src/index.ts', 'src/router.ts']));
+    store.syncRows('ws-1', paths(['/repo/README.md', '/repo/src/index.ts', '/repo/src/router.ts']));
 
-    expect(store.search('ws-1', 'index')).toEqual([{ path: 'src/index.ts', filename: 'index.ts' }]);
+    expect(store.search('ws-1', 'index')).toEqual([
+      { path: '/repo/src/index.ts', filename: 'index.ts' },
+    ]);
     expect(store.search('ws-1', 'in')).toEqual([]);
   });
 
   it('deletes exact paths and escaped subtrees', async () => {
     loadedStore = await loadStore();
     const { store, sqlite } = loadedStore;
-    store.syncRows('ws-1', relPaths(['foo_%', 'foo_%/a.ts', 'foo_%/nested/b.ts', 'foo-x/a.ts']));
+    store.syncRows(
+      'ws-1',
+      paths(['/repo/foo_%', '/repo/foo_%/a.ts', '/repo/foo_%/nested/b.ts', '/repo/foo-x/a.ts'])
+    );
 
-    store.deletePath('ws-1', 'foo_%/a.ts');
-    store.deleteSubtree('ws-1', 'foo_%');
+    store.deletePath('ws-1', '/repo/foo_%/a.ts');
+    store.deleteSubtree('ws-1', '/repo/foo_%');
 
-    expect(indexedPaths(sqlite, 'ws-1')).toEqual(['foo-x/a.ts']);
+    expect(indexedPaths(sqlite, 'ws-1')).toEqual(['/repo/foo-x/a.ts']);
   });
 
   it('deletes an entire workspace index', async () => {
     loadedStore = await loadStore();
     const { store, sqlite } = loadedStore;
-    store.syncRows('ws-1', relPaths(['a.ts']));
-    store.recordMeta('ws-1', { status: 'complete', fileCount: 1, truncateReason: null });
+    store.syncRows('ws-1', paths(['/repo/a.ts']));
+    store.recordMeta('ws-1', {
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 1,
+      truncateReason: null,
+    });
 
     store.deleteIndex('ws-1');
 
@@ -97,12 +108,27 @@ describe('WorkspaceFileIndexStore', () => {
     const { store, sqlite } = loadedStore;
     sqlite.prepare(`INSERT INTO workspaces (id) VALUES (?)`).run('fresh');
 
-    store.syncRows('stale', relPaths(['stale.ts']));
-    store.recordMeta('stale', { status: 'complete', fileCount: 1, truncateReason: null });
-    store.syncRows('orphan', relPaths(['orphan.ts']));
-    store.recordMeta('orphan', { status: 'complete', fileCount: 1, truncateReason: null });
-    store.syncRows('fresh', relPaths(['fresh.ts']));
-    store.recordMeta('fresh', { status: 'complete', fileCount: 1, truncateReason: null });
+    store.syncRows('stale', paths(['/repo/stale.ts']));
+    store.recordMeta('stale', {
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 1,
+      truncateReason: null,
+    });
+    store.syncRows('orphan', paths(['/repo/orphan.ts']));
+    store.recordMeta('orphan', {
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 1,
+      truncateReason: null,
+    });
+    store.syncRows('fresh', paths(['/repo/fresh.ts']));
+    store.recordMeta('fresh', {
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 1,
+      truncateReason: null,
+    });
     sqlite
       .prepare(`UPDATE workspace_file_index_meta SET indexed_at = ? WHERE workspace_id = ?`)
       .run(Math.floor(Date.now() / 1000) - 15 * 86400, 'stale');
@@ -110,7 +136,7 @@ describe('WorkspaceFileIndexStore', () => {
     store.evict(14);
 
     expect(allIndexedWorkspaces(sqlite)).toEqual(['fresh']);
-    expect(indexedPaths(sqlite, 'fresh')).toEqual(['fresh.ts']);
+    expect(indexedPaths(sqlite, 'fresh')).toEqual(['/repo/fresh.ts']);
   });
 });
 
@@ -143,6 +169,7 @@ function createTables(sqlite: BetterSqlite3.Database): void {
     CREATE TABLE workspace_file_index_meta (
       workspace_id     TEXT PRIMARY KEY,
       indexed_at       INTEGER NOT NULL,
+      root_path        TEXT NOT NULL,
       status           TEXT NOT NULL
         CHECK (status IN ('complete', 'stale', 'truncated')),
       file_count       INTEGER NOT NULL,
@@ -155,8 +182,8 @@ function createTables(sqlite: BetterSqlite3.Database): void {
   `);
 }
 
-function relPaths(paths: string[]): RelPath[] {
-  return paths as RelPath[];
+function paths(values: string[]): string[] {
+  return values;
 }
 
 function indexedPaths(sqlite: BetterSqlite3.Database, workspaceId: string): string[] {
