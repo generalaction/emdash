@@ -116,16 +116,4 @@ export const browserTabProvider: TabProvider<
   TabBarItem: BrowserTabBarItem,
   TabBarItemDragPreview: BrowserTabBarItemDragPreview,
   TabContent: BrowserTabContent,
-
-  title(_entry: TabEntry<BrowserState>, resource: BrowserTabResource): string {
-    const session = resource.session;
-    if (!session) return 'Browser';
-    if (session.title.trim()) return session.title.trim();
-    if (session.currentUrl === 'about:blank') return 'Browser';
-    try {
-      return new URL(session.currentUrl).host;
-    } catch {
-      return 'Browser';
-    }
-  },
 });

@@ -68,12 +68,6 @@ export const diffTabProvider: TabProvider<'diff', DiffPayload, DiffTabResource, 
     TabBarItem: DiffTabBarItem,
     TabBarItemDragPreview: DiffTabBarItemDragPreview,
     TabContent: DiffTabContent,
-
-    title(entry: TabEntry<DiffPayload>): string {
-      const fileName = entry.state.path.split('/').pop() ?? 'Untitled';
-      const suffix = diffGroupSuffix(entry.state.diffGroup);
-      return `${fileName} ${suffix}`;
-    },
   });
 
 export function diffGroupSuffix(diffGroup: DiffPayload['diffGroup']): string {

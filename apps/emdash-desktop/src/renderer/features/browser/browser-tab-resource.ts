@@ -14,7 +14,7 @@ import type { BrowserState } from './browser-tab-provider';
  * On dispose, clears diagnostics, removes the session, and unregisters from RPC.
  *
  * Subscribes to the open-in-new-tab event and opens a sibling browser tab via
- * handle.open({ kind: 'browser', initialUrl }).
+ * handle.open('browser', { initialUrl }).
  *
  * Maintains a MobX reaction to keep entry.state.session current so that
  * snapshots always reflect the live URL/title — no `getSerializablePayload` needed.
@@ -39,7 +39,7 @@ export class BrowserTabResource implements TabResource {
       browserOpenInNewTabChannel,
       ({ sourceBrowserId, url }: { sourceBrowserId: string; url: string }) => {
         if (sourceBrowserId !== this.browserId) return;
-        handle.open({ kind: 'browser', initialUrl: url });
+        handle.open('browser', { initialUrl: url });
       }
     );
 

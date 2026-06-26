@@ -137,8 +137,4 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
     TabBarItem: FileTabBarItem,
     TabBarItemDragPreview: FileTabBarItemDragPreview,
     TabContent: FileTabContent,
-
-    title(entry: TabEntry<FilePayload>): string {
-      return entry.state.path.split('/').pop() ?? 'Untitled';
-    },
   });

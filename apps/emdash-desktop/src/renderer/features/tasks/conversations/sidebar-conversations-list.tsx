@@ -77,11 +77,11 @@ const ConversationRow = observer(function ConversationRow({
   const conversationType = conversation.data.type;
 
   const handleDoubleClick = () => {
-    paneLayout.open({
-      kind: conversationType === 'acp' ? 'acp-chat' : 'conversation',
-      conversationId,
-      preview: false,
-    });
+    paneLayout.open(
+      conversationType === 'acp' ? 'acp-chat' : 'conversation',
+      { conversationId },
+      { preview: false }
+    );
     handleRename();
   };
 
@@ -104,21 +104,21 @@ const ConversationRow = observer(function ConversationRow({
           role="button"
           tabIndex={0}
           onClick={() =>
-            paneLayout.open({
-              kind: conversationType === 'acp' ? 'acp-chat' : 'conversation',
-              conversationId,
-              preview: true,
-            })
+            paneLayout.open(
+              conversationType === 'acp' ? 'acp-chat' : 'conversation',
+              { conversationId },
+              { preview: true }
+            )
           }
           onDoubleClick={handleDoubleClick}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              paneLayout.open({
-                kind: conversationType === 'acp' ? 'acp-chat' : 'conversation',
-                conversationId,
-                preview: true,
-              });
+              paneLayout.open(
+                conversationType === 'acp' ? 'acp-chat' : 'conversation',
+                { conversationId },
+                { preview: true }
+              );
             }
           }}
           className={cn(
@@ -204,11 +204,11 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       projectId,
       taskId,
       onSuccess: ({ conversationId, type }) => {
-        paneLayout.open({
-          kind: type === 'acp' ? 'acp-chat' : 'conversation',
-          conversationId,
-          preview: false,
-        });
+        paneLayout.open(
+          type === 'acp' ? 'acp-chat' : 'conversation',
+          { conversationId },
+          { preview: false }
+        );
       },
     });
   };

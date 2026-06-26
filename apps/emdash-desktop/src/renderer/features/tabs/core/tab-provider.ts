@@ -1,5 +1,6 @@
 import type React from 'react';
 import type { ShortcutSettingsKey } from '@shared/shortcuts';
+import type { TabBarItemProps, TabContentProps } from './tab-host';
 
 /**
  * Plain-data identity for a single open tab.
@@ -76,11 +77,13 @@ export interface TabHandle {
   close(opts?: { force?: boolean }): Promise<boolean>;
   /**
    * Open a tab in the view that owns this handle.
-   * Fully typed by the registry at the provider level via TabOpenArgs.
-   * `target` defaults to 'active' (same pane).
+   * `kind` selects the provider; `args` are the domain open-args (the "searchParams");
+   * `config` carries engine routing flags (target pane, preview, overrideState).
    */
   open(
-    args: { kind: string } & Record<string, unknown> & { target?: OpenTarget; preview?: boolean }
+    kind: string,
+    args: Record<string, unknown>,
+    config?: { target?: OpenTarget; preview?: boolean; overrideState?: boolean }
   ): void;
 }
 
@@ -127,80 +130,8 @@ export type ResolvedTab<T extends TabResource = TabResource> = {
   readonly resource: T;
 };
 
-/** Props for a kind's TabBarItem component (rendered in the tab bar). */
-export interface TabBarItemProps<T extends TabResource> {
-  tab: ResolvedTab<T>;
-  host: TabHost;
-  ctx: TabViewContext;
-}
-
-/**
- * Props for a kind's Content component (the pane body area).
- *
- * PaneContent mounts every registered Content unconditionally — the
- * component decides visibility, keepalive, and async loading internally.
- */
-export interface TabContentProps {
-  host: TabHost;
-  ctx: TabViewContext;
-}
-
-/** A single actionable entry in a tab context menu (close, rename, …). */
-export interface TabCommand {
-  id: string;
-  label: string;
-  icon?: React.ComponentType<{ className?: string }>;
-  /** Grouping key for separator placement. */
-  group?: 'close' | (string & {});
-  /**
-   * Hotkey binding. Either a user-configurable settings key (resolved via the
-   * shortcut settings system) or a getter returning a raw key string.
-   */
-  shortcut?: ShortcutSettingsKey | (() => string | undefined);
-  /** Hides the command when false (default: always visible). */
-  isAvailable?(): boolean;
-  run(): void | Promise<void>;
-}
-
-/**
- * Narrow host interface that PaneStore implements.
- * UI components (tab bar, content panels) receive this instead of the full
- * store so they cannot reach into internal engine state directly.
- */
-export interface TabHost {
-  readonly resolvedTabs: ReadonlyArray<ResolvedTab>;
-  readonly resolvedActiveTabId: string | undefined;
-  /** The ambient context for this pane (viewId + any domain-specific fields). */
-  readonly ctx: TabViewContext;
-  /** True when this pane is the currently focused pane in the main region. */
-  readonly isFocused: boolean;
-
-  /** Opens a tab of any registered kind. Untyped for use from resources/handles. */
-  openKind(kind: string, args: unknown): void;
-
-  setActiveTab(tabId: string): void;
-  /** Sets isPreview = false (no-op when already stable). */
-  pin(tabId: string): void;
-  /** Force-close — no confirmation dialog, calls dispose, removes entry. */
-  closeTab(tabId: string): void;
-  /**
-   * User-initiated close — awaits onBeforeClose veto, then closes if confirmed.
-   */
-  requestCloseTab(tabId: string): void;
-  /** Closes every open tab except the given one. */
-  closeOthers(tabId: string): void;
-  /**
-   * Signal hover/focus intent for a tab — fires resource.onActivateIntent().
-   * No-op if the resource has no intent handler.
-   */
-  signalActivateIntent(tabId: string): void;
-
-  readonly renameRequest: { tabId: string; nonce: number } | null;
-  requestRename(tabId: string): void;
-  clearRenameRequest(): void;
-  /** Delegates to the active tab's commands.rename entry. */
-  commitRename(tabId: string, name: string): void;
-}
+// Re-export renderer-chrome types so provider files can import from one location.
+export type { TabBarItemProps, TabContentProps } from './tab-host';
 
 /**
  * The core contract for a tab kind.
@@ -270,7 +201,4 @@ export interface TabProvider<
    * Mounted unconditionally by PaneContent regardless of which kind is active.
    */
   TabContent: React.ComponentType<TabContentProps>;
-
-  /** Human-readable label used in dialogs (close-confirm, command palette). */
-  title(entry: TabEntry<S>, resource: T): string;
 }

@@ -4,10 +4,10 @@ import type { TabGroupsSnapshot } from '@shared/view-state';
 import type { OpenTarget, TabViewContext } from './core/tab-provider';
 import type {
   AnyTabProvider,
-  TabOpenArgs,
+  KindOf,
+  OpenArgsOf,
   TabOpenOptions,
   TabRegistry,
-  TypedTabRegistry,
 } from './core/tab-provider-registry';
 import type { TabPersistenceAdapter } from './persistence';
 
@@ -174,7 +174,8 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   /**
    * The single public open entry point.
    *
-   * Accepts a discriminated-union open-args object plus engine control flags:
+   * `kind` selects the provider; `args` are the domain open-args (the "searchParams");
+   * `config` carries engine routing flags:
    *   preview      – open as a preview tab (replaced on next preview open)
    *   overrideState – when single-mount hit, replace the existing tab's state
    *   target       – which pane to open into ('active' | 'left' | 'right' | {paneId})
@@ -184,17 +185,13 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
    *
    * For multi providers, routes directly to the target pane.
    */
-  open(
-    args: (R extends TypedTabRegistry<infer _P>
-      ? TabOpenArgs<R>
-      : Record<string, unknown> & { kind: string }) &
-      TabOpenOptions
-  ): void {
-    const argsRec = args as unknown as Record<string, unknown> & { kind: string };
-    const { kind, preview, overrideState, target, ...rest } = argsRec;
-    const previewFlag = !!preview;
-    const overrideStateFlag = !!overrideState;
-    const resolvedTarget: OpenTarget = (target as OpenTarget) ?? 'active';
+  open<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>, config?: TabOpenOptions): void;
+  /** Untyped overload used internally (handles, fallback from unknown registries). */
+  open(kind: string, args: Record<string, unknown>, config?: TabOpenOptions): void;
+  open(kind: string, args: Record<string, unknown>, config?: TabOpenOptions): void {
+    const previewFlag = !!config?.preview;
+    const overrideStateFlag = !!config?.overrideState;
+    const resolvedTarget: OpenTarget = config?.target ?? 'active';
 
     if (!this._registry.has(kind)) {
       console.warn(`[PaneLayoutStore] Unknown tab kind: ${kind}`);
@@ -202,10 +199,10 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     }
     const def = this._registry.get(kind) as AnyTabProvider;
 
-    // Compute initial state via onBeforeOpen or fall back to rest of args.
+    // Compute initial state via onBeforeOpen or fall back to args directly.
     const initialState: unknown = def.onBeforeOpen
       ? def.onBeforeOpen(args as never, this._ctx)
-      : (rest as unknown);
+      : (args as unknown);
     if (initialState === null) return; // aborted by onBeforeOpen
 
     // Single-mount: check ALL panes for an existing dedupKey match.
@@ -344,7 +341,7 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
 
   private _createPaneStore(_paneId: string): PaneStore<R> {
     return new PaneStore<R>(this._registry, this._ctx, {
-      layoutOpener: (args) => this.open(args as Parameters<typeof this.open>[0]),
+      layoutOpener: (kind, args, config) => this.open(kind, args, config),
     });
   }
 

@@ -9,15 +9,38 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import type { TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
+import type { TabHost } from './core/tab-host';
 import type {
   TabEntry,
   TabHandle,
-  TabHost,
   TabResource,
   TabViewContext,
   ResolvedTab,
 } from './core/tab-provider';
-import type { KindOf, OpenArgsOf, TabRegistry } from './core/tab-provider-registry';
+import type { KindOf, OpenArgsOf, TabOpenOptions, TabRegistry } from './core/tab-provider-registry';
+
+// ── Descriptor (de)serialization helpers ──────────────────────────────────────
+
+/** Serialize a live entry to the flat TabDescriptor shape used in snapshots and history. */
+function descriptorOf(entry: TabEntry): TabDescriptor {
+  return {
+    kind: entry.kind,
+    tabId: entry.tabId,
+    isPreview: entry.isPreview,
+    ...(entry.state as object),
+  } as TabDescriptor;
+}
+
+/** Deserialize a flat TabDescriptor back to its identity parts + opaque state. */
+function stateFromDescriptor(desc: TabDescriptor): {
+  kind: string;
+  tabId: string;
+  isPreview: boolean;
+  state: unknown;
+} {
+  const { kind, tabId, isPreview, ...state } = desc as Record<string, unknown>;
+  return { kind: kind as string, tabId: tabId as string, isPreview: isPreview as boolean, state };
+}
 
 // ── Internal plain-data entry with observable isPreview + state ───────────────
 
@@ -74,7 +97,9 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
    * Layout-level opener injected at construction time.
    * Handles target routing and single-mount cardinality checks.
    */
-  private readonly _layoutOpener: ((args: Record<string, unknown>) => void) | null;
+  private readonly _layoutOpener:
+    | ((kind: string, args: Record<string, unknown>, config?: TabOpenOptions) => void)
+    | null;
   private readonly _closedTabHistory: Array<{
     desc: TabDescriptor;
     index: number;
@@ -90,7 +115,9 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   constructor(
     registry: R,
     ctx: TabViewContext,
-    opts?: { layoutOpener?: (args: Record<string, unknown>) => void }
+    opts?: {
+      layoutOpener?: (kind: string, args: Record<string, unknown>, config?: TabOpenOptions) => void;
+    }
   ) {
     this.registry = registry;
     this._ctx = ctx;
@@ -234,12 +261,7 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
       if (!entry || !this.registry.has(entry.kind)) continue;
-      tabs.push({
-        kind: entry.kind,
-        tabId: entry.tabId,
-        isPreview: entry.isPreview,
-        ...(entry.state as object),
-      } as TabDescriptor);
+      tabs.push(descriptorOf(entry));
     }
     return { tabs, activeTabId: this.activeTabId };
   }
@@ -298,26 +320,24 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   }
 
   /**
-   * Untyped open used by resources (via handle.open) and legacy callers.
-   * Strips control flags and delegates to the layout opener if available,
-   * falling back to openWithState in this pane.
+   * Untyped open used by resources (via handle.open) and internal callers.
+   * Delegates to the layout opener if available (handles cardinality + routing),
+   * falling back to computing state and opening directly in this pane.
    */
-  openKind(kind: string, args: unknown): void {
+  openKind(kind: string, args: Record<string, unknown>, config?: TabOpenOptions): void {
     if (this._layoutOpener) {
-      this._layoutOpener({ ...(args as Record<string, unknown>), kind });
+      this._layoutOpener(kind, args, config);
     } else {
       // Fallback: compute state and open directly in this pane.
-      const argsRec = args as Record<string, unknown>;
-      const { preview, overrideState, target: _target, ...rest } = argsRec;
       if (!this.registry.has(kind)) return;
       const def = this.registry.get(kind);
       const state: unknown = def.onBeforeOpen
-        ? def.onBeforeOpen(argsRec as never, this._ctx)
-        : (rest as unknown);
+        ? def.onBeforeOpen(args as never, this._ctx)
+        : (args as unknown);
       if (state === null) return;
       this.openWithState(kind, state, {
-        isPreview: !!preview,
-        overrideState: !!overrideState,
+        isPreview: !!config?.preview,
+        overrideState: !!config?.overrideState,
       });
     }
   }
@@ -325,8 +345,8 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   /**
    * Typed open for direct PaneStore consumers (e.g. PaneLayoutStore routing into a pane).
    */
-  open<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>): void {
-    this.openKind(kind as string, args);
+  open<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>, config?: TabOpenOptions): void {
+    this.openKind(kind as string, args, config);
   }
 
   // ---------------------------------------------------------------------------
@@ -482,14 +502,8 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       // Re-initialize from snapshot.
       for (const desc of snapshot.tabs) {
         if (!this.registry.has(desc.kind)) continue;
-        const { kind, tabId, isPreview, ...rest } = desc as Record<string, unknown>;
-        const state = rest as unknown;
-        const entry = new TabEntryImpl(
-          kind as string,
-          tabId as string,
-          isPreview as boolean,
-          state
-        );
+        const { kind, tabId, isPreview, state } = stateFromDescriptor(desc);
+        const entry = new TabEntryImpl(kind, tabId, isPreview, state);
         this._attachEntryAndInitialize(entry, { activate: false });
       }
     }
@@ -583,10 +597,9 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     if (!record) return;
     const { desc, index } = record;
     if (!this.registry.has(desc.kind)) return;
-    const { kind, tabId, isPreview, ...rest } = desc as Record<string, unknown>;
-    const state = rest as unknown;
-    const entry = new TabEntryImpl(kind as string, tabId as string, isPreview as boolean, state);
-    const def = this.registry.get(kind as string);
+    const { kind, tabId, isPreview, state } = stateFromDescriptor(desc);
+    const entry = new TabEntryImpl(kind, tabId, isPreview, state);
+    const def = this.registry.get(kind);
     const resource = def.initialize(entry as never, this._buildHandle(entry), this._ctx);
     this.entries.set(entry.tabId, entry);
     this._resources.set(entry.tabId, resource);
@@ -618,13 +631,7 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
 
     // Record for reopen history before removing.
     const index = this.tabOrder.indexOf(id);
-    const desc = {
-      kind: entry.kind,
-      tabId: entry.tabId,
-      isPreview: entry.isPreview,
-      ...(entry.state as object),
-    } as TabDescriptor;
-    this._closedTabHistory.push({ desc, index });
+    this._closedTabHistory.push({ desc: descriptorOf(entry), index });
     if (this._closedTabHistory.length > PaneStore._MAX_CLOSED_HISTORY) {
       this._closedTabHistory.shift();
     }
@@ -676,8 +683,12 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
         runInAction(() => this._removeTab(entry.tabId));
         return Promise.resolve(true);
       },
-      open: (args: { kind: string } & Record<string, unknown>) => {
-        this.openKind(args.kind, args);
+      open: (
+        kind: string,
+        args: Record<string, unknown>,
+        config?: { target?: unknown; preview?: boolean; overrideState?: boolean }
+      ) => {
+        this.openKind(kind, args, config as TabOpenOptions | undefined);
       },
     };
   }

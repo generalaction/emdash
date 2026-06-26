@@ -75,11 +75,11 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
         const dispose = when(
           () => !!getTaskView(projectId, taskId),
           () => {
-            getTaskView(projectId, taskId)?.paneLayout.open({
-              kind: 'conversation',
-              conversationId,
-              preview: false,
-            });
+            getTaskView(projectId, taskId)?.paneLayout.open(
+              'conversation',
+              { conversationId },
+              { preview: false }
+            );
           },
           {
             timeout: 10_000,

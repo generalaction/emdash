@@ -1,12 +1,8 @@
 import { detectPlatform, parseHotkey } from '@tanstack/react-hotkeys';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
-import type {
-  TabCommand,
-  TabHost,
-  TabViewContext,
-  ResolvedTab,
-} from '@renderer/features/tabs/core/tab-provider';
+import type { TabHost } from '@renderer/features/tabs/core/tab-host';
+import type { ResolvedTab, TabViewContext } from '@renderer/features/tabs/core/tab-provider';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -16,6 +12,7 @@ import {
 } from '@renderer/lib/ui/context-menu';
 import { BoundShortcut, Shortcut } from '@renderer/lib/ui/shortcut';
 import type { ShortcutSettingsKey } from '@shared/shortcuts';
+import type { TabCommand } from './tab-commands';
 
 const _PLATFORM = detectPlatform();
 

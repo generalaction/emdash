@@ -10,7 +10,6 @@ import { getConversationSessionManager } from '../stores/conversation-session-ma
 import type { TaskTabContext } from '../stores/task-tab-context';
 import { ConversationTabBarItem, ConversationTabBarItemDragPreview } from './conversation-tab-item';
 import { ConversationTabResource } from './conversation-tab-resource';
-import { formatConversationTitleForDisplay } from './conversation-title-utils';
 import { ConversationsPanel } from './conversations-panel';
 
 export interface ConversationState {
@@ -93,11 +92,4 @@ export const conversationTabProvider: TabProvider<
   TabBarItem: ConversationTabBarItem,
   TabBarItemDragPreview: ConversationTabBarItemDragPreview,
   TabContent: ConversationTabContent,
-
-  title(_entry: TabEntry<ConversationState>, resource: ConversationTabResource): string {
-    return formatConversationTitleForDisplay(
-      resource.store.data.providerId,
-      resource.store.data.title
-    );
-  },
 });

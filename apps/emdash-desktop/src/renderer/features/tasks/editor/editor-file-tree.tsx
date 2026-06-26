@@ -172,14 +172,14 @@ const FileTreeRow = observer(function FileTreeRow({
     if (node.type === 'directory') {
       toggleExpand();
     } else {
-      taskView.activePane.open('file', { path: node.path, preview: true });
+      taskView.activePane.open('file', { path: node.path }, { preview: true });
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (node.type === 'file') {
-      taskView.activePane.open('file', { path: node.path, preview: false });
+      taskView.activePane.open('file', { path: node.path }, { preview: false });
     }
   };
 
@@ -189,7 +189,7 @@ const FileTreeRow = observer(function FileTreeRow({
       if (node.type === 'directory') {
         toggleExpand();
       } else {
-        taskView.activePane.open('file', { path: node.path, preview: true });
+        taskView.activePane.open('file', { path: node.path }, { preview: true });
       }
     }
   };

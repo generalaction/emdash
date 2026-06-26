@@ -217,12 +217,11 @@ describe('createTaskCommandProvider', () => {
     const modalOptions = mocks.showModal.mock.calls[0][1];
     modalOptions.onSuccess({ conversationId: 'conversation-1' });
 
-    expect(taskView.paneLayout.open).toHaveBeenCalledWith({
-      kind: 'conversation',
-      conversationId: 'conversation-1',
-      preview: false,
-      target: 'right',
-    });
+    expect(taskView.paneLayout.open).toHaveBeenCalledWith(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false, target: 'right' }
+    );
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 
@@ -235,7 +234,7 @@ describe('createTaskCommandProvider', () => {
     command?.execute();
 
     expect(command?.shortcutKey).toBe('openBrowser');
-    expect(taskView.paneLayout.open).toHaveBeenCalledWith({ kind: 'browser' });
+    expect(taskView.paneLayout.open).toHaveBeenCalledWith('browser', {});
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 

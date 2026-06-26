@@ -91,8 +91,4 @@ export const acpChatTabProvider: TabProvider<
   TabBarItem: AcpChatTabBarItem,
   TabBarItemDragPreview: AcpChatTabBarItemDragPreview,
   TabContent: AcpChatTabContent,
-
-  title(): string {
-    return 'ACP Chat';
-  },
 });

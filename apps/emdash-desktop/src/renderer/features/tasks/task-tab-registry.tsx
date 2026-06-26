@@ -6,7 +6,7 @@
  * store-creator, hook, and derived types:
  *
  *   const paneLayout = taskTabView.createPaneLayoutStore(ctx);
- *   paneLayout.open({ kind: 'file', path: '/foo.ts' });   // typed ✓
+ *   paneLayout.open('file', { path: '/foo.ts' });   // typed ✓
  *
  * `TaskTabKind`, `TaskOpenArgsOf`, etc. are derived from the provider set,
  * so they stay in sync automatically.
