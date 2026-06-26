@@ -118,6 +118,7 @@
     "@storybook/addon-docs": "^10.4.6",
     "@storybook/react-vite": "^10.4.6",
     "@tanstack/react-form": "^1.28.4",
+    "@tanstack/react-virtual": "^3.14.2",
     "@types/node": "^20.19.42",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -142,6 +143,7 @@
   },
   "peerDependencies": {
     "@tanstack/react-form": "^1.28.4",
+    "@tanstack/react-virtual": "^3.14.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

@@ -55,6 +55,7 @@ export default defineConfig({
         '@emdash/chat-ui',
         '@tanstack/react-form',
         '@tanstack/react-store',
+        '@tanstack/react-virtual',
         'react',
         'react-dom',
         'react/jsx-runtime',

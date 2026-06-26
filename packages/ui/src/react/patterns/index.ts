@@ -1,3 +1,11 @@
-// Reserved for future pattern components.
-// Patterns compose multiple components and primitives with complex state
-// (e.g. a virtualized ListView, a paginated data table, etc.).
+export { ListView } from './list-view';
+export type {
+  ListViewSection,
+  VirtualListProps,
+  VirtualListHandle,
+  RowProps,
+  SectionHeaderProps,
+  FilterPillProps,
+  FilterButtonProps,
+  ListSelectionState,
+} from './list-view';
