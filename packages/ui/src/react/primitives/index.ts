@@ -7,7 +7,7 @@ export {
   type ToggleProps,
   type ToggleGroupProps,
 } from './toggle';
-export { Tabs, TabsList, TabsTab, TabsPanel, TabsIndicator, type TabsTabProps } from './tabs';
+export { Tabs, TabsList, TabsTab, TabsPanel, type TabsTabProps } from './tabs';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
 export {
   Field,
