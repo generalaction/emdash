@@ -1,0 +1,34 @@
+packages/plugins/src/agents/impl/grok/index.ts
+  s_4132083546ed91::t_fe66a3ff94496e 12,31,34-36,38,45,47-50,52-53,56-57,60,71,75-76,105
+  s_4132083546ed91::t_5ba72273e6a7f7 58-59
+  s_4132083546ed91::t_3a35cbab0e55a5 32-33,37,46,51,54-55,61-67,79-80
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_4132083546ed91::t_c45d39d0356993 130-132
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_4132083546ed91::t_16b5dda6d9d168 152
+packages/plugins/src/agents/impl/index.test.ts
+  s_4132083546ed91::t_b7b39adef05cd7 146-149,155-156,160-176
+  s_4132083546ed91::t_5ba72273e6a7f7 150-153,157-159
+  s_4132083546ed91::t_2ff2d2b50ebc63 154
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.test.ts
+  s_4132083546ed91::t_2c005d1e9f4cbc 22,27
+  s_4132083546ed91::t_78e6b634520a12 23-26,28-30
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_4132083546ed91::t_48d7d1bea5390e 67-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "91c0180c4a8cf9e870cf57b3e4748829c47759d2",
+  "prompts": {},
+  "sessions": {
+    "s_4132083546ed91": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f055a-9fa5-79d7-b7af-ee8c44e5edfe",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
