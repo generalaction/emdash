@@ -1,6 +1,8 @@
-import React from 'react';
+import { JSDOM } from 'jsdom';
+import React, { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 
 vi.mock('@renderer/lib/hooks/useTheme', () => ({
@@ -32,6 +34,28 @@ vi.mock('@renderer/lib/ipc', () => ({
 }));
 
 describe('MarkdownRenderer', () => {
+  let dom: JSDOM;
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
+    vi.stubGlobal('window', dom.window);
+    vi.stubGlobal('document', dom.window.document);
+    vi.stubGlobal('HTMLElement', dom.window.HTMLElement);
+    vi.stubGlobal('MouseEvent', dom.window.MouseEvent);
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+
+    container = dom.window.document.getElementById('root') as HTMLDivElement;
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    vi.unstubAllGlobals();
+    dom.window.close();
+  });
+
   it('constrains markdown images in compact rendering', () => {
     const html = renderToStaticMarkup(
       React.createElement(MarkdownRenderer, {
@@ -79,5 +103,32 @@ describe('MarkdownRenderer', () => {
     expect(html).toContain('<th');
     expect(html).toContain('<td');
     expect(html).toContain('Primary');
+  });
+
+  it('prevents browser navigation when a link handler claims a relative href', () => {
+    const onOpenLink = vi.fn(() => true);
+
+    act(() => {
+      root.render(
+        React.createElement(MarkdownRenderer, {
+          content: '[booking.read](packages/trpc/server/routers/viewer/bookings/get.handler.ts)',
+          onOpenLink,
+          variant: 'full',
+        })
+      );
+    });
+
+    const link = container.querySelector<HTMLAnchorElement>('a[href]');
+    expect(link).not.toBeNull();
+
+    const event = new dom.window.MouseEvent('click', { bubbles: true, cancelable: true });
+    act(() => {
+      link?.dispatchEvent(event);
+    });
+
+    expect(onOpenLink).toHaveBeenCalledWith(
+      'packages/trpc/server/routers/viewer/bookings/get.handler.ts'
+    );
+    expect(event.defaultPrevented).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import type { FileTabStore } from '@renderer/features/tasks/editor/stores/file-tab-store';
 import {
   useTaskViewContext,
@@ -30,6 +31,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   const workspaceId = useWorkspaceId();
   const workspacePath = useWorkspace().path;
   const { editorView } = useWorkspaceViewModel();
+  const { pane } = usePaneContext();
   const showExternalSpinner = useDelayedBoolean(!!(tab.isExternal && tab.isLoading), 200);
   const bufferUri = tab.isExternal ? '' : buildMonacoModelPath(editorView.modelRootPath, tab.path);
 
@@ -52,6 +54,20 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
     [projectId, workspaceId, workspacePath, tab.path]
   );
 
+  const openWorkspaceLink = useCallback(
+    (href: string): boolean => {
+      const target = resolveWorkspaceResourcePath({
+        workspacePath,
+        containingFilePath: tab.path,
+        resourcePath: href,
+      });
+      if (!target) return false;
+      pane.open('file', { path: target, preview: false });
+      return true;
+    },
+    [workspacePath, tab.path, pane]
+  );
+
   return (
     <div className="relative h-full overflow-y-auto bg-background-secondary-1">
       {tab.isExternal && tab.isLoading ? (
@@ -70,6 +86,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
           variant="full"
           className="w-full max-w-3xl px-8 py-8"
           resolveImage={tab.isExternal ? undefined : resolveImage}
+          onOpenLink={tab.isExternal ? undefined : openWorkspaceLink}
         />
       )}
     </div>
