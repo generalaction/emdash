@@ -11,7 +11,8 @@
  */
 
 import Color from 'colorjs.io';
-import type { Ramp } from '../contract/roles.js';
+import type { Ramp } from '../contract/roles';
+import { toP3String, pickContrastColor } from './color-format';
 
 type ExplicitScaleInput = string[] | { steps: string[]; contrast?: string };
 
@@ -20,20 +21,10 @@ function parseInput(input: ExplicitScaleInput): { steps: string[]; contrast?: st
   return input;
 }
 
-function toP3String(c: Color): string {
-  const p3 = c.to('p3');
-  const [r, g, b] = p3.coords.map((v) => Math.max(0, Math.min(1, +Number(v).toFixed(4))));
-  return `color(display-p3 ${r} ${g} ${b})`;
-}
-
-function pickContrastColor(solidStep: string): string {
+function pickContrastColorFromStep(solidStep: string): string {
   try {
-    const c = new Color(solidStep).to('oklch');
-    const white = new Color('oklch', [1, 0, 0]);
-    const black = new Color('oklch', [0.1, 0, 0]);
-    const lcW = Math.abs(c.contrastAPCA(white) as number);
-    const lcB = Math.abs(c.contrastAPCA(black) as number);
-    return lcW >= lcB ? '#ffffff' : '#1a1a1a';
+    const c = new Color(solidStep);
+    return pickContrastColor(c, undefined, 'srgb');
   } catch {
     return '#ffffff';
   }
@@ -103,18 +94,6 @@ export function fillGaps(input: ExplicitScaleInput): Ramp {
   const solidStep = filledSteps[8]; // step 9 (0-indexed = 8)
   return {
     steps: filledSteps as unknown as Ramp['steps'],
-    contrast: contrast ?? pickContrastColor(solidStep),
+    contrast: contrast ?? pickContrastColorFromStep(solidStep),
   };
-}
-
-/**
- * Check whether a value is an explicit scale input (vs a hue seed).
- */
-export function isExplicitScale(v: unknown): v is ExplicitScaleInput {
-  if (Array.isArray(v)) return v.every((s) => typeof s === 'string');
-  if (typeof v === 'object' && v !== null && 'steps' in v) {
-    const obj = v as { steps: unknown };
-    return Array.isArray(obj.steps);
-  }
-  return false;
 }

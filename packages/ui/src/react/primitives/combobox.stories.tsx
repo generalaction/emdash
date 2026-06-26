@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { Box } from './box';
 import {
   Combobox,
   ComboboxChip,
@@ -14,6 +15,7 @@ import {
   ComboboxList,
   ComboboxSeparator,
 } from './combobox';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Combobox',
@@ -28,7 +30,7 @@ const VEGGIES = ['Carrot', 'Celery', 'Pea', 'Spinach', 'Tomato', 'Zucchini'];
 
 export const Default: Story = {
   render: () => (
-    <div className="w-64">
+    <Box className={s.w64}>
       <Combobox>
         <ComboboxInput placeholder="Search fruits…" showTrigger showClear />
         <ComboboxContent>
@@ -42,13 +44,13 @@ export const Default: Story = {
           </ComboboxList>
         </ComboboxContent>
       </Combobox>
-    </div>
+    </Box>
   ),
 };
 
 export const WithGroups: Story = {
   render: () => (
-    <div className="w-64">
+    <Box className={s.w64}>
       <Combobox>
         <ComboboxInput placeholder="Search foods…" showTrigger showClear />
         <ComboboxContent>
@@ -74,7 +76,7 @@ export const WithGroups: Story = {
           </ComboboxList>
         </ComboboxContent>
       </Combobox>
-    </div>
+    </Box>
   ),
 };
 
@@ -83,7 +85,7 @@ export const MultiSelect: Story = {
     const [values, setValues] = React.useState<string[]>([]);
 
     return (
-      <div className="w-72">
+      <Box className={s.w72}>
         <Combobox multiple value={values} onValueChange={setValues}>
           <ComboboxChips>
             {values.map((v) => (
@@ -102,14 +104,14 @@ export const MultiSelect: Story = {
             </ComboboxList>
           </ComboboxContent>
         </Combobox>
-      </div>
+      </Box>
     );
   },
 };
 
 export const Disabled: Story = {
   render: () => (
-    <div className="w-64">
+    <Box className={s.w64}>
       <Combobox disabled>
         <ComboboxInput placeholder="Disabled combobox" showTrigger />
         <ComboboxContent>
@@ -122,6 +124,6 @@ export const Disabled: Story = {
           </ComboboxList>
         </ComboboxContent>
       </Combobox>
-    </div>
+    </Box>
   ),
 };

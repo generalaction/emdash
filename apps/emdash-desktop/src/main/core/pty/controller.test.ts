@@ -93,27 +93,34 @@ describe('ptyController', () => {
     ptySessionRegistry.unregister(sessionId);
   });
 
-  it('uploads files to absolute workspace paths', async () => {
+  it('uploads remote attachments into the git-ignored .emdash dir, not the worktree root (#2680)', async () => {
     const bytes = Buffer.from('content');
+    const mkdir = vi.fn().mockResolvedValue({ success: true });
     const writeBytes = vi.fn().mockResolvedValue({ success: true });
     mocks.randomUUID.mockReturnValue('upload-id');
     mocks.readFile.mockResolvedValue(bytes);
     mocks.getTask.mockReturnValue({});
     mocks.getWorkspaceId.mockReturnValue('workspace-1');
     mocks.getWorkspace.mockReturnValue({
-      path: '/remote/repo',
-      fileSystem: { writeBytes },
+      path: '/remote/worktree',
+      fileSystem: { mkdir, writeBytes },
     });
 
     const result = await ptyController.uploadFiles({
-      sessionId: 'project-1:task-1:terminal-1',
-      localPaths: ['/tmp/screenshot.png'],
+      sessionId: 'proj-1:task-1:conv-1',
+      localPaths: ['/local/tmp/emdash-drop-abc-image.png'],
     });
 
     expect(result).toEqual({
       success: true,
-      data: { remotePaths: ['/remote/repo/upload-id-screenshot.png'] },
+      data: {
+        remotePaths: ['/remote/worktree/.emdash/uploads/upload-id-emdash-drop-abc-image.png'],
+      },
     });
-    expect(writeBytes).toHaveBeenCalledWith('/remote/repo/upload-id-screenshot.png', bytes);
+    expect(mkdir).toHaveBeenCalledWith('/remote/worktree/.emdash/uploads', { recursive: true });
+    expect(writeBytes).toHaveBeenCalledWith(
+      '/remote/worktree/.emdash/uploads/upload-id-emdash-drop-abc-image.png',
+      bytes
+    );
   });
 });

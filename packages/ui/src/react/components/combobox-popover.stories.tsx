@@ -1,18 +1,15 @@
 /**
  * ComboboxPopover — searchable combobox-in-popover component
- *
- * Stories demonstrate:
- *  - Basic flat list with in-popover search
- *  - With per-row detail hover card
- *  - Interaction inside detail card keeps popover open
  */
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { Bot, Cpu, Zap } from 'lucide-react';
+import { cx } from '@styles/utilities/cx';
+import { Bot, Cpu, Plus, Settings, Zap } from 'lucide-react';
 import React, { useState } from 'react';
+import { Box } from '../primitives/box';
 import { ComboboxPopover } from './combobox-popover';
-
-// ── Shared data ───────────────────────────────────────────────────────────────
+import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 interface ModelItem {
   id: string;
@@ -84,51 +81,68 @@ const MODELS: ModelItem[] = [
 function BarMeter({ value }: { value: number }) {
   const filled = Math.round(Math.max(0, Math.min(1, value)) * 5);
   return (
-    <span className="flex items-center gap-0.5">
+    <Box display="flex" alignItems="center" gap="0.5">
       {Array.from({ length: 5 }, (_, i) => (
         <span
           key={i}
-          className="size-1.5 rounded-full"
+          className={cx(sx({ rounded: 'full' }), s.size15)}
           style={{ background: i < filled ? 'var(--foreground-muted)' : 'var(--border)' }}
         />
       ))}
-    </span>
+    </Box>
   );
 }
 
 function ModelDetailCard({ item }: { item: ModelItem }) {
   return (
-    <div className="w-52 p-3 text-sm" style={{ color: 'var(--foreground)' }}>
-      <div className="flex items-center gap-1.5">
-        <Bot className="size-4 shrink-0" style={{ color: 'var(--foreground-muted)' }} />
-        <p className="leading-tight font-medium">{item.name}</p>
-      </div>
-      <p className="mt-1.5 text-xs leading-snug" style={{ color: 'var(--foreground-muted)' }}>
+    <Box padding="3" fontSize="sm" className={s.w52} style={{ color: 'var(--foreground)' }}>
+      <Box display="flex" alignItems="center" gap="1.5">
+        <Bot
+          className={cx(s.size4, sx({ flexShrink: 0 }))}
+          style={{ color: 'var(--foreground-muted)' }}
+        />
+        <p className={cx(sx({ lineHeight: 'tight', fontWeight: 'medium' }))}>{item.name}</p>
+      </Box>
+      <p
+        className={cx(sx({ marginTop: '1.5', fontSize: 'xs', lineHeight: 'snug' }))}
+        style={{ color: 'var(--foreground-muted)' }}
+      >
         {item.description}
       </p>
-      <div className="mt-2 space-y-1.5 border-t pt-2" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-center justify-between text-xs">
+      <Box
+        marginTop="2"
+        borderTopWidth="1"
+        borderStyle="solid"
+        paddingTop="2"
+        className={s.spaceY15}
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <Box display="flex" alignItems="center" justifyContent="space-between" fontSize="xs">
           <span style={{ color: 'var(--foreground-muted)' }}>Context</span>
           <span style={{ color: 'var(--foreground)' }}>{item.contextK}K</span>
-        </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="flex items-center gap-1" style={{ color: 'var(--foreground-muted)' }}>
-            <Zap className="size-3" /> Speed
+        </Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" fontSize="xs">
+          <span
+            className={cx(sx({ display: 'flex', alignItems: 'center', gap: '1' }))}
+            style={{ color: 'var(--foreground-muted)' }}
+          >
+            <Zap className={s.size3} /> Speed
           </span>
           <BarMeter value={item.speed} />
-        </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="flex items-center gap-1" style={{ color: 'var(--foreground-muted)' }}>
-            <Cpu className="size-3" /> Intelligence
+        </Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" fontSize="xs">
+          <span
+            className={cx(sx({ display: 'flex', alignItems: 'center', gap: '1' }))}
+            style={{ color: 'var(--foreground-muted)' }}
+          >
+            <Cpu className={s.size3} /> Intelligence
           </span>
           <BarMeter value={item.intelligence} />
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   );
 }
-
-// ── Meta ──────────────────────────────────────────────────────────────────────
 
 const meta: Meta = {
   title: 'Components/ComboboxPopover',
@@ -138,13 +152,11 @@ export default meta;
 
 type Story = StoryObj;
 
-// ── Stories ───────────────────────────────────────────────────────────────────
-
 function BasicStory() {
   const [value, setValue] = useState<string>('claude-sonnet-4-5');
   return (
-    <div className="flex flex-col items-center gap-4">
-      <p className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
+    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+      <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
         Selected: <strong>{MODELS.find((m) => m.id === value)?.name ?? '—'}</strong>
       </p>
       <ComboboxPopover<ModelItem>
@@ -155,19 +167,21 @@ function BasicStory() {
         itemToLabel={(m) => m.name}
         searchPlaceholder="Search models…"
         renderTrigger={(selected) => (
-          <span className="text-xs">{selected?.name ?? 'Pick a model'}</span>
+          <span className={cx(sx({ fontSize: 'xs' }))}>{selected?.name ?? 'Pick a model'}</span>
         )}
-        renderItem={(item) => <span className="flex-1 truncate text-sm">{item.name}</span>}
+        renderItem={(item) => (
+          <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
+        )}
       />
-    </div>
+    </Box>
   );
 }
 
 function WithDetailHoverCardStory() {
   const [value, setValue] = useState<string>('claude-sonnet-4-5');
   return (
-    <div className="flex flex-col items-center gap-4">
-      <p className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
+    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+      <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
         Hover any row in the list to see the detail card.
       </p>
       <ComboboxPopover<ModelItem>
@@ -178,22 +192,24 @@ function WithDetailHoverCardStory() {
         itemToLabel={(m) => m.name}
         searchPlaceholder="Search models…"
         renderTrigger={(selected) => (
-          <span className="text-xs">{selected?.name ?? 'Pick a model'}</span>
+          <span className={cx(sx({ fontSize: 'xs' }))}>{selected?.name ?? 'Pick a model'}</span>
         )}
-        renderItem={(item) => <span className="flex-1 truncate text-sm">{item.name}</span>}
+        renderItem={(item) => (
+          <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
+        )}
         renderItemDetail={(item) => <ModelDetailCard item={item} />}
         detailSide="right"
         detailAlign="start"
       />
-    </div>
+    </Box>
   );
 }
 
 function DetailCardAboveStory() {
   const [value, setValue] = useState<string>('gpt-4o');
   return (
-    <div className="flex flex-col items-center gap-4">
-      <p className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
+    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+      <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
         Hover a row — detail card appears above the popover (for bottom-anchored selectors like the
         composer toolbar).
       </p>
@@ -205,22 +221,123 @@ function DetailCardAboveStory() {
         itemToLabel={(m) => m.name}
         searchPlaceholder="Search models…"
         renderTrigger={(selected) => (
-          <span className="text-xs">{selected?.name ?? 'Pick a model'}</span>
+          <span className={cx(sx({ fontSize: 'xs' }))}>{selected?.name ?? 'Pick a model'}</span>
         )}
         renderItem={(item) => (
-          <div className="flex items-center gap-2">
-            <Bot className="size-3.5 shrink-0" style={{ color: 'var(--foreground-muted)' }} />
-            <span className="flex-1 truncate text-sm">{item.name}</span>
-            <span className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
+          <Box display="flex" alignItems="center" gap="2">
+            <Bot
+              className={cx(s.size35, sx({ flexShrink: 0 }))}
+              style={{ color: 'var(--foreground-muted)' }}
+            />
+            <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
+            <span
+              className={cx(sx({ fontSize: 'xs' }))}
+              style={{ color: 'var(--foreground-muted)' }}
+            >
               {item.provider}
             </span>
-          </div>
+          </Box>
         )}
         renderItemDetail={(item) => <ModelDetailCard item={item} />}
         detailSide="top"
         detailAlign="start"
       />
-    </div>
+    </Box>
+  );
+}
+
+function WithFooterStory() {
+  const [value, setValue] = useState<string>('claude-sonnet-4-5');
+  const [lastAction, setLastAction] = useState<string>('—');
+  return (
+    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+      <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
+        Selected: <strong>{MODELS.find((m) => m.id === value)?.name ?? '—'}</strong>
+        {' · '}
+        Last action: <strong>{lastAction}</strong>
+      </p>
+      <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
+        Type in the search box — footer actions stay visible while filtering.
+      </p>
+      <ComboboxPopover<ModelItem>
+        items={MODELS}
+        value={value}
+        onValueChange={setValue}
+        itemToKey={(m) => m.id}
+        itemToLabel={(m) => m.name}
+        searchPlaceholder="Search models…"
+        renderTrigger={(selected) => (
+          <span className={cx(sx({ fontSize: 'xs' }))}>{selected?.name ?? 'Pick a model'}</span>
+        )}
+        renderItem={(item) => (
+          <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
+        )}
+        renderFooter={() => (
+          <Box display="flex" flexDirection="column" padding="1" gap="0.5">
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                width: '100%',
+                padding: '0.375rem 0.5rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 'var(--text-sm)',
+                color: 'var(--foreground-muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  'var(--surface-hover)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground-muted)';
+              }}
+              onClick={() => setLastAction('Add model clicked')}
+            >
+              <Plus style={{ width: '1rem', height: '1rem', flexShrink: 0 }} />
+              Add model
+            </button>
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                width: '100%',
+                padding: '0.375rem 0.5rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 'var(--text-sm)',
+                color: 'var(--foreground-muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  'var(--surface-hover)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground-muted)';
+              }}
+              onClick={() => setLastAction('Manage providers clicked')}
+            >
+              <Settings style={{ width: '1rem', height: '1rem', flexShrink: 0 }} />
+              Manage providers
+            </button>
+          </Box>
+        )}
+      />
+    </Box>
   );
 }
 
@@ -237,4 +354,9 @@ export const WithDetailHoverCard: Story = {
 export const DetailCardAbove: Story = {
   name: 'Detail card above (detailSide=top)',
   render: () => <DetailCardAboveStory />,
+};
+
+export const WithFooter: Story = {
+  name: 'With footer actions',
+  render: () => <WithFooterStory />,
 };

@@ -13,18 +13,21 @@
  *  - Non-closing interactivity: interactions inside the hover card or nested
  *    portals cancel Combobox dismissal via `eventDetails.cancel()`.
  *  - `detailSide`/`detailAlign` control the hover-card placement.
+ *  - Optional `renderFooter()`: rendered after a separator, outside the filtered
+ *    collection, so footer actions stay visible regardless of the search query.
  */
 
 import { type ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
+import { cx } from '@styles/utilities/cx';
 import { ChevronDown } from 'lucide-react';
 import * as React from 'react';
-import { cn } from '../lib/cn';
 import {
   Combobox,
   ComboboxContent,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
+  ComboboxSeparator,
   ComboboxTrigger,
 } from '../primitives/combobox';
 import { HoverCard, isEventInsideInteractiveLayer, useHoverCard } from '../primitives/hover-card';
@@ -71,6 +74,20 @@ export interface ComboboxPopoverProps<T> {
   detailSide?: 'top' | 'bottom' | 'left' | 'right';
   /** Align for the detail hover card. Defaults to 'start'. */
   detailAlign?: 'start' | 'center' | 'end';
+  /**
+   * Optional footer rendered inside the popup but OUTSIDE the filtered item
+   * collection. A separator is inserted automatically above the footer.
+   * Use this for action rows (e.g. "Open settings", "Manage providers") that
+   * should remain visible regardless of what the user types in the search box.
+   */
+  renderFooter?: () => React.ReactNode;
+  /**
+   * Visual appearance of the trigger button.
+   * - `control` (default): ghost button — matches dropdowns and toolbar triggers.
+   * - `input`: matches Input/Textarea — border, surfaceInput background, focus ring.
+   *   Use in form contexts via ComboboxSelectField.
+   */
+  appearance?: 'control' | 'input';
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -85,6 +102,7 @@ export function ComboboxPopover<T>({
   renderTrigger,
   renderItem,
   renderItemDetail,
+  renderFooter,
   searchPlaceholder = 'Search…',
   disabled = false,
   className,
@@ -92,6 +110,7 @@ export function ComboboxPopover<T>({
   contentStyle,
   detailSide = 'right',
   detailAlign = 'start',
+  appearance = 'control',
 }: ComboboxPopoverProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
@@ -130,6 +149,7 @@ export function ComboboxPopover<T>({
 
   return (
     <Combobox
+      items={items}
       value={selectedItem ?? null}
       onValueChange={handleValueChange}
       open={open}
@@ -138,19 +158,26 @@ export function ComboboxPopover<T>({
       filter={filter ?? defaultFilter}
       autoHighlight
     >
-      <ComboboxTrigger disabled={disabled} className={cn(styles.trigger, className)}>
+      <ComboboxTrigger
+        disabled={disabled}
+        className={
+          appearance === 'input'
+            ? cx(...styles.triggerInput, className)
+            : cx(styles.trigger, className)
+        }
+      >
         <span className={styles.triggerLabel}>{renderTrigger(selectedItem)}</span>
         <ChevronDown className={styles.triggerChevron} />
       </ComboboxTrigger>
 
       <ComboboxContent
         ref={setAnchorEl}
-        className={cn(styles.contentMinWidth, contentClassName)}
+        className={cx(styles.contentMinWidth, contentClassName)}
         style={contentStyle}
       >
         <ComboboxInput showTrigger={false} placeholder={searchPlaceholder} />
         <ComboboxList>
-          {items.map((item) => {
+          {(item: T) => {
             const key = itemToKey(item);
             return (
               <ComboboxItem
@@ -161,8 +188,14 @@ export function ComboboxPopover<T>({
                 {renderItem(item)}
               </ComboboxItem>
             );
-          })}
+          }}
         </ComboboxList>
+        {renderFooter && (
+          <>
+            <ComboboxSeparator />
+            {renderFooter()}
+          </>
+        )}
       </ComboboxContent>
 
       {renderItemDetail && activeDetailItem && (

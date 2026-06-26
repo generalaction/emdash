@@ -101,8 +101,8 @@ export function ImageOffIcon() {
 // ── Mention pill kind icons ────────────────────────────────────────────────────
 
 const MENTION_ICON_PROPS = {
-  width: '10',
-  height: '10',
+  width: '9',
+  height: '9',
   viewBox: '0 0 16 16',
   fill: 'none',
   stroke: 'currentColor',
@@ -207,6 +207,16 @@ export function PlanCompletedIcon() {
     <svg {...PLAN_ICON_PROPS}>
       <circle cx="7" cy="7" r="6" />
       <path d="M4.5 7.2 6.2 9 9.6 5" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  );
+}
+
+/** Error: stroke circle with an X — used on tool-call rows with status === 'error'. */
+export function IconError() {
+  return (
+    <svg {...PLAN_ICON_PROPS} stroke-width="1.5">
+      <circle cx="7" cy="7" r="6" />
+      <path d="M5 5l4 4M9 5l-4 4" stroke-linecap="round" />
     </svg>
   );
 }

@@ -14,10 +14,10 @@
  * on highlight and text-foreground-muted descriptions.
  */
 
+import { cx } from '@styles/utilities/cx';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import { createPortal } from 'react-dom';
-import { cn } from '../lib/cn';
 import * as styles from './combobox-popup.css';
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -113,12 +113,12 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
       <div
         role="listbox"
         style={style}
-        className={cn('surface-elevated', styles.popupRoot, className)}
+        className={cx('surface-elevated', styles.popupRoot, className)}
       >
         {header && <div className={styles.popupHeader}>{header}</div>}
         <ul ref={listRef} className={styles.popupList}>
           {items.length === 0 && emptyLabel ? (
-            <li className={cn(styles.popupItem, styles.popupItemDefault)}>{emptyLabel}</li>
+            <li className={cx(styles.popupItem, styles.popupItemDefault)}>{emptyLabel}</li>
           ) : (
             items.map((item, index) => (
               <li
@@ -131,7 +131,7 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
                   onSelect(item);
                 }}
                 onMouseEnter={() => setSelectedIndex(index)}
-                className={cn(
+                className={cx(
                   styles.popupItem,
                   index === selectedIndex ? styles.popupItemHighlighted : styles.popupItemHover
                 )}
@@ -169,7 +169,7 @@ export function ComboboxPopupDismiss({
         e.preventDefault();
         onClick?.();
       }}
-      className={cn(styles.popupDismiss, className)}
+      className={cx(styles.popupDismiss, className)}
       aria-label="Dismiss"
     >
       <XIcon style={{ width: '0.75rem', height: '0.75rem' }} />

@@ -57,7 +57,7 @@ export function ToolStateMatrix(props: ToolStateMatrixProps) {
         {(row) => {
           const transcript = createTranscript();
           const viewState = createViewState();
-          transcript.seed([props.build(row.status)]);
+          transcript.history.seed([props.build(row.status)]);
           return (
             <div>
               <div

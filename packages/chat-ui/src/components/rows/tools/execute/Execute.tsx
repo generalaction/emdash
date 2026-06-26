@@ -1,49 +1,116 @@
 /**
- * Execute — SolidJS component for ChatExecute rows.
+ * Execute — SolidJS components for ChatExecute rows.
  *
- * Renders ACP `kind: 'execute'` tool calls as a single non-interactive row:
+ * Renders ACP `kind: 'execute'` tool calls as a collapsible card:
  *
- *   Execute  `{command}`
+ *   ┌─────────────────────────────────────┐
+ *   │  Execute                          › │  ← header (CollapsibleCard primitive)
+ *   ├─────────────────────────────────────┤
+ *   │  pnpm run build --filter=...        │  ← body: mono, bash-highlighted
+ *   │  ...                                │    clamped to collapsedMaxLines or
+ *   └─────────────────────────────────────┘    expandedMaxLines with overflow scroll
  *
- * - Command is shown as a truncated inline-code chip (max 150px, mirrors Prose
- *   inline code styling). Full command is exposed via the title attribute.
- * - Shimmer on the whole row while running.
- *
- * Outer geometry (height, horizontal padding) is applied by execute.def.ts Render.
- * This component only describes inner content; no height/padding CSS needed here.
+ * Header + card shell are provided by CollapsibleCard.
+ * Body:   collapsed = clamped height + fade overlay; expanded = scrollable.
  */
 
+import { useCaches } from '@components/contexts/CachesContext';
+import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
+import { applyTokensToElement, type CodeToken } from '@core/highlight/apply-tokens';
+import { For, Show, createEffect, onCleanup } from 'solid-js';
 import type { ChatExecute } from '@/model';
-import { pexecCmd } from './execute.css';
-import { textShimmer } from '@styles/effects.css';
-import { sx } from '@styles/sprinkles.css';
+import { executeBody, executeLine } from './execute.css';
+import { fadeOverlayBottom } from '@styles/effects.css';
 
-export type ExecuteProps = {
+// ── ExecuteBody ───────────────────────────────────────────────────────────────
+
+export type ExecuteBodyProps = {
   item: ChatExecute;
+  lines: string[];
+  bodyH: number;
+  contentH: number;
+  codeLineH: number;
+  expanded: boolean;
 };
 
-export function Execute(props: ExecuteProps) {
-  const command = () => props.item.command || '…';
+export function ExecuteBody(props: ExecuteBodyProps) {
+  const caches = useCaches();
+  const lineEls = new Map<number, HTMLElement>();
+
+  createEffect(() => {
+    const command = props.item.command;
+    if (!command || !lineEls.size) return;
+
+    function paint(tokenLines: CodeToken[][]): void {
+      for (let i = 0; i < props.lines.length; i++) {
+        const el = lineEls.get(i);
+        const tokens = tokenLines[i];
+        if (el && tokens) applyTokensToElement(el, tokens);
+      }
+    }
+
+    const cached = caches.peekHighlight(command, 'bash');
+    if (cached) {
+      paint(cached.lines);
+      return;
+    }
+
+    let cancelled = false;
+    const handle = scheduleIdle(() => {
+      if (cancelled) return;
+      const result = caches.highlight(command, 'bash');
+      if (cancelled || !result) return;
+      paint(result.lines);
+    });
+
+    onCleanup(() => {
+      cancelled = true;
+      cancelIdle(handle);
+    });
+  });
+
+  const overflows = () => props.contentH > props.bodyH;
 
   return (
     <div
-      class={sx({
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1.5',
-        color: 'fgPassive',
-        userSelect: 'none',
-        fontSize: 'sm',
-      })}
-      classList={{ [textShimmer]: props.item.status === 'running' }}
+      class={executeBody}
+      style={{
+        height: `${props.bodyH}px`,
+        'overflow-x': 'auto',
+        'overflow-y': props.expanded ? 'auto' : 'hidden',
+      }}
     >
-      <span>Execute</span>
-      <span
-        class={`${pexecCmd} ${sx({ borderRadius: '4', background: 'codeInlineBg' })}`}
-        title={props.item.command || undefined}
-      >
-        {command()}
-      </span>
+      <Show when={!props.expanded && overflows()}>
+        <div
+          class={fadeOverlayBottom}
+          style={{
+            position: 'absolute',
+            inset: '0',
+            'pointer-events': 'none',
+            height: '28px',
+            bottom: '0',
+            top: 'auto',
+          }}
+          aria-hidden="true"
+        />
+      </Show>
+      <For each={props.lines}>
+        {(line, i) => (
+          <div
+            ref={(el) => {
+              lineEls.set(i(), el);
+              onCleanup(() => lineEls.delete(i()));
+            }}
+            class={executeLine}
+            style={{
+              height: `${props.codeLineH}px`,
+              'line-height': `${props.codeLineH}px`,
+            }}
+          >
+            {line}
+          </div>
+        )}
+      </For>
     </div>
   );
 }

@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, BoldIcon, ItalicIcon } from 'lucide-react';
-import React from 'react';
-import { Surface } from './surface';
+import { Box } from './box';
 import { Toggle, ToggleGroup, ToggleGroupItem } from './toggle';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Toggle',
@@ -15,7 +15,7 @@ type Story = StoryObj;
 /** A standalone toggle — active state via data-pressed / aria-pressed. */
 export const Standalone: Story = {
   render: () => (
-    <div className="flex flex-wrap items-center gap-2">
+    <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
       <Toggle aria-label="Bold">
         <BoldIcon />
       </Toggle>
@@ -25,7 +25,7 @@ export const Standalone: Story = {
       <Toggle size="sm" aria-label="Bold sm">
         <BoldIcon />
       </Toggle>
-    </div>
+    </Box>
   ),
 };
 
@@ -49,15 +49,32 @@ export const Group: Story = {
 /** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="bg-surface-sunken flex flex-col gap-4 rounded-xl p-4">
+    <Box
+      background="surfaceSunken"
+      display="flex"
+      flexDirection="column"
+      gap="4"
+      rounded="xl"
+      padding="4"
+    >
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
-          <Surface
+          <Box
             key={level}
-            level={level}
-            className="bg-surface flex flex-wrap items-center gap-2 rounded-lg p-3"
+            surface={level}
+            display="flex"
+            flexWrap="wrap"
+            alignItems="center"
+            gap="2"
+            rounded="lg"
+            padding="3"
           >
-            <span className="w-36 text-xs text-foreground-muted">{level}</span>
+            <span
+              className={s.w36}
+              style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}
+            >
+              {level}
+            </span>
             <Toggle pressed aria-label="Bold pressed">
               <BoldIcon />
             </Toggle>
@@ -72,9 +89,9 @@ export const AcrossSurfaces: Story = {
                 <AlignCenterIcon />
               </ToggleGroupItem>
             </ToggleGroup>
-          </Surface>
+          </Box>
         )
       )}
-    </div>
+    </Box>
   ),
 };

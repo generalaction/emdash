@@ -1,6 +1,6 @@
 import type { IFileSystem } from '@emdash/core/files';
 import type { GitBranchRef } from '@emdash/core/git';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, toSerializedError, type Result, type SerializedError } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
   ensureAbsoluteDir,
@@ -20,8 +20,12 @@ import {
 import type { ProjectSettingsProvider } from '../settings/provider';
 
 export type ServeWorktreeError =
-  | { type: 'worktree-setup-failed'; cause: unknown }
+  | { type: 'worktree-setup-failed'; cause: SerializedError }
   | { type: 'branch-not-found'; branch: string };
+
+function fileErrorCause(error: { type?: string; message: string }): SerializedError {
+  return { name: error.type ?? 'FileError', message: error.message };
+}
 
 export class WorktreeService {
   private gitOpQueue: Promise<unknown> = Promise.resolve();
@@ -79,7 +83,9 @@ export class WorktreeService {
 
   private async ensureWorktreePoolDirExists(): Promise<Result<void, ServeWorktreeError>> {
     const result = await ensureAbsoluteDir(this.files, await this.resolveWorktreePoolPath());
-    return result.success ? ok() : err({ type: 'worktree-setup-failed', cause: result.error });
+    return result.success
+      ? ok()
+      : err({ type: 'worktree-setup-failed', cause: fileErrorCause(result.error) });
   }
 
   private async removePathForReuse(targetPath: string): Promise<void> {
@@ -278,7 +284,7 @@ export class WorktreeService {
         await this.removePathForReuse(targetPath);
         await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       } catch (cause) {
-        return err({ type: 'worktree-setup-failed', cause });
+        return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
       }
     }
 
@@ -299,11 +305,13 @@ export class WorktreeService {
       await this.ensureBranchBaseConfig(branchName, baseConfigValue);
 
       const parentDir = await ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath));
-      if (!parentDir.success) return err({ type: 'worktree-setup-failed', cause: parentDir.error });
+      if (!parentDir.success) {
+        return err({ type: 'worktree-setup-failed', cause: fileErrorCause(parentDir.error) });
+      }
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
     } catch (cause) {
-      return err({ type: 'worktree-setup-failed', cause });
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
     }
 
     if (options.copyPreservedFiles ?? true) {
@@ -360,13 +368,15 @@ export class WorktreeService {
         await this.removePathForReuse(targetPath);
         await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       } catch (cause) {
-        return err({ type: 'worktree-setup-failed', cause });
+        return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
       }
     }
 
     try {
       const parentDir = await ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath));
-      if (!parentDir.success) return err({ type: 'worktree-setup-failed', cause: parentDir.error });
+      if (!parentDir.success) {
+        return err({ type: 'worktree-setup-failed', cause: fileErrorCause(parentDir.error) });
+      }
       for (const remoteName of remoteCandidates) {
         await this.ctx.exec('git', ['fetch', remoteName]).catch(() => {});
       }
@@ -403,7 +413,7 @@ export class WorktreeService {
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
     } catch (cause) {
-      return err({ type: 'worktree-setup-failed', cause });
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
     }
 
     if (options.copyPreservedFiles ?? true) {

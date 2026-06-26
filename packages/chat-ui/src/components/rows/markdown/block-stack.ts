@@ -1,21 +1,28 @@
 import { stack } from '@core/compose';
 import type { StackLayout } from '@core/compose';
 import type { Measured, MeasureCtx } from '@core/define';
-import type { BlockLeafLayout, RuleLeafLayout } from '@core/layout/layout-types';
-import type { Block, CodeBlock, ProseBlock, RuleBlock, TableBlock } from '@core/markdown/document';
+import type { BlockLeafLayout, MermaidLeafLayout, RuleLeafLayout } from '@core/layout/layout-types';
+import type {
+  Block,
+  CodeBlock,
+  MermaidBlock,
+  ProseBlock,
+  RuleBlock,
+  TableBlock,
+} from '@core/markdown/document';
 import { collapse } from '@core/spacing';
 import { BLOCK_REGISTRY } from './block-registry';
 
 // ── Per-block memo ────────────────────────────────────────────────────────────
 //
 // WeakMap keyed by Block object. Skips re-measures for unchanged blocks inside
-// streaming rows. Fingerprint includes measureEpoch, theme.version, width, and
-// collapsed state so the cache is invalidated correctly on any relevant change.
+// streaming rows. Fingerprint includes measureEpoch, width, and collapsed state
+// so the cache is invalidated correctly on any relevant change.
 
 const blockMemo = new WeakMap<Block, { fingerprint: string; result: Measured<BlockLeafLayout> }>();
 
 export function measureBlockCached(block: Block, ctx: MeasureCtx): Measured<BlockLeafLayout> {
-  const fingerprint = `${ctx.measureEpoch ?? 0}|${ctx.theme.version}|${ctx.width}|${ctx.isCollapsed(block.id)}`;
+  const fingerprint = `${ctx.measureEpoch ?? 0}|${ctx.width}|${ctx.isCollapsed(block.id)}`;
   const cached = blockMemo.get(block);
   if (cached?.fingerprint === fingerprint) return cached.result;
 
@@ -80,6 +87,17 @@ export function layoutBlockStack(
               height: 0,
               raw: block as RuleBlock,
             } satisfies RuleLeafLayout;
+          }
+          if (block.kind === 'mermaid') {
+            return {
+              kind: 'mermaid' as const,
+              id: block.id,
+              top: 0,
+              height: 0,
+              contentWidth: 0,
+              source: (block as MermaidBlock).source,
+              raw: block as MermaidBlock,
+            } satisfies MermaidLeafLayout;
           }
           return {
             kind: 'table' as const,

@@ -7,6 +7,7 @@ import { joinMachinePath } from '@main/core/files/path-utils';
 import { log } from '@main/lib/logger';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
 import { createRPCController } from '@shared/lib/ipc/rpc';
+import { SSH_PROJECT_STATE_DIR_NAME } from '../settings/worktree-defaults';
 import { taskSessionManager } from '../tasks/task-session-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import {
@@ -156,17 +157,31 @@ export const ptyController = createRPCController({
       const workspaceId = taskSessionManager.getWorkspaceId(scopeId) ?? '';
       const workspace = workspaceRegistry.get(workspaceId);
       if (!workspace) return err({ type: 'not_ssh' as const });
-      const remotePaths: string[] = [];
-      for (const localPath of args.localPaths) {
-        const remoteName = `${randomUUID()}-${basename(localPath)}`;
-        const remotePath = joinMachinePath(workspace.path, remoteName);
-        const bytes = await readFile(localPath);
-        const written = await workspace.fileSystem.writeBytes(remotePath, bytes);
-        if (!written.success) {
-          return err({ type: 'upload_failed' as const, message: written.error.message });
-        }
-        remotePaths.push(remotePath);
+
+      // Upload into the git-ignored .emdash runtime dir, not the worktree root.
+      // Writing to the root left every attached image behind as an untracked file
+      // that dirtied `git status` and never got cleaned up (#2680).
+      const uploadDir = `${SSH_PROJECT_STATE_DIR_NAME}/uploads`;
+      const uploadDirPath = joinMachinePath(workspace.path, uploadDir);
+      const madeUploadDir = await workspace.fileSystem.mkdir(uploadDirPath, { recursive: true });
+      if (!madeUploadDir.success) {
+        return err({ type: 'upload_failed' as const, message: madeUploadDir.error.message });
       }
+
+      const remotePaths = await Promise.all(
+        args.localPaths.map(async (localPath) => {
+          const remotePath = joinMachinePath(
+            uploadDirPath,
+            `${randomUUID()}-${basename(localPath)}`
+          );
+          const bytes = await readFile(localPath);
+          const written = await workspace.fileSystem.writeBytes(remotePath, bytes);
+          if (!written.success) {
+            throw new Error(written.error.message);
+          }
+          return remotePath;
+        })
+      );
       return ok({ remotePaths });
     } catch (e: unknown) {
       log.error('pty:uploadFiles failed', {

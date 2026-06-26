@@ -112,4 +112,15 @@ export type RuleBlock = {
   id: BlockId;
 };
 
-export type Block = ProseBlock | CodeBlock | TableBlock | RuleBlock;
+/**
+ * A fenced Mermaid diagram (` ```mermaid `).
+ * Rendered as a clickable 21:9 SVG preview via beautiful-mermaid.
+ */
+export type MermaidBlock = {
+  kind: 'mermaid';
+  id: BlockId;
+  /** Raw Mermaid source text. */
+  source: string;
+};
+
+export type Block = ProseBlock | CodeBlock | TableBlock | RuleBlock | MermaidBlock;

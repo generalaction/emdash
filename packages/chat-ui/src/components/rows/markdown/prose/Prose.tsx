@@ -1,4 +1,5 @@
 import { useCommands } from '@components/contexts/CommandsContext';
+import { useStreamAnimation } from '@components/contexts/StreamContext';
 import { useTheme } from '@components/contexts/ThemeContext';
 import { BlockFrame } from '@components/engine/block-frame';
 import {
@@ -14,12 +15,13 @@ import type {
   ProseLaidOut,
 } from '@core/layout/layout-types';
 import type { InlineMention, InlineRun } from '@core/markdown/document';
-import { For, Match, Show, Switch } from 'solid-js';
+import { For, Match, Show, Switch, createMemo, onMount } from 'solid-js';
 import {
   bulletColor,
   inlineCodeChip,
   linkFragment,
   mentionChip,
+  mentionChipByKind,
   mentionPlain,
   pbullet,
   pf,
@@ -28,6 +30,7 @@ import {
   pquoteRail,
   quoteRailBar,
 } from './prose.css';
+import { streamWord } from '@styles/effects.css';
 
 // ── Fragment ──────────────────────────────────────────────────────────────────
 
@@ -48,20 +51,46 @@ function fragVisualClass(run: InlineRun, variant: string): string {
   if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(variant)) return '';
   if (run.kind === 'code') return inlineCodeChip;
   if (run.kind === 'mention') {
-    // Resolved context mentions mirror the ChatComposer pill: a neutral chip
-    // with a hairline ring. Plain/math mentions keep the rounded-full blue tint.
-    if ((run as InlineMention).mentionKind) return mentionChip;
+    // Resolved context mentions use per-kind background colors.
+    // Plain/math mentions (no mentionKind) keep the rounded-full blue tint.
+    const { mentionKind } = run as InlineMention;
+    if (mentionKind) return mentionChipByKind[mentionKind] ?? mentionChip;
     return mentionPlain;
   }
   if (run.kind === 'text' && run.href) return linkFragment;
   return '';
 }
 
+// ── Word-splitting for streaming animation ────────────────────────────────────
+
+/**
+ * Split a fragment's text into alternating word/space runs, preserving
+ * `white-space: pre` semantics (no trimming, no merging of spaces).
+ * Returns [text, isWord] pairs.
+ */
+function splitFragmentWords(text: string): Array<[string, boolean]> {
+  const parts = text.split(/(\s+)/);
+  const result: Array<[string, boolean]> = [];
+  for (const p of parts) {
+    if (p.length === 0) continue;
+    result.push([p, /\S/.test(p)]);
+  }
+  return result;
+}
+
+// ── Fragment ──────────────────────────────────────────────────────────────────
+
 function ProseFragment(props: {
   run: InlineRun;
   frag: FragmentLayout;
   variant: string;
   blockId: string;
+  /** Absolute word index of the first word in this fragment (0-based). Set only when streaming. */
+  wordOffset?: number;
+  /** Total word count in the block. Set only when streaming. */
+  totalWords?: number;
+  /** Frontier: words already revealed on the previous render. Set only when streaming. */
+  frontier?: number;
 }) {
   const commands = useCommands();
   const chips = useTheme()().chips;
@@ -87,6 +116,7 @@ function ProseFragment(props: {
       // else: browser follows the <a> normally (new tab via target="_blank")
     };
 
+    // Links are not word-animated (href spans are not appended incrementally).
     return (
       <a
         class={cls}
@@ -103,9 +133,14 @@ function ProseFragment(props: {
 
   if (props.run.kind === 'mention' && (props.run as InlineMention).mentionKind) {
     const mention = props.run as InlineMention;
+    // Mentions are not split; fade as a single unit when streaming.
+    const isNew =
+      props.wordOffset !== undefined &&
+      props.frontier !== undefined &&
+      props.wordOffset >= props.frontier;
     return (
       <span
-        class={cls}
+        classList={{ [cls]: true, [streamWord]: isNew }}
         style={{
           left: `${props.frag.x}px`,
           display: 'inline-flex',
@@ -140,10 +175,34 @@ function ProseFragment(props: {
               </Switch>
             }
           >
-            {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '12px' }} />}
+            {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '11px' }} />}
           </Show>
         </span>
         <span>{mention.name ?? mention.label}</span>
+      </span>
+    );
+  }
+
+  // Plain text (body / bold / italic / code chip / plain mention).
+  // When streaming, split into per-word spans and animate the new tail.
+  const isStreaming =
+    props.wordOffset !== undefined &&
+    props.frontier !== undefined &&
+    props.totalWords !== undefined;
+
+  if (isStreaming && props.run.kind === 'text' && !/^\s+$/.test(props.frag.text)) {
+    const wordPairs = splitFragmentWords(props.frag.text);
+    let localIdx = props.wordOffset!;
+    return (
+      <span class={cls} style={{ left: `${props.frag.x}px` }}>
+        <For each={wordPairs}>
+          {([chunk, isWord]) => {
+            if (!isWord) return <>{chunk}</>;
+            const idx = localIdx++;
+            const isNew = idx >= props.frontier!;
+            return isNew ? <span class={streamWord}>{chunk}</span> : <>{chunk}</>;
+          }}
+        </For>
       </span>
     );
   }
@@ -163,6 +222,10 @@ function ProseLine(props: {
   runs: InlineRun[];
   variant: string;
   blockId: string;
+  /** Per-fragment word offsets. Present only when streaming. */
+  fragWordOffsets?: number[];
+  totalWords?: number;
+  frontier?: number;
 }) {
   return (
     <div
@@ -174,10 +237,18 @@ function ProseLine(props: {
       }}
     >
       <For each={props.line.fragments}>
-        {(frag) => {
+        {(frag, i) => {
           const run = props.runs[frag.runIndex];
           return run ? (
-            <ProseFragment run={run} frag={frag} variant={props.variant} blockId={props.blockId} />
+            <ProseFragment
+              run={run}
+              frag={frag}
+              variant={props.variant}
+              blockId={props.blockId}
+              wordOffset={props.fragWordOffsets?.[i()]}
+              totalWords={props.totalWords}
+              frontier={props.frontier}
+            />
           ) : null;
         }}
       </For>
@@ -212,6 +283,61 @@ export type ProseProps = {
 };
 
 export function Prose(props: ProseProps) {
+  const streamAnim = useStreamAnimation();
+
+  // Pre-compute per-fragment word offsets, the block total, and a per-line
+  // base-flat index so that ProseFragment can determine whether each word is
+  // new without scanning the whole block. Rebuilt whenever lines/runs change
+  // (i.e. each streaming tick).
+  //
+  // lineBaseFlat[i] = total fragment count across lines 0…i-1, so a fragment
+  // at (lineIdx, fragIdx) maps to fragWordOffsets[lineBaseFlat[lineIdx] + fragIdx]
+  // in O(1) rather than summing per-line counts on every access (was O(lines^2)).
+  const fragData = createMemo<{
+    fragWordOffsets: number[];
+    lineBaseFlat: number[];
+    totalWords: number;
+    frontier: number;
+  } | null>(() => {
+    if (!streamAnim) return null;
+
+    const offsets: number[] = [];
+    const lineBaseFlat: number[] = [];
+    let cursor = 0;
+
+    for (const line of props.block.lines) {
+      lineBaseFlat.push(offsets.length);
+      for (const frag of line.fragments) {
+        offsets.push(cursor);
+        const run = props.runs[frag.runIndex];
+        if (run && run.kind === 'text' && !/^\s+$/.test(frag.text)) {
+          // Count only non-space words (matching splitFragmentWords logic).
+          const words = frag.text.split(/\s+/).filter((w) => w.length > 0);
+          cursor += words.length;
+        } else if (run && run.kind !== 'text') {
+          // Non-text runs (code chip, mention) count as 1 unit.
+          cursor += 1;
+        }
+        // Pure-whitespace fragments and breaks contribute 0.
+      }
+    }
+
+    return {
+      fragWordOffsets: offsets,
+      lineBaseFlat,
+      totalWords: cursor,
+      frontier: streamAnim.frontier.get(props.block.id) ?? 0,
+    };
+  });
+
+  // After rendering, advance the frontier so the next chunk only animates
+  // words appended after this render.
+  onMount(() => {
+    if (!streamAnim) return;
+    const d = fragData();
+    if (d) streamAnim.frontier.set(props.block.id, d.totalWords);
+  });
+
   return (
     <BlockFrame layout={props.block}>
       <Show when={props.block.quoteRail}>
@@ -219,15 +345,25 @@ export function Prose(props: ProseProps) {
       </Show>
       <Show when={props.block.bullet}>{(bullet) => <ProseBullet bullet={bullet()} />}</Show>
       <For each={props.block.lines}>
-        {(line) => (
-          <ProseLine
-            line={line}
-            lineHeight={props.block.lineHeight}
-            runs={props.runs}
-            variant={props.variant}
-            blockId={props.block.id}
-          />
-        )}
+        {(line, lineIdx) => {
+          const d = fragData();
+          // Build per-fragment offset array for this line using O(1) prefix lookup.
+          const lineFragOffsets = d
+            ? line.fragments.map((_, fi) => d.fragWordOffsets[d.lineBaseFlat[lineIdx()] + fi] ?? 0)
+            : undefined;
+          return (
+            <ProseLine
+              line={line}
+              lineHeight={props.block.lineHeight}
+              runs={props.runs}
+              variant={props.variant}
+              blockId={props.block.id}
+              fragWordOffsets={lineFragOffsets}
+              totalWords={d?.totalWords}
+              frontier={d?.frontier}
+            />
+          );
+        }}
       </For>
     </BlockFrame>
   );

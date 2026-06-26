@@ -13,6 +13,7 @@
  * `queryMentions` for new integrations.
  */
 
+import { cx } from '@styles/utilities/cx';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
@@ -20,13 +21,11 @@ import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import type React from 'react';
 import { createPortal } from 'react-dom';
-import { cn } from '../../lib/cn';
 import {
   ComboboxPopup,
   type ComboboxPopupHandle,
   type ComboboxPopupItem,
 } from '../../primitives/combobox-popup';
-import './chip-classes.css';
 import { buildMentionExtension } from './extensions/mention';
 import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';
@@ -244,7 +243,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     ],
     editorProps: {
       attributes: {
-        class: cn('prompt-editor-content', styles.promptEditorContentClass),
+        class: cx('prompt-editor-content', styles.promptEditorContentClass),
         'data-testid': 'prompt-editor',
       },
       clipboardTextSerializer: (slice) => {
@@ -301,7 +300,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
 
   return (
     <>
-      <div className={cn(styles.editorWrapper, className)}>
+      <div className={cx(styles.editorWrapper, className)}>
         <EditorContent editor={editor} className={styles.editorContent} aria-disabled={disabled} />
         {isEmpty && (
           <span aria-hidden className={styles.editorPlaceholder}>

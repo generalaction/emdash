@@ -1,7 +1,7 @@
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs';
+import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
-import { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
-import { cn } from '../lib/cn';
 import * as styles from './tabs.css';
 
 // ── Root ──────────────────────────────────────────────────────────────────────
@@ -18,7 +18,7 @@ function TabsList({ className, ...props }: TabsPrimitive.List.Props) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
-      className={cn(styles.tabsList, className)}
+      className={cx(styles.tabsList, className)}
       {...props}
     />
   );
@@ -43,7 +43,7 @@ const TabsTab = React.forwardRef<HTMLButtonElement, TabsTabProps>(function TabsT
     <TabsPrimitive.Tab
       ref={ref}
       data-slot="tabs-tab"
-      className={cn(controlVariants({ variant: 'ghost', tone, size }), className)}
+      className={cx(controlVariants({ variant: 'ghost', tone, size }), className)}
       {...props}
     />
   );
@@ -55,22 +55,10 @@ function TabsPanel({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-panel"
-      className={cn(styles.tabsPanel, className)}
+      className={cx(styles.tabsPanel, className)}
       {...props}
     />
   );
 }
 
-// ── Indicator (optional animated underline / pill) ────────────────────────────
-
-function TabsIndicator({ className, ...props }: TabsPrimitive.Indicator.Props) {
-  return (
-    <TabsPrimitive.Indicator
-      data-slot="tabs-indicator"
-      className={cn(styles.tabsIndicator, className)}
-      {...props}
-    />
-  );
-}
-
-export { Tabs, TabsList, TabsTab, TabsPanel, TabsIndicator };
+export { Tabs, TabsList, TabsTab, TabsPanel };

@@ -1,10 +1,10 @@
 'use client';
 
 import { Select as SelectPrimitive } from '@base-ui/react/select';
+import type { ControlVariantProps } from '@styles/recipes/control';
+import { cx } from '@styles/utilities/cx';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import * as React from 'react';
-import type { ControlVariantProps } from '../../styles/recipes/control';
-import { cn } from '../lib/cn';
 import { TriggerButton } from './trigger-button';
 import * as styles from './select.css';
 
@@ -14,7 +14,7 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
     <SelectPrimitive.Group
       data-slot="select-group"
-      className={cn(styles.selectGroup, className)}
+      className={cx(styles.selectGroup, className)}
       {...props}
     />
   );
@@ -24,7 +24,7 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
-      className={cn(styles.selectValue, className)}
+      className={cx(styles.selectValue, className)}
       {...props}
     />
   );
@@ -34,11 +34,13 @@ function SelectTrigger({
   className,
   size = 'base',
   showChevron = true,
+  appearance = 'control',
   children,
   ...props
 }: SelectPrimitive.Trigger.Props & {
   size?: ControlVariantProps['size'];
   showChevron?: boolean;
+  appearance?: 'control' | 'input';
 }) {
   return (
     <SelectPrimitive.Trigger
@@ -47,7 +49,8 @@ function SelectTrigger({
         <TriggerButton
           size={size}
           showChevron={showChevron}
-          className={cn(styles.triggerInvalidOverride, className)}
+          appearance={appearance}
+          className={cx(styles.triggerInvalidOverride, className)}
         />
       }
       {...props}
@@ -84,7 +87,7 @@ function SelectContent({
         <SelectPrimitive.Popup
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
-          className={cn('surface-elevated', styles.selectContent, className)}
+          className={cx('surface-elevated', styles.selectContent, className)}
           {...props}
         >
           <SelectScrollUpButton />
@@ -100,7 +103,7 @@ function SelectLabel({ className, ...props }: SelectPrimitive.GroupLabel.Props) 
   return (
     <SelectPrimitive.GroupLabel
       data-slot="select-label"
-      className={cn(styles.selectLabel, className)}
+      className={cx(styles.selectLabel, className)}
       {...props}
     />
   );
@@ -110,7 +113,7 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
-      className={cn(styles.selectItem, className)}
+      className={cx(styles.selectItem, className)}
       {...props}
     >
       <SelectPrimitive.ItemText className={styles.selectItemText}>
@@ -127,7 +130,7 @@ function SelectSeparator({ className, ...props }: SelectPrimitive.Separator.Prop
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn(styles.selectSeparator, className)}
+      className={cx(styles.selectSeparator, className)}
       {...props}
     />
   );
@@ -140,7 +143,7 @@ function SelectScrollUpButton({
   return (
     <SelectPrimitive.ScrollUpArrow
       data-slot="select-scroll-up-button"
-      className={cn(styles.scrollButton, className)}
+      className={cx(styles.scrollButton, className)}
       {...props}
     >
       <ChevronUpIcon />
@@ -155,7 +158,7 @@ function SelectScrollDownButton({
   return (
     <SelectPrimitive.ScrollDownArrow
       data-slot="select-scroll-down-button"
-      className={cn(styles.scrollButton, className)}
+      className={cx(styles.scrollButton, className)}
       {...props}
     >
       <ChevronDownIcon />

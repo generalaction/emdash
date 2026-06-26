@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { Box } from './box';
 import {
   Select,
   SelectContent,
@@ -10,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from './select';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Select',
@@ -21,7 +23,7 @@ type Story = StoryObj;
 
 export const Default: Story = {
   render: () => (
-    <div className="w-48">
+    <Box className={s.w48}>
       <Select>
         <SelectTrigger>
           <SelectValue placeholder="Pick a fruit" />
@@ -32,13 +34,13 @@ export const Default: Story = {
           <SelectItem value="cherry">Cherry</SelectItem>
         </SelectContent>
       </Select>
-    </div>
+    </Box>
   ),
 };
 
 export const WithGroups: Story = {
   render: () => (
-    <div className="w-48">
+    <Box className={s.w48}>
       <Select>
         <SelectTrigger>
           <SelectValue placeholder="Pick a food" />
@@ -57,13 +59,13 @@ export const WithGroups: Story = {
           </SelectGroup>
         </SelectContent>
       </Select>
-    </div>
+    </Box>
   ),
 };
 
 export const WithDefaultValue: Story = {
   render: () => (
-    <div className="w-48">
+    <Box className={s.w48}>
       <Select defaultValue="banana">
         <SelectTrigger>
           <SelectValue />
@@ -74,13 +76,13 @@ export const WithDefaultValue: Story = {
           <SelectItem value="cherry">Cherry</SelectItem>
         </SelectContent>
       </Select>
-    </div>
+    </Box>
   ),
 };
 
 export const Disabled: Story = {
   render: () => (
-    <div className="w-48">
+    <Box className={s.w48}>
       <Select disabled>
         <SelectTrigger>
           <SelectValue placeholder="Disabled" />
@@ -89,13 +91,13 @@ export const Disabled: Story = {
           <SelectItem value="apple">Apple</SelectItem>
         </SelectContent>
       </Select>
-    </div>
+    </Box>
   ),
 };
 
 export const WithDisabledItem: Story = {
   render: () => (
-    <div className="w-48">
+    <Box className={s.w48}>
       <Select>
         <SelectTrigger>
           <SelectValue placeholder="Pick a fruit" />
@@ -108,6 +110,6 @@ export const WithDisabledItem: Story = {
           <SelectItem value="cherry">Cherry</SelectItem>
         </SelectContent>
       </Select>
-    </div>
+    </Box>
   ),
 };

@@ -46,9 +46,7 @@
     "lint": "oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json",
-    "docs": "cd docs && pnpm run dev",
-    "docs:build": "cd docs && pnpm run build"
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json"
   },
   "dependencies": {
     "@emdash/core": "workspace:*",
@@ -77,6 +75,7 @@
     "pidusage": "^4.0.1",
     "smol-toml": "^1.6.0",
     "ssh2": "^1.17.0",
+    "ts-pattern": "^5.9.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

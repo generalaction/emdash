@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import React from 'react';
-import { Surface } from './surface';
+import { Box } from './box';
 import { Tabs, TabsList, TabsPanel, TabsTab } from './tabs';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Primitives/Tabs',
@@ -20,13 +22,22 @@ export const Default: Story = {
         <TabsTab value="details">Details</TabsTab>
         <TabsTab value="history">History</TabsTab>
       </TabsList>
-      <TabsPanel value="overview" className="mt-3 text-sm text-foreground-muted">
+      <TabsPanel
+        value="overview"
+        className={cx(sx({ marginTop: '3', fontSize: 'sm', color: 'foregroundMuted' }))}
+      >
         Overview content
       </TabsPanel>
-      <TabsPanel value="details" className="mt-3 text-sm text-foreground-muted">
+      <TabsPanel
+        value="details"
+        className={cx(sx({ marginTop: '3', fontSize: 'sm', color: 'foregroundMuted' }))}
+      >
         Details content
       </TabsPanel>
-      <TabsPanel value="history" className="mt-3 text-sm text-foreground-muted">
+      <TabsPanel
+        value="history"
+        className={cx(sx({ marginTop: '3', fontSize: 'sm', color: 'foregroundMuted' }))}
+      >
         History content
       </TabsPanel>
     </Tabs>
@@ -36,15 +47,28 @@ export const Default: Story = {
 /** Tabs on each surface level — hover/selected adapt via cascade. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="bg-surface-sunken flex flex-col gap-4 rounded-xl p-4">
+    <Box
+      background="surfaceSunken"
+      display="flex"
+      flexDirection="column"
+      gap="4"
+      rounded="xl"
+      padding="4"
+    >
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
-          <Surface
+          <Box
             key={level}
-            level={level}
-            className="bg-surface flex flex-col gap-2 rounded-lg p-3"
+            surface={level}
+            display="flex"
+            flexDirection="column"
+            gap="2"
+            rounded="lg"
+            padding="3"
           >
-            <span className="text-xs text-foreground-muted">{level}</span>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>
+              {level}
+            </span>
             <Tabs defaultValue="a">
               <TabsList>
                 <TabsTab value="a">Alpha</TabsTab>
@@ -52,9 +76,9 @@ export const AcrossSurfaces: Story = {
                 <TabsTab value="c">Gamma</TabsTab>
               </TabsList>
             </Tabs>
-          </Surface>
+          </Box>
         )
       )}
-    </div>
+    </Box>
   ),
 };

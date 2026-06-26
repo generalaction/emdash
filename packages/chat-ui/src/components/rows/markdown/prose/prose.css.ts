@@ -80,20 +80,28 @@ export const pfInlineCode = style({
   fontSize: vars.typeInlineCodeFontSize,
   fontWeight: vars.typeInlineCodeFontWeight,
   fontFamily: vars.typeInlineCodeFontFamily,
-  paddingTop: vars.icPadY,
-  paddingBottom: vars.icPadY,
   paddingLeft: vars.icPadX,
   paddingRight: vars.icPadX,
+  // Fixed 16px chip height (body lineHeight 20px * 0.8), border-box so padding is included.
+  // pf's top:50%/translateY(-50%) centers the chip in the 20px line band.
+  height: `calc(${vars.typeBodyLineHeight} * 0.8)`,
+  boxSizing: 'border-box',
+  display: 'inline-flex',
+  alignItems: 'center',
 });
 
 export const pfMention = style({
   fontSize: vars.typeMentionFontSize,
   fontWeight: vars.typeMentionFontWeight,
   fontFamily: vars.typeMentionFontFamily,
-  paddingTop: vars.mentionPadY,
-  paddingBottom: vars.mentionPadY,
   paddingLeft: vars.mentionPadX,
   paddingRight: vars.mentionPadX,
+  // Fixed 16px chip height (body lineHeight 20px * 0.8), border-box so padding is included.
+  // pf's top:50%/translateY(-50%) centers the chip in the 20px line band.
+  height: `calc(${vars.typeBodyLineHeight} * 0.8)`,
+  boxSizing: 'border-box',
+  display: 'inline-flex',
+  alignItems: 'center',
 });
 
 export const pfVariants: Record<string, string> = {
@@ -139,11 +147,44 @@ export const inlineCodeChip = style({
   background: vars.codeInlineBg,
 });
 
+/** Fallback for unknown mentionKind values. */
 export const mentionChip = style({
   borderRadius: vars.radiusSm,
   background: vars.mentionChipBg,
   color: vars.mentionChipFg,
 });
+
+export const mentionChipFile = style({
+  borderRadius: vars.radiusSm,
+  background: vars.mentionFileBg,
+  color: vars.mentionFileFg,
+});
+
+export const mentionChipIssue = style({
+  borderRadius: vars.radiusSm,
+  background: vars.mentionIssueBg,
+  color: vars.mentionIssueFg,
+});
+
+export const mentionChipSymbol = style({
+  borderRadius: vars.radiusSm,
+  background: vars.mentionSymbolBg,
+  color: vars.mentionSymbolFg,
+});
+
+export const mentionChipCustom = style({
+  borderRadius: vars.radiusSm,
+  background: vars.mentionCustomBg,
+  color: vars.mentionCustomFg,
+});
+
+/** Lookup from mentionKind to its visual class. Falls back to mentionChip. */
+export const mentionChipByKind: Record<string, string> = {
+  file: mentionChipFile,
+  issue: mentionChipIssue,
+  symbol: mentionChipSymbol,
+  custom: mentionChipCustom,
+};
 
 export const mentionPlain = style({
   borderRadius: vars.radiusFull,

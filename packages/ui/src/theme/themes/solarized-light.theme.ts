@@ -21,7 +21,7 @@
  *   yellow #b58900 H86  orange #cb4b16 H40  violet #6c71c4 H279
  */
 
-import { defineTheme } from '../core/define-theme.js';
+import { defineTheme } from '../core/index';
 
 export const solarizedLightTheme = defineTheme({
   id: 'solarized-light',

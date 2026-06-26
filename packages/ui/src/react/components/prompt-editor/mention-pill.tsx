@@ -10,10 +10,10 @@
  * Backspace / Delete at the node boundary deletes the entire atom at once.
  */
 
+import { cx } from '@styles/utilities/cx';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { AtSign, Braces, CircleDot, File, X } from 'lucide-react';
 import React from 'react';
-import { cn } from '../../lib/cn';
 import { basename, fileIconClass } from './mention-pill-helpers';
 import type { MentionKind } from './types';
 import * as styles from './mention-pill.css';
@@ -46,7 +46,7 @@ export function MentionPill({ node, deleteNode }: NodeViewProps) {
   const kind = ((node.attrs.kind as string | null) ?? 'custom') as MentionKind;
 
   return (
-    <NodeViewWrapper as="span" className={cn('mention-pill-wrapper', styles.pillWrapper)}>
+    <NodeViewWrapper as="span" className={cx('mention-pill-wrapper', styles.pillWrapper)}>
       <span
         contentEditable={false}
         className={styles.pill}

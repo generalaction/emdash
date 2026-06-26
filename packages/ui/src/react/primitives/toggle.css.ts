@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { vars } from '../../theme/core/contract/contract.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 /** Container for a group of Toggle buttons. */
 export const toggleGroup = style({

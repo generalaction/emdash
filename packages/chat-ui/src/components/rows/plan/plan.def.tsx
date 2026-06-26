@@ -1,4 +1,5 @@
 import { ROW_H } from '@components/engine/row-metrics';
+import { CollapsibleCard } from '@components/primitives/CollapsibleCard';
 import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import type { StackLayout } from '@core/compose';
 import { type Measured, type MeasureCtx, type RenderCtx } from '@core/define';
@@ -8,8 +9,8 @@ import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '@/model';
-import { PlanHeader, PlanList } from './Plan';
-import { planCard, planRoot, planVars, type PlanStyleVars } from './plan.css';
+import { PlanList } from './Plan';
+import { planVars, type PlanStyleVars } from './plan.css';
 
 // ── vars type ─────────────────────────────────────────────────────────────────
 
@@ -106,39 +107,48 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
   });
 
   const autoScroll = () => !!props.data.streaming;
+  const active = () =>
+    !!props.data.streaming || props.data.entries.some((e) => e.status === 'in_progress');
+  const done = () => props.data.entries.filter((e) => e.status === 'completed').length;
+  const total = () => props.data.entries.length;
 
-  const styleVars = (): PlanStyleVars => ({
-    height: totalH(),
+  const listStyleVars = (): PlanStyleVars => ({
     padX: props.vars.padX,
     padY: props.vars.padY,
     iconBox: props.vars.iconBox,
     iconGap: props.vars.iconGap,
     entryGap: props.vars.entryGap,
-    border: props.vars.border,
   });
 
   return (
-    <div
-      class={`${planCard} ${planRoot}`}
-      style={{
-        ...assignInlineVars(planVars, pxTokens(styleVars())),
-        'box-sizing': 'border-box',
-      }}
-    >
-      <PlanHeader item={props.data} expanded={isExpanded()} rowH={props.vars.rowH} />
-      <div style={{ 'padding-left': planVars.padX, 'padding-right': planVars.padX }}>
-        <Show when={!isExpanded()} fallback={<PlanList entries={entries()} />}>
-          <PreviewWindow
-            height={bodyH()}
-            maxH={props.vars.windowH}
-            overlay="fade-bottom"
-            autoScrollBottom={autoScroll()}
-            contentHeight={() => listH()}
-          >
-            <PlanList entries={entries()} />
-          </PreviewWindow>
-        </Show>
-      </div>
+    <div style={assignInlineVars(planVars, pxTokens(listStyleVars()))}>
+      <CollapsibleCard
+        id={props.data.id}
+        ctx={props.ctx}
+        height={totalH()}
+        headerH={props.vars.rowH}
+        expanded={isExpanded()}
+        active={active()}
+        header={
+          <>
+            Plan {done()} out of {total()} Tasks done
+          </>
+        }
+      >
+        <div style={{ 'padding-left': planVars.padX, 'padding-right': planVars.padX }}>
+          <Show when={!isExpanded()} fallback={<PlanList entries={entries()} />}>
+            <PreviewWindow
+              height={bodyH()}
+              maxH={props.vars.windowH}
+              overlay="fade-bottom"
+              autoScrollBottom={autoScroll()}
+              contentHeight={() => listH()}
+            >
+              <PlanList entries={entries()} />
+            </PreviewWindow>
+          </Show>
+        </div>
+      </CollapsibleCard>
     </div>
   );
 }

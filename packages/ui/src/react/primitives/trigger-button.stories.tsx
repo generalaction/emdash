@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { Box } from './box';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,8 +8,8 @@ import {
   DropdownMenuTrigger,
 } from './dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
-import { Surface } from './surface';
 import { TriggerButton } from './trigger-button';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/TriggerButton',
@@ -21,11 +22,11 @@ type Story = StoryObj;
 /** Bare TriggerButton — becomes "active" (surface-selected) while expanded. */
 export const Bare: Story = {
   render: () => (
-    <div className="flex flex-wrap items-center gap-3">
+    <Box display="flex" flexWrap="wrap" alignItems="center" gap="3">
       <TriggerButton>Choose an option</TriggerButton>
       <TriggerButton size="sm">Small trigger</TriggerButton>
       <TriggerButton showChevron={false}>No chevron</TriggerButton>
-    </div>
+    </Box>
   ),
 };
 
@@ -33,7 +34,7 @@ export const Bare: Story = {
 export const AsSelectTrigger: Story = {
   render: () => (
     <Select>
-      <SelectTrigger className="w-48">
+      <SelectTrigger className={s.w48}>
         <SelectValue placeholder="Pick an option" />
       </SelectTrigger>
       <SelectContent>
@@ -49,7 +50,7 @@ export const AsSelectTrigger: Story = {
 export const AsDropdownTrigger: Story = {
   render: () => (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<TriggerButton className="w-48">Actions</TriggerButton>} />
+      <DropdownMenuTrigger render={<TriggerButton className={s.w48}>Actions</TriggerButton>} />
       <DropdownMenuContent>
         <DropdownMenuItem>Edit</DropdownMenuItem>
         <DropdownMenuItem>Duplicate</DropdownMenuItem>
@@ -62,17 +63,34 @@ export const AsDropdownTrigger: Story = {
 /** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="bg-surface-sunken flex flex-col gap-4 rounded-xl p-4">
+    <Box
+      background="surfaceSunken"
+      display="flex"
+      flexDirection="column"
+      gap="4"
+      rounded="xl"
+      padding="4"
+    >
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
-          <Surface
+          <Box
             key={level}
-            level={level}
-            className="bg-surface flex flex-wrap items-center gap-2 rounded-lg p-3"
+            surface={level}
+            display="flex"
+            flexWrap="wrap"
+            alignItems="center"
+            gap="2"
+            rounded="lg"
+            padding="3"
           >
-            <span className="w-36 text-xs text-foreground-muted">{level}</span>
+            <span
+              className={s.w36}
+              style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}
+            >
+              {level}
+            </span>
             <Select>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className={s.w40}>
                 <SelectValue placeholder="Select…" />
               </SelectTrigger>
               <SelectContent>
@@ -80,9 +98,9 @@ export const AcrossSurfaces: Story = {
                 <SelectItem value="b">Beta</SelectItem>
               </SelectContent>
             </Select>
-          </Surface>
+          </Box>
         )
       )}
-    </div>
+    </Box>
   ),
 };

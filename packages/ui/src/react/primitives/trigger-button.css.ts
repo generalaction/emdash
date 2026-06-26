@@ -1,5 +1,31 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '../../theme/core/contract/contract.css';
+import { vars } from '@theme/core/contract/contract.css';
+
+/**
+ * Input-appearance layout for TriggerButton.
+ * Provides the structural (non-visual) properties when appearance="input".
+ * fieldShellBase (imported at runtime in trigger-button.tsx) handles border/bg/focus.
+ */
+export const triggerInputLayoutBase = style({
+  display: 'flex',
+  width: '100%',
+  height: '2rem',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.375rem',
+  paddingLeft: '0.625rem',
+  paddingRight: '0.375rem',
+  fontSize: 'var(--text-sm)',
+  selectors: {
+    '&[data-placeholder]': { color: vars.foregroundPassive },
+  },
+});
+
+export const triggerInputLayoutSm = style({
+  height: '1.5rem',
+  paddingLeft: '0.5rem',
+  fontSize: 'var(--text-xs)',
+});
 
 /** Trailing chevron icon inside TriggerButton. */
 export const triggerButtonChevron = style({

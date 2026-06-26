@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { vars } from '../../theme/core/contract/contract.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 export const composerRoot = style({
   display: 'flex',
@@ -26,19 +26,19 @@ export const noticeBand = recipe({
   variants: {
     variant: {
       error: {
-        backgroundColor: 'var(--surface-destructive)',
-        borderColor: 'var(--surface-destructive-border)',
-        color: 'var(--surface-destructive-foreground)',
+        backgroundColor: vars.surfaceDestructive,
+        borderColor: vars.surfaceDestructiveBorder,
+        color: vars.surfaceDestructiveForeground,
       },
       warning: {
-        backgroundColor: 'var(--surface-warning)',
-        borderColor: 'var(--surface-warning-border)',
-        color: 'var(--surface-warning-foreground)',
+        backgroundColor: vars.surfaceWarning,
+        borderColor: vars.surfaceWarningBorder,
+        color: vars.surfaceWarningForeground,
       },
       info: {
-        backgroundColor: 'var(--surface-info)',
-        borderColor: 'var(--surface-info-border)',
-        color: 'var(--surface-info-foreground)',
+        backgroundColor: vars.surfaceInfo,
+        borderColor: vars.surfaceInfoBorder,
+        color: vars.surfaceInfoForeground,
       },
     },
   },
@@ -89,7 +89,7 @@ export const noticeOverflowClip = style({ overflow: 'hidden' });
 
 export const composerShell = recipe({
   base: {
-    backgroundColor: 'var(--surface-base-emphasis)',
+    backgroundColor: vars.surfaceBaseEmphasis,
     display: 'flex',
     flexDirection: 'column',
     gap: 0,

@@ -1,3 +1,4 @@
+export { Box } from './box';
 export { Button, type ButtonProps } from './button';
 export {
   Toggle,
@@ -6,15 +7,18 @@ export {
   type ToggleProps,
   type ToggleGroupProps,
 } from './toggle';
-export { Tabs, TabsList, TabsTab, TabsPanel, TabsIndicator, type TabsTabProps } from './tabs';
+export { Tabs, TabsList, TabsTab, TabsPanel, type TabsTabProps } from './tabs';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
-export { Field, FieldLabel, FieldDescription, FieldError } from './field';
 export {
-  ScrollFade,
-  type ScrollFadeAxis,
-  type ScrollFadeEdge,
-  type ScrollFadeProps,
-} from './scroll-fade';
+  Field,
+  FieldContent,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+  type FieldVariants,
+} from './field';
+export { ScrollFade, type ScrollFadeProps } from './scroll-fade';
+export { ScrollContainer, type ScrollContainerProps } from './scroll-container';
 export { Text, type TextProps } from './typography/Text';
 export { Heading, type HeadingProps } from './typography/Heading';
 export { textVariants, type TextVariantProps } from './typography/typography.variants';
@@ -140,5 +144,15 @@ export {
   type SplitButtonOptionTone,
 } from './split-button';
 export { resolveFileIconClass } from '../lib/file-icons';
-export { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
-export { inputVariants, type InputVariantProps } from '../../styles/recipes/input';
+export { Switch, type SwitchProps } from './switch';
+export { SeparatedList, type SeparatedListProps } from './separated-list';
+export {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsiblePanel,
+  type CollapsibleTriggerProps,
+} from './collapsible';
+export { Alert, AlertTitle, AlertDescription, type AlertProps } from './alert';
+export { SearchInput, type SearchInputProps } from './search-input';
+export { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+export { inputVariants, type InputVariantProps } from '@styles/recipes/input';

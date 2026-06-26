@@ -1,3 +1,4 @@
+import { StreamContext, type StreamAnimation } from '@components/contexts/StreamContext';
 import { BlockStackView } from '@components/primitives/BlockStackView';
 import { CopyButton } from '@components/primitives/CopyButton';
 import type { StackLayout } from '@core/compose';
@@ -23,8 +24,10 @@ import {
 // ── Measure ───────────────────────────────────────────────────────────────────
 
 export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: MessageVars): number {
-  const { userCardPadY, cardBorder, collapsedMaxH, expandedMaxH, stackPadY } = vars;
-  const blocks = ctx.caches.parseBlocks(item.id, item.text);
+  const { userCardPadY, cardBorder, collapsedMaxH, expandedMaxH } = vars;
+  const blocks = item.streaming
+    ? ctx.caches.parseBlocksStreaming(item.id, item.text)
+    : ctx.caches.parseBlocks(item.id, item.text);
 
   if (item.role === 'user') {
     const innerW = userInnerWidth(ctx.width, vars);
@@ -34,11 +37,7 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: Message
       return Math.min(fallback, ctx.expandedId === item.id ? expandedMaxH : collapsedMaxH);
     }
     const innerCtx = { ...ctx, width: innerW };
-    // stackPadY is the block stack's internal vertical padding; userCardPadY is applied by CSS.
-    const stack = layoutBlockStack(blocks, innerCtx, {
-      padY: stackPadY,
-      isCollapsed: ctx.isCollapsed,
-    });
+    const stack = layoutBlockStack(blocks, innerCtx, { isCollapsed: ctx.isCollapsed });
     const contentH = aH + stack.height + 2 * userCardPadY + 2 * cardBorder;
     return Math.min(contentH, ctx.expandedId === item.id ? expandedMaxH : collapsedMaxH);
   }
@@ -46,24 +45,28 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: Message
   // assistant / thought
   const footer = item.role === 'assistant' ? vars.footerH : 0;
   if (blocks.length === 0) {
-    return ctx.theme.fonts.body.lineHeight + 2 * stackPadY + footer;
+    return ctx.theme.fonts.body.lineHeight + footer;
   }
-  const stack = layoutBlockStack(blocks, ctx, { padY: stackPadY, isCollapsed: ctx.isCollapsed });
+  const stack = layoutBlockStack(blocks, ctx, { isCollapsed: ctx.isCollapsed });
   return stack.height + footer;
 }
 
 function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: MessageVars }) {
   const mCtx = () => props.ctx.measureCtx?.();
 
+  // One frontier Map per mounted instance — persists across streaming chunks
+  // because the <For> in UnitRow keeps this component alive. Shared by ref with
+  // StreamContext so Prose.tsx can update it after each render without reactivity.
+  const streamAnimation: StreamAnimation = { frontier: new Map() };
+
   const stack = createMemo<Measured<StackLayout> | null>(() => {
     const ctx = mCtx();
     if (!ctx) return null;
-    const blocks = ctx.caches.parseBlocks(props.data.id, props.data.text);
+    const blocks = props.data.streaming
+      ? ctx.caches.parseBlocksStreaming(props.data.id, props.data.text)
+      : ctx.caches.parseBlocks(props.data.id, props.data.text);
     if (blocks.length === 0) return null;
-    return layoutBlockStack(blocks, ctx, {
-      padY: props.vars.stackPadY,
-      isCollapsed: ctx.isCollapsed,
-    });
+    return layoutBlockStack(blocks, ctx, { isCollapsed: ctx.isCollapsed });
   });
 
   const totalH = createMemo(() => {
@@ -75,7 +78,10 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
   const plainText = () => {
     const ctx = mCtx();
     if (!ctx) return props.data.text;
-    return ctx.caches.parseBlocks(props.data.id, props.data.text).map(blockPlainText).join('\n\n');
+    // Use the same parse path as the renderer so we don't trigger a full reparse
+    // during streaming just for the screen-reader text.
+    const parse = props.data.streaming ? ctx.caches.parseBlocksStreaming : ctx.caches.parseBlocks;
+    return parse(props.data.id, props.data.text).map(blockPlainText).join('\n\n');
   };
 
   const role = () =>
@@ -87,7 +93,9 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
       style={assignInlineVars(assistantVars, pxTokens({ height: totalH() }))}
     >
       <div class={srOnly}>{plainText()}</div>
-      <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
+      <StreamContext.Provider value={props.data.streaming ? streamAnimation : null}>
+        <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
+      </StreamContext.Provider>
       <Show when={props.data.role === 'assistant'}>
         <div
           class={footerRow}
@@ -123,7 +131,6 @@ export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
     expandedMaxH: 360,
     userCardPadX: 16,
     userCardPadY: 16,
-    stackPadY: 6,
     attachThumb: 32,
     attachGap: 8,
     footerH: 24,
@@ -135,16 +142,12 @@ export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
       const lines = Math.max(1, Math.ceil(item.text.length / 60));
       const aH = attachStripHeight(item.attachments?.length ?? 0, innerW, vars);
       const est =
-        aH +
-        lines * ctx.theme.fonts.body.lineHeight +
-        2 * vars.stackPadY +
-        2 * vars.userCardPadY +
-        2 * vars.cardBorder;
+        aH + lines * ctx.theme.fonts.body.lineHeight + 2 * vars.userCardPadY + 2 * vars.cardBorder;
       return Math.min(est, ctx.expandedId === item.id ? vars.expandedMaxH : vars.collapsedMaxH);
     }
     const lines = Math.max(1, Math.ceil(item.text.length / 60));
     const footer = item.role === 'assistant' ? vars.footerH : 0;
-    return lines * ctx.theme.fonts.body.lineHeight + 2 * vars.stackPadY + footer;
+    return lines * ctx.theme.fonts.body.lineHeight + footer;
   },
 
   measure: measureMessage,
