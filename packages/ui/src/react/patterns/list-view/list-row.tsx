@@ -27,7 +27,15 @@ export interface RowProps extends React.HTMLAttributes<HTMLDivElement> {
  *     <MyRowContent />
  *   </ListView.Row>
  */
-function Row({ interactive = false, selected = false, isLast = false, bare = false, className, children, ...props }: RowProps) {
+function Row({
+  interactive = false,
+  selected = false,
+  isLast = false,
+  bare = false,
+  className,
+  children,
+  ...props
+}: RowProps) {
   return (
     <div
       data-slot="list-row"
@@ -58,15 +66,9 @@ export interface SectionHeaderProps extends React.HTMLAttributes<HTMLDivElement>
  */
 function SectionHeader({ label, count, className, ...props }: SectionHeaderProps) {
   return (
-    <div
-      data-slot="list-section-header"
-      className={cx(styles.sectionHeader, className)}
-      {...props}
-    >
+    <div data-slot="list-section-header" className={cx(styles.sectionHeader, className)} {...props}>
       <span className={styles.sectionHeaderLabel}>{label}</span>
-      {count !== undefined && (
-        <span className={styles.sectionHeaderCount}>({count})</span>
-      )}
+      {count !== undefined && <span className={styles.sectionHeaderCount}>({count})</span>}
     </div>
   );
 }

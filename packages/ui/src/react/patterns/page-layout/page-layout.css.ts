@@ -10,11 +10,11 @@ import { vars } from '@theme/core/contract/contract.css';
 type CSSExtra = { [key: string]: string };
 
 export const dragRegion = style({
-  ...(({ WebkitAppRegion: 'drag' } as CSSExtra)),
+  ...({ WebkitAppRegion: 'drag' } as CSSExtra),
 });
 
 export const noDragRegion = style({
-  ...(({ WebkitAppRegion: 'no-drag' } as CSSExtra)),
+  ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
 });
 
 // ── Root outer / scroll container ─────────────────────────────────────────────

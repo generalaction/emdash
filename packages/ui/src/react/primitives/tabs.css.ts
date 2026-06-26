@@ -11,4 +11,3 @@ export const tabsList = style({
 export const tabsPanel = style({
   outline: 'none',
 });
-

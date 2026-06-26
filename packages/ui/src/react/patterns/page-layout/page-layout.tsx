@@ -103,9 +103,7 @@ export interface PageContentProps extends React.HTMLAttributes<HTMLDivElement> {
  * Applies horizontal padding and an optional max-width cap.
  */
 function Content({ maxWidth = '4xl', className, ...props }: PageContentProps) {
-  return (
-    <div className={cx(styles.content({ maxWidth }), className)} {...props} />
-  );
+  return <div className={cx(styles.content({ maxWidth }), className)} {...props} />;
 }
 
 export { PageLayoutRoot, Sidebar, Content };

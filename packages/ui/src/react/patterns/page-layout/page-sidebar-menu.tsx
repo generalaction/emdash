@@ -50,12 +50,16 @@ export interface PageSidebarMenuProps {
  * </PageLayout>
  * ```
  */
-function PageSidebarMenu({ items, activeId, onSelect, draggable = false, className }: PageSidebarMenuProps) {
+function PageSidebarMenu({
+  items,
+  activeId,
+  onSelect,
+  draggable = false,
+  className,
+}: PageSidebarMenuProps) {
   // Inline style type-cast for Electron drag region so vanilla-extract is not
   // involved (no CSS file needed for this runtime-conditional style).
-  const wrapperStyle: React.CSSProperties & CSSExtra = draggable
-    ? { WebkitAppRegion: 'drag' }
-    : {};
+  const wrapperStyle: React.CSSProperties & CSSExtra = draggable ? { WebkitAppRegion: 'drag' } : {};
 
   return (
     <div className={cx(styles.wrapper, className)} style={wrapperStyle}>
@@ -75,9 +79,7 @@ function PageSidebarMenu({ items, activeId, onSelect, draggable = false, classNa
                 </span>
               )}
               <span className={styles.navItemLabel}>{item.label}</span>
-              {item.isExternal && (
-                <ExternalLinkIcon className={styles.externalIcon} aria-hidden />
-              )}
+              {item.isExternal && <ExternalLinkIcon className={styles.externalIcon} aria-hidden />}
             </button>
           );
         })}

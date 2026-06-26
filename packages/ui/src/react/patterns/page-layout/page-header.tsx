@@ -86,11 +86,7 @@ function PageHeader({
 
   if (!sticky) return body;
 
-  return (
-    <div className={cx(styles.headerSticky, className)}>
-      {body}
-    </div>
-  );
+  return <div className={cx(styles.headerSticky, className)}>{body}</div>;
 }
 
 export { PageHeader };

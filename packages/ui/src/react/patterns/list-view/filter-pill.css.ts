@@ -74,4 +74,9 @@ export const filterButton = style({
     '&:disabled': { pointerEvents: 'none', opacity: 0.4, cursor: 'not-allowed' },
   },
 });
-globalStyle(`${filterButton} svg`, { pointerEvents: 'none', width: '0.875rem', height: '0.875rem', flexShrink: 0 });
+globalStyle(`${filterButton} svg`, {
+  pointerEvents: 'none',
+  width: '0.875rem',
+  height: '0.875rem',
+  flexShrink: 0,
+});

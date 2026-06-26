@@ -1,6 +1,6 @@
+import { PageHeader } from './page-header';
 import { PageLayoutRoot, Sidebar, Content } from './page-layout';
 import { PageSidebarMenu } from './page-sidebar-menu';
-import { PageHeader } from './page-header';
 
 // ── Public namespace ──────────────────────────────────────────────────────────
 

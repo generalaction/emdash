@@ -1,12 +1,6 @@
 import { cx } from '@styles/utilities/cx';
 import type { SurfaceStatusName } from '@theme/core/contract/roles';
-import {
-  AlertCircleIcon,
-  AlertTriangleIcon,
-  CheckCircleIcon,
-  InfoIcon,
-  XIcon,
-} from 'lucide-react';
+import { AlertCircleIcon, AlertTriangleIcon, CheckCircleIcon, InfoIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
 import { Surface } from './surface';
 import * as styles from './alert.css';

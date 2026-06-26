@@ -60,10 +60,7 @@ function CollapsibleTrigger({
  * Pass `keepMounted` to preserve DOM state while hidden (e.g. forms, iframes).
  * Pass `hiddenUntilFound` to enable browser in-page search within the panel.
  */
-function CollapsiblePanel({
-  className,
-  ...props
-}: CollapsiblePrimitive.Panel.Props) {
+function CollapsiblePanel({ className, ...props }: CollapsiblePrimitive.Panel.Props) {
   return (
     <CollapsiblePrimitive.Panel
       data-slot="collapsible-panel"

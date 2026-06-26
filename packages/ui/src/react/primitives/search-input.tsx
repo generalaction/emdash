@@ -1,13 +1,12 @@
-import { cx } from '@styles/utilities/cx';
 import { type InputVariantProps } from '@styles/recipes/input';
+import { cx } from '@styles/utilities/cx';
 import { SearchIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
 import { Input } from './input';
 import * as styles from './search-input.css';
 
 export interface SearchInputProps
-  extends Omit<React.ComponentProps<'input'>, 'size' | 'type'>,
-    Pick<InputVariantProps, 'size'> {
+  extends Omit<React.ComponentProps<'input'>, 'size' | 'type'>, Pick<InputVariantProps, 'size'> {
   /** Called when the user clicks the × clear button. Renders the button when provided. */
   onClear?: () => void;
 }

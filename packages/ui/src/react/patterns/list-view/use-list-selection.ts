@@ -46,10 +46,7 @@ export function useListSelection(orderedIds: string[]): ListSelectionState {
   // Track the last-clicked ID so shift-range works across re-renders.
   const anchorRef = React.useRef<string | null>(null);
 
-  const isSelected = React.useCallback(
-    (id: string) => selectedIds.has(id),
-    [selectedIds]
-  );
+  const isSelected = React.useCallback((id: string) => selectedIds.has(id), [selectedIds]);
 
   const toggle = React.useCallback(
     (id: string, event?: React.MouseEvent | React.KeyboardEvent) => {
@@ -59,9 +56,7 @@ export function useListSelection(orderedIds: string[]): ListSelectionState {
         const anchorIdx = orderedIds.indexOf(anchorRef.current);
         const targetIdx = orderedIds.indexOf(id);
         if (anchorIdx !== -1 && targetIdx !== -1) {
-          const [lo, hi] = anchorIdx < targetIdx
-            ? [anchorIdx, targetIdx]
-            : [targetIdx, anchorIdx];
+          const [lo, hi] = anchorIdx < targetIdx ? [anchorIdx, targetIdx] : [targetIdx, anchorIdx];
           const rangeIds = orderedIds.slice(lo, hi + 1);
           setSelectedIds((prev) => {
             const next = new Set(prev);
@@ -95,9 +90,7 @@ export function useListSelection(orderedIds: string[]): ListSelectionState {
       const anchorIdx = orderedIds.indexOf(anchorRef.current);
       const targetIdx = orderedIds.indexOf(toId);
       if (anchorIdx === -1 || targetIdx === -1) return;
-      const [lo, hi] = anchorIdx < targetIdx
-        ? [anchorIdx, targetIdx]
-        : [targetIdx, anchorIdx];
+      const [lo, hi] = anchorIdx < targetIdx ? [anchorIdx, targetIdx] : [targetIdx, anchorIdx];
       const rangeIds = orderedIds.slice(lo, hi + 1);
       setSelectedIds((prev) => {
         const next = new Set(prev);

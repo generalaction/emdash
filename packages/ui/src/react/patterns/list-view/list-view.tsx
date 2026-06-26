@@ -5,9 +5,7 @@ import * as styles from './list-view.css';
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 function ListViewRoot({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div data-slot="list-view" className={cx(styles.root, className)} {...props} />
-  );
+  return <div data-slot="list-view" className={cx(styles.root, className)} {...props} />;
 }
 
 // ── Toolbar ───────────────────────────────────────────────────────────────────
@@ -18,9 +16,7 @@ function ListViewRoot({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
  * Multiple children are stacked as flex-column rows.
  */
 function Toolbar({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div data-slot="list-view-toolbar" className={cx(styles.toolbar, className)} {...props} />
-  );
+  return <div data-slot="list-view-toolbar" className={cx(styles.toolbar, className)} {...props} />;
 }
 
 // ── FilterPills ───────────────────────────────────────────────────────────────
@@ -30,11 +26,7 @@ function Toolbar({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) 
  * Renders null when there are no visible children so the toolbar row
  * collapses cleanly when no filters are active.
  */
-function FilterPills({
-  children,
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+function FilterPills({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   const hasChildren = React.Children.count(children) > 0;
   if (!hasChildren) return null;
   return (
@@ -55,9 +47,7 @@ function FilterPills({
  * Place a single `ListView.List` inside here.
  */
 function Body({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div data-slot="list-view-body" className={cx(styles.body, className)} {...props} />
-  );
+  return <div data-slot="list-view-body" className={cx(styles.body, className)} {...props} />;
 }
 
 // ── Footer ────────────────────────────────────────────────────────────────────
@@ -68,9 +58,7 @@ function Body({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
  * on top of the list without displacing it.
  */
 function Footer({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div data-slot="list-view-footer" className={cx(styles.footer, className)} {...props} />
-  );
+  return <div data-slot="list-view-footer" className={cx(styles.footer, className)} {...props} />;
 }
 
 export { ListViewRoot, Toolbar, FilterPills, Body, Footer };

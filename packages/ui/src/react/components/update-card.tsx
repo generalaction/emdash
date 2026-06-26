@@ -85,11 +85,9 @@ function UpdateCard({
   className,
 }: UpdateCardProps) {
   const isChecking = status.kind === 'checking';
-  const showCheckButton =
-    status.kind !== 'downloaded' && status.kind !== 'installing';
+  const showCheckButton = status.kind !== 'downloaded' && status.kind !== 'installing';
 
-  const downloadPercent =
-    status.kind === 'downloading' ? (status.percent ?? 0) : 0;
+  const downloadPercent = status.kind === 'downloading' ? (status.percent ?? 0) : 0;
 
   return (
     <div className={cx(styles.card, className)}>
@@ -98,9 +96,7 @@ function UpdateCard({
         <div className={styles.rowBody}>
           <div className={styles.rowTitle}>
             Version
-            {currentVersion && (
-              <span className={styles.versionBadge}>v{currentVersion}</span>
-            )}
+            {currentVersion && <span className={styles.versionBadge}>v{currentVersion}</span>}
           </div>
           <div className={styles.rowDescription}>
             <StatusDescription status={status} appName={appName} />
@@ -118,17 +114,10 @@ function UpdateCard({
               disabled={isChecking}
               aria-label="Check for updates"
             >
-              <RefreshCwIcon
-                style={ICON_MD}
-                className={isChecking ? styles.iconSpin : undefined}
-              />
+              <RefreshCwIcon style={ICON_MD} className={isChecking ? styles.iconSpin : undefined} />
             </Button>
           )}
-          <ActionButton
-            status={status}
-            onDownload={onDownload}
-            onInstall={onInstall}
-          />
+          <ActionButton status={status} onDownload={onDownload} onInstall={onInstall} />
         </div>
       </div>
 
@@ -151,13 +140,7 @@ function UpdateCard({
 
 // ── Status description ────────────────────────────────────────────────────────
 
-function StatusDescription({
-  status,
-  appName,
-}: {
-  status: UpdateStatus;
-  appName: string;
-}) {
+function StatusDescription({ status, appName }: { status: UpdateStatus; appName: string }) {
   switch (status.kind) {
     case 'checking':
       return (

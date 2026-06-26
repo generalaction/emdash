@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
-import { Box } from './box';
 import { Alert, AlertDescription, AlertTitle } from './alert';
+import { Box } from './box';
 import { Button } from './button';
 import * as s from '../story-layout.css';
 
@@ -75,19 +75,13 @@ export const Dismissible: Story = {
           </Alert>
         )}
         {visible.success && (
-          <Alert
-            status="success"
-            onDismiss={() => setVisible((v) => ({ ...v, success: false }))}
-          >
+          <Alert status="success" onDismiss={() => setVisible((v) => ({ ...v, success: false }))}>
             <AlertTitle>Deployment complete</AlertTitle>
             <AlertDescription>Your app is live at production.</AlertDescription>
           </Alert>
         )}
         {visible.warning && (
-          <Alert
-            status="warning"
-            onDismiss={() => setVisible((v) => ({ ...v, warning: false }))}
-          >
+          <Alert status="warning" onDismiss={() => setVisible((v) => ({ ...v, warning: false }))}>
             <AlertTitle>Rate limit approaching</AlertTitle>
             <AlertDescription>80% of your API quota used this month.</AlertDescription>
           </Alert>

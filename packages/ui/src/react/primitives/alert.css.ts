@@ -75,4 +75,8 @@ export const alertDismiss = style({
     },
   },
 });
-globalStyle(`${alertDismiss} svg`, { pointerEvents: 'none', width: '0.875rem', height: '0.875rem' });
+globalStyle(`${alertDismiss} svg`, {
+  pointerEvents: 'none',
+  width: '0.875rem',
+  height: '0.875rem',
+});

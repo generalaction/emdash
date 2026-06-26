@@ -37,11 +37,7 @@ function FilterPill({
     <span className={cx(styles.pill, className)} {...props}>
       {avatarSrc && <img src={avatarSrc} alt="" className={styles.pillAvatar} aria-hidden />}
       {swatchColor && (
-        <span
-          className={styles.pillSwatch}
-          style={{ backgroundColor: swatchColor }}
-          aria-hidden
-        />
+        <span className={styles.pillSwatch} style={{ backgroundColor: swatchColor }} aria-hidden />
       )}
       {label}
       {onRemove && (
@@ -73,13 +69,7 @@ export interface FilterButtonProps extends React.ButtonHTMLAttributes<HTMLButton
  * Modelled on the `FilterButton` in `pr-view.tsx`. Visually equivalent to a
  * ghost link — low-profile until it is active or hovered.
  */
-function FilterButton({
-  active = false,
-  icon,
-  children,
-  className,
-  ...props
-}: FilterButtonProps) {
+function FilterButton({ active = false, icon, children, className, ...props }: FilterButtonProps) {
   return (
     <button
       type="button"

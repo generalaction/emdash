@@ -94,7 +94,14 @@ function LibraryDemo() {
             description="Manage reusable prompts that can be sent from task prompt menus."
             sticky
             actions={
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.5rem',
+                }}
+              >
                 <SearchInput
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -129,27 +136,52 @@ const SETTINGS_ITEMS = [
   { id: 'general', label: 'General', icon: <SettingsIcon style={{ width: 14, height: 14 }} /> },
   { id: 'account', label: 'Account', icon: <UserIcon style={{ width: 14, height: 14 }} /> },
   { id: 'agents', label: 'Agents', icon: <BotIcon style={{ width: 14, height: 14 }} /> },
-  { id: 'integrations', label: 'Integrations', icon: <GlobeIcon style={{ width: 14, height: 14 }} /> },
+  {
+    id: 'integrations',
+    label: 'Integrations',
+    icon: <GlobeIcon style={{ width: 14, height: 14 }} />,
+  },
   { id: 'connections', label: 'Connections', icon: <ZapIcon style={{ width: 14, height: 14 }} /> },
-  { id: 'docs', label: 'Docs', icon: <ExternalLinkIcon style={{ width: 14, height: 14 }} />, isExternal: true },
+  {
+    id: 'docs',
+    label: 'Docs',
+    icon: <ExternalLinkIcon style={{ width: 14, height: 14 }} />,
+    isExternal: true,
+  },
 ];
 
 function SettingsDemo() {
   const [tab, setTab] = React.useState('general');
 
   return (
-    <div style={{ height: '40rem', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--background)' }}>
+    <div
+      style={{
+        height: '40rem',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: 'var(--background)',
+      }}
+    >
       <PageLayout
         sidebar={
           <PageLayout.SidebarMenu
             items={SETTINGS_ITEMS}
             activeId={tab}
-            onSelect={(item) => { if (!item.isExternal) setTab(item.id); }}
+            onSelect={(item) => {
+              if (!item.isExternal) setTab(item.id);
+            }}
           />
         }
       >
         <PageLayout.Content>
-          <div style={{ paddingBottom: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <div
+            style={{
+              paddingBottom: '2.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2rem',
+            }}
+          >
             <PageLayout.Header
               title={SETTINGS_ITEMS.find((i) => i.id === tab)?.label ?? ''}
               description="Manage your account, privacy settings, notifications, and app updates."
@@ -180,12 +212,27 @@ function AutomationsDemo() {
     <div style={{ height: '40rem', display: 'flex', flexDirection: 'column' }}>
       <PageLayout>
         <PageLayout.Content>
-          <div style={{ paddingTop: '1.5rem', paddingBottom: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div
+            style={{
+              paddingTop: '1.5rem',
+              paddingBottom: '2.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.5rem',
+            }}
+          >
             <PageLayout.Header
               title="Automations"
               description="Run agents on a schedule across your projects."
               actions={
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem',
+                  }}
+                >
                   <SearchInput
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -225,7 +272,17 @@ function CustomSidebarDemo() {
         sidebar={
           <PageLayout.Sidebar>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground-muted)', paddingLeft: '0.75rem', paddingBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <p
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 600,
+                  color: 'var(--foreground-muted)',
+                  paddingLeft: '0.75rem',
+                  paddingBottom: '0.25rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
                 Projects
               </p>
               {projects.map((name, i) => (
@@ -257,7 +314,14 @@ function CustomSidebarDemo() {
         }
       >
         <PageLayout.Content>
-          <div style={{ paddingBottom: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div
+            style={{
+              paddingBottom: '2.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.5rem',
+            }}
+          >
             <PageLayout.Header
               title={projects[selected] ?? ''}
               description="Custom sidebar demonstrating the bare PageLayout.Sidebar slot."

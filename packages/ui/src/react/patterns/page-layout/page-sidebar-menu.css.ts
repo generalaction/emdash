@@ -21,7 +21,7 @@ export const nav = style({
   width: '13rem',
   flexDirection: 'column',
   gap: '0.125rem',
-  ...(({ WebkitAppRegion: 'no-drag' } as CSSExtra)),
+  ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
 });
 
 // ── Nav item button recipe ────────────────────────────────────────────────────

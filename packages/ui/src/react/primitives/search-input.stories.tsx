@@ -50,12 +50,7 @@ export const WithClear: Story = {
 
 export const Disabled: Story = {
   render: () => (
-    <SearchInput
-      disabled
-      defaultValue="Cannot edit"
-      placeholder="Search…"
-      className={s.w72}
-    />
+    <SearchInput disabled defaultValue="Cannot edit" placeholder="Search…" className={s.w72} />
   ),
 };
 

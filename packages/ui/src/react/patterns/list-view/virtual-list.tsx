@@ -1,5 +1,5 @@
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { cx } from '@styles/utilities/cx';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import * as React from 'react';
 import * as styles from './virtual-list.css';
 
@@ -158,11 +158,7 @@ function VirtualListInner<T>(
   }
 
   if (itemCount === 0) {
-    return (
-      <div className={cx(styles.scrollContainer, className)}>
-        {emptySlot ?? null}
-      </div>
-    );
+    return <div className={cx(styles.scrollContainer, className)}>{emptySlot ?? null}</div>;
   }
 
   // ── Virtualized list ─────────────────────────────────────────────────────────

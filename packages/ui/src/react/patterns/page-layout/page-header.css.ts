@@ -26,7 +26,7 @@ export const titleBlock = style({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.25rem',
-  ...(({ WebkitAppRegion: 'drag' } as CSSExtra)),
+  ...({ WebkitAppRegion: 'drag' } as CSSExtra),
 });
 
 export const title = style({
@@ -47,7 +47,7 @@ export const actions = style({
   display: 'flex',
   flexDirection: 'column',
   gap: '1rem',
-  ...(({ WebkitAppRegion: 'no-drag' } as CSSExtra)),
+  ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
 });
 
 // ── Separator ─────────────────────────────────────────────────────────────────

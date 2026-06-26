@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import * as React from 'react';
-import * as s from '../story-layout.css';
 import { UpdateCard, type UpdateStatus } from './update-card';
+import * as s from '../story-layout.css';
 
 const meta: Meta<typeof UpdateCard> = {
   title: 'Components/UpdateCard',
@@ -110,14 +110,17 @@ export const AllStates: Story = {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '28rem' }}>
       {ALL_STATUSES.map(({ label, status }) => (
         <div key={label}>
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)', marginBottom: '0.375rem', fontFamily: 'var(--font-mono)' }}>
+          <p
+            style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--foreground-muted)',
+              marginBottom: '0.375rem',
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
             {label}
           </p>
-          <UpdateCard
-            currentVersion="1.4.2"
-            appName="Emdash"
-            status={status}
-          />
+          <UpdateCard currentVersion="1.4.2" appName="Emdash" status={status} />
         </div>
       ))}
     </div>
@@ -193,7 +196,13 @@ function InteractiveDemo() {
         >
           Reset
         </button>
-        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)', fontFamily: 'var(--font-mono)' }}>
+        <span
+          style={{
+            fontSize: 'var(--text-xs)',
+            color: 'var(--foreground-muted)',
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
           {stageIdx + 1} / {STAGES.length} — {status.kind}
         </span>
       </div>
