@@ -26,6 +26,7 @@ import { githubAccountRegistry } from './core/github/accounts/github-account-reg
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
+import { remoteTmuxReaperService } from './core/pty/remote-tmux-reaper-service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import { reconcileResourceSampler } from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
@@ -129,6 +130,7 @@ void app.whenReady().then(async () => {
 
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
+  remoteTmuxReaperService.initialize();
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();

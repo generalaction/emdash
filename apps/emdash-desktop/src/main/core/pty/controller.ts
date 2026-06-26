@@ -5,6 +5,7 @@ import { conversationEvents } from '@main/core/conversations/conversation-events
 import { log } from '@main/lib/logger';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
 import { createRPCController } from '@shared/lib/ipc/rpc';
+import { SSH_PROJECT_STATE_DIR_NAME } from '../settings/worktree-defaults';
 import { taskSessionManager } from '../tasks/task-session-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import {
@@ -155,11 +156,17 @@ export const ptyController = createRPCController({
       const workspace = workspaceRegistry.get(workspaceId);
       if (!workspace?.fs.copyLocalFile) return err({ type: 'not_ssh' as const });
 
+      // Upload into the git-ignored .emdash runtime dir, not the worktree root.
+      // Writing to the root left every attached image behind as an untracked file
+      // that dirtied `git status` and never got cleaned up (#2680).
+      const uploadDir = `${SSH_PROJECT_STATE_DIR_NAME}/uploads`;
+      await workspace.fs.mkdir(uploadDir, { recursive: true });
+
       const remotePaths = await Promise.all(
         args.localPaths.map(async (localPath) => {
-          const remoteName = `${randomUUID()}-${basename(localPath)}`;
-          await workspace.fs.copyLocalFile!(localPath, remoteName);
-          return `${workspace.path}/${remoteName}`;
+          const remoteRelPath = `${uploadDir}/${randomUUID()}-${basename(localPath)}`;
+          await workspace.fs.copyLocalFile!(localPath, remoteRelPath);
+          return `${workspace.path}/${remoteRelPath}`;
         })
       );
       return ok({ remotePaths });

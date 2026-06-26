@@ -5,15 +5,18 @@ import type { ResourcePtyEntry, ResourceSnapshot } from '@shared/resource-monito
 
 export class ResourceMonitorStore {
   snapshot: ResourceSnapshot | null = null;
+  isLoadingInitialSnapshot = false;
   private started = false;
   private offSnapshot: (() => void) | null = null;
   private clientId = crypto.randomUUID();
   private sequence = 0;
+  private requestId = 0;
   private subscriptionId: string | null = null;
 
   constructor() {
     makeObservable(this, {
       snapshot: observable,
+      isLoadingInitialSnapshot: observable,
       totalCpuPercent: computed,
       totalMemoryBytes: computed,
       appMemoryBytes: computed,
@@ -57,23 +60,38 @@ export class ResourceMonitorStore {
   start(): void {
     if (this.started) return;
     this.started = true;
+    runInAction(() => {
+      this.snapshot = null;
+      this.isLoadingInitialSnapshot = true;
+    });
+    const requestId = ++this.requestId;
     const subscriptionId = crypto.randomUUID();
     this.subscriptionId = subscriptionId;
     void rpc.resourceMonitor.setOpen(this.clientId, subscriptionId, true, ++this.sequence);
     this.offSnapshot = events.on(resourceSnapshotChannel, (snap) => {
+      if (!this.isCurrentRequest(requestId)) return;
       runInAction(() => {
         this.snapshot = snap;
+        this.isLoadingInitialSnapshot = false;
       });
     });
     rpc.resourceMonitor
       .getSnapshot()
       .then((res) => {
-        if (!res?.success || !res.data) return;
+        if (!this.isCurrentRequest(requestId)) return;
         runInAction(() => {
-          this.applyFetchedSnapshot(res.data);
+          if (res?.success && res.data) {
+            this.applyFetchedSnapshot(res.data);
+          }
+          this.isLoadingInitialSnapshot = false;
         });
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!this.isCurrentRequest(requestId)) return;
+        runInAction(() => {
+          this.isLoadingInitialSnapshot = false;
+        });
+      });
   }
 
   dispose(): void {
@@ -82,6 +100,9 @@ export class ResourceMonitorStore {
     this.offSnapshot?.();
     this.offSnapshot = null;
     this.started = false;
+    runInAction(() => {
+      this.isLoadingInitialSnapshot = false;
+    });
     this.subscriptionId = null;
     if (subscriptionId) {
       void rpc.resourceMonitor.setOpen(this.clientId, subscriptionId, false, ++this.sequence);
@@ -90,15 +111,19 @@ export class ResourceMonitorStore {
 
   async refresh(): Promise<void> {
     const res = await rpc.resourceMonitor.getSnapshot();
-    if (!res?.success) return;
+    if (!res?.success || !res.data) return;
     runInAction(() => {
       this.applyFetchedSnapshot(res.data);
     });
   }
 
-  private applyFetchedSnapshot(snap: ResourceSnapshot | null): void {
-    if (snap && this.snapshot && this.snapshot.timestamp > snap.timestamp) return;
+  private applyFetchedSnapshot(snap: ResourceSnapshot): void {
+    if (this.snapshot && this.snapshot.timestamp > snap.timestamp) return;
     this.snapshot = snap;
+  }
+
+  private isCurrentRequest(requestId: number): boolean {
+    return this.started && this.requestId === requestId;
   }
 
   /** Normalized CPU% (relative to all cores) for a single entry. */

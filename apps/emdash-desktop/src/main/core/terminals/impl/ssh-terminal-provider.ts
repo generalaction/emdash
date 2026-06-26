@@ -7,7 +7,8 @@ import { ptySessionRegistry, type PtySessionMetadata } from '@main/core/pty/pty-
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { killTmuxSessionTree } from '@main/core/pty/tmux-reaper';
+import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
@@ -346,7 +347,7 @@ export class SshTerminalProvider implements TerminalProvider {
     this.terminals.delete(terminalId);
     this.shellProfiles.delete(sessionId);
     if (this.tmux) {
-      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
+      await killTmuxSessionTree(this.ctx, makeTmuxSessionName(sessionId));
     }
   }
 
@@ -355,7 +356,9 @@ export class SshTerminalProvider implements TerminalProvider {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
-      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
+      await Promise.all(
+        sessionIds.map((id) => killTmuxSessionTree(this.ctx, makeTmuxSessionName(id)))
+      );
     }
     this.knownSessionIds.clear();
     this.terminals.clear();
