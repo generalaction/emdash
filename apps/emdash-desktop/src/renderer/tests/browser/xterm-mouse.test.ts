@@ -1,11 +1,11 @@
-import { Terminal } from '@xterm/xterm';
+import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { afterEach, describe, expect, it } from 'vitest';
 
 function waitForWrite(term: Terminal, data: string): Promise<void> {
   return new Promise((resolve) => term.write(data, resolve));
 }
 
-function createTerminal(): { container: HTMLDivElement; term: Terminal } {
+function createTerminal(options: ITerminalOptions = {}): { container: HTMLDivElement; term: Terminal } {
   const container = document.createElement('div');
   Object.assign(container.style, {
     position: 'fixed',
@@ -16,7 +16,7 @@ function createTerminal(): { container: HTMLDivElement; term: Terminal } {
   });
   document.body.appendChild(container);
 
-  const term = new Terminal({ cols: 80, rows: 24, allowProposedApi: true });
+  const term = new Terminal({ cols: 80, rows: 24, allowProposedApi: true, ...options });
   term.open(container);
   return { container, term };
 }
@@ -53,8 +53,11 @@ describe('xterm mouse reporting', () => {
     document.body.replaceChildren();
   });
 
-  it('emits click and wheel reports when mouse tracking is enabled', async () => {
-    const { container, term } = createTerminal();
+  it.each([
+    ['default options', {}],
+    ['ConPTY mode', { windowsPty: { backend: 'conpty' } } satisfies ITerminalOptions],
+  ])('emits click and wheel reports with %s', async (_label, options) => {
+    const { container, term } = createTerminal(options);
     const data: string[] = [];
     const binary: string[] = [];
     term.onData((chunk) => data.push(chunk));
@@ -72,5 +75,21 @@ describe('xterm mouse reporting', () => {
     const emitted = [...data, ...binary].join('');
     expect(emitted).toContain('\x1b[<0;');
     expect(emitted).toContain('\x1b[<64;');
+  });
+
+  it('responds to OpenTUI private mode capability queries', async () => {
+    const { term } = createTerminal();
+    const data: string[] = [];
+    term.onData((chunk) => data.push(chunk));
+
+    // OpenTUI asks these before completing terminal setup for apps like opencode.
+    await waitForWrite(
+      term,
+      '\x1b[?1016$p\x1b[?2027$p\x1b[?2031$p\x1b[?1004$p\x1b[?2004$p'
+    );
+
+    expect(data.join('')).toBe(
+      '\x1b[?1016;2$y\x1b[?2027;0$y\x1b[?2031;0$y\x1b[?1004;2$y\x1b[?2004;2$y'
+    );
   });
 });
