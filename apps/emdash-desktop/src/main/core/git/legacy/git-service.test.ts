@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
+import type { IFileSystem } from '@emdash/core/files';
 import { computeBaseRef } from '@emdash/core/git';
 import { describe, expect, it } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from './git-service';
 
 // ---------------------------------------------------------------------------
@@ -45,7 +45,7 @@ const BRANCH_FORMAT =
 const OID = '1111111111111111111111111111111111111111';
 const OID2 = '2222222222222222222222222222222222222222';
 
-const stubFs = {} as FileSystemProvider;
+const stubFs = {} as IFileSystem;
 
 function makeContext(exec: MockExec, root = '/repo'): IExecutionContext {
   return {

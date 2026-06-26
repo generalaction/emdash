@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import type { IFileSystem } from '@emdash/core/files';
 import {
   computeBaseRef,
   MAX_STATUS_FILES,
@@ -29,7 +30,6 @@ import {
 import { err, ok, type Result } from '@emdash/shared';
 import type { IDisposable } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import {
@@ -131,7 +131,7 @@ export class GitService implements IDisposable {
 
   constructor(
     private readonly ctx: IExecutionContext,
-    private readonly fs: FileSystemProvider
+    private readonly fs: IFileSystem
   ) {}
 
   dispose(): void {
@@ -281,9 +281,11 @@ export class GitService implements IDisposable {
 
       if (additions === 0 && deletions === 0 && code.includes('?')) {
         try {
-          const result = await this.fs.read(filePath, MAX_DIFF_CONTENT_BYTES);
-          if (!result.truncated) {
-            additions = (result.content.match(/\n/g) ?? []).length;
+          const result = await this.fs.readText(this.toFsPath(filePath), {
+            maxBytes: MAX_DIFF_CONTENT_BYTES,
+          });
+          if (result.success && !result.data.truncated) {
+            additions = (result.data.content.match(/\n/g) ?? []).length;
           }
         } catch {}
       }
@@ -371,10 +373,19 @@ export class GitService implements IDisposable {
     // Untracked files don't exist in git history — remove them from disk
     for (const filePath of untracked) {
       try {
-        const exists = await this.fs.exists(filePath);
-        if (exists) await this.fs.remove(filePath);
+        const fsPath = this.toFsPath(filePath);
+        const exists = await this.fs.exists(fsPath);
+        if (exists.success && exists.data) await this.fs.remove(fsPath);
       } catch {}
     }
+  }
+
+  private toFsPath(filePath: string): string {
+    if (path.isAbsolute(filePath) || path.win32.isAbsolute(filePath)) return filePath;
+    const root = this.ctx.root;
+    return root
+      ? path.posix.join(root.replace(/\\/g, '/'), filePath.replace(/\\/g, '/'))
+      : filePath;
   }
 
   async revertAllFiles(): Promise<void> {
