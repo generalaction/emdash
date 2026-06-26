@@ -1,20 +1,10 @@
 import z from 'zod';
-import { FEATURE_ANNOUNCEMENT_CTA_ACTIONS, FEATURE_ANNOUNCEMENT_HEROES } from './constants';
+import { FEATURE_ANNOUNCEMENT_CTA_ACTIONS } from './constants';
 
 const featureAnnouncementCtaActionSchema = z.enum(FEATURE_ANNOUNCEMENT_CTA_ACTIONS);
 
-const featureAnnouncementHeroSchema = z.enum(FEATURE_ANNOUNCEMENT_HEROES);
-
-const featureAnnouncementFeatureSchema = z
-  .object({
-    title: z.string().min(1),
-    description: z.string().min(1),
-  })
-  .strict();
-
 const featureAnnouncementCtaSchema = z
   .object({
-    label: z.string().min(1),
     action: featureAnnouncementCtaActionSchema.optional(),
     url: z.url().optional(),
   })
@@ -29,19 +19,12 @@ export const featureAnnouncementManifestSchema = z
     id: z.string().min(1),
     eyebrow: z.string().min(1).default('Now available'),
     title: z.string().min(1),
-    hero: featureAnnouncementHeroSchema.optional(),
-    image: z.url().optional(),
     changelogUrl: z.url(),
-    learnMoreUrl: z.url().optional(),
     minAppVersion: z.string().min(1).optional(),
-    features: z.array(featureAnnouncementFeatureSchema).min(1).max(4),
     cta: featureAnnouncementCtaSchema.optional(),
   })
   .strict();
 
-export type FeatureAnnouncementHero = z.infer<typeof featureAnnouncementHeroSchema>;
-
-export type FeatureAnnouncementFeature = z.infer<typeof featureAnnouncementFeatureSchema>;
 export type FeatureAnnouncementCta = z.infer<typeof featureAnnouncementCtaSchema>;
 export type FeatureAnnouncementManifest = z.infer<typeof featureAnnouncementManifestSchema>;
 

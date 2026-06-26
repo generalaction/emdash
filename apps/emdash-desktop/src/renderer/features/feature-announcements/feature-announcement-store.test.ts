@@ -23,12 +23,6 @@ const manifest: FeatureAnnouncementManifest = {
   eyebrow: 'Now available',
   title: 'Test Feature',
   changelogUrl: 'https://emdash.sh/changelog',
-  features: [
-    {
-      title: 'Something new',
-      description: 'A highlighted capability.',
-    },
-  ],
 };
 
 describe('FeatureAnnouncementStore', () => {

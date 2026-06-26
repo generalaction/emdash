@@ -1,42 +1,22 @@
 #:schema ./feature-announcements.schema.json
 #
-# In-app feature highlight manifest.
+# In-app feature announcement shown as a bottom-left sidebar toast.
 #
 # Edit this file on GitHub to announce major features without shipping a new app
-# release. Set `enabled = false` to hide the card while keeping content around
+# release. Set `enabled = false` to hide the toast while keeping content around
 # for the next launch.
 #
 # Runtime validation: src/shared/feature-announcements/schema.ts (Zod).
 # Editor/CI schema: feature-announcements.schema.json (keep in sync with Zod).
 #
 # The app fetches this file from the main branch at startup.
-#
-# Media — pick one (`image` wins if both are set):
-#   hero  = built-in coded UI mock shipped with the app
-#   image = remote hero image URL, rendered full-bleed in the dark header area
-#
-# Examples:
-#   hero = "automations"
-#   image = "https://raw.githubusercontent.com/generalaction/emdash/main/apps/emdash-desktop/build/feature-announcements/automations-hero.png"
 
 enabled = true
 id = "automations-2026-06"
-hero = "automations"
-# image = "https://example.com/automations-hero.png"
 eyebrow = "Now available"
 title = "Emdash Automations"
 changelogUrl = "https://emdash.sh/changelog"
-learnMoreUrl = "https://docs.emdash.sh"
 minAppVersion = "1.1.27"
 
-[[features]]
-title = "Run agents on a schedule"
-description = "Launch coding agents on a cron — nightly dependency audits, issue triage, recurring chores."
-
-[[features]]
-title = "Every run in one place"
-description = "Follow live status and review the results of past runs without leaving the app."
-
 [cta]
-label = "Open Automations"
 action = "open-automations"

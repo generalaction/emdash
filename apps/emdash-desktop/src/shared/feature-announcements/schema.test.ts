@@ -10,16 +10,8 @@ const sampleManifest = {
   eyebrow: 'Now available',
   title: 'Emdash Automations',
   changelogUrl: 'https://emdash.sh/changelog',
-  learnMoreUrl: 'https://docs.emdash.sh',
   minAppVersion: '1.1.27',
-  features: [
-    {
-      title: 'Run agents on a schedule',
-      description: 'Launch coding agents on a cron.',
-    },
-  ],
   cta: {
-    label: 'Open Automations',
     action: 'open-automations',
   },
 };
@@ -40,17 +32,13 @@ describe('feature announcement schema', () => {
     });
   });
 
-  it('rejects legacy feature icon fields', () => {
+  it('rejects removed card-only fields', () => {
     expect(
       parseFeatureAnnouncementManifest({
         ...sampleManifest,
-        features: [
-          {
-            icon: 'calendar-clock',
-            title: 'Run agents on a schedule',
-            description: 'Launch coding agents on a cron.',
-          },
-        ],
+        hero: 'automations',
+        features: [{ title: 'Run agents on a schedule', description: 'Launch agents on a cron.' }],
+        learnMoreUrl: 'https://docs.emdash.sh',
       })
     ).toBeNull();
   });
@@ -59,7 +47,7 @@ describe('feature announcement schema', () => {
     expect(
       parseFeatureAnnouncementManifest({
         ...sampleManifest,
-        cta: { label: 'Broken', action: 'open-automations', url: 'https://example.com' },
+        cta: { action: 'open-automations', url: 'https://example.com' },
       })
     ).toBeNull();
   });

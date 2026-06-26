@@ -1,10 +1,10 @@
 {
   "$id": "feature-announcements.schema.json",
   "title": "Emdash feature announcement manifest",
-  "description": "In-app feature highlight shown as a toast. Runtime validation uses the Zod schema in src/shared/feature-announcements/schema.ts — keep both in sync.",
+  "description": "In-app feature announcement shown as a bottom-left sidebar toast. Runtime validation uses the Zod schema in src/shared/feature-announcements/schema.ts — keep both in sync.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "title", "changelogUrl", "features"],
+  "required": ["id", "title", "changelogUrl"],
   "properties": {
     "enabled": {
       "type": "boolean",
@@ -25,21 +25,7 @@
       "type": "string",
       "minLength": 1
     },
-    "hero": {
-      "type": "string",
-      "enum": ["automations"],
-      "description": "Built-in coded hero graphic shipped with the app."
-    },
-    "image": {
-      "type": "string",
-      "format": "uri",
-      "description": "Remote hero image URL. Takes precedence over hero when both are set."
-    },
     "changelogUrl": {
-      "type": "string",
-      "format": "uri"
-    },
-    "learnMoreUrl": {
       "type": "string",
       "format": "uri"
     },
@@ -48,43 +34,15 @@
       "minLength": 1,
       "description": "Semver minimum; older app versions ignore this manifest."
     },
-    "features": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 4,
-      "items": {
-        "$ref": "#/$defs/feature"
-      }
-    },
     "cta": {
       "$ref": "#/$defs/cta"
     }
   },
   "$defs": {
-    "feature": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["title", "description"],
-      "properties": {
-        "title": {
-          "type": "string",
-          "minLength": 1
-        },
-        "description": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
     "cta": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["label"],
       "properties": {
-        "label": {
-          "type": "string",
-          "minLength": 1
-        },
         "action": {
           "type": "string",
           "enum": ["open-automations"]
