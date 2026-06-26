@@ -28,6 +28,18 @@ vi.mock('@renderer/lib/monaco/monaco-model-registry', () => ({
   },
 }));
 
+vi.mock('@renderer/lib/stores/app-state', () => ({
+  appState: {
+    projects: {
+      projects: new Map(),
+    },
+    sshConnections: {
+      healthFor: vi.fn(() => ({ status: 'ok' })),
+    },
+  },
+  sidebarStore: {},
+}));
+
 vi.mock('@renderer/utils/telemetry-scope', () => ({
   setTelemetryConversationScope: vi.fn(),
 }));
