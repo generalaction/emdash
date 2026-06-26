@@ -6,11 +6,8 @@ import type {
 } from './changes/types';
 import type { FileError } from './errors';
 import type { IFileSystem } from './fs/types';
-import type { RelPath } from './paths';
 import type { FileTreeError } from './tree/errors';
 import type { FileTreeLease } from './tree/types';
-
-export type FileEnumeration = AsyncIterable<RelPath>;
 
 export interface IFilesRuntime {
   openTree(rootPath: string): Promise<Result<FileTreeLease, FileTreeError>>;
@@ -19,8 +16,7 @@ export interface IFilesRuntime {
     cb: (update: FileChangeUpdate) => void,
     options?: FileChangeWatchOptions
   ): Result<FileChangeSubscription, FileError>;
-  enumerate(rootPath: string): Result<FileEnumeration, FileError>;
-  fileSystem(rootPath: string): Result<IFileSystem, FileError>;
+  fileSystem(): Result<IFileSystem, FileError>;
   dispose(): Promise<void>;
 }
 
@@ -34,6 +30,9 @@ export type {
   IFileChanges,
 } from './changes/types';
 export type {
+  FileEnumeration,
+  FileGlob,
+  FileGlobOptions,
   FileStat,
   IFileSystem,
   ReadBytesResult,

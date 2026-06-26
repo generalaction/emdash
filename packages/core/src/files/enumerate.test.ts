@@ -14,7 +14,7 @@ async function makeRoot(): Promise<string> {
 
 async function collect(iterable: AsyncIterable<string>): Promise<string[]> {
   const paths: string[] = [];
-  for await (const relPath of iterable) paths.push(relPath);
+  for await (const filePath of iterable) paths.push(filePath);
   return paths;
 }
 
@@ -36,10 +36,10 @@ describe('enumerate', () => {
     await writeFile(path.join(root, '.git', 'HEAD'), 'ignored');
 
     await expect(collect(enumerate(root))).resolves.toEqual([
-      '.env',
-      'README.md',
-      'src/index.ts',
-      'src/nested/deep.ts',
+      path.join(root, '.env'),
+      path.join(root, 'README.md'),
+      path.join(root, 'src/index.ts'),
+      path.join(root, 'src/nested/deep.ts'),
     ]);
   });
 
@@ -52,6 +52,6 @@ describe('enumerate', () => {
       // Some environments disallow symlink creation.
     }
 
-    await expect(collect(enumerate(root))).resolves.toEqual(['target.txt']);
+    await expect(collect(enumerate(root))).resolves.toEqual([path.join(root, 'target.txt')]);
   });
 });

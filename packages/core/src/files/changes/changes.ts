@@ -4,7 +4,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
 import { classifyFileError, type FileError, type FilesOnError } from '../errors';
 import { isIgnored, watchIgnoreGlobs } from '../ignores';
-import { isRelPathWithinScope, normalizeRelPaths } from '../paths';
+import { contains, validateAbsolutePath } from '../paths';
 import type {
   FileChange,
   FileChangeSubscription,
@@ -45,7 +45,7 @@ export class FileChanges implements IFileChanges {
       });
     }
 
-    const watchedPaths = normalizeWatchedPaths(options.paths);
+    const watchedPaths = normalizeWatchedPaths(this.rootPath, options.paths);
     if (!watchedPaths.success) return watchedPaths;
 
     const handle = this.watcher.watch(
@@ -91,9 +91,25 @@ export class FileChanges implements IFileChanges {
   }
 }
 
-function normalizeWatchedPaths(paths: string[] | undefined): Result<string[], FileError> {
-  if (!paths || paths.length === 0) return ok(['']);
-  return normalizeRelPaths(paths, { allowEmpty: true });
+function normalizeWatchedPaths(
+  rootPath: string,
+  paths: string[] | undefined
+): Result<string[], FileError> {
+  if (!paths || paths.length === 0) return ok([]);
+  const normalized: string[] = [];
+  for (const input of paths) {
+    const validated = validateAbsolutePath(input);
+    if (!validated.success) return validated;
+    if (!contains(rootPath, validated.data)) {
+      return err({
+        type: 'invalid-path',
+        path: input,
+        message: `Watched path must be inside root: ${input}`,
+      });
+    }
+    normalized.push(validated.data);
+  }
+  return ok(normalized);
 }
 
 function rawEventsToChanges(
@@ -103,29 +119,30 @@ function rawEventsToChanges(
 ): FileChange[] {
   const changes: FileChange[] = [];
   for (const event of events) {
-    const relPath = relativeFromRawEvent(rootPath, event);
-    if (!relPath) continue;
-    if (isIgnored(relPath)) continue;
-    if (!isWatchedPath(relPath, watchedPaths)) continue;
+    const absPath = absoluteFromRawEvent(rootPath, event);
+    if (!absPath) continue;
+    if (isIgnored(absPath)) continue;
+    if (!isWatchedPath(absPath, rootPath, watchedPaths)) continue;
     changes.push({
       kind: event.kind,
-      path: relPath,
+      path: absPath,
       entryType: entryTypeForRawEvent(event),
     });
   }
   return changes;
 }
 
-function relativeFromRawEvent(rootPath: string, event: WatchEvent): string | null {
+function absoluteFromRawEvent(rootPath: string, event: WatchEvent): string | null {
   const relPath = path.relative(rootPath, event.path).replace(/\\/g, '/');
   if (!relPath || relPath === '..' || relPath.startsWith('../') || path.isAbsolute(relPath)) {
     return null;
   }
-  return relPath;
+  return path.normalize(event.path);
 }
 
-function isWatchedPath(relPath: string, watchedPaths: string[]): boolean {
-  return watchedPaths.some((watchedPath) => isRelPathWithinScope(relPath, watchedPath));
+function isWatchedPath(absPath: string, rootPath: string, watchedPaths: string[]): boolean {
+  if (watchedPaths.length === 0) return contains(rootPath, absPath);
+  return watchedPaths.some((watchedPath) => contains(watchedPath, absPath));
 }
 
 function entryTypeForRawEvent(event: WatchEvent): FileEntryType {

@@ -3,7 +3,7 @@ import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { KeyedMutex, LiveCollection, type KeyedOp } from '../../lib';
 import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
 import { isIgnored, watchIgnoreGlobs } from '../ignores';
-import { resolveInsideRoot } from '../paths';
+import { contains, validateAbsolutePath } from '../paths';
 import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';
 import { listChildren } from './list';
 import type { FileNode, NodeId } from './models/tree';
@@ -154,15 +154,23 @@ export class FileTree implements IFileTree {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
     return this.runMutation(async () => {
-      const normalized = resolveInsideRoot(this.rootPath, pathToReveal);
-      if (!normalized.success) return normalized;
+      const validated = validateAbsolutePath(pathToReveal);
+      if (!validated.success) return validated;
+      if (!contains(this.rootPath, validated.data)) {
+        return err({
+          type: 'invalid-path',
+          path: pathToReveal,
+          message: 'Path is outside tree root',
+        });
+      }
 
-      const parts = normalized.data.relPath.split('/').filter(Boolean);
+      const relativePath = path.relative(this.rootPath, validated.data);
+      const parts = relativePath.split(path.sep).filter(Boolean);
       let sequences: FileTreeSequences = {};
       for (let index = 0; index < parts.length; index += 1) {
-        const relPath = parts.slice(0, index + 1).join('/');
-        const node = this.ids.getByPath(relPath);
-        if (!node) return err({ type: 'not-found', path: relPath });
+        const absPath = path.join(this.rootPath, ...parts.slice(0, index + 1));
+        const node = this.ids.getByPath(absPath);
+        if (!node) return err({ type: 'not-found', path: absPath });
         const shouldExpand = index < parts.length - 1 || node.type === 'directory';
         if (!shouldExpand) continue;
         if (node.type !== 'directory') {
@@ -216,7 +224,7 @@ export class FileTree implements IFileTree {
       return err({ type: 'not-directory', id: dirNode.id, path: dirNode.path });
     }
 
-    const dirPath = dirNode?.path ?? '';
+    const dirPath = dirNode?.path ?? this.rootPath;
     const listed = await listChildren(this.rootPath, dirPath);
     if (!listed.success) return listed;
 

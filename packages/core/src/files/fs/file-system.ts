@@ -1,9 +1,15 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import { classifyFileError, type FileError } from '../errors';
-import { resolveInsideRoot } from '../paths';
+import { globIterate } from 'glob';
+import { realpathOrResolve } from '../../watch';
+import { enumerate as enumerateFiles } from '../enumerate';
+import { classifyFileError, isFileNotFoundCode, type FileError } from '../errors';
+import { validateAbsolutePath } from '../paths';
 import type {
+  FileEnumeration,
+  FileGlob,
+  FileGlobOptions,
   FileStat,
   IFileSystem,
   ReadBytesResult,
@@ -16,13 +22,11 @@ const DEFAULT_MAX_BYTES = 200 * 1024;
 const MAX_READ_BYTES = 100 * 1024 * 1024;
 
 export class FileSystem implements IFileSystem {
-  constructor(private readonly rootPath: string) {}
-
   async readText(
-    relPath: string,
+    absPath: string,
     options?: ReadFileOptions
   ): Promise<Result<ReadTextResult, FileError>> {
-    const result = await this.readBytes(relPath, options);
+    const result = await this.readBytes(absPath, options);
     if (!result.success) return result;
     return ok({
       content: Buffer.from(result.data.bytes).toString('utf8'),
@@ -32,19 +36,19 @@ export class FileSystem implements IFileSystem {
   }
 
   async readBytes(
-    relPath: string,
+    absPath: string,
     options: ReadFileOptions = {}
   ): Promise<Result<ReadBytesResult, FileError>> {
-    const resolved = this.resolve(relPath);
-    if (!resolved.success) return resolved;
+    const validated = validateAbsolutePath(absPath);
+    if (!validated.success) return validated;
 
     try {
-      const stat = await fs.stat(resolved.data.absPath);
+      const stat = await fs.stat(validated.data);
       if (stat.isDirectory()) {
         return err({
           type: 'fs-error',
-          path: relPath,
-          message: `Path is a directory: ${relPath}`,
+          path: validated.data,
+          message: `Path is a directory: ${validated.data}`,
           code: 'EISDIR',
         });
       }
@@ -59,7 +63,7 @@ export class FileSystem implements IFileSystem {
         });
       }
 
-      const handle = await fs.open(resolved.data.absPath, 'r');
+      const handle = await fs.open(validated.data, 'r');
       try {
         const buffer = Buffer.alloc(readSize);
         const { bytesRead } = await handle.read(buffer, 0, readSize, 0);
@@ -72,29 +76,29 @@ export class FileSystem implements IFileSystem {
         await handle.close();
       }
     } catch (error) {
-      return err(classifyFileError(error, relPath));
+      return err(classifyFileError(error, validated.data));
     }
   }
 
-  async writeText(relPath: string, content: string): Promise<Result<WriteFileResult, FileError>> {
-    return this.writeBuffer(relPath, Buffer.from(content, 'utf8'));
+  async writeText(absPath: string, content: string): Promise<Result<WriteFileResult, FileError>> {
+    return this.writeBuffer(absPath, Buffer.from(content, 'utf8'));
   }
 
   async writeBytes(
-    relPath: string,
+    absPath: string,
     bytes: Uint8Array
   ): Promise<Result<WriteFileResult, FileError>> {
-    return this.writeBuffer(relPath, Buffer.from(bytes));
+    return this.writeBuffer(absPath, Buffer.from(bytes));
   }
 
-  async stat(relPath: string): Promise<Result<FileStat, FileError>> {
-    const resolved = this.resolve(relPath);
-    if (!resolved.success) return resolved;
+  async stat(absPath: string): Promise<Result<FileStat, FileError>> {
+    const validated = validateAbsolutePath(absPath);
+    if (!validated.success) return validated;
 
     try {
-      const stat = await fs.stat(resolved.data.absPath);
+      const stat = await fs.stat(validated.data);
       return ok({
-        path: resolved.data.relPath,
+        path: validated.data,
         type: stat.isDirectory() ? 'directory' : 'file',
         size: stat.size,
         mtime: stat.mtime,
@@ -102,108 +106,120 @@ export class FileSystem implements IFileSystem {
         mode: stat.mode,
       });
     } catch (error) {
-      return err(classifyFileError(error, relPath));
+      return err(classifyFileError(error, validated.data));
     }
   }
 
-  async exists(relPath: string): Promise<Result<boolean, FileError>> {
-    const resolved = this.resolve(relPath);
-    if (!resolved.success) return resolved;
+  async exists(absPath: string): Promise<Result<boolean, FileError>> {
+    const validated = validateAbsolutePath(absPath);
+    if (!validated.success) return validated;
 
     try {
-      await fs.access(resolved.data.absPath);
+      await fs.access(validated.data);
       return ok(true);
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === 'ENOENT' || code === 'ENOTDIR') return ok(false);
-      return err(classifyFileError(error, relPath));
+      if (isFileNotFoundCode((error as NodeJS.ErrnoException).code)) return ok(false);
+      return err(classifyFileError(error, validated.data));
     }
   }
 
   async mkdir(
-    relPath: string,
+    absPath: string,
     options: { recursive?: boolean } = {}
   ): Promise<Result<void, FileError>> {
-    const resolved = this.resolve(relPath, { allowEmpty: true });
-    if (!resolved.success) return resolved;
-    if (resolved.data.relPath === '') return ok<void>();
+    const validated = validateAbsolutePath(absPath);
+    if (!validated.success) return validated;
 
     try {
-      await fs.mkdir(resolved.data.absPath, { recursive: options.recursive ?? false });
+      await fs.mkdir(validated.data, { recursive: options.recursive ?? false });
       return ok<void>();
     } catch (error) {
-      return err(classifyFileError(error, relPath));
+      return err(classifyFileError(error, validated.data));
     }
   }
 
   async remove(
-    relPath: string,
+    absPath: string,
     options: { recursive?: boolean } = {}
   ): Promise<Result<void, FileError>> {
-    const resolved = this.resolve(relPath);
-    if (!resolved.success) return resolved;
+    const validated = validateAbsolutePath(absPath);
+    if (!validated.success) return validated;
 
     try {
-      const stat = await fs.stat(resolved.data.absPath);
+      const stat = await fs.stat(validated.data);
       if (stat.isDirectory()) {
         if (!options.recursive) {
           return err({
             type: 'fs-error',
-            path: relPath,
-            message: `Path is a directory: ${relPath}`,
+            path: validated.data,
+            message: `Path is a directory: ${validated.data}`,
             code: 'EISDIR',
           });
         }
-        await fs.rm(resolved.data.absPath, { recursive: true, force: true });
+        await fs.rm(validated.data, { recursive: true, force: true });
         return ok<void>();
       }
 
-      await this.unlinkFile(resolved.data.absPath);
+      await this.unlinkFile(validated.data);
       return ok<void>();
     } catch (error) {
-      return err(classifyFileError(error, relPath));
+      return err(classifyFileError(error, validated.data));
     }
   }
 
-  async realPath(relPath: string): Promise<Result<string, FileError>> {
-    const resolved = this.resolve(relPath, { allowEmpty: true });
-    if (!resolved.success) return resolved;
+  async realPath(absPath: string): Promise<Result<string, FileError>> {
+    const validated = validateAbsolutePath(absPath);
+    if (!validated.success) return validated;
 
     try {
-      return ok(await fs.realpath(resolved.data.absPath));
+      return ok(await fs.realpath(validated.data));
     } catch (error) {
-      return err(classifyFileError(error, relPath));
+      return err(classifyFileError(error, validated.data));
     }
   }
 
   async copyFile(src: string, dest: string): Promise<Result<void, FileError>> {
-    const resolvedSrc = this.resolve(src);
-    if (!resolvedSrc.success) return resolvedSrc;
-    const resolvedDest = this.resolve(dest);
-    if (!resolvedDest.success) return resolvedDest;
+    const validatedSrc = validateAbsolutePath(src);
+    if (!validatedSrc.success) return validatedSrc;
+    const validatedDest = validateAbsolutePath(dest);
+    if (!validatedDest.success) return validatedDest;
 
     try {
-      await fs.mkdir(path.dirname(resolvedDest.data.absPath), { recursive: true });
-      await fs.copyFile(resolvedSrc.data.absPath, resolvedDest.data.absPath);
+      await fs.mkdir(path.dirname(validatedDest.data), { recursive: true });
+      await fs.copyFile(validatedSrc.data, validatedDest.data);
+      const sourceStat = await fs.stat(validatedSrc.data);
+      await fs.chmod(validatedDest.data, sourceStat.mode);
       return ok<void>();
     } catch (error) {
-      return err(classifyFileError(error, dest));
+      return err(classifyFileError(error, validatedDest.data));
     }
   }
 
+  glob(patterns: string[], options: FileGlobOptions): Result<FileGlob, FileError> {
+    const validated = validateGlobArgs(patterns, options);
+    if (!validated.success) return validated;
+    return ok(this.globPaths(validated.data.patterns, validated.data.cwd, options));
+  }
+
+  enumerate(absPath: string): Result<FileEnumeration, FileError> {
+    const validated = validateAbsolutePath(absPath);
+    if (!validated.success) return validated;
+    return ok(enumerateFiles(realpathOrResolve(validated.data)));
+  }
+
   private async writeBuffer(
-    relPath: string,
+    absPath: string,
     buffer: Buffer
   ): Promise<Result<WriteFileResult, FileError>> {
-    const resolved = this.resolve(relPath);
-    if (!resolved.success) return resolved;
+    const validated = validateAbsolutePath(absPath);
+    if (!validated.success) return validated;
 
     try {
-      await fs.mkdir(path.dirname(resolved.data.absPath), { recursive: true });
-      await fs.writeFile(resolved.data.absPath, buffer);
+      await fs.mkdir(path.dirname(validated.data), { recursive: true });
+      await fs.writeFile(validated.data, buffer);
       return ok({ bytesWritten: buffer.byteLength });
     } catch (error) {
-      return err(classifyFileError(error, relPath));
+      return err(classifyFileError(error, validated.data));
     }
   }
 
@@ -219,8 +235,16 @@ export class FileSystem implements IFileSystem {
     }
   }
 
-  private resolve(relPath: string, options: { allowEmpty?: boolean } = {}) {
-    return resolveInsideRoot(this.rootPath, relPath, options);
+  private async *globPaths(patterns: string[], cwd: string, options: FileGlobOptions): FileGlob {
+    for await (const match of globIterate(patterns, {
+      absolute: false,
+      cwd,
+      dot: options.dot ?? false,
+      follow: false,
+    })) {
+      if (typeof match !== 'string') continue;
+      yield path.resolve(cwd, match);
+    }
   }
 }
 
@@ -228,4 +252,36 @@ function normalizeMaxBytes(maxBytes: number | undefined): number {
   if (maxBytes === undefined) return DEFAULT_MAX_BYTES;
   if (!Number.isFinite(maxBytes) || maxBytes < 0) return 0;
   return Math.min(Math.floor(maxBytes), MAX_READ_BYTES);
+}
+
+function validateGlobArgs(
+  patterns: string[],
+  options: FileGlobOptions
+): Result<{ patterns: string[]; cwd: string }, FileError> {
+  if (patterns.length === 0) {
+    return err({
+      type: 'invalid-path',
+      path: '',
+      message: 'At least one glob pattern is required',
+    });
+  }
+
+  const cwd = validateAbsolutePath(options.cwd);
+  if (!cwd.success) return cwd;
+
+  const normalizedPatterns: string[] = [];
+  for (const pattern of patterns) {
+    if (!pattern) {
+      return err({
+        type: 'invalid-path',
+        path: pattern,
+        message: 'Glob pattern must not be empty',
+      });
+    }
+    if (pattern.includes('\0')) {
+      return err({ type: 'invalid-path', path: pattern, message: 'Path contains a null byte' });
+    }
+    normalizedPatterns.push(pattern.replace(/\\/g, '/'));
+  }
+  return ok({ patterns: normalizedPatterns, cwd: cwd.data });
 }

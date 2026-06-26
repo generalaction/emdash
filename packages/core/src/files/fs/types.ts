@@ -30,6 +30,15 @@ export type WriteFileResult = {
   bytesWritten: number;
 };
 
+export type FileGlobOptions = {
+  cwd: string;
+  dot?: boolean;
+};
+
+export type FileGlob = AsyncIterable<string>;
+
+export type FileEnumeration = AsyncIterable<string>;
+
 export interface IFileSystem {
   readText(path: string, options?: ReadFileOptions): Promise<Result<ReadTextResult, FileError>>;
   readBytes(path: string, options?: ReadFileOptions): Promise<Result<ReadBytesResult, FileError>>;
@@ -41,4 +50,6 @@ export interface IFileSystem {
   remove(path: string, options?: { recursive?: boolean }): Promise<Result<void, FileError>>;
   realPath(path: string): Promise<Result<string, FileError>>;
   copyFile(src: string, dest: string): Promise<Result<void, FileError>>;
+  glob(patterns: string[], options: FileGlobOptions): Result<FileGlob, FileError>;
+  enumerate(path: string): Result<FileEnumeration, FileError>;
 }

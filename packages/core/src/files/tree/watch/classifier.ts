@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { KeyedOp } from '../../../lib';
 import type { WatchEvent } from '../../../watch';
 import { isIgnored } from '../../ignores';
-import { parentRelPath, resolveInsideRoot } from '../../paths';
+import { contains } from '../../paths';
 import { statEntry as statFileTreeEntry, type ListedEntry } from '../list';
 import type { FileNode, NodeId } from '../models/tree';
 import type { NodeIdAssigner, Tombstone } from '../node-id';
@@ -27,22 +27,22 @@ export async function classifyFileTreeWatchEvents(
   const unloadedScopes: NodeId[] = [];
 
   for (const event of events) {
-    const relPath = relPathFromWatchEvent(options.rootPath, event);
-    if (!relPath) continue;
-    if (isIgnored(relPath)) continue;
+    const absPath = absolutePathFromWatchEvent(options.rootPath, event);
+    if (!absPath) continue;
+    if (isIgnored(absPath)) continue;
     if (event.kind === 'update') continue;
 
     if (event.kind === 'delete') {
-      const node = options.ids.getByPath(relPath);
+      const node = options.ids.getByPath(absPath);
       if (!node) continue;
       const tombstone = options.ids.markDeleted(node.id);
       if (tombstone) tombstones.push(tombstone);
       continue;
     }
 
-    const stat = await statFileTreeEntry(options.rootPath, relPath);
+    const stat = await statFileTreeEntry(options.rootPath, absPath);
     if (!stat.success) continue;
-    const parentId = parentScopeFor(stat.data, options.ids);
+    const parentId = parentScopeFor(stat.data, options.rootPath, options.ids);
     if (parentId === undefined || !options.isScopeLoaded(parentId)) continue;
 
     const matchedTombstone = stat.data.devIno
@@ -73,16 +73,22 @@ export async function classifyFileTreeWatchEvents(
   return { ops, unloadedScopes };
 }
 
-function parentScopeFor(entry: ListedEntry, ids: NodeIdAssigner): NodeId | null | undefined {
-  const parentPath = parentRelPath(entry.path);
-  if (!parentPath) return null;
+function parentScopeFor(
+  entry: ListedEntry,
+  rootPath: string,
+  ids: NodeIdAssigner
+): NodeId | null | undefined {
+  const parentPath = path.dirname(entry.path);
+  if (parentPath === entry.path || parentPath === rootPath) return null;
   const parent = ids.getByPath(parentPath);
   return parent?.type === 'directory' ? parent.id : undefined;
 }
 
-function relPathFromWatchEvent(rootPath: string, event: WatchEvent): string | null {
+function absolutePathFromWatchEvent(rootPath: string, event: WatchEvent): string | null {
   const relative = path.relative(rootPath, event.path).replace(/\\/g, '/');
-  const resolved = resolveInsideRoot(rootPath, relative, { allowEmpty: true });
-  if (!resolved.success || !resolved.data.relPath) return null;
-  return resolved.data.relPath;
+  if (!relative || relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)) {
+    return null;
+  }
+  const absPath = path.normalize(event.path);
+  return contains(rootPath, absPath) ? absPath : null;
 }

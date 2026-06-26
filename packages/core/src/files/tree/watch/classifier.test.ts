@@ -18,7 +18,7 @@ describe('classifyFileTreeWatchEvents', () => {
   it('ignores content update events', async () => {
     const root = await makeRoot();
     const ids = new NodeIdAssigner();
-    ids.upsert(entry('a.txt', 'file', '1:1'), null);
+    ids.upsert(entry(root, 'a.txt', 'file', '1:1'), null);
 
     const classification = await classify(root, ids, [
       { kind: 'update', path: absPath(root, 'a.txt') },
@@ -38,9 +38,13 @@ describe('classifyFileTreeWatchEvents', () => {
     ]);
 
     expect(classification.ops).toMatchObject([
-      { op: 'put', key: expect.any(Number), value: { path: 'a.txt', parentId: null } },
+      {
+        op: 'put',
+        key: expect.any(Number),
+        value: { path: absPath(root, 'a.txt'), parentId: null },
+      },
     ]);
-    expect(ids.getByPath('a.txt')?.id).toBe(classification.ops[0]?.key);
+    expect(ids.getByPath(absPath(root, 'a.txt'))?.id).toBe(classification.ops[0]?.key);
   });
 
   it('ignores creates under unloaded directory scopes', async () => {
@@ -48,14 +52,14 @@ describe('classifyFileTreeWatchEvents', () => {
     await mkdir(path.join(root, 'src'), { recursive: true });
     await writeFile(path.join(root, 'src', 'a.ts'), 'a', 'utf8');
     const ids = new NodeIdAssigner();
-    ids.upsert(unwrap(await statEntry(root, 'src')), null);
+    ids.upsert(unwrap(await statEntry(root, absPath(root, 'src'))), null);
 
     const classification = await classify(root, ids, [
       { kind: 'create', path: absPath(root, 'src/a.ts') },
     ]);
 
     expect(classification.ops).toEqual([]);
-    expect(ids.getByPath('src/a.ts')).toBeUndefined();
+    expect(ids.getByPath(absPath(root, 'src/a.ts'))).toBeUndefined();
   });
 
   it('ignores runtime creates for excluded paths before statting them', async () => {
@@ -75,16 +79,16 @@ describe('classifyFileTreeWatchEvents', () => {
 
     expect(classification.ops).toEqual([]);
     expect(classification.unloadedScopes).toEqual([]);
-    expect(ids.getByPath('node_modules')).toBeUndefined();
-    expect(ids.getByPath('.DS_Store')).toBeUndefined();
+    expect(ids.getByPath(absPath(root, 'node_modules'))).toBeUndefined();
+    expect(ids.getByPath(absPath(root, '.DS_Store'))).toBeUndefined();
   });
 
   it('cascades deletes for unmatched directory tombstones', async () => {
     const root = await makeRoot();
     const ids = new NodeIdAssigner();
-    const src = ids.upsert(entry('src', 'directory', '1:1'), null, true);
-    const nested = ids.upsert(entry('src/nested', 'directory', '1:2'), src.id, true);
-    const file = ids.upsert(entry('src/nested/a.ts', 'file', '1:3'), nested.id);
+    const src = ids.upsert(entry(root, 'src', 'directory', '1:1'), null, true);
+    const nested = ids.upsert(entry(root, 'src/nested', 'directory', '1:2'), src.id, true);
+    const file = ids.upsert(entry(root, 'src/nested/a.ts', 'file', '1:3'), nested.id);
 
     const classification = await classify(
       root,
@@ -101,15 +105,15 @@ describe('classifyFileTreeWatchEvents', () => {
       { op: 'del', key: src.id },
     ]);
     expect(new Set(classification.unloadedScopes)).toEqual(new Set([src.id, nested.id]));
-    expect(ids.getByPath('src')).toBeUndefined();
-    expect(ids.getByPath('src/nested/a.ts')).toBeUndefined();
+    expect(ids.getByPath(absPath(root, 'src'))).toBeUndefined();
+    expect(ids.getByPath(absPath(root, 'src/nested/a.ts'))).toBeUndefined();
   });
 
   it('reuses a file node id for a delete/create rename batch with matching inode', async () => {
     const root = await makeRoot();
     await writeFile(path.join(root, 'a.txt'), 'a', 'utf8');
     const ids = new NodeIdAssigner();
-    const before = ids.upsert(unwrap(await statEntry(root, 'a.txt')), null);
+    const before = ids.upsert(unwrap(await statEntry(root, absPath(root, 'a.txt'))), null);
 
     await rename(path.join(root, 'a.txt'), path.join(root, 'b.txt'));
     const classification = await classify(root, ids, [
@@ -121,12 +125,12 @@ describe('classifyFileTreeWatchEvents', () => {
       {
         op: 'put',
         key: before.id,
-        value: expect.objectContaining({ id: before.id, path: 'b.txt' }),
+        value: expect.objectContaining({ id: before.id, path: absPath(root, 'b.txt') }),
       },
     ]);
     expect(classification.unloadedScopes).toEqual([]);
-    expect(ids.getByPath('a.txt')).toBeUndefined();
-    expect(ids.getByPath('b.txt')?.id).toBe(before.id);
+    expect(ids.getByPath(absPath(root, 'a.txt'))).toBeUndefined();
+    expect(ids.getByPath(absPath(root, 'b.txt'))?.id).toBe(before.id);
   });
 
   it('moves loaded descendants when a directory rename reuses the directory id', async () => {
@@ -134,9 +138,16 @@ describe('classifyFileTreeWatchEvents', () => {
     await mkdir(path.join(root, 'src', 'nested'), { recursive: true });
     await writeFile(path.join(root, 'src', 'nested', 'a.ts'), 'a', 'utf8');
     const ids = new NodeIdAssigner();
-    const src = ids.upsert(unwrap(await statEntry(root, 'src')), null, true);
-    const nested = ids.upsert(unwrap(await statEntry(root, 'src/nested')), src.id, true);
-    const file = ids.upsert(unwrap(await statEntry(root, 'src/nested/a.ts')), nested.id);
+    const src = ids.upsert(unwrap(await statEntry(root, absPath(root, 'src'))), null, true);
+    const nested = ids.upsert(
+      unwrap(await statEntry(root, absPath(root, 'src/nested'))),
+      src.id,
+      true
+    );
+    const file = ids.upsert(
+      unwrap(await statEntry(root, absPath(root, 'src/nested/a.ts'))),
+      nested.id
+    );
 
     await rename(path.join(root, 'src'), path.join(root, 'lib'));
     const classification = await classify(
@@ -152,23 +163,27 @@ describe('classifyFileTreeWatchEvents', () => {
     );
 
     expect(classification.ops).toEqual([
-      { op: 'put', key: src.id, value: expect.objectContaining({ id: src.id, path: 'lib' }) },
+      {
+        op: 'put',
+        key: src.id,
+        value: expect.objectContaining({ id: src.id, path: absPath(root, 'lib') }),
+      },
       {
         op: 'put',
         key: nested.id,
-        value: expect.objectContaining({ id: nested.id, path: 'lib/nested' }),
+        value: expect.objectContaining({ id: nested.id, path: absPath(root, 'lib/nested') }),
       },
       {
         op: 'put',
         key: file.id,
-        value: expect.objectContaining({ id: file.id, path: 'lib/nested/a.ts' }),
+        value: expect.objectContaining({ id: file.id, path: absPath(root, 'lib/nested/a.ts') }),
       },
     ]);
     expect(classification.unloadedScopes).toEqual([]);
-    expect(ids.getByPath('src')).toBeUndefined();
-    expect(ids.getByPath('lib')?.id).toBe(src.id);
-    expect(ids.getByPath('lib/nested')?.id).toBe(nested.id);
-    expect(ids.getByPath('lib/nested/a.ts')?.id).toBe(file.id);
+    expect(ids.getByPath(absPath(root, 'src'))).toBeUndefined();
+    expect(ids.getByPath(absPath(root, 'lib'))?.id).toBe(src.id);
+    expect(ids.getByPath(absPath(root, 'lib/nested'))?.id).toBe(nested.id);
+    expect(ids.getByPath(absPath(root, 'lib/nested/a.ts'))?.id).toBe(file.id);
   });
 
   it('ignores events outside the watched root', async () => {
@@ -207,7 +222,13 @@ async function classify(
   });
 }
 
-function entry(path: string, type: FileNodeType, devIno?: DevIno): ListedEntry {
+function entry(
+  rootPath: string,
+  relPath: string,
+  type: FileNodeType,
+  devIno?: DevIno
+): ListedEntry {
+  const path = absPath(rootPath, relPath);
   return { path, name: basename(path), type, devIno };
 }
 

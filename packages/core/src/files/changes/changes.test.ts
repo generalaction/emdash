@@ -75,10 +75,10 @@ describe('FileChanges feed', () => {
       {
         kind: 'changes',
         changes: [
-          { kind: 'update', path: 'src/index.ts', entryType: 'file' },
-          { kind: 'create', path: 'src', entryType: 'directory' },
-          { kind: 'update', path: '..valid-name', entryType: 'file' },
-          { kind: 'delete', path: 'missing.ts', entryType: 'unknown' },
+          { kind: 'update', path: path.join(root!, 'src/index.ts'), entryType: 'file' },
+          { kind: 'create', path: path.join(root!, 'src'), entryType: 'directory' },
+          { kind: 'update', path: path.join(root!, '..valid-name'), entryType: 'file' },
+          { kind: 'delete', path: path.join(root!, 'missing.ts'), entryType: 'unknown' },
         ],
       },
     ]);
@@ -94,7 +94,9 @@ describe('FileChanges feed', () => {
     await writeFile(path.join(root!, 'node_modules/pkg.js'), 'content');
     const updates: FileChangeUpdate[] = [];
 
-    const subscription = files.watch((update) => updates.push(update), { paths: ['src'] });
+    const subscription = files.watch((update) => updates.push(update), {
+      paths: [path.join(root!, 'src')],
+    });
     expect(subscription.success).toBe(true);
 
     watcher.emit([
@@ -106,7 +108,7 @@ describe('FileChanges feed', () => {
     expect(updates).toEqual([
       {
         kind: 'changes',
-        changes: [{ kind: 'update', path: 'src/index.ts', entryType: 'file' }],
+        changes: [{ kind: 'update', path: path.join(root!, 'src/index.ts'), entryType: 'file' }],
       },
     ]);
   });
@@ -125,7 +127,7 @@ describe('FileChanges feed', () => {
   it('rejects invalid watched paths', async () => {
     const { files } = await createFiles();
 
-    const subscription = files.watch(() => {}, { paths: ['../outside'] });
+    const subscription = files.watch(() => {}, { paths: ['src'] });
 
     expect(subscription.success).toBe(false);
     if (!subscription.success) expect(subscription.error.type).toBe('invalid-path');

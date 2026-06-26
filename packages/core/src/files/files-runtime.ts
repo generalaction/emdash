@@ -1,16 +1,14 @@
-import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { ResourceMap } from '../lib';
 import { WatchService, realpathOrResolve, type IWatchService } from '../watch';
 import { FileChanges } from './changes/changes';
-import { enumerate as enumerateFiles } from './enumerate';
 import type { FileError, FilesOnError } from './errors';
 import { FileSystem } from './fs/file-system';
+import { validateAbsolutePath } from './paths';
 import type { FileTreeError, FileTreeOnError } from './tree/errors';
 import { FileTree } from './tree/file-tree';
 import type { FileTreeLease } from './tree/types';
 import type {
-  FileEnumeration,
   FileChangeSubscription,
   FileChangeUpdate,
   FileChangeWatchOptions,
@@ -25,6 +23,7 @@ export type FilesRuntimeOptions = {
 
 export class FilesRuntime implements IFilesRuntime {
   private readonly trees: ResourceMap<FileTree>;
+  private readonly fs = new FileSystem();
   private readonly watcher: IWatchService;
   private readonly ownsWatcher: boolean;
   private disposeRequested = false;
@@ -49,7 +48,9 @@ export class FilesRuntime implements IFilesRuntime {
         message: 'FilesRuntime disposed',
       });
     }
-    const resolvedRoot = realpathOrResolve(path.resolve(rootPath));
+    const validatedRoot = validateAbsolutePath(rootPath);
+    if (!validatedRoot.success) return validatedRoot;
+    const resolvedRoot = realpathOrResolve(validatedRoot.data);
     const lease = await this.trees.acquire(resolvedRoot, async () => {
       return new FileTree({
         rootPath: resolvedRoot,
@@ -82,8 +83,10 @@ export class FilesRuntime implements IFilesRuntime {
         message: 'FilesRuntime disposed',
       });
     }
+    const validatedRoot = validateAbsolutePath(rootPath);
+    if (!validatedRoot.success) return validatedRoot;
     const changes = new FileChanges({
-      rootPath: realpathOrResolve(path.resolve(rootPath)),
+      rootPath: realpathOrResolve(validatedRoot.data),
       watcher: this.watcher,
       onError: this.options.onError,
     });
@@ -101,7 +104,7 @@ export class FilesRuntime implements IFilesRuntime {
     });
   }
 
-  enumerate(rootPath: string): Result<FileEnumeration, FileError> {
+  fileSystem(): Result<IFileSystem, FileError> {
     if (this.disposeRequested) {
       return err({
         type: 'fs-error',
@@ -109,18 +112,7 @@ export class FilesRuntime implements IFilesRuntime {
         message: 'FilesRuntime disposed',
       });
     }
-    return ok(enumerateFiles(realpathOrResolve(path.resolve(rootPath))));
-  }
-
-  fileSystem(rootPath: string): Result<IFileSystem, FileError> {
-    if (this.disposeRequested) {
-      return err({
-        type: 'fs-error',
-        path: '',
-        message: 'FilesRuntime disposed',
-      });
-    }
-    return ok(new FileSystem(realpathOrResolve(path.resolve(rootPath))));
+    return ok(this.fs);
   }
 
   async dispose(): Promise<void> {

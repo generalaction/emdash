@@ -5,7 +5,6 @@ import type { Result } from '@emdash/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
 import { FilesRuntime } from '../files-runtime';
-import { resolveInsideRoot } from '../paths';
 import { FileTree } from './file-tree';
 import type { FileNode } from './models/tree';
 
@@ -138,7 +137,7 @@ describe('FileTree', () => {
     const tree = new FileTree({ rootPath: root, watcher: new ManualWatchService() });
     unwrap(await tree.ready());
 
-    await expect(tree.revealPath('src/a/file.ts')).resolves.toMatchObject({
+    await expect(tree.revealPath(path.join(root, 'src/a/file.ts'))).resolves.toMatchObject({
       success: true,
       data: { tree: expect.any(Number) },
     });
@@ -154,9 +153,9 @@ describe('FileTree', () => {
     const tree = new FileTree({ rootPath: root, watcher: new ManualWatchService() });
     unwrap(await tree.ready());
 
-    await expect(tree.revealPath('src/missing/file.ts')).resolves.toMatchObject({
+    await expect(tree.revealPath(path.join(root, 'src/missing/file.ts'))).resolves.toMatchObject({
       success: false,
-      error: { type: 'not-found', path: 'src/missing' },
+      error: { type: 'not-found', path: path.join(root, 'src/missing') },
     });
     await tree.dispose();
   });
@@ -183,12 +182,6 @@ describe('FileTree', () => {
       patched.loadDirectoryScope = originalLoadDirectoryScope;
       await tree.dispose();
     }
-  });
-
-  it('rejects unsafe paths before filesystem access', async () => {
-    const root = await makeRoot();
-    expect(resolveInsideRoot(root, '../outside').success).toBe(false);
-    expect(resolveInsideRoot(root, path.join(root, 'absolute')).success).toBe(false);
   });
 
   it('reuses a node id for a delete/create rename batch with matching inode', async () => {
@@ -219,7 +212,7 @@ describe('FileTree', () => {
     const watcher = new ManualWatchService();
     const tree = new FileTree({ rootPath: root, watcher });
     unwrap(await tree.ready());
-    unwrap(await tree.revealPath('src/nested/a.ts'));
+    unwrap(await tree.revealPath(path.join(root, 'src/nested/a.ts')));
     const before = await nodes(tree);
     const src = nodeByPath(before, 'src');
     const nested = nodeByPath(before, 'src/nested');
@@ -247,7 +240,7 @@ describe('FileTree', () => {
     const watcher = new ManualWatchService();
     const tree = new FileTree({ rootPath: root, watcher });
     unwrap(await tree.ready());
-    await tree.revealPath('src/nested/a.ts');
+    await tree.revealPath(path.join(root, 'src/nested/a.ts'));
     expect(paths(await nodes(tree))).toEqual(['src', 'src/nested', 'src/nested/a.ts']);
 
     await rm(path.join(root, 'src'), { recursive: true });
@@ -264,7 +257,7 @@ describe('FileTree', () => {
     await writeFile(path.join(root, 'src', 'nested', 'a.ts'), 'x', 'utf8');
     const tree = new FileTree({ rootPath: root, watcher: new ManualWatchService() });
     unwrap(await tree.ready());
-    unwrap(await tree.revealPath('src/nested/a.ts'));
+    unwrap(await tree.revealPath(path.join(root, 'src/nested/a.ts')));
     expect(paths(await nodes(tree))).toEqual(['src', 'src/nested', 'src/nested/a.ts']);
 
     await rm(path.join(root, 'src'), { recursive: true });
@@ -371,7 +364,7 @@ describe('FileTree', () => {
 
     await expect(runtime.openTree(root)).resolves.toMatchObject({
       success: false,
-      error: { type: 'not-found', path: '' },
+      error: { type: 'not-found', path: root },
     });
     await runtime.dispose();
   });
@@ -400,17 +393,26 @@ async function nodes(tree: FileTree): Promise<FileNode[]> {
 }
 
 function paths(nodes: FileNode[]): string[] {
-  return nodes.map((node) => node.path);
+  const root = commonRoot(nodes.map((node) => node.path));
+  return nodes.map((node) => path.relative(root, node.path).replace(/\\/g, '/'));
 }
 
-function nodeByPath(nodes: FileNode[], path: string): FileNode {
-  const node = nodes.find((candidate) => candidate.path === path);
-  if (!node) throw new Error(`Missing node ${path}`);
+function nodeByPath(nodes: FileNode[], expectedPath: string): FileNode {
+  const root = commonRoot(nodes.map((node) => node.path));
+  const node = nodes.find(
+    (candidate) =>
+      candidate.path === expectedPath ||
+      path.relative(root, candidate.path).replace(/\\/g, '/') === expectedPath
+  );
+  if (!node) throw new Error(`Missing node ${expectedPath}`);
   return node;
 }
 
-async function waitForNode(tree: FileTree, path: string): Promise<void> {
-  await waitFor(async () => (await nodes(tree)).some((node) => node.path === path));
+async function waitForNode(tree: FileTree, expectedPath: string): Promise<void> {
+  await waitFor(async () => {
+    nodeByPath(await nodes(tree), expectedPath);
+    return true;
+  });
 }
 
 async function waitForPaths(tree: FileTree, expected: string[]): Promise<void> {
@@ -418,6 +420,24 @@ async function waitForPaths(tree: FileTree, expected: string[]): Promise<void> {
     expect(paths(await nodes(tree))).toEqual(expected);
     return true;
   });
+}
+
+function commonRoot(paths: string[]): string {
+  if (paths.length === 0) return '';
+  let root = path.dirname(paths[0]);
+  for (const current of paths.slice(1)) {
+    while (root && !isSameOrChild(root, current)) {
+      const next = path.dirname(root);
+      if (next === root) break;
+      root = next;
+    }
+  }
+  return root;
+}
+
+function isSameOrChild(parent: string, child: string): boolean {
+  const rel = path.relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
 async function waitFor(check: () => Promise<boolean>, timeoutMs = 500): Promise<void> {

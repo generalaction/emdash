@@ -1,7 +1,8 @@
 import { lstat, readdir } from 'node:fs/promises';
+import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { isIgnored } from '../ignores';
-import { basenameFromRelPath, resolveInsideRoot } from '../paths';
+import { contains, validateAbsolutePath } from '../paths';
 import { classifyFileTreeFsError, type FileTreeError } from './errors';
 import type { FileNodeType } from './models/tree';
 
@@ -18,36 +19,33 @@ export async function listChildren(
   rootPath: string,
   dirPath: string
 ): Promise<Result<ListedEntry[], FileTreeError>> {
-  const resolved = resolveInsideRoot(rootPath, dirPath, { allowEmpty: true });
-  if (!resolved.success) return resolved;
+  const resolvedRoot = validateAbsolutePath(rootPath);
+  if (!resolvedRoot.success) return resolvedRoot;
+  const resolvedDir = resolveTreePath(resolvedRoot.data, dirPath);
+  if (!resolvedDir.success) return resolvedDir;
 
   let entries;
   try {
-    entries = await readdir(resolved.data.absPath, { withFileTypes: true });
+    entries = await readdir(resolvedDir.data, { withFileTypes: true });
   } catch (error) {
-    return err(classifyFileTreeFsError(error, resolved.data.relPath));
+    return err(classifyFileTreeFsError(error, resolvedDir.data));
   }
 
-  const candidates: Array<Omit<ListedEntry, 'devIno'> & { absPath: string }> = [];
+  const candidates: Array<Omit<ListedEntry, 'devIno'>> = [];
   for (const entry of entries) {
     if (!entry.isFile() && !entry.isDirectory()) continue;
-    const relPath = resolved.data.relPath ? `${resolved.data.relPath}/${entry.name}` : entry.name;
-    if (isIgnored(relPath)) continue;
-    const childResolved = resolveInsideRoot(rootPath, relPath);
-    if (!childResolved.success) return childResolved;
+    const absPath = path.join(resolvedDir.data, entry.name);
+    if (isIgnored(absPath)) continue;
     candidates.push({
-      path: relPath,
-      name: basenameFromRelPath(relPath),
+      path: absPath,
+      name: path.basename(absPath),
       type: entry.isDirectory() ? 'directory' : 'file',
-      absPath: childResolved.data.absPath,
     });
   }
 
-  const devInos = await Promise.all(candidates.map((entry) => statDevIno(entry.absPath)));
+  const devInos = await Promise.all(candidates.map((entry) => statDevIno(entry.path)));
   const listed: ListedEntry[] = candidates.map((entry, index) => ({
-    path: entry.path,
-    name: entry.name,
-    type: entry.type,
+    ...entry,
     devIno: devInos[index],
   }));
 
@@ -60,24 +58,37 @@ export async function listChildren(
 
 export async function statEntry(
   rootPath: string,
-  relPath: string
+  absPath: string
 ): Promise<Result<ListedEntry, FileTreeError>> {
-  const resolved = resolveInsideRoot(rootPath, relPath);
-  if (!resolved.success) return resolved;
+  const resolvedRoot = validateAbsolutePath(rootPath);
+  if (!resolvedRoot.success) return resolvedRoot;
+  const resolvedPath = resolveTreePath(resolvedRoot.data, absPath);
+  if (!resolvedPath.success) return resolvedPath;
+
   try {
-    const stats = await lstat(resolved.data.absPath);
+    const stats = await lstat(resolvedPath.data);
     if (!stats.isFile() && !stats.isDirectory()) {
-      return err({ type: 'not-found', path: relPath });
+      return err({ type: 'not-found', path: resolvedPath.data });
     }
     return ok({
-      path: resolved.data.relPath,
-      name: basenameFromRelPath(resolved.data.relPath),
+      path: resolvedPath.data,
+      name: path.basename(resolvedPath.data),
       type: stats.isDirectory() ? 'directory' : 'file',
       devIno: toDevIno(stats.dev, stats.ino),
     });
   } catch (error) {
-    return err(classifyFileTreeFsError(error, relPath));
+    return err(classifyFileTreeFsError(error, resolvedPath.data));
   }
+}
+
+function resolveTreePath(rootPath: string, inputPath: string): Result<string, FileTreeError> {
+  const absPath = inputPath ? inputPath : rootPath;
+  const validated = validateAbsolutePath(absPath);
+  if (!validated.success) return validated;
+  if (!contains(rootPath, validated.data)) {
+    return err({ type: 'invalid-path', path: inputPath, message: 'Path is outside tree root' });
+  }
+  return ok(validated.data);
 }
 
 async function statDevIno(absPath: string): Promise<DevIno | undefined> {

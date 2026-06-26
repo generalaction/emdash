@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -38,12 +38,6 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function collect(iterable: AsyncIterable<string>): Promise<string[]> {
-  const paths: string[] = [];
-  for await (const relPath of iterable) paths.push(relPath);
-  return paths;
-}
-
 describe('FilesRuntime', () => {
   it('wires file tree and change feeds through the same watch root and ignore set', async () => {
     const root = await makeRoot();
@@ -69,19 +63,18 @@ describe('FilesRuntime', () => {
     await runtime.dispose();
   });
 
-  it('enumerates files without acquiring a watch subscription', async () => {
-    const root = await makeRoot();
-    await mkdir(path.join(root, 'src'));
-    await writeFile(path.join(root, 'src/index.ts'), 'content');
-    await writeFile(path.join(root, '.env'), 'env');
+  it('rejects relative roots for scoped services', async () => {
     const watcher = new RecordingWatchService();
     const runtime = new FilesRuntime({ watcher });
 
-    const enumeration = runtime.enumerate(root);
-    expect(enumeration.success).toBe(true);
-    if (!enumeration.success) return;
-
-    await expect(collect(enumeration.data)).resolves.toEqual(['.env', 'src/index.ts']);
+    await expect(runtime.openTree('relative-root')).resolves.toMatchObject({
+      success: false,
+      error: { type: 'invalid-path' },
+    });
+    expect(runtime.watchChanges('relative-root', () => {})).toMatchObject({
+      success: false,
+      error: { type: 'invalid-path' },
+    });
     expect(watcher.watches).toEqual([]);
 
     await runtime.dispose();
@@ -93,14 +86,41 @@ describe('FilesRuntime', () => {
     const watcher = new RecordingWatchService();
     const runtime = new FilesRuntime({ watcher });
 
-    const fileSystem = runtime.fileSystem(root);
+    const fileSystem = runtime.fileSystem();
     expect(fileSystem.success).toBe(true);
     if (!fileSystem.success) return;
 
-    await expect(fileSystem.data.readText('file.txt')).resolves.toMatchObject({
+    await expect(fileSystem.data.readText(path.join(root, 'file.txt'))).resolves.toMatchObject({
       success: true,
       data: { content: 'content', truncated: false, totalSize: 7 },
     });
+    expect(watcher.watches).toEqual([]);
+
+    await runtime.dispose();
+  });
+
+  it('copies files across roots and creates the destination parent', async () => {
+    const sourceRoot = await makeRoot();
+    const destRoot = await makeRoot();
+    await mkdir(path.join(sourceRoot, 'config'), { recursive: true });
+    await writeFile(path.join(sourceRoot, 'config', '.env'), 'SECRET=1', 'utf8');
+    await chmod(path.join(sourceRoot, 'config', '.env'), 0o640);
+    const watcher = new RecordingWatchService();
+    const runtime = new FilesRuntime({ watcher });
+
+    const fileSystem = runtime.fileSystem();
+    expect(fileSystem.success).toBe(true);
+    if (!fileSystem.success) return;
+
+    await expect(
+      fileSystem.data.copyFile(
+        path.join(sourceRoot, 'config/.env'),
+        path.join(destRoot, 'nested/.env')
+      )
+    ).resolves.toEqual({ success: true, data: undefined });
+
+    await expect(readFile(path.join(destRoot, 'nested', '.env'), 'utf8')).resolves.toBe('SECRET=1');
+    expect((await stat(path.join(destRoot, 'nested', '.env'))).mode & 0o777).toBe(0o640);
     expect(watcher.watches).toEqual([]);
 
     await runtime.dispose();

@@ -45,9 +45,12 @@ export const IGNORED_PATH_SEGMENTS = [
 
 const IGNORED_PATH_SEGMENT_SET = new Set<string>(IGNORED_PATH_SEGMENTS);
 
-export function isIgnored(relPath: string): boolean {
-  if (!relPath) return false;
-  return relPath.split('/').some((segment) => IGNORED_PATH_SEGMENT_SET.has(segment));
+export function isIgnored(filePath: string): boolean {
+  if (!filePath) return false;
+  return filePath
+    .replace(/\\/g, '/')
+    .split('/')
+    .some((segment) => IGNORED_PATH_SEGMENT_SET.has(segment));
 }
 
 export function watchIgnoreGlobs(): string[] {

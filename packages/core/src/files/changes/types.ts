@@ -14,9 +14,9 @@ export type FileChangeUpdate = { kind: 'changes'; changes: FileChange[] } | { ki
 
 export type FileChangeWatchOptions = {
   /**
-   * Paths relative to the watched root. An empty path includes the whole root.
+   * Absolute paths to include under the watched root. Omitted paths include the whole root.
    * Implementations may apply this at the underlying watch layer or as a
-   * consumer-side filter; the emitted paths are always root-relative.
+   * consumer-side filter; emitted paths are absolute machine paths.
    */
   paths?: string[];
   debounceMs?: number;
