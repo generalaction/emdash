@@ -1,12 +1,27 @@
-import { createLogger, serializeLogValue, type LogSinkEntry } from '@shared/logger';
+import {
+  isLevelEnabled,
+  prepareFields,
+  resolveLogLevel,
+  type LogLevel,
+} from '@emdash/shared/logger';
 
-export const log = createLogger({
-  sink: (entry) => {
-    const safe: LogSinkEntry = {
-      level: entry.level,
-      input: entry.input.map(serializeLogValue),
-      source: entry.source,
-    };
-    window.electronAPI?.eventSend('emdash:renderer-log', safe);
-  },
-});
+const level = resolveLogLevel({ envLevel: import.meta.env.VITE_LOG_LEVEL });
+
+function emit(target: LogLevel, input: unknown[]): void {
+  if (target !== 'error' && !isLevelEnabled(target, level)) return;
+  // eslint-disable-next-line no-console
+  console[target](...input);
+  window.electronAPI?.eventSend('emdash:renderer-log', {
+    level: target,
+    source: 'renderer',
+    input: input.map((v) => prepareFields(v)),
+  });
+}
+
+export const log = {
+  level,
+  debug: (...input: unknown[]) => emit('debug', input),
+  info: (...input: unknown[]) => emit('info', input),
+  warn: (...input: unknown[]) => emit('warn', input),
+  error: (...input: unknown[]) => emit('error', input),
+};
