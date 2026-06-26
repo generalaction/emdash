@@ -6,6 +6,7 @@ import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
+import { invalidateLegacySshGitWorktreeStatus } from '@main/core/runtime/legacy/ssh-git';
 import type { IFilesRuntime } from '@main/core/runtime/types';
 import type { MachineRef, RuntimeManager } from '@main/core/runtime/types';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
@@ -200,6 +201,9 @@ export function createWorkspaceFactory(
           });
         });
         const fileChanges = filesRuntime.watchChanges(workDir, (update) => {
+          if (type.kind === 'ssh') {
+            invalidateLegacySshGitWorktreeStatus(ws.gitWorktree);
+          }
           events.emit(fileChangesChannel, {
             projectId: context.projectId,
             workspaceId,

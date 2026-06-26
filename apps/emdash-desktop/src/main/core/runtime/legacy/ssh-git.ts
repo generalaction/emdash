@@ -455,6 +455,10 @@ class LegacySshGitWorktree implements IGitWorktree {
     return { status, head };
   }
 
+  invalidateStatus(): void {
+    this.statusModel.invalidate();
+  }
+
   subscribe(cb: (update: GitWorktreeUpdate) => void): Unsubscribe {
     const status = this.statusModel.subscribe(({ value, sequence, generation }) =>
       cb({ kind: 'status', model: value, sequence, generation })
@@ -659,10 +663,30 @@ class LegacySshGitWorktree implements IGitWorktree {
     if (!fingerprint) return;
     const previous = this.fingerprints[untracked];
     this.fingerprints[untracked] = fingerprint.hash;
+    if (previous === undefined) {
+      if (fingerprint.byteLength > 0 && this.statusModel.getCached()) this.statusModel.invalidate();
+      return;
+    }
     if (previous !== undefined && previous !== fingerprint.hash) {
       this.statusModel.invalidate();
     }
   }
+}
+
+type LegacySshGitStatusInvalidatable = IGitWorktree & {
+  invalidateStatus(): void;
+};
+
+export function invalidateLegacySshGitWorktreeStatus(worktree: IGitWorktree): boolean {
+  if (!isLegacySshGitStatusInvalidatable(worktree)) return false;
+  worktree.invalidateStatus();
+  return true;
+}
+
+function isLegacySshGitStatusInvalidatable(
+  worktree: IGitWorktree
+): worktree is LegacySshGitStatusInvalidatable {
+  return worktree instanceof LegacySshGitWorktree;
 }
 
 function mapImageReadResult(result: LegacyImageReadResult): ImageReadResult {
