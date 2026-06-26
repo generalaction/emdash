@@ -1,4 +1,5 @@
 import { style } from '@vanilla-extract/css';
+import { fieldShellBase } from '@styles/recipes/field-shell.css';
 import { vars } from '@theme/core/contract/contract.css';
 
 export const trigger = style({
@@ -38,3 +39,24 @@ export const triggerChevron = style({
 
 /** Default min-width for the combobox dropdown content. */
 export const contentMinWidth = style({ minWidth: '11.25rem' }); // 180px
+
+/**
+ * Input-appearance trigger layout.
+ * Composed with fieldShellBase for the full input look (border, bg, focus ring).
+ */
+export const triggerInput = [
+  fieldShellBase,
+  style({
+    display: 'flex',
+    width: '100%',
+    height: '2rem',
+    alignItems: 'center',
+    gap: '0.375rem',
+    paddingLeft: '0.625rem',
+    paddingRight: '0.375rem',
+    fontSize: 'var(--text-sm)',
+    selectors: {
+      '&[data-placeholder]': { color: vars.foregroundPassive },
+    },
+  }),
+] as const;

@@ -46,9 +46,7 @@
     "lint": "oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json",
-    "docs": "cd docs && pnpm run dev",
-    "docs:build": "cd docs && pnpm run build"
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.25.1",

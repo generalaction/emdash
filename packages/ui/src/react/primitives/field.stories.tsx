@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
 import { Box } from './box';
-import { Field, FieldDescription, FieldError, FieldLabel } from './field';
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from './field';
 import { Input } from './input';
+import { Switch } from './switch';
 import { Textarea } from './textarea';
 import * as s from '../story-layout.css';
 
@@ -77,6 +78,34 @@ export const WithTextarea: Story = {
         <FieldLabel>Message</FieldLabel>
         <Textarea placeholder="Type your message…" />
         <FieldDescription>Max 500 characters.</FieldDescription>
+      </Field>
+    </Box>
+  ),
+};
+
+/** Horizontal layout — label/description on the left, control on the right (settings-row style). */
+export const Horizontal: Story = {
+  render: () => (
+    <Box display="flex" flexDirection="column" gap="3" className={s.w72}>
+      <Field orientation="horizontal">
+        <FieldContent>
+          <FieldLabel>Send telemetry</FieldLabel>
+          <FieldDescription>Anonymous usage data helps us improve.</FieldDescription>
+        </FieldContent>
+        <Switch defaultChecked aria-label="Send telemetry" />
+      </Field>
+      <Field orientation="horizontal">
+        <FieldContent>
+          <FieldLabel>Beta features</FieldLabel>
+          <FieldDescription>Enable experimental functionality.</FieldDescription>
+        </FieldContent>
+        <Switch aria-label="Beta features" />
+      </Field>
+      <Field orientation="horizontal">
+        <FieldContent>
+          <FieldLabel>Name</FieldLabel>
+        </FieldContent>
+        <Input placeholder="My Server" className={s.w40} />
       </Field>
     </Box>
   ),

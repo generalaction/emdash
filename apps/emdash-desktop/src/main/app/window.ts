@@ -52,6 +52,10 @@ export function createMainWindow(): BrowserWindow {
     show: false,
   });
 
+  if (process.platform !== 'darwin') {
+    mainWindow.setMenuBarVisibility(false);
+  }
+
   if (import.meta.env.DEV) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
   } else {
