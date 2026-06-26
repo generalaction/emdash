@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { getTaskStore, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
 import { commandRegistry } from '@renderer/lib/commands/registry';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
@@ -25,7 +26,7 @@ import { PaletteNotificationsGroup } from './palette-notifications-group';
 import { PaletteProjectsGroup } from './palette-projects-group';
 import { PaletteTaskItem } from './palette-task-item';
 import { ResourceMonitorView } from './resource-monitor-view';
-import { applyContextAffinity } from './search-utils';
+import { applyContextAffinity, getPaletteFileDisplayPath } from './search-utils';
 
 interface CommandPaletteProps {
   projectId?: string;
@@ -98,18 +99,26 @@ function PaletteItem({
 function PaletteFileItem({
   value,
   item,
+  workspacePath,
   onSelect,
 }: {
   value: string;
   item: SearchItem;
+  workspacePath?: string;
   onSelect: () => void;
 }) {
+  const displayPath = getPaletteFileDisplayPath({
+    workspacePath,
+    filePath: item.id,
+    fallback: item.subtitle,
+  });
+
   return (
     <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       <FileIcon filename={item.title} size={14} />
       <span className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
         <span className="shrink-0">{item.title}</span>
-        <span className="truncate text-xs text-foreground/40">{item.subtitle}</span>
+        <span className="truncate text-xs text-foreground/40">{displayPath}</span>
       </span>
     </Command.Item>
   );
@@ -214,6 +223,8 @@ export function CommandPaletteModal({
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const actionResults = actions;
+  const workspacePath =
+    projectId && workspaceId ? workspaceRegistry.get(projectId, workspaceId)?.path : undefined;
 
   const q = debouncedQuery.toLowerCase();
   const matchedResourceMonitor =
@@ -386,6 +397,7 @@ export function CommandPaletteModal({
                     key={`file:${item.id}`}
                     value={`file:${item.id}`}
                     item={item}
+                    workspacePath={workspacePath}
                     onSelect={() => handleOpenFile(item)}
                   />
                 );
