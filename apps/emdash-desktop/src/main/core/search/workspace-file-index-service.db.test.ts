@@ -1,10 +1,12 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { IFileSystem, IFilesRuntime } from '@emdash/core/files';
 import type BetterSqlite3 from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { WorkspaceFileIndexServiceOptions } from './workspace-file-index-service';
+import type {
+  WorkspaceFileEnumerator,
+  WorkspaceFileIndexServiceOptions,
+} from './workspace-file-index-service';
 
 type LoadedService = Awaited<ReturnType<typeof loadService>>;
 type FileIndexMetaRow = {
@@ -35,7 +37,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['/repo/README.md', '/repo/src/index.ts']),
+      enumerate: enumerator(() => ['/repo/README.md', '/repo/src/index.ts']),
     });
 
     expect(indexedPaths(sqlite)).toEqual(['/repo/README.md', '/repo/src/index.ts']);
@@ -56,7 +58,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['/repo/src/changed.ts', '/repo/src/old.ts']),
+      enumerate: enumerator(() => ['/repo/src/changed.ts', '/repo/src/old.ts']),
     });
 
     service.onWorkspaceFileChange('ws-1', {
@@ -79,11 +81,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => [
-        '/repo/other.ts',
-        '/repo/src/a.ts',
-        '/repo/src/nested/b.ts',
-      ]),
+      enumerate: enumerator(() => ['/repo/other.ts', '/repo/src/a.ts', '/repo/src/nested/b.ts']),
     });
 
     service.onWorkspaceFileChange('ws-1', {
@@ -103,7 +101,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => paths),
+      enumerate: enumerator(() => paths),
     });
     expect(indexedPaths(sqlite)).toEqual(['/repo/stale.ts']);
 
@@ -121,7 +119,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['/repo/a.ts', '/repo/b.ts', '/repo/c.ts']),
+      enumerate: enumerator(() => ['/repo/a.ts', '/repo/b.ts', '/repo/c.ts']),
     });
 
     expect(indexedPaths(sqlite)).toEqual(['/repo/a.ts', '/repo/b.ts']);
@@ -147,7 +145,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['/repo/a.ts', '/repo/b.ts']),
+      enumerate: enumerator(() => ['/repo/a.ts', '/repo/b.ts']),
     });
 
     service.onWorkspaceFileChange('ws-1', {
@@ -199,28 +197,15 @@ function createFileIndexTables(sqlite: BetterSqlite3.Database): void {
   `);
 }
 
-function filesRuntime(readPaths: () => readonly string[]): IFilesRuntime {
-  const fileSystem = {
-    enumerate: () => ({
-      success: true as const,
-      data: (async function* () {
-        for (const path of readPaths()) {
-          yield path;
-        }
-      })(),
-    }),
-  } as unknown as IFileSystem;
-
-  return {
-    openTree: async () => {
-      throw new Error('openTree is not used by WorkspaceFileIndexService tests');
-    },
-    watchChanges: () => {
-      throw new Error('watchChanges is not used by WorkspaceFileIndexService tests');
-    },
-    fileSystem: () => ({ success: true, data: fileSystem }),
-    dispose: async () => {},
-  };
+function enumerator(readPaths: () => readonly string[]): WorkspaceFileEnumerator {
+  return () => ({
+    success: true as const,
+    data: (async function* () {
+      for (const path of readPaths()) {
+        yield path;
+      }
+    })(),
+  });
 }
 
 function indexedPaths(sqlite: BetterSqlite3.Database): string[] {

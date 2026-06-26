@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { FileError } from '@emdash/core/files';
+import { isIgnoredRelativePath, type FileError } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
 
 export function normalizeRemoteRootPath(rootPath: string): string {
@@ -28,4 +28,12 @@ export function toRemoteAbsolutePath(rootPath: string, value: string): string {
 export function containsRemotePath(parent: string, child: string): boolean {
   const rel = path.posix.relative(parent, child);
   return rel === '' || (rel !== '..' && !rel.startsWith('../') && !path.posix.isAbsolute(rel));
+}
+
+export function isIgnoredRemotePath(rootPath: string, absPath: string): boolean {
+  const rel = path.posix.relative(normalizeRemoteRootPath(rootPath), absPath);
+  if (!rel || rel === '..' || rel.startsWith('../') || path.posix.isAbsolute(rel)) {
+    return false;
+  }
+  return isIgnoredRelativePath(rel);
 }

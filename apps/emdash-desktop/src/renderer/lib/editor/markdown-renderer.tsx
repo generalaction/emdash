@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import type { FileTabStore } from '@renderer/features/tasks/editor/stores/file-tab-store';
 import {
   useTaskViewContext,
+  useWorkspace,
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
@@ -12,7 +13,7 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { Spinner } from '@renderer/lib/ui/spinner';
-import { resolveMarkdownImagePath } from './markdown-image-path';
+import { resolveWorkspaceResourcePath } from './workspace-resource-path';
 
 interface MarkdownEditorRendererProps {
   tab: FileTabStore;
@@ -27,6 +28,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
 }: MarkdownEditorRendererProps) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
+  const workspacePath = useWorkspace().path;
   const { editorView } = useWorkspaceViewModel();
   const showExternalSpinner = useDelayedBoolean(!!(tab.isExternal && tab.isLoading), 200);
   const bufferUri = tab.isExternal ? '' : buildMonacoModelPath(editorView.modelRootPath, tab.path);
@@ -38,12 +40,16 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
 
   const resolveImage = useCallback(
     async (src: string): Promise<string | null> => {
-      const imagePath = resolveMarkdownImagePath(tab.path, src);
+      const imagePath = resolveWorkspaceResourcePath({
+        workspacePath,
+        containingFilePath: tab.path,
+        resourcePath: src,
+      });
       if (!imagePath) return null;
       const result = await rpc.workspace.files.readImage(projectId, workspaceId, imagePath);
       return result.success && result.data?.success ? result.data.dataUrl : null;
     },
-    [projectId, workspaceId, tab.path]
+    [projectId, workspaceId, workspacePath, tab.path]
   );
 
   return (

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
 import { classifyFileError, type FileError, type FilesOnError } from '../errors';
-import { isIgnored, watchIgnoreGlobs } from '../ignores';
+import { isIgnoredInsideRoot, watchIgnoreGlobs } from '../ignores';
 import { contains, validateAbsolutePath } from '../paths';
 import type {
   FileChange,
@@ -121,7 +121,7 @@ function rawEventsToChanges(
   for (const event of events) {
     const absPath = absoluteFromRawEvent(rootPath, event);
     if (!absPath) continue;
-    if (isIgnored(absPath)) continue;
+    if (isIgnoredInsideRoot(rootPath, absPath)) continue;
     if (!isWatchedPath(absPath, rootPath, watchedPaths)) continue;
     changes.push({
       kind: event.kind,

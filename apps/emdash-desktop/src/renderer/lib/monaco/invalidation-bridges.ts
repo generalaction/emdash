@@ -11,7 +11,7 @@ function diskUrisForFileChange(
   workspaceId: string,
   change: FileChange
 ): string[] {
-  if (change.path.startsWith('.git')) return [];
+  if (change.path.split(/[\\/]/).includes('.git')) return [];
 
   if (change.entryType !== 'directory') {
     return registry.findDiskUris({ workspaceId, filePath: change.path });

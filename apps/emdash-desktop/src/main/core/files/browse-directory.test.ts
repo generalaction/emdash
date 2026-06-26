@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { browseDirectory } from './browse-directory';
 
@@ -141,5 +141,49 @@ describe('browseDirectory', () => {
         modifiedAt: firstModifiedAt,
       },
     ]);
+  });
+
+  it('skips entries that vanish between glob and stat (not-found)', async () => {
+    mocks.globMock.mockReturnValueOnce(
+      ok(directoryMatches(['/remote/worktree/gone.txt', '/remote/worktree/here.txt']))
+    );
+    mocks.statMock.mockImplementation(async (filePath: string) => {
+      if (filePath === '/remote/worktree/gone.txt') {
+        return err({ type: 'fs-error', path: filePath, message: 'missing', code: 'ENOENT' });
+      }
+      return ok({
+        path: '/remote/worktree/here.txt',
+        type: 'file',
+        size: 1,
+        mtime: new Date('2026-01-01T00:00:00.000Z'),
+        ctime: new Date('2026-01-01T00:00:00.000Z'),
+        mode: 0o644,
+      });
+    });
+
+    const entries = expectOk(
+      await browseDirectory({ type: 'ssh', connectionId: 'c', path: '/remote/worktree' })
+    );
+    expect(entries.map((entry) => entry.name)).toEqual(['here.txt']);
+  });
+
+  it('surfaces non-not-found stat failures as an error result', async () => {
+    mocks.globMock.mockReturnValueOnce(ok(directoryMatches(['/remote/worktree/secret.txt'])));
+    mocks.statMock.mockImplementation(async (filePath: string) =>
+      err({ type: 'fs-error', path: filePath, message: 'permission denied', code: 'EACCES' })
+    );
+
+    const result = await browseDirectory({
+      type: 'ssh',
+      connectionId: 'c',
+      path: '/remote/worktree',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatchObject({
+        type: 'filesystem-error',
+        message: 'permission denied',
+      });
+    }
   });
 });

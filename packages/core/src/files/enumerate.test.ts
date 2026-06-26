@@ -43,6 +43,21 @@ describe('enumerate', () => {
     ]);
   });
 
+  it('does not filter children when the root path contains an ignored ancestor segment', async () => {
+    // Regression: a checkout under `.../worktrees/...` must still enumerate its
+    // files even though `worktrees` is an ignored directory name.
+    const base = await makeRoot();
+    const root = path.join(base, 'worktrees', 'feature');
+    await mkdir(path.join(root, 'src'), { recursive: true });
+    await writeFile(path.join(root, 'README.md'), 'readme');
+    await writeFile(path.join(root, 'src', 'index.ts'), 'src');
+
+    await expect(collect(enumerate(root))).resolves.toEqual([
+      path.join(root, 'README.md'),
+      path.join(root, 'src/index.ts'),
+    ]);
+  });
+
   it('skips symlinks and other non-regular entries', async () => {
     const root = await makeRoot();
     await writeFile(path.join(root, 'target.txt'), 'target');

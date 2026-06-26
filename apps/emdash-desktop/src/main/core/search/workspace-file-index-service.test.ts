@@ -1,5 +1,5 @@
-import type { IFileSystem, IFilesRuntime } from '@emdash/core/files';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { WorkspaceFileEnumerator } from './workspace-file-index-service';
 import type {
   FileHit,
   FileIndexMeta,
@@ -41,7 +41,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => {
+      enumerate: enumerator(() => {
         throw new Error('should not enumerate');
       }),
     });
@@ -62,7 +62,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['/repo/fresh.ts']),
+      enumerate: enumerator(() => ['/repo/fresh.ts']),
     });
 
     expect([...store.pathSet('ws-1')]).toEqual(['/repo/fresh.ts']);
@@ -81,7 +81,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['/repo/README.md', '/repo/src/index.ts']),
+      enumerate: enumerator(() => ['/repo/README.md', '/repo/src/index.ts']),
     });
 
     expect([...store.pathSet('ws-1')].sort()).toEqual(['/repo/README.md', '/repo/src/index.ts']);
@@ -106,7 +106,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['/repo/fresh.ts']),
+      enumerate: enumerator(() => ['/repo/fresh.ts']),
     });
     service.onWorkspaceFileChange('ws-1', { kind: 'resync' });
     service.onWorkspaceFileChange('ws-1', { kind: 'resync' });
@@ -167,7 +167,7 @@ describe('WorkspaceFileIndexService', () => {
 
     await service.onWorkspaceActivated('ws-1', {
       rootPath: '/repo',
-      filesRuntime: filesRuntime(() => ['/repo/a.ts', '/repo/b.ts', '/repo/c.ts']),
+      enumerate: enumerator(() => ['/repo/a.ts', '/repo/b.ts', '/repo/c.ts']),
     });
     service.onWorkspaceFileChange('ws-1', {
       kind: 'changes',
@@ -210,28 +210,15 @@ async function createService(
   return new WorkspaceFileIndexService({ store, ...options });
 }
 
-function filesRuntime(readPaths: () => readonly string[]): IFilesRuntime {
-  const fileSystem = {
-    enumerate: () => ({
-      success: true as const,
-      data: (async function* () {
-        for (const path of readPaths()) {
-          yield path;
-        }
-      })(),
-    }),
-  } as unknown as IFileSystem;
-
-  return {
-    openTree: async () => {
-      throw new Error('openTree is not used by WorkspaceFileIndexService tests');
-    },
-    watchChanges: () => {
-      throw new Error('watchChanges is not used by WorkspaceFileIndexService tests');
-    },
-    fileSystem: () => ({ success: true, data: fileSystem }),
-    dispose: async () => {},
-  };
+function enumerator(readPaths: () => readonly string[]): WorkspaceFileEnumerator {
+  return () => ({
+    success: true as const,
+    data: (async function* () {
+      for (const path of readPaths()) {
+        yield path;
+      }
+    })(),
+  });
 }
 
 class FakeStore implements IWorkspaceFileIndexStore {

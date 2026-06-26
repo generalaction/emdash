@@ -1,6 +1,5 @@
 import path from 'node:path';
 import {
-  isIgnored,
   type FileChange,
   type FileChangeSubscription,
   type FileChangeUpdate,
@@ -33,6 +32,7 @@ import { FileSystemError, FileSystemErrorCodes } from './ssh-legacy-fs-types';
 import type { FileEntry } from './ssh-legacy-fs-types';
 import {
   containsRemotePath,
+  isIgnoredRemotePath,
   normalizeRemoteAbsolutePath,
   normalizeRemoteRootPath,
   toRemoteAbsolutePath,
@@ -547,7 +547,7 @@ class LegacySshFileTree implements IFileTree {
       const entries: LegacyListedEntry[] = [];
       for (const entry of result.entries) {
         const absPath = toRemoteAbsolutePath(this.rootPath, entry.path);
-        if (isIgnored(absPath)) continue;
+        if (isIgnoredRemotePath(this.rootPath, absPath)) continue;
         if (entry.type !== 'dir' && entry.type !== 'file') continue;
         entries.push(toListedEntry(this.rootPath, entry));
       }
@@ -720,11 +720,11 @@ function eventsToChanges(rootPath: string, events: FileWatchEvent[]): FileChange
   const changes: FileChange[] = [];
   for (const event of events) {
     const eventPath = toRemoteAbsolutePath(rootPath, event.path);
-    if (isIgnored(eventPath)) continue;
+    if (isIgnoredRemotePath(rootPath, eventPath)) continue;
     if (event.type === 'rename') {
       if (event.oldPath) {
         const oldPath = toRemoteAbsolutePath(rootPath, event.oldPath);
-        if (!isIgnored(oldPath)) {
+        if (!isIgnoredRemotePath(rootPath, oldPath)) {
           changes.push({ kind: 'delete', path: oldPath, entryType: event.entryType });
         }
       }
@@ -870,7 +870,7 @@ function parseRecursiveSnapshot(
     const size = fields[index + 1];
     const mtime = fields[index + 2];
     const absPath = toRemoteAbsolutePath(rootPath, fields[index + 3]);
-    if (isIgnored(absPath)) continue;
+    if (isIgnoredRemotePath(rootPath, absPath)) continue;
 
     entries.set(absPath, {
       entryType,

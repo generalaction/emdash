@@ -3,7 +3,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { fileChangesChannel } from '@shared/core/fs/fsEvents';
 import {
-  PROJECT_CONFIG_FILE,
+  isProjectConfigPath,
   type MigrateProjectConfigRequest,
   type MigrateProjectConfigResult,
   type ProjectConfigMigration,
@@ -38,7 +38,7 @@ export class ProjectSettingsStore {
       if (data.projectId !== projectId) return;
       if (
         data.update.kind === 'resync' ||
-        data.update.changes.some((change) => change.path === PROJECT_CONFIG_FILE)
+        data.update.changes.some((change) => isProjectConfigPath(change.path))
       ) {
         this.pageData.invalidate();
       }

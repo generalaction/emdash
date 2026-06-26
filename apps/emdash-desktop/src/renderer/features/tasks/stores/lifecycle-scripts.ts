@@ -10,7 +10,7 @@ import {
   setTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { fileChangesChannel } from '@shared/core/fs/fsEvents';
-import { PROJECT_CONFIG_FILE } from '@shared/core/project-settings/project-settings';
+import { isProjectConfigPath } from '@shared/core/project-settings/project-settings';
 import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import {
@@ -119,7 +119,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
         if (data.projectId !== this.projectId || data.workspaceId !== this.workspaceId) return;
         if (
           data.update.kind === 'resync' ||
-          data.update.changes.some((change) => change.path === PROJECT_CONFIG_FILE)
+          data.update.changes.some((change) => isProjectConfigPath(change.path))
         ) {
           this.reloadIfLoaded();
         }

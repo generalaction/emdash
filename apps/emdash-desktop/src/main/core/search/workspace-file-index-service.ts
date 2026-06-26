@@ -1,9 +1,10 @@
 import {
-  isIgnored,
+  isIgnoredInsideRoot,
   type FileChange,
   type FileChangeUpdate,
-  type IFilesRuntime,
+  type FileError,
 } from '@emdash/core/files';
+import type { Result } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import { collectWithBudget } from './collect-with-budget';
 import {
@@ -17,9 +18,13 @@ const DEFAULT_MAX_FILES = 50_000;
 const DEFAULT_REINDEX_TIMEOUT_MS = 30_000;
 const DEFAULT_REINDEX_DEBOUNCE_MS = 3_000;
 
+export type WorkspaceFileEnumerator = (
+  rootPath: string
+) => Result<AsyncIterable<string>, FileError>;
+
 export type WorkspaceFileIndexSource = {
   rootPath: string;
-  filesRuntime: IFilesRuntime;
+  enumerate: WorkspaceFileEnumerator;
 };
 
 export type WorkspaceFileIndexServiceOptions = {
@@ -114,16 +119,7 @@ export class WorkspaceFileIndexService {
         const source = this.activeSources.get(workspaceId);
         if (!source) return;
 
-        const fileSystem = source.filesRuntime.fileSystem();
-        if (!fileSystem.success) {
-          log.warn('WorkspaceFileIndexService: failed to open filesystem', {
-            workspaceId,
-            error: fileSystem.error,
-          });
-          return;
-        }
-
-        const enumeration = fileSystem.data.enumerate(source.rootPath);
+        const enumeration = source.enumerate(source.rootPath);
         if (!enumeration.success) {
           log.warn('WorkspaceFileIndexService: enumerate failed to start', {
             workspaceId,
@@ -170,6 +166,7 @@ export class WorkspaceFileIndexService {
 
   private applyChanges(workspaceId: string, changes: FileChange[]): void {
     let needsReindex = false;
+    const rootPath = this.metaRootPath(workspaceId);
     try {
       this.store.transaction(() => {
         let indexedFileCount = this.store.countIndexedFiles(workspaceId);
@@ -177,7 +174,7 @@ export class WorkspaceFileIndexService {
         const creates: string[] = [];
 
         for (const change of changes) {
-          if (isIgnored(change.path)) continue;
+          if (isIgnoredInsideRoot(rootPath, change.path)) continue;
 
           if (change.kind === 'delete') {
             if (change.entryType === 'file') {

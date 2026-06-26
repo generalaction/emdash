@@ -6,6 +6,7 @@ import {
   preservedDestinationPath,
   preservedRepoRelativePath,
 } from '@main/core/projects/settings/preserve-pattern-safety';
+import { isRealPathContained } from '@main/core/runtime/files-helpers';
 import { log } from '@main/lib/logger';
 import type * as Step from '@shared/core/workspaces/workspace-setup-steps/copy-preserved-files';
 import type { StepContext } from './step-context';
@@ -73,6 +74,14 @@ export async function execute(
         if (!stat.success || stat.data.type !== 'file') continue;
         const destPath = preservedDestinationPath(ctx.files.path, targetPath, relPath);
         if (!destPath) continue;
+        const contained = await isRealPathContained(ctx.files, targetPath, destPath);
+        if (!contained.success || !contained.data) {
+          log.warn(
+            'setup-steps/copy-preserved-files: skipping preserved file with out-of-worktree destination',
+            { destPath }
+          );
+          continue;
+        }
         const copied = await repoFs.data.copyFile(absPath, destPath);
         if (!copied.success) {
           log.warn('setup-steps/copy-preserved-files: failed to copy preserved file', {

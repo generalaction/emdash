@@ -3,7 +3,6 @@ import {
   type FileError,
   type FileStat,
   type IFileSystem,
-  type ReadFileOptions,
 } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
 import type { IFilesRuntime } from './types';
@@ -77,13 +76,62 @@ export async function statAbsolute(
   return opened.data.stat(absPath);
 }
 
-export async function readTextIfExists(
-  fs: Pick<IFileSystem, 'readText'>,
-  absPath: string,
-  options?: ReadFileOptions
-): Promise<Result<string | null, FileError>> {
-  const result = await fs.readText(absPath, options);
-  if (result.success) return ok(result.data.content);
-  if (isFileNotFoundError(result.error)) return ok(null);
-  return result;
+export async function realPathNearestExisting(
+  files: IFilesRuntime,
+  absPath: string
+): Promise<Result<string, FileError>> {
+  if (!files.path.isAbsolute(absPath)) {
+    return err({
+      type: 'invalid-path',
+      path: absPath,
+      message: `Expected absolute path: ${absPath}`,
+    });
+  }
+
+  const opened = openFileSystem(files);
+  if (!opened.success) return opened;
+  const fs = opened.data;
+
+  let current = absPath;
+  const tail: string[] = [];
+  for (;;) {
+    const real = await fs.realPath(current);
+    if (real.success) {
+      const resolved = tail.length
+        ? files.path.join(real.data, ...tail.slice().reverse())
+        : real.data;
+      return ok(resolved);
+    }
+    if (!isFileNotFoundError(real.error)) return real;
+
+    const parent = files.path.dirname(current);
+    if (parent === current) {
+      return err({
+        type: 'invalid-path',
+        path: absPath,
+        message: `No existing ancestor for path: ${absPath}`,
+      });
+    }
+    tail.push(files.path.basename(current));
+    current = parent;
+  }
+}
+
+export async function isRealPathContained(
+  files: IFilesRuntime,
+  rootPath: string,
+  candidatePath: string,
+  options: { candidateMustExist?: boolean } = {}
+): Promise<Result<boolean, FileError>> {
+  const rootReal = await realPathAbsolute(files, rootPath);
+  if (!rootReal.success) return rootReal;
+
+  const candidateReal = options.candidateMustExist
+    ? await realPathAbsolute(files, candidatePath)
+    : await realPathNearestExisting(files, candidatePath);
+  if (!candidateReal.success) return ok(false);
+
+  return ok(
+    candidateReal.data === rootReal.data || files.path.contains(rootReal.data, candidateReal.data)
+  );
 }

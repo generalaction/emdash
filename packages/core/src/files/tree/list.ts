@@ -1,7 +1,7 @@
 import { lstat, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import { isIgnored } from '../ignores';
+import { isIgnoredInsideRoot } from '../ignores';
 import { contains, validateAbsolutePath } from '../paths';
 import { classifyFileTreeFsError, type FileTreeError } from './errors';
 import type { FileNodeType } from './models/tree';
@@ -35,7 +35,7 @@ export async function listChildren(
   for (const entry of entries) {
     if (!entry.isFile() && !entry.isDirectory()) continue;
     const absPath = path.join(resolvedDir.data, entry.name);
-    if (isIgnored(absPath)) continue;
+    if (isIgnoredInsideRoot(resolvedRoot.data, absPath)) continue;
     candidates.push({
       path: absPath,
       name: path.basename(absPath),

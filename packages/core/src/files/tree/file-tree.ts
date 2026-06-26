@@ -2,7 +2,7 @@ import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { KeyedMutex, LiveCollection, type KeyedOp } from '../../lib';
 import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
-import { isIgnored, watchIgnoreGlobs } from '../ignores';
+import { isIgnoredInsideRoot, watchIgnoreGlobs } from '../ignores';
 import { contains, validateAbsolutePath } from '../paths';
 import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';
 import { listChildren } from './list';
@@ -228,7 +228,9 @@ export class FileTree implements IFileTree {
     const listed = await listChildren(this.rootPath, dirPath);
     if (!listed.success) return listed;
 
-    const listedEntries = listed.data.filter((entry) => !isIgnored(entry.path));
+    const listedEntries = listed.data.filter(
+      (entry) => !isIgnoredInsideRoot(this.rootPath, entry.path)
+    );
     const listedPaths = new Set(listedEntries.map((entry) => entry.path));
     let sequence = this.removeMissingChildren(scope, listedPaths);
 

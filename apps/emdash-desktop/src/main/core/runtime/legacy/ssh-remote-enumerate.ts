@@ -1,10 +1,10 @@
 import { StringDecoder } from 'node:string_decoder';
-import { IGNORED_PATH_SEGMENTS, isIgnored } from '@emdash/core/files';
+import { IGNORED_PATH_SEGMENTS } from '@emdash/core/files';
 import type { ClientChannel } from 'ssh2';
 import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { quoteShellArg } from '@main/utils/shellEscape';
-import { toRemoteAbsolutePath } from './ssh-paths';
+import { isIgnoredRemotePath, toRemoteAbsolutePath } from './ssh-paths';
 
 export async function* enumerateRemoteWorkspace(
   proxy: SshClientProxy,
@@ -12,7 +12,7 @@ export async function* enumerateRemoteWorkspace(
 ): AsyncIterable<string> {
   for await (const rawPath of execRemoteNulFields(proxy, buildRemoteEnumerationCommand(rootPath))) {
     const absPath = toRemoteAbsolutePath(rootPath, rawPath);
-    if (isIgnored(absPath)) continue;
+    if (isIgnoredRemotePath(rootPath, absPath)) continue;
     yield absPath;
   }
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isFileNotFoundCode } from '@emdash/core/files';
 import { err, ok } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
 import { projectEvents } from '@main/core/projects/project-events';
@@ -31,7 +32,14 @@ export async function createSshProject(
   let gitInfo;
   try {
     const pathEntry = await statAbsolute(runtimeLease.value.files, params.path);
-    if (!pathEntry.success || pathEntry.data.type !== 'directory') {
+    if (!pathEntry.success) {
+      const code = 'code' in pathEntry.error ? pathEntry.error.code : undefined;
+      if (!isFileNotFoundCode(code)) {
+        return err({ type: 'inspect-failed', path: params.path, message: pathEntry.error.message });
+      }
+      return err({ type: 'invalid-directory', path: params.path, message: 'Invalid directory' });
+    }
+    if (pathEntry.data.type !== 'directory') {
       return err({
         type: 'invalid-directory',
         path: params.path,
@@ -99,7 +107,18 @@ export async function getSshProjectPathStatus(
     const runtimeLease = await runtimeManager.acquire({ kind: 'ssh', connectionId });
     try {
       const pathEntry = await statAbsolute(runtimeLease.value.files, path);
-      if (!pathEntry.success || pathEntry.data.type !== 'directory') {
+      if (!pathEntry.success) {
+        const code = 'code' in pathEntry.error ? pathEntry.error.code : undefined;
+        if (isFileNotFoundCode(code)) {
+          return { isDirectory: false, isGitRepo: false };
+        }
+        return {
+          isDirectory: false,
+          isGitRepo: false,
+          error: { type: 'inspect-failed', path, message: pathEntry.error.message },
+        };
+      }
+      if (pathEntry.data.type !== 'directory') {
         return { isDirectory: false, isGitRepo: false };
       }
 

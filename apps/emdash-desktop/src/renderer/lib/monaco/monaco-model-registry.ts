@@ -282,8 +282,10 @@ export class MonacoModelRegistry {
       const [fetchResult, monaco_] = await Promise.all([
         this.dedupFetch<DiskFetchResult>(fetchKey, async () => {
           const res = await rpc.workspace.files.readFile(projectId, workspaceId, filePath);
-          if (!res.success)
-            throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${res.error}`);
+          if (!res.success) {
+            const detail = 'message' in res.error ? res.error.message : JSON.stringify(res.error);
+            throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${detail}`);
+          }
           const result = res.data.content;
           if (result === null) throw new Error(`registerModel(disk): null content for ${filePath}`);
           return { content: result, truncated: res.data.truncated, totalSize: res.data.totalSize };

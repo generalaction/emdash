@@ -178,7 +178,10 @@ export function createWorkspaceFactory(
       onCreateSideEffect: (ws) => {
         void workspaceFileIndexService.onWorkspaceActivated(workspaceId, {
           rootPath: ws.path,
-          filesRuntime,
+          enumerate: (root) => {
+            const fs = filesRuntime.fileSystem();
+            return fs.success ? fs.data.enumerate(root) : fs;
+          },
         });
         unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) =>
           handleGitWorktreeUpdate(workspaceId, update, (emitted) => {

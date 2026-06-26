@@ -96,14 +96,16 @@ export class WorkspaceViewModel implements ILifecycle {
     this.terminalDrawerActiveItem = undefined;
 
     const workspaceId = taskData.workspaceId ?? taskData.id;
-    const workspacePath = workspaceRegistry.get(taskData.projectId, workspaceId)?.path;
+    const projectId = taskData.projectId;
 
     const taskCtx: TaskTabContext = {
       viewId: this.taskId,
-      projectId: taskData.projectId,
+      projectId,
       workspaceId,
       taskId: this.taskId,
-      workspacePath,
+      get workspacePath(): string | undefined {
+        return workspaceRegistry.get(projectId, workspaceId)?.path;
+      },
       modelRootPath: `workspace:${workspaceId}`,
     };
     this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx);

@@ -1,3 +1,4 @@
+import { isFileNotFoundError } from '@emdash/core/files';
 import { err, ok, withLease } from '@emdash/shared';
 import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import type { MachineRef } from '@main/core/runtime/types';
@@ -43,7 +44,14 @@ export async function browseDirectory(
       if (files.path.dirname(absPath) !== params.path) continue;
 
       const stat = await opened.data.stat(absPath);
-      if (!stat.success) continue;
+      if (!stat.success) {
+        if (isFileNotFoundError(stat.error)) continue;
+        return err({
+          type: 'filesystem-error',
+          path: absPath,
+          message: stat.error.message,
+        });
+      }
 
       entries.push({
         path: stat.data.path,

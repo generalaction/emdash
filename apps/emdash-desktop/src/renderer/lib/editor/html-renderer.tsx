@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import {
   useTaskViewContext,
+  useWorkspace,
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
@@ -10,6 +11,7 @@ import { HTML_EXTS } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import { resolveWorkspaceResourcePath } from './workspace-resource-path';
 
 interface HtmlRendererProps {
   filePath: string;
@@ -40,6 +42,7 @@ const LINK_INTERCEPT_SCRIPT = `
 export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRendererProps) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
+  const workspacePath = useWorkspace().path;
   const { editorView } = useWorkspaceViewModel();
   const { pane } = usePaneContext();
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
@@ -48,7 +51,6 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
   // populated — otherwise the preview can stick on stale content.
   void modelRegistry.bufferVersions.get(bufferUri);
   const rawContent = modelRegistry.getValue(bufferUri) ?? '';
-  const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
   const fileName = filePath.split('/').pop() ?? filePath;
 
   const [processedHtml, setProcessedHtml] = useState<string | null>(null);
@@ -65,7 +67,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
     }
     let cancelled = false;
     setIsProcessing(true);
-    void processHtmlForPreview(rawContent, fileDir, projectId, workspaceId)
+    void processHtmlForPreview(rawContent, filePath, workspacePath, projectId, workspaceId)
       .then((html) => {
         if (!cancelled) setProcessedHtml(html);
       })
@@ -78,7 +80,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
     return () => {
       cancelled = true;
     };
-  }, [rawContent, fileDir, projectId, workspaceId]);
+  }, [rawContent, filePath, workspacePath, projectId, workspaceId]);
 
   // Route link clicks postMessaged from the sandbox into the tab manager so
   // sibling HTML files open as new tabs.
@@ -88,7 +90,11 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
       const data = e.data as { type?: string; href?: string } | null;
       if (!data || data.type !== LINK_INTERCEPT_MESSAGE_TYPE || typeof data.href !== 'string')
         return;
-      const target = resolveRelativePath(fileDir, data.href);
+      const target = resolveWorkspaceResourcePath({
+        workspacePath,
+        containingFilePath: filePath,
+        resourcePath: data.href,
+      });
       if (!target) return;
       const ext = target.split('.').pop()?.toLowerCase() ?? '';
       if (HTML_EXTS.has(ext)) {
@@ -97,7 +103,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [fileDir, pane]);
+  }, [filePath, workspacePath, pane]);
 
   return (
     <div className="h-full w-full overflow-hidden bg-background-secondary-1">
@@ -134,7 +140,8 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
  */
 async function processHtmlForPreview(
   rawHtml: string,
-  fileDir: string,
+  containingFilePath: string,
+  workspacePath: string | undefined,
   projectId: string,
   workspaceId: string
 ): Promise<string> {
@@ -169,22 +176,30 @@ async function processHtmlForPreview(
     // <link rel="stylesheet" href="..."> → inline <style>
     ...linkEls.map(async (el) => {
       const href = el.getAttribute('href');
-      if (!href || isAbsoluteOrSpecial(href)) return;
-      const resolved = resolveRelativePath(fileDir, href);
+      if (!href) return;
+      const resolved = resolveWorkspaceResourcePath({
+        workspacePath,
+        containingFilePath,
+        resourcePath: href,
+      });
       if (!resolved) return;
       const css = await fetchText(resolved);
       if (css == null) return;
       const style = doc.createElement('style');
       style.textContent = escapeStyleText(
-        await inlineCssUrls(css, getParentDir(resolved), fetchImage)
+        await inlineCssUrls(css, resolved, workspacePath, fetchImage)
       );
       el.replaceWith(style);
     }),
     // <script src="..."> → inline <script>
     ...scriptEls.map(async (el) => {
       const src = el.getAttribute('src');
-      if (!src || isAbsoluteOrSpecial(src)) return;
-      const resolved = resolveRelativePath(fileDir, src);
+      if (!src) return;
+      const resolved = resolveWorkspaceResourcePath({
+        workspacePath,
+        containingFilePath,
+        resourcePath: src,
+      });
       if (!resolved) return;
       const js = await fetchText(resolved);
       if (js == null) return;
@@ -200,8 +215,12 @@ async function processHtmlForPreview(
     // <img src="...">, <picture><source src="..."> → data URL.
     ...mediaEls.map(async (el) => {
       const src = el.getAttribute('src');
-      if (!src || isAbsoluteOrSpecial(src)) return;
-      const resolved = resolveRelativePath(fileDir, src);
+      if (!src) return;
+      const resolved = resolveWorkspaceResourcePath({
+        workspacePath,
+        containingFilePath,
+        resourcePath: src,
+      });
       if (!resolved) return;
       const dataUrl = await fetchImage(resolved);
       if (dataUrl) el.setAttribute('src', dataUrl);
@@ -226,16 +245,21 @@ function escapeStyleText(css: string): string {
 
 async function inlineCssUrls(
   css: string,
-  cssDir: string,
+  cssFilePath: string,
+  workspacePath: string | undefined,
   fetchImage: (path: string) => Promise<string | null>
 ): Promise<string> {
   const urlPattern = /url\(\s*(['"]?)([^'"()]+)\1\s*\)/g;
   const replacements = await Promise.all(
     Array.from(css.matchAll(urlPattern), async (match) => {
       const rawUrl = match[2]?.trim();
-      if (!rawUrl || isAbsoluteOrSpecial(rawUrl)) return null;
+      if (!rawUrl) return null;
 
-      const resolved = resolveRelativePath(cssDir, rawUrl);
+      const resolved = resolveWorkspaceResourcePath({
+        workspacePath,
+        containingFilePath: cssFilePath,
+        resourcePath: rawUrl,
+      });
       if (!resolved) return null;
 
       const dataUrl = await fetchImage(resolved);
@@ -264,45 +288,4 @@ async function readWorkspaceImage(
 ): Promise<string | null> {
   const result = await rpc.workspace.files.readImage(projectId, workspaceId, filePath);
   return result.success && result.data?.success ? result.data.dataUrl : null;
-}
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-/** True for absolute URLs (http://, data:, mailto:, etc.) and root-anchored paths. */
-function isAbsoluteOrSpecial(href: string): boolean {
-  if (!href) return true;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return true;
-  if (href.startsWith('//')) return true;
-  if (href.startsWith('#')) return true;
-  return false;
-}
-
-function resolveRelativePath(fileDir: string, href: string): string | null {
-  if (!href) return null;
-  const cleanHref = href.split('#')[0]?.split('?')[0] ?? '';
-  if (!cleanHref) return null;
-
-  const absolute = cleanHref.startsWith('/') || fileDir.startsWith('/');
-  const segments = cleanHref.startsWith('/')
-    ? cleanHref.slice(1).split('/')
-    : [...(fileDir ? fileDir.replace(/^\/+/, '').split('/') : []), ...cleanHref.split('/')];
-
-  const normalized: string[] = [];
-  for (const seg of segments) {
-    if (!seg || seg === '.') continue;
-    if (seg === '..') {
-      if (normalized.length === 0) return null;
-      normalized.pop();
-      continue;
-    }
-    normalized.push(seg);
-  }
-  if (normalized.length === 0) return absolute ? '/' : null;
-  return `${absolute ? '/' : ''}${normalized.join('/')}`;
-}
-
-function getParentDir(filePath: string): string {
-  return filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
 }

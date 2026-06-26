@@ -4,6 +4,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
   ensureAbsoluteDir,
+  isRealPathContained,
   openFileSystem,
   realPathAbsolute,
 } from '@main/core/runtime/files-helpers';
@@ -83,7 +84,10 @@ export class WorktreeService {
 
   private async removePathForReuse(targetPath: string): Promise<void> {
     const poolPath = await this.resolveWorktreePoolPath();
-    if (!this.files.path.contains(poolPath, targetPath)) {
+    const contained = await isRealPathContained(this.files, poolPath, targetPath, {
+      candidateMustExist: true,
+    });
+    if (!contained.success || !contained.data) {
       throw new Error(`Refusing to remove worktree path outside pool: "${targetPath}"`);
     }
 
@@ -476,6 +480,13 @@ export class WorktreeService {
         if (!stat.success || stat.data.type !== 'file') continue;
         const destPath = preservedDestinationPath(this.files.path, targetPath, relPath);
         if (!destPath) continue;
+        const contained = await isRealPathContained(this.files, targetPath, destPath);
+        if (!contained.success || !contained.data) {
+          log.warn('WorktreeService: skipping preserved file with out-of-worktree destination', {
+            destPath,
+          });
+          continue;
+        }
         const copied = await repoFs.data.copyFile(absPath, destPath);
         if (!copied.success) {
           log.warn('WorktreeService: failed to copy preserved file', {

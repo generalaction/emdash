@@ -3,6 +3,11 @@ import z from 'zod';
 
 export const PROJECT_CONFIG_FILE = '.emdash.json';
 
+export function isProjectConfigPath(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/');
+  return normalized === PROJECT_CONFIG_FILE || normalized.endsWith(`/${PROJECT_CONFIG_FILE}`);
+}
+
 export const DEFAULT_PRESERVE_PATTERNS = [
   '.env',
   '.env.keys',
