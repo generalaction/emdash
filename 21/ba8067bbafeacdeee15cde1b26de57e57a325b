@@ -1,0 +1,30 @@
+apps/emdash-desktop/src/main/core/fs/controller.ts
+  s_c35847f4944758::t_7e85e34c55f487 107-142
+apps/emdash-desktop/src/renderer/app/modal-registry.ts
+  s_c35847f4944758::t_6cec7ed906f1fa 16,59
+apps/emdash-desktop/src/renderer/features/tasks/editor/create-file-system-entry-dialog.tsx
+  s_c35847f4944758::t_1455b03d8d1496 32-33,61
+  s_c35847f4944758::t_46eb25ca5f463f 1-31,34-60,62-73
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-file-tree.tsx
+  s_c35847f4944758::t_b8dc998e3998d6 66-67,174
+  s_c35847f4944758::t_ac0cf3e61a80cf 427
+  s_c35847f4944758::t_f7ce7e05c734d4 6,9,154-173,175-188,255-271,476-488,580-611,630-643,648-673,675-677
+  s_c35847f4944758::t_5ae5eb1f3e2f08 56-65
+  s_c35847f4944758::t_1fc5dec755f9fd 272-273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "21ba8067bbafeacdeee15cde1b26de57e57a325b",
+  "prompts": {},
+  "sessions": {
+    "s_c35847f4944758": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0259-8deb-75f2-91a1-faced4d3275b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
