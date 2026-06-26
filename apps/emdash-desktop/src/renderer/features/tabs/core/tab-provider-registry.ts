@@ -1,4 +1,4 @@
-import type { TabProvider, TabResource } from './tab-provider';
+import type { OpenTarget, TabProvider, TabResource } from './tab-provider';
 
 // ── Type aliases ──────────────────────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ export type KindOf<R extends TabRegistry> =
  */
 export type OpenArgsOf<R extends TabRegistry, K extends KindOf<R>> =
   R extends TypedTabRegistry<infer P>
-    ? Extract<P[number], { kind: K }> extends TabProvider<K, infer _P, infer _T, infer A>
+    ? Extract<P[number], { kind: K }> extends TabProvider<K, infer _S, infer _T, infer A>
       ? A
       : unknown
     : unknown;
@@ -26,10 +26,40 @@ export type OpenArgsOf<R extends TabRegistry, K extends KindOf<R>> =
  */
 export type ResourceOf<R extends TabRegistry, K extends KindOf<R>> =
   R extends TypedTabRegistry<infer P>
-    ? Extract<P[number], { kind: K }> extends TabProvider<K, infer _P, infer T, infer _A>
+    ? Extract<P[number], { kind: K }> extends TabProvider<K, infer _S, infer T, infer _A>
       ? T
       : TabResource
     : TabResource;
+
+/**
+ * Strongly-typed discriminated union of all open-arg shapes in a registry.
+ * Used by the public layout-level open() entry point.
+ *
+ * Each member is { kind: K } & OpenArgsOf<R, K>, so callers get
+ * exhaustive completions and type errors for unknown kinds.
+ */
+export type TabOpenArgs<R extends TabRegistry> = {
+  [K in KindOf<R>]: { kind: K } & OpenArgsOf<R, K>;
+}[KindOf<R>];
+
+/**
+ * Control flags that may accompany any TabOpenArgs call.
+ * Stripped before the args reach onBeforeOpen.
+ */
+export interface TabOpenOptions {
+  /** When true, opens as a preview tab (replaced on next preview open). */
+  preview?: boolean;
+  /**
+   * When true and the tab is already open (single-mount hit), replace its
+   * current state with the new open args. Ignored for multi-mount providers.
+   */
+  overrideState?: boolean;
+  /**
+   * Which pane to open into. Defaults to 'active' (focused pane).
+   * 'right'/'left' will split if needed; { paneId } targets an explicit pane.
+   */
+  target?: OpenTarget;
+}
 
 // ── Registry interface ────────────────────────────────────────────────────────
 
@@ -59,16 +89,16 @@ export interface TypedTabRegistry<P extends readonly AnyTabProvider[]> extends T
  * ```ts
  * export const myTabProvider = createTabProvider({
  *   kind: 'my-kind',
- *   resourceKey: (p) => p.id,
+ *   mount: { type: 'single', dedupKey: (s) => s.id },
  *   initialize: (entry, handle, ctx) => { ... },
  *   dispose: (entry, resource, ctx) => { ... },
  *   ...
  * });
  * ```
  */
-export function createTabProvider<K extends string, P, T extends TabResource, OpenArgs = P>(
-  impl: TabProvider<K, P, T, OpenArgs>
-): TabProvider<K, P, T, OpenArgs> {
+export function createTabProvider<K extends string, S, T extends TabResource, OpenArgs = S>(
+  impl: TabProvider<K, S, T, OpenArgs>
+): TabProvider<K, S, T, OpenArgs> {
   return impl;
 }
 

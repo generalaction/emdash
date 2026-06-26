@@ -81,7 +81,8 @@ export function PaletteNotificationsGroup({
               conv={item.conv}
               value={`notif:conversation:${item.conv.data.id}`}
               onSelect={() => {
-                getTaskView(item.projectId, item.taskId)?.paneLayout.open('conversation', {
+                getTaskView(item.projectId, item.taskId)?.paneLayout.open({
+                  kind: 'conversation',
                   conversationId: item.conv.data.id,
                   preview: false,
                 });

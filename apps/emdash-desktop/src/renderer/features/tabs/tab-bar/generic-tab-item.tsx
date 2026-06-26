@@ -15,6 +15,7 @@ import { TabCloseButton } from './tab-close-button';
 import { TabContextMenu } from './tab-context-menu';
 import { TabTitle } from './tab-title';
 
+/** Props for GenericTabItem — aligns with TabBarItemProps<any> for convenience. */
 export interface GenericTabItemProps {
   tab: ResolvedTab;
   host: TabHost;
@@ -110,6 +111,7 @@ export const GenericTabItem = observer(function GenericTabItem({
         <div
           role="button"
           tabIndex={0}
+          onMouseEnter={() => host.signalActivateIntent(tab.tabId)}
           onClick={handleSelect}
           onDoubleClick={() => host.pin(tab.tabId)}
           onKeyDown={(e) => {

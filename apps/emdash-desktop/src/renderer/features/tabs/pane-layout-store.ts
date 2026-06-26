@@ -1,8 +1,14 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import { PaneStore } from '@renderer/features/tabs/pane-store';
 import type { TabGroupsSnapshot } from '@shared/view-state';
-import type { TabViewContext } from './core/tab-provider';
-import type { KindOf, OpenArgsOf, TabRegistry } from './core/tab-provider-registry';
+import type { OpenTarget, TabViewContext } from './core/tab-provider';
+import type {
+  AnyTabProvider,
+  TabOpenArgs,
+  TabOpenOptions,
+  TabRegistry,
+  TypedTabRegistry,
+} from './core/tab-provider-registry';
 import type { TabPersistenceAdapter } from './persistence';
 
 const MAX_PANE_COUNT = 8;
@@ -17,8 +23,9 @@ export interface Pane<R extends TabRegistry = TabRegistry> {
  * pane, and the pane size layout.
  *
  * Cross-pane concerns handled here:
- * - mount:'single' cardinality — at most one tab per resourceKey across ALL panes
+ * - mount:'single' cardinality — at most one tab per dedupKey across ALL panes
  * - Tab move (detachTab + adoptEntry) — resource survives unchanged, no lifecycle calls
+ * - target routing — 'active', 'left', 'right', { paneId }
  */
 export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   readonly groups: Pane<R>[] = [];
@@ -47,7 +54,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       paneSizes: observable,
       focusedPane: computed,
       splitRight: action,
-      openInRightSplit: action,
       closePane: action,
       moveTab: action,
       handleDragEnd: action,
@@ -78,30 +84,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     this._redistributeSizes();
 
     this.moveTab(activeTabId, sourceGroup.paneId, newGroup.paneId);
-  }
-
-  /**
-   * Opens a tab in a new pane to the right of the focused pane.
-   * Routes through the same single-mount cardinality guard as open().
-   * Falls back to opening in the focused pane when at max pane count.
-   */
-  openInRightSplit<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>): void {
-    // Route through cardinality guard first.
-    if (this._focusExistingSingleMount(kind as string, args as Record<string, unknown>)) return;
-
-    if (this.groups.length >= MAX_PANE_COUNT) {
-      this.open(kind, args);
-      return;
-    }
-
-    const focusedIndex = this.groups.findIndex((g) => g.paneId === this.activePaneId);
-    const insertAt = focusedIndex === -1 ? this.groups.length : focusedIndex + 1;
-    const newGroup = this._createPane();
-
-    this.groups.splice(insertAt, 0, newGroup);
-    this._redistributeSizes();
-    this.activePaneId = newGroup.paneId;
-    newGroup.pane.open(kind, args);
   }
 
   closePane(paneId: string): void {
@@ -190,12 +172,63 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   }
 
   /**
-   * Opens a tab in the focused pane, enforcing single-mount cardinality for
-   * providers with mount:'single' by focusing the existing tab/pane instead.
+   * The single public open entry point.
+   *
+   * Accepts a discriminated-union open-args object plus engine control flags:
+   *   preview      – open as a preview tab (replaced on next preview open)
+   *   overrideState – when single-mount hit, replace the existing tab's state
+   *   target       – which pane to open into ('active' | 'left' | 'right' | {paneId})
+   *
+   * For single-mount providers, scans all panes for an existing dedupKey match
+   * and focuses it (with optional state override) instead of opening a new tab.
+   *
+   * For multi providers, routes directly to the target pane.
    */
-  open<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>): void {
-    if (this._focusExistingSingleMount(kind as string, args as Record<string, unknown>)) return;
-    this.focusedPane.open(kind, args);
+  open(
+    args: (R extends TypedTabRegistry<infer _P>
+      ? TabOpenArgs<R>
+      : Record<string, unknown> & { kind: string }) &
+      TabOpenOptions
+  ): void {
+    const argsRec = args as unknown as Record<string, unknown> & { kind: string };
+    const { kind, preview, overrideState, target, ...rest } = argsRec;
+    const previewFlag = !!preview;
+    const overrideStateFlag = !!overrideState;
+    const resolvedTarget: OpenTarget = (target as OpenTarget) ?? 'active';
+
+    if (!this._registry.has(kind)) {
+      console.warn(`[PaneLayoutStore] Unknown tab kind: ${kind}`);
+      return;
+    }
+    const def = this._registry.get(kind) as AnyTabProvider;
+
+    // Compute initial state via onBeforeOpen or fall back to rest of args.
+    const initialState: unknown = def.onBeforeOpen
+      ? def.onBeforeOpen(args as never, this._ctx)
+      : (rest as unknown);
+    if (initialState === null) return; // aborted by onBeforeOpen
+
+    // Single-mount: check ALL panes for an existing dedupKey match.
+    if (def.mount?.type === 'single') {
+      const dedupKey = def.mount.dedupKey(initialState as never);
+      for (const g of this.groups) {
+        const existing = g.pane.findSingleMountEntry(kind, dedupKey);
+        if (existing) {
+          this.setActiveGroup(g.paneId);
+          if (!previewFlag) existing.isPreview = false;
+          if (overrideStateFlag) existing.state = initialState;
+          g.pane.setActiveTab(existing.tabId);
+          return;
+        }
+      }
+    }
+
+    // Route to the target pane.
+    const targetPane = this._resolveTargetPane(resolvedTarget);
+    targetPane.openWithState(kind, initialState, {
+      isPreview: previewFlag,
+      overrideState: overrideStateFlag,
+    });
   }
 
   get snapshot(): TabGroupsSnapshot {
@@ -263,32 +296,43 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
   /**
-   * If the provider is single-mount and a tab for the given key already exists
-   * in any pane, focus that pane+tab and return true. Otherwise return false.
+   * Resolve a target to an existing or newly-split PaneStore.
+   * 'active' => focused pane
+   * 'right'  => pane immediately after focused (split if needed and below max)
+   * 'left'   => pane immediately before focused (split if needed and below max)
+   * { paneId } => specific pane (falls back to focused if not found)
    */
-  private _focusExistingSingleMount(kind: string, args: Record<string, unknown>): boolean {
-    if (!this._registry.has(kind)) return false;
-    const def = this._registry.get(kind);
-    if ((def.mount ?? 'multi') !== 'single') return false;
+  private _resolveTargetPane(target: OpenTarget): PaneStore<R> {
+    if (target === 'active') return this.focusedPane;
 
-    const { preview: _preview, ...rest } = args;
-    const payload: unknown = def.onBeforeOpen
-      ? def.onBeforeOpen(args as never, this._ctx)
-      : (rest as unknown);
-    if (payload === null) return true; // aborted
-
-    const key = def.resourceKey(payload as never);
-    for (const g of this.groups) {
-      const existing = g.pane.entryByKey(kind, key);
-      if (existing) {
-        this.setActiveGroup(g.paneId);
-        g.pane.setActiveTab(existing.tabId);
-        if (!args['preview']) existing.isPreview = false;
-        return true;
-      }
+    if (typeof target === 'object' && 'paneId' in target) {
+      return this.groups.find((g) => g.paneId === target.paneId)?.pane ?? this.focusedPane;
     }
-    return false;
+
+    // 'left' or 'right' — find adjacent pane, splitting if needed.
+    const focusedIndex = this.groups.findIndex((g) => g.paneId === this.activePaneId);
+    const idx = focusedIndex === -1 ? 0 : focusedIndex;
+    const adjacentIndex = target === 'right' ? idx + 1 : idx - 1;
+
+    const existing = this.groups[adjacentIndex];
+    if (existing) {
+      this.activePaneId = existing.paneId;
+      return existing.pane;
+    }
+
+    // Need to split.
+    if (this.groups.length >= MAX_PANE_COUNT) return this.focusedPane;
+    const newGroup = this._createPane();
+    const insertAt = target === 'right' ? idx + 1 : idx;
+    this.groups.splice(insertAt, 0, newGroup);
+    this._redistributeSizes();
+    this.activePaneId = newGroup.paneId;
+    return newGroup.pane;
   }
 
   private _createPane(): Pane<R> {
@@ -299,7 +343,9 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   }
 
   private _createPaneStore(_paneId: string): PaneStore<R> {
-    return new PaneStore<R>(this._registry, this._ctx);
+    return new PaneStore<R>(this._registry, this._ctx, {
+      layoutOpener: (args) => this.open(args as Parameters<typeof this.open>[0]),
+    });
   }
 
   private _registerAutoClose(paneId: string, pane: PaneStore<R>): void {

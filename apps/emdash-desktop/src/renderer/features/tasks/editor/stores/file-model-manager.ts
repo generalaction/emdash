@@ -31,7 +31,7 @@ type EntryState =
  *
  * Replaces the union-of-paths reaction in FileModelLifecycleStore.
  *
- * `retain(path, resource, ctx)`:
+ * `acquire(path, resource, ctx)`:
  *   - First caller: triggers async Monaco model registration.
  *   - Subsequent callers: immediately notifies the new resource with the
  *     current registration state (so multi-pane same-file tabs get their UI updated).
@@ -53,9 +53,9 @@ export class FileModelManager {
   /**
    * Register interest in the Monaco models for `path` from `resource`.
    * If models are already registered, notifies `resource` immediately.
-   * If this is the first retain for `path`, starts async model registration.
+   * If this is the first acquire for `path`, starts async model registration.
    */
-  retain(path: string, resource: FileTabResource): void {
+  acquire(path: string, resource: FileTabResource): void {
     const existing = this._entries.get(path);
     if (existing) {
       existing.resources.add(resource);
@@ -91,10 +91,6 @@ export class FileModelManager {
     }
     this._entries.clear();
   }
-
-  // ---------------------------------------------------------------------------
-  // Private
-  // ---------------------------------------------------------------------------
 
   private async _registerModels(path: string): Promise<void> {
     const kind = getFileKind(path);
@@ -231,8 +227,6 @@ export class FileModelManager {
     }
   }
 }
-
-// ── Registry — one manager per workspace ─────────────────────────────────────
 
 const _registry = new Map<string, FileModelManager>();
 

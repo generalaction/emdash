@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import type { TabItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
+import type { TabBarItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
@@ -10,11 +10,11 @@ import { AgentStatusIndicator } from '../components/agent-status-indicator';
 import type { ConversationTabResource } from './conversation-tab-resource';
 import { formatConversationTitleForDisplay } from './conversation-title-utils';
 
-export const ConversationTabItem = observer(function ConversationTabItem({
+export const ConversationTabBarItem = observer(function ConversationTabBarItem({
   tab,
   host,
   ctx,
-}: TabItemProps<ConversationTabResource>) {
+}: TabBarItemProps<ConversationTabResource>) {
   const store = tab.resource.store;
   const title = formatConversationTitleForDisplay(store.data.providerId, store.data.title);
   const rawTitle = store.data.title ?? '';
@@ -46,21 +46,23 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   );
 });
 
-export const ConversationTabDragPreview = observer(function ConversationTabDragPreview({
-  tab,
-}: {
-  tab: ResolvedTab<ConversationTabResource>;
-}) {
-  const store = tab.resource.store;
-  const label = formatConversationTitleForDisplay(store.data.providerId, store.data.title);
-  return (
-    <GenericTabDragPreview
-      preSlot={
-        store.data.providerId ? (
-          <AgentIcon id={store.data.providerId} size={16} className="shrink-0" />
-        ) : undefined
-      }
-      label={label}
-    />
-  );
-});
+export const ConversationTabBarItemDragPreview = observer(
+  function ConversationTabBarItemDragPreview({
+    tab,
+  }: {
+    tab: ResolvedTab<ConversationTabResource>;
+  }) {
+    const store = tab.resource.store;
+    const label = formatConversationTitleForDisplay(store.data.providerId, store.data.title);
+    return (
+      <GenericTabDragPreview
+        preSlot={
+          store.data.providerId ? (
+            <AgentIcon id={store.data.providerId} size={16} className="shrink-0" />
+          ) : undefined
+        }
+        label={label}
+      />
+    );
+  }
+);

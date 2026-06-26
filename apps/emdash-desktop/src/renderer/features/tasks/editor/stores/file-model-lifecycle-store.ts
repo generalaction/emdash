@@ -1,4 +1,4 @@
-import { makeObservable, observable, runInAction } from 'mobx';
+import { computed, makeObservable, observable, runInAction } from 'mobx';
 import type { PaneLayoutStore } from '@renderer/features/tabs/pane-layout-store';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -42,13 +42,9 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     makeObservable(this, {
       isSaving: observable,
       pendingConflictUri: observable,
-      snapshot: observable,
+      snapshot: computed,
     });
   }
-
-  // ---------------------------------------------------------------------------
-  // Computed
-  // ---------------------------------------------------------------------------
 
   /** Union of all open file resources across all panes. */
   get openFileResources(): FileTabResource[] {
@@ -64,10 +60,6 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     return [...seen];
   }
 
-  // ---------------------------------------------------------------------------
-  // Snapshottable
-  // ---------------------------------------------------------------------------
-
   get snapshot(): EditorViewSnapshot {
     return {
       expandedPaths: [...this.expandedPaths],
@@ -79,10 +71,6 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       this.expandedPaths.replace(snapshot.expandedPaths);
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Save
-  // ---------------------------------------------------------------------------
 
   async saveFile(filePath: string): Promise<void> {
     const uri = buildMonacoModelPath(this.modelRootPath, filePath);
@@ -166,10 +154,6 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       log.warn('[FileModelLifecycleStore] Failed to restore buffers:', e);
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Lifecycle
-  // ---------------------------------------------------------------------------
 
   dispose(): void {
     // Nothing to dispose — FileModelManager handles model lifecycle.

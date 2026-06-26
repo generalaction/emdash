@@ -19,27 +19,28 @@ import type {
 } from './core/tab-provider';
 import type { KindOf, OpenArgsOf, TabRegistry } from './core/tab-provider-registry';
 
-class TabEntryImpl<P = unknown> implements TabEntry<P> {
+// ── Internal plain-data entry with observable isPreview + state ───────────────
+
+class TabEntryImpl<S = unknown> implements TabEntry<S> {
   readonly kind: string;
   readonly tabId: string;
   isPreview: boolean;
-  readonly resourceKey: string;
-  readonly payload: P;
-  /** Engine-level custom title override (from handle.setTitle). */
-  customTitle: string | null = null;
+  /** Reactive, serializable domain state. Mutated in-place; read by snapshot. */
+  state: S;
 
-  constructor(kind: string, tabId: string, isPreview: boolean, resourceKey: string, payload: P) {
+  constructor(kind: string, tabId: string, isPreview: boolean, state: S) {
     this.kind = kind;
     this.tabId = tabId;
     this.isPreview = isPreview;
-    this.resourceKey = resourceKey;
-    this.payload = payload;
+    this.state = state;
     makeObservable(this, {
       isPreview: observable,
-      customTitle: observable,
+      state: observable,
     });
   }
 }
+
+// ── PaneStore ─────────────────────────────────────────────────────────────────
 
 /**
  * Owns all tab open/close/order/active state for a single pane.
@@ -69,6 +70,11 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
 
   readonly registry: R;
   private readonly _ctx: TabViewContext;
+  /**
+   * Layout-level opener injected at construction time.
+   * Handles target routing and single-mount cardinality checks.
+   */
+  private readonly _layoutOpener: ((args: Record<string, unknown>) => void) | null;
   private readonly _closedTabHistory: Array<{
     desc: TabDescriptor;
     index: number;
@@ -81,9 +87,14 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     return this._ctx;
   }
 
-  constructor(registry: R, ctx: TabViewContext) {
+  constructor(
+    registry: R,
+    ctx: TabViewContext,
+    opts?: { layoutOpener?: (args: Record<string, unknown>) => void }
+  ) {
     this.registry = registry;
     this._ctx = ctx;
+    this._layoutOpener = opts?.layoutOpener ?? null;
 
     makeObservable(this, {
       tabOrder: observable,
@@ -108,7 +119,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       setFocused: action,
       setDimensions: action,
       pin: action,
-      attachEntry: action,
       closeOthers: action,
       requestCloseTab: action,
       reopenClosedTab: action,
@@ -174,11 +184,18 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     return this._resources.get(activeId) as T | undefined;
   }
 
-  /** Find entry by kind + resourceKey within this pane (used for single-mount checks). */
-  entryByKey(kind: string, resourceKey: string): TabEntryImpl | undefined {
+  /**
+   * Find an existing tab entry in this pane using a kind + dedupKey pair.
+   * Only meaningful for single-mount providers; returns undefined for multi providers
+   * or when no entry with the given computed key exists.
+   */
+  findSingleMountEntry(kind: string, dedupKey: string): TabEntryImpl | undefined {
+    if (!this.registry.has(kind)) return undefined;
+    const def = this.registry.get(kind);
+    if (!def.mount || def.mount.type !== 'single') return undefined;
     for (const id of this.tabOrder) {
       const e = this.entries.get(id);
-      if (e?.kind === kind && e.resourceKey === resourceKey) return e;
+      if (e?.kind === kind && def.mount.dedupKey(e.state as never) === dedupKey) return e;
     }
     return undefined;
   }
@@ -217,73 +234,58 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
       if (!entry || !this.registry.has(entry.kind)) continue;
-      const def = this.registry.get(entry.kind);
-      const resource = this._resources.get(id);
-      const serializablePayload =
-        resource && def.getSerializablePayload
-          ? def.getSerializablePayload(entry, resource)
-          : entry.payload;
       tabs.push({
         kind: entry.kind,
         tabId: entry.tabId,
         isPreview: entry.isPreview,
-        ...(serializablePayload as object),
+        ...(entry.state as object),
       } as TabDescriptor);
     }
     return { tabs, activeTabId: this.activeTabId };
   }
 
   // ---------------------------------------------------------------------------
-  // Actions — open
+  // Actions — open (internal; public entry-point is PaneLayoutStore.open)
   // ---------------------------------------------------------------------------
 
   /**
-   * Generic open: strips the `preview` control flag, runs onBeforeOpen to
-   * compute the payload, then deduplicates or creates a new entry.
+   * Open a tab in THIS pane. Skips single-mount cardinality (that is enforced by
+   * the layout store before routing here). Handles preview retarget within the pane.
+   *
+   * `initialState` is the already-computed state from the layout store.
+   * `isPreview` comes from the caller's `preview` flag.
+   * `overrideState` applies when the layout found a single-mount match in this pane.
    */
-  open<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>): void {
-    if (!this.registry.has(kind as string)) {
-      console.warn(`[PaneStore] Unknown tab kind: ${kind as string}`);
+  openWithState(
+    kind: string,
+    initialState: unknown,
+    opts?: { isPreview?: boolean; overrideState?: boolean }
+  ): void {
+    const isPreview = opts?.isPreview ?? false;
+
+    if (!this.registry.has(kind)) {
+      console.warn(`[PaneStore] Unknown tab kind: ${kind}`);
       return;
     }
-    const def = this.registry.get(kind as string);
-    const { preview = false, ...rest } = args as Record<string, unknown>;
+    const def = this.registry.get(kind);
 
-    // Compute payload via onBeforeOpen (side-effects allowed) or fall back to args.
-    const payload: unknown = def.onBeforeOpen
-      ? def.onBeforeOpen(args as never, this._ctx)
-      : (rest as unknown);
-    if (payload === null) return; // onBeforeOpen aborted the open
-
-    const resourceKey = def.resourceKey(payload as never);
-
-    // Dedup within this pane: exact same key already open.
-    const existing = this.entryByKey(kind as string, resourceKey);
-    if (existing) {
-      if (!preview) existing.isPreview = false; // stable open promotes preview
-      const resource = this._resources.get(existing.tabId);
-      if (resource && def.onRetarget) {
-        def.onRetarget(
-          existing as never,
-          resource as never,
-          payload as never,
-          this._buildHandle(existing),
-          this._ctx
-        );
+    // Single-mount dedup: if already open in THIS pane, focus (and optionally update state).
+    if (def.mount?.type === 'single') {
+      const dedupKey = def.mount.dedupKey(initialState as never);
+      const existing = this.findSingleMountEntry(kind, dedupKey);
+      if (existing) {
+        if (!isPreview) existing.isPreview = false;
+        if (opts?.overrideState) existing.state = initialState;
+        this.setActiveTab(existing.tabId);
+        return;
       }
-      this.setActiveTab(existing.tabId);
-      return;
     }
 
     // Preview retarget: replace the existing preview for this kind, if any.
-    if (preview) {
-      const previewEntry = this._previewEntryOfKind(kind as string);
+    if (isPreview) {
+      const previewEntry = this._previewEntryOfKind(kind);
       if (previewEntry) {
-        this.retargetEntry(previewEntry.tabId, {
-          resourceKey,
-          payload,
-          isPreview: true,
-        });
+        this.retargetEntry(previewEntry.tabId, { state: initialState, isPreview: true });
         this.setActiveTab(previewEntry.tabId);
         return;
       }
@@ -291,12 +293,40 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
 
     // Fresh tab.
     const tabId = crypto.randomUUID();
-    const entry = new TabEntryImpl(kind as string, tabId, !!preview, resourceKey, payload);
+    const entry = new TabEntryImpl(kind, tabId, isPreview, initialState);
     this._attachEntryAndInitialize(entry, { activate: true });
   }
 
+  /**
+   * Untyped open used by resources (via handle.open) and legacy callers.
+   * Strips control flags and delegates to the layout opener if available,
+   * falling back to openWithState in this pane.
+   */
   openKind(kind: string, args: unknown): void {
-    this.open(kind as KindOf<R>, args as OpenArgsOf<R, KindOf<R>>);
+    if (this._layoutOpener) {
+      this._layoutOpener({ ...(args as Record<string, unknown>), kind });
+    } else {
+      // Fallback: compute state and open directly in this pane.
+      const argsRec = args as Record<string, unknown>;
+      const { preview, overrideState, target: _target, ...rest } = argsRec;
+      if (!this.registry.has(kind)) return;
+      const def = this.registry.get(kind);
+      const state: unknown = def.onBeforeOpen
+        ? def.onBeforeOpen(argsRec as never, this._ctx)
+        : (rest as unknown);
+      if (state === null) return;
+      this.openWithState(kind, state, {
+        isPreview: !!preview,
+        overrideState: !!overrideState,
+      });
+    }
+  }
+
+  /**
+   * Typed open for direct PaneStore consumers (e.g. PaneLayoutStore routing into a pane).
+   */
+  open<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>): void {
+    this.openKind(kind as string, args);
   }
 
   // ---------------------------------------------------------------------------
@@ -343,29 +373,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   pin(tabId: string): void {
     const entry = this.entries.get(tabId);
     if (entry) entry.isPreview = false;
-  }
-
-  /**
-   * Appends an entry, initializes it, and optionally activates it.
-   * Used by the engine only; NOT exposed on TabHost.
-   */
-  attachEntry(
-    entry: { readonly kind: string; readonly tabId: string; isPreview: boolean },
-    opts?: { activate?: boolean }
-  ): void {
-    // Legacy path: convert a bare entry object to a TabEntryImpl and initialize.
-    // Called by older code paths; prefer _attachEntryAndInitialize.
-    const impl =
-      entry instanceof TabEntryImpl
-        ? entry
-        : new TabEntryImpl(
-            entry.kind,
-            entry.tabId,
-            entry.isPreview,
-            '', // resourceKey unknown without payload — legacy callers should use open()
-            {}
-          );
-    this._attachEntryAndInitialize(impl, opts);
   }
 
   closeOthers(tabId: string): void {
@@ -435,6 +442,12 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     this._removeTab(tabId);
   }
 
+  /** Fire resource.onActivateIntent() for a tab (called on hover/focus intent). */
+  signalActivateIntent(tabId: string): void {
+    const resource = this._resources.get(tabId);
+    resource?.onActivateIntent?.();
+  }
+
   setVisible(visible: boolean): void {
     this.isVisible = visible;
     if (visible) {
@@ -469,16 +482,13 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       // Re-initialize from snapshot.
       for (const desc of snapshot.tabs) {
         if (!this.registry.has(desc.kind)) continue;
-        const def = this.registry.get(desc.kind);
         const { kind, tabId, isPreview, ...rest } = desc as Record<string, unknown>;
-        const payload = rest as unknown;
-        const resourceKey = def.resourceKey(payload as never);
+        const state = rest as unknown;
         const entry = new TabEntryImpl(
           kind as string,
           tabId as string,
           isPreview as boolean,
-          resourceKey,
-          payload
+          state
         );
         this._attachEntryAndInitialize(entry, { activate: false });
       }
@@ -533,16 +543,13 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   }
 
   /**
-   * Replaces an existing entry's payload/resourceKey in-place without changing tabId.
+   * Replaces an existing entry's state in-place without changing tabId.
    * Used by the generic open for preview retargeting:
    *   1. Dispose the old resource.
-   *   2. Create a new entry with the new payload at the same tabId slot.
+   *   2. Create a new entry with the new state at the same tabId slot.
    *   3. Initialize the new resource.
    */
-  retargetEntry(
-    tabId: string,
-    update: { resourceKey: string; payload: unknown; isPreview?: boolean }
-  ): void {
+  retargetEntry(tabId: string, update: { state: unknown; isPreview?: boolean }): void {
     const oldEntry = this.entries.get(tabId);
     if (!oldEntry) return;
 
@@ -555,8 +562,7 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       oldEntry.kind,
       tabId,
       update.isPreview ?? oldEntry.isPreview,
-      update.resourceKey,
-      update.payload
+      update.state
     );
     this.entries.set(tabId, newEntry);
 
@@ -577,17 +583,10 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     if (!record) return;
     const { desc, index } = record;
     if (!this.registry.has(desc.kind)) return;
-    const def = this.registry.get(desc.kind);
     const { kind, tabId, isPreview, ...rest } = desc as Record<string, unknown>;
-    const payload = rest as unknown;
-    const resourceKey = def.resourceKey(payload as never);
-    const entry = new TabEntryImpl(
-      kind as string,
-      tabId as string,
-      isPreview as boolean,
-      resourceKey,
-      payload
-    );
+    const state = rest as unknown;
+    const entry = new TabEntryImpl(kind as string, tabId as string, isPreview as boolean, state);
+    const def = this.registry.get(kind as string);
     const resource = def.initialize(entry as never, this._buildHandle(entry), this._ctx);
     this.entries.set(entry.tabId, entry);
     this._resources.set(entry.tabId, resource);
@@ -619,23 +618,15 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
 
     // Record for reopen history before removing.
     const index = this.tabOrder.indexOf(id);
-    if (this.registry.has(entry.kind)) {
-      const def = this.registry.get(entry.kind);
-      const resource = this._resources.get(id);
-      const serializablePayload =
-        resource && def.getSerializablePayload
-          ? def.getSerializablePayload(entry as never, resource as never)
-          : entry.payload;
-      const desc = {
-        kind: entry.kind,
-        tabId: entry.tabId,
-        isPreview: entry.isPreview,
-        ...(serializablePayload as object),
-      } as TabDescriptor;
-      this._closedTabHistory.push({ desc, index });
-      if (this._closedTabHistory.length > PaneStore._MAX_CLOSED_HISTORY) {
-        this._closedTabHistory.shift();
-      }
+    const desc = {
+      kind: entry.kind,
+      tabId: entry.tabId,
+      isPreview: entry.isPreview,
+      ...(entry.state as object),
+    } as TabDescriptor;
+    this._closedTabHistory.push({ desc, index });
+    if (this._closedTabHistory.length > PaneStore._MAX_CLOSED_HISTORY) {
+      this._closedTabHistory.shift();
     }
 
     this._disposeEntry(id);
@@ -662,17 +653,31 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       pin: action(() => {
         entry.isPreview = false;
       }),
-      close: action(() => {
-        this._removeTab(entry.tabId);
-      }),
-      requestClose: action(() => {
-        this.requestCloseTab(entry.tabId);
-      }),
-      setTitle: action((title: string) => {
-        entry.customTitle = title;
-      }),
-      openSibling: (kind: string, args: unknown) => {
-        this.openKind(kind, args);
+      close: (opts?: { force?: boolean }): Promise<boolean> => {
+        if (opts?.force) {
+          runInAction(() => this._removeTab(entry.tabId));
+          return Promise.resolve(true);
+        }
+        // User-style close: run onBeforeClose veto.
+        const entryRef = this.entries.get(entry.tabId);
+        if (!entryRef) return Promise.resolve(false);
+        const resource = this._resources.get(entry.tabId);
+        if (resource && this.registry.has(entryRef.kind)) {
+          const def = this.registry.get(entryRef.kind);
+          if (def.onBeforeClose) {
+            return Promise.resolve(
+              def.onBeforeClose(entryRef as never, resource as never, this._ctx)
+            ).then((proceed) => {
+              if (proceed) runInAction(() => this._removeTab(entry.tabId));
+              return proceed;
+            });
+          }
+        }
+        runInAction(() => this._removeTab(entry.tabId));
+        return Promise.resolve(true);
+      },
+      open: (args: { kind: string } & Record<string, unknown>) => {
+        this.openKind(args.kind, args);
       },
     };
   }

@@ -239,7 +239,8 @@ export function CommandPaletteModal({
 
   const handleNavigateToConversation = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.paneLayout.open('conversation', {
+    getTaskView(item.projectId, item.taskId)?.paneLayout.open({
+      kind: 'conversation',
       conversationId: item.id,
       preview: false,
     });

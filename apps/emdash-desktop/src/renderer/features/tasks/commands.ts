@@ -91,7 +91,8 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId, type }) => {
-                taskView?.paneLayout.open(type === 'acp' ? 'acp-chat' : 'conversation', {
+                taskView?.paneLayout.open({
+                  kind: type === 'acp' ? 'acp-chat' : 'conversation',
                   conversationId,
                   preview: false,
                 });
@@ -111,13 +112,12 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId, type }) => {
-                taskView?.paneLayout.openInRightSplit(
-                  type === 'acp' ? 'acp-chat' : 'conversation',
-                  {
-                    conversationId,
-                    preview: false,
-                  }
-                );
+                taskView?.paneLayout.open({
+                  kind: type === 'acp' ? 'acp-chat' : 'conversation',
+                  conversationId,
+                  preview: false,
+                  target: 'right',
+                });
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -218,7 +218,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: openBrowserDef.shortcutKey,
           group: openBrowserDef.group,
           execute() {
-            taskView?.paneLayout.open('browser', {});
+            taskView?.paneLayout.open({ kind: 'browser' });
             taskView?.setFocusedRegion('main');
           },
         },

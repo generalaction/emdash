@@ -29,7 +29,7 @@ export class ConversationTabResource implements TabResource {
       reaction(
         () => conversationRegistry.get(taskId)?.conversations.has(conversationId) ?? false,
         (exists) => {
-          if (!exists) handle.close();
+          if (!exists) void handle.close();
         }
       ),
     ];

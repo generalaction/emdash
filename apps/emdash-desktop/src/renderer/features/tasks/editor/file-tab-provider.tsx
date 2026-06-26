@@ -16,13 +16,10 @@ import { FileContentPreview } from './file-content-preview';
 import { FileContentRenderer } from './file-content-renderer';
 import { FileContentToolbar } from './file-content-toolbar';
 import { FILE_CONTENT_TYPES } from './file-content-types';
-import { FileTabItem, FileTabDragPreview } from './file-tab-item';
+import { FileTabBarItem, FileTabBarItemDragPreview } from './file-tab-item';
 import { getFileModelManager } from './stores/file-model-manager';
 import type { FilePayload } from './stores/file-tab-resource';
 import { FileTabResource } from './stores/file-tab-resource';
-// ---------------------------------------------------------------------------
-// Open args
-// ---------------------------------------------------------------------------
 
 export interface FileOpenArgs {
   path: string;
@@ -32,25 +29,21 @@ export interface FileOpenArgs {
   external?: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Content components
-// ---------------------------------------------------------------------------
-
 /**
  * Mounts EditorProvider unconditionally so the Monaco instance persists across
  * tab switches. The Monaco host is overlaid and visibility-toggled rather than
  * unmounted, so cursor position and scroll survive kind transitions.
  */
-const FileTabContent = observer(function FileTabContent({ host, ctx: _ctx }: TabContentProps) {
+const FileTabContent = observer(function FileTabContent({ host, ctx }: TabContentProps) {
   return (
     <EditorProvider>
-      <FileContent host={host} />
+      <FileContent host={host} ctx={ctx} />
     </EditorProvider>
   );
 });
 
 /** Renders the Monaco source and/or preview for the currently active file tab. */
-const FileContent = observer(function FileContent({ host }: TabContentProps) {
+const FileContent = observer(function FileContent({ host, ctx: _ctx }: TabContentProps) {
   const activeTab = host.resolvedTabs.find((t) => t.isActive);
   const activeFile = activeTab?.kind === 'file' ? (activeTab.resource as FileTabResource) : null;
 
@@ -80,15 +73,9 @@ const FileContent = observer(function FileContent({ host }: TabContentProps) {
   );
 });
 
-// ---------------------------------------------------------------------------
-// Provider definition
-// ---------------------------------------------------------------------------
-
 export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, FileOpenArgs> =
   createTabProvider({
     kind: 'file',
-
-    resourceKey: (payload) => payload.path,
 
     onBeforeOpen: (args: FileOpenArgs): FilePayload | null => {
       return { path: args.path, isExternal: args.external };
@@ -106,7 +93,7 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
         modelRootPath: taskCtx.modelRootPath,
       });
       return new FileTabResource(
-        entry.payload,
+        entry.state,
         modelManager,
         {
           projectId: taskCtx.projectId,
@@ -126,12 +113,12 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
       resource: FileTabResource,
       ctx: TabViewContext
     ): Promise<boolean> {
-      if (entry.payload.isExternal) return true;
+      if (entry.state.isExternal) return true;
       const taskCtx = ctx as TaskTabContext;
-      const bufferUri = buildMonacoModelPath(taskCtx.modelRootPath, entry.payload.path);
+      const bufferUri = buildMonacoModelPath(taskCtx.modelRootPath, entry.state.path);
       if (!modelRegistry.isDirty(bufferUri)) return true;
 
-      const fileName = entry.payload.path.split('/').pop() ?? entry.payload.path;
+      const fileName = entry.state.path.split('/').pop() ?? entry.state.path;
       return new Promise<boolean>((resolve) =>
         showModal('unsavedChangesModal', {
           fileName,
@@ -147,27 +134,11 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
       );
     },
 
-    /** For preview retarget: update the path-based state if the path changes. */
-    onRetarget(
-      _entry: TabEntry<FilePayload>,
-      resource: FileTabResource,
-      newPayload: FilePayload,
-      _handle: TabHandle,
-      ctx: TabViewContext
-    ): void {
-      // The new FileTabResource is created by retargetEntry; this hook is called
-      // when a stable open hits an existing entry. We only need to update status
-      // (e.g. promote preview to stable). The engine handles isPreview flip.
-      void resource;
-      void newPayload;
-      void ctx;
-    },
-
-    TabItem: FileTabItem,
-    DragPreview: FileTabDragPreview,
-    Content: FileTabContent,
+    TabBarItem: FileTabBarItem,
+    TabBarItemDragPreview: FileTabBarItemDragPreview,
+    TabContent: FileTabContent,
 
     title(entry: TabEntry<FilePayload>): string {
-      return entry.payload.path.split('/').pop() ?? 'Untitled';
+      return entry.state.path.split('/').pop() ?? 'Untitled';
     },
   });

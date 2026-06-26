@@ -81,7 +81,7 @@ export class FileTabResource implements TabResource {
 
     // Retain Monaco models for this file. Not done for external files.
     if (!this.isExternal && modelManager) {
-      modelManager.retain(this.path, this);
+      modelManager.acquire(this.path, this);
     }
   }
 

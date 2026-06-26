@@ -1,3 +1,4 @@
+import { detectPlatform, parseHotkey } from '@tanstack/react-hotkeys';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
 import type {
@@ -13,7 +14,26 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+import { BoundShortcut, Shortcut } from '@renderer/lib/ui/shortcut';
+import type { ShortcutSettingsKey } from '@shared/shortcuts';
+
+const _PLATFORM = detectPlatform();
+
+/** Renders a shortcut hint that works with both a settings key and a raw getter. */
+function CmdShortcut({
+  shortcut,
+}: {
+  shortcut?: ShortcutSettingsKey | (() => string | undefined);
+}) {
+  if (!shortcut) return null;
+  if (typeof shortcut === 'function') {
+    const raw = shortcut();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parsed = raw ? (parseHotkey(raw, _PLATFORM) as any) : null;
+    return parsed ? <Shortcut hotkey={parsed} className="ml-auto" /> : null;
+  }
+  return <BoundShortcut settingsKey={shortcut} className="ml-auto" />;
+}
 
 /**
  * Generic context menu wrapper for any tab kind.
@@ -71,7 +91,7 @@ export const TabContextMenu = observer(function TabContextMenu({
           <ContextMenuItem key={cmd.id} onClick={() => void cmd.run()}>
             {cmd.icon ? <cmd.icon className="size-4" /> : null}
             {cmd.label}
-            {cmd.shortcut ? <BoundShortcut settingsKey={cmd.shortcut} className="ml-auto" /> : null}
+            <CmdShortcut shortcut={cmd.shortcut} />
           </ContextMenuItem>
         ))}
         {visibleKind.length > 0 && visibleEngine.length > 0 && <ContextMenuSeparator />}
@@ -79,7 +99,7 @@ export const TabContextMenu = observer(function TabContextMenu({
           <ContextMenuItem key={cmd.id} onClick={() => void cmd.run()}>
             {cmd.icon ? <cmd.icon className="size-4" /> : null}
             {cmd.label}
-            {cmd.shortcut ? <BoundShortcut settingsKey={cmd.shortcut} className="ml-auto" /> : null}
+            <CmdShortcut shortcut={cmd.shortcut} />
           </ContextMenuItem>
         ))}
       </ContextMenuContent>

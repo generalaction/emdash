@@ -23,7 +23,7 @@ export class AcpChatResourceManager {
     private readonly taskId: string
   ) {}
 
-  retain(conversationId: string): AcpChatStore {
+  acquire(conversationId: string): AcpChatStore {
     let entry = this._entries.get(conversationId);
     if (entry) {
       entry.refCount++;
@@ -62,8 +62,6 @@ export class AcpChatResourceManager {
     this._entries.clear();
   }
 }
-
-// ── Registry — one manager per taskId ────────────────────────────────────────
 
 const _registry = new Map<string, AcpChatResourceManager>();
 

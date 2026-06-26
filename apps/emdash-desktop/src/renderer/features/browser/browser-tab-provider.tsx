@@ -16,12 +16,12 @@ import type { TaskTabContext } from '@renderer/features/tasks/stores/task-tab-co
 import { rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserProfileSelection } from '@shared/browser';
 import type { BrowserSessionSnapshot } from '@shared/browser';
-import { BrowserTabItem, BrowserTabDragPreview } from './browser-tab-item';
+import { BrowserTabBarItem, BrowserTabBarItemDragPreview } from './browser-tab-item';
 import { BrowserTabResource } from './browser-tab-resource';
 
-export interface BrowserPayload {
+export interface BrowserState {
   browserId: string;
-  /** Session snapshot at the time the tab was opened or last serialized. */
+  /** Session snapshot — kept current by BrowserTabResource's MobX reaction. */
   session: BrowserSessionSnapshot;
 }
 
@@ -72,19 +72,19 @@ const BrowserTabContent = observer(function BrowserTabContent({ host }: TabConte
 
 export const browserTabProvider: TabProvider<
   'browser',
-  BrowserPayload,
+  BrowserState,
   BrowserTabResource,
   BrowserOpenArgs
 > = createTabProvider({
   kind: 'browser',
 
-  resourceKey: (payload) => payload.browserId,
+  // No mount: multi. Each open creates a fresh browser session.
 
   /**
-   * Creates a new browser session and returns it as the payload.
+   * Creates a new browser session and returns it as the initial state.
    * Returns null to abort if session creation fails (shouldn't happen).
    */
-  onBeforeOpen(args: BrowserOpenArgs, ctx: TabViewContext): BrowserPayload | null {
+  onBeforeOpen(args: BrowserOpenArgs, ctx: TabViewContext): BrowserState | null {
     const taskCtx = ctx as TaskTabContext;
     const browserSettings = getAppSettingValueSnapshot('browser');
     const profileId = normalizeBrowserProfileSelection(
@@ -102,37 +102,22 @@ export const browserTabProvider: TabProvider<
   },
 
   initialize(
-    entry: TabEntry<BrowserPayload>,
+    entry: TabEntry<BrowserState>,
     handle: TabHandle,
     _ctx: TabViewContext
   ): BrowserTabResource {
-    return new BrowserTabResource(entry.payload, handle);
+    return new BrowserTabResource(entry, handle);
   },
 
-  dispose(_entry: TabEntry<BrowserPayload>, resource: BrowserTabResource): void {
+  dispose(_entry: TabEntry<BrowserState>, resource: BrowserTabResource): void {
     resource.dispose();
   },
 
-  /**
-   * Persist the current live session state (URL, title, zoom, etc.) rather
-   * than the snapshot from when the tab was opened.
-   */
-  getSerializablePayload(
-    entry: TabEntry<BrowserPayload>,
-    resource: BrowserTabResource
-  ): BrowserPayload {
-    const liveSession = resource.session;
-    return {
-      browserId: entry.payload.browserId,
-      session: liveSession ?? entry.payload.session,
-    };
-  },
+  TabBarItem: BrowserTabBarItem,
+  TabBarItemDragPreview: BrowserTabBarItemDragPreview,
+  TabContent: BrowserTabContent,
 
-  TabItem: BrowserTabItem,
-  DragPreview: BrowserTabDragPreview,
-  Content: BrowserTabContent,
-
-  title(_entry: TabEntry<BrowserPayload>, resource: BrowserTabResource): string {
+  title(_entry: TabEntry<BrowserState>, resource: BrowserTabResource): string {
     const session = resource.session;
     if (!session) return 'Browser';
     if (session.title.trim()) return session.title.trim();

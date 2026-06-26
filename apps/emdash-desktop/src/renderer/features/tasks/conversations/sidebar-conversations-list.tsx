@@ -77,7 +77,8 @@ const ConversationRow = observer(function ConversationRow({
   const conversationType = conversation.data.type;
 
   const handleDoubleClick = () => {
-    paneLayout.open(conversationType === 'acp' ? 'acp-chat' : 'conversation', {
+    paneLayout.open({
+      kind: conversationType === 'acp' ? 'acp-chat' : 'conversation',
       conversationId,
       preview: false,
     });
@@ -103,7 +104,8 @@ const ConversationRow = observer(function ConversationRow({
           role="button"
           tabIndex={0}
           onClick={() =>
-            paneLayout.open(conversationType === 'acp' ? 'acp-chat' : 'conversation', {
+            paneLayout.open({
+              kind: conversationType === 'acp' ? 'acp-chat' : 'conversation',
               conversationId,
               preview: true,
             })
@@ -112,7 +114,8 @@ const ConversationRow = observer(function ConversationRow({
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              paneLayout.open(conversationType === 'acp' ? 'acp-chat' : 'conversation', {
+              paneLayout.open({
+                kind: conversationType === 'acp' ? 'acp-chat' : 'conversation',
                 conversationId,
                 preview: true,
               });
@@ -201,7 +204,8 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       projectId,
       taskId,
       onSuccess: ({ conversationId, type }) => {
-        paneLayout.open(type === 'acp' ? 'acp-chat' : 'conversation', {
+        paneLayout.open({
+          kind: type === 'acp' ? 'acp-chat' : 'conversation',
           conversationId,
           preview: false,
         });

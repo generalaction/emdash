@@ -28,7 +28,7 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
         {resolvedTabs.map((tab) => {
           if (!pane.registry.has(tab.kind)) return null;
           const def = pane.registry.get(tab.kind);
-          const TabItemComponent = def.TabItem;
+          const TabItemComponent = def.TabBarItem;
           return <TabItemComponent key={tab.tabId} tab={tab} host={pane} ctx={pane.ctx} />;
         })}
         <PaneDropZone paneId={paneId} />

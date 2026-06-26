@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { TabItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
+import type { TabBarItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
@@ -22,11 +22,11 @@ function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | unde
   return undefined;
 }
 
-export const FileTabItem = observer(function FileTabItem({
+export const FileTabBarItem = observer(function FileTabBarItem({
   tab,
   host,
   ctx,
-}: TabItemProps<FileTabResource>) {
+}: TabBarItemProps<FileTabResource>) {
   const resource = tab.resource;
   const fileName = resource.path.split('/').pop() ?? 'Untitled';
   const isMonacoFile =
@@ -73,7 +73,7 @@ export const FileTabItem = observer(function FileTabItem({
   );
 });
 
-export function FileTabDragPreview({ tab }: { tab: ResolvedTab<FileTabResource> }) {
+export function FileTabBarItemDragPreview({ tab }: { tab: ResolvedTab<FileTabResource> }) {
   const fileName = tab.resource.path.split('/').pop() ?? 'Untitled';
   return (
     <GenericTabDragPreview

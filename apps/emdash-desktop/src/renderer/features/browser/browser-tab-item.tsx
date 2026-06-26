@@ -1,6 +1,6 @@
 import { Globe, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { TabItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
+import type { TabBarItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
@@ -19,11 +19,11 @@ function browserTabLabel(session: BrowserSessionSnapshot | undefined): string {
   }
 }
 
-export const BrowserTabItem = observer(function BrowserTabItem({
+export const BrowserTabBarItem = observer(function BrowserTabBarItem({
   tab,
   host,
   ctx,
-}: TabItemProps<BrowserTabResource>) {
+}: TabBarItemProps<BrowserTabResource>) {
   const session = tab.resource.session;
   const label = browserTabLabel(session);
 
@@ -43,7 +43,7 @@ export const BrowserTabItem = observer(function BrowserTabItem({
   );
 });
 
-export function BrowserTabDragPreview({ tab }: { tab: ResolvedTab<BrowserTabResource> }) {
+export function BrowserTabBarItemDragPreview({ tab }: { tab: ResolvedTab<BrowserTabResource> }) {
   const label = browserTabLabel(tab.resource.session);
   return (
     <GenericTabDragPreview

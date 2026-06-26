@@ -35,20 +35,20 @@ vi.mock('@renderer/utils/telemetry-scope', () => ({
 // Stub out the React UI components brought in by the definitions bootstrap so
 // the test can run in the node Vitest project without a real DOM.
 vi.mock('@renderer/features/browser/browser-tab-item', () => ({
-  BrowserTabItem: () => null,
-  BrowserTabDragPreview: () => null,
+  BrowserTabBarItem: () => null,
+  BrowserTabBarItemDragPreview: () => null,
 }));
 vi.mock('@renderer/features/tasks/editor/file-tab-item', () => ({
-  FileTabItem: () => null,
-  FileTabDragPreview: () => null,
+  FileTabBarItem: () => null,
+  FileTabBarItemDragPreview: () => null,
 }));
 vi.mock('@renderer/features/tasks/conversations/conversation-tab-item', () => ({
-  ConversationTabItem: () => null,
-  ConversationTabDragPreview: () => null,
+  ConversationTabBarItem: () => null,
+  ConversationTabBarItemDragPreview: () => null,
 }));
 vi.mock('@renderer/features/tasks/diff-view/diff-tab-item', () => ({
-  DiffTabItem: () => null,
-  DiffTabDragPreview: () => null,
+  DiffTabBarItem: () => null,
+  DiffTabBarItemDragPreview: () => null,
   diffGroupSuffix: (group: string) => `(${group})`,
 }));
 vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () => ({

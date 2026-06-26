@@ -8,16 +8,12 @@ import type {
 import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
 import { getConversationSessionManager } from '../stores/conversation-session-manager';
 import type { TaskTabContext } from '../stores/task-tab-context';
-import { ConversationTabItem, ConversationTabDragPreview } from './conversation-tab-item';
+import { ConversationTabBarItem, ConversationTabBarItemDragPreview } from './conversation-tab-item';
 import { ConversationTabResource } from './conversation-tab-resource';
 import { formatConversationTitleForDisplay } from './conversation-title-utils';
 import { ConversationsPanel } from './conversations-panel';
 
-// ---------------------------------------------------------------------------
-// Payload types
-// ---------------------------------------------------------------------------
-
-export interface ConversationPayload {
+export interface ConversationState {
   conversationId: string;
 }
 
@@ -27,10 +23,6 @@ export interface ConversationOpenArgs {
   preview?: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Content component
-// ---------------------------------------------------------------------------
-
 /**
  * Mounts ConversationsPanel unconditionally. Visibility is managed by PaneContent
  * via visibility:hidden + inert so PTY sessions survive tab switches.
@@ -39,56 +31,54 @@ const ConversationTabContent = observer(function ConversationTabContent() {
   return <ConversationsPanel />;
 });
 
-// ---------------------------------------------------------------------------
-// Provider definition
-// ---------------------------------------------------------------------------
-
 export const conversationTabProvider: TabProvider<
   'conversation',
-  ConversationPayload,
+  ConversationState,
   ConversationTabResource,
   ConversationOpenArgs
 > = createTabProvider({
   kind: 'conversation',
-  mount: 'single',
 
-  resourceKey: (payload) => payload.conversationId,
+  mount: {
+    type: 'single',
+    dedupKey: (s) => s.conversationId,
+  },
 
-  onBeforeOpen: (args: ConversationOpenArgs): ConversationPayload | null => {
+  onBeforeOpen: (args: ConversationOpenArgs): ConversationState | null => {
     return { conversationId: args.conversationId };
   },
 
   initialize(
-    entry: TabEntry<ConversationPayload>,
+    entry: TabEntry<ConversationState>,
     handle: TabHandle,
     ctx: TabViewContext
   ): ConversationTabResource {
     const taskCtx = ctx as TaskTabContext;
     const sessionManager = getConversationSessionManager(taskCtx.taskId);
-    const store = sessionManager.retain(entry.payload.conversationId);
+    const store = sessionManager.acquire(entry.state.conversationId);
     if (!store) {
       // Conversation not found; return a dummy resource that will auto-close.
       const dummy: ConversationTabResource = {
         store: undefined as never,
         dispose: () => {
-          sessionManager.release(entry.payload.conversationId);
+          sessionManager.release(entry.state.conversationId);
         },
         onActivate: undefined,
       } as unknown as ConversationTabResource;
       // Auto-close on next tick.
-      setTimeout(() => handle.close(), 0);
+      setTimeout(() => void handle.close(), 0);
       return dummy;
     }
     return new ConversationTabResource(store, taskCtx.taskId, handle);
   },
 
   dispose(
-    entry: TabEntry<ConversationPayload>,
+    entry: TabEntry<ConversationState>,
     _resource: ConversationTabResource,
     ctx: TabViewContext
   ): void {
     const taskCtx = ctx as TaskTabContext;
-    getConversationSessionManager(taskCtx.taskId).release(entry.payload.conversationId);
+    getConversationSessionManager(taskCtx.taskId).release(entry.state.conversationId);
   },
 
   commands: {
@@ -100,11 +90,11 @@ export const conversationTabProvider: TabProvider<
     },
   },
 
-  TabItem: ConversationTabItem,
-  DragPreview: ConversationTabDragPreview,
-  Content: ConversationTabContent,
+  TabBarItem: ConversationTabBarItem,
+  TabBarItemDragPreview: ConversationTabBarItemDragPreview,
+  TabContent: ConversationTabContent,
 
-  title(_entry: TabEntry<ConversationPayload>, resource: ConversationTabResource): string {
+  title(_entry: TabEntry<ConversationState>, resource: ConversationTabResource): string {
     return formatConversationTitleForDisplay(
       resource.store.data.providerId,
       resource.store.data.title

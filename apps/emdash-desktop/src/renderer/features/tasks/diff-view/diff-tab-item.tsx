@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import type { TabItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
+import type { TabBarItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
@@ -22,11 +22,11 @@ export function diffGroupSuffix(diffGroup: DiffTabResource['diffGroup']): string
   }
 }
 
-export const DiffTabItem = observer(function DiffTabItem({
+export const DiffTabBarItem = observer(function DiffTabBarItem({
   tab,
   host,
   ctx,
-}: TabItemProps<DiffTabResource>) {
+}: TabBarItemProps<DiffTabResource>) {
   const resource = tab.resource;
   const fileName = resource.path.split('/').pop() ?? 'Untitled';
   const suffix = diffGroupSuffix(resource.diffGroup);
@@ -60,7 +60,7 @@ export const DiffTabItem = observer(function DiffTabItem({
   );
 });
 
-export function DiffTabDragPreview({ tab }: { tab: ResolvedTab<DiffTabResource> }) {
+export function DiffTabBarItemDragPreview({ tab }: { tab: ResolvedTab<DiffTabResource> }) {
   const resource = tab.resource;
   const fileName = resource.path.split('/').pop() ?? 'Untitled';
   const suffix = diffGroupSuffix(resource.diffGroup);
