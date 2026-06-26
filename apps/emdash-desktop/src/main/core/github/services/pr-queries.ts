@@ -7,7 +7,6 @@ export const PR_SUMMARY_FRAGMENT = `
     isDraft
     createdAt
     updatedAt
-    mergedAt
     headRefName
     headRefOid
     baseRefName

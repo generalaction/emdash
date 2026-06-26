@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, desc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { archiveTask } from '@main/core/tasks/operations/archiveTask';
 import { deleteTask } from '@main/core/tasks/operations/deleteTask';
@@ -72,12 +72,16 @@ export class AutoCleanupScheduler {
   }
 
   private async _loadCandidates(cutoffIso: string): Promise<Candidate[]> {
+    // The activity timestamp falls back to updated_at when the task has never been
+    // interacted with (mirrors the sidebar's "lastInteractedAt ?? updatedAt").
+    const lastActivity = sql<string>`COALESCE(${tasks.lastInteractedAt}, ${tasks.updatedAt})`;
+
     const rows = await db
       .select({
         taskId: tasks.id,
         projectId: tasks.projectId,
         prUrl: pullRequests.url,
-        mergedAt: pullRequests.mergedAt,
+        lastActivity,
       })
       .from(tasks)
       .innerJoin(workspaces, eq(workspaces.id, tasks.workspaceId))
@@ -97,15 +101,13 @@ export class AutoCleanupScheduler {
           isNull(tasks.archivedAt),
           eq(tasks.autoCleanupOptOut, false),
           eq(pullRequests.status, 'merged'),
-          isNotNull(pullRequests.mergedAt),
-          lte(pullRequests.mergedAt, cutoffIso)
+          lte(lastActivity, cutoffIso)
         )
       )
-      .orderBy(desc(pullRequests.mergedAt));
+      .orderBy(desc(lastActivity));
 
-    // The join can yield duplicates per task: multiple PRs match the same branch
-    // (e.g. closed+reopened pair), or one PR matches multiple project remotes.
-    // Order by mergedAt desc above + Set dedup below keeps the most recent merge per task.
+    // The join can yield duplicates per task: multiple PRs match the same branch,
+    // or one PR matches multiple project remotes. Keep the first row per task.
     const seen = new Set<string>();
     const out: Candidate[] = [];
     for (const row of rows) {

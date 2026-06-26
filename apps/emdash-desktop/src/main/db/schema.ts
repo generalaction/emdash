@@ -236,7 +236,6 @@ export const pullRequests = sqliteTable(
     pullRequestUpdatedAt: text('pull_request_updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
-    mergedAt: text('merged_at'),
   },
   (table) => ({
     urlIdx: uniqueIndex('idx_pull_requests_url').on(table.url),
