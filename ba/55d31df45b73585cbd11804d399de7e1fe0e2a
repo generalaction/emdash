@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-store.test.ts
+  s_246c901e9a5e98::t_1efb81fb13004d 56,62,65,86-93,104
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-sidebar-toast.tsx
+  s_246c901e9a5e98::t_b33be4533d4697 6,117
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-store.ts
+  s_246c901e9a5e98::t_1cab95f6e37443 15-16,24-25,35,37,53,71,76-79,89-92,108-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "ba55d31df45b73585cbd11804d399de7e1fe0e2a",
+  "prompts": {},
+  "sessions": {
+    "s_246c901e9a5e98": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f0540-5fff-714e-b08c-1f063d47f370",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
