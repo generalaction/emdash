@@ -2,6 +2,8 @@ import * as nodePty from 'node-pty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalPtySession, spawnLocalPty } from './local-pty';
 import type { PosixPtyTerminator } from './posix-pty-terminator';
+import type { WindowsConsoleInputInjector } from './windows-console-input';
+import { extractSgrMouseSequences, stripSgrMouseSequences } from './windows-console-input';
 
 vi.mock('node-pty', () => ({
   spawn: vi.fn(),
@@ -13,6 +15,7 @@ describe('LocalPtySession', () => {
   const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
   let mockProc: MockPtyProcess;
   let posixTerminator: Pick<PosixPtyTerminator, 'kill' | 'markExited'>;
+  let windowsInputInjector: WindowsConsoleInputInjector;
   let pty: LocalPtySession;
 
   function setPlatform(platform: NodeJS.Platform): void {
@@ -35,7 +38,8 @@ describe('LocalPtySession', () => {
       kill: vi.fn(),
       markExited: vi.fn(),
     };
-    pty = new LocalPtySession('test-id', mockProc, posixTerminator);
+    windowsInputInjector = { injectText: vi.fn() };
+    pty = new LocalPtySession('test-id', mockProc, posixTerminator, windowsInputInjector);
   }
 
   beforeEach(() => {
@@ -110,6 +114,27 @@ describe('LocalPtySession', () => {
     expect(handler).toHaveBeenCalledWith({ exitCode: 143, signal: 'SIGTERM' });
   });
 
+  it('write() injects SGR mouse reports into the Windows console input queue', () => {
+    setPlatform('win32');
+
+    pty.write('a\x1b[<0;10;10M\x1b[<0;10;10m\x1b[A');
+
+    expect(windowsInputInjector.injectText).toHaveBeenCalledWith(
+      1234,
+      '\x1b[<0;10;10M\x1b[<0;10;10m'
+    );
+    expect(mockProc.write).toHaveBeenCalledWith('a\x1b[A');
+  });
+
+  it('write() does not inject console input on POSIX', () => {
+    setPlatform('linux');
+
+    pty.write('\x1b[<0;10;10M');
+
+    expect(windowsInputInjector.injectText).not.toHaveBeenCalled();
+    expect(mockProc.write).toHaveBeenCalledWith('\x1b[<0;10;10M');
+  });
+
   it('uses node-pty default ConPTY backend on Windows', () => {
     setPlatform('win32');
     vi.mocked(nodePty.spawn).mockReturnValue(mockProc);
@@ -150,5 +175,19 @@ describe('LocalPtySession', () => {
       [],
       expect.not.objectContaining({ useConpty: expect.anything() })
     );
+  });
+});
+
+describe('extractSgrMouseSequences', () => {
+  it('extracts complete SGR mouse reports only', () => {
+    expect(extractSgrMouseSequences('x\x1b[<0;10;10M\x1b[A\x1b[<64;2;3M')).toBe(
+      '\x1b[<0;10;10M\x1b[<64;2;3M'
+    );
+  });
+});
+
+describe('stripSgrMouseSequences', () => {
+  it('removes complete SGR mouse reports only', () => {
+    expect(stripSgrMouseSequences('x\x1b[<0;10;10M\x1b[A\x1b[<64;2;3M')).toBe('x\x1b[A');
   });
 });

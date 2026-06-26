@@ -102,4 +102,40 @@ describe('FrontendPty xterm host', () => {
     expect(dims?.css.cell.width).toBeGreaterThan(0);
     expect(dims?.css.cell.height).toBeGreaterThan(0);
   });
+
+  it('mirrors OpenTUI ConPTY mouse mode into xterm mouse tracking', async () => {
+    const { FrontendPty } = await getPtyModule();
+    const frontendPty = new FrontendPty('test-session', undefined, undefined, undefined, {
+      windowsPtyBackend: 'conpty',
+    });
+    const data: string[] = [];
+    frontendPty.terminal.onData((chunk) => data.push(chunk));
+
+    (
+      frontendPty as unknown as {
+        writeTerminalData(data: string): void;
+      }
+    ).writeTerminalData('\x1b[?20');
+    (
+      frontendPty as unknown as {
+        writeTerminalData(data: string): void;
+      }
+    ).writeTerminalData('31h');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const screen = frontendPty.ownedContainer.querySelector('.xterm-screen');
+    expect(screen).not.toBeNull();
+    screen!.dispatchEvent(
+      new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 20,
+        button: 0,
+        buttons: 1,
+      })
+    );
+
+    expect(data.join('')).toContain('\x1b[<0;');
+  });
 });

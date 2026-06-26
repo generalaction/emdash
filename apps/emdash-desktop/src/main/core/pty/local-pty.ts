@@ -5,6 +5,12 @@ import { normalizeSignal } from './exit-signals';
 import { suppressExpectedNodePtyErrors } from './node-pty-errors';
 import { PosixPtyTerminator } from './posix-pty-terminator';
 import type { Pty, PtyDimensions, PtyExitInfo } from './pty';
+import {
+  extractSgrMouseSequences,
+  stripSgrMouseSequences,
+  windowsConsoleInputInjector,
+  type WindowsConsoleInputInjector,
+} from './windows-console-input';
 
 export interface LocalSpawnOptions extends PtyDimensions {
   id: string;
@@ -55,12 +61,19 @@ export class LocalPtySession implements Pty {
     private readonly posixTerminator: Pick<
       PosixPtyTerminator,
       'kill' | 'markExited'
-    > = new PosixPtyTerminator()
+    > = new PosixPtyTerminator(),
+    private readonly windowsInputInjector: WindowsConsoleInputInjector = windowsConsoleInputInjector
   ) {
     this.id = id;
   }
 
   write(data: string | Buffer): void {
+    if (process.platform === 'win32') {
+      const mouseInput = extractSgrMouseSequences(data);
+      this.windowsInputInjector.injectText(this.proc.pid, mouseInput);
+      this.proc.write(mouseInput ? stripSgrMouseSequences(data) : data);
+      return;
+    }
     this.proc.write(data);
   }
 

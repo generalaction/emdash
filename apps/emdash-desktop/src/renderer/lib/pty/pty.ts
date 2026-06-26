@@ -22,6 +22,12 @@ export interface FrontendPtyOptions {
   windowsPtyBackend?: 'conpty';
 }
 
+const OPENTUI_CONPTY_MOUSE_ENABLE = '\x1b[?2031h';
+const OPENTUI_CONPTY_MOUSE_DISABLE = '\x1b[?2031l';
+const CONPTY_MOUSE_MODE_TAIL_LENGTH = OPENTUI_CONPTY_MOUSE_ENABLE.length - 1;
+const SYNTHETIC_MOUSE_ENABLE = '\x1b[?1000h\x1b[?1002h\x1b[?1006h';
+const SYNTHETIC_MOUSE_DISABLE = '\x1b[?1000l\x1b[?1002l\x1b[?1006l';
+
 export function readXtermCssVars(): ITerminalOptions['theme'] {
   const color = (name: string) => cssColorToHex(cssVar(name));
   return {
@@ -66,6 +72,8 @@ export class FrontendPty {
   readonly ownedContainer: HTMLDivElement;
   private theme?: SessionTheme;
   private offData: (() => void) | null = null;
+  private readonly emulateConptyMouse: boolean;
+  private conptyMouseModeTail = '';
   /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
   lastSentDims: { cols: number; rows: number } | null = null;
 
@@ -77,6 +85,7 @@ export class FrontendPty {
     options: FrontendPtyOptions = {}
   ) {
     this.theme = theme;
+    this.emulateConptyMouse = options.windowsPtyBackend === 'conpty';
     this.ownedContainer = document.createElement('div');
     Object.assign(this.ownedContainer.style, {
       width: '100%',
@@ -180,14 +189,31 @@ export class FrontendPty {
   async connect(): Promise<void> {
     const result = await rpc.pty.subscribe(this.sessionId);
     const historical = result.success ? result.data.buffer : '';
-    if (historical) this.terminal.write(historical);
+    if (historical) this.writeTerminalData(historical);
     this.offData = events.on(
       ptyDataChannel,
       (data: string) => {
-        this.terminal.write(data);
+        this.writeTerminalData(data);
       },
       this.sessionId
     );
+  }
+
+  private writeTerminalData(data: string): void {
+    this.terminal.write(data);
+    if (!this.emulateConptyMouse) return;
+
+    const mouseModeData = `${this.conptyMouseModeTail}${data}`;
+    this.conptyMouseModeTail = mouseModeData.slice(-CONPTY_MOUSE_MODE_TAIL_LENGTH);
+
+    // Windows ConPTY consumes OpenTUI's classic xterm mouse-enable sequences.
+    // Mirror OpenTUI's visible ConPTY mode into xterm so clicks emit SGR reports.
+    if (mouseModeData.includes(OPENTUI_CONPTY_MOUSE_ENABLE)) {
+      this.terminal.write(SYNTHETIC_MOUSE_ENABLE);
+    }
+    if (mouseModeData.includes(OPENTUI_CONPTY_MOUSE_DISABLE)) {
+      this.terminal.write(SYNTHETIC_MOUSE_DISABLE);
+    }
   }
 
   /**
