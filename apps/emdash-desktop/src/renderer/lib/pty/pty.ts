@@ -22,9 +22,22 @@ export interface FrontendPtyOptions {
   windowsPtyBackend?: 'conpty';
 }
 
-const OPENTUI_CONPTY_MOUSE_ENABLE = '\x1b[?2031h';
-const OPENTUI_CONPTY_MOUSE_DISABLE = '\x1b[?2031l';
-const CONPTY_MOUSE_MODE_TAIL_LENGTH = OPENTUI_CONPTY_MOUSE_ENABLE.length - 1;
+const CONPTY_SYNTHETIC_MOUSE_ENABLE_MARKERS = [
+  '\x1b[?2031h',
+  '\x1b[?2048h',
+  '\x1b[?1016$p',
+];
+const CONPTY_SYNTHETIC_MOUSE_DISABLE_MARKERS = [
+  '\x1b[?2031l',
+  '\x1b[?2048l',
+  '\x1b[?1049l',
+  '\x1bc',
+];
+const CONPTY_MOUSE_MODE_TAIL_LENGTH =
+  Math.max(
+    ...CONPTY_SYNTHETIC_MOUSE_ENABLE_MARKERS.map((marker) => marker.length),
+    ...CONPTY_SYNTHETIC_MOUSE_DISABLE_MARKERS.map((marker) => marker.length)
+  ) - 1;
 const SYNTHETIC_MOUSE_ENABLE = '\x1b[?1000h\x1b[?1002h\x1b[?1006h';
 const SYNTHETIC_MOUSE_DISABLE = '\x1b[?1000l\x1b[?1002l\x1b[?1006l';
 
@@ -74,6 +87,7 @@ export class FrontendPty {
   private offData: (() => void) | null = null;
   private readonly emulateConptyMouse: boolean;
   private conptyMouseModeTail = '';
+  private conptySyntheticMouseEnabled = false;
   /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
   lastSentDims: { cols: number; rows: number } | null = null;
 
@@ -206,14 +220,27 @@ export class FrontendPty {
     const mouseModeData = `${this.conptyMouseModeTail}${data}`;
     this.conptyMouseModeTail = mouseModeData.slice(-CONPTY_MOUSE_MODE_TAIL_LENGTH);
 
-    // Windows ConPTY consumes OpenTUI's classic xterm mouse-enable sequences.
-    // Mirror OpenTUI's visible ConPTY mode into xterm so clicks emit SGR reports.
-    if (mouseModeData.includes(OPENTUI_CONPTY_MOUSE_ENABLE)) {
-      this.terminal.write(SYNTHETIC_MOUSE_ENABLE);
+    // Windows ConPTY consumes several TUI-to-terminal negotiation sequences before
+    // xterm sees them. Mirror visible fullscreen capability markers into xterm so
+    // clicks/wheel events emit SGR reports that the main process can inject back.
+    if (CONPTY_SYNTHETIC_MOUSE_ENABLE_MARKERS.some((marker) => mouseModeData.includes(marker))) {
+      this.enableConptySyntheticMouse();
     }
-    if (mouseModeData.includes(OPENTUI_CONPTY_MOUSE_DISABLE)) {
-      this.terminal.write(SYNTHETIC_MOUSE_DISABLE);
+    if (CONPTY_SYNTHETIC_MOUSE_DISABLE_MARKERS.some((marker) => mouseModeData.includes(marker))) {
+      this.disableConptySyntheticMouse();
     }
+  }
+
+  private enableConptySyntheticMouse(): void {
+    if (this.conptySyntheticMouseEnabled) return;
+    this.conptySyntheticMouseEnabled = true;
+    this.terminal.write(SYNTHETIC_MOUSE_ENABLE);
+  }
+
+  private disableConptySyntheticMouse(): void {
+    if (!this.conptySyntheticMouseEnabled) return;
+    this.conptySyntheticMouseEnabled = false;
+    this.terminal.write(SYNTHETIC_MOUSE_DISABLE);
   }
 
   /**

@@ -151,4 +151,53 @@ describe('FrontendPty xterm host', () => {
     expect(emitted).toContain('\x1b[<0;');
     expect(emitted).toContain('\x1b[<64;');
   });
+
+  it('mirrors AMP ConPTY fullscreen markers into xterm mouse tracking', async () => {
+    const { FrontendPty } = await getPtyModule();
+    const frontendPty = new FrontendPty('test-session', undefined, undefined, undefined, {
+      windowsPtyBackend: 'conpty',
+    });
+    const data: string[] = [];
+    const binary: string[] = [];
+    frontendPty.terminal.onData((chunk) => data.push(chunk));
+    frontendPty.terminal.onBinary((chunk) => binary.push(chunk));
+
+    (
+      frontendPty as unknown as {
+        writeTerminalData(data: string): void;
+      }
+    ).writeTerminalData('\x1b[?20');
+    (
+      frontendPty as unknown as {
+        writeTerminalData(data: string): void;
+      }
+    ).writeTerminalData('48h');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const screen = frontendPty.ownedContainer.querySelector('.xterm-screen');
+    expect(screen).not.toBeNull();
+    screen!.dispatchEvent(
+      new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 20,
+        button: 0,
+        buttons: 1,
+      })
+    );
+    screen!.dispatchEvent(
+      new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 20,
+        deltaY: -120,
+      })
+    );
+
+    const emitted = [...data, ...binary].join('');
+    expect(emitted).toContain('\x1b[<0;');
+    expect(emitted).toContain('\x1b[<64;');
+  });
 });
