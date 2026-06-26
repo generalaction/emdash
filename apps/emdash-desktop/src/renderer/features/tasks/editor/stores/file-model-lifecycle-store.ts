@@ -1,25 +1,20 @@
-import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { makeObservable, observable, runInAction } from 'mobx';
 import type { PaneLayoutStore } from '@renderer/features/tabs/pane-layout-store';
-import { getFileKind, isMonacoBackedKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
-import { getMonacoLanguageId } from '@renderer/utils/diffUtils';
 import { log } from '@renderer/utils/logger';
-import { HEAD_REF } from '@shared/core/git/types';
 import type { EditorViewSnapshot } from '@shared/view-state';
-import { allOpenFilePaths, fileEntryByPath } from '../pane-selectors';
+import { allOpenFileResources } from '../pane-selectors';
+import type { FileTabResource } from './file-tab-resource';
 
 /**
- * Owns Monaco model lifecycle (register/unregister) and file persistence (save, conflict).
+ * Manages file persistence (save, conflict resolution) and sidebar navigation state.
  *
- * Replaces the model lifecycle reaction in TaskViewStore and the model-related
- * methods in EditorViewStore. Also manages the file-tree sidebar's expanded paths.
- *
- * Reactive model lifecycle: watches pane.openFilePaths and registers/unregisters
- * Monaco models (disk, git, buffer) accordingly. On registration results, updates the
- * corresponding FileTabStore directly (setImageContent, setTotalSize, setContentType).
+ * Monaco model lifecycle (retain/release) is now handled by FileModelManager,
+ * which is called by FileTabResource on construction and dispose.
+ * This store focuses on save-all, conflict resolution, and buffer restore.
  */
 export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot> {
   readonly modelRootPath: string;
@@ -37,7 +32,6 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly paneLayout: PaneLayoutStore;
-  private readonly disposers: (() => void)[] = [];
 
   constructor(paneLayout: PaneLayoutStore, projectId: string, workspaceId: string) {
     this.paneLayout = paneLayout;
@@ -48,39 +42,26 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     makeObservable(this, {
       isSaving: observable,
       pendingConflictUri: observable,
-      openFilePaths: computed,
-      snapshot: computed,
+      snapshot: observable,
     });
-
-    // Reactive model lifecycle: register/unregister Monaco models as file tabs open/close
-    // across ALL panes. A model stays registered as long as any pane has the file open.
-    this.disposers.push(
-      reaction(
-        () => allOpenFilePaths(this.paneLayout),
-        (current, previous = []) => {
-          const prev = new Set(previous);
-          const curr = new Set(current);
-          for (const path of curr) {
-            if (!prev.has(path)) {
-              void this._registerModels(path);
-            }
-          }
-          for (const path of prev) {
-            if (!curr.has(path)) this._unregisterModels(path);
-          }
-        },
-        { fireImmediately: true }
-      )
-    );
   }
 
   // ---------------------------------------------------------------------------
   // Computed
   // ---------------------------------------------------------------------------
 
-  /** Union of all open file paths across all panes (deduplicated). */
+  /** Union of all open file resources across all panes. */
+  get openFileResources(): FileTabResource[] {
+    return allOpenFileResources(this.paneLayout);
+  }
+
+  /** Union of all open non-external file paths across all panes (deduplicated). */
   get openFilePaths(): string[] {
-    return allOpenFilePaths(this.paneLayout);
+    const seen = new Set<string>();
+    for (const r of this.openFileResources) {
+      if (!r.isExternal) seen.add(r.path);
+    }
+    return [...seen];
   }
 
   // ---------------------------------------------------------------------------
@@ -191,84 +172,6 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
   // ---------------------------------------------------------------------------
 
   dispose(): void {
-    for (const d of this.disposers) d();
-  }
-
-  // ---------------------------------------------------------------------------
-  // Private — model registration
-  // ---------------------------------------------------------------------------
-
-  private async _registerModels(filePath: string): Promise<void> {
-    const kind = getFileKind(filePath);
-
-    if (kind === 'image') {
-      const result = await rpc.workspace.fs.readImage(this.projectId, this.workspaceId, filePath);
-      const imageContent = result.success ? (result.data?.dataUrl ?? '') : '';
-      runInAction(() => {
-        for (const { pane } of this.paneLayout.groups) {
-          fileEntryByPath(pane, filePath)?.setImageContent(imageContent);
-        }
-      });
-      return;
-    }
-
-    if (isMonacoBackedKind(kind)) {
-      const language = getMonacoLanguageId(filePath);
-      try {
-        await modelRegistry.registerModel(
-          this.projectId,
-          this.workspaceId,
-          this.modelRootPath,
-          filePath,
-          language,
-          'disk'
-        );
-      } catch {
-        runInAction(() => {
-          for (const { pane } of this.paneLayout.groups) {
-            fileEntryByPath(pane, filePath)?.setContentType('file-error');
-          }
-        });
-        return;
-      }
-
-      const bufferUri = buildMonacoModelPath(this.modelRootPath, filePath);
-      const diskUri = modelRegistry.toDiskUri(bufferUri);
-      if (modelRegistry.modelStatus.get(diskUri) === 'too-large') {
-        const totalSize = modelRegistry.modelTotalSizes.get(diskUri);
-        runInAction(() => {
-          for (const { pane } of this.paneLayout.groups) {
-            fileEntryByPath(pane, filePath)?.setContentType('too-large');
-            if (totalSize != null) fileEntryByPath(pane, filePath)?.setTotalSize(totalSize);
-          }
-        });
-        return;
-      }
-
-      await modelRegistry.registerModel(
-        this.projectId,
-        this.workspaceId,
-        this.modelRootPath,
-        filePath,
-        language,
-        'git'
-      );
-      await modelRegistry.registerModel(
-        this.projectId,
-        this.workspaceId,
-        this.modelRootPath,
-        filePath,
-        language,
-        'buffer'
-      );
-    }
-  }
-
-  private _unregisterModels(filePath: string): void {
-    const uri = buildMonacoModelPath(this.modelRootPath, filePath);
-    modelRegistry.unregisterModel(uri);
-    modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
-    modelRegistry.unregisterModel(modelRegistry.toGitUri(uri, HEAD_REF));
-    void rpc.workspace.editor.clearBuffer(this.projectId, this.workspaceId, filePath);
+    // Nothing to dispose — FileModelManager handles model lifecycle.
   }
 }

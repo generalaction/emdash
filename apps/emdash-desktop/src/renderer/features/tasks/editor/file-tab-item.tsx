@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { TabItemProps } from '@renderer/features/tabs/core/tab-provider';
+import type { TabItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
@@ -8,7 +8,7 @@ import {
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
-import type { FileResolvedData } from './file-tab-provider';
+import type { FileTabResource } from './stores/file-tab-resource';
 
 function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | undefined {
   if (diskStatus === 'error') return 'File not found';
@@ -26,21 +26,23 @@ export const FileTabItem = observer(function FileTabItem({
   tab,
   host,
   ctx,
-}: TabItemProps<FileResolvedData>) {
-  const fileName = tab.path.split('/').pop() ?? 'Untitled';
+}: TabItemProps<FileTabResource>) {
+  const resource = tab.resource;
+  const fileName = resource.path.split('/').pop() ?? 'Untitled';
   const isMonacoFile =
-    tab.path.endsWith('.md') ||
-    tab.path.endsWith('.svg') ||
-    !tab.path.includes('.') ||
-    /\.(ts|tsx|js|jsx|json|css|html|py|go|rs|sh|yml|yaml|toml|txt)$/.test(tab.path);
+    resource.path.endsWith('.md') ||
+    resource.path.endsWith('.svg') ||
+    !resource.path.includes('.') ||
+    /\.(ts|tsx|js|jsx|json|css|html|py|go|rs|sh|yml|yaml|toml|txt)$/.test(resource.path);
 
-  const diskUri = modelRegistry.toDiskUri(tab.bufferUri);
-  const diskStatus = modelRegistry.modelStatus.get(diskUri) ?? 'loading';
+  const bufferUri = resource.bufferUri;
+  const diskUri = bufferUri ? modelRegistry.toDiskUri(bufferUri) : '';
+  const diskStatus = diskUri ? (modelRegistry.modelStatus.get(diskUri) ?? 'loading') : 'loading';
   const hasFileIssue = diskStatus === 'error' || diskStatus === 'too-large';
   const showSpinner = useDelayedBoolean(isMonacoFile && diskStatus === 'loading', 200);
 
   const errorTooltip = hasFileIssue ? fileTabErrorTooltip(diskStatus, diskUri) : undefined;
-  const tooltip = errorTooltip ? `${tab.path} — ${errorTooltip}` : tab.path;
+  const tooltip = errorTooltip ? `${resource.path} — ${errorTooltip}` : resource.path;
 
   return (
     <GenericTabItem
@@ -60,7 +62,7 @@ export const FileTabItem = observer(function FileTabItem({
       }
       hasError={hasFileIssue}
       statusSlot={
-        tab.isDirty ? (
+        resource.isDirty ? (
           <div
             className="size-2 rounded-full bg-foreground group-hover:opacity-0"
             title="Unsaved changes"
@@ -71,8 +73,8 @@ export const FileTabItem = observer(function FileTabItem({
   );
 });
 
-export function FileTabDragPreview({ tab }: { tab: { path: string } }) {
-  const fileName = tab.path.split('/').pop() ?? 'Untitled';
+export function FileTabDragPreview({ tab }: { tab: ResolvedTab<FileTabResource> }) {
+  const fileName = tab.resource.path.split('/').pop() ?? 'Untitled';
   return (
     <GenericTabDragPreview
       preSlot={

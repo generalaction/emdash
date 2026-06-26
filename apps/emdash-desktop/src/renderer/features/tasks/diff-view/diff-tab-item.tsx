@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import type { TabItemProps } from '@renderer/features/tabs/core/tab-provider';
+import type { TabItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
@@ -7,9 +7,9 @@ import {
 import { TabTitle } from '@renderer/features/tabs/tab-bar/tab-title';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { GitChangeStatusIcon } from './changes-panel/components/changes-list-item';
-import type { DiffResolvedData } from './diff-tab-provider';
+import type { DiffTabResource } from './stores/diff-tab-resource';
 
-export function diffGroupSuffix(diffGroup: DiffResolvedData['diffGroup']): string {
+export function diffGroupSuffix(diffGroup: DiffTabResource['diffGroup']): string {
   switch (diffGroup) {
     case 'disk':
       return '(Working Tree)';
@@ -26,9 +26,10 @@ export const DiffTabItem = observer(function DiffTabItem({
   tab,
   host,
   ctx,
-}: TabItemProps<DiffResolvedData>) {
-  const fileName = tab.path.split('/').pop() ?? 'Untitled';
-  const suffix = diffGroupSuffix(tab.diffGroup);
+}: TabItemProps<DiffTabResource>) {
+  const resource = tab.resource;
+  const fileName = resource.path.split('/').pop() ?? 'Untitled';
+  const suffix = diffGroupSuffix(resource.diffGroup);
 
   return (
     <GenericTabItem
@@ -36,7 +37,7 @@ export const DiffTabItem = observer(function DiffTabItem({
       host={host}
       ctx={ctx}
       label={fileName}
-      tooltip={`${tab.path} ${suffix}`}
+      tooltip={`${resource.path} ${suffix}`}
       preSlot={
         <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
           <FileIcon filename={fileName} />
@@ -49,9 +50,9 @@ export const DiffTabItem = observer(function DiffTabItem({
         </TabTitle>
       }
       statusSlot={
-        tab.status ? (
+        resource.status ? (
           <span className="transition-opacity group-hover:opacity-0">
-            <GitChangeStatusIcon status={tab.status} className="size-4" />
+            <GitChangeStatusIcon status={resource.status} className="size-4" />
           </span>
         ) : undefined
       }
@@ -59,13 +60,10 @@ export const DiffTabItem = observer(function DiffTabItem({
   );
 });
 
-export function DiffTabDragPreview({
-  tab,
-}: {
-  tab: { path: string; diffGroup: DiffResolvedData['diffGroup'] };
-}) {
-  const fileName = tab.path.split('/').pop() ?? 'Untitled';
-  const suffix = diffGroupSuffix(tab.diffGroup);
+export function DiffTabDragPreview({ tab }: { tab: ResolvedTab<DiffTabResource> }) {
+  const resource = tab.resource;
+  const fileName = resource.path.split('/').pop() ?? 'Untitled';
+  const suffix = diffGroupSuffix(resource.diffGroup);
   return (
     <GenericTabDragPreview
       preSlot={

@@ -2,8 +2,8 @@ import type { ILifecycle } from '@emdash/shared';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
-import { activeFileEntry as getActiveFileEntry } from '@renderer/features/tasks/editor/pane-selectors';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
+import type { FileTabResource } from '@renderer/features/tasks/editor/stores/file-tab-resource';
 import { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
@@ -19,7 +19,6 @@ import type {
   TerminalDrawerActiveItem,
 } from '@shared/view-state';
 import { taskTabView } from '../task-tab-registry';
-import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
@@ -70,18 +69,12 @@ export class WorkspaceViewModel implements ILifecycle {
   private _savedDiffViewSnapshot: DiffViewSnapshot | undefined;
   private _isCreatingTerminal = false;
   private _hasConsumedDefaultConversationAutoOpen = false;
-  private readonly _conversationHydration: ConversationHydrationReconciler;
 
   readonly taskId: string;
 
   constructor(private readonly _taskStore: TaskStore) {
     const taskData = _taskStore.data as Task;
     this.taskId = taskData.id;
-    this._conversationHydration = new ConversationHydrationReconciler({
-      taskId: this.taskId,
-      getConversations: () => conversationRegistry.get(this.taskId),
-      log,
-    });
 
     // UI state defaults — overridden by restoreSnapshot when called
     this.sidebarTab = 'conversations';
@@ -103,11 +96,10 @@ export class WorkspaceViewModel implements ILifecycle {
     this.terminalTabs = new TerminalTabViewStore(() => terminalRegistry.get(this.taskId) ?? null);
     this.editorView = new FileModelLifecycleStore(this.paneLayout, taskData.projectId, workspaceId);
 
-    makeAutoObservable<WorkspaceViewModel, '_conversationHydration'>(this, {
+    makeAutoObservable(this, {
       paneLayout: false,
       terminalTabs: false,
       editorView: false,
-      _conversationHydration: false,
       diffView: observable.ref,
       activeRenderer: computed,
     });
@@ -183,10 +175,10 @@ export class WorkspaceViewModel implements ILifecycle {
     const desc = this.activePane.activeEntry;
     if (desc?.kind === 'diff') return 'diff';
     if (desc?.kind === 'browser') return 'browser';
-    const tab = getActiveFileEntry(this.activePane);
-    if (!tab) return 'agents';
-    if (tab.contentType === 'markdown' && tab.viewMode === 'preview') return 'markdown';
-    if (tab.contentType === 'text' || tab.viewMode === 'source') return 'monaco';
+    const resource = this.activePane.activeResourceOfKind<FileTabResource>('file');
+    if (!resource) return 'agents';
+    if (resource.contentType === 'markdown' && resource.viewMode === 'preview') return 'markdown';
+    if (resource.contentType === 'text' || resource.viewMode === 'source') return 'monaco';
     return 'other-file';
   }
 
@@ -281,13 +273,6 @@ export class WorkspaceViewModel implements ILifecycle {
     // the manager before provision completes.
     this.maybeOpenDefaultConversationForFreshTask();
 
-    const conversationHydrationDisposer = reaction(
-      () => this.openConversationIds,
-      (ids) => this.syncConversationHydration(ids),
-      { fireImmediately: true }
-    );
-    this._sessionDisposers.push(conversationHydrationDisposer);
-
     const closeEmptyTerminalDrawerDisposer = reaction(
       () => {
         const terminals = terminalRegistry.get(this.taskId);
@@ -335,8 +320,6 @@ export class WorkspaceViewModel implements ILifecycle {
     this.prStore = null;
     this.previewServers?.dispose();
     this.previewServers = null;
-
-    this._conversationHydration.dispose();
 
     // Stop snapshot persistence.
     this._snapshotDisposer?.();
@@ -465,24 +448,5 @@ export class WorkspaceViewModel implements ILifecycle {
         }
       });
     }
-  }
-
-  private get openConversationIds(): string[] {
-    const ids = new Set<string>();
-    for (const { pane } of this.paneLayout.groups) {
-      for (const tabId of pane.tabOrder) {
-        const entry = pane.entries.get(tabId);
-        if (entry?.kind === 'conversation') {
-          ids.add(
-            (entry as unknown as { kind: 'conversation'; conversationId: string }).conversationId
-          );
-        }
-      }
-    }
-    return [...ids].sort();
-  }
-
-  private syncConversationHydration(openIds: string[]): void {
-    this._conversationHydration.sync(openIds);
   }
 }

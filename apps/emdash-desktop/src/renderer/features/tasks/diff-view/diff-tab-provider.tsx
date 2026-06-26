@@ -1,18 +1,22 @@
 import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
 import { observer } from 'mobx-react-lite';
 import type {
+  TabEntry,
+  TabHandle,
   TabProvider,
-  TabHost,
   TabViewContext,
   TabContentProps,
-  ResolvedTab,
-  ResolveContext,
 } from '@renderer/features/tabs/core/tab-provider';
-import { refsEqual } from '@shared/core/git/utils';
-import type { ActiveFile, TabDescriptor } from '@shared/view-state';
-import { DiffTabItem, DiffTabDragPreview, diffGroupSuffix } from './diff-tab-item';
+import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
+import type { ActiveFile } from '@shared/view-state';
+import { DiffTabItem, DiffTabDragPreview } from './diff-tab-item';
 import { DiffView } from './main-panel/diff-view';
-import { DiffTabStore } from './stores/diff-tab-store';
+import type { DiffPayload } from './stores/diff-tab-resource';
+import { DiffTabResource } from './stores/diff-tab-resource';
+
+// ---------------------------------------------------------------------------
+// Open args
+// ---------------------------------------------------------------------------
 
 export interface DiffOpenArgs {
   activeFile: ActiveFile;
@@ -21,164 +25,115 @@ export interface DiffOpenArgs {
   preview?: boolean;
 }
 
-export interface DiffResolvedData {
-  path: string;
-  diffGroup: 'disk' | 'staged' | 'git' | 'pr';
-  originalRef: GitObjectRef;
-  modifiedRef: GitObjectRef | undefined;
-  prNumber: number | undefined;
-  prBaseOid: string | undefined;
-  prHeadOid: string | undefined;
-  commitOriginalSha: string | null | undefined;
-  commitModifiedSha: string | undefined;
-  status: GitChangeStatus | undefined;
-}
-
-function optionalRefsEqual(
-  left: GitObjectRef | undefined,
-  right: GitObjectRef | undefined
-): boolean {
-  if (left === undefined || right === undefined) return left === right;
-  return refsEqual(left, right);
-}
-
-type DiffDescriptor = Extract<TabDescriptor, { kind: 'diff' }>;
-
 // ---------------------------------------------------------------------------
-// UI adapters
+// Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Renders the active diff view. Visibility when inactive is managed by PaneContent
- * via visibility:hidden + inert, so this component mounts whenever the pane has any tab.
- */
+function refKey(ref: GitObjectRef): string {
+  switch (ref.kind) {
+    case 'branch':
+      return `branch:${ref.branch.type === 'remote' ? `${ref.branch.remote.name}/${ref.branch.branch}` : ref.branch.branch}`;
+    case 'commit':
+      return `commit:${ref.sha}`;
+    case 'tag':
+      return `tag:${ref.name}`;
+  }
+}
+
+function diffResourceKey(payload: DiffPayload): string {
+  const base = `${payload.path}|${payload.diffGroup}`;
+  if (payload.diffGroup === 'disk' || payload.diffGroup === 'staged') return base;
+  const origKey = refKey(payload.originalRef);
+  const modKey = payload.modifiedRef ? refKey(payload.modifiedRef) : '';
+  return `${base}|${origKey}|${modKey}`;
+}
+
+function activeFileToDiffPayload(activeFile: ActiveFile, status?: GitChangeStatus): DiffPayload {
+  return {
+    path: activeFile.path,
+    diffGroup: activeFile.group,
+    originalRef: activeFile.originalRef,
+    modifiedRef: activeFile.modifiedRef,
+    prNumber: activeFile.prNumber,
+    prBaseOid: activeFile.prBaseOid,
+    prHeadOid: activeFile.prHeadOid,
+    commitOriginalSha: activeFile.commitOriginalSha,
+    commitModifiedSha: activeFile.commitModifiedSha,
+    status,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Content component
+// ---------------------------------------------------------------------------
+
 const DiffTabContent = observer(function DiffTabContent({ host }: TabContentProps) {
   const activeTab = host.resolvedTabs.find((t) => t.isActive);
   if (activeTab?.kind !== 'diff') return null;
-  const activeTabId = activeTab.tabId;
-  const entry = host.findEntry((e): e is DiffTabStore => {
-    const s = e as DiffTabStore;
-    return s.kind === 'diff' && s.tabId === activeTabId;
-  });
-  if (!entry) return null;
-  return <DiffView tab={entry} />;
+  return <DiffView tab={activeTab.resource as DiffTabResource} />;
 });
 
 // ---------------------------------------------------------------------------
-// Definition
+// Provider definition
 // ---------------------------------------------------------------------------
 
-export const diffTabProvider: TabProvider<
-  'diff',
-  DiffTabStore,
-  DiffResolvedData,
-  DiffDescriptor,
-  DiffOpenArgs
-> = {
-  kind: 'diff',
+export const diffTabProvider: TabProvider<'diff', DiffPayload, DiffTabResource, DiffOpenArgs> =
+  createTabProvider({
+    kind: 'diff',
 
-  resolve(entry: DiffTabStore, _ctx: ResolveContext): DiffResolvedData {
-    return {
-      path: entry.path,
-      diffGroup: entry.diffGroup,
-      originalRef: entry.originalRef,
-      modifiedRef: entry.modifiedRef,
-      prNumber: entry.prNumber,
-      prBaseOid: entry.prBaseOid,
-      prHeadOid: entry.prHeadOid,
-      commitOriginalSha: entry.commitOriginalSha,
-      commitModifiedSha: entry.commitModifiedSha,
-      status: entry.status,
-    };
-  },
+    resourceKey: diffResourceKey,
 
-  serialize(entry: DiffTabStore): DiffDescriptor {
-    return {
-      kind: 'diff',
-      tabId: entry.tabId,
-      path: entry.path,
-      diffGroup: entry.diffGroup,
-      originalRef: entry.originalRef,
-      modifiedRef: entry.modifiedRef,
-      prNumber: entry.prNumber,
-      prBaseOid: entry.prBaseOid,
-      prHeadOid: entry.prHeadOid,
-      commitOriginalSha: entry.commitOriginalSha,
-      commitModifiedSha: entry.commitModifiedSha,
-      status: entry.status,
-      isPreview: entry.isPreview,
-    };
-  },
+    onBeforeOpen(args: DiffOpenArgs): DiffPayload | null {
+      return activeFileToDiffPayload(args.activeFile, args.status);
+    },
 
-  deserialize(data: DiffDescriptor, _ctx: TabViewContext): DiffTabStore {
-    return new DiffTabStore(
-      {
-        path: data.path,
-        type: data.diffGroup === 'disk' ? 'disk' : 'git',
-        group: data.diffGroup,
-        originalRef: data.originalRef,
-        modifiedRef: data.modifiedRef,
-        prNumber: data.prNumber,
-        prBaseOid: data.prBaseOid,
-        prHeadOid: data.prHeadOid,
-        commitOriginalSha: data.commitOriginalSha,
-        commitModifiedSha: data.commitModifiedSha,
-      },
-      data.isPreview,
-      data.tabId,
-      data.status
-    );
-  },
+    initialize(
+      entry: TabEntry<DiffPayload>,
+      handle: TabHandle,
+      _ctx: TabViewContext
+    ): DiffTabResource {
+      void handle;
+      return new DiffTabResource(entry.tabId, entry.payload);
+    },
 
-  TabItem: DiffTabItem,
-  DragPreview: DiffTabDragPreview,
-  Content: DiffTabContent,
+    dispose(_entry: TabEntry<DiffPayload>, resource: DiffTabResource): void {
+      resource.dispose();
+    },
 
-  title(tab: ResolvedTab<DiffResolvedData>): string {
-    const fileName = tab.path.split('/').pop() ?? 'Untitled';
-    return `${fileName} ${diffGroupSuffix(tab.diffGroup)}`;
-  },
-
-  open(args: DiffOpenArgs, host: TabHost, _ctx: TabViewContext): void {
-    const { activeFile, status } = args;
-
-    const existing = host.findEntry((e): e is DiffTabStore => {
-      const entry = e as DiffTabStore;
-      if (entry.kind !== 'diff') return false;
-      if (entry.path !== activeFile.path || entry.diffGroup !== activeFile.group) return false;
-      if (activeFile.group === 'disk' || activeFile.group === 'staged') return true;
-      return (
-        refsEqual(entry.originalRef, activeFile.originalRef) &&
-        optionalRefsEqual(entry.modifiedRef, activeFile.modifiedRef)
-      );
-    });
-
-    if (args.preview) {
-      if (existing) {
-        host.setActiveTab(existing.tabId);
-        return;
+    /**
+     * Called when a stable open targets an already-open diff tab.
+     * Update the status field in-place (e.g. disk→staged transition).
+     */
+    onRetarget(
+      _entry: TabEntry<DiffPayload>,
+      resource: DiffTabResource,
+      newPayload: DiffPayload
+    ): void {
+      if (newPayload.status !== undefined) {
+        resource.updateStatus(newPayload.status);
       }
-      const previewEntry = host.findEntry(
-        (e): e is DiffTabStore =>
-          (e as DiffTabStore).kind === 'diff' && (e as DiffTabStore).isPreview
-      );
-      if (previewEntry) {
-        // Replace preview in-place: different tabId but same slot position.
-        const tab = new DiffTabStore(activeFile, true, undefined, status);
-        host.replaceEntry(previewEntry.tabId, tab, { activate: true });
-        return;
-      }
-      const tab = new DiffTabStore(activeFile, true, undefined, status);
-      host.attachEntry(tab, { activate: true });
-    } else {
-      if (existing) {
-        existing.isPreview = false;
-        if (status !== undefined) existing.status = status;
-        host.setActiveTab(existing.tabId);
-        return;
-      }
-      const tab = new DiffTabStore(activeFile, false, undefined, status);
-      host.attachEntry(tab, { activate: true });
-    }
-  },
-};
+    },
+
+    TabItem: DiffTabItem,
+    DragPreview: DiffTabDragPreview,
+    Content: DiffTabContent,
+
+    title(entry: TabEntry<DiffPayload>): string {
+      const fileName = entry.payload.path.split('/').pop() ?? 'Untitled';
+      const suffix = diffGroupSuffix(entry.payload.diffGroup);
+      return `${fileName} ${suffix}`;
+    },
+  });
+
+export function diffGroupSuffix(diffGroup: DiffPayload['diffGroup']): string {
+  switch (diffGroup) {
+    case 'disk':
+      return '(Working Tree)';
+    case 'staged':
+      return '(Index)';
+    case 'pr':
+      return '(PR)';
+    case 'git':
+      return '(Git)';
+  }
+}

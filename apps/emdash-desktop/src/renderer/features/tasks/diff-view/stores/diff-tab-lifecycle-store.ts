@@ -1,11 +1,11 @@
 import { reaction } from 'mobx';
 import type { PaneStore } from '@renderer/features/tabs/pane-store';
-import type { DiffTabStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-store';
 import { commitRef } from '@shared/core/git/utils';
 import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
 import type { ActiveFile } from '@shared/view-state';
 import type { GitWorktreeStore } from '../../stores/git-worktree-store';
 import type { PrStore } from '../../stores/pr-store';
+import type { DiffTabResource } from './diff-tab-resource';
 import type { DiffViewStore } from './diff-view-store';
 
 /**
@@ -29,21 +29,10 @@ export class DiffTabLifecycleStore {
     // Sync DiffViewStore.activeFile whenever the user activates a diff tab.
     this.disposers.push(
       reaction(
-        () => this.tabManager.activeEntryOfKind<DiffTabStore>('diff') ?? null,
-        (tab) => {
-          if (tab) {
-            const activeFile: ActiveFile = {
-              path: tab.path,
-              type: tab.diffGroup === 'disk' ? 'disk' : 'git',
-              group: tab.diffGroup,
-              originalRef: tab.originalRef,
-              modifiedRef: tab.modifiedRef,
-              prNumber: tab.prNumber,
-              prBaseOid: tab.prBaseOid,
-              prHeadOid: tab.prHeadOid,
-              commitOriginalSha: tab.commitOriginalSha,
-              commitModifiedSha: tab.commitModifiedSha,
-            };
+        () => this.tabManager.activeResourceOfKind<DiffTabResource>('diff') ?? null,
+        (resource) => {
+          if (resource) {
+            const activeFile: ActiveFile = resource.toActiveFile();
             this.diffView.setActiveFile(activeFile);
           }
         }
@@ -58,9 +47,9 @@ export class DiffTabLifecycleStore {
           const valid = new Set<string>();
           for (const c of this.gitWorktree.unstagedFileChanges) valid.add(`disk:${c.path}`);
           for (const c of this.gitWorktree.stagedFileChanges) valid.add(`staged:${c.path}`);
-          for (const t of this.tabManager.entriesOfKind<DiffTabStore>('diff')) {
-            if (t.diffGroup !== 'pr' || t.prNumber == null) continue;
-            const matchedPr = this.pr.pullRequests.find((p) => getPrNumber(p) === t.prNumber);
+          for (const r of this.tabManager.resourcesOfKind<DiffTabResource>('diff')) {
+            if (r.diffGroup !== 'pr' || r.prNumber == null) continue;
+            const matchedPr = this.pr.pullRequests.find((p) => getPrNumber(p) === r.prNumber);
             if (matchedPr) {
               for (const f of this.pr.getFiles(matchedPr).data ?? []) valid.add(`pr:${f.path}`);
             }
@@ -68,23 +57,27 @@ export class DiffTabLifecycleStore {
           return valid;
         },
         (validKeys) => {
-          const stale = this.tabManager
-            .entriesOfKind<DiffTabStore>('diff')
-            .filter((t) => t.diffGroup !== 'git' && !validKeys.has(`${t.diffGroup}:${t.path}`));
+          const staleResources = this.tabManager
+            .resourcesOfKind<DiffTabResource>('diff')
+            .filter((r) => r.diffGroup !== 'git' && !validKeys.has(`${r.diffGroup}:${r.path}`));
 
-          for (const tab of stale) {
+          for (const resource of staleResources) {
             const counterpartGroup: 'disk' | 'staged' | null =
-              tab.diffGroup === 'disk' ? 'staged' : tab.diffGroup === 'staged' ? 'disk' : null;
+              resource.diffGroup === 'disk'
+                ? 'staged'
+                : resource.diffGroup === 'staged'
+                  ? 'disk'
+                  : null;
 
-            if (counterpartGroup && validKeys.has(`${counterpartGroup}:${tab.path}`)) {
+            if (counterpartGroup && validKeys.has(`${counterpartGroup}:${resource.path}`)) {
               const changes =
                 counterpartGroup === 'staged'
                   ? this.gitWorktree.stagedFileChanges
                   : this.gitWorktree.unstagedFileChanges;
-              const match = changes.find((c) => c.path === tab.path);
-              tab.transition(counterpartGroup, commitRef('HEAD'), match?.status);
+              const match = changes.find((c) => c.path === resource.path);
+              resource.transition(counterpartGroup, commitRef('HEAD'), match?.status);
             } else {
-              this.tabManager.closeTab(tab.tabId);
+              this.tabManager.closeTab(resource.tabId);
             }
           }
         },

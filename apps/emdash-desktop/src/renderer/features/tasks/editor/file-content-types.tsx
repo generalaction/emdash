@@ -18,46 +18,47 @@ import { ImageRenderer } from '@renderer/lib/editor/image-renderer';
 import { MarkdownEditorRenderer } from '@renderer/lib/editor/markdown-renderer';
 import { SvgRenderer } from '@renderer/lib/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
-import type { FileContentType, FileTabStore } from './stores/file-tab-store';
+import type { FileContentType } from './stores/file-tab-resource';
+import type { FileTabResource } from './stores/file-tab-resource';
 
 export interface FileContentTypeDef {
   /** True when the file type supports Monaco source editing. */
   editable: boolean;
   /** Present when the file type has a rendered preview component. */
-  Preview?: ComponentType<{ tab: FileTabStore }>;
+  Preview?: ComponentType<{ tab: FileTabResource }>;
 }
 
 // Stable wrapper components so React never sees a new reference on re-render.
 
-function CsvPreview({ tab }: { tab: FileTabStore }) {
+function CsvPreview({ tab }: { tab: FileTabResource }) {
   return <CsvRenderer filePath={tab.path} />;
 }
 
-function MarkdownPreview({ tab }: { tab: FileTabStore }) {
+function MarkdownPreview({ tab }: { tab: FileTabResource }) {
   return <MarkdownEditorRenderer tab={tab} />;
 }
 
-function HtmlPreview({ tab }: { tab: FileTabStore }) {
+function HtmlPreview({ tab }: { tab: FileTabResource }) {
   return <HtmlRenderer filePath={tab.path} />;
 }
 
-function SvgPreview({ tab }: { tab: FileTabStore }) {
+function SvgPreview({ tab }: { tab: FileTabResource }) {
   return <SvgRenderer filePath={tab.path} />;
 }
 
-function ImagePreview({ tab }: { tab: FileTabStore }) {
+function ImagePreview({ tab }: { tab: FileTabResource }) {
   return <ImageRenderer file={tab} />;
 }
 
-function TooLargePreview({ tab }: { tab: FileTabStore }) {
+function TooLargePreview({ tab }: { tab: FileTabResource }) {
   return <TooLargeRenderer file={tab} />;
 }
 
-function BinaryPreview({ tab }: { tab: FileTabStore }) {
+function BinaryPreview({ tab }: { tab: FileTabResource }) {
   return <BinaryRenderer file={tab} />;
 }
 
-function FileErrorPreview({ tab }: { tab: FileTabStore }) {
+function FileErrorPreview({ tab }: { tab: FileTabResource }) {
   return <FileErrorRenderer file={tab} />;
 }
 

@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import type { TabItemProps } from '@renderer/features/tabs/core/tab-provider';
+import type { TabItemProps, ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
@@ -7,16 +7,17 @@ import {
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
-import type { ConversationResolvedData } from './conversation-tab-provider';
+import type { ConversationTabResource } from './conversation-tab-resource';
 import { formatConversationTitleForDisplay } from './conversation-title-utils';
 
 export const ConversationTabItem = observer(function ConversationTabItem({
   tab,
   host,
   ctx,
-}: TabItemProps<ConversationResolvedData>) {
-  const title = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
-  const rawTitle = tab.store.data.title ?? '';
+}: TabItemProps<ConversationTabResource>) {
+  const store = tab.resource.store;
+  const title = formatConversationTitleForDisplay(store.data.providerId, store.data.title);
+  const rawTitle = store.data.title ?? '';
 
   return (
     <GenericTabItem
@@ -24,10 +25,10 @@ export const ConversationTabItem = observer(function ConversationTabItem({
       host={host}
       ctx={ctx}
       label={title}
-      preSlot={<AgentIcon id={tab.store.data.providerId} size={16} />}
+      preSlot={<AgentIcon id={store.data.providerId} size={16} />}
       statusSlot={
         <span className="transition-opacity group-hover:opacity-0">
-          <AgentStatusIndicator status={tab.store.indicatorStatus} disableTooltip />
+          <AgentStatusIndicator status={store.indicatorStatus} disableTooltip />
         </span>
       }
       kindCommands={[
@@ -48,14 +49,15 @@ export const ConversationTabItem = observer(function ConversationTabItem({
 export const ConversationTabDragPreview = observer(function ConversationTabDragPreview({
   tab,
 }: {
-  tab: { store: ConversationResolvedData['store'] };
+  tab: ResolvedTab<ConversationTabResource>;
 }) {
-  const label = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
+  const store = tab.resource.store;
+  const label = formatConversationTitleForDisplay(store.data.providerId, store.data.title);
   return (
     <GenericTabDragPreview
       preSlot={
-        tab.store.data.providerId ? (
-          <AgentIcon id={tab.store.data.providerId} size={16} className="shrink-0" />
+        store.data.providerId ? (
+          <AgentIcon id={store.data.providerId} size={16} className="shrink-0" />
         ) : undefined
       }
       label={label}

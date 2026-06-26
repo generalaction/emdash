@@ -26,7 +26,7 @@ import { useCallback, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import type { AcpChatStore } from './acp-chat-store';
-import type { AcpChatResolvedData } from './acp-chat-tab-provider';
+import type { AcpChatTabResource } from './acp-chat-tab-resource';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -119,17 +119,12 @@ const AcpChatStorePanel = observer(function AcpChatStorePanel({ store }: { store
 export const AcpChatPanel = observer(function AcpChatPanel() {
   const { pane } = usePaneContext();
 
-  const activeTab = pane.resolvedTabs.find(
-    (t): t is typeof t & AcpChatResolvedData => t.isActive && t.kind === 'acp-chat'
-  ) as ((typeof pane.resolvedTabs)[0] & AcpChatResolvedData) | undefined;
-
+  const activeTab = pane.resolvedTabs.find((t) => t.isActive && t.kind === 'acp-chat');
   if (!activeTab) return null;
 
-  const store = activeTab.store;
+  const resource = activeTab.resource as AcpChatTabResource;
+  const store: AcpChatStore = resource.store;
+  const conversationId = store.conversationId;
 
-  // Ensure the store is bootstrapped once when it becomes the active tab.
-  // bootstrap() is idempotent.
-  store.bootstrap();
-
-  return <AcpChatStorePanel key={activeTab.conversationId} store={store} />;
+  return <AcpChatStorePanel key={conversationId} store={store} />;
 });

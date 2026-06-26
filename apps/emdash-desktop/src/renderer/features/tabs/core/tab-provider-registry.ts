@@ -1,9 +1,9 @@
-import type { TabProvider } from './tab-provider';
+import type { TabProvider, TabResource } from './tab-provider';
 
 // ── Type aliases ──────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyTabProvider = TabProvider<any, any, any, any, any>;
+export type AnyTabProvider = TabProvider<any, any, any, any>;
 
 /**
  * Extract the literal kind union from a typed registry.
@@ -16,10 +16,20 @@ export type KindOf<R extends TabRegistry> =
  */
 export type OpenArgsOf<R extends TabRegistry, K extends KindOf<R>> =
   R extends TypedTabRegistry<infer P>
-    ? Extract<P[number], { kind: K }> extends TabProvider<K, object, object, unknown, infer A>
+    ? Extract<P[number], { kind: K }> extends TabProvider<K, infer _P, infer _T, infer A>
       ? A
       : unknown
     : unknown;
+
+/**
+ * Extract the resource type (T) for a given kind from a typed registry.
+ */
+export type ResourceOf<R extends TabRegistry, K extends KindOf<R>> =
+  R extends TypedTabRegistry<infer P>
+    ? Extract<P[number], { kind: K }> extends TabProvider<K, infer _P, infer T, infer _A>
+      ? T
+      : TabResource
+    : TabResource;
 
 // ── Registry interface ────────────────────────────────────────────────────────
 
@@ -49,18 +59,16 @@ export interface TypedTabRegistry<P extends readonly AnyTabProvider[]> extends T
  * ```ts
  * export const myTabProvider = createTabProvider({
  *   kind: 'my-kind',
- *   resolve(entry, ctx) { ... },
+ *   resourceKey: (p) => p.id,
+ *   initialize: (entry, handle, ctx) => { ... },
+ *   dispose: (entry, resource, ctx) => { ... },
  *   ...
  * });
  * ```
  */
-export function createTabProvider<
-  K extends string,
-  E extends object,
-  RD extends object,
-  Data,
-  OpenArgs,
->(impl: TabProvider<K, E, RD, Data, OpenArgs>): TabProvider<K, E, RD, Data, OpenArgs> {
+export function createTabProvider<K extends string, P, T extends TabResource, OpenArgs = P>(
+  impl: TabProvider<K, P, T, OpenArgs>
+): TabProvider<K, P, T, OpenArgs> {
   return impl;
 }
 
