@@ -126,6 +126,15 @@ describe('LocalPtySession', () => {
     expect(mockProc.write).toHaveBeenCalledWith('a\x1b[A');
   });
 
+  it('write() injects binary SGR wheel reports into the Windows console input queue', () => {
+    setPlatform('win32');
+
+    pty.write(Buffer.from('\x1b[<64;10;10M', 'latin1'));
+
+    expect(windowsInputInjector.injectText).toHaveBeenCalledWith(1234, '\x1b[<64;10;10M');
+    expect(mockProc.write).not.toHaveBeenCalled();
+  });
+
   it('write() does not inject console input on POSIX', () => {
     setPlatform('linux');
 

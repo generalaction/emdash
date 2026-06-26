@@ -109,7 +109,9 @@ describe('FrontendPty xterm host', () => {
       windowsPtyBackend: 'conpty',
     });
     const data: string[] = [];
+    const binary: string[] = [];
     frontendPty.terminal.onData((chunk) => data.push(chunk));
+    frontendPty.terminal.onBinary((chunk) => binary.push(chunk));
 
     (
       frontendPty as unknown as {
@@ -135,7 +137,18 @@ describe('FrontendPty xterm host', () => {
         buttons: 1,
       })
     );
+    screen!.dispatchEvent(
+      new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 20,
+        deltaY: -120,
+      })
+    );
 
-    expect(data.join('')).toContain('\x1b[<0;');
+    const emitted = [...data, ...binary].join('');
+    expect(emitted).toContain('\x1b[<0;');
+    expect(emitted).toContain('\x1b[<64;');
   });
 });

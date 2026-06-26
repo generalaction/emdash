@@ -71,7 +71,10 @@ export class LocalPtySession implements Pty {
     if (process.platform === 'win32') {
       const mouseInput = extractSgrMouseSequences(data);
       this.windowsInputInjector.injectText(this.proc.pid, mouseInput);
-      this.proc.write(mouseInput ? stripSgrMouseSequences(data) : data);
+      const passthroughInput = mouseInput ? stripSgrMouseSequences(data) : data;
+      if (passthroughInput.length > 0) {
+        this.proc.write(passthroughInput);
+      }
       return;
     }
     this.proc.write(data);
