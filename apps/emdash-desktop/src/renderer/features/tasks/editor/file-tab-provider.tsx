@@ -12,6 +12,7 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { TabDescriptor } from '@shared/view-state';
 import type { TaskTabContext } from '../stores/task-tab-context';
+import { resolveWorkspacePath } from '../stores/workspace-path';
 import { EditorProvider } from './editor-provider';
 import { FileContentPreview } from './file-content-preview';
 import { FileContentRenderer } from './file-content-renderer';
@@ -128,8 +129,11 @@ export const fileTabProvider: TabProvider<
     };
   },
 
-  deserialize(data: FileDescriptor, _ctx: TabViewContext): FileTabStore {
-    const tab = new FileTabStore(data.path, data.isPreview, data.tabId);
+  deserialize(data: FileDescriptor, ctx: TabViewContext): FileTabStore {
+    const filePath = data.isExternal
+      ? data.path
+      : resolveWorkspacePath((ctx as TaskTabContext).workspacePath, data.path);
+    const tab = new FileTabStore(filePath, data.isPreview, data.tabId);
     if (data.isExternal) tab.markExternalLoading();
     return tab;
   },

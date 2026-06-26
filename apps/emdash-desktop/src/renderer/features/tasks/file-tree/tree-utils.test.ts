@@ -25,6 +25,13 @@ describe('file tree utils', () => {
     expect(node.children).toEqual([]);
   });
 
+  it('preserves the leading slash for absolute parent paths', () => {
+    const node = makeNode('/repo/src/Button.tsx', 'file');
+
+    expect(node.path).toBe('/repo/src/Button.tsx');
+    expect(node.parentPath).toBe('/repo/src');
+  });
+
   it('hides loaded descendants for collapsed directories', () => {
     const src = makeNode('src', 'directory');
     attach(src, makeNode('src/index.ts', 'file'));

@@ -153,7 +153,8 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
 
     if (accept) {
       modelRegistry.reloadFromDisk(uri);
-      const filePath = uri.replace(`file://${this.modelRootPath}/`, '');
+      const filePath = modelRegistry.filePathForUri(uri);
+      if (!filePath) return;
       void rpc.workspace.editor.clearBuffer(this.projectId, this.workspaceId, filePath);
     } else {
       runInAction(() => {
@@ -202,8 +203,12 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     const kind = getFileKind(filePath);
 
     if (kind === 'image') {
-      const result = await rpc.workspace.fs.readImage(this.projectId, this.workspaceId, filePath);
-      const imageContent = result.success ? (result.data?.dataUrl ?? '') : '';
+      const result = await rpc.workspace.files.readImage(
+        this.projectId,
+        this.workspaceId,
+        filePath
+      );
+      const imageContent = result.success && result.data?.success ? result.data.dataUrl : '';
       runInAction(() => {
         for (const { pane } of this.paneLayout.groups) {
           fileEntryByPath(pane, filePath)?.setImageContent(imageContent);

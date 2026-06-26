@@ -29,6 +29,7 @@ import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
 import type { TaskTabContext } from './task-tab-context';
 import { terminalRegistry } from './terminal-registry';
+import { resolveWorkspacePath } from './workspace-path';
 import { workspaceRegistry } from './workspace-registry';
 
 export type RendererKind = 'monaco' | 'markdown' | 'diff' | 'agents' | 'browser' | 'other-file';
@@ -95,12 +96,14 @@ export class WorkspaceViewModel implements ILifecycle {
     this.terminalDrawerActiveItem = undefined;
 
     const workspaceId = taskData.workspaceId ?? taskData.id;
+    const workspacePath = workspaceRegistry.get(taskData.projectId, workspaceId)?.path;
 
     const taskCtx: TaskTabContext = {
       viewId: this.taskId,
       projectId: taskData.projectId,
       workspaceId,
       taskId: this.taskId,
+      workspacePath,
       modelRootPath: `workspace:${workspaceId}`,
     };
     this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx);
@@ -265,7 +268,9 @@ export class WorkspaceViewModel implements ILifecycle {
     // Create DiffViewStore with live git/pr references from the workspace.
     this.diffView = new DiffViewStore(workspace.gitWorktree, this.prStore);
     if (this._savedDiffViewSnapshot) {
-      this.diffView.restoreSnapshot(this._savedDiffViewSnapshot);
+      this.diffView.restoreSnapshot(
+        normalizeDiffSnapshotPaths(this._savedDiffViewSnapshot, workspace.path)
+      );
     }
 
     this._diffTabLifecycle = new DiffTabLifecycleStore(
@@ -512,4 +517,19 @@ export class WorkspaceViewModel implements ILifecycle {
   private syncConversationHydration(openIds: string[]): void {
     this._conversationHydration.sync(openIds);
   }
+}
+
+function normalizeDiffSnapshotPaths(
+  snapshot: DiffViewSnapshot,
+  workspacePath: string
+): DiffViewSnapshot {
+  const activeFile = snapshot.activeFile;
+  if (!activeFile || activeFile.group === 'pr') return snapshot;
+  return {
+    ...snapshot,
+    activeFile: {
+      ...activeFile,
+      path: resolveWorkspacePath(workspacePath, activeFile.path),
+    },
+  };
 }

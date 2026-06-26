@@ -32,14 +32,23 @@ export type ChildrenById<T extends VisibleFileNode = RenderableFileNode> = Map<
 >;
 
 export function normalizeFileTreePath(path: string): string {
-  return path.replace(/\\/g, '/').split('/').filter(Boolean).join('/');
+  const normalized = path.replace(/\\/g, '/').replace(/\/+/g, '/');
+  if (normalized === '/') return normalized;
+  return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
 }
 
-export function makeNode(relPath: string, type: 'file' | 'directory'): NestedFileNode {
-  const path = normalizeFileTreePath(relPath);
+function parentPathForNormalizedPath(path: string): string | null {
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length <= 1) return null;
+  const parentPath = parts.slice(0, -1).join('/');
+  return path.startsWith('/') ? `/${parentPath}` : parentPath;
+}
+
+export function makeNode(filePath: string, type: 'file' | 'directory'): NestedFileNode {
+  const path = normalizeFileTreePath(filePath);
   const parts = path.split('/').filter(Boolean);
   const name = parts[parts.length - 1] ?? path;
-  const parentPath = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
+  const parentPath = parentPathForNormalizedPath(path);
   const depth = parts.length - 1;
   const extension = type === 'file' && name.includes('.') ? name.split('.').pop() : undefined;
 
@@ -65,7 +74,7 @@ export function toRenderableFileNode(node: CoreFileNode): RenderableFileNode {
     path,
     name,
     parentId: node.parentId,
-    parentPath: parts.length > 1 ? parts.slice(0, -1).join('/') : null,
+    parentPath: parentPathForNormalizedPath(path),
     depth: parts.length - 1,
     type: node.type,
     childrenLoaded: node.childrenLoaded,

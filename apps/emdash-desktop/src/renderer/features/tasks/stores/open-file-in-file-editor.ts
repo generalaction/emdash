@@ -6,6 +6,8 @@ import {
 } from '@renderer/features/tasks/stores/task-selectors';
 import { rpc } from '@renderer/lib/ipc';
 import { focusTracker } from '@renderer/utils/focus-tracker';
+import { resolveWorkspacePath } from './workspace-path';
+import { workspaceRegistry } from './workspace-registry';
 
 export async function openFileInTaskEditor(
   projectId: string,
@@ -14,18 +16,25 @@ export async function openFileInTaskEditor(
 ): Promise<void> {
   const provisioned = asProvisioned(getTaskStore(projectId, taskId));
   if (!provisioned) return;
+  const workspace = workspaceRegistry.get(projectId, provisioned.workspaceId);
+  if (!workspace) return;
+  const resolvedPath = resolveWorkspacePath(workspace.path, filePath);
 
   // Agent output often points at paths that don't exist in the worktree
   // (subdirectory-relative, deleted, etc.) — precheck so we can toast a
   // useful error instead of opening an empty tab.
-  const exists = await rpc.workspace.fs.fileExists(projectId, provisioned.workspaceId, filePath);
+  const exists = await rpc.workspace.files.fileExists(
+    projectId,
+    provisioned.workspaceId,
+    resolvedPath
+  );
   if (!exists.success || !exists.data.exists) {
     toast.error(`File not found in workspace: ${filePath}`);
     return;
   }
 
   focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-  provisioned.viewModel?.activePane.open('file', { path: filePath, preview: false });
+  provisioned.viewModel?.activePane.open('file', { path: resolvedPath, preview: false });
 }
 
 export async function openExternalFilePath(

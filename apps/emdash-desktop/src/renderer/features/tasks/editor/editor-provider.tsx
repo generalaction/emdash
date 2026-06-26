@@ -216,7 +216,8 @@ export const EditorProvider = observer(function EditorProvider({
       autorun(() => {
         const uri = editorView.pendingConflictUri; // reactive
         if (!uri) return;
-        const filePath = uri.replace(`file://${editorView.modelRootPath}/`, '');
+        const filePath = modelRegistry.filePathForUri(uri);
+        if (!filePath) return;
         if (!editorView.openFilePaths.includes(filePath)) return;
         showConflictModal({
           filePath,

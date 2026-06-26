@@ -10,6 +10,7 @@ import {
   isChainExpanded,
   type TreeRow,
 } from '@renderer/features/tasks/file-tree/tree-utils';
+import { relativeToWorkspace } from '@renderer/features/tasks/stores/workspace-path';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -57,7 +58,7 @@ function existingFilePaths(message: string): string[] {
   return markerIndex === -1 ? [] : [message.slice(markerIndex + singularMarker.length)];
 }
 
-function joinRelPath(dir: string, name: string): string {
+function joinPath(dir: string, name: string): string {
   return dir ? `${dir}/${name}` : name;
 }
 
@@ -75,27 +76,14 @@ async function importLocalFiles(args: {
   // event arriving after the copy finishes is a no-op for already-present nodes.
   const inserted = files.addOptimisticNodes(
     srcPaths.map((srcPath) => ({
-      relPath: joinRelPath(destDirPath, basenameFromAnyPath(srcPath)),
+      path: joinPath(destDirPath, basenameFromAnyPath(srcPath)),
       type: 'file',
     }))
   );
 
-  try {
-    const result = await rpc.workspace.fs.copyLocalFiles(
-      projectId,
-      workspaceId,
-      srcPaths,
-      destDirPath,
-      {
-        overwrite,
-      }
-    );
-    if (!result.success) throw new Error(resultErrorMessage(result.error));
-    files.confirmOptimisticNodes(inserted);
-  } catch (error) {
+  const handleFailure = async (message: string) => {
     for (const p of inserted) files.removeNode(p);
     await files.loadDir(destDirPath, true);
-    const message = error instanceof Error ? error.message : 'The file could not be imported.';
     const existingPaths = existingFilePaths(message);
     if (existingPaths.length > 0 && !overwrite) {
       const description =
@@ -126,6 +114,25 @@ async function importLocalFiles(args: {
       description: message,
       variant: 'destructive',
     });
+  };
+
+  try {
+    const result = await rpc.workspace.files.copyLocalFiles(
+      projectId,
+      workspaceId,
+      srcPaths,
+      destDirPath,
+      {
+        overwrite,
+      }
+    );
+    if (!result.success) {
+      await handleFailure(resultErrorMessage(result.error));
+      return;
+    }
+    files.confirmOptimisticNodes(inserted);
+  } catch (error) {
+    await handleFailure(error instanceof Error ? error.message : 'The file could not be imported.');
   }
 }
 
@@ -145,6 +152,7 @@ const FileTreeRow = observer(function FileTreeRow({
   const node = row.node;
   const isExpanded = isChainExpanded(row.chain, editorView.expandedPaths);
   const isSelected = getActiveFilePath(taskView.activePane) === node.path;
+  const relNodePath = relativeToWorkspace(workspace.path, node.path);
   const fileStatus = workspace.gitWorktree.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = row.renderDepth * 12 + 4;
   const targetDirPath = node.type === 'directory' ? node.path : (node.parentPath ?? '');
@@ -199,14 +207,28 @@ const FileTreeRow = observer(function FileTreeRow({
     if (node.type !== 'file') return;
 
     try {
-      const result = await rpc.workspace.fs.readFile(
+      const result = await rpc.workspace.files.readFile(
         projectId,
         workspaceId,
         node.path,
         MAX_COPY_FILE_BYTES
       );
-      if (!result.success) throw new Error(resultErrorMessage(result.error));
-      if (result.data.truncated) throw new Error('File is too large to copy.');
+      if (!result.success) {
+        toast({
+          title: 'Copy failed',
+          description: resultErrorMessage(result.error),
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (result.data.truncated) {
+        toast({
+          title: 'Copy failed',
+          description: 'File is too large to copy.',
+          variant: 'destructive',
+        });
+        return;
+      }
       await rpc.app.clipboardWriteText(result.data.content);
       toast({ title: 'File copied' });
     } catch (error) {
@@ -220,8 +242,15 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const copyPath = async () => {
     try {
-      const result = await rpc.workspace.fs.getAbsolutePath(projectId, workspaceId, node.path);
-      if (!result.success) throw new Error(resultErrorMessage(result.error));
+      const result = await rpc.workspace.files.getAbsolutePath(projectId, workspaceId, node.path);
+      if (!result.success) {
+        toast({
+          title: 'Copy failed',
+          description: resultErrorMessage(result.error),
+          variant: 'destructive',
+        });
+        return;
+      }
       await rpc.app.clipboardWriteText(result.data.path);
       toast({ title: 'Path copied' });
     } catch (error) {
@@ -235,7 +264,7 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const copyRelativePath = async () => {
     try {
-      await rpc.app.clipboardWriteText(node.path);
+      await rpc.app.clipboardWriteText(relNodePath);
       toast({ title: 'Relative path copied' });
     } catch (error) {
       toast({
@@ -253,8 +282,7 @@ const FileTreeRow = observer(function FileTreeRow({
     // without knowing which workspace rendered the file tree.
     setDraggedWorkspaceFile(event.dataTransfer, {
       workspaceId,
-      workspaceRootPath: workspace.path,
-      relPath: node.path,
+      targetPath: node.path,
       targetPlatform: workspace.sshConnectionId ? 'linux' : undefined,
     });
   };
@@ -416,7 +444,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
       projectId,
       workspaceId,
       srcPaths,
-      destDirPath: '',
+      destDirPath: workspace.path,
     });
   };
 

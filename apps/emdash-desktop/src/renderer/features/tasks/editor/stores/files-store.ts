@@ -39,7 +39,6 @@ type OptimisticNode = {
   timer?: ReturnType<typeof setTimeout>;
 };
 
-const ROOT_SCOPE_PATH = '';
 const OPTIMISTIC_NODE_TTL_MS = 15_000;
 
 export class FilesStore {
@@ -64,7 +63,8 @@ export class FilesStore {
 
   constructor(
     private readonly projectId: string,
-    private readonly workspaceId: string
+    private readonly workspaceId: string,
+    private readonly workspacePath: string
   ) {
     this.mirror = new CollectionMirror<NodeId, CoreFileNode>({
       onApplied: (change) => this.applyMirrorChange(change),
@@ -193,11 +193,11 @@ export class FilesStore {
   }
 
   async loadDir(dirPath: string, force = false): Promise<void> {
-    const path = normalizeFileTreePath(dirPath);
+    const path = this.resolveWorkspacePath(dirPath);
     if (!force && (this.loadedPaths.has(path) || this.pendingPathSet.has(path))) return;
 
     const dirId = this.idForPath(path);
-    if (path && dirId === undefined) return;
+    if (path !== this.rootPath && dirId === undefined) return;
 
     runInAction(() => {
       this.pendingPathSet.add(path);
@@ -216,19 +216,19 @@ export class FilesStore {
     }
   }
 
-  addOptimisticNodes(nodes: Array<{ relPath: string; type: 'file' | 'directory' }>): string[] {
+  addOptimisticNodes(nodes: Array<{ path: string; type: 'file' | 'directory' }>): string[] {
     const inserted: string[] = [];
 
     runInAction(() => {
-      for (const { relPath, type } of nodes) {
-        const path = normalizeFileTreePath(relPath);
+      for (const { path: inputPath, type } of nodes) {
+        const path = this.resolveWorkspacePath(inputPath);
         if (!path || this.nodes.has(path) || this.optimisticNodeForPath(path)) continue;
 
-        const parentPath = parentPathFromPath(path) ?? ROOT_SCOPE_PATH;
+        const parentPath = parentPathFromPath(path) ?? this.rootPath;
         if (!this.loadedPaths.has(parentPath)) continue;
 
         let parentId: NodeId | null = null;
-        if (parentPath) {
+        if (parentPath !== this.rootPath) {
           const resolvedParentId = this.idForPath(parentPath);
           if (resolvedParentId === undefined) continue;
           parentId = resolvedParentId;
@@ -256,17 +256,17 @@ export class FilesStore {
     return inserted;
   }
 
-  confirmOptimisticNodes(relPaths: string[]): void {
+  confirmOptimisticNodes(paths: string[]): void {
     runInAction(() => {
-      for (const relPath of relPaths) {
-        const optimistic = this.optimisticNodeForPath(normalizeFileTreePath(relPath));
+      for (const inputPath of paths) {
+        const optimistic = this.optimisticNodeForPath(this.resolveWorkspacePath(inputPath));
         if (optimistic !== undefined) this.armOptimisticNodeExpiry(optimistic);
       }
     });
   }
 
-  removeNode(relPath: string): void {
-    const path = normalizeFileTreePath(relPath);
+  removeNode(inputPath: string): void {
+    const path = this.resolveWorkspacePath(inputPath);
     const optimistic = this.optimisticNodeForPath(path);
     if (optimistic === undefined) return;
     runInAction(() => {
@@ -275,19 +275,30 @@ export class FilesStore {
   }
 
   async revealFile(filePath: string, expandedPaths: Set<string>): Promise<void> {
-    const path = normalizeFileTreePath(filePath);
+    const path = this.resolveWorkspacePath(filePath);
     if (!path) return;
 
     const result = await rpc.workspace.fileTree.revealPath(this.projectId, this.workspaceId, path);
     const succeeded = await this.waitForTreeMutation(result);
     if (!succeeded) return;
 
-    const parts = path.split('/').filter(Boolean);
+    const workspaceRelativePath = relativePath(this.rootPath, path);
+    const parts = workspaceRelativePath.split('/').filter(Boolean);
     runInAction(() => {
       for (let index = 1; index < parts.length; index += 1) {
-        expandedPaths.add(parts.slice(0, index).join('/'));
+        expandedPaths.add(joinPath(this.rootPath, parts.slice(0, index).join('/')));
       }
     });
+  }
+
+  get rootPath(): string {
+    return normalizeFileTreePath(this.workspacePath);
+  }
+
+  private resolveWorkspacePath(path: string): string {
+    const normalized = normalizeFileTreePath(path);
+    if (isAbsolutePath(normalized)) return normalized;
+    return normalized ? joinPath(this.rootPath, normalized) : this.rootPath;
   }
 
   private get view(): FilesView {
@@ -318,7 +329,7 @@ export class FilesStore {
     this.baseNodes.clear();
     this.basePathToId.clear();
     this.clearViewData();
-    this.viewData.loadedPaths.add(ROOT_SCOPE_PATH);
+    this.viewData.loadedPaths.add(this.rootPath);
 
     for (const [id, node] of entries) {
       this.baseNodes.set(id, node);
@@ -505,10 +516,26 @@ export class FilesStore {
 
 function parentPathFromPath(path: string): string | null {
   const index = path.lastIndexOf('/');
-  return index === -1 ? null : path.slice(0, index);
+  if (index === -1) return null;
+  if (index === 0) return '/';
+  return path.slice(0, index);
 }
 
 function basenameFromPath(path: string): string {
   const index = path.lastIndexOf('/');
   return index === -1 ? path : path.slice(index + 1);
+}
+
+function isAbsolutePath(path: string): boolean {
+  return path.startsWith('/') || /^[a-zA-Z]:\//.test(path);
+}
+
+function joinPath(rootPath: string, childPath: string): string {
+  return normalizeFileTreePath(`${rootPath}/${childPath}`);
+}
+
+function relativePath(rootPath: string, absPath: string): string {
+  if (absPath === rootPath) return '';
+  const prefix = rootPath.endsWith('/') ? rootPath : `${rootPath}/`;
+  return absPath.startsWith(prefix) ? absPath.slice(prefix.length) : absPath;
 }
