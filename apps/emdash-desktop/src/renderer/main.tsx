@@ -23,10 +23,15 @@ import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { App } from './App';
+import { initSharedChatContext } from './lib/chat/shared-chat-context';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
 
 async function bootstrap() {
+  // Create the process-long ChatContext once at startup so its font-load hook
+  // fires here (fonts are imported above) rather than on first conversation open.
+  initSharedChatContext();
+
   // Wire invalidation bridges so FS and git events flow into the model registry.
   wireModelRegistryInvalidation(modelRegistry);
   wirePrCacheInvalidation();

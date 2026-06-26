@@ -1,20 +1,5 @@
-/**
- * AcpChatStore — per-conversation MobX store that bridges ACP RPC/events to
- * the @emdash/chat-ui transcript.
- *
- * Lifecycle:
- *   1. Construct with (conversationId, projectId, taskId) — creates ChatContext
- *      and ChatState immediately so transcript writes work before view mounts.
- *   2. Call bootstrap() once — subscribes to IPC events, starts the ACP
- *      session via hydrateConversation, then seeds committed history.
- *   3. When ChatTranscript renders, pass store.chatContext + store.chatState as
- *      props so it creates a ChatView without an extra attachHandle round-trip.
- *   4. Call dispose() when the tab closes to clean up subscriptions and
- *      dispose the ChatState (ChatContext is shared; host disposes it).
- */
-
 import type { ChatContext, ChatItem, ChatState, ChatView } from '@emdash/chat-ui';
-import { applyTurnEvent, createChatContext, createChatState } from '@emdash/chat-ui';
+import { applyTurnEvent, createChatState } from '@emdash/chat-ui';
 import type { AgentUpdate, AcpTurn, TerminalSnapshot } from '@emdash/core/acp';
 import {
   SessionMachine,
@@ -22,6 +7,7 @@ import {
   type SessionSnapshot,
 } from '@emdash/core/acp/session-machine';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { events, rpc } from '@renderer/lib/ipc';
 import {
   acpSessionClosedChannel,
@@ -35,8 +21,6 @@ import {
 } from '@shared/core/acp/acpEvents';
 import { foldHistory, foldTurn, mapAgentUpdate } from './acp-update-mapper';
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
 export type AcpChatLifecycle = 'idle' | SessionSnapshot['lifecycle'];
 
 /** Which UI actions are currently available given the machine state. */
@@ -47,8 +31,6 @@ export interface AgentAffordances {
   canSubmit: boolean;
   canCancel: boolean;
 }
-
-// ── Store ──────────────────────────────────────────────────────────────────────
 
 export class AcpChatStore {
   readonly conversationId: string;
@@ -82,9 +64,9 @@ export class AcpChatStore {
 
     this._machine = new SessionMachine(conversationId);
 
-    // Create context + state eagerly so transcript writes work immediately,
-    // before the ChatTranscript React component mounts.
-    this.chatContext = createChatContext();
+    // Use the process-long shared ChatContext (created once in main.tsx bootstrap).
+    // Per-conversation transcript state lives in ChatState, created here.
+    this.chatContext = getSharedChatContext();
     this.chatState = createChatState(this.chatContext);
 
     makeObservable(this, {
@@ -233,12 +215,13 @@ export class AcpChatStore {
       });
   }
 
-  /** Clean up event subscriptions and dispose the Solid reactive state. */
+  /** Clean up event subscriptions and dispose the per-conversation Solid state. */
   dispose(): void {
     for (const unsub of this._unsubs) unsub();
     this._unsubs.length = 0;
+    // chatState is per-conversation and must be disposed; chatContext is the
+    // shared app-wide singleton and must NOT be disposed here.
     this.chatState.dispose();
-    this.chatContext.dispose();
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
@@ -342,7 +325,8 @@ export class AcpChatStore {
         }
       });
 
-      // Seed history directly through chatState.transcript (always available).
+      // Seed history then replay any buffered active-turn updates.
+      // Each transcript method already batches its own signal writes internally.
       this.chatState.transcript.history.seed(historyItems);
       this._replayActiveUpdates();
     } catch (err) {
