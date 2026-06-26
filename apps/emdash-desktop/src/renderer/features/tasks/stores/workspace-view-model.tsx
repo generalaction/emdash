@@ -92,7 +92,17 @@ export class WorkspaceViewModel implements ILifecycle {
       taskId: this.taskId,
       modelRootPath: `workspace:${workspaceId}`,
     };
-    this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx);
+    this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx, {
+      onActiveTabChange: (tabId) => {
+        if (!tabId) return;
+        appState.history.push({
+          kind: 'tab',
+          projectId: taskData.projectId,
+          taskId: this.taskId,
+          tabId,
+        });
+      },
+    });
     this.terminalTabs = new TerminalTabViewStore(() => terminalRegistry.get(this.taskId) ?? null);
     this.editorView = new FileModelLifecycleStore(this.paneLayout, taskData.projectId, workspaceId);
 
@@ -117,44 +127,15 @@ export class WorkspaceViewModel implements ILifecycle {
     );
     this._disposers.push(initConvDisposer);
 
-    // Sync all panes' isVisible/isFocused with task active state and focused pane.
-    // Tracks groupCount so new panes created via splitRight() are initialized immediately.
+    // Tell the engine whether this task is the active route so panes can
+    // fire onActivate() correctly when the view becomes visible.
     this._disposers.push(
       reaction(
-        () => {
-          const isActive =
-            appState.navigation.currentViewId === 'task' &&
-            (appState.navigation.viewParamsStore['task'] as { taskId?: string } | undefined)
-              ?.taskId === this.taskId;
-          return {
-            isActive,
-            activePaneId: this.paneLayout.activePaneId,
-            groupCount: this.paneLayout.groups.length,
-          };
-        },
-        ({ isActive, activePaneId }) => {
-          for (const { paneId, pane } of this.paneLayout.groups) {
-            pane.setVisible(isActive);
-            pane.setFocused(isActive && paneId === activePaneId);
-          }
-        },
-        { fireImmediately: true }
-      )
-    );
-
-    // Push tab-level history whenever the focused group's active tab changes.
-    this._disposers.push(
-      reaction(
-        () => this.paneLayout.focusedPane.resolvedActiveTabId,
-        (tabId) => {
-          if (!tabId) return;
-          appState.history.push({
-            kind: 'tab',
-            projectId: (this._taskStore.data as Task).projectId,
-            taskId: this.taskId,
-            tabId,
-          });
-        },
+        () =>
+          appState.navigation.currentViewId === 'task' &&
+          (appState.navigation.viewParamsStore['task'] as { taskId?: string } | undefined)
+            ?.taskId === this.taskId,
+        (isActive) => this.paneLayout.setViewActive(isActive),
         { fireImmediately: true }
       )
     );

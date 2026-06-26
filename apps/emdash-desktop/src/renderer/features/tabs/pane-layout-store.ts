@@ -32,16 +32,37 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   activePaneId: string;
   paneSizes: number[];
 
+  /**
+   * True when the owning task view is the currently active route.
+   * Stored as an observable.box so it is reactive before makeObservable runs,
+   * allowing the per-pane onActivate reactions (fireImmediately) to track it
+   * correctly during pane construction.
+   */
+  private readonly _isViewActiveBox = observable.box(false);
+
+  /** Expose as a plain getter for external consumers (e.g. tests, VM). */
+  get isViewActive(): boolean {
+    return this._isViewActiveBox.get();
+  }
+
   private readonly _registry: R;
   private readonly _ctx: TabViewContext;
   private readonly _persistor: TabPersistenceAdapter | undefined;
   private _persistDisposer: (() => void) | null = null;
   private readonly _autoCloseDisposers = new Map<string, () => void>();
+  private readonly _onActiveTabChange: ((tabId: string | undefined) => void) | undefined;
+  private readonly _activeTabDisposer: () => void;
 
-  constructor(registry: R, ctx: TabViewContext, persistor?: TabPersistenceAdapter) {
+  constructor(
+    registry: R,
+    ctx: TabViewContext,
+    persistor?: TabPersistenceAdapter,
+    opts?: { onActiveTabChange?: (tabId: string | undefined) => void }
+  ) {
     this._registry = registry;
     this._ctx = ctx;
     this._persistor = persistor;
+    this._onActiveTabChange = opts?.onActiveTabChange;
 
     const initial = this._createPane();
     this.groups.push(initial);
@@ -52,16 +73,29 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       groups: observable,
       activePaneId: observable,
       paneSizes: observable,
+      isViewActive: computed,
       focusedPane: computed,
       splitRight: action,
       closePane: action,
       moveTab: action,
       handleDragEnd: action,
       setActiveGroup: action,
+      setViewActive: action,
       setPaneSizes: action,
       restoreSnapshot: action,
       open: action,
     });
+
+    // Push focused pane's active tab changes to the history callback.
+    this._activeTabDisposer = reaction(
+      () => this.focusedPane.resolvedActiveTabId,
+      (tabId) => this._onActiveTabChange?.(tabId),
+      { fireImmediately: true }
+    );
+  }
+
+  setViewActive(active: boolean): void {
+    this._isViewActiveBox.set(active);
   }
 
   get focusedPane(): PaneStore<R> {
@@ -283,6 +317,7 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   }
 
   dispose(): void {
+    this._activeTabDisposer();
     this.stopPersistence();
     for (const disposer of this._autoCloseDisposers.values()) {
       disposer();
@@ -342,6 +377,7 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   private _createPaneStore(_paneId: string): PaneStore<R> {
     return new PaneStore<R>(this._registry, this._ctx, {
       layoutOpener: (kind, args, config) => this.open(kind, args, config),
+      isViewActive: () => this._isViewActiveBox.get(),
     });
   }
 

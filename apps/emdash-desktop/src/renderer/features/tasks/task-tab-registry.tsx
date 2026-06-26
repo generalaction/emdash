@@ -41,8 +41,11 @@ function createTabView<const P extends readonly AnyTabProvider[]>(providers: P) 
   const registry = createTabRegistry(providers);
 
   /** Creates a typed PaneLayoutStore suitable for threading into a MobX state tree. */
-  function createPaneLayoutStore(ctx: TabViewContext): PaneLayoutStore<R> {
-    return new PaneLayoutStore<R>(registry, ctx, new TaskTabViewPersistor(ctx.viewId));
+  function createPaneLayoutStore(
+    ctx: TabViewContext,
+    opts?: { onActiveTabChange?: (tabId: string | undefined) => void }
+  ): PaneLayoutStore<R> {
+    return new PaneLayoutStore<R>(registry, ctx, new TaskTabViewPersistor(ctx.viewId), opts);
   }
 
   /**

@@ -1,4 +1,4 @@
-import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import {
   addTabId,
@@ -85,14 +85,16 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   /** Tab display order (array of tabIds). Drives resolvedTabs. */
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
-  isVisible = false;
-  /** True when this pane is the active/focused pane AND the task is the active view. */
-  isFocused = false;
   /** Current pixel dimensions of the pane container, null until first measurement. */
   dimensions: { width: number; height: number } | null = null;
 
   readonly registry: R;
   private readonly _ctx: TabViewContext;
+  /**
+   * Returns true when the owning view is the active route.
+   * Injected by PaneLayoutStore; defaults to () => false for standalone panes.
+   */
+  private readonly _isViewActive: () => boolean;
   /**
    * Layout-level opener injected at construction time.
    * Handles target routing and single-mount cardinality checks.
@@ -107,6 +109,8 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   private static readonly _MAX_CLOSED_HISTORY = 20;
   renameRequest: { tabId: string; nonce: number } | null = null;
   private _contentFocuser: (() => void) | null = null;
+  /** Disposes the per-pane onActivate effect reaction. */
+  private readonly _onActivateDisposer: () => void;
 
   get ctx(): TabViewContext {
     return this._ctx;
@@ -117,17 +121,18 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     ctx: TabViewContext,
     opts?: {
       layoutOpener?: (kind: string, args: Record<string, unknown>, config?: TabOpenOptions) => void;
+      isViewActive?: () => boolean;
     }
   ) {
     this.registry = registry;
     this._ctx = ctx;
     this._layoutOpener = opts?.layoutOpener ?? null;
+    this._isViewActive = opts?.isViewActive ?? (() => false);
 
     makeObservable(this, {
       tabOrder: observable,
       activeTabId: observable,
-      isVisible: observable,
-      isFocused: observable,
+      isVisible: computed,
       dimensions: observable,
       resolvedActiveTabId: computed,
       activeEntry: computed,
@@ -142,8 +147,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       setNextTabActive: action,
       setPreviousTabActive: action,
       setTabActiveIndex: action,
-      setVisible: action,
-      setFocused: action,
       setDimensions: action,
       pin: action,
       closeOthers: action,
@@ -158,11 +161,27 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       clearRenameRequest: action,
       commitRename: action,
     });
+
+    // Fire onActivate() for the active tab whenever this pane becomes visible
+    // or the active tab changes while already visible.
+    this._onActivateDisposer = reaction(
+      () => (this.isVisible ? this.resolvedActiveTabId : undefined),
+      (tabId) => {
+        if (!tabId) return;
+        this._resources.get(tabId)?.onActivate?.();
+      },
+      { fireImmediately: true }
+    );
   }
 
   // ---------------------------------------------------------------------------
   // Computed
   // ---------------------------------------------------------------------------
+
+  /** True when the owning view is the currently active route. */
+  get isVisible(): boolean {
+    return this._isViewActive();
+  }
 
   get resolvedActiveTabId(): string | undefined {
     if (this.activeTabId && this.entries.has(this.activeTabId)) {
@@ -364,10 +383,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
 
   setActiveTab(id: string): void {
     this.activeTabId = id;
-    const resource = this._resources.get(id);
-    if (resource && this.isVisible) {
-      resource.onActivate?.();
-    }
   }
 
   reorderTabs(fromIndex: number, toIndex: number): void {
@@ -468,19 +483,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     resource?.onActivateIntent?.();
   }
 
-  setVisible(visible: boolean): void {
-    this.isVisible = visible;
-    if (visible) {
-      const activeId = this.resolvedActiveTabId;
-      const resource = activeId ? this._resources.get(activeId) : undefined;
-      resource?.onActivate?.();
-    }
-  }
-
-  setFocused(focused: boolean): void {
-    this.isFocused = focused;
-  }
-
   setDimensions(width: number, height: number): void {
     this.dimensions = { width, height };
   }
@@ -511,6 +513,7 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   }
 
   dispose(): void {
+    this._onActivateDisposer();
     for (const id of [...this.tabOrder]) {
       this._disposeEntry(id);
     }

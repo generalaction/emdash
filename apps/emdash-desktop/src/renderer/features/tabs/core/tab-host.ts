@@ -10,8 +10,6 @@ export interface TabHost {
   readonly resolvedActiveTabId: string | undefined;
   /** The ambient context for this pane (viewId + any domain-specific fields). */
   readonly ctx: TabViewContext;
-  /** True when this pane is the currently focused pane in the main region. */
-  readonly isFocused: boolean;
 
   /** Opens a tab of any registered kind. Untyped for use from resources/handles. */
   openKind(kind: string, args: unknown): void;

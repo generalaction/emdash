@@ -94,9 +94,9 @@ export const GenericTabItem = observer(function GenericTabItem({
   );
 
   const handleSelect = () => {
-    const wasActive = tab.isActive;
     host.setActiveTab(tab.tabId);
-    if (!wasActive) pane.focusActiveContent();
+    // Container TabBar onClick will return focus to active content for mouse clicks.
+    // Keyboard-initiated selection needs an explicit call since onClick won't fire.
   };
 
   const base = tooltip ?? label;
@@ -115,6 +115,8 @@ export const GenericTabItem = observer(function GenericTabItem({
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               handleSelect();
+              // Keyboard selection doesn't bubble as a click, so return focus explicitly.
+              pane.focusActiveContent();
             }
           }}
           onMouseDown={(e) => {
