@@ -138,6 +138,7 @@ export const StagedSection = observer(function StagedSection() {
           <ChangesListOrTree
             viewMode={viewMode}
             changes={changes}
+            rootPath={workspace.path}
             isSelected={(path) => changesView.stagedSelection.has(path)}
             onToggleSelect={(path) => changesView.toggleStagedItem(path)}
             activePath={activePath}

@@ -10,6 +10,8 @@ import type {
 } from '@renderer/features/tabs/core/tab-provider';
 import { refsEqual } from '@shared/core/git/utils';
 import type { ActiveFile, TabDescriptor } from '@shared/view-state';
+import type { TaskTabContext } from '../stores/task-tab-context';
+import { resolveWorkspacePath } from '../stores/workspace-path';
 import { DiffTabItem, DiffTabDragPreview, diffGroupSuffix } from './diff-tab-item';
 import { DiffView } from './main-panel/diff-view';
 import { DiffTabStore } from './stores/diff-tab-store';
@@ -110,10 +112,14 @@ export const diffTabProvider: TabProvider<
     };
   },
 
-  deserialize(data: DiffDescriptor, _ctx: TabViewContext): DiffTabStore {
+  deserialize(data: DiffDescriptor, ctx: TabViewContext): DiffTabStore {
+    const filePath =
+      data.diffGroup === 'pr'
+        ? data.path
+        : resolveWorkspacePath((ctx as TaskTabContext).workspacePath, data.path);
     return new DiffTabStore(
       {
-        path: data.path,
+        path: filePath,
         type: data.diffGroup === 'disk' ? 'disk' : 'git',
         group: data.diffGroup,
         originalRef: data.originalRef,

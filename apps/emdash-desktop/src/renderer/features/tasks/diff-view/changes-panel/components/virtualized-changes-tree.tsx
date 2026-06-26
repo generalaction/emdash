@@ -14,6 +14,7 @@ import { buildChangesTree } from './changes-tree-utils';
 
 export interface VirtualizedChangesTreeProps {
   changes: GitChange[];
+  rootPath?: string;
   onSelectChange?: (change: GitChange) => void;
   onDoubleClickChange?: (change: GitChange) => void;
   isSelected?: (path: string) => boolean;
@@ -27,6 +28,7 @@ const ITEM_HEIGHT = 28;
 
 export function VirtualizedChangesTree({
   changes,
+  rootPath,
   onSelectChange,
   onDoubleClickChange,
   isSelected,
@@ -38,7 +40,7 @@ export function VirtualizedChangesTree({
   const parentRef = useRef<HTMLDivElement>(null);
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(() => new Set());
 
-  const tree = useMemo(() => buildChangesTree(changes), [changes]);
+  const tree = useMemo(() => buildChangesTree(changes, rootPath), [changes, rootPath]);
 
   const expandedPaths = useMemo(() => {
     const expanded = new Set<string>();

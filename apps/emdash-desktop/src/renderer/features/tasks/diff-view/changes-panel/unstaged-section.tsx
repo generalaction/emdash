@@ -198,6 +198,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
           <ChangesListOrTree
             viewMode={viewMode}
             changes={changes}
+            rootPath={workspace.path}
             isSelected={(path) => changesView.unstagedSelection.has(path)}
             onToggleSelect={(path) => changesView.toggleUnstagedItem(path)}
             activePath={activePath}

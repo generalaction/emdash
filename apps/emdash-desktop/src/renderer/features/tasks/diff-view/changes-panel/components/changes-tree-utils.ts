@@ -1,6 +1,7 @@
 import type { GitChange } from '@emdash/core/git';
 import {
   makeNode,
+  normalizeFileTreePath,
   sortFileNodes,
   type NestedFileNode,
 } from '@renderer/features/tasks/file-tree/tree-utils';
@@ -11,16 +12,19 @@ export interface ChangesTree {
   directoryPaths: Set<string>;
 }
 
-export function buildChangesTree(changes: GitChange[]): ChangesTree {
+export function buildChangesTree(changes: GitChange[], rootPath?: string): ChangesTree {
   const nodesByPath = new Map<string, NestedFileNode>();
   const changeByPath = new Map<string, GitChange>();
   const directoryPaths = new Set<string>();
   const rootNodes: NestedFileNode[] = [];
+  const normalizedRoot = rootPath ? normalizeFileTreePath(rootPath) : null;
 
   for (const change of changes) {
-    changeByPath.set(change.path, change);
+    const identityPath = normalizeFileTreePath(change.path);
+    const displayPath = displayPathForChange(identityPath, normalizedRoot);
+    changeByPath.set(displayPath, change);
 
-    const parts = change.path.split('/').filter(Boolean);
+    const parts = displayPath.split('/').filter(Boolean);
     if (parts.length === 0) continue;
 
     let prefix = '';
@@ -52,6 +56,15 @@ export function buildChangesTree(changes: GitChange[]): ChangesTree {
     changeByPath,
     directoryPaths,
   };
+}
+
+export function displayPathForChange(identityPath: string, rootPath?: string | null): string {
+  const normalizedPath = normalizeFileTreePath(identityPath);
+  if (!rootPath) return normalizedPath;
+  const normalizedRoot = normalizeFileTreePath(rootPath);
+  if (normalizedPath === normalizedRoot) return normalizedPath;
+  const prefix = `${normalizedRoot}/`;
+  return normalizedPath.startsWith(prefix) ? normalizedPath.slice(prefix.length) : normalizedPath;
 }
 
 function sortRecursively(nodes: NestedFileNode[]): NestedFileNode[] {
