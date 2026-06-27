@@ -19,8 +19,6 @@ import type {
 } from './core/tab-provider';
 import type { KindOf, OpenArgsOf, TabOpenOptions, TabRegistry } from './core/tab-provider-registry';
 
-// ── Descriptor (de)serialization helpers ──────────────────────────────────────
-
 /** Serialize a live entry to the flat TabDescriptor shape used in snapshots and history. */
 function descriptorOf(entry: TabEntry): TabDescriptor {
   return {
@@ -42,8 +40,6 @@ function stateFromDescriptor(desc: TabDescriptor): {
   return { kind: kind as string, tabId: tabId as string, isPreview: isPreview as boolean, state };
 }
 
-// ── Internal plain-data entry with observable isPreview + state ───────────────
-
 class TabEntryImpl<S = unknown> implements TabEntry<S> {
   readonly kind: string;
   readonly tabId: string;
@@ -62,8 +58,6 @@ class TabEntryImpl<S = unknown> implements TabEntry<S> {
     });
   }
 }
-
-// ── PaneStore ─────────────────────────────────────────────────────────────────
 
 /**
  * Owns all tab open/close/order/active state for a single pane.
@@ -174,10 +168,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Computed
-  // ---------------------------------------------------------------------------
-
   /** True when the owning view is the currently active route. */
   get isVisible(): boolean {
     return this._isViewActive();
@@ -231,19 +221,42 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   }
 
   /**
-   * Find an existing tab entry in this pane using a kind + dedupKey pair.
+   * Find an existing tab entry in this pane matching kind + resourceKey.
    * Only meaningful for single-mount providers; returns undefined for multi providers
-   * or when no entry with the given computed key exists.
+   * or when no matching entry exists.
    */
-  findSingleMountEntry(kind: string, dedupKey: string): TabEntryImpl | undefined {
+  findSingleMountEntry(kind: string, resourceKey: string): TabEntryImpl | undefined {
     if (!this.registry.has(kind)) return undefined;
     const def = this.registry.get(kind);
-    if (!def.mount || def.mount.type !== 'single') return undefined;
+    if ((def.mount ?? 'multi') !== 'single') return undefined;
     for (const id of this.tabOrder) {
       const e = this.entries.get(id);
-      if (e?.kind === kind && def.mount.dedupKey(e.state as never) === dedupKey) return e;
+      if (e?.kind === kind && def.resourceKey(e.state as never) === resourceKey) return e;
     }
     return undefined;
+  }
+
+  /**
+   * Returns true if any tab of the given kind in this pane has the given resourceKey.
+   * Used for list-selection queries — reads only observable `tabOrder` + `entries`.
+   */
+  hasOpenKey(kind: string, key: string): boolean {
+    if (!this.registry.has(kind)) return false;
+    const def = this.registry.get(kind);
+    return this.tabOrder.some((id) => {
+      const e = this.entries.get(id);
+      return e?.kind === kind && def.resourceKey(e.state as never) === key;
+    });
+  }
+
+  /**
+   * Returns true if the active tab in this pane matches the given kind + resourceKey.
+   * Used for list-selection queries.
+   */
+  activeMatches(kind: string, key: string): boolean {
+    const e = this.activeEntry;
+    if (!e || e.kind !== kind || !this.registry.has(kind)) return false;
+    return this.registry.get(kind).resourceKey(e.state as never) === key;
   }
 
   /** Find the first preview entry of a given kind (used for preview retargeting). */
@@ -285,10 +298,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     return { tabs, activeTabId: this.activeTabId };
   }
 
-  // ---------------------------------------------------------------------------
-  // Actions — open (internal; public entry-point is PaneLayoutStore.open)
-  // ---------------------------------------------------------------------------
-
   /**
    * Open a tab in THIS pane. Skips single-mount cardinality (that is enforced by
    * the layout store before routing here). Handles preview retarget within the pane.
@@ -311,9 +320,9 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     const def = this.registry.get(kind);
 
     // Single-mount dedup: if already open in THIS pane, focus (and optionally update state).
-    if (def.mount?.type === 'single') {
-      const dedupKey = def.mount.dedupKey(initialState as never);
-      const existing = this.findSingleMountEntry(kind, dedupKey);
+    if ((def.mount ?? 'multi') === 'single') {
+      const key = def.resourceKey(initialState as never);
+      const existing = this.findSingleMountEntry(kind, key);
       if (existing) {
         if (!isPreview) existing.isPreview = false;
         if (opts?.overrideState) existing.state = initialState;
@@ -368,10 +377,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     this.openKind(kind as string, args, config);
   }
 
-  // ---------------------------------------------------------------------------
-  // Actions — closing / navigation
-  // ---------------------------------------------------------------------------
-
   closeTab(id: string): void {
     this._removeTab(id);
   }
@@ -400,10 +405,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   setTabActiveIndex(index: number): void {
     tabUtilsSetTabActiveIndex(this, index);
   }
-
-  // ---------------------------------------------------------------------------
-  // TabHost interface
-  // ---------------------------------------------------------------------------
 
   pin(tabId: string): void {
     const entry = this.entries.get(tabId);
@@ -487,10 +488,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     this.dimensions = { width, height };
   }
 
-  // ---------------------------------------------------------------------------
-  // Snapshot
-  // ---------------------------------------------------------------------------
-
   restoreSnapshot(snapshot: Partial<TabManagerSnapshot>): void {
     if (snapshot.tabs) {
       // Dispose all current entries.
@@ -518,10 +515,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       this._disposeEntry(id);
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Cross-pane move support
-  // ---------------------------------------------------------------------------
 
   /**
    * Detaches an entry and its resource from this pane WITHOUT calling dispose.
@@ -591,10 +584,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Reopen closed tab
-  // ---------------------------------------------------------------------------
-
   reopenClosedTab(): void {
     const record = this._closedTabHistory.pop();
     if (!record) return;
@@ -610,10 +599,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     this.tabOrder.splice(insertAt, 0, entry.tabId);
     this.activeTabId = entry.tabId;
   }
-
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
 
   private _attachEntryAndInitialize(entry: TabEntryImpl, opts?: { activate?: boolean }): void {
     if (!this.registry.has(entry.kind)) {

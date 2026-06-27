@@ -1,4 +1,4 @@
-import type { GitChangeStatus } from '@emdash/core/git';
+import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
 import { observer } from 'mobx-react-lite';
 import type {
   TabEntry,
@@ -17,8 +17,25 @@ import { DiffTabResource } from './stores/diff-tab-resource';
 export interface DiffOpenArgs {
   activeFile: ActiveFile;
   status?: GitChangeStatus;
-  /** When true, opens as a preview tab (replaced on next preview open). */
-  preview?: boolean;
+}
+
+function refKey(ref: GitObjectRef): string {
+  switch (ref.kind) {
+    case 'branch':
+      return `branch:${ref.branch.type === 'remote' ? `${ref.branch.remote.name}/${ref.branch.branch}` : ref.branch.branch}`;
+    case 'commit':
+      return `commit:${ref.sha}`;
+    case 'tag':
+      return `tag:${ref.name}`;
+  }
+}
+
+function diffResourceKey(s: DiffPayload): string {
+  const base = `${s.path}|${s.diffGroup}`;
+  if (s.diffGroup === 'disk' || s.diffGroup === 'staged') return base;
+  const origKey = refKey(s.originalRef);
+  const modKey = s.modifiedRef ? refKey(s.modifiedRef) : '';
+  return `${base}|${origKey}|${modKey}`;
 }
 
 function activeFileToDiffPayload(activeFile: ActiveFile, status?: GitChangeStatus): DiffPayload {
@@ -45,6 +62,7 @@ const DiffTabContent = observer(function DiffTabContent({ host }: TabContentProp
 export const diffTabProvider: TabProvider<'diff', DiffPayload, DiffTabResource, DiffOpenArgs> =
   createTabProvider({
     kind: 'diff',
+    resourceKey: diffResourceKey,
 
     // No mount: multi. No cross-pane or within-pane dedup (per architecture decision).
 

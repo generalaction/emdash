@@ -18,7 +18,6 @@ import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { PaneEmptyState } from '../pane-empty-state';
 import { TabBarActions } from '../tab-bar-actions';
-import { taskTabView } from '../task-tab-registry';
 import { useWorkspaceViewModel } from '../task-view-context';
 import { TerminalsPanel } from '../terminals/terminal-panel';
 
@@ -102,38 +101,36 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   return (
-    <taskTabView.TabLayoutProvider layout={paneLayout}>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={pointerWithin}
-        onDragStart={({ active }) => setActiveDragId(active.id as string)}
-        onDragEnd={(event) => {
-          setActiveDragId(null);
-          if (event.over) {
-            paneLayout.handleDragEnd(event.active.id as string, event.over.id as string);
-          }
-        }}
-        onDragCancel={() => setActiveDragId(null)}
-      >
-        <ResizablePanelGroup orientation="horizontal" id="task-main-split">
-          {paneLayout.groups.map((group, i) => (
-            <SplitPane
-              key={group.paneId}
-              group={group}
-              index={i}
-              isFocused={
-                taskView.focusedRegion === 'main' && paneLayout.activePaneId === group.paneId
-              }
-              onActivate={() => paneLayout.setActiveGroup(group.paneId)}
-              defaultSizePct={paneLayout.paneSizes[i] ?? Math.floor(100 / paneLayout.groups.length)}
-            />
-          ))}
-        </ResizablePanelGroup>
-        <DragOverlay dropAnimation={null}>
-          {activeDragId ? <TabDragPreview tabId={activeDragId} /> : null}
-        </DragOverlay>
-      </DndContext>
-    </taskTabView.TabLayoutProvider>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      onDragStart={({ active }) => setActiveDragId(active.id as string)}
+      onDragEnd={(event) => {
+        setActiveDragId(null);
+        if (event.over) {
+          paneLayout.handleDragEnd(event.active.id as string, event.over.id as string);
+        }
+      }}
+      onDragCancel={() => setActiveDragId(null)}
+    >
+      <ResizablePanelGroup orientation="horizontal" id="task-main-split">
+        {paneLayout.groups.map((group, i) => (
+          <SplitPane
+            key={group.paneId}
+            group={group}
+            index={i}
+            isFocused={
+              taskView.focusedRegion === 'main' && paneLayout.activePaneId === group.paneId
+            }
+            onActivate={() => paneLayout.setActiveGroup(group.paneId)}
+            defaultSizePct={paneLayout.paneSizes[i] ?? Math.floor(100 / paneLayout.groups.length)}
+          />
+        ))}
+      </ResizablePanelGroup>
+      <DragOverlay dropAnimation={null}>
+        {activeDragId ? <TabDragPreview tabId={activeDragId} /> : null}
+      </DragOverlay>
+    </DndContext>
   );
 });
 

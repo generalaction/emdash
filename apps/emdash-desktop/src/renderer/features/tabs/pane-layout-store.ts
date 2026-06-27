@@ -239,11 +239,11 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       : (args as unknown);
     if (initialState === null) return; // aborted by onBeforeOpen
 
-    // Single-mount: check ALL panes for an existing dedupKey match.
-    if (def.mount?.type === 'single') {
-      const dedupKey = def.mount.dedupKey(initialState as never);
+    // Single-mount: check ALL panes for an existing resourceKey match.
+    if ((def.mount ?? 'multi') === 'single') {
+      const key = def.resourceKey(initialState as never);
       for (const g of this.groups) {
-        const existing = g.pane.findSingleMountEntry(kind, dedupKey);
+        const existing = g.pane.findSingleMountEntry(kind, key);
         if (existing) {
           this.setActiveGroup(g.paneId);
           if (!previewFlag) existing.isPreview = false;
@@ -260,6 +260,21 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       isPreview: previewFlag,
       overrideState: overrideStateFlag,
     });
+  }
+
+  /** Returns true if any pane has a tab of the given kind + resourceKey open. */
+  isOpen(kind: string, key: string): boolean {
+    return this.groups.some((g) => g.pane.hasOpenKey(kind, key));
+  }
+
+  /** Returns true if the active tab in the focused pane matches kind + resourceKey. */
+  isActiveInFocusedPane(kind: string, key: string): boolean {
+    return this.focusedPane.activeMatches(kind, key);
+  }
+
+  /** Returns true if any pane's active tab matches kind + resourceKey. */
+  isActiveInAnyPane(kind: string, key: string): boolean {
+    return this.groups.some((g) => g.pane.activeMatches(kind, key));
   }
 
   get snapshot(): TabGroupsSnapshot {
@@ -327,10 +342,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       pane.dispose();
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
 
   /**
    * Resolve a target to an existing or newly-split PaneStore.

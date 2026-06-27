@@ -40,19 +40,6 @@ export interface TabResource {
 }
 
 /**
- * Declares that at most one tab with the given dedupKey may exist across ALL
- * panes in a view. The layout engine enforces this: re-opening an already-open
- * single-mount tab focuses the existing pane/tab instead of creating a new one.
- *
- * Absent mount means 'multi' — multiple tabs with identical state may coexist
- * and there is no within-pane or cross-pane dedup.
- */
-export interface MountStrategy<S> {
-  type: 'single';
-  dedupKey: (state: S) => string;
-}
-
-/**
  * Controls which pane a programmatic open targets.
  *   'active'           – focused pane (default)
  *   'right' | 'left'   – adjacent pane (split if needed)
@@ -152,11 +139,19 @@ export interface TabProvider<
   readonly kind: K;
 
   /**
-   * Declares single-mount cardinality and provides the dedup key function.
-   * Absent means 'multi': multiple tabs (even with identical state) may coexist
-   * across any number of panes — no dedup is performed.
+   * Stable identity for a tab, derived from its serializable state.
+   * Used by the engine for: in-pane dedup, single-mount cross-pane focus,
+   * and list-selection queries (isOpen / isActive).
+   * Must be pure and stable across state mutations that do not change identity.
    */
-  mount?: MountStrategy<S>;
+  resourceKey(state: S): string;
+
+  /**
+   * 'single': at most one tab per resourceKey across ALL panes in a view.
+   *           The engine enforces this at the layout level.
+   * 'multi':  multiple tabs with the same resourceKey may coexist (default).
+   */
+  mount?: 'single' | 'multi';
 
   /**
    * Normalize/validate open args, perform synchronous side-effects

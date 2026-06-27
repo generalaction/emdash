@@ -24,7 +24,6 @@ export interface AcpChatState {
 
 export interface AcpChatOpenArgs {
   conversationId: string;
-  preview?: boolean;
 }
 
 export const AcpChatTabBarItem = observer(function AcpChatTabBarItem({
@@ -63,6 +62,7 @@ export const acpChatTabProvider: TabProvider<
   AcpChatOpenArgs
 > = createTabProvider({
   kind: 'acp-chat',
+  resourceKey: (s: AcpChatState) => s.conversationId,
 
   // No mount: multi, no cross-pane dedup. Could be made 'single' later.
 

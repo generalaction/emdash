@@ -77,6 +77,7 @@ export const browserTabProvider: TabProvider<
   BrowserOpenArgs
 > = createTabProvider({
   kind: 'browser',
+  resourceKey: (s: BrowserState) => s.browserId,
 
   // No mount: multi. Each open creates a fresh browser session.
 

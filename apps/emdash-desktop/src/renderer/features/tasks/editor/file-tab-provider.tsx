@@ -23,8 +23,6 @@ import { FileTabResource } from './stores/file-tab-resource';
 
 export interface FileOpenArgs {
   path: string;
-  /** When true, opens as a preview tab (replaced on next preview open). */
-  preview?: boolean;
   /** When true, file is read-only from outside the workspace. */
   external?: boolean;
 }
@@ -76,6 +74,7 @@ const FileContent = observer(function FileContent({ host, ctx: _ctx }: TabConten
 export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, FileOpenArgs> =
   createTabProvider({
     kind: 'file',
+    resourceKey: (s: FilePayload) => s.path,
 
     onBeforeOpen: (args: FileOpenArgs): FilePayload | null => {
       return { path: args.path, isExternal: args.external };

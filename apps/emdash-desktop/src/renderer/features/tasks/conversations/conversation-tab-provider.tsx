@@ -18,8 +18,6 @@ export interface ConversationState {
 
 export interface ConversationOpenArgs {
   conversationId: string;
-  /** When true, opens as a preview tab (replaced on next preview open). */
-  preview?: boolean;
 }
 
 /**
@@ -37,11 +35,8 @@ export const conversationTabProvider: TabProvider<
   ConversationOpenArgs
 > = createTabProvider({
   kind: 'conversation',
-
-  mount: {
-    type: 'single',
-    dedupKey: (s) => s.conversationId,
-  },
+  mount: 'single',
+  resourceKey: (s: ConversationState) => s.conversationId,
 
   onBeforeOpen: (args: ConversationOpenArgs): ConversationState | null => {
     return { conversationId: args.conversationId };
