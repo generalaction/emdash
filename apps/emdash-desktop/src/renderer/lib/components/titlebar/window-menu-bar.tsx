@@ -48,8 +48,7 @@ function MenuBarButton({ id, label }: { id: AppMenuId; label: string }) {
       ref={ref}
       type="button"
       aria-haspopup="menu"
-      // Open on pointer down so the bar feels like a native menu bar.
-      onPointerDown={openMenu}
+      onClick={openMenu}
       className="hover:bg-muted flex h-7 items-center rounded-md px-2 text-sm text-foreground-muted transition-colors hover:text-foreground"
     >
       {label}

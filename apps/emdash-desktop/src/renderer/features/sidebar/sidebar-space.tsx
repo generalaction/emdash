@@ -39,9 +39,13 @@ export function SidebarSpace() {
           <BoundShortcut settingsKey="toggleLeftSidebar" variant="keycaps" />
         </TooltipContent>
       </Tooltip>
-      {/* Sits to the right of the nav + collapse controls on Windows/Linux;
-          renders nothing on macOS. */}
-      <WindowMenuBar />
+      {isLeftOpen && (
+        <>
+          {/* Sits to the right of the nav + collapse controls on Windows/Linux;
+              renders nothing on macOS. */}
+          <WindowMenuBar />
+        </>
+      )}
     </div>
   );
 }

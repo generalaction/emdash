@@ -108,8 +108,12 @@ export const appController = createRPCController({
   },
   isWindowMaximized: () => appService.isWindowMaximized(),
   popupAppMenu: (args: { menu: AppMenuId; x: number; y: number }) => {
-    appService.popupAppMenu(args);
-    return { success: true };
+    try {
+      appService.popupAppMenu(args);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
   },
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
