@@ -54,6 +54,7 @@ export function spawnLocalPty(options: LocalSpawnOptions): LocalPtySession {
 export class LocalPtySession implements Pty {
   readonly id: string;
   private killed = false;
+  private windowsWriteQueue: Promise<void> = Promise.resolve();
 
   constructor(
     id: string,
@@ -69,15 +70,33 @@ export class LocalPtySession implements Pty {
 
   write(data: string | Buffer): void {
     if (process.platform === 'win32') {
-      const mouseInput = extractSgrMouseSequences(data);
-      this.windowsInputInjector.injectText(this.proc.pid, mouseInput);
-      const passthroughInput = mouseInput ? stripSgrMouseSequences(data) : data;
-      if (passthroughInput.length > 0) {
-        this.proc.write(passthroughInput);
-      }
+      this.windowsWriteQueue = this.windowsWriteQueue
+        .then(() => this.writeWindows(data))
+        .catch((error: unknown) => {
+          log.warn('LocalPtySession: Windows write failed', { error: String(error) });
+        });
       return;
     }
     this.proc.write(data);
+  }
+
+  private async writeWindows(data: string | Buffer): Promise<void> {
+    const mouseInput = extractSgrMouseSequences(data);
+    if (!mouseInput) {
+      this.proc.write(data);
+      return;
+    }
+
+    let injected = false;
+    try {
+      injected = await this.windowsInputInjector.injectText(this.proc.pid, mouseInput);
+    } catch (error) {
+      log.warn('LocalPtySession: Windows mouse injection failed', { error: String(error) });
+    }
+    const passthroughInput = injected ? stripSgrMouseSequences(data) : data;
+    if (passthroughInput.length > 0) {
+      this.proc.write(passthroughInput);
+    }
   }
 
   resize(cols: number, rows: number): void {

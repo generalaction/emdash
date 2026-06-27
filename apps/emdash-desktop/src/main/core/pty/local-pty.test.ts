@@ -38,8 +38,13 @@ describe('LocalPtySession', () => {
       kill: vi.fn(),
       markExited: vi.fn(),
     };
-    windowsInputInjector = { injectText: vi.fn() };
+    windowsInputInjector = { injectText: vi.fn(async () => true) };
     pty = new LocalPtySession('test-id', mockProc, posixTerminator, windowsInputInjector);
+  }
+
+  async function flushWindowsWrite(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
   }
 
   beforeEach(() => {
@@ -114,10 +119,11 @@ describe('LocalPtySession', () => {
     expect(handler).toHaveBeenCalledWith({ exitCode: 143, signal: 'SIGTERM' });
   });
 
-  it('write() injects SGR mouse reports into the Windows console input queue', () => {
+  it('write() injects SGR mouse reports into the Windows console input queue', async () => {
     setPlatform('win32');
 
     pty.write('a\x1b[<0;10;10M\x1b[<0;10;10m\x1b[A');
+    await flushWindowsWrite();
 
     expect(windowsInputInjector.injectText).toHaveBeenCalledWith(
       1234,
@@ -126,10 +132,21 @@ describe('LocalPtySession', () => {
     expect(mockProc.write).toHaveBeenCalledWith('a\x1b[A');
   });
 
-  it('write() injects binary SGR wheel reports into the Windows console input queue', () => {
+  it('write() falls back to the original input when Windows mouse injection fails', async () => {
+    setPlatform('win32');
+    vi.mocked(windowsInputInjector.injectText).mockResolvedValue(false);
+
+    pty.write('a\x1b[<0;10;10M\x1b[A');
+    await flushWindowsWrite();
+
+    expect(mockProc.write).toHaveBeenCalledWith('a\x1b[<0;10;10M\x1b[A');
+  });
+
+  it('write() injects binary SGR wheel reports into the Windows console input queue', async () => {
     setPlatform('win32');
 
     pty.write(Buffer.from('\x1b[<64;10;10M', 'latin1'));
+    await flushWindowsWrite();
 
     expect(windowsInputInjector.injectText).toHaveBeenCalledWith(1234, '\x1b[<64;10;10M');
     expect(mockProc.write).not.toHaveBeenCalled();

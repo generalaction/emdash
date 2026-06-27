@@ -103,38 +103,77 @@ public static class EmdashConsoleInput {
 
 $inputReader = [Console]::In
 while (($line = $inputReader.ReadLine()) -ne $null) {
+  $id = $null
   try {
     $message = $line | ConvertFrom-Json
+    $id = $message.id
     $text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($message.text))
     [EmdashConsoleInput]::WriteText([uint32]$message.pid, $text)
+    [Console]::Out.WriteLine((@{ id = $id; ok = $true } | ConvertTo-Json -Compress))
   } catch {
-    [Console]::Error.WriteLine($_.Exception.Message)
+    if ($id -ne $null) {
+      [Console]::Out.WriteLine((@{ id = $id; ok = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress))
+    } else {
+      [Console]::Error.WriteLine($_.Exception.Message)
+    }
   }
 }
 `;
 
 export interface WindowsConsoleInputInjector {
-  injectText(pid: number, text: string): void;
+  injectText(pid: number, text: string): Promise<boolean>;
 }
+
+type PendingInjection = {
+  timeout: NodeJS.Timeout;
+  resolve: (success: boolean) => void;
+};
+
+type InjectionAck = {
+  id?: unknown;
+  ok?: unknown;
+  error?: unknown;
+};
+
+const INJECTION_TIMEOUT_MS = 1000;
 
 class PowerShellWindowsConsoleInputInjector implements WindowsConsoleInputInjector {
   private proc: ChildProcessWithoutNullStreams | null = null;
   private failed = false;
+  private nextId = 1;
+  private stdoutBuffer = '';
+  private readonly pending = new Map<number, PendingInjection>();
 
-  injectText(pid: number, text: string): void {
-    if (process.platform !== 'win32') return;
-    if (this.failed) return;
-    if (!Number.isInteger(pid) || pid <= 0 || text.length === 0) return;
+  injectText(pid: number, text: string): Promise<boolean> {
+    if (process.platform !== 'win32') return Promise.resolve(true);
+    if (this.failed) return Promise.resolve(false);
+    if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve(false);
+    if (text.length === 0) return Promise.resolve(true);
 
     const proc = this.ensureProcess();
-    if (!proc || proc.stdin.destroyed) return;
+    if (!proc || proc.stdin.destroyed) return Promise.resolve(false);
+
+    const id = this.nextId++;
 
     const payload = JSON.stringify({
+      id,
       pid,
       text: Buffer.from(text, 'utf8').toString('base64'),
     });
-    proc.stdin.write(`${payload}\n`, (error) => {
-      if (error) log.warn('WindowsConsoleInputInjector: write failed', { error: error.message });
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        this.pending.delete(id);
+        log.warn('WindowsConsoleInputInjector: helper response timed out', { id });
+        resolve(false);
+      }, INJECTION_TIMEOUT_MS);
+      this.pending.set(id, { timeout, resolve });
+
+      proc.stdin.write(`${payload}\n`, (error) => {
+        if (!error) return;
+        this.resolvePending(id, false);
+        log.warn('WindowsConsoleInputInjector: write failed', { error: error.message });
+      });
     });
   }
 
@@ -157,15 +196,20 @@ class PowerShellWindowsConsoleInputInjector implements WindowsConsoleInputInject
       );
       this.proc = proc;
 
+      proc.stdout.on('data', (chunk: Buffer) => {
+        this.handleStdout(chunk.toString('utf8'));
+      });
       proc.stderr.on('data', (chunk: Buffer) => {
         log.warn('WindowsConsoleInputInjector: helper stderr', { message: chunk.toString('utf8') });
       });
       proc.on('error', (error) => {
         this.failed = true;
+        this.resolveAllPending(false);
         log.warn('WindowsConsoleInputInjector: helper failed', { error: error.message });
       });
       proc.on('exit', (code, signal) => {
         if (this.proc === proc) this.proc = null;
+        this.resolveAllPending(false);
         if (code !== 0 && code !== null) {
           log.warn('WindowsConsoleInputInjector: helper exited', { code, signal });
         }
@@ -176,6 +220,50 @@ class PowerShellWindowsConsoleInputInjector implements WindowsConsoleInputInject
       this.failed = true;
       log.warn('WindowsConsoleInputInjector: helper spawn failed', { error: String(error) });
       return null;
+    }
+  }
+
+  private handleStdout(data: string): void {
+    this.stdoutBuffer += data;
+    while (true) {
+      const newlineIndex = this.stdoutBuffer.indexOf('\n');
+      if (newlineIndex === -1) return;
+
+      const line = this.stdoutBuffer.slice(0, newlineIndex).trim();
+      this.stdoutBuffer = this.stdoutBuffer.slice(newlineIndex + 1);
+      if (!line) continue;
+      this.handleAckLine(line);
+    }
+  }
+
+  private handleAckLine(line: string): void {
+    try {
+      const ack = JSON.parse(line) as InjectionAck;
+      if (typeof ack.id !== 'number') return;
+      const ok = ack.ok === true;
+      if (!ok) {
+        log.warn('WindowsConsoleInputInjector: injection failed', { id: ack.id, error: ack.error });
+      }
+      this.resolvePending(ack.id, ok);
+    } catch (error) {
+      log.warn('WindowsConsoleInputInjector: invalid helper response', {
+        line,
+        error: String(error),
+      });
+    }
+  }
+
+  private resolvePending(id: number, success: boolean): void {
+    const pending = this.pending.get(id);
+    if (!pending) return;
+    this.pending.delete(id);
+    clearTimeout(pending.timeout);
+    pending.resolve(success);
+  }
+
+  private resolveAllPending(success: boolean): void {
+    for (const id of Array.from(this.pending.keys())) {
+      this.resolvePending(id, success);
     }
   }
 }
