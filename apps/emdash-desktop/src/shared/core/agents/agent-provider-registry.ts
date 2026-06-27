@@ -149,7 +149,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Grok',
     description:
       "xAI's Grok CLI for terminal-first coding sessions with plans, subagents, and parallel work.",
-    docUrl: 'https://x.ai/cli',
+    docUrl: 'https://docs.x.ai/build/overview',
     installCommand: 'curl -fsSL https://x.ai/cli/install.sh | bash',
     commands: ['grok'],
     versionArgs: ['--version'],

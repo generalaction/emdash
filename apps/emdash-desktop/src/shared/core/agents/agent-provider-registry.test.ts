@@ -19,6 +19,15 @@ describe('AGENT_PROVIDERS', () => {
     });
   });
 
+  it('uses the current Grok docs URL while keeping the official installer as default', () => {
+    const grok = AGENT_PROVIDERS.find((provider) => provider.id === 'grok');
+
+    expect(grok).toMatchObject({
+      docUrl: 'https://docs.x.ai/build/overview',
+      installCommand: 'curl -fsSL https://x.ai/cli/install.sh | bash',
+    });
+  });
+
   it('validates Amp provider session ids as thread ids', () => {
     expect(isValidProviderSessionId('amp', 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95')).toBe(true);
     expect(isValidProviderSessionId('amp', 'not-a-thread')).toBe(false);
