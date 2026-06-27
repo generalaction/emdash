@@ -490,6 +490,16 @@ export function ChatRoot(props: ChatRootProps) {
   let lastScrollTop = 0;
   let atBottom = false;
   let reachStartFired = false;
+  let lastAnchorWriteAt = 0;
+  const ANCHOR_WRITE_INTERVAL_MS = 150;
+  // Reused across throttled writes to avoid per-tick allocation on the hot path.
+  // Safe to alias: the next mount reads fields synchronously in onMount, and
+  // onCleanup writes its own values directly into ChatState.
+  const anchorScratch = {
+    anchorItemId: null as string | null,
+    offsetWithinItem: 0,
+    atBottom: true,
+  };
 
   const readPhase = () => {
     const el = scrollEl;
@@ -506,16 +516,23 @@ export function ChatRoot(props: ChatRootProps) {
       props.onAtBottomChange?.(atBottom);
     }
 
-    // Persist scroll anchor into ChatState on every frame so it survives
-    // view dispose (e.g. tab switch). Plain object assignment — not reactive.
-    const pt = padTop();
-    const anchorUnitIdx = virt.findIndex(Math.max(0, st - pt));
-    const anchorUnit = units().at(anchorUnitIdx);
-    props.state.scroll.set({
-      anchorItemId: anchorUnit?.itemId ?? null,
-      offsetWithinItem: st - (virt.top(anchorUnitIdx) + pt),
-      atBottom: nowAtBottom,
-    });
+    // Throttled (~150ms) scroll-anchor write-back into ChatState so it survives
+    // view dispose (e.g. tab switch). Throttled to avoid two O(log N) Fenwick
+    // queries + allocation on every frame; the onCleanup snapshot covers the
+    // final position on dispose (see below). Plain object mutation — not reactive.
+    // atBottom is always written on every tick regardless so the restore decision
+    // (re-pin to bottom vs restore anchor) is never stale.
+    const now = performance.now();
+    if (now - lastAnchorWriteAt >= ANCHOR_WRITE_INTERVAL_MS) {
+      lastAnchorWriteAt = now;
+      const pt = padTop();
+      const anchorUnitIdx = virt.findIndex(Math.max(0, st - pt));
+      const anchorUnit = units().at(anchorUnitIdx);
+      anchorScratch.anchorItemId = anchorUnit?.itemId ?? null;
+      anchorScratch.offsetWithinItem = st - (virt.top(anchorUnitIdx) + pt);
+      anchorScratch.atBottom = nowAtBottom;
+      props.state.scroll.set(anchorScratch);
+    }
 
     if (st <= REACH_START_THRESHOLD_PX) {
       if (!reachStartFired) {
@@ -801,10 +818,14 @@ export function ChatRoot(props: ChatRootProps) {
       props.state.heightmap.setAll(entries);
       props.state.heightmap.lastWidth = w;
 
-      // Final scroll anchor snapshot (the readPhase already updates this on
-      // every frame, but take a fresh reading on dispose to cover the case
-      // where the scheduler didn't run after the last scroll event).
-      if (el) {
+      // Final scroll anchor snapshot on dispose. Only re-read scrollTop when
+      // the element is still in the layout tree (el.isConnected). On a keyed
+      // React unmount the scroll element may already be detached and report
+      // scrollTop === 0, which would clobber the last good throttled anchor.
+      // When detached, keep the throttled value already in ChatState.
+      // atBottom is sourced from the tracked local var (not a DOM read) so
+      // the restore decision stays correct regardless of attachment state.
+      if (el && el.isConnected) {
         const st = el.scrollTop;
         const pt = padTop();
         const anchorUnitIdx = virt.findIndex(Math.max(0, st - pt));

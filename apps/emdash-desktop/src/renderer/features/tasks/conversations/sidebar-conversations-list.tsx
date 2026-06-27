@@ -76,7 +76,6 @@ const ConversationRow = observer(function ConversationRow({
 
   const handleDoubleClick = () => {
     openConversation({ conversationId }, { preview: false });
-    handleRename();
   };
 
   const handleDelete = () => {

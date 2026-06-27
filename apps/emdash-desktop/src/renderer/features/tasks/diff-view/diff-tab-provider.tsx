@@ -64,9 +64,8 @@ const DiffTabContent = observer(function DiffTabContent({ host }: TabContentProp
 export const diffTabProvider: TabProvider<'diff', DiffPayload, DiffTabResource, DiffOpenArgs> =
   createTabProvider({
     kind: 'diff',
+    mount: 'single',
     resourceKey: diffResourceKey,
-
-    // No mount: multi. No cross-pane or within-pane dedup (per architecture decision).
 
     onBeforeOpen(args: DiffOpenArgs): DiffPayload | null {
       return activeFileToDiffPayload(args.activeFile, args.status);

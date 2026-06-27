@@ -74,6 +74,7 @@ const FileContent = observer(function FileContent({ host, ctx: _ctx }: TabConten
 export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, FileOpenArgs> =
   createTabProvider({
     kind: 'file',
+    mount: 'single',
     resourceKey: (s: FilePayload) => s.path,
 
     onBeforeOpen: (args: FileOpenArgs): FilePayload | null => {

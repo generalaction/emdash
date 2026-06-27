@@ -62,9 +62,8 @@ export const acpChatTabProvider: TabProvider<
   AcpChatOpenArgs
 > = createTabProvider({
   kind: 'acp-chat',
+  mount: 'single',
   resourceKey: (s: AcpChatState) => s.conversationId,
-
-  // No mount: multi, no cross-pane dedup. Could be made 'single' later.
 
   onBeforeOpen: (args: AcpChatOpenArgs): AcpChatState | null => {
     return { conversationId: args.conversationId };
