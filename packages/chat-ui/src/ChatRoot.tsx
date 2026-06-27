@@ -278,6 +278,9 @@ export function ChatRoot(props: ChatRootProps) {
   let committedUnitsArr: ReturnType<typeof flattenTier> = [];
   let lastCommitted: readonly ChatItem[] = [];
   const [committedUnitsVersion, setCommittedUnitsVersion] = createSignal(0);
+  // Stable empty array passed to makeUnitsView when we need a committed-only
+  // view. Must not change identity so memos don't re-run on each access.
+  const NO_ACTIVE_UNITS: ReturnType<typeof flattenTier> = [];
 
   createEffect(() => {
     const next = props.state.transcript.state.committed;
@@ -335,6 +338,9 @@ export function ChatRoot(props: ChatRootProps) {
         measureEpoch: measureEpoch(),
         expandedId: expandedUserId(),
       };
+      // lastWidth > 0 iff onCleanup wrote a snapshot on a prior dispose.
+      // Skip the Map.get pass entirely on cold mounts (empty heightmap).
+      const hasHeightmapSnapshot = props.state.heightmap.lastWidth > 0;
       virt.setCount(us.length, (i) => {
         const u = us.at(i);
         if (!u) return 60;
@@ -342,8 +348,10 @@ export function ChatRoot(props: ChatRootProps) {
         // on remount). Falls back to the cheap estimate for rows never measured
         // or when the heightmap was seeded at a different container width
         // (the scroll anchor will still restore the correct position).
-        const snapped = props.state.heightmap.get(u.id);
-        if (snapped !== undefined) return snapped;
+        if (hasHeightmapSnapshot) {
+          const snapped = props.state.heightmap.get(u.id);
+          if (snapped !== undefined) return snapped;
+        }
         const unitDef = UNIT_REGISTRY[u.kind];
         const contentH =
           unitDef?.estimate?.(u.data, estimateCtx, unitDef.vars ?? {}) ??
@@ -399,9 +407,18 @@ export function ChatRoot(props: ChatRootProps) {
   });
 
   // ── Pinned user-message overlay ───────────────────────────────────────────
-  const userTurns = createMemo(() =>
-    collectUserTurnUnits(props.state.transcript.state.committed, units())
-  );
+  // Tracks committedUnitsVersion only — not units() — so it does not recompute
+  // on every streaming frame. collectUserTurnUnits only looks at committed items
+  // by design (see flatten.test.ts "does not include activeTurn user messages"),
+  // and committed units are always the [0, committedUnitsArr.length) prefix of
+  // the full units() view, so the returned absolute indices remain valid.
+  const userTurns = createMemo(() => {
+    committedUnitsVersion();
+    return collectUserTurnUnits(
+      props.state.transcript.state.committed,
+      makeUnitsView(committedUnitsArr, NO_ACTIVE_UNITS)
+    );
+  });
 
   const pinState = createMemo(() => {
     if (!props.pinUserMessages) return null;
