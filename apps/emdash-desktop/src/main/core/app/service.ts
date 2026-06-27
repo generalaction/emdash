@@ -5,6 +5,7 @@ import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import type { IDisposable, IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
+import { popupAppMenu as popupNativeAppMenu } from '@main/app/menu';
 import { getMainWindow } from '@main/app/window';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
@@ -20,6 +21,7 @@ import {
   appPasteChannel,
   appRedoChannel,
   appUndoChannel,
+  type AppMenuId,
   terminalContextMenuActionChannel,
   type TerminalContextMenuAction,
 } from '@shared/events/appEvents';
@@ -291,6 +293,10 @@ class AppService implements IInitializable, IDisposable {
       x: Math.round(args.x),
       y: Math.round(args.y),
     });
+  }
+
+  popupAppMenu(args: { menu: AppMenuId; x: number; y: number }): void {
+    popupNativeAppMenu(args.menu, args.x, args.y);
   }
 
   quit(): void {

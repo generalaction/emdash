@@ -1,5 +1,6 @@
 import { getDiagnosticLogAttachment } from '@main/lib/file-logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type { AppMenuId } from '@shared/events/appEvents';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import type { OpenInAppId } from '@shared/openInApps';
 import { appService } from './service';
@@ -106,6 +107,10 @@ export const appController = createRPCController({
     return { success: true };
   },
   isWindowMaximized: () => appService.isWindowMaximized(),
+  popupAppMenu: (args: { menu: AppMenuId; x: number; y: number }) => {
+    appService.popupAppMenu(args);
+    return { success: true };
+  },
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,

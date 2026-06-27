@@ -14,6 +14,9 @@ export const terminalContextMenuActionChannel = defineEvent<{
   action: TerminalContextMenuAction;
 }>('terminal-context-menu:action');
 
+/** Top-level application menus exposed in the custom in-window menu bar (Windows/Linux). */
+export type AppMenuId = 'file' | 'edit' | 'view' | 'help';
+
 // Menu events (main → renderer, no payload)
 export const menuOpenSettingsChannel = defineEvent<void>('menu:open-settings');
 export const menuCheckForUpdatesChannel = defineEvent<void>('menu:check-for-updates');
