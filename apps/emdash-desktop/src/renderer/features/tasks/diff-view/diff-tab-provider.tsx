@@ -9,8 +9,10 @@ import type {
 } from '@renderer/features/tabs/core/tab-provider';
 import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
 import type { ActiveFile } from '@shared/view-state';
+import type { TaskTabContext } from '../stores/task-tab-context';
 import { DiffTabBarItem, DiffTabBarItemDragPreview } from './diff-tab-item';
 import { DiffView } from './main-panel/diff-view';
+import { getDiffTabManager } from './stores/diff-tab-manager';
 import type { DiffPayload } from './stores/diff-tab-resource';
 import { DiffTabResource } from './stores/diff-tab-resource';
 
@@ -73,10 +75,15 @@ export const diffTabProvider: TabProvider<'diff', DiffPayload, DiffTabResource, 
     initialize(
       entry: TabEntry<DiffPayload>,
       handle: TabHandle,
-      _ctx: TabViewContext
+      ctx: TabViewContext
     ): DiffTabResource {
-      void handle;
-      return new DiffTabResource(entry.tabId, entry.state);
+      const taskCtx = ctx as TaskTabContext;
+      return new DiffTabResource(
+        entry.tabId,
+        entry.state,
+        getDiffTabManager(taskCtx.workspaceId),
+        handle
+      );
     },
 
     dispose(_entry: TabEntry<DiffPayload>, resource: DiffTabResource): void {

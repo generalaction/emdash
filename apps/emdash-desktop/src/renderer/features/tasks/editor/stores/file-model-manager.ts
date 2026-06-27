@@ -29,7 +29,7 @@ type EntryState =
 /**
  * Per-workspace ref-counted manager for Monaco model lifecycles.
  *
- * Replaces the union-of-paths reaction in FileModelLifecycleStore.
+ * Replaces the union-of-paths reaction that previously lived in EditorViewStore.
  *
  * `acquire(path, resource, ctx)`:
  *   - First caller: triggers async Monaco model registration.

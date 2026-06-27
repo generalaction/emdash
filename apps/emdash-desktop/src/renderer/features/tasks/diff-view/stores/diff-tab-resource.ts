@@ -1,8 +1,9 @@
 import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
 import { action, makeObservable, observable } from 'mobx';
-import type { TabResource } from '@renderer/features/tabs/core/tab-provider';
+import type { TabHandle, TabResource } from '@renderer/features/tabs/core/tab-provider';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import type { ActiveFile } from '@shared/view-state';
+import type { DiffTabManager } from './diff-tab-manager';
 
 export type DiffRendererData = { kind: 'text' } | { kind: 'image' } | { kind: 'binary' };
 
@@ -43,9 +44,14 @@ export class DiffTabResource implements TabResource {
   commitModifiedSha: string | undefined;
   status: GitChangeStatus | undefined;
 
-  constructor(tabId: string, payload: DiffPayload) {
+  private readonly _manager: DiffTabManager | null;
+  private readonly _handle: TabHandle | null;
+
+  constructor(tabId: string, payload: DiffPayload, manager?: DiffTabManager, handle?: TabHandle) {
     this.tabId = tabId;
     this.path = payload.path;
+    this._manager = manager ?? null;
+    this._handle = handle ?? null;
     this.renderer = resolveDiffRenderer(payload.path);
     this.diffGroup = payload.diffGroup;
     this.originalRef = payload.originalRef;
@@ -72,10 +78,22 @@ export class DiffTabResource implements TabResource {
       transition: action,
       updateStatus: action,
     });
+
+    this._manager?.acquire(this);
+  }
+
+  /** Sync the bound DiffViewStore when this tab is activated (engine-called). */
+  onActivate(): void {
+    this._manager?.currentDiffView()?.setActiveFile(this.toActiveFile());
+  }
+
+  /** Force-close this tab without user confirmation — used by DiffTabManager staleness reconcile. */
+  closeSelf(): void {
+    void this._handle?.close({ force: true });
   }
 
   dispose(): void {
-    // No resources to clean up.
+    this._manager?.release(this);
   }
 
   /**

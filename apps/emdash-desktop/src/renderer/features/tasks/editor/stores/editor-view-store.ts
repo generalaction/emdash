@@ -16,7 +16,7 @@ import type { FileTabResource } from './file-tab-resource';
  * which is called by FileTabResource on construction and dispose.
  * This store focuses on save-all, conflict resolution, and buffer restore.
  */
-export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot> {
+export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
   readonly modelRootPath: string;
 
   isSaving = false;
@@ -89,10 +89,10 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     try {
       const result = await modelRegistry.saveFileToDisk(uri);
       if (result === null) {
-        log.error('[FileModelLifecycleStore] Failed to save file:', filePath);
+        log.error('[EditorViewStore] Failed to save file:', filePath);
       }
     } catch (error) {
-      log.error('[FileModelLifecycleStore] Error saving file:', error);
+      log.error('[EditorViewStore] Error saving file:', error);
     } finally {
       runInAction(() => {
         this.isSaving = false;
@@ -151,7 +151,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
         if (model) model.setValue(content);
       }
     } catch (e) {
-      log.warn('[FileModelLifecycleStore] Failed to restore buffers:', e);
+      log.warn('[EditorViewStore] Failed to restore buffers:', e);
     }
   }
 

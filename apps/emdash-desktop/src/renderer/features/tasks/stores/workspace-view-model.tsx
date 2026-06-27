@@ -1,8 +1,8 @@
 import type { ILifecycle } from '@emdash/shared';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
+import { getDiffTabManager } from '@renderer/features/tasks/diff-view/stores/diff-tab-manager';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
-import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
+import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
 import type { FileTabResource } from '@renderer/features/tasks/editor/stores/file-tab-resource';
 import { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
@@ -18,8 +18,8 @@ import type {
   TaskViewSnapshot,
   TerminalDrawerActiveItem,
 } from '@shared/view-state';
+import { DefaultConversationSeeder } from '../conversations/default-conversation-seeder';
 import { taskTabView } from '../task-tab-registry';
-import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
 import type { TaskTabContext } from './task-tab-context';
@@ -38,7 +38,7 @@ export class WorkspaceViewModel implements ILifecycle {
   /** Stable sub-stores — live for the full WorkspaceViewModel lifetime. */
   readonly paneLayout: ReturnType<typeof taskTabView.createPaneLayoutStore>;
   readonly terminalTabs: TerminalTabViewStore;
-  readonly editorView: FileModelLifecycleStore;
+  readonly editorView: EditorViewStore;
 
   /**
    * Returns the focused pane's PaneStore.
@@ -57,8 +57,6 @@ export class WorkspaceViewModel implements ILifecycle {
   prStore: PrStore | null = null;
   previewServers: PreviewServerStore | null = null;
 
-  private _diffTabLifecycle: DiffTabLifecycleStore | null = null;
-
   /** Permanent reactions (live as long as the view model). */
   private readonly _disposers: (() => void)[] = [];
   /** Session reactions (created in initialize, disposed in suspend). */
@@ -68,7 +66,8 @@ export class WorkspaceViewModel implements ILifecycle {
   /** Saved whenever suspend() is called, restored in next initialize(). */
   private _savedDiffViewSnapshot: DiffViewSnapshot | undefined;
   private _isCreatingTerminal = false;
-  private _hasConsumedDefaultConversationAutoOpen = false;
+
+  private readonly _seeder: DefaultConversationSeeder;
 
   readonly taskId: string;
 
@@ -103,8 +102,9 @@ export class WorkspaceViewModel implements ILifecycle {
         });
       },
     });
+    this._seeder = new DefaultConversationSeeder(this.taskId, this.paneLayout);
     this.terminalTabs = new TerminalTabViewStore(() => terminalRegistry.get(this.taskId) ?? null);
-    this.editorView = new FileModelLifecycleStore(this.paneLayout, taskData.projectId, workspaceId);
+    this.editorView = new EditorViewStore(this.paneLayout, taskData.projectId, workspaceId);
 
     makeAutoObservable(this, {
       paneLayout: false,
@@ -113,19 +113,6 @@ export class WorkspaceViewModel implements ILifecycle {
       diffView: observable.ref,
       activeRenderer: computed,
     });
-
-    // Fresh tasks get one automatic default conversation tab. Once restored tab
-    // state exists, the restored tab list is authoritative — even when it is empty
-    // because the user closed the tab.
-    const initConvDisposer = reaction(
-      () => conversationRegistry.get(this.taskId)?.conversations.size ?? 0,
-      (size) => {
-        if (size === 0) return;
-        this.maybeOpenDefaultConversationForFreshTask();
-        initConvDisposer();
-      }
-    );
-    this._disposers.push(initConvDisposer);
 
     // Tell the engine whether this task is the active route so panes can
     // fire onActivate() correctly when the view becomes visible.
@@ -193,7 +180,7 @@ export class WorkspaceViewModel implements ILifecycle {
 
     // Pass the aggregate blob as fallback so the persistor can migrate legacy
     // tabGroups/tabManager/conversations fields when no dedicated key exists yet.
-    this._hasConsumedDefaultConversationAutoOpen = this.paneLayout.hydrate(savedSnapshot);
+    this._seeder.markConsumed(this.paneLayout.hydrate(savedSnapshot));
 
     if (savedSnapshot.terminals) {
       this.terminalTabs.restoreSnapshot(savedSnapshot.terminals);
@@ -237,12 +224,11 @@ export class WorkspaceViewModel implements ILifecycle {
       this.diffView.restoreSnapshot(this._savedDiffViewSnapshot);
     }
 
-    this._diffTabLifecycle = new DiffTabLifecycleStore(
-      this.paneLayout.focusedPane,
-      workspace.gitWorktree,
-      this.prStore,
-      this.diffView
-    );
+    getDiffTabManager(workspaceId).bindSession({
+      gitWorktree: workspace.gitWorktree,
+      pr: this.prStore,
+      diffView: this.diffView,
+    });
 
     // Register snapshot with the persistence layer.
     this._snapshotDisposer = snapshotRegistry.register(`task:${this.taskId}`, () => this.snapshot);
@@ -252,7 +238,7 @@ export class WorkspaceViewModel implements ILifecycle {
     // restored, even an empty tab list represents the user's persisted choice.
     // This handles the optimistic-conversation case where conversations are already in
     // the manager before provision completes.
-    this.maybeOpenDefaultConversationForFreshTask();
+    this._seeder.seed();
 
     const closeEmptyTerminalDrawerDisposer = reaction(
       () => {
@@ -295,8 +281,7 @@ export class WorkspaceViewModel implements ILifecycle {
       this.diffView.dispose();
       this.diffView = null;
     }
-    this._diffTabLifecycle?.dispose();
-    this._diffTabLifecycle = null;
+    getDiffTabManager(this._taskStore.workspaceId!).unbindSession();
     this.prStore?.dispose();
     this.prStore = null;
     this.previewServers?.dispose();
@@ -320,6 +305,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.suspend();
     appState.history.prune((e) => e.kind === 'tab' && e.taskId === this.taskId);
     for (const d of this._disposers) d();
+    this._seeder.dispose();
     this.paneLayout.dispose();
     this.terminalTabs.dispose();
     this.editorView.dispose();
@@ -405,24 +391,6 @@ export class WorkspaceViewModel implements ILifecycle {
     } finally {
       runInAction(() => {
         this._isCreatingTerminal = false;
-      });
-    }
-  }
-
-  private maybeOpenDefaultConversationForFreshTask(): void {
-    if (this._hasConsumedDefaultConversationAutoOpen) return;
-    const conversations = conversationRegistry.get(this.taskId);
-    if (!conversations || conversations.conversations.size === 0) return;
-
-    this._hasConsumedDefaultConversationAutoOpen = true;
-    if (this.paneLayout.focusedPane.tabOrder.length === 0) {
-      runInAction(() => {
-        for (const [id, store] of conversations.conversations) {
-          if (store.isInitialConversation) {
-            this.paneLayout.open('conversation', { conversationId: id }, { preview: false });
-            return;
-          }
-        }
       });
     }
   }
