@@ -22,7 +22,6 @@
  */
 
 import './styles/global.css';
-import type { ChatImageAttachment } from './model';
 
 // ── Core API ──────────────────────────────────────────────────────────────────
 
@@ -30,10 +29,10 @@ export { createChatContext } from './chat-context';
 export type { ChatContext, ChatContextOptions } from './chat-context';
 
 export { createChatState } from './state/chat-state';
-export type { ChatState, ChatStateOptions } from './state/chat-state';
+export type { ChatState, ChatStateOptions, ScrollAnchor, HeightmapStore } from './state/chat-state';
 
 export { createChatView } from './chat-view';
-export type { ChatView, ChatViewOptions, ChatViewSnapshot } from './chat-view';
+export type { ChatView, ChatViewOptions } from './chat-view';
 
 // ── Data types ────────────────────────────────────────────────────────────────
 
@@ -99,63 +98,9 @@ export type {
   ChatMentionKind,
 } from './core/markdown/mention-provider';
 
-// ── Commands ──────────────────────────────────────────────────────────────────
+// ── Commands + scroll helpers ─────────────────────────────────────────────────
 
-/**
- * Typed callbacks that host apps inject to respond to user actions inside the
- * chat transcript. Pass via `createChatView({ commands })` or update later
- * via `view.setCommands(commands)`.
- */
-export type ChatCommands = {
-  /**
-   * Called when the user clicks a file path in a diff header, file-op row,
-   * resource-link card, or inline prose link.
-   */
-  onOpenFile?: (arg: {
-    path: string;
-    itemId: string;
-    source: 'diff' | 'file-op' | 'resource-link' | 'prose-link';
-  }) => void;
-
-  /**
-   * Called when the user clicks an image attachment thumbnail inside a user
-   * message bubble.
-   */
-  onViewImage?: (arg: {
-    attachment: ChatImageAttachment;
-    itemId: string;
-    source: 'user-message';
-  }) => void;
-
-  /**
-   * Called when the user clicks the stop button on the current user message
-   * while the agent is generating.
-   */
-  onStop?: (arg: { itemId: string }) => void;
-
-  /**
-   * Synchronously classify an `href` from a rendered markdown link.
-   * Returns `{ kind: 'workspace-file'; path: string }` for workspace files,
-   * or `{ kind: 'external' }` to keep the default external-link behavior.
-   */
-  classifyLink?: (href: string) => { kind: 'workspace-file'; path: string } | { kind: 'external' };
-
-  /**
-   * Called when the user clicks a Mermaid diagram block preview.
-   */
-  onViewMermaid?: (arg: { chart: string; blockId: string; source: 'mermaid-block' }) => void;
-};
-
-// ── Scroll helpers ────────────────────────────────────────────────────────────
-
-export type ScrollToItemOptions = {
-  /** Where to align the row within the viewport. Default: 'start'. */
-  align?: 'start' | 'center' | 'end';
-  /** Additional pixel offset applied after alignment. Default: 0. */
-  offset?: number;
-  /** Native scroll behavior. Default: 'auto'. */
-  behavior?: ScrollBehavior;
-};
+export type { ChatCommands, ScrollToItemOptions } from './commands';
 
 // ── Dev helpers ───────────────────────────────────────────────────────────────
 

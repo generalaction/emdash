@@ -14,6 +14,12 @@
  *   createChatView({ ..., onViewMounted: (v) => portal(v.composerSlot) });
  *   view.dispose(); // tears down Solid root; does NOT dispose context/state
  *
+ * View state persistence:
+ *   Collapse state, expandedUserId, scroll anchor, and measured row heights
+ *   live in `state` (ChatState), not in the view. Disposing a view and
+ *   creating a new one against the same ChatState (e.g. tab switch) restores
+ *   all view state automatically without any host-side bookkeeping.
+ *
  * The composer slot:
  *   When `composer === 'slot'`, ChatRoot renders a sticky bottom div. Its
  *   height is measured by an internal ResizeObserver that drives `padBottom`
@@ -26,18 +32,9 @@ import { render } from 'solid-js/web';
 import type { ChatContext } from './chat-context';
 import { ChatRoot } from './ChatRoot';
 import type { EngineControls } from './ChatRoot';
-import type { ChatCommands, ScrollToItemOptions } from './index';
+import type { ChatCommands, ScrollToItemOptions } from './commands';
 import type { ChatItem } from './model';
 import type { ChatState } from './state/chat-state';
-
-export type ChatViewSnapshot = {
-  /** Map of itemId → true for each currently-collapsed item. */
-  collapsed: Record<string, boolean>;
-  /** Id of the expanded user message card, or null. */
-  expandedUserId: string | null;
-  /** Scroll position at the time of snapshot (reserved for future use). */
-  scrollTop: number;
-};
 
 export type ChatViewOptions = {
   /** Global services (theme, shared caches, measureEpoch). */
@@ -104,10 +101,6 @@ export type ChatView = {
    * `bottom` is ignored when `composer === 'slot'` (driven by internal ResizeObserver).
    */
   setContentPadding(p: { top?: number; bottom?: number }): void;
-  /** Snapshot current view state (collapsed items, expandedUserId). */
-  saveState(): ChatViewSnapshot;
-  /** Restore a previously snapshotted view state. */
-  restoreState(snap: ChatViewSnapshot): void;
   /** Tear down the Solid root. Does NOT dispose context or state. */
   dispose(): void;
 };
@@ -161,19 +154,6 @@ export function createChatView(opts: ChatViewOptions): ChatView {
         if (p.top !== undefined) setPadTop(p.top);
         if (p.bottom !== undefined) setPadBottom(p.bottom);
       });
-    },
-    saveState() {
-      return {
-        collapsed: {},
-        expandedUserId: controls.getExpandedUserId?.() ?? null,
-        scrollTop: 0,
-      };
-    },
-    restoreState(snap) {
-      controls.setExpandedUserId?.(snap.expandedUserId);
-      for (const [id, val] of Object.entries(snap.collapsed)) {
-        if (val) controls.toggleCollapsed?.(id);
-      }
     },
     dispose() {
       solidDispose?.();
