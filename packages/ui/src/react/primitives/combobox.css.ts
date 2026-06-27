@@ -20,6 +20,7 @@ export const comboboxContent = style([
     maxWidth: 'var(--available-width)',
     minWidth: 'var(--anchor-width)',
     overflow: 'hidden',
+    padding: '2px',
   },
 ]);
 

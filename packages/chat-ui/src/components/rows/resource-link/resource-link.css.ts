@@ -18,7 +18,7 @@ const rowBase = style({
   display: 'flex',
   alignItems: 'center',
   gap: '8px',
-  fontSize: '0.875rem',
+  fontSize: vars.typeBodyFontSize,
   height: '100%',
 });
 

@@ -1,8 +1,14 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import { PaneStore } from '@renderer/features/tabs/pane-store';
 import type { TabGroupsSnapshot } from '@shared/view-state';
-import type { TabViewContext } from './core/tab-provider';
-import type { KindOf, OpenArgsOf, TabRegistry } from './core/tab-provider-registry';
+import type { OpenTarget, TabViewContext } from './core/tab-provider';
+import type {
+  AnyTabProvider,
+  KindOf,
+  OpenArgsOf,
+  TabOpenOptions,
+  TabRegistry,
+} from './core/tab-provider-registry';
 import type { TabPersistenceAdapter } from './persistence';
 
 const MAX_PANE_COUNT = 8;
@@ -16,29 +22,47 @@ export interface Pane<R extends TabRegistry = TabRegistry> {
  * Owns the ordered array of per-pane PaneStore instances, the active
  * pane, and the pane size layout.
  *
- * Each pane is an independent tab manager. The focused pane is exposed via
- * the `focusedPane` getter so callers that only care about the active
- * pane continue to work without change.
- *
- * The registry generic R captures the full provider set so that `open<K>` is
- * typed at injection; defaults to the base TabRegistry for untyped contexts.
+ * Cross-pane concerns handled here:
+ * - mount:'single' cardinality — at most one tab per dedupKey across ALL panes
+ * - Tab move (detachTab + adoptEntry) — resource survives unchanged, no lifecycle calls
+ * - target routing — 'active', 'left', 'right', { paneId }
  */
 export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   readonly groups: Pane<R>[] = [];
   activePaneId: string;
   paneSizes: number[];
 
+  /**
+   * True when the owning task view is the currently active route.
+   * Stored as an observable.box so it is reactive before makeObservable runs,
+   * allowing the per-pane onActivate reactions (fireImmediately) to track it
+   * correctly during pane construction.
+   */
+  private readonly _isViewActiveBox = observable.box(false);
+
+  /** Expose as a plain getter for external consumers (e.g. tests, VM). */
+  get isViewActive(): boolean {
+    return this._isViewActiveBox.get();
+  }
+
   private readonly _registry: R;
   private readonly _ctx: TabViewContext;
   private readonly _persistor: TabPersistenceAdapter | undefined;
   private _persistDisposer: (() => void) | null = null;
-  /** Disposers for the per-group auto-close reactions. Not observable. */
   private readonly _autoCloseDisposers = new Map<string, () => void>();
+  private readonly _onActiveTabChange: ((tabId: string | undefined) => void) | undefined;
+  private readonly _activeTabDisposer: () => void;
 
-  constructor(registry: R, ctx: TabViewContext, persistor?: TabPersistenceAdapter) {
+  constructor(
+    registry: R,
+    ctx: TabViewContext,
+    persistor?: TabPersistenceAdapter,
+    opts?: { onActiveTabChange?: (tabId: string | undefined) => void }
+  ) {
     this._registry = registry;
     this._ctx = ctx;
     this._persistor = persistor;
+    this._onActiveTabChange = opts?.onActiveTabChange;
 
     const initial = this._createPane();
     this.groups.push(initial);
@@ -49,17 +73,29 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       groups: observable,
       activePaneId: observable,
       paneSizes: observable,
+      isViewActive: computed,
       focusedPane: computed,
       splitRight: action,
-      openInRightSplit: action,
       closePane: action,
       moveTab: action,
       handleDragEnd: action,
       setActiveGroup: action,
+      setViewActive: action,
       setPaneSizes: action,
       restoreSnapshot: action,
       open: action,
     });
+
+    // Push focused pane's active tab changes to the history callback.
+    this._activeTabDisposer = reaction(
+      () => this.focusedPane.resolvedActiveTabId,
+      (tabId) => this._onActiveTabChange?.(tabId),
+      { fireImmediately: true }
+    );
+  }
+
+  setViewActive(active: boolean): void {
+    this._isViewActiveBox.set(active);
   }
 
   get focusedPane(): PaneStore<R> {
@@ -81,35 +117,9 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     this.groups.splice(insertAt, 0, newGroup);
     this._redistributeSizes();
 
-    // Move (not copy) — moveTab handles remove-from-source, insert-into-target,
-    // and sets activePaneId = newGroup.paneId.
     this.moveTab(activeTabId, sourceGroup.paneId, newGroup.paneId);
   }
 
-  /**
-   * Opens a tab of any kind in a new pane to the right of the currently focused pane.
-   * Falls back to opening in the focused pane when the max pane count is reached.
-   */
-  openInRightSplit<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>): void {
-    if (this.groups.length >= MAX_PANE_COUNT) {
-      this.open(kind, args);
-      return;
-    }
-
-    const focusedIndex = this.groups.findIndex((g) => g.paneId === this.activePaneId);
-    const insertAt = focusedIndex === -1 ? this.groups.length : focusedIndex + 1;
-    const newGroup = this._createPane();
-
-    this.groups.splice(insertAt, 0, newGroup);
-    this._redistributeSizes();
-    this.activePaneId = newGroup.paneId;
-    newGroup.pane.open(kind, args);
-  }
-
-  /**
-   * Closes the given pane. The adjacent pane (preferring right, fallback left)
-   * becomes active.
-   */
   closePane(paneId: string): void {
     if (this.groups.length <= 1) return;
 
@@ -120,11 +130,9 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     const adjacentIndex = index < this.groups.length - 1 ? index + 1 : index - 1;
     const adjacent = this.groups[adjacentIndex];
 
-    // Clean up the auto-close reaction before disposing.
     this._autoCloseDisposers.get(paneId)?.();
     this._autoCloseDisposers.delete(paneId);
 
-    // Dispose the closing pane's store.
     closing.pane.dispose();
 
     this.groups.splice(index, 1);
@@ -135,23 +143,23 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     }
   }
 
+  /**
+   * Moves a tab between panes by detaching it (no dispose) and adopting it
+   * in the target pane (no initialize). The resource instance is unchanged.
+   */
   moveTab(tabId: string, fromPaneId: string, toPaneId: string, insertBeforeTabId?: string): void {
     if (fromPaneId === toPaneId) return;
     const fromGroup = this.groups.find((g) => g.paneId === fromPaneId);
     const toGroup = this.groups.find((g) => g.paneId === toPaneId);
     if (!fromGroup || !toGroup) return;
-    const entry = fromGroup.pane.detachTab(tabId);
-    if (!entry) return;
 
-    // Insert into target, reusing the same entry object and tabId.
-    toGroup.pane.entries.set(tabId, entry);
-    const insertIdx = insertBeforeTabId ? toGroup.pane.tabOrder.indexOf(insertBeforeTabId) : -1;
-    if (insertIdx === -1) {
-      toGroup.pane.tabOrder.push(tabId);
-    } else {
-      toGroup.pane.tabOrder.splice(insertIdx, 0, tabId);
-    }
-    toGroup.pane.activeTabId = tabId;
+    const detached = fromGroup.pane.detachTab(tabId);
+    if (!detached) return;
+
+    toGroup.pane.adoptEntry(detached.entry, detached.resource, {
+      insertBeforeTabId,
+      activate: true,
+    });
     this.activePaneId = toPaneId;
   }
 
@@ -172,7 +180,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       const fromTabIds = fromGroup.pane.resolvedTabs.map((t) => t.tabId);
       const fromIdx = fromTabIds.indexOf(draggedTabId);
       if (fromIdx === -1) return;
-      // pane-drop-* / pane-content-* means dropped over empty space or renderer → move to end
       const toIdx =
         overId.startsWith('pane-drop-') || overId.startsWith('pane-content-')
           ? fromTabIds.length - 1
@@ -181,7 +188,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       return;
     }
 
-    // When overId is a specific tab (not a pane-drop/pane-content fallback), insert before it.
     const insertBeforeTabId =
       overId.startsWith('pane-drop-') || overId.startsWith('pane-content-') ? undefined : overId;
     this.moveTab(draggedTabId, fromGroup.paneId, toPaneId, insertBeforeTabId);
@@ -199,14 +205,81 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     }
   }
 
-  open<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>): void {
-    this.focusedPane.open(kind, args);
+  /**
+   * The single public open entry point.
+   *
+   * `kind` selects the provider; `args` are the domain open-args (the "searchParams");
+   * `config` carries engine routing flags:
+   *   preview      – open as a preview tab (replaced on next preview open)
+   *   overrideState – when single-mount hit, replace the existing tab's state
+   *   target       – which pane to open into ('active' | 'left' | 'right' | {paneId})
+   *
+   * For single-mount providers, scans all panes for an existing dedupKey match
+   * and focuses it (with optional state override) instead of opening a new tab.
+   *
+   * For multi providers, routes directly to the target pane.
+   */
+  open<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>, config?: TabOpenOptions): void;
+  /** Untyped overload used internally (handles, fallback from unknown registries). */
+  open(kind: string, args: unknown, config?: TabOpenOptions): void;
+  open(kind: string, args: unknown, config?: TabOpenOptions): void {
+    const previewFlag = !!config?.preview;
+    const overrideStateFlag = !!config?.overrideState;
+    const resolvedTarget: OpenTarget = config?.target ?? 'active';
+
+    if (!this._registry.has(kind)) {
+      console.warn(`[PaneLayoutStore] Unknown tab kind: ${kind}`);
+      return;
+    }
+    const def = this._registry.get(kind) as AnyTabProvider;
+
+    // Compute initial state via onBeforeOpen or fall back to args directly.
+    const initialState: unknown = def.onBeforeOpen
+      ? def.onBeforeOpen(args as never, this._ctx)
+      : (args as unknown);
+    if (initialState === null) return; // aborted by onBeforeOpen
+
+    // Single-mount: check ALL panes for an existing resourceKey match.
+    if ((def.mount ?? 'multi') === 'single') {
+      const key = def.resourceKey(initialState as never);
+      for (const g of this.groups) {
+        const existing = g.pane.findSingleMountEntry(kind, key);
+        if (existing) {
+          this.setActiveGroup(g.paneId);
+          if (!previewFlag) existing.isPreview = false;
+          if (overrideStateFlag) existing.state = initialState;
+          g.pane.setActiveTab(existing.tabId);
+          return;
+        }
+      }
+    }
+
+    // Route to the target pane.
+    const targetPane = this._resolveTargetPane(resolvedTarget);
+    targetPane.openWithState(kind, initialState, {
+      isPreview: previewFlag,
+      overrideState: overrideStateFlag,
+    });
+  }
+
+  /** Returns true if any pane has a tab of the given kind + resourceKey open. */
+  isOpen(kind: string, key: string): boolean {
+    return this.groups.some((g) => g.pane.hasOpenKey(kind, key));
+  }
+
+  /** Returns true if the active tab in the focused pane matches kind + resourceKey. */
+  isActiveInFocusedPane(kind: string, key: string): boolean {
+    return this.focusedPane.activeMatches(kind, key);
+  }
+
+  /** Returns true if any pane's active tab matches kind + resourceKey. */
+  isActiveInAnyPane(kind: string, key: string): boolean {
+    return this.groups.some((g) => g.pane.activeMatches(kind, key));
   }
 
   get snapshot(): TabGroupsSnapshot {
     return {
       groups: this.groups.map((g) => ({
-        // Keep persisted field names stable (groupId / tabManager) for DB compatibility.
         groupId: g.paneId,
         tabManager: g.pane.snapshot,
       })),
@@ -216,7 +289,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   }
 
   restoreSnapshot(snapshot: TabGroupsSnapshot): void {
-    // Dispose any existing groups beyond the first.
     for (let i = 1; i < this.groups.length; i++) {
       this.groups[i].pane.dispose();
     }
@@ -239,13 +311,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
         : this._evenSizes(snapshot.groups.length);
   }
 
-  /**
-   * Load saved tab state via the injected persistor.
-   *
-   * @param fallback - Optional opaque blob to pass to the persistor for
-   *   backwards-compatible migration (e.g. the full aggregate view-state).
-   * @returns `true` when state was restored, `false` when nothing was found.
-   */
   hydrate(fallback?: unknown): boolean {
     const saved = this._persistor?.load(fallback);
     if (saved) {
@@ -255,20 +320,19 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     return false;
   }
 
-  /** Start persisting snapshot changes via the injected persistor. */
   startPersistence(): void {
     if (!this._persistor) return;
     this._persistDisposer?.();
     this._persistDisposer = this._persistor.start(() => this.snapshot);
   }
 
-  /** Stop persistence and clean up. */
   stopPersistence(): void {
     this._persistDisposer?.();
     this._persistDisposer = null;
   }
 
   dispose(): void {
+    this._activeTabDisposer();
     this.stopPersistence();
     for (const disposer of this._autoCloseDisposers.values()) {
       disposer();
@@ -279,6 +343,41 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     }
   }
 
+  /**
+   * Resolve a target to an existing or newly-split PaneStore.
+   * 'active' => focused pane
+   * 'right'  => pane immediately after focused (split if needed and below max)
+   * 'left'   => pane immediately before focused (split if needed and below max)
+   * { paneId } => specific pane (falls back to focused if not found)
+   */
+  private _resolveTargetPane(target: OpenTarget): PaneStore<R> {
+    if (target === 'active') return this.focusedPane;
+
+    if (typeof target === 'object' && 'paneId' in target) {
+      return this.groups.find((g) => g.paneId === target.paneId)?.pane ?? this.focusedPane;
+    }
+
+    // 'left' or 'right' — find adjacent pane, splitting if needed.
+    const focusedIndex = this.groups.findIndex((g) => g.paneId === this.activePaneId);
+    const idx = focusedIndex === -1 ? 0 : focusedIndex;
+    const adjacentIndex = target === 'right' ? idx + 1 : idx - 1;
+
+    const existing = this.groups[adjacentIndex];
+    if (existing) {
+      this.activePaneId = existing.paneId;
+      return existing.pane;
+    }
+
+    // Need to split.
+    if (this.groups.length >= MAX_PANE_COUNT) return this.focusedPane;
+    const newGroup = this._createPane();
+    const insertAt = target === 'right' ? idx + 1 : idx;
+    this.groups.splice(insertAt, 0, newGroup);
+    this._redistributeSizes();
+    this.activePaneId = newGroup.paneId;
+    return newGroup.pane;
+  }
+
   private _createPane(): Pane<R> {
     const paneId = crypto.randomUUID();
     const pane = this._createPaneStore(paneId);
@@ -287,16 +386,12 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   }
 
   private _createPaneStore(_paneId: string): PaneStore<R> {
-    return new PaneStore<R>(this._registry, this._ctx);
+    return new PaneStore<R>(this._registry, this._ctx, {
+      layoutOpener: (kind, args, config) => this.open(kind, args, config),
+      isViewActive: () => this._isViewActiveBox.get(),
+    });
   }
 
-  /**
-   * Registers a MobX reaction that auto-closes the pane when it becomes empty
-   * and at least one other pane exists.
-   *
-   * Fires only after the enclosing action completes, so splitRight() (which opens
-   * a tab in the same action) won't trigger a false auto-close.
-   */
   private _registerAutoClose(paneId: string, pane: PaneStore<R>): void {
     const disposer = reaction(
       () => pane.tabOrder.length,
@@ -316,7 +411,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   private _evenSizes(count: number): number[] {
     const size = Math.floor(100 / count);
     const sizes = new Array<number>(count).fill(size);
-    // Add any rounding remainder to the first pane.
     sizes[0] += 100 - sizes.reduce((a, b) => a + b, 0);
     return sizes;
   }

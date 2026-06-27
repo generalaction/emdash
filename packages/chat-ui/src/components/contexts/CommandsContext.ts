@@ -10,7 +10,7 @@
  */
 
 import { createContext, useContext } from 'solid-js';
-import type { ChatCommands } from '@/index';
+import type { ChatCommands } from '@/commands';
 
 const EMPTY_COMMANDS: ChatCommands = {};
 

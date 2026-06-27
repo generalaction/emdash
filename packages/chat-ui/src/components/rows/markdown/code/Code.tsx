@@ -17,6 +17,7 @@
  */
 
 import { useCaches } from '@components/contexts/CachesContext';
+import { useStreamAnimation } from '@components/contexts/StreamContext';
 import { BlockFrame } from '@components/engine/block-frame';
 import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
 import { CopyButton } from '@components/primitives/CopyButton';
@@ -34,6 +35,7 @@ export type CodeProps = {
 
 export function Code(props: CodeProps) {
   const caches = useCaches();
+  const streamAnim = useStreamAnimation();
   const lineElsMap: Map<number, HTMLElement> = new Map();
   let wrapperEl: HTMLElement | undefined;
 
@@ -41,6 +43,11 @@ export function Code(props: CodeProps) {
     if (!wrapperEl) return;
     const lang = props.block.lang;
     if (!lang) return;
+
+    // Skip per-frame highlighting while the parent message is streaming.
+    // The effect tracks `streaming()` reactively so it re-runs exactly once
+    // when the message commits, running a single full highlight at that point.
+    if (streamAnim?.streaming()) return;
 
     const code = props.rawBlock.code;
 

@@ -22,7 +22,7 @@ describe('resolveAgentSessionCommandArgs', () => {
       resolveAgentSessionCommandArgs(
         makeConversation({
           providerId: 'codex',
-          providerSessionId: '019c95f6-cd96-7812-ba15-574286674599',
+          sessionId: '019c95f6-cd96-7812-ba15-574286674599',
         }),
         true
       )
@@ -41,7 +41,7 @@ describe('resolveAgentSessionCommandArgs', () => {
   it('uses stored Droid session id when resuming', () => {
     expect(
       resolveAgentSessionCommandArgs(
-        makeConversation({ providerSessionId: '31477a03-961a-4451-82d4-efded56947fc' }),
+        makeConversation({ sessionId: '31477a03-961a-4451-82d4-efded56947fc' }),
         true
       )
     ).toEqual({ sessionId: '31477a03-961a-4451-82d4-efded56947fc', isResuming: true });
@@ -59,7 +59,7 @@ describe('resolveAgentSessionCommandArgs', () => {
       resolveAgentSessionCommandArgs(
         makeConversation({
           providerId: 'commandcode',
-          providerSessionId: 'command-session-id',
+          sessionId: 'command-session-id',
         }),
         true
       )
@@ -80,7 +80,7 @@ describe('resolveAgentSessionCommandArgs', () => {
       resolveAgentSessionCommandArgs(
         makeConversation({
           providerId: 'amp',
-          providerSessionId: 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95',
+          sessionId: 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95',
         }),
         true
       )
@@ -102,7 +102,7 @@ describe('resolveAgentSessionCommandArgs', () => {
       resolveAgentSessionCommandArgs(
         makeConversation({
           providerId: 'goose',
-          providerSessionId: 'goose-session-id',
+          sessionId: 'goose-session-id',
         }),
         true
       )
@@ -132,7 +132,7 @@ describe('resolveAgentSessionCommandArgs', () => {
       resolveAgentSessionCommandArgs(
         makeConversation({
           providerId: 'claude',
-          providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
+          sessionId: '31477a03-961a-4451-82d4-efded56947fc',
         }),
         true
       )
@@ -158,11 +158,11 @@ describe('resolveAgentSessionCommandArgs', () => {
     expect(result.args).toContain(conversation.id);
   });
 
-  it('builds a Codex replacement resume command from the stored provider session id', () => {
+  it('builds a Codex replacement resume command from the stored session id', () => {
     const conversation = makeConversation({
       id: '6fac6620-9fa8-4604-b7e0-1fe361589104',
       providerId: 'codex',
-      providerSessionId: 'provider-session-1',
+      sessionId: 'provider-session-1',
     });
     const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
     const result = pluginRegistry.get('codex')!.behavior.prompt!.buildCommand({
@@ -170,7 +170,7 @@ describe('resolveAgentSessionCommandArgs', () => {
       autoApprove: false,
       model: '',
       sessionId: spawnPlan.sessionId,
-      providerSessionId: conversation.providerSessionId ?? undefined,
+      providerSessionId: conversation.sessionId ?? undefined,
       isResuming: spawnPlan.isResuming,
     });
 
@@ -178,11 +178,11 @@ describe('resolveAgentSessionCommandArgs', () => {
     expect(result.args).toEqual(['resume', 'provider-session-1']);
   });
 
-  it('builds an Amp replacement resume command from the stored provider thread id', () => {
+  it('builds an Amp replacement resume command from the stored thread id', () => {
     const conversation = makeConversation({
       id: '6fac6620-9fa8-4604-b7e0-1fe361589104',
       providerId: 'amp',
-      providerSessionId: 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95',
+      sessionId: 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95',
     });
     const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
     const result = pluginRegistry.get('amp')!.behavior.prompt!.buildCommand({
@@ -190,7 +190,7 @@ describe('resolveAgentSessionCommandArgs', () => {
       autoApprove: false,
       model: '',
       sessionId: spawnPlan.sessionId,
-      providerSessionId: conversation.providerSessionId ?? undefined,
+      providerSessionId: conversation.sessionId ?? undefined,
       isResuming: spawnPlan.isResuming,
     });
 

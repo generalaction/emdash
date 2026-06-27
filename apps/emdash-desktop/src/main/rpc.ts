@@ -1,5 +1,6 @@
 import { createRPCNamespace, createRPCRouter } from '../shared/lib/ipc/rpc';
 import { accountController } from './core/account/controller';
+import { acpController } from './core/acp/controller';
 import { agentsController } from './core/agents/controller';
 import { appController } from './core/app/controller';
 import { asanaController } from './core/asana/controller';
@@ -44,6 +45,7 @@ import { legacyPortController } from './db/legacy-port/controller';
 
 export const rpcRouter = createRPCRouter({
   account: accountController,
+  acp: acpController,
   agents: agentsController,
   legacyPort: legacyPortController,
   app: appController,

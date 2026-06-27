@@ -24,12 +24,12 @@ import { UNIT_REGISTRY, SEGMENTERS } from '@components/engine/unit-registry';
 import { createChatCaches } from '@core/caches';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import { DEFAULT_THEME } from '@core/theme';
-import { createTranscript } from '@state/transcript';
-import { createViewState } from '@state/view-state';
 import { For, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
+import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
 import type { ChatItem } from '@/model';
+import { createChatState } from '@/state/chat-state';
 
 // ── Timing helpers ────────────────────────────────────────────────────────────
 
@@ -121,19 +121,12 @@ export function mountTranscript(
   host.style.position = 'relative';
   document.body.appendChild(host);
 
-  const transcript = createTranscript();
-  const viewState = createViewState();
-  transcript.history.seed(items);
+  const ctx = createChatContext({ theme: DEFAULT_THEME });
+  const state = createChatState(ctx);
+  state.transcript.history.seed(items);
 
   const dispose = render(
-    () => (
-      <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        theme={DEFAULT_THEME}
-        stickToBottom={false}
-      />
-    ),
+    () => <ChatRoot context={ctx} state={state} stickToBottom={false} />,
     host
   );
 
@@ -141,6 +134,8 @@ export function mountTranscript(
     host,
     dispose: () => {
       dispose();
+      state.dispose();
+      ctx.dispose();
       host.remove();
     },
   };

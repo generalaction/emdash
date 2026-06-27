@@ -138,9 +138,10 @@ export function usePty(
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
-  // When inside a PaneSizingContextProvider, PTY resizes are broadcast to ALL sessions
-  // in the pane (including background ones).  Falls back to per-session resize
-  // for standalone terminals (chat, task terminal panel, etc.).
+  // When inside a PaneSizingContextProvider, the per-pane controller owns PTY
+  // backend resizes (broadcast to ALL sessions) and exposes an observable
+  // controllerDims box so this terminal can call term.resize() reactively.
+  // Falls back to a per-session ResizeObserver path for standalone terminals.
   const paneSizing = usePaneSizingContext();
   // Ref so the main effect (which only re-runs on sessionId change) always
   // accesses the latest context value without needing it as a dependency.
@@ -212,19 +213,17 @@ export function usePty(
   const queuePtyResizeRef = useRef(queuePtyResize);
   queuePtyResizeRef.current = queuePtyResize;
 
-  // measureAndResize is the single entry point for all DOM measurement + PTY
-  // resize work.  Mirrors xterm's FitAddon.proposeDimensions() by measuring
-  // terminal.element.parentElement (the FrontendPty's ownedContainer) — the
-  // exact space the terminal occupies — rather than a distant ancestor div.
-  // Reports to PaneSizingContext (which broadcasts to ALL sessions in the pane)
-  // or directly via queuePtyResize for standalone terminals.
+  // measureAndResize is the entry point for DOM measurement + PTY resize work
+  // for STANDALONE terminals (no PaneSizingContext).  Mirrors xterm's
+  // FitAddon.proposeDimensions() by measuring the terminal's ownedContainer.
   //
-  // Runs synchronously (no rAF wrapper).  ResizeObserver fires after layout
-  // and before paint, so a sync term.resize() in that callback lets the xterm
-  // DOM catch up in the same paint as the new container size — eliminating
-  // the one-frame mismatch that produces the visible flicker on
-  // cmd+J / cmd+B toggles.  Other call sites (mount, font change, drag-end)
-  // also benefit from running before the next paint instead of one frame later.
+  // For PANE terminals, the per-pane controller owns PTY backend resizes and
+  // controllerDims drives term.resize() via a MobX reaction below.
+  // In the pane path this function is only used to calibrate the controller's
+  // cell metrics so it can compute accurate cols/rows.
+  //
+  // Runs synchronously (no rAF wrapper) so the xterm DOM catches up in the
+  // same paint as the new container size (ENG-1577).
   const measureAndResize = useCallback(
     (retries = 0) => {
       try {
@@ -242,9 +241,16 @@ export function usePty(
           return;
         }
 
-        // Measure the terminal's immediate parent (the FrontendPty's ownedContainer),
-        // matching FitAddon.proposeDimensions().  Fall back to the mount-target
-        // container for standalone terminals not using the pool.
+        if (pane) {
+          // Pane path: calibrate the controller with exact cell metrics.
+          // The controller recomputes cols/rows, updates controllerDims, and
+          // broadcasts to all sessions.  The MobX reaction below applies
+          // term.resize() when controllerDims changes.
+          pane.calibrateCell(cell.width, cell.height);
+          return;
+        }
+
+        // Standalone path: measure and resize locally.
         const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
         const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
         if (!measureTarget) return;
@@ -256,12 +262,7 @@ export function usePty(
         if (term.cols !== targetCols || term.rows !== targetRows) {
           term.resize(targetCols, targetRows);
         }
-
-        if (pane) {
-          pane.reportDimensions(targetCols, targetRows);
-        } else {
-          queuePtyResizeRef.current(targetCols, targetRows);
-        }
+        queuePtyResizeRef.current(targetCols, targetRows);
       } catch (e) {
         log.warn('useTerminal: measureAndResize failed', { sessionId, error: e });
       }
@@ -348,17 +349,19 @@ export function usePty(
     const prevCell = termRef.current ? getCellMetrics(termRef.current) : null;
     let targetDims: { cols: number; rows: number } | undefined;
 
-    if (pane?.containerRef.current && prevCell) {
-      const measured = measureDimensions(
-        pane.containerRef.current,
-        prevCell.width,
-        prevCell.height
-      );
-      if (measured) targetDims = measured;
-    }
-
-    if (!targetDims && pane) {
+    // Pane path: prefer the controller's current dims (already correct for the
+    // pane size); fall back to a fresh pixel measurement if the controller
+    // hasn't computed yet (e.g. very first mount before any calibration).
+    if (pane) {
       targetDims = pane.getCurrentDimensions() ?? undefined;
+      if (!targetDims && pane.containerRef.current && prevCell) {
+        const measured = measureDimensions(
+          pane.containerRef.current,
+          prevCell.width,
+          prevCell.height
+        );
+        if (measured) targetDims = measured;
+      }
     }
 
     // ── Mount ─────────────────────────────────────────────────────────────────
@@ -379,8 +382,10 @@ export function usePty(
       frontendPty.mount(container as HTMLElement, targetDims);
 
       // Always sync after mounting — targetDims may be stale if the pane was
-      // resized while this session was off-screen.  measureAndResize defers to
-      // rAF so it reads the live DOM and only calls term.resize() when needed.
+      // resized while this session was off-screen.
+      // Pane path: calibrate the controller cell metrics so it recomputes
+      //   cols/rows and applies term.resize() via the controllerDims reaction.
+      // Standalone path: measure locally and queue PTY resize.
       measureAndResize();
 
       // ── Load settings ──────────────────────────────────────────────────────
@@ -658,20 +663,26 @@ export function usePty(
       );
 
       // ── Resize trigger ────────────────────────────────────────────────────
-      // When inside a PaneSizingProvider: react to the observable pane dimensions
-      // set by PaneDimensionProvider's ResizeObserver. The reaction fires
-      // synchronously within the ResizeObserver callback (MobX action → reaction),
-      // preserving the "resize before next paint" guarantee that eliminates flicker.
+      // Pane path: react to controllerDims — the observable box updated by the
+      // per-pane resize controller when pane pixel dimensions or cell size changes.
+      // The controller owns PTY backend broadcasts; here we only apply term.resize()
+      // to keep the visible xterm grid in sync. The reaction fires synchronously
+      // within the ResizeObserver → MobX action → reaction chain, preserving the
+      // "resize before next paint" guarantee that eliminates flicker (ENG-1577).
       //
-      // For standalone terminals (no pane context): fall back to a direct
-      // ResizeObserver on the terminal mount-target.
+      // Standalone path (no pane context): fall back to a ResizeObserver on the
+      // terminal's mount-target and handle backend resize directly.
       const paneAtMount = paneSizingRef.current;
       if (paneAtMount) {
         const disposeReaction = reaction(
-          () => paneAtMount.sink.dimensions,
-          () => {
-            if (isPanelDraggingRef.current) return;
-            measureAndResizeRef.current();
+          () => paneAtMount.controllerDims.get(),
+          (dims) => {
+            if (!dims) return;
+            const term = termRef.current;
+            if (!term) return;
+            if (term.cols !== dims.cols || term.rows !== dims.rows) {
+              term.resize(dims.cols, dims.rows);
+            }
           }
         );
         cleanups.push(disposeReaction);
@@ -715,17 +726,17 @@ export function usePty(
     applyTheme(theme);
   }, [theme, applyTheme]);
 
-  // ── Measure once when a panel drag ends ─────────────────────────────────────
-  // Resize triggers are suppressed during drag; this effect fires a single
-  // measurement (which resizes the terminal and notifies PTYs) when drag ends.
+  // ── Measure once when a panel drag ends (standalone path only) ──────────────
+  // For pane terminals, the controller handles the post-drag recompute.
+  // For standalone terminals, fire a local measurement when drag ends.
   const prevIsPanelDraggingRef = useRef(isPanelDragging);
   useEffect(() => {
     const wasDragging = prevIsPanelDraggingRef.current;
     prevIsPanelDraggingRef.current = isPanelDragging;
-    if (wasDragging && !isPanelDragging) {
+    if (wasDragging && !isPanelDragging && !paneSizing) {
       measureAndResize();
     }
-  }, [isPanelDragging, measureAndResize]);
+  }, [isPanelDragging, measureAndResize, paneSizing]);
 
   return { focus, setTheme, sendInput };
 }

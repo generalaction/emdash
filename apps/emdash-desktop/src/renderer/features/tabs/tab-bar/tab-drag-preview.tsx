@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import type { ComponentType } from 'react';
-import type { ResolvedTab } from '../core/tab-provider';
+import type { ResolvedTab, TabResource } from '../core/tab-provider';
 import { usePaneLayoutContext } from '../pane-layout-context';
 
 export const TabDragPreview = observer(function TabDragPreview({ tabId }: { tabId: string }) {
@@ -12,6 +12,8 @@ export const TabDragPreview = observer(function TabDragPreview({ tabId }: { tabI
   const registry = group.pane.registry;
   if (!registry.has(tab.kind)) return null;
   const def = registry.get(tab.kind);
-  const DragPreviewComponent = def.DragPreview as ComponentType<{ tab: ResolvedTab }>;
+  const DragPreviewComponent = def.TabBarItemDragPreview as ComponentType<{
+    tab: ResolvedTab<TabResource>;
+  }>;
   return <DragPreviewComponent tab={tab} />;
 });

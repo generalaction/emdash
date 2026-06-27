@@ -37,17 +37,32 @@ where the browser never re-flows content it has already laid out.
 
 ## 1. High-level architecture
 
-The package exposes a single imperative entry point, `mountChat(container, opts)`
-(`src/index.tsx`), which renders a Solid root (`ChatRoot`) and returns a
-`ChatHandle` for feeding data and controlling scroll. Everything else is internal.
+The package exposes three primitives modeled on the CodeMirror `EditorState`/`EditorView`
+split (`src/index.tsx`). Everything else is internal.
+
+```
+ChatContext (global singleton, process-long)
+  theme, Shiki highlighter, content-addressed caches, measureEpoch
+
+ChatState (per conversation, survives view mounts)
+  transcript (history + active turn), messageId parse caches
+
+ChatView (per mount, DOM-scoped)
+  Solid root, virtualizer, scroll, scheduler, composer slot
+```
 
 ```mermaid
 flowchart TD
-  Host["Host app"] -->|mountChat| Handle["ChatHandle<br/>(transcript, viewState, scroll API)"]
-  Host -->|dispatch events| Store["Transcript store<br/>(Solid createStore)"]
+  Host["Host app"]
+  Host -->|"createChatContext()"| Ctx["ChatContext<br/>(theme, caches, measureEpoch)"]
+  Host -->|"createChatState(ctx)"| State["ChatState<br/>(transcript + parse caches)"]
+  Host -->|"createChatView(ctx, state, parent)"| View["ChatView<br/>(scroll, collapse, composerSlot)"]
+  Host -->|"state.transcript.history.seed(items)"| State
+  Ctx --> View
+  State --> View
 
-  subgraph Engine["ChatRoot (Solid root)"]
-    Store --> CountEffect["count-sync effect<br/>virt.setCount(estimate)"]
+  subgraph Engine["ChatRoot (Solid root, owned by ChatView)"]
+    Transcript["transcript signals"] --> CountEffect["count-sync effect<br/>virt.setCount(estimate)"]
     CountEffect --> Virt["Virtualizer<br/>(Fenwick tree)"]
     Scroll["scroll / resize signals"] --> VisRange["visibleRange memo"]
     Virt --> VisRange
@@ -57,11 +72,12 @@ flowchart TD
     Measure -->|"Measured tree"| Project["Project (tree walker)"]
     Measure -->|"exact height"| Virt
     Project --> DOM["Positioned DOM"]
+    Slot["Composer slot<br/>(sticky bottom)"] -->|ResizeObserver| PadBottom["padBottom signal"]
   end
 
   subgraph Support["Cross-cutting services"]
     Pretext["pretext<br/>(glyph measurement)"]
-    Caches["ChatCaches<br/>(per-instance)"]
+    Caches["ChatCaches<br/>(SharedCaches ∪ ParseCaches)"]
     Theme["ChatTheme<br/>(fonts + density)"]
   end
 
@@ -74,6 +90,38 @@ The key architectural inversion: **layout is computed first, in JS, and the DOM
 is a pure projection of that layout.** The browser is never asked to measure or
 wrap text — `pretext` does that off-DOM, and every element is positioned with an
 explicit `top`/`left`/`height`.
+
+### State-view separation
+
+`ChatState` outlives `ChatView`. A view can be disposed and re-created (e.g.
+when a tab is shown/hidden) without losing the transcript. Block object identities
+are stable across view cycles, so WeakMap measurement caches continue to hit on
+re-mount.
+
+Collapse state is owned by `ChatView` (it is view state, not model state). The
+`view.saveState()` / `view.restoreState()` API snapshots and restores it across
+re-mounts.
+
+### Hardened scheduler
+
+`ChatRoot` runs a three-phase measure cycle (`read → animate → write`) driven by
+`requestAnimationFrame`. The scheduler is created eagerly (before any row
+mounts), is exception-safe (phases run in `try/finally`), and includes a bounded
+converge check (halts after `MAX_CONVERGE` consecutive write-requests to prevent
+infinite loops). A `forceReconcile()` call is fired on visibility regain so the
+view self-heals after being hidden or inert.
+
+### Cache split
+
+| Cache type | Owner | Key | Lifetime |
+| --- | --- | --- | --- |
+| `SharedCaches` | `ChatContext` | Content hash | Process-long |
+| `ParseCaches` | `ChatState` | messageId | Conversation lifetime |
+
+`SharedCaches` are safe to share across conversations because they are keyed by
+content (a different conversation with the same code block reuses the highlight
+result). `ParseCaches` are messageId-keyed and provide object-stable `Block`
+identities so WeakMap measurement caches hit across streaming updates.
 
 ---
 
@@ -91,10 +139,11 @@ afterward, only the individual reactive computations (`createMemo`,
 | Primitive | Where | Purpose |
 | --- | --- | --- |
 | `createSignal` | `ChatRoot` (`scrollTop`, `viewHeight`, `totalHeight`, `containerWidth`) | Scalar reactive state driving the visible range. |
-| `createStore` | `state/transcript.ts`, `state/view-state.ts` | Fine-grained nested reactivity: mutating one item's `text` only notifies readers of that path. |
+| `createStore` | `state/transcript.ts` | Fine-grained nested reactivity: mutating one item's `text` only notifies readers of that path. |
 | `createMemo` | `ChatRoot` (`visibleRange`, `visibleIndexes`), `Row` (`layout`) | Cached derived values; recompute only when dependencies change. |
 | `createEffect` | `Row` (height bridge), `ChatRoot` (count-sync, width flush) | Side effects synchronizing JS state into the virtualizer / DOM. |
 | `createContext` / `useContext` | `ThemeContext`, `CachesContext`, `CommandsContext` | Dependency injection without prop drilling. |
+| `createRoot` | `createChatState`, `createChatContext` | Owner-scoped reactive roots; `dispose()` cleans up all signals and effects. |
 | `<For>` | `ChatRoot` (visible rows), `Project` (placed children) | Keyed list rendering — reuses DOM nodes by key. |
 | `<Switch>/<Match>` | `Project` | Dispatch a layout node to the right sub-renderer by `layout.kind`. |
 
@@ -377,8 +426,9 @@ object references, which lets the identity-based memo (`nodeMemo`, a `WeakMap`
 keyed by the item object) skip re-measuring them entirely. Only `activeTurn` rows
 — the ones actually changing — bypass that cache and re-measure each tick.
 
-`ViewState` (`src/state/view-state.ts`) is a separate per-key store holding
-collapse flags, so toggling one row's collapse only notifies that row.
+Collapse flags are owned by `ChatView` as view state (a `createStore` keyed by
+item id). They survive within a view's lifetime and can be snapshotted via
+`view.saveState()` / `view.restoreState()` when the view is torn down and re-created.
 
 ---
 
@@ -532,7 +582,7 @@ Putting it together, the four pillars compose into one tight loop:
 flowchart TB
   subgraph Data["Data layer (SolidJS stores)"]
     TS["Transcript store (committed + activeTurn)"]
-    VS["ViewState (collapse flags)"]
+    VS["View state (collapse flags, expandedUserId)"]
   end
 
   subgraph MeasureLayer["Measurement (pure JS, off-DOM)"]
@@ -732,11 +782,15 @@ constant or padding value is wrong.
 
 | Concern | Files |
 | --- | --- |
-| Entry / mount | `src/index.tsx`, `src/ChatRoot.tsx` |
-| Data model | `src/model.ts`, `src/state/transcript.ts`, `src/state/view-state.ts` |
+| Public API | `src/index.tsx` |
+| Global context | `src/chat-context.ts` |
+| Per-conversation state | `src/state/chat-state.ts`, `src/state/transcript.ts` |
+| Per-mount view | `src/chat-view.tsx`, `src/ChatRoot.tsx` |
+| Data model | `src/model.ts` |
 | Markdown | `src/core/markdown/{document,parse,plain-text}.ts` |
 | Measurement | `src/core/measure/*`, `src/components/prose/layout.ts` (pretext) |
 | Virtualization | `src/core/virtualizer.ts`, `src/core/stick-to-bottom.ts` |
+| Frame scheduler | `src/components/engine/frame-scheduler.ts`, `src/core/tween-registry.ts` |
 | Layout system | `src/core/define.ts`, `src/core/compose.ts`, `src/core/layout/*` |
 | Rendering | `src/components/Project.tsx`, `src/components/Row.tsx`, `src/components/*/` |
 | Registry | `src/components/registry.ts` |

@@ -81,6 +81,13 @@ export interface ComboboxPopoverProps<T> {
    * should remain visible regardless of what the user types in the search box.
    */
   renderFooter?: () => React.ReactNode;
+  /**
+   * Visual appearance of the trigger button.
+   * - `control` (default): ghost button — matches dropdowns and toolbar triggers.
+   * - `input`: matches Input/Textarea — border, surfaceInput background, focus ring.
+   *   Use in form contexts via ComboboxSelectField.
+   */
+  appearance?: 'control' | 'input';
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -103,6 +110,7 @@ export function ComboboxPopover<T>({
   contentStyle,
   detailSide = 'right',
   detailAlign = 'start',
+  appearance = 'control',
 }: ComboboxPopoverProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
@@ -150,7 +158,14 @@ export function ComboboxPopover<T>({
       filter={filter ?? defaultFilter}
       autoHighlight
     >
-      <ComboboxTrigger disabled={disabled} className={cx(styles.trigger, className)}>
+      <ComboboxTrigger
+        disabled={disabled}
+        className={
+          appearance === 'input'
+            ? cx(...styles.triggerInput, className)
+            : cx(styles.trigger, className)
+        }
+      >
         <span className={styles.triggerLabel}>{renderTrigger(selectedItem)}</span>
         <ChevronDown className={styles.triggerChevron} />
       </ComboboxTrigger>

@@ -56,14 +56,18 @@ export const diffFileName = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: '0.875rem',
+  fontSize: vars.typeBodyFontSize,
 });
 
-export const diffAddsCount = style({ color: vars.diffAdded, flexShrink: 0, fontSize: '0.875rem' });
+export const diffAddsCount = style({
+  color: vars.diffAdded,
+  flexShrink: 0,
+  fontSize: vars.typeBodyFontSize,
+});
 export const diffDelsCount = style({
   color: vars.diffDeleted,
   flexShrink: 0,
-  fontSize: '0.875rem',
+  fontSize: vars.typeBodyFontSize,
 });
 export const diffSpacer = style({ flex: '1 1 0%' });
 

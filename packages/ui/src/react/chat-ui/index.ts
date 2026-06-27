@@ -2,61 +2,61 @@
  * React adapter for @emdash/chat-ui.
  *
  * Uses React.createElement (no JSX) to avoid dual-JSX-runtime conflicts.
- * Mounts the Solid ChatRoot on mount, exposes the handle via onReady,
- * and disposes on unmount.
+ * Creates a ChatView into the container div on mount and disposes on unmount.
  *
- * padTop / padBottom are deliberately excluded from the initial mountOpts so
- * they don't get locked in at mount time. A separate effect pushes updates
- * through setContentPadding whenever those props change.
+ * context + state must be created by the host (e.g. via createChatContext /
+ * createChatState) before passing them in. This mirrors the CodeMirror
+ * EditorState/EditorView split: the host owns the model (ChatState), this
+ * component owns the DOM view.
  *
- * commands / onReachStart / onAtBottomChange are also pushed reactively so
- * inline callbacks do not go stale after React re-renders.
+ * padTop is still accepted as a prop and pushed reactively through
+ * setContentPadding. padBottom is intentionally omitted: when `composer` is
+ * `'slot'`, ChatView's internal ResizeObserver drives padBottom automatically.
+ * For non-slot usage, call view.setContentPadding({ bottom: ... }) directly.
  *
- * Other MountChatOptions (stickToBottom, pinUserMessages, highlighter, …)
- * are mount-time only: they flow through the ...mountOpts spread and take
- * effect on the initial mountChat call; changing them after mount has no
- * effect without remounting.
+ * commands / onReachStart / onAtBottomChange are pushed reactively so inline
+ * callbacks do not go stale after React re-renders.
  */
 
-import type { ChatCommands, ChatHandle, ChatItem, MountChatOptions } from '@emdash/chat-ui';
-import { mountChat } from '@emdash/chat-ui';
+import type {
+  ChatCommands,
+  ChatContext,
+  ChatState,
+  ChatView,
+  ChatViewOptions,
+  ChatItem,
+} from '@emdash/chat-ui';
+import { createChatView } from '@emdash/chat-ui';
 import { createElement, useEffect, useRef } from 'react';
 
-export type ChatTranscriptProps = Omit<
-  MountChatOptions,
-  'padTop' | 'padBottom' | 'commands' | 'onReachStart' | 'onAtBottomChange'
+export type ChatTranscriptProps = Pick<
+  ChatViewOptions,
+  | 'stickToBottom'
+  | 'pinUserMessages'
+  | 'composer'
+  | 'class'
+  | 'contentClass'
+  | 'onReachStart'
+  | 'onAtBottomChange'
 > & {
-  /** Called once after the Solid root is mounted with the chat handle. */
-  onReady?: (handle: ChatHandle) => void;
+  /** Global services singleton shared across conversations. */
+  context: ChatContext;
+  /** Per-conversation state (transcript + parse caches). */
+  state: ChatState;
+  /** Called once after the Solid root is mounted with the chat view handle. */
+  onReady?: (view: ChatView) => void;
   style?: React.CSSProperties;
   className?: string;
   /**
-   * Top padding (px) reserved inside the canvas. Pushed reactively via
-   * setContentPadding so it can change without remounting.
+   * Top padding (px) reserved inside the canvas for a pinned header. Pushed
+   * reactively via setContentPadding so it can change without remounting.
    */
   padTop?: number;
-  /**
-   * Bottom padding (px) reserved inside the canvas — use this to keep the last
-   * message clear of a floating composer. Pushed reactively via
-   * setContentPadding so the composer's measured height can drive it.
-   */
-  padBottom?: number;
   /**
    * Command callbacks invoked by user interactions inside the transcript.
    * Pushed reactively so inline callbacks are never stale.
    */
   commands?: ChatCommands;
-  /**
-   * Called when the user scrolls near the top. Host should fetch older items
-   * and call handle.loadOlder(items).
-   * Pushed reactively so inline callbacks are never stale.
-   */
-  onReachStart?: () => void;
-  /**
-   * Called when the "at bottom" sticky state changes.
-   * Pushed reactively so inline callbacks are never stale.
-   */
-  onAtBottomChange?: (atBottom: boolean) => void;
 };
 
 export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
@@ -64,50 +64,48 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
   const propsRef = useRef(props);
   propsRef.current = props;
 
-  const handleRef = useRef<ChatHandle | null>(null);
+  const viewRef = useRef<ChatView | null>(null);
 
   useEffect(() => {
     if (!ref.current) return;
-    const {
-      onReady,
-      style: _style,
-      className: _className,
-      padTop: _padTop,
-      padBottom: _padBottom,
-      commands: _commands,
-      onReachStart,
-      onAtBottomChange,
-      ...mountOpts
-    } = propsRef.current;
+    const p = propsRef.current;
 
-    const handle = mountChat(ref.current, {
-      ...mountOpts,
-      commands: propsRef.current.commands ?? {},
+    const view = createChatView({
+      context: p.context,
+      state: p.state,
+      parent: ref.current,
+      composer: p.composer,
+      stickToBottom: p.stickToBottom,
+      pinUserMessages: p.pinUserMessages,
+      class: p.class,
+      contentClass: p.contentClass,
+      commands: p.commands ?? {},
+      padTop: p.padTop,
       // Thread stable wrappers that read from propsRef at call time — never stale.
-      onReachStart: onReachStart ? () => propsRef.current.onReachStart?.() : undefined,
-      onAtBottomChange: onAtBottomChange
+      onReachStart: p.onReachStart ? () => propsRef.current.onReachStart?.() : undefined,
+      onAtBottomChange: p.onAtBottomChange
         ? (b: boolean) => propsRef.current.onAtBottomChange?.(b)
         : undefined,
+      onViewMounted: (v) => propsRef.current.onReady?.(v),
     });
-    handleRef.current = handle;
-    onReady?.(handle);
+    viewRef.current = view;
+
     return () => {
-      handle.dispose();
-      handleRef.current = null;
+      view.dispose();
+      viewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Push padding updates reactively whenever the props change — without
-  // remounting the Solid root, which would lose scroll position and state.
+  // Push top padding updates reactively.
   useEffect(() => {
-    handleRef.current?.setContentPadding({ top: props.padTop, bottom: props.padBottom });
-  }, [props.padTop, props.padBottom]);
+    viewRef.current?.setContentPadding({ top: props.padTop });
+  }, [props.padTop]);
 
   // Push command callbacks reactively so inline functions are never stale.
   useEffect(() => {
     if (props.commands !== undefined) {
-      handleRef.current?.setCommands(props.commands);
+      viewRef.current?.setCommands(props.commands);
     }
   }, [props.commands]);
 
@@ -118,16 +116,24 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
   });
 }
 
-// Re-export imperative handle and utility types so consumers of this React
-// entry point don't need to import from the Solid entry point directly.
+// Re-export imperative types so consumers of this React entry point don't
+// need to import from the Solid entry point directly.
 export type {
-  ChatHandle,
+  ChatView,
   ChatCommands,
   ScrollToItemOptions,
   ChatHighlighter,
   HighlightResult,
   CodeToken,
   MentionProvider,
+  ChatContext,
+  ChatState,
 } from '@emdash/chat-ui';
-export { createDefaultHighlighter, generateMockTranscript } from '@emdash/chat-ui';
 export type LoadOlderFn = (items: ChatItem[]) => void;
+export {
+  createChatContext,
+  createChatState,
+  createChatView,
+  createDefaultHighlighter,
+  generateMockTranscript,
+} from '@emdash/chat-ui';

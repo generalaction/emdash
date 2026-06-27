@@ -61,16 +61,4 @@ function TabsPanel({ className, ...props }: TabsPrimitive.Panel.Props) {
   );
 }
 
-// ── Indicator (optional animated underline / pill) ────────────────────────────
-
-function TabsIndicator({ className, ...props }: TabsPrimitive.Indicator.Props) {
-  return (
-    <TabsPrimitive.Indicator
-      data-slot="tabs-indicator"
-      className={cx(styles.tabsIndicator, className)}
-      {...props}
-    />
-  );
-}
-
-export { Tabs, TabsList, TabsTab, TabsPanel, TabsIndicator };
+export { Tabs, TabsList, TabsTab, TabsPanel };
