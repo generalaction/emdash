@@ -22,7 +22,12 @@ function makeFakeResource(
     closeSelf: vi.fn(),
     transition: vi.fn(),
     onActivate: vi.fn(),
-    toActiveFile: vi.fn(() => ({ path: resource.path, type: 'disk', group: resource.diffGroup })),
+    toActiveFile: vi.fn(() => ({
+      path: resource.path,
+      type: 'disk' as const,
+      group: resource.diffGroup,
+      originalRef: { kind: 'commit', sha: 'HEAD' } as const,
+    })),
   };
   return resource;
 }

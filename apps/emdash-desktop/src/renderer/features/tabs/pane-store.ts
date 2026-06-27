@@ -105,6 +105,8 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   private _contentFocuser: (() => void) | null = null;
   /** Disposes the per-pane onActivate effect reaction. */
   private readonly _onActivateDisposer: () => void;
+  /** Container element registered by PaneDimensionProvider for manual re-measurement. */
+  private _measureEl: HTMLElement | null = null;
 
   get ctx(): TabViewContext {
     return this._ctx;
@@ -486,6 +488,17 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
 
   setDimensions(width: number, height: number): void {
     this.dimensions = { width, height };
+  }
+
+  attachMeasureSource(el: HTMLElement | null): void {
+    this._measureEl = el;
+  }
+
+  remeasure(): void {
+    const el = this._measureEl;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    if (width > 0 || height > 0) this.setDimensions(width, height);
   }
 
   restoreSnapshot(snapshot: Partial<TabManagerSnapshot>): void {

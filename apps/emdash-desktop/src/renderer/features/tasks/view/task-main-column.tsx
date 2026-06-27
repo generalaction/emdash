@@ -100,6 +100,25 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
+  // Re-measure all pane containers after any layout change (panes added/removed/resized).
+  // Uses a double rAF so the measurement runs after React commits and the layout lib
+  // has applied the new panel sizes. This ensures PTY controllerDims stays accurate even
+  // when the active tab is a non-terminal (file/diff) and no ResizeObserver event fired.
+  const layoutSig =
+    paneLayout.groups.map((g) => g.paneId).join(',') + '|' + paneLayout.paneSizes.join(',');
+  useEffect(() => {
+    const outer = requestAnimationFrame(() => {
+      const inner = requestAnimationFrame(() => {
+        for (const g of paneLayout.groups) g.pane.remeasure();
+      });
+      return inner;
+    });
+    return () => cancelAnimationFrame(outer);
+    // paneLayout.groups is captured by layoutSig; accessing it live inside the rAF
+    // is intentional so we remeasure the panes that actually exist at paint time.
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [layoutSig]);
+
   return (
     <DndContext
       sensors={sensors}

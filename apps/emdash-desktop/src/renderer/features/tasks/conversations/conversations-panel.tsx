@@ -89,6 +89,17 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     }
   }, [sessionStatus]);
 
+  // State-driven notification clearing: mark the active conversation as seen
+  // whenever this task view is the active route and the conversation has an
+  // unseen status. This covers the split-pane case where the same tab stays
+  // active — the engine's onActivate() only fires on tab identity changes.
+  const activeConversationSeen = activeConversation?.seen;
+  useEffect(() => {
+    if (isActive && activeConversation && !activeConversation.seen) {
+      activeConversation.markSeen();
+    }
+  }, [isActive, activeConversation, activeConversationSeen]);
+
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
   const hideContextBarTrigger = interfaceSettings?.hideContextBar ?? false;
 
