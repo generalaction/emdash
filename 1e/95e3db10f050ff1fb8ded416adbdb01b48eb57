@@ -1,0 +1,23 @@
+packages/plugins/src/agents/impl/auggie/index.ts
+  s_c4481661accbd5::t_417db5550add15 18
+packages/plugins/src/agents/impl/auggie/hooks.ts
+  s_c4481661accbd5::t_417db5550add15 13
+packages/plugins/src/agents/impl/auggie/index.test.ts
+  s_c4481661accbd5::t_9ec44f778a9738 70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1e95e3db10f050ff1fb8ded416adbdb01b48eb57",
+  "prompts": {},
+  "sessions": {
+    "s_c4481661accbd5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f090c-5801-7652-b4dd-dffac5788778",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
