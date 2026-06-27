@@ -82,7 +82,9 @@ describe('TerminalKeyboardBridge', () => {
   it('fires the command palette shortcut when a terminal is focused', async () => {
     const paletteSpy = vi.fn();
     const bubbleSpy = vi.fn();
+    const xtermSpy = vi.fn((event: KeyboardEvent) => event.stopPropagation());
     registerHotkey('Mod+K', paletteSpy);
+    xtermInput.addEventListener('keydown', xtermSpy);
     document.addEventListener('keydown', bubbleSpy);
 
     xtermInput.focus();
@@ -92,8 +94,10 @@ describe('TerminalKeyboardBridge', () => {
     expect(paletteSpy).toHaveBeenCalledTimes(1);
     // The bridge stops propagation so the manager's bubble listener doesn't
     // double-dispatch and xterm never consumes the key.
+    expect(xtermSpy).not.toHaveBeenCalled();
     expect(bubbleSpy).not.toHaveBeenCalled();
 
+    xtermInput.removeEventListener('keydown', xtermSpy);
     document.removeEventListener('keydown', bubbleSpy);
   });
 
@@ -116,17 +120,23 @@ describe('TerminalKeyboardBridge', () => {
   it('lets non-flagged shortcuts reach the terminal so control keys keep working', async () => {
     const drawerSpy = vi.fn();
     const bubbleSpy = vi.fn();
+    const xtermSpy = vi.fn((event: KeyboardEvent) => event.stopPropagation());
     // Mod+J (terminal drawer) is NOT flagged overrideTerminalFocus, so the
     // bridge must not intercept it — Ctrl+J stays available to the shell.
     registerHotkey('Mod+J', drawerSpy);
+    xtermInput.addEventListener('keydown', xtermSpy);
     document.addEventListener('keydown', bubbleSpy);
 
     xtermInput.focus();
     pressKey(xtermInput, 'j');
 
-    // Bridge does not stop the event, so it propagates to the bubble listener.
-    expect(bubbleSpy).toHaveBeenCalledTimes(1);
+    // Bridge does not stop the event, so xterm receives and consumes it before
+    // TanStack's document-level bubble listener can dispatch the shortcut.
+    expect(xtermSpy).toHaveBeenCalledTimes(1);
+    expect(drawerSpy).not.toHaveBeenCalled();
+    expect(bubbleSpy).not.toHaveBeenCalled();
 
+    xtermInput.removeEventListener('keydown', xtermSpy);
     document.removeEventListener('keydown', bubbleSpy);
   });
 });
