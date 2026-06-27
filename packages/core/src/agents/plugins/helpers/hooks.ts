@@ -57,15 +57,11 @@ function makeWindowsHookPostCommand(eventType: string, payload: HookPostPayload)
 
 export function makeWindowsPowerShellHookCommand(script: string): string {
   const encoded = Buffer.from(script, 'utf16le').toString('base64');
-  // The leading `set` is a silent no-op whose sole purpose is to embed the
-  // EMDASH_MARKER literally in the command so hook-config cleanup can detect
-  // emdash-managed entries. It must NOT use a redirect (`>NUL`): the hook is
-  // executed through an outer shell (Git Bash / PowerShell) that parses the
-  // redirect before cmd.exe ever runs, treating `NUL` as a plain filename and
-  // creating a stray `NUL` file in the worktree. `set` avoids any redirect and
-  // any quoting (quoting breaks when the body is re-wrapped in `cmd.exe /c`).
-  // The marker lives in the value, not the var name, so it never shadows the
-  // real EMDASH_HOOK_PORT/NONCE/PTY_ID env vars the PowerShell script reads.
+  // Silent `set` no-op embeds EMDASH_MARKER so hook cleanup can find our
+  // entries. Avoid `>NUL`: an outer shell (Git Bash/PowerShell) parses the
+  // redirect before cmd.exe and creates a real `NUL` file. No quotes either —
+  // they break when the body is re-wrapped in `cmd.exe /c`. Marker goes in the
+  // value, not the var name, so it can't shadow EMDASH_HOOK_PORT/NONCE/PTY_ID.
   return (
     `cmd.exe /d /c set EMDASH_HOOK_MARKER=${EMDASH_MARKER}&&` +
     `powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}`
