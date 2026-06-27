@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ComponentType, type ReactNode } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
+import type { TabItemProps } from './core/tab-provider';
 import { PaneDropZone } from './tab-bar/draggable-tab';
 
 export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: ReactNode }) {
@@ -28,7 +29,7 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
         {resolvedTabs.map((tab) => {
           if (!pane.registry.has(tab.kind)) return null;
           const def = pane.registry.get(tab.kind);
-          const TabItemComponent = def.TabItem;
+          const TabItemComponent = def.TabItem as ComponentType<TabItemProps<object>>;
           return <TabItemComponent key={tab.tabId} tab={tab} host={pane} ctx={pane.ctx} />;
         })}
         <PaneDropZone paneId={paneId} />

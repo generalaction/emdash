@@ -1,9 +1,31 @@
-import type { TabProvider } from './tab-provider';
+import type React from 'react';
+import type {
+  ResolveContext,
+  ResolvedTab,
+  TabContentProps,
+  TabHost,
+  TabProvider,
+  TabViewContext,
+} from './tab-provider';
 
 // ── Type aliases ──────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyTabProvider = TabProvider<any, any, any, any, any>;
+export interface AnyTabProvider {
+  readonly kind: string;
+  resolve(entry: object, ctx: ResolveContext): object | null;
+  serialize(entry: object): unknown | null;
+  deserialize(data: unknown, ctx: TabViewContext): object;
+  TabItem: unknown;
+  DragPreview: unknown;
+  Content: React.ComponentType<TabContentProps>;
+  title(tab: ResolvedTab): string;
+  open(args: never, host: TabHost, ctx: TabViewContext): void;
+  confirmClose?(entry: object, host: TabHost, ctx: TabViewContext): boolean | Promise<boolean>;
+  onActivate?(entry: object, ctx: TabViewContext): void;
+  onClose?(entry: object, ctx: TabViewContext): void;
+  mount?(host: TabHost, ctx: TabViewContext): () => void;
+  rename?(entry: object, name: string, ctx: TabViewContext): void;
+}
 
 /**
  * Extract the literal kind union from a typed registry.
@@ -87,8 +109,7 @@ export function createTabRegistry<const P extends readonly AnyTabProvider[]>(
     has(kind: string): boolean {
       return map.has(kind);
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    _providers: providers as any,
+    _providers: providers,
   };
   return registry;
 }
