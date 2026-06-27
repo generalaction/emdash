@@ -22,11 +22,7 @@ export interface FrontendPtyOptions {
   windowsPtyBackend?: 'conpty';
 }
 
-const CONPTY_SYNTHETIC_MOUSE_ENABLE_MARKERS = [
-  '\x1b[?2031h',
-  '\x1b[?2048h',
-  '\x1b[?1016$p',
-];
+const CONPTY_SYNTHETIC_MOUSE_ENABLE_MARKERS = ['\x1b[?2031h', '\x1b[?2048h', '\x1b[?1016$p'];
 const CONPTY_SYNTHETIC_MOUSE_DISABLE_MARKERS = [
   '\x1b[?2031l',
   '\x1b[?2048l',
