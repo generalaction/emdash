@@ -1,0 +1,455 @@
+.gitignore
+  s_67072c563faf03::t_fd44751022edc3 17
+apps/emdash-desktop/drizzle/0016_concerned_carnage.sql
+  s_67072c563faf03::t_78e79b24e2ac45 1
+apps/emdash-desktop/drizzle/0017_promote_session_id.sql
+  s_67072c563faf03::t_83e6c7da3c9ab6 1-9
+apps/emdash-desktop/drizzle/meta/0016_snapshot.json
+  s_67072c563faf03::t_740c7364292c22 1-1810
+apps/emdash-desktop/drizzle/meta/0017_snapshot.json
+  s_67072c563faf03::t_b2dfef6f57ae8c 1-1810
+apps/emdash-desktop/drizzle/meta/_journal.json
+  s_67072c563faf03::t_d2efa8139fe1d9 116-129
+apps/emdash-desktop/package.json
+  s_67072c563faf03::t_e31d7bc7e00329 22-23,52-53,58-59
+apps/emdash-desktop/src/main/app/linux-secret-storage.test.ts
+  s_67072c563faf03::t_29dbb70640eb5a 1-57
+apps/emdash-desktop/src/main/app/linux-secret-storage.ts
+  s_67072c563faf03::t_f9e52de0a032ca 1-30
+apps/emdash-desktop/src/main/core/acp/acp-session-manager.test.ts
+  s_67072c563faf03::t_243c6575ae773c 1-243
+apps/emdash-desktop/src/main/core/acp/acp-session-manager.ts
+  s_67072c563faf03::t_65ad3ef29c36f9 1-194
+apps/emdash-desktop/src/main/core/acp/acp-test-support.ts
+  s_67072c563faf03::t_43a2116721486e 1-289
+apps/emdash-desktop/src/main/core/acp/controller.ts
+  s_67072c563faf03::t_6f5386d2aa5bc2 1-62
+apps/emdash-desktop/src/main/core/acp/production-acp-session-manager.ts
+  s_67072c563faf03::t_8959fc5c185792 1-5,8-20,22-42,44-61,63-69
+apps/emdash-desktop/src/main/core/acp/transport/acp-process-host-manager.ts
+  s_67072c563faf03::t_926906316ff28e 1-37
+apps/emdash-desktop/src/main/core/acp/transport/legacy-ssh-acp-process-host.ts
+  s_67072c563faf03::t_9e5b9fd7e81d83 1-251
+apps/emdash-desktop/src/main/core/acp/transport/local-acp-process-host.ts
+  s_67072c563faf03::t_67195fe75c503b 1-172
+apps/emdash-desktop/src/main/core/acp/transport/transport.test.ts
+  s_67072c563faf03::t_06a6b89ecb890c 1-236
+apps/emdash-desktop/src/main/core/acp/transport/types.ts
+  s_67072c563faf03::t_8e00bc9e61f342 1-22
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_67072c563faf03::t_6f985f4cb4a6e7 5,61-64,66-71,79
+apps/emdash-desktop/src/main/core/conversations/createConversation.ts
+  s_67072c563faf03::t_6bd60da0dc4965 54-63,74-76,78,87-112
+apps/emdash-desktop/src/main/core/conversations/dehydrateConversation.ts
+  s_67072c563faf03::t_e1794c2f37cf30 1-4,12-28
+apps/emdash-desktop/src/main/core/conversations/deleteConversation.ts
+  s_67072c563faf03::t_8fba02c6aa5d09 2,17-37,50-58
+apps/emdash-desktop/src/main/core/conversations/hydrateConversation.ts
+  s_67072c563faf03::t_391c4834958734 2-3,7-8,29-59,70,77
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_67072c563faf03::t_51de5d3416ebbf 218,475,496
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_67072c563faf03::t_55e0d34ee1fc35 160
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_67072c563faf03::t_41b993cc4938fc 146
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_67072c563faf03::t_cce436b30c6da1 25,44,62,83,105,135,161,165,173,181,185,193
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_67072c563faf03::t_140702fcb06f41 11-18,25-27
+apps/emdash-desktop/src/main/core/conversations/set-session-id.ts
+  s_67072c563faf03::t_4bc189493b019a 1,6-15,17-20,22-24,26,28-30,32
+apps/emdash-desktop/src/main/core/conversations/utils.ts
+  s_67072c563faf03::t_3ac6710696fc82 4,10,17-19,25
+apps/emdash-desktop/src/main/core/projects/project-manager.ts
+  s_67072c563faf03::t_d459249725cb79 1
+apps/emdash-desktop/src/main/core/tasks/operations/archiveTask.test.ts
+  s_67072c563faf03::t_72130f102cf1b7 46,68
+apps/emdash-desktop/src/main/core/tasks/operations/archiveTask.ts
+  s_67072c563faf03::t_994fada8111608 21-24
+apps/emdash-desktop/src/main/core/tasks/operations/createTask.ts
+  s_67072c563faf03::t_d57a26e8dc3fcf 94-100,107,110
+apps/emdash-desktop/src/main/core/tasks/task-session-manager.test.ts
+  s_67072c563faf03::t_d94582903a7ada 1-66
+apps/emdash-desktop/src/main/core/tasks/task-session-manager.ts
+  s_67072c563faf03::t_4a3adbcb557276 1,51-66,69,72,76,80-82,160
+apps/emdash-desktop/src/main/db/legacy-port/importers/relational/relational.test.ts
+  s_67072c563faf03::t_13fb0528a050e5 103-104
+apps/emdash-desktop/src/main/db/schema.ts
+  s_67072c563faf03::t_843cabc7ba9d0b 391
+apps/emdash-desktop/src/main/db/tests/migrations/0016_acp_conversation_type.test.ts
+  s_67072c563faf03::t_eb8ac4e8122fb2 1-37
+apps/emdash-desktop/src/main/db/tests/migrations/0017_promote_session_id.test.ts
+  s_67072c563faf03::t_4a9c3b0f2b636d 1-117
+apps/emdash-desktop/src/main/index.ts
+  s_67072c563faf03::t_b5cb207b869101 10,46,57-63,170
+apps/emdash-desktop/src/main/lib/file-logger.ts
+  s_67072c563faf03::t_0b2029b47d1acc 2,21-26
+apps/emdash-desktop/src/main/lib/rpc-logging.ts
+  s_67072c563faf03::t_bf17d3da0eaf3e 1-21
+apps/emdash-desktop/src/main/rpc.ts
+  s_67072c563faf03::t_aa1ebcaafdbae6 3,48
+apps/emdash-desktop/src/renderer/app/app-menu-events.tsx
+  s_67072c563faf03::t_411ad8b6eb5fa5 78-82
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-item.tsx
+  s_67072c563faf03::t_2d7f46bef1f640 3,8-9,11-14,16,22,26-28,38,41,46-47
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-provider.tsx
+  s_67072c563faf03::t_dc3765bb676cb7 7-8,14,16-20,22,24,28-30,40,43-44,54-55,58,65,75-76,78,80,82,84-88,102,105-110,113-114,116-120
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-resource.ts
+  s_67072c563faf03::t_2891886f55025e 1-70
+apps/emdash-desktop/src/renderer/features/command-palette/command-palette-modal.tsx
+  s_67072c563faf03::t_471954dd3e6929 242-246,253-257
+apps/emdash-desktop/src/renderer/features/command-palette/palette-notifications-group.tsx
+  s_67072c563faf03::t_8068fddd3d8635 84-88
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-host.ts
+  s_67072c563faf03::t_3efc80cf7d9b7a 1-57
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-provider-registry.ts
+  s_67072c563faf03::t_f820dcac3d2acd 1,6,19,24-63,92-94,99-101
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-provider.ts
+  s_67072c563faf03::t_ddb529de7764cf 3,6-8,10,13,15-20,24-25,27-39,43-46,48,51-53,55,57-74,78-79,81-83,85,87-94,98-101,103-106,108-118,120-121,128-129,131,135-137,142-145,147,150-152,154,157-159,161-162,164,167-169,171,174-176,178,181-182,184,186-187,189-192,195-196,198
+apps/emdash-desktop/src/renderer/features/tabs/pane-content.tsx
+  s_67072c563faf03::t_6d271385b61cc5 62
+apps/emdash-desktop/src/renderer/features/tabs/pane-dimension-provider.tsx
+  s_67072c563faf03::t_d577fb7fda6dff 10-13,57-61
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-store.test.ts
+  s_67072c563faf03::t_255dd43a119297 1-214
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-store.ts
+  s_67072c563faf03::t_f3a2799e531595 4-11,25-28,35-47,53-61,65,76,83,88-98,146-149,155-162,208-277,335,346-380,389-392
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.test.ts
+  s_67072c563faf03::t_d0dae902a30bc0 38-39,42-43,46-47,50-51,59-72,89-92,105,110-111,141-142,161,172-173,183-184,186,188,203-204,216-259
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.ts
+  s_67072c563faf03::t_64eac8fd645944 1,12-60,65-70,76-78,87-102,106-110,115-122,125-126,131,153-154,161-170,173-176,185,189-190,199,204-272,279-281,284,287,298,303-316,322-334,336-349,352-371,375-380,432-435,447,462,466,468,470-475,483-486,493-502,506,508,511,513-514,517-519,526-528,532-537,539-540,543,545-563,565,569-573,575-599,603-608,610,616-629,631,633-640,642,644-694
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar.tsx
+  s_67072c563faf03::t_2510ae823b34f6 23-30,38
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/generic-tab-item.tsx
+  s_67072c563faf03::t_c10b6abd91269b 4-5,11,15,98-99,111,118-119
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-commands.ts
+  s_67072c563faf03::t_d8744edfe70e49 1-22
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-context-menu.tsx
+  s_67072c563faf03::t_f3596ce309f282 1,4-5,13-33,91,99
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-drag-preview.tsx
+  s_67072c563faf03::t_8a2287d3a70507 13
+apps/emdash-desktop/src/renderer/features/tabs/tab-view-factory.tsx
+  s_67072c563faf03::t_b50f84eeeb8689 1-97
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-panel.tsx
+  s_67072c563faf03::t_80372601819001 1-130
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-registry.ts
+  s_67072c563faf03::t_66b257e06b1d8e 1-52
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-resource-manager.ts
+  s_67072c563faf03::t_29f455bd7cdc40 1-84
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-store.ts
+  s_67072c563faf03::t_7c05c0b9af7eef 1-390
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-tab-entry.ts
+  s_67072c563faf03::t_123731199fa955 1-27
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-tab-provider.tsx
+  s_67072c563faf03::t_989effa1dcf841 1-93
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-tab-resource.ts
+  s_67072c563faf03::t_3ee142fc56667b 1-27
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts
+  s_67072c563faf03::t_74bcf766648b2f 1-182
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_67072c563faf03::t_9eb97c810d367b 5-38,111-125,131-132,220-224,273-274
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_67072c563faf03::t_8dd5c58c2c72e4 2,54-56,94,111-115,225,227-228,237,239-240,249,251-252,260,262-263,271,273-274
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-item.tsx
+  s_67072c563faf03::t_b2a37ca73369bd 2,10,13,17-20,28,31,49-68
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-provider.tsx
+  s_67072c563faf03::t_df0c036d650d4b 3-4,8-9,11-12,15,19,24-25,33-34,36,38-39,41-42,45-64,66,69-73,75,78-84,87-90
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-resource.ts
+  s_67072c563faf03::t_cf5a4446e57c03 1-54
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversations-panel.tsx
+  s_67072c563faf03::t_e15b9ed02f8de6 18,20,40-43,47,92-102
+apps/emdash-desktop/src/renderer/features/tasks/conversations/default-conversation-seeder.ts
+  s_67072c563faf03::t_66224ccee11b30 1-60
+apps/emdash-desktop/src/renderer/features/tasks/conversations/pane-selectors.ts
+  s_67072c563faf03::t_4d3f960b25ab01 5,8,11-12,15-16,18-21
+apps/emdash-desktop/src/renderer/features/tasks/conversations/sidebar-conversations-list.tsx
+  s_67072c563faf03::t_f3bd381b60f520 6,52-55,78,99,104,190
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/commits-list.tsx
+  s_67072c563faf03::t_de7248710bde88 204-216,218-219,223-235,237-238
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/files-list.tsx
+  s_67072c563faf03::t_ae2ffd8dc1c992 39-52,54-55,59-72,74-75
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/staged-section.tsx
+  s_67072c563faf03::t_9644a269b40eab 47-56,58-59,63-72,74-75
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/unstaged-section.tsx
+  s_67072c563faf03::t_89a1876c9dde1f 51-60,62-63,67-76,78-79
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/diff-tab-item.tsx
+  s_67072c563faf03::t_21aa3ac8ba7d7a 2,10,12,25,29-32,40,53,55,63-66
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/diff-tab-provider.tsx
+  s_67072c563faf03::t_741d0e37136434 4-5,10-13,15-17,24-32,35-40,43-56,61,64-86,88-90,92-95,97-108
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-file-renderer.tsx
+  s_67072c563faf03::t_62d802c08ab658 8,25,243,267
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-toolbar.tsx
+  s_67072c563faf03::t_e8673cb2c75ad9 3,9
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-view.tsx
+  s_67072c563faf03::t_869736d3d2e1b7 2,7
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/pane-selectors.ts
+  s_67072c563faf03::t_e552ef72c62965 5,8,10-11,13-15
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-manager.test.ts
+  s_67072c563faf03::t_c372d2d1221dac 1-228
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-manager.ts
+  s_67072c563faf03::t_dbd44bb1c9b325 6,9-14,16-23,25-29,31-42,44-58,62-69,71-72,74-133
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-resource.ts
+  s_67072c563faf03::t_4d7652d9b1e103 1-146
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-file-tree.tsx
+  s_67072c563faf03::t_912c3c0c1606b1 13,143,147,176,183,193
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-preview.tsx
+  s_67072c563faf03::t_008925cc4605b2 6,9
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-toolbar.tsx
+  s_67072c563faf03::t_4bd1aba5cee206 3,6
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-types.tsx
+  s_67072c563faf03::t_c190bf12e0e6d7 21-22,28,33,37,41,45,49,53,57,61
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-item.tsx
+  s_67072c563faf03::t_8602bedeff3d0e 3,11,25,29-31,33-36,38-40,45,65,76-77
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-provider.tsx
+  s_67072c563faf03::t_ea4209b231d356 3-4,9,19-22,35,38,44,46,74-103,105-135,137-140
+apps/emdash-desktop/src/renderer/features/tasks/editor/pane-selectors.ts
+  s_67072c563faf03::t_f7492c177187c6 5,9,11-12,15-16,20,23-25,28-30,32-33,36-41,43-52
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/editor-view-store.ts
+  s_67072c563faf03::t_aecf1b06f1e3cf 1,9-10,13,15-17,19,49-52,54,56-60,92,95,154,159
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-model-manager.ts
+  s_67072c563faf03::t_86d9817e294067 1-246
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-tab-resource.ts
+  s_67072c563faf03::t_35a8ed3f71b70e 1-150
+apps/emdash-desktop/src/renderer/features/tasks/main-panel.tsx
+  s_67072c563faf03::t_1bb3f0c162dcb0 16,116-137
+apps/emdash-desktop/src/renderer/features/tasks/stores/conversation-session-manager.ts
+  s_67072c563faf03::t_2e8c73455554de 1-78
+apps/emdash-desktop/src/renderer/features/tasks/stores/open-file-in-file-editor.ts
+  s_67072c563faf03::t_4920c3980a5902 28,40-44
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-selectors.ts
+  s_67072c563faf03::t_f2a8cbfaf47f6f 4,44
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.test.ts
+  s_67072c563faf03::t_9b8490a14c298d 12,19-20,23-24,27-28,31-32,40-57,166-171,222-223,404-408,422-426,479-483,493-497,512-516,522-530,546-550,554-559,566,583-585,628,632,651-660,662-664,667-670,686-690,693,696,699-701,705,724-728,732-737,743
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_67072c563faf03::t_72f5b27478952d 3,5-6,21,41,69-70,94-105,107,109,117-118,121-125,146-149,183,227-231,241,284,308
+apps/emdash-desktop/src/renderer/features/tasks/tab-bar-actions.tsx
+  s_67072c563faf03::t_5c4d0b71a2a9bd 52
+apps/emdash-desktop/src/renderer/features/tasks/task-tab-registry.tsx
+  s_67072c563faf03::t_61657a7ea79f36 4-6,18-20,26-35,42
+apps/emdash-desktop/src/renderer/features/tasks/view/task-main-column.tsx
+  s_67072c563faf03::t_bb324cf77ef608 103-121,123-152
+apps/emdash-desktop/src/renderer/lib/chat/shared-chat-context.ts
+  s_67072c563faf03::t_b7a4f0fa6bf022 1-24
+apps/emdash-desktop/src/renderer/lib/editor/markdown-renderer.tsx
+  s_67072c563faf03::t_12697f5cd28303 3,17
+apps/emdash-desktop/src/renderer/lib/pty/pane-sizing-context.tsx
+  s_67072c563faf03::t_65803d7b5372ee 4-5,7-12,15,24-37,39,59-64,69-70,75
+apps/emdash-desktop/src/renderer/lib/pty/pty-dimensions.test.ts
+  s_67072c563faf03::t_0eb63a9e9a34db 1-156
+apps/emdash-desktop/src/renderer/lib/pty/pty-dimensions.ts
+  s_67072c563faf03::t_48310f0cf32458 43-114
+apps/emdash-desktop/src/renderer/lib/pty/use-pty-pane-resize.ts
+  s_67072c563faf03::t_9793891e1e4629 2,4-13,15,18-21,23-25,27,35-37,39,41-43,45-51,54-57,60-79,89-167,172,180,185-191,195,200-201
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_67072c563faf03::t_3083919df832f6 133-136,208-210,212-218,236-245,257,344-347,349-356,377-380,684-689,691-692,696-703,747-749,754,757
+apps/emdash-desktop/src/renderer/tests/browser/terminal-dimensions.test.ts
+  s_67072c563faf03::t_a15590d73fcd83 2,5,8-12,185-227
+apps/emdash-desktop/src/shared/core/acp/acpEvents.ts
+  s_67072c563faf03::t_ef9f8634bb687c 1-85
+apps/emdash-desktop/src/shared/core/acp/acpPermissions.ts
+  s_67072c563faf03::t_22e690b69c1a3f 1-5
+apps/emdash-desktop/src/shared/core/acp/acpTurns.ts
+  s_67072c563faf03::t_59f96a8db5e15d 1-13
+apps/emdash-desktop/src/shared/core/agents/agent-acp.ts
+  s_67072c563faf03::t_c0d350564c4e88 1-9
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_67072c563faf03::t_2a5a55dc2c9e56 97-98,148
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.test.ts
+  s_67072c563faf03::t_0cfb757b78bd05 2,4-5,7-8,10,15-16,18,23-32,35-48,51-56,59-82,84-88,99-104
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.ts
+  s_67072c563faf03::t_a1c9fb7f71fe9c 6,13-32,35-47,51-52
+apps/emdash-desktop/src/shared/core/conversations/conversationEvents.ts
+  s_67072c563faf03::t_c9ba20945a1439 9
+apps/emdash-desktop/src/shared/core/conversations/conversations.ts
+  s_67072c563faf03::t_32754c6bfd358a 6-7,17-24,30-31,51-52
+apps/emdash-desktop/src/shared/core/tasks/task-config.ts
+  s_67072c563faf03::t_688d0da06e2c5b 18
+apps/emdash-desktop/src/shared/view-state.ts
+  s_67072c563faf03::t_be9efcfea89d45 11
+package.json
+  s_67072c563faf03::t_f9b36f98523862 35-44
+packages/chat-ui/API.md
+  s_67072c563faf03::t_5d973b19bdbdf7 5-6,10-11,24,33-57,61,64-75,80-83,86-87,91-99,101-104,107-108,112,115-117,119-125,129-131,133-134,144,147,150-153,155,159-162,164,166-174,176,178,181,184-186,188,190-194,198,201,204-242,244,246,248,250-256,258,260,262,264,267-269,272-276,279-281,284-285,289,291,294-297,303,306-310,313-316,320,323,325-326,329-331,335,338,340-344,346-347,349,351,353-354,356-365,367,369,371-372
+packages/chat-ui/ARCHITECTURE.md
+  s_67072c563faf03::t_9dcc571135ce1b 40-52,56-65,75,80,94-125,142,146,429-431,585,785-789,793
+packages/chat-ui/src/ChatRoot.tsx
+  s_67072c563faf03::t_fd84e199085b6a 2,4-11,13-28,42-43,54-55,62,67-68,74,84-86,109-111,117-128,134-137,147,153,159-161,165-166,175,180,183-188,194-203,219,221-226,228,230,236-241,245-248,258-261,275,281-283,286,292,310-311,321,341-343,347-354,373-376,410-421,430,447,449-450,470,472,476,501-504,506-594,596,599-607,609-679,775,805-808,811,824-857,865-868,873,877-886,901,913-924,926-953,960-963,966,968,974,982,1005-1014,1047,1075-1078,1084,1089-1101
+packages/chat-ui/src/chat-context.ts
+  s_67072c563faf03::t_b99c1bb3fcce8f 1-120
+packages/chat-ui/src/chat-root.css.ts
+  s_67072c563faf03::t_dea1d1661070ad 12-14,34-37,45-57,88-118
+packages/chat-ui/src/chat-view.tsx
+  s_67072c563faf03::t_579c2f2f520f7e 1-185
+packages/chat-ui/src/commands.ts
+  s_67072c563faf03::t_133021012a87b9 1-63
+packages/chat-ui/src/components/contexts/CommandsContext.ts
+  s_67072c563faf03::t_4b55e29dc63762 13
+packages/chat-ui/src/components/contexts/StreamContext.ts
+  s_67072c563faf03::t_2e73d0011a2331 14-20,24,29-34
+packages/chat-ui/src/components/engine/UnitRow.tsx
+  s_67072c563faf03::t_6610094e48a0e8 238-255,328,331-332,334
+packages/chat-ui/src/components/engine/frame-scheduler.ts
+  s_67072c563faf03::t_d97041ca1d558d 9-22,31-33,36-37,47-52,59,63-90,97-101,109
+packages/chat-ui/src/components/primitives/CollapsibleCard.tsx
+  s_67072c563faf03::t_8130da57138c3e 20,65
+packages/chat-ui/src/components/primitives/card-clip.ts
+  s_67072c563faf03::t_228aff91a31eec 1-39
+packages/chat-ui/src/components/primitives/collapse-header.css.ts
+  s_67072c563faf03::t_85658e9db9d99e 21-25
+packages/chat-ui/src/components/primitives/collapsible-card.css.ts
+  s_67072c563faf03::t_eb8aacfdf8c7f8 40
+packages/chat-ui/src/components/rows/markdown/code/Code.tsx
+  s_67072c563faf03::t_48d2979db8b8d1 20,38,47-51
+packages/chat-ui/src/components/rows/markdown/prose/layout.test.ts
+  s_67072c563faf03::t_95ca8935562dc2 1-129
+packages/chat-ui/src/components/rows/markdown/prose/layout.ts
+  s_67072c563faf03::t_04f8dcefd1c03a 100-101,153
+packages/chat-ui/src/components/rows/message/UserMessageCard.tsx
+  s_67072c563faf03::t_5bf2534791b411 4,83-86,98-102
+packages/chat-ui/src/components/rows/message/message.def.tsx
+  s_67072c563faf03::t_932a3ead8bf47e 60-67
+packages/chat-ui/src/components/rows/resource-link/resource-link.css.ts
+  s_67072c563faf03::t_406b5aaf1b5fe0 21
+packages/chat-ui/src/components/rows/thinking/thinking.css.ts
+  s_67072c563faf03::t_f6640608ed1a7c 14-17
+packages/chat-ui/src/components/rows/tools/diff/Diff.tsx
+  s_67072c563faf03::t_8e38c2c5a4a6a3 106-110
+packages/chat-ui/src/components/rows/tools/diff/diff.css.ts
+  s_67072c563faf03::t_8f4c837fe0b9e5 59,62-66,70
+packages/chat-ui/src/components/rows/tools/file-op/file-op.css.ts
+  s_67072c563faf03::t_8c3fc1ad6402d2 53,62
+packages/chat-ui/src/components/rows/tools/tool/Tool.tsx
+  s_67072c563faf03::t_57281096bed4b0 17,27
+packages/chat-ui/src/components/rows/tools/tool/tool.css.ts
+  s_67072c563faf03::t_ab0b710834a568 4,15-16,19-32,34
+packages/chat-ui/src/core/caches.test.ts
+  s_67072c563faf03::t_4d6622cff8f058 30-37,169,172
+packages/chat-ui/src/core/caches.ts
+  s_67072c563faf03::t_1c9e9a0f4b30c1 152-155,157,185-188,193-231,236-239,241-242,245-246,326-329,331,334-408,410,417-431,438
+packages/chat-ui/src/core/markdown/mention-provider.ts
+  s_67072c563faf03::t_28f43ba230a943 9-13,52-58,61
+packages/chat-ui/src/core/markdown/parse.ts
+  s_67072c563faf03::t_9365b749689971 78-79,103,150-151,164,182-183,197-198,212-213,231-232,270-271,279,295,310-318,334-335,348-356,389,450-451,457-458,468-476
+packages/chat-ui/src/core/measure/to-rich-items.ts
+  s_67072c563faf03::t_de49847a996f47 15-56,61-72
+packages/chat-ui/src/index.tsx
+  s_67072c563faf03::t_dafc4beac289c0 4-21,25-37,59-61,63,73-75,87-89,92-94,101,103,105,107,109,111-112
+packages/chat-ui/src/state/chat-state.test.ts
+  s_67072c563faf03::t_2a165f6db4eb51 1-209
+packages/chat-ui/src/state/chat-state.ts
+  s_67072c563faf03::t_890dcb686a49ab 1-218
+packages/chat-ui/src/state/view-state.ts
+  s_67072c563faf03::t_480f104f6261ba 8-15,53-77
+packages/chat-ui/src/stories/_harness/chat-host.tsx
+  s_67072c563faf03::t_0918d920d8c247 4,25,28,95-100,103,107-114,116,121-122,132,136-144,147,150,155-156,186-191,195,232,237-238
+packages/chat-ui/src/stories/_harness/state-matrix.tsx
+  s_67072c563faf03::t_10b31e6f5f7638 10-11,14,58-64,79
+packages/chat-ui/src/stories/perf/collapse-animation.stories.tsx
+  s_67072c563faf03::t_dd4b1ad93d2f99 15,17-19,22,33,40-41,43-44,46,50,52-58,64-69,72,76,94-95,111-115,117,119-134,137-138,141-143,145,148-150,179,188
+packages/chat-ui/src/stories/perf/transcript.stories.tsx
+  s_67072c563faf03::t_604317f24e1924 15,17,20,32-40,43-45,98
+packages/chat-ui/src/stories/rows/markdown/headings.stories.tsx
+  s_67072c563faf03::t_e8aae0fd41740e 51-116
+packages/chat-ui/src/tests/perf/harness.tsx
+  s_67072c563faf03::t_3ca44b7f3b103f 29,32,124-126,129,137-138
+packages/core/package.json
+  s_67072c563faf03::t_db229b1aef1bfd 16-23,72
+packages/core/src/acp/acp-agent-connection.test.ts
+  s_67072c563faf03::t_df2372da616539 1-124
+packages/core/src/acp/acp-agent-connection.ts
+  s_67072c563faf03::t_112e33aa9c2f22 1-107
+packages/core/src/acp/acp-session-runtime.test.ts
+  s_67072c563faf03::t_3cbb069aec85e3 1-1206
+packages/core/src/acp/acp-session-runtime.ts
+  s_67072c563faf03::t_8659f75018185f 1-967
+packages/core/src/acp/acp-test-support.ts
+  s_67072c563faf03::t_f70ab25364bf5d 1-331
+packages/core/src/acp/agent-terminal-manager.test.ts
+  s_67072c563faf03::t_f35a70da9ba048 1-221
+packages/core/src/acp/agent-terminal-manager.ts
+  s_67072c563faf03::t_e0f44251a4c495 1-177
+packages/core/src/acp/agent-update.test.ts
+  s_67072c563faf03::t_2bbdbaef588a7b 1-256
+packages/core/src/acp/agent-update.ts
+  s_67072c563faf03::t_495a4899069752 1-178
+packages/core/src/acp/errors.ts
+  s_67072c563faf03::t_bf5c67f320f042 1-88
+packages/core/src/acp/index.ts
+  s_67072c563faf03::t_da7c71f0c0bab7 1-46
+packages/core/src/acp/managed-agent-terminal.ts
+  s_67072c563faf03::t_1de9362a527193 1-109
+packages/core/src/acp/permissions.ts
+  s_67072c563faf03::t_b74cc13b124064 1-30
+packages/core/src/acp/runtime.ts
+  s_67072c563faf03::t_7b1459a63d9707 1-137
+packages/core/src/acp/session-machine.test.ts
+  s_67072c563faf03::t_05daf947deeb5a 1-493
+packages/core/src/acp/session-machine.ts
+  s_67072c563faf03::t_594c9637b7b675 1-805
+packages/core/src/acp/state.ts
+  s_67072c563faf03::t_be7428335de6c7 1-162
+packages/core/src/acp/terminals.ts
+  s_67072c563faf03::t_c83404e135aad7 1-27
+packages/core/src/acp/transport.ts
+  s_67072c563faf03::t_50a711515d0341 1-112
+packages/core/src/agents/plugins/capabilities/acp.ts
+  s_67072c563faf03::t_23b394d19ffc83 1-106
+packages/core/src/agents/plugins/index.ts
+  s_67072c563faf03::t_5aac4195100ad3 5,16,67-74
+packages/core/src/lib/index.ts
+  s_67072c563faf03::t_31f1ceac864eb9 2
+packages/core/tsdown.config.ts
+  s_67072c563faf03::t_862158ec269e6c 5-6
+packages/plugins/package.json
+  s_67072c563faf03::t_caa827bdb806ea 30-31
+packages/plugins/src/agents/impl/amp/index.ts
+  s_67072c563faf03::t_1103971240a355 11-12,70
+packages/plugins/src/agents/impl/claude/acp-transform.test.ts
+  s_67072c563faf03::t_bc2154d475d271 1-129
+packages/plugins/src/agents/impl/claude/acp-transform.ts
+  s_67072c563faf03::t_6ed975f0c7d3c2 1-27
+packages/plugins/src/agents/impl/claude/acp.test.ts
+  s_67072c563faf03::t_1a9bfabc602d7e 1-71
+packages/plugins/src/agents/impl/claude/index.ts
+  s_67072c563faf03::t_f9c4ff231f3f36 1-3,10,14-19,29-31,118-138
+packages/plugins/src/agents/impl/droid/index.ts
+  s_67072c563faf03::t_f9cf7277df263f 6-9,78
+packages/plugins/src/agents/impl/index.test.ts
+  s_67072c563faf03::t_f50bb1cd0e1b70 39
+packages/shared/src/index.ts
+  s_67072c563faf03::t_6163c7cc3bd541 51
+packages/shared/src/lifecycle-map.ts
+  s_67072c563faf03::t_c1dec8af2740b7 1
+packages/shared/src/logger/index.ts
+  s_67072c563faf03::t_00618218884231 5
+packages/shared/src/logger/noop.ts
+  s_67072c563faf03::t_12cba25d74996c 1-14
+packages/ui/src/react/chat-ui/index.ts
+  s_67072c563faf03::t_6d60d2224d4d5b 5,7-10,12-15,17-18,21-29,32-40,42-47,51-52,67,71,73-83,85-86,89,91-92,94-95,100,102-103,108,119-120,122,129-130,133-139
+packages/ui/src/react/components/chat-composer.css.ts
+  s_67072c563faf03::t_569fb83a6f2901 92-93
+packages/ui/src/react/examples/chat-panel.stories.tsx
+  s_67072c563faf03::t_7a2ae5e78370fc 5-11,17,161-164,174-178,180,193-194,211,225-229,246,271,285,287-289,299-325,328-332,334,336-355
+packages/ui/src/theme/tokens.css.ts
+  s_67072c563faf03::t_50638b8ce54eff 78
+pnpm-lock.yaml
+  s_67072c563faf03::t_7188240b450c34 17-22,35-40,442-444,479-484,650-658,662-678,1632-1637,1705-1714,2940-2942,3895-3898,3926-3933,4095-4098,4143-4146,4339-4346,4354-4361,4365-4368,4661-4664,4836-4838,4900-4903,4995-4997,5044-5047,5059-5066,5078-5087,5110-5112,5141-5144,5170-5173,5188-5191,5383-5386,5410-5413,5438-5441,5484-5491,5558-5560,5615-5617,5645-5648,5652-5654,5927-5930,5935-5938,6044-6047,6169-6172,6230-6233,6250-6253,6343-6346,6372-6374,6414-6417,6550-6553,6589-6592,6596-6599,6833-6836,6908-6911,6926-6932,7040-7042,7050-7053,7300-7303,7329-7331,7398-7401,7468-7471,7556-7559,7921-7925,7932-7941,7946-7958,7964-7976,8719-8722,8806-8827,9650-9651,10876-10880,10901-10904,11113-11126,11193-11194,11365-11368,11373-11376,11379-11383,11684-11685,11776-11777,11878-11879,12049-12050,12087-12088,12099-12104,12111-12148,12169-12170,12195-12205,12225-12226,12236-12237,12538-12539,12560-12567,12600-12603,12631-12634,12683-12684,12726-12727,12766-12770,12773-12774,13112-13113,13118-13119,13350,13356-13359,13455-13456,13632-13633,13643-13646,13832-13833,13851-13852,13891-13892,14075-14079,14107-14108,14111-14117,14467-14476,14528-14543,14555-14565,14691-14695,14700-14701,14927-14928,14949-14950,15006-15011,15082-15083,15155-15156,15569-15572
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.test.ts
+  s_67072c563faf03::t_fbf1c9d9288790 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "37e02dbb63353fa900b51a38d7055a8d779dd6e1",
+  "prompts": {},
+  "sessions": {
+    "s_67072c563faf03": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f0792-1d6e-7cf2-9f9d-f601038cdecf",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
