@@ -477,7 +477,12 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
-        conversationRegistry.acquire(taskId, this.projectId);
+        conversationRegistry.acquire(
+          taskId,
+          this.projectId,
+          undefined,
+          result.data.sshConnectionId ?? undefined
+        );
         terminalRegistry.acquire(taskId, this.projectId, result.data.sshConnectionId ?? undefined);
         current.ensureRegisteredStores();
         if (savedSnapshot && current.viewModel) {
@@ -507,7 +512,7 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
-        conversationRegistry.acquire(taskId, this.projectId);
+        conversationRegistry.acquire(taskId, this.projectId, undefined, sshConnectionId);
         terminalRegistry.acquire(taskId, this.projectId, sshConnectionId);
         current.ensureRegisteredStores();
         if (savedSnapshot && current.viewModel) {

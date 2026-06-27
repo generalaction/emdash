@@ -4,10 +4,18 @@ import type { Conversation } from '@shared/core/conversations/conversations';
 export class ConversationRegistry {
   private readonly entries = new Map<string, ConversationManagerStore>();
 
-  acquire(taskId: string, projectId: string, preloaded?: Conversation[]): ConversationManagerStore {
+  acquire(
+    taskId: string,
+    projectId: string,
+    preloaded?: Conversation[],
+    sshConnectionId?: string
+  ): ConversationManagerStore {
     const existing = this.entries.get(taskId);
-    if (existing) return existing;
-    const store = new ConversationManagerStore(projectId, taskId, preloaded);
+    if (existing) {
+      if (arguments.length >= 4) existing.setSshConnectionId(sshConnectionId);
+      return existing;
+    }
+    const store = new ConversationManagerStore(projectId, taskId, preloaded, sshConnectionId);
     this.entries.set(taskId, store);
     return store;
   }

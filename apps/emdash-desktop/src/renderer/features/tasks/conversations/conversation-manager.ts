@@ -36,12 +36,15 @@ export class ConversationManagerStore implements IDisposable {
   conversations = observable.map<string, ConversationStore>();
   /** Session layer keyed by conversation id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
+  private sshConnectionId: string | undefined;
 
   constructor(
     private readonly projectId: string,
     private readonly taskId: string,
-    preloaded?: Conversation[]
+    preloaded?: Conversation[],
+    sshConnectionId?: string
   ) {
+    this.sshConnectionId = sshConnectionId;
     makeObservable(this, {
       conversations: observable,
       sessions: observable,
@@ -97,6 +100,10 @@ export class ConversationManagerStore implements IDisposable {
     this.offSessionExited = this.listenToSessionExited();
     this.offConversationCreated = this.listenToConversationCreated();
     this.offConversationChanges = this.listenToConversationChanges();
+  }
+
+  setSshConnectionId(sshConnectionId: string | undefined): void {
+    this.sshConnectionId = sshConnectionId;
   }
 
   private addConversation(conversation: Conversation): void {
@@ -278,7 +285,9 @@ export class ConversationManagerStore implements IDisposable {
       handlers.onOpenExternal,
       {
         clearOnBackendStart: true,
-        isRemote: getProjectSshConnectionId(conversation.projectId) !== undefined,
+        isRemote: () =>
+          this.sshConnectionId !== undefined ||
+          getProjectSshConnectionId(conversation.projectId) !== undefined,
       }
     );
   }
