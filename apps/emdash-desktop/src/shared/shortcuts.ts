@@ -14,6 +14,15 @@ export interface AppShortcutDef {
   hideFromSettings?: boolean;
   conflictBehavior?: 'prevent' | 'allow';
   ignoreWhenMonacoFocused?: boolean;
+  /**
+   * Fire this shortcut even while an xterm terminal is focused. On Windows/Linux
+   * xterm consumes Ctrl+<key> combos (mapping them to terminal control codes) and
+   * stops their propagation, so document-level hotkeys never see them. Flag the
+   * few app shortcuts that should win over the terminal here; everything else
+   * keeps reaching the terminal so essential control keys (Ctrl+C/D/L/…) work.
+   * See `TerminalKeyboardBridge`.
+   */
+  overrideTerminalFocus?: boolean;
 }
 
 export type TabNavigationDirection = 'next' | 'previous';
@@ -101,6 +110,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'Command Palette',
     description: 'Open the command palette to quickly search and navigate',
     category: 'Navigation',
+    overrideTerminalFocus: true,
   },
   settings: {
     defaultHotkey: 'Mod+,',
