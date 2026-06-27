@@ -508,6 +508,7 @@ export function ChatComposer({
   className,
 }: ChatComposerProps) {
   const editorRef = useRef<PromptEditorRef | null>(null);
+  const attachmentsRef = useRef(attachments);
   const [dragActive, setDragActive] = useState(false);
 
   // Retain the last notice so its content stays rendered while the band
@@ -517,18 +518,17 @@ export function ChatComposer({
     if (notice) setRetainedNotice(notice);
   }, [notice]);
 
+  attachmentsRef.current = attachments;
+
   // Revoke object URLs for image attachments on unmount to avoid leaks.
   useEffect(() => {
-    const current = attachments;
     return () => {
-      current.forEach((att) => {
+      attachmentsRef.current.forEach((att) => {
         if (att.kind === 'image' && att.previewUrl) {
           URL.revokeObjectURL(att.previewUrl);
         }
       });
     };
-    // Intentionally omit `attachments` from deps — only run on unmount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = (text: string) => {

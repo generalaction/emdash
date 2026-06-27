@@ -11,6 +11,7 @@
  */
 
 import { Mention as TipTapMention } from '@tiptap/extension-mention';
+import type { MentionNodeAttrs } from '@tiptap/extension-mention';
 import { PluginKey } from '@tiptap/pm/state';
 import type { SuggestionOptions } from '@tiptap/suggestion';
 import type { CommandItem } from '../types';
@@ -18,7 +19,7 @@ import type { CommandItem } from '../types';
 const slashCommandPluginKey = new PluginKey('slashCommand');
 
 export function buildSlashCommandExtension(
-  suggestion: Partial<SuggestionOptions<CommandItem, any>>,
+  suggestion: Partial<SuggestionOptions<CommandItem, MentionNodeAttrs>>,
   onExecute: (item: CommandItem) => void
 ) {
   return TipTapMention.extend({
@@ -72,7 +73,7 @@ export function buildSlashCommandExtension(
             .run();
         }
       },
-      ...(suggestion as Partial<SuggestionOptions<any, any>>),
+      ...(suggestion as Partial<SuggestionOptions<unknown, MentionNodeAttrs>>),
     },
   });
 }

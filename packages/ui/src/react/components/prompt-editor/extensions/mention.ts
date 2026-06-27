@@ -14,16 +14,16 @@
  * callback injected by PromptEditor.
  */
 
-import { Mention as TipTapMention } from '@tiptap/extension-mention';
+import { Mention as TipTapMention, type MentionNodeAttrs } from '@tiptap/extension-mention';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import type { SuggestionOptions } from '@tiptap/suggestion';
 import { MentionPill } from '../mention-pill';
 import type { MentionItem } from '../types';
 
 export function buildMentionExtension(
-  // Use `any` for the Selected generic so our richer MentionItem attrs don't conflict
+  // Use a generic Selected type so our richer MentionItem attrs don't conflict
   // with TipTap's narrower built-in MentionNodeAttrs type.
-  suggestion: Partial<SuggestionOptions<MentionItem, any>>
+  suggestion: Partial<SuggestionOptions<MentionItem, MentionNodeAttrs>>
 ) {
   return TipTapMention.extend({
     name: 'mention',
@@ -60,11 +60,11 @@ export function buildMentionExtension(
         `@${(node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? ''}`,
       ];
     },
-    // Cast to `any` to bypass the MentionNodeAttrs constraint; we control the attrs shape.
+    // Cast to bypass the MentionNodeAttrs constraint; we control the attrs shape.
     suggestion: {
       char: '@',
       allowSpaces: false,
-      ...(suggestion as Partial<SuggestionOptions<any, any>>),
+      ...(suggestion as Partial<SuggestionOptions<unknown, MentionNodeAttrs>>),
     },
   });
 }

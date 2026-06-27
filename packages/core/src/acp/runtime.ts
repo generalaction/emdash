@@ -1,4 +1,4 @@
-import { Logger } from '@emdash/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
 import type { Result } from '@emdash/shared/result';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AgentUpdate } from './agent-update';

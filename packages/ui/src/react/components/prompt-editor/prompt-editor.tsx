@@ -14,6 +14,7 @@
  */
 
 import { cx } from '@styles/utilities/cx';
+import type { MentionNodeAttrs } from '@tiptap/extension-mention';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
@@ -95,32 +96,32 @@ function emptySuggestion<T>(): SuggestionState<T> {
 
 /**
  * Build the `render` factory required by @tiptap/suggestion.
- * We use `any` for the generic params because the popup only needs
+ * The popup only needs
  * `items`, `clientRect`, and the `command` callback — all of which
  * are invariant regardless of whether we're rendering mentions or commands.
  */
-function makeSuggestionRender<T>(
+function makeSuggestionRender<T, Selected>(
   setSuggestion: React.Dispatch<React.SetStateAction<SuggestionState<T>>>,
   popupRef: React.RefObject<ComboboxPopupHandle | null>
 ): () => {
-  onStart?: (props: SuggestionProps<any, any>) => void;
-  onUpdate?: (props: SuggestionProps<any, any>) => void;
+  onStart?: (props: SuggestionProps<T, Selected>) => void;
+  onUpdate?: (props: SuggestionProps<T, Selected>) => void;
   onExit?: () => void;
   onKeyDown?: (props: SuggestionKeyDownProps) => boolean;
 } {
   return () => ({
-    onStart(props: SuggestionProps<any, any>) {
+    onStart(props: SuggestionProps<T, Selected>) {
       setSuggestion({
         items: props.items as T[],
         rect: props.clientRect?.() ?? null,
-        onSelect: (item) => props.command(item),
+        onSelect: (item) => props.command(item as unknown as Selected),
       });
     },
-    onUpdate(props: SuggestionProps<any, any>) {
+    onUpdate(props: SuggestionProps<T, Selected>) {
       setSuggestion({
         items: props.items as T[],
         rect: props.clientRect?.() ?? null,
-        onSelect: (item) => props.command(item),
+        onSelect: (item) => props.command(item as unknown as Selected),
       });
     },
     onExit() {
@@ -189,7 +190,10 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
       if (provider) return provider.search(query);
       return (await queryMentionsRef.current?.(query)) ?? [];
     },
-    render: makeSuggestionRender<MentionItem>(setMentionSuggestion, mentionPopupRef),
+    render: makeSuggestionRender<MentionItem, MentionNodeAttrs>(
+      setMentionSuggestion,
+      mentionPopupRef
+    ),
     command({ editor, range, props }) {
       const item = props as unknown as MentionItem;
       editor
@@ -216,7 +220,10 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     {
       items: async ({ query }: { query: string }) =>
         (await queryCommandsRef.current?.(query)) ?? [],
-      render: makeSuggestionRender<CommandItem>(setCommandSuggestion, commandPopupRef),
+      render: makeSuggestionRender<CommandItem, MentionNodeAttrs>(
+        setCommandSuggestion,
+        commandPopupRef
+      ),
     },
     (item: CommandItem) => {
       onCommandRef.current?.(item);

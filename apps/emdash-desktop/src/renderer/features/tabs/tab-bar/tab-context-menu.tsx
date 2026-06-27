@@ -1,4 +1,4 @@
-import { detectPlatform, parseHotkey } from '@tanstack/react-hotkeys';
+import type { Hotkey } from '@tanstack/react-hotkeys';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
 import type { TabHost } from '@renderer/features/tabs/core/tab-host';
@@ -14,8 +14,6 @@ import { BoundShortcut, Shortcut } from '@renderer/lib/ui/shortcut';
 import type { ShortcutSettingsKey } from '@shared/shortcuts';
 import type { TabCommand } from './tab-commands';
 
-const _PLATFORM = detectPlatform();
-
 /** Renders a shortcut hint that works with both a settings key and a raw getter. */
 function CmdShortcut({
   shortcut,
@@ -25,9 +23,7 @@ function CmdShortcut({
   if (!shortcut) return null;
   if (typeof shortcut === 'function') {
     const raw = shortcut();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parsed = raw ? (parseHotkey(raw, _PLATFORM) as any) : null;
-    return parsed ? <Shortcut hotkey={parsed} className="ml-auto" /> : null;
+    return raw ? <Shortcut hotkey={raw as Hotkey} className="ml-auto" /> : null;
   }
   return <BoundShortcut settingsKey={shortcut} className="ml-auto" />;
 }

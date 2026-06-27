@@ -14,13 +14,12 @@ function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [resolved, setResolved] = useState('');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ref.current) {
       const val = getComputedStyle(ref.current).backgroundColor;
       if (val !== resolved) setResolved(val);
     }
-  });
+  }, [resolved]);
 
   const isStep9 = step === 9;
 
@@ -60,13 +59,12 @@ function ContrastSwatch({ scale }: { scale: ScaleName }) {
   const ref = useRef<HTMLDivElement>(null);
   const [resolved, setResolved] = useState('');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ref.current) {
       const val = getComputedStyle(ref.current).backgroundColor;
       if (val !== resolved) setResolved(val);
     }
-  });
+  }, [resolved]);
 
   return (
     <Box

@@ -10,14 +10,11 @@
  *   // → 'base active a b'
  */
 
-// Accept any value; only strings (and nested arrays of CxArgs) are emitted.
+// Accept unknown values; only strings (and nested arrays of args) are emitted.
 // Functions, objects, and other non-string values are silently ignored so cx()
 // can be used in contexts where a className prop may be a render callback
 // (e.g. @base-ui/react components pass (state) => string as className).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type CxArg = any;
-
-export function cx(...args: CxArg[]): string {
+export function cx(...args: unknown[]): string {
   const result: string[] = [];
   for (const arg of args) {
     if (!arg) continue;

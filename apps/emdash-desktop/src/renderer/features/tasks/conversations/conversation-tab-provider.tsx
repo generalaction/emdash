@@ -78,8 +78,8 @@ export const conversationTabProvider: TabProvider<
   commands: {
     rename: {
       label: 'Rename',
-      exec: (resource: ConversationTabResource, name?: string) => {
-        if (name) resource.rename(name);
+      exec: (resource: ConversationTabResource, name?: unknown) => {
+        if (typeof name === 'string' && name) resource.rename(name);
       },
     },
   },

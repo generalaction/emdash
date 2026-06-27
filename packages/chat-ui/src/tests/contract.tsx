@@ -67,8 +67,8 @@ export function makeContractCtx(opts: {
  * inverted-mode composites (thinking / plan / file-op) treat isCollapsed=true as
  * "expanded".
  */
-export async function renderAndMeasureUnit<D>(
-  def: UnitDef<D, any>,
+export async function renderAndMeasureUnit<D, V extends Record<string, number>>(
+  def: UnitDef<D, V>,
   data: D,
   ctx: ContractCtx
 ): Promise<{ computed: number; dom: number }> {
@@ -77,7 +77,8 @@ export async function renderAndMeasureUnit<D>(
     ...ctx,
     expanded: ctx.isCollapsed,
   };
-  const computed = def.measure(data, measureCtx, def.vars ?? {});
+  const vars = (def.vars ?? {}) as V;
+  const computed = def.measure(data, measureCtx, vars);
   const renderCtx: RenderCtx = {
     viewState: { isCollapsed: ctx.isCollapsed },
     measureCtx: () => measureCtx,
@@ -90,14 +91,13 @@ export async function renderAndMeasureUnit<D>(
   let dispose: (() => void) | undefined;
 
   try {
-    // oxlint-disable-next-line typescript/no-explicit-any -- JSX typed per-def; safe at boundary
-    const Comp = def.Render as (p: any) => JSX.Element;
+    const Comp = def.Render as (p: { data: D; ctx: RenderCtx; vars: V }) => JSX.Element;
     const caches = ctx.caches;
     dispose = render(
       () => (
         <ThemeContext.Provider value={() => ctx.theme}>
           <CachesContext.Provider value={caches}>
-            <Comp data={data} ctx={renderCtx} vars={def.vars ?? {}} />
+            <Comp data={data} ctx={renderCtx} vars={vars} />
           </CachesContext.Provider>
         </ThemeContext.Provider>
       ),
