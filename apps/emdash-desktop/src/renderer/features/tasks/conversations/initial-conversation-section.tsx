@@ -14,11 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/lib/ui/select';
-import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { providerSupportsAcp } from '@shared/core/agents/agent-acp';
 import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { LinkedIssue } from '@shared/core/linked-issue';
@@ -43,9 +41,6 @@ export type InitialConversationState = {
   model: string | null;
   setModel: (model: string | null) => void;
   connectionId?: string;
-  /** When true, the conversation will use the ACP Chat UI instead of PTY. */
-  useAcpChat: boolean;
-  setUseAcpChat: (v: boolean) => void;
 };
 
 interface InitialConversationStateOptions {
@@ -65,7 +60,6 @@ export function useInitialConversationState(
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [model, setModel] = useState<string | null>(null);
-  const [useAcpChat, setUseAcpChat] = useState(false);
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
   const [prevProviderId, setPrevProviderId] = useState(providerId);
@@ -81,11 +75,9 @@ export function useInitialConversationState(
     setIssueContext(null);
     setAutoApproveOverride(null);
     setModel(null);
-    setUseAcpChat(false);
   } else if (providerChanged) {
     setPrevProviderId(providerId);
     setModel(null);
-    if (providerId && !providerSupportsAcp(providerId)) setUseAcpChat(false);
   }
 
   const autoApproveSupported = providerId ? providerSupportsAutoApprove(providerId) : false;
@@ -104,8 +96,6 @@ export function useInitialConversationState(
     model,
     setModel,
     connectionId,
-    useAcpChat,
-    setUseAcpChat,
   };
 }
 
@@ -153,15 +143,10 @@ export function InitialConversationField({
   }, [includeIssueContextByDefault, linkedIssue?.identifier, linkedIssue?.provider]);
 
   const canToggleAutoApprove = state.provider ? providerSupportsAutoApprove(state.provider) : false;
-  const canToggleAcpChat = state.provider ? providerSupportsAcp(state.provider) : false;
 
   const handleToggleAutoApprove = () => {
     if (!state.provider) return;
     state.setAutoApprove(!state.autoApprove);
-  };
-
-  const handleToggleAcpChat = () => {
-    state.setUseAcpChat(!state.useAcpChat);
   };
 
   const handleActionClick = async (text: string) => {
@@ -242,18 +227,6 @@ export function InitialConversationField({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Auto approve</TooltipContent>
-              </Tooltip>
-            ) : null}
-            {canToggleAcpChat ? (
-              <Tooltip>
-                <TooltipTrigger>
-                  <Switch
-                    checked={state.useAcpChat}
-                    onCheckedChange={handleToggleAcpChat}
-                    className="scale-75"
-                  />
-                </TooltipTrigger>
-                <TooltipContent>ACP Chat UI</TooltipContent>
               </Tooltip>
             ) : null}
           </div>

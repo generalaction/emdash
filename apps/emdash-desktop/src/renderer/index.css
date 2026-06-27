@@ -9,7 +9,9 @@
 @custom-variant emdark (&:is(.emdark *));
 
 @theme inline {
-  --font-sans: 'Inter Variable', sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
+    'Droid Sans', 'Helvetica Neue', sans-serif;
   --font-mono: Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
   --text-code: 13px;

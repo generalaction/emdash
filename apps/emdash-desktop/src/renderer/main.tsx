@@ -1,12 +1,7 @@
 import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
 import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import '@fontsource-variable/inter/index.css';
-import '@fontsource-variable/jetbrains-mono/index.css';
 import './index.css';
-import '@emdash/ui/style.css';
-import '@emdash/chat-ui/style.css';
-import '@emdash/ui/react/chat-ui/chat-theme.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
@@ -23,15 +18,10 @@ import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { App } from './App';
-import { initSharedChatContext } from './lib/chat/shared-chat-context';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
 
 async function bootstrap() {
-  // Create the process-long ChatContext once at startup so its font-load hook
-  // fires here (fonts are imported above) rather than on first conversation open.
-  initSharedChatContext();
-
   // Wire invalidation bridges so FS and git events flow into the model registry.
   wireModelRegistryInvalidation(modelRegistry);
   wirePrCacheInvalidation();
