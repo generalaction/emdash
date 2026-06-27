@@ -97,3 +97,4 @@ apps/*/tooling/node-deps/node_modules/
 # Nx local cache and workspace data
 .nx/cache
 .nx/workspace-data
+.amp/plugins/emdash-hook.ts
