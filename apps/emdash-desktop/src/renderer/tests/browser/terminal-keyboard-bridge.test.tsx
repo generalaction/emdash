@@ -54,6 +54,7 @@ describe('TerminalKeyboardBridge', () => {
         // event during the capture phase.
         preventDefault: false,
         stopPropagation: false,
+        conflictBehavior: 'allow',
       })
     );
   }
@@ -94,9 +95,10 @@ describe('TerminalKeyboardBridge', () => {
 
     xtermInput.focus();
     expect(document.activeElement).toBe(xtermInput);
-    pressKey(xtermInput, 'k');
+    const event = pressKey(xtermInput, 'k');
 
     expect(paletteSpy).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
     // The bridge stops propagation so the manager's bubble listener doesn't
     // double-dispatch and xterm never consumes the key.
     expect(xtermSpy).not.toHaveBeenCalled();
@@ -104,6 +106,24 @@ describe('TerminalKeyboardBridge', () => {
 
     xtermInput.removeEventListener('keydown', xtermSpy);
     document.removeEventListener('keydown', bubbleSpy);
+  });
+
+  it('fires every matching override shortcut registration from a focused terminal', async () => {
+    const firstSpy = vi.fn();
+    const secondSpy = vi.fn();
+    const xtermSpy = vi.fn((event: KeyboardEvent) => event.stopPropagation());
+    registerHotkey('Mod+K', firstSpy);
+    registerHotkey('Mod+K', secondSpy);
+    xtermInput.addEventListener('keydown', xtermSpy);
+
+    xtermInput.focus();
+    pressKey(xtermInput, 'k');
+
+    expect(firstSpy).toHaveBeenCalledTimes(1);
+    expect(secondSpy).toHaveBeenCalledTimes(1);
+    expect(xtermSpy).not.toHaveBeenCalled();
+
+    xtermInput.removeEventListener('keydown', xtermSpy);
   });
 
   it('stays out of the way when no terminal is focused', async () => {

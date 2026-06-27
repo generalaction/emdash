@@ -55,14 +55,17 @@ export function TerminalKeyboardBridge() {
       if (!isTerminalFocused()) return;
 
       const handled = dispatchMatchingHotkeys(e, {
-        dispatch: 'first',
+        dispatch: 'all',
         filter: (registration) =>
           overrideHotkeys.has(normalizeHotkey(registration.hotkey, platform)),
       });
 
       // Prevent the event from reaching xterm and skip the TanStack bubbling
       // listener, which would otherwise double-dispatch the same shortcut.
-      if (handled) e.stopImmediatePropagation();
+      if (handled) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
     };
 
     document.addEventListener('keydown', handler, { capture: true });
