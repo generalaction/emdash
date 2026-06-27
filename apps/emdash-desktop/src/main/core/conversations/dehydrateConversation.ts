@@ -1,3 +1,5 @@
+import { events } from '@main/lib/events';
+import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import { resolveTask } from '../projects/utils';
 
 export async function dehydrateConversation(
@@ -6,5 +8,8 @@ export async function dehydrateConversation(
   conversationId: string
 ): Promise<void> {
   const task = resolveTask(projectId, taskId);
-  await task?.conversations.detachSession(conversationId);
+  const terminatedAgent = await task?.conversations.detachSession(conversationId);
+  if (terminatedAgent) {
+    events.emit(agentSessionExitedChannel, { conversationId, taskId });
+  }
 }

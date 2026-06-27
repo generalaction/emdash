@@ -306,13 +306,15 @@ export class SshConversationProvider implements ConversationProvider {
     }
   }
 
-  async detachSession(conversationId: string): Promise<void> {
+  async detachSession(conversationId: string): Promise<boolean> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     this.detachPty(sessionId);
-    if (!this.tmux) {
-      this.knownSessionIds.delete(sessionId);
-      this.supervisor.forget(sessionId);
+    if (this.tmux) {
+      return false;
     }
+    this.knownSessionIds.delete(sessionId);
+    this.supervisor.forget(sessionId);
+    return true;
   }
 
   async stopSession(conversationId: string): Promise<void> {
