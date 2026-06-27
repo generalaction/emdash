@@ -132,14 +132,14 @@ describe('LocalPtySession', () => {
     expect(mockProc.write).toHaveBeenCalledWith('a\x1b[A');
   });
 
-  it('write() falls back to the original input when Windows mouse injection fails', async () => {
+  it('write() treats SGR mouse reports as undelivered when Windows mouse injection fails', async () => {
     setPlatform('win32');
     vi.mocked(windowsInputInjector.injectText).mockResolvedValue(false);
 
     pty.write('a\x1b[<0;10;10M\x1b[A');
     await flushWindowsWrite();
 
-    expect(mockProc.write).toHaveBeenCalledWith('a\x1b[<0;10;10M\x1b[A');
+    expect(mockProc.write).toHaveBeenCalledWith('a\x1b[A');
   });
 
   it('write() injects binary SGR wheel reports into the Windows console input queue', async () => {

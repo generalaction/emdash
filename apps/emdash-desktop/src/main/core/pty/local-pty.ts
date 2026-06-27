@@ -87,13 +87,12 @@ export class LocalPtySession implements Pty {
       return;
     }
 
-    let injected = false;
     try {
-      injected = await this.windowsInputInjector.injectText(this.proc.pid, mouseInput);
+      await this.windowsInputInjector.injectText(this.proc.pid, mouseInput);
     } catch (error) {
       log.warn('LocalPtySession: Windows mouse injection failed', { error: String(error) });
     }
-    const passthroughInput = injected ? stripSgrMouseSequences(data) : data;
+    const passthroughInput = stripSgrMouseSequences(data);
     if (passthroughInput.length > 0) {
       this.proc.write(passthroughInput);
     }
