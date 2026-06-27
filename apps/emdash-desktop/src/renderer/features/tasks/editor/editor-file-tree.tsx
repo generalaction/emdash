@@ -10,6 +10,7 @@ import {
   isChainExpanded,
   type TreeRow,
 } from '@renderer/features/tasks/editor/stores/files-store-utils';
+import { useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -34,7 +35,6 @@ import {
 } from '@renderer/lib/ui/context-menu';
 import { cn } from '@renderer/utils/utils';
 import { basenameFromAnyPath } from '@shared/path-name';
-import { activeFilePath as getActiveFilePath } from './pane-selectors';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -140,10 +140,11 @@ const FileTreeRow = observer(function FileTreeRow({
   const workspaceId = useWorkspaceId();
   const workspace = useWorkspace();
   const editorView = taskView.editorView;
+  const { isActive, open: openFile } = useTabSelection('file', row.node.path);
 
   const node = row.node;
   const isExpanded = isChainExpanded(row.chain, editorView.expandedPaths);
-  const isSelected = getActiveFilePath(taskView.activePane) === node.path;
+  const isSelected = isActive;
   const fileStatus = workspace.gitWorktree.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = row.renderDepth * 12 + 4;
   const targetDirPath = node.type === 'directory' ? node.path : (node.parentPath ?? '');
@@ -172,14 +173,14 @@ const FileTreeRow = observer(function FileTreeRow({
     if (node.type === 'directory') {
       toggleExpand();
     } else {
-      taskView.activePane.open('file', { path: node.path, preview: true });
+      openFile({ path: node.path }, { preview: true });
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (node.type === 'file') {
-      taskView.activePane.open('file', { path: node.path, preview: false });
+      openFile({ path: node.path }, { preview: false });
     }
   };
 
@@ -189,7 +190,7 @@ const FileTreeRow = observer(function FileTreeRow({
       if (node.type === 'directory') {
         toggleExpand();
       } else {
-        taskView.activePane.open('file', { path: node.path, preview: true });
+        openFile({ path: node.path }, { preview: true });
       }
     }
   };

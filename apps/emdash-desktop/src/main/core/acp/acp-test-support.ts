@@ -1,0 +1,289 @@
+/**
+ * Reusable test helpers for AcpSessionManager/AcpSessionRuntime desktop tests.
+ *
+ * These mirror the core acp-test-support.ts and share the same interfaces via
+ * @emdash/core/acp, but are maintained separately to avoid bundling vitest
+ * dependencies from the core package.
+ */
+
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import type { Client } from '@agentclientprotocol/sdk';
+import type {
+  AcpFs,
+  AcpProcessHandle,
+  AcpProcessHost,
+  AcpRuntimeListener,
+  AcpSessionRuntimeDeps,
+  AcpStartInput,
+  AcpTerminalExit,
+  AcpTurn,
+  SessionSnapshot,
+} from '@emdash/core/acp';
+import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
+import { noopLogger } from '@emdash/shared/logger';
+import { vi } from 'vitest';
+import type { AcpSessionManagerDeps } from './acp-session-manager';
+
+export type { AcpSessionManagerDeps };
+
+// ---------------------------------------------------------------------------
+// Recording listener (replaces events mock pattern)
+// ---------------------------------------------------------------------------
+
+export function createRecordingListener() {
+  const snapshots: { conversationId: string; snapshot: SessionSnapshot }[] = [];
+  const updates: { conversationId: string; turnId: string; seq: number }[] = [];
+  const turns: { conversationId: string; turn: AcpTurn }[] = [];
+  const closed: { conversationId: string; taskId: string; exitCode: number | null }[] = [];
+  const agentEvents: { type: string; conversationId: string }[] = [];
+  const terminalCreated: {
+    conversationId: string;
+    terminalId: string;
+    command: string;
+    args: string[];
+    cwd: string;
+  }[] = [];
+  const terminalOutput: {
+    conversationId: string;
+    terminalId: string;
+    chunk: string;
+    truncated: boolean;
+  }[] = [];
+  const terminalExit: {
+    conversationId: string;
+    terminalId: string;
+    exitStatus: AcpTerminalExit;
+  }[] = [];
+  const terminalReleased: { conversationId: string; terminalId: string }[] = [];
+
+  const listener: AcpRuntimeListener = {
+    onSnapshot: (e) => snapshots.push(e),
+    onSessionUpdate: (e) => updates.push(e),
+    onTurnCommitted: (e) => turns.push(e),
+    onClosed: (e) => closed.push(e),
+    onAgentEvent: (e) => agentEvents.push(e),
+    onTerminalCreated: (e) => terminalCreated.push(e),
+    onTerminalOutput: (e) => terminalOutput.push(e),
+    onTerminalExit: (e) => terminalExit.push(e),
+    onTerminalReleased: (e) => terminalReleased.push(e),
+  };
+
+  return {
+    listener,
+    snapshots,
+    updates,
+    turns,
+    closed,
+    agentEvents,
+    terminalCreated,
+    terminalOutput,
+    terminalExit,
+    terminalReleased,
+    clear() {
+      snapshots.length = 0;
+      updates.length = 0;
+      turns.length = 0;
+      closed.length = 0;
+      agentEvents.length = 0;
+      terminalCreated.length = 0;
+      terminalOutput.length = 0;
+      terminalExit.length = 0;
+      terminalReleased.length = 0;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// FakeAcpAgent
+// ---------------------------------------------------------------------------
+
+export class FakeAcpAgent implements AcpAgentApi {
+  initialize = vi.fn().mockResolvedValue({ protocolVersion: 1 });
+  newSession = vi.fn().mockResolvedValue({ sessionId: 'session-1' });
+  loadSession = vi.fn().mockResolvedValue({});
+  closeSession = vi.fn().mockResolvedValue({});
+  cancel = vi.fn().mockResolvedValue({});
+  prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+  setSessionConfigOption = vi.fn().mockResolvedValue({ configOptions: [] });
+  setSessionMode = vi.fn().mockResolvedValue({});
+
+  capturedClient: Client | null = null;
+
+  readonly behavior: Pick<IAcpBehavior, 'connect'> = {
+    connect: (_io, toClient) => {
+      this.capturedClient = toClient(this as never);
+      return this;
+    },
+  };
+
+  reset() {
+    this.initialize = vi.fn().mockResolvedValue({ protocolVersion: 1 });
+    this.newSession = vi.fn().mockResolvedValue({ sessionId: 'session-1' });
+    this.loadSession = vi.fn().mockResolvedValue({});
+    this.closeSession = vi.fn().mockResolvedValue({});
+    this.cancel = vi.fn().mockResolvedValue({});
+    this.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+    this.setSessionConfigOption = vi.fn().mockResolvedValue({ configOptions: [] });
+    this.setSessionMode = vi.fn().mockResolvedValue({});
+    this.capturedClient = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FakeAcpProcessHandle
+// ---------------------------------------------------------------------------
+
+export class FakeAcpProcessHandle extends EventEmitter implements AcpProcessHandle {
+  readonly stdin = new PassThrough();
+  readonly stdout = new PassThrough();
+  readonly stderr = new PassThrough();
+  exitCode: number | null = null;
+  readonly kill = vi.fn<(signal?: NodeJS.Signals) => void>();
+
+  onExit(cb: (code: number | null) => void): void {
+    this.on('exit', (code: number | null) => cb(code));
+  }
+
+  onError(cb: (err: Error) => void): void {
+    this.on('error', cb);
+  }
+
+  emitExit(code: number | null = null): void {
+    this.exitCode = code;
+    this.emit('exit', code);
+  }
+
+  emitError(err: Error): void {
+    this.emit('error', err);
+  }
+}
+
+export { FakeAcpProcessHandle as FakeChildProcess };
+
+// ---------------------------------------------------------------------------
+// FakeAcpProcessHost
+// ---------------------------------------------------------------------------
+
+export const fakeAcpFs: AcpFs = {
+  readFile: vi.fn().mockResolvedValue(''),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
+};
+
+export class FakeAcpProcessHost implements AcpProcessHost {
+  readonly fs: AcpFs = fakeAcpFs;
+  private readonly handles: FakeAcpProcessHandle[] = [];
+
+  resolveSpawnContext = vi.fn().mockResolvedValue({
+    cli: '/usr/local/bin/fake-agent',
+    agentEnv: {},
+  });
+
+  async spawn(_spec: {
+    command: string;
+    args: string[];
+    env: Record<string, string>;
+    cwd: string;
+  }): Promise<AcpProcessHandle> {
+    const handle = new FakeAcpProcessHandle();
+    this.handles.push(handle);
+    return handle;
+  }
+
+  get lastHandle(): FakeAcpProcessHandle {
+    const h = this.handles.at(-1);
+    if (!h) throw new Error('FakeAcpProcessHost: no handle spawned yet');
+    return h;
+  }
+
+  get allHandles(): FakeAcpProcessHandle[] {
+    return this.handles;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// makeAcpHarness
+// ---------------------------------------------------------------------------
+
+export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}) {
+  const recording = createRecordingListener();
+  const agent = new FakeAcpAgent();
+  const fakeHost = new FakeAcpProcessHost();
+
+  const deps: AcpSessionRuntimeDeps = {
+    resolveAcp: () => ({
+      behavior: {
+        buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
+        connect: agent.behavior.connect,
+      },
+    }),
+    host: fakeHost,
+    persistSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+    listener: recording.listener,
+    logger: noopLogger,
+    ...depOverrides,
+  };
+
+  return {
+    deps,
+    fakeHost,
+    recording,
+    get lastChild(): FakeAcpProcessHandle {
+      return fakeHost.lastHandle;
+    },
+    get children(): FakeAcpProcessHandle[] {
+      return fakeHost.allHandles;
+    },
+    agent,
+    client(): Client {
+      if (!agent.capturedClient) {
+        throw new Error('capturedClient is null — has start() been called?');
+      }
+      return agent.capturedClient;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// makeStartInput factory
+// ---------------------------------------------------------------------------
+
+export function makeStartInput(
+  overrides: Partial<AcpStartInput> & { conversationId?: string } = {}
+): AcpStartInput {
+  return {
+    conversationId: overrides.conversationId ?? 'conv-1',
+    projectId: 'proj-1',
+    taskId: 'task-1',
+    providerId: 'claude',
+    workspaceId: 'ws-1',
+    cwd: '/tmp/workspace',
+    sessionId: null,
+    model: null,
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Conversation factory (for desktop AcpSessionManager tests)
+// ---------------------------------------------------------------------------
+
+import type { Conversation } from '@shared/core/conversations/conversations';
+
+export function makeConversation(
+  overrides: { conversationId?: string; sessionId?: string; model?: string } = {}
+): Conversation {
+  return {
+    id: overrides.conversationId ?? 'conv-1',
+    providerId: 'claude',
+    projectId: 'proj-1',
+    taskId: 'task-1',
+    sessionId: overrides.sessionId,
+    model: overrides.model,
+    type: 'acp',
+    title: 'Test Chat',
+    lastInteractedAt: null,
+    isInitialConversation: false,
+  };
+}

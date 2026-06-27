@@ -40,3 +40,75 @@ export function measureDimensions(
     rows: Math.max(MINIMUM_ROWS, Math.floor(height / cellHeight)),
   };
 }
+
+// ── Standalone cell metrics ────────────────────────────────────────────────────
+
+interface CellMetricsCacheEntry {
+  fontFamily: string;
+  fontSize: number;
+  dpr: number;
+  width: number;
+  height: number;
+}
+
+let _cellCache: CellMetricsCacheEntry | null = null;
+
+/**
+ * Measure terminal cell width and height from font settings alone, without a
+ * mounted xterm instance. Uses a canvas to replicate xterm's own font
+ * measurement, caching the result by (fontFamily, fontSize, devicePixelRatio).
+ *
+ * Returns null when called outside a browser context (e.g. SSR/tests) or when
+ * canvas is unavailable. Used by the per-pane resize controller to drive PTY
+ * resizes even when no terminal is mounted in a pane.
+ */
+export function measureTerminalCell(
+  fontFamily: string,
+  fontSize: number
+): { width: number; height: number } | null {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return null;
+
+  const dpr = window.devicePixelRatio ?? 1;
+  if (
+    _cellCache &&
+    _cellCache.fontFamily === fontFamily &&
+    _cellCache.fontSize === fontSize &&
+    _cellCache.dpr === dpr
+  ) {
+    return { width: _cellCache.width, height: _cellCache.height };
+  }
+
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.font = `${fontSize}px ${fontFamily}`;
+
+    // Width: measure 'W' (widest common ASCII character), matching xterm's approach.
+    const cellWidth = Math.ceil(ctx.measureText('W').width);
+
+    // Height: use bounding box metrics like xterm's CanvasRenderer does.
+    // Fall back to fontSize when actualBoundingBox metrics are unavailable.
+    const mMetrics = ctx.measureText('M');
+    const charHeight =
+      typeof mMetrics.actualBoundingBoxAscent === 'number' &&
+      typeof mMetrics.actualBoundingBoxDescent === 'number' &&
+      mMetrics.actualBoundingBoxAscent + mMetrics.actualBoundingBoxDescent > 0
+        ? mMetrics.actualBoundingBoxAscent + mMetrics.actualBoundingBoxDescent
+        : fontSize;
+    const cellHeight = Math.ceil(charHeight);
+
+    if (cellWidth === 0 || cellHeight === 0) return null;
+
+    _cellCache = { fontFamily, fontSize, dpr, width: cellWidth, height: cellHeight };
+    return { width: cellWidth, height: cellHeight };
+  } catch {
+    return null;
+  }
+}
+
+/** Drop the standalone cell metrics cache (e.g. after a font or DPR change). */
+export function invalidateCellMetricsCache(): void {
+  _cellCache = null;
+}

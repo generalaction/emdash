@@ -89,7 +89,8 @@ export const noticeOverflowClip = style({ overflow: 'hidden' });
 
 export const composerShell = recipe({
   base: {
-    backgroundColor: vars.surfaceBaseEmphasis,
+    // Host-overridable via `--composer-bg`; defaults to the elevated surface.
+    backgroundColor: `var(--composer-bg, ${vars.surfaceBaseEmphasis})`,
     display: 'flex',
     flexDirection: 'column',
     gap: 0,

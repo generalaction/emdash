@@ -13,6 +13,7 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
+import { taskTabView } from './task-tab-registry';
 import { DraggableResizeHandle, TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
 
@@ -112,25 +113,27 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
   }, [taskView.isSidebarCollapsed, sidebarPanelRef]);
 
   return (
-    <ResizablePanelGroup orientation="horizontal" id="task-sidebar-layout">
-      <ResizablePanel id="task-main-area">
-        <TaskMainColumn />
-      </ResizablePanel>
-      <DraggableResizeHandle />
-      <ResizablePanel
-        id="task-sidebar"
-        panelRef={sidebarPanelRef}
-        defaultSize="25%"
-        minSize="280px"
-        maxSize="50%"
-        collapsible
-        collapsedSize={SIDEBAR_COLLAPSED_SIZE}
-        onResize={() =>
-          taskView.setSidebarCollapsed(sidebarPanelRef.current?.isCollapsed() ?? false)
-        }
-      >
-        <TaskSidebar />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+    <taskTabView.TabLayoutProvider layout={taskView.paneLayout}>
+      <ResizablePanelGroup orientation="horizontal" id="task-sidebar-layout">
+        <ResizablePanel id="task-main-area">
+          <TaskMainColumn />
+        </ResizablePanel>
+        <DraggableResizeHandle />
+        <ResizablePanel
+          id="task-sidebar"
+          panelRef={sidebarPanelRef}
+          defaultSize="25%"
+          minSize="280px"
+          maxSize="50%"
+          collapsible
+          collapsedSize={SIDEBAR_COLLAPSED_SIZE}
+          onResize={() =>
+            taskView.setSidebarCollapsed(sidebarPanelRef.current?.isCollapsed() ?? false)
+          }
+        >
+          <TaskSidebar />
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </taskTabView.TabLayoutProvider>
   );
 });

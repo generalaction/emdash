@@ -20,7 +20,14 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
   }, [pane.activeTabId]);
 
   return (
-    <div className="task-tab-bar flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
+    // Any click in the tab bar (select, close, pin, empty space) should return
+    // DOM focus to the active content. Child handlers run first; the rAF in
+    // focusActiveContent() defers the focus call until after they settle.
+    // The inline rename input stops propagation, so it keeps focus while editing.
+    <div
+      className="task-tab-bar flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary"
+      onClick={() => pane.focusActiveContent()}
+    >
       <div
         ref={scrollContainerRef}
         className="flex h-full w-full overflow-x-auto overflow-y-hidden"
@@ -28,7 +35,7 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
         {resolvedTabs.map((tab) => {
           if (!pane.registry.has(tab.kind)) return null;
           const def = pane.registry.get(tab.kind);
-          const TabItemComponent = def.TabItem;
+          const TabItemComponent = def.TabBarItem;
           return <TabItemComponent key={tab.tabId} tab={tab} host={pane} ctx={pane.ctx} />;
         })}
         <PaneDropZone paneId={paneId} />

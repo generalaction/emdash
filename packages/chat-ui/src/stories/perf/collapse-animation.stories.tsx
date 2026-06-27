@@ -12,13 +12,14 @@
  */
 
 import { DEFAULT_THEME } from '@core/theme';
-import { createTranscript } from '@state/transcript';
-import { createViewState } from '@state/view-state';
-import { createSignal, onMount } from 'solid-js';
+import { createSignal, onCleanup, onMount } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatRoot } from '@/ChatRoot';
+import { createChatContext } from '@/chat-context';
+import { createChatView } from '@/chat-view';
+import type { ChatView } from '@/chat-view';
 import { generateMockTranscript } from '@/mock-transcript';
 import type { ChatItem } from '@/model';
+import { createChatState } from '@/state/chat-state';
 import type { FrameStats } from '@/stories/_harness/perf-instrument';
 
 const meta: Meta = {
@@ -29,40 +30,50 @@ export default meta;
 
 type Story = StoryObj;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type AnimBenchResult = {
   collapseFrames: FrameStats;
   expandFrames: FrameStats;
 };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 /**
- * Record rAF frame deltas for `durationMs` by polling requestAnimationFrame.
- * Returns as soon as no frame has been queued for one idle period (≥ durationMs).
+ * Record rAF frame deltas until the animation settles (no new frame for
+ * `settleMs` after the last one), or until `maxMs` elapses.
  */
-function measureFrames(durationMs: number): Promise<FrameStats> {
+function measureFrames(settleMs = 350, maxMs = 2000): Promise<FrameStats> {
   return new Promise((resolve) => {
     const deltas: number[] = [];
     let last = performance.now();
-    let settled = false;
+    let raf = 0;
     let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    const deadline = performance.now() + maxMs;
+
+    function done() {
+      cancelAnimationFrame(raf);
+      if (settleTimer !== null) clearTimeout(settleTimer);
+      resolve(stats(deltas));
+    }
 
     function tick(now: number) {
       deltas.push(now - last);
       last = now;
       if (settleTimer !== null) clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => {
-        settled = true;
-        resolve(frameStats(deltas));
-      }, durationMs + 50);
-      if (!settled) requestAnimationFrame(tick);
+      if (now > deadline) {
+        done();
+        return;
+      }
+      settleTimer = setTimeout(done, settleMs);
+      raf = requestAnimationFrame(tick);
     }
 
-    requestAnimationFrame(tick);
+    raf = requestAnimationFrame(tick);
   });
 }
 
-function frameStats(deltas: number[]): FrameStats {
+function stats(deltas: number[]): FrameStats {
   if (deltas.length === 0) return { count: 0, avgMs: 0, p50Ms: 0, p95Ms: 0, maxMs: 0 };
   const sorted = [...deltas].sort((a, b) => a - b);
   const avg = sorted.reduce((s, x) => s + x, 0) / sorted.length;
@@ -79,11 +90,10 @@ function frameStats(deltas: number[]): FrameStats {
 // ── Bench component ───────────────────────────────────────────────────────────
 
 function CollapseAnimBench(props: { count: number; label: string }) {
-  const transcript = createTranscript();
-  const viewState = createViewState();
   const [result, setResult] = createSignal<string>('Mounting…');
+  let containerEl: HTMLDivElement | undefined;
+  let viewRef: ChatView | null = null;
 
-  // Build a list with a thinking block near the top as the toggle target.
   const TOGGLE_ID = 'bench-think';
   const baseItems = generateMockTranscript(props.count);
   const items: ChatItem[] = [
@@ -98,32 +108,46 @@ function CollapseAnimBench(props: { count: number; label: string }) {
     ...baseItems,
   ];
 
-  transcript.history.seed(items);
-  // Start expanded so the first action is collapse.
-  viewState.toggleCollapsed(TOGGLE_ID);
-
-  let scrollEl: HTMLDivElement | undefined;
-
   onMount(() => {
-    // Wait for two frames: first for the DOM to mount, second for the
-    // virtualizer to measure and set real heights.
+    if (!containerEl) return;
+
+    const ctx = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(ctx);
+
+    state.transcript.history.seed(items);
+
+    const view = createChatView({
+      context: ctx,
+      state,
+      parent: containerEl,
+      onViewMounted: (v) => {
+        viewRef = v;
+      },
+    });
+
+    onCleanup(() => {
+      view.dispose();
+      state.dispose();
+      ctx.dispose();
+    });
+
+    // Give the virtualizer two frames to measure and lay out rows.
     requestAnimationFrame(() => {
       requestAnimationFrame(async () => {
-        if (!scrollEl) return;
+        const v = viewRef;
+        if (!v) return;
 
         setResult('Collapsing…');
-        // Collapse → measure frame times while the tween runs.
-        const collapseFramesP = measureFrames(350);
-        viewState.toggleCollapsed(TOGGLE_ID);
-        const collapseFrames = await collapseFramesP;
+        const collapseP = measureFrames();
+        v.toggleCollapsed(TOGGLE_ID);
+        const collapseFrames = await collapseP;
 
-        // Wait for the item to be fully collapsed before expanding.
-        await new Promise((r) => setTimeout(r, 50));
+        await new Promise<void>((r) => setTimeout(r, 50));
 
         setResult('Expanding…');
-        const expandFramesP = measureFrames(350);
-        viewState.toggleCollapsed(TOGGLE_ID);
-        const expandFrames = await expandFramesP;
+        const expandP = measureFrames();
+        v.toggleCollapsed(TOGGLE_ID);
+        const expandFrames = await expandP;
 
         const bench: AnimBenchResult = { collapseFrames, expandFrames };
 
@@ -152,7 +176,7 @@ function CollapseAnimBench(props: { count: number; label: string }) {
     <div>
       <div
         ref={(el) => {
-          scrollEl = el;
+          containerEl = el;
         }}
         style={{
           width: '640px',
@@ -161,9 +185,7 @@ function CollapseAnimBench(props: { count: number; label: string }) {
           'border-radius': '8px',
           overflow: 'hidden',
         }}
-      >
-        <ChatRoot transcript={transcript} viewState={viewState} theme={DEFAULT_THEME} />
-      </div>
+      />
       <pre
         style={{
           'margin-top': '12px',

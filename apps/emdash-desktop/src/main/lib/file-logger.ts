@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { redactAll, serializeLogValue, stringifyLogValue } from '@emdash/shared/logger';
 import { createFileTransport, trimToLineBoundary } from '@emdash/shared/logger/transport';
 import { app } from 'electron';
@@ -18,6 +18,12 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 let logFilePath: string | undefined;
 
 export function initializeFileLogger() {
+  const override = process.env.EMDASH_LOG_FILE?.trim();
+  if (override) {
+    logFilePath = resolve(override);
+    return;
+  }
+
   const electronApp = app as Electron.App | undefined;
   if (!electronApp?.setAppLogsPath) return;
 

@@ -27,6 +27,8 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "^0.45.1",
+    "@agentclientprotocol/sdk": "^0.25.1",
     "@emdash/core": "workspace:*",
     "smol-toml": "^1.6.0",
     "zod": "^4.4.3"

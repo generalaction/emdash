@@ -48,3 +48,4 @@ export type {
   Lease,
   Unsubscribe,
 } from './lifecycle';
+export { LifecycleMap, type LifecycleHooks, type LifecycleStatus } from './lifecycle-map';

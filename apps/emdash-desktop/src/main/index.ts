@@ -43,6 +43,7 @@ import {
   registerRendererLogHandler,
 } from './lib/file-logger';
 import { log } from './lib/logger';
+import { withRpcLogging } from './lib/rpc-logging';
 import { telemetryService } from './lib/telemetry';
 import { rpcRouter } from './rpc';
 import { resolveUserEnv } from './utils/userEnv';
@@ -166,7 +167,7 @@ void app.whenReady().then(async () => {
     githubAuthServerAdapter.storeOAuthToken(payload)
   );
 
-  registerRPCRouter(rpcRouter, ipcMain);
+  registerRPCRouter(rpcRouter, app.isPackaged ? ipcMain : withRpcLogging(ipcMain));
 
   void reconcileResourceSampler();
 

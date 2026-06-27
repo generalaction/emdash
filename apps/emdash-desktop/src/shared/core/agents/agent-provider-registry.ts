@@ -94,6 +94,8 @@ export type AgentProviderDefinition = {
   invertInDark?: boolean;
   terminalOnly?: boolean;
   supportsHooks?: boolean;
+  /** When true, the provider supports the ACP (Agent Client Protocol) transport. */
+  acpCapable?: boolean;
 };
 
 export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
@@ -143,6 +145,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Claude Code',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'grok',
@@ -700,12 +703,6 @@ export function getInstallCommandForProvider(id: AgentProviderId): string | null
  */
 export function isValidProviderId(value: unknown): value is AgentProviderId {
   return typeof value === 'string' && AGENT_PROVIDER_IDS.includes(value as AgentProviderId);
-}
-
-export function isValidProviderSessionId(providerId: string, providerSessionId: string): boolean {
-  if (providerId === 'amp') return providerSessionId.startsWith('T-');
-  if (providerId === 'opencode') return providerSessionId.startsWith('ses');
-  return true;
 }
 
 export function getDescriptionForProvider(id: AgentProviderId): string | null {

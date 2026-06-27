@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AGENT_PROVIDERS, isValidProviderSessionId } from './agent-provider-registry';
+import { AGENT_PROVIDERS } from './agent-provider-registry';
 
 describe('AGENT_PROVIDERS', () => {
   it('does not use the Windows cmd shell name for Command Code detection', () => {
@@ -17,10 +17,5 @@ describe('AGENT_PROVIDERS', () => {
       sessionIdFlag: 'threads continue',
       sessionIdOnResumeOnly: true,
     });
-  });
-
-  it('validates Amp provider session ids as thread ids', () => {
-    expect(isValidProviderSessionId('amp', 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95')).toBe(true);
-    expect(isValidProviderSessionId('amp', 'not-a-thread')).toBe(false);
   });
 });
