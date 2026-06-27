@@ -7,11 +7,11 @@
  */
 
 import { DEFAULT_THEME } from '@core/theme';
-import { createTranscript } from '@state/transcript';
-import { createViewState } from '@state/view-state';
-import { For } from 'solid-js';
+import { For, onCleanup } from 'solid-js';
+import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
 import type { ChatItem, ToolStatus } from '@/model';
+import { createChatState } from '@/state/chat-state';
 import { storyViewport } from './chat-host.css';
 
 export type MatrixStatus = ToolStatus;
@@ -55,9 +55,13 @@ export function ToolStateMatrix(props: ToolStateMatrixProps) {
     <div style={{ display: 'flex', 'flex-direction': 'column', gap: '12px' }}>
       <For each={rows}>
         {(row) => {
-          const transcript = createTranscript();
-          const viewState = createViewState();
-          transcript.history.seed([props.build(row.status)]);
+          const ctx = createChatContext({ theme: DEFAULT_THEME });
+          const state = createChatState(ctx);
+          onCleanup(() => {
+            state.dispose();
+            ctx.dispose();
+          });
+          state.transcript.history.seed([props.build(row.status)]);
           return (
             <div>
               <div
@@ -72,13 +76,7 @@ export function ToolStateMatrix(props: ToolStateMatrixProps) {
                 {row.label}
               </div>
               <div class={storyViewport} style={{ width: `${width}px`, height: `${rowHeight}px` }}>
-                <ChatRoot
-                  transcript={transcript}
-                  viewState={viewState}
-                  theme={DEFAULT_THEME}
-                  stickToBottom
-                  pinUserMessages
-                />
+                <ChatRoot context={ctx} state={state} stickToBottom pinUserMessages />
               </div>
             </div>
           );

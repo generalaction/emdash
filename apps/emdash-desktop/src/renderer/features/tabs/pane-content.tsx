@@ -59,7 +59,7 @@ export const PaneContent = observer(function PaneContent({
           <div className="pointer-events-none absolute inset-0 z-20 bg-foreground/10" />
         )}
         {pane.registry.all().map((def) => {
-          const ContentComponent = def.Content;
+          const ContentComponent = def.TabContent;
           const isActive = activeKind === def.kind;
           return (
             <div

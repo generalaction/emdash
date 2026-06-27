@@ -27,14 +27,15 @@ describe('createChatCaches().computeDiff', () => {
     expect(a).not.toBe(b);
   });
 
-  it('clear() evicts diff cache — new call recomputes', () => {
-    const caches = createChatCaches();
-    const a = caches.computeDiff('a\nb', 'a\nc');
-    caches.clear();
-    const b = caches.computeDiff('a\nb', 'a\nc');
-    // After clear, the reference is different (fresh array).
+  it('instances are isolated — diff cache is not shared across createChatCaches() calls', () => {
+    // Each createChatCaches() creates an isolated diff cache; a fresh instance
+    // always produces a new array reference for the same input.
+    const c1 = createChatCaches();
+    const a = c1.computeDiff('a\nb', 'a\nc');
+    const c2 = createChatCaches();
+    const b = c2.computeDiff('a\nb', 'a\nc');
+    // Different instances, same content, different references.
     expect(a).not.toBe(b);
-    // But the content is equal.
     expect(a).toEqual(b);
   });
 
@@ -165,10 +166,10 @@ describe('createChatCaches().parseBlocksStreaming', () => {
     expect(blocks[0].id).toBe('m1#0');
   });
 
-  it('clear() removes streaming records', () => {
+  it('clearAll() removes streaming records', () => {
     const caches = createChatCaches();
     caches.parseBlocksStreaming('m1', 'Para one.\n\nPara two grow');
-    caches.clear();
+    caches.clearAll();
     const blocks = caches.parseBlocksStreaming('m1', 'After clear');
     expect(blocks[0].id).toBe('m1#0');
   });

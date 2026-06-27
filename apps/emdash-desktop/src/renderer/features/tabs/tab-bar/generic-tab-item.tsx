@@ -1,20 +1,18 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type {
-  TabCommand,
-  TabHost,
-  TabViewContext,
-  ResolvedTab,
-} from '@renderer/features/tabs/core/tab-provider';
+import type { TabHost } from '@renderer/features/tabs/core/tab-host';
+import type { ResolvedTab, TabViewContext } from '@renderer/features/tabs/core/tab-provider';
 import { Separator } from '@renderer/lib/ui/separator';
 import { cn } from '@renderer/utils/utils';
 import { usePaneContext } from '../pane-context';
 import { DraggableTab } from './draggable-tab';
 import { TabCloseButton } from './tab-close-button';
+import type { TabCommand } from './tab-commands';
 import { TabContextMenu } from './tab-context-menu';
 import { TabTitle } from './tab-title';
 
+/** Props for GenericTabItem — aligns with TabBarItemProps<any> for convenience. */
 export interface GenericTabItemProps {
   tab: ResolvedTab;
   host: TabHost;
@@ -96,9 +94,9 @@ export const GenericTabItem = observer(function GenericTabItem({
   );
 
   const handleSelect = () => {
-    const wasActive = tab.isActive;
     host.setActiveTab(tab.tabId);
-    if (!wasActive) pane.focusActiveContent();
+    // Container TabBar onClick will return focus to active content for mouse clicks.
+    // Keyboard-initiated selection needs an explicit call since onClick won't fire.
   };
 
   const base = tooltip ?? label;
@@ -110,12 +108,15 @@ export const GenericTabItem = observer(function GenericTabItem({
         <div
           role="button"
           tabIndex={0}
+          onMouseEnter={() => host.signalActivateIntent(tab.tabId)}
           onClick={handleSelect}
           onDoubleClick={() => host.pin(tab.tabId)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               handleSelect();
+              // Keyboard selection doesn't bubble as a click, so return focus explicitly.
+              pane.focusActiveContent();
             }
           }}
           onMouseDown={(e) => {

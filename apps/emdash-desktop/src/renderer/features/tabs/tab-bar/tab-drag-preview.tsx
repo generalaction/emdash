@@ -10,6 +10,6 @@ export const TabDragPreview = observer(function TabDragPreview({ tabId }: { tabI
   const registry = group.pane.registry;
   if (!registry.has(tab.kind)) return null;
   const def = registry.get(tab.kind);
-  const DragPreviewComponent = def.DragPreview;
+  const DragPreviewComponent = def.TabBarItemDragPreview;
   return <DragPreviewComponent tab={tab} />;
 });

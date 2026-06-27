@@ -12,12 +12,64 @@
 
 import type { RichInlineItem } from '@chenglou/pretext/rich-inline';
 import type { FontConfig } from '@core/config';
-import type { InlineCode, InlineMention, InlineRun, InlineText } from '@core/markdown/document';
+import type {
+  InlineCode,
+  InlineMention,
+  InlineRun,
+  InlineText,
+  ProseVariant,
+} from '@core/markdown/document';
 
-export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlineItem[] {
+/**
+ * Returns the heading font shorthand for heading variants, or null for non-headings.
+ *
+ * In a heading, every inline run (regardless of bold/italic/code/mention) is rendered
+ * with the heading font and no chip chrome — matching Prose.tsx's fragKey blanket
+ * `pf--${variant}` return for heading variants. Passing the variant here ensures
+ * the pretext measurement uses the same font as the renderer, preventing line-wrap
+ * discrepancies (and thus reserved-height mismatches) for long headings.
+ */
+function headingFontForVariant(
+  variant: ProseVariant | undefined,
+  fonts: FontConfig
+): string | null {
+  switch (variant) {
+    case 'h1':
+      return fonts.h1.font;
+    case 'h2':
+      return fonts.h2.font;
+    case 'h3':
+    case 'h4':
+    case 'h5':
+    case 'h6':
+      return fonts.h3.font;
+    default:
+      return null;
+  }
+}
+
+export function runsToRichItems(
+  runs: InlineRun[],
+  fonts: FontConfig,
+  variant?: ProseVariant
+): RichInlineItem[] {
+  const headingFont = headingFontForVariant(variant, fonts);
+
   return runs.flatMap((run): RichInlineItem[] => {
     // Break markers are segment boundaries in layoutProse; they have no glyph.
     if (run.kind === 'break') return [];
+
+    // In heading variants all runs use the heading font — no chip padding, no
+    // break:'never' constraint — mirroring the renderer's blanket heading class.
+    if (headingFont !== null) {
+      let text: string;
+      if (run.kind === 'code') text = (run as InlineCode).text;
+      else if (run.kind === 'mention')
+        text = (run as InlineMention).name ?? (run as InlineMention).label;
+      else text = (run as InlineText).text;
+      return text ? [{ text, font: headingFont }] : [];
+    }
+
     if (run.kind === 'code') {
       return [
         {

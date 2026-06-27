@@ -18,7 +18,11 @@ export const collapseRowHover = style({
 });
 
 /** Combined class for the header row element. */
-export const collapseHeader = style([collapseRow, collapseRowHover, { fontSize: '0.875rem' }]);
+export const collapseHeader = style([
+  collapseRow,
+  collapseRowHover,
+  { fontSize: vars.typeBodyFontSize },
+]);
 
 export const chevron = style({
   display: 'inline-block',

@@ -75,7 +75,8 @@ const AT_TOKEN_RE = /@((?:[\w/\-:()]|\.(?=[\w/\-:()]))+)/g;
 function splitAtMentions(
   text: string,
   opts: { bold?: boolean; italic?: boolean; strike?: boolean; href?: string },
-  provider: MentionProvider | undefined
+  provider: MentionProvider | undefined,
+  uri: string | undefined
 ): InlineRun[] {
   if (!provider || !text.includes('@')) {
     return text.length > 0
@@ -99,7 +100,7 @@ function splitAtMentions(
 
   while ((match = AT_TOKEN_RE.exec(text)) !== null) {
     const token = match[1];
-    const meta = provider.resolve(token);
+    const meta = provider.resolve(token, uri);
     if (!meta) continue;
 
     // Emit preceding plain text
@@ -146,7 +147,8 @@ function splitAtMentions(
 function phrasingsToRuns(
   nodes: PhrasingContent[],
   opts: { bold?: boolean; italic?: boolean; strike?: boolean; href?: string } = {},
-  provider?: MentionProvider
+  provider?: MentionProvider,
+  uri?: string
 ): InlineRun[] {
   const runs: InlineRun[] = [];
 
@@ -159,7 +161,7 @@ function phrasingsToRuns(
         for (let i = 0; i < segments.length; i++) {
           if (i > 0) runs.push({ kind: 'break' } satisfies InlineBreak);
           const seg = segments[i];
-          runs.push(...splitAtMentions(seg, opts, provider));
+          runs.push(...splitAtMentions(seg, opts, provider, uri));
         }
         break;
       }
@@ -177,7 +179,8 @@ function phrasingsToRuns(
               ...opts,
               bold: true,
             },
-            provider
+            provider,
+            uri
           )
         );
         break;
@@ -191,7 +194,8 @@ function phrasingsToRuns(
               ...opts,
               italic: true,
             },
-            provider
+            provider,
+            uri
           )
         );
         break;
@@ -205,7 +209,8 @@ function phrasingsToRuns(
               ...opts,
               strike: true,
             },
-            provider
+            provider,
+            uri
           )
         );
         break;
@@ -223,7 +228,8 @@ function phrasingsToRuns(
           ...phrasingsToRuns(
             link.children as PhrasingContent[],
             { ...opts, href: link.url },
-            provider
+            provider,
+            uri
           )
         );
         break;
@@ -261,7 +267,8 @@ function blockToBlocks(
   counter: { n: number },
   depth = 0,
   provider?: MentionProvider,
-  inQuote = false
+  inQuote = false,
+  uri?: string
 ): Block[] {
   const nextId = (): BlockId => `${messageId}#${counter.n++}`;
   const blocks: Block[] = [];
@@ -269,7 +276,7 @@ function blockToBlocks(
   switch (node.type) {
     case 'paragraph': {
       const parent = node as Parent;
-      const runs = phrasingsToRuns(parent.children as PhrasingContent[], {}, provider);
+      const runs = phrasingsToRuns(parent.children as PhrasingContent[], {}, provider, uri);
       if (runs.length > 0) {
         blocks.push({
           kind: 'prose',
@@ -285,7 +292,7 @@ function blockToBlocks(
     case 'heading': {
       const h = node as Heading;
       const variant = `h${h.depth}` as ProseVariant;
-      const runs = phrasingsToRuns(h.children as PhrasingContent[], {}, provider);
+      const runs = phrasingsToRuns(h.children as PhrasingContent[], {}, provider, uri);
       if (runs.length > 0) {
         blocks.push({
           kind: 'prose',
@@ -300,7 +307,15 @@ function blockToBlocks(
     case 'blockquote': {
       for (const child of (node as Parent).children) {
         blocks.push(
-          ...blockToBlocks(child as BlockContent, messageId, counter, depth + 1, provider, true)
+          ...blockToBlocks(
+            child as BlockContent,
+            messageId,
+            counter,
+            depth + 1,
+            provider,
+            true,
+            uri
+          )
         );
       }
       break;
@@ -316,7 +331,8 @@ function blockToBlocks(
             const runs = phrasingsToRuns(
               (itemChild as Parent).children as PhrasingContent[],
               {},
-              provider
+              provider,
+              uri
             );
             if (runs.length > 0) {
               blocks.push({
@@ -329,7 +345,15 @@ function blockToBlocks(
             }
           } else {
             blocks.push(
-              ...blockToBlocks(itemChild as BlockContent, messageId, counter, depth + 1, provider)
+              ...blockToBlocks(
+                itemChild as BlockContent,
+                messageId,
+                counter,
+                depth + 1,
+                provider,
+                false,
+                uri
+              )
             );
           }
         }
@@ -362,7 +386,7 @@ function blockToBlocks(
         (row as TableRow).children.map((cell) => {
           const cellNode = cell as TableCell & Parent;
           // Table cell text is plain: @mentions become their label text
-          return phrasingsToRuns(cellNode.children as PhrasingContent[], {}, provider)
+          return phrasingsToRuns(cellNode.children as PhrasingContent[], {}, provider, uri)
             .map((r) => ('text' in r ? r.text : 'label' in r ? r.label : ''))
             .join('');
         })
@@ -423,12 +447,15 @@ function blockToBlocks(
  * @param startN    - Starting block counter (default 0). Used by the incremental
  *                    streaming parser to assign continuation IDs when parsing tail
  *                    chunks so they join seamlessly with the stable prefix IDs.
+ * @param uri       - Conversation URI forwarded to `MentionProvider.resolve` so
+ *                    a global provider can scope resolution to the right context.
  */
 export function parseMarkdownToBlocks(
   messageId: string,
   markdown: string,
   provider?: MentionProvider,
-  startN = 0
+  startN = 0,
+  uri?: string
 ): Block[] {
   if (!markdown.trim()) return [];
 
@@ -438,7 +465,15 @@ export function parseMarkdownToBlocks(
 
   for (const child of tree.children) {
     blocks.push(
-      ...blockToBlocks(child as BlockContent | DefinitionContent, messageId, counter, 0, provider)
+      ...blockToBlocks(
+        child as BlockContent | DefinitionContent,
+        messageId,
+        counter,
+        0,
+        provider,
+        false,
+        uri
+      )
     );
   }
 

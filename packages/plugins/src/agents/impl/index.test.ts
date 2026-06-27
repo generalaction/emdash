@@ -36,6 +36,7 @@ describe('pluginRegistry', () => {
       expect(capabilities.hooks).toBeDefined();
       expect(capabilities.mcp).toBeDefined();
       expect(capabilities.plugins).toBeDefined();
+      expect(['supported', 'none']).toContain(capabilities.acp.kind);
       expect(['supported', 'none']).toContain(capabilities.autoApprove.kind);
       expect(['resumable', 'stateless']).toContain(capabilities.sessions.kind);
     }
