@@ -10,6 +10,7 @@ const offEvent = vi.fn();
 const getSettings = vi.hoisted(() => vi.fn());
 const watchSetPaths = vi.hoisted(() => vi.fn(async () => ({ success: true, data: {} })));
 const watchStop = vi.hoisted(() => vi.fn(async () => ({ success: true, data: {} })));
+const ptySessionOptions = vi.hoisted(() => [] as Array<{ isRemote?: boolean }>);
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
@@ -31,16 +32,20 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
 }));
 
-vi.mock('@renderer/features/projects/stores/project-selectors', () => ({
-  getProjectSshConnectionId: vi.fn(() => undefined),
-}));
-
 vi.mock('@renderer/lib/pty/pty-session', () => ({
   PtySession: class {
     pty = null;
     status = 'disconnected';
 
-    constructor(readonly sessionId: string) {}
+    constructor(
+      readonly sessionId: string,
+      _prepare?: unknown,
+      _onOpenFile?: unknown,
+      _onOpenExternal?: unknown,
+      options?: { isRemote?: boolean }
+    ) {
+      ptySessionOptions.push(options ?? {});
+    }
 
     connect = vi.fn(async () => {});
     dispose = vi.fn();
@@ -55,6 +60,7 @@ describe('LifecycleScriptStore', () => {
     getSettings.mockReset();
     watchSetPaths.mockClear();
     watchStop.mockClear();
+    ptySessionOptions.length = 0;
   });
 
   it('tracks script running state from lifecycle status events', () => {
@@ -103,6 +109,17 @@ describe('LifecycleScriptStore', () => {
 
     expect(offEvent).toHaveBeenCalledTimes(1);
   });
+
+  it('uses the provisioned SSH connection for lifecycle PTY sessions', () => {
+    new LifecycleScriptStore(
+      { id: 'script-id', type: 'run', label: 'Run', command: 'pnpm dev' },
+      'project-1',
+      'branch:feature',
+      'ssh-1'
+    );
+
+    expect(ptySessionOptions[0]?.isRemote).toBe(true);
+  });
 });
 
 describe('LifecycleScriptsStore', () => {
@@ -112,6 +129,7 @@ describe('LifecycleScriptsStore', () => {
     getSettings.mockReset();
     watchSetPaths.mockClear();
     watchStop.mockClear();
+    ptySessionOptions.length = 0;
   });
 
   it('uses stable script IDs and reconciles command changes from .emdash.json watch events', async () => {

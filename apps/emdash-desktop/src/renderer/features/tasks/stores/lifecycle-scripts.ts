@@ -1,5 +1,4 @@
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
-import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
@@ -37,7 +36,12 @@ export class LifecycleScriptStore {
   status: LifecycleScriptStatus = 'idle';
   private offStatus: (() => void) | null = null;
 
-  constructor(data: LifecycleScriptData, projectId: string, workspaceId: string) {
+  constructor(
+    data: LifecycleScriptData,
+    projectId: string,
+    workspaceId: string,
+    sshConnectionId?: string
+  ) {
     this.data = data;
     this.session = new PtySession(
       makePtySessionId(projectId, workspaceId, data.id),
@@ -49,7 +53,7 @@ export class LifecycleScriptStore {
         }),
       undefined,
       undefined,
-      { isRemote: getProjectSshConnectionId(projectId) !== undefined }
+      { isRemote: sshConnectionId !== undefined }
     );
     this.offStatus = events.on(lifecycleScriptStatusChannel, (event) => {
       if (
@@ -88,6 +92,7 @@ export class LifecycleScriptStore {
 export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptStore, never> {
   private readonly projectId: string;
   private readonly workspaceId: string;
+  private readonly sshConnectionId: string | undefined;
   private _loaded = false;
   private _disposed = false;
   private _watchingConfig = false;
@@ -97,9 +102,10 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
 
-  constructor(projectId: string, workspaceId: string) {
+  constructor(projectId: string, workspaceId: string, sshConnectionId?: string) {
     this.projectId = projectId;
     this.workspaceId = workspaceId;
+    this.sshConnectionId = sshConnectionId;
     makeObservable(this, {
       scripts: observable,
       tabOrder: observable,
@@ -246,7 +252,12 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
         if (existing) {
           Object.assign(existing.data, data);
         } else {
-          const store = new LifecycleScriptStore(data, this.projectId, this.workspaceId);
+          const store = new LifecycleScriptStore(
+            data,
+            this.projectId,
+            this.workspaceId,
+            this.sshConnectionId
+          );
           this.scripts.set(entry.id, store);
           addTabId(this, entry.id);
         }
