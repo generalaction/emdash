@@ -18,7 +18,11 @@ export const LIBSECRET_PASSWORD_STORE = 'gnome-libsecret';
  * there is no Secret Service to reach, so forcing would not help. On GNOME the
  * switch is a harmless no-op (Chromium already picks libsecret there).
  */
-export function shouldForceLibsecretBackend(env: NodeJS.ProcessEnv = process.env): boolean {
+export function shouldForceLibsecretBackend(
+  env: NodeJS.ProcessEnv = process.env,
+  options: { passwordStoreSwitchPresent?: boolean } = {}
+): boolean {
+  if (options.passwordStoreSwitchPresent) return false;
   if (!env.DBUS_SESSION_BUS_ADDRESS?.trim()) return false;
   const desktop = (env.XDG_CURRENT_DESKTOP ?? '').toLowerCase();
   if (desktop.includes('kde')) return false;

@@ -52,7 +52,11 @@ if (import.meta.env.DEV) {
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
-  if (shouldForceLibsecretBackend(process.env)) {
+  if (
+    shouldForceLibsecretBackend(process.env, {
+      passwordStoreSwitchPresent: app.commandLine.hasSwitch('password-store'),
+    })
+  ) {
     app.commandLine.appendSwitch('password-store', LIBSECRET_PASSWORD_STORE);
   }
 }

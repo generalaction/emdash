@@ -38,6 +38,18 @@ describe('shouldForceLibsecretBackend', () => {
     ).toBe(false);
   });
 
+  it('does not override an explicit password-store switch', () => {
+    expect(
+      shouldForceLibsecretBackend(
+        {
+          DBUS_SESSION_BUS_ADDRESS: BUS,
+          XDG_CURRENT_DESKTOP: 'Hyprland',
+        },
+        { passwordStoreSwitchPresent: true }
+      )
+    ).toBe(false);
+  });
+
   it('does nothing without a usable session bus (no Secret Service to reach)', () => {
     expect(shouldForceLibsecretBackend({ XDG_CURRENT_DESKTOP: 'Hyprland' })).toBe(false);
     expect(shouldForceLibsecretBackend({ DBUS_SESSION_BUS_ADDRESS: '   ' })).toBe(false);
