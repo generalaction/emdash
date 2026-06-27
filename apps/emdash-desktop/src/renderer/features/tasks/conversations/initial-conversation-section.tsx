@@ -12,7 +12,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@renderer/lib/ui/dialog';
 import { Field } from '@renderer/lib/ui/field';
 import {
@@ -283,26 +282,24 @@ function IssueContextEditButton({
   const handleReset = () => setDraft(defaultContext);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <>
       <div
         className={cn(
           'group relative flex items-center gap-1.5 rounded bg-background-2 py-0.5 pr-6 pl-2 text-xs text-foreground-muted',
           'hover:bg-background-3'
         )}
       >
-        <DialogTrigger
-          render={
-            <div
-              className={cn('flex flex-1 items-center gap-1.5 cursor-pointer', 'min-w-0 py-0.5')}
-            />
-          }
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={cn('flex flex-1 items-center gap-1.5 cursor-pointer min-w-0 py-0.5')}
         >
           <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
           <span className="font-mono">{linkedIssue.identifier}</span>
           {linkedIssue.title && (
             <span className="max-w-48 truncate text-foreground-passive">{linkedIssue.title}</span>
           )}
-        </DialogTrigger>
+        </button>
         <button
           type="button"
           onClick={() => state.setIssueContext(null)}
@@ -314,36 +311,40 @@ function IssueContextEditButton({
           <X className="size-3" />
         </button>
       </div>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Edit issue context</DialogTitle>
-        </DialogHeader>
-        <DialogContentArea>
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Edit the issue context sent to the agent..."
-            className="max-h-[60dvh] min-h-48 resize-none font-mono text-xs"
-          />
-        </DialogContentArea>
-        <DialogFooter>
-          {hasChanges ? (
-            <Button variant="ghost" size="sm" onClick={handleReset}>
-              Reset to default
-            </Button>
-          ) : null}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              state.setIssueContext(draft.trim() || null);
-              setOpen(false);
-            }}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      {open ? (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit issue context</DialogTitle>
+            </DialogHeader>
+            <DialogContentArea>
+              <Textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Edit the issue context sent to the agent..."
+                className="max-h-[60dvh] min-h-48 resize-none font-mono text-xs"
+              />
+            </DialogContentArea>
+            <DialogFooter>
+              {hasChanges ? (
+                <Button variant="ghost" size="sm" onClick={handleReset}>
+                  Reset to default
+                </Button>
+              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  state.setIssueContext(draft.trim() || null);
+                  setOpen(false);
+                }}
+              >
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </>
   );
 }
