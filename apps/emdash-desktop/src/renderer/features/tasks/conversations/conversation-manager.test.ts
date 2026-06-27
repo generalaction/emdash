@@ -107,4 +107,34 @@ describe('ConversationManagerStore session hydration', () => {
 
     store.dispose();
   });
+
+  it('rebuilds an already connected conversation session when the SSH connection is learned', async () => {
+    vi.stubGlobal('navigator', { platform: 'Win32' });
+    const store = new ConversationManagerStore('project-1', 'task-1', [
+      {
+        id: 'conversation-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        providerId: 'codex',
+        title: 'Conversation 1',
+        lastInteractedAt: null,
+        isInitialConversation: false,
+      },
+    ]);
+    const session = store.sessions.get('conversation-1');
+
+    await session?.connect();
+    store.setSshConnectionId('ssh-1');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(frontendDispose).toHaveBeenCalledTimes(1);
+    expect(frontendConnect).toHaveBeenCalledTimes(2);
+    expect(frontendOptions.map((options) => options.windowsPtyBackend)).toEqual([
+      'conpty',
+      undefined,
+    ]);
+
+    store.dispose();
+  });
 });

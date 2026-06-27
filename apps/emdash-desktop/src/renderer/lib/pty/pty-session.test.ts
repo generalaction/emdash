@@ -97,6 +97,65 @@ describe('PtySession', () => {
     expect(frontendOptions[0]?.windowsPtyBackend).toBeUndefined();
   });
 
+  it('rebuilds a connected Windows frontend PTY when remote status changes', async () => {
+    vi.stubGlobal('navigator', { platform: 'Win32' });
+    frontendConnect.mockResolvedValue(undefined);
+    let isRemote = false;
+    const session = new PtySession('session-1', undefined, undefined, undefined, {
+      isRemote: () => isRemote,
+    });
+
+    await session.connect();
+    const localPty = session.pty;
+
+    isRemote = true;
+    session.refreshWindowsPtyBackend();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(frontendDispose).toHaveBeenCalledTimes(1);
+    expect(frontendConnect).toHaveBeenCalledTimes(2);
+    expect(frontendOptions.map((options) => options.windowsPtyBackend)).toEqual([
+      'conpty',
+      undefined,
+    ]);
+    expect(session.pty).not.toBe(localPty);
+    expect(session.status).toBe('ready');
+  });
+
+  it('rebuilds after an in-flight Windows frontend PTY connect observes a remote status change', async () => {
+    vi.stubGlobal('navigator', { platform: 'Win32' });
+    const firstConnect = deferred<void>();
+    frontendConnect.mockReturnValueOnce(firstConnect.promise).mockResolvedValueOnce(undefined);
+    let isRemote = false;
+    const session = new PtySession('session-1', undefined, undefined, undefined, {
+      isRemote: () => isRemote,
+    });
+
+    const connectPromise = session.connect();
+    await Promise.resolve();
+    const localPty = session.pty;
+
+    isRemote = true;
+    session.refreshWindowsPtyBackend();
+
+    expect(frontendDispose).toHaveBeenCalledTimes(1);
+    expect(session.status).toBe('disconnected');
+
+    firstConnect.resolve();
+    await connectPromise;
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(frontendConnect).toHaveBeenCalledTimes(2);
+    expect(frontendOptions.map((options) => options.windowsPtyBackend)).toEqual([
+      'conpty',
+      undefined,
+    ]);
+    expect(session.pty).not.toBe(localPty);
+    expect(session.status).toBe('ready');
+  });
+
   it('does not mark the session ready when disposed while connect is in flight', async () => {
     const connect = deferred<void>();
     frontendConnect.mockReturnValue(connect.promise);

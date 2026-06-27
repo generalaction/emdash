@@ -104,6 +104,9 @@ export class ConversationManagerStore implements IDisposable {
 
   setSshConnectionId(sshConnectionId: string | undefined): void {
     this.sshConnectionId = sshConnectionId;
+    for (const session of Array.from(this.sessions.values())) {
+      session.refreshWindowsPtyBackend();
+    }
   }
 
   private addConversation(conversation: Conversation): void {

@@ -112,6 +112,9 @@ export class TerminalManagerStore implements IDisposable {
 
   setSshConnectionId(sshConnectionId: string | undefined): void {
     this.sshConnectionId = sshConnectionId;
+    for (const session of Array.from(this.sessions.values())) {
+      session.refreshWindowsPtyBackend();
+    }
   }
 
   async createDefaultTerminal(shell?: TerminalShellId): Promise<Terminal> {

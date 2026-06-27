@@ -4,6 +4,7 @@ import { FrontendPty } from '@renderer/lib/pty/pty';
 import { ptyStartedChannel } from '@shared/events/appEvents';
 
 export type PtySessionStatus = 'disconnected' | 'connecting' | 'ready';
+type WindowsPtyBackend = 'conpty' | undefined;
 
 export type PtySessionOptions = {
   clearOnBackendStart?: boolean;
@@ -21,6 +22,7 @@ export class PtySession {
   private version = 0;
   private hasSeenBackendStart = false;
   private offPtyStarted: (() => void) | null = null;
+  private windowsPtyBackend: WindowsPtyBackend;
   private readonly clearOnBackendStart: boolean;
   private readonly isRemote: () => boolean;
 
@@ -34,6 +36,7 @@ export class PtySession {
     this.clearOnBackendStart = options.clearOnBackendStart ?? false;
     this.isRemote =
       typeof options.isRemote === 'function' ? options.isRemote : () => options.isRemote === true;
+    this.windowsPtyBackend = this.getWindowsPtyBackend();
     makeAutoObservable(this, {
       pty: false,
     });
@@ -58,8 +61,10 @@ export class PtySession {
       await this.prepare?.();
       if (version !== this.version) return;
       if (this.pty) return;
+      const windowsPtyBackend = this.getWindowsPtyBackend();
+      this.windowsPtyBackend = windowsPtyBackend;
       const pty = new FrontendPty(this.sessionId, undefined, this.onOpenFile, this.onOpenExternal, {
-        windowsPtyBackend: this.getWindowsPtyBackend(),
+        windowsPtyBackend,
       });
       runInAction(() => {
         this.pty = pty;
@@ -76,6 +81,36 @@ export class PtySession {
     });
 
     return this.connectPromise;
+  }
+
+  refreshWindowsPtyBackend(): void {
+    const windowsPtyBackend = this.getWindowsPtyBackend();
+    if (windowsPtyBackend === this.windowsPtyBackend) return;
+
+    this.windowsPtyBackend = windowsPtyBackend;
+    if (!this.pty && !this.connectPromise) return;
+
+    this.version++;
+    const reconnectVersion = this.version;
+    const reconnectAfterCurrentConnect = this.connectPromise;
+    this.pty?.dispose();
+    this.hasSeenBackendStart = false;
+    runInAction(() => {
+      this.pty = null;
+      this.status = 'disconnected';
+    });
+
+    if (reconnectAfterCurrentConnect) {
+      void reconnectAfterCurrentConnect
+        .finally(() => {
+          if (this.version === reconnectVersion && this.status === 'disconnected') {
+            void this.connect();
+          }
+        })
+        .catch(() => {});
+    } else {
+      void this.connect();
+    }
   }
 
   dispose() {
@@ -105,7 +140,7 @@ export class PtySession {
     if (this.clearOnBackendStart) this.pty?.clear();
   }
 
-  private getWindowsPtyBackend(): 'conpty' | undefined {
+  private getWindowsPtyBackend(): WindowsPtyBackend {
     return isWindowsPlatform() && !this.isRemote() ? 'conpty' : undefined;
   }
 }

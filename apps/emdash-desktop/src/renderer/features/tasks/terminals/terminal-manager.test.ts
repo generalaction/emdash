@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
+import type { PtySession } from '@renderer/lib/pty/pty-session';
 import { TerminalManagerStore } from './terminal-manager';
 
 const createTerminal = vi.hoisted(() => vi.fn());
@@ -10,6 +12,13 @@ const frontendConnect = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
 const frontendOptions = vi.hoisted(() => [] as Array<{ windowsPtyBackend?: string }>);
 const getAppSettingValueSnapshot = vi.hoisted(() => vi.fn());
+
+function stubNavigatorPlatform(platform: string): void {
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: { platform },
+  });
+}
 
 vi.mock('@renderer/features/settings/app-settings-client', () => ({
   getAppSettingValueSnapshot,
@@ -71,7 +80,8 @@ describe('TerminalManagerStore session hydration', () => {
     frontendDispose.mockReset();
     frontendOptions.length = 0;
     getAppSettingValueSnapshot.mockReset();
-    vi.stubGlobal('navigator', { platform: 'MacIntel' });
+    vi.mocked(getProjectSshConnectionId).mockReturnValue(undefined);
+    stubNavigatorPlatform('MacIntel');
 
     createTerminal.mockImplementation(async (terminal) => terminal);
     getTerminalsForTask.mockResolvedValue([]);
@@ -151,7 +161,7 @@ describe('TerminalManagerStore session hydration', () => {
   });
 
   it('uses an SSH connection learned after session creation before connecting', async () => {
-    vi.stubGlobal('navigator', { platform: 'Win32' });
+    stubNavigatorPlatform('Win32');
     const store = new TerminalManagerStore('project-1', 'task-1');
     store.list.setValue([
       {
@@ -168,6 +178,20 @@ describe('TerminalManagerStore session hydration', () => {
     await session?.connect();
 
     expect(frontendOptions[0]?.windowsPtyBackend).toBeUndefined();
+    store.dispose();
+  });
+
+  it('refreshes existing terminal sessions when the SSH connection is learned', () => {
+    const store = new TerminalManagerStore('project-1', 'task-1');
+    const refreshWindowsPtyBackend = vi.fn();
+    store.sessions.set('terminal-1', {
+      destroy: vi.fn(),
+      refreshWindowsPtyBackend,
+    } as unknown as PtySession);
+
+    store.setSshConnectionId('ssh-1');
+
+    expect(refreshWindowsPtyBackend).toHaveBeenCalledTimes(1);
     store.dispose();
   });
 });
