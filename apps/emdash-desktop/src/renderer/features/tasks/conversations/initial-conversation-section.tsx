@@ -5,6 +5,15 @@ import { getProjectSshConnectionId } from '@renderer/features/projects/stores/pr
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@renderer/lib/ui/dialog';
 import { Field } from '@renderer/lib/ui/field';
 import {
   Select,
@@ -231,53 +240,10 @@ export function InitialConversationField({
           </div>
         </div>
 
-        {/* Issue context pill — click to insert as editable text in the prompt */}
+        {/* Issue context pill — click to edit in a modal */}
         {state.issueContext && linkedIssue && (
           <div className="px-2 py-1">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                state.setPrompt((current) =>
-                  appendInitialConversationText(current, state.issueContext ?? '')
-                );
-                state.setIssueContext(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  state.setPrompt((current) =>
-                    appendInitialConversationText(current, state.issueContext ?? '')
-                  );
-                  state.setIssueContext(null);
-                }
-              }}
-              className={cn(
-                'group relative flex items-center gap-1.5 rounded bg-background-2 py-0.5 pr-6 pl-2 text-xs text-foreground-muted',
-                'hover:bg-background-3 cursor-pointer'
-              )}
-            >
-              <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
-              <span className="font-mono">{linkedIssue.identifier}</span>
-              {linkedIssue.title && (
-                <span className="max-w-48 truncate text-foreground-passive">
-                  {linkedIssue.title}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  state.setIssueContext(null);
-                }}
-                className={cn(
-                  'absolute right-1 flex items-center justify-center rounded p-0.5',
-                  'text-foreground-passive opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100'
-                )}
-              >
-                <X className="size-3" />
-              </button>
-            </div>
+            <IssueContextEditButton state={state} linkedIssue={linkedIssue} />
           </div>
         )}
 
@@ -293,5 +259,91 @@ export function InitialConversationField({
         />
       </div>
     </Field>
+  );
+}
+
+function IssueContextEditButton({
+  state,
+  linkedIssue,
+}: {
+  state: InitialConversationState;
+  linkedIssue: LinkedIssue;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  // Seed the draft from the current issue context whenever the dialog opens.
+  useEffect(() => {
+    if (open) setDraft(state.issueContext ?? '');
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [open]);
+
+  const defaultContext = useMemo(() => buildIssueContextText(linkedIssue), [linkedIssue]);
+  const hasChanges = draft !== defaultContext;
+  const handleReset = () => setDraft(defaultContext);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <div
+        className={cn(
+          'group relative flex items-center gap-1.5 rounded bg-background-2 py-0.5 pr-6 pl-2 text-xs text-foreground-muted',
+          'hover:bg-background-3'
+        )}
+      >
+        <DialogTrigger
+          render={
+            <div
+              className={cn('flex flex-1 items-center gap-1.5 cursor-pointer', 'min-w-0 py-0.5')}
+            />
+          }
+        >
+          <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
+          <span className="font-mono">{linkedIssue.identifier}</span>
+          {linkedIssue.title && (
+            <span className="max-w-48 truncate text-foreground-passive">{linkedIssue.title}</span>
+          )}
+        </DialogTrigger>
+        <button
+          type="button"
+          onClick={() => state.setIssueContext(null)}
+          className={cn(
+            'absolute right-1 flex items-center justify-center rounded p-0.5',
+            'text-foreground-passive opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100'
+          )}
+        >
+          <X className="size-3" />
+        </button>
+      </div>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit issue context</DialogTitle>
+        </DialogHeader>
+        <DialogContentArea>
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Edit the issue context sent to the agent..."
+            className="max-h-[60dvh] min-h-48 resize-none font-mono text-xs"
+          />
+        </DialogContentArea>
+        <DialogFooter>
+          {hasChanges ? (
+            <Button variant="ghost" size="sm" onClick={handleReset}>
+              Reset to default
+            </Button>
+          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              state.setIssueContext(draft.trim() || null);
+              setOpen(false);
+            }}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
