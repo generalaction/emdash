@@ -83,6 +83,20 @@ describe('PtySession', () => {
     ]);
   });
 
+  it('evaluates remote status when the frontend PTY connects', async () => {
+    vi.stubGlobal('navigator', { platform: 'Win32' });
+    frontendConnect.mockResolvedValue(undefined);
+    let isRemote = false;
+    const session = new PtySession('session-1', undefined, undefined, undefined, {
+      isRemote: () => isRemote,
+    });
+
+    isRemote = true;
+    await session.connect();
+
+    expect(frontendOptions[0]?.windowsPtyBackend).toBeUndefined();
+  });
+
   it('does not mark the session ready when disposed while connect is in flight', async () => {
     const connect = deferred<void>();
     frontendConnect.mockReturnValue(connect.promise);

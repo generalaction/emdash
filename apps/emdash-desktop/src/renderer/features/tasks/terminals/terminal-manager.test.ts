@@ -8,6 +8,7 @@ const renameTerminal = vi.hoisted(() => vi.fn());
 const deleteTerminal = vi.hoisted(() => vi.fn());
 const frontendConnect = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
+const frontendOptions = vi.hoisted(() => [] as Array<{ windowsPtyBackend?: string }>);
 const getAppSettingValueSnapshot = vi.hoisted(() => vi.fn());
 
 vi.mock('@renderer/features/settings/app-settings-client', () => ({
@@ -44,7 +45,15 @@ vi.mock('@renderer/lib/ipc', () => ({
 
 vi.mock('@renderer/lib/pty/pty', () => ({
   FrontendPty: class {
-    constructor(readonly sessionId: string) {}
+    constructor(
+      readonly sessionId: string,
+      _theme?: unknown,
+      _onOpenFile?: unknown,
+      _onOpenExternal?: unknown,
+      options?: { windowsPtyBackend?: string }
+    ) {
+      frontendOptions.push(options ?? {});
+    }
 
     connect = frontendConnect;
     dispose = frontendDispose;
@@ -60,7 +69,9 @@ describe('TerminalManagerStore session hydration', () => {
     deleteTerminal.mockReset();
     frontendConnect.mockReset();
     frontendDispose.mockReset();
+    frontendOptions.length = 0;
     getAppSettingValueSnapshot.mockReset();
+    vi.stubGlobal('navigator', { platform: 'MacIntel' });
 
     createTerminal.mockImplementation(async (terminal) => terminal);
     getTerminalsForTask.mockResolvedValue([]);
@@ -136,6 +147,27 @@ describe('TerminalManagerStore session hydration', () => {
 
     expect(store.terminals.get('terminal-1')?.data.shellId).toBe('fish');
     await promise;
+    store.dispose();
+  });
+
+  it('uses an SSH connection learned after session creation before connecting', async () => {
+    vi.stubGlobal('navigator', { platform: 'Win32' });
+    const store = new TerminalManagerStore('project-1', 'task-1');
+    store.list.setValue([
+      {
+        id: 'terminal-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        shellId: 'system',
+        name: 'Terminal 1',
+      },
+    ]);
+    const session = store.sessions.get('terminal-1');
+
+    store.setSshConnectionId('ssh-1');
+    await session?.connect();
+
+    expect(frontendOptions[0]?.windowsPtyBackend).toBeUndefined();
     store.dispose();
   });
 });

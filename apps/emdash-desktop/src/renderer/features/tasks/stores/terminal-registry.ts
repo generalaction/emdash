@@ -4,10 +4,13 @@ import { TerminalManagerStore } from '@renderer/features/tasks/terminals/termina
 export class TerminalRegistry {
   private readonly entries = observable.map<string, TerminalManagerStore>();
 
-  acquire(taskId: string, projectId: string): TerminalManagerStore {
+  acquire(taskId: string, projectId: string, sshConnectionId?: string): TerminalManagerStore {
     const existing = this.entries.get(taskId);
-    if (existing) return existing;
-    const store = new TerminalManagerStore(projectId, taskId);
+    if (existing) {
+      if (arguments.length >= 3) existing.setSshConnectionId(sshConnectionId);
+      return existing;
+    }
+    const store = new TerminalManagerStore(projectId, taskId, sshConnectionId);
     this.entries.set(taskId, store);
     return store;
   }

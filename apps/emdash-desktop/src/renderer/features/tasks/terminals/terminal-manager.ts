@@ -21,10 +21,12 @@ export class TerminalManagerStore implements IDisposable {
   /** Session layer keyed by terminal id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
   private readonly _disposeReaction: () => void;
+  private sshConnectionId: string | undefined;
 
-  constructor(projectId: string, taskId: string) {
+  constructor(projectId: string, taskId: string, sshConnectionId?: string) {
     this.projectId = projectId;
     this.taskId = taskId;
+    this.sshConnectionId = sshConnectionId;
 
     this.list = new Resource<Terminal[]>(
       () => rpc.terminals.getTerminalsForTask(projectId, taskId),
@@ -106,6 +108,10 @@ export class TerminalManagerStore implements IDisposable {
       });
       throw err;
     }
+  }
+
+  setSshConnectionId(sshConnectionId: string | undefined): void {
+    this.sshConnectionId = sshConnectionId;
   }
 
   async createDefaultTerminal(shell?: TerminalShellId): Promise<Terminal> {
@@ -193,7 +199,11 @@ export class TerminalManagerStore implements IDisposable {
       () => this.hydrateTerminal(terminal.id),
       handlers.onOpenFile,
       handlers.onOpenExternal,
-      { isRemote: getProjectSshConnectionId(terminal.projectId) !== undefined }
+      {
+        isRemote: () =>
+          this.sshConnectionId !== undefined ||
+          getProjectSshConnectionId(terminal.projectId) !== undefined,
+      }
     );
   }
 }
