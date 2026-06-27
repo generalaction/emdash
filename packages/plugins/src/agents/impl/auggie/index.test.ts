@@ -67,9 +67,7 @@ describe('auggie provider', () => {
       buildNestedEntry(makeStdinHookCommand('session')),
     ]);
     expect(settings.hooks.PromptSubmit).toEqual([buildNestedEntry(makeStdinHookCommand('start'))]);
-    expect(settings.hooks.PostToolUse).toEqual([
-      buildNestedEntry(makeStdinHookCommand('tool-use')),
-    ]);
+    expect(settings.hooks.PostToolUse).toEqual([buildNestedEntry(makeStdinHookCommand('start'))]);
     expect(settings.hooks.Notification).toEqual([
       buildNestedEntry(makeStdinHookCommand('notification')),
     ]);

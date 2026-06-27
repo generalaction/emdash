@@ -15,7 +15,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'config',
       scope: 'workspace',
-      supportedEvents: ['notification', 'stop', 'session', 'start', 'tool-use'],
+      supportedEvents: ['notification', 'stop', 'session', 'start'],
     },
     hostDependency: npmDependency({ id: 'auggie', package: '@augmentcode/auggie' }),
     prompt: {

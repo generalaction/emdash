@@ -10,7 +10,7 @@ export function buildAuggieHookConfig() {
     { hookKey: 'SessionStart', command: makeStdinHookCommand('session') },
     { hookKey: 'PromptSubmit', command: makeStdinHookCommand('start') },
     { hookKey: 'PreToolUse', command: makeStdinHookCommand('start') },
-    { hookKey: 'PostToolUse', command: makeStdinHookCommand('tool-use') },
+    { hookKey: 'PostToolUse', command: makeStdinHookCommand('start') },
     { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
     { hookKey: 'SessionEnd', command: makeStdinHookCommand('stop') },
     { hookKey: 'Notification', command: makeStdinHookCommand('notification') },
