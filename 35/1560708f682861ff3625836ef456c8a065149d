@@ -1,0 +1,25 @@
+packages/plugins/src/agents/impl/auggie/index.ts
+  s_23ba231b580def::t_7b163fedf9847b 3,15-19,38-41,44
+packages/plugins/src/agents/impl/auggie/index.test.ts
+  s_23ba231b580def::t_7b163fedf9847b 1-98
+packages/plugins/src/agents/impl/auggie/hooks.ts
+  s_23ba231b580def::t_7b163fedf9847b 1-18
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_23ba231b580def::t_7b163fedf9847b 415-419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "351560708f682861ff3625836ef456c8a065149d",
+  "prompts": {},
+  "sessions": {
+    "s_23ba231b580def": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f08e2-6643-73a1-9332-4189e242db19",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
