@@ -5,7 +5,10 @@ function waitForWrite(term: Terminal, data: string): Promise<void> {
   return new Promise((resolve) => term.write(data, resolve));
 }
 
-function createTerminal(options: ITerminalOptions = {}): { container: HTMLDivElement; term: Terminal } {
+function createTerminal(options: ITerminalOptions = {}): {
+  container: HTMLDivElement;
+  term: Terminal;
+} {
   const container = document.createElement('div');
   Object.assign(container.style, {
     position: 'fixed',
@@ -83,10 +86,7 @@ describe('xterm mouse reporting', () => {
     term.onData((chunk) => data.push(chunk));
 
     // OpenTUI asks these before completing terminal setup for apps like opencode.
-    await waitForWrite(
-      term,
-      '\x1b[?1016$p\x1b[?2027$p\x1b[?2031$p\x1b[?1004$p\x1b[?2004$p'
-    );
+    await waitForWrite(term, '\x1b[?1016$p\x1b[?2027$p\x1b[?2031$p\x1b[?1004$p\x1b[?2004$p');
 
     expect(data.join('')).toBe(
       '\x1b[?1016;2$y\x1b[?2027;0$y\x1b[?2031;0$y\x1b[?1004;2$y\x1b[?2004;2$y'
