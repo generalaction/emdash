@@ -1,4 +1,9 @@
-import { detectPlatform, getHotkeyManager, type HotkeyRegistrationHandle } from '@tanstack/hotkeys';
+import {
+  detectPlatform,
+  getHotkeyManager,
+  type HotkeyRegistrationHandle,
+  type RegisterableHotkey,
+} from '@tanstack/hotkeys';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,7 +46,7 @@ describe('TerminalKeyboardBridge', () => {
   let outsideInput: HTMLInputElement;
   const handles: HotkeyRegistrationHandle[] = [];
 
-  function registerHotkey(hotkey: string, callback: () => void): void {
+  function registerHotkey(hotkey: RegisterableHotkey, callback: () => void): void {
     handles.push(
       getHotkeyManager().register(hotkey, () => callback(), {
         // Disable the manager's own preventDefault/stopPropagation so a
