@@ -147,6 +147,10 @@ export function InitialConversationField({
     [linkedIssue, promptLibrary]
   );
   const modelOptions = useModelOptions(state.provider);
+  const defaultIssueContext = useMemo(
+    () => (linkedIssue ? buildIssueContextText(linkedIssue) : null),
+    [linkedIssue]
+  );
   const issueContextKey =
     state.issueContext && linkedIssue
       ? `${linkedIssue.provider}:${linkedIssue.identifier}:${state.issueContext}`
@@ -155,11 +159,9 @@ export function InitialConversationField({
 
   // Auto-inject issue context whenever the linked issue changes.
   useEffect(() => {
-    state.setIssueContext(
-      includeIssueContextByDefault && linkedIssue ? buildIssueContextText(linkedIssue) : null
-    );
+    state.setIssueContext(includeIssueContextByDefault ? defaultIssueContext : null);
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [includeIssueContextByDefault, linkedIssue?.identifier, linkedIssue?.provider]);
+  }, [defaultIssueContext, includeIssueContextByDefault]);
 
   // Let the issue combobox finish its close animation before mounting the editable context pill.
   useEffect(() => {
@@ -333,7 +335,10 @@ function IssueContextEditButton({
         </button>
         <button
           type="button"
-          onClick={() => state.setIssueContext(null)}
+          onClick={() => {
+            state.setIssueContextEditorOpen(false);
+            state.setIssueContext(null);
+          }}
           className={cn(
             'absolute right-1 flex items-center justify-center rounded p-0.5',
             'text-foreground-passive opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100'
