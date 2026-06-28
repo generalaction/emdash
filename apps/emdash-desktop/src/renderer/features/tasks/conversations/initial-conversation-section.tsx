@@ -1,10 +1,11 @@
 import { CheckCheckIcon, ChevronDownIcon, PlusIcon, X } from 'lucide-react';
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
+import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   Dialog,
   DialogContent,
@@ -280,6 +281,28 @@ function IssueContextEditButton({
   const defaultContext = useMemo(() => buildIssueContextText(linkedIssue), [linkedIssue]);
   const hasChanges = draft !== defaultContext;
   const handleReset = () => setDraft(defaultContext);
+  const handleSave = () => {
+    state.setIssueContext(draft.trim() || null);
+    setOpen(false);
+  };
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+
+  // Intercept Cmd/Ctrl+Enter while the editor is open so it saves the issue
+  // context instead of triggering the parent dialog's global confirm hotkey.
+  // Capture phase on document runs before the confirm hotkey's bubble listener.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleSaveRef.current();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [open]);
 
   return (
     <>
@@ -331,16 +354,9 @@ function IssueContextEditButton({
                   Reset to default
                 </Button>
               ) : null}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  state.setIssueContext(draft.trim() || null);
-                  setOpen(false);
-                }}
-              >
+              <ConfirmButton size="sm" onClick={handleSave}>
                 Save
-              </Button>
+              </ConfirmButton>
             </DialogFooter>
           </DialogContent>
         </Dialog>

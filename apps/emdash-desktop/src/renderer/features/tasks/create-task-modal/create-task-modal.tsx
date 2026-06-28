@@ -22,7 +22,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import { buildIssueContextText } from '../conversations/context-actions';
 import { useInitialConversationState } from '../conversations/initial-conversation-section';
 import { LinkedEntitySection } from './linked-entity-section';
 import { TaskNameField } from './task-name-field';
@@ -104,6 +106,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     undefined,
     autoApproveByDefault
   );
+  const handleLinkedIssueChange = (issue: LinkedIssue | null) => {
+    state.setLinkedIssue(issue);
+    initialConversation.setIssueContext(
+      includeIssueContextByDefault && issue ? buildIssueContextText(issue) : null
+    );
+  };
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();
 
@@ -130,6 +138,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             projectId={selectedProjectId}
             repositoryUrl={repositoryUrl}
             projectPath={projectPath}
+            onLinkedIssueChange={handleLinkedIssueChange}
           />
           <TaskStateProvider
             workspaceConfig={state.workspaceConfig}
