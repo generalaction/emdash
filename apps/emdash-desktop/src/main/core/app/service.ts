@@ -612,8 +612,8 @@ class AppService implements IInitializable, IDisposable {
 
     const resolvedPath = await realpath(resolve(filePath));
     const resolvedHome = resolve(homedir());
-    const homePrefix = resolvedHome.endsWith(sep) ? resolvedHome : `${resolvedHome}${sep}`;
-    if (!resolvedPath.startsWith(homePrefix) && resolvedPath !== resolvedHome) {
+    const homeRelativePath = relative(resolvedHome, resolvedPath);
+    if (homeRelativePath.startsWith('..') || isAbsolute(homeRelativePath)) {
       throw new Error('Audio file must be located within the user home directory');
     }
 
