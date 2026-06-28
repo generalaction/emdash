@@ -1,9 +1,14 @@
 import { join, normalize, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { net, protocol } from 'electron';
 import { APP_NAME_LOWER } from '@shared/app-identity';
 
 export const APP_SCHEME = 'app';
 export const APP_ORIGIN = `${APP_SCHEME}://${APP_NAME_LOWER}`;
+
+export function fileUrlForPath(filePath: string): string {
+  return pathToFileURL(filePath).toString();
+}
 
 export function registerAppScheme(): void {
   protocol.registerSchemesAsPrivileged([
@@ -32,9 +37,9 @@ export function setupAppProtocol(rendererRoot: string): void {
     }
 
     try {
-      return await net.fetch(`file://${resolved}`);
+      return await net.fetch(fileUrlForPath(resolved));
     } catch {
-      return net.fetch(`file://${join(root, 'index.html')}`);
+      return net.fetch(fileUrlForPath(join(root, 'index.html')));
     }
   });
 }
