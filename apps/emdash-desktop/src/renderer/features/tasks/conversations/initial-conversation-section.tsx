@@ -1,5 +1,5 @@
 import { CheckCheckIcon, ChevronDownIcon, PlusIcon, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
@@ -45,6 +45,8 @@ export type InitialConversationState = {
   setIssueContext: (ctx: string | null) => void;
   autoApprove: boolean;
   setAutoApprove: (autoApprove: boolean) => void;
+  issueContextEditorOpen: boolean;
+  setIssueContextEditorOpen: (open: boolean) => void;
   /** Selected model id, or null to use the agent CLI default. */
   model: string | null;
   setModel: (model: string | null) => void;
@@ -67,6 +69,7 @@ export function useInitialConversationState(
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
+  const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
   const [model, setModel] = useState<string | null>(null);
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
@@ -82,6 +85,7 @@ export function useInitialConversationState(
     }
     setIssueContext(null);
     setAutoApproveOverride(null);
+    setIssueContextEditorOpen(false);
     setModel(null);
   } else if (providerChanged) {
     setPrevProviderId(providerId);
@@ -101,6 +105,8 @@ export function useInitialConversationState(
     setIssueContext,
     autoApprove,
     setAutoApprove: setAutoApproveOverride,
+    issueContextEditorOpen,
+    setIssueContextEditorOpen,
     model,
     setModel,
     connectionId,
@@ -141,6 +147,11 @@ export function InitialConversationField({
     [linkedIssue, promptLibrary]
   );
   const modelOptions = useModelOptions(state.provider);
+  const issueContextKey =
+    state.issueContext && linkedIssue
+      ? `${linkedIssue.provider}:${linkedIssue.identifier}:${state.issueContext}`
+      : null;
+  const [visibleIssueContextKey, setVisibleIssueContextKey] = useState<string | null>(null);
 
   // Auto-inject issue context whenever the linked issue changes.
   useEffect(() => {
@@ -149,6 +160,17 @@ export function InitialConversationField({
     );
     // oxlint-disable-next-line react/exhaustive-deps
   }, [includeIssueContextByDefault, linkedIssue?.identifier, linkedIssue?.provider]);
+
+  // Let the issue combobox finish its close animation before mounting the editable context pill.
+  useEffect(() => {
+    if (!issueContextKey) {
+      setVisibleIssueContextKey(null);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setVisibleIssueContextKey(issueContextKey), 150);
+    return () => window.clearTimeout(timeout);
+  }, [issueContextKey]);
 
   const canToggleAutoApprove = state.provider ? providerSupportsAutoApprove(state.provider) : false;
 
@@ -241,7 +263,7 @@ export function InitialConversationField({
         </div>
 
         {/* Issue context pill — click to edit in a modal */}
-        {state.issueContext && linkedIssue && (
+        {state.issueContext && linkedIssue && visibleIssueContextKey === issueContextKey && (
           <div className="px-2 py-1">
             <IssueContextEditButton state={state} linkedIssue={linkedIssue} />
           </div>
@@ -281,28 +303,14 @@ function IssueContextEditButton({
   const defaultContext = useMemo(() => buildIssueContextText(linkedIssue), [linkedIssue]);
   const hasChanges = draft !== defaultContext;
   const handleReset = () => setDraft(defaultContext);
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    state.setIssueContextEditorOpen(nextOpen);
+  };
   const handleSave = () => {
     state.setIssueContext(draft.trim() || null);
-    setOpen(false);
+    handleOpenChange(false);
   };
-  const handleSaveRef = useRef(handleSave);
-  handleSaveRef.current = handleSave;
-
-  // Intercept Cmd/Ctrl+Enter while the editor is open so it saves the issue
-  // context instead of triggering the parent dialog's global confirm hotkey.
-  // Capture phase on document runs before the confirm hotkey's bubble listener.
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        e.preventDefault();
-        e.stopPropagation();
-        handleSaveRef.current();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [open]);
 
   return (
     <>
@@ -314,7 +322,7 @@ function IssueContextEditButton({
       >
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => handleOpenChange(true)}
           className={cn('flex flex-1 items-center gap-1.5 cursor-pointer min-w-0 py-0.5')}
         >
           <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
@@ -335,7 +343,7 @@ function IssueContextEditButton({
         </button>
       </div>
       {open ? (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Edit issue context</DialogTitle>

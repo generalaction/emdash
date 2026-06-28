@@ -1,5 +1,4 @@
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import type { LinkedIssue } from '@shared/core/linked-issue';
 import { IssueComboboxField } from './issue-combobox-field';
 import { PrComboboxField } from './pr-combobox-field';
 import type { LinkedType, CreateTaskState } from './use-create-task-state';
@@ -11,7 +10,6 @@ interface LinkedEntitySectionProps {
   projectId?: string;
   repositoryUrl?: string;
   projectPath?: string;
-  onLinkedIssueChange?: (issue: LinkedIssue | null) => void;
 }
 
 export function LinkedEntitySection({
@@ -21,7 +19,6 @@ export function LinkedEntitySection({
   projectId,
   repositoryUrl,
   projectPath,
-  onLinkedIssueChange,
 }: LinkedEntitySectionProps) {
   return (
     <div className="flex w-full flex-col justify-between overflow-hidden rounded-lg border">
@@ -55,7 +52,7 @@ export function LinkedEntitySection({
       {state.linkedType === 'issue' && (
         <IssueComboboxField
           value={state.linkedIssue}
-          onValueChange={onLinkedIssueChange ?? state.setLinkedIssue}
+          onValueChange={state.setLinkedIssue}
           projectId={projectId}
           repositoryUrl={repositoryUrl}
           projectPath={projectPath}
