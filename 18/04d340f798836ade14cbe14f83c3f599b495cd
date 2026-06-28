@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/sidebar/project-item.tsx
+  s_fe859eff4f3a44::t_b07c6ee1c2d930 2,115-121,124,267-272
+  s_fe859eff4f3a44::t_f209f27eebcd44 122-123
+  s_fe859eff4f3a44::t_853b6390d6330a 273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1804d340f798836ade14cbe14f83c3f599b495cd",
+  "prompts": {},
+  "sessions": {
+    "s_fe859eff4f3a44": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0f105cf7dffew7G6JRQm5TvI3N",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
