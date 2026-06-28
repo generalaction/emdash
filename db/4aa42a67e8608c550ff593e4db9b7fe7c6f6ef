@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/renderer/app/modal-registry.ts
+  s_fe859eff4f3a44::t_1cf54b9bc3957a 6,61
+apps/emdash-desktop/src/main/core/projects/controller.ts
+  s_fe859eff4f3a44::t_1cf54b9bc3957a 6,16
+apps/emdash-desktop/src/renderer/features/projects/components/rename-project-modal.tsx
+  s_fe859eff4f3a44::t_18430fc97d4c37 74-76
+  s_fe859eff4f3a44::t_1cf54b9bc3957a 1-73,77-91
+apps/emdash-desktop/src/main/core/projects/operations/renameProject.ts
+  s_fe859eff4f3a44::t_18430fc97d4c37 9-12
+  s_fe859eff4f3a44::t_1cf54b9bc3957a 1-8,13-19
+apps/emdash-desktop/src/renderer/features/sidebar/project-item.tsx
+  s_fe859eff4f3a44::t_1cf54b9bc3957a 7,69,244-256
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.ts
+  s_fe859eff4f3a44::t_8559316a5919c2 403-405
+  s_fe859eff4f3a44::t_1cf54b9bc3957a 382-402,406-410
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "db4aa42a67e8608c550ff593e4db9b7fe7c6f6ef",
+  "prompts": {},
+  "sessions": {
+    "s_fe859eff4f3a44": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0f105cf7dffew7G6JRQm5TvI3N",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
