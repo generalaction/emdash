@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_ebba62da7ae8c2::t_051588926c4bba 368-375
+  s_ebba62da7ae8c2::t_810f701b405d5d 1,8,10-12,14,53-287,298-319,396
+  s_ebba62da7ae8c2::t_6f171a9093a4da 630
+  s_ebba62da7ae8c2::t_e9b9e6a564be2f 525-526,528,533-540,550-551,553-555,557,560-586,609,614-629,632-642
+  s_ebba62da7ae8c2::t_2c349d05cdd3ea 631
+  s_ebba62da7ae8c2::t_5a147c7b9c388e 2-5,13,16,288-297
+  s_ebba62da7ae8c2::t_b31cf785d5192f 7,320-367,376-395
+  s_ebba62da7ae8c2::t_4c7750845f7155 527,541-549,552,556,558
+  s_ebba62da7ae8c2::t_44fc6084619585 410-427,471,487-502,506
+  s_ebba62da7ae8c2::t_6215da61551f50 397
+  s_ebba62da7ae8c2::t_9e35534b47d09c 559
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "24a08cf0688805da3a71308abb2a99ec834732c3",
+  "prompts": {},
+  "sessions": {
+    "s_ebba62da7ae8c2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0f3473cd5ffe1Me4p7cM2hF3xR",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
