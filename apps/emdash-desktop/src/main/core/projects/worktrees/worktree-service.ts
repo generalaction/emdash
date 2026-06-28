@@ -6,6 +6,7 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
+import { isPathInsideRoot } from './hosts/local-worktree-host';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import type { WorktreeHost } from './hosts/worktree-host';
 
@@ -132,7 +133,8 @@ export class WorktreeService {
         const candidatePath = match?.[1];
         if (!candidatePath) continue;
         if (await this.isValidWorktree(candidatePath)) {
-          return candidatePath;
+          if (!this.ctx.supportsLocalSpawn) return candidatePath;
+          return fsPromises.realpath(candidatePath).catch(() => candidatePath);
         }
         await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       }
@@ -214,7 +216,12 @@ export class WorktreeService {
         if (block.split('\n').some((line) => line === branchLine)) {
           const match = /^worktree (.+)$/m.exec(block);
           const candidatePath = match?.[1];
-          if (!candidatePath?.startsWith(realPoolPath)) continue;
+          if (
+            !candidatePath ||
+            !isPathInsideRoot(candidatePath, realPoolPath, { pathApi: this.host.pathApi })
+          ) {
+            continue;
+          }
           if (await this.isValidWorktree(candidatePath)) return candidatePath;
           await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
         }

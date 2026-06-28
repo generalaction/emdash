@@ -1,7 +1,7 @@
 import type path from 'node:path';
 import type { FileEntry } from '@main/core/fs/types';
 
-export type WorktreeHostPathApi = Pick<typeof path, 'dirname' | 'join'>;
+export type WorktreeHostPathApi = Pick<typeof path, 'dirname' | 'isAbsolute' | 'join' | 'relative'>;
 
 export interface WorktreeHost {
   readonly pathApi: WorktreeHostPathApi;

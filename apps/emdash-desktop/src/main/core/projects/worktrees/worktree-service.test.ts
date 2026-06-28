@@ -11,6 +11,14 @@ import { LocalWorktreeHost } from './hosts/local-worktree-host';
 import type { WorktreeHost } from './hosts/worktree-host';
 import { WorktreeService } from './worktree-service';
 
+vi.mock('@main/lib/logger', () => ({
+  log: {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
 async function git(
   args: string[],
   opts: { cwd: string }
@@ -92,7 +100,10 @@ describe('WorktreeService', () => {
       copyFileAbsolute: vi.fn().mockResolvedValue(undefined),
       statAbsolute: vi.fn().mockResolvedValue(null),
       pathApi: {
+        isAbsolute: (input: string) => path.posix.isAbsolute(input.replace(/^host:/, '')),
         join: (...segments: string[]) => `host:${path.posix.join(...segments)}`,
+        relative: (from: string, to: string) =>
+          path.posix.relative(from.replace(/^host:/, ''), to.replace(/^host:/, '')),
         dirname: (input: string) => `host-dir:${path.posix.dirname(input.replace(/^host:/, ''))}`,
       },
     };
@@ -175,6 +186,62 @@ describe('WorktreeService', () => {
       await expect(svc.getWorktree(branchName)).resolves.toBeUndefined();
 
       expect(fakeHost.removeAbsolute).toHaveBeenCalledWith(targetPath, { recursive: true });
+    });
+
+    it('matches worktree-list entries inside the Windows pool without prefix false positives', async () => {
+      const branchName = 'task/windows-pool';
+      const realPoolPath = 'C:\\worktrees\\repo';
+      const prefixSiblingPath = 'C:\\worktrees\\repo-other\\task\\windows-pool';
+      const casedPoolPath = 'c:\\worktrees\\repo\\task\\windows-pool';
+      const expectedPath = path.win32.join(realPoolPath, branchName);
+      const exec = vi.fn(async (_command: string, args: string[] = []) => {
+        if (args[0] === 'worktree' && args[1] === 'list') {
+          return {
+            stderr: '',
+            stdout: [
+              `worktree ${prefixSiblingPath}`,
+              `branch refs/heads/${branchName}`,
+              '',
+              `worktree ${casedPoolPath}`,
+              `branch refs/heads/${branchName}`,
+              '',
+            ].join('\n'),
+          };
+        }
+        if (args.includes('rev-parse')) return { stdout: 'true\n', stderr: '' };
+        return { stdout: '', stderr: '' };
+      });
+      const fakeHost: WorktreeHost = {
+        pathApi: path.win32,
+        existsAbsolute: vi.fn(async (absPath: string) => absPath === `${casedPoolPath}\\.git`),
+        mkdirAbsolute: vi.fn(async () => {}),
+        removeAbsolute: vi.fn(async () => ({ success: true })),
+        realPathAbsolute: vi.fn(async () => realPoolPath),
+        globAbsolute: vi.fn(async () => []),
+        readFileAbsolute: vi.fn(async () => ''),
+        copyFileAbsolute: vi.fn(async () => {}),
+        statAbsolute: vi.fn(async () => null),
+      };
+      const ctx: IExecutionContext = {
+        root: 'C:\\repo',
+        supportsLocalSpawn: false,
+        exec,
+        execStreaming: async () => {},
+        dispose: () => {},
+      };
+      const svc = new WorktreeService({
+        repoPath: 'C:\\repo',
+        ctx,
+        host: fakeHost,
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => realPoolPath,
+      });
+
+      await expect(svc.getWorktree(branchName)).resolves.toBe(casedPoolPath);
+
+      expect(fakeHost.existsAbsolute).toHaveBeenCalledWith(expectedPath);
+      expect(fakeHost.existsAbsolute).not.toHaveBeenCalledWith(`${prefixSiblingPath}\\.git`);
+      expect(fakeHost.existsAbsolute).toHaveBeenCalledWith(`${casedPoolPath}\\.git`);
     });
 
     it('creates a worktree from an existing local source branch', async () => {
