@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_f59c20ab5a841a::t_b1d5becbc0de0d 150-153,162,164,338-341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "4012491fd7ef53f08baeaf64afd345f41ae2771b",
+  "prompts": {},
+  "sessions": {
+    "s_f59c20ab5a841a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0f02621fdffeEFaVel5xkgFOO2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
