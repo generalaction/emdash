@@ -1,0 +1,27 @@
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.test.ts
+  s_70e6c60bfbd579::t_6b6d0a09f7dc38 19-20
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_70e6c60bfbd579::t_2e03e2d949c49f 48-49,72,88,108-109,306-309,312,325,346
+  s_70e6c60bfbd579::t_9a54edd7de990d 2
+  s_70e6c60bfbd579::t_45d03b7ba5941c 150-154,164-174,266
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/create-task-modal.tsx
+  s_70e6c60bfbd579::t_22b94fd1231994 164-168
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/linked-entity-section.tsx
+  s_70e6c60bfbd579::t_b67ad2b90afce4 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "de33e4d0d4c6c0c8fd7ea04c41e37438228af40a",
+  "prompts": {},
+  "sessions": {
+    "s_70e6c60bfbd579": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0f06d245affeoUx6OyRoiHlYei",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
