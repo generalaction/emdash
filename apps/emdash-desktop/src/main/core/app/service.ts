@@ -1,7 +1,7 @@
 import { exec } from 'node:child_process';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { extname, isAbsolute, join, resolve, sep } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve } from 'node:path';
 import type { IDisposable, IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
@@ -68,8 +68,11 @@ function quoteShellArg(value: string): string {
 
 function expandAbsoluteOrTildePath(rawPath: string): string {
   if (!rawPath || typeof rawPath !== 'string') throw new Error('Invalid path');
-  const expanded = rawPath.startsWith('~/') ? join(homedir(), rawPath.slice(2)) : rawPath;
-  if (!isAbsolute(expanded)) throw new Error('Path must be absolute or start with ~/');
+  const expanded =
+    rawPath.startsWith('~/') || rawPath.startsWith('~\\')
+      ? join(homedir(), rawPath.slice(2))
+      : rawPath;
+  if (!isAbsolute(expanded)) throw new Error('Path must be absolute or start with ~/ or ~\\');
   return expanded;
 }
 
@@ -77,8 +80,8 @@ async function resolveHomeJailedPath(rawPath: string): Promise<string> {
   const expanded = expandAbsoluteOrTildePath(rawPath);
   const realPath = await realpath(expanded);
   const realHome = await realpath(homedir());
-  const realHomeWithSep = realHome.endsWith(sep) ? realHome : realHome + sep;
-  if (realPath !== realHome && !realPath.startsWith(realHomeWithSep)) {
+  const relativePath = relative(realHome, realPath);
+  if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
     throw new Error('Path must be inside the user home directory');
   }
   return realPath;

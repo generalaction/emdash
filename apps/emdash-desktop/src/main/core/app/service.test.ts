@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
   getVersion: vi.fn(() => '1.1.27'),
+  homedir: vi.fn(() => 'C:\\Users\\Jan'),
+  realpath: vi.fn(async (path: string) => path),
   openExternal: vi.fn(),
   openPath: vi.fn(),
   menuPopup: vi.fn(),
@@ -17,6 +19,22 @@ const mocks = vi.hoisted(() => ({
 vi.mock('node:child_process', () => ({
   exec: mocks.exec,
 }));
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    realpath: mocks.realpath,
+  };
+});
+
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  return {
+    ...actual,
+    homedir: mocks.homedir,
+  };
+});
 
 vi.mock('electron', () => ({
   app: {
@@ -83,6 +101,8 @@ describe('AppService.openIn', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setPlatform('win32');
+    mocks.homedir.mockReturnValue('C:\\Users\\Jan');
+    mocks.realpath.mockImplementation(async (path: string) => path);
     mocks.openPath.mockResolvedValue('');
     mocks.exec.mockImplementation(
       (_command: string, _options: object, callback: (error: Error | null) => void) => {
@@ -137,6 +157,26 @@ describe('AppService.openIn', () => {
       expect.objectContaining({ cwd: target }),
       expect.any(Function)
     );
+  });
+
+  it('opens home-relative Windows paths with a backslash after tilde', async () => {
+    mocks.realpath.mockImplementation(async (path: string) =>
+      path === 'C:\\Users\\Jan' ? 'C:\\Users\\Jan' : 'C:\\Users\\Jan\\notes.txt'
+    );
+
+    await appService.openPath('~\\notes.txt');
+
+    expect(mocks.openPath).toHaveBeenCalledWith('C:\\Users\\Jan\\notes.txt');
+  });
+
+  it('allows Windows home-contained paths with different drive casing', async () => {
+    mocks.realpath.mockImplementation(async (path: string) =>
+      path === 'C:\\Users\\Jan' ? 'C:\\Users\\Jan' : 'c:\\Users\\Jan\\notes.txt'
+    );
+
+    await appService.openPath('c:\\Users\\Jan\\notes.txt');
+
+    expect(mocks.openPath).toHaveBeenCalledWith('c:\\Users\\Jan\\notes.txt');
   });
 });
 
