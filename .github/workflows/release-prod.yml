@@ -137,7 +137,8 @@ jobs:
             echo "has_signing=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_signing=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Azure Trusted Signing secrets not configured. Windows build will be unsigned."
+            echo "::error::Azure Trusted Signing secrets are required for production Windows releases."
+            exit 1
           fi
 
       - name: Build Windows packages
