@@ -7,7 +7,7 @@ import { Arch, Platform, build as electronBuild } from 'electron-builder';
 import type { Configuration } from 'electron-builder';
 import { duplicateChannelManifests, resolvePublishChannels } from './lib/artifacts.ts';
 import { GITHUB_OWNER, GITHUB_REPO } from './lib/config.ts';
-import { exec } from './lib/exec.ts';
+import { exec, execFile } from './lib/exec.ts';
 import { fail, info, step, warn } from './lib/log.ts';
 import { resolveReleaseVersion } from './lib/version.ts';
 import type { ReleaseChannel } from './lib/version.ts';
@@ -66,7 +66,7 @@ if (isCanary) {
 step('Creating deployment directory with production dependencies');
 const workspaceRoot = resolve(process.cwd(), '../..');
 const deployDir = mkdtempSync(join(workspaceRoot, '.emdash-deploy-'));
-exec(`pnpm --filter @emdash/emdash-desktop deploy --legacy --prod ${deployDir}`, {
+execFile('pnpm', ['--filter', '@emdash/emdash-desktop', 'deploy', '--legacy', '--prod', deployDir], {
   cwd: workspaceRoot,
   echo: true,
 });
@@ -86,8 +86,16 @@ try {
   for (const arch of archs) {
     step(`Building ${platform} ${targetList.join(' ')} for ${arch}`);
 
-    exec(
-      `node --experimental-strip-types scripts/release/rebuild-native.ts --arch ${arch} --deploy-dir ${deployDir}`,
+    execFile(
+      'node',
+      [
+        '--experimental-strip-types',
+        'scripts/release/rebuild-native.ts',
+        '--arch',
+        arch,
+        '--deploy-dir',
+        deployDir,
+      ],
       { echo: true }
     );
 
