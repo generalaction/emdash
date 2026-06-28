@@ -32,7 +32,7 @@ for (const f of files) {
         '-Command',
         [
           '$sig = Get-AuthenticodeSignature -FilePath $env:EMDASH_SIGNED_ARTIFACT;',
-          "if ($sig.Status -ne 'Valid') { Write-Error \"Invalid: $($sig.Status) - $($sig.StatusMessage)\"; exit 1 }",
+          'if ($sig.Status -ne \'Valid\') { Write-Error "Invalid: $($sig.Status) - $($sig.StatusMessage)"; exit 1 }',
           'Write-Host "Status: $($sig.Status)";',
           'Write-Host "Subject: $($sig.SignerCertificate.Subject)"',
         ].join(' '),

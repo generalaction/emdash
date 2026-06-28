@@ -6,8 +6,8 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
-import { isPathInsideRoot } from './hosts/local-worktree-host';
 import type { ProjectSettingsProvider } from '../settings/provider';
+import { isPathInsideRoot } from './hosts/local-worktree-host';
 import type { WorktreeHost } from './hosts/worktree-host';
 
 export type ServeWorktreeError =

@@ -65,7 +65,12 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
 }
 
 function isExternalPath(path: string): boolean {
-  return /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('~/') || path.startsWith('~\\') || path.startsWith('/');
+  return (
+    /^[a-zA-Z]:[\\/]/.test(path) ||
+    path.startsWith('~/') ||
+    path.startsWith('~\\') ||
+    path.startsWith('/')
+  );
 }
 
 function isEmbeddedInUrl(text: string, startCol: number): boolean {

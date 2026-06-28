@@ -17,12 +17,7 @@ export function safePathSegment(input: string, fallback = 'project'): string {
     .replace(/[. ]+$/g, '')
     .trim();
   const stem = segment.split('.')[0] ?? '';
-  if (
-    !segment ||
-    segment === '.' ||
-    segment === '..' ||
-    WINDOWS_RESERVED_DEVICE_NAME.test(stem)
-  ) {
+  if (!segment || segment === '.' || segment === '..' || WINDOWS_RESERVED_DEVICE_NAME.test(stem)) {
     return fallback;
   }
   return segment;

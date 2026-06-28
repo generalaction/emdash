@@ -66,10 +66,14 @@ if (isCanary) {
 step('Creating deployment directory with production dependencies');
 const workspaceRoot = resolve(process.cwd(), '../..');
 const deployDir = mkdtempSync(join(workspaceRoot, '.emdash-deploy-'));
-execFile('pnpm', ['--filter', '@emdash/emdash-desktop', 'deploy', '--legacy', '--prod', deployDir], {
-  cwd: workspaceRoot,
-  echo: true,
-});
+execFile(
+  'pnpm',
+  ['--filter', '@emdash/emdash-desktop', 'deploy', '--legacy', '--prod', deployDir],
+  {
+    cwd: workspaceRoot,
+    echo: true,
+  }
+);
 
 step('Copying built assets into deployment directory');
 cpSync('out', join(deployDir, 'out'), { recursive: true });
