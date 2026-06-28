@@ -1,9 +1,16 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileSystemError } from '../types';
 import { LocalFileSystem } from './local-fs';
+
+vi.mock('@main/lib/logger', () => ({
+  log: {
+    error: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
 
 describe('LocalFileSystem', () => {
   let tempDir: string;
@@ -460,6 +467,19 @@ describe('LocalFileSystem', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('too large');
+    });
+  });
+
+  describe('saveAttachment', () => {
+    it('returns a slash-normalized relative attachment path', async () => {
+      const srcPath = path.join(tempDir, 'source.png');
+      fs.writeFileSync(srcPath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+      const result = await fsService.saveAttachment(srcPath);
+
+      expect(result.success).toBe(true);
+      expect(result.relPath).toBe('.emdash/attachments/source.png');
+      expect(result.relPath).not.toContain('\\');
     });
   });
 

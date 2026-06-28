@@ -652,7 +652,7 @@ export class LocalFileSystem implements FileSystemProvider {
       }
 
       await fs.copyFile(srcPath, destAbs);
-      const relPath = relative(this.projectPath, destAbs);
+      const relPath = this.relPath(destAbs);
       return { success: true, absPath: destAbs, relPath, fileName: destName };
     } catch (err: unknown) {
       return { success: false, error: err instanceof Error ? err.message : String(err) };
