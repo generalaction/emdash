@@ -21,7 +21,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
     realpath: mocks.realpath,
@@ -29,7 +29,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 vi.mock('node:os', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:os')>();
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
     homedir: mocks.homedir,
