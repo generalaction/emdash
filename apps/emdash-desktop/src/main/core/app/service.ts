@@ -57,6 +57,15 @@ const AUDIO_MIME_TYPES: Record<string, string> = {
   '.webm': 'audio/webm',
 };
 
+function escapeWindowsCmdValue(value: string): string {
+  return value.replace(/\^/g, '^^').replace(/[&|<>%!]/g, '^$&');
+}
+
+function quoteShellArg(value: string): string {
+  if (process.platform === 'win32') return `"${escapeWindowsCmdValue(value)}"`;
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 function expandAbsoluteOrTildePath(rawPath: string): string {
   if (!rawPath || typeof rawPath !== 'string') throw new Error('Invalid path');
   const expanded = rawPath.startsWith('~/') ? join(homedir(), rawPath.slice(2)) : rawPath;
@@ -539,11 +548,15 @@ class AppService implements IInitializable, IDisposable {
       );
     }
 
-    const quoted = (p: string) =>
-      process.platform !== 'win32' ? `'${p.replace(/'/g, "'\\''")}'` : `"${p.replace(/"/g, '""')}"`;
+    const pathRaw = process.platform === 'win32' ? escapeWindowsCmdValue(target) : target;
     const commands: string[] = platformConfig?.openCommands ?? [];
     const command = commands
-      .map((cmd) => cmd.replace('{{path}}', quoted(target)).replace('{{path_raw}}', target))
+      .map((cmd) =>
+        cmd
+          .replaceAll('{{path_url}}', encodeURIComponent(target))
+          .replaceAll('{{path_raw}}', pathRaw)
+          .replaceAll('{{path}}', quoteShellArg(target))
+      )
       .join(' || ');
 
     if (!command) throw new Error('Unsupported platform or app');

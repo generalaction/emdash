@@ -206,7 +206,7 @@ const _OPEN_IN_APPS = {
     platforms: {
       darwin: { openCommands: ['open -a Terminal {{path}}'] },
       win32: {
-        openCommands: ['wt -d {{path}}', 'start cmd /K "cd /d {{path_raw}}"'],
+        openCommands: ['wt -d {{path}}', 'start "" cmd /K'],
       },
       linux: {
         openCommands: [
@@ -255,8 +255,8 @@ const _OPEN_IN_APPS = {
       },
       win32: {
         openCommands: [
-          'start "" alacritty --working-directory "{{path_raw}}"',
-          'alacritty --working-directory "{{path_raw}}"',
+          'start "" alacritty --working-directory {{path}}',
+          'alacritty --working-directory {{path}}',
         ],
         checkCommands: ['alacritty'],
       },
@@ -399,7 +399,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Athas'],
       },
       win32: {
-        openCommands: ['athas "{{path_raw}}"'],
+        openCommands: ['athas {{path}}'],
         checkCommands: ['athas'],
       },
       linux: {
@@ -472,7 +472,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Trae'],
       },
       win32: {
-        openCommands: ['trae "{{path_raw}}"'],
+        openCommands: ['trae {{path}}'],
         checkCommands: ['trae'],
       },
       linux: {
@@ -496,7 +496,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Trae Solo'],
       },
       win32: {
-        openCommands: ['trae-solo "{{path_raw}}"'],
+        openCommands: ['trae-solo {{path}}'],
         checkCommands: ['trae-solo'],
       },
       linux: {

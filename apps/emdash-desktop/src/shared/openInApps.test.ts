@@ -42,7 +42,7 @@ describe('OPEN_IN_APPS', () => {
       'alacritty --working-directory {{path}}',
     ]);
     expect(OPEN_IN_APPS.alacritty.platforms.win32?.openCommands).toContain(
-      'start "" alacritty --working-directory "{{path_raw}}"'
+      'start "" alacritty --working-directory {{path}}'
     );
   });
 
@@ -64,7 +64,26 @@ describe('OPEN_IN_APPS', () => {
     expect(OPEN_IN_APPS.athas.platforms.darwin?.openCommands).toContain(
       'open -n -b com.code.athas --args {{path}}'
     );
-    expect(OPEN_IN_APPS.athas.platforms.win32?.openCommands).toEqual(['athas "{{path_raw}}"']);
+    expect(OPEN_IN_APPS.athas.platforms.win32?.openCommands).toEqual(['athas {{path}}']);
     expect(OPEN_IN_APPS.athas.platforms.linux?.openCommands).toEqual(['athas {{path}}']);
+  });
+
+  it('does not use raw path placeholders in Windows launch commands', () => {
+    for (const app of Object.values(OPEN_IN_APPS)) {
+      for (const command of app.platforms.win32?.openCommands ?? []) {
+        expect(command, app.id).not.toContain('{{path_raw}}');
+      }
+    }
+  });
+
+  it('uses URL-encoded path placeholders in URL launch templates', () => {
+    for (const app of Object.values(OPEN_IN_APPS)) {
+      for (const platformConfig of Object.values(app.platforms)) {
+        for (const url of platformConfig?.openUrls ?? []) {
+          expect(url, app.id).toContain('{{path_url}}');
+          expect(url, app.id).not.toContain('{{path}}');
+        }
+      }
+    }
   });
 });

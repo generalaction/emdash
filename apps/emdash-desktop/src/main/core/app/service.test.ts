@@ -114,6 +114,30 @@ describe('AppService.openIn', () => {
     expect(mocks.openPath).toHaveBeenCalledWith(target);
     expect(mocks.exec).not.toHaveBeenCalled();
   });
+
+  it('escapes Windows cmd metacharacters in quoted launcher paths', async () => {
+    const target = 'C:\\Users\\Qwenzy\\Desktop\\work & notes %USERNAME%^';
+
+    await appService.openIn({ app: 'vscode', path: target });
+
+    expect(mocks.exec).toHaveBeenCalledWith(
+      'code "C:\\Users\\Qwenzy\\Desktop\\work ^& notes ^%USERNAME^%^^" || code-insiders "C:\\Users\\Qwenzy\\Desktop\\work ^& notes ^%USERNAME^%^^"',
+      expect.objectContaining({ cwd: target }),
+      expect.any(Function)
+    );
+  });
+
+  it('uses cwd instead of nested cd commands for Windows terminal fallback', async () => {
+    const target = 'C:\\Users\\Qwenzy\\Desktop\\work & notes %USERNAME%^';
+
+    await appService.openIn({ app: 'terminal', path: target });
+
+    expect(mocks.exec).toHaveBeenCalledWith(
+      'wt -d "C:\\Users\\Qwenzy\\Desktop\\work ^& notes ^%USERNAME^%^^" || start "" cmd /K',
+      expect.objectContaining({ cwd: target }),
+      expect.any(Function)
+    );
+  });
 });
 
 describe('AppService.showTerminalContextMenu', () => {
