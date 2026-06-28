@@ -27,6 +27,10 @@ async function isTrackedSourcePath(relPath: string, ctx: StepContext): Promise<b
   }
 }
 
+function isSharedConfigPath(relPath: string): boolean {
+  return relPath.replace(/\\/g, '/').toLowerCase() === '.emdash.json';
+}
+
 export async function execute(
   _args: Step.Args,
   ctx: StepContext
@@ -50,7 +54,7 @@ export async function execute(
         dot: true,
       });
       for (const relPath of matches) {
-        if (relPath === '.emdash.json' || (await isTrackedSourcePath(relPath, ctx))) continue;
+        if (isSharedConfigPath(relPath) || (await isTrackedSourcePath(relPath, ctx))) continue;
         const src = ctx.host.pathApi.join(ctx.repoPath, relPath);
         const stat = await ctx.host.statAbsolute(src).catch(() => null);
         if (!stat || stat.type !== 'file') continue;

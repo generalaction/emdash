@@ -489,6 +489,21 @@ describe('WorktreeService', () => {
       if (!result.success) throw new Error('expected success');
       expect(fs.readFileSync(path.join(result.data, '.env'), 'utf8')).toBe('SECRET=abc');
     });
+
+    it('does not copy case-varied shared config files as preserved files', async () => {
+      fs.writeFileSync(path.join(repoDir, '.EMDASH.JSON'), '{"preservePatterns":["*"]}');
+      await git(['branch', 'task/skip-shared-config'], { cwd: repoDir });
+      const svc = makeService({ projectSettings: makeSettings(['.EMDASH.JSON']) });
+
+      const result = await svc.checkoutBranchWorktree(
+        { type: 'local', branch: 'main' },
+        'task/skip-shared-config'
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(fs.existsSync(path.join(result.data, '.EMDASH.JSON'))).toBe(false);
+    });
   });
 
   describe('removeWorktree', () => {

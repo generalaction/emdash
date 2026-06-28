@@ -14,6 +14,10 @@ export type ServeWorktreeError =
   | { type: 'worktree-setup-failed'; cause: SerializedError }
   | { type: 'branch-not-found'; branch: string };
 
+function isSharedConfigPath(relPath: string): boolean {
+  return relPath.replace(/\\/g, '/').toLowerCase() === '.emdash.json';
+}
+
 export class WorktreeService {
   private gitOpQueue: Promise<unknown> = Promise.resolve();
   private readonly resolveWorktreePoolPath: () => Promise<string>;
@@ -447,7 +451,7 @@ export class WorktreeService {
         dot: true,
       });
       for (const relPath of matches) {
-        if (relPath === '.emdash.json' || (await this.isTrackedSourcePath(relPath))) continue;
+        if (isSharedConfigPath(relPath) || (await this.isTrackedSourcePath(relPath))) continue;
         const src = this.host.pathApi.join(this.repoPath, relPath);
         const stat = await this.host.statAbsolute(src).catch(() => null);
         if (!stat || stat.type !== 'file') continue;
