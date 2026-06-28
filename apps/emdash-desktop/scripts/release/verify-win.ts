@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { ARTIFACT_PREFIX, RELEASE_DIR } from './lib/config.ts';
-import { exec } from './lib/exec.ts';
+import { execFile } from './lib/exec.ts';
 import { fail, info, step } from './lib/log.ts';
 
 if (process.platform !== 'win32') {
@@ -25,11 +25,19 @@ for (const f of files) {
   const fullPath = join(RELEASE_DIR, f);
   info(`Verifying signature on ${f}...`);
   try {
-    const output = exec(
-      `powershell -Command "` +
-        `$sig = Get-AuthenticodeSignature -FilePath '${fullPath}'; ` +
-        `if ($sig.Status -ne 'Valid') { Write-Error \\"Invalid: $($sig.Status) - $($sig.StatusMessage)\\"; exit 1 } ` +
-        `Write-Host \\"Status: $($sig.Status)\\"; Write-Host \\"Subject: $($sig.SignerCertificate.Subject)\\""`
+    const output = execFile(
+      'powershell',
+      [
+        '-NoProfile',
+        '-Command',
+        [
+          '$sig = Get-AuthenticodeSignature -FilePath $env:EMDASH_SIGNED_ARTIFACT;',
+          "if ($sig.Status -ne 'Valid') { Write-Error \"Invalid: $($sig.Status) - $($sig.StatusMessage)\"; exit 1 }",
+          'Write-Host "Status: $($sig.Status)";',
+          'Write-Host "Subject: $($sig.SignerCertificate.Subject)"',
+        ].join(' '),
+      ],
+      { env: { EMDASH_SIGNED_ARTIFACT: fullPath } }
     );
     info(output);
   } catch {
