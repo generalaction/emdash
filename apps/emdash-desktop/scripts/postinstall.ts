@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { NATIVE_MODULES } from './native-modules.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -67,8 +68,11 @@ const disablePty = process.env.EMDASH_DISABLE_PTY === '1';
 const disableNativeDb = process.env.EMDASH_DISABLE_NATIVE_DB === '1';
 
 const nativeModules: string[] = [];
-if (!disableNativeDb) nativeModules.push('better-sqlite3');
-if (!disablePty) nativeModules.push('node-pty');
+for (const nativeModule of NATIVE_MODULES) {
+  if (nativeModule === 'better-sqlite3' && disableNativeDb) continue;
+  if (nativeModule === 'node-pty' && disablePty) continue;
+  nativeModules.push(nativeModule);
+}
 
 if (nativeModules.length === 0) {
   process.exit(0);
