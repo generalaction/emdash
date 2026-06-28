@@ -105,7 +105,7 @@ export class FileLinkProvider implements ILinkProvider {
 }
 
 function normalizeFilePath(filePath: string): string {
-  return filePath.replace(/^\.\//, '');
+  return filePath.replace(/^\.[\\/]/, '').replace(/\\/g, '/');
 }
 
 function setDecorations(decorations: LinkDecorations, enabled: boolean): void {

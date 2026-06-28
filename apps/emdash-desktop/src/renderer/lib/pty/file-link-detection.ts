@@ -2,7 +2,7 @@ import type { ILink } from '@xterm/xterm';
 
 // Lookbehind on `:` keeps URLs (`https://...`) with WebLinksAddon.
 const FILE_PATH_PATTERN =
-  '(?<![\\w\\-./@:])(~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
+  '(?<![\\w\\-./@:])(?:[a-zA-Z]:[\\\\/]|~[\\\\/]|[\\\\/]|\\.{1,2}[\\\\/])?(?:[\\w\\-.@]+[\\\\/])+[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
 const URL_PROTOCOL_PATTERN = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
 const MAX_WRAPPED_LINE_LENGTH = 4096;
 
@@ -30,7 +30,11 @@ type LogicalLine = {
 
 export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): FileLinkMatch[] {
   const logicalLine = getWrappedLogicalLine(buffer, bufferLineNumber - 1);
-  if (!logicalLine || !logicalLine.text || logicalLine.text.indexOf('/') === -1) {
+  if (
+    !logicalLine ||
+    !logicalLine.text ||
+    (logicalLine.text.indexOf('/') === -1 && logicalLine.text.indexOf('\\') === -1)
+  ) {
     return [];
   }
 
@@ -53,11 +57,15 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
       links.push({
         range: linkRange,
         text: matched,
-        isExternal: matched.startsWith('~/') || matched.startsWith('/'),
+        isExternal: isExternalPath(matched),
       });
     }
   }
   return links;
+}
+
+function isExternalPath(path: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('~/') || path.startsWith('~\\') || path.startsWith('/');
 }
 
 function isEmbeddedInUrl(text: string, startCol: number): boolean {
@@ -156,12 +164,15 @@ function expandHardLineBreakPathContinuations(
 
 function endsWithPathContinuation(text: string): boolean {
   const fragment = trailingToken(text);
-  return fragment.includes('/') && !isEmbeddedInUrl(text, text.length - fragment.length);
+  return (
+    (fragment.includes('/') || fragment.includes('\\')) &&
+    !isEmbeddedInUrl(text, text.length - fragment.length)
+  );
 }
 
 function startsWithPathContinuation(text: string): boolean {
   const trimmed = trimPathContinuationStart(text);
-  return /^[\w.\-@]+(?:\/|[\w.\-@]*\.[a-zA-Z][a-zA-Z0-9]{0,9}\b)/.test(trimmed);
+  return /^[\w.\-@]+(?:[\\/]|[\w.\-@]*\.[a-zA-Z][a-zA-Z0-9]{0,9}\b)/.test(trimmed);
 }
 
 function trimPathContinuationStart(text: string): string {

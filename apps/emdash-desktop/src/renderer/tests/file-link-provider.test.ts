@@ -122,6 +122,39 @@ describe('file link provider', () => {
     ]);
   });
 
+  it('detects Windows relative and absolute paths', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('open src\\main\\app.ts .\\src\\index.ts C:\\repo\\src\\main.ts'),
+    ]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([
+      {
+        range: {
+          start: { x: 6, y: 1 },
+          end: { x: 20, y: 1 },
+        },
+        text: 'src\\main\\app.ts',
+        isExternal: false,
+      },
+      {
+        range: {
+          start: { x: 22, y: 1 },
+          end: { x: 35, y: 1 },
+        },
+        text: '.\\src\\index.ts',
+        isExternal: false,
+      },
+      {
+        range: {
+          start: { x: 37, y: 1 },
+          end: { x: 55, y: 1 },
+        },
+        text: 'C:\\repo\\src\\main.ts',
+        isExternal: true,
+      },
+    ]);
+  });
+
   it('keeps URL paths delegated to the web links addon', () => {
     const buffer = makeBuffer([new MockBufferLine('see https://example.com/src/file.ts')]);
 
@@ -167,7 +200,7 @@ describe('file link provider', () => {
   it('only opens links when the activation modifier is pressed', () => {
     const openedFiles: string[] = [];
     const openedExternal: string[] = [];
-    const buffer = makeBuffer([new MockBufferLine('open ./src/app.ts and /tmp/report.md')]);
+    const buffer = makeBuffer([new MockBufferLine('open .\\src\\app.ts and /tmp/report.md')]);
     const provider = new FileLinkProvider(
       { buffer: { active: buffer } } as never,
       (filePath) => openedFiles.push(filePath),
