@@ -14,12 +14,14 @@ export function basenameFromAnyPath(input: string): string {
 export function safePathSegment(input: string, fallback = 'project'): string {
   const segment = basenameFromAnyPath(input)
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
+    .replace(/[. ]+$/g, '')
     .trim();
+  const stem = segment.split('.')[0] ?? '';
   if (
     !segment ||
     segment === '.' ||
     segment === '..' ||
-    WINDOWS_RESERVED_DEVICE_NAME.test(segment)
+    WINDOWS_RESERVED_DEVICE_NAME.test(stem)
   ) {
     return fallback;
   }

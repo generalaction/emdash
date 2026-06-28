@@ -34,6 +34,14 @@ describe('path-name helpers', () => {
     it('falls back for Windows reserved device names', () => {
       expect(safePathSegment('NUL', 'project-id')).toBe('project-id');
       expect(safePathSegment('com1', 'project-id')).toBe('project-id');
+      expect(safePathSegment('CON.txt', 'project-id')).toBe('project-id');
+      expect(safePathSegment('aux.', 'project-id')).toBe('project-id');
+    });
+
+    it('removes Windows-invalid trailing dots and spaces', () => {
+      expect(safePathSegment('project.')).toBe('project');
+      expect(safePathSegment('project  ')).toBe('project');
+      expect(safePathSegment('...', 'project-id')).toBe('project-id');
     });
   });
 });
