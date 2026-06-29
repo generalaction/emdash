@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/gemini/index.ts
+  s_7605112fbf89b4::t_033dfad00ab5fa 22-42,67
+packages/plugins/src/agents/impl/gemini/index.test.ts
+  s_7605112fbf89b4::t_a039bb643ddbf9 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "80f590cd36fa498887c337b7d28fb44d6f660d0e",
+  "prompts": {},
+  "sessions": {
+    "s_7605112fbf89b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f130a-6fc8-7a80-a4a9-fa3f9f143697",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
