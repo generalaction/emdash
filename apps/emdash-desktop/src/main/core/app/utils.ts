@@ -1,4 +1,4 @@
-import { exec, execFile } from 'node:child_process';
+import { exec, execFile, spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app } from 'electron';
@@ -43,6 +43,21 @@ export const execFileCommand = (
         resolve();
       }
     );
+  });
+
+export const spawnDetachedCommand = (file: string, args: string[]): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const child = spawn(file, args, {
+      detached: true,
+      env: buildExternalToolEnv(),
+      stdio: 'ignore',
+      windowsHide: false,
+    });
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
   });
 
 const execFileOutput = (
@@ -182,6 +197,31 @@ export const checkCommand = (cmd: string): Promise<boolean> =>
       resolve(!error);
     });
   });
+
+/**
+ * Resolve the full path to the latest Visual Studio's `devenv.exe` via `vswhere.exe`,
+ * the canonical VS locator installed at a fixed path with any VS 2017+ install.
+ * `devenv` is rarely on PATH, so this is the reliable way to both detect and launch it.
+ * Returns null when Visual Studio is not installed.
+ */
+export const resolveWindowsVsProductPath = (): Promise<string | null> =>
+  new Promise((resolve) => {
+    const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+    const vswhere = join(programFilesX86, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
+    execFile(
+      vswhere,
+      ['-latest', '-property', 'productPath'],
+      { timeout: 30_000, env: buildExternalToolEnv() },
+      (error, stdout) => {
+        if (error) return resolve(null);
+        const productPath = stdout.split(/\r?\n/)[0]?.trim();
+        resolve(productPath && productPath.length > 0 ? productPath : null);
+      }
+    );
+  });
+
+export const checkWindowsVisualStudio = async (): Promise<boolean> =>
+  (await resolveWindowsVsProductPath()) !== null;
 
 export const checkMacApp = (bundleId: string): Promise<boolean> =>
   new Promise((resolve) => {
