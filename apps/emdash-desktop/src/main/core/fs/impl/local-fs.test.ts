@@ -386,6 +386,16 @@ describe('LocalFileSystem', () => {
       expect(result.error).toContain('directory');
     });
 
+    it('should remove directory recursively when requested', async () => {
+      fs.mkdirSync(path.join(tempDir, 'subdir/nested'), { recursive: true });
+      fs.writeFileSync(path.join(tempDir, 'subdir/nested/delete.txt'), 'content');
+
+      const result = await fsService.remove('subdir', { recursive: true });
+
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(path.join(tempDir, 'subdir'))).toBe(false);
+    });
+
     it('should retry with chmod on permission error', async () => {
       if (process.platform !== 'win32') {
         const filePath = path.join(tempDir, 'readonly.txt');
