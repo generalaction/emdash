@@ -48,7 +48,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     workspaceId: string,
     gitRepository: GitRepositoryStore,
     private readonly gitWorktree: GitWorktreeStore,
-    private readonly pr: PrStore,
+    private readonly pr: PrStore
   ) {
     this.branchDiff = new BranchDiffStore(projectId, workspaceId, gitRepository, gitWorktree);
     this.changesView = new ChangesViewStore(gitWorktree, pr);
@@ -80,7 +80,8 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       reaction(
         () => this.activeFile,
         (file) => {
-          if (!file || file.group === 'git' || file.group === 'pr' || file.group === 'branch') return;
+          if (!file || file.group === 'git' || file.group === 'pr' || file.group === 'branch')
+            return;
           this.changesView.expandForActiveFileType(file.group);
         }
       )
@@ -98,7 +99,8 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     if (!override) return this._defaultActiveFile;
 
     // git/pr groups cannot be validated against working-tree lists — trust the override
-    if (override.group === 'git' || override.group === 'pr') return override;
+    if (override.group === 'git' || override.group === 'pr' || override.group === 'branch')
+      return override;
 
     const isStaged = override.group === 'staged';
     const ownList = isStaged
