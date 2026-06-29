@@ -44,8 +44,7 @@ import {
 } from '@renderer/lib/ui/context-menu';
 import { cn } from '@renderer/utils/utils';
 import { basenameFromAnyPath } from '@shared/path-name';
-import { activeFilePath as getActiveFilePath } from './pane-selectors';
-import type { FileTabStore } from './stores/file-tab-store';
+import type { FileTabResource } from './stores/file-tab-resource';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -269,8 +268,10 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const closeDeletedFileTabs = () => {
     for (const { pane } of taskView.paneLayout.groups) {
-      for (const tab of pane.entriesOfKind<FileTabStore>('file')) {
-        if (isPathWithinDeletedItem(tab.path, node.path, node.type)) {
+      for (const tab of pane.resolvedTabs) {
+        if (tab.kind !== 'file') continue;
+        const resource = tab.resource as FileTabResource;
+        if (isPathWithinDeletedItem(resource.path, node.path, node.type)) {
           pane.closeTab(tab.tabId);
         }
       }
