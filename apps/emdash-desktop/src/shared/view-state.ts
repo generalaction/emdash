@@ -114,6 +114,7 @@ export type TaskViewSnapshot = {
 export type ProjectViewSnapshot = {
   activeView: string;
   taskViewTab: 'active' | 'archived';
+  taskViewMode?: 'list' | 'kanban';
   selectedIssueProvider?: string;
 };
 

@@ -71,6 +71,8 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
 }));
 
+const { rpc } = await import('@renderer/lib/ipc');
+
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
     id: 'task-1',
@@ -134,5 +136,15 @@ describe('TaskStore frontend runtime lifecycle', () => {
     expect(mocks.viewModels[1].initialize).toHaveBeenCalledOnce();
     expect(store.draftComments).toBe(mocks.draftComments[1]);
     expect(store.state).toBe('provisioned');
+  });
+
+  it('rolls back optimistic status updates when persistence fails', async () => {
+    vi.mocked(rpc.tasks.updateTaskStatus).mockRejectedValueOnce(new Error('persist failed'));
+    const store = createUnprovisionedTask(makeTask());
+
+    await expect(store.updateStatus('review')).rejects.toThrow('persist failed');
+
+    expect(store.data.status).toBe('todo');
+    expect(store.data.statusChangedAt).toBe('2026-01-01T00:00:00.000Z');
   });
 });

@@ -4,6 +4,7 @@ import type { IssueProviderType } from '@shared/issue-providers';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 
 export type ProjectView = 'tasks' | 'pull-request' | 'settings';
+export type TaskViewMode = 'list' | 'kanban';
 
 export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
   activeView: ProjectView = 'tasks';
@@ -26,6 +27,7 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
     return {
       activeView: this.activeView,
       taskViewTab: this.taskView.tab,
+      taskViewMode: this.taskView.mode,
       selectedIssueProvider: this.selectedIssueProvider ?? undefined,
     };
   }
@@ -33,6 +35,7 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
   restoreSnapshot(snapshot: Partial<ProjectViewSnapshot>): void {
     if (snapshot.activeView) this.activeView = snapshot.activeView as ProjectView;
     if (snapshot.taskViewTab) this.taskView.setTab(snapshot.taskViewTab);
+    if (snapshot.taskViewMode) this.taskView.setMode(snapshot.taskViewMode);
     if (snapshot.selectedIssueProvider)
       this.selectedIssueProvider = snapshot.selectedIssueProvider as IssueProviderType;
   }
@@ -40,6 +43,7 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
 
 class TaskViewStore {
   tab: 'active' | 'archived' = 'active';
+  mode: TaskViewMode = 'list';
   searchQuery: string = '';
   selectedIds: Set<string> = new Set();
   lastSelectedId: string | null = null;
@@ -50,6 +54,11 @@ class TaskViewStore {
 
   setTab(tab: 'active' | 'archived') {
     this.tab = tab;
+  }
+
+  setMode(mode: TaskViewMode) {
+    this.mode = mode;
+    this.setSelectedIds(new Set());
   }
 
   setSearchQuery(query: string) {

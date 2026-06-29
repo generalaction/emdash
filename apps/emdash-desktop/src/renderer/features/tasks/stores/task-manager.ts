@@ -160,7 +160,7 @@ export class TaskManagerStore {
       ({ taskId, projectId: evtProjectId, status }) => {
         if (evtProjectId !== this.projectId) return;
         const store = this.tasks.get(taskId);
-        if (store && isProvisioned(store)) {
+        if (store && isRegistered(store)) {
           runInAction(() => {
             store.data.status = status as TaskLifecycleStatus;
           });

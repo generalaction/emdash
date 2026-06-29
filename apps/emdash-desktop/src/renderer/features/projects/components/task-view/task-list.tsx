@@ -1,6 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
+import { Archive, Columns3, List, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
@@ -20,6 +20,8 @@ import { SearchInput } from '@renderer/lib/ui/search-input';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
+import { buildKanbanColumns } from './kanban-task-model';
+import { TaskKanbanBoard } from './task-kanban-board';
 import { TaskListEmptyState } from './task-list-empty-state';
 import { TaskRow, type ReadyTask } from './task-row';
 
@@ -210,21 +212,53 @@ export const TaskList = observer(function TaskList() {
   const filteredTasks = q
     ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q))
     : displayTasks;
+  const kanbanColumns = buildKanbanColumns(allTasks, {
+    tab: taskView.tab,
+    query: taskView.searchQuery,
+  });
+  const kanbanTasks = kanbanColumns.flatMap((column) => column.tasks);
+  const visibleTasks = taskView.mode === 'kanban' ? kanbanTasks : filteredTasks;
+
+  const toggleSelection = (orderedIds: string[], id: string, shiftKey: boolean) => {
+    if (shiftKey) {
+      taskView.selectRange(orderedIds, id);
+    } else {
+      taskView.toggleSelect(id);
+    }
+  };
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col">
       <div className="flex shrink-0 flex-col gap-4 border-b border-border pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <ToggleGroup
-            multiple={false}
-            value={[taskView.tab]}
-            onValueChange={([value]) => {
-              if (value) taskView.setTab(value as 'active' | 'archived');
-            }}
-          >
-            <ToggleGroupItem value="active">Active ({activeTasks.length})</ToggleGroupItem>
-            <ToggleGroupItem value="archived">Archived ({archivedTasks.length})</ToggleGroupItem>
-          </ToggleGroup>
+          <div className="flex flex-wrap items-center gap-2">
+            <ToggleGroup
+              multiple={false}
+              value={[taskView.tab]}
+              onValueChange={([value]) => {
+                if (value) taskView.setTab(value as 'active' | 'archived');
+              }}
+            >
+              <ToggleGroupItem value="active">Active ({activeTasks.length})</ToggleGroupItem>
+              <ToggleGroupItem value="archived">Archived ({archivedTasks.length})</ToggleGroupItem>
+            </ToggleGroup>
+            <ToggleGroup
+              multiple={false}
+              value={[taskView.mode]}
+              onValueChange={([value]) => {
+                if (value) taskView.setMode(value as 'list' | 'kanban');
+              }}
+            >
+              <ToggleGroupItem value="list">
+                <List className="size-3.5" />
+                List
+              </ToggleGroupItem>
+              <ToggleGroupItem value="kanban">
+                <Columns3 className="size-3.5" />
+                Kanban
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
           <div className="flex items-center gap-2">
             <SearchInput
               placeholder="Search tasks…"
@@ -239,21 +273,30 @@ export const TaskList = observer(function TaskList() {
         </div>
       </div>
 
-      {filteredTasks.length === 0 && taskView.tab === 'active' ? (
+      {visibleTasks.length === 0 && taskView.tab === 'active' ? (
         <TaskListEmptyState projectId={projectId} />
+      ) : taskView.mode === 'kanban' ? (
+        <TaskKanbanBoard
+          columns={kanbanColumns}
+          selectedIds={taskView.selectedIds}
+          onToggleSelect={(id, shiftKey) =>
+            toggleSelection(
+              kanbanTasks.map((task) => task.data.id),
+              id,
+              shiftKey
+            )
+          }
+        />
       ) : (
         <TaskVirtualList
           tasks={filteredTasks}
           selectedIds={taskView.selectedIds}
           onToggleSelect={(id, shiftKey) => {
-            if (shiftKey) {
-              taskView.selectRange(
-                filteredTasks.map((t) => t.data.id),
-                id
-              );
-            } else {
-              taskView.toggleSelect(id);
-            }
+            toggleSelection(
+              filteredTasks.map((t) => t.data.id),
+              id,
+              shiftKey
+            );
           }}
         />
       )}

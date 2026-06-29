@@ -56,17 +56,28 @@ export const ActiveProject = observer(function ActiveProject() {
   if (!store) return null;
 
   const activeView = store.view.activeView;
+  const isKanbanTasksView = activeView === 'tasks' && store.view.taskView.mode === 'kanban';
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-[1060px] flex-col gap-6 px-8">
+      <div
+        className={cn(
+          'mx-auto flex h-full min-h-0 w-full flex-col gap-6 px-8',
+          isKanbanTasksView ? 'max-w-[1800px]' : 'max-w-[1060px]'
+        )}
+      >
         <div className="grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-8 overflow-hidden">
           <ProjectViewNav
             activeView={activeView}
             onChange={(view) => store.view.setProjectView(view)}
           />
           <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
-            <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col px-1 py-10">
+            <div
+              className={cn(
+                'mx-auto flex h-full min-h-0 w-full flex-col px-1 py-10',
+                isKanbanTasksView ? 'max-w-none' : 'max-w-4xl'
+              )}
+            >
               {activeView === 'tasks' && <TaskList />}
               {activeView === 'pull-request' && <PullRequestView />}
               {activeView === 'settings' && <SettingsPanel />}

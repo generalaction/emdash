@@ -14,3 +14,22 @@ describe('TaskViewStore range selection', () => {
     expect(store.lastSelectedId).toBe('1');
   });
 });
+
+describe('ProjectViewStore task view mode', () => {
+  it('persists and restores the selected task view mode', () => {
+    const store = new ProjectViewStore();
+
+    store.taskView.setMode('kanban');
+
+    expect(store.snapshot.taskViewMode).toBe('kanban');
+
+    const restored = new ProjectViewStore();
+    restored.restoreSnapshot({
+      activeView: 'tasks',
+      taskViewTab: 'active',
+      taskViewMode: 'kanban',
+    });
+
+    expect(restored.taskView.mode).toBe('kanban');
+  });
+});

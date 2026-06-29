@@ -1,7 +1,9 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { telemetryService } from '@main/lib/telemetry';
+import { taskStatusUpdatedChannel } from '@shared/core/tasks/taskEvents';
 import { type TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 
 export async function updateTaskStatus(taskId: string, status: TaskLifecycleStatus): Promise<void> {
@@ -17,6 +19,12 @@ export async function updateTaskStatus(taskId: string, status: TaskLifecycleStat
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(tasks.id, taskId));
+
+  events.emit(taskStatusUpdatedChannel, {
+    taskId: row.id,
+    projectId: row.projectId,
+    status,
+  });
 
   telemetryService.capture('task_status_changed', {
     from_status: row.status as TaskLifecycleStatus,
