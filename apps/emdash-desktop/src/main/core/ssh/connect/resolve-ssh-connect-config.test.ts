@@ -9,6 +9,7 @@ import {
   resolveSshConnectConfig,
   type SshConnectDeps,
 } from './resolve-ssh-connect-config';
+import { WINDOWS_OPENSSH_AGENT_PIPE } from './ssh-agent-socket';
 
 function baseConfig(partial: Partial<SshConfig> = {}): SshConfig {
   return {
@@ -66,6 +67,7 @@ function deps(overrides: Partial<SshConnectDeps> = {}): SshConnectDeps {
         getStream: (callback) => callback(undefined, new PassThrough()),
       }) satisfies BaseAgent,
     env: { SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
+    platform: 'linux',
     ...overrides,
   };
 }
@@ -240,6 +242,129 @@ describe('resolveSshConnectConfig', () => {
       )
     ).resolves.toMatchObject({
       config: { agent: '/tmp/default-agent.sock' },
+    });
+  });
+
+  it('falls back to the Windows OpenSSH agent pipe for agent auth when no socket is configured', async () => {
+    await expect(
+      resolveSshConnectConfig(
+        {
+          kind: 'transient',
+          config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
+        },
+        deps({
+          env: {},
+          platform: 'win32',
+          resolveSshConfig: async () => ({
+            hostname: 'dev.internal',
+            user: 'alice',
+            port: 22,
+            identityFile: [],
+            identityAgent: undefined,
+            identityAgentDisabled: false,
+            identitiesOnly: false,
+            proxyCommand: undefined,
+            proxyJump: undefined,
+            forwardAgent: false,
+          }),
+        })
+      )
+    ).resolves.toMatchObject({
+      config: { agent: WINDOWS_OPENSSH_AGENT_PIPE },
+    });
+  });
+
+  it('falls back to the Windows OpenSSH agent pipe when SSH_AUTH_SOCK is missing or empty', async () => {
+    for (const env of [{}, { SSH_AUTH_SOCK: '' }]) {
+      await expect(
+        resolveSshConnectConfig(
+          {
+            kind: 'transient',
+            config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
+          },
+          deps({
+            env,
+            platform: 'win32',
+            resolveSshConfig: async () => ({
+              hostname: 'dev.internal',
+              user: 'alice',
+              port: 22,
+              identityFile: [],
+              identityAgent: 'SSH_AUTH_SOCK',
+              identityAgentDisabled: false,
+              identitiesOnly: false,
+              proxyCommand: undefined,
+              proxyJump: undefined,
+              forwardAgent: false,
+            }),
+          })
+        )
+      ).resolves.toMatchObject({
+        config: { agent: WINDOWS_OPENSSH_AGENT_PIPE },
+      });
+    }
+  });
+
+  it('does not override IdentityAgent none with the Windows OpenSSH agent pipe', async () => {
+    await expect(
+      resolveSshConnectConfig(
+        {
+          kind: 'transient',
+          config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
+        },
+        deps({
+          env: {},
+          platform: 'win32',
+          resolveSshConfig: async () => ({
+            hostname: 'dev.internal',
+            user: 'alice',
+            port: 22,
+            identityFile: [],
+            identityAgent: undefined,
+            identityAgentDisabled: true,
+            identitiesOnly: false,
+            proxyCommand: undefined,
+            proxyJump: undefined,
+            forwardAgent: false,
+          }),
+        })
+      )
+    ).rejects.toThrow('SSH agent is disabled');
+  });
+
+  it('falls back to the Windows OpenSSH agent pipe for ForwardAgent yes when no socket is configured', async () => {
+    await expect(
+      resolveSshConnectConfig(
+        {
+          kind: 'transient',
+          config: {
+            ...baseConfig({ sshConfigAlias: 'corp-dev', authType: 'password' }),
+            password: 'pw',
+          },
+        },
+        deps({
+          env: {},
+          platform: 'win32',
+          resolveSshConfig: async () => ({
+            hostname: 'dev.internal',
+            user: 'alice',
+            port: 22,
+            identityFile: [],
+            identityAgent: undefined,
+            identityAgentDisabled: false,
+            identitiesOnly: false,
+            proxyCommand: undefined,
+            proxyJump: undefined,
+            forwardAgent: true,
+          }),
+        })
+      )
+    ).resolves.toMatchObject({
+      config: {
+        password: 'pw',
+        agentForward: true,
+        agent: WINDOWS_OPENSSH_AGENT_PIPE,
+      },
     });
   });
 

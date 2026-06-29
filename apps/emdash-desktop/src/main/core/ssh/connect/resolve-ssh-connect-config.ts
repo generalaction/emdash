@@ -46,6 +46,7 @@ export interface SshConnectDeps {
   ) => Omit<TransportResult, 'process'>;
   createAgent: (socketPath: string) => BaseAgent;
   env: Record<string, string | undefined>;
+  platform: NodeJS.Platform;
 }
 
 function defaultDeps(): SshConnectDeps {
@@ -68,6 +69,7 @@ function defaultDeps(): SshConnectDeps {
       defaultSpawnProxyJump(jumpSpec, destHost, destPort),
     createAgent,
     env: process.env,
+    platform: process.platform,
   };
 }
 
