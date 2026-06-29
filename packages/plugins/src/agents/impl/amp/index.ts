@@ -52,7 +52,7 @@ export const plugin = definePlugin(
         },
         deep: {
           name: 'Deep',
-          modelFeatures: { intelligence: 5, speed: 2 },
+          modelFeatures: { intelligence: 5, speed: 3 },
         },
       },
     },
