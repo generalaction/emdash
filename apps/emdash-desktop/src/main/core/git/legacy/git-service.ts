@@ -661,6 +661,20 @@ export class GitService implements IDisposable {
     return changes;
   }
 
+  async getMergeBase(base: GitObjectRef, head: GitObjectRef): Promise<string | null> {
+    try {
+      const { stdout } = await this.ctx.exec('git', [
+        'merge-base',
+        toRefString(base),
+        toRefString(head),
+      ]);
+      const sha = stdout.trim();
+      return sha.length > 0 ? sha : null;
+    } catch {
+      return null;
+    }
+  }
+
   async getCommitFiles(commitHash: string): Promise<CommitFile[]> {
     const { stdout } = await this.ctx.exec('git', [
       'diff-tree',

@@ -11,6 +11,7 @@ vi.mock('@renderer/lib/ipc', () => ({
     workspace: {
       gitWorktree: {
         getChangedFiles: vi.fn(),
+        getMergeBase: vi.fn(),
       },
     },
   },
@@ -19,8 +20,12 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
 }));
 
+type FakeBranchRef =
+  | { type: 'local'; branch: string }
+  | { type: 'remote'; branch: string; remote: { name: string; url: string } };
+
 class FakeGitRepositoryStore {
-  defaultBranch: { type: 'local'; branch: string } | undefined = {
+  defaultBranch: FakeBranchRef | undefined = {
     type: 'local',
     branch: 'main',
   };
@@ -70,6 +75,10 @@ describe('BranchDiffStore', () => {
       success: true,
       data: { changes: [change('a.ts'), change('b.ts')] },
     });
+    vi.mocked(rpc.workspace.gitWorktree.getMergeBase).mockResolvedValue({
+      success: true,
+      data: { sha: null },
+    });
   });
 
   it('defaults to committed mode', () => {
@@ -106,6 +115,27 @@ describe('BranchDiffStore', () => {
     const { store } = createStore({ head });
 
     // assert
+    expect(store.emptyState).toEqual({ kind: 'on-default-branch' });
+  });
+
+  it('returns emptyState on-default-branch when default is a remote ref of the same branch name', () => {
+    // arrange — worktree on local `main`, project's defaultBranch configured as `origin/main`
+    const head = new FakeGitWorktreeStore();
+    head.branchName = 'main';
+
+    // act
+    const { store } = createStore({
+      head,
+      defaultBranch: {
+        type: 'remote',
+        branch: 'main',
+        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
+      },
+    });
+
+    // assert — without the local↔remote-name match in isOnDefaultBranch, this
+    // would fall through to a Branch comparison against the live ref instead
+    // of the empty state.
     expect(store.emptyState).toEqual({ kind: 'on-default-branch' });
   });
 
@@ -147,6 +177,76 @@ describe('BranchDiffStore', () => {
     expect(store.compareMode).toBe('all');
   });
 
+  it('resolves mergeBaseRef to a commit ref after the rpc returns a sha', async () => {
+    // arrange
+    vi.mocked(rpc.workspace.gitWorktree.getMergeBase).mockResolvedValueOnce({
+      success: true,
+      data: { sha: 'cafebabe1234' },
+    });
+    const { store } = createStore();
+    const snapshots: Array<GitObjectRef | null> = [];
+    const dispose = autorun(() => {
+      snapshots.push(store.mergeBaseRef);
+    });
+
+    // act — wait for the async resource to settle
+    await new Promise<void>((r) => setTimeout(r, 0));
+    dispose();
+
+    // assert — autorun should have observed the transition null -> commit ref
+    expect(snapshots).toContainEqual({
+      kind: 'commit',
+      sha: 'cafebabe1234',
+    } satisfies GitObjectRef);
+    expect(store.mergeBaseRef).toEqual({
+      kind: 'commit',
+      sha: 'cafebabe1234',
+    } satisfies GitObjectRef);
+  });
+
+  it('leaves mergeBaseRef null when the rpc reports no common ancestor', async () => {
+    // arrange
+    vi.mocked(rpc.workspace.gitWorktree.getMergeBase).mockResolvedValueOnce({
+      success: true,
+      data: { sha: null },
+    });
+    const { store } = createStore();
+
+    // act
+    await new Promise<void>((r) => setTimeout(r, 0));
+
+    // assert
+    expect(store.mergeBaseRef).toBeNull();
+  });
+
+  it('All mode requests the file list against the merge-base commit, not the default branch tip', async () => {
+    // arrange
+    vi.clearAllMocks();
+    vi.mocked(rpc.workspace.gitWorktree.getMergeBase).mockResolvedValue({
+      success: true,
+      data: { sha: 'deadbeef9999' },
+    });
+    vi.mocked(rpc.workspace.gitWorktree.getChangedFiles).mockResolvedValue({
+      success: true,
+      data: { changes: [] },
+    });
+
+    const { store } = createStore();
+    store.setCompareMode('all');
+
+    // act
+    await new Promise<void>((r) => setTimeout(r, 0));
+
+    // assert — the last getChangedFiles call must use the merge-base commit
+    // ref as the diff target, not the live defaultBranch ref. Without this the
+    // diff loses files whenever main independently catches up to the same
+    // content (e.g. after a squash merge or a parallel PR).
+    const calls = vi.mocked(rpc.workspace.gitWorktree.getChangedFiles).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    const [, , target] = calls[calls.length - 1]!;
+    expect(target).toEqual({ kind: 'commit', sha: 'deadbeef9999' } satisfies GitObjectRef);
+  });
+
   it('files computed reflects new resource data after compareMode changes', async () => {
     // arrange
     vi.clearAllMocks();
@@ -176,5 +276,106 @@ describe('BranchDiffStore', () => {
 
     // assert: files eventually reflected b.ts (the second mock response)
     expect(filesSnapshots).toContainEqual(['b.ts']);
+  });
+
+  it('originalRef stays null while the first merge-base resolution is in flight', async () => {
+    // arrange — block the getMergeBase response so we can observe the loading window
+    vi.clearAllMocks();
+    let resolveMb: (value: { success: true; data: { sha: string | null } }) => void = () => {};
+    vi.mocked(rpc.workspace.gitWorktree.getMergeBase).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveMb = resolve;
+        })
+    );
+    vi.mocked(rpc.workspace.gitWorktree.getChangedFiles).mockResolvedValue({
+      success: true,
+      data: { changes: [] },
+    });
+
+    const { store } = createStore();
+
+    // act / assert — during the pending RPC, originalRef must be null so click
+    // handlers can't accidentally open a Branch diff tab pinned to the live
+    // default-branch tip.
+    expect(store.originalRef).toBeNull();
+
+    resolveMb({ success: true, data: { sha: 'feedface5678' } });
+    await new Promise<void>((r) => setTimeout(r, 0));
+
+    // After resolution it returns the merge-base commit ref.
+    expect(store.originalRef).toEqual({
+      kind: 'commit',
+      sha: 'feedface5678',
+    } satisfies GitObjectRef);
+  });
+
+  it('originalRef falls back to defaultBranchRef only after merge-base settles with no common ancestor', async () => {
+    // arrange — orphan-branches case: getMergeBase resolves to sha: null
+    vi.clearAllMocks();
+    vi.mocked(rpc.workspace.gitWorktree.getMergeBase).mockResolvedValueOnce({
+      success: true,
+      data: { sha: null },
+    });
+    vi.mocked(rpc.workspace.gitWorktree.getChangedFiles).mockResolvedValue({
+      success: true,
+      data: { changes: [] },
+    });
+
+    const { store } = createStore();
+
+    // act
+    await new Promise<void>((r) => setTimeout(r, 0));
+
+    // assert — after settle with no ancestor, defaultBranchRef is the only
+    // meaningful base. Before settle it would have been null (covered above).
+    expect(store.originalRef).toEqual({
+      kind: 'branch',
+      branch: { type: 'local', branch: 'main' },
+    } satisfies GitObjectRef);
+  });
+
+  it('drops a stale merge-base response when a newer fetch has superseded it', async () => {
+    // arrange — first getMergeBase is slow, second is fast and lands first
+    vi.clearAllMocks();
+    let resolveSlow: (value: { success: true; data: { sha: string | null } }) => void = () => {};
+    vi.mocked(rpc.workspace.gitWorktree.getMergeBase)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSlow = resolve;
+          })
+      )
+      .mockResolvedValueOnce({
+        success: true,
+        data: { sha: 'newnewnewnewnew0' },
+      });
+    vi.mocked(rpc.workspace.gitWorktree.getChangedFiles).mockResolvedValue({
+      success: true,
+      data: { changes: [] },
+    });
+
+    const { store } = createStore();
+
+    // act — fire a compareMode change to spawn fetch #2 before fetch #1 returns
+    store.setCompareMode('all');
+    await new Promise<void>((r) => setTimeout(r, 0));
+
+    // sanity: fetch #2 has settled
+    expect(store.mergeBaseRef).toEqual({
+      kind: 'commit',
+      sha: 'newnewnewnewnew0',
+    } satisfies GitObjectRef);
+
+    // now let fetch #1 (the superseded one) return — its callback must be
+    // dropped by the generation check, otherwise it would clobber the newer
+    // SHA and the diff tab's left side would point at the wrong base.
+    resolveSlow({ success: true, data: { sha: 'oldoldoldoldold0' } });
+    await new Promise<void>((r) => setTimeout(r, 0));
+
+    expect(store.mergeBaseRef).toEqual({
+      kind: 'commit',
+      sha: 'newnewnewnewnew0',
+    } satisfies GitObjectRef);
   });
 });

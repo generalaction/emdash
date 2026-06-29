@@ -18,7 +18,12 @@ import {
 import { countFileLines } from './file-line-count';
 import type { GitOnError, GitRepository } from './git-repository';
 import type { ImageReadResult } from './models/diff';
-import { toRangeString, toRefString, type DiffTarget } from './models/diff-target';
+import {
+  toRangeString,
+  toRefString,
+  type DiffTarget,
+  type GitObjectRef,
+} from './models/diff-target';
 import type { GitHeadModel } from './models/head';
 import type { CommitFile, GitLogResult } from './models/log';
 import type {
@@ -206,6 +211,15 @@ export class GitWorktree implements IGitWorktree {
 
   async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
     return this.getImageBlob(filePath, `:${filePath}`);
+  }
+
+  async getMergeBase(base: GitObjectRef, head: GitObjectRef): Promise<string | null> {
+    const result = await this.exec
+      .exec(['merge-base', toRefString(base), toRefString(head)])
+      .catch(() => null);
+    if (!result) return null;
+    const sha = result.stdout.trim();
+    return sha.length > 0 ? sha : null;
   }
 
   async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {

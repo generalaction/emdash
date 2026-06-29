@@ -26,10 +26,16 @@ export const BranchSection = observer(function BranchSection() {
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('branch');
 
   // Always call usePrefetchDiffModels unconditionally (React hooks rules).
-  // When defaultBranchRef is null, we fall back to HEAD_REF; this is harmless
-  // because the component returns null for 'no-default-branch' before any list
-  // is rendered, so the prefetch callback is never actually invoked.
-  const baseRef = branchDiff?.defaultBranchRef ?? HEAD_REF;
+  // When originalRef is null (initial merge-base resolution in flight), we fall
+  // back to HEAD_REF for the prefetch target; this is harmless because openDiff
+  // gates on the same null check and refuses to attach a tab in that window.
+  //
+  // The left side of every Branch diff tab is pinned to the merge-base. In
+  // Committed mode this avoids the empty-diff-after-squash-merge bug; in All
+  // mode it makes the file list a strict superset of Committed and means files
+  // don't disappear when main independently catches up to the same content.
+  const originalRef = branchDiff?.originalRef ?? null;
+  const baseRef = originalRef ?? HEAD_REF;
   const modifiedRef =
     branchDiff?.compareMode === 'committed'
       ? (branchDiff.currentBranchRef ?? undefined)
@@ -43,7 +49,7 @@ export const BranchSection = observer(function BranchSection() {
   const activePath = _activeDiff?.diffGroup === 'branch' ? _activeDiff.path : undefined;
 
   const openDiff = (change: GitChange, preview: boolean) => {
-    if (!branchDiff.defaultBranchRef) return;
+    if (!originalRef) return;
     taskView.activePane.open(
       'diff',
       {
@@ -51,7 +57,7 @@ export const BranchSection = observer(function BranchSection() {
           path: change.path,
           type: 'git',
           group: 'branch',
-          originalRef: branchDiff.defaultBranchRef,
+          originalRef,
           modifiedRef,
         },
         status: change.status,

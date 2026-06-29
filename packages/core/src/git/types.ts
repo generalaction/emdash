@@ -13,7 +13,7 @@ import type {
   PushError,
 } from './errors';
 import type { ImageReadResult } from './models/diff';
-import type { DiffTarget } from './models/diff-target';
+import type { DiffTarget, GitObjectRef } from './models/diff-target';
 import type { GitHeadModel } from './models/head';
 import type { CommitFile, GitLogResult } from './models/log';
 import type { GitRefsModel, GitRemotesModel } from './models/refs';
@@ -179,6 +179,7 @@ export interface IGitWorktree extends IDisposable {
   getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint>;
   isFileCleanlyTracked(filePath: string): Promise<boolean>;
   getChangedFiles(base: DiffTarget): Promise<GitChange[]>;
+  getMergeBase(base: GitObjectRef, head: GitObjectRef): Promise<string | null>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
   getFileAtIndex(filePath: string): Promise<string | null>;
   getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult>;
