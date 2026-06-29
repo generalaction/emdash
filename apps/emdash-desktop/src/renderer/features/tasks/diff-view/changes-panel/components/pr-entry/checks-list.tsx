@@ -1,15 +1,27 @@
-import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader2, MinusCircle, Wrench, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
+import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useSyncCheckRuns } from '@renderer/features/tasks/diff-view/state/use-check-runs';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import {
+  useConversations,
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import {
   computeCheckBucket,
   formatCheckDuration,
   type CheckRun,
   type CheckRunBucket,
 } from '@renderer/utils/github';
+import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { PullRequest, PullRequestComment } from '@shared/core/pull-requests/pull-requests';
 import { CommentsList } from './comments-list';
 import { buildPullRequestConversationItems } from './pull-request-conversation';
@@ -25,6 +37,33 @@ const bucketOrder: Record<CheckRunBucket, number> = {
   cancel: 4,
 };
 
+function buildFixCheckPrompt(check: CheckRun, pr: PullRequest): string {
+  const bucket = computeCheckBucket(check);
+  const lines = [
+    'Investigate and fix this pull request check.',
+    '',
+    `PR: ${pr.title}`,
+    `PR URL: ${pr.url}`,
+    `Head SHA: ${pr.headRefOid}`,
+    '',
+    `Check: ${check.name}`,
+    `Status: ${check.status ?? 'unknown'}`,
+    `Conclusion: ${check.conclusion ?? 'unknown'}`,
+    `Result bucket: ${bucket}`,
+  ];
+
+  if (check.workflowName) lines.push(`Workflow: ${check.workflowName}`);
+  if (check.appName) lines.push(`App: ${check.appName}`);
+  if (check.detailsUrl) lines.push(`Details URL: ${check.detailsUrl}`);
+
+  lines.push(
+    '',
+    'Open the details URL if needed, reproduce the failure locally when possible, implement the smallest safe fix, and run the relevant validation before reporting back.'
+  );
+
+  return lines.join('\n');
+}
+
 export function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   switch (bucket) {
     case 'pass':
@@ -39,7 +78,20 @@ export function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   }
 }
 
-export function CheckRunItem({ check }: { check: CheckRun }) {
+export const CheckRunItem = observer(function CheckRunItem({
+  check,
+  pr,
+}: {
+  check: CheckRun;
+  pr: PullRequest;
+}) {
+  const { projectId, taskId } = useTaskViewContext();
+  const taskView = useWorkspaceViewModel();
+  const conversations = useConversations();
+  const taskSettings = useTaskSettings();
+  const connectionId = getProjectSshConnectionId(projectId);
+  const { providerId, createDisabled } = useEffectiveProvider(connectionId);
+  const [isCreatingFixConversation, setIsCreatingFixConversation] = useState(false);
   const bucket = computeCheckBucket(check);
   const duration = formatCheckDuration(
     check.startedAt ?? undefined,
@@ -47,6 +99,43 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
   );
   const subtitle = check.appName ?? check.workflowName;
   const detailsUrl = check.detailsUrl;
+  const canShowFixAction = bucket === 'fail';
+  const canCreateFixConversation = Boolean(providerId) && !createDisabled;
+  const fixConversationDisabled = isCreatingFixConversation || !canCreateFixConversation;
+
+  const handleFixCheck = async () => {
+    if (!providerId || fixConversationDisabled) return;
+
+    const id = crypto.randomUUID();
+    const autoApprove =
+      providerSupportsAutoApprove(providerId) && taskSettings.autoApproveByDefault;
+    setIsCreatingFixConversation(true);
+
+    try {
+      await conversations.createConversation({
+        projectId,
+        taskId,
+        id,
+        provider: providerId,
+        title: nextDefaultConversationTitle(
+          providerId,
+          Array.from(conversations.conversations.values(), (conversation) => conversation.data)
+        ),
+        autoApprove,
+        initialPrompt: buildFixCheckPrompt(check, pr),
+      });
+      taskView.paneLayout.open('conversation', { conversationId: id }, { preview: false });
+    } catch {
+      toast({
+        title: 'Failed to start fix conversation',
+        description: 'Refresh the task and try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingFixConversation(false);
+    }
+  };
+
   return (
     <div className="group relative flex items-center gap-2 rounded-md px-3 py-2 hover:bg-background-1">
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -69,22 +158,59 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {duration && <span className="text-xs text-foreground-passive">{duration}</span>}
-        {detailsUrl && (
-          <button
-            type="button"
-            aria-label={`Open ${check.name} check details`}
-            className="absolute top-1/2 right-3 hidden -translate-y-1/2 items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted group-hover:flex hover:text-foreground"
-            onClick={() => void rpc.app.openExternal(detailsUrl)}
-          >
-            <ExternalLink className="size-3.5" />
-          </button>
-        )}
+        <div className="absolute top-1/2 right-3 hidden -translate-y-1/2 items-center gap-0.5 rounded bg-background-1 px-0.5 group-hover:flex">
+          {canShowFixAction && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label={`Fix ${check.name} check with a new conversation`}
+                    className="flex size-6 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={fixConversationDisabled}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleFixCheck();
+                    }}
+                  >
+                    {isCreatingFixConversation ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Wrench className="size-3.5" />
+                    )}
+                  </button>
+                }
+              />
+              <TooltipContent>Fix check in a new conversation</TooltipContent>
+            </Tooltip>
+          )}
+          {detailsUrl && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label={`Open ${check.name} check details`}
+                    className="flex size-6 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void rpc.app.openExternal(detailsUrl);
+                    }}
+                  >
+                    <ExternalLink className="size-3.5" />
+                  </button>
+                }
+              />
+              <TooltipContent>Open check details</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
     </div>
   );
-}
+});
 
-export function ChecksList({ checks }: { checks: CheckRun[] }) {
+export function ChecksList({ checks, pr }: { checks: CheckRun[]; pr: PullRequest }) {
   const sorted = useMemo(
     () =>
       [...checks].sort(
@@ -100,7 +226,7 @@ export function ChecksList({ checks }: { checks: CheckRun[] }) {
   return (
     <div className="flex flex-col gap-[1px]">
       {sorted.map((check, i) => (
-        <CheckRunItem key={`${check.name}-${i}`} check={check} />
+        <CheckRunItem key={`${check.name}-${i}`} check={check} pr={pr} />
       ))}
     </div>
   );
@@ -131,7 +257,7 @@ export const PrChecksList = observer(function PrChecksList({
         <div className="px-3 pb-1 text-[11px] font-medium text-foreground-passive uppercase">
           Checks
         </div>
-        <ChecksList checks={checks} />
+        <ChecksList checks={checks} pr={pr} />
       </section>
       <section>
         <div className="px-3 pb-1 text-[11px] font-medium text-foreground-passive uppercase">
