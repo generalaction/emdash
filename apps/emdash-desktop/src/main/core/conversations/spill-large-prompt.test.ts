@@ -5,7 +5,6 @@ import {
   buildPromptPointerMessage,
   MAX_INLINE_PROMPT_CHARS,
   spillLargePrompt,
-  WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES,
 } from './spill-large-prompt';
 
 describe('spillLargePrompt', () => {
@@ -66,12 +65,13 @@ describe('spillLargePrompt', () => {
   });
 
   it('spills prompts that exceed the configured byte threshold', async () => {
-    const prompt = 'x'.repeat(WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES + 1);
+    const maxBytes = 7_000;
+    const prompt = 'x'.repeat(maxBytes + 1);
     const expectedPath = join('/tmp/emdash-prompt-bytes', 'task-context.md');
     let writtenContents = '';
 
     const result = await spillLargePrompt(prompt, {
-      maxBytes: WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES,
+      maxBytes,
       createTempDir: async () => '/tmp/emdash-prompt-bytes',
       writeContextFile: async (_filePath, contents) => {
         writtenContents = contents;

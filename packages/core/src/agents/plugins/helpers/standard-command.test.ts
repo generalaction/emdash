@@ -23,7 +23,7 @@ describe('buildStandardCommand', () => {
     });
   });
 
-  it('wraps stdin-piped prompts with PowerShell on Windows', () => {
+  it('wraps stdin-piped prompts with byte-preserving stdin redirection on Windows', () => {
     const result = wrapWithStdinPipe(
       {
         command: 'C:\\Users\\me\\AppData\\Roaming\\npm\\amp.CMD',
@@ -42,10 +42,12 @@ describe('buildStandardCommand', () => {
     const script = Buffer.from(result.args[4]!, 'base64').toString('utf16le');
     expect(script).toContain('$OutputEncoding = [Text.UTF8Encoding]::new($false)');
     expect(script).toContain(
-      "$prompt = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('Rml4IHRoZSBidWc='))"
+      "[IO.File]::WriteAllBytes($promptPath, [Convert]::FromBase64String('Rml4IHRoZSBidWcK'))"
     );
-    expect(script).toContain('$prompt | & $command');
-    expect(script).toContain("'--dangerously-allow-all' 'it''s ok'");
+    expect(script).toContain('& $env:ComSpec /d /s /c');
+    expect(script).toContain('< $(Quote-CmdArg $promptPath)');
+    expect(script).toContain("'LS1kYW5nZXJvdXNseS1hbGxvdy1hbGw=', 'aXQncyBvaw=='");
+    expect(script).not.toContain('$prompt |');
     expect(script).toContain('exit $LASTEXITCODE');
   });
 
@@ -66,8 +68,8 @@ describe('buildStandardCommand', () => {
     expect(script).toContain(
       'if (Test-Path -LiteralPath $cmdShim -PathType Leaf) { $command = $cmdShim }'
     );
-    expect(script).toContain('$prompt | & $command');
-    expect(script).not.toContain("$prompt | & 'C:\\Users\\me\\AppData\\Roaming\\npm\\amp'");
+    expect(script).toContain('$agentLine = @((Quote-CmdArg $command)');
+    expect(script).not.toContain("'C:\\Users\\me\\AppData\\Roaming\\npm\\amp'");
   });
 
   it('splits multi-word resume fallback flags into argv parts', () => {

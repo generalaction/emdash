@@ -25,21 +25,34 @@ function quotePowerShellArg(arg: string): string {
   return `'${arg.replaceAll("'", "''")}'`;
 }
 
+function toBase64Utf8(value: string): string {
+  return Buffer.from(value, 'utf8').toString('base64');
+}
+
 function wrapWithWindowsStdinPipe(cmd: AgentCommand, prompt: string): AgentCommand {
-  const promptBase64 = Buffer.from(prompt, 'utf8').toString('base64');
-  const commandBase64 = Buffer.from(cmd.command, 'utf8').toString('base64');
-  const agentInvocation = ['&', '$command', ...cmd.args.map(quotePowerShellArg)].join(' ');
+  const promptBase64 = toBase64Utf8(`${prompt}\n`);
+  const commandBase64 = toBase64Utf8(cmd.command);
+  const argBase64List = cmd.args.map((arg) => quotePowerShellArg(toBase64Utf8(arg))).join(', ');
   const script = [
     "$ErrorActionPreference = 'Stop'",
     '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
-    `$command = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${commandBase64}'))`,
+    'function Decode-Utf8Base64([string] $value) { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($value)) }',
+    `function Quote-CmdArg([string] $value) { '"' + ($value -replace '(["^&|<>()%!])', '^$1') + '"' }`,
+    `$command = Decode-Utf8Base64 '${commandBase64}'`,
     'if (-not [IO.Path]::HasExtension($command)) {',
     "  $cmdShim = $command + '.cmd'",
     '  if (Test-Path -LiteralPath $cmdShim -PathType Leaf) { $command = $cmdShim }',
     '}',
-    `$prompt = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${promptBase64}'))`,
-    `$prompt | ${agentInvocation}`,
-    'exit $LASTEXITCODE',
+    `$agentArgs = @(${argBase64List}) | ForEach-Object { Decode-Utf8Base64 $_ }`,
+    '$promptPath = [IO.Path]::GetTempFileName()',
+    'try {',
+    `  [IO.File]::WriteAllBytes($promptPath, [Convert]::FromBase64String('${promptBase64}'))`,
+    `  $agentLine = @((Quote-CmdArg $command), ($agentArgs | ForEach-Object { Quote-CmdArg $_ })) -join ' '`,
+    '  & $env:ComSpec /d /s /c "$agentLine < $(Quote-CmdArg $promptPath)"',
+    '  exit $LASTEXITCODE',
+    '} finally {',
+    '  Remove-Item -LiteralPath $promptPath -Force -ErrorAction SilentlyContinue',
+    '}',
   ].join('; ');
   const encoded = Buffer.from(script, 'utf16le').toString('base64');
   return {

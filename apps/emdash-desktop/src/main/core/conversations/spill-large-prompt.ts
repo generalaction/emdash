@@ -16,7 +16,6 @@ import { log } from '@main/lib/logger';
  * agent, and the agent simply reads the file to recover the full context.
  */
 export const MAX_INLINE_PROMPT_CHARS = 16_384;
-export const WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES = 7_000;
 
 const TEMP_DIR_PREFIX = 'emdash-prompt-';
 const CONTEXT_FILE_NAME = 'task-context.md';
