@@ -2,6 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { useWorkspace, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { cn } from '@renderer/utils/utils';
+import { BranchSection } from './branch-section';
 import { GitStatusSection } from './git-status-section';
 import { SECTION_HEADER_HEIGHT, usePanelLayout } from './hooks/use-panel-layout';
 import { PullRequestsSection } from './pr-section';
@@ -21,6 +22,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
     pointerHandlers,
     unstagedRef,
     stagedRef,
+    branchRef,
     prRef,
     spacerRef,
     containerRef,
@@ -43,7 +45,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
           collapsedSize={SECTION_HEADER_HEIGHT}
           minSize="150px"
           maxSize="100%"
-          defaultSize="33%"
+          defaultSize="25%"
           className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
         >
           <UnstagedSection />
@@ -56,15 +58,25 @@ export const ChangesPanel = observer(function ChangesPanel() {
           collapsedSize={SECTION_HEADER_HEIGHT}
           minSize="150px"
           maxSize="100%"
-          defaultSize="33%"
+          defaultSize="25%"
           className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
         >
           <StagedSection />
         </ResizablePanel>
-        <ResizableHandle
-          disabled={!expanded.staged || !expanded.pullRequests}
-          {...pointerHandlers}
-        />
+        <ResizableHandle disabled={!expanded.staged || !expanded.branch} {...pointerHandlers} />
+        <ResizablePanel
+          id="changes-branch"
+          panelRef={branchRef}
+          collapsible
+          collapsedSize={SECTION_HEADER_HEIGHT}
+          minSize="150px"
+          maxSize="100%"
+          defaultSize="25%"
+          className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
+        >
+          <BranchSection />
+        </ResizablePanel>
+        <ResizableHandle disabled={!expanded.branch || !expanded.pullRequests} {...pointerHandlers} />
         <ResizablePanel
           id="changes-pr"
           panelRef={prRef}
@@ -72,7 +84,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
           collapsedSize={SECTION_HEADER_HEIGHT}
           minSize="150px"
           maxSize="100%"
-          defaultSize="33%"
+          defaultSize="25%"
           className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
         >
           <PullRequestsSection

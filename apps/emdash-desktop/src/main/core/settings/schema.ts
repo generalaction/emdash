@@ -92,6 +92,7 @@ export const interfaceSettingsSchema = z.object({
 export const changesViewModeSchema = z.object({
   unstaged: z.enum(['flat', 'tree']),
   staged: z.enum(['flat', 'tree']),
+  branch: z.enum(['flat', 'tree']),
   pr: z.enum(['flat', 'tree']),
 });
 

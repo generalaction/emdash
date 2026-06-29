@@ -74,6 +74,7 @@ export const SETTINGS_DEFAULTS = {
   changesViewMode: {
     unstaged: 'flat' as const,
     staged: 'flat' as const,
+    branch: 'flat' as const,
     pr: 'flat' as const,
   },
 } satisfies SettingsDefaultsMap;
