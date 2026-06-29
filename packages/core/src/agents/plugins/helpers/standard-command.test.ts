@@ -1,7 +1,75 @@
 import { describe, expect, it } from 'vitest';
-import { buildStandardCommand } from './standard-command';
+import { buildStandardCommand, wrapWithStdinPipe } from './standard-command';
 
 describe('buildStandardCommand', () => {
+  it('keeps stdin-piped prompts on the existing bash wrapper for POSIX platforms', () => {
+    const result = wrapWithStdinPipe(
+      {
+        command: '/usr/local/bin/amp',
+        args: ['--dangerously-allow-all', "it's ok"],
+        env: { PLUGINS: 'all' },
+      },
+      'Fix the bug',
+      'darwin'
+    );
+
+    expect(result).toEqual({
+      command: 'bash',
+      args: [
+        '-c',
+        "printf '%s\n' 'Fix the bug' | /usr/local/bin/amp --dangerously-allow-all 'it'\\''s ok'",
+      ],
+      env: { PLUGINS: 'all' },
+    });
+  });
+
+  it('wraps stdin-piped prompts with PowerShell on Windows', () => {
+    const result = wrapWithStdinPipe(
+      {
+        command: 'C:\\Users\\me\\AppData\\Roaming\\npm\\amp.CMD',
+        args: ['--dangerously-allow-all', "it's ok"],
+        env: { PLUGINS: 'all' },
+      },
+      'Fix the bug',
+      'win32'
+    );
+
+    expect(result.command).toBe('powershell.exe');
+    expect(result.env).toEqual({ PLUGINS: 'all' });
+    expect(result.args.slice(0, 3)).toEqual(['-NoProfile', '-ExecutionPolicy', 'Bypass']);
+    expect(result.args[3]).toBe('-EncodedCommand');
+
+    const script = Buffer.from(result.args[4]!, 'base64').toString('utf16le');
+    expect(script).toContain('$OutputEncoding = [Text.UTF8Encoding]::new($false)');
+    expect(script).toContain(
+      "$prompt = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('Rml4IHRoZSBidWc='))"
+    );
+    expect(script).toContain('$prompt | & $command');
+    expect(script).toContain("'--dangerously-allow-all' 'it''s ok'");
+    expect(script).toContain('exit $LASTEXITCODE');
+  });
+
+  it('normalizes extensionless Windows npm shims to cmd files before invoking them', () => {
+    const result = wrapWithStdinPipe(
+      {
+        command: 'C:\\Users\\me\\AppData\\Roaming\\npm\\amp',
+        args: [],
+        env: {},
+      },
+      'Fix the bug',
+      'win32'
+    );
+
+    const script = Buffer.from(result.args[4]!, 'base64').toString('utf16le');
+    expect(script).toContain('if (-not [IO.Path]::HasExtension($command))');
+    expect(script).toContain("$cmdShim = $command + '.cmd'");
+    expect(script).toContain(
+      'if (Test-Path -LiteralPath $cmdShim -PathType Leaf) { $command = $cmdShim }'
+    );
+    expect(script).toContain('$prompt | & $command');
+    expect(script).not.toContain("$prompt | & 'C:\\Users\\me\\AppData\\Roaming\\npm\\amp'");
+  });
+
   it('splits multi-word resume fallback flags into argv parts', () => {
     const result = buildStandardCommand(
       {

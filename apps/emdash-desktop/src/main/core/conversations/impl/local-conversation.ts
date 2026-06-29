@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { ensureHooksInstalled } from '@main/core/agent-hooks/hook-config-service';
@@ -35,6 +36,7 @@ import { resolveAgentExecutable } from './resolve-agent-executable';
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const RESPAWN_DELAY_MS = 500;
+const WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES = 7_000;
 
 function parseExtraArgs(value: string | undefined): string[] {
   if (!value?.trim()) return [];
@@ -147,7 +149,15 @@ export class LocalConversationProvider implements ConversationProvider {
       // past OS argument limits and crash the underlying CLI. Spill them to a temp
       // markdown file and hand the agent a short pointer message instead (ENG-1546).
       if (!agentSession.isResuming && initialPrompt) {
-        spill = await spillLargePrompt(initialPrompt);
+        const isWindowsStdinPipe =
+          process.platform === 'win32' && plugin.capabilities.prompt.kind === 'stdin-pipe';
+        const shouldForceSpill =
+          isWindowsStdinPipe &&
+          Buffer.byteLength(initialPrompt, 'utf8') > WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES;
+        spill = await spillLargePrompt(
+          initialPrompt,
+          shouldForceSpill ? { maxChars: 0 } : undefined
+        );
       }
       const effectiveInitialPrompt = spill?.prompt ?? initialPrompt;
 
@@ -160,6 +170,7 @@ export class LocalConversationProvider implements ConversationProvider {
         providerSessionId: conversation.sessionId ?? undefined,
         isResuming: agentSession.isResuming,
         model: conversation.model ?? '',
+        platform: process.platform,
       });
 
       const customEnv = providerConfig?.env ?? {};
