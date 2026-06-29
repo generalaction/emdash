@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/amp/index.ts
+  s_d9edb787cefbb5::t_2f8b69835819f9 42-58,83
+packages/plugins/src/agents/impl/index.test.ts
+  s_d9edb787cefbb5::t_50fb523dd9199f 190-213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "69a1a5a83b80436ef74e1e6969c80a0aff27dc4d",
+  "prompts": {},
+  "sessions": {
+    "s_d9edb787cefbb5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f12cc-b6e8-7380-9cad-e4d155c00fc8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
