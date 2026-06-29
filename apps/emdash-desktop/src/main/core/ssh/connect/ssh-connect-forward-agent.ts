@@ -33,6 +33,9 @@ function agentForForwarding(resolved: ResolvedSshConfig | undefined, deps: SshCo
   const agentSocket = resolved
     ? resolveAgentSocketFromResolved(resolved, deps.env)
     : ({ kind: 'unset' } satisfies ResolvedAgentSocket);
+  if (agentSocket.kind === 'disabled') {
+    throw new Error('Agent forwarding was requested, but SSH agent is disabled by SSH config');
+  }
   const agent =
     agentSocket.kind === 'socket'
       ? agentSocket.path

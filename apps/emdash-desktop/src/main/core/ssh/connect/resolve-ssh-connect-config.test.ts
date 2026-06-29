@@ -512,7 +512,7 @@ describe('resolveSshConnectConfig', () => {
     ).rejects.toThrow('IdentitiesOnly is enabled');
   });
 
-  it('uses SSH_AUTH_SOCK for ForwardAgent yes even when IdentityAgent disables auth agent selection', async () => {
+  it('does not forward the agent when IdentityAgent disables agent selection', async () => {
     await expect(
       resolveSshConnectConfig(
         {
@@ -538,13 +538,7 @@ describe('resolveSshConnectConfig', () => {
           }),
         })
       )
-    ).resolves.toMatchObject({
-      config: {
-        password: 'pw',
-        agentForward: true,
-        agent: '/tmp/default-agent.sock',
-      },
-    });
+    ).rejects.toThrow('SSH agent is disabled');
   });
 
   it('fails clearly when required auth or forwarding credentials are unavailable', async () => {
