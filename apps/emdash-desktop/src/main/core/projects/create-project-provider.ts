@@ -19,6 +19,7 @@ import { log } from '@main/lib/logger';
 import { gitRepoUpdateChannel } from '@shared/core/git/events';
 import { safePathSegment } from '@shared/path-name';
 import type { LocalProject, SshProject } from '@shared/projects';
+import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
 import { ProjectProvider, type ProjectProviderTransport } from './project-provider';
 import type { ProjectSettingsProvider } from './settings/provider';
 import { LocalProjectSettingsProvider } from './settings/providers/local-project-settings-provider';
@@ -219,6 +220,10 @@ function buildProvider(
     settings,
     worktreeHost,
   };
+
+  // Keep emdash's `.emdash/` runtime state (worktree pool, attachments, uploads) out of
+  // the user's `git status`. Best effort and non-blocking.
+  ensureEmdashGitExcludedSafe(projectFs, projectId);
 
   const gitRepository = new GitRepositoryService(repoLease.value, settings);
   const worktreeService = new WorktreeService({
