@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { ensureHooksInstalled } from '@main/core/agent-hooks/hook-config-service';
@@ -9,6 +8,7 @@ import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve
 import {
   type SpillLargePromptResult,
   spillLargePrompt,
+  WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES,
 } from '@main/core/conversations/spill-large-prompt';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
@@ -36,7 +36,6 @@ import { resolveAgentExecutable } from './resolve-agent-executable';
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const RESPAWN_DELAY_MS = 500;
-const WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES = 7_000;
 
 function parseExtraArgs(value: string | undefined): string[] {
   if (!value?.trim()) return [];
@@ -149,14 +148,13 @@ export class LocalConversationProvider implements ConversationProvider {
       // past OS argument limits and crash the underlying CLI. Spill them to a temp
       // markdown file and hand the agent a short pointer message instead (ENG-1546).
       if (!agentSession.isResuming && initialPrompt) {
-        const isWindowsStdinPipe =
-          process.platform === 'win32' && plugin.capabilities.prompt.kind === 'stdin-pipe';
-        const shouldForceSpill =
-          isWindowsStdinPipe &&
-          Buffer.byteLength(initialPrompt, 'utf8') > WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES;
+        const maxBytes =
+          process.platform === 'win32' && plugin.capabilities.prompt.kind === 'stdin-pipe'
+            ? WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES
+            : undefined;
         spill = await spillLargePrompt(
           initialPrompt,
-          shouldForceSpill ? { maxChars: 0 } : undefined
+          maxBytes === undefined ? undefined : { maxBytes }
         );
       }
       const effectiveInitialPrompt = spill?.prompt ?? initialPrompt;

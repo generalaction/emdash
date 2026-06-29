@@ -1,9 +1,11 @@
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildPromptPointerMessage,
   MAX_INLINE_PROMPT_CHARS,
   spillLargePrompt,
+  WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES,
 } from './spill-large-prompt';
 
 describe('spillLargePrompt', () => {
@@ -41,6 +43,7 @@ describe('spillLargePrompt', () => {
 
   it('spills oversized prompts to a file and returns a pointer message + cleanup', async () => {
     const prompt = 'y'.repeat(MAX_INLINE_PROMPT_CHARS + 1);
+    const expectedPath = join('/tmp/emdash-prompt-abc', 'task-context.md');
     const removeTempDir = vi.fn(async () => {});
     let writtenPath = '';
     let writtenContents = '';
@@ -54,12 +57,29 @@ describe('spillLargePrompt', () => {
       removeTempDir,
     });
 
-    expect(writtenPath).toBe('/tmp/emdash-prompt-abc/task-context.md');
+    expect(writtenPath).toBe(expectedPath);
     expect(writtenContents).toBe(prompt);
-    expect(result.prompt).toBe(buildPromptPointerMessage('/tmp/emdash-prompt-abc/task-context.md'));
+    expect(result.prompt).toBe(buildPromptPointerMessage(expectedPath));
 
     await result.cleanup();
     expect(removeTempDir).toHaveBeenCalledWith('/tmp/emdash-prompt-abc');
+  });
+
+  it('spills prompts that exceed the configured byte threshold', async () => {
+    const prompt = 'x'.repeat(WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES + 1);
+    const expectedPath = join('/tmp/emdash-prompt-bytes', 'task-context.md');
+    let writtenContents = '';
+
+    const result = await spillLargePrompt(prompt, {
+      maxBytes: WINDOWS_STDIN_PIPE_MAX_INLINE_PROMPT_BYTES,
+      createTempDir: async () => '/tmp/emdash-prompt-bytes',
+      writeContextFile: async (_filePath, contents) => {
+        writtenContents = contents;
+      },
+    });
+
+    expect(writtenContents).toBe(prompt);
+    expect(result.prompt).toBe(buildPromptPointerMessage(expectedPath));
   });
 
   it('cleans up the temp dir and falls back to inline when writing fails', async () => {
