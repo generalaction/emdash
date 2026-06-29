@@ -1,5 +1,5 @@
 import { rmSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, userInfo } from 'node:os';
 import { join } from 'node:path';
 
 // Cross-platform replacement for the old `rm -f` db:reset scripts, which only ran
@@ -9,7 +9,7 @@ const DEV_DIR_NAME = 'emdash-dev';
 const DB_BASENAMES = ['emdash3.db', 'emdash4.db'];
 
 function devUserDataDir(): string {
-  const home = process.env.HOME ?? homedir();
+  const home = process.platform === 'darwin' ? userInfo().homedir : (process.env.HOME ?? homedir());
 
   if (process.platform === 'darwin') {
     return join(home, 'Library', 'Application Support', DEV_DIR_NAME);
