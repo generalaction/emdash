@@ -115,7 +115,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     if (tab.diffGroup === 'disk') {
       return modelRegistry.toGitUri(uri, STAGED_REF);
     }
-    if (tab.diffGroup === 'git' || tab.diffGroup === 'pr') {
+    if (tab.diffGroup === 'git' || tab.diffGroup === 'pr' || tab.diffGroup === 'branch') {
       return modelRegistry.toGitUri(uri, tab.originalRef);
     }
     return modelRegistry.toGitUri(uri, HEAD_REF);
@@ -128,6 +128,9 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     }
     if (tab.diffGroup === 'git') {
       return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
+    }
+    if (tab.diffGroup === 'branch') {
+      return tab.modifiedRef ? modelRegistry.toGitUri(uri, tab.modifiedRef) : uri;
     }
     return uri;
   })();
@@ -178,6 +181,51 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
       void modelRegistry
         .registerModel(projectId, workspaceId, root, tab.path, language, 'git', STAGED_REF)
         .catch(() => {});
+    } else if (tab.diffGroup === 'branch') {
+      void modelRegistry
+        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
+        .catch(() => {});
+
+      if (tab.modifiedRef) {
+        // Committed mode: modified side is also a git ref (current branch).
+        void modelRegistry
+          .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.modifiedRef)
+          .catch(() => {});
+      } else {
+        // All mode: modified side is the working tree — same as 'disk' branch.
+        const diskUri = modelRegistry.toDiskUri(uri);
+        void (async () => {
+          if (tab.status !== 'deleted') {
+            try {
+              await modelRegistry.registerModel(
+                projectId,
+                workspaceId,
+                root,
+                tab.path,
+                language,
+                'disk'
+              );
+            } catch (err) {
+              if (!isMissingFileError(err)) throw err;
+            }
+          }
+          if (disposed) {
+            modelRegistry.unregisterModel(diskUri);
+            return;
+          }
+          await modelRegistry.registerModel(
+            projectId,
+            workspaceId,
+            root,
+            tab.path,
+            language,
+            'buffer'
+          );
+          if (disposed) {
+            modelRegistry.unregisterModel(modifiedUri);
+          }
+        })().catch(() => {});
+      }
     } else {
       void modelRegistry
         .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
@@ -200,7 +248,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
       disposed = true;
       modelRegistry.unregisterModel(originalUri);
       modelRegistry.unregisterModel(modifiedUri);
-      if (tab.diffGroup === 'disk') {
+      if (tab.diffGroup === 'disk' || (tab.diffGroup === 'branch' && !tab.modifiedRef)) {
         modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
       }
     };

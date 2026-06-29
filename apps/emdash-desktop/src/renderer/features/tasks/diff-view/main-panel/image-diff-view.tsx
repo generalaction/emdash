@@ -130,6 +130,10 @@ function loadModified(
         activeFile.path,
         activeFile.modifiedRef ?? HEAD_REF
       );
+    case 'branch':
+      return activeFile.modifiedRef
+        ? loadFromRef(projectId, workspaceId, activeFile.path, activeFile.modifiedRef)
+        : loadFromDisk(projectId, workspaceId, activeFile.path);
   }
 }
 
