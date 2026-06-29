@@ -12,6 +12,7 @@ import { appPasteChannel, terminalContextMenuActionChannel } from '@shared/event
 import { getDomTabNavigationDirection } from '@shared/shortcuts';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
+import { TERMINAL_PADDING_PX } from './pty';
 import { measureDimensions } from './pty-dimensions';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
@@ -243,8 +244,10 @@ export function usePty(
         }
 
         // Standalone path: measure and resize locally.
-        const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
-        const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
+        // Measure .xterm directly (not its parent) — it carries the padding, and
+        // getComputedStyle returns its content-box size so padding is already excluded.
+        const el = (term as unknown as { element?: HTMLElement }).element;
+        const measureTarget = el ?? (containerRef.current as HTMLElement | null);
         if (!measureTarget) return;
 
         const dims = measureDimensions(measureTarget, cell.width, cell.height);
@@ -347,10 +350,14 @@ export function usePty(
     if (pane) {
       targetDims = pane.getCurrentDimensions() ?? undefined;
       if (!targetDims && pane.containerRef.current && prevCell) {
+        // The provider container has no padding; supply paddingPx so the
+        // pre-mount dims match what the controller will compute.
         const measured = measureDimensions(
           pane.containerRef.current,
           prevCell.width,
-          prevCell.height
+          prevCell.height,
+          0,
+          TERMINAL_PADDING_PX
         );
         if (measured) targetDims = measured;
       }

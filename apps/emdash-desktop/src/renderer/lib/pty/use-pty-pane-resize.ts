@@ -22,13 +22,12 @@ import type { PaneDimensionSink } from '@renderer/features/tabs/pane-dimension-p
 import { rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
-import { invalidateCellMetricsCache, measureTerminalCell } from './pty-dimensions';
+import { computeGridDimensions, invalidateCellMetricsCache, measureTerminalCell } from './pty-dimensions';
+import { TERMINAL_LETTER_SPACING, TERMINAL_LINE_HEIGHT, TERMINAL_PADDING_PX } from './pty';
 import { createResizeScheduler, type ResizeScheduler } from './resize-scheduler';
 import { buildTerminalFontFamily } from './terminal-font';
 
 const PTY_RESIZE_DEBOUNCE_MS = 60;
-const MIN_TERMINAL_COLS = 2;
-const MIN_TERMINAL_ROWS = 1;
 
 export interface PtyPaneResizeControls {
   /**
@@ -69,12 +68,20 @@ export function usePtyPaneResize(
   const cellSizeRef = useRef<{ width: number; height: number } | null>(null);
   if (cellSizeRef.current === null) {
     // Prime with the default font so the controller can broadcast before any
-    // terminal has mounted in the pane.
+    // terminal has mounted in the pane. lineHeight and letterSpacing must match
+    // the Terminal options so the seed rows/cols are correct pre-calibration.
     cellSizeRef.current = measureTerminalCell(
       buildTerminalFontFamily(),
-      TERMINAL_FONT_SIZE_DEFAULT
+      TERMINAL_FONT_SIZE_DEFAULT,
+      TERMINAL_LINE_HEIGHT,
+      TERMINAL_LETTER_SPACING
     );
   }
+
+  // ── Calibration guard ────────────────────────────────────────────────────────
+  // Prevents the seed from ever reaching the PTY backend. Backend broadcasts are
+  // suppressed until a real terminal has calibrated the cell size via calibrateCell().
+  const hasCalibratedRef = useRef(false);
 
   // ── Broadcast scheduler ─────────────────────────────────────────────────────
   const schedulerRef = useRef<ResizeScheduler<{ cols: number; rows: number }> | null>(null);
@@ -106,13 +113,26 @@ export function usePtyPaneResize(
     const pixelDims = currentSink?.dimensions;
     if (!cell || !pixelDims) return;
 
-    const cols = Math.max(MIN_TERMINAL_COLS, Math.floor(pixelDims.width / cell.width));
-    const rows = Math.max(MIN_TERMINAL_ROWS, Math.floor(pixelDims.height / cell.height));
+    // The pane-dimension provider measures the outer container (no padding),
+    // so subtract TERMINAL_PADDING_PX from each side before dividing by cell size.
+    const dims = computeGridDimensions({
+      widthPx: pixelDims.width,
+      heightPx: pixelDims.height,
+      cellWidth: cell.width,
+      cellHeight: cell.height,
+      paddingPx: TERMINAL_PADDING_PX,
+    });
+    if (!dims) return;
 
     runInAction(() => {
-      controllerDimsBoxRef.current!.set({ cols, rows });
+      controllerDimsBoxRef.current!.set(dims);
     });
-    schedulerRef.current?.schedule({ cols, rows });
+    // Only broadcast to the backend once a real terminal has calibrated the cell
+    // size. The seed is accurate but this prevents any transient seed error from
+    // ever reaching the PTY before calibration confirms the measurements.
+    if (hasCalibratedRef.current) {
+      schedulerRef.current?.schedule(dims);
+    }
   }, []);
 
   const recomputeRef = useRef(recompute);
@@ -154,7 +174,7 @@ export function usePtyPaneResize(
       const fontFamily = buildTerminalFontFamily(detail?.fontFamily ?? '');
       const fontSize = detail?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
       invalidateCellMetricsCache();
-      const newCell = measureTerminalCell(fontFamily, fontSize);
+      const newCell = measureTerminalCell(fontFamily, fontSize, TERMINAL_LINE_HEIGHT, TERMINAL_LETTER_SPACING);
       if (newCell) {
         cellSizeRef.current = newCell;
         recomputeRef.current();
@@ -170,7 +190,7 @@ export function usePtyPaneResize(
     const added = sessionIds.filter((id) => !prev.includes(id));
     sessionsRef.current = sessionIds;
     const dims = controllerDimsBoxRef.current!.get();
-    if (dims && added.length > 0) {
+    if (dims && added.length > 0 && hasCalibratedRef.current) {
       for (const id of added) {
         void rpc.pty.resize(id, dims.cols, dims.rows);
       }
@@ -184,7 +204,14 @@ export function usePtyPaneResize(
 
   // ── Public API ──────────────────────────────────────────────────────────────
   const calibrateCell = useCallback((width: number, height: number) => {
+    const alreadyCalibrated = hasCalibratedRef.current;
+    hasCalibratedRef.current = true;
     if (cellSizeRef.current?.width === width && cellSizeRef.current?.height === height) {
+      // Cell metrics unchanged; if this is the first calibration, still flush the
+      // backend broadcast that was suppressed during the seed-only phase.
+      if (!alreadyCalibrated) {
+        schedulerRef.current?.schedule(controllerDimsBoxRef.current!.get()!);
+      }
       return;
     }
     cellSizeRef.current = { width, height };

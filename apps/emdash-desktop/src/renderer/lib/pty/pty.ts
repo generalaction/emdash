@@ -12,6 +12,10 @@ import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
 
+export const TERMINAL_PADDING_PX = 8;
+export const TERMINAL_LINE_HEIGHT = 1.2;
+export const TERMINAL_LETTER_SPACING = 0;
+
 // ── Theme helpers ─────────────────────────────────────────────────────────────
 
 export interface SessionTheme {
@@ -89,8 +93,8 @@ export class FrontendPty {
       // column 0 and mangling column alignment, while leaving plain shells fine.
       fontFamily: buildTerminalFontFamily(),
       fontSize: 13,
-      lineHeight: 1.2,
-      letterSpacing: 0,
+      lineHeight: TERMINAL_LINE_HEIGHT,
+      letterSpacing: TERMINAL_LETTER_SPACING,
       allowProposedApi: true,
       scrollOnUserInput: false,
       linkHandler: {
@@ -132,11 +136,16 @@ export class FrontendPty {
 
     this.terminal.open(this.ownedContainer);
 
+    // xterm v6 insets .xterm-screen by padding on the .xterm element and subtracts
+    // padding-left/padding-top in its coordinate math (getCoordsRelativeToElement),
+    // so padding must live here — not on the parent ownedContainer.
     const el = (this.terminal as unknown as { element?: HTMLElement }).element;
     if (el) {
       el.style.width = '100%';
       el.style.height = '100%';
-      el.style.backgroundColor = 'transparent';
+      el.style.boxSizing = 'border-box';
+      el.style.padding = `${TERMINAL_PADDING_PX}px`;
+      el.style.backgroundColor = 'var(--xterm-bg)';
     }
 
     FrontendPty.all.add(this);
