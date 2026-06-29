@@ -541,6 +541,36 @@ describe('resolveSshConnectConfig', () => {
     ).rejects.toThrow('SSH agent is disabled');
   });
 
+  it('does not allow explicit ForwardAgent sockets when IdentityAgent disables agent selection', async () => {
+    await expect(
+      resolveSshConnectConfig(
+        {
+          kind: 'transient',
+          config: {
+            ...baseConfig({ sshConfigAlias: 'corp-dev', authType: 'password' }),
+            password: 'pw',
+          },
+        },
+        deps({
+          env: { SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
+          resolveSshConfig: async () => ({
+            hostname: 'dev.internal',
+            user: 'alice',
+            port: 22,
+            identityFile: [],
+            identityAgent: undefined,
+            identityAgentDisabled: true,
+            identitiesOnly: false,
+            proxyCommand: undefined,
+            proxyJump: undefined,
+            forwardAgent: true,
+            forwardAgentValue: '$SSH_AUTH_SOCK',
+          }),
+        })
+      )
+    ).rejects.toThrow('SSH agent is disabled');
+  });
+
   it('fails clearly when required auth or forwarding credentials are unavailable', async () => {
     await expect(
       resolveSshConnectConfig(

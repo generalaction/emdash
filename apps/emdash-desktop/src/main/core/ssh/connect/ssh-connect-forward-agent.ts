@@ -22,6 +22,13 @@ function expandForwardAgentValue(
 }
 
 function agentForForwarding(resolved: ResolvedSshConfig | undefined, deps: SshConnectDeps): string {
+  const agentSocket = resolved
+    ? resolveAgentSocketFromResolved(resolved, deps.env)
+    : ({ kind: 'unset' } satisfies ResolvedAgentSocket);
+  if (agentSocket.kind === 'disabled') {
+    throw new Error('Agent forwarding was requested, but SSH agent is disabled by SSH config');
+  }
+
   if (resolved?.forwardAgentValue) {
     const agent = expandForwardAgentValue(resolved.forwardAgentValue, deps.env);
     if (!agent) {
@@ -30,12 +37,6 @@ function agentForForwarding(resolved: ResolvedSshConfig | undefined, deps: SshCo
     return agent;
   }
 
-  const agentSocket = resolved
-    ? resolveAgentSocketFromResolved(resolved, deps.env)
-    : ({ kind: 'unset' } satisfies ResolvedAgentSocket);
-  if (agentSocket.kind === 'disabled') {
-    throw new Error('Agent forwarding was requested, but SSH agent is disabled by SSH config');
-  }
   const agent =
     agentSocket.kind === 'socket'
       ? agentSocket.path
