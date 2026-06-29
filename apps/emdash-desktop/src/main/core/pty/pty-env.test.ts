@@ -127,6 +127,7 @@ describe('buildAgentEnv provider env forwarding', () => {
       GOOGLE_GENAI_API_VERSION: 'v1beta',
       GROK_CODE_XAI_API_KEY: 'xai-key',
       GROK_HOME: '/tmp/grok-home',
+      GROK_POOL_IDLE_TIMEOUT_SECS: '120',
       BAILIAN_CODING_PLAN_API_KEY: 'bailian-key',
       GOOSE_PROVIDER: 'openai',
       GOOSE_MODEL: 'gpt-5.1',
