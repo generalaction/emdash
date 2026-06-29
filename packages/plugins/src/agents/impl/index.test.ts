@@ -187,4 +187,28 @@ describe('pluginRegistry', () => {
       releaseSource: { kind: 'npm', package: '@ampcode/cli' },
     });
   });
+
+  it('exposes Amp modes as selectable models and passes them with -m', () => {
+    const amp = pluginRegistry.get('amp')!;
+
+    expect(amp.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        smart: { name: 'Smart' },
+        rush: { name: 'Rush' },
+        deep: { name: 'Deep' },
+      },
+    });
+
+    const result = amp.behavior.prompt!.buildCommand({
+      cli: 'amp',
+      autoApprove: true,
+      initialPrompt: '',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'deep',
+    });
+
+    expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'deep']);
+  });
 });
