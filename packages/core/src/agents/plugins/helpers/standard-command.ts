@@ -28,11 +28,7 @@ function quotePowerShellArg(arg: string): string {
 function wrapWithWindowsStdinPipe(cmd: AgentCommand, prompt: string): AgentCommand {
   const promptBase64 = Buffer.from(prompt, 'utf8').toString('base64');
   const commandBase64 = Buffer.from(cmd.command, 'utf8').toString('base64');
-  const agentInvocation = [
-    '&',
-    '$command',
-    ...cmd.args.map(quotePowerShellArg),
-  ].join(' ');
+  const agentInvocation = ['&', '$command', ...cmd.args.map(quotePowerShellArg)].join(' ');
   const script = [
     "$ErrorActionPreference = 'Stop'",
     '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
