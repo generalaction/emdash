@@ -1,7 +1,3 @@
-/**
- * ChatPanel — composed story combining ChatTranscript (from @emdash/ui/react/chat-ui)
- * with ChatComposer (from @emdash/ui), mirroring the desktop chat-panel layout.
- */
 import type { ChatCommands, ChatView, MentionProvider } from '@emdash/chat-ui';
 import {
   applyTurnEvent,
@@ -15,16 +11,16 @@ import { cx } from '@styles/utilities/cx';
 import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChatComposer, stopReasonNotice } from '../components/chat-composer';
+import { ChatComposer, stopReasonNotice } from '../components/chat-composer/chat-composer';
 import type {
   ComposerAttachment,
   ComposerModelOption,
   ComposerNotice,
   ContextMentionProvider,
   MentionItem,
-} from '../components/chat-composer';
+} from '../components/chat-composer/chat-composer';
 import { ImageViewerDialog } from '../components/image-viewer-dialog';
-import type { ComposerPermissionRequest } from '../components/permission-band';
+import type { ComposerPermissionRequest } from '../components/chat-composer/permission-band';
 import { basename, fileIconClass } from '../components/prompt-editor/mention-pill-helpers';
 import type { PromptEditorRef } from '../components/prompt-editor/types';
 import { Box } from '../primitives/box';

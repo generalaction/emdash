@@ -7,22 +7,13 @@ export {
   type ToggleProps,
   type ToggleGroupProps,
 } from './toggle';
-export { Tabs, TabsList, TabsTab, TabsPanel, type TabsTabProps } from './tabs';
+export { Tabs, TabsList, TabsTab, TabsPanel, type TabsTabProps } from './tabs/tabs';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
-export {
-  Field,
-  FieldContent,
-  FieldLabel,
-  FieldDescription,
-  FieldError,
-  type FieldVariants,
-} from './field';
-export { ScrollFade, type ScrollFadeProps } from './scroll-fade';
 export { ScrollContainer, type ScrollContainerProps } from './scroll-container';
 export { Text, type TextProps } from './typography/Text';
 export { Heading, type HeadingProps } from './typography/Heading';
 export { textVariants, type TextVariantProps } from './typography/typography.variants';
-export { Input, type InputProps } from './input';
+export { Input, type InputProps } from './input/input';
 export { Textarea, type TextareaProps } from './textarea';
 export {
   InputGroup,
@@ -31,7 +22,7 @@ export {
   InputGroupText,
   InputGroupInput,
   InputGroupTextarea,
-} from './input-group';
+} from './input/input-group';
 export {
   Select,
   SelectContent,
@@ -112,8 +103,8 @@ export {
   ComboboxTrigger,
   ComboboxValue,
   useComboboxAnchor,
-} from './combobox';
-export { Surface, useSurfaceLevel, type SurfaceProps } from './surface';
+} from './combobox/combobox';
+export { Surface, useSurfaceLevel, type SurfaceProps } from './surface/surface';
 export {
   ThemeProvider,
   useTheme,
@@ -128,7 +119,7 @@ export {
   ComboboxPopupDismiss,
   type ComboboxPopupItem,
   type ComboboxPopupHandle,
-} from './combobox-popup';
+} from './combobox/combobox-popup';
 export {
   useHoverCard,
   HoverCard,
@@ -142,7 +133,7 @@ export {
   type SplitButtonProps,
   type SplitButtonOption,
   type SplitButtonOptionTone,
-} from './split-button';
+} from './split-button/split-button';
 export { resolveFileIconClass } from '../lib/file-icons';
 export { Switch, type SwitchProps } from './switch';
 export { SeparatedList, type SeparatedListProps } from './separated-list';

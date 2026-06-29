@@ -1,7 +1,7 @@
 import { cx } from '@styles/utilities/cx';
 import type { SurfaceStatusName } from '@theme/core/contract/roles';
 import * as React from 'react';
-import { Surface } from './surface';
+import { Surface } from './surface/surface';
 import * as styles from './callout.css';
 
 export interface CalloutProps extends React.HTMLAttributes<HTMLDivElement> {

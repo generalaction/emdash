@@ -12,7 +12,7 @@ import React, { useState } from 'react';
 import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
 import { Callout } from '../primitives/callout';
-import { Input } from '../primitives/input';
+import { Input } from '../primitives/input/input';
 import {
   Select,
   SelectContent,
@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../primitives/select';
-import { Surface } from '../primitives/surface';
+import { Surface } from '../primitives/surface/surface';
 import { ThemeProvider } from '../primitives/theme-provider';
 import { Toggle } from '../primitives/toggle';
 import * as s from '../story-layout.css';

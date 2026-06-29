@@ -25,7 +25,7 @@ import {
   ComboboxPopup,
   type ComboboxPopupHandle,
   type ComboboxPopupItem,
-} from '../../primitives/combobox-popup';
+} from '../../primitives/combobox/combobox-popup';
 import { buildMentionExtension } from './extensions/mention';
 import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';

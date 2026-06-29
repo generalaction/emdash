@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 import { SearchInput } from '../../primitives/search-input';
-import { Tabs, TabsList, TabsTab } from '../../primitives/tabs';
+import { Tabs, TabsList, TabsTab } from '../../primitives/tabs/tabs';
 import { ListView } from './index';
 import * as s from '../../story-layout.css';
 
