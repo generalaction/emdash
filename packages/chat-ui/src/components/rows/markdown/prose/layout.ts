@@ -97,7 +97,8 @@ export function measureProseNaturalWidth(
     if (seg.length === 0) continue;
     const items = runsToRichItems(
       seg.map((s) => s.segRuns[0]),
-      fonts
+      fonts,
+      block.variant
     );
     const prepared = prepareRichInline(items);
     const stats = measureRichInlineStats(prepared, UNBOUNDED_WIDTH);
@@ -149,7 +150,7 @@ export function layoutProse(
     const segRunList = seg.map((s) => s.segRuns[0]);
     const indexMap = seg.map((s) => s.baseIndex);
 
-    const items = runsToRichItems(segRunList, fonts);
+    const items = runsToRichItems(segRunList, fonts, block.variant);
     const prepared = prepareRichInline(items);
 
     walkRichInlineLineRanges(prepared, effectiveWidth, (range) => {

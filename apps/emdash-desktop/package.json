@@ -19,8 +19,8 @@
   "main": "./out/main/index.js",
   "scripts": {
     "d": "pnpm install && pnpm run dev",
-    "dev": "electron-vite dev",
-    "dev:debug": "VITE_LOG_LEVEL=debug electron-vite dev",
+    "dev": "LOG_LEVEL=debug EMDASH_LOG_FILE=.emdash-logs/emdash.log electron-vite dev",
+    "dev:debug": "VITE_LOG_LEVEL=debug LOG_LEVEL=debug EMDASH_LOG_FILE=.emdash-logs/emdash.log electron-vite dev",
     "dev:main": "electron-vite dev --watch main",
     "dev:renderer": "electron-vite dev --watch renderer",
     "db:generate": "drizzle-kit generate",
@@ -49,10 +49,14 @@
     "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.25.1",
+    "@emdash/chat-ui": "workspace:*",
     "@emdash/core": "workspace:*",
     "@emdash/plugins": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/ui": "workspace:*",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
     "@llamaduck/forgejo-ts": "^14.0.3",

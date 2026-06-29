@@ -3,10 +3,10 @@ import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { FILE_CONTENT_TYPES } from './file-content-types';
-import type { FileTabStore } from './stores/file-tab-store';
+import type { FileTabResource } from './stores/file-tab-resource';
 
 interface FileContentPreviewProps {
-  tab: FileTabStore;
+  tab: FileTabResource;
 }
 
 /**

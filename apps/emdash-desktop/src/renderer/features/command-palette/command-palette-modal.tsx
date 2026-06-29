@@ -250,20 +250,22 @@ export function CommandPaletteModal({
 
   const handleNavigateToConversation = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.paneLayout.open('conversation', {
-      conversationId: item.id,
-      preview: false,
-    });
+    getTaskView(item.projectId, item.taskId)?.paneLayout.open(
+      'conversation',
+      { conversationId: item.id },
+      { preview: false }
+    );
     handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
 
   const handleOpenFile = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.activePane.open('file', {
-      path: item.id,
-      preview: false,
-    });
+    getTaskView(item.projectId, item.taskId)?.activePane.open(
+      'file',
+      { path: item.id },
+      { preview: false }
+    );
     handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };

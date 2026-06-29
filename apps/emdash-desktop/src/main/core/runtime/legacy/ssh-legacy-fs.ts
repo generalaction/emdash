@@ -3,6 +3,7 @@
  * Uses SFTP over SSH for remote filesystem operations
  */
 
+import { posix as pathPosix } from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
 import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
@@ -825,16 +826,9 @@ export class SshFileSystem implements LegacySshFileOperations {
     return fullPath;
   }
 
-  /** Remove single-dot segments from a POSIX path (e.g. /a/./b → /a/b). */
+  /** Normalize POSIX path segments the same way the remote shell resolves them. */
   private normalizePosixPath(p: string): string {
-    const parts = p.split('/');
-    const out: string[] = [];
-    for (const seg of parts) {
-      if (seg === '.') continue;
-      out.push(seg);
-    }
-    // Re-join and collapse any double slashes introduced by the filter
-    return out.join('/').replace(/\/+/g, '/') || '/';
+    return pathPosix.normalize(p.replace(/\/+/g, '/'));
   }
 
   /**

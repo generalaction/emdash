@@ -48,6 +48,31 @@ export const workspaceFileSystemController = createRPCController({
     return ok({ success: true as const, bytesWritten: result.data.bytesWritten });
   },
 
+  removeFile: async (
+    projectId: string,
+    workspaceId: string,
+    filePath: string,
+    options?: { recursive?: boolean }
+  ) => {
+    const resolved = resolveWorkspaceFiles(projectId, workspaceId);
+    if (!resolved.success) return resolved;
+    const { fileSystem } = resolved.data;
+
+    const result = await fileSystem.remove(filePath, options);
+    if (!result.success) {
+      if (isPermissionDenied(result.error)) {
+        events.emit(planEventChannel, {
+          type: 'remove_blocked' as const,
+          root: projectId,
+          path: filePath,
+          message: result.error.message,
+        });
+      }
+      return ok({ success: false as const, error: fileErrorToMessage(result.error) });
+    }
+    return ok({ success: true as const });
+  },
+
   readImage: async (projectId: string, workspaceId: string, filePath: string) => {
     const resolved = resolveWorkspaceFiles(projectId, workspaceId);
     if (!resolved.success) return resolved;

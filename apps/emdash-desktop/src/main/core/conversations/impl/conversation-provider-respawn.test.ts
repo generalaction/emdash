@@ -217,7 +217,7 @@ function conversation(overrides: Partial<Conversation> = {}): Conversation {
     providerId: 'codex',
     title: 'Conversation 1',
     lastInteractedAt: null,
-    providerSessionId: 'provider-session-1',
+    sessionId: 'provider-session-1',
     isInitialConversation: false,
     ...overrides,
   };
@@ -474,7 +474,7 @@ describe('conversation provider respawn state', () => {
       data: fakePty(exitHandlers),
     });
     const provider = sshProvider();
-    const item = conversation({ providerSessionId: undefined });
+    const item = conversation({ sessionId: undefined });
 
     await provider.startSession(item, undefined, true);
 
@@ -495,7 +495,7 @@ describe('conversation provider respawn state', () => {
     });
     const provider = sshProvider();
     const initialPrompt = 'continue this task';
-    const item = conversation({ providerId: 'amp', providerSessionId: undefined });
+    const item = conversation({ providerId: 'amp', sessionId: undefined });
 
     try {
       await provider.startSession(item, undefined, true, initialPrompt);

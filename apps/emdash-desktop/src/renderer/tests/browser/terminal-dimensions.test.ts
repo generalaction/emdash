@@ -1,11 +1,15 @@
 /**
- * Browser-mode tests for measureDimensions().
+ * Browser-mode tests for measureDimensions() and measureTerminalCell().
  *
  * These run in a real Chromium process via Playwright so getComputedStyle
- * reflects genuine CSS layout — no stubs required for the DOM or CSSOM.
+ * reflects genuine CSS layout and canvas measurements are accurate.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { measureDimensions } from '@renderer/lib/pty/pty-dimensions';
+import {
+  invalidateCellMetricsCache,
+  measureDimensions,
+  measureTerminalCell,
+} from '@renderer/lib/pty/pty-dimensions';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -176,5 +180,48 @@ describe('measureDimensions', () => {
     expect(measureDimensions(container, CW, CH)).toBeNull();
 
     panel.remove();
+  });
+});
+
+// ── measureTerminalCell — real canvas measurements ───────────────────────────
+
+describe('measureTerminalCell', () => {
+  afterEach(() => {
+    invalidateCellMetricsCache();
+  });
+
+  it('returns positive cell width and height for a monospace font', () => {
+    const result = measureTerminalCell('monospace', 13);
+    expect(result).not.toBeNull();
+    expect(result!.width).toBeGreaterThan(0);
+    expect(result!.height).toBeGreaterThan(0);
+  });
+
+  it('returns larger cells for a larger font size', () => {
+    const small = measureTerminalCell('monospace', 13);
+    invalidateCellMetricsCache();
+    const large = measureTerminalCell('monospace', 20);
+    expect(small).not.toBeNull();
+    expect(large).not.toBeNull();
+    // Both width and height should grow with font size.
+    expect(large!.height).toBeGreaterThanOrEqual(small!.height);
+    expect(large!.width).toBeGreaterThanOrEqual(small!.width);
+  });
+
+  it('caches the result for the same inputs', () => {
+    const a = measureTerminalCell('monospace', 13);
+    const b = measureTerminalCell('monospace', 13);
+    // Both calls should return the same (cached) object values.
+    expect(a).toEqual(b);
+  });
+
+  it('returns different values after invalidateCellMetricsCache() with a different fontSize', () => {
+    const a = measureTerminalCell('monospace', 13);
+    invalidateCellMetricsCache();
+    const b = measureTerminalCell('monospace', 20);
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    // Cell height must differ between 13px and 20px.
+    expect(b!.height).not.toBe(a!.height);
   });
 });

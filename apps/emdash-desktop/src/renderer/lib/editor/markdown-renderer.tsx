@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
-import type { FileTabStore } from '@renderer/features/tasks/editor/stores/file-tab-store';
+import type { FileTabResource } from '@renderer/features/tasks/editor/stores/file-tab-resource';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -17,7 +17,7 @@ import { Spinner } from '@renderer/lib/ui/spinner';
 import { resolveWorkspaceResourcePath } from './workspace-resource-path';
 
 interface MarkdownEditorRendererProps {
-  tab: FileTabStore;
+  tab: FileTabResource;
 }
 
 /**
@@ -62,7 +62,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
         resourcePath: href,
       });
       if (!target) return false;
-      pane.open('file', { path: target, preview: false });
+      pane.open('file', { path: target }, { preview: false });
       return true;
     },
     [workspacePath, tab.path, pane]

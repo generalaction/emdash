@@ -1,6 +1,7 @@
+import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SshFileSystem } from './ssh-legacy-fs';
-import type { FileEntry, FileListResult } from './ssh-legacy-fs-types';
+import { FileSystemErrorCodes, type FileEntry, type FileListResult } from './ssh-legacy-fs-types';
 
 type SftpMkdirError = Error & { code?: number };
 type SftpItem = {
@@ -67,6 +68,43 @@ function makeListFs(rootPath: string, entriesByPath: Record<string, SftpItem[]>)
   return {
     fs: new SshFileSystem(proxy as never, rootPath),
     readdir: sftp.readdir,
+  };
+}
+
+function makeRemoveFs() {
+  const execCommands: string[] = [];
+  const sftp = {
+    on: vi.fn(),
+    stat: vi.fn((_path: string, callback: (error: Error | undefined, stats?: unknown) => void) => {
+      callback(undefined, {
+        isDirectory: () => true,
+        size: 0,
+        mtime: 0,
+        atime: 0,
+        mode: 0o040755,
+      });
+    }),
+  };
+  const proxy = {
+    sftp: vi.fn((callback: (error: Error | undefined, sftp: unknown) => void) => {
+      callback(undefined, sftp);
+    }),
+    getRemoteShellProfile: vi.fn(async () => ({ shell: '/bin/sh', env: {} })),
+    exec: vi.fn(
+      (command: string, callback: (error: Error | undefined, stream: EventEmitter) => void) => {
+        execCommands.push(command);
+        const stream = new EventEmitter() as EventEmitter & { stderr: EventEmitter };
+        stream.stderr = new EventEmitter();
+        callback(undefined, stream);
+        setImmediate(() => stream.emit('close', 0));
+      }
+    ),
+  };
+
+  return {
+    fs: new SshFileSystem(proxy as never, '/repo'),
+    execCommands,
+    proxy,
   };
 }
 
@@ -147,6 +185,33 @@ describe('SshFileSystem.list', () => {
     await expect(fs.list('src', { includeHidden: true })).resolves.toMatchObject({
       entries: [{ path: 'src/index.ts', type: 'file' }],
     });
+  });
+});
+
+describe('SshFileSystem.remove', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('rejects traversal before recursive directory removal can reach SSH', async () => {
+    const { fs, proxy } = makeRemoveFs();
+
+    await expect(fs.remove('subdir/../../../outside', { recursive: true })).rejects.toMatchObject({
+      code: FileSystemErrorCodes.PATH_ESCAPE,
+    });
+
+    expect(proxy.sftp).not.toHaveBeenCalled();
+    expect(proxy.exec).not.toHaveBeenCalled();
+  });
+
+  it('removes directories recursively inside the workspace', async () => {
+    const { fs, execCommands } = makeRemoveFs();
+
+    await expect(fs.remove('subdir', { recursive: true })).resolves.toEqual({ success: true });
+
+    expect(execCommands).toHaveLength(1);
+    expect(execCommands[0]).toContain('rm -rf');
+    expect(execCommands[0]).toContain('/repo/subdir');
   });
 });
 

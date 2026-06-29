@@ -37,7 +37,7 @@ export const cardHeader = style({
   paddingRight: '8px',
   cursor: 'pointer',
   color: vars.fgMuted,
-  fontSize: '0.875rem',
+  fontSize: vars.typeBodyFontSize,
   borderBottom: `1px solid ${vars.border}`,
   transition: 'background 150ms',
   userSelect: 'none',

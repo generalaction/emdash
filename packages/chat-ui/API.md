@@ -2,11 +2,13 @@
 
 A Solid-based chat transcript renderer with a pretext layout engine. It
 virtualizes long conversations, renders markdown/code/diffs/tool calls, and
-exposes a small imperative handle for streaming and scroll control.
+exposes three primitives modeled on the CodeMirror `EditorState`/`EditorView`
+split for fine-grained lifecycle control.
 
 The package ships a single entry point:
 
-- `@emdash/chat-ui` — the Solid mount function `mountChat`.
+- `@emdash/chat-ui` — the three factory functions `createChatContext`,
+  `createChatState`, and `createChatView`.
 
 The React wrapper (`ChatTranscript`) and theme adapter (`chat-theme.css`) now
 live in `@emdash/ui/react/chat-ui`. See that package for React integration docs.
@@ -19,7 +21,7 @@ engine, stores) are not exported and may change without notice.
 ## Installation & styles
 
 ```ts
-import { mountChat } from '@emdash/chat-ui';
+import { createChatContext, createChatState, createChatView } from '@emdash/chat-ui';
 import '@emdash/chat-ui/style.css';
 ```
 
@@ -28,49 +30,108 @@ scroll viewport, so a zero-height or auto-height container renders nothing.
 
 ---
 
+## Architecture overview
+
+```
+ChatContext (global singleton)
+  └─ owns: theme, Shiki highlighter, content-addressed caches, measureEpoch
+
+ChatState (per conversation)
+  └─ owns: transcript (history + active turn), messageId-keyed parse caches
+
+ChatView (per mount)
+  └─ owns: Solid root, virtualizer, scroll, hardened scheduler, collapse state,
+          composer slot + ResizeObserver → padBottom
+```
+
+These three objects map to the CodeMirror `EditorState`/`EditorView` model:
+- `ChatContext` is the shared language server / environment.
+- `ChatState` is the `EditorState` — the model, independent of any DOM mount.
+- `ChatView` is the `EditorView` — the DOM owner, created and destroyed on demand.
+
+A `ChatState` survives across `ChatView` mount/unmount cycles, so re-attaching a
+view (e.g. after a tab becomes visible) reuses warm measurement caches and
+preserves transcript state without re-fetching.
+
+---
+
 ## Quick start (Solid / vanilla)
 
 ```ts
-import { mountChat } from '@emdash/chat-ui';
+import { createChatContext, createChatState, createChatView } from '@emdash/chat-ui';
 import '@emdash/chat-ui/style.css';
 
-const handle = mountChat(document.getElementById('chat')!, {
+// Once per app (or per conversation set):
+const ctx = createChatContext({ stickToBottom: true });
+
+// Once per conversation:
+const state = createChatState(ctx);
+
+// Once per mount (re-creatable on show/hide):
+const view = createChatView({
+  context: ctx,
+  state,
+  parent: document.getElementById('chat')!,
+  composer: 'slot',    // internal sticky slot; ResizeObserver drives padBottom
   stickToBottom: true,
   commands: {
     onOpenFile: ({ path }) => openInEditor(path),
   },
+  onViewMounted: (v) => {
+    // Portal a React/HTML composer into the sticky slot:
+    ReactDOM.createPortal(<ChatComposer />, v.composerSlot!);
+  },
 });
 
-// Seed historical items.
-handle.transcript.seed([
+// Seed historical items directly through the state (works before view mounts):
+state.transcript.history.seed([
   { kind: 'message', id: 'u1', role: 'user', text: 'Hello!' },
 ]);
 
-// Stream a turn.
-handle.transcript.dispatch({ type: 'message_chunk', id: 'a1', role: 'assistant', text: 'Hi ' });
-handle.transcript.dispatch({ type: 'message_chunk', id: 'a1', role: 'assistant', text: 'there.' });
-handle.transcript.dispatch({ type: 'turn_done' });
+// Stream a turn:
+state.transcript.activeTurn.set(
+  applyTurnEvent([], { type: 'message_chunk', id: 'a1', role: 'assistant', text: 'Hi ' }),
+  'generating'
+);
+state.transcript.activeTurn.commit('done');
 
-// Tear down when done.
-handle.dispose();
+// Scroll to bottom:
+view.scrollToBottom({ behavior: 'smooth' });
+
+// Tear down in reverse order:
+view.dispose();    // tears down Solid root and DOM; does NOT dispose context or state
+state.dispose();   // clears parse caches and Solid reactive root
+ctx.dispose();     // clears shared caches and Solid reactive root
 ```
+
+---
 
 ## Quick start (React)
 
 ```tsx
-import { ChatTranscript, type ChatHandle } from '@emdash/chat-ui/react';
+import { createChatContext, createChatState, ChatTranscript } from '@emdash/ui/react/chat-ui';
 import '@emdash/chat-ui/style.css';
 
+// Create once at app startup:
+const chatCtx = createChatContext();
+
 function Chat() {
-  const handleRef = useRef<ChatHandle | null>(null);
+  const chatState = useMemo(() => createChatState(chatCtx), []);
+  useEffect(() => () => chatState.dispose(), [chatState]);
+
+  useEffect(() => {
+    chatState.transcript.history.seed(initialItems);
+  }, [chatState]);
+
   return (
     <div style={{ height: '100%' }}>
       <ChatTranscript
+        context={chatCtx}
+        state={chatState}
+        composer="slot"
         stickToBottom
-        commands={{ onOpenFile: ({ path }) => openInEditor(path) }}
-        onReady={(h) => {
-          handleRef.current = h;
-          h.transcript.seed(initialItems);
+        onReady={(view) => {
+          // view.composerSlot is available here
         }}
       />
     </div>
@@ -80,365 +141,232 @@ function Chat() {
 
 ---
 
-## `mountChat(container, options?)`
+## `createChatContext(opts?)`
 
 ```ts
-function mountChat(container: HTMLElement, opts?: MountChatOptions): ChatHandle;
+function createChatContext(opts?: ChatContextOptions): ChatContext;
 ```
 
-Mounts the Solid renderer into `container` and returns a `ChatHandle`. Call
-`handle.dispose()` to unmount and release all DOM and caches.
+Creates a global-services singleton. Safe to create once per app and reuse
+across all conversations. Owns the Shiki highlighter, content-addressed caches
+(highlight / diff / mermaid / richInline), and a `measureEpoch` signal that
+invalidates geometry caches on font load or typography changes.
 
-### `MountChatOptions`
+### `ChatContextOptions`
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `theme` | `ChatTheme` | Typography + chip geometry. Defaults to `DEFAULT_THEME`. |
-| `stickToBottom` | `boolean` | Auto-scroll to bottom as content streams in. |
-| `transcript` | `TranscriptApi` | Reuse an existing transcript store; otherwise one is created. |
-| `viewState` | `ViewState` | Reuse an existing collapse store; otherwise one is created. |
-| `class` | `string` | Extra class on the full-width scroll container. |
-| `contentClass` | `string` | Class for the centered content column (defaults to a max-width column). |
-| `padTop` | `number` | Top padding (px) baked into the virtualizer coordinate space. |
-| `padBottom` | `number` | Bottom padding (px) — use to clear a floating composer. |
-| `commands` | `ChatCommands` | User-interaction callbacks (see below). |
-| `onReachStart` | `() => void` | Fires when scrolled near the top and history is exhausted. |
-| `onAtBottomChange` | `(atBottom: boolean) => void` | Fires when the "at bottom" sticky state changes. |
+| `theme` | `ChatTheme` | Full resolved theme. Defaults to `DEFAULT_THEME`. |
+| `config` | `ChatConfig` | Typography + chip geometry. Ignored when `theme` is set. |
+| `highlighter` | `ChatHighlighter` | Syntax-highlighting adapter. Defaults to the bundled Shiki adapter. |
+| `mentionProvider` | `MentionProvider` | Synchronous @-mention resolver. |
 
-### `ChatHandle`
+### `ChatContext`
 
-| Member | Signature | Description |
+| Member | Type | Description |
 | --- | --- | --- |
-| `transcript` | `TranscriptApi` | Seed/stream data into the transcript. |
-| `viewState` | `ViewState` | Manage per-row collapse state. |
-| `setContentPadding` | `(p: { top?: number; bottom?: number }) => void` | Update canvas padding without remounting. |
-| `scrollToBottom` | `(opts?: { behavior?: ScrollBehavior }) => void` | Scroll to the latest row. |
-| `scrollToItem` | `(id: string, opts?: ScrollToItemOptions) => void` | Scroll to a row by item id. |
-| `loadOlder` | `(items: ChatItem[]) => void` | Prepend history while preserving scroll position. |
-| `setCommands` | `(commands: ChatCommands) => void` | Swap command callbacks without remounting. |
-| `dispose` | `() => void` | Unmount the Solid root and remove all DOM. |
+| `theme` | `ChatTheme` | Resolved theme used for all views sharing this context. |
+| `config` | `ChatConfig` | Config that produced the theme. |
+| `mentionProvider` | `MentionProvider \| undefined` | The @-mention resolver. |
+| `sharedCaches` | `SharedCaches` | Content-addressed caches shared across conversations. |
+| `measureEpoch` | `() => number` | Reactive accessor. Bump to invalidate all geometry caches. |
+| `bumpEpoch()` | `void` | Bump `measureEpoch`. Call after font or typography changes. |
+| `dispose()` | `void` | Dispose reactive root. Safe to call after all views are disposed. |
 
-### `ChatCommands`
+---
+
+## `createChatState(ctx)`
 
 ```ts
-type ChatCommands = {
-  onOpenFile?: (arg: {
-    path: string;
-    itemId: string;
-    source: 'diff' | 'file-op' | 'resource-link' | 'prose-link';
-  }) => void;
-
-  onViewImage?: (arg: {
-    attachment: ChatImageAttachment;
-    itemId: string;
-    source: 'user-message';
-  }) => void;
-
-  /** Called when the user clicks the stop button on the current user message. */
-  onStop?: (arg: { itemId: string }) => void;
-
-  classifyLink?: (href: string) => { kind: 'workspace-file'; path: string } | { kind: 'external' };
-
-  onViewMermaid?: (arg: {
-    chart: string;
-    blockId: string;
-    source: 'mermaid-block';
-  }) => void;
-};
+function createChatState(ctx: ChatContext): ChatState;
 ```
 
-Invoked when the user clicks interactive elements in the transcript.
+Creates per-conversation state. Wraps `createTranscript()` and the
+messageId-keyed parse caches under a `createRoot` so both survive across
+`ChatView` mount/unmount cycles.
 
-`onStop` is called when the user clicks the stop button that appears on hover
-over the current user message while the agent is generating. The host should
-cancel the in-progress agent turn and then dispatch `turn_cancelled` so
-chat-ui removes the stop button and updates `turnStatus`.
+### `ChatState`
 
-`onViewMermaid` is called when the user clicks a Mermaid diagram block preview.
-`chart` is the raw Mermaid source text; `blockId` is the block's stable id.
-The host is responsible for opening a full-size diagram viewer (e.g. a modal).
+| Member | Type | Description |
+| --- | --- | --- |
+| `transcript` | `TranscriptApi` | Reactive transcript (history + active turn). Seed/stream through here. |
+| `parseCaches` | `ParseCaches` | Per-messageId parse caches. Provides object-stable `Block` identities for WeakMap measurement hits. |
+| `dispose()` | `void` | Clear parse caches and dispose the Solid reactive root. |
+
+---
+
+## `createChatView(opts)`
+
+```ts
+function createChatView(opts: ChatViewOptions): ChatView;
+```
+
+Renders a Solid root into `opts.parent` and returns a `ChatView` handle.
+The view reads `context` and `state` for theme, caches, and transcript data.
+
+Call `view.dispose()` to unmount. The context and state are NOT disposed — the
+host manages their lifetimes independently.
+
+### `ChatViewOptions`
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `context` | `ChatContext` | — | **Required.** Global services. |
+| `state` | `ChatState` | — | **Required.** Per-conversation model. |
+| `parent` | `HTMLElement` | — | **Required.** DOM element to render into. |
+| `composer` | `'slot' \| 'none'` | `'none'` | When `'slot'`: renders a sticky bottom slot; internal ResizeObserver drives `padBottom`. Use `view.composerSlot` to portal content into it. |
+| `stickToBottom` | `boolean` | `false` | Auto-scroll to bottom as content streams in. |
+| `pinUserMessages` | `boolean` | `false` | Pin the active turn's user message to the top while scrolling. |
+| `class` | `string` | — | Extra class on the scroll container. |
+| `contentClass` | `string` | — | Class for the centered content column. |
+| `padTop` | `number` | `0` | Top padding (px) baked into the virtualizer coordinate space. |
+| `padBottom` | `number` | `0` | Bottom padding. Ignored when `composer === 'slot'`. |
+| `commands` | `ChatCommands` | `{}` | Initial command callbacks. Update via `view.setCommands`. |
+| `onReachStart` | `() => void` | — | Called when scrolled near the top. |
+| `onAtBottomChange` | `(b: boolean) => void` | — | Called when the "at bottom" state changes. |
+| `onViewMounted` | `(view: ChatView) => void` | — | Called once after mount. `view.composerSlot` is available here. |
+
+### `ChatView`
+
+| Member | Type | Description |
+| --- | --- | --- |
+| `composerSlot` | `HTMLElement \| null` | Sticky bottom slot element (non-null only when `composer === 'slot'` and after mount). Portal a composer into this element. |
+| `setCommands(c)` | `void` | Replace command callbacks without remounting. |
+| `scrollToBottom(opts?)` | `void` | Scroll to the bottom of the transcript. |
+| `scrollToItem(id, opts?)` | `void` | Scroll to the row for the given item id. |
+| `loadOlder(items)` | `void` | Prepend older history items without losing scroll position. |
+| `toggleCollapsed(id)` | `void` | Toggle the collapsed state of an item by id. |
+| `setContentPadding(p)` | `void` | Update canvas padding without remounting (`bottom` ignored when `composer === 'slot'`). |
+| `saveState()` | `ChatViewSnapshot` | Snapshot collapsed items and expanded-user-id. |
+| `restoreState(snap)` | `void` | Restore a previously snapshotted view state. |
+| `dispose()` | `void` | Tear down the Solid root. Does NOT dispose context or state. |
+
+---
+
+## `ChatCommands`
+
+Callbacks injected by the host to respond to user actions:
+
+| Callback | Signature | Description |
+| --- | --- | --- |
+| `onOpenFile` | `({ path, itemId, source }) => void` | User clicked a file path (diff, file-op, resource-link, prose-link). |
+| `onViewImage` | `({ attachment, itemId, source }) => void` | User clicked an image thumbnail in a user message. |
+| `onStop` | `({ itemId }) => void` | User clicked the stop button during generation. |
+| `classifyLink` | `(href) => { kind: 'workspace-file'; path: string } \| { kind: 'external' }` | Classify a markdown `href` at render time (must be synchronous). |
+| `onViewMermaid` | `({ chart, blockId, source }) => void` | User clicked a Mermaid diagram preview. |
+
+---
+
+## `TranscriptApi`
+
+Accessed via `state.transcript`.
+
+### History
+
+```ts
+state.transcript.history.seed(items: ChatItem[]): void;
+state.transcript.history.prepend(items: ChatItem[]): void;
+state.transcript.history.get(): ChatItem[];
+```
+
+`seed()` replaces the entire history and is idempotent for the same array.
+`prepend()` adds items before existing history (for infinite-scroll pagination;
+triggers scroll-position correction).
+
+### Active turn
+
+```ts
+state.transcript.activeTurn.set(items: ChatItem[], status: TurnStatus): void;
+state.transcript.activeTurn.commit(finalStatus: 'done' | 'cancelled'): void;
+state.transcript.activeTurn.get(): ChatItem[];
+```
+
+The active turn is the in-progress assistant response. `set` drives streaming
+updates; `commit` finalizes it and moves items into committed history.
+
+---
+
+## Scroll helpers
 
 ### `ScrollToItemOptions`
 
 ```ts
 type ScrollToItemOptions = {
-  align?: 'start' | 'center' | 'end'; // default: 'start'
-  offset?: number;                    // default: 0
-  behavior?: ScrollBehavior;          // default: 'auto'
+  align?: 'start' | 'center' | 'end';  // default: 'start'
+  offset?: number;                      // default: 0
+  behavior?: ScrollBehavior;            // default: 'auto'
 };
 ```
 
-`scrollToItem` is best-effort precise: if the target was off-screen (its height
-was estimated, not measured), it settles within a frame or two.
+---
+
+## Theme
+
+```ts
+import { buildChatTheme, DEFAULT_CONFIG, DEFAULT_THEME } from '@emdash/chat-ui';
+import type { ChatTheme, ChatConfig } from '@emdash/chat-ui';
+
+const theme = buildChatTheme(myConfig);          // build from config
+const ctx   = createChatContext({ theme });      // or pass directly
+```
+
+The `ChatTheme` drives all typography constants used during measurement. Changing
+it after context creation requires calling `ctx.bumpEpoch()` to invalidate
+geometry caches. Color changes are free (CSS-variable themed; no re-measurement
+needed).
 
 ---
 
-## React adapter
+## Highlighter
 
-The React wrapper (`ChatTranscript`) and theme adapter (`chat-theme.css`) have
-moved to `@emdash/ui/react/chat-ui`. Import from there:
+```ts
+import { createDefaultHighlighter } from '@emdash/chat-ui';
 
-```tsx
-import { ChatTranscript } from '@emdash/ui/react/chat-ui';
-import '@emdash/ui/react/chat-ui/chat-theme.css';
+const highlighter = await createDefaultHighlighter();
+const ctx = createChatContext({ highlighter });
+```
+
+`createDefaultHighlighter` returns the bundled Shiki adapter (em-light/em-dark
+themes, common languages). Pass a custom `ChatHighlighter` implementation to
+override.
+
+---
+
+## Mention provider
+
+```ts
+import type { MentionProvider } from '@emdash/chat-ui';
+
+const provider: MentionProvider = {
+  resolve(token: string) {
+    return { id: token, label: token, name: token, kind: 'file' };
+  },
+};
+
+const ctx = createChatContext({ mentionProvider: provider });
 ```
 
 ---
 
 ## Data model
 
-A transcript is an array of `ChatItem`s. Each item is a discriminated union on
-`kind`. Every item has a stable, unique `id` (used as the React/Solid key and
-the layout memo key — keep references stable across updates).
+See [`src/model.ts`](src/model.ts) for the full `ChatItem` discriminated union.
+Key kinds:
 
-```ts
-type ChatItem =
-  | ChatMessage
-  | ChatToolCall
-  | ChatThinking
-  | ChatFileOpToolCall
-  | ChatExecute
-  | ChatDiff
-  | ChatResourceLink
-  | ChatPlan;
-
-type ChatRole = 'user' | 'assistant' | 'thought';
-type ToolStatus = 'running' | 'done' | 'error';
-type ThinkingStatus = 'thinking' | 'done';
-type FileOpKind = 'read' | 'edit' | 'delete' | 'move';
-type FileOp = { path: string };
-
-/**
- * Global turn lifecycle status. Tracks only the latest turn.
- *
- * - `'generating'` — the agent is actively streaming content.
- * - `'cancelled'`  — the host dispatched `turn_cancelled` (user pressed Stop).
- * - `'done'`       — the turn completed normally, or no turn has run yet.
- */
-type TurnStatus = 'generating' | 'cancelled' | 'done';
-```
-
-### `ChatMessage`
-
-```ts
-type ChatMessage = {
-  kind: 'message';
-  id: string;
-  role: ChatRole;
-  text: string;        // markdown source
-  streaming?: boolean; // true while the agent is still writing
-};
-```
-
-### `ChatToolCall`
-
-```ts
-type ChatToolCall = {
-  kind: 'tool';
-  id: string;
-  name: string;
-  status: ToolStatus;
-  inputSummary?: string; // one-line synopsis shown next to the name
-};
-```
-
-### `ChatThinking`
-
-```ts
-type ChatThinking = {
-  kind: 'thinking';
-  id: string;
-  status: ThinkingStatus;
-  text: string;        // accumulating reasoning text
-  startedAt: number;   // epoch ms; drives the live duration
-  durationMs?: number; // frozen once status flips to 'done'
-};
-```
-
-While `thinking`, the row shows a fixed-height streaming window with the tail
-faded at the top. When `done`, it collapses to a "Thought for {duration}s"
-header that expands to the full text.
-
-### `ChatFileOpToolCall`
-
-```ts
-type ChatFileOpToolCall = {
-  kind: 'file-op';
-  id: string;
-  op: FileOpKind;
-  status: ToolStatus;
-  ops: FileOp[]; // replaced (not appended) on each update
-};
-```
-
-A single file renders as a one-liner ("Read foo.tsx"); multiple files render as
-a collapsible "Read 2 files ›" header. Collapse semantics are **inverted**: the
-stored "collapsed" flag means "expanded".
-
-### `ChatExecute`
-
-```ts
-type ChatExecute = {
-  kind: 'execute';
-  id: string;
-  command: string;     // e.g. "ls -a"; empty until the command arrives
-  status: ToolStatus;
-  startedAt: number;   // epoch ms
-  durationMs?: number; // frozen once done; omitted when unavailable
-};
-```
-
-### `ChatDiff`
-
-```ts
-type ChatDiff = {
-  kind: 'diff';
-  id: string;            // `${toolCallId}:${path}`
-  path: string;
-  oldText: string | null; // null => new file (all newText lines are adds)
-  newText: string;
-  status: ToolStatus;
-};
-```
-
-Renders a compact preview of the first changed region (≤12 lines, ±1 context)
-with syntax + diff highlighting. One `ChatDiff` per changed file.
-
----
-
-## `TranscriptApi`
-
-The store you reach through `handle.transcript`. It keeps a two-tier state:
-`committed` items (immutable) and an `activeTurn` that accumulates streaming
-updates until `turn_done` moves it into `committed`.
-
-```ts
-type TranscriptApi = {
-  readonly state: TranscriptState;
-  seed(history: ChatItem[]): void;
-  dispatch(event: TranscriptEvent): void;
-  reset(): void;
-  prependHistory(items: ChatItem[]): void;
-  findIndexById(id: string): number;
-};
-```
-
-| Method | Description |
+| `kind` | Description |
 | --- | --- |
-| `seed(history)` | Replace the entire transcript (e.g. session replay). |
-| `dispatch(event)` | Feed one streaming event (see `TranscriptEvent`). |
-| `reset()` | Clear all state. |
-| `prependHistory(items)` | Prepend older items above current ones; keep stable references. |
-| `findIndexById(id)` | Absolute index (committed-first), or `-1`. |
-
-> For pagination, pair `onReachStart` with `handle.loadOlder(items)` rather than
-> calling `prependHistory` directly — `loadOlder` also preserves scroll position.
-
-### `TranscriptEvent`
-
-A discriminated union on `type`. Deltas (text/reasoning chunks) are appended;
-`ops`/`command`/`status` updates patch the matching item by `id`.
-
-| `type` | Payload | Effect |
-| --- | --- | --- |
-| `message_chunk` | `{ id, role, text }` | Append a text chunk to a message (creates it on first chunk). |
-| `tool_start` | `{ id, name, inputSummary? }` | Begin a tool call. |
-| `tool_update` | `{ id, status?, name?, inputSummary? }` | Patch a tool call. |
-| `thinking_chunk` | `{ id, text, startedAt? }` | Append reasoning text (creates the row on first chunk). |
-| `thinking_done` | `{ id, durationMs? }` | Freeze reasoning to `done`. |
-| `file_op_start` | `{ id, op, ops }` | Begin a file-operation call. |
-| `file_op_update` | `{ id, status?, ops? }` | Patch a file-op (full `ops` replacement). |
-| `execute_start` | `{ id, command, startedAt? }` | Begin an execute call. |
-| `execute_update` | `{ id, command?, status? }` | Patch an execute call. |
-| `diff_start` | `{ id, path, oldText, newText }` | Begin a diff preview. |
-| `diff_update` | `{ id, status?, oldText?, newText? }` | Patch a diff row. |
-| `turn_done` | `{}` | Finalize the active turn into `committed`. Sets `turnStatus` to `'done'`. |
-| `turn_cancelled` | `{}` | Finalize the active turn into `committed` (same as `turn_done`), but sets `turnStatus` to `'cancelled'`. Dispatch instead of `turn_done` when the user cancels generation so the stop button is removed correctly. |
-
-Dispatching a content event after reasoning auto-finalizes any still-open
-`thinking` row, so you rarely need an explicit `thinking_done`.
+| `'message'` | User or assistant chat message (supports markdown, image attachments). |
+| `'tool'` | Tool/function call row. |
+| `'file-op'` | File read/write/patch operations. |
+| `'execute'` | Shell command execution. |
+| `'thinking'` | Expandable thinking block. |
+| `'diff'` | Code diff (before/after). |
+| `'resource-link'` | Single-line file/URL/opaque reference. |
+| `'plan'` | Structured plan with status entries. |
 
 ---
 
-## `ViewState`
+## Exported values
 
-Per-row collapse state, reached through `handle.viewState`.
-
-```ts
-type ViewState = {
-  isCollapsed(id: string): boolean;
-  toggleCollapsed(id: string): void;
-  setCollapsed(id: string, value: boolean): void;
-  expandAll(): void;
-};
-```
-
-Note the **inverted** semantics for `thinking` and `file-op` rows: a stored
-"collapsed" flag is treated as "expanded".
-
----
-
-## Theming
-
-```ts
-type ChatConfig = { fonts: FontFamilies; roles: Record<RoleName, TypeRole>; chips: ChipConfig };
-type ChatTheme = ResolvedTheme; // alias
-
-function buildChatTheme(config?: ChatConfig): ChatTheme;
-const DEFAULT_THEME: ChatTheme;
-const DEFAULT_CONFIG: ChatConfig;
-```
-
-`ChatTheme` (alias for `ResolvedTheme`) is the resolved output of `buildChatTheme`.
-Build a custom theme with `buildChatTheme(config)` and pass it via
-`MountChatOptions.theme`, or pass a `ChatConfig` directly via `MountChatOptions.config`
-and let `ChatRoot` resolve it. Always create a fresh `ResolvedTheme` (not a clone)
-because `buildChatTheme` bumps `version` to invalidate the layout cache.
-
-Colors are CSS-driven (the `--chat-*` variables in `chat-theme.css`), not part
-of `ChatTheme`.
-
-> **Breaking change (markdown rhythm refactor):** `ChatConfig.density` and
-> `ChatConfig.prose` have been removed. Block spacing is now declared directly
-> on each `BlockDef.margin` (variant-aware for prose) and row geometry constants
-> (`ROW_H`, `ROW_INSET_X`, `HEADER_ROW_EXTRA_H`) are colocated with the engine.
-> `DensityScale` and `ProseConfig` are no longer exported. If you were passing
-> custom `density`/`prose` values (previously a no-op as no host overrode them),
-> remove those fields from your `ChatConfig`.
-
----
-
-## Test / story helper
-
-```ts
-function generateMockTranscript(count?: number, seed?: number): ChatItem[];
-```
-
-Returns a deterministic mock transcript (default `count = 6000`, `seed = 1`)
-mixing messages, tool calls, thinking, file-ops, execute rows, and markdown
-blocks. Useful for stories, performance testing, and demos.
-
----
-
-## Exports at a glance
-
-**`@emdash/chat-ui`**
-
-- Values: `mountChat`, `buildChatTheme`, `DEFAULT_THEME`, `DEFAULT_CONFIG`, `generateMockTranscript`
-- Types: `MountChatOptions`, `ChatHandle`, `ChatCommands`, `ScrollToItemOptions`,
-  `ChatTheme`, `TranscriptApi`, `TranscriptEvent`, `ViewState`,
-  `ChatItem`, `ChatMessage`, `ChatToolCall`, `ChatThinking`,
-  `ChatFileOpToolCall`, `ChatExecute`, `ChatDiff`, `ChatRole`, `FileOpKind`,
-  `FileOp`, `ToolStatus`
-
-**`@emdash/ui/react/chat-ui`** (React adapter, now in `@emdash/ui`)
-
-- Values: `ChatTranscript`, `createDefaultHighlighter`, `generateMockTranscript`
-- Types: `ChatTranscriptProps`, `ChatHandle`, `ChatCommands`,
-  `ScrollToItemOptions`, `LoadOlderFn`, `MentionProvider`,
-  `ChatHighlighter`, `HighlightResult`, `CodeToken`
-
-**Styles**
-
-- `@emdash/chat-ui/style.css` — required renderer styles
-- `@emdash/ui/react/chat-ui/chat-theme.css` — optional color bridge to `.emlight` / `.emdark`
+- Functions: `createChatContext`, `createChatState`, `createChatView`, `buildChatTheme`, `DEFAULT_THEME`, `DEFAULT_CONFIG`, `createDefaultHighlighter`, `createTranscript`, `applyTurnEvent`, `finalizeTurn`, `createStreamSmoother`, `generateMockTranscript`, `mockMentionProvider`, `createChatCaches`.
+- Types: `ChatContext`, `ChatContextOptions`, `ChatState`, `ChatView`, `ChatViewOptions`, `ChatViewSnapshot`, `ChatCommands`, `ScrollToItemOptions`, `ChatItem` and variants, `TranscriptApi`, `ChatTheme`, `ChatConfig`, `ChatHighlighter`, `MentionProvider`, `ChatCaches`, `SharedCaches`, `ParseCaches`.

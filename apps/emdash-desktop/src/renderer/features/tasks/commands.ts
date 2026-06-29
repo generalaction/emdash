@@ -1,5 +1,5 @@
 import { browserControlsRegistry } from '@renderer/features/browser/browser-controls-registry';
-import type { BrowserResolvedData } from '@renderer/features/browser/browser-tab-provider';
+import type { BrowserTabResource } from '@renderer/features/browser/browser-tab-resource';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
@@ -51,8 +51,9 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const taskData = getRegisteredTaskData(projectId, taskId);
       const activeBrowserTab = activePane?.resolvedTabs.find(
         (tab) => tab.isActive && tab.kind === 'browser'
-      ) as ResolvedTab<BrowserResolvedData> | undefined;
-      const activeBrowserSession = activeBrowserTab?.session ?? null;
+      ) as ResolvedTab<BrowserTabResource> | undefined;
+      const activeBrowserResource = activeBrowserTab?.resource as BrowserTabResource | undefined;
+      const activeBrowserSession = activeBrowserResource?.session ?? null;
 
       const newConversationDef = taskDef('task.newConversation');
       const newConversationSplitRightDef = taskDef('task.newConversationSplitRight');
@@ -90,7 +91,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                taskView?.paneLayout.open('conversation', { conversationId, preview: false });
+                taskView?.paneLayout.open('conversation', { conversationId }, { preview: false });
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -107,10 +108,11 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                taskView?.paneLayout.openInRightSplit('conversation', {
-                  conversationId,
-                  preview: false,
-                });
+                taskView?.paneLayout.open(
+                  'conversation',
+                  { conversationId },
+                  { preview: false, target: 'right' }
+                );
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -220,10 +222,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserGoBackDef.label,
           description: browserGoBackDef.description,
           group: browserGoBackDef.group,
-          enabled: activeBrowserTab?.kind === 'browser' && activeBrowserTab.session.canGoBack,
+          enabled: activeBrowserResource != null && (activeBrowserSession?.canGoBack ?? false),
           execute() {
-            if (activeBrowserTab?.kind !== 'browser') return;
-            const adapter = browserControlsRegistry.get(activeBrowserTab.browserId)?.adapter;
+            if (!activeBrowserResource) return;
+            const adapter = browserControlsRegistry.get(activeBrowserResource.browserId)?.adapter;
             if (adapter?.canGoBack()) adapter.goBack();
           },
         },
@@ -232,10 +234,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserGoForwardDef.label,
           description: browserGoForwardDef.description,
           group: browserGoForwardDef.group,
-          enabled: activeBrowserTab?.kind === 'browser' && activeBrowserTab.session.canGoForward,
+          enabled: activeBrowserResource != null && (activeBrowserSession?.canGoForward ?? false),
           execute() {
-            if (activeBrowserTab?.kind !== 'browser') return;
-            const adapter = browserControlsRegistry.get(activeBrowserTab.browserId)?.adapter;
+            if (!activeBrowserResource) return;
+            const adapter = browserControlsRegistry.get(activeBrowserResource.browserId)?.adapter;
             if (adapter?.canGoForward()) adapter.goForward();
           },
         },
@@ -244,10 +246,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserReloadDef.label,
           description: browserReloadDef.description,
           group: browserReloadDef.group,
-          enabled: activeBrowserTab != null,
+          enabled: activeBrowserResource != null,
           execute() {
-            if (activeBrowserTab?.kind !== 'browser') return;
-            browserControlsRegistry.get(activeBrowserTab.browserId)?.adapter?.reload();
+            if (!activeBrowserResource) return;
+            browserControlsRegistry.get(activeBrowserResource.browserId)?.adapter?.reload();
           },
         },
         {
@@ -255,10 +257,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserFocusUrlDef.label,
           description: browserFocusUrlDef.description,
           group: browserFocusUrlDef.group,
-          enabled: activeBrowserTab != null,
+          enabled: activeBrowserResource != null,
           execute() {
-            if (activeBrowserTab?.kind !== 'browser') return;
-            browserControlsRegistry.get(activeBrowserTab.browserId)?.focusUrl();
+            if (!activeBrowserResource) return;
+            browserControlsRegistry.get(activeBrowserResource.browserId)?.focusUrl();
           },
         },
         {
@@ -266,10 +268,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserOpenExternalDef.label,
           description: browserOpenExternalDef.description,
           group: browserOpenExternalDef.group,
-          enabled: activeBrowserTab != null,
+          enabled: activeBrowserResource != null,
           execute() {
-            if (activeBrowserTab?.kind !== 'browser') return;
-            const normalized = normalizeBrowserUrl(activeBrowserTab.session.currentUrl);
+            if (!activeBrowserResource || !activeBrowserSession) return;
+            const normalized = normalizeBrowserUrl(activeBrowserSession.currentUrl);
             if (
               normalized.ok &&
               (normalized.protocol === 'http:' || normalized.protocol === 'https:')

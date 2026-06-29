@@ -36,37 +36,43 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
       : undefined;
 
   const handleSelectChange = (change: GitChange) => {
-    taskView.activePane.open('diff', {
-      activeFile: {
-        path: change.path,
-        type: 'git',
-        group: 'pr',
-        originalRef: baseRef,
-        modifiedRef,
-        prNumber,
-        prBaseOid: pr.baseRefOid,
-        prHeadOid: pr.headRefOid,
+    taskView.activePane.open(
+      'diff',
+      {
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'pr',
+          originalRef: baseRef,
+          modifiedRef,
+          prNumber,
+          prBaseOid: pr.baseRefOid,
+          prHeadOid: pr.headRefOid,
+        },
+        status: change.status,
       },
-      status: change.status,
-      preview: true,
-    });
+      { preview: true }
+    );
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
-    taskView.activePane.open('diff', {
-      activeFile: {
-        path: change.path,
-        type: 'git',
-        group: 'pr',
-        originalRef: baseRef,
-        modifiedRef,
-        prNumber,
-        prBaseOid: pr.baseRefOid,
-        prHeadOid: pr.headRefOid,
+    taskView.activePane.open(
+      'diff',
+      {
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'pr',
+          originalRef: baseRef,
+          modifiedRef,
+          prNumber,
+          prBaseOid: pr.baseRefOid,
+          prHeadOid: pr.headRefOid,
+        },
+        status: change.status,
       },
-      status: change.status,
-      preview: false,
-    });
+      { preview: false }
+    );
   };
 
   return (

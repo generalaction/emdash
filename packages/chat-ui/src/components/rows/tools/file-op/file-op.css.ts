@@ -50,7 +50,7 @@ export const fileOpHeader = style({
   gap: '6px',
   cursor: 'pointer',
   color: vars.fgPassive,
-  fontSize: '0.875rem',
+  fontSize: vars.typeBodyFontSize,
   userSelect: 'none',
   selectors: {
     '&:hover': { color: vars.fgMuted },
@@ -59,7 +59,7 @@ export const fileOpHeader = style({
 
 export const monoRunning = style({
   fontFamily: 'monospace',
-  fontSize: '0.875rem',
+  fontSize: vars.typeBodyFontSize,
   color: vars.fgPassive,
 });
 

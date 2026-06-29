@@ -6,6 +6,11 @@
  * A MentionProvider re-resolves that metadata from the token string at parse
  * time, enabling chat-ui to render mentions as composer-style pills.
  *
+ * Because the provider lives on the global ChatContext it receives the
+ * conversation `uri` (set via `createChatState` options) so it can scope
+ * resolution to the correct project or worktree when multiple conversations
+ * share the same provider instance.
+ *
  * The provider MUST be synchronous and stable for the lifetime of the ChatRoot
  * mount. Changing the provider requires a remount (same contract as the
  * `highlighter` option). When no provider is supplied the parser leaves @token
@@ -44,7 +49,14 @@ export interface ChatMentionMeta {
 export interface MentionProvider {
   /**
    * Resolve the token string (everything after '@') to metadata.
+   *
+   * @param token - Everything after '@' in the mention span.
+   * @param uri   - Conversation URI supplied to `createChatState`. Use this to
+   *                scope resolution when the same provider handles multiple
+   *                conversations (e.g., different worktrees or projects).
+   *                Undefined when no uri was provided to the state.
+   *
    * Return null if the token is not a known mention (treated as plain text).
    */
-  resolve(token: string): ChatMentionMeta | null;
+  resolve(token: string, uri?: string): ChatMentionMeta | null;
 }

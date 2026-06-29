@@ -1,6 +1,6 @@
+import { LifecycleMap } from '@emdash/shared';
 import { err, ok, type IDisposable, type IReleasable, type Result } from '@emdash/shared';
 import { HookCore, type Hookable } from '@main/lib/hookable';
-import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { createProvider } from './create-project-provider';

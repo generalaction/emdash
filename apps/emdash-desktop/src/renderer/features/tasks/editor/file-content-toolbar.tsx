@@ -2,10 +2,10 @@ import { observer } from 'mobx-react-lite';
 import { relativeToWorkspace } from '@renderer/features/tasks/stores/workspace-path';
 import { useWorkspace } from '@renderer/features/tasks/task-view-context';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import type { FileTabStore } from './stores/file-tab-store';
+import type { FileTabResource } from './stores/file-tab-resource';
 
 interface FileContentToolbarProps {
-  tab: FileTabStore;
+  tab: FileTabResource;
   canToggle: boolean;
 }
 
