@@ -56,7 +56,8 @@ export interface PtyPaneResizeControls {
 
 export function usePtyPaneResize(
   sessionIds: string[],
-  sink: PaneDimensionSink | null
+  sink: PaneDimensionSink | null,
+  bottomPadding = 0
 ): PtyPaneResizeControls {
   const sessionsRef = useRef<string[]>([]);
 
@@ -111,20 +112,27 @@ export function usePtyPaneResize(
   const sinkRef = useRef<PaneDimensionSink | null>(sink);
   sinkRef.current = sink;
 
+  // bottomPadding may change when e.g. a ContextBar appears/disappears.
+  const bottomPaddingRef = useRef(bottomPadding);
+  bottomPaddingRef.current = bottomPadding;
+
   const recompute = useCallback(() => {
     const currentSink = sinkRef.current;
     const cell = cellSizeRef.current;
     const pixelDims = currentSink?.dimensions;
     if (!cell || !pixelDims) return;
 
-    // The pane-dimension provider measures the outer container (no padding),
-    // so subtract TERMINAL_PADDING_PX from each side before dividing by cell size.
+    // The provider measures the content region (TabBar excluded). The uniform
+    // TERMINAL_PADDING_PX insets the terminal from all sides; bottomPadding
+    // adds an extra bottom inset for chrome rendered inside the content region
+    // (e.g. the conversations ContextBar).
     const dims = computeGridDimensions({
       widthPx: pixelDims.width,
       heightPx: pixelDims.height,
       cellWidth: cell.width,
       cellHeight: cell.height,
       paddingPx: TERMINAL_PADDING_PX,
+      padding: { bottom: bottomPaddingRef.current },
     });
     if (!dims) return;
 
@@ -160,6 +168,18 @@ export function usePtyPaneResize(
     // `sink` identity only changes when PaneSizingContextProvider re-mounts.
     // eslint-disable-next-line react/exhaustive-deps
   }, [sink]);
+
+  // ── Recompute when bottomPadding changes ────────────────────────────────────
+  // The shared measurement does not change when chrome inside the content region
+  // (e.g. ContextBar) appears/disappears, so we need an explicit recompute
+  // triggered by the padding change rather than a ResizeObserver event.
+  const prevBottomPaddingRef = useRef(bottomPadding);
+  useEffect(() => {
+    if (prevBottomPaddingRef.current !== bottomPadding) {
+      prevBottomPaddingRef.current = bottomPadding;
+      recomputeRef.current();
+    }
+  }, [bottomPadding]);
 
   // ── Recompute on drag end ───────────────────────────────────────────────────
   const prevIsDraggingRef = useRef(isPanelDragging);

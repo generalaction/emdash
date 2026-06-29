@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
@@ -103,6 +103,25 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
   const hideContextBarTrigger = interfaceSettings?.hideContextBar ?? false;
 
+  // Measure the rendered height of the ContextBar so the PTY controller can
+  // subtract it from the available terminal height. The ContextBar renders null
+  // (height 0) when not visible and a fixed single-row bar otherwise, so the
+  // measured value is always accurate without needing to know its CSS internals.
+  const contextBarWrapperRef = useRef<HTMLDivElement>(null);
+  const [contextBarHeight, setContextBarHeight] = useState(0);
+  useEffect(() => {
+    const el = contextBarWrapperRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setContextBarHeight(entry.contentRect.height);
+    });
+    observer.observe(el);
+    // Initial measurement.
+    setContextBarHeight(el.getBoundingClientRect().height);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1">
@@ -119,7 +138,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
             }
           }}
         >
-          <PaneSizingContextProvider sessionIds={allSessionIds}>
+          <PaneSizingContextProvider sessionIds={allSessionIds} bottomPadding={contextBarHeight}>
             <div className="flex min-h-0 flex-1 flex-col">
               {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
@@ -149,10 +168,12 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           </PaneSizingContextProvider>
         </div>
       </div>
-      <ContextBar
-        conversationId={getActiveConversationId(pane)}
-        hideTrigger={hideContextBarTrigger}
-      />
+      <div ref={contextBarWrapperRef}>
+        <ContextBar
+          conversationId={getActiveConversationId(pane)}
+          hideTrigger={hideContextBarTrigger}
+        />
+      </div>
     </div>
   );
 });

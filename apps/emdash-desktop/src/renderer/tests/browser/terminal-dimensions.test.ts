@@ -82,6 +82,27 @@ describe('measureDimensions', () => {
     });
   });
 
+  it('subtracts per-side padding from the respective axis', () => {
+    container = makeContainer('800px', '400px');
+    // bottom-only extra inset of 32px (e.g. a context bar).
+    const dims = measureDimensions(container, CW, CH, 0, 0, { bottom: 32 });
+    expect(dims).toEqual({
+      cols: Math.floor(800 / CW), // 100 — width unaffected
+      rows: Math.floor((400 - 32) / CH), // 23
+    });
+  });
+
+  it('combines paddingPx and per-side padding additively', () => {
+    container = makeContainer('800px', '400px');
+    // paddingPx = 8 → subtracts 8 from all sides; extra bottom = 32
+    // availW = 800 - 8 - 8 = 784; availH = 400 - 8 - (8 + 32) = 352
+    const dims = measureDimensions(container, CW, CH, 0, 8, { bottom: 32 });
+    expect(dims).toEqual({
+      cols: Math.floor(784 / CW), // 98
+      rows: Math.floor(352 / CH), // 22
+    });
+  });
+
   it('clamps cols to MINIMUM_COLS (2) when container is very narrow', () => {
     container = makeContainer('3px', '400px'); // 3 / 8 = 0 → clamp to 2
     const dims = measureDimensions(container, CW, CH);

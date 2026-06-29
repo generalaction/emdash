@@ -16,12 +16,27 @@ export interface TerminalDimensions {
 }
 
 /**
+ * Per-side inset applied before dividing by cell dimensions.
+ * Each field defaults to 0. When all four sides share the same value use the
+ * `paddingPx` shorthand on `computeGridDimensions` instead.
+ */
+export interface GridPadding {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+}
+
+/**
  * Pure grid-dimension calculation: convert pixel dimensions → terminal cols/rows.
  *
- * `paddingPx` is the uniform padding (each side) that has not yet been excluded
- * from widthPx/heightPx. Pass 0 when the caller measures an already-padded
- * element (e.g. measureDimensions measures ownedContainer whose getComputedStyle
- * returns the content-box size, so padding is already excluded).
+ * Use `padding` for asymmetric insets (e.g. a context bar only on the bottom).
+ * Use `paddingPx` as a uniform shorthand: it adds to all four sides of `padding`
+ * before the calculation. Both default to 0 so existing callers are unchanged.
+ *
+ * Pass paddingPx: 0 (the default) when the caller measures an already-padded
+ * element (e.g. measureDimensions uses getComputedStyle which returns the
+ * content-box size, so CSS padding is already excluded).
  */
 export function computeGridDimensions({
   widthPx,
@@ -29,18 +44,26 @@ export function computeGridDimensions({
   cellWidth,
   cellHeight,
   paddingPx = 0,
+  padding,
   scrollbarWidth = 0,
 }: {
   widthPx: number;
   heightPx: number;
   cellWidth: number;
   cellHeight: number;
+  /** Uniform inset added to all four sides before the per-side `padding`. */
   paddingPx?: number;
+  /** Per-side insets (added on top of `paddingPx`). */
+  padding?: GridPadding;
   scrollbarWidth?: number;
 }): TerminalDimensions | null {
   if (cellWidth === 0 || cellHeight === 0) return null;
-  const availW = widthPx - scrollbarWidth - 2 * paddingPx;
-  const availH = heightPx - 2 * paddingPx;
+  const top = paddingPx + (padding?.top ?? 0);
+  const right = paddingPx + (padding?.right ?? 0);
+  const bottom = paddingPx + (padding?.bottom ?? 0);
+  const left = paddingPx + (padding?.left ?? 0);
+  const availW = widthPx - scrollbarWidth - left - right;
+  const availH = heightPx - top - bottom;
   if (Number.isNaN(availW) || Number.isNaN(availH) || availH <= 0) return null;
   return {
     cols: Math.max(MINIMUM_COLS, Math.floor(availW / cellWidth)),
@@ -52,22 +75,23 @@ export function computeGridDimensions({
  * Compute terminal cols/rows from a container element's pixel dimensions and
  * the terminal's CSS cell size.
  *
- * @param container  The element whose CSS width/height defines the available area.
- * @param cellWidth  Terminal cell width in CSS pixels (terminal.dimensions.css.cell.width).
- * @param cellHeight Terminal cell height in CSS pixels (terminal.dimensions.css.cell.height).
- * @param scrollbarWidth Width in pixels to subtract for the scrollbar (0 when scrollback=0).
- *
- * NOTE: pass paddingPx: 0 (the default) here because getComputedStyle returns the
- * content-box size even under box-sizing: border-box, so padding is already excluded.
- * Callers that measure an unpadded ancestor must use computeGridDimensions directly
- * and supply paddingPx explicitly.
+ * @param container      The element whose CSS width/height defines the available area.
+ * @param cellWidth      Terminal cell width in CSS pixels.
+ * @param cellHeight     Terminal cell height in CSS pixels.
+ * @param scrollbarWidth Pixels to subtract for the scrollbar (0 when scrollback=0).
+ * @param paddingPx      Uniform inset on all four sides not yet excluded from the
+ *                       container's size. Defaults to 0 because getComputedStyle
+ *                       returns the content-box size (padding already excluded).
+ * @param padding        Per-side insets added on top of paddingPx. Use for
+ *                       asymmetric chrome (e.g. a context bar only on the bottom).
  */
 export function measureDimensions(
   container: HTMLElement,
   cellWidth: number,
   cellHeight: number,
   scrollbarWidth = 0,
-  paddingPx = 0
+  paddingPx = 0,
+  padding?: GridPadding
 ): TerminalDimensions | null {
   const style = window.getComputedStyle(container);
   const widthPx = Math.max(0, Number.parseInt(style.width));
@@ -80,6 +104,7 @@ export function measureDimensions(
     cellHeight,
     scrollbarWidth,
     paddingPx,
+    padding,
   });
 }
 

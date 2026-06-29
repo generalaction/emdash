@@ -11,7 +11,6 @@ import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
 import { PaneContent } from '@renderer/features/tabs/pane-content';
 import { PaneProvider } from '@renderer/features/tabs/pane-context';
-import { PaneDimensionProvider } from '@renderer/features/tabs/pane-dimension-provider';
 import type { Pane as PaneGroup } from '@renderer/features/tabs/pane-layout-store';
 import { TabDragPreview } from '@renderer/features/tabs/tab-bar/tab-drag-preview';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
@@ -60,7 +59,8 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
 
 /**
  * One horizontal split pane: optional resize handle + resizable panel +
- * PaneProvider + PaneDimensionProvider + PaneContent.
+ * PaneProvider + PaneContent (which self-hosts PaneDimensionProvider on its
+ * content region so the TabBar is excluded from the measured dimensions).
  */
 const SplitPane = observer(function SplitPane({
   group,
@@ -84,9 +84,7 @@ const SplitPane = observer(function SplitPane({
         minSize="200px"
         onPointerDown={onActivate}
       >
-        <PaneDimensionProvider sink={group.pane}>
-          <PaneContent emptyState={<PaneEmptyState />} actionsSlot={<TabBarActions />} />
-        </PaneDimensionProvider>
+        <PaneContent emptyState={<PaneEmptyState />} actionsSlot={<TabBarActions />} />
       </ResizablePanel>
     </PaneProvider>
   );

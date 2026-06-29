@@ -285,14 +285,15 @@ export function usePty(
     if (pane) {
       targetDims = pane.getCurrentDimensions() ?? undefined;
       if (!targetDims && pane.containerRef.current && prevCell) {
-        // The provider container has no padding; supply paddingPx so the
-        // pre-mount dims match what the controller will compute.
+        // Mirror the controller's padding exactly so the pre-mount dims match
+        // what the controller will compute on first calibration.
         const measured = measureDimensions(
           pane.containerRef.current,
           prevCell.width,
           prevCell.height,
           0,
-          TERMINAL_PADDING_PX
+          TERMINAL_PADDING_PX,
+          { bottom: pane.bottomPadding }
         );
         if (measured) targetDims = measured;
       }
