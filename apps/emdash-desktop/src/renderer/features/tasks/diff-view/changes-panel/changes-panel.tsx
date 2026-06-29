@@ -76,7 +76,10 @@ export const ChangesPanel = observer(function ChangesPanel() {
         >
           <BranchSection />
         </ResizablePanel>
-        <ResizableHandle disabled={!expanded.branch || !expanded.pullRequests} {...pointerHandlers} />
+        <ResizableHandle
+          disabled={!expanded.branch || !expanded.pullRequests}
+          {...pointerHandlers}
+        />
         <ResizablePanel
           id="changes-pr"
           panelRef={prRef}

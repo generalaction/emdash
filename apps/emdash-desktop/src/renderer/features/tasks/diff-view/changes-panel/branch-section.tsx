@@ -1,6 +1,6 @@
 import type { GitChange } from '@emdash/core/git';
-import { type ReactNode } from 'react';
 import { observer } from 'mobx-react-lite';
+import { type ReactNode } from 'react';
 import { activeDiffEntry } from '@renderer/features/tasks/diff-view/pane-selectors';
 import type { BranchEmptyState } from '@renderer/features/tasks/diff-view/stores/branch-diff-store';
 import {
@@ -30,9 +30,10 @@ export const BranchSection = observer(function BranchSection() {
   // because the component returns null for 'no-default-branch' before any list
   // is rendered, so the prefetch callback is never actually invoked.
   const baseRef = branchDiff?.defaultBranchRef ?? HEAD_REF;
-  const modifiedRef = branchDiff?.compareMode === 'committed'
-    ? (branchDiff.currentBranchRef ?? undefined)
-    : undefined;
+  const modifiedRef =
+    branchDiff?.compareMode === 'committed'
+      ? (branchDiff.currentBranchRef ?? undefined)
+      : undefined;
   const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'branch', baseRef, modifiedRef);
 
   if (!branchDiff || !changesView) return null;

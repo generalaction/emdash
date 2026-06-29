@@ -1,9 +1,9 @@
 import type { GitChange, GitObjectRef } from '@emdash/core/git';
 import { autorun, makeAutoObservable } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { rpc } from '@renderer/lib/ipc';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import type { GitWorktreeStore } from '@renderer/features/tasks/stores/git-worktree-store';
+import { rpc } from '@renderer/lib/ipc';
 import { BranchDiffStore } from './branch-diff-store';
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -59,7 +59,7 @@ function createStore(overrides?: {
     'proj-1',
     'ws-1',
     repo as unknown as GitRepositoryStore,
-    worktree as unknown as GitWorktreeStore,
+    worktree as unknown as GitWorktreeStore
   );
   return { repo, worktree, store };
 }

@@ -14,7 +14,12 @@ export interface ExpandedSections {
 export class ChangesViewStore {
   unstagedSelection = observable.set<string>();
   stagedSelection = observable.set<string>();
-  expandedSections: ExpandedSections = { unstaged: true, staged: true, branch: true, pullRequests: true };
+  expandedSections: ExpandedSections = {
+    unstaged: true,
+    staged: true,
+    branch: true,
+    pullRequests: true,
+  };
 
   private _disposeReactions: Array<() => void> = [];
   private _suppressAutoExpand = new Set<keyof ExpandedSections>();

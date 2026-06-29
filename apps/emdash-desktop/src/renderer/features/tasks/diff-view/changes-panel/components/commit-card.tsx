@@ -76,7 +76,12 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     setCommitMessage('');
     setDescription('');
     if (!autoStage) {
-      changesView.setExpanded({ unstaged: true, staged: false, branch: true, pullRequests: hasPRs });
+      changesView.setExpanded({
+        unstaged: true,
+        staged: false,
+        branch: true,
+        pullRequests: hasPRs,
+      });
     }
     setPhase('commit-only-done');
     setTimeout(() => setPhase('idle'), 3000);
@@ -94,7 +99,12 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     setCommitMessage('');
     setDescription('');
     if (!autoStage) {
-      changesView.setExpanded({ unstaged: true, staged: false, branch: true, pullRequests: hasPRs });
+      changesView.setExpanded({
+        unstaged: true,
+        staged: false,
+        branch: true,
+        pullRequests: hasPRs,
+      });
     }
     setPhase('committed');
     await new Promise((r) => setTimeout(r, 1000));
@@ -121,7 +131,12 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     setCommitMessage('');
     setDescription('');
     if (!autoStage) {
-      changesView.setExpanded({ unstaged: true, staged: false, branch: true, pullRequests: hasPRs });
+      changesView.setExpanded({
+        unstaged: true,
+        staged: false,
+        branch: true,
+        pullRequests: hasPRs,
+      });
     }
     setPhase('opening-pr');
     await new Promise((r) => setTimeout(r, 500));

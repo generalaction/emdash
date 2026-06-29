@@ -224,7 +224,7 @@ export class WorkspaceViewModel implements ILifecycle {
       workspaceId,
       workspace.gitRepository,
       workspace.gitWorktree,
-      this.prStore,
+      this.prStore
     );
     if (this._savedDiffViewSnapshot) {
       this.diffView.restoreSnapshot(this._savedDiffViewSnapshot);

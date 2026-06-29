@@ -26,7 +26,7 @@ export class BranchDiffStore {
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly gitRepository: GitRepositoryStore,
-    private readonly gitWorktree: GitWorktreeStore,
+    private readonly gitWorktree: GitWorktreeStore
   ) {
     makeObservable<this, '_resource'>(this, {
       _resource: observable.ref,
@@ -50,12 +50,10 @@ export class BranchDiffStore {
         () => this._rebuildResource(),
         {
           equals: (a, b) =>
-            a.mode === b.mode &&
-            refsEqualOrNull(a.base, b.base) &&
-            refsEqualOrNull(a.head, b.head),
+            a.mode === b.mode && refsEqualOrNull(a.base, b.base) && refsEqualOrNull(a.head, b.head),
           fireImmediately: true,
-        },
-      ),
+        }
+      )
     );
   }
 
@@ -89,10 +87,7 @@ export class BranchDiffStore {
   get emptyState(): BranchEmptyState | null {
     if (!this.defaultBranchRef) return { kind: 'no-default-branch' };
     if (this.gitWorktree.headKind === 'unborn') return { kind: 'unborn' };
-    if (
-      this.currentBranchRef &&
-      refsEqual(this.defaultBranchRef, this.currentBranchRef)
-    ) {
+    if (this.currentBranchRef && refsEqual(this.defaultBranchRef, this.currentBranchRef)) {
       return { kind: 'on-default-branch' };
     }
     if (this.files.length > 0) return null;
@@ -126,39 +121,36 @@ export class BranchDiffStore {
     const projectId = this.projectId;
     const workspaceId = this.workspaceId;
 
-    const resource = new Resource<readonly GitChange[]>(
-      async () => {
-        const target = mode === 'committed' ? mergeBaseRange(base, head) : base;
-        const result = await rpc.workspace.gitWorktree.getChangedFiles(
-          projectId,
-          workspaceId,
-          target,
-        );
-        return result.success ? result.data.changes : [];
-      },
-      [
-        { kind: 'poll', intervalMs: 60_000, pauseWhenHidden: true, demandGated: true },
-        {
-          kind: 'event',
-          subscribe: (handler) => {
-            const unsubHead = events.on(gitWorktreeUpdateChannel, (p) => {
-              if (p.workspaceId !== workspaceId) return;
-              if (p.update.kind === 'head') handler();
-              if (p.update.kind === 'status' && mode === 'all') handler();
-            });
-            const unsubRefs = events.on(gitRepoUpdateChannel, (p) => {
-              if (p.projectId === projectId && p.update.kind === 'refs') handler();
-            });
-            return () => {
-              unsubHead();
-              unsubRefs();
-            };
-          },
-          onEvent: 'reload',
-          debounceMs: 500,
+    const resource = new Resource<readonly GitChange[]>(async () => {
+      const target = mode === 'committed' ? mergeBaseRange(base, head) : base;
+      const result = await rpc.workspace.gitWorktree.getChangedFiles(
+        projectId,
+        workspaceId,
+        target
+      );
+      return result.success ? result.data.changes : [];
+    }, [
+      { kind: 'poll', intervalMs: 60_000, pauseWhenHidden: true, demandGated: true },
+      {
+        kind: 'event',
+        subscribe: (handler) => {
+          const unsubHead = events.on(gitWorktreeUpdateChannel, (p) => {
+            if (p.workspaceId !== workspaceId) return;
+            if (p.update.kind === 'head') handler();
+            if (p.update.kind === 'status' && mode === 'all') handler();
+          });
+          const unsubRefs = events.on(gitRepoUpdateChannel, (p) => {
+            if (p.projectId === projectId && p.update.kind === 'refs') handler();
+          });
+          return () => {
+            unsubHead();
+            unsubRefs();
+          };
         },
-      ],
-    );
+        onEvent: 'reload',
+        debounceMs: 500,
+      },
+    ]);
     resource.start();
     runInAction(() => {
       this._resource = resource;
