@@ -2,8 +2,7 @@ import type { IDisposable, IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
-import { saveProviderSessionId } from '@main/core/conversations/save-provider-session-id';
-import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
+import { setSessionId } from '@main/core/conversations/set-session-id';
 import { touchConversation } from '@main/core/conversations/touchConversation';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
@@ -11,7 +10,6 @@ import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { isValidProviderSessionId } from '@shared/core/agents/agent-provider-registry';
 import {
   agentSessionExitedChannel,
   isAttentionNotification,
@@ -60,21 +58,25 @@ async function handleSessionEvent(
   ctx: { conversationId: string; taskId: string; projectId: string; providerId: string },
   providerSessionId: string
 ): Promise<void> {
-  if (!isValidProviderSessionId(ctx.providerId, providerSessionId)) return;
+  // Provider-specific session-id validation lives in the plugin (e.g. Droid UUIDs,
+  // Amp 'T-' threads). Absent a validator the id is accepted as-is.
+  const validateSessionId = getPlugin(ctx.providerId).behavior?.sessions?.validateSessionId;
+  if (validateSessionId && !validateSessionId(providerSessionId)) return;
 
-  if (ctx.providerId === 'droid') {
-    await saveProviderSessionId(ctx.conversationId, providerSessionId);
+  const result = await setSessionId(ctx.conversationId, providerSessionId);
+  if (!result.success) {
+    log.warn('AgentHookService: failed to persist session id', {
+      conversationId: ctx.conversationId,
+      error: result.error.type,
+    });
     return;
   }
-
-  const updated = await setProviderSessionId(ctx.conversationId, providerSessionId);
-  if (!updated) return;
 
   events.emit(conversationChangedChannel, {
     conversationId: ctx.conversationId,
     taskId: ctx.taskId,
     projectId: ctx.projectId,
-    changes: { providerSessionId },
+    changes: { sessionId: providerSessionId },
   });
 }
 

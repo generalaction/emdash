@@ -17,6 +17,7 @@ import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import type { JSX } from 'solid-js';
 import { Show } from 'solid-js';
+import { clipTrackedHeight } from './card-clip';
 import { IconError } from './icons';
 import {
   cardChevron,
@@ -61,7 +62,7 @@ export type CollapsibleCardProps = {
 export function CollapsibleCard(props: CollapsibleCardProps) {
   // Single source of truth for the bottom-border fix: during a tween, prefer
   // the animated content height so the bordered shell tracks the moving edge.
-  const cardH = () => props.ctx.clipHeight?.() ?? props.height;
+  const cardH = clipTrackedHeight(props.ctx, () => props.height);
 
   return (
     <div

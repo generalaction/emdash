@@ -100,7 +100,8 @@ function createAppDb(): {
       is_initial_conversation INTEGER,
       session_id TEXT,
       agent_status TEXT,
-      agent_status_seen INTEGER DEFAULT 1
+      agent_status_seen INTEGER DEFAULT 1,
+      type TEXT
     );
   `);
 

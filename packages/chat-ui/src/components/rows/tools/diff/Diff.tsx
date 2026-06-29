@@ -103,6 +103,11 @@ export function DiffLines(props: DiffLinesProps) {
     const { previewRows, lang } = props.layout;
     if (!previewRows.length || !lang) return;
 
+    // Skip per-frame highlighting while the diff is still streaming in.
+    // The effect tracks `props.item.status` reactively so it re-runs once
+    // when status changes to 'done'/'error', running a single highlight then.
+    if (props.item.status === 'running') return;
+
     const oldCode = props.item.oldText ?? '';
     const newCode = props.item.newText;
 

@@ -3,6 +3,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import { useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 import {
   useConversations,
   useTaskViewContext,
@@ -23,7 +24,6 @@ import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
-import { activeConversationId as getActiveConversationId } from './pane-selectors';
 
 const ROW_HEIGHT = 32;
 
@@ -34,9 +34,7 @@ const ConversationRow = observer(function ConversationRow({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
-  const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
-  const { activePane, paneLayout } = taskView;
   const showConfirm = useShowModal('confirmActionModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
@@ -50,9 +48,11 @@ const ConversationRow = observer(function ConversationRow({
   }, []);
 
   const conversation = conversations.conversations.get(conversationId);
-  if (!conversation) return null;
 
-  const isActive = getActiveConversationId(activePane) === conversationId;
+  const tabKind = conversation?.data.type === 'acp' ? 'acp-chat' : 'conversation';
+  const { isActive, open: openConversation } = useTabSelection(tabKind, conversationId);
+
+  if (!conversation) return null;
   const displayTitle = formatConversationTitleForDisplay(
     conversation.data.providerId,
     conversation.data.title
@@ -75,8 +75,7 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   const handleDoubleClick = () => {
-    paneLayout.open('conversation', { conversationId, preview: false });
-    handleRename();
+    openConversation({ conversationId }, { preview: false });
   };
 
   const handleDelete = () => {
@@ -97,12 +96,12 @@ const ConversationRow = observer(function ConversationRow({
         <div
           role="button"
           tabIndex={0}
-          onClick={() => paneLayout.open('conversation', { conversationId, preview: true })}
+          onClick={() => openConversation({ conversationId }, { preview: true })}
           onDoubleClick={handleDoubleClick}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              paneLayout.open('conversation', { conversationId, preview: true });
+              openConversation({ conversationId }, { preview: true });
             }
           }}
           className={cn(
@@ -188,7 +187,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       projectId,
       taskId,
       onSuccess: ({ conversationId }) => {
-        paneLayout.open('conversation', { conversationId, preview: false });
+        paneLayout.open('conversation', { conversationId }, { preview: false });
       },
     });
   };

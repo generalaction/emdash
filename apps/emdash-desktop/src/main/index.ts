@@ -7,6 +7,7 @@ import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
+import { LIBSECRET_PASSWORD_STORE, shouldForceLibsecretBackend } from './app/linux-secret-storage';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { registerQuitHandler } from './app/shutdown';
@@ -42,6 +43,7 @@ import {
   registerRendererLogHandler,
 } from './lib/file-logger';
 import { log } from './lib/logger';
+import { withRpcLogging } from './lib/rpc-logging';
 import { telemetryService } from './lib/telemetry';
 import { rpcRouter } from './rpc';
 import { resolveUserEnv } from './utils/userEnv';
@@ -52,6 +54,13 @@ if (import.meta.env.DEV) {
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+  if (
+    shouldForceLibsecretBackend(process.env, {
+      passwordStoreSwitchPresent: app.commandLine.hasSwitch('password-store'),
+    })
+  ) {
+    app.commandLine.appendSwitch('password-store', LIBSECRET_PASSWORD_STORE);
+  }
 }
 
 registerAppScheme();
@@ -158,7 +167,7 @@ void app.whenReady().then(async () => {
     githubAuthServerAdapter.storeOAuthToken(payload)
   );
 
-  registerRPCRouter(rpcRouter, ipcMain);
+  registerRPCRouter(rpcRouter, app.isPackaged ? ipcMain : withRpcLogging(ipcMain));
 
   void reconcileResourceSampler();
 

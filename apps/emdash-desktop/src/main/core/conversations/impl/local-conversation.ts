@@ -157,7 +157,7 @@ export class LocalConversationProvider implements ConversationProvider {
         autoApprove: conversation.autoApprove ?? false,
         initialPrompt: agentSession.isResuming ? undefined : effectiveInitialPrompt,
         sessionId: agentSession.sessionId,
-        providerSessionId: conversation.providerSessionId ?? undefined,
+        providerSessionId: conversation.sessionId ?? undefined,
         isResuming: agentSession.isResuming,
         model: conversation.model ?? '',
       });

@@ -13,6 +13,14 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./acp": {
+      "types": "./dist/acp.d.mts",
+      "default": "./dist/acp.mjs"
+    },
+    "./acp/session-machine": {
+      "types": "./dist/acp-session-machine.d.mts",
+      "default": "./dist/acp-session-machine.mjs"
+    },
     "./deps": {
       "types": "./dist/deps.d.mts",
       "default": "./dist/deps.mjs"
@@ -61,6 +69,7 @@
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.25.1",
     "@emdash/shared": "workspace:*",
     "@parcel/watcher": "^2.5.6",
     "semver": "^7.8.4",

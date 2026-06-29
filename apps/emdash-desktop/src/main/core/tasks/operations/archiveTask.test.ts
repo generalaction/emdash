@@ -43,7 +43,7 @@ describe('archiveTask', () => {
     mocks.updateWhere.mockResolvedValue(undefined);
   });
 
-  it('archives by detaching runtime without deleting workspace assets', async () => {
+  it('archives by reaping the runtime without deleting workspace assets', async () => {
     mocks.selectLimit.mockResolvedValueOnce([
       {
         id: 'task-1',
@@ -65,7 +65,7 @@ describe('archiveTask', () => {
     expect(updatePayload).not.toHaveProperty('status');
     expect(updatePayload).not.toHaveProperty('statusChangedAt');
 
-    expect(mocks.teardownTask).toHaveBeenCalledWith('task-1', 'detach');
+    expect(mocks.teardownTask).toHaveBeenCalledWith('task-1', 'archive');
     expect(mocks.capture).toHaveBeenCalledWith('task_archived', {
       project_id: 'project-1',
       task_id: 'task-1',

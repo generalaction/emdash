@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
-import type { FileTabStore } from '@renderer/features/tasks/editor/stores/file-tab-store';
+import type { FileTabResource } from '@renderer/features/tasks/editor/stores/file-tab-resource';
 import {
   useTaskViewContext,
   useWorkspaceId,
@@ -14,7 +14,7 @@ import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { Spinner } from '@renderer/lib/ui/spinner';
 
 interface MarkdownEditorRendererProps {
-  tab: FileTabStore;
+  tab: FileTabResource;
 }
 
 /**

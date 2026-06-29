@@ -75,8 +75,7 @@ export type TokenVars = typeof tokenVars;
 globalStyle(':root', {
   vars: {
     // Font families
-    [tokenVars.fontSans]:
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+    [tokenVars.fontSans]: "'Inter Variable', sans-serif",
     [tokenVars.fontMono]: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
 
     // Font weight scale

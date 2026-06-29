@@ -12,12 +12,12 @@
  */
 
 import { DEFAULT_THEME } from '@core/theme';
-import { createTranscript } from '@state/transcript';
-import { createViewState } from '@state/view-state';
-import { createEffect, createSignal, onMount } from 'solid-js';
+import { createEffect, createSignal, onCleanup, onMount } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
+import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
 import { generateMockTranscript, mockMentionProvider } from '@/mock-transcript';
+import { createChatState } from '@/state/chat-state';
 import { resetRowCreations, runPerfSweep } from '@/stories/_harness/perf-instrument';
 
 const meta: Meta = {
@@ -29,11 +29,20 @@ export default meta;
 type Story = StoryObj;
 
 function PerfHost(props: { count: number; label: string; height?: number; rich?: boolean }) {
-  const transcript = createTranscript();
-  const viewState = createViewState();
+  const ctx = createChatContext({
+    theme: DEFAULT_THEME,
+    mentionProvider: props.rich ? mockMentionProvider : undefined,
+  });
+  const state = createChatState(ctx);
+  onCleanup(() => {
+    state.dispose();
+    ctx.dispose();
+  });
 
   createEffect(() => {
-    transcript.history.seed(generateMockTranscript(props.count, 1, { richProse: props.rich }));
+    state.transcript.history.seed(
+      generateMockTranscript(props.count, 1, { richProse: props.rich })
+    );
   });
 
   let scrollEl: HTMLDivElement | undefined;
@@ -86,12 +95,7 @@ function PerfHost(props: { count: number; label: string; height?: number; rich?:
           overflow: 'hidden',
         }}
       >
-        <ChatRoot
-          transcript={transcript}
-          viewState={viewState}
-          theme={DEFAULT_THEME}
-          mentionProvider={props.rich ? mockMentionProvider : undefined}
-        />
+        <ChatRoot context={ctx} state={state} />
       </div>
       <pre
         style={{

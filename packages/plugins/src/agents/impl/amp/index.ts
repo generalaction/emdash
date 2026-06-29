@@ -8,6 +8,8 @@ import {
 import { AMP_PLUGIN_CONTENT } from './plugin-file';
 
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
+// Amp thread ids are prefixed with 'T-'; only accept those for resume.
+const validateSessionId = (id: string) => id.startsWith('T-');
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -65,4 +67,5 @@ export const provider = registerPluginBehavior(plugin, {
   },
   mcp: ampMcpAdapter(),
   plugins: createFileDropPlugin({ relativePath: AMP_PLUGIN_PATH, content: AMP_PLUGIN_CONTENT }),
+  sessions: { validateSessionId },
 });

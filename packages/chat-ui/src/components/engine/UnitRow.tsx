@@ -235,6 +235,24 @@ export function UnitRow(props: UnitRowProps) {
   const animatedReserved = () => tweenHandle.height();
   const animating = () => tweenHandle.animating();
 
+  // ── Deferred clip release ─────────────────────────────────────────────────
+  // When the tween finishes, hold overflow:hidden + the settled height for one
+  // rAF before releasing to height:auto / overflow:visible. This prevents a
+  // one-frame pop where the DOM and displayViewState swap content in the same
+  // frame that the compositor lays out the last animation position.
+  const [clipReleased, setClipReleased] = createSignal(!untrack(animating));
+
+  createEffect(() => {
+    if (animating()) {
+      // Clip immediately when a tween starts (no lag on entering clipped state).
+      setClipReleased(false);
+    } else {
+      // Tween settled — keep the clip for one more frame, then release.
+      const rafId = requestAnimationFrame(() => setClipReleased(true));
+      onCleanup(() => cancelAnimationFrame(rafId));
+    }
+  });
+
   // ── DISPLAY state — lags logical while collapsing ──────────────────────────
   // While the animated height is larger than the logical target (shrinking),
   // we are collapsing. Keep the expanded DOM mounted during this window so the
@@ -307,13 +325,13 @@ export function UnitRow(props: UnitRowProps) {
                 'padding-right': `${c ? (c.insetX ?? 0) : 0}px`,
               }}
             >
-              {/* Clip wrapper — only active while animating */}
+              {/* Clip wrapper — active while animating or during one-frame hold */}
               <div
                 style={{
-                  height: animating()
-                    ? `${tweenHandle.clipHeight(props.unit.gapBefore) ?? animatedReserved() - props.unit.gapBefore}px`
+                  height: !clipReleased()
+                    ? `${animatedReserved() - props.unit.gapBefore}px`
                     : 'auto',
-                  overflow: animating() ? 'hidden' : 'visible',
+                  overflow: !clipReleased() ? 'hidden' : 'visible',
                 }}
               >
                 <Dynamic
