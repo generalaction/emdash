@@ -51,10 +51,13 @@ export const spawnDetachedCommand = (file: string, args: string[]): Promise<void
       detached: true,
       env: buildExternalToolEnv(),
       stdio: 'ignore',
-      windowsHide: false,
     });
-    child.once('error', reject);
+
+    const handleError = (error: Error) => reject(error);
+
+    child.once('error', handleError);
     child.once('spawn', () => {
+      child.removeListener('error', handleError);
       child.unref();
       resolve();
     });
