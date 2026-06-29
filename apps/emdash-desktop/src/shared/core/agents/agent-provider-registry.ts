@@ -412,7 +412,11 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'auggie',
     initialPromptFlag: '',
-    resumeFlag: '--continue',
+    resumeFlag: '--resume',
+    sessionIdFlag: '--resume',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '--continue',
+    supportsHooks: true,
     // otherwise user is prompted each time before prompt is passed
     defaultArgs: ['--allow-indexing'],
     icon: 'Auggie.svg',
