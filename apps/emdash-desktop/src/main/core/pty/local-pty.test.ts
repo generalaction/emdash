@@ -132,24 +132,24 @@ describe('LocalPtySession', () => {
     expect(mockProc.write).toHaveBeenCalledWith('a\x1b[A');
   });
 
-  it('write() treats SGR mouse reports as undelivered when Windows mouse injection fails', async () => {
+  it('write() drops SGR mouse reports and preserves non-mouse input when Windows injection fails', async () => {
     setPlatform('win32');
     vi.mocked(windowsInputInjector.injectText).mockResolvedValue(false);
 
     pty.write('a\x1b[<0;10;10M\x1b[A');
     await flushWindowsWrite();
 
-    expect(mockProc.write).toHaveBeenCalledWith('a\x1b[<0;10;10M\x1b[A');
+    expect(mockProc.write).toHaveBeenCalledWith('a\x1b[A');
   });
 
-  it('write() falls back to the PTY for mouse-only input when Windows injection fails', async () => {
+  it('write() drops mouse-only input when Windows injection fails', async () => {
     setPlatform('win32');
     vi.mocked(windowsInputInjector.injectText).mockResolvedValue(false);
 
     pty.write('\x1b[<64;10;10M');
     await flushWindowsWrite();
 
-    expect(mockProc.write).toHaveBeenCalledWith('\x1b[<64;10;10M');
+    expect(mockProc.write).not.toHaveBeenCalled();
   });
 
   it('write() injects binary SGR wheel reports into the Windows console input queue', async () => {
