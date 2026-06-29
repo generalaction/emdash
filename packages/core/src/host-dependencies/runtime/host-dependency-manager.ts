@@ -154,7 +154,7 @@ export type HostDependencyManagerOptions = {
  */
 export class HostDependencyManager {
   private state = new Map<DependencyId, DependencyState>();
-  /** Host-scoped installation data, populated for agent-category deps during probe(). */
+  /** Host-scoped installation data, populated for every dependency during probe(). */
   private hostState = new Map<DependencyId, HostDependency>();
 
   private readonly ctx: IExecutionContext;
@@ -221,7 +221,7 @@ export class HostDependencyManager {
     });
   }
 
-  /** Returns the host-scoped installation data for an agent dep, if available. */
+  /** Returns the host-scoped installation data for a dependency, if available. */
   getHostDependency(id: DependencyId): HostDependency | undefined {
     return this.hostState.get(id);
   }
@@ -231,8 +231,8 @@ export class HostDependencyManager {
    *   1. Resolve path (fast, ~5ms) — fires onStatusUpdated immediately.
    *   2. Run version probe (slow, up to 10s) — fires a second update on completion.
    *
-   * For agent-category deps, also builds a HostDependency with per-installation
-   * status (enumerated via which -a + path/cli overrides).
+   * Also builds a HostDependency with per-installation status (enumerated via
+   * which -a + path/cli overrides).
    *
    * Note: emitted state does not carry latestVersion/updateAvailable — those are
    * filled in by the application layer (AgentUpdateService) after receiving this event.
@@ -249,10 +249,7 @@ export class HostDependencyManager {
     this.updateState(pathState);
 
     if (pathState.status === 'missing' || descriptor.skipVersionProbe) {
-      if (descriptor.category === 'agent') {
-        // Fire-and-forget: hostState is populated asynchronously after probe() returns.
-        void this.buildAndStoreHostDependency(id, descriptor, null, null);
-      }
+      await this.buildHostDependencyAfterProbe(id, descriptor, null, null);
       return pathState;
     }
 
@@ -267,12 +264,26 @@ export class HostDependencyManager {
     const fullState = dependencyStateFromProbeResult(descriptor, resolvedPath, probeResult);
     this.updateState(fullState);
 
-    // Phase 3: build HostDependency for agent deps (async, non-blocking).
-    if (descriptor.category === 'agent') {
-      void this.buildAndStoreHostDependency(id, descriptor, fullState, probeResult);
-    }
+    // Phase 3: build HostDependency state.
+    await this.buildHostDependencyAfterProbe(id, descriptor, fullState, probeResult);
 
     return fullState;
+  }
+
+  private async buildHostDependencyAfterProbe(
+    id: DependencyId,
+    descriptor: DependencyDescriptor,
+    fullState: DependencyState | null,
+    probeResult: ProbeResult | null
+  ): Promise<void> {
+    if (descriptor.category === 'core') {
+      await this.buildAndStoreHostDependency(id, descriptor, fullState, probeResult);
+      return;
+    }
+
+    // Preserve the existing fast return path for agent probes; installation enumeration
+    // can run slower package-manager provenance checks in the background.
+    void this.buildAndStoreHostDependency(id, descriptor, fullState, probeResult);
   }
 
   /**
@@ -354,7 +365,7 @@ export class HostDependencyManager {
   }
 
   /**
-   * Builds and stores a HostDependency for an agent dep.
+   * Builds and stores a HostDependency.
    *
    * Enumerates all discovered installations via `which -a`, classifies each by
    * provenance, and appends any path/cli override installations from the persisted
@@ -375,6 +386,14 @@ export class HostDependencyManager {
 
     // Enumerate all discovered installations
     const installations = await this.enumerateInstallations(descriptor, fullState);
+
+    // Pinned override: include the authoritative binary even when it is not on PATH.
+    if (
+      selection?.kind === 'pinned' &&
+      !installations.some((installation) => installation.realpath === selection.realpath)
+    ) {
+      installations.push(await this.probePinnedSource(descriptor, selection.realpath));
+    }
 
     // Path override: probe when explicitly selected or previously saved
     if (selection?.kind === 'path') {
@@ -410,6 +429,47 @@ export class HostDependencyManager {
       connectionId: this.connectionId,
       hostDependency,
     });
+  }
+
+  private async probePinnedSource(
+    descriptor: DependencyDescriptor,
+    pinnedRealpath: string
+  ): Promise<Installation> {
+    const resolvedPinnedPath = await resolveCommandPath(pinnedRealpath, this.ctx, this.platform);
+    if (!resolvedPinnedPath) {
+      return {
+        id: pinnedRealpath,
+        realpath: pinnedRealpath,
+        pathEntry: null,
+        isActive: false,
+        manageable: false,
+        provenance: { kind: 'unknown', confidence: 'inferred' },
+        status: 'missing',
+        version: null,
+        latestVersion: null,
+        updateAvailable: false,
+      };
+    }
+
+    const canonicalRealpath = await resolveRealpath(resolvedPinnedPath, this.ctx, this.platform);
+    const versionArgs = descriptor.versionArgs ?? ['--version'];
+    const probe = descriptor.skipVersionProbe
+      ? null
+      : await runVersionProbe(resolvedPinnedPath, resolvedPinnedPath, versionArgs, this.ctx);
+    const state = dependencyStateFromProbeResult(descriptor, resolvedPinnedPath, probe);
+
+    return {
+      id: canonicalRealpath,
+      realpath: canonicalRealpath,
+      pathEntry: null,
+      isActive: false,
+      manageable: false,
+      provenance: { kind: 'unknown', confidence: 'inferred' },
+      status: state.status,
+      version: state.version,
+      latestVersion: null,
+      updateAvailable: false,
+    };
   }
 
   /**
@@ -635,7 +695,7 @@ export class HostDependencyManager {
   }
 
   /**
-   * Apply an available update for an agent dependency, then re-probe.
+   * Apply an available update for a dependency, then re-probe.
    * Routing is driven by the active installation's provenance: method selection
    * uses PM commands, unknown/manual sources fall back to CLI self-update.
    * When `method` is explicitly passed it overrides the provenance-based routing.
@@ -722,7 +782,7 @@ export class HostDependencyManager {
   }
 
   /**
-   * Uninstall an agent dependency on this host, then re-probe to confirm it is gone.
+   * Uninstall a dependency on this host, then re-probe to confirm it is gone.
    *
    * Routing is driven by the active installation's provenance: method selections use
    * PM uninstall commands when available (e.g. `brew uninstall <formula>`), otherwise
@@ -804,7 +864,7 @@ export class HostDependencyManager {
     return ok(state);
   }
 
-  /** Returns the resolved install options for an agent dep on the current platform. */
+  /** Returns the resolved install options for a dependency on the current platform. */
   getInstallOptions(id: DependencyId) {
     const descriptor = this._getDependencyDescriptor(id);
     if (!descriptor) return [];

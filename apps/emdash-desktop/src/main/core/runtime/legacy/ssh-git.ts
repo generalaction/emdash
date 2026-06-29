@@ -92,7 +92,10 @@ export class LegacySshGitRuntime implements IGitRuntime {
       log.warn('LegacySshGitRuntime: worktree teardown failed', { context, error: String(error) }),
   });
 
-  constructor(private readonly proxy: SshClientProxy) {}
+  constructor(
+    private readonly proxy: SshClientProxy,
+    private readonly connectionId: string
+  ) {}
 
   async openRepository(pathInsideRepo: string): Promise<Lease<IGitRepository>> {
     const lease = await this.acquireRepository(pathInsideRepo);
@@ -154,7 +157,10 @@ export class LegacySshGitRuntime implements IGitRuntime {
     repositoryUrl: string,
     targetPath: string
   ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>> {
-    const ctx = new SshExecutionContext(this.proxy, { root: path.posix.dirname(targetPath) });
+    const ctx = new SshExecutionContext(this.proxy, {
+      root: path.posix.dirname(targetPath),
+      connectionId: this.connectionId,
+    });
     try {
       await ctx.exec('git', ['clone', repositoryUrl, targetPath]);
     } catch (error) {
@@ -213,7 +219,7 @@ export class LegacySshGitRuntime implements IGitRuntime {
   }
 
   private async resolveGitCommonDir(root: string): Promise<string> {
-    const ctx = new SshExecutionContext(this.proxy, { root });
+    const ctx = new SshExecutionContext(this.proxy, { root, connectionId: this.connectionId });
     const { stdout } = await ctx.exec('git', [
       'rev-parse',
       '--path-format=absolute',
@@ -226,7 +232,7 @@ export class LegacySshGitRuntime implements IGitRuntime {
 
   private createGit(root: string): GitService {
     const fs = new SshFileSystem(this.proxy, root);
-    const ctx = new SshExecutionContext(this.proxy, { root });
+    const ctx = new SshExecutionContext(this.proxy, { root, connectionId: this.connectionId });
     return new GitService(ctx, fs);
   }
 }

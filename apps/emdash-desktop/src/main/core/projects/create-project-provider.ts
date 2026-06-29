@@ -96,7 +96,10 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
     const rootFs = new SshFileSystem(proxy, '/');
     const projectFs = new SshFileSystem(proxy, project.path);
 
-    const baseCtx = new SshExecutionContext(proxy, { root: project.path });
+    const baseCtx = new SshExecutionContext(proxy, {
+      root: project.path,
+      connectionId: project.connectionId,
+    });
     const ctx = baseCtx;
     const projectMachine: MachineRef = { kind: 'ssh', connectionId: project.connectionId };
     const runtimeLease = await runtimeManager.acquire(projectMachine);

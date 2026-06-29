@@ -107,6 +107,9 @@ export class AgentUpdateService {
   }
 
   private handleManagerEvent(event: DependencyStatusUpdatedEvent, connectionId?: string): void {
+    const descriptor = getDependencyDescriptor(event.id);
+    if (descriptor?.category !== 'agent') return;
+
     const storageKey = `${connectionId ?? 'local'}:${event.id}`;
     this.storedEvents.set(storageKey, { raw: event, installedVersion: event.state.version });
 
@@ -119,10 +122,7 @@ export class AgentUpdateService {
       // Emit the raw event first (no update info yet), then kick off async fetch
       this.emitEnrichedEvent(event, null, connectionId);
 
-      const descriptor = getDependencyDescriptor(event.id);
-      if (descriptor) {
-        void this.fetchLatestAndReemit(event.id as DependencyId, descriptor, connectionId);
-      }
+      void this.fetchLatestAndReemit(event.id as DependencyId, descriptor, connectionId);
     }
   }
 

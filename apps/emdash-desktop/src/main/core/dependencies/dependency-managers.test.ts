@@ -4,12 +4,15 @@ const mocks = vi.hoisted(() => {
   const instances: Array<{
     get: ReturnType<typeof vi.fn>;
     probeCategory: ReturnType<typeof vi.fn>;
+    onStatusUpdated: { subscribe: ReturnType<typeof vi.fn> };
     onExecutableInvalidated: { subscribe: ReturnType<typeof vi.fn> };
+    emitStatus(event: unknown): void;
     setAgentStates(): void;
   }> = [];
 
   class FakeHostDependencyManager {
     private readonly states = new Map<string, { id: string; category: string }>();
+    private statusListener: ((event: unknown) => void) | undefined;
     readonly get = vi.fn((id: string) => this.states.get(id));
     readonly probeCategory = vi.fn(async (category: string) => {
       if (category === 'agent') {
@@ -17,7 +20,16 @@ const mocks = vi.hoisted(() => {
         this.states.set('codex', { id: 'codex', category: 'agent' });
       }
     });
+    readonly onStatusUpdated = {
+      subscribe: vi.fn((listener: (event: unknown) => void) => {
+        this.statusListener = listener;
+      }),
+    };
     readonly onExecutableInvalidated = { subscribe: vi.fn() };
+
+    emitStatus(event: unknown): void {
+      this.statusListener?.(event);
+    }
 
     setAgentStates(): void {
       this.states.set('claude', { id: 'claude', category: 'agent' });
@@ -38,11 +50,15 @@ const mocks = vi.hoisted(() => {
     getSelection: vi.fn(),
     createLocalInstallCommandRunner: vi.fn(() => vi.fn()),
     createSshInstallCommandRunner: vi.fn(() => vi.fn()),
+    setGitExecutableOverride: vi.fn(),
   };
 });
 
 vi.mock('@emdash/core/deps/runtime', () => ({
   HostDependencyManager: mocks.FakeHostDependencyManager,
+  resolveActiveInstallation: vi.fn((installations: Array<{ isActive?: boolean }>) =>
+    installations.find((installation) => installation.isActive)
+  ),
 }));
 
 vi.mock('@main/core/conversations/impl/resolve-agent-executable', () => ({
@@ -75,6 +91,10 @@ vi.mock('@main/core/ssh/lifecycle/production-ssh-connection-manager', () => ({
 
 vi.mock('@main/core/terminal-shell/resolver', () => ({
   resolveLocalAutomationShellWithSystemFallback: vi.fn(async () => ({ shell: '/bin/sh' })),
+}));
+
+vi.mock('@main/core/utils/exec', () => ({
+  setGitExecutableOverride: mocks.setGitExecutableOverride,
 }));
 
 vi.mock('@main/lib/logger', () => ({
@@ -175,6 +195,93 @@ describe('ensureAgentDependenciesProbed', () => {
     await expect(getDependencyManager('ssh-1')).resolves.toBe(remoteManager);
   });
 
+  it('syncs the local git executable from host dependency events', async () => {
+    await import('./dependency-managers');
+    const localManager = mocks.instances[0]!;
+
+    localManager.emitStatus({
+      id: 'git',
+      state: {
+        id: 'git',
+        category: 'core',
+        status: 'available',
+        path: '/usr/bin/git',
+      },
+      hostDependency: {
+        hostId: 'local',
+        dependencyId: 'git',
+        used: { kind: 'auto' as const },
+        installations: [
+          {
+            id: '/opt/homebrew/bin/git',
+            realpath: '/opt/homebrew/bin/git',
+            pathEntry: '/opt/homebrew/bin/git',
+            isActive: true,
+            status: 'available',
+          },
+        ],
+      },
+    });
+
+    expect(mocks.setGitExecutableOverride).toHaveBeenCalledWith('/opt/homebrew/bin/git', undefined);
+  });
+
+  it('honors a missing pinned git selection instead of falling back to PATH', async () => {
+    await import('./dependency-managers');
+    const localManager = mocks.instances[0]!;
+
+    localManager.emitStatus({
+      id: 'git',
+      state: {
+        id: 'git',
+        category: 'core',
+        status: 'available',
+        path: '/usr/bin/git',
+      },
+      hostDependency: {
+        hostId: 'local',
+        dependencyId: 'git',
+        used: { kind: 'pinned' as const, realpath: '/missing/git' },
+        installations: [],
+      },
+    });
+
+    expect(mocks.setGitExecutableOverride).toHaveBeenCalledWith('/missing/git', undefined);
+  });
+
+  it('syncs remote git executables per connection', async () => {
+    const { getDependencyManager } = await import('./dependency-managers');
+    mocks.connect.mockResolvedValue({});
+    await getDependencyManager('ssh-1');
+    const remoteManager = mocks.instances[1]!;
+
+    remoteManager.emitStatus({
+      id: 'git',
+      state: {
+        id: 'git',
+        category: 'core',
+        status: 'available',
+        path: '/usr/bin/git',
+      },
+      hostDependency: {
+        hostId: 'ssh-1',
+        dependencyId: 'git',
+        used: { kind: 'auto' as const },
+        installations: [
+          {
+            id: '/usr/local/bin/git',
+            realpath: '/usr/local/bin/git',
+            pathEntry: '/usr/local/bin/git',
+            isActive: true,
+            status: 'available',
+          },
+        ],
+      },
+    });
+
+    expect(mocks.setGitExecutableOverride).toHaveBeenCalledWith('/usr/local/bin/git', 'ssh-1');
+  });
+
   it('deduplicates concurrent remote manager creation', async () => {
     const { getDependencyManager } = await import('./dependency-managers');
     let resolveConnect: ((proxy: unknown) => void) | undefined;
@@ -249,6 +356,14 @@ describe('ensureAgentDependenciesProbed', () => {
 
     expect(second).not.toBe(first);
     expect(mocks.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears remote git executable overrides with remote managers', async () => {
+    const { clearDependencyManager } = await import('./dependency-managers');
+
+    clearDependencyManager('ssh-1');
+
+    expect(mocks.setGitExecutableOverride).toHaveBeenCalledWith(null, 'ssh-1');
   });
 
   it('keeps in-flight probes deduped for a manager after cache clear', async () => {

@@ -1,8 +1,9 @@
 import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
-import type {
-  DependencyDescriptor,
-  DependencyStatus,
-  ProbeResult,
+import {
+  CORE_DEPENDENCIES,
+  type DependencyDescriptor,
+  type DependencyStatus,
+  type ProbeResult,
 } from '@emdash/core/deps/runtime';
 import { pluginRegistry } from '@emdash/plugins/agents';
 
@@ -67,7 +68,10 @@ function buildAgentDependencies(): DependencyDescriptor[] {
   return pluginRegistry.getAll().map(buildDescriptorFromProvider);
 }
 
-export const DEPENDENCIES: DependencyDescriptor[] = buildAgentDependencies();
+export const DEPENDENCIES: DependencyDescriptor[] = [
+  ...CORE_DEPENDENCIES,
+  ...buildAgentDependencies(),
+];
 export const AGENT_DEPENDENCIES = DEPENDENCIES.filter(
   (dependency) => dependency.category === 'agent'
 );
