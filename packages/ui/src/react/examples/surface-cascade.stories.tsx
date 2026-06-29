@@ -11,7 +11,7 @@ import { AlertCircleIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon } from '
 import React, { useState } from 'react';
 import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
-import { Callout } from '../primitives/callout';
+import { Alert } from '../primitives/alert';
 import { Input } from '../primitives/input/input';
 import {
   Select,
@@ -321,9 +321,9 @@ function StatusRoom({ status }: { status: SurfaceStatusName }) {
   const [pressed, setPressed] = useState(false);
   return (
     <Box display="flex" flexDirection="column" gap="3">
-      <Callout status={status} icon={STATUS_ICON[status]}>
+      <Alert status={status} icon={STATUS_ICON[status]}>
         <strong>{STATUS_LABEL[status]}:</strong> {STATUS_MESSAGE[status]}
-      </Callout>
+      </Alert>
       <Box
         surface={status}
         display="flex"

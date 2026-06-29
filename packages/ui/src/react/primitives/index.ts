@@ -113,7 +113,6 @@ export {
   type ThemeId,
   type ThemeProviderProps,
 } from './theme-provider';
-export { Callout, type CalloutProps } from './callout';
 export {
   ComboboxPopup,
   ComboboxPopupDismiss,

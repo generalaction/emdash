@@ -6,7 +6,7 @@ import { tokenVars } from '@theme/tokens.css';
  * Alert root — a prominent, dismissible notification banner.
  *
  * Visual shell (bg, border, color) comes from the .surface-<status> cascade
- * class applied by the wrapping Surface component, matching Callout's approach.
+ * class applied by the wrapping Surface component.
  */
 export const alertRoot = style({
   position: 'relative',

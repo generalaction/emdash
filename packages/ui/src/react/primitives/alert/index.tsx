@@ -50,11 +50,8 @@ export interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * Alert — a prominent, optionally dismissible notification banner.
- *
- * Distinct from `Callout`: Alert stands alone (page-level notices, form
- * submission results, async errors), while Callout is embedded inline in
- * flowing content.
+ * Alert — a prominent, optionally dismissible notification banner for
+ * page-level notices, form submission results, and async errors.
  *
  * Compose with `AlertTitle` and `AlertDescription` for structured content,
  * or pass children directly for simple single-line messages.
