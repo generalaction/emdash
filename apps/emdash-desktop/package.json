@@ -19,8 +19,8 @@
   "main": "./out/main/index.js",
   "scripts": {
     "d": "pnpm install && pnpm run dev",
-    "dev": "LOG_LEVEL=debug EMDASH_LOG_FILE=.emdash-logs/emdash.log electron-vite dev",
-    "dev:debug": "VITE_LOG_LEVEL=debug LOG_LEVEL=debug EMDASH_LOG_FILE=.emdash-logs/emdash.log electron-vite dev",
+    "dev": "cross-env LOG_LEVEL=debug EMDASH_LOG_FILE=.emdash-logs/emdash.log electron-vite dev",
+    "dev:debug": "cross-env VITE_LOG_LEVEL=debug LOG_LEVEL=debug EMDASH_LOG_FILE=.emdash-logs/emdash.log electron-vite dev",
     "dev:main": "electron-vite dev --watch main",
     "dev:renderer": "electron-vite dev --watch renderer",
     "db:generate": "drizzle-kit generate",
@@ -115,6 +115,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0",
     "date-fns": "^4.1.0",
     "devicon": "^2.17.0",
     "dotenv": "^17.4.2",
