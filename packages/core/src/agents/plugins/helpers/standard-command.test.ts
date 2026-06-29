@@ -44,7 +44,10 @@ describe('buildStandardCommand', () => {
     expect(script).toContain(
       "[IO.File]::WriteAllBytes($promptPath, [Convert]::FromBase64String('Rml4IHRoZSBidWcK'))"
     );
-    expect(script).toContain('& $env:ComSpec /d /s /c');
+    expect(script).toContain(
+      `$cmdTail = '"' + "$agentLine < $(Quote-CmdArg $promptPath)" + '"'`
+    );
+    expect(script).toContain('& $env:ComSpec /d /s /c $cmdTail');
     expect(script).toContain('< $(Quote-CmdArg $promptPath)');
     expect(script).toContain("'LS1kYW5nZXJvdXNseS1hbGxvdy1hbGw=', 'aXQncyBvaw=='");
     expect(script).not.toContain('$prompt |');
