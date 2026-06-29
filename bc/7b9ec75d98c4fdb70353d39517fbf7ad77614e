@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/devin/index.test.ts
+  s_7605112fbf89b4::t_1bd4cbbb4a0cd8 1-38
+packages/plugins/src/agents/impl/devin/index.ts
+  s_7605112fbf89b4::t_17494636f92d68 23-56,102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "bc7b9ec75d98c4fdb70353d39517fbf7ad77614e",
+  "prompts": {},
+  "sessions": {
+    "s_7605112fbf89b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f130a-6fc8-7a80-a4a9-fa3f9f143697",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
