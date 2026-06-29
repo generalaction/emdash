@@ -35,5 +35,8 @@ export {
   STATUS_LEVEL_SCOPES,
 } from './contract/roles';
 
-export { SEMANTIC_TEMPLATE, SEMANTIC_VARS } from './contract/semantic-template';
+export { semanticVars as SEMANTIC_TEMPLATE, SEMANTIC_VARS } from './contract/semantic-template';
 export type { SemanticSlot, SemanticVar } from './contract/semantic-template';
+
+export { t, literal, defineSemantics, defineSyntax } from './contract/token-ref';
+export type { ColorRef, RefNode, SyntaxScopeEntry } from './contract/token-ref';

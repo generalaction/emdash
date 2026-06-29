@@ -13,11 +13,11 @@
  */
 
 import type { SyntaxRole } from '../contract/roles';
-import { SYNTAX_TEMPLATE } from '../contract/syntax-template';
+import { syntaxVars } from '../contract/syntax-template';
 
 export function emitShikiThemesTs(): string {
-  const tokenColors = (Object.keys(SYNTAX_TEMPLATE) as SyntaxRole[]).map((role) => {
-    const entry = SYNTAX_TEMPLATE[role];
+  const tokenColors = (Object.keys(syntaxVars) as SyntaxRole[]).map((role) => {
+    const entry = syntaxVars[role];
     const settings: Record<string, string> = { foreground: `var(--syntax-${role})` };
     if (role === 'comment') settings['fontStyle'] = 'italic';
     return { scope: entry.scopes, settings };

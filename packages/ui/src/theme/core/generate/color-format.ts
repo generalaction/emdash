@@ -2,12 +2,11 @@
  * generate/color-format.ts
  *
  * Shared color formatting and contrast utilities used across the generate/ modules.
- * Consolidates the duplicated toP3String / toSrgbString / pickContrastColor / resolveRef
+ * Consolidates the duplicated toP3String / toSrgbString / pickContrastColor helpers
  * that previously lived independently in ramp.ts, surfaces.ts, fill-gaps.ts, and syntax.ts.
  */
 
 import Color from 'colorjs.io';
-import type { Scales } from '../contract/roles';
 
 const FORMAT_PRECISION = 4;
 
@@ -55,27 +54,6 @@ export function pickContrastColor(
   const lcWhite = Math.abs(solidColor.contrastAPCA(white) as number);
   const lcBlack = Math.abs(solidColor.contrastAPCA(black) as number);
   return lcWhite >= lcBlack ? lightText : darkText;
-}
-
-// ── Ref resolution ────────────────────────────────────────────────────────────
-
-/**
- * Resolve a palette ref like "neutral.11" or "accent.contrast" to a CSS color
- * string from the resolved scales map.
- */
-export function resolveScaleRef(ref: string, scales: Scales): string {
-  const [scaleName, stepOrContrast] = ref.split('.') as [keyof Scales, string];
-  const scale = scales[scaleName];
-  if (!scale) throw new Error(`resolveScaleRef: unknown scale "${scaleName}" in ref "${ref}"`);
-
-  if (stepOrContrast === 'contrast') return scale.contrast;
-
-  const stepNum = parseInt(stepOrContrast, 10);
-  if (isNaN(stepNum) || stepNum < 1 || stepNum > 12) {
-    throw new Error(`resolveScaleRef: invalid step "${stepOrContrast}" in ref "${ref}"`);
-  }
-
-  return scale.steps[stepNum - 1];
 }
 
 // ── CSS color to hex ──────────────────────────────────────────────────────────

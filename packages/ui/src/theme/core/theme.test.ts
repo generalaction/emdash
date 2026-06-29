@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { darkTheme } from '../themes/dark.theme';
 import { lightTheme } from '../themes/light.theme';
 import { SURFACE_LEVELS, SURFACE_STATUSES, STATUS_LEVEL_SCOPES } from './contract/roles';
-import { SEMANTIC_TEMPLATE } from './contract/semantic-template';
+import { semanticVars } from './contract/semantic-template';
 import type { ResolvedTheme } from './define-theme';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ describe('Theme generation', () => {
       // 4. Semantic template completeness
       it('all semantic slots resolve to non-empty CSS values', () => {
         const { cssVars } = theme;
-        for (const slot of Object.keys(SEMANTIC_TEMPLATE)) {
+        for (const slot of Object.keys(semanticVars)) {
           const varName = `--${slot}`;
           const value = cssVars[varName];
           expect(value, `${varName} is missing from cssVars`).toBeTruthy();

@@ -4,68 +4,77 @@
  * Resolves the role-stable semantic template against a generated palette
  * (Scales + Surfaces) to produce a concrete CSS custom-property map.
  *
- * Ref syntax handled:
- *   "scale.step"       → scale.steps[step-1]
- *   "scale.contrast"   → scale.contrast
- *   "mix(A pct%, B)"   → emitted as CSS color-mix(in srgb, var(--A) pct%, var(--B))
+ * RefNode kinds and their emitted output:
+ *   step     → concrete CSS color resolved from Scales (gamut-correct P3/sRGB value)
+ *   contrast → concrete CSS color (the auto-computed contrast-on-solid color)
+ *   mix      → CSS color-mix() expression with var(--…) operands (resolved at paint time)
+ *   alpha    → CSS color-mix(in srgb, var(--…) N%, transparent)
+ *   literal  → the literal value passed through unchanged
+ *
+ * Byte-identical output guarantee: step/contrast slots continue to emit the
+ * same concrete color values; mix slots continue to emit var()-based
+ * color-mix() expressions exactly as the previous string-ref parser did.
  */
 
 import Color from 'colorjs.io';
 import {
+  STATUS_LEVEL_SCOPES,
+  STATUS_SCALE,
   SURFACE_SCOPES,
   SURFACE_STATUSES,
-  STATUS_SCALE,
-  STATUS_LEVEL_SCOPES,
 } from '../contract/roles';
-import type { Scales, Surfaces, Polarity } from '../contract/roles';
-import { SEMANTIC_TEMPLATE } from '../contract/semantic-template';
+import type { Polarity, Scales, Surfaces } from '../contract/roles';
+import { semanticVars } from '../contract/semantic-template';
+import type { ColorRef, RefNode } from '../contract/token-ref';
 import { toP3String } from './color-format';
 import { shiftOklabL } from './surfaces';
 
-// ── Ref resolution ────────────────────────────────────────────────────────────
+// ── Node emitters ─────────────────────────────────────────────────────────────
 
-function resolveRef(ref: string, scales: Scales, _surfaces: Surfaces): string {
-  // mix() refs: kept as CSS color-mix expressions for runtime flexibility
-  if (ref.startsWith('mix(')) {
-    // e.g. "mix(neutral.11 40%, neutral.12)"
-    // → "color-mix(in srgb, var(--neutral-11) 40%, var(--neutral-12))"
-    const inner = ref.slice(4, -1); // strip "mix(" and ")"
-    const parts = inner.split(',').map((s) => s.trim());
-    const resolved = parts.map((part) => {
-      const match = part.match(/^([\w-]+\.\d+)\s+(\d+%?)$/);
-      if (match) {
-        const varName = match[1].replace('.', '-'); // "neutral.11" → "neutral-11"
-        return `var(--${varName}) ${match[2]}`;
-      }
-      // No percentage: just a reference
-      const varName = part.replace('.', '-');
-      return `var(--${varName})`;
-    });
-    return `color-mix(in srgb, ${resolved.join(', ')})`;
+/**
+ * Emit a var() reference for a RefNode, used as an operand inside color-mix().
+ *   step     → var(--scale-step)
+ *   contrast → var(--scale-contrast)
+ *   mix/alpha → nested color-mix() expression
+ *   literal  → the literal value (used as-is inside color-mix)
+ */
+function emitVarRef(n: RefNode): string {
+  switch (n.kind) {
+    case 'step':
+      return `var(--${n.scale}-${n.step})`;
+    case 'contrast':
+      return `var(--${n.scale}-contrast)`;
+    case 'mix':
+      return `color-mix(in ${n.space}, ${emitVarRef(n.base)} ${n.pct}%, ${emitVarRef(n.other)})`;
+    case 'alpha':
+      return `color-mix(in srgb, ${emitVarRef(n.base)} ${n.alpha * 100}%, transparent)`;
+    case 'literal':
+      return n.value;
   }
+}
 
-  const [scaleName, stepOrContrast] = ref.split('.') as [string, string];
-
-  // Surface refs
-  if (scaleName === 'surface') {
-    // e.g. "surface.base" or "surface.base.hover"
-    // These are handled separately; not expected in semantic template
-    return ref;
+/**
+ * Emit the final CSS value for a semantic slot.
+ *
+ * step/contrast → resolved to the concrete gamut-correct color from Scales,
+ *                 keeping generated colors accurate across all themes.
+ * mix/alpha     → CSS color-mix() expression that browsers resolve at paint
+ *                 time (var() refs allow theme switching via class swap only).
+ * literal       → passed through unchanged.
+ */
+function emitValue(n: RefNode, scales: Scales): string {
+  switch (n.kind) {
+    case 'step':
+      return scales[n.scale].steps[n.step - 1];
+    case 'contrast':
+      return scales[n.scale].contrast;
+    case 'mix':
+      return `color-mix(in ${n.space}, ${emitVarRef(n.base)} ${n.pct}%, ${emitVarRef(n.other)})`;
+    case 'alpha':
+      return `color-mix(in srgb, ${emitVarRef(n.base)} ${n.alpha * 100}%, transparent)`;
+    case 'literal':
+      return n.value;
   }
-
-  const scale = scales[scaleName as keyof Scales];
-  if (!scale) {
-    throw new Error(`resolve: unknown scale "${scaleName}" in ref "${ref}"`);
-  }
-
-  if (stepOrContrast === 'contrast') return scale.contrast;
-
-  const stepNum = parseInt(stepOrContrast, 10);
-  if (isNaN(stepNum) || stepNum < 1 || stepNum > 12) {
-    throw new Error(`resolve: invalid step "${stepOrContrast}" in ref "${ref}"`);
-  }
-
-  return scale.steps[stepNum - 1];
 }
 
 // ── Surface vars ──────────────────────────────────────────────────────────────
@@ -97,14 +106,12 @@ function buildSurfaceVars(surfaces: Surfaces): Record<string, string> {
 function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<string, string> {
   const vars: Record<string, string> = {};
 
-  // Pre-compute the OKLab L of the neutral base surface once.
   const neutralBaseL = new Color(surfaces['base'].base).to('oklab').coords[0];
 
   for (const status of SURFACE_STATUSES) {
     const scaleName = STATUS_SCALE[status];
     const ramp = scales[scaleName];
 
-    // Base (default, unsuffixed) tokens — these remain the effective cascade defaults.
     const baseColor = ramp.steps[2]; // step 3
     const hoverColor = ramp.steps[3]; // step 4
     const selectedColor = ramp.steps[4]; // step 5
@@ -117,7 +124,6 @@ function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<stri
     vars[`--surface-${status}-border`] = borderColor;
     vars[`--surface-${status}-foreground`] = fgColor;
 
-    // Per-scope variants: shift every sub-token by the neutral elevation delta.
     for (const scope of STATUS_LEVEL_SCOPES) {
       const neutralScopeL = new Color(surfaces[scope].base).to('oklab').coords[0];
       const deltaL = neutralScopeL - neutralBaseL;
@@ -125,7 +131,6 @@ function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<stri
       const shift = (cssColor: string) => {
         const c = new Color(cssColor);
         const shifted = shiftOklabL(c, deltaL);
-        // Gamut-map to P3 if needed (same pattern as buildSurfaceLevel).
         const p3 = shifted.inGamut('p3') ? shifted : (shifted.toGamut({ space: 'p3' }) as Color);
         return toP3String(p3.to('p3') as Color);
       };
@@ -157,7 +162,7 @@ function buildPaletteVars(scales: Scales): Record<string, string> {
 
 /**
  * Resolve the semantic template against the generated palette.
- * Returns a record of CSS custom property name → resolved color string.
+ * Returns a record of CSS custom property name → resolved CSS value string.
  * Includes palette vars (--neutral-1..12 etc.) and surface vars.
  */
 export function resolveCssVars(
@@ -177,8 +182,8 @@ export function resolveCssVars(
   Object.assign(vars, buildStatusSurfaceVars(scales, surfaces));
 
   // 4. Semantic slot vars (--background, --foreground, etc.)
-  for (const [slot, ref] of Object.entries(SEMANTIC_TEMPLATE)) {
-    vars[`--${slot}`] = resolveRef(ref, scales, surfaces);
+  for (const [slot, ref] of Object.entries(semanticVars) as [string, ColorRef][]) {
+    vars[`--${slot}`] = emitValue(ref.node, scales);
   }
 
   return vars;

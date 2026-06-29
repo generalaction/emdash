@@ -14,12 +14,12 @@
 
 import { createGlobalThemeContract } from '@vanilla-extract/css';
 import { allSurfaceVarNames } from './roles';
-import { SEMANTIC_TEMPLATE } from './semantic-template';
+import { semanticVars } from './semantic-template';
 
 const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
 
 const semanticKeys = Object.fromEntries(
-  Object.keys(SEMANTIC_TEMPLATE).map((slot) => [toCamel(slot), slot])
+  Object.keys(semanticVars).map((slot) => [toCamel(slot), slot])
 );
 
 const surfaceKeys = Object.fromEntries(allSurfaceVarNames().map((v) => [toCamel(v), v]));
