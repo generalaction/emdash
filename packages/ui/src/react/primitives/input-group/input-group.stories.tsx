@@ -1,7 +1,6 @@
+import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { SearchIcon, XIcon } from 'lucide-react';
-import React from 'react';
-import { Box } from '../box';
 import {
   InputGroup,
   InputGroupAddon,
@@ -9,8 +8,8 @@ import {
   InputGroupInput,
   InputGroupText,
   InputGroupTextarea,
-} from './input-group';
-import * as s from '../story-layout.css';
+} from '.';
+import * as s from '@react/story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/InputGroup',

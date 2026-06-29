@@ -1,6 +1,6 @@
+import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
-import { Box } from '@react/primitives/box';
 import { card } from '@styles/recipes/card.css';
 import { row, stack } from '@styles/utilities/layout.css';
 

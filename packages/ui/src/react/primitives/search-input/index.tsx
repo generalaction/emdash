@@ -2,7 +2,7 @@ import { type InputVariantProps } from '@styles/recipes/input';
 import { cx } from '@styles/utilities/cx';
 import { SearchIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
-import { Input } from '../input/input';
+import { Input } from '../input';
 import * as styles from './search-input.css';
 
 export interface SearchInputProps

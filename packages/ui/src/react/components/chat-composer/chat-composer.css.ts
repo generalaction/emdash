@@ -7,8 +7,6 @@ export const composerRoot = style({
   flexDirection: 'column',
 });
 
-// ── Notice band ───────────────────────────────────────────────────────────────
-
 export const noticeBand = recipe({
   base: {
     display: 'flex',

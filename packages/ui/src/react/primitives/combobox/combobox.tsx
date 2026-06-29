@@ -1,10 +1,15 @@
 import { Combobox as ComboboxPrimitive } from '@base-ui/react';
+import { Button } from '@react/primitives/button';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@react/primitives/input-group';
+import { ScrollContainer } from '@react/primitives/scroll-container';
 import { cx } from '@styles/utilities/cx';
 import { CheckIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
-import { Button } from '../button';
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@react/primitives/input-group';
-import { ScrollContainer } from '@react/primitives/scroll-container';
 import * as styles from './combobox.css';
 
 const Combobox = ComboboxPrimitive.Root;

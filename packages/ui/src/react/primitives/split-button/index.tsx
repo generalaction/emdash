@@ -10,16 +10,16 @@
  * Escape, and positioning with no manual listeners required.
  */
 
-import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
-import { cx } from '@styles/utilities/cx';
-import { ChevronDownIcon } from 'lucide-react';
-import { Button, type ButtonProps } from '../button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@react/primitives/dropdown-menu';
+import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { cx } from '@styles/utilities/cx';
+import { ChevronDownIcon } from 'lucide-react';
+import { Button, type ButtonProps } from '../button';
 import * as styles from './split-button.css';
 
 export type SplitButtonOptionTone = 'neutral' | 'accept' | 'reject';

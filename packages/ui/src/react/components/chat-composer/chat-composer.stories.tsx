@@ -1,10 +1,3 @@
-/**
- * ChatComposer — interactive playground.
- *
- * Toggle every composer state from the Storybook Controls panel, including
- * `showNotice`, to watch the notice band animate in and out above the input.
- */
-
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
 import { useEffect, useState } from 'react';

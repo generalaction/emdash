@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, BoldIcon, ItalicIcon } from 'lucide-react';
 import { Box } from '@react/primitives/box';
 import { Toggle, ToggleGroup, ToggleGroupItem } from '@react/primitives/toggle';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, BoldIcon, ItalicIcon } from 'lucide-react';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta = {

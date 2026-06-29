@@ -11,6 +11,7 @@ import { cx } from '@styles/utilities/cx';
 import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { ImageViewerDialog } from '@/react/components/image-viewer-dialog';
 import { ChatComposer, stopReasonNotice } from '../components/chat-composer/chat-composer';
 import type {
   ComposerAttachment,
@@ -19,7 +20,6 @@ import type {
   ContextMentionProvider,
   MentionItem,
 } from '../components/chat-composer/chat-composer';
-import { ImageViewerDialog } from '../components/image-viewer-dialog';
 import type { ComposerPermissionRequest } from '../components/chat-composer/permission-band';
 import { basename, fileIconClass } from '../components/prompt-editor/mention-pill-helpers';
 import type { PromptEditorRef } from '../components/prompt-editor/types';

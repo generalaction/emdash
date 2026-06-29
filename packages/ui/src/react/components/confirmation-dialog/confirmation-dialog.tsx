@@ -13,7 +13,7 @@
  */
 
 import * as React from 'react';
-import { Button } from '../primitives/button';
+import { Button } from '@/react/primitives/button';
 import {
   Dialog,
   DialogBody,
@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   type DialogSize,
-} from '../primitives/dialog';
+} from '@/react/primitives/dialog';
 import * as styles from './confirmation-dialog.css';
 
 export interface ConfirmationDialogProps {

@@ -1,6 +1,6 @@
+import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
-import { Box } from '@react/primitives/box';
 import { Tabs, TabsList, TabsPanel, TabsTab } from './tabs';
 import { sx } from '@styles/utilities/sprinkles.css';
 

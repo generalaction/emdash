@@ -1,26 +1,7 @@
-/**
- * ChatComposer
- *
- * The prompt input shell for the chat panel. Layout:
- *
- *   ┌────────────────────────────────────────────────────┐
- *   │ [Image previews 32x32 — shown only when present]   │
- *   │ [TipTap editor — auto-grows, max 200px, scrolls]   │
- *   ├────────────────────────────────────────────────────┤
- *   │ [Agent] [Model selector]    [Attach?] [Stop | ↑]   │
- *   └────────────────────────────────────────────────────┘
- *
- * Delegates input and attachment state to the caller via props (host-controlled).
- * Drag-and-drop:
- *   - Dropped images create ComposerAttachment entries (via onAttachmentsChange).
- *   - All dropped files are forwarded to onFilesDropped so the host can resolve
- *     absolute paths and insert them as path mentions via the editorApiRef.
- */
-
+import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
 import { ArrowUp, CircleAlert, Paperclip, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { Button } from '../../primitives/button';
 import {
   Combobox,
   ComboboxContent,
@@ -32,8 +13,6 @@ import {
   ComboboxTrigger,
 } from '../../primitives/combobox/combobox';
 import { ComboboxPopover } from '../combobox/combobox-popover';
-import { PermissionBand } from './permission-band';
-import type { ComposerPermissionRequest } from './permission-band';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
 import type {
   CommandItem,
@@ -41,12 +20,12 @@ import type {
   MentionItem,
   PromptEditorRef,
 } from '../prompt-editor/types';
+import { PermissionBand } from './permission-band';
+import type { ComposerPermissionRequest } from './permission-band';
 import * as styles from './chat-composer.css';
 
 export type { MentionItem, CommandItem };
 export type { MentionKind, CommandBehavior, ContextMentionProvider } from '../prompt-editor/types';
-
-// ── Session-state notice ──────────────────────────────────────────────────────
 
 export type ComposerNoticeVariant = 'error' | 'warning' | 'info';
 

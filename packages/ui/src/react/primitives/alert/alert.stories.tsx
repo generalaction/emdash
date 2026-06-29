@@ -1,8 +1,8 @@
+import { Box } from '@react/primitives/box';
+import { Button } from '@react/primitives/button';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '.';
-import { Box } from '@react/primitives/box';
-import { Button } from '@react/primitives/button';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta = {
@@ -12,7 +12,6 @@ const meta: Meta = {
 
 export default meta;
 type Story = StoryObj;
-
 
 export const Statuses: Story = {
   render: () => (

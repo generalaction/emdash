@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta<typeof Button> = {

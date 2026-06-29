@@ -1,11 +1,11 @@
 'use client';
 
+import { Button } from '@react/primitives/button';
+import { Input, type InputProps } from '@react/primitives/input';
+import { Textarea } from '@react/primitives/textarea';
 import { cx } from '@styles/utilities/cx';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import * as React from 'react';
-import { Button } from '../button';
-import { Input, type InputProps } from './input';
-import { Textarea } from '../textarea';
 import * as styles from './input-group.css';
 
 type InputGroupVariant = NonNullable<RecipeVariants<typeof styles.inputGroup>>['variant'];

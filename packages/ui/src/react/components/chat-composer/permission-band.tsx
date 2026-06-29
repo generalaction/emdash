@@ -15,8 +15,7 @@
 import { cx } from '@styles/utilities/cx';
 import { ShieldAlertIcon } from 'lucide-react';
 import * as React from 'react';
-import { SplitButton } from '../../primitives/split-button/split-button';
-import type { SplitButtonOption } from '../../primitives/split-button/split-button';
+import { SplitButton, type SplitButtonOption } from '@/react/primitives/split-button';
 import * as styles from './permission-band.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────

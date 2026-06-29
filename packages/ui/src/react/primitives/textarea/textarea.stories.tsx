@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Box } from '@react/primitives/box';
 import { Textarea } from '@react/primitives/textarea';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta<typeof Textarea> = {

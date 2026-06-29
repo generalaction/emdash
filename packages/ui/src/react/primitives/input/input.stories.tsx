@@ -1,8 +1,7 @@
+import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import React from 'react';
-import { Box } from '../box';
-import { Input } from './input';
-import * as s from '../story-layout.css';
+import { Input } from '.';
+import * as s from '@react/story-layout.css';
 
 const meta: Meta<typeof Input> = {
   title: 'Primitives/Input',

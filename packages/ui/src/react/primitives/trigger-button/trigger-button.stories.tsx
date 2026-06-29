@@ -1,5 +1,6 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Box } from '@react/primitives/box';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { TriggerButton } from '.';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,7 +8,6 @@ import {
   DropdownMenuTrigger,
 } from '../dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../select';
-import { TriggerButton } from '.';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta = {

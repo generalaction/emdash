@@ -9,10 +9,10 @@ import {
 import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
 import { AlertCircleIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon } from 'lucide-react';
 import React, { useState } from 'react';
+import { Alert } from '../primitives/alert';
 import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
-import { Alert } from '../primitives/alert';
-import { Input } from '../primitives/input/input';
+import { Input } from '../primitives/input';
 import {
   Select,
   SelectContent,

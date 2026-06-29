@@ -16,8 +16,8 @@
  */
 
 import type { PopoverRootChangeEventDetails } from '@base-ui/react/popover';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Popover, PopoverContent } from '@react/primitives/popover';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { hoverCardDefault } from './hover-card.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────────

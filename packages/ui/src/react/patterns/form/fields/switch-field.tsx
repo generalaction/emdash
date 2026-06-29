@@ -1,5 +1,5 @@
-import * as React from 'react';
 import { Switch } from '@react/primitives/switch';
+import * as React from 'react';
 import { FormFieldShell, type FieldOrientation } from '../field-shell';
 import { useFieldContext } from '../form-context';
 

@@ -11,7 +11,11 @@ import {
   ComboboxSeparator,
   ComboboxTrigger,
 } from '@/react/primitives/combobox/combobox';
-import { HoverCard, isEventInsideInteractiveLayer, useHoverCard } from '@react/primitives/hover-card';
+import {
+  HoverCard,
+  isEventInsideInteractiveLayer,
+  useHoverCard,
+} from '@/react/primitives/hover-card';
 import * as styles from './combobox-popover.css';
 
 export interface ComboboxPopoverProps<T> {

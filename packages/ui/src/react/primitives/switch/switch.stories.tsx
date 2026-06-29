@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { useState } from 'react';
 import { Box } from '@react/primitives/box';
 import { Switch } from '@react/primitives/switch';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { useState } from 'react';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta = {

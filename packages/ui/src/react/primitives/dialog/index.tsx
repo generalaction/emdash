@@ -1,9 +1,9 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Button } from '@react/primitives/button';
+import { ScrollContainer } from '@react/primitives/scroll-container';
 import { cx } from '@styles/utilities/cx';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
-import { Button } from '@react/primitives/button';
-import { ScrollContainer } from '@react/primitives/scroll-container';
 import * as styles from './dialog.css';
 
 export type DialogSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';

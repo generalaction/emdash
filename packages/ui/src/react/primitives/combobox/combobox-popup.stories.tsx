@@ -6,12 +6,12 @@
  * are forwarded through the imperative handle.
  */
 
+import { Box } from '@react/primitives/box';
+import { Button } from '@react/primitives/button';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
 import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { Box } from '@react/primitives/box';
-import { Button } from '@react/primitives/button';
 import { ComboboxPopup, type ComboboxPopupHandle, type ComboboxPopupItem } from './combobox-popup';
 import * as s from '@react/story-layout.css';
 import { sx } from '@styles/utilities/sprinkles.css';

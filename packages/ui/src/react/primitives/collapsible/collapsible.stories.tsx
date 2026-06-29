@@ -1,8 +1,8 @@
+import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
-import { Box } from '@react/primitives/box';
-import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '.';
 import { SeparatedList } from '@/react/primitives/separated-list';
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '.';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta = {
