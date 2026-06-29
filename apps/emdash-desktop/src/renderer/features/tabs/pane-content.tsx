@@ -60,8 +60,7 @@ export const PaneContent = observer(function PaneContent({
          * PaneDimensionProvider is placed here (below the TabBar, not around
          * the entire PaneContent) so its ResizeObserver only measures the
          * content region. This ensures the TabBar height is never included in
-         * PTY grid calculations. PaneStore (pane) is the sink, so remeasure()
-         * and background-session broadcasts still work when no terminal is active.
+         * PTY grid calculations.
          */}
         <PaneDimensionProvider sink={pane}>
           {isOverContent && (

@@ -9,20 +9,18 @@
  *   4. Broadcasts rpc.pty.resize to ALL session IDs in the pane (active + background).
  *   5. Exposes an observable `controllerDims` box so mounted terminals can call
  *      term.resize() reactively without re-measuring.
- *   6. Suppresses resize events during panel drags; triggers a final recompute on release.
- *   7. Listens to terminal-font-changed events and recomputes when font settings change.
+ *   6. Listens to terminal-font-changed events and recomputes when font settings change.
  *
  * Must be called inside a PaneDimensionProvider so the sink is available.
  */
 
 import type { IObservableValue } from 'mobx';
 import { observable, reaction, runInAction } from 'mobx';
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { PaneDimensionSink } from '@renderer/features/tabs/pane-dimension-provider';
 import { rpc } from '@renderer/lib/ipc';
-import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
-import { TERMINAL_LETTER_SPACING, TERMINAL_LINE_HEIGHT, TERMINAL_PADDING_PX } from './pty';
+import { getFrontendPty, TERMINAL_LETTER_SPACING, TERMINAL_LINE_HEIGHT, TERMINAL_PADDING_PX } from './pty';
 import {
   computeGridDimensions,
   invalidateCellMetricsCache,
@@ -94,17 +92,13 @@ export function usePtyPaneResize(
     schedulerRef.current = createResizeScheduler((dims) => {
       for (const id of sessionsRef.current) {
         void rpc.pty.resize(id, dims.cols, dims.rows);
+        const term = getFrontendPty(id)?.terminal;
+        if (term && (term.cols !== dims.cols || term.rows !== dims.rows)) {
+          term.resize(dims.cols, dims.rows);
+        }
       }
     }, PTY_RESIZE_DEBOUNCE_MS);
   }
-
-  // ── Drag state (suppress resize during panel drags) ─────────────────────────
-  const isPanelDragging = useSyncExternalStore(
-    panelDragStore.subscribe,
-    panelDragStore.getSnapshot
-  );
-  const isPanelDraggingRef = useRef(isPanelDragging);
-  isPanelDraggingRef.current = isPanelDragging;
 
   // ── Core recompute ──────────────────────────────────────────────────────────
   // Converts the pane's pixel dimensions + current cell size → cols/rows,
@@ -157,10 +151,7 @@ export function usePtyPaneResize(
     if (!sink) return;
     const dispose = reaction(
       () => sink.dimensions,
-      () => {
-        if (isPanelDraggingRef.current) return;
-        recomputeRef.current();
-      }
+      () => recomputeRef.current()
     );
     // Fire immediately if we already have dimensions.
     if (sink.dimensions) recomputeRef.current();
@@ -180,16 +171,6 @@ export function usePtyPaneResize(
       recomputeRef.current();
     }
   }, [bottomPadding]);
-
-  // ── Recompute on drag end ───────────────────────────────────────────────────
-  const prevIsDraggingRef = useRef(isPanelDragging);
-  useEffect(() => {
-    const wasDragging = prevIsDraggingRef.current;
-    prevIsDraggingRef.current = isPanelDragging;
-    if (wasDragging && !isPanelDragging) {
-      recomputeRef.current();
-    }
-  }, [isPanelDragging]);
 
   // ── Font-change event: invalidate standalone cache and recompute ─────────────
   useEffect(() => {
@@ -222,6 +203,10 @@ export function usePtyPaneResize(
     if (dims && added.length > 0 && hasCalibratedRef.current) {
       for (const id of added) {
         void rpc.pty.resize(id, dims.cols, dims.rows);
+        const term = getFrontendPty(id)?.terminal;
+        if (term && (term.cols !== dims.cols || term.rows !== dims.rows)) {
+          term.resize(dims.cols, dims.rows);
+        }
       }
     }
   }, [sessionIds]);

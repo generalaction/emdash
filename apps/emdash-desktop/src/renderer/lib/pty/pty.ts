@@ -62,6 +62,8 @@ export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
 export class FrontendPty {
   /** All live FrontendPty instances — used for app-wide operations (e.g. theme updates). */
   static readonly all = new Set<FrontendPty>();
+  /** Lookup from session ID to live FrontendPty — used by the resize controller to fan out grid resizes. */
+  static readonly bySession = new Map<string, FrontendPty>();
   readonly terminal: Terminal;
   readonly ownedContainer: HTMLDivElement;
   private theme?: SessionTheme;
@@ -149,6 +151,7 @@ export class FrontendPty {
     }
 
     FrontendPty.all.add(this);
+    FrontendPty.bySession.set(this.sessionId, this);
   }
 
   setTheme(theme?: SessionTheme): void {
@@ -226,6 +229,7 @@ export class FrontendPty {
    */
   dispose(): void {
     FrontendPty.all.delete(this);
+    FrontendPty.bySession.delete(this.sessionId);
     this.offData?.();
     this.offData = null;
     rpc.pty.unsubscribe(this.sessionId).catch(() => {});
@@ -236,6 +240,13 @@ export class FrontendPty {
       this.ownedContainer.remove();
     } catch {}
   }
+}
+
+// ── Session lookup ────────────────────────────────────────────────────────────
+
+/** Returns the live FrontendPty for the given session ID, or undefined if not yet connected. */
+export function getFrontendPty(sessionId: string): FrontendPty | undefined {
+  return FrontendPty.bySession.get(sessionId);
 }
 
 // ── App-wide helpers ──────────────────────────────────────────────────────────

@@ -11,10 +11,9 @@ import {
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
-import { ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { taskTabView } from './task-tab-registry';
-import { DraggableResizeHandle, TaskMainColumn } from './view/task-main-column';
+import { TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
@@ -104,7 +103,6 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
   const sidebarPanelRef = usePanelRef();
 
   useEffect(() => {
-    panelDragStore.suppressFor(140);
     if (taskView.isSidebarCollapsed) {
       sidebarPanelRef.current?.collapse();
     } else {
@@ -118,7 +116,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
         <ResizablePanel id="task-main-area">
           <TaskMainColumn />
         </ResizablePanel>
-        <DraggableResizeHandle />
+        <ResizableHandle />
         <ResizablePanel
           id="task-sidebar"
           panelRef={sidebarPanelRef}
