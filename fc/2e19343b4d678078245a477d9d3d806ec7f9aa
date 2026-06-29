@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/checks-list.tsx
+  s_396a6a44c114a9::t_3f47d6055388c8 3,10,84,94-102,138,141
+apps/emdash-desktop/src/renderer/features/tasks/conversations/create-conversation-modal.tsx
+  s_396a6a44c114a9::t_4108dc23d56c37 26,35,39,49,89,105,164-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "fc2e19343b4d678078245a477d9d3d806ec7f9aa",
+  "prompts": {},
+  "sessions": {
+    "s_396a6a44c114a9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f149a-bc62-7da3-9053-76f7476e0dbb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
