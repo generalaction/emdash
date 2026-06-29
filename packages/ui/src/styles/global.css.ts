@@ -26,8 +26,10 @@ export * from './surfaces.css';
 // 4. Mini-preflight (reset layer).
 export * from './reset.css';
 
-// 5. Global element defaults — body, scrollbars, selection (base layer).
-export * from './base.css';
+// 5. Global element defaults (base.css.ts) are NOT exported here.
+// They are an explicit opt-in via `import '@emdash/ui/styles/base.css'`.
+// This lets host apps (e.g. emdash-desktop) skip library body/scrollbar styles
+// that would conflict with their own CSS token declarations.
 
 // 6. Atomic utility classes — sx() sprinkles (utilities layer).
 export * from './utilities/sprinkles.css';

@@ -1,8 +1,13 @@
-import React, { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from 'react';
+import {
+  createPaneDimensionSink,
+  PaneDimensionProvider,
+} from '@renderer/features/tabs/pane-dimension-provider';
 import { getDraggedWorkspaceFile } from '@renderer/lib/drag-files';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
+import { PaneSizingContextProvider, usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { resolveDroppedFile } from './terminal-image-injection';
 import {
@@ -115,7 +120,7 @@ async function pasteClipboardImageOrText(args: {
   return false;
 }
 
-const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
+const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
   (
     {
       sessionId,
@@ -339,6 +344,30 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
   }
 );
 
-PtyPaneComponent.displayName = 'TerminalPane';
+PtyPaneInner.displayName = 'TerminalPane';
+
+/**
+ * Outer wrapper: guarantees a PaneSizingContext (and therefore the per-pane
+ * resize controller) is always present. When a PaneSizingContextProvider
+ * ancestor already exists (e.g. conversations-panel, terminal drawer) the
+ * children use that context unchanged. When none exists, PtyPane self-provisions
+ * a provider scoped to its own single session ID so there is always exactly one
+ * measurement path through the controller.
+ */
+const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>((props, ref) => {
+  const existing = usePaneSizingContext();
+  const sink = useMemo(() => createPaneDimensionSink(), []);
+  const sessionIds = useMemo(() => [props.sessionId], [props.sessionId]);
+
+  if (existing) return <PtyPaneInner {...props} ref={ref} />;
+  return (
+    <PaneDimensionProvider sink={sink}>
+      <PaneSizingContextProvider sessionIds={sessionIds}>
+        <PtyPaneInner {...props} ref={ref} />
+      </PaneSizingContextProvider>
+    </PaneDimensionProvider>
+  );
+});
+PtyPaneComponent.displayName = 'PtyPane';
 
 export const PtyPane = React.memo(PtyPaneComponent);

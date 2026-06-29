@@ -12,6 +12,7 @@ import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 const focusRing = {
   borderColor: vars.borderPrimary,
@@ -24,10 +25,10 @@ const controlBase = style({
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
-  borderRadius: 'var(--radius-lg)',
+  borderRadius: tokenVars.radiusLg,
   border: '1px solid transparent',
   backgroundClip: 'padding-box',
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
   fontWeight: 400,
   whiteSpace: 'nowrap',
   transition: 'all 150ms',
@@ -48,8 +49,8 @@ const smSizeBase = style({
   gap: '0.25rem',
   paddingLeft: '0.5rem',
   paddingRight: '0.5rem',
-  fontSize: 'var(--text-xs)',
-  borderRadius: 'var(--radius-md)',
+  fontSize: tokenVars.textXs,
+  borderRadius: tokenVars.radiusMd,
 });
 globalStyle(`${smSizeBase} svg:not([class*='size-'])`, { width: '0.75rem', height: '0.75rem' });
 

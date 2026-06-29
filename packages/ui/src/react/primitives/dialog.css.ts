@@ -2,6 +2,7 @@ import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { kfFadeIn, kfFadeOut, kfPopupIn, kfPopupOut } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 export const overlay = style({
   position: 'fixed',
@@ -35,9 +36,9 @@ export const content = recipe({
     maxWidth: '100%',
     flexDirection: 'column',
     overflow: 'hidden',
-    borderRadius: 'var(--radius-xl)',
+    borderRadius: tokenVars.radiusXl,
     backgroundColor: vars.surface,
-    fontSize: 'var(--text-sm)',
+    fontSize: tokenVars.textSm,
     color: vars.foreground,
     boxShadow: `0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
     outline: 'none',
@@ -91,7 +92,7 @@ export const footer = style({
 });
 
 export const title = style({
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
   letterSpacing: '-0.015em',
   color: vars.foreground,
 });

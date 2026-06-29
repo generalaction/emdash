@@ -73,7 +73,14 @@ export function measureDimensions(
   const widthPx = Math.max(0, Number.parseInt(style.width));
   const heightPx = Number.parseInt(style.height);
   if (Number.isNaN(widthPx) || Number.isNaN(heightPx)) return null;
-  return computeGridDimensions({ widthPx, heightPx, cellWidth, cellHeight, scrollbarWidth, paddingPx });
+  return computeGridDimensions({
+    widthPx,
+    heightPx,
+    cellWidth,
+    cellHeight,
+    scrollbarWidth,
+    paddingPx,
+  });
 }
 
 // ── Standalone cell metrics ────────────────────────────────────────────────────
@@ -147,7 +154,15 @@ export function measureTerminalCell(
 
     if (cellWidth === 0 || cellHeight === 0) return null;
 
-    _cellCache = { fontFamily, fontSize, lineHeight, letterSpacing, dpr, width: cellWidth, height: cellHeight };
+    _cellCache = {
+      fontFamily,
+      fontSize,
+      lineHeight,
+      letterSpacing,
+      dpr,
+      width: cellWidth,
+      height: cellHeight,
+    };
     return { width: cellWidth, height: cellHeight };
   } catch {
     return null;

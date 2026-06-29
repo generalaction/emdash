@@ -12,13 +12,14 @@
  * --foreground, and --neutral-* palette vars.
  */
 
+import { nsVar } from '../contract/namespace';
 import type { SyntaxRole } from '../contract/roles';
 import { syntaxVars } from '../contract/syntax-template';
 
 export function emitShikiThemesTs(): string {
   const tokenColors = (Object.keys(syntaxVars) as SyntaxRole[]).map((role) => {
     const entry = syntaxVars[role];
-    const settings: Record<string, string> = { foreground: `var(--syntax-${role})` };
+    const settings: Record<string, string> = { foreground: nsVar(`syntax-${role}`) };
     if (role === 'comment') settings['fontStyle'] = 'italic';
     return { scope: entry.scopes, settings };
   });
@@ -30,20 +31,20 @@ export function emitShikiThemesTs(): string {
     // polarity is determined by which .em<id> class is active on the root element.
     type: 'light',
     colors: {
-      'editor.background': 'var(--background)',
-      'editor.foreground': 'var(--foreground)',
-      'editor.selectionBackground': 'var(--syntax-editor-selection-bg)',
-      'editor.lineHighlightBackground': 'var(--neutral-2)',
-      'editorCursor.foreground': 'var(--foreground)',
-      'editor.findMatchBackground': 'var(--syntax-editor-find-match-bg)',
-      'editor.findMatchHighlightBackground': 'var(--syntax-editor-find-match-hl)',
-      'editorLineNumber.foreground': 'var(--neutral-9)',
-      'editorLineNumber.activeForeground': 'var(--foreground)',
-      'editorIndentGuide.background': 'var(--neutral-5)',
-      'editorBracketMatch.background': 'var(--neutral-4)',
-      'editorBracketMatch.border': 'var(--neutral-7)',
-      'scrollbarSlider.background': 'var(--syntax-editor-scrollbar-bg)',
-      'scrollbarSlider.hoverBackground': 'var(--syntax-editor-scrollbar-hover)',
+      'editor.background': nsVar('background'),
+      'editor.foreground': nsVar('foreground'),
+      'editor.selectionBackground': nsVar('syntax-editor-selection-bg'),
+      'editor.lineHighlightBackground': nsVar('neutral-2'),
+      'editorCursor.foreground': nsVar('foreground'),
+      'editor.findMatchBackground': nsVar('syntax-editor-find-match-bg'),
+      'editor.findMatchHighlightBackground': nsVar('syntax-editor-find-match-hl'),
+      'editorLineNumber.foreground': nsVar('neutral-9'),
+      'editorLineNumber.activeForeground': nsVar('foreground'),
+      'editorIndentGuide.background': nsVar('neutral-5'),
+      'editorBracketMatch.background': nsVar('neutral-4'),
+      'editorBracketMatch.border': nsVar('neutral-7'),
+      'scrollbarSlider.background': nsVar('syntax-editor-scrollbar-bg'),
+      'scrollbarSlider.hoverBackground': nsVar('syntax-editor-scrollbar-hover'),
     },
     tokenColors,
     semanticHighlighting: true,

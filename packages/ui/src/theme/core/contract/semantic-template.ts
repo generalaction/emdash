@@ -16,6 +16,7 @@
  * so keys must never be renamed without a corresponding CSS migration.
  */
 
+import { nsName } from './namespace';
 import { defineSemantics, t } from './token-ref';
 
 export const semanticVars = defineSemantics({
@@ -129,9 +130,8 @@ export const semanticVars = defineSemantics({
 });
 
 export type SemanticSlot = keyof typeof semanticVars;
-export type SemanticVar = `--${SemanticSlot}`;
+/** Namespaced CSS custom property name for a semantic slot (e.g. "--em-background"). */
+export type SemanticVar = string;
 
-/** Array of all semantic CSS custom property names for runtime validation. */
-export const SEMANTIC_VARS: readonly SemanticVar[] = Object.keys(semanticVars).map(
-  (k) => `--${k}` as SemanticVar
-);
+/** Array of all semantic CSS custom property names (namespaced) for runtime validation. */
+export const SEMANTIC_VARS: readonly string[] = Object.keys(semanticVars).map((k) => nsName(k));

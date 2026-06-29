@@ -16,7 +16,8 @@
   "type": "module",
   "sideEffects": [
     "./dist/style.css",
-    "./src/react/chat-ui/chat-theme.css"
+    "./src/react/chat-ui/chat-theme.css",
+    "./src/styles/base.css"
   ],
   "exports": {
     "./react": {
@@ -81,6 +82,7 @@
       "default": "./dist/styles/global.js"
     },
     "./styles/base.css": "./src/styles/theme.base.css",
+    "./styles/global-base.css": "./src/styles/base.css",
     "./styles/effects.css": "./src/styles/effects/effects.css",
     "./styles/overflow-fade.css": "./src/styles/effects/overflow-fade.css",
     "./styles/typography.css": "./src/styles/typography.css",

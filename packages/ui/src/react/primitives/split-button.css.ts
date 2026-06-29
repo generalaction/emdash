@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 export const splitButtonRoot = style({
   display: 'inline-flex',
@@ -12,7 +13,7 @@ export const toneDotNeutral = style({
   width: '0.375rem',
   height: '0.375rem',
   flexShrink: 0,
-  borderRadius: 'var(--radius-full)',
+  borderRadius: tokenVars.radiusFull,
   backgroundColor: vars.foregroundMuted,
 });
 
@@ -21,7 +22,7 @@ export const toneDotAccept = style({
   width: '0.375rem',
   height: '0.375rem',
   flexShrink: 0,
-  borderRadius: 'var(--radius-full)',
+  borderRadius: tokenVars.radiusFull,
   backgroundColor: 'var(--color-success, #22c55e)',
 });
 
@@ -30,7 +31,7 @@ export const toneDotReject = style({
   width: '0.375rem',
   height: '0.375rem',
   flexShrink: 0,
-  borderRadius: 'var(--radius-full)',
+  borderRadius: tokenVars.radiusFull,
   backgroundColor: vars.foregroundDestructive,
 });
 

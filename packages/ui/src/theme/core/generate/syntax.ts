@@ -17,6 +17,7 @@
  */
 
 import Color from 'colorjs.io';
+import { nsName } from '../contract/namespace';
 import type { Polarity, Scales, SyntaxRole } from '../contract/roles';
 import { syntaxVars } from '../contract/syntax-template';
 import { SYNTAX_MIN_APCA } from '../contract/targets';
@@ -132,18 +133,18 @@ export function generateSyntaxVars(
     const ref = roleOverrides[role] ?? defaultRef;
     const minLc = SYNTAX_MIN_APCA[role] ?? SYNTAX_MIN_APCA['default'] ?? 45;
     const resolvedColor = resolveWithMinContrast(ref, scales, bgColor, minLc, polarity);
-    vars[`--syntax-${role}`] = colorToHex(resolvedColor);
+    vars[nsName(`syntax-${role}`)] = colorToHex(resolvedColor);
   }
 
   // Alpha-composited editor chrome vars (cannot be a plain var() in Shiki colors).
   // Non-alpha chrome colors (bg, fg, line-highlight, cursor, line-number, bracket)
-  // reuse existing --background / --foreground / --neutral-* palette vars.
+  // reuse existing --em-background / --em-foreground / --em-neutral-* palette vars.
   const selectionHex = colorToHex(scales.blue.steps[5]);
-  vars['--syntax-editor-selection-bg'] = selectionHex + '40';
-  vars['--syntax-editor-find-match-bg'] = selectionHex + '60';
-  vars['--syntax-editor-find-match-hl'] = selectionHex + '30';
-  vars['--syntax-editor-scrollbar-bg'] = colorToHex(scales.neutral.steps[5]) + '60';
-  vars['--syntax-editor-scrollbar-hover'] = colorToHex(scales.neutral.steps[6]) + '80';
+  vars[nsName('syntax-editor-selection-bg')] = selectionHex + '40';
+  vars[nsName('syntax-editor-find-match-bg')] = selectionHex + '60';
+  vars[nsName('syntax-editor-find-match-hl')] = selectionHex + '30';
+  vars[nsName('syntax-editor-scrollbar-bg')] = colorToHex(scales.neutral.steps[5]) + '60';
+  vars[nsName('syntax-editor-scrollbar-hover')] = colorToHex(scales.neutral.steps[6]) + '80';
 
   return vars;
 }

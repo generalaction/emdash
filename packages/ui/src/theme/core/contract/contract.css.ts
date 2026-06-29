@@ -13,6 +13,7 @@
  */
 
 import { createGlobalThemeContract } from '@vanilla-extract/css';
+import { nsName } from './namespace';
 import { allSurfaceVarNames } from './roles';
 import { semanticVars } from './semantic-template';
 
@@ -24,9 +25,8 @@ const semanticKeys = Object.fromEntries(
 
 const surfaceKeys = Object.fromEntries(allSurfaceVarNames().map((v) => [toCamel(v), v]));
 
-export const vars = createGlobalThemeContract(
-  { ...semanticKeys, ...surfaceKeys },
-  (name) => `--${name}`
+export const vars = createGlobalThemeContract({ ...semanticKeys, ...surfaceKeys }, (name) =>
+  nsName(name ?? '')
 );
 
 export type Vars = typeof vars;

@@ -14,9 +14,13 @@
  * Byte-identical output guarantee: step/contrast slots continue to emit the
  * same concrete color values; mix slots continue to emit var()-based
  * color-mix() expressions exactly as the previous string-ref parser did.
+ *
+ * All emitted CSS custom property NAMES are routed through nsName()/nsVar()
+ * from namespace.ts so the namespace prefix is applied uniformly.
  */
 
 import Color from 'colorjs.io';
+import { nsName, nsVar } from '../contract/namespace';
 import {
   STATUS_LEVEL_SCOPES,
   STATUS_SCALE,
@@ -32,18 +36,18 @@ import { shiftOklabL } from './surfaces';
 // ── Node emitters ─────────────────────────────────────────────────────────────
 
 /**
- * Emit a var() reference for a RefNode, used as an operand inside color-mix().
- *   step     → var(--scale-step)
- *   contrast → var(--scale-contrast)
+ * Emit a namespaced var() reference for a RefNode, used as an operand inside color-mix().
+ *   step     → var(--em-scale-step)
+ *   contrast → var(--em-scale-contrast)
  *   mix/alpha → nested color-mix() expression
  *   literal  → the literal value (used as-is inside color-mix)
  */
 function emitVarRef(n: RefNode): string {
   switch (n.kind) {
     case 'step':
-      return `var(--${n.scale}-${n.step})`;
+      return nsVar(`${n.scale}-${n.step}`);
     case 'contrast':
-      return `var(--${n.scale}-contrast)`;
+      return nsVar(`${n.scale}-contrast`);
     case 'mix':
       return `color-mix(in ${n.space}, ${emitVarRef(n.base)} ${n.pct}%, ${emitVarRef(n.other)})`;
     case 'alpha':
@@ -83,14 +87,14 @@ function buildSurfaceVars(surfaces: Surfaces): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const scopeName of SURFACE_SCOPES) {
     const level = surfaces[scopeName];
-    vars[`--surface-${scopeName}`] = level.base;
-    vars[`--surface-${scopeName}-hover`] = level.hover;
-    vars[`--surface-${scopeName}-selected`] = level.selected;
+    vars[nsName(`surface-${scopeName}`)] = level.base;
+    vars[nsName(`surface-${scopeName}-hover`)] = level.hover;
+    vars[nsName(`surface-${scopeName}-selected`)] = level.selected;
   }
   return vars;
 }
 
-// ── Status surface vars (--surface-destructive, --surface-warning, etc.) ──────
+// ── Status surface vars (--em-surface-destructive, --em-surface-warning, etc.) ──
 
 /**
  * Derives tinted status surface tokens from the named palette ramps.
@@ -118,11 +122,11 @@ function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<stri
     const borderColor = ramp.steps[5]; // step 6
     const fgColor = ramp.steps[10]; // step 11
 
-    vars[`--surface-${status}`] = baseColor;
-    vars[`--surface-${status}-hover`] = hoverColor;
-    vars[`--surface-${status}-selected`] = selectedColor;
-    vars[`--surface-${status}-border`] = borderColor;
-    vars[`--surface-${status}-foreground`] = fgColor;
+    vars[nsName(`surface-${status}`)] = baseColor;
+    vars[nsName(`surface-${status}-hover`)] = hoverColor;
+    vars[nsName(`surface-${status}-selected`)] = selectedColor;
+    vars[nsName(`surface-${status}-border`)] = borderColor;
+    vars[nsName(`surface-${status}-foreground`)] = fgColor;
 
     for (const scope of STATUS_LEVEL_SCOPES) {
       const neutralScopeL = new Color(surfaces[scope].base).to('oklab').coords[0];
@@ -135,25 +139,25 @@ function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<stri
         return toP3String(p3.to('p3') as Color);
       };
 
-      vars[`--surface-${status}-${scope}`] = shift(baseColor);
-      vars[`--surface-${status}-${scope}-hover`] = shift(hoverColor);
-      vars[`--surface-${status}-${scope}-selected`] = shift(selectedColor);
-      vars[`--surface-${status}-${scope}-border`] = shift(borderColor);
-      vars[`--surface-${status}-${scope}-foreground`] = shift(fgColor);
+      vars[nsName(`surface-${status}-${scope}`)] = shift(baseColor);
+      vars[nsName(`surface-${status}-${scope}-hover`)] = shift(hoverColor);
+      vars[nsName(`surface-${status}-${scope}-selected`)] = shift(selectedColor);
+      vars[nsName(`surface-${status}-${scope}-border`)] = shift(borderColor);
+      vars[nsName(`surface-${status}-${scope}-foreground`)] = shift(fgColor);
     }
   }
   return vars;
 }
 
-// ── Palette vars (the --neutral-1..12 etc. ramp vars) ─────────────────────────
+// ── Palette vars (the --em-neutral-1..12 etc. ramp vars) ─────────────────────
 
 function buildPaletteVars(scales: Scales): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const [scaleName, ramp] of Object.entries(scales)) {
     ramp.steps.forEach((color: string, i: number) => {
-      vars[`--${scaleName}-${i + 1}`] = color;
+      vars[nsName(`${scaleName}-${i + 1}`)] = color;
     });
-    vars[`--${scaleName}-contrast`] = ramp.contrast;
+    vars[nsName(`${scaleName}-contrast`)] = ramp.contrast;
   }
   return vars;
 }
@@ -163,7 +167,7 @@ function buildPaletteVars(scales: Scales): Record<string, string> {
 /**
  * Resolve the semantic template against the generated palette.
  * Returns a record of CSS custom property name → resolved CSS value string.
- * Includes palette vars (--neutral-1..12 etc.) and surface vars.
+ * All keys are namespaced (e.g. --em-neutral-1, --em-background).
  */
 export function resolveCssVars(
   scales: Scales,
@@ -172,18 +176,18 @@ export function resolveCssVars(
 ): Record<string, string> {
   const vars: Record<string, string> = {};
 
-  // 1. Palette ramp vars (--neutral-1..12, --accent-1..12, etc.)
+  // 1. Palette ramp vars (--em-neutral-1..12, --em-accent-1..12, etc.)
   Object.assign(vars, buildPaletteVars(scales));
 
-  // 2. Surface elevation vars (--surface-base, --surface-base-hover, etc.)
+  // 2. Surface elevation vars (--em-surface-base, --em-surface-base-hover, etc.)
   Object.assign(vars, buildSurfaceVars(surfaces));
 
-  // 3. Status surface vars (--surface-destructive, --surface-warning, etc.)
+  // 3. Status surface vars (--em-surface-destructive, --em-surface-warning, etc.)
   Object.assign(vars, buildStatusSurfaceVars(scales, surfaces));
 
-  // 4. Semantic slot vars (--background, --foreground, etc.)
+  // 4. Semantic slot vars (--em-background, --em-foreground, etc.)
   for (const [slot, ref] of Object.entries(semanticVars) as [string, ColorRef][]) {
-    vars[`--${slot}`] = emitValue(ref.node, scales);
+    vars[nsName(slot)] = emitValue(ref.node, scales);
   }
 
   return vars;

@@ -2,6 +2,7 @@ import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 export const field = recipe({
   base: {
@@ -53,7 +54,7 @@ export const fieldControlSlot = style({
 });
 
 export const fieldLabel = style({
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
   fontWeight: 500,
   lineHeight: 1,
   color: vars.foreground,
@@ -63,11 +64,11 @@ export const fieldLabel = style({
 });
 
 export const fieldDescription = style({
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
   color: vars.foregroundMuted,
 });
 
 export const fieldError = style({
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
   color: vars.foregroundDestructive,
 });

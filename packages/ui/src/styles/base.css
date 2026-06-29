@@ -1,0 +1,62 @@
+/*
+ * base.css — global element defaults for @emdash/ui consumers.
+ *
+ * Opt-in stylesheet: NOT bundled into the default style.css entry.
+ * Import explicitly when you want the library to own body/scrollbar/selection
+ * styling:
+ *
+ *   import '@emdash/ui/styles/base.css';
+ *
+ * Skip this file in host apps (e.g. emdash-desktop) that have their own body
+ * background and scrollbar rules — importing it would fight the host's existing
+ * unprefixed token system.
+ *
+ * All references use the namespaced --em-* custom properties so they resolve
+ * against the @emdash/ui token set regardless of host-app token declarations.
+ */
+
+@layer base {
+  /* Border colour — picked up by every element's default border. */
+  * {
+    border-color: var(--em-border);
+  }
+
+  /* Body defaults. */
+  body {
+    background-color: var(--em-background);
+    color: var(--em-foreground);
+  }
+
+  /* Text selection. */
+  ::selection {
+    background-color: color-mix(in srgb, var(--em-selection) 35%, transparent);
+    color: var(--em-selection-foreground);
+  }
+
+  ::-moz-selection {
+    background-color: color-mix(in srgb, var(--em-selection) 35%, transparent);
+    color: var(--em-selection-foreground);
+  }
+
+  /* Scrollbar styles. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--em-border) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--em-border);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+}

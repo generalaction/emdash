@@ -19,6 +19,13 @@
  * Use target="wrapper" when you want the theme scoped to a wrapper element
  * only (e.g. Storybook surface decorators, embedded widgets).
  *
+ * Use target="none" when the host application already manages the theme class
+ * on <html> (e.g. emdash-desktop's own ThemeProvider). In this mode the
+ * component only provides ThemeContext — it writes no class to the DOM and
+ * renders no wrapper element. useTheme() / usePortalThemeClass() continue to
+ * work, allowing bridge components to read theme state from the library side
+ * without a second DOM writer competing for the <html> class.
+ *
  * USAGE
  * -----
  *   // Uncontrolled — ThemeProvider manages its own state:
@@ -26,6 +33,9 @@
  *
  *   // Controlled — an external owner drives the theme (e.g. Storybook globals):
  *   <ThemeProvider theme={colorMode}><Story /></ThemeProvider>
+ *
+ *   // Context-only — host owns the DOM class, library just supplies context:
+ *   <ThemeProvider theme={hostTheme} target="none"><UILibraryComponents /></ThemeProvider>
  *
  *   // Access theme inside the tree:
  *   const { themeId, setTheme, toggle } = useTheme();
@@ -139,8 +149,13 @@ export interface ThemeProviderProps {
    *
    * "wrapper" — applies the class to the wrapper element (controlled by `as`).
    * Portals that render outside the wrapper must use usePortalThemeClass().
+   *
+   * "none" — context-only mode. No class is written to the DOM and no wrapper
+   * element is rendered. Use this when the host application already manages
+   * the theme class on <html> (e.g. emdash-desktop's own ThemeProvider) so
+   * two providers don't compete for the <html> class.
    */
-  target?: 'documentElement' | 'wrapper';
+  target?: 'documentElement' | 'wrapper' | 'none';
   /** Element type for the wrapper (only used when target="wrapper" or className/style are supplied). Defaults to 'div'. */
   as?: React.ElementType;
   className?: string;
@@ -193,6 +208,7 @@ export function ThemeProvider({
   const themeClass = entry.selector.replace(/^\./, '');
 
   // Apply theme class to <html> in documentElement mode.
+  // Skipped entirely in "none" mode so the host remains the sole DOM class writer.
   useLayoutEffect(() => {
     if (target !== 'documentElement') return;
     if (typeof document === 'undefined') return;
@@ -208,6 +224,11 @@ export function ThemeProvider({
     () => ({ themeId: resolvedThemeId, setTheme, toggle }),
     [resolvedThemeId, setTheme, toggle]
   );
+
+  // "none" — context-only mode: provide ThemeContext without touching the DOM.
+  if (target === 'none') {
+    return <ThemeContext.Provider value={ctx}>{children}</ThemeContext.Provider>;
+  }
 
   if (target === 'documentElement') {
     // No wrapper needed for theming. Render a wrapper only if className/style

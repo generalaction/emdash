@@ -22,8 +22,12 @@ import type { PaneDimensionSink } from '@renderer/features/tabs/pane-dimension-p
 import { rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
-import { computeGridDimensions, invalidateCellMetricsCache, measureTerminalCell } from './pty-dimensions';
 import { TERMINAL_LETTER_SPACING, TERMINAL_LINE_HEIGHT, TERMINAL_PADDING_PX } from './pty';
+import {
+  computeGridDimensions,
+  invalidateCellMetricsCache,
+  measureTerminalCell,
+} from './pty-dimensions';
 import { createResizeScheduler, type ResizeScheduler } from './resize-scheduler';
 import { buildTerminalFontFamily } from './terminal-font';
 
@@ -174,7 +178,12 @@ export function usePtyPaneResize(
       const fontFamily = buildTerminalFontFamily(detail?.fontFamily ?? '');
       const fontSize = detail?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
       invalidateCellMetricsCache();
-      const newCell = measureTerminalCell(fontFamily, fontSize, TERMINAL_LINE_HEIGHT, TERMINAL_LETTER_SPACING);
+      const newCell = measureTerminalCell(
+        fontFamily,
+        fontSize,
+        TERMINAL_LINE_HEIGHT,
+        TERMINAL_LETTER_SPACING
+      );
       if (newCell) {
         cellSizeRef.current = newCell;
         recomputeRef.current();

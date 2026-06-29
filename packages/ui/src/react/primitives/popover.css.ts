@@ -8,6 +8,7 @@ import {
   kfPopupInSlideFromRight,
 } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 export const positioner = style({
   isolation: 'isolate',
@@ -21,11 +22,11 @@ export const popupContent = style({
   overflow: 'hidden',
   flexDirection: 'column',
   gap: '1rem',
-  borderRadius: 'var(--radius-md)',
+  borderRadius: tokenVars.radiusMd,
   border: `1px solid ${vars.border}`,
   backgroundColor: vars.surface,
   padding: '1rem',
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
   color: vars.foreground,
   boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1)',
   outline: 'none',
@@ -47,7 +48,7 @@ export const popoverHeader = style({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.25rem',
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
 });
 
 export const popoverTitle = style({

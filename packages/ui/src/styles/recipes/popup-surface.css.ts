@@ -23,12 +23,13 @@ import {
   kfPopupInSlideFromRight,
 } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 export const popupSurface = style({
   position: 'relative',
   zIndex: 50,
   transformOrigin: 'var(--transform-origin)',
-  borderRadius: 'var(--radius-md)',
+  borderRadius: tokenVars.radiusMd,
   backgroundColor: vars.surface,
   color: vars.foreground,
   outline: 'none',
