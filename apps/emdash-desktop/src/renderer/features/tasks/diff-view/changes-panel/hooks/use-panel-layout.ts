@@ -7,7 +7,7 @@ import type {
 
 // Unreachable in practice: callers guard with `if (!changesView) return null` before calling this
 // hook, so changesView is always non-null here. React Hooks rules prevent a conditional call.
-const DEFAULT_EXPANDED: ExpandedSections = { unstaged: true, staged: true, pullRequests: true };
+const DEFAULT_EXPANDED: ExpandedSections = { unstaged: true, staged: true, branch: true, pullRequests: true };
 
 // Matches the SectionHeader height: outer py-2 (8+8px) + button p-2 (8+8px) + size-4 icon (16px) = 48px
 export const SECTION_HEADER_HEIGHT = '40px';

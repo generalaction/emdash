@@ -9,7 +9,7 @@ export type DiffRendererData = { kind: 'text' } | { kind: 'image' } | { kind: 'b
 
 export interface DiffPayload {
   path: string;
-  diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+  diffGroup: 'disk' | 'staged' | 'git' | 'pr' | 'branch';
   originalRef: GitObjectRef;
   modifiedRef?: GitObjectRef;
   prNumber?: number;
@@ -34,7 +34,7 @@ export class DiffTabResource implements TabResource {
 
   path: string;
   renderer: DiffRendererData;
-  diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+  diffGroup: 'disk' | 'staged' | 'git' | 'pr' | 'branch';
   originalRef: GitObjectRef;
   modifiedRef: GitObjectRef | undefined;
   prNumber: number | undefined;

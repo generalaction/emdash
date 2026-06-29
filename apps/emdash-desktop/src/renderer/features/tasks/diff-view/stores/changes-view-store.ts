@@ -7,13 +7,14 @@ export type SelectionState = 'all' | 'none' | 'partial';
 export interface ExpandedSections {
   unstaged: boolean;
   staged: boolean;
+  branch: boolean;
   pullRequests: boolean;
 }
 
 export class ChangesViewStore {
   unstagedSelection = observable.set<string>();
   stagedSelection = observable.set<string>();
-  expandedSections: ExpandedSections = { unstaged: true, staged: true, pullRequests: true };
+  expandedSections: ExpandedSections = { unstaged: true, staged: true, branch: true, pullRequests: true };
 
   private _disposeReactions: Array<() => void> = [];
   private _suppressAutoExpand = new Set<keyof ExpandedSections>();
@@ -63,6 +64,7 @@ export class ChangesViewStore {
             this.expandedSections = {
               unstaged: hasUnstaged || (!hasStaged && !hasUnstaged && !hasPullRequests),
               staged: hasStaged,
+              branch: true,
               pullRequests: hasPullRequests,
             };
           });
@@ -205,8 +207,15 @@ export class ChangesViewStore {
     });
   }
 
-  expandForActiveFileType(group: 'disk' | 'staged' | 'git' | 'pr'): void {
-    const section = group === 'disk' ? 'unstaged' : group === 'staged' ? 'staged' : 'pullRequests';
+  expandForActiveFileType(group: 'disk' | 'staged' | 'git' | 'pr' | 'branch'): void {
+    const section =
+      group === 'disk'
+        ? 'unstaged'
+        : group === 'staged'
+          ? 'staged'
+          : group === 'branch'
+            ? 'branch'
+            : 'pullRequests';
     if (!this.expandedSections[section]) {
       runInAction(() => {
         this.expandedSections = { ...this.expandedSections, [section]: true };

@@ -21,7 +21,7 @@ export type TabDescriptor =
       kind: 'diff';
       tabId: string;
       path: string;
-      diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+      diffGroup: 'disk' | 'staged' | 'git' | 'pr' | 'branch';
       originalRef: GitObjectRef;
       modifiedRef?: GitObjectRef;
       prNumber?: number;
@@ -62,6 +62,7 @@ export type DiffViewSnapshot = {
   activeFile?: ActiveFile;
   commitAction: 'commit' | 'commit-push' | 'commit-pr' | null;
   prTab?: 'files' | 'commits' | 'checks';
+  branchCompareMode?: 'committed' | 'all';
 };
 
 export type TerminalDrawerActiveItem =
@@ -80,7 +81,7 @@ export interface ActiveFile {
    *  'staged' = index vs HEAD
    *  'git'    = arbitrary ref-to-ref comparison
    *  'pr'     = PR diff (originalRef is remote-tracking base) */
-  group: 'disk' | 'staged' | 'git' | 'pr';
+  group: 'disk' | 'staged' | 'git' | 'pr' | 'branch';
   originalRef: GitObjectRef;
   /** Fixed modified-side ref for 'git' and 'pr' diffs.
    *  When absent the diff viewer falls back to HEAD_REF. */
