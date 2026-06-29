@@ -73,7 +73,9 @@ export function createWorkspaceFactory(
     const workDir = context.workDir;
 
     const ctx =
-      type.kind === 'ssh' ? new SshExecutionContext(type.proxy) : new LocalExecutionContext();
+      type.kind === 'ssh'
+        ? new SshExecutionContext(type.proxy, { connectionId: type.connectionId })
+        : new LocalExecutionContext();
 
     const runtime = await acquireWorkspaceRuntime(context.workspaceRuntime, workDir);
     const { gitWorktree, fileTree, filesRuntime } = runtime;
@@ -398,7 +400,7 @@ export async function buildTaskProviders(
     if (!opts.filesRuntime) {
       throw new Error('Missing SSH files runtime for SSH task provider');
     }
-    const ctx = new SshExecutionContext(type.proxy);
+    const ctx = new SshExecutionContext(type.proxy, { connectionId: type.connectionId });
     return {
       conversations: new SshConversationProvider({
         projectId: opts.projectId,

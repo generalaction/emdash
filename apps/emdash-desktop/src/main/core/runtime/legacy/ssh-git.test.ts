@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { FALLBACK_REMOTE_SHELL_PROFILE } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { invalidateLegacySshGitWorktreeStatus, LegacySshGitRuntime } from './ssh-git';
 
+const TEST_CONNECTION_ID = 'test-ssh-connection';
+
 const execFileAsync = promisify(execFile);
 
 class LocalChannel extends EventEmitter {
@@ -78,7 +80,7 @@ describe('LegacySshGitRuntime', () => {
   it('refreshes status when the SSH file-change feed invalidates it', async () => {
     const repo = await createRepo();
     repos.push(repo);
-    const runtime = new LegacySshGitRuntime(localSshProxy as never);
+    const runtime = new LegacySshGitRuntime(localSshProxy as never, TEST_CONNECTION_ID);
     const lease = await runtime.openWorktree(repo);
     const worktree = lease.value;
     const updates: GitWorktreeUpdate[] = [];
@@ -111,7 +113,7 @@ describe('LegacySshGitRuntime', () => {
   it('does not accept the first untracked fingerprint poll as a stale baseline', async () => {
     const repo = await createRepo();
     repos.push(repo);
-    const runtime = new LegacySshGitRuntime(localSshProxy as never);
+    const runtime = new LegacySshGitRuntime(localSshProxy as never, TEST_CONNECTION_ID);
     const lease = await runtime.openWorktree(repo);
     const worktree = lease.value;
     const updates: GitWorktreeUpdate[] = [];
