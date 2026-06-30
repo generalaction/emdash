@@ -6,6 +6,11 @@ import { resolveWorkspace } from '../../projects/utils';
 import { fileErrorToMessage, isPermissionDenied } from './file-errors';
 import { readWorkspaceImage } from './image-support';
 import { copyLocalFilesToWorkspace } from './local-imports';
+import {
+  assertWorkspaceRemoveAllowed,
+  assertWorkspaceWriteAllowed,
+  resolveWorkspacePath,
+} from './workspace-file-policy';
 
 function resolveWorkspaceFiles(projectId: string, workspaceId: string) {
   const env = resolveWorkspace(projectId, workspaceId);
@@ -19,9 +24,14 @@ export const workspaceFileSystemController = createRPCController({
   readFile: async (projectId: string, workspaceId: string, filePath: string, maxBytes?: number) => {
     const resolved = resolveWorkspaceFiles(projectId, workspaceId);
     if (!resolved.success) return resolved;
-    const { fileSystem } = resolved.data;
+    const { env, fileSystem } = resolved.data;
 
-    const result = await fileSystem.readText(filePath, { maxBytes });
+    const target = resolveWorkspacePath(env.path, filePath);
+    if (!target.success) {
+      return err({ type: 'fs_error' as const, message: fileErrorToMessage(target.error) });
+    }
+
+    const result = await fileSystem.readText(target.data.path, { maxBytes });
     if (!result.success) {
       return err({ type: 'fs_error' as const, message: fileErrorToMessage(result.error) });
     }
@@ -31,9 +41,14 @@ export const workspaceFileSystemController = createRPCController({
   writeFile: async (projectId: string, workspaceId: string, filePath: string, content: string) => {
     const resolved = resolveWorkspaceFiles(projectId, workspaceId);
     if (!resolved.success) return resolved;
-    const { fileSystem } = resolved.data;
+    const { env, fileSystem } = resolved.data;
 
-    const result = await fileSystem.writeText(filePath, content);
+    const target = await assertWorkspaceWriteAllowed(fileSystem, env.path, filePath);
+    if (!target.success) {
+      return err({ type: 'fs_error' as const, message: fileErrorToMessage(target.error) });
+    }
+
+    const result = await fileSystem.writeText(target.data.path, content);
     if (!result.success) {
       if (isPermissionDenied(result.error)) {
         events.emit(planEventChannel, {
@@ -56,9 +71,14 @@ export const workspaceFileSystemController = createRPCController({
   ) => {
     const resolved = resolveWorkspaceFiles(projectId, workspaceId);
     if (!resolved.success) return resolved;
-    const { fileSystem } = resolved.data;
+    const { env, fileSystem } = resolved.data;
 
-    const result = await fileSystem.remove(filePath, options);
+    const target = await assertWorkspaceRemoveAllowed(fileSystem, env.path, filePath);
+    if (!target.success) {
+      return ok({ success: false as const, error: fileErrorToMessage(target.error) });
+    }
+
+    const result = await fileSystem.remove(target.data.path, options);
     if (!result.success) {
       if (isPermissionDenied(result.error)) {
         events.emit(planEventChannel, {
@@ -76,17 +96,27 @@ export const workspaceFileSystemController = createRPCController({
   readImage: async (projectId: string, workspaceId: string, filePath: string) => {
     const resolved = resolveWorkspaceFiles(projectId, workspaceId);
     if (!resolved.success) return resolved;
-    const { fileSystem } = resolved.data;
+    const { env, fileSystem } = resolved.data;
 
-    return await readWorkspaceImage(fileSystem, filePath);
+    const target = resolveWorkspacePath(env.path, filePath);
+    if (!target.success) {
+      return err({ type: 'fs_error' as const, message: fileErrorToMessage(target.error) });
+    }
+
+    return await readWorkspaceImage(fileSystem, target.data.path);
   },
 
   fileExists: async (projectId: string, workspaceId: string, filePath: string) => {
     const resolved = resolveWorkspaceFiles(projectId, workspaceId);
     if (!resolved.success) return resolved;
-    const { fileSystem } = resolved.data;
+    const { env, fileSystem } = resolved.data;
 
-    const result = await fileSystem.exists(filePath);
+    const target = resolveWorkspacePath(env.path, filePath);
+    if (!target.success) {
+      return err({ type: 'fs_error' as const, message: fileErrorToMessage(target.error) });
+    }
+
+    const result = await fileSystem.exists(target.data.path);
     if (!result.success) {
       return err({ type: 'fs_error' as const, message: fileErrorToMessage(result.error) });
     }
@@ -96,9 +126,14 @@ export const workspaceFileSystemController = createRPCController({
   getAbsolutePath: async (projectId: string, workspaceId: string, filePath: string) => {
     const resolved = resolveWorkspaceFiles(projectId, workspaceId);
     if (!resolved.success) return resolved;
-    const { fileSystem } = resolved.data;
+    const { env, fileSystem } = resolved.data;
 
-    const result = await fileSystem.realPath(filePath);
+    const target = resolveWorkspacePath(env.path, filePath);
+    if (!target.success) {
+      return err({ type: 'fs_error' as const, message: fileErrorToMessage(target.error) });
+    }
+
+    const result = await fileSystem.realPath(target.data.path);
     if (!result.success) {
       return err({ type: 'fs_error' as const, message: fileErrorToMessage(result.error) });
     }

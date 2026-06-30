@@ -17,6 +17,16 @@ export function joinMachinePath(basePath: string, ...segments: string[]): string
   return current;
 }
 
+export function dirnameMachinePath(value: string): string {
+  if (path.win32.isAbsolute(value)) return path.win32.dirname(value).replace(/\\/g, '/');
+  return path.posix.dirname(value.replace(/\\/g, '/'));
+}
+
+export function basenameMachinePath(value: string): string {
+  if (path.win32.isAbsolute(value)) return path.win32.basename(value);
+  return path.posix.basename(value.replace(/\\/g, '/'));
+}
+
 export function containsMachinePath(parentPath: string, childPath: string): boolean {
   const parent = parentPath.replace(/\\/g, '/');
   const child = childPath.replace(/\\/g, '/');

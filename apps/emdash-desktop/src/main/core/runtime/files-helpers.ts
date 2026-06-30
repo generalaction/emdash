@@ -1,10 +1,9 @@
+import { type FileError, type FileStat, type IFileSystem } from '@emdash/core/files';
+import { err, type Result } from '@emdash/shared';
 import {
-  isFileNotFoundError,
-  type FileError,
-  type FileStat,
-  type IFileSystem,
-} from '@emdash/core/files';
-import { err, ok, type Result } from '@emdash/shared';
+  isRealPathContained as isRealPathContainedByRealPath,
+  realPathNearestExisting as realPathNearestExistingByRealPath,
+} from '../files/realpath-containment';
 import type { IFilesRuntime } from './types';
 
 export type AbsoluteDirectoryFileSystem = {
@@ -90,31 +89,7 @@ export async function realPathNearestExisting(
 
   const opened = openFileSystem(files);
   if (!opened.success) return opened;
-  const fs = opened.data;
-
-  let current = absPath;
-  const tail: string[] = [];
-  for (;;) {
-    const real = await fs.realPath(current);
-    if (real.success) {
-      const resolved = tail.length
-        ? files.path.join(real.data, ...tail.slice().reverse())
-        : real.data;
-      return ok(resolved);
-    }
-    if (!isFileNotFoundError(real.error)) return real;
-
-    const parent = files.path.dirname(current);
-    if (parent === current) {
-      return err({
-        type: 'invalid-path',
-        path: absPath,
-        message: `No existing ancestor for path: ${absPath}`,
-      });
-    }
-    tail.push(files.path.basename(current));
-    current = parent;
-  }
+  return realPathNearestExistingByRealPath(opened.data, files.path, absPath);
 }
 
 export async function isRealPathContained(
@@ -123,15 +98,22 @@ export async function isRealPathContained(
   candidatePath: string,
   options: { candidateMustExist?: boolean } = {}
 ): Promise<Result<boolean, FileError>> {
-  const rootReal = await realPathAbsolute(files, rootPath);
-  if (!rootReal.success) return rootReal;
+  if (!files.path.isAbsolute(rootPath)) {
+    return err({
+      type: 'invalid-path',
+      path: rootPath,
+      message: `Expected absolute path: ${rootPath}`,
+    });
+  }
+  if (!files.path.isAbsolute(candidatePath)) {
+    return err({
+      type: 'invalid-path',
+      path: candidatePath,
+      message: `Expected absolute path: ${candidatePath}`,
+    });
+  }
 
-  const candidateReal = options.candidateMustExist
-    ? await realPathAbsolute(files, candidatePath)
-    : await realPathNearestExisting(files, candidatePath);
-  if (!candidateReal.success) return ok(false);
-
-  return ok(
-    candidateReal.data === rootReal.data || files.path.contains(rootReal.data, candidateReal.data)
-  );
+  const opened = openFileSystem(files);
+  if (!opened.success) return opened;
+  return isRealPathContainedByRealPath(opened.data, files.path, rootPath, candidatePath, options);
 }
