@@ -129,3 +129,40 @@ describe('serializeDoc', () => {
     expect(serializeDoc(doc)).toBe('@src/components/chat-composer.tsx');
   });
 });
+
+// ── serializeMentionLabel (quoted form) ────────────────────────────────────────
+
+import { serializeMentionLabel } from './serialize';
+
+describe('serializeMentionLabel', () => {
+  it('emits bare @token for a space-free file path', () => {
+    expect(serializeMentionLabel('src/auth/jwt.ts', 'file')).toBe('@src/auth/jwt.ts');
+  });
+
+  it('emits quoted @"..." for a file path containing spaces', () => {
+    expect(serializeMentionLabel('/Users/me/My Project/foo.ts', 'file')).toBe(
+      '@"/Users/me/My Project/foo.ts"'
+    );
+  });
+
+  it('emits quoted @"..." for a file path with special chars (~, %)', () => {
+    expect(serializeMentionLabel('/tmp/foo~bar%.ts', 'file')).toBe('@"/tmp/foo~bar%.ts"');
+  });
+
+  it('emits bare @token for a non-file kind even if the label has spaces', () => {
+    // issues, symbols, custom kinds keep the bare form — they are not file paths.
+    expect(serializeMentionLabel('my issue label', 'issue')).toBe('@my issue label');
+    expect(serializeMentionLabel('my issue label', null)).toBe('@my issue label');
+  });
+
+  it('emits quoted @"..." for a file path ending in a dot (which the tokenizer would drop)', () => {
+    // The label intentionally ends in '.' — bareSafe would be false.
+    expect(serializeMentionLabel('/tmp/foo.', 'file')).toBe('@"/tmp/foo."');
+  });
+
+  it('emits bare @token for an absolute path with no special chars', () => {
+    expect(serializeMentionLabel('/Users/me/projects/emdash/src/main.ts', 'file')).toBe(
+      '@/Users/me/projects/emdash/src/main.ts'
+    );
+  });
+});

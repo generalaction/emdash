@@ -2,7 +2,7 @@
  * Serialize a TipTap/ProseMirror document to plain text.
  *
  * Rules:
- *  - `mention` node   → `@${node.attrs.label ?? node.attrs.id}`
+ *  - `mention` node   → `@${label}` or `@"${label}"` for file mentions with unsafe chars
  *  - `slashCommand` node → `/${node.attrs.name ?? node.attrs.id}`
  *  - `hardBreak` node → `\n`
  *  - paragraph boundary → `\n` between paragraphs (but NOT trailing)
@@ -12,6 +12,29 @@
 import type { Node } from '@tiptap/pm/model';
 
 /**
+ * Mirrors the character class of chat-ui's AT_TOKEN_RE. A label is "bare-safe"
+ * when every character is in the tokenizer's allowed set and it doesn't end with
+ * a dot (the tokenizer drops a trailing sentence-final dot).
+ */
+const BARE_TOKEN_SAFE_RE = /^[\w/\-:().]+$/;
+
+/**
+ * Serialize a mention label to its `@...` text form.
+ *
+ * For `file` mentions whose label contains spaces or other special characters
+ * that the transcript tokenizer cannot parse as a bare `@token`, emit a quoted
+ * form `@"<label>"` instead. All other mentions use the bare `@<label>` form.
+ *
+ * The quoted form is also what the agent receives on submit, so agents see
+ * `@"abs path"` for file paths with spaces — a conventional, unambiguous style.
+ */
+export function serializeMentionLabel(label: string, kind: string | null): string {
+  const bareSafe = BARE_TOKEN_SAFE_RE.test(label) && !label.endsWith('.');
+  if (kind === 'file' && !bareSafe) return `@"${label}"`;
+  return `@${label}`;
+}
+
+/**
  * Serialize a single ProseMirror node to its plain-text representation.
  * Exported so that `clipboardTextSerializer` (and other callers) can reuse it
  * without going through `serializeDoc`, which expects a full document root.
@@ -19,7 +42,7 @@ import type { Node } from '@tiptap/pm/model';
 export function serializeNode(node: Node): string {
   if (node.type.name === 'mention') {
     const label = (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
-    return `@${label}`;
+    return serializeMentionLabel(label, node.attrs.kind as string | null);
   }
 
   if (node.type.name === 'slashCommand') {

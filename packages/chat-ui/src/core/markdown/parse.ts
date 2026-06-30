@@ -55,6 +55,15 @@ const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 // ── @-mention scanning ──────────────────────────────────────────────────────
 
 /**
+ * Regex matching quoted file mentions: @"<path>". The path may contain spaces
+ * and any character except a literal double-quote or newline. Matched before
+ * AT_TOKEN_RE so that paths with special characters round-trip intact.
+ *
+ * Example matched: @"/Users/me/My Project/foo.ts"
+ */
+const QUOTED_AT_TOKEN_RE = /@"([^"\n]+)"/g;
+
+/**
  * Regex matching `@<token>` where token runs to the next whitespace, @, or end
  * of string. Tokens may include word chars, dots, slashes, hyphens, colons,
  * and parens (covering file paths, issue refs, and symbol names).
@@ -113,10 +122,41 @@ function splitAtMentions(
   type TokenHit = { index: number; length: number; run: InlineRun };
   const hits: TokenHit[] = [];
 
+  // Quoted file mentions are tried first so paths with spaces/special chars
+  // round-trip intact. Each matched range is recorded and the bare matcher
+  // skips any position that falls inside a quoted range.
+  const quotedRanges: Array<[number, number]> = [];
+
+  if (mentionProvider) {
+    QUOTED_AT_TOKEN_RE.lastIndex = 0;
+    let qm: RegExpExecArray | null;
+    while ((qm = QUOTED_AT_TOKEN_RE.exec(text)) !== null) {
+      const token = qm[1];
+      const meta = mentionProvider.resolve(token, uri);
+      if (!meta) continue;
+      const rangeEnd = qm.index + qm[0].length;
+      quotedRanges.push([qm.index, rangeEnd]);
+      hits.push({
+        index: qm.index,
+        length: qm[0].length,
+        run: {
+          kind: 'mention',
+          label: meta.label,
+          id: meta.id,
+          name: meta.name,
+          mentionKind: meta.kind,
+          iconClass: meta.iconClass,
+        } satisfies InlineMention,
+      });
+    }
+  }
+
   if (mentionProvider) {
     AT_TOKEN_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = AT_TOKEN_RE.exec(text)) !== null) {
+      // Skip positions that are inside an already-matched quoted range.
+      if (quotedRanges.some(([s, e]) => match!.index >= s && match!.index < e)) continue;
       const token = match[1];
       const meta = mentionProvider.resolve(token, uri);
       if (!meta) continue;

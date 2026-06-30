@@ -108,6 +108,42 @@ describe('AT_TOKEN_RE standard token shapes', () => {
   });
 });
 
+// ── Quoted @"..." mention form ────────────────────────────────────────────────
+
+describe('QUOTED_AT_TOKEN_RE: quoted file mentions', () => {
+  it('resolves a quoted mention with spaces to a single mention run', () => {
+    const runs = firstProseRuns('@"/Users/me/My Project/foo.ts"');
+    expect(mentionLabels(runs)).toEqual(['/Users/me/My Project/foo.ts']);
+    // No stray trailing text runs.
+    expect(textSegments(runs).filter((t) => t.trim())).toHaveLength(0);
+  });
+
+  it('resolves a bare mention and a quoted mention in the same paragraph', () => {
+    const runs = firstProseRuns('See @src/auth/jwt.ts and @"/Users/me/My Docs/notes.md"');
+    expect(mentionLabels(runs)).toEqual(['src/auth/jwt.ts', '/Users/me/My Docs/notes.md']);
+  });
+
+  it('does not split a quoted path that contains @', () => {
+    // The quoted range must suppress the bare AT_TOKEN_RE inside it.
+    const runs = firstProseRuns('@"/usr/local/bin/@foo/bar.ts"');
+    expect(mentionLabels(runs)).toHaveLength(1);
+    expect(mentionLabels(runs)[0]).toBe('/usr/local/bin/@foo/bar.ts');
+  });
+
+  it('leaves the quoted form as plain text when the provider returns null', () => {
+    const nullProvider: MentionProvider = { resolve: () => null };
+    const blocks = parseMarkdownToBlocks('t', '@"/Users/me/My Project/foo.ts"', nullProvider);
+    const prose = blocks.find((b): b is ProseBlock => b.kind === 'prose');
+    const mentions = (prose?.runs ?? []).filter((r) => r.kind === 'mention');
+    expect(mentions).toHaveLength(0);
+  });
+
+  it('resolves a quoted absolute path with special chars', () => {
+    const runs = firstProseRuns('@"/tmp/foo~bar%.ts"');
+    expect(mentionLabels(runs)).toEqual(['/tmp/foo~bar%.ts']);
+  });
+});
+
 // ── Rule block ──────────────────────────────────────────────────────────────
 
 describe('thematicBreak → rule block', () => {
