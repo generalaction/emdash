@@ -40,8 +40,8 @@ import {
   type ChatHighlighter,
   type HighlightResult,
 } from './highlight/highlighter';
-import type { Block } from './markdown/document';
 import type { CommandProvider } from './markdown/command-provider';
+import type { Block } from './markdown/document';
 import type { MentionProvider } from './markdown/mention-provider';
 import { parseMarkdownToBlocks } from './markdown/parse';
 
@@ -431,7 +431,14 @@ export function createParseCaches(
       // Re-parse the still-growing tail (small; only content after boundary).
       const growingChunk = tail.slice(boundary);
       const growingBlocks = growingChunk.trim()
-        ? parseMarkdownToBlocks(id, growingChunk, mentionProvider, commandProvider, rec.counter, uri)
+        ? parseMarkdownToBlocks(
+            id,
+            growingChunk,
+            mentionProvider,
+            commandProvider,
+            rec.counter,
+            uri
+          )
         : [];
 
       return growingBlocks.length > 0 ? [...rec.stableBlocks, ...growingBlocks] : rec.stableBlocks;

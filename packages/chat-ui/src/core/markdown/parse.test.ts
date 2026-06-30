@@ -15,9 +15,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { CommandProvider } from './command-provider';
 import type { InlineMention, InlineRun, InlineText, ProseBlock, RuleBlock } from './document';
 import type { MentionProvider } from './mention-provider';
-import type { CommandProvider } from './command-provider';
 import { parseMarkdownToBlocks } from './parse';
 
 // Stub provider that resolves any token it receives as a 'file' mention so
@@ -182,9 +182,7 @@ describe('/command slash tokens', () => {
     };
     const blocks = parseMarkdownToBlocks('t', '/review the changes', undefined, commandProvider);
     const prose = blocks.find((b): b is ProseBlock => b.kind === 'prose');
-    const mentions = (prose?.runs ?? []).filter(
-      (r): r is InlineMention => r.kind === 'mention'
-    );
+    const mentions = (prose?.runs ?? []).filter((r): r is InlineMention => r.kind === 'mention');
     expect(mentions).toHaveLength(1);
     expect(mentions[0].label).toBe('/review');
     expect(mentions[0].tone).toBe('command');

@@ -12,8 +12,8 @@
 
 import { Mention as TipTapMention } from '@tiptap/extension-mention';
 import { PluginKey } from '@tiptap/pm/state';
-import type { SuggestionOptions } from '@tiptap/suggestion';
 import { ReactNodeViewRenderer } from '@tiptap/react';
+import type { SuggestionOptions } from '@tiptap/suggestion';
 import { SlashCommandPill } from '../slash-command-pill';
 import type { CommandItem } from '../types';
 

@@ -24,12 +24,12 @@ import { toolUnitDef } from '@components/rows/tools/tool/tool.def';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import type { UnitDef } from '@core/units';
 import { defineUnit } from '@core/units';
+import type { ItemNode } from '@state/flatten';
 import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import type { JSX } from 'solid-js';
 import { For, Show, createMemo } from 'solid-js';
 import type { ChatItem, ChatToolCall } from '@/model';
-import type { ItemNode } from '@state/flatten';
 import { toolGroupCardVars, toolGroupRoot } from './tool-group.css';
 
 // ── Vars ──────────────────────────────────────────────────────────────────────

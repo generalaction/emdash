@@ -46,14 +46,12 @@ export function buildMentionExtension(
   }).configure({
     HTMLAttributes: { class: 'mention-chip' },
     renderText({ node }) {
-      const label =
-        (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
+      const label = (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
       const name = node.attrs.name as string | null;
       return serializeMentionLabel(label, node.attrs.kind as string | null, name);
     },
     renderHTML({ node }) {
-      const label =
-        (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
+      const label = (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
       const name = node.attrs.name as string | null;
       return [
         'span',

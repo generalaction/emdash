@@ -186,8 +186,7 @@ export const Streaming: Story = {
           id: 'c3',
           path: 'src/auth/token.ts',
           oldText: 'function verify(tok) {\n  return tok !== null;\n}',
-          newText:
-            'export function verify(tok: string): boolean {\n  return tok.length > 0;\n}\n',
+          newText: 'export function verify(tok: string): boolean {\n  return tok.length > 0;\n}\n',
           headerMs: 400,
           chunkMs: 100,
           parentId: 'p1',

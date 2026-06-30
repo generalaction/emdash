@@ -1,3 +1,4 @@
+import type { MentionKind, MentionSyntax } from '@emdash/shared/markdown';
 /**
  * MdastMention — custom mdast node produced by the `remarkInlineMentions`
  * transform plugin.
@@ -7,7 +8,6 @@
  * to `InlineMention` runs without needing to re-run regex scanning.
  */
 import type { Node } from 'unist';
-import type { MentionKind, MentionSyntax } from '@emdash/shared/markdown';
 
 export interface MdastMention extends Node {
   type: 'mention';

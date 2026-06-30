@@ -374,7 +374,14 @@ export function ChatRoot(props: ChatRootProps) {
       const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
       committedUnitsArr = [...committedUnitsArr, ...newUnits];
     } else {
-      committedUnitsArr = flattenTier(next, ctx, SEGMENTERS, UNIT_REGISTRY, undefined, NODE_SEGMENTERS);
+      committedUnitsArr = flattenTier(
+        next,
+        ctx,
+        SEGMENTERS,
+        UNIT_REGISTRY,
+        undefined,
+        NODE_SEGMENTERS
+      );
     }
 
     lastCommitted = next;

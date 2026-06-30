@@ -18,12 +18,12 @@
  */
 
 import { AT_BARE_PATTERN, SLASH_PATTERN } from '@emdash/shared/markdown';
-import { toString } from 'mdast-util-to-string';
 import type { Link, Parent, Root, Text } from 'mdast';
+import { toString } from 'mdast-util-to-string';
 import { SKIP, visit } from 'unist-util-visit';
 import type { VFile } from 'vfile';
-import type { MdastMention } from './mdast-mention';
 import type { CommandProvider } from './command-provider';
+import type { MdastMention } from './mdast-mention';
 import type { MentionProvider } from './mention-provider';
 
 /** Shape of the per-call data threaded through the VFile. */
@@ -46,53 +46,46 @@ export function remarkInlineMentions() {
     // remark has already parsed `[label](target)` as a `link` node; we detect
     // the `@` prefix by inspecting the immediately-preceding text sibling.
     if (mentionProvider) {
-      visit(
-        tree,
-        'link',
-        (node: Link, index: number | undefined, parent: Parent | undefined) => {
-          if (index == null || !parent) return;
-          const prev = parent.children[index - 1];
-          if (prev?.type !== 'text') return;
-          const textNode = prev as Text;
-          if (!textNode.value.endsWith('@')) return;
+      visit(tree, 'link', (node: Link, index: number | undefined, parent: Parent | undefined) => {
+        if (index == null || !parent) return;
+        const prev = parent.children[index - 1];
+        if (prev?.type !== 'text') return;
+        const textNode = prev as Text;
+        if (!textNode.value.endsWith('@')) return;
 
-          // Strip the trailing '@' from the preceding text.
-          textNode.value = textNode.value.slice(0, -1);
+        // Strip the trailing '@' from the preceding text.
+        textNode.value = textNode.value.slice(0, -1);
 
-          const label = toString(node);
-          const target = node.url; // angle-bracket wrapping already stripped by remark
-          const meta = mentionProvider.resolve(target, uri) ?? null;
+        const label = toString(node);
+        const target = node.url; // angle-bracket wrapping already stripped by remark
+        const meta = mentionProvider.resolve(target, uri) ?? null;
 
-          const mention: MdastMention = {
-            type: 'mention',
-            syntax: 'at-bracket',
-            label,
-            target,
-            name: meta?.name ?? label,
-            mentionKind: meta?.kind ?? 'file',
-            iconClass: meta?.iconClass,
-          };
+        const mention: MdastMention = {
+          type: 'mention',
+          syntax: 'at-bracket',
+          label,
+          target,
+          name: meta?.name ?? label,
+          mentionKind: meta?.kind ?? 'file',
+          iconClass: meta?.iconClass,
+        };
 
-          // Replace the link node with the mention node.
-          parent.children[index] = mention as unknown as typeof parent.children[number];
-          return SKIP;
-        }
-      );
+        // Replace the link node with the mention node.
+        parent.children[index] = mention as unknown as (typeof parent.children)[number];
+        return SKIP;
+      });
     }
 
     // ── Pass 2: split text nodes on @bare and /command ──────────────────────
-    visit(
-      tree,
-      'text',
-      (node: Text, index: number | undefined, parent: Parent | undefined) => {
-        if (index == null || !parent) return;
-        const replacements = splitTextNode(node.value, mentionProvider, commandProvider, uri);
-        if (replacements.length === 1 && (replacements[0] as { type: string }).type === 'text') return;
-        parent.children.splice(index, 1, ...(replacements as typeof parent.children));
-        // Return the new index to skip re-visiting the injected nodes.
-        return [SKIP, index + replacements.length] as [typeof SKIP, number];
-      }
-    );
+    visit(tree, 'text', (node: Text, index: number | undefined, parent: Parent | undefined) => {
+      if (index == null || !parent) return;
+      const replacements = splitTextNode(node.value, mentionProvider, commandProvider, uri);
+      if (replacements.length === 1 && (replacements[0] as { type: string }).type === 'text')
+        return;
+      parent.children.splice(index, 1, ...(replacements as typeof parent.children));
+      // Return the new index to skip re-visiting the injected nodes.
+      return [SKIP, index + replacements.length] as [typeof SKIP, number];
+    });
   };
 }
 

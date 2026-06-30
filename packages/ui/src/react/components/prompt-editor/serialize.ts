@@ -10,9 +10,9 @@
  *  - all other inline nodes / marks → plain text content
  */
 
-import type { Node } from '@tiptap/pm/model';
 import { stringifyMention } from '@emdash/shared/markdown';
 import type { MentionKind } from '@emdash/shared/markdown';
+import type { Node } from '@tiptap/pm/model';
 
 /**
  * Serialize a mention to its canonical text form.

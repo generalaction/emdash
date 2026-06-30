@@ -1,10 +1,18 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, ChevronRight, CircleAlert, Paperclip, ShieldCheck, Square, X } from 'lucide-react';
+import {
+  ArrowUp,
+  ChevronRight,
+  CircleAlert,
+  Paperclip,
+  ShieldCheck,
+  Square,
+  X,
+} from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
-import { ComboboxPopover } from '../combobox-popover';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
+import { ComboboxPopover } from '../combobox-popover';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
 import type {
   CommandItem,
@@ -558,7 +566,10 @@ export function ChatComposer({
     if (!text.trim() && !hasImages) return;
     // While the agent is actively working, route to the host's conflict handler
     // (e.g. a "cancel turn and send" confirmation modal) instead of submitting.
-    if (isWorking && onSubmitWhileWorking) { onSubmitWhileWorking(text); return; }
+    if (isWorking && onSubmitWhileWorking) {
+      onSubmitWhileWorking(text);
+      return;
+    }
     if (disabled || !canSubmit) return;
     onSubmit(text);
   };
@@ -623,7 +634,9 @@ export function ChatComposer({
     ? Object.entries(effortOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
 
-  const selectedEffortItem = selectedEffort ? (effortItems.find((e) => e.id === selectedEffort) ?? null) : null;
+  const selectedEffortItem = selectedEffort
+    ? (effortItems.find((e) => e.id === selectedEffort) ?? null)
+    : null;
 
   // ── Permission mode items ────────────────────────────────────────────────────
 

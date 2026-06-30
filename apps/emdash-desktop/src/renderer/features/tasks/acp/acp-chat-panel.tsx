@@ -1,5 +1,4 @@
 import { ChatComposer, ImageViewerDialog } from '@emdash/ui/react/components';
-import { Button } from '@renderer/lib/ui/button';
 import type {
   ComposerAgentOption,
   ComposerAttachment,
@@ -24,6 +23,7 @@ import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { useAgents } from '@renderer/lib/stores/use-agents';
+import { Button } from '@renderer/lib/ui/button';
 import type { AcpChatStore } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 

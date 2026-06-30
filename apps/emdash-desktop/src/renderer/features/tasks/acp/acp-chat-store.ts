@@ -14,15 +14,19 @@ import {
   toSessionSnapshot,
   type SessionSnapshot,
 } from '@emdash/core/acp/session-machine';
-import type { CommandItem, ComposerEffortOption, ComposerModelOption } from '@emdash/ui/react/components';
+import type {
+  CommandItem,
+  ComposerEffortOption,
+  ComposerModelOption,
+} from '@emdash/ui/react/components';
 import { action, computed, makeObservable, observable, runInAction, when } from 'mobx';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
 } from '@renderer/lib/chat/advertised-command-provider';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
-import { events, rpc } from '@renderer/lib/ipc';
 import { toast } from '@renderer/lib/hooks/use-toast';
+import { events, rpc } from '@renderer/lib/ipc';
 import {
   acpSessionClosedChannel,
   acpSessionStateChannel,

@@ -26,8 +26,8 @@ import { toolGroupUnitDef } from '@components/rows/tools/tool-group/tool-group.d
 import { toolUnitDef } from '@components/rows/tools/tool/tool.def';
 import type { GroupChrome, ItemSegmenter, UnitDef } from '@core/units';
 import { unit } from '@core/units';
-import type { ChatItem, ChatMessage } from '@/model';
 import type { ItemNode, NodeSegmenter } from '@state/flatten';
+import type { ChatItem, ChatMessage } from '@/model';
 import { ROW_INSET_X } from './row-metrics';
 
 // ── Native single-unit segmenter for composites ───────────────────────────────

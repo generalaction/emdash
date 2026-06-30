@@ -38,6 +38,7 @@ import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
 import { VFile } from 'vfile';
+import type { CommandProvider } from './command-provider';
 import type {
   Block,
   BlockId,
@@ -51,9 +52,8 @@ import type {
   RuleBlock,
   TableBlock,
 } from './document';
-import type { CommandProvider } from './command-provider';
-import type { MentionProvider } from './mention-provider';
 import type { MdastMention } from './mdast-mention';
+import type { MentionProvider } from './mention-provider';
 import { remarkInlineMentions } from './remark-inline-mentions';
 import type { ParseData } from './remark-inline-mentions';
 
@@ -239,9 +239,7 @@ function blockToBlocks(
 
     case 'blockquote': {
       for (const child of (node as Parent).children) {
-        blocks.push(
-          ...blockToBlocks(child as BlockContent, messageId, counter, depth + 1, true)
-        );
+        blocks.push(...blockToBlocks(child as BlockContent, messageId, counter, depth + 1, true));
       }
       break;
     }
@@ -390,9 +388,7 @@ export function parseMarkdownToBlocks(
   const blocks: Block[] = [];
 
   for (const child of tree.children) {
-    blocks.push(
-      ...blockToBlocks(child as BlockContent | DefinitionContent, messageId, counter)
-    );
+    blocks.push(...blockToBlocks(child as BlockContent | DefinitionContent, messageId, counter));
   }
 
   return blocks;

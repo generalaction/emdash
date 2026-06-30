@@ -12,11 +12,11 @@ import {
   GenericTabDragPreview,
   GenericTabItem,
 } from '@renderer/features/tabs/tab-bar/generic-tab-item';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
 import { ConversationAgentIcon } from '../conversations/conversation-agent-icon';
 import { formatConversationTitleForDisplay } from '../conversations/conversation-title-utils';
 import { conversationRegistry } from '../stores/conversation-registry';
-import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import type { TaskTabContext } from '../stores/task-tab-context';
 import { AcpChatPanel } from './acp-chat-panel';
 import { getAcpChatResourceManager } from './acp-chat-resource-manager';

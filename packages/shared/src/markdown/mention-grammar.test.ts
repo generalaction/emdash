@@ -12,9 +12,9 @@ describe('stringifyMention', () => {
     expect(stringifyMention({ label: 'issue-42', target: 'issue-42', kind: 'issue' })).toBe(
       '@issue-42'
     );
-    expect(stringifyMention({ label: 'handleSubmit', target: 'handleSubmit', kind: 'symbol' })).toBe(
-      '@handleSubmit'
-    );
+    expect(
+      stringifyMention({ label: 'handleSubmit', target: 'handleSubmit', kind: 'symbol' })
+    ).toBe('@handleSubmit');
     expect(stringifyMention({ label: 'foo', target: 'foo', kind: 'custom' })).toBe('@foo');
     expect(stringifyMention({ label: 'foo', kind: null })).toBe('@foo');
   });
@@ -24,9 +24,9 @@ describe('stringifyMention', () => {
   });
 
   it('emits @[label](target) bracket form for a file with target (no spaces)', () => {
-    expect(
-      stringifyMention({ label: 'jwt.ts', target: 'src/auth/jwt.ts', kind: 'file' })
-    ).toBe('@[jwt.ts](src/auth/jwt.ts)');
+    expect(stringifyMention({ label: 'jwt.ts', target: 'src/auth/jwt.ts', kind: 'file' })).toBe(
+      '@[jwt.ts](src/auth/jwt.ts)'
+    );
   });
 
   it('emits same label and target when label == target (no name override)', () => {
