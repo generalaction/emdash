@@ -1,4 +1,4 @@
-import type { FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
+import type { CompactChainSegment, FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
 
 export interface RenderableFileNode {
   id: NodeId;
@@ -11,6 +11,10 @@ export interface RenderableFileNode {
   childrenLoaded: boolean;
   isHidden: boolean;
   extension?: string;
+  /** Number of children, probed one level ahead by core; `undefined` for files/unprobed dirs. */
+  childCount?: number;
+  /** Core-computed single-child directory chain that collapses into this node's row. */
+  compactChain?: CompactChainSegment[];
 }
 
 export interface NestedFileNode {
@@ -80,6 +84,8 @@ export function toRenderableFileNode(node: CoreFileNode): RenderableFileNode {
     childrenLoaded: node.childrenLoaded,
     isHidden: name.startsWith('.'),
     extension,
+    childCount: node.childCount,
+    compactChain: node.compactChain,
   };
 }
 
@@ -108,17 +114,87 @@ function childrenFor<T extends VisibleFileNode>(
   return hasNestedChildren(node) ? (node.children as unknown as readonly T[]) : [];
 }
 
-function extendChain<T extends VisibleFileNode>(node: T, childrenById?: ChildrenById<T>): T[] {
+/**
+ * The loaded children of `node`, or `undefined` when this view has not loaded that scope yet.
+ * Nested git-changes nodes always carry their children inline, so they are always "loaded".
+ */
+function loadedChildrenFor<T extends VisibleFileNode>(
+  node: T,
+  childrenById?: ChildrenById<T>,
+  loadedPaths?: ReadonlySet<string>
+): readonly T[] | undefined {
+  if (hasNestedChildren(node)) return node.children as unknown as readonly T[];
+  if (!childrenById || !('id' in node)) return undefined;
+  if (loadedPaths) {
+    return loadedPaths.has(node.path) ? (childrenById.get(node.id) ?? []) : undefined;
+  }
+  // Without explicit load info, treat presence in the index as "loaded".
+  return childrenById.has(node.id) ? (childrenById.get(node.id) ?? []) : undefined;
+}
+
+function compactChainOf(node: VisibleFileNode): CompactChainSegment[] | undefined {
+  return 'compactChain' in node ? node.compactChain : undefined;
+}
+
+function syntheticChainNode(
+  segment: CompactChainSegment,
+  parent: RenderableFileNode
+): RenderableFileNode {
+  return {
+    // Chain segments are not loaded scopes, so they have no real node id; the renderer keys rows by
+    // path and registers a scope only once its real node has been loaded. The id is never read.
+    id: -1,
+    path: normalizeFileTreePath(segment.path),
+    name: segment.name,
+    parentId: parent.id,
+    parentPath: parent.path,
+    depth: parent.depth + 1,
+    type: 'directory',
+    childrenLoaded: false,
+    isHidden: segment.name.startsWith('.'),
+  };
+}
+
+/**
+ * Build the compacted directory chain for `node`: a run of single-child directories rendered as one
+ * row. While a scope is loaded, the chain follows real children; once it reaches an unloaded scope
+ * it continues from the core-computed `compactChain` metadata so collapsed chains compact without
+ * the renderer probing the filesystem.
+ */
+function extendChain<T extends VisibleFileNode>(
+  node: T,
+  childrenById?: ChildrenById<T>,
+  loadedPaths?: ReadonlySet<string>
+): T[] {
   const chain: T[] = [node];
   const visited = new Set<string>([node.path]);
   let current = node;
   while (current.type === 'directory') {
-    const children = childrenFor(current, childrenById);
-    if (children.length !== 1 || children[0].type !== 'directory') break;
-    if (visited.has(children[0].path)) break;
-    current = children[0];
-    visited.add(current.path);
-    chain.push(current);
+    const children = loadedChildrenFor(current, childrenById, loadedPaths);
+    if (children !== undefined) {
+      if (
+        children.length === 1 &&
+        children[0].type === 'directory' &&
+        !visited.has(children[0].path)
+      ) {
+        current = children[0];
+        visited.add(current.path);
+        chain.push(current);
+        continue;
+      }
+      break;
+    }
+    const segments = compactChainOf(current);
+    if (!segments || segments.length === 0) break;
+    let parent = current as unknown as RenderableFileNode;
+    for (const segment of segments) {
+      const synthetic = syntheticChainNode(segment, parent);
+      if (visited.has(synthetic.path)) break;
+      chain.push(synthetic as unknown as T);
+      visited.add(synthetic.path);
+      parent = synthetic;
+    }
+    break;
   }
   return chain;
 }
@@ -136,13 +212,15 @@ export function isChainExpanded<T extends VisibleFileNode>(
 export function buildVisibleRows<T extends VisibleFileNode>(
   rootNodes: readonly T[],
   expandedPaths: Set<string>,
-  childrenById?: ChildrenById<T>
+  childrenById?: ChildrenById<T>,
+  loadedPaths?: ReadonlySet<string>
 ): Array<TreeRow<T>> {
   const rows: Array<TreeRow<T>> = [];
 
   function walk(nodes: readonly T[], renderDepth: number) {
     for (const node of nodes) {
-      const chain = node.type === 'directory' ? extendChain(node, childrenById) : [node];
+      const chain =
+        node.type === 'directory' ? extendChain(node, childrenById, loadedPaths) : [node];
       const terminus = chain[chain.length - 1];
       rows.push({ node: terminus, chain, renderDepth });
       if (terminus.type === 'directory' && isChainExpanded(chain, expandedPaths)) {
@@ -153,20 +231,4 @@ export function buildVisibleRows<T extends VisibleFileNode>(
 
   walk(rootNodes, 0);
   return rows;
-}
-
-export function expandedDirectoryPathsNeedingLoad<T extends VisibleFileNode>(
-  rows: readonly TreeRow<T>[],
-  expandedPaths: Set<string>,
-  loadedPaths: Set<string>,
-  pendingPaths: Set<string>
-): string[] {
-  const paths: string[] = [];
-  for (const row of rows) {
-    if (row.node.type !== 'directory') continue;
-    if (!isChainExpanded(row.chain, expandedPaths)) continue;
-    if (loadedPaths.has(row.node.path) || pendingPaths.has(row.node.path)) continue;
-    paths.push(row.node.path);
-  }
-  return paths;
 }

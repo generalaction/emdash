@@ -1,4 +1,4 @@
-import type { FileNode, NodeId } from '@emdash/core/files';
+import type { CompactChainSegment, FileNode, NodeId } from '@emdash/core/files';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileTreeProjectionChannel } from '@shared/core/fs/fsEvents';
 import { FilesStore } from './files-store';
@@ -47,7 +47,8 @@ function node(
   path: string,
   type: 'file' | 'directory',
   parentId: NodeId | null = null,
-  childrenLoaded = false
+  childrenLoaded = false,
+  compactChain?: CompactChainSegment[]
 ): FileNode {
   const parts = path.split('/').filter(Boolean);
   return {
@@ -57,6 +58,7 @@ function node(
     parentId,
     type,
     childrenLoaded,
+    ...(compactChain ? { compactChain } : {}),
   };
 }
 
@@ -256,6 +258,39 @@ describe('FilesStore', () => {
     store.dispose();
   });
 
+  it('resets projection state on resync so expanded paths can register again', async () => {
+    mocks.openProjection
+      .mockResolvedValueOnce(openResult([node(1, '/repo/src', 'directory')]))
+      .mockResolvedValueOnce(openResult([node(10, '/repo/src', 'directory')], 10));
+    mocks.registerDir.mockImplementation(
+      async (_projectId, _workspaceId, _subscriptionId, dirId) => {
+        if (dirId === 1) {
+          emitProjection(2, [{ scopeId: 1, entries: [node(2, '/repo/src/old.ts', 'file', 1)] }]);
+          return versionResult(2);
+        }
+        emitProjection(11, [{ scopeId: 10, entries: [node(11, '/repo/src/new.ts', 'file', 10)] }]);
+        return versionResult(11);
+      }
+    );
+
+    const store = createStore();
+    await store.start();
+    await store.registerDir('src');
+    expect(store.nodes.has('/repo/src/old.ts')).toBe(true);
+
+    await store.resync();
+
+    expect(store.nodes.has('/repo/src/old.ts')).toBe(false);
+    expect(store.loadedPaths.has('/repo/src')).toBe(false);
+
+    store.reconcileVisibleScopes(new Set(['/repo/src']));
+    await flushAsyncWork();
+
+    expect(mocks.registerDir).toHaveBeenCalledWith('project-1', 'workspace-1', SUBSCRIPTION_ID, 10);
+    expect(store.nodes.has('/repo/src/new.ts')).toBe(true);
+    store.dispose();
+  });
+
   it('reveals and expands ancestor directories for a file', async () => {
     mocks.openProjection.mockResolvedValue(openResult([node(1, '/repo/src', 'directory')]));
     mocks.revealPath.mockImplementation(async () => {
@@ -307,8 +342,34 @@ describe('FilesStore', () => {
     store.dispose();
   });
 
-  it('prefetches single-child directory chains for compaction while collapsed', async () => {
-    mocks.openProjection.mockResolvedValue(openResult([node(1, '/repo/src', 'directory')]));
+  it('does not register scopes for collapsed compactable chains', async () => {
+    // `src` carries core compaction metadata, so it renders compacted while collapsed without the
+    // renderer registering (loading) any scope.
+    mocks.openProjection.mockResolvedValue(
+      openResult([
+        node(1, '/repo/src', 'directory', null, false, [
+          { name: 'nested', path: '/repo/src/nested' },
+        ]),
+      ])
+    );
+
+    const store = createStore();
+    await store.start();
+
+    store.reconcileVisibleScopes(new Set());
+    await flushAsyncWork();
+    expect(mocks.registerDir).not.toHaveBeenCalled();
+    store.dispose();
+  });
+
+  it('registers chain segments progressively as the chain is expanded', async () => {
+    mocks.openProjection.mockResolvedValue(
+      openResult([
+        node(1, '/repo/src', 'directory', null, false, [
+          { name: 'nested', path: '/repo/src/nested' },
+        ]),
+      ])
+    );
     mocks.registerDir.mockImplementation(async (_p, _w, _s, dirId) => {
       if (dirId === 1) {
         emitProjection(2, [{ scopeId: 1, entries: [node(2, '/repo/src/nested', 'directory', 1)] }]);
@@ -323,22 +384,21 @@ describe('FilesStore', () => {
     const store = createStore();
     await store.start();
 
-    // Collapsed (no expanded paths): the visible `src` row is probed for compaction.
-    store.reconcileVisibleScopes(new Set());
+    // Expanding a compacted chain marks every segment expanded; the head registers first.
+    const expanded = new Set(['/repo/src', '/repo/src/nested']);
+    store.reconcileVisibleScopes(expanded);
     await flushAsyncWork();
     expect(mocks.registerDir).toHaveBeenCalledWith('project-1', 'workspace-1', SUBSCRIPTION_ID, 1);
 
-    // `src` resolved to a single sub-directory, so the chain extends and `nested` is auto-registered
-    // without ever being expanded.
-    store.reconcileVisibleScopes(new Set());
+    // Once `src` resolves, `nested` becomes a real node and is registered on the next pass.
+    store.reconcileVisibleScopes(expanded);
     await flushAsyncWork();
     expect(mocks.registerDir).toHaveBeenCalledWith('project-1', 'workspace-1', SUBSCRIPTION_ID, 2);
-    expect(store.nodes.has('/repo/src/nested')).toBe(true);
     expect(store.nodes.has('/repo/src/nested/leaf.ts')).toBe(true);
     store.dispose();
   });
 
-  it('probes a multi-child directory once without registering its file children', async () => {
+  it('registers an expanded directory but not its file children', async () => {
     mocks.openProjection.mockResolvedValue(openResult([node(1, '/repo/src', 'directory')]));
     mocks.registerDir.mockImplementation(async () => {
       emitProjection(2, [
@@ -353,20 +413,20 @@ describe('FilesStore', () => {
     const store = createStore();
     await store.start();
 
-    store.reconcileVisibleScopes(new Set());
+    const expanded = new Set(['/repo/src']);
+    store.reconcileVisibleScopes(expanded);
     await flushAsyncWork();
-    store.reconcileVisibleScopes(new Set());
+    store.reconcileVisibleScopes(expanded);
     await flushAsyncWork();
 
-    // Only `src` is registered (probed); its file children are not directories, so the chain stops
-    // and nothing deeper is registered.
+    // Only `src` is registered; its file children are not directories, so nothing deeper registers.
     expect(mocks.registerDir).toHaveBeenCalledTimes(1);
     expect(mocks.registerDir).toHaveBeenCalledWith('project-1', 'workspace-1', SUBSCRIPTION_ID, 1);
     expect(store.loadedPaths.has('/repo/src')).toBe(true);
     store.dispose();
   });
 
-  it('unregisters a scope when it leaves the visible set on collapse', async () => {
+  it('unregisters a scope when it leaves the expanded set on collapse', async () => {
     mocks.openProjection.mockResolvedValue(openResult([node(1, '/repo/src', 'directory')]));
     mocks.registerDir.mockImplementation(async (_p, _w, _s, dirId) => {
       if (dirId === 1) {
@@ -389,14 +449,15 @@ describe('FilesStore', () => {
     const store = createStore();
     await store.start();
 
-    // Expand `src` (multi-child, so no compaction): probe `src`, then its child `sub` becomes a row.
-    store.reconcileVisibleScopes(new Set(['/repo/src']));
+    // Expand both `src` and its subdirectory `sub`.
+    const expanded = new Set(['/repo/src', '/repo/src/sub']);
+    store.reconcileVisibleScopes(expanded);
     await flushAsyncWork();
-    store.reconcileVisibleScopes(new Set(['/repo/src']));
+    store.reconcileVisibleScopes(expanded);
     await flushAsyncWork();
     expect(mocks.registerDir).toHaveBeenCalledWith('project-1', 'workspace-1', SUBSCRIPTION_ID, 2);
 
-    // Collapse `src`: `sub` is no longer visible and must be unregistered.
+    // Collapse everything: `sub` is no longer expanded and must be unregistered.
     store.reconcileVisibleScopes(new Set());
     await flushAsyncWork();
     expect(mocks.unregisterDir).toHaveBeenCalledWith(

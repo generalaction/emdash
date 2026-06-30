@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildVisibleRows,
-  expandedDirectoryPathsNeedingLoad,
   makeNode,
   sortFileNodes,
   toRenderableFileNode,
@@ -245,51 +244,25 @@ describe('file tree utils', () => {
     expect(rows[0].chain.map((node) => node.path)).toEqual(['src', 'src/components']);
   });
 
-  it('finds expanded visible directories that still need loading', () => {
-    const src = toRenderableFileNode({
+  it('compacts a collapsed chain from core compactChain metadata without loaded children', () => {
+    const apps = toRenderableFileNode({
       id: 1,
-      path: 'src',
-      name: 'src',
+      path: 'apps',
+      name: 'apps',
       parentId: null,
       type: 'directory',
       childrenLoaded: false,
+      childCount: 1,
+      compactChain: [{ name: 'desktop', path: 'apps/desktop' }],
     });
-    const docs = toRenderableFileNode({
-      id: 2,
-      path: 'docs',
-      name: 'docs',
-      parentId: null,
-      type: 'directory',
-      childrenLoaded: true,
-    });
-    const pending = toRenderableFileNode({
-      id: 3,
-      path: 'pending',
-      name: 'pending',
-      parentId: null,
-      type: 'directory',
-      childrenLoaded: false,
-    });
-    const readme = toRenderableFileNode({
-      id: 4,
-      path: 'README.md',
-      name: 'README.md',
-      parentId: null,
-      type: 'file',
-      childrenLoaded: false,
-    });
-    const rows = buildVisibleRows(
-      [src, docs, pending, readme],
-      new Set(['src', 'docs', 'pending'])
-    );
+    const childrenById = new Map<number | null, RenderableFileNode[]>([[null, [apps]]]);
 
-    expect(
-      expandedDirectoryPathsNeedingLoad(
-        rows,
-        new Set(['src', 'docs', 'pending']),
-        new Set(['', 'docs']),
-        new Set(['pending'])
-      )
-    ).toEqual(['src']);
+    // `apps` is not loaded for this view, so the chain comes entirely from the core metadata.
+    const rows = buildVisibleRows([apps], new Set(), childrenById, new Set());
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].chain.map((node) => node.path)).toEqual(['apps', 'apps/desktop']);
+    expect(rows[0].node.path).toBe('apps/desktop');
+    expect(rows[0].node.type).toBe('directory');
   });
 });

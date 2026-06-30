@@ -144,6 +144,13 @@ export class FilesStore {
 
   async resync(): Promise<void> {
     this.teardownSubscription();
+    this.clearVersionWaiters();
+    runInAction(() => {
+      this.resetState();
+      this.pendingPathSet.clear();
+      this.syncError = null;
+      this.rebuildView();
+    });
     this.started = true;
     await this.openProjection();
   }
@@ -153,8 +160,7 @@ export class FilesStore {
     for (const optimistic of this.optimisticNodes.values()) {
       if (optimistic.timer) clearTimeout(optimistic.timer);
     }
-    for (const waiter of this.versionWaiters) clearTimeout(waiter.timer);
-    this.versionWaiters.length = 0;
+    this.clearVersionWaiters();
     runInAction(() => {
       this.resetState();
       this.optimisticNodes.clear();
@@ -168,15 +174,24 @@ export class FilesStore {
   reconcileVisibleScopes(expandedPaths: Set<string>): void {
     if (!this.subscriptionId) return;
 
+    // Register only the directory scopes the user has expanded (and that are visible). Compaction
+    // is driven entirely by the core-provided `compactChain` metadata, so collapsed chains render
+    // without any extra registration; expanding a chain adds every segment to `expandedPaths`, and
+    // the scopes load progressively as each ancestor resolves.
     const rows = buildVisibleRows(
       this.viewData.rootNodes,
       expandedPaths,
-      this.viewData.childrenById
+      this.viewData.childrenById,
+      this.viewData.loadedPaths
     );
     const desired = new Set<string>();
     for (const row of rows) {
       for (const segment of row.chain) {
-        if (segment.type === 'directory' && segment.path !== this.rootPath) {
+        if (
+          segment.type === 'directory' &&
+          segment.path !== this.rootPath &&
+          expandedPaths.has(segment.path)
+        ) {
           desired.add(segment.path);
         }
       }
@@ -520,6 +535,14 @@ export class FilesStore {
   private removeVersionWaiter(waiter: VersionWaiter): void {
     const index = this.versionWaiters.indexOf(waiter);
     if (index !== -1) this.versionWaiters.splice(index, 1);
+  }
+
+  private clearVersionWaiters(): void {
+    const waiters = this.versionWaiters.splice(0);
+    for (const waiter of waiters) {
+      clearTimeout(waiter.timer);
+      waiter.resolve();
+    }
   }
 
   private teardownSubscription(): void {
