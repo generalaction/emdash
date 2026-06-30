@@ -7,14 +7,12 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useState } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
 import { PaneContent } from '@renderer/features/tabs/pane-content';
 import { PaneProvider } from '@renderer/features/tabs/pane-context';
-import { PaneDimensionProvider } from '@renderer/features/tabs/pane-dimension-provider';
 import type { Pane as PaneGroup } from '@renderer/features/tabs/pane-layout-store';
 import { TabDragPreview } from '@renderer/features/tabs/tab-bar/tab-drag-preview';
-import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { PaneEmptyState } from '../pane-empty-state';
 import { TabBarActions } from '../tab-bar-actions';
@@ -26,7 +24,6 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
   const bottomPanelRef = usePanelRef();
 
   useEffect(() => {
-    panelDragStore.suppressFor(140);
     if (taskView.isTerminalDrawerOpen) {
       bottomPanelRef.current?.expand();
     } else {
@@ -39,7 +36,7 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
       <ResizablePanel id="task-main-content" minSize="30%">
         <SplitPaneLayout />
       </ResizablePanel>
-      <DraggableResizeHandle className={taskView.isTerminalDrawerOpen ? 'flex' : 'hidden'} />
+      <ResizableHandle className={taskView.isTerminalDrawerOpen ? 'flex' : 'hidden'} />
       <ResizablePanel
         id="task-terminal-drawer"
         panelRef={bottomPanelRef}
@@ -60,7 +57,8 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
 
 /**
  * One horizontal split pane: optional resize handle + resizable panel +
- * PaneProvider + PaneDimensionProvider + PaneContent.
+ * PaneProvider + PaneContent (which self-hosts PaneDimensionProvider on its
+ * content region so the TabBar is excluded from the measured dimensions).
  */
 const SplitPane = observer(function SplitPane({
   group,
@@ -84,9 +82,7 @@ const SplitPane = observer(function SplitPane({
         minSize="200px"
         onPointerDown={onActivate}
       >
-        <PaneDimensionProvider sink={group.pane}>
-          <PaneContent emptyState={<PaneEmptyState />} actionsSlot={<TabBarActions />} />
-        </PaneDimensionProvider>
+        <PaneContent emptyState={<PaneEmptyState />} actionsSlot={<TabBarActions />} />
       </ResizablePanel>
     </PaneProvider>
   );
@@ -99,25 +95,6 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-
-  // Re-measure all pane containers after any layout change (panes added/removed/resized).
-  // Uses a double rAF so the measurement runs after React commits and the layout lib
-  // has applied the new panel sizes. This ensures PTY controllerDims stays accurate even
-  // when the active tab is a non-terminal (file/diff) and no ResizeObserver event fired.
-  const layoutSig =
-    paneLayout.groups.map((g) => g.paneId).join(',') + '|' + paneLayout.paneSizes.join(',');
-  useEffect(() => {
-    const outer = requestAnimationFrame(() => {
-      const inner = requestAnimationFrame(() => {
-        for (const g of paneLayout.groups) g.pane.remeasure();
-      });
-      return inner;
-    });
-    return () => cancelAnimationFrame(outer);
-    // paneLayout.groups is captured by layoutSig; accessing it live inside the rAF
-    // is intentional so we remeasure the panes that actually exist at paint time.
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [layoutSig]);
 
   return (
     <DndContext
@@ -152,37 +129,3 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
     </DndContext>
   );
 });
-
-/**
- * ResizableHandle wrapper that flips panelDragStore on/off during a drag so
- * embedded terminals can suppress fits while the user is dragging.
- */
-export function DraggableResizeHandle(props: ComponentProps<typeof ResizableHandle>) {
-  const draggingRef = useRef(false);
-  const stop = () => {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
-    panelDragStore.setDragging(false);
-  };
-  return (
-    <ResizableHandle
-      {...props}
-      onPointerDown={(e) => {
-        props.onPointerDown?.(e);
-        e.currentTarget.setPointerCapture(e.pointerId);
-        if (!draggingRef.current) {
-          draggingRef.current = true;
-          panelDragStore.setDragging(true);
-        }
-      }}
-      onPointerUp={(e) => {
-        props.onPointerUp?.(e);
-        stop();
-      }}
-      onPointerCancel={(e) => {
-        props.onPointerCancel?.(e);
-        stop();
-      }}
-    />
-  );
-}

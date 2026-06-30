@@ -38,6 +38,12 @@ export interface PaneSizingContextValue {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** The pane's observable pixel dimension sink. */
   sink: PaneDimensionSink;
+  /**
+   * Extra bottom inset (px) subtracted from the available height before the
+   * grid calculation. Used to account for chrome rendered inside the measured
+   * content region (e.g. the conversations ContextBar). Defaults to 0.
+   */
+  bottomPadding: number;
 }
 
 const PaneSizingContext = createContext<PaneSizingContextValue | null>(null);
@@ -50,9 +56,16 @@ export function usePaneSizingContext(): PaneSizingContextValue | null {
 
 export function PaneSizingContextProvider({
   sessionIds,
+  bottomPadding = 0,
   children,
 }: {
   sessionIds: string[];
+  /**
+   * Extra bottom inset (px) subtracted from the measured content height before
+   * the grid calculation. Use this to account for chrome that sits inside the
+   * measured region but below the terminal (e.g. the conversations ContextBar).
+   */
+  bottomPadding?: number;
   children: ReactNode;
 }) {
   const dims = usePaneDimensions();
@@ -60,7 +73,8 @@ export function PaneSizingContextProvider({
 
   const { controllerDims, calibrateCell, getCurrentDimensions } = usePtyPaneResize(
     sessionIds,
-    sink
+    sink,
+    bottomPadding
   );
 
   const value = useMemo<PaneSizingContextValue | null>(() => {
@@ -71,8 +85,9 @@ export function PaneSizingContextProvider({
       getCurrentDimensions,
       containerRef: dims.containerRef,
       sink: dims.sink,
+      bottomPadding,
     };
-  }, [dims, controllerDims, calibrateCell, getCurrentDimensions]);
+  }, [dims, controllerDims, calibrateCell, getCurrentDimensions, bottomPadding]);
 
   return <PaneSizingContext.Provider value={value}>{children}</PaneSizingContext.Provider>;
 }

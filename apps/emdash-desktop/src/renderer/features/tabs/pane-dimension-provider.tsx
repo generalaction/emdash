@@ -7,10 +7,6 @@ import { createContext, useContext, useEffect, useRef, type ReactNode } from 're
 export interface PaneDimensionSink {
   readonly dimensions: { width: number; height: number } | null;
   setDimensions(width: number, height: number): void;
-  /** Register the element whose bounding rect is used for manual re-measurement. */
-  attachMeasureSource?(el: HTMLElement | null): void;
-  /** Re-read the registered element's bounding rect and push it through setDimensions. */
-  remeasure?(): void;
 }
 
 class StandaloneSink implements PaneDimensionSink {
@@ -53,11 +49,6 @@ export function PaneDimensionProvider({
   children: ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    sink.attachMeasureSource?.(containerRef.current);
-    return () => sink.attachMeasureSource?.(null);
-  }, [sink]);
 
   useEffect(() => {
     const el = containerRef.current;

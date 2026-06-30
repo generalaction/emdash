@@ -12,6 +12,10 @@ import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
 
+export const TERMINAL_PADDING_PX = 8;
+export const TERMINAL_LINE_HEIGHT = 1.2;
+export const TERMINAL_LETTER_SPACING = 0;
+
 // ── Theme helpers ─────────────────────────────────────────────────────────────
 
 export interface SessionTheme {
@@ -58,6 +62,8 @@ export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
 export class FrontendPty {
   /** All live FrontendPty instances — used for app-wide operations (e.g. theme updates). */
   static readonly all = new Set<FrontendPty>();
+  /** Lookup from session ID to live FrontendPty — used by the resize controller to fan out grid resizes. */
+  static readonly bySession = new Map<string, FrontendPty>();
   readonly terminal: Terminal;
   readonly ownedContainer: HTMLDivElement;
   private theme?: SessionTheme;
@@ -89,8 +95,8 @@ export class FrontendPty {
       // column 0 and mangling column alignment, while leaving plain shells fine.
       fontFamily: buildTerminalFontFamily(),
       fontSize: 13,
-      lineHeight: 1.2,
-      letterSpacing: 0,
+      lineHeight: TERMINAL_LINE_HEIGHT,
+      letterSpacing: TERMINAL_LETTER_SPACING,
       allowProposedApi: true,
       scrollOnUserInput: false,
       linkHandler: {
@@ -132,14 +138,20 @@ export class FrontendPty {
 
     this.terminal.open(this.ownedContainer);
 
+    // xterm v6 insets .xterm-screen by padding on the .xterm element and subtracts
+    // padding-left/padding-top in its coordinate math (getCoordsRelativeToElement),
+    // so padding must live here — not on the parent ownedContainer.
     const el = (this.terminal as unknown as { element?: HTMLElement }).element;
     if (el) {
       el.style.width = '100%';
       el.style.height = '100%';
-      el.style.backgroundColor = 'transparent';
+      el.style.boxSizing = 'border-box';
+      el.style.padding = `${TERMINAL_PADDING_PX}px`;
+      el.style.backgroundColor = 'var(--xterm-bg)';
     }
 
     FrontendPty.all.add(this);
+    FrontendPty.bySession.set(this.sessionId, this);
   }
 
   setTheme(theme?: SessionTheme): void {
@@ -217,6 +229,7 @@ export class FrontendPty {
    */
   dispose(): void {
     FrontendPty.all.delete(this);
+    FrontendPty.bySession.delete(this.sessionId);
     this.offData?.();
     this.offData = null;
     rpc.pty.unsubscribe(this.sessionId).catch(() => {});
@@ -227,6 +240,13 @@ export class FrontendPty {
       this.ownedContainer.remove();
     } catch {}
   }
+}
+
+// ── Session lookup ────────────────────────────────────────────────────────────
+
+/** Returns the live FrontendPty for the given session ID, or undefined if not yet connected. */
+export function getFrontendPty(sessionId: string): FrontendPty | undefined {
+  return FrontendPty.bySession.get(sessionId);
 }
 
 // ── App-wide helpers ──────────────────────────────────────────────────────────
