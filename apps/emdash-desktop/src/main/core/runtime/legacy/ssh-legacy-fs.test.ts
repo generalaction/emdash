@@ -8,6 +8,8 @@ type SftpItem = {
   filename: string;
   attrs: {
     isDirectory: () => boolean;
+    isFile: () => boolean;
+    isSymbolicLink: () => boolean;
     size: number;
     mtime: number;
     atime: number;
@@ -56,6 +58,19 @@ function makeListFs(rootPath: string, entriesByPath: Record<string, SftpItem[]>)
     readdir: vi.fn(
       (dirPath: string, callback: (error: Error | null, items: SftpItem[]) => void) => {
         callback(null, entriesByPath[dirPath] ?? []);
+      }
+    ),
+    readlink: vi.fn(
+      (entryPath: string, callback: (error: Error | null, target: string) => void) => {
+        callback(null, `${entryPath}-target`);
+      }
+    ),
+    realpath: vi.fn((entryPath: string, callback: (error: Error | null, real: string) => void) => {
+      callback(null, `${entryPath}-real`);
+    }),
+    stat: vi.fn(
+      (entryPath: string, callback: (error: Error | null, stats: SftpItem['attrs']) => void) => {
+        callback(null, sftpItem(basename(entryPath), 'file').attrs);
       }
     ),
   };
@@ -108,11 +123,13 @@ function makeRemoveFs() {
   };
 }
 
-function sftpItem(filename: string, type: 'file' | 'dir'): SftpItem {
+function sftpItem(filename: string, type: 'file' | 'dir' | 'symlink'): SftpItem {
   return {
     filename,
     attrs: {
       isDirectory: () => type === 'dir',
+      isFile: () => type === 'file',
+      isSymbolicLink: () => type === 'symlink',
       size: type === 'dir' ? 0 : 1,
       mtime: 1,
       atime: 1,
@@ -186,7 +203,33 @@ describe('SshFileSystem.list', () => {
       entries: [{ path: 'src/index.ts', type: 'file' }],
     });
   });
+
+  it('preserves symlink entries from SFTP listings', async () => {
+    const { fs } = makeListFs('/repo', {
+      '/repo/': [sftpItem('linked-package', 'symlink')],
+    });
+
+    await expect(fs.list('', { includeHidden: true })).resolves.toMatchObject({
+      entries: [
+        {
+          path: 'linked-package',
+          type: 'symlink',
+          symlink: {
+            targetPath: '/repo/linked-package-target',
+            realPath: '/repo/linked-package-real',
+            targetType: 'file',
+            broken: false,
+          },
+        },
+      ],
+    });
+  });
 });
+
+function basename(value: string): string {
+  const index = value.lastIndexOf('/');
+  return index === -1 ? value : value.slice(index + 1);
+}
 
 describe('SshFileSystem.remove', () => {
   afterEach(() => {
@@ -239,6 +282,35 @@ describe('SshFileSystem.watch', () => {
     await vi.advanceTimersByTimeAsync(10);
     expect(events).toEqual([{ type: 'modify', entryType: 'file', path: 'notes.md' }]);
 
+    watcher.close();
+  });
+
+  it('emits symlink watch entry types', async () => {
+    vi.useFakeTimers();
+
+    const fs = new SshFileSystem({} as never, '/repo');
+    vi.spyOn(fs, 'list')
+      .mockResolvedValueOnce(listResult([]))
+      .mockResolvedValueOnce(
+        listResult([
+          {
+            path: 'linked',
+            type: 'symlink',
+            size: 1,
+            mtime: new Date(1_000),
+            mode: 0o120755,
+          },
+        ])
+      );
+
+    const events: Array<{ type: string; entryType: string; path: string }> = [];
+    const watcher = fs.watch((batch) => events.push(...batch), { debounceMs: 10 });
+    watcher.update(['']);
+
+    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(events).toEqual([{ type: 'create', entryType: 'symlink', path: 'linked' }]);
     watcher.close();
   });
 });

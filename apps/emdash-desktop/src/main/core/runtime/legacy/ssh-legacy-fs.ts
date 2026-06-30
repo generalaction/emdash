@@ -4,6 +4,7 @@
  */
 
 import { posix as pathPosix } from 'node:path';
+import type { FileSymlinkInfo, FileSymlinkTargetType } from '@emdash/core/files';
 import type { SFTPWrapper } from 'ssh2';
 import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
@@ -35,6 +36,16 @@ interface SftpError extends Error {
   code?: number;
 }
 
+type SftpAttrs = {
+  isDirectory(): boolean;
+  isFile?(): boolean;
+  isSymbolicLink?(): boolean;
+  size: number;
+  mtime: number;
+  atime: number;
+  mode: number;
+};
+
 /**
  * Allowed image extensions for readImage
  */
@@ -57,6 +68,54 @@ function fileEntryMetadataChanged(prev: FileEntry, next: FileEntry): boolean {
     prev.mode !== next.mode ||
     prev.mtime?.getTime() !== next.mtime?.getTime()
   );
+}
+
+function sshEntryType(attrs: {
+  isDirectory(): boolean;
+  isSymbolicLink?(): boolean;
+}): FileEntry['type'] {
+  if (attrs.isSymbolicLink?.()) return 'symlink';
+  return attrs.isDirectory() ? 'dir' : 'file';
+}
+
+function fileWatchEntryType(entry: FileEntry): FileWatchEvent['entryType'] {
+  if (entry.type === 'dir') return 'directory';
+  if (entry.type === 'symlink') return 'symlink';
+  return 'file';
+}
+
+function sftpReadlink(sftp: SFTPWrapper, fullPath: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    sftp.readlink(fullPath, (error, targetPath) => {
+      resolve(error ? undefined : targetPath);
+    });
+  });
+}
+
+function sftpRealpath(sftp: SFTPWrapper, fullPath: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    sftp.realpath(fullPath, (error, realPath) => {
+      resolve(error ? undefined : realPath);
+    });
+  });
+}
+
+function sftpStat(sftp: SFTPWrapper, fullPath: string): Promise<SftpAttrs> {
+  return new Promise((resolve, reject) => {
+    sftp.stat(fullPath, (error, stats) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(stats as SftpAttrs);
+    });
+  });
+}
+
+function targetTypeForSftpStat(stats: SftpAttrs): FileSymlinkTargetType {
+  if (stats.isFile?.()) return 'file';
+  if (stats.isDirectory()) return 'directory';
+  return 'other';
 }
 
 /**
@@ -138,82 +197,120 @@ export class SshFileSystem implements LegacySshFileOperations {
           return;
         }
 
-        const entries: FileEntry[] = [];
-        const seen = new Set<string>();
+        void this.buildListEntries(sftp, fullPath, list, options)
+          .then((entries) => {
+            // Sort entries: directories first, then files, both alphabetically
+            entries.sort((a, b) => {
+              if (a.type === b.type) {
+                return a.path.localeCompare(b.path);
+              }
+              return a.type === 'dir' ? -1 : 1;
+            });
 
-        for (const item of list) {
-          // Skip hidden files if not included
-          if (!options?.includeHidden && item.filename.startsWith('.')) {
-            continue;
-          }
+            let result = entries;
+            let truncated = false;
+            let truncateReason: 'maxEntries' | 'timeBudget' | undefined;
 
-          // Apply filter if provided
-          if (options?.filter) {
-            const filterRegex = new RegExp(options.filter);
-            if (!filterRegex.test(item.filename)) {
-              continue;
+            // Apply maxEntries limit
+            if (options?.maxEntries && entries.length > options.maxEntries) {
+              result = entries.slice(0, options.maxEntries);
+              truncated = true;
+              truncateReason = 'maxEntries';
             }
-          }
 
-          const entryPath = this.relativePath(`${fullPath}/${item.filename}`);
-          if (seen.has(entryPath)) {
-            continue;
-          }
-          seen.add(entryPath);
+            // Apply time budget
+            const durationMs = Date.now() - startTime;
+            if (options?.timeBudgetMs && durationMs > options.timeBudgetMs) {
+              truncated = true;
+              truncateReason = 'timeBudget';
+            }
 
-          const entry: FileEntry = {
-            path: entryPath,
-            type: item.attrs.isDirectory() ? 'dir' : 'file',
-            size: item.attrs.size,
-            mtime: new Date(item.attrs.mtime * 1000),
-            ctime: new Date(item.attrs.atime * 1000),
-            mode: item.attrs.mode,
-          };
-
-          entries.push(entry);
-
-          // Handle recursive listing
-          if (options?.recursive && item.attrs.isDirectory()) {
-            // Note: Recursive listing is async and needs special handling
-            // For now, we note that full recursive support requires additional implementation
-          }
-        }
-
-        // Sort entries: directories first, then files, both alphabetically
-        entries.sort((a, b) => {
-          if (a.type === b.type) {
-            return a.path.localeCompare(b.path);
-          }
-          return a.type === 'dir' ? -1 : 1;
-        });
-
-        let result = entries;
-        let truncated = false;
-        let truncateReason: 'maxEntries' | 'timeBudget' | undefined;
-
-        // Apply maxEntries limit
-        if (options?.maxEntries && entries.length > options.maxEntries) {
-          result = entries.slice(0, options.maxEntries);
-          truncated = true;
-          truncateReason = 'maxEntries';
-        }
-
-        // Apply time budget
-        const durationMs = Date.now() - startTime;
-        if (options?.timeBudgetMs && durationMs > options.timeBudgetMs) {
-          truncated = true;
-          truncateReason = 'timeBudget';
-        }
-
-        resolve({
-          entries: result,
-          total: entries.length,
-          truncated,
-          truncateReason,
-          durationMs,
-        });
+            resolve({
+              entries: result,
+              total: entries.length,
+              truncated,
+              truncateReason,
+              durationMs,
+            });
+          })
+          .catch((error: unknown) => reject(error));
       });
     });
+  }
+
+  private async buildListEntries(
+    sftp: SFTPWrapper,
+    fullPath: string,
+    list: Array<{ filename: string; attrs: SftpAttrs }>,
+    options?: ListOptions
+  ): Promise<FileEntry[]> {
+    const entries: FileEntry[] = [];
+    const seen = new Set<string>();
+
+    for (const item of list) {
+      // Skip hidden files if not included
+      if (!options?.includeHidden && item.filename.startsWith('.')) {
+        continue;
+      }
+
+      // Apply filter if provided
+      if (options?.filter) {
+        const filterRegex = new RegExp(options.filter);
+        if (!filterRegex.test(item.filename)) {
+          continue;
+        }
+      }
+
+      const entryFullPath = pathPosix.join(fullPath, item.filename);
+      const entryPath = this.relativePath(entryFullPath);
+      if (seen.has(entryPath)) {
+        continue;
+      }
+      seen.add(entryPath);
+
+      const entryType = sshEntryType(item.attrs);
+      const entry: FileEntry = {
+        path: entryPath,
+        type: entryType,
+        ...(entryType === 'symlink'
+          ? { symlink: await this.readSftpSymlinkInfo(sftp, entryFullPath) }
+          : {}),
+        size: item.attrs.size,
+        mtime: new Date(item.attrs.mtime * 1000),
+        ctime: new Date(item.attrs.atime * 1000),
+        mode: item.attrs.mode,
+      };
+
+      entries.push(entry);
+
+      // Handle recursive listing
+      if (options?.recursive && item.attrs.isDirectory()) {
+        // Note: Recursive listing is async and needs special handling
+        // For now, we note that full recursive support requires additional implementation
+      }
+    }
+
+    return entries;
+  }
+
+  private async readSftpSymlinkInfo(sftp: SFTPWrapper, fullPath: string): Promise<FileSymlinkInfo> {
+    const targetPath = await sftpReadlink(sftp, fullPath);
+    try {
+      const targetStat = await sftpStat(sftp, fullPath);
+      const realPath = await sftpRealpath(sftp, fullPath);
+      return {
+        ...(targetPath !== undefined ? { targetPath } : {}),
+        ...(realPath !== undefined ? { realPath } : {}),
+        targetType: targetTypeForSftpStat(targetStat),
+        broken: false,
+      };
+    } catch {
+      return {
+        ...(targetPath !== undefined ? { targetPath } : {}),
+        targetType: 'unknown',
+        broken: true,
+      };
+    }
   }
 
   /**
@@ -991,13 +1088,13 @@ export class SshFileSystem implements LegacySshFileOperations {
           if (!prev)
             evts.push({
               type: 'create',
-              entryType: e.type === 'dir' ? 'directory' : 'file',
+              entryType: fileWatchEntryType(e),
               path: p,
             });
           else if (fileEntryMetadataChanged(prev, e))
             evts.push({
               type: 'modify',
-              entryType: e.type === 'dir' ? 'directory' : 'file',
+              entryType: fileWatchEntryType(e),
               path: p,
             });
         }
@@ -1005,7 +1102,7 @@ export class SshFileSystem implements LegacySshFileOperations {
           if (!currMap.has(p))
             evts.push({
               type: 'delete',
-              entryType: e.type === 'dir' ? 'directory' : 'file',
+              entryType: fileWatchEntryType(e),
               path: p,
             });
         }

@@ -5,6 +5,7 @@ import {
   type FileChangeUpdate,
   type FileChangeWatchOptions,
   type FileEntryType,
+  type FileSymlinkInfo,
   type FileError,
   type FileNode,
   type FileTreeError,
@@ -45,8 +46,10 @@ const SSH_FILE_CHANGE_POLL_MS = 4_000;
 type LegacyListedEntry = {
   path: string;
   name: string;
-  type: 'file' | 'directory';
-};
+} & (
+  | { type: 'file' | 'directory'; symlink?: never }
+  | { type: 'symlink'; symlink: FileSymlinkInfo }
+);
 
 type ChangeFeedHandle = {
   close(): void;
@@ -454,9 +457,9 @@ class LegacySshFileTree implements IFileTree {
       );
       const node = this.getByPath(absPath);
       if (!node) return err({ type: 'not-found', path: absPath });
-      const shouldExpand = index < parts.length - 1 || node.type === 'directory';
+      const shouldExpand = index < parts.length - 1 || isExpandableSshNode(node);
       if (!shouldExpand) continue;
-      if (node.type !== 'directory') {
+      if (!isExpandableSshNode(node)) {
         return err({ type: 'not-directory', id: node.id, path: node.path });
       }
       const expanded = await this.loadDirectoryScope(node.id);
@@ -515,7 +518,7 @@ class LegacySshFileTree implements IFileTree {
   ): Promise<Result<FileTreeSequences, FileTreeError>> {
     const dirNode = scope === null ? null : this.nodes.get(scope);
     if (scope !== null && !dirNode) return err({ type: 'not-found', id: scope });
-    if (dirNode && dirNode.type !== 'directory') {
+    if (dirNode && !isExpandableSshNode(dirNode)) {
       return err({ type: 'not-directory', id: dirNode.id, path: dirNode.path });
     }
 
@@ -558,13 +561,12 @@ class LegacySshFileTree implements IFileTree {
       const result = await this.fs.list(normalized.data, { includeHidden: true });
       const entries: LegacyListedEntry[] = [];
       for (const entry of result.entries) {
-        const absPath = toRemoteAbsolutePath(this.rootPath, entry.path);
-        if (isIgnoredRemotePath(this.rootPath, absPath)) continue;
-        if (entry.type !== 'dir' && entry.type !== 'file') continue;
+        if (entry.type !== 'dir' && entry.type !== 'file' && entry.type !== 'symlink') continue;
         entries.push(toListedEntry(this.rootPath, entry));
       }
       entries.sort((a, b) => {
-        if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+        const rankDiff = legacyListedEntrySortRank(a) - legacyListedEntrySortRank(b);
+        if (rankDiff !== 0) return rankDiff;
         return a.name.localeCompare(b.name);
       });
       return ok(entries);
@@ -587,7 +589,7 @@ class LegacySshFileTree implements IFileTree {
       const removed = this.removeSubtree(rootId);
       for (const node of removed) {
         ops.push({ op: 'del', key: node.id });
-        if (node.type === 'directory') removedScopes.push(node.id);
+        if (isExpandableSshNode(node)) removedScopes.push(node.id);
       }
     }
 
@@ -623,15 +625,23 @@ class LegacySshFileTree implements IFileTree {
     const existingId = this.pathToId.get(entry.path);
     const id = existingId ?? this.nextId++;
     const previous = this.nodes.get(id);
-    const node: FileNode = {
+    const childrenLoadedValue =
+      entry.type === 'directory' ||
+      (entry.type === 'symlink' &&
+        !entry.symlink.broken &&
+        entry.symlink.targetType === 'directory')
+        ? (childrenLoaded ?? previous?.childrenLoaded ?? false)
+        : false;
+    const base = {
       id,
       path: entry.path,
       name: entry.name,
       parentId,
-      type: entry.type,
-      childrenLoaded:
-        entry.type === 'directory' ? (childrenLoaded ?? previous?.childrenLoaded ?? false) : false,
     };
+    const node: FileNode =
+      entry.type === 'symlink'
+        ? { ...base, type: 'symlink', symlink: entry.symlink, childrenLoaded: childrenLoadedValue }
+        : { ...base, type: entry.type, childrenLoaded: childrenLoadedValue };
     this.setNode(node);
     return node;
   }
@@ -896,17 +906,43 @@ function parseRecursiveSnapshot(
 }
 
 function parseSnapshotEntryType(raw: string): Exclude<FileEntryType, 'unknown'> | null {
-  if (raw === 'file' || raw === 'directory') return raw;
+  if (raw === 'file' || raw === 'directory' || raw === 'symlink') return raw;
   return null;
 }
 
 function toListedEntry(rootPath: string, entry: FileEntry): LegacyListedEntry {
   const absPath = toRemoteAbsolutePath(rootPath, entry.path);
-  return {
+  const base = {
     path: absPath,
     name: path.posix.basename(absPath),
-    type: entry.type === 'dir' ? 'directory' : 'file',
   };
+  if (entry.type === 'symlink') {
+    return {
+      ...base,
+      type: 'symlink',
+      symlink: entry.symlink ?? { targetType: 'unknown', broken: false },
+    };
+  }
+  return { ...base, type: entry.type === 'dir' ? 'directory' : 'file' };
+}
+
+function legacyListedEntrySortRank(entry: LegacyListedEntry): number {
+  if (entry.type === 'directory') return 0;
+  if (
+    entry.type === 'symlink' &&
+    !entry.symlink.broken &&
+    entry.symlink.targetType === 'directory'
+  ) {
+    return 0;
+  }
+  return 1;
+}
+
+function isExpandableSshNode(node: FileNode): boolean {
+  return (
+    node.type === 'directory' ||
+    (node.type === 'symlink' && !node.symlink.broken && node.symlink.targetType === 'directory')
+  );
 }
 
 function toFileTreeError(error: unknown, relPath: string): FileTreeError {

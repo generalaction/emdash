@@ -2,6 +2,7 @@
  * Filesystem abstraction layer types
  * Provides unified interface for local and remote (SSH/SFTP) filesystem operations
  */
+import type { FileSymlinkInfo } from '@emdash/core/files';
 
 /**
  * Transitional SSH polling watcher handle.
@@ -21,7 +22,9 @@ export interface FileEntry {
   /** Relative path from the project root */
   path: string;
   /** Entry type - file or directory */
-  type: 'file' | 'dir';
+  type: 'file' | 'dir' | 'symlink';
+  /** Symlink target metadata when type is symlink */
+  symlink?: FileSymlinkInfo;
   /** File size in bytes (files only) */
   size?: number;
   /** Last modification time */

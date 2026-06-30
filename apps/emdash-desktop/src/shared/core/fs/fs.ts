@@ -4,7 +4,7 @@ export type FileWatchEventType = 'create' | 'delete' | 'modify' | 'rename';
 
 export interface FileWatchEvent {
   type: FileWatchEventType;
-  entryType: 'file' | 'directory';
+  entryType: 'file' | 'directory' | 'symlink';
   path: string;
   oldPath?: string;
 }
@@ -25,7 +25,7 @@ export type BrowseDirectoryParams = BrowseLocalDirectoryParams | BrowseSshDirect
 export type DirectoryEntry = {
   path: string;
   name: string;
-  type: 'file' | 'directory';
+  type: 'file' | 'directory' | 'symlink';
   size: number;
   modifiedAt: Date;
 };
