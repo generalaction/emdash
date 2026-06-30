@@ -10,6 +10,10 @@ import {
 } from '../path-utils';
 import { fileErrorToMessage } from './file-errors';
 
+type CopyLocalFilesError =
+  | { type: 'fs_error'; message: string }
+  | { type: 'conflict'; message: string; paths: string[] };
+
 function normalizeRelativePath(filePath: string, options?: { allowEmpty?: boolean }): string {
   if (filePath.includes('\0')) throw new Error('Path contains a null byte');
   const normalized = path.posix.normalize(filePath.replace(/\\/g, '/'));
@@ -50,7 +54,9 @@ export async function copyLocalFilesToWorkspace(
   srcPaths: string[],
   destDirPath: string,
   options?: { overwrite?: boolean }
-) {
+): Promise<
+  { success: true; data: { copied: number } } | { success: false; error: CopyLocalFilesError }
+> {
   try {
     const destDirAbsPath = resolveWorkspacePath(workspacePath, destDirPath, {
       allowEmpty: true,
@@ -89,7 +95,9 @@ export async function copyLocalFilesToWorkspace(
       }
       if (!options?.overwrite && exists.data) conflicts.push(destDisplayPath);
     }
-    if (conflicts.length > 0) throw new Error(`Files already exist:\n${conflicts.join('\n')}`);
+    if (conflicts.length > 0) {
+      return err({ type: 'conflict' as const, message: 'Files already exist', paths: conflicts });
+    }
 
     for (const { srcPath, destAbsPath } of plannedCopies) {
       const bytes = await fs.readFile(srcPath);

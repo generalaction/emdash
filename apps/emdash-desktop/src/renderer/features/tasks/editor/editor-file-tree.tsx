@@ -49,23 +49,15 @@ import type { FileTabResource } from './stores/file-tab-resource';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
 
-function resultErrorMessage(error: { message?: string; type?: string }): string {
+type ResultLikeError = { message?: string; type?: string; paths?: readonly string[] };
+
+function resultErrorMessage(error: ResultLikeError): string {
   return error.message ?? error.type ?? 'Unknown error';
 }
 
-function existingFilePaths(message: string): string[] {
-  const pluralMarker = 'Files already exist:\n';
-  if (message.includes(pluralMarker)) {
-    return message
-      .slice(message.indexOf(pluralMarker) + pluralMarker.length)
-      .split('\n')
-      .map((p) => p.trim())
-      .filter(Boolean);
-  }
-
-  const singularMarker = 'File already exists: ';
-  const markerIndex = message.indexOf(singularMarker);
-  return markerIndex === -1 ? [] : [message.slice(markerIndex + singularMarker.length)];
+function conflictPaths(error: ResultLikeError): string[] {
+  if (error.type !== 'conflict' || !Array.isArray(error.paths)) return [];
+  return [...error.paths];
 }
 
 function joinPath(dir: string, name: string): string {
@@ -101,10 +93,11 @@ async function importLocalFiles(args: {
     }))
   );
 
-  const handleFailure = async (message: string) => {
+  const handleFailure = async (error: ResultLikeError) => {
     for (const p of inserted) files.removeNode(p);
     await files.registerDir(destDirPath, true);
-    const existingPaths = existingFilePaths(message);
+    const message = resultErrorMessage(error);
+    const existingPaths = conflictPaths(error);
     if (existingPaths.length > 0 && !overwrite) {
       const description =
         existingPaths.length === 1
@@ -147,12 +140,15 @@ async function importLocalFiles(args: {
       }
     );
     if (!result.success) {
-      await handleFailure(resultErrorMessage(result.error));
+      await handleFailure(result.error);
       return;
     }
     files.confirmOptimisticNodes(inserted);
   } catch (error) {
-    await handleFailure(error instanceof Error ? error.message : 'The file could not be imported.');
+    await handleFailure({
+      type: 'fs_error',
+      message: error instanceof Error ? error.message : 'The file could not be imported.',
+    });
   }
 }
 
