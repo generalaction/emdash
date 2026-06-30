@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/app/controller.ts
+  s_e3e6f055d6d217::t_bea06678c52403 2,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "f051d57ab204dc6960b744dc07999add7c581ee1",
+  "prompts": {},
+  "sessions": {
+    "s_e3e6f055d6d217": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f1828-f890-7c82-a664-d719ea388945",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
