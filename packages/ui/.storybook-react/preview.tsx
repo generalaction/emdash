@@ -7,10 +7,6 @@ import type { ThemeId } from '../src/react/primitives/theme-provider';
 import 'devicon/devicon.min.css';
 import '@emdash/chat-ui/style.css';
 import '../src/react/chat-ui/chat-theme.css';
-// Opt-in global base styles (body, scrollbars, selection) — needed in
-// Storybook since the library no longer bundles them by default.
-// In a consuming app, import '@emdash/ui/styles/global-base.css' instead.
-import '../src/styles/base.css';
 
 const SURFACE_FAMILIES = [
   'none',
@@ -36,14 +32,14 @@ const withTheme: Decorator = (Story, context) => {
   const frameStyle: React.CSSProperties = fullscreen
     ? {
         height: '100vh',
-        fontFamily: 'var(--em-font-sans)',
-        backgroundColor: surface !== 'none' ? 'var(--em-surface)' : 'var(--em-background)',
+        fontFamily: 'var(--font-sans)',
+        backgroundColor: surface !== 'none' ? 'var(--surface)' : 'var(--background)',
       }
     : {
         minHeight: '100vh',
         padding: '2rem',
-        fontFamily: 'var(--em-font-sans)',
-        backgroundColor: surface !== 'none' ? 'var(--em-surface)' : 'var(--em-background)',
+        fontFamily: 'var(--font-sans)',
+        backgroundColor: surface !== 'none' ? 'var(--surface)' : 'var(--background)',
       };
 
   // ThemeProvider (default target="documentElement") applies the theme class to

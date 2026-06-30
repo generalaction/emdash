@@ -6,7 +6,7 @@
  */
 
 :root {
-  --em-animate-text-shimmer: text-shimmer-move 3s linear infinite;
+  --animate-text-shimmer: text-shimmer-move 3s linear infinite;
 }
 
 @keyframes text-shimmer-move {
@@ -19,37 +19,37 @@
 }
 
 /* Sweeps a subtle band across text using a clipped animated gradient.
-   Base: --em-foreground-passive; peak: --em-foreground-muted (one step below full
+   Base: --foreground-passive; peak: --foreground-muted (one step below full
    contrast) so the sweep is noticeable but not attention-grabbing. */
 .text-shimmer {
   background: linear-gradient(
     90deg,
-    var(--em-foreground-passive) 0%,
-    var(--em-foreground-passive) 30%,
-    var(--em-foreground-muted) 50%,
-    var(--em-foreground-passive) 70%,
-    var(--em-foreground-passive) 100%
+    var(--foreground-passive) 0%,
+    var(--foreground-passive) 30%,
+    var(--foreground-muted) 50%,
+    var(--foreground-passive) 70%,
+    var(--foreground-passive) 100%
   );
   background-size: 200% 100%;
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: var(--em-animate-text-shimmer);
+  animation: var(--animate-text-shimmer);
 }
 
 /* Static top-edge fade overlay — surface color fading to transparent.
-   Token-driven: callers set --fade-color (defaults to --em-background) and
+   Token-driven: callers set --fade-color (defaults to --background) and
    --fade-softness (default 0.4, already defined in theme.css) to control the
    paint. oklab interpolation avoids the premultiplied-alpha gray smear that
    a plain `transparent` stop produces. Height must be set by the caller. */
 .fade-overlay-top {
   background: linear-gradient(
     to bottom,
-    var(--fade-color, var(--em-background)) 0%,
-    color-mix(in oklab, var(--fade-color, var(--em-background)), transparent 50%)
+    var(--fade-color, var(--background)) 0%,
+    color-mix(in oklab, var(--fade-color, var(--background)), transparent 50%)
       calc(var(--fade-softness, 0.4) * 100%),
-    color-mix(in oklab, var(--fade-color, var(--em-background)), transparent 100%) 100%
+    color-mix(in oklab, var(--fade-color, var(--background)), transparent 100%) 100%
   );
 }
 
@@ -59,9 +59,9 @@
 .fade-overlay-bottom {
   background: linear-gradient(
     to top,
-    var(--fade-color, var(--em-background)) 0%,
-    color-mix(in oklab, var(--fade-color, var(--em-background)), transparent 50%)
+    var(--fade-color, var(--background)) 0%,
+    color-mix(in oklab, var(--fade-color, var(--background)), transparent 50%)
       calc(var(--fade-softness, 0.4) * 100%),
-    color-mix(in oklab, var(--fade-color, var(--em-background)), transparent 100%) 100%
+    color-mix(in oklab, var(--fade-color, var(--background)), transparent 100%) 100%
   );
 }

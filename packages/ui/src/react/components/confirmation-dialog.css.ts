@@ -1,8 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const description = style({
-  fontSize: tokenVars.textSm,
+  fontSize: 'var(--text-sm)',
   color: vars.foregroundMuted,
 });

@@ -1,6 +1,5 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const pillWrapper = style({
   display: 'inline-block',
@@ -14,13 +13,13 @@ export const pill = style({
   userSelect: 'none',
   alignItems: 'center',
   gap: '0.25rem',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: 'var(--radius-sm)',
   backgroundColor: vars.surfaceHover,
   paddingLeft: '0.25rem',
   paddingRight: '0.25rem',
   paddingTop: '0.125rem',
   paddingBottom: '0.125rem',
-  fontSize: tokenVars.textXs,
+  fontSize: 'var(--text-xs)',
   fontWeight: 500,
   color: vars.foreground,
   boxShadow: `0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
@@ -43,7 +42,7 @@ export const pillRemoveBtn = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: 'var(--radius-sm)',
   backgroundColor: vars.surfaceHover,
   opacity: 0,
   transition: 'opacity 150ms',

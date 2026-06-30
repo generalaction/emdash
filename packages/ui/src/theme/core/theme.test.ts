@@ -12,9 +12,8 @@ import Color from 'colorjs.io';
 import { describe, expect, it } from 'vitest';
 import { darkTheme } from '../themes/dark.theme';
 import { lightTheme } from '../themes/light.theme';
-import { nsName } from './contract/namespace';
 import { SURFACE_LEVELS, SURFACE_STATUSES, STATUS_LEVEL_SCOPES } from './contract/roles';
-import { semanticVars } from './contract/semantic-template';
+import { SEMANTIC_TEMPLATE } from './contract/semantic-template';
 import type { ResolvedTheme } from './define-theme';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -93,8 +92,8 @@ describe('Theme generation', () => {
       // 4. Semantic template completeness
       it('all semantic slots resolve to non-empty CSS values', () => {
         const { cssVars } = theme;
-        for (const slot of Object.keys(semanticVars)) {
-          const varName = nsName(slot);
+        for (const slot of Object.keys(SEMANTIC_TEMPLATE)) {
+          const varName = `--${slot}`;
           const value = cssVars[varName];
           expect(value, `${varName} is missing from cssVars`).toBeTruthy();
           expect(value!.length, `${varName} is empty`).toBeGreaterThan(0);
@@ -115,32 +114,32 @@ describe('Theme generation', () => {
 
   // 6. Key CSS var spot-checks
   describe('generated CSS var spot-checks', () => {
-    it('light --em-background resolves to a near-white color', () => {
-      const bg = lightTheme.cssVars[nsName('background')];
+    it('light --background resolves to a near-white color', () => {
+      const bg = lightTheme.cssVars['--background'];
       expect(bg).toBeTruthy();
       const L = new Color(bg!).to('oklch').coords[0];
       expect(L).toBeGreaterThan(0.9);
     });
 
-    it('dark --em-background resolves to a near-black color', () => {
-      const bg = darkTheme.cssVars[nsName('background')];
+    it('dark --background resolves to a near-black color', () => {
+      const bg = darkTheme.cssVars['--background'];
       expect(bg).toBeTruthy();
       const L = new Color(bg!).to('oklch').coords[0];
       expect(L).toBeLessThan(0.25);
     });
 
     it('light primary-button-background is readable (high APCA on its contrast)', () => {
-      const btnBg = lightTheme.cssVars[nsName('primary-button-background')];
-      const btnFg = lightTheme.cssVars[nsName('primary-button-foreground')];
+      const btnBg = lightTheme.cssVars['--primary-button-background'];
+      const btnFg = lightTheme.cssVars['--primary-button-foreground'];
       expect(btnBg).toBeTruthy();
       expect(btnFg).toBeTruthy();
       const lc = apca(btnFg!, btnBg!);
       expect(Math.abs(lc)).toBeGreaterThanOrEqual(45);
     });
 
-    it('dark --em-foreground has high contrast vs dark background', () => {
-      const fg = darkTheme.cssVars[nsName('foreground')];
-      const bg = darkTheme.cssVars[nsName('background')];
+    it('dark --foreground has high contrast vs dark background', () => {
+      const fg = darkTheme.cssVars['--foreground'];
+      const bg = darkTheme.cssVars['--background'];
       expect(fg).toBeTruthy();
       expect(bg).toBeTruthy();
       const lc = apca(fg!, bg!);
@@ -152,7 +151,7 @@ describe('Theme generation', () => {
   describe('Surface elevation', () => {
     function surfaceLs(theme: ResolvedTheme) {
       return SURFACE_LEVELS.map((level) => {
-        const cssVal = theme.cssVars[nsName(`surface-${level}`)];
+        const cssVal = theme.cssVars[`--surface-${level}`];
         expect(cssVal).toBeTruthy();
         return { level, l: new Color(cssVal!).to('oklch').coords[0] };
       });
@@ -191,7 +190,7 @@ describe('Theme generation', () => {
       it(`${theme.id}: all surface colors are in P3 gamut`, () => {
         for (const level of SURFACE_LEVELS) {
           for (const variant of ['', '-hover', '-selected']) {
-            const cssVal = theme.cssVars[nsName(`surface-${level}${variant}`)];
+            const cssVal = theme.cssVars[`--surface-${level}${variant}`];
             expect(cssVal).toBeTruthy();
             const c = new Color(cssVal!);
             expect(c.inGamut('p3')).toBe(true);
@@ -206,16 +205,16 @@ describe('Theme generation', () => {
     for (const theme of [lightTheme, darkTheme]) {
       it(`${theme.id}: paper base/hover/selected resolve and are in P3 gamut`, () => {
         for (const variant of ['', '-hover', '-selected']) {
-          const cssVal = theme.cssVars[nsName(`surface-paper${variant}`)];
-          expect(cssVal, `${nsName(`surface-paper${variant}`)} should be defined`).toBeTruthy();
+          const cssVal = theme.cssVars[`--surface-paper${variant}`];
+          expect(cssVal, `--surface-paper${variant} should be defined`).toBeTruthy();
           expect(new Color(cssVal!).inGamut('p3')).toBe(true);
         }
       });
     }
 
     it('light: paper is white-ish (L ≥ 0.97), matching elevated', () => {
-      const paper = lightTheme.cssVars[nsName('surface-paper')];
-      const elevated = lightTheme.cssVars[nsName('surface-elevated')];
+      const paper = lightTheme.cssVars['--surface-paper'];
+      const elevated = lightTheme.cssVars['--surface-elevated'];
       const paperL = new Color(paper!).to('oklch').coords[0];
       const elevatedL = new Color(elevated!).to('oklch').coords[0];
       expect(paperL).toBeGreaterThanOrEqual(0.97);
@@ -223,8 +222,8 @@ describe('Theme generation', () => {
     });
 
     it('dark: paper is flat with base (same L as surface-base)', () => {
-      const paper = darkTheme.cssVars[nsName('surface-paper')];
-      const base = darkTheme.cssVars[nsName('surface-base')];
+      const paper = darkTheme.cssVars['--surface-paper'];
+      const base = darkTheme.cssVars['--surface-base'];
       const paperL = new Color(paper!).to('oklch').coords[0];
       const baseL = new Color(base!).to('oklch').coords[0];
       expect(Math.abs(paperL - baseL)).toBeLessThan(0.01);
@@ -239,9 +238,8 @@ describe('Theme generation', () => {
       it(`${theme.id}: base status vars resolve to non-empty color strings`, () => {
         for (const status of SURFACE_STATUSES) {
           for (const variant of STATUS_VARIANTS) {
-            const key = nsName(`surface-${status}${variant}`);
-            const cssVal = theme.cssVars[key];
-            expect(cssVal, `${key} should be defined`).toBeTruthy();
+            const cssVal = theme.cssVars[`--surface-${status}${variant}`];
+            expect(cssVal, `--surface-${status}${variant} should be defined`).toBeTruthy();
             expect(cssVal!.length).toBeGreaterThan(0);
           }
         }
@@ -250,11 +248,13 @@ describe('Theme generation', () => {
       it(`${theme.id}: base status surface colors are in P3 gamut`, () => {
         for (const status of SURFACE_STATUSES) {
           for (const variant of STATUS_VARIANTS) {
-            const key = nsName(`surface-${status}${variant}`);
-            const cssVal = theme.cssVars[key];
+            const cssVal = theme.cssVars[`--surface-${status}${variant}`];
             expect(cssVal).toBeTruthy();
             const c = new Color(cssVal!);
-            expect(c.inGamut('p3'), `${key}: ${cssVal} should be in P3 gamut`).toBe(true);
+            expect(
+              c.inGamut('p3'),
+              `--surface-${status}${variant}: ${cssVal} should be in P3 gamut`
+            ).toBe(true);
           }
         }
       });
@@ -263,7 +263,7 @@ describe('Theme generation', () => {
         for (const status of SURFACE_STATUSES) {
           for (const scope of STATUS_LEVEL_SCOPES) {
             for (const variant of STATUS_VARIANTS) {
-              const key = nsName(`surface-${status}-${scope}${variant}`);
+              const key = `--surface-${status}-${scope}${variant}`;
               const cssVal = theme.cssVars[key];
               expect(cssVal, `${key} should be defined`).toBeTruthy();
               expect(cssVal!.length).toBeGreaterThan(0);
@@ -276,7 +276,7 @@ describe('Theme generation', () => {
         for (const status of SURFACE_STATUSES) {
           for (const scope of STATUS_LEVEL_SCOPES) {
             for (const variant of STATUS_VARIANTS) {
-              const key = nsName(`surface-${status}-${scope}${variant}`);
+              const key = `--surface-${status}-${scope}${variant}`;
               const cssVal = theme.cssVars[key];
               expect(cssVal).toBeTruthy();
               const c = new Color(cssVal!);
@@ -290,8 +290,8 @@ describe('Theme generation', () => {
     // Elevation-tracking regression: status rooms must follow the canvas lightness direction.
     it('dark: elevated status room is lighter than base status room', () => {
       for (const status of SURFACE_STATUSES) {
-        const base = darkTheme.cssVars[nsName(`surface-${status}`)];
-        const elevated = darkTheme.cssVars[nsName(`surface-${status}-elevated`)];
+        const base = darkTheme.cssVars[`--surface-${status}`];
+        const elevated = darkTheme.cssVars[`--surface-${status}-elevated`];
         expect(base).toBeTruthy();
         expect(elevated).toBeTruthy();
         const baseL = new Color(base!).to('oklch').coords[0];
@@ -305,8 +305,8 @@ describe('Theme generation', () => {
 
     it('light: elevated status room is lighter than base status room', () => {
       for (const status of SURFACE_STATUSES) {
-        const base = lightTheme.cssVars[nsName(`surface-${status}`)];
-        const elevated = lightTheme.cssVars[nsName(`surface-${status}-elevated`)];
+        const base = lightTheme.cssVars[`--surface-${status}`];
+        const elevated = lightTheme.cssVars[`--surface-${status}-elevated`];
         expect(base).toBeTruthy();
         expect(elevated).toBeTruthy();
         const baseL = new Color(base!).to('oklch').coords[0];
@@ -319,9 +319,9 @@ describe('Theme generation', () => {
     });
   });
 
-  // 10. Both themes emit syntax CSS vars (--em-syntax-* / --em-syntax-editor-*)
+  // 10. Both themes emit syntax CSS vars (--syntax-* / --syntax-editor-*)
   describe('Syntax CSS var generation', () => {
-    it('light theme emits namespaced --em-syntax-* vars for all roles', () => {
+    it('light theme emits --syntax-* vars for all roles', () => {
       const roles = [
         'comment',
         'keyword',
@@ -337,15 +337,15 @@ describe('Theme generation', () => {
         'regexp',
       ];
       for (const role of roles) {
-        const key = nsName(`syntax-${role}`);
+        const key = `--syntax-${role}`;
         expect(lightTheme.cssVars[key], `missing ${key}`).toBeTruthy();
       }
     });
 
-    it('dark theme emits namespaced --em-syntax-editor-* vars for alpha chrome', () => {
-      expect(darkTheme.cssVars[nsName('syntax-editor-selection-bg')]).toBeTruthy();
-      expect(darkTheme.cssVars[nsName('syntax-editor-find-match-bg')]).toBeTruthy();
-      expect(darkTheme.cssVars[nsName('syntax-editor-scrollbar-bg')]).toBeTruthy();
+    it('dark theme emits --syntax-editor-* vars for alpha chrome', () => {
+      expect(darkTheme.cssVars['--syntax-editor-selection-bg']).toBeTruthy();
+      expect(darkTheme.cssVars['--syntax-editor-find-match-bg']).toBeTruthy();
+      expect(darkTheme.cssVars['--syntax-editor-scrollbar-bg']).toBeTruthy();
     });
   });
 });

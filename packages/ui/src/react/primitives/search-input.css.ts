@@ -1,6 +1,5 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 /** Wrapper that provides the positioning context for the icon. */
 export const container = style({
@@ -31,7 +30,7 @@ export const clearButton = style({
   justifyContent: 'center',
   width: '1.25rem',
   height: '1.25rem',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: 'var(--radius-sm)',
   border: 'none',
   backgroundColor: 'transparent',
   color: vars.foregroundMuted,

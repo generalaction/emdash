@@ -42,8 +42,6 @@ import type {
   PromptEditorRef,
 } from './prompt-editor/types';
 import * as styles from './chat-composer.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export type { MentionItem, CommandItem };
 export type { MentionKind, CommandBehavior, ContextMentionProvider } from './prompt-editor/types';
@@ -702,8 +700,8 @@ export function ChatComposer({
                 renderTrigger={(selected) => (
                   <span
                     style={{
-                      color: selected ? vars.foreground : vars.foregroundMuted,
-                      fontSize: tokenVars.textXs,
+                      color: selected ? 'var(--foreground)' : 'var(--foreground-muted)',
+                      fontSize: 'var(--text-xs)',
                     }}
                   >
                     {selected?.name ?? 'Model…'}
@@ -716,7 +714,7 @@ export function ChatComposer({
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
-                      fontSize: tokenVars.textSm,
+                      fontSize: 'var(--text-sm)',
                     }}
                   >
                     {item.name}

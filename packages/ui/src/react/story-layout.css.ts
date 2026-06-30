@@ -10,8 +10,6 @@
  */
 
 import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 // ── Escape-hatch transforms / positioning ─────────────────────────────────────
 
@@ -82,7 +80,7 @@ export const divideX = style({});
 globalStyle(`${divideX} > * + *`, { borderLeftWidth: '1px', borderLeftStyle: 'solid' });
 
 export const divideBorder = style({});
-globalStyle(`${divideBorder} > * + *`, { borderColor: vars.border });
+globalStyle(`${divideBorder} > * + *`, { borderColor: 'var(--border)' });
 
 export const spaceY15 = style({});
 globalStyle(`${spaceY15} > * + *`, { marginTop: '0.375rem' });
@@ -114,7 +112,7 @@ export const outlineNone = style({ outline: 'none' });
 
 /** color-mix transparency not expressible in sprinkles */
 export const bgSurface80 = style({
-  backgroundColor: `color-mix(in srgb, ${vars.surface} 80%, transparent)`,
+  backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)',
 });
 
 // ── Composite: story tab strip button ────────────────────────────────────────
@@ -124,21 +122,21 @@ export const storyTabButton = style({
   height: '1.75rem',
   alignItems: 'center',
   gap: '0.375rem',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: 'var(--radius-md)',
   border: '1px solid transparent',
   paddingLeft: '0.625rem',
   paddingRight: '0.625rem',
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontSize: 'var(--text-sm)',
+  color: 'var(--foreground-muted)',
   transition: 'all 150ms',
   ':hover': {
-    backgroundColor: vars.surfaceHover,
-    color: vars.foreground,
+    backgroundColor: 'var(--surface-hover)',
+    color: 'var(--foreground)',
   },
   selectors: {
     '&[data-active="true"]': {
-      backgroundColor: vars.surfaceSelected,
-      color: vars.foreground,
+      backgroundColor: 'var(--surface-selected)',
+      color: 'var(--foreground)',
     },
   },
 });

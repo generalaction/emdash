@@ -21,7 +21,6 @@ import type {
   SurfaceScopeName,
   SyntaxRole,
 } from './contract/roles';
-import type { ColorRef } from './contract/token-ref';
 import { fillGaps } from './generate/fill-gaps';
 import { generateRamp, generateNeutralRamp } from './generate/ramp';
 import type { ScaleTweaks } from './generate/ramp';
@@ -102,7 +101,7 @@ export interface ThemeInput {
    *   "github-dark"              — bundled Shiki theme name (passthrough)
    *   Partial role overrides can be supplied alongside { generate: true }.
    */
-  syntax?: SyntaxThemeInput & { roleOverrides?: Partial<Record<SyntaxRole, ColorRef>> };
+  syntax?: SyntaxThemeInput & { roleOverrides?: Partial<Record<SyntaxRole, string>> };
 }
 
 // ── ResolvedTheme ─────────────────────────────────────────────────────────────

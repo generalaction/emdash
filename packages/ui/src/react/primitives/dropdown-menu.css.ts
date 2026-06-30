@@ -8,7 +8,6 @@ import {
   kfPopupInSlideFromRight,
 } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const positioner = style({
   isolation: 'isolate',
@@ -24,7 +23,7 @@ export const menuContent = style({
   transformOrigin: 'var(--transform-origin)',
   overflowX: 'hidden',
   overflowY: 'auto',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: 'var(--radius-md)',
   backgroundColor: vars.surface,
   padding: '0.25rem',
   color: vars.foreground,
@@ -49,7 +48,7 @@ export const menuLabel = style({
   paddingRight: '0.5rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  fontSize: tokenVars.textXs,
+  fontSize: 'var(--text-xs)',
   fontWeight: 500,
   color: vars.foregroundMuted,
   selectors: {
@@ -63,12 +62,12 @@ export const menuItem = style({
   cursor: 'default',
   alignItems: 'center',
   gap: '0.5rem',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: 'var(--radius-sm)',
   paddingLeft: '0.5rem',
   paddingRight: '0.5rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  fontSize: tokenVars.textSm,
+  fontSize: 'var(--text-sm)',
   outline: 'none',
   userSelect: 'none',
   selectors: {
@@ -90,12 +89,12 @@ export const menuSubTrigger = style({
   cursor: 'default',
   alignItems: 'center',
   gap: '0.5rem',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: 'var(--radius-sm)',
   paddingLeft: '0.5rem',
   paddingRight: '0.5rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  fontSize: tokenVars.textSm,
+  fontSize: 'var(--text-sm)',
   outline: 'none',
   userSelect: 'none',
   selectors: {
@@ -114,12 +113,12 @@ export const menuCheckboxItem = style({
   cursor: 'default',
   alignItems: 'center',
   gap: '0.5rem',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: 'var(--radius-sm)',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
   paddingRight: '2rem',
   paddingLeft: '0.5rem',
-  fontSize: tokenVars.textSm,
+  fontSize: 'var(--text-sm)',
   outline: 'none',
   userSelect: 'none',
   color: vars.foregroundMuted,
@@ -139,12 +138,12 @@ export const menuRadioItem = style({
   cursor: 'default',
   alignItems: 'center',
   gap: '0.5rem',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: 'var(--radius-sm)',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
   paddingRight: '2rem',
   paddingLeft: '0.5rem',
-  fontSize: tokenVars.textSm,
+  fontSize: 'var(--text-sm)',
   outline: 'none',
   userSelect: 'none',
   color: vars.foregroundMuted,
@@ -184,7 +183,7 @@ export const subContentOverride = style({
 
 export const menuShortcut = style({
   marginLeft: 'auto',
-  fontSize: tokenVars.textXs,
+  fontSize: 'var(--text-xs)',
   letterSpacing: '0.1em',
   color: vars.foregroundMuted,
   // When the parent menu item is focused, shortcut adapts to foreground color

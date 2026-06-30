@@ -5,9 +5,8 @@
  *
  * Strategy:
  *   - Each SyntaxRole has a default palette assignment per polarity (from syntax-template.ts).
- *   - The assignment is a typed ColorRef resolved to a concrete color from the scale.
- *   - Minimum APCA contrast against the code background is enforced by stepping
- *     toward higher-contrast steps when needed.
+ *   - The assignment is resolved to a concrete color from the appropriate scale.step.
+ *   - Minimum APCA contrast against the code background is enforced.
  *   - Roles are emitted as tokenColors scopes in VSCode theme format.
  *
  * Calibration target: the default light/dark assignments reproduce the visual
@@ -17,85 +16,59 @@
  */
 
 import Color from 'colorjs.io';
-import { nsName } from '../contract/namespace';
 import type { Polarity, Scales, SyntaxRole } from '../contract/roles';
-import { syntaxVars } from '../contract/syntax-template';
+import { SYNTAX_TEMPLATE } from '../contract/syntax-template';
 import { SYNTAX_MIN_APCA } from '../contract/targets';
-import type { ColorRef, RefNode } from '../contract/token-ref';
-import { colorToHex } from './color-format';
+import { colorToHex, resolveScaleRef } from './color-format';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type SyntaxThemeInput =
-  | { generate: true; roleOverrides?: Partial<Record<SyntaxRole, ColorRef>> }
+  | { generate: true; roleOverrides?: Partial<Record<SyntaxRole, string>> }
   | { vscodeTheme: object }
   | string; // bundled Shiki theme name passthrough
 
 export type GeneratedSyntaxTheme = object; // VSCode theme JSON format
 
-// ── Concrete color resolution for syntax (contrast-climb capable) ──────────────
+// ── Palette ref resolution ────────────────────────────────────────────────────
 
 /**
- * Resolve a RefNode to a concrete CSS color string for use in a syntax token.
- * For step refs, climbs toward higher-contrast steps until minLc is met.
- * For contrast refs, returns the scale's contrast color directly.
- * For other kinds (mix/alpha/literal), returns the best-effort value without climbing.
+ * Resolve a palette ref and, if APCA vs bg is below the minimum, climb up
+ * one step (toward higher contrast) until the threshold is met or we run out.
  */
 function resolveWithMinContrast(
-  ref: ColorRef,
+  ref: string,
   scales: Scales,
   bgColor: Color,
   minLc: number,
   _polarity: Polarity
 ): string {
-  const n = ref.node;
+  const [scaleName, stepOrContrast] = ref.split('.') as [keyof Scales, string];
+  const scale = scales[scaleName];
+  if (!scale) return resolveScaleRef(ref, scales);
 
-  if (n.kind === 'contrast') {
-    return scales[n.scale].contrast;
+  if (stepOrContrast === 'contrast') {
+    return scale.contrast;
   }
 
-  if (n.kind === 'step') {
-    const scale = scales[n.scale];
-    // Climb toward step 12 (higher contrast) until minLc is satisfied.
-    let stepNum = n.step;
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const color = scale.steps[Math.min(11, stepNum - 1)];
-      try {
-        const c = new Color(color);
-        const lc = Math.abs(c.contrastAPCA(bgColor) as number);
-        if (lc >= minLc) return color;
-      } catch {
-        return color;
-      }
-      stepNum = Math.min(12, stepNum + 1) as typeof n.step;
+  let stepNum = parseInt(stepOrContrast, 10);
+  if (isNaN(stepNum)) return resolveScaleRef(ref, scales);
+
+  const contrastDirection = 1; // always move toward step 12 for more contrast
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const color = scale.steps[Math.min(11, stepNum - 1)];
+    try {
+      const c = new Color(color);
+      const lc = Math.abs(c.contrastAPCA(bgColor) as number);
+      if (lc >= minLc) return color;
+    } catch {
+      return color;
     }
-    return scale.steps[Math.min(11, stepNum - 1)];
+    stepNum = Math.min(12, stepNum + contrastDirection);
   }
 
-  // For mix/alpha/literal: resolve a concrete fallback color.
-  // These kinds do not appear in SYNTAX_TEMPLATE in practice, so this path
-  // exists only as a safety net for future roleOverrides.
-  return resolveConcreteColor(n, scales);
-}
-
-/**
- * Recursively resolve a RefNode to a concrete CSS color string without
- * contrast-climbing. Used as a fallback for non-step/contrast ref kinds.
- */
-function resolveConcreteColor(n: RefNode, scales: Scales): string {
-  switch (n.kind) {
-    case 'step':
-      return scales[n.scale].steps[n.step - 1];
-    case 'contrast':
-      return scales[n.scale].contrast;
-    case 'literal':
-      return n.value;
-    // For mix/alpha, return the base operand's concrete color as best-effort.
-    case 'mix':
-      return resolveConcreteColor(n.base, scales);
-    case 'alpha':
-      return resolveConcreteColor(n.base, scales);
-  }
+  return scale.steps[Math.min(11, stepNum - 1)];
 }
 
 // ── CSS-variable map ──────────────────────────────────────────────────────────
@@ -126,25 +99,25 @@ export function generateSyntaxVars(
   const bgColor = new Color(bgColorStr);
   const vars: Record<string, string> = {};
 
-  for (const [role, entry] of Object.entries(syntaxVars) as Array<
-    [SyntaxRole, (typeof syntaxVars)[SyntaxRole]]
+  for (const [role, entry] of Object.entries(SYNTAX_TEMPLATE) as Array<
+    [SyntaxRole, (typeof SYNTAX_TEMPLATE)[SyntaxRole]]
   >) {
     const defaultRef = polarity === 'light' ? entry.lightDefault : entry.darkDefault;
     const ref = roleOverrides[role] ?? defaultRef;
     const minLc = SYNTAX_MIN_APCA[role] ?? SYNTAX_MIN_APCA['default'] ?? 45;
     const resolvedColor = resolveWithMinContrast(ref, scales, bgColor, minLc, polarity);
-    vars[nsName(`syntax-${role}`)] = colorToHex(resolvedColor);
+    vars[`--syntax-${role}`] = colorToHex(resolvedColor);
   }
 
   // Alpha-composited editor chrome vars (cannot be a plain var() in Shiki colors).
   // Non-alpha chrome colors (bg, fg, line-highlight, cursor, line-number, bracket)
-  // reuse existing --em-background / --em-foreground / --em-neutral-* palette vars.
+  // reuse existing --background / --foreground / --neutral-* palette vars.
   const selectionHex = colorToHex(scales.blue.steps[5]);
-  vars[nsName('syntax-editor-selection-bg')] = selectionHex + '40';
-  vars[nsName('syntax-editor-find-match-bg')] = selectionHex + '60';
-  vars[nsName('syntax-editor-find-match-hl')] = selectionHex + '30';
-  vars[nsName('syntax-editor-scrollbar-bg')] = colorToHex(scales.neutral.steps[5]) + '60';
-  vars[nsName('syntax-editor-scrollbar-hover')] = colorToHex(scales.neutral.steps[6]) + '80';
+  vars['--syntax-editor-selection-bg'] = selectionHex + '40';
+  vars['--syntax-editor-find-match-bg'] = selectionHex + '60';
+  vars['--syntax-editor-find-match-hl'] = selectionHex + '30';
+  vars['--syntax-editor-scrollbar-bg'] = colorToHex(scales.neutral.steps[5]) + '60';
+  vars['--syntax-editor-scrollbar-hover'] = colorToHex(scales.neutral.steps[6]) + '80';
 
   return vars;
 }
@@ -183,9 +156,10 @@ export function generateSyntaxTheme(
     settings: { foreground?: string; fontStyle?: string };
   }> = [];
 
-  for (const [role, entry] of Object.entries(syntaxVars) as Array<
-    [SyntaxRole, (typeof syntaxVars)[SyntaxRole]]
+  for (const [role, entry] of Object.entries(SYNTAX_TEMPLATE) as Array<
+    [SyntaxRole, (typeof SYNTAX_TEMPLATE)[SyntaxRole]]
   >) {
+    // Resolve the palette ref
     const defaultRef = polarity === 'light' ? entry.lightDefault : entry.darkDefault;
     const ref = roleOverrides[role] ?? defaultRef;
 

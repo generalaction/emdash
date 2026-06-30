@@ -9,7 +9,6 @@
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { fieldShellBase } from './field-shell.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const inputVariants = recipe({
   base: [
@@ -17,7 +16,7 @@ export const inputVariants = recipe({
     {
       width: '100%',
       minWidth: 0,
-      fontSize: tokenVars.textSm,
+      fontSize: 'var(--text-sm)',
       colorScheme: 'light',
     },
   ],
@@ -37,7 +36,7 @@ export const inputVariants = recipe({
         paddingRight: '0.5rem',
         paddingTop: '0.125rem',
         paddingBottom: '0.125rem',
-        fontSize: tokenVars.textXs,
+        fontSize: 'var(--text-xs)',
       },
     },
 

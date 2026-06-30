@@ -8,7 +8,6 @@ import {
   kfPopupInSlideFromRight,
 } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const positioner = style({
   isolation: 'isolate',
@@ -37,7 +36,7 @@ export const selectContent = style({
   transformOrigin: 'var(--transform-origin)',
   overflowX: 'hidden',
   overflowY: 'auto',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: 'var(--radius-md)',
   backgroundColor: vars.surface,
   color: vars.foreground,
   padding: '2px',
@@ -64,7 +63,7 @@ export const selectLabel = style({
   paddingRight: '0.5rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  fontSize: tokenVars.textXs,
+  fontSize: 'var(--text-xs)',
   color: vars.foregroundMuted,
 });
 
@@ -75,12 +74,12 @@ export const selectItem = style({
   cursor: 'default',
   alignItems: 'center',
   gap: '0.5rem',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: 'var(--radius-sm)',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
   paddingRight: '2rem',
   paddingLeft: '0.5rem',
-  fontSize: tokenVars.textSm,
+  fontSize: 'var(--text-sm)',
   outline: 'none',
   userSelect: 'none',
   selectors: {

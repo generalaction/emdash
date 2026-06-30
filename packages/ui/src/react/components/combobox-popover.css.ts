@@ -1,7 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { fieldShellBase } from '@styles/recipes/field-shell.css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const trigger = style({
   display: 'flex',
@@ -9,11 +8,11 @@ export const trigger = style({
   minWidth: 0,
   alignItems: 'center',
   gap: '0.375rem',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: 'var(--radius-md)',
   border: '1px solid transparent',
   paddingLeft: '0.5rem',
   paddingRight: '0.5rem',
-  fontSize: tokenVars.textXs,
+  fontSize: 'var(--text-xs)',
   color: vars.foreground,
   outline: 'none',
   selectors: {
@@ -55,7 +54,7 @@ export const triggerInput = [
     gap: '0.375rem',
     paddingLeft: '0.625rem',
     paddingRight: '0.375rem',
-    fontSize: tokenVars.textSm,
+    fontSize: 'var(--text-sm)',
     selectors: {
       '&[data-placeholder]': { color: vars.foregroundPassive },
     },

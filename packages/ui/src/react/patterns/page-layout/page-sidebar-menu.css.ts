@@ -32,7 +32,7 @@ export const navItem = recipe({
     width: '100%',
     alignItems: 'center',
     gap: '0.5rem',
-    borderRadius: tokenVars.radiusMd,
+    borderRadius: 'var(--radius-md)',
     border: 'none',
     backgroundColor: 'transparent',
     paddingLeft: '0.75rem',

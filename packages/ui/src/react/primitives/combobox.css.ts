@@ -3,7 +3,6 @@ import { svgDefaultSize } from '@styles/effects/svg-helpers.css';
 import { menuItemBase } from '@styles/recipes/menu-item.css';
 import { popupSurface, popupShadowSm } from '@styles/recipes/popup-surface.css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const positioner = style({
   isolation: 'isolate',
@@ -69,7 +68,7 @@ export const comboboxLabel = style({
   paddingRight: '0.5rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  fontSize: tokenVars.textXs,
+  fontSize: 'var(--text-xs)',
   color: vars.foregroundMuted,
 });
 
@@ -80,7 +79,7 @@ export const comboboxEmpty = style({
   paddingTop: '0.5rem',
   paddingBottom: '0.5rem',
   textAlign: 'center',
-  fontSize: tokenVars.textSm,
+  fontSize: 'var(--text-sm)',
   color: vars.foregroundMuted,
   selectors: {
     // show when data-empty is on the parent popup
@@ -105,7 +104,7 @@ export const comboboxChips = style({
   flexWrap: 'wrap',
   alignItems: 'center',
   gap: '0.375rem',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: 'var(--radius-md)',
   border: `1px solid ${vars.border}`,
   backgroundColor: 'transparent',
   backgroundClip: 'padding-box',
@@ -113,7 +112,7 @@ export const comboboxChips = style({
   paddingRight: '0.625rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  fontSize: tokenVars.textSm,
+  fontSize: 'var(--text-sm)',
   boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
   transition: 'color 150ms, box-shadow 150ms',
   selectors: {
@@ -138,11 +137,11 @@ export const comboboxChip = style({
   alignItems: 'center',
   justifyContent: 'center',
   gap: '0.25rem',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: 'var(--radius-sm)',
   backgroundColor: vars.surfaceHover,
   paddingLeft: '0.375rem',
   paddingRight: '0.375rem',
-  fontSize: tokenVars.textXs,
+  fontSize: 'var(--text-xs)',
   fontWeight: 500,
   whiteSpace: 'nowrap',
   color: vars.foreground,

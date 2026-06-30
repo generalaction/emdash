@@ -11,10 +11,9 @@
 
 import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const fieldShellBase = style({
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: 'var(--radius-md)',
   border: `1px solid ${vars.border}`,
   backgroundColor: vars.surfaceInput,
   color: vars.foreground,

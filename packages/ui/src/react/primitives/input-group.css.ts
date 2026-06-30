@@ -2,7 +2,6 @@ import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { svgContainer, svgDefaultSize } from '@styles/effects/svg-helpers.css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const inputGroup = recipe({
   base: {
@@ -12,7 +11,7 @@ export const inputGroup = recipe({
     width: '100%',
     minWidth: 0,
     alignItems: 'center',
-    borderRadius: tokenVars.radiusMd,
+    borderRadius: 'var(--radius-md)',
     outline: 'none',
     selectors: {
       // block-end addon -> column layout
@@ -101,7 +100,7 @@ const inputGroupAddonBase = style([
     gap: '0.5rem',
     paddingTop: '0.375rem',
     paddingBottom: '0.375rem',
-    fontSize: tokenVars.textSm,
+    fontSize: 'var(--text-sm)',
     fontWeight: 500,
     color: vars.foregroundMuted,
     userSelect: 'none',
@@ -110,7 +109,7 @@ const inputGroupAddonBase = style([
     },
   },
 ]);
-globalStyle(`${inputGroupAddonBase} > kbd`, { borderRadius: `calc(${tokenVars.radiusMd} - 5px)` });
+globalStyle(`${inputGroupAddonBase} > kbd`, { borderRadius: 'calc(var(--radius-md) - 5px)' });
 
 export const inputGroupAddon = recipe({
   base: inputGroupAddonBase,
@@ -156,7 +155,7 @@ export const inputGroupAddon = recipe({
 });
 
 export const inputGroupButton = style({
-  borderRadius: `calc(${tokenVars.radiusMd} - 5px)`,
+  borderRadius: 'calc(var(--radius-md) - 5px)',
   boxShadow: 'none',
 });
 
@@ -167,7 +166,7 @@ export const inputGroupText = style([
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
-    fontSize: tokenVars.textSm,
+    fontSize: 'var(--text-sm)',
     color: vars.foregroundMuted,
   },
 ]);

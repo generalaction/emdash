@@ -1,7 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const composerRoot = style({
   display: 'flex',
@@ -15,14 +14,14 @@ export const noticeBand = recipe({
     display: 'flex',
     alignItems: 'flex-start',
     gap: '0.5rem',
-    borderRadius: `${tokenVars.radiusXl} ${tokenVars.radiusXl} 0 0`,
+    borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
     border: '1px solid',
     borderBottomWidth: 0,
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
     paddingTop: '0.5rem',
     paddingBottom: '0.5rem',
-    fontSize: tokenVars.textXs,
+    fontSize: 'var(--text-xs)',
   },
   variants: {
     variant: {
@@ -55,7 +54,7 @@ export const noticeBandHeader = style({
 });
 
 export const noticeBandTitle = style({
-  fontSize: tokenVars.textSm,
+  fontSize: 'var(--text-sm)',
   lineHeight: 1.375,
 });
 
@@ -107,8 +106,8 @@ export const composerShell = recipe({
   },
   variants: {
     hasBand: {
-      true: { borderRadius: `0 0 ${tokenVars.radiusXl} ${tokenVars.radiusXl}` },
-      false: { borderRadius: tokenVars.radiusXl },
+      true: { borderRadius: '0 0 var(--radius-xl) var(--radius-xl)' },
+      false: { borderRadius: 'var(--radius-xl)' },
     },
     dragActive: {
       true: {
@@ -143,7 +142,7 @@ export const attachmentThumbBtn = style({
   width: '2rem',
   height: '2rem',
   padding: 0,
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: 'var(--radius-md)',
   selectors: {
     '&:focus-visible': { outlineWidth: 2, outlineOffset: 1 },
   },
@@ -152,7 +151,7 @@ export const attachmentThumbBtn = style({
 export const attachmentThumbImg = style({
   width: '2rem',
   height: '2rem',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: 'var(--radius-md)',
   objectFit: 'cover',
   boxShadow: `0 0 0 1px ${vars.border}`,
 });
@@ -211,7 +210,7 @@ export const agentTrigger = style({
   height: '1.75rem',
   alignItems: 'center',
   justifyContent: 'center',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: 'var(--radius-md)',
   border: '1px solid transparent',
   color: vars.foreground,
   outline: 'none',
@@ -224,7 +223,7 @@ export const agentTrigger = style({
 export const agentIconPlaceholder = style({
   width: '1rem',
   height: '1rem',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: 'var(--radius-sm)',
   backgroundColor: vars.border,
 });
 
@@ -233,7 +232,7 @@ export const agentIconPlaceholder = style({
 export const modelDetailCard = style({
   width: '14rem',
   padding: '0.75rem',
-  fontSize: tokenVars.textSm,
+  fontSize: 'var(--text-sm)',
   color: vars.foreground,
 });
 
@@ -244,7 +243,7 @@ export const modelDetailName = style({
 
 export const modelDetailDesc = style({
   marginTop: '0.25rem',
-  fontSize: tokenVars.textXs,
+  fontSize: 'var(--text-xs)',
   lineHeight: 1.375,
   color: vars.foregroundMuted,
 });
@@ -260,7 +259,7 @@ export const modelDetailRow = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '0.75rem',
-  fontSize: tokenVars.textXs,
+  fontSize: 'var(--text-xs)',
 });
 
 export const modelDetailLabel = style({ color: vars.foregroundMuted });
@@ -275,12 +274,12 @@ export const barDotFilled = style({
   width: '0.375rem',
   height: '0.375rem',
   borderRadius: '9999px',
-  background: vars.foregroundMuted,
+  background: 'var(--foreground-muted)',
 });
 
 export const barDotEmpty = style({
   width: '0.375rem',
   height: '0.375rem',
   borderRadius: '9999px',
-  background: vars.border,
+  background: 'var(--border)',
 });

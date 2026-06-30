@@ -1,137 +1,139 @@
 /**
  * Role-stable semantic template: maps every CSS custom-property slot to a
- * typed ColorRef. Written once, never branched per theme or polarity.
+ * scale.step reference.  Written once, never branched per theme or polarity.
  *
  * This is the ONLY place semantics are assigned. Scales are hue-named in the
  * palette (green, red, amber, blue, orange, purple); here we say what each hue
  * means (success → green, error → red, merged → purple, conflict → orange, …).
  *
- * ColorRef kinds used here:
- *   t.<scale>[<step>]          — resolves to the concrete color at that step
- *   t.<scale>.contrast         — the auto-computed contrast-on-solid color
- *   t.<scale>[n].mix(pct, ...) — CSS color-mix() expression (resolved at paint time)
+ * Ref syntax:
+ *   "scale.step"         → e.g. "neutral.1", "accent.9", "green.11"
+ *   "scale.contrast"     → the auto-computed contrast-on-solid color
+ *   "mix(A pct%, B)"     → CSS color-mix expression resolved at output time
+ *   "#literal"           → literal CSS color (kept to an absolute minimum)
  *
- * Slot keys are stable kebab-case CSS custom property names (without the leading --).
- * contract.css.ts derives the VE vars contract from Object.keys() of this object,
- * so keys must never be renamed without a corresponding CSS migration.
+ * Normalizations applied vs semantic.tokens.json:
+ *   - background / foreground-inverse: mapped to neutral.1 (light theme makes neutral.1 = white)
+ *   - border / border-* / foreground-passive / status-* / foreground-diff-added:
+ *       collapsed to one step; ramp generation ensures perceptual correctness per polarity
+ *   - primary-button: unified on accent.9 solid + accent.contrast text (Radix pattern)
+ *   - foreground-body: kept as mix expression (resolved by the CSS emitter)
  */
 
-import { nsName } from './namespace';
-import { defineSemantics, t } from './token-ref';
-
-export const semanticVars = defineSemantics({
+export const SEMANTIC_TEMPLATE = {
   // ── Backgrounds ───────────────────────────────────────────────────────────
-  background: t.neutral[1],
-  'background-1': t.neutral[2],
-  'background-2': t.neutral[3],
-  'background-3': t.neutral[4],
+  background: 'neutral.1',
+  'background-1': 'neutral.2',
+  'background-2': 'neutral.3',
+  'background-3': 'neutral.4',
 
   // ── Foregrounds ───────────────────────────────────────────────────────────
-  foreground: t.neutral[12],
-  'foreground-inverse': t.neutral[1],
-  /** Resolved as color-mix(in srgb, var(--neutral-11) 40%, var(--neutral-12)) */
-  'foreground-body': t.neutral[11].mix(40, t.neutral[12]),
-  'foreground-muted': t.neutral[11],
-  'foreground-passive': t.neutral[9],
+  foreground: 'neutral.12',
+  'foreground-inverse': 'neutral.1',
+  /** Resolved as color-mix(in srgb, var(--neutral-11) 40%, var(--neutral-12)) by the CSS emitter */
+  'foreground-body': 'mix(neutral.11 40%, neutral.12)',
+  'foreground-muted': 'neutral.11',
+  'foreground-passive': 'neutral.9',
 
   // ── Secondary (sidebar / secondary panels) ────────────────────────────────
-  'background-secondary': t.neutral[2],
-  'background-secondary-1': t.neutral[1],
-  'background-secondary-2': t.neutral[4],
-  'background-secondary-3': t.neutral[6],
+  'background-secondary': 'neutral.2',
+  'background-secondary-1': 'neutral.1',
+  'background-secondary-2': 'neutral.4',
+  'background-secondary-3': 'neutral.6',
 
-  'foreground-secondary': t.neutral[12],
-  'foreground-secondary-muted': t.neutral[11],
-  'foreground-secondary-passive': t.neutral[9],
+  'foreground-secondary': 'neutral.12',
+  'foreground-secondary-muted': 'neutral.11',
+  'foreground-secondary-passive': 'neutral.9',
 
   // ── Tertiary (code editors / inset panels) ────────────────────────────────
-  'background-tertiary': t.neutral[3],
-  'background-tertiary-1': t.neutral[4],
-  'background-tertiary-2': t.neutral[5],
-  'background-tertiary-3': t.neutral[6],
+  'background-tertiary': 'neutral.3',
+  'background-tertiary-1': 'neutral.4',
+  'background-tertiary-2': 'neutral.5',
+  'background-tertiary-3': 'neutral.6',
 
-  'foreground-tertiary': t.neutral[12],
-  'foreground-tertiary-muted': t.neutral[11],
-  'foreground-tertiary-passive': t.neutral[9],
+  'foreground-tertiary': 'neutral.12',
+  'foreground-tertiary-muted': 'neutral.11',
+  'foreground-tertiary-passive': 'neutral.9',
 
   // ── Quaternary ────────────────────────────────────────────────────────────
-  'background-quaternary': t.neutral[1],
-  'background-quaternary-1': t.neutral[2],
-  'background-quaternary-2': t.neutral[3],
+  'background-quaternary': 'neutral.1',
+  'background-quaternary-1': 'neutral.2',
+  'background-quaternary-2': 'neutral.3',
 
   // ── Neutral (inverted / pill) ─────────────────────────────────────────────
-  'background-neutral': t.neutral[12],
-  'foreground-neutral': t.neutral[1],
+  'background-neutral': 'neutral.12',
+  'foreground-neutral': 'neutral.1',
 
   // ── Primary button ────────────────────────────────────────────────────────
-  'primary-button-background': t.accent[9],
-  'primary-button-background-hover': t.accent[10],
-  'primary-button-foreground': t.accent.contrast,
-  'primary-button-border': t.accent[7],
+  'primary-button-background': 'accent.9',
+  'primary-button-background-hover': 'accent.10',
+  'primary-button-foreground': 'accent.contrast',
+  'primary-button-border': 'accent.7',
 
   // ── Destructive (red) ─────────────────────────────────────────────────────
-  'background-destructive': t.red[3],
-  'background-destructive-1': t.red[2],
-  'foreground-destructive': t.red[11],
-  'foreground-destructive-muted': t.red[9],
+  'background-destructive': 'red.3',
+  'background-destructive-1': 'red.2',
+  'foreground-destructive': 'red.11',
+  'foreground-destructive-muted': 'red.9',
 
   // ── Borders ───────────────────────────────────────────────────────────────
-  border: t.neutral[6],
-  'border-1': t.neutral[7],
-  'border-2': t.neutral[8],
-  'border-destructive': t.red[8],
-  'border-primary': t.neutral[9],
+  border: 'neutral.6',
+  'border-1': 'neutral.7',
+  'border-2': 'neutral.8',
+  'border-destructive': 'red.8',
+  'border-primary': 'neutral.9',
 
   // ── Selection (blue) ──────────────────────────────────────────────────────
-  selection: t.blue[6],
-  'selection-foreground': t.blue[12],
+  selection: 'blue.6',
+  'selection-foreground': 'blue.12',
 
   // ── Status ────────────────────────────────────────────────────────────────
-  'status-in-progress': t.amber[11],
-  'status-in-review': t.green[10],
-  'status-done': t.neutral[9],
-  'status-todo': t.neutral[9],
-  'status-cancelled': t.neutral[9],
+  'status-in-progress': 'amber.11',
+  'status-in-review': 'green.10',
+  'status-done': 'neutral.9',
+  'status-todo': 'neutral.9',
+  'status-cancelled': 'neutral.9',
 
   // ── Diff ──────────────────────────────────────────────────────────────────
-  'foreground-diff-added': t.green[9],
-  'foreground-diff-modified': t.amber[9],
-  'foreground-diff-deleted': t.red[9],
+  'foreground-diff-added': 'green.9',
+  'foreground-diff-modified': 'amber.9',
+  'foreground-diff-deleted': 'red.9',
 
   // ── Semantic state sets ───────────────────────────────────────────────────
   // success → green
-  'foreground-success': t.green[9],
-  'background-success': t.green[3],
-  'background-success-hover': t.green[4],
-  'border-success': t.green[7],
+  'foreground-success': 'green.9',
+  'background-success': 'green.3',
+  'background-success-hover': 'green.4',
+  'border-success': 'green.7',
 
   // error → red
-  'foreground-error': t.red[9],
-  'background-error': t.red[3],
-  'background-error-hover': t.red[4],
-  'border-error': t.red[7],
+  'foreground-error': 'red.9',
+  'background-error': 'red.3',
+  'background-error-hover': 'red.4',
+  'border-error': 'red.7',
 
   // warning → amber
-  'foreground-warning': t.amber[11],
-  'background-warning': t.amber[3],
-  'background-warning-hover': t.amber[4],
-  'border-warning': t.amber[7],
+  'foreground-warning': 'amber.11',
+  'background-warning': 'amber.3',
+  'background-warning-hover': 'amber.4',
+  'border-warning': 'amber.7',
 
   // info → blue
-  'foreground-info': t.blue[9],
-  'background-info': t.blue[3],
-  'background-info-hover': t.blue[4],
-  'border-info': t.blue[7],
+  'foreground-info': 'blue.9',
+  'background-info': 'blue.3',
+  'background-info-hover': 'blue.4',
+  'border-info': 'blue.7',
 
   // ── VCS state extras ──────────────────────────────────────────────────────
   // merge conflict → orange; merged PR → purple (GitHub convention)
-  'foreground-conflict': t.orange[11],
-  'foreground-merged': t.purple[9],
-});
+  'foreground-conflict': 'orange.11',
+  'foreground-merged': 'purple.9',
+} as const;
 
-export type SemanticSlot = keyof typeof semanticVars;
-/** Namespaced CSS custom property name for a semantic slot (e.g. "--em-background"). */
-export type SemanticVar = string;
+export type SemanticSlot = keyof typeof SEMANTIC_TEMPLATE;
+export type SemanticVar = `--${SemanticSlot}`;
 
-/** Array of all semantic CSS custom property names (namespaced) for runtime validation. */
-export const SEMANTIC_VARS: readonly string[] = Object.keys(semanticVars).map((k) => nsName(k));
+/** Array of all semantic CSS custom property names for runtime validation. */
+export const SEMANTIC_VARS: readonly SemanticVar[] = Object.keys(SEMANTIC_TEMPLATE).map(
+  (k) => `--${k}` as SemanticVar
+);

@@ -7,26 +7,26 @@ export const emSyntaxTheme = {
   name: 'em-syntax',
   type: 'light',
   colors: {
-    'editor.background': 'var(--em-background)',
-    'editor.foreground': 'var(--em-foreground)',
-    'editor.selectionBackground': 'var(--em-syntax-editor-selection-bg)',
-    'editor.lineHighlightBackground': 'var(--em-neutral-2)',
-    'editorCursor.foreground': 'var(--em-foreground)',
-    'editor.findMatchBackground': 'var(--em-syntax-editor-find-match-bg)',
-    'editor.findMatchHighlightBackground': 'var(--em-syntax-editor-find-match-hl)',
-    'editorLineNumber.foreground': 'var(--em-neutral-9)',
-    'editorLineNumber.activeForeground': 'var(--em-foreground)',
-    'editorIndentGuide.background': 'var(--em-neutral-5)',
-    'editorBracketMatch.background': 'var(--em-neutral-4)',
-    'editorBracketMatch.border': 'var(--em-neutral-7)',
-    'scrollbarSlider.background': 'var(--em-syntax-editor-scrollbar-bg)',
-    'scrollbarSlider.hoverBackground': 'var(--em-syntax-editor-scrollbar-hover)',
+    'editor.background': 'var(--background)',
+    'editor.foreground': 'var(--foreground)',
+    'editor.selectionBackground': 'var(--syntax-editor-selection-bg)',
+    'editor.lineHighlightBackground': 'var(--neutral-2)',
+    'editorCursor.foreground': 'var(--foreground)',
+    'editor.findMatchBackground': 'var(--syntax-editor-find-match-bg)',
+    'editor.findMatchHighlightBackground': 'var(--syntax-editor-find-match-hl)',
+    'editorLineNumber.foreground': 'var(--neutral-9)',
+    'editorLineNumber.activeForeground': 'var(--foreground)',
+    'editorIndentGuide.background': 'var(--neutral-5)',
+    'editorBracketMatch.background': 'var(--neutral-4)',
+    'editorBracketMatch.border': 'var(--neutral-7)',
+    'scrollbarSlider.background': 'var(--syntax-editor-scrollbar-bg)',
+    'scrollbarSlider.hoverBackground': 'var(--syntax-editor-scrollbar-hover)',
   },
   tokenColors: [
     {
       scope: ['comment', 'punctuation.definition.comment', 'string.comment'],
       settings: {
-        foreground: 'var(--em-syntax-comment)',
+        foreground: 'var(--syntax-comment)',
         fontStyle: 'italic',
       },
     },
@@ -42,7 +42,7 @@ export const emSyntaxTheme = {
         'keyword.other.package',
       ],
       settings: {
-        foreground: 'var(--em-syntax-keyword)',
+        foreground: 'var(--syntax-keyword)',
       },
     },
     {
@@ -54,13 +54,13 @@ export const emSyntaxTheme = {
         'punctuation.definition.string',
       ],
       settings: {
-        foreground: 'var(--em-syntax-string)',
+        foreground: 'var(--syntax-string)',
       },
     },
     {
       scope: ['constant.numeric', 'constant.language', 'constant.character', 'constant.other'],
       settings: {
-        foreground: 'var(--em-syntax-number)',
+        foreground: 'var(--syntax-number)',
       },
     },
     {
@@ -71,7 +71,7 @@ export const emSyntaxTheme = {
         'variable.function',
       ],
       settings: {
-        foreground: 'var(--em-syntax-function)',
+        foreground: 'var(--syntax-function)',
       },
     },
     {
@@ -85,13 +85,13 @@ export const emSyntaxTheme = {
         'support.type',
       ],
       settings: {
-        foreground: 'var(--em-syntax-type)',
+        foreground: 'var(--syntax-type)',
       },
     },
     {
       scope: ['variable', 'variable.other', 'variable.parameter', 'meta.definition.variable'],
       settings: {
-        foreground: 'var(--em-syntax-variable)',
+        foreground: 'var(--syntax-variable)',
       },
     },
     {
@@ -102,7 +102,7 @@ export const emSyntaxTheme = {
         'meta.object-literal.key',
       ],
       settings: {
-        foreground: 'var(--em-syntax-property)',
+        foreground: 'var(--syntax-property)',
       },
     },
     {
@@ -114,19 +114,19 @@ export const emSyntaxTheme = {
         'punctuation',
       ],
       settings: {
-        foreground: 'var(--em-syntax-operator)',
+        foreground: 'var(--syntax-operator)',
       },
     },
     {
       scope: ['entity.name.tag', 'meta.tag', 'punctuation.definition.tag'],
       settings: {
-        foreground: 'var(--em-syntax-tag)',
+        foreground: 'var(--syntax-tag)',
       },
     },
     {
       scope: ['entity.other.attribute-name', 'meta.attribute'],
       settings: {
-        foreground: 'var(--em-syntax-attribute)',
+        foreground: 'var(--syntax-attribute)',
       },
     },
     {
@@ -136,7 +136,7 @@ export const emSyntaxTheme = {
         'constant.other.character-class.regexp',
       ],
       settings: {
-        foreground: 'var(--em-syntax-regexp)',
+        foreground: 'var(--syntax-regexp)',
       },
     },
   ],

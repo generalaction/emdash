@@ -17,12 +17,6 @@ const config: StorybookConfig = {
   viteFinal: (config) =>
     mergeConfig(config, {
       plugins: [vanillaExtractPlugin()],
-      optimizeDeps: {
-        include: [
-          '@vanilla-extract/sprinkles/createRuntimeSprinkles',
-          '@vanilla-extract/recipes/createRuntimeFn',
-        ],
-      },
       resolve: {
         alias: {
           '@': root,

@@ -10,13 +10,12 @@
  * The sprinkles fontSize / fontWeight / fontFamily / borderRadius properties
  * use these refs.
  *
- * Also emits composite typography role vars (--em-type-*) which are derived from
+ * Also emits composite typography role vars (--type-*) which are derived from
  * the primitive tokens; these remain as plain strings since they chain one var
  * into another and cannot be represented in the VE typed-vars map.
  */
 
 import { createGlobalThemeContract, globalStyle } from '@vanilla-extract/css';
-import { nsName } from './core/contract/namespace';
 
 // ── Primitive non-color token contract ────────────────────────────────────────
 
@@ -66,7 +65,7 @@ export const tokenVars = createGlobalThemeContract(
     animatePanelBlurIn: 'animate-panel-blur-in',
     animatePanelBlurOut: 'animate-panel-blur-out',
   },
-  (name) => nsName(name ?? '')
+  (name) => `--${name}`
 );
 
 export type TokenVars = typeof tokenVars;
@@ -124,63 +123,64 @@ globalStyle(':root', {
 // ── Composite typography role vars ────────────────────────────────────────────
 //
 // These chain var→var so they can't go in the typed contract (VE only accepts
-// static strings in the `vars` map). Namespaced via nsName() so they are
-// isolated from any host app token namespace.
+// static strings in the `vars` map). They keep the same --type-* names for
+// backward compatibility with typography.css.
 
 globalStyle(':root', {
-  [nsName('type-body-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-body-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-body-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
-  [nsName('type-body-line-height')]: '20px',
+  // @ts-expect-error — VE does not type arbitrary --type-* properties in globalStyle
+  '--type-body-font-family': `var(${tokenVars.fontSans})`,
+  '--type-body-font-size': `var(${tokenVars.textBase})`,
+  '--type-body-font-weight': `var(${tokenVars.fontWeightNormal})`,
+  '--type-body-line-height': '20px',
 
-  [nsName('type-body-bold-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-body-bold-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-body-bold-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
-  [nsName('type-body-bold-line-height')]: '20px',
+  '--type-body-bold-font-family': `var(${tokenVars.fontSans})`,
+  '--type-body-bold-font-size': `var(${tokenVars.textBase})`,
+  '--type-body-bold-font-weight': `var(${tokenVars.fontWeightSemibold})`,
+  '--type-body-bold-line-height': '20px',
 
-  [nsName('type-body-italic-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-body-italic-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-body-italic-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
-  [nsName('type-body-italic-font-style')]: 'italic',
-  [nsName('type-body-italic-line-height')]: '20px',
+  '--type-body-italic-font-family': `var(${tokenVars.fontSans})`,
+  '--type-body-italic-font-size': `var(${tokenVars.textBase})`,
+  '--type-body-italic-font-weight': `var(${tokenVars.fontWeightNormal})`,
+  '--type-body-italic-font-style': 'italic',
+  '--type-body-italic-line-height': '20px',
 
-  [nsName('type-body-link-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-body-link-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-body-link-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
-  [nsName('type-body-link-line-height')]: '20px',
+  '--type-body-link-font-family': `var(${tokenVars.fontSans})`,
+  '--type-body-link-font-size': `var(${tokenVars.textBase})`,
+  '--type-body-link-font-weight': `var(${tokenVars.fontWeightNormal})`,
+  '--type-body-link-line-height': '20px',
 
-  [nsName('type-h1-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-h1-font-size')]: `var(${tokenVars.textXl})`,
-  [nsName('type-h1-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
-  [nsName('type-h1-line-height')]: '28px',
+  '--type-h1-font-family': `var(${tokenVars.fontSans})`,
+  '--type-h1-font-size': `var(${tokenVars.textXl})`,
+  '--type-h1-font-weight': `var(${tokenVars.fontWeightSemibold})`,
+  '--type-h1-line-height': '28px',
 
-  [nsName('type-h2-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-h2-font-size')]: `var(${tokenVars.textLg})`,
-  [nsName('type-h2-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
-  [nsName('type-h2-line-height')]: '25px',
+  '--type-h2-font-family': `var(${tokenVars.fontSans})`,
+  '--type-h2-font-size': `var(${tokenVars.textLg})`,
+  '--type-h2-font-weight': `var(${tokenVars.fontWeightSemibold})`,
+  '--type-h2-line-height': '25px',
 
-  [nsName('type-h3-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-h3-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-h3-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
-  [nsName('type-h3-line-height')]: '22px',
+  '--type-h3-font-family': `var(${tokenVars.fontSans})`,
+  '--type-h3-font-size': `var(${tokenVars.textBase})`,
+  '--type-h3-font-weight': `var(${tokenVars.fontWeightSemibold})`,
+  '--type-h3-line-height': '22px',
 
-  [nsName('type-inline-code-font-family')]: `var(${tokenVars.fontMono})`,
-  [nsName('type-inline-code-font-size')]: `var(${tokenVars.textXs})`,
-  [nsName('type-inline-code-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
-  [nsName('type-inline-code-line-height')]: '20px',
+  '--type-inline-code-font-family': `var(${tokenVars.fontMono})`,
+  '--type-inline-code-font-size': `var(${tokenVars.textXs})`,
+  '--type-inline-code-font-weight': `var(${tokenVars.fontWeightNormal})`,
+  '--type-inline-code-line-height': '20px',
 
-  [nsName('type-code-font-family')]: `var(${tokenVars.fontMono})`,
-  [nsName('type-code-font-size')]: `var(${tokenVars.textSm})`,
-  [nsName('type-code-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
-  [nsName('type-code-line-height')]: '20px',
+  '--type-code-font-family': `var(${tokenVars.fontMono})`,
+  '--type-code-font-size': `var(${tokenVars.textSm})`,
+  '--type-code-font-weight': `var(${tokenVars.fontWeightNormal})`,
+  '--type-code-line-height': '20px',
 
-  [nsName('type-code-lang-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-code-lang-font-size')]: `var(${tokenVars.textTiny})`,
-  [nsName('type-code-lang-font-weight')]: `var(${tokenVars.fontWeightMedium})`,
-  [nsName('type-code-lang-line-height')]: '16px',
+  '--type-code-lang-font-family': `var(${tokenVars.fontSans})`,
+  '--type-code-lang-font-size': `var(${tokenVars.textTiny})`,
+  '--type-code-lang-font-weight': `var(${tokenVars.fontWeightMedium})`,
+  '--type-code-lang-line-height': '16px',
 
-  [nsName('type-mention-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-mention-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-mention-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
-  [nsName('type-mention-line-height')]: '20px',
+  '--type-mention-font-family': `var(${tokenVars.fontSans})`,
+  '--type-mention-font-size': `var(${tokenVars.textBase})`,
+  '--type-mention-font-weight': `var(${tokenVars.fontWeightSemibold})`,
+  '--type-mention-line-height': '20px',
 });

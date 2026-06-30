@@ -13,20 +13,20 @@
  */
 
 import { createGlobalThemeContract } from '@vanilla-extract/css';
-import { nsName } from './namespace';
 import { allSurfaceVarNames } from './roles';
-import { semanticVars } from './semantic-template';
+import { SEMANTIC_TEMPLATE } from './semantic-template';
 
 const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
 
 const semanticKeys = Object.fromEntries(
-  Object.keys(semanticVars).map((slot) => [toCamel(slot), slot])
+  Object.keys(SEMANTIC_TEMPLATE).map((slot) => [toCamel(slot), slot])
 );
 
 const surfaceKeys = Object.fromEntries(allSurfaceVarNames().map((v) => [toCamel(v), v]));
 
-export const vars = createGlobalThemeContract({ ...semanticKeys, ...surfaceKeys }, (name) =>
-  nsName(name ?? '')
+export const vars = createGlobalThemeContract(
+  { ...semanticKeys, ...surfaceKeys },
+  (name) => `--${name}`
 );
 
 export type Vars = typeof vars;
