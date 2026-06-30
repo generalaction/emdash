@@ -98,6 +98,10 @@ export type {
   ChatMentionKind,
 } from './core/markdown/mention-provider';
 
+// ── Command provider ──────────────────────────────────────────────────────────
+
+export type { CommandProvider, ChatCommandMeta } from './core/markdown/command-provider';
+
 // ── Commands + scroll helpers ─────────────────────────────────────────────────
 
 export type { ChatCommands, ScrollToItemOptions } from './commands';

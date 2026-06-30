@@ -43,6 +43,7 @@ import type {
   RuleBlock,
   TableBlock,
 } from './document';
+import type { CommandProvider } from './command-provider';
 import type { MentionProvider } from './mention-provider';
 
 // ── Shared parser instance ──────────────────────────────────────────────────
@@ -68,17 +69,31 @@ const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 const AT_TOKEN_RE = /@((?:[\w/\-:()]|\.(?=[\w/\-:()]))+)/g;
 
 /**
- * Split a plain-text segment on @-mentions (using the provider to validate each)
- * and return a mixed InlineText / InlineMention run array.
- * When no provider is supplied, the segment is returned as a single InlineText.
+ * Regex matching `/<token>` at the start of the string or after whitespace.
+ * Token is one or more word chars or hyphens (command names only — no paths).
+ *
+ * Examples matched: /web  /search-files  /explain
+ * Non-matches: path/to/file  https://example.com/path
+ */
+const SLASH_TOKEN_RE = /(?:^|(?<=\s))\/([\w-]+)/g;
+
+/**
+ * Split a plain-text segment on @-mentions and /commands, using the
+ * respective providers to validate each token, and return a mixed
+ * InlineText / InlineMention run array.
+ * When no providers are supplied, the segment is returned as a single InlineText.
  */
 function splitAtMentions(
   text: string,
   opts: { bold?: boolean; italic?: boolean; strike?: boolean; href?: string },
-  provider: MentionProvider | undefined,
+  mentionProvider: MentionProvider | undefined,
+  commandProvider: CommandProvider | undefined,
   uri: string | undefined
 ): InlineRun[] {
-  if (!provider || !text.includes('@')) {
+  const hasAtTokens = mentionProvider && text.includes('@');
+  const hasSlashTokens = commandProvider && text.includes('/');
+
+  if (!hasAtTokens && !hasSlashTokens) {
     return text.length > 0
       ? [
           {
@@ -93,22 +108,82 @@ function splitAtMentions(
       : [];
   }
 
+  // Collect all token matches (@ and /) with their resolved run, then sort by
+  // position so we can walk the string in order.
+  type TokenHit = { index: number; length: number; run: InlineRun };
+  const hits: TokenHit[] = [];
+
+  if (mentionProvider) {
+    AT_TOKEN_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = AT_TOKEN_RE.exec(text)) !== null) {
+      const token = match[1];
+      const meta = mentionProvider.resolve(token, uri);
+      if (!meta) continue;
+      hits.push({
+        index: match.index,
+        length: match[0].length,
+        run: {
+          kind: 'mention',
+          label: meta.label,
+          id: meta.id,
+          name: meta.name,
+          mentionKind: meta.kind,
+          iconClass: meta.iconClass,
+        } satisfies InlineMention,
+      });
+    }
+  }
+
+  if (commandProvider) {
+    SLASH_TOKEN_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = SLASH_TOKEN_RE.exec(text)) !== null) {
+      const token = match[1];
+      const meta = commandProvider.resolve(token, uri);
+      if (!meta) continue;
+      // The full match may start with a leading whitespace character captured
+      // by the lookbehind alternative; skip it so the slice is tight.
+      const prefixLen = match[0].length - token.length - 1; // chars before "/"
+      hits.push({
+        index: match.index + prefixLen,
+        length: 1 + token.length, // "/<token>"
+        run: {
+          kind: 'mention',
+          label: `/${meta.name}`,
+          tone: 'command',
+        } satisfies InlineMention,
+      });
+    }
+  }
+
+  if (hits.length === 0) {
+    return text.length > 0
+      ? [
+          {
+            kind: 'text',
+            text,
+            bold: opts.bold,
+            italic: opts.italic,
+            strike: opts.strike,
+            href: opts.href,
+          } satisfies InlineText,
+        ]
+      : [];
+  }
+
+  // Sort by start position (they should not overlap, but sort for safety).
+  hits.sort((a, b) => a.index - b.index);
+
   const runs: InlineRun[] = [];
   let lastIndex = 0;
-  AT_TOKEN_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
 
-  while ((match = AT_TOKEN_RE.exec(text)) !== null) {
-    const token = match[1];
-    const meta = provider.resolve(token, uri);
-    if (!meta) continue;
-
+  for (const hit of hits) {
     // Emit preceding plain text
-    if (match.index > lastIndex) {
-      const before = text.slice(lastIndex, match.index);
+    if (hit.index > lastIndex) {
       runs.push({
         kind: 'text',
-        text: before,
+        text: text.slice(lastIndex, hit.index),
         bold: opts.bold,
         italic: opts.italic,
         strike: opts.strike,
@@ -116,24 +191,15 @@ function splitAtMentions(
       } satisfies InlineText);
     }
 
-    runs.push({
-      kind: 'mention',
-      label: meta.label,
-      id: meta.id,
-      name: meta.name,
-      mentionKind: meta.kind,
-      iconClass: meta.iconClass,
-    } satisfies InlineMention);
-
-    lastIndex = match.index + match[0].length;
+    runs.push(hit.run);
+    lastIndex = hit.index + hit.length;
   }
 
   // Trailing plain text
   if (lastIndex < text.length) {
-    const after = text.slice(lastIndex);
     runs.push({
       kind: 'text',
-      text: after,
+      text: text.slice(lastIndex),
       bold: opts.bold,
       italic: opts.italic,
       strike: opts.strike,
@@ -147,7 +213,8 @@ function splitAtMentions(
 function phrasingsToRuns(
   nodes: PhrasingContent[],
   opts: { bold?: boolean; italic?: boolean; strike?: boolean; href?: string } = {},
-  provider?: MentionProvider,
+  mentionProvider?: MentionProvider,
+  commandProvider?: CommandProvider,
   uri?: string
 ): InlineRun[] {
   const runs: InlineRun[] = [];
@@ -161,7 +228,7 @@ function phrasingsToRuns(
         for (let i = 0; i < segments.length; i++) {
           if (i > 0) runs.push({ kind: 'break' } satisfies InlineBreak);
           const seg = segments[i];
-          runs.push(...splitAtMentions(seg, opts, provider, uri));
+          runs.push(...splitAtMentions(seg, opts, mentionProvider, commandProvider, uri));
         }
         break;
       }
@@ -179,7 +246,8 @@ function phrasingsToRuns(
               ...opts,
               bold: true,
             },
-            provider,
+            mentionProvider,
+            commandProvider,
             uri
           )
         );
@@ -194,7 +262,8 @@ function phrasingsToRuns(
               ...opts,
               italic: true,
             },
-            provider,
+            mentionProvider,
+            commandProvider,
             uri
           )
         );
@@ -209,7 +278,8 @@ function phrasingsToRuns(
               ...opts,
               strike: true,
             },
-            provider,
+            mentionProvider,
+            commandProvider,
             uri
           )
         );
@@ -228,7 +298,8 @@ function phrasingsToRuns(
           ...phrasingsToRuns(
             link.children as PhrasingContent[],
             { ...opts, href: link.url },
-            provider,
+            mentionProvider,
+            commandProvider,
             uri
           )
         );
@@ -266,9 +337,10 @@ function blockToBlocks(
   messageId: string,
   counter: { n: number },
   depth = 0,
-  provider?: MentionProvider,
+  mentionProvider?: MentionProvider,
   inQuote = false,
-  uri?: string
+  uri?: string,
+  commandProvider?: CommandProvider
 ): Block[] {
   const nextId = (): BlockId => `${messageId}#${counter.n++}`;
   const blocks: Block[] = [];
@@ -276,7 +348,13 @@ function blockToBlocks(
   switch (node.type) {
     case 'paragraph': {
       const parent = node as Parent;
-      const runs = phrasingsToRuns(parent.children as PhrasingContent[], {}, provider, uri);
+      const runs = phrasingsToRuns(
+        parent.children as PhrasingContent[],
+        {},
+        mentionProvider,
+        commandProvider,
+        uri
+      );
       if (runs.length > 0) {
         blocks.push({
           kind: 'prose',
@@ -292,7 +370,13 @@ function blockToBlocks(
     case 'heading': {
       const h = node as Heading;
       const variant = `h${h.depth}` as ProseVariant;
-      const runs = phrasingsToRuns(h.children as PhrasingContent[], {}, provider, uri);
+      const runs = phrasingsToRuns(
+        h.children as PhrasingContent[],
+        {},
+        mentionProvider,
+        commandProvider,
+        uri
+      );
       if (runs.length > 0) {
         blocks.push({
           kind: 'prose',
@@ -312,9 +396,10 @@ function blockToBlocks(
             messageId,
             counter,
             depth + 1,
-            provider,
+            mentionProvider,
             true,
-            uri
+            uri,
+            commandProvider
           )
         );
       }
@@ -331,7 +416,8 @@ function blockToBlocks(
             const runs = phrasingsToRuns(
               (itemChild as Parent).children as PhrasingContent[],
               {},
-              provider,
+              mentionProvider,
+              commandProvider,
               uri
             );
             if (runs.length > 0) {
@@ -350,9 +436,10 @@ function blockToBlocks(
                 messageId,
                 counter,
                 depth + 1,
-                provider,
+                mentionProvider,
                 false,
-                uri
+                uri,
+                commandProvider
               )
             );
           }
@@ -385,8 +472,14 @@ function blockToBlocks(
       const allRows = tableNode.children.map((row) =>
         (row as TableRow).children.map((cell) => {
           const cellNode = cell as TableCell & Parent;
-          // Table cell text is plain: @mentions become their label text
-          return phrasingsToRuns(cellNode.children as PhrasingContent[], {}, provider, uri)
+          // Table cell text is plain: @mentions and /commands become their label text
+          return phrasingsToRuns(
+            cellNode.children as PhrasingContent[],
+            {},
+            mentionProvider,
+            commandProvider,
+            uri
+          )
             .map((r) => ('text' in r ? r.text : 'label' in r ? r.label : ''))
             .join('');
         })
@@ -440,20 +533,24 @@ function blockToBlocks(
  * message is kept as a single prose unit until `finalizeTurn()` freezes the
  * text and re-parses with the complete content.
  *
- * @param messageId - Stable item id used as the block-id prefix.
- * @param markdown  - Raw markdown string to parse.
- * @param provider  - Optional @-mention resolver; when supplied, `@token` spans
- *                    that resolve to metadata are emitted as InlineMention runs.
- * @param startN    - Starting block counter (default 0). Used by the incremental
- *                    streaming parser to assign continuation IDs when parsing tail
- *                    chunks so they join seamlessly with the stable prefix IDs.
- * @param uri       - Conversation URI forwarded to `MentionProvider.resolve` so
- *                    a global provider can scope resolution to the right context.
+ * @param messageId       - Stable item id used as the block-id prefix.
+ * @param markdown        - Raw markdown string to parse.
+ * @param mentionProvider - Optional @-mention resolver; when supplied, `@token` spans
+ *                          that resolve to metadata are emitted as InlineMention runs.
+ * @param commandProvider - Optional /-command resolver; when supplied, `/token` spans
+ *                          that resolve to metadata are emitted as InlineMention runs
+ *                          with `tone: 'command'`.
+ * @param startN          - Starting block counter (default 0). Used by the incremental
+ *                          streaming parser to assign continuation IDs when parsing tail
+ *                          chunks so they join seamlessly with the stable prefix IDs.
+ * @param uri             - Conversation URI forwarded to provider `.resolve()` so
+ *                          a global provider can scope resolution to the right context.
  */
 export function parseMarkdownToBlocks(
   messageId: string,
   markdown: string,
-  provider?: MentionProvider,
+  mentionProvider?: MentionProvider,
+  commandProvider?: CommandProvider,
   startN = 0,
   uri?: string
 ): Block[] {
@@ -470,9 +567,10 @@ export function parseMarkdownToBlocks(
         messageId,
         counter,
         0,
-        provider,
+        mentionProvider,
         false,
-        uri
+        uri,
+        commandProvider
       )
     );
   }

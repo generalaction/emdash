@@ -41,6 +41,7 @@ import {
   type HighlightResult,
 } from './highlight/highlighter';
 import type { Block } from './markdown/document';
+import type { CommandProvider } from './markdown/command-provider';
 import type { MentionProvider } from './markdown/mention-provider';
 import { parseMarkdownToBlocks } from './markdown/parse';
 
@@ -369,7 +370,11 @@ export function createSharedCaches(highlighter?: ChatHighlighter): SharedCaches 
 // Keeping Block object identities stable across streaming updates is what lets
 // WeakMap measurement caches hit without full re-measurement.
 
-export function createParseCaches(mentionProvider?: MentionProvider, uri?: string): ParseCaches {
+export function createParseCaches(
+  mentionProvider?: MentionProvider,
+  commandProvider?: CommandProvider,
+  uri?: string
+): ParseCaches {
   // Block parse cache — keyed by messageId.
   const blockCache = new Map<string, { text: string; blocks: Block[] }>();
 
@@ -383,7 +388,7 @@ export function createParseCaches(mentionProvider?: MentionProvider, uri?: strin
       streamCache.delete(id);
       const hit = blockCache.get(id);
       if (hit && hit.text === markdown) return hit.blocks;
-      const blocks = parseMarkdownToBlocks(id, markdown, mentionProvider, 0, uri);
+      const blocks = parseMarkdownToBlocks(id, markdown, mentionProvider, commandProvider, 0, uri);
       blockCache.set(id, { text: markdown, blocks });
       return blocks;
     },
@@ -414,6 +419,7 @@ export function createParseCaches(mentionProvider?: MentionProvider, uri?: strin
           id,
           settledChunk,
           mentionProvider,
+          commandProvider,
           rec.counter,
           uri
         );
@@ -425,7 +431,7 @@ export function createParseCaches(mentionProvider?: MentionProvider, uri?: strin
       // Re-parse the still-growing tail (small; only content after boundary).
       const growingChunk = tail.slice(boundary);
       const growingBlocks = growingChunk.trim()
-        ? parseMarkdownToBlocks(id, growingChunk, mentionProvider, rec.counter, uri)
+        ? parseMarkdownToBlocks(id, growingChunk, mentionProvider, commandProvider, rec.counter, uri)
         : [];
 
       return growingBlocks.length > 0 ? [...rec.stableBlocks, ...growingBlocks] : rec.stableBlocks;
@@ -455,10 +461,11 @@ export function createParseCaches(mentionProvider?: MentionProvider, uri?: strin
 
 export function createChatCaches(
   highlighter?: ChatHighlighter,
-  mentionProvider?: MentionProvider
+  mentionProvider?: MentionProvider,
+  commandProvider?: CommandProvider
 ): ChatCaches {
   const shared = createSharedCaches(highlighter);
-  const parse = createParseCaches(mentionProvider);
+  const parse = createParseCaches(mentionProvider, commandProvider);
   return { ...shared, ...parse };
 }
 

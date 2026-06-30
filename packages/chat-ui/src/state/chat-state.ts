@@ -163,7 +163,7 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
   createRoot((dispose) => {
     disposeRoot = dispose;
     transcript = createTranscript();
-    parseCaches = createParseCaches(ctx.mentionProvider, opts?.uri);
+    parseCaches = createParseCaches(ctx.mentionProvider, ctx.commandProvider, opts?.uri);
     viewState = createViewState();
     [getExpandedUserId, setExpandedUserId] = createSignal<string | null>(null);
   });

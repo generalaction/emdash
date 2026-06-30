@@ -13,6 +13,8 @@
 import { Mention as TipTapMention } from '@tiptap/extension-mention';
 import { PluginKey } from '@tiptap/pm/state';
 import type { SuggestionOptions } from '@tiptap/suggestion';
+import { ReactNodeViewRenderer } from '@tiptap/react';
+import { SlashCommandPill } from '../slash-command-pill';
 import type { CommandItem } from '../types';
 
 const slashCommandPluginKey = new PluginKey('slashCommand');
@@ -28,6 +30,9 @@ export function buildSlashCommandExtension(
         id: { default: null },
         name: { default: null },
       };
+    },
+    addNodeView() {
+      return ReactNodeViewRenderer(SlashCommandPill, { as: 'span' });
     },
   }).configure({
     HTMLAttributes: { class: 'slash-command-chip' },

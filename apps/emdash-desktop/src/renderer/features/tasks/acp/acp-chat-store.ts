@@ -16,6 +16,10 @@ import {
 } from '@emdash/core/acp/session-machine';
 import type { CommandItem, ComposerModelOption } from '@emdash/ui/react/components';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import {
+  registerConversationCommands,
+  unregisterConversationCommands,
+} from '@renderer/lib/chat/advertised-command-provider';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { events, rpc } from '@renderer/lib/ipc';
 import {
@@ -87,7 +91,11 @@ export class AcpChatStore {
     // Use the process-long shared ChatContext (created once in main.tsx bootstrap).
     // Per-conversation transcript state lives in ChatState, created here.
     this.chatContext = getSharedChatContext();
-    this.chatState = createChatState(this.chatContext);
+    this.chatState = createChatState(this.chatContext, { uri: conversationId });
+
+    // Register this conversation's advertised commands with the global command
+    // provider so slash-command chips render in the transcript.
+    registerConversationCommands(conversationId, () => this.commands.map((c) => c.name));
 
     makeObservable(this, {
       snapshot: observable.ref,
@@ -352,6 +360,7 @@ export class AcpChatStore {
   dispose(): void {
     for (const unsub of this._unsubs) unsub();
     this._unsubs.length = 0;
+    unregisterConversationCommands(this.conversationId);
     // chatState is per-conversation and must be disposed; chatContext is the
     // shared app-wide singleton and must NOT be disposed here.
     this.chatState.dispose();
