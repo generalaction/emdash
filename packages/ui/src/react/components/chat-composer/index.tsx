@@ -17,7 +17,12 @@ import * as styles from './chat-composer.css';
 import './composer-contract.css';
 
 export type { MentionItem, CommandItem };
-export type { MentionKind, CommandBehavior, ContextMentionProvider } from '../prompt-editor/types';
+export type {
+  MentionKind,
+  CommandBehavior,
+  ContextMentionProvider,
+  PromptEditorRef,
+} from '../prompt-editor/types';
 
 export type ComposerNoticeVariant = 'error' | 'warning' | 'info';
 

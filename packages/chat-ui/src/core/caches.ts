@@ -47,11 +47,16 @@ import { parseMarkdownToBlocks } from './markdown/parse';
 // ── Streaming parse helpers ───────────────────────────────────────────────────
 //
 // Incremental (append-aware) streaming parser state. During streaming each new
-// chunk re-parses only the "growing" tail (text after the last blank-line
-// boundary that is not inside an open code fence). The settled prefix keeps its
-// Block object identities across chunks so blockMemo (WeakMap-keyed by Block
-// ref) hits for them — turning the O(n²) re-parse/re-measure/re-render into
-// O(tail) per chunk.
+// chunk re-parses only the "growing" tail (text after the last safe boundary).
+// Safe boundaries are:
+//   • A closing code fence line (3+ backticks/tildes at line start) — the code
+//     block is structurally complete at this point and can be committed without
+//     waiting for a trailing blank line.
+//   • A blank line that is not inside an open code fence.
+//
+// The settled prefix keeps its Block object identities across chunks so
+// blockMemo (WeakMap-keyed by Block ref) hits for them — turning the O(n²)
+// re-parse/re-measure/re-render into O(tail) per chunk.
 
 type StreamingRecord = {
   /** Portion of the message text whose blocks are stable (object-identity-stable). */
@@ -83,7 +88,15 @@ function endsInsideFence(text: string): boolean {
 
 /**
  * Returns the position in `tail` immediately after the last safe streaming
- * parse boundary — a blank line (`\n\n`) that is not inside an open code fence.
+ * parse boundary. Two events constitute a safe boundary:
+ *
+ *   1. A closing code fence line (3+ backticks/tildes at line start that
+ *      transitions `inside` from true to false). The code block is
+ *      structurally complete at this point — remark parses it identically
+ *      in isolation — so we commit immediately without waiting for a trailing
+ *      blank line.
+ *   2. A blank line (`\n\n`) that is not inside an open code fence.
+ *
  * Returns 0 when no safe boundary exists (the entire tail is still growing).
  *
  * `stableText` is used to determine whether the start of `tail` is already
@@ -98,9 +111,14 @@ function findSafeStreamBoundary(stableText: string, tail: string): number {
     const nlIdx = tail.indexOf('\n', i);
     if (nlIdx === -1) break;
     const line = tail.slice(i, nlIdx);
-    if (/^\s*(`{3,}|~{3,})/.test(line)) inside = !inside;
-    // A blank line is detected when the character immediately after this \n is
-    // also \n (making the sequence \n\n in the source).
+    const isFence = /^\s*(`{3,}|~{3,})/.test(line);
+    if (isFence) {
+      inside = !inside;
+      // A line that just closed a fence is a safe commit point: the fenced
+      // code block is structurally complete even without a trailing blank line.
+      if (!inside) lastSafe = nlIdx + 1;
+    }
+    // A blank line outside a fence is also a safe boundary.
     if (!inside && tail[nlIdx + 1] === '\n') {
       lastSafe = nlIdx + 2;
     }
@@ -204,17 +222,28 @@ export type ParseCaches = {
    *
    * Maintains a per-id streaming record that tracks the stable prefix (text
    * whose Block objects are reused across chunks so blockMemo hits for them).
-   * Only the growing tail after the last blank-line boundary is re-parsed on
-   * each chunk. Call this while `item.streaming === true`; switch to the normal
+   * Only the growing tail after the last safe boundary is re-parsed on each
+   * chunk. Safe boundaries are:
+   *   • A closing code fence line (commits the code block immediately).
+   *   • A blank line outside any open code fence.
+   *
+   * Call this while `item.streaming === true`; switch to the normal
    * `parseBlocks` after the turn is frozen — that final call clears the record.
    *
    * Limitations (acceptable for chat use):
    *   - Non-append mutations (edit/replay) fall back to a full reparse.
-   *   - Blank lines inside code fences are excluded from boundaries, but
-   *     link-reference definitions and exotic loose-list continuations near
-   *     a boundary may not parse identically in isolation vs. in context.
+   *   - Link-reference definitions and exotic loose-list continuations near
+   *     a blank-line boundary may not parse identically in isolation vs. in
+   *     context.
    */
   parseBlocksStreaming(id: string, markdown: string): Block[];
+  /**
+   * Returns the number of blocks currently in the stable settled prefix for a
+   * streaming message. Blocks with index `< settledBlockCount(id)` have crossed
+   * a safe parse boundary and will not be re-parsed. Returns 0 when no record
+   * exists (not streaming / not yet parsed).
+   */
+  settledBlockCount(id: string): number;
   /** Drop the cached blocks for one message (call after text is frozen). */
   evictBlocks(id: string): void;
   /** Drop all parse caches. Call when the ChatState disposes. */
@@ -400,6 +429,10 @@ export function createParseCaches(mentionProvider?: MentionProvider, uri?: strin
         : [];
 
       return growingBlocks.length > 0 ? [...rec.stableBlocks, ...growingBlocks] : rec.stableBlocks;
+    },
+
+    settledBlockCount(id) {
+      return streamCache.get(id)?.counter ?? 0;
     },
 
     evictBlocks(id) {

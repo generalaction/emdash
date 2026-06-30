@@ -101,6 +101,12 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Swap the underlying ChatState when props.state identity changes (setModel path).
+  // The view handle, composer slot, and commands remain stable across swaps.
+  useEffect(() => {
+    viewRef.current?.setModel(props.state);
+  }, [props.state]);
+
   // Push top padding updates reactively.
   useEffect(() => {
     viewRef.current?.setContentPadding({ top: props.padTop });

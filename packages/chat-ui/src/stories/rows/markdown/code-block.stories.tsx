@@ -90,3 +90,62 @@ export const Generating: Story = {
     />
   ),
 };
+
+/**
+ * FenceCloseHighlight — verifies that the code block is highlighted at the
+ * exact moment its closing fence arrives, with NO trailing blank line before
+ * the next sentence starts. The highlight tokens should appear while "Now call
+ * it with..." is still streaming, demonstrating fence-close commit timing.
+ */
+const FENCE_CLOSE_BODY = [
+  'Here is a simple add function:\n\n',
+  '```typescript\n',
+  'function add(a: number, b: number): number {\n',
+  '  return a + b;\n',
+  '}\n',
+  // Closing fence with no blank line — the code block should commit here.
+  '```\n',
+  'Now call it with `add(2, 3)` to get `5`. ',
+  'You can also use it inside a reduce to sum an array of numbers.',
+].join('');
+
+export const FenceCloseHighlight: Story = {
+  render: () => (
+    <ScriptedChat
+      height={340}
+      script={scenario(
+        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'How do I add two numbers?' }])],
+        streamMessage({ id: 'a1', text: FENCE_CLOSE_BODY, chunkMs: 90 })
+      )}
+    />
+  ),
+};
+
+/**
+ * IncrementalHighlight — a code block followed by more streaming prose with a
+ * blank line between them. The highlight should appear before the trailing
+ * paragraph finishes, demonstrating the general settled-prefix commit.
+ */
+const INCREMENTAL_HIGHLIGHT_BODY = [
+  'Here is a function you can use:\n\n',
+  '```typescript\n',
+  'function add(a: number, b: number): number {\n',
+  '  return a + b;\n',
+  '}\n',
+  '```\n\n',
+  'That covers the basic implementation. ',
+  'You can extend it to handle edge cases like NaN or Infinity ',
+  'by adding input validation at the top of the function body.',
+].join('');
+
+export const IncrementalHighlight: Story = {
+  render: () => (
+    <ScriptedChat
+      height={360}
+      script={scenario(
+        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'How do I add two numbers?' }])],
+        streamMessage({ id: 'a1', text: INCREMENTAL_HIGHLIGHT_BODY, chunkMs: 80 })
+      )}
+    />
+  ),
+};

@@ -4,6 +4,7 @@ import { CopyButton } from '@components/primitives/CopyButton';
 import type { StackLayout } from '@core/compose';
 import type { MeasureCtx, Measured, RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
+import type { Block } from '@core/markdown/document';
 import { blockPlainText } from '@core/markdown/plain-text';
 import { defineUnit } from '@core/units';
 import { pxTokens } from '@styles/px-tokens';
@@ -58,20 +59,31 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
   // because the <For> in UnitRow keeps this component alive. Shared by ref with
   // StreamContext so Prose.tsx can update it after each render without reactivity.
   //
-  // `streaming` is a reactive accessor (not a plain boolean) so that Code.tsx
-  // effects which read it via useStreamAnimation()?.streaming() track the
-  // streaming→committed transition and run exactly one highlight at the end.
+  // `streaming` and `settledCount` are reactive accessors so Code.tsx effects
+  // track the per-block settled transition (fence close or blank-line boundary)
+  // and highlight each block exactly once when it crosses that boundary.
+  const parsed = createMemo(() => {
+    const ctx = mCtx();
+    if (!ctx) return { blocks: [] as Block[], settledCount: 0 };
+    const blocks = props.data.streaming
+      ? ctx.caches.parseBlocksStreaming(props.data.id, props.data.text)
+      : ctx.caches.parseBlocks(props.data.id, props.data.text);
+    const settledCount = props.data.streaming
+      ? ctx.caches.settledBlockCount(props.data.id)
+      : blocks.length;
+    return { blocks, settledCount };
+  });
+
   const streamAnimation: StreamAnimation = {
     frontier: new Map(),
     streaming: () => props.data.streaming === true,
+    settledCount: () => parsed().settledCount,
   };
 
   const stack = createMemo<Measured<StackLayout> | null>(() => {
     const ctx = mCtx();
     if (!ctx) return null;
-    const blocks = props.data.streaming
-      ? ctx.caches.parseBlocksStreaming(props.data.id, props.data.text)
-      : ctx.caches.parseBlocks(props.data.id, props.data.text);
+    const blocks = parsed().blocks;
     if (blocks.length === 0) return null;
     return layoutBlockStack(blocks, ctx, { isCollapsed: ctx.isCollapsed });
   });

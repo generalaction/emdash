@@ -1,11 +1,12 @@
 import type { ChatContext, ChatItem, ChatState, ChatView } from '@emdash/chat-ui';
 import { applyTurnEvent, createChatState } from '@emdash/chat-ui';
-import type { AgentUpdate, AcpTurn, TerminalSnapshot } from '@emdash/core/acp';
+import type { AgentUpdate, AcpPromptImage, AcpTurn, TerminalSnapshot } from '@emdash/core/acp';
 import {
   SessionMachine,
   toSessionSnapshot,
   type SessionSnapshot,
 } from '@emdash/core/acp/session-machine';
+import type { ComposerModelOption } from '@emdash/ui/react/components';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -47,10 +48,21 @@ export class AcpChatStore {
 
   terminals: TerminalSnapshot[] = [];
 
+  /** True while the initial history fetch is in flight. Drives the "Loading chat..." overlay. */
+  historyLoading = true;
+
+  /** Total item count across committed history and active turn. Drives the "No messages" empty state. */
+  messageCount = 0;
+
   /** Buffered active-turn updates, keyed by seq, until the initial state fetch completes. */
   private _activeTurnUpdates = new Map<number, { seq: number; update: AgentUpdate }>();
   /** The current active turn id (null when idle). */
   private _activeTurnId: string | null = null;
+
+  /** The currently-active view handle. Bound by AcpChatPanel; used for imperative scroll. */
+  private _view: ChatView | null = null;
+  /** Set by submitPrompt; cleared after the first user-message scroll fires. */
+  private _scrollUserToTopPending = false;
 
   private readonly _machine: SessionMachine;
   private _bootstrapped = false;
@@ -72,9 +84,13 @@ export class AcpChatStore {
     makeObservable(this, {
       snapshot: observable.ref,
       terminals: observable,
+      historyLoading: observable,
+      messageCount: observable,
       affordances: computed,
       lifecycle: computed,
       model: computed,
+      modelOptions: computed,
+      isEmpty: computed,
       permissionQueue: computed,
       lastStopReason: computed,
       usage: computed,
@@ -99,6 +115,31 @@ export class AcpChatStore {
    */
   get model(): string | null {
     return this._extractModel(this.snapshot?.configOptions ?? []);
+  }
+
+  /**
+   * All available model options as a ComposerModelOption record keyed by model id.
+   * Null when the agent doesn't report any model config option (hides the selector).
+   */
+  get modelOptions(): Record<string, ComposerModelOption> | null {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'model' && o.type === 'select'
+    );
+    if (!opt || !('options' in opt) || !Array.isArray(opt.options)) return null;
+    const result: Record<string, ComposerModelOption> = {};
+    for (const o of opt.options as Array<{
+      value: string;
+      name: string;
+      description?: string | null;
+    }>) {
+      result[o.value] = { name: o.name, description: o.description ?? undefined };
+    }
+    return result;
+  }
+
+  /** True when history has loaded and there are no messages. Drives the "No messages" overlay. */
+  get isEmpty(): boolean {
+    return !this.historyLoading && this.messageCount === 0;
   }
 
   /** FIFO queue of pending permission requests awaiting user resolution. */
@@ -174,18 +215,19 @@ export class AcpChatStore {
   }
 
   /**
-   * Called by AcpChatStorePanel after the ChatView mounts. The view handle is
-   * not stored — transcript operations go directly through chatState.transcript.
-   * This method is a lifecycle hook for any view-specific initialization needed
-   * in subclasses (e.g. scroll-to-bottom on first attach).
+   * Bind or unbind the active ChatView handle. Called by AcpChatPanel when the
+   * active store changes (bind on switch-to, unbind on switch-away). Only the
+   * currently-visible conversation holds a view handle so imperative scroll
+   * calls (scrollToItem on submit) target the right view.
    */
-  attachView(_view: ChatView): void {
-    // no-op: transcript is seeded directly through chatState.transcript.
+  bindView(view: ChatView | null): void {
+    this._view = view;
   }
 
   /** Send a new user prompt to the ACP session. */
-  submitPrompt(text: string): void {
-    void rpc.acp.prompt(this.conversationId, text).catch((err: unknown) => {
+  submitPrompt(text: string, images?: AcpPromptImage[]): void {
+    this._scrollUserToTopPending = true;
+    void rpc.acp.prompt(this.conversationId, text, images).catch((err: unknown) => {
       console.error('[AcpChatStore] prompt error', err);
     });
   }
@@ -329,8 +371,15 @@ export class AcpChatStore {
       // Each transcript method already batches its own signal writes internally.
       this.chatState.transcript.history.seed(historyItems);
       this._replayActiveUpdates();
+      runInAction(() => {
+        this.historyLoading = false;
+        this._syncMessageCount();
+      });
     } catch (err) {
       console.error('[AcpChatStore] _fetchInitialState error', err);
+      runInAction(() => {
+        this.historyLoading = false;
+      });
     }
   }
 
@@ -379,6 +428,10 @@ export class AcpChatStore {
     }
 
     this.chatState.transcript.activeTurn.set(items, 'generating');
+    this._tryScrollUserToTop();
+    runInAction(() => {
+      this._syncMessageCount();
+    });
   }
 
   private _handleTurnCommitted(turn: AcpTurn): void {
@@ -389,8 +442,50 @@ export class AcpChatStore {
     this.chatState.transcript.activeTurn.set(items, 'generating');
     this.chatState.transcript.activeTurn.commit('done');
 
+    this._tryScrollUserToTop();
     runInAction(() => {
       this._activeTurnId = null;
+      this._syncMessageCount();
     });
+  }
+
+  /** Sync messageCount from the transcript. Must be called inside runInAction. */
+  private _syncMessageCount(): void {
+    const state = this.chatState.transcript.state;
+    this.messageCount = state.committed.length + (state.activeTurn?.length ?? 0);
+  }
+
+  /**
+   * After a submit, scroll the new user message to the top of the viewport
+   * (ChatGPT-style) and let the answer stream below it. Fires once per submit
+   * on the first replay/commit that contains a user-role message, then resets.
+   */
+  private _tryScrollUserToTop(): void {
+    if (!this._scrollUserToTopPending || !this._view) return;
+
+    const id = this._lastUserMessageId();
+    if (!id) return;
+
+    this._view.scrollToItem(id, { align: 'start' });
+    this._scrollUserToTopPending = false;
+  }
+
+  /**
+   * Return the id of the last user-role message in the active turn, falling
+   * back to the last committed item if no active turn exists.
+   */
+  private _lastUserMessageId(): string | null {
+    const state = this.chatState.transcript.state;
+    const activeTurn = state.activeTurn;
+    const source: readonly ChatItem[] =
+      activeTurn && activeTurn.length > 0 ? activeTurn : state.committed;
+
+    for (let i = source.length - 1; i >= 0; i--) {
+      const item = source[i];
+      if (item && item.kind === 'message' && (item as { role?: string }).role === 'user') {
+        return item.id;
+      }
+    }
+    return null;
   }
 }

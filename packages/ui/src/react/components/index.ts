@@ -11,6 +11,7 @@ export type {
   CommandItem,
   CommandBehavior,
   ContextMentionProvider,
+  PromptEditorRef,
 } from './chat-composer';
 export { PermissionBand } from './chat-composer/permission-band';
 export type {

@@ -390,7 +390,12 @@ export function ChatRoot(props: ChatRootProps) {
         return unitReservedHeight(u, contentH);
       });
       refreshTotal();
-      if (props.stickToBottom !== false && stuckIntent()) {
+      // Honor sticky intent (atBottom) in addition to live geometry so that an
+      // async seed pins to the bottom within the same pre-paint reactive pass.
+      // stuckIntent() covers the streaming case (small deltas stay within the
+      // threshold). atBottom is reset to false by anchor-restore (restoreFrom)
+      // and by doScrollToItem (non-bottom aligns), so this never overrides them.
+      if (props.stickToBottom !== false && (atBottom || stuckIntent())) {
         const target = maxScrollTop();
         if (scrollEl) {
           scrollEl.scrollTop = target;
@@ -536,7 +541,9 @@ export function ChatRoot(props: ChatRootProps) {
   //
   // Local state vars that phases reference — hoisted from onMount:
   let lastScrollTop = 0;
-  let atBottom = false;
+  // Initialize to true when stickToBottom is enabled so the count-sync gate
+  // pins to the bottom on the very first async seed (before readPhase has run).
+  let atBottom = props.stickToBottom !== false;
   let reachStartFired = false;
   let lastAnchorWriteAt = 0;
   const ANCHOR_WRITE_INTERVAL_MS = 150;
@@ -765,6 +772,14 @@ export function ChatRoot(props: ChatRootProps) {
     const t0 = computeTarget();
     el.scrollTo({ top: t0, behavior });
     expectedScrollTop = t0;
+
+    // Disengage sticky intent when scrolling away from the bottom, so the
+    // (now stronger) count-sync gate does not re-pin on the next streaming tick.
+    // Mirrors the anchor-restore branch. stuckIntent() uses the pre-scroll
+    // scrollTop signal value here; readPhase will sync it on the next frame.
+    if (t0 < maxScrollTop() - STICK_THRESHOLD_PX) {
+      atBottom = false;
+    }
 
     if (behavior !== 'smooth') {
       requestAnimationFrame(() => {
