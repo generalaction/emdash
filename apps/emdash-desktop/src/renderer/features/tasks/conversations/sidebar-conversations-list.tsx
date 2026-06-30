@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { MessageSquareCode, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
@@ -9,7 +9,7 @@ import {
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { ConversationAgentIcon } from './conversation-agent-icon';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -109,17 +109,12 @@ const ConversationRow = observer(function ConversationRow({
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
-          <span className="relative inline-flex size-4 shrink-0">
-            <AgentIcon id={conversation.data.providerId} size={16} className="size-4" />
-            {conversation.data.type === 'acp' && (
-              <span
-                title="ACP chat"
-                className="absolute -right-1 -bottom-1 flex items-center justify-center rounded-full bg-background ring-1 ring-background"
-              >
-                <MessageSquareCode className="size-2.5 text-foreground-muted" />
-              </span>
-            )}
-          </span>
+          <ConversationAgentIcon
+            providerId={conversation.data.providerId}
+            isAcp={conversation.data.type === 'acp'}
+            size={16}
+            className="size-4"
+          />
           {isEditing ? (
             <input
               ref={handleRenameInputRef}

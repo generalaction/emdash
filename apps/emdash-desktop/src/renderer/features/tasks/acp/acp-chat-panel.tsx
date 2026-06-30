@@ -322,6 +322,21 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
     };
   }, [store]);
 
+  // State-driven notification clearing: mark the active conversation as seen
+  // immediately when the panel is showing it. This covers the split-pane case
+  // where the same tab stays active and onActivate() does not re-fire.
+  const conversationStore = useObserver(() =>
+    store
+      ? conversationRegistry.get(store.taskId)?.conversations.get(store.conversationId)
+      : undefined
+  );
+  const conversationSeen = conversationStore?.seen;
+  useEffect(() => {
+    if (conversationStore && !conversationStore.seen) {
+      conversationStore.markSeen();
+    }
+  }, [conversationStore, conversationSeen]);
+
   const handleViewerOpen = useCallback((src?: string, alt?: string) => {
     setViewer({ src, alt });
   }, []);

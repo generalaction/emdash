@@ -14,6 +14,7 @@ import type {
   LineLayout,
   ProseLaidOut,
 } from '@core/layout/layout-types';
+import { mentionDisplayText } from '@core/markdown/document';
 import type { InlineMention, InlineRun } from '@core/markdown/document';
 import { For, Match, Show, Switch, createMemo, onMount } from 'solid-js';
 import {
@@ -196,7 +197,7 @@ function ProseFragment(props: {
             {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '11px' }} />}
           </Show>
         </span>
-        <span>{mention.name ?? mention.label}</span>
+        <span>{mentionDisplayText(mention)}</span>
       </span>
     );
   }

@@ -1,4 +1,5 @@
 import type { TabResource } from '@renderer/features/tabs/core/tab-provider';
+import { conversationRegistry } from '../stores/conversation-registry';
 import type { AcpChatStore } from './acp-chat-store';
 
 /**
@@ -23,5 +24,11 @@ export class AcpChatTabResource implements TabResource {
   onActivate(): void {
     // Lazy bootstrap: safe to call repeatedly (idempotent).
     this.store.bootstrap();
+    // Mirror ConversationTabResource: clear the notification indicator when
+    // the user opens this tab.
+    const conversation = conversationRegistry
+      .get(this.store.taskId)
+      ?.conversations.get(this.store.conversationId);
+    if (conversation && !conversation.seen) conversation.markSeen();
   }
 }

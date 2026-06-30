@@ -74,9 +74,11 @@ function mentionToPopupItem(item: MentionItem): ComboboxPopupItem {
 }
 
 function commandToPopupItem(item: CommandItem): ComboboxPopupItem {
+  // Primary text is the slash-prefixed command name so the popup reads as a list
+  // of commands; the human-readable description is the muted secondary text.
   return {
     id: item.id,
-    label: item.label ?? item.name,
+    label: `/${item.name}`,
     description: item.description,
   };
 }
