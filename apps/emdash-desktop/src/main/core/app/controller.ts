@@ -1,8 +1,38 @@
+import { execFile } from 'node:child_process';
+import { arch, release, version } from 'node:os';
+import { promisify } from 'node:util';
 import { getDiagnosticLogAttachment } from '@main/lib/file-logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import type { OpenInAppId } from '@shared/openInApps';
 import { appService } from './service';
+
+const execFileAsync = promisify(execFile);
+
+async function getPlatformDisplayName(): Promise<string> {
+  const architecture = arch();
+
+  if (process.platform === 'darwin') {
+    try {
+      const { stdout } = await execFileAsync('sw_vers', ['-productVersion']);
+      const macOsVersion = stdout.trim();
+      if (macOsVersion) return `macOS ${macOsVersion} (${architecture})`;
+    } catch {
+      // Fall back to the Darwin kernel version when sw_vers is unavailable.
+    }
+    return `macOS ${release()} (${architecture})`;
+  }
+
+  if (process.platform === 'win32') {
+    return `Windows ${release()} (${architecture})`;
+  }
+
+  if (process.platform === 'linux') {
+    return `${version()} (${architecture})`;
+  }
+
+  return `${process.platform} ${release()} (${architecture})`;
+}
 
 export const appController = createRPCController({
   openExternal: async (url: string) => {
@@ -109,5 +139,6 @@ export const appController = createRPCController({
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,
+  getPlatformDisplayName,
   getDiagnosticLogAttachment,
 });
