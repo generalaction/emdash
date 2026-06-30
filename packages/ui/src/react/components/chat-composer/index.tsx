@@ -174,6 +174,13 @@ export interface ChatComposerProps {
   onPermissionModeChange?: (modeId: string) => void;
 
   onSubmit: (text: string) => void;
+  /**
+   * Called instead of onSubmit when the user attempts to send while the
+   * session is actively working (isWorking === true). Lets the host show a
+   * confirmation dialog before cancelling the active turn and sending.
+   * When absent, submit attempts while working are silently ignored.
+   */
+  onSubmitWhileWorking?: (text: string) => void;
   onStop?: () => void;
   onAttach?: () => void;
   /** Context-window usage data for the toolbar donut indicator. Hidden when null/undefined. */
@@ -486,6 +493,7 @@ export function ChatComposer({
   selectedPermissionMode,
   onPermissionModeChange,
   onSubmit,
+  onSubmitWhileWorking,
   onStop,
   onAttach,
   contextUsage,
@@ -531,7 +539,11 @@ export function ChatComposer({
   const handleSubmit = (text: string) => {
     // Allow image-only sends: a message with attachments but no text is valid.
     const hasImages = attachments.some((a) => a.kind === 'image');
-    if ((!text.trim() && !hasImages) || disabled || !canSubmit) return;
+    if (!text.trim() && !hasImages) return;
+    // While the agent is actively working, route to the host's conflict handler
+    // (e.g. a "cancel turn and send" confirmation modal) instead of submitting.
+    if (isWorking && onSubmitWhileWorking) { onSubmitWhileWorking(text); return; }
+    if (disabled || !canSubmit) return;
     onSubmit(text);
   };
 

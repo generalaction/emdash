@@ -22,6 +22,7 @@ import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { rpc } from '@renderer/lib/ipc';
+import { showModal } from '@renderer/lib/modal/modal-provider';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { AcpChatStore } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
@@ -88,9 +89,9 @@ const ComposerForStore = observer(function ComposerForStore({
     editorApiRef.current?.focus();
   }, []);
 
-  const handleSubmit = useCallback(
-    (value: string) => {
-      const images = attachments
+  const buildImages = useCallback(
+    () =>
+      attachments
         .filter((att) => att.kind === 'image' && att.previewUrl)
         .map((att) => {
           const url = att.previewUrl!;
@@ -99,12 +100,37 @@ const ComposerForStore = observer(function ComposerForStore({
             mimeType: att.mimeType ?? 'image/png',
             name: att.name,
           };
-        });
+        }),
+    [attachments]
+  );
+
+  const handleSubmit = useCallback(
+    (value: string) => {
+      const images = buildImages();
       if (!value.trim() && images.length === 0) return;
       store.submitPrompt(value, images);
       setAttachments([]);
     },
-    [store, attachments]
+    [store, buildImages]
+  );
+
+  const handleSubmitWhileWorking = useCallback(
+    (value: string) => {
+      const images = buildImages();
+      if (!value.trim() && images.length === 0) return;
+      showModal('confirmActionModal', {
+        title: 'Turn in progress',
+        description:
+          'An active turn is currently in progress. Do you want to send the message and cancel the active turn?',
+        confirmLabel: 'Cancel & Send',
+        variant: 'destructive',
+        onSuccess: () => {
+          store.cancelAndSubmit(value, images);
+          setAttachments([]);
+        },
+      });
+    },
+    [store, buildImages]
   );
 
   const handleStop = useCallback(() => {
@@ -209,6 +235,7 @@ const ComposerForStore = observer(function ComposerForStore({
         isWorking={a.isWorking}
         canSubmit={a.canSubmit}
         onSubmit={handleSubmit}
+        onSubmitWhileWorking={handleSubmitWhileWorking}
         onStop={a.isWorking ? handleStop : undefined}
         permissionRequest={permissionRequest}
         permissionQueueCount={store.permissionQueue.length}

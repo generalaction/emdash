@@ -15,7 +15,7 @@ import {
   type SessionSnapshot,
 } from '@emdash/core/acp/session-machine';
 import type { CommandItem, ComposerModelOption } from '@emdash/ui/react/components';
-import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { action, computed, makeObservable, observable, runInAction, when } from 'mobx';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
@@ -122,6 +122,7 @@ export class AcpChatStore {
       applySnapshot: action,
       submitPrompt: action,
       stop: action,
+      cancelAndSubmit: action,
       setModel: action,
       setMode: action,
       resolvePermission: action,
@@ -333,6 +334,35 @@ export class AcpChatStore {
         variant: 'destructive',
       });
     });
+  }
+
+  /**
+   * Cancels the active turn, waits for the session to become ready, then
+   * submits `text` (with optional images). Used by the "Cancel & Send"
+   * confirmation flow when the user sends a new prompt while a turn is active.
+   */
+  cancelAndSubmit(text: string, images?: AcpPromptImage[]): void {
+    void rpc.acp.cancel(this.conversationId).catch((err: unknown) => {
+      console.error('[AcpChatStore] cancel error (cancelAndSubmit)', err);
+      toast({
+        title: 'Failed to stop',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
+    });
+
+    when(
+      () => this.affordances.canSubmit,
+      () => {
+        this.submitPrompt(text, images);
+      },
+      {
+        timeout: 10_000,
+        onError: () => {
+          toast({ title: 'Failed to send message', variant: 'destructive' });
+        },
+      }
+    );
   }
 
   /**
