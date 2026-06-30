@@ -1,0 +1,34 @@
+packages/plugins/src/agents/impl/qoder/icon.ts
+  s_11b01fca6c8bec::t_ea76436bf344af 1-3,5-8,11-13
+  s_11b01fca6c8bec::t_ab33ff336ba52c 4,9-10
+agents/integrations/providers.md
+  s_11b01fca6c8bec::t_8fa361dc029c0b 9,11
+packages/plugins/src/agents/impl/index.test.ts
+  s_11b01fca6c8bec::t_aa534123b8fa51 221-223,227-229
+  s_11b01fca6c8bec::t_190e4859a79af3 214-220,224-226,230-257
+packages/plugins/src/agents/impl/qoder/index.ts
+  s_11b01fca6c8bec::t_ea76436bf344af 1-66
+apps/emdash-desktop/src/assets/images/qoder.svg
+  s_11b01fca6c8bec::t_f99ffec45b61fb 1
+packages/plugins/src/agents/registry.ts
+  s_11b01fca6c8bec::t_ea76436bf344af 32,68
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_11b01fca6c8bec::t_190e4859a79af3 31,267-285
+  s_11b01fca6c8bec::t_6c6791e466ac85 286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "a4bedf463e5d0ea78f138edf4a13a67183af3fde",
+  "prompts": {},
+  "sessions": {
+    "s_11b01fca6c8bec": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f17dd-9e2f-73c2-b580-68f5313de821",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
