@@ -1,0 +1,46 @@
+apps/emdash-desktop/src/renderer/features/tasks/task-config/branch-name-field.tsx
+  s_b1ae12eee3c333::t_0d891614557a4e 10,18,21-28,61-68
+  s_b1ae12eee3c333::t_3cab1507ae6896 34-35
+  s_b1ae12eee3c333::t_d91b23343fc9c6 8-9,11,17,33,36-37,40-47,69
+  s_b1ae12eee3c333::t_707c960c6421c7 70
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.ts
+  s_b1ae12eee3c333::t_980047f2a5c457 46,48,51,53,95
+  s_b1ae12eee3c333::t_f378f96c1aa1ba 21,43-45,47,49,92-94,96
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.test.ts
+  s_b1ae12eee3c333::t_16ab73dd0da64b 80,285-287,292-299,302
+  s_b1ae12eee3c333::t_0ade5597a5bd0e 284,288-291
+  s_b1ae12eee3c333::t_f5ad14715b9b8e 300-301
+  s_b1ae12eee3c333::t_ce462e9accb880 303-304
+apps/emdash-desktop/src/shared/core/automations/config.ts
+  s_b1ae12eee3c333::t_371d619e958c0d 42
+  s_b1ae12eee3c333::t_18be343db607b3 38-41,43-44,47-50
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationSettingsFields.tsx
+  s_b1ae12eee3c333::t_15764a5729fc13 71-75
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_b1ae12eee3c333::t_55a3e450e6997e 163
+  s_b1ae12eee3c333::t_b0282d0da96bd3 32,44
+  s_b1ae12eee3c333::t_8bd997b717c654 171-175
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-branch-name.ts
+  s_b1ae12eee3c333::t_1e387688964ffb 20,22,44-45,53-54
+  s_b1ae12eee3c333::t_be6a9f5a31a7a7 10,71-75,82
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-workspace-config.ts
+  s_b1ae12eee3c333::t_9a141e8bb76da4 114,204
+apps/emdash-desktop/src/renderer/features/tasks/task-config/task-config-context.tsx
+  s_b1ae12eee3c333::t_6c7b51976f0d7d 8-9,17,26,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "8281664b7d9409632b3ad5b9dd74b837d76c37f2",
+  "prompts": {},
+  "sessions": {
+    "s_b1ae12eee3c333": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f14b5-7f29-70b1-9b70-796d5b21d9e6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
