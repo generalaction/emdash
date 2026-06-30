@@ -34,6 +34,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  on,
   onCleanup,
   onMount,
   untrack,
@@ -133,8 +134,12 @@ export type EngineControls = {
 export type ChatRootProps = {
   /** Global services: theme, shared caches, measureEpoch, highlighter. */
   context: ChatContext;
-  /** Per-conversation state: transcript + parse caches. */
-  state: ChatState;
+  /**
+   * Per-conversation state: transcript + parse caches.
+   * Accepts either a plain ChatState or a reactive accessor `() => ChatState`
+   * (provided by createChatView for the setModel path).
+   */
+  state: ChatState | (() => ChatState);
   stickToBottom?: boolean;
   /** Extra classes for the full-width scroll container. */
   class?: string;
@@ -191,12 +196,19 @@ export type ChatRootProps = {
 // ── ChatRoot ──────────────────────────────────────────────────────────────────
 
 export function ChatRoot(props: ChatRootProps) {
+  // Normalize state prop to an accessor so ChatRoot is reactive when the host
+  // swaps models via view.setModel(). Plain ChatState objects (the common path)
+  // are wrapped in a stable closure that never changes its value.
+  const state: () => ChatState =
+    typeof props.state === 'function' ? props.state : () => props.state as ChatState;
+
   // Assemble the full ChatCaches bundle from context (shared) + state (parse).
   // Leaf components (Code.tsx, Diff.tsx) consume this via useCaches().
-  const caches: ChatCaches = {
+  // Memo so it recomputes when the model swaps (new parseCaches).
+  const caches = createMemo<ChatCaches>(() => ({
     ...props.context.sharedCaches,
-    ...props.state.parseCaches,
-  };
+    ...state().parseCaches,
+  }));
 
   // Theme and CSS vars — set once at creation time. Color theme changes are
   // free (CSS-variable themed). Typography changes require bumping measureEpoch.
@@ -234,10 +246,10 @@ export function ChatRoot(props: ChatRootProps) {
   const debugValue = () => props.debug ?? inheritedDebug();
 
   // View state — owned by ChatState so it persists across view remounts.
-  // viewState and expandedUserId are read/written via props.state directly.
-  const viewState = props.state.viewState;
-  const expandedUserId = props.state.expandedUserId.get;
-  const setExpandedUserId = props.state.expandedUserId.set;
+  // All three are accessor functions so they always target the CURRENT model.
+  const viewState = () => state().viewState;
+  const expandedUserId = () => state().expandedUserId.get();
+  const setExpandedUserId = (id: string | null) => state().expandedUserId.set(id);
 
   let scrollEl: HTMLDivElement | undefined;
   let canvasEl: HTMLDivElement | undefined;
@@ -271,7 +283,7 @@ export function ChatRoot(props: ChatRootProps) {
 
   // ── Flat unit view (two-tier, incremental) ────────────────────────────────
   const segmentCtx = createMemo(() => ({
-    caches,
+    caches: caches(),
     expanded: (_id: string) => false,
   }));
 
@@ -282,8 +294,26 @@ export function ChatRoot(props: ChatRootProps) {
   // view. Must not change identity so memos don't re-run on each access.
   const NO_ACTIVE_UNITS: ReturnType<typeof flattenTier> = [];
 
+  // ── Model-swap reset (must be created BEFORE the incremental committed effect)
+  // When state() changes (view.setModel), clear the incremental cache so the
+  // committed effect re-seeds from scratch against the new model. The deferred
+  // on() ensures this only fires on subsequent changes, not on initial mount.
+  createEffect(
+    on(
+      state,
+      () => {
+        committedUnitsArr = [];
+        lastCommitted = [];
+        // Do NOT bump committedUnitsVersion here — the incremental effect below
+        // runs next (Solid executes effects in creation order) and will bump it
+        // after rebuilding from the new model's committed items.
+      },
+      { defer: true }
+    )
+  );
+
   createEffect(() => {
-    const next = props.state.transcript.state.committed;
+    const next = state().transcript.state.committed;
     const prev = lastCommitted;
     const ctx = segmentCtx();
 
@@ -308,7 +338,7 @@ export function ChatRoot(props: ChatRootProps) {
 
   const activeUnits = createMemo(() => {
     committedUnitsVersion();
-    const at = props.state.transcript.state.activeTurn;
+    const at = state().transcript.state.activeTurn;
     if (!at || at.length === 0) return [] as ReturnType<typeof flattenTier>;
     const prevKind =
       committedUnitsArr.length > 0
@@ -334,13 +364,14 @@ export function ChatRoot(props: ChatRootProps) {
         width: 0,
         isCollapsed: () => false,
         expanded: () => false,
-        caches,
+        caches: caches(),
         measureEpoch: measureEpoch(),
         expandedId: expandedUserId(),
       };
       // lastWidth > 0 iff onCleanup wrote a snapshot on a prior dispose.
       // Skip the Map.get pass entirely on cold mounts (empty heightmap).
-      const hasHeightmapSnapshot = props.state.heightmap.lastWidth > 0;
+      const currentState = state();
+      const hasHeightmapSnapshot = currentState.heightmap.lastWidth > 0;
       virt.setCount(us.length, (i) => {
         const u = us.at(i);
         if (!u) return 60;
@@ -349,7 +380,7 @@ export function ChatRoot(props: ChatRootProps) {
         // or when the heightmap was seeded at a different container width
         // (the scroll anchor will still restore the correct position).
         if (hasHeightmapSnapshot) {
-          const snapped = props.state.heightmap.get(u.id);
+          const snapped = currentState.heightmap.get(u.id);
           if (snapped !== undefined) return snapped;
         }
         const unitDef = UNIT_REGISTRY[u.kind];
@@ -415,7 +446,7 @@ export function ChatRoot(props: ChatRootProps) {
   const userTurns = createMemo(() => {
     committedUnitsVersion();
     return collectUserTurnUnits(
-      props.state.transcript.state.committed,
+      state().transcript.state.committed,
       makeUnitsView(committedUnitsArr, NO_ACTIVE_UNITS)
     );
   });
@@ -548,7 +579,7 @@ export function ChatRoot(props: ChatRootProps) {
       anchorScratch.anchorItemId = anchorUnit?.itemId ?? null;
       anchorScratch.offsetWithinItem = st - (virt.top(anchorUnitIdx) + pt);
       anchorScratch.atBottom = nowAtBottom;
-      props.state.scroll.set(anchorScratch);
+      state().scroll.set(anchorScratch);
     }
 
     if (st <= REACH_START_THRESHOLD_PX) {
@@ -644,9 +675,9 @@ export function ChatRoot(props: ChatRootProps) {
       const ctx: MeasureCtx = {
         theme: t,
         width: Math.max(0, w - 2 * unitInsetX),
-        isCollapsed: (id: string) => viewState.isCollapsed(id),
-        expanded: (id: string) => viewState.isCollapsed(id),
-        caches,
+        isCollapsed: (id: string) => viewState().isCollapsed(id),
+        expanded: (id: string) => viewState().isCollapsed(id),
+        caches: caches(),
         measureEpoch: measureEpoch(),
         expandedId: expandedUserId(),
       };
@@ -759,7 +790,7 @@ export function ChatRoot(props: ChatRootProps) {
       width: containerWidth(),
       isCollapsed: () => false,
       expanded: () => false,
-      caches,
+      caches: caches(),
     };
     const count = items.length;
     virt.prepend(count, (i) => {
@@ -772,7 +803,7 @@ export function ChatRoot(props: ChatRootProps) {
       return userTopGap + contentH;
     });
 
-    props.state.transcript.history.prepend(items);
+    state().transcript.history.prepend(items);
     refreshTotal();
 
     if (anchorId !== undefined) {
@@ -793,6 +824,75 @@ export function ChatRoot(props: ChatRootProps) {
     }
   };
 
+  // ── Snapshot / restore helpers ────────────────────────────────────────────
+  //
+  // Used by the dispose onCleanup and by the on(state) swap effect. Both read
+  // reactive signals (units, containerWidth, padTop, scrollTop, stuckIntent)
+  // inside untrack() so they can safely be called from either reactive or
+  // non-reactive contexts without adding extra dependencies.
+
+  function snapshotInto(target: ChatState): void {
+    const us = untrack(units);
+    const w = untrack(containerWidth);
+    const entries: Array<[string, number]> = [];
+    for (let i = 0; i < us.length; i++) {
+      const u = us.at(i);
+      if (u) entries.push([u.id, virt.size(i)]);
+    }
+    target.heightmap.setAll(entries);
+    target.heightmap.lastWidth = w;
+
+    // Final scroll anchor snapshot. Only re-read scrollTop when the element is
+    // still in the layout tree. When detached, keep the throttled value already
+    // in ChatState. atBottom is sourced from the tracked local var (not a DOM
+    // read) so the restore decision stays correct regardless of attachment.
+    if (scrollEl?.isConnected) {
+      const st = scrollEl.scrollTop;
+      const pt = untrack(padTop);
+      const anchorUnitIdx = virt.findIndex(Math.max(0, st - pt));
+      const anchorUnit = us.at(anchorUnitIdx);
+      target.scroll.set({
+        anchorItemId: anchorUnit?.itemId ?? null,
+        offsetWithinItem: st - (virt.top(anchorUnitIdx) + pt),
+        atBottom,
+      });
+    }
+  }
+
+  function restoreFrom(target: ChatState): void {
+    const el = scrollEl;
+    if (!el) return;
+    const savedScroll = target.scroll.get();
+    if (savedScroll.anchorItemId !== null && !savedScroll.atBottom) {
+      // Anchor-based restore: find the item in the (already re-seeded) virt.
+      const us = untrack(units);
+      const anchorId = savedScroll.anchorItemId;
+      let anchorIdx = -1;
+      for (let i = 0; i < us.length; i++) {
+        if (us.at(i)?.itemId === anchorId) {
+          anchorIdx = i;
+          break;
+        }
+      }
+      if (anchorIdx >= 0) {
+        const target2 = virt.top(anchorIdx) + untrack(padTop) + savedScroll.offsetWithinItem;
+        el.scrollTop = target2;
+        expectedScrollTop = target2;
+        setScrollTop(target2);
+        atBottom = false;
+        return;
+      }
+      // Anchor item not found (transcript not yet loaded) — fall through to bottom.
+    }
+    if (props.stickToBottom !== false) {
+      const tgt = el.scrollHeight - el.clientHeight;
+      el.scrollTop = tgt;
+      expectedScrollTop = tgt;
+      setScrollTop(tgt);
+      atBottom = untrack(stuckIntent);
+    }
+  }
+
   // ── DOM setup ─────────────────────────────────────────────────────────────
   onMount(() => {
     const el = scrollEl!;
@@ -802,7 +902,7 @@ export function ChatRoot(props: ChatRootProps) {
       props.controls.scrollToBottom = doScrollToBottom;
       props.controls.scrollToItem = doScrollToItem;
       props.controls.loadOlder = doLoadOlder;
-      props.controls.toggleCollapsed = (id) => viewState.toggleCollapsed(id);
+      props.controls.toggleCollapsed = (id) => viewState().toggleCollapsed(id);
       props.controls.composerSlot = composerSlotEl ?? null;
       // Notify the view creator that all controls are wired.
       props.controls.onMounted?.();
@@ -824,36 +924,7 @@ export function ChatRoot(props: ChatRootProps) {
     // On dispose: snapshot measured row heights and scroll anchor into ChatState
     // so the next mount can seed the Virtualizer and restore position without
     // scrollbar drift (e.g. when switching conversation tabs).
-    onCleanup(() => {
-      const us = untrack(units);
-      const w = untrack(containerWidth);
-      const entries: Array<[string, number]> = [];
-      for (let i = 0; i < us.length; i++) {
-        const u = us.at(i);
-        if (u) entries.push([u.id, virt.size(i)]);
-      }
-      props.state.heightmap.setAll(entries);
-      props.state.heightmap.lastWidth = w;
-
-      // Final scroll anchor snapshot on dispose. Only re-read scrollTop when
-      // the element is still in the layout tree (el.isConnected). On a keyed
-      // React unmount the scroll element may already be detached and report
-      // scrollTop === 0, which would clobber the last good throttled anchor.
-      // When detached, keep the throttled value already in ChatState.
-      // atBottom is sourced from the tracked local var (not a DOM read) so
-      // the restore decision stays correct regardless of attachment state.
-      if (el && el.isConnected) {
-        const st = el.scrollTop;
-        const pt = padTop();
-        const anchorUnitIdx = virt.findIndex(Math.max(0, st - pt));
-        const anchorUnit = us.at(anchorUnitIdx);
-        props.state.scroll.set({
-          anchorItemId: anchorUnit?.itemId ?? null,
-          offsetWithinItem: st - (virt.top(anchorUnitIdx) + pt),
-          atBottom,
-        });
-      }
-    });
+    onCleanup(() => snapshotInto(state()));
 
     const roHeight = new ResizeObserver((entries) => {
       const h = entries[0]?.contentRect.height;
@@ -898,7 +969,7 @@ export function ChatRoot(props: ChatRootProps) {
 
       const collapseTarget = t.closest('[data-collapse-id]') as HTMLElement | null;
       if (collapseTarget?.dataset.collapseId) {
-        viewState.toggleCollapsed(collapseTarget.dataset.collapseId);
+        viewState().toggleCollapsed(collapseTarget.dataset.collapseId);
         return;
       }
 
@@ -926,36 +997,35 @@ export function ChatRoot(props: ChatRootProps) {
     // Restore scroll from persisted anchor (survives tab switches). If no
     // anchor has been recorded yet (first mount) or atBottom was true, fall
     // back to sticking to the bottom when stickToBottom is not disabled.
-    const savedScroll = props.state.scroll.get();
-    if (savedScroll.anchorItemId !== null && !savedScroll.atBottom) {
-      // Anchor-based restore: find the item, compute scrollTop.
-      const us = units();
-      const anchorId = savedScroll.anchorItemId;
-      let anchorIdx = -1;
-      for (let i = 0; i < us.length; i++) {
-        if (us.at(i)?.itemId === anchorId) {
-          anchorIdx = i;
-          break;
-        }
-      }
-      if (anchorIdx >= 0) {
-        const target = virt.top(anchorIdx) + padTop() + savedScroll.offsetWithinItem;
-        el.scrollTop = target;
-        expectedScrollTop = target;
-        setScrollTop(target);
-      } else if (props.stickToBottom !== false) {
-        // Anchor item not found (e.g. transcript not yet loaded) — stick to bottom.
-        const target = el.scrollHeight - el.clientHeight;
-        el.scrollTop = target;
-        expectedScrollTop = target;
-        setScrollTop(target);
-      }
-    } else if (props.stickToBottom !== false) {
-      const target = el.scrollHeight - el.clientHeight;
-      el.scrollTop = target;
-      expectedScrollTop = target;
-      setScrollTop(target);
-    }
+    restoreFrom(state());
+
+    // ── Model-swap effect (view.setModel path) ────────────────────────────
+    // When the host calls view.setModel(newState), the `state` signal changes.
+    // We snapshot the outgoing model's geometry/scroll, then seed the incoming
+    // model's virt + restore its scroll position. Created here (inside onMount)
+    // so scrollEl is guaranteed to be available when it fires.
+    //
+    // Ordering guarantee: the reset effect and incremental committed effect
+    // (created before onMount in component scope) run first — virt is already
+    // re-seeded with new heights by the time this swap effect fires.
+    let prevModel = untrack(state);
+    createEffect(
+      on(
+        state,
+        (next) => {
+          if (next === prevModel) return;
+          snapshotInto(prevModel);
+          prevModel = next;
+          // virt is already re-seeded by count-sync effect (ran before this);
+          // just restore the incoming scroll position.
+          restoreFrom(next);
+          scheduler.forceReconcile(() => {
+            totalDirty = true;
+          });
+        },
+        { defer: true }
+      )
+    );
 
     // Force an initial reconcile pass so the scheduler runs once on attach.
     scheduler.forceReconcile(() => {
@@ -965,13 +1035,13 @@ export function ChatRoot(props: ChatRootProps) {
 
   // ── Active-turn id set ────────────────────────────────────────────────────
   const activeTurnItemIds = createMemo(() => {
-    const active = props.state.transcript.state.activeTurn;
+    const active = state().transcript.state.activeTurn;
     if (!active) return new Set<string>();
     return new Set(active.map((i) => i.id));
   });
 
   const currentMessageId = createMemo<string | null>(() => {
-    const committed = props.state.transcript.state.committed;
+    const committed = state().transcript.state.committed;
     for (let i = committed.length - 1; i >= 0; i--) {
       const item = committed[i];
       if (item.kind === 'message' && item.role === 'user') return item.id;
@@ -979,13 +1049,13 @@ export function ChatRoot(props: ChatRootProps) {
     return null;
   });
 
-  const turnStatus = () => props.state.transcript.state.turnStatus;
+  const turnStatus = () => state().transcript.state.turnStatus;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <DebugContext.Provider value={debugValue}>
       <ThemeContext.Provider value={theme}>
-        <CachesContext.Provider value={caches}>
+        <CachesContext.Provider value={caches()}>
           <CommandsContext.Provider value={commands}>
             <TurnStateContext.Provider value={{ currentMessageId, turnStatus }}>
               <div
@@ -1044,12 +1114,12 @@ export function ChatRoot(props: ChatRootProps) {
                                 index={unitIndex}
                                 rowWidth={containerWidth()}
                                 theme={theme()}
-                                viewState={viewState}
+                                viewState={viewState()}
                                 virt={virt}
                                 onHeightChanged={onHeightChanged}
                                 tweenRegistry={tweenRegistry}
                                 isActiveTurn={isActiveTurn()}
-                                caches={caches}
+                                caches={caches()}
                                 measureEpoch={measureEpoch()}
                                 expandedId={expandedUserId()}
                               />
@@ -1061,13 +1131,13 @@ export function ChatRoot(props: ChatRootProps) {
                   </div>
                 </div>
                 <Show when={pinState()}>
-                  {(state) => {
+                  {(ps) => {
                     const pinnedItem = (): ChatMessage | undefined => {
-                      const unit = units().at(state().activeUserIdx);
+                      const unit = units().at(ps().activeUserIdx);
                       if (!unit) return undefined;
-                      const idx = props.state.transcript.findIndexById(unit.itemId);
-                      const item =
-                        idx >= 0 ? props.state.transcript.state.committed[idx] : undefined;
+                      const transcript = state().transcript;
+                      const idx = transcript.findIndexById(unit.itemId);
+                      const item = idx >= 0 ? transcript.state.committed[idx] : undefined;
                       // Validate kind+role so a corrupt idMap lookup can't hand a
                       // non-user item (or undefined) to PinnedUserMessage.
                       return item && item.kind === 'message' && item.role === 'user'
@@ -1080,14 +1150,14 @@ export function ChatRoot(props: ChatRootProps) {
                           <div
                             class={`${pinnedOverlay} ${contentClass()}`}
                             aria-hidden="true"
-                            style={{ transform: `translateY(${state().overlayTop}px)` }}
+                            style={{ transform: `translateY(${ps().overlayTop}px)` }}
                           >
                             <PinnedUserMessage
                               item={item()}
                               rowWidth={containerWidth()}
                               theme={theme()}
-                              caches={caches}
-                              expandedId={props.state.expandedUserId.get}
+                              caches={caches()}
+                              expandedId={expandedUserId}
                             />
                           </div>
                         )}

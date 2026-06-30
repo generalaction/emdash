@@ -101,6 +101,15 @@ export type ChatView = {
    * `bottom` is ignored when `composer === 'slot'` (driven by internal ResizeObserver).
    */
   setContentPadding(p: { top?: number; bottom?: number }): void;
+  /**
+   * Replace the ChatState this view renders without tearing down the Solid root
+   * (Monaco/CodeMirror model-swap pattern). Snapshots the outgoing model's
+   * scroll anchor and heightmap into the old state, then restores them from
+   * the new state. Safe to call while the outgoing state is still streaming.
+   *
+   * No-op when `state` is already the current model.
+   */
+  setModel(state: ChatState): void;
   /** Tear down the Solid root. Does NOT dispose context or state. */
   dispose(): void;
 };
@@ -112,6 +121,10 @@ export function createChatView(opts: ChatViewOptions): ChatView {
   const [padTop, setPadTop] = createSignal(opts.padTop ?? 0);
   const [padBottom, setPadBottom] = createSignal(opts.padBottom ?? 0);
   const [commands, setCommandsSignal] = createSignal<ChatCommands>(opts.commands ?? {});
+  // Hold the active ChatState in a signal so view.setModel() can swap models
+  // reactively without tearing down the Solid root. Use a function form of
+  // setCurrentModel to prevent Solid from treating the ChatState as a factory.
+  const [currentModel, setCurrentModel] = createSignal<ChatState>(opts.state);
 
   const controls: EngineControls = {
     scrollToBottom: () => {},
@@ -155,6 +168,12 @@ export function createChatView(opts: ChatViewOptions): ChatView {
         if (p.bottom !== undefined) setPadBottom(p.bottom);
       });
     },
+    setModel(newState) {
+      if (newState !== currentModel()) {
+        // Use the function form so Solid does not treat ChatState as a factory.
+        setCurrentModel(() => newState);
+      }
+    },
     dispose() {
       solidDispose?.();
     },
@@ -164,7 +183,7 @@ export function createChatView(opts: ChatViewOptions): ChatView {
     () => (
       <ChatRoot
         context={opts.context}
-        state={opts.state}
+        state={currentModel}
         stickToBottom={opts.stickToBottom}
         class={opts.class}
         contentClass={opts.contentClass}

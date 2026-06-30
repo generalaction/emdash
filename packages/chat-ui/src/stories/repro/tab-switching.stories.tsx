@@ -199,6 +199,13 @@ type HarnessArgs = {
   streaming: boolean;
   autoThrash: boolean;
   sharedMessageId: boolean;
+  /**
+   * When false (default): one persistent ChatView swaps models via setModel().
+   * Crashes are impossible — this is the regression guard.
+   * When true: legacy behavior — each switch disposes+recreates the view.
+   * Use to demonstrate the original crash for comparison.
+   */
+  overlapMode: boolean;
 };
 
 /**
@@ -263,13 +270,18 @@ function TabSwitchHarness(args: HarnessArgs) {
     });
   }
 
-  // ── View manager (single live view) ──────────────────────────────────────────
+  // ── View manager ───────────────────────────────────────────────────────────
   //
-  // On switch: dispose the current view immediately (React unmount → ChatTranscript
-  // cleanup → view.dispose()), then mount a fresh view on the selected state. The
-  // selected state may be mid-stream (its activeTurn was mutating while detached),
-  // so the fresh view seeds + restores scroll/heightmap over a transcript full of
-  // duplicate ids — the exact desktop condition.
+  // Two modes controlled by `args.overlapMode`:
+  //
+  // setModel path (overlapMode=false, default):
+  //   One persistent ChatView is mounted once. Switching calls view.setModel(),
+  //   which swaps the underlying ChatState without tearing down the Solid root.
+  //   This is the REGRESSION GUARD — no crashes possible.
+  //
+  // Legacy overlap path (overlapMode=true):
+  //   Each switch disposes the current view and mounts a fresh one, reproducing
+  //   the original desktop lifecycle. Use to demonstrate the old crash.
 
   let viewport: HTMLElement | undefined;
   let currentView: ChatView | null = null;
@@ -278,30 +290,41 @@ function TabSwitchHarness(args: HarnessArgs) {
     const vp = viewport;
     if (!vp) return;
 
-    // Immediate dispose of the outgoing view (matches the real lifecycle).
-    if (currentView !== null) {
-      currentView.dispose();
-      currentView = null;
-    }
-
-    const container = document.createElement('div');
-    container.style.cssText = 'position: absolute; inset: 0;';
-    vp.replaceChildren(container);
-
-    try {
-      currentView = createChatView({
-        context: ctx,
-        state: states[idx],
-        parent: container,
-        stickToBottom: true,
-        pinUserMessages: true,
-        composer: 'none',
-      });
-    } catch (err: unknown) {
-      const name = err instanceof Error ? err.name : 'Error';
-      const msg = err instanceof Error ? err.message : String(err);
-      setCapturedErrors((prev) => [...prev.slice(-9), `[createChatView] ${name}: ${msg}`]);
-      currentView = null;
+    if (args.overlapMode) {
+      // Legacy path: dispose + recreate on every switch.
+      if (currentView !== null) {
+        currentView.dispose();
+        currentView = null;
+      }
+      const container = document.createElement('div');
+      container.style.cssText = 'position: absolute; inset: 0;';
+      vp.replaceChildren(container);
+      try {
+        currentView = createChatView({
+          context: ctx,
+          state: states[idx],
+          parent: container,
+          stickToBottom: true,
+          pinUserMessages: true,
+          composer: 'none',
+        });
+      } catch (err: unknown) {
+        const name = err instanceof Error ? err.name : 'Error';
+        const msg = err instanceof Error ? err.message : String(err);
+        setCapturedErrors((prev) => [...prev.slice(-9), `[createChatView] ${name}: ${msg}`]);
+        currentView = null;
+      }
+    } else {
+      // setModel path: swap the model on the persistent view.
+      if (currentView !== null) {
+        try {
+          currentView.setModel(states[idx]);
+        } catch (err: unknown) {
+          const name = err instanceof Error ? err.name : 'Error';
+          const msg = err instanceof Error ? err.message : String(err);
+          setCapturedErrors((prev) => [...prev.slice(-9), `[setModel] ${name}: ${msg}`]);
+        }
+      }
     }
 
     setActiveIndex(idx);
@@ -323,7 +346,28 @@ function TabSwitchHarness(args: HarnessArgs) {
     window.addEventListener('error', errorHandler);
     onCleanup(() => window.removeEventListener('error', errorHandler));
 
-    mountView(0);
+    if (!args.overlapMode && viewport) {
+      // setModel path: mount one persistent view on the initial state.
+      const container = document.createElement('div');
+      container.style.cssText = 'position: absolute; inset: 0;';
+      viewport.replaceChildren(container);
+      try {
+        currentView = createChatView({
+          context: ctx,
+          state: states[0],
+          parent: container,
+          stickToBottom: true,
+          pinUserMessages: true,
+          composer: 'none',
+        });
+      } catch (err: unknown) {
+        const name = err instanceof Error ? err.name : 'Error';
+        const msg = err instanceof Error ? err.message : String(err);
+        setCapturedErrors((prev) => [...prev.slice(-9), `[createChatView] ${name}: ${msg}`]);
+      }
+    } else {
+      mountView(0);
+    }
 
     if (args.autoThrash && args.conversationCount >= 2) {
       let flipIdx = 0;
@@ -367,7 +411,8 @@ function TabSwitchHarness(args: HarnessArgs) {
           )}
         </For>
         <code style={{ 'font-size': '11px', color: '#9ca3af', 'margin-left': '8px' }}>
-          switchMs={args.switchIntervalMs} · streaming={String(args.streaming)} · autoThrash=
+          mode={args.overlapMode ? 'legacyOverlap' : 'setModel'} · switchMs=
+          {args.switchIntervalMs} · streaming={String(args.streaming)} · autoThrash=
           {String(args.autoThrash)} · sharedMessageId={String(args.sharedMessageId)}
         </code>
       </div>
@@ -462,7 +507,7 @@ function TabSwitchHarness(args: HarnessArgs) {
 function HarnessWrapper(args: HarnessArgs) {
   const restartKey = createMemo(
     () =>
-      `${args.conversationCount}|${args.switchIntervalMs}|${String(args.streaming)}|${String(args.autoThrash)}|${String(args.sharedMessageId)}`
+      `${args.conversationCount}|${args.switchIntervalMs}|${String(args.streaming)}|${String(args.autoThrash)}|${String(args.sharedMessageId)}|${String(args.overlapMode)}`
   );
   return <For each={[restartKey()]}>{() => <TabSwitchHarness {...args} />}</For>;
 }
@@ -499,6 +544,12 @@ const meta: Meta<Args> = {
         'Real ACP shape: thinking + assistant message share one id (duplicate item ids). ' +
         'Turn OFF to use unique ids as a control.',
     },
+    overlapMode: {
+      control: 'boolean',
+      description:
+        'false (default): single persistent ChatView swaps models via setModel() — regression guard, no crashes. ' +
+        'true: legacy dispose+recreate per switch — demonstrates the original crash.',
+    },
   },
   args: {
     conversationCount: 2,
@@ -506,6 +557,7 @@ const meta: Meta<Args> = {
     streaming: true,
     autoThrash: false,
     sharedMessageId: true,
+    overlapMode: false,
   },
 };
 export default meta;
@@ -513,19 +565,28 @@ export default meta;
 type Story = StoryObj<Args>;
 
 /**
- * Manual repro — click the two tab buttons rapidly while streaming.
- * Each switch disposes the current view and mounts a fresh one onto a state that
- * is mid-stream and full of duplicate ids (thinking + message sharing an id).
+ * Manual tab switching — click the tab buttons to switch while streaming.
+ * Default mode (overlapMode=false): uses setModel() — no crashes expected.
+ * Enable overlapMode to demonstrate the legacy dispose+recreate crash.
  */
 export const Manual: Story = {};
 
 /**
- * Automated repro — switches between conversations every switchIntervalMs.
- * Watch the captured-errors panel and the browser console. Because Storybook
- * runs chat-ui source, any throw points at the real file:line.
+ * Regression guard — switches automatically every switchIntervalMs using
+ * view.setModel(). One persistent ChatView swaps between ChatStates while both
+ * keep streaming. Zero captured errors expected regardless of sharedMessageId.
  *
- * Toggle `sharedMessageId` off to confirm whether the duplicate id is the trigger.
+ * Run for ~30 seconds; the captured-errors panel should stay empty.
  */
 export const AutoThrash: Story = {
-  args: { autoThrash: true },
+  args: { autoThrash: true, overlapMode: false },
+};
+
+/**
+ * Legacy overlap crash — same as AutoThrash but with the old dispose+recreate
+ * lifecycle (overlapMode=true). Reproduces the original desktop crash for
+ * comparison. Watch the captured-errors panel for TypeError / RangeError.
+ */
+export const LegacyOverlapCrash: Story = {
+  args: { autoThrash: true, overlapMode: true },
 };
