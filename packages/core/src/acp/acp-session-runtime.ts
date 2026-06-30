@@ -392,6 +392,29 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     return ok();
   }
 
+  async setConfigOption(
+    conversationId: string,
+    configId: string,
+    value: string
+  ): Promise<Result<void, AcpRuntimeError>> {
+    const entry = this.conversationIndex.get(conversationId);
+    const proc = entry ? this.processes.get(entry.processKey) : undefined;
+    const conv = proc ? proc.conversations.get(conversationId) : undefined;
+
+    if (proc && conv && entry?.acpSessionId && proc.agent.setSessionConfigOption) {
+      const result = await this.applyConfigOptionInternal(
+        proc.agent,
+        entry.acpSessionId,
+        configId,
+        value,
+        conv
+      );
+      if (!result.success) return result;
+    }
+
+    return ok();
+  }
+
   async setMode(conversationId: string, modeId: string): Promise<Result<void, AcpRuntimeError>> {
     const entry = this.conversationIndex.get(conversationId);
     const proc = entry ? this.processes.get(entry.processKey) : undefined;

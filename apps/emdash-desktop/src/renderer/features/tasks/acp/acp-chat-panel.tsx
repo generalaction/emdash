@@ -158,6 +158,13 @@ const ComposerForStore = observer(function ComposerForStore({
     [store]
   );
 
+  const handleEffortChange = useCallback(
+    (effortId: string) => {
+      store.setEffort(effortId);
+    },
+    [store]
+  );
+
   const handleAttach = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -244,6 +251,9 @@ const ComposerForStore = observer(function ComposerForStore({
         modelOptions={store.modelOptions}
         selectedModel={store.model ?? undefined}
         onModelChange={handleModelChange}
+        effortOptions={store.effortOptions}
+        selectedEffort={store.effort ?? undefined}
+        onEffortChange={handleEffortChange}
         permissionModeOptions={store.permissionModeOptions}
         selectedPermissionMode={store.permissionMode ?? undefined}
         onPermissionModeChange={handleModeChange}

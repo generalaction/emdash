@@ -6,6 +6,7 @@ import { Button } from '@/react/primitives/button';
 import { ChatComposer } from '.';
 import type {
   ComposerAgentOption,
+  ComposerEffortOption,
   ComposerModelOption,
   ComposerNotice,
   ComposerNoticeVariant,
@@ -219,3 +220,60 @@ type Story = StoryObj<PlaygroundArgs>;
 
 /** Full controls playground — flip any arg in the Controls panel. */
 export const Playground: Story = {};
+
+// ── Effort selector story ─────────────────────────────────────────────────────
+
+const MOCK_EFFORT_OPTIONS: Record<string, ComposerEffortOption> = {
+  low: { name: 'Low', description: 'Faster, lighter reasoning.' },
+  medium: { name: 'Medium', description: 'Balanced speed and depth.' },
+  high: { name: 'High', description: 'Deepest reasoning, slower.' },
+};
+
+/**
+ * WithEffortSelector — demonstrates the effort/thought-level submenu rendered
+ * in the model popover footer. Click the model name in the toolbar, then hover
+ * over the "Effort" row at the bottom to open the flyout and select a level.
+ * The row is hidden entirely when `effortOptions` is null.
+ */
+export const WithEffortSelector: Story = {
+  render: () => {
+    const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
+    const [selectedEffort, setSelectedEffort] = useState<string | undefined>('medium');
+
+    return (
+      <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+        <ChatComposer
+          modelOptions={MOCK_MODELS}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          effortOptions={MOCK_EFFORT_OPTIONS}
+          selectedEffort={selectedEffort}
+          onEffortChange={setSelectedEffort}
+          onSubmit={() => {}}
+        />
+      </Box>
+    );
+  },
+};
+
+/**
+ * WithoutEffortSelector — baseline confirming the effort row is absent when
+ * `effortOptions` is null (agent doesn't advertise a thought_level option).
+ */
+export const WithoutEffortSelector: Story = {
+  render: () => {
+    const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
+
+    return (
+      <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+        <ChatComposer
+          modelOptions={MOCK_MODELS}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          effortOptions={null}
+          onSubmit={() => {}}
+        />
+      </Box>
+    );
+  },
+};

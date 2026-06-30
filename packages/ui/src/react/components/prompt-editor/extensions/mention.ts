@@ -48,11 +48,13 @@ export function buildMentionExtension(
     renderText({ node }) {
       const label =
         (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
-      return serializeMentionLabel(label, node.attrs.kind as string | null);
+      const name = node.attrs.name as string | null;
+      return serializeMentionLabel(label, node.attrs.kind as string | null, name);
     },
     renderHTML({ node }) {
       const label =
         (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
+      const name = node.attrs.name as string | null;
       return [
         'span',
         {
@@ -63,7 +65,7 @@ export function buildMentionExtension(
           'data-kind': node.attrs.kind as string,
           class: 'mention-chip',
         },
-        serializeMentionLabel(label, node.attrs.kind as string | null),
+        serializeMentionLabel(label, node.attrs.kind as string | null, name),
       ];
     },
     // Cast to `any` to bypass the MentionNodeAttrs constraint; we control the attrs shape.

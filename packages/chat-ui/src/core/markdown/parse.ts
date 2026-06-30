@@ -2,9 +2,16 @@
  * parse — Markdown string to Block[].
  *
  * Converts raw markdown text into the chat-ui document model (Block[]) using
- * remark/unified. Also provides:
- *   - `flattenBlockHeadings` — normalise heading variants to body for contexts
- *     where large headings are disruptive (e.g. thinking rows).
+ * a unified pipeline:
+ *   1. remarkParse  — tokenise / parse the string into an mdast Root
+ *   2. remarkGfm    — tables, strikethrough, task-lists, autolinks
+ *   3. remarkMath   — block-level and inline LaTeX / KaTeX
+ *   4. remarkInlineMentions — fold `@[label](target)` links and split `@bare` /
+ *      `/command` text spans into `MdastMention` nodes (reads per-call data
+ *      from the VFile so the processor can be built once at module scope)
+ *
+ * The transformed mdast tree is then walked by `blockToBlocks` which converts
+ * it into the flat `Block[]` consumed by the chat-ui renderer.
  *
  * Identity-stable caching of parsed Block arrays lives in the per-instance
  * `ChatCaches.parseBlocks` bundle (core/caches.ts), not here.
@@ -30,6 +37,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
+import { VFile } from 'vfile';
 import type {
   Block,
   BlockId,
@@ -45,221 +53,52 @@ import type {
 } from './document';
 import type { CommandProvider } from './command-provider';
 import type { MentionProvider } from './mention-provider';
+import type { MdastMention } from './mdast-mention';
+import { remarkInlineMentions } from './remark-inline-mentions';
+import type { ParseData } from './remark-inline-mentions';
 
-// ── Shared parser instance ──────────────────────────────────────────────────
+// ── Shared processor instance ────────────────────────────────────────────────
+//
+// Built once at module scope. Per-call data (providers, uri, messageId, startN)
+// is threaded through the VFile's `data` field so this instance is stateless.
 
-const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
+const processor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkMath)
+  .use(remarkInlineMentions)
+  .freeze();
 
-// ── Inline phrasing → InlineRun[] ──────────────────────────────────────────
-
-// ── @-mention scanning ──────────────────────────────────────────────────────
-
-/**
- * Regex matching quoted file mentions: @"<path>". The path may contain spaces
- * and any character except a literal double-quote or newline. Matched before
- * AT_TOKEN_RE so that paths with special characters round-trip intact.
- *
- * Example matched: @"/Users/me/My Project/foo.ts"
- */
-const QUOTED_AT_TOKEN_RE = /@"([^"\n]+)"/g;
-
-/**
- * Regex matching `@<token>` where token runs to the next whitespace, @, or end
- * of string. Tokens may include word chars, dots, slashes, hyphens, colons,
- * and parens (covering file paths, issue refs, and symbol names).
- *
- * Dots are consumed only when followed by another token char, so a trailing
- * sentence-final dot is not absorbed: `@hello.ts.` captures `hello.ts`.
- * Internal dots (`src/auth/jwt.ts`) and leading/dotfile dots (`.gitignore`)
- * are preserved.
- *
- * Examples matched: @src/auth/jwt.ts  @issue-42  @handleSubmit()  @.gitignore
- */
-const AT_TOKEN_RE = /@((?:[\w/\-:()]|\.(?=[\w/\-:()]))+)/g;
-
-/**
- * Regex matching `/<token>` at the start of the string or after whitespace.
- * Token is one or more word chars or hyphens (command names only — no paths).
- *
- * Examples matched: /web  /search-files  /explain
- * Non-matches: path/to/file  https://example.com/path
- */
-const SLASH_TOKEN_RE = /(?:^|(?<=\s))\/([\w-]+)/g;
-
-/**
- * Split a plain-text segment on @-mentions and /commands, using the
- * respective providers to validate each token, and return a mixed
- * InlineText / InlineMention run array.
- * When no providers are supplied, the segment is returned as a single InlineText.
- */
-function splitAtMentions(
-  text: string,
-  opts: { bold?: boolean; italic?: boolean; strike?: boolean; href?: string },
-  mentionProvider: MentionProvider | undefined,
-  commandProvider: CommandProvider | undefined,
-  uri: string | undefined
-): InlineRun[] {
-  const hasAtTokens = mentionProvider && text.includes('@');
-  const hasSlashTokens = commandProvider && text.includes('/');
-
-  if (!hasAtTokens && !hasSlashTokens) {
-    return text.length > 0
-      ? [
-          {
-            kind: 'text',
-            text,
-            bold: opts.bold,
-            italic: opts.italic,
-            strike: opts.strike,
-            href: opts.href,
-          } satisfies InlineText,
-        ]
-      : [];
-  }
-
-  // Collect all token matches (@ and /) with their resolved run, then sort by
-  // position so we can walk the string in order.
-  type TokenHit = { index: number; length: number; run: InlineRun };
-  const hits: TokenHit[] = [];
-
-  // Quoted file mentions are tried first so paths with spaces/special chars
-  // round-trip intact. Each matched range is recorded and the bare matcher
-  // skips any position that falls inside a quoted range.
-  const quotedRanges: Array<[number, number]> = [];
-
-  if (mentionProvider) {
-    QUOTED_AT_TOKEN_RE.lastIndex = 0;
-    let qm: RegExpExecArray | null;
-    while ((qm = QUOTED_AT_TOKEN_RE.exec(text)) !== null) {
-      const token = qm[1];
-      const meta = mentionProvider.resolve(token, uri);
-      if (!meta) continue;
-      const rangeEnd = qm.index + qm[0].length;
-      quotedRanges.push([qm.index, rangeEnd]);
-      hits.push({
-        index: qm.index,
-        length: qm[0].length,
-        run: {
-          kind: 'mention',
-          label: meta.label,
-          id: meta.id,
-          name: meta.name,
-          mentionKind: meta.kind,
-          iconClass: meta.iconClass,
-        } satisfies InlineMention,
-      });
-    }
-  }
-
-  if (mentionProvider) {
-    AT_TOKEN_RE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = AT_TOKEN_RE.exec(text)) !== null) {
-      // Skip positions that are inside an already-matched quoted range.
-      if (quotedRanges.some(([s, e]) => match!.index >= s && match!.index < e)) continue;
-      const token = match[1];
-      const meta = mentionProvider.resolve(token, uri);
-      if (!meta) continue;
-      hits.push({
-        index: match.index,
-        length: match[0].length,
-        run: {
-          kind: 'mention',
-          label: meta.label,
-          id: meta.id,
-          name: meta.name,
-          mentionKind: meta.kind,
-          iconClass: meta.iconClass,
-        } satisfies InlineMention,
-      });
-    }
-  }
-
-  if (commandProvider) {
-    SLASH_TOKEN_RE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = SLASH_TOKEN_RE.exec(text)) !== null) {
-      const token = match[1];
-      const meta = commandProvider.resolve(token, uri);
-      if (!meta) continue;
-      // The full match may start with a leading whitespace character captured
-      // by the lookbehind alternative; skip it so the slice is tight.
-      const prefixLen = match[0].length - token.length - 1; // chars before "/"
-      hits.push({
-        index: match.index + prefixLen,
-        length: 1 + token.length, // "/<token>"
-        run: {
-          kind: 'mention',
-          label: `/${meta.name}`,
-          tone: 'command',
-        } satisfies InlineMention,
-      });
-    }
-  }
-
-  if (hits.length === 0) {
-    return text.length > 0
-      ? [
-          {
-            kind: 'text',
-            text,
-            bold: opts.bold,
-            italic: opts.italic,
-            strike: opts.strike,
-            href: opts.href,
-          } satisfies InlineText,
-        ]
-      : [];
-  }
-
-  // Sort by start position (they should not overlap, but sort for safety).
-  hits.sort((a, b) => a.index - b.index);
-
-  const runs: InlineRun[] = [];
-  let lastIndex = 0;
-
-  for (const hit of hits) {
-    // Emit preceding plain text
-    if (hit.index > lastIndex) {
-      runs.push({
-        kind: 'text',
-        text: text.slice(lastIndex, hit.index),
-        bold: opts.bold,
-        italic: opts.italic,
-        strike: opts.strike,
-        href: opts.href,
-      } satisfies InlineText);
-    }
-
-    runs.push(hit.run);
-    lastIndex = hit.index + hit.length;
-  }
-
-  // Trailing plain text
-  if (lastIndex < text.length) {
-    runs.push({
-      kind: 'text',
-      text: text.slice(lastIndex),
-      bold: opts.bold,
-      italic: opts.italic,
-      strike: opts.strike,
-      href: opts.href,
-    } satisfies InlineText);
-  }
-
-  return runs;
-}
+// ── Inline phrasing → InlineRun[] ───────────────────────────────────────────
 
 function phrasingsToRuns(
   nodes: PhrasingContent[],
-  opts: { bold?: boolean; italic?: boolean; strike?: boolean; href?: string } = {},
-  mentionProvider?: MentionProvider,
-  commandProvider?: CommandProvider,
-  uri?: string
+  opts: { bold?: boolean; italic?: boolean; strike?: boolean; href?: string } = {}
 ): InlineRun[] {
   const runs: InlineRun[] = [];
 
-  for (const node of nodes) {
+  for (const rawNode of nodes) {
+    // MdastMention nodes are injected by the remarkInlineMentions plugin and
+    // are not in the standard PhrasingContent union — handle them first.
+    if ((rawNode as { type: string }).type === 'mention') {
+      const m = rawNode as unknown as MdastMention;
+      // Slash commands keep their '/name' label; file/issue mentions use the
+      // short display name (m.name) when available, falling back to label.
+      const displayLabel = m.tone === 'command' ? m.label : (m.name ?? m.label);
+      runs.push({
+        kind: 'mention',
+        label: displayLabel,
+        id: m.target ?? m.label,
+        name: m.name,
+        mentionKind: m.mentionKind,
+        iconClass: m.iconClass,
+        tone: m.tone,
+      } satisfies InlineMention);
+      continue;
+    }
+
+    const node = rawNode as PhrasingContent;
+
     switch (node.type) {
       case 'text': {
         // Split on literal newlines (soft breaks inside a paragraph) and emit
@@ -268,7 +107,16 @@ function phrasingsToRuns(
         for (let i = 0; i < segments.length; i++) {
           if (i > 0) runs.push({ kind: 'break' } satisfies InlineBreak);
           const seg = segments[i];
-          runs.push(...splitAtMentions(seg, opts, mentionProvider, commandProvider, uri));
+          if (seg.length > 0) {
+            runs.push({
+              kind: 'text',
+              text: seg,
+              bold: opts.bold,
+              italic: opts.italic,
+              strike: opts.strike,
+              href: opts.href,
+            } satisfies InlineText);
+          }
         }
         break;
       }
@@ -280,48 +128,30 @@ function phrasingsToRuns(
 
       case 'strong': {
         runs.push(
-          ...phrasingsToRuns(
-            (node as Parent).children as PhrasingContent[],
-            {
-              ...opts,
-              bold: true,
-            },
-            mentionProvider,
-            commandProvider,
-            uri
-          )
+          ...phrasingsToRuns((node as Parent).children as PhrasingContent[], {
+            ...opts,
+            bold: true,
+          })
         );
         break;
       }
 
       case 'emphasis': {
         runs.push(
-          ...phrasingsToRuns(
-            (node as Parent).children as PhrasingContent[],
-            {
-              ...opts,
-              italic: true,
-            },
-            mentionProvider,
-            commandProvider,
-            uri
-          )
+          ...phrasingsToRuns((node as Parent).children as PhrasingContent[], {
+            ...opts,
+            italic: true,
+          })
         );
         break;
       }
 
       case 'delete': {
         runs.push(
-          ...phrasingsToRuns(
-            (node as Parent).children as PhrasingContent[],
-            {
-              ...opts,
-              strike: true,
-            },
-            mentionProvider,
-            commandProvider,
-            uri
-          )
+          ...phrasingsToRuns((node as Parent).children as PhrasingContent[], {
+            ...opts,
+            strike: true,
+          })
         );
         break;
       }
@@ -335,13 +165,7 @@ function phrasingsToRuns(
       case 'link': {
         const link = node as Link;
         runs.push(
-          ...phrasingsToRuns(
-            link.children as PhrasingContent[],
-            { ...opts, href: link.url },
-            mentionProvider,
-            commandProvider,
-            uri
-          )
+          ...phrasingsToRuns(link.children as PhrasingContent[], { ...opts, href: link.url })
         );
         break;
       }
@@ -377,10 +201,7 @@ function blockToBlocks(
   messageId: string,
   counter: { n: number },
   depth = 0,
-  mentionProvider?: MentionProvider,
-  inQuote = false,
-  uri?: string,
-  commandProvider?: CommandProvider
+  inQuote = false
 ): Block[] {
   const nextId = (): BlockId => `${messageId}#${counter.n++}`;
   const blocks: Block[] = [];
@@ -388,13 +209,7 @@ function blockToBlocks(
   switch (node.type) {
     case 'paragraph': {
       const parent = node as Parent;
-      const runs = phrasingsToRuns(
-        parent.children as PhrasingContent[],
-        {},
-        mentionProvider,
-        commandProvider,
-        uri
-      );
+      const runs = phrasingsToRuns(parent.children as PhrasingContent[]);
       if (runs.length > 0) {
         blocks.push({
           kind: 'prose',
@@ -410,13 +225,7 @@ function blockToBlocks(
     case 'heading': {
       const h = node as Heading;
       const variant = `h${h.depth}` as ProseVariant;
-      const runs = phrasingsToRuns(
-        h.children as PhrasingContent[],
-        {},
-        mentionProvider,
-        commandProvider,
-        uri
-      );
+      const runs = phrasingsToRuns(h.children as PhrasingContent[]);
       if (runs.length > 0) {
         blocks.push({
           kind: 'prose',
@@ -431,16 +240,7 @@ function blockToBlocks(
     case 'blockquote': {
       for (const child of (node as Parent).children) {
         blocks.push(
-          ...blockToBlocks(
-            child as BlockContent,
-            messageId,
-            counter,
-            depth + 1,
-            mentionProvider,
-            true,
-            uri,
-            commandProvider
-          )
+          ...blockToBlocks(child as BlockContent, messageId, counter, depth + 1, true)
         );
       }
       break;
@@ -450,16 +250,9 @@ function blockToBlocks(
       const list = node as Parent;
       for (const child of list.children) {
         const item = child as ListItem;
-        // A list item may contain nested paragraphs and sub-lists.
         for (const itemChild of (item as Parent).children) {
           if (itemChild.type === 'paragraph') {
-            const runs = phrasingsToRuns(
-              (itemChild as Parent).children as PhrasingContent[],
-              {},
-              mentionProvider,
-              commandProvider,
-              uri
-            );
+            const runs = phrasingsToRuns((itemChild as Parent).children as PhrasingContent[]);
             if (runs.length > 0) {
               blocks.push({
                 kind: 'prose',
@@ -471,16 +264,7 @@ function blockToBlocks(
             }
           } else {
             blocks.push(
-              ...blockToBlocks(
-                itemChild as BlockContent,
-                messageId,
-                counter,
-                depth + 1,
-                mentionProvider,
-                false,
-                uri,
-                commandProvider
-              )
+              ...blockToBlocks(itemChild as BlockContent, messageId, counter, depth + 1, false)
             );
           }
         }
@@ -513,13 +297,7 @@ function blockToBlocks(
         (row as TableRow).children.map((cell) => {
           const cellNode = cell as TableCell & Parent;
           // Table cell text is plain: @mentions and /commands become their label text
-          return phrasingsToRuns(
-            cellNode.children as PhrasingContent[],
-            {},
-            mentionProvider,
-            commandProvider,
-            uri
-          )
+          return phrasingsToRuns(cellNode.children as PhrasingContent[])
             .map((r) => ('text' in r ? r.text : 'label' in r ? r.label : ''))
             .join('');
         })
@@ -567,6 +345,11 @@ function blockToBlocks(
  * Parse a markdown string into a stable `Block[]` that both the measurement
  * engine and block renderer components consume.
  *
+ * The unified pipeline (remarkParse → remarkGfm → remarkMath →
+ * remarkInlineMentions) runs first, folding `@[label](target)` links and
+ * splitting `@bare` / `/command` text spans into `MdastMention` nodes. The
+ * resulting mdast tree is then compiled to `Block[]` by `blockToBlocks`.
+ *
  * Block IDs are in the form `${messageId}#${index}` where `index` is the
  * position in the flat block list produced by the parse. IDs are stable as
  * long as the full text is re-parsed (not incrementally mutated). A streaming
@@ -596,22 +379,19 @@ export function parseMarkdownToBlocks(
 ): Block[] {
   if (!markdown.trim()) return [];
 
-  const tree = parser.parse(markdown) as Root;
+  const data: ParseData = { messageId, startN, uri, mentionProvider, commandProvider };
+  const file = new VFile({ value: markdown, data: data as unknown as Record<string, unknown> });
+
+  // Parse the markdown into an mdast tree, then run transforms (including
+  // our mention-folding plugin which reads providers from file.data).
+  const tree = processor.runSync(processor.parse(file), file) as Root;
+
   const counter = { n: startN };
   const blocks: Block[] = [];
 
   for (const child of tree.children) {
     blocks.push(
-      ...blockToBlocks(
-        child as BlockContent | DefinitionContent,
-        messageId,
-        counter,
-        0,
-        mentionProvider,
-        false,
-        uri,
-        commandProvider
-      )
+      ...blockToBlocks(child as BlockContent | DefinitionContent, messageId, counter)
     );
   }
 

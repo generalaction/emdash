@@ -1,14 +1,18 @@
 /**
  * Unit tests for prompt-editor serialization.
  *
- * These tests exercise `serializeDoc` in isolation, building lightweight
- * ProseMirror node structures manually so the test can run in vitest's node
- * project without a browser/DOM.
+ * These tests exercise `serializeDoc` and `serializeMentionLabel` in isolation,
+ * building lightweight ProseMirror node structures manually so the test can run
+ * in vitest's node project without a browser/DOM.
+ *
+ * The serialized form for file mentions is now the bracket form:
+ *   `@[name](target)` for paths without spaces/parens
+ *   `@[name](<target with spaces>)` for paths that require angle-bracket destinations
  */
 
 import type { Node } from '@tiptap/pm/model';
 import { describe, expect, it } from 'vitest';
-import { serializeDoc } from './serialize';
+import { serializeDoc, serializeMentionLabel } from './serialize';
 
 // ── Minimal node builders ─────────────────────────────────────────────────────
 
@@ -31,8 +35,14 @@ function textNode(t: string): Node {
   return makeNode('text', {}, t);
 }
 
+/**
+ * Build a mention node.
+ * @param label - Full path / id stored in the `label` attr (= the serialization target).
+ * @param id    - Stable identifier (defaults to label).
+ * @param name  - Short display name shown inside the pill (basename).
+ */
 function mentionNode(label: string, id?: string, name?: string): Node {
-  return makeNode('mention', { label: label, id: id ?? label, kind: 'file', name: name ?? null });
+  return makeNode('mention', { label, id: id ?? label, kind: 'file', name: name ?? null });
 }
 
 function slashCommandNode(name: string): Node {
@@ -75,11 +85,12 @@ describe('serializeDoc', () => {
     expect(serializeDoc(doc)).toBe('Hello world');
   });
 
-  it('serializes a mention node as @label', () => {
+  it('serializes a file mention node as @[label](target) bracket form', () => {
+    // label == id == 'src/foo.ts', no name
     const doc = makeDoc(
       paragraph(textNode('Fix '), mentionNode('src/foo.ts'), textNode(' please'))
     );
-    expect(serializeDoc(doc)).toBe('Fix @src/foo.ts please');
+    expect(serializeDoc(doc)).toBe('Fix @[src/foo.ts](src/foo.ts) please');
   });
 
   it('serializes a slash command node as /name', () => {
@@ -112,57 +123,71 @@ describe('serializeDoc', () => {
       ),
       paragraph(textNode('Thanks'))
     );
-    expect(serializeDoc(doc)).toBe('Add @README.md and run /lint\nThanks');
+    expect(serializeDoc(doc)).toBe('Add @[README.md](README.md) and run /lint\nThanks');
   });
 
   it('falls back to id if label is null for a mention', () => {
     const node = makeNode('mention', { label: null, id: 'some-id', kind: 'file' });
     const doc = makeDoc(paragraph(node));
-    expect(serializeDoc(doc)).toBe('@some-id');
+    // label = null ?? id = 'some-id', name = undefined -> bracket form
+    expect(serializeDoc(doc)).toBe('@[some-id](some-id)');
   });
 
-  it('serializes mention with name attr as @label (full path), ignoring name', () => {
-    // The `name` attr is for display only; serialization must use the full label.
+  it('uses name as the bracket label, label as the target', () => {
+    // name='chat-composer.tsx' (display), label='src/components/chat-composer.tsx' (target)
     const doc = makeDoc(
       paragraph(mentionNode('src/components/chat-composer.tsx', undefined, 'chat-composer.tsx'))
     );
-    expect(serializeDoc(doc)).toBe('@src/components/chat-composer.tsx');
+    expect(serializeDoc(doc)).toBe('@[chat-composer.tsx](src/components/chat-composer.tsx)');
   });
 });
 
-// ── serializeMentionLabel (quoted form) ────────────────────────────────────────
-
-import { serializeMentionLabel } from './serialize';
+// ── serializeMentionLabel ────────────────────────────────────────────────────
 
 describe('serializeMentionLabel', () => {
-  it('emits bare @token for a space-free file path', () => {
-    expect(serializeMentionLabel('src/auth/jwt.ts', 'file')).toBe('@src/auth/jwt.ts');
-  });
-
-  it('emits quoted @"..." for a file path containing spaces', () => {
-    expect(serializeMentionLabel('/Users/me/My Project/foo.ts', 'file')).toBe(
-      '@"/Users/me/My Project/foo.ts"'
+  it('emits @[label](target) bracket form for a space-free file path', () => {
+    expect(serializeMentionLabel('src/auth/jwt.ts', 'file')).toBe(
+      '@[src/auth/jwt.ts](src/auth/jwt.ts)'
     );
   });
 
-  it('emits quoted @"..." for a file path with special chars (~, %)', () => {
-    expect(serializeMentionLabel('/tmp/foo~bar%.ts', 'file')).toBe('@"/tmp/foo~bar%.ts"');
+  it('emits angle-bracket destination for a file path containing spaces', () => {
+    expect(serializeMentionLabel('/Users/me/My Project/foo.ts', 'file')).toBe(
+      '@[/Users/me/My Project/foo.ts](</Users/me/My Project/foo.ts>)'
+    );
   });
 
-  it('emits bare @token for a non-file kind even if the label has spaces', () => {
-    // issues, symbols, custom kinds keep the bare form — they are not file paths.
+  it('emits angle-bracket destination for a path with parentheses', () => {
+    expect(serializeMentionLabel('/tmp/foo (copy).ts', 'file')).toBe(
+      '@[/tmp/foo (copy).ts](</tmp/foo (copy).ts>)'
+    );
+  });
+
+  it('emits bare @label for a non-file kind even if the label has spaces', () => {
+    // issues, symbols, custom kinds keep the bare form
     expect(serializeMentionLabel('my issue label', 'issue')).toBe('@my issue label');
     expect(serializeMentionLabel('my issue label', null)).toBe('@my issue label');
   });
 
-  it('emits quoted @"..." for a file path ending in a dot (which the tokenizer would drop)', () => {
-    // The label intentionally ends in '.' — bareSafe would be false.
-    expect(serializeMentionLabel('/tmp/foo.', 'file')).toBe('@"/tmp/foo."');
+  it('emits @[label](target) for an absolute path with no special chars', () => {
+    expect(serializeMentionLabel('/Users/me/projects/emdash/src/main.ts', 'file')).toBe(
+      '@[/Users/me/projects/emdash/src/main.ts](/Users/me/projects/emdash/src/main.ts)'
+    );
   });
 
-  it('emits bare @token for an absolute path with no special chars', () => {
-    expect(serializeMentionLabel('/Users/me/projects/emdash/src/main.ts', 'file')).toBe(
-      '@/Users/me/projects/emdash/src/main.ts'
+  it('uses name as bracket label when provided', () => {
+    expect(serializeMentionLabel('/path/to/file.ts', 'file', 'file.ts')).toBe(
+      '@[file.ts](/path/to/file.ts)'
+    );
+  });
+
+  it('uses name as bracket label with angle-bracket target for spaced paths', () => {
+    expect(serializeMentionLabel('/Users/me/My Project/foo.ts', 'file', 'foo.ts')).toBe(
+      '@[foo.ts](</Users/me/My Project/foo.ts>)'
     );
   });
 });
+
+// ── Shared grammar tests (stringifyMention) ───────────────────────────────────
+// These are co-located here since serializeMentionLabel delegates to stringifyMention.
+// The canonical grammar tests live in packages/shared/src/markdown/mention-grammar.test.ts.

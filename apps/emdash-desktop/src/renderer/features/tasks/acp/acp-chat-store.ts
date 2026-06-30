@@ -14,7 +14,7 @@ import {
   toSessionSnapshot,
   type SessionSnapshot,
 } from '@emdash/core/acp/session-machine';
-import type { CommandItem, ComposerModelOption } from '@emdash/ui/react/components';
+import type { CommandItem, ComposerEffortOption, ComposerModelOption } from '@emdash/ui/react/components';
 import { action, computed, makeObservable, observable, runInAction, when } from 'mobx';
 import {
   registerConversationCommands,
@@ -114,6 +114,8 @@ export class AcpChatStore {
       modelOptions: computed,
       permissionMode: computed,
       permissionModeOptions: computed,
+      effort: computed,
+      effortOptions: computed,
       commands: computed,
       isEmpty: computed,
       permissionQueue: computed,
@@ -125,6 +127,7 @@ export class AcpChatStore {
       cancelAndSubmit: action,
       setModel: action,
       setMode: action,
+      setEffort: action,
       resolvePermission: action,
       retry: action,
     });
@@ -398,6 +401,53 @@ export class AcpChatStore {
       result[o.value] = { name: o.name, description: o.description ?? undefined };
     }
     return result;
+  }
+
+  /**
+   * Currently selected effort/thought level derived from the `thought_level`
+   * config option. Null when the agent doesn't report a thought_level option.
+   */
+  get effort(): string | null {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'thought_level' && o.type === 'select'
+    );
+    return opt && typeof opt.currentValue === 'string' ? opt.currentValue : null;
+  }
+
+  /**
+   * Available effort options keyed by id. Null when the agent doesn't
+   * advertise a thought_level config option (hides the effort selector).
+   */
+  get effortOptions(): Record<string, ComposerEffortOption> | null {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'thought_level' && o.type === 'select'
+    );
+    if (!opt || !('options' in opt) || !Array.isArray(opt.options)) return null;
+    const result: Record<string, ComposerEffortOption> = {};
+    for (const o of opt.options as Array<{
+      value: string;
+      name: string;
+      description?: string | null;
+    }>) {
+      result[o.value] = { name: o.name, description: o.description ?? undefined };
+    }
+    return result;
+  }
+
+  /** Switch the active effort/thought level. */
+  setEffort(value: string): void {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'thought_level' && o.type === 'select'
+    );
+    const configId = opt?.id ?? 'thought_level';
+    void rpc.acp.setConfigOption(this.conversationId, configId, value).catch((err: unknown) => {
+      console.error('[AcpChatStore] setEffort error', err);
+      toast({
+        title: 'Failed to switch effort level',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
+    });
   }
 
   /** Switch the active model. */

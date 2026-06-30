@@ -308,3 +308,43 @@ export const barDotEmpty = style({
   borderRadius: '9999px',
   background: vars.border,
 });
+
+// ── Effort row (footer inside the model popover) ───────────────────────────────
+
+/**
+ * Full-width row rendered in the model popover footer that acts as the trigger
+ * for the effort/thought-level submenu flyout.
+ */
+export const effortRow = style({
+  display: 'flex',
+  width: '100%',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingLeft: '0.5rem',
+  paddingRight: '0.5rem',
+  paddingTop: '0.375rem',
+  paddingBottom: '0.375rem',
+  borderRadius: tokenVars.radiusMd,
+  fontSize: tokenVars.textSm,
+  color: vars.foreground,
+  background: 'transparent',
+  border: 'none',
+  cursor: 'default',
+  outline: 'none',
+  selectors: {
+    '&:hover': { backgroundColor: vars.surfaceHover },
+    '&[data-popup-open]': { backgroundColor: vars.surfaceHover },
+  },
+});
+
+export const effortRowLabel = style({
+  color: vars.foreground,
+});
+
+export const effortRowValue = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.25rem',
+  color: vars.foregroundMuted,
+  fontSize: tokenVars.textXs,
+});

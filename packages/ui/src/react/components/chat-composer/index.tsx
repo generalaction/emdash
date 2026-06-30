@@ -1,9 +1,10 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, CircleAlert, Paperclip, ShieldCheck, Square, X } from 'lucide-react';
+import { ArrowUp, ChevronRight, CircleAlert, Paperclip, ShieldCheck, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { ComboboxPopover } from '../combobox-popover';
+import { DropdownMenu } from '@/react/primitives/dropdown-menu';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
 import type {
   CommandItem,
@@ -122,6 +123,14 @@ export interface ComposerModelOption {
   };
 }
 
+// ── Effort option types ───────────────────────────────────────────────────────
+
+/** Minimal effort/thought-level descriptor the composer needs to render the effort submenu. */
+export interface ComposerEffortOption {
+  name: string;
+  description?: string;
+}
+
 // ── Permission mode option types ──────────────────────────────────────────────
 
 /** Minimal mode descriptor the composer needs to render the permission-mode selector. */
@@ -168,6 +177,10 @@ export interface ChatComposerProps {
   modelOptions?: Record<string, ComposerModelOption> | null;
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
+
+  effortOptions?: Record<string, ComposerEffortOption> | null;
+  selectedEffort?: string;
+  onEffortChange?: (effortId: string) => void;
 
   permissionModeOptions?: Record<string, ComposerPermissionModeOption> | null;
   selectedPermissionMode?: string;
@@ -489,6 +502,9 @@ export function ChatComposer({
   modelOptions,
   selectedModel,
   onModelChange,
+  effortOptions,
+  selectedEffort,
+  onEffortChange,
   permissionModeOptions,
   selectedPermissionMode,
   onPermissionModeChange,
@@ -594,6 +610,20 @@ export function ChatComposer({
   const modelItems: ModelItem[] = modelOptions
     ? Object.entries(modelOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
+
+  // ── Effort items ─────────────────────────────────────────────────────────────
+
+  interface EffortItem {
+    id: string;
+    name: string;
+    description?: string;
+  }
+
+  const effortItems: EffortItem[] = effortOptions
+    ? Object.entries(effortOptions).map(([id, opt]) => ({ id, ...opt }))
+    : [];
+
+  const selectedEffortItem = selectedEffort ? (effortItems.find((e) => e.id === selectedEffort) ?? null) : null;
 
   // ── Permission mode items ────────────────────────────────────────────────────
 
@@ -744,6 +774,35 @@ export function ChatComposer({
                 renderItemDetail={(item) => <ModelDetailCard item={item} />}
                 detailSide="right"
                 detailAlign="start"
+                renderFooter={
+                  effortItems.length > 0
+                    ? () => (
+                        <DropdownMenu.Root>
+                          <DropdownMenu.Trigger className={styles.effortRow}>
+                            <span className={styles.effortRowLabel}>Effort</span>
+                            <span className={styles.effortRowValue}>
+                              {selectedEffortItem?.name ?? 'Default'}
+                              <ChevronRight
+                                style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
+                              />
+                            </span>
+                          </DropdownMenu.Trigger>
+                          <DropdownMenu.Content side="right" align="start" sideOffset={4}>
+                            <DropdownMenu.RadioGroup
+                              value={selectedEffort}
+                              onValueChange={(v) => onEffortChange?.(String(v))}
+                            >
+                              {effortItems.map((e) => (
+                                <DropdownMenu.RadioItem key={e.id} value={e.id}>
+                                  {e.name}
+                                </DropdownMenu.RadioItem>
+                              ))}
+                            </DropdownMenu.RadioGroup>
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Root>
+                      )
+                    : undefined
+                }
               />
             ) : (
               <span />

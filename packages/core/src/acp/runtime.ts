@@ -119,6 +119,11 @@ export interface IAcpSessionRuntime {
   cancel(conversationId: string): Promise<Result<void, AcpRuntimeError>>;
   setModel(conversationId: string, model: string): Promise<Result<void, AcpRuntimeError>>;
   setMode(conversationId: string, modeId: string): Promise<Result<void, AcpRuntimeError>>;
+  setConfigOption(
+    conversationId: string,
+    configId: string,
+    value: string
+  ): Promise<Result<void, AcpRuntimeError>>;
   stop(conversationId: string): Result<void, AcpRuntimeError>;
   resolvePermission(
     conversationId: string,

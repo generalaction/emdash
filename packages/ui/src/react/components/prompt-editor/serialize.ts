@@ -2,7 +2,8 @@
  * Serialize a TipTap/ProseMirror document to plain text.
  *
  * Rules:
- *  - `mention` node   → `@${label}` or `@"${label}"` for file mentions with unsafe chars
+ *  - `mention` node   → `@[name](target)` for file mentions (angle-bracket
+ *     dest for paths with spaces); `@label` for other kinds.
  *  - `slashCommand` node → `/${node.attrs.name ?? node.attrs.id}`
  *  - `hardBreak` node → `\n`
  *  - paragraph boundary → `\n` between paragraphs (but NOT trailing)
@@ -10,28 +11,29 @@
  */
 
 import type { Node } from '@tiptap/pm/model';
+import { stringifyMention } from '@emdash/shared/markdown';
+import type { MentionKind } from '@emdash/shared/markdown';
 
 /**
- * Mirrors the character class of chat-ui's AT_TOKEN_RE. A label is "bare-safe"
- * when every character is in the tokenizer's allowed set and it doesn't end with
- * a dot (the tokenizer drops a trailing sentence-final dot).
- */
-const BARE_TOKEN_SAFE_RE = /^[\w/\-:().]+$/;
-
-/**
- * Serialize a mention label to its `@...` text form.
+ * Serialize a mention to its canonical text form.
  *
- * For `file` mentions whose label contains spaces or other special characters
- * that the transcript tokenizer cannot parse as a bare `@token`, emit a quoted
- * form `@"<label>"` instead. All other mentions use the bare `@<label>` form.
+ * Delegates to the shared `stringifyMention` so the composer's output grammar
+ * and the transcript parser's input grammar cannot drift from each other.
  *
- * The quoted form is also what the agent receives on submit, so agents see
- * `@"abs path"` for file paths with spaces — a conventional, unambiguous style.
+ * @param label - The full path / id stored in the `label` attr (= the target).
+ * @param kind  - Mention kind ('file' | 'issue' | 'symbol' | 'custom' | null).
+ * @param name  - Short display name (basename); used as the bracket label.
  */
-export function serializeMentionLabel(label: string, kind: string | null): string {
-  const bareSafe = BARE_TOKEN_SAFE_RE.test(label) && !label.endsWith('.');
-  if (kind === 'file' && !bareSafe) return `@"${label}"`;
-  return `@${label}`;
+export function serializeMentionLabel(
+  label: string,
+  kind: string | null,
+  name?: string | null
+): string {
+  return stringifyMention({
+    label: name ?? label,
+    target: label,
+    kind: kind as MentionKind | null,
+  });
 }
 
 /**
@@ -42,7 +44,8 @@ export function serializeMentionLabel(label: string, kind: string | null): strin
 export function serializeNode(node: Node): string {
   if (node.type.name === 'mention') {
     const label = (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
-    return serializeMentionLabel(label, node.attrs.kind as string | null);
+    const name = node.attrs.name as string | null;
+    return serializeMentionLabel(label, node.attrs.kind as string | null, name);
   }
 
   if (node.type.name === 'slashCommand') {

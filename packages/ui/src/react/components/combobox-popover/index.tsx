@@ -103,9 +103,12 @@ export function ComboboxPopover<T>({
 
   function handleOpenChange(next: boolean, eventDetails: ComboboxRootChangeEventDetails) {
     if (disabled) return;
-    // Interactions inside the hover card (or nested portals opened from it) must
-    // not close the combobox list — cancel the dismissal.
-    if (!next && hoverCard.open && isEventInsideInteractiveLayer(eventDetails.event, anchorEl)) {
+    // Interactions inside the hover card OR inside any other nested interactive
+    // layer (e.g. a footer submenu rendered in its own portal) must not close
+    // the combobox list — cancel the dismissal.
+    // isEventInsideInteractiveLayer already recognises [data-slot="dropdown-menu-content"]
+    // so effort-submenu interactions are caught here.
+    if (!next && isEventInsideInteractiveLayer(eventDetails.event, anchorEl)) {
       eventDetails.cancel();
       return;
     }
