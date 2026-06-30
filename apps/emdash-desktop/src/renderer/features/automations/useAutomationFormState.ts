@@ -52,13 +52,14 @@ function workspaceInitialFromConfig(
         mode: 'existing',
         presetId: 'use-existing',
         selectedWorkspaceId: workspace.workspaceId,
+        branchName,
       };
     }
     // repo-root or unknown
-    return { mode: 'existing', presetId: 'repo-root' };
+    return { mode: 'existing', presetId: 'repo-root', branchName };
   }
 
-  return { mode: 'new-worktree', presetId: 'new-worktree' };
+  return { mode: 'new-worktree', presetId: 'new-worktree', branchName };
 }
 
 export type AutomationFormState = ReturnType<typeof useAutomationFormState>;

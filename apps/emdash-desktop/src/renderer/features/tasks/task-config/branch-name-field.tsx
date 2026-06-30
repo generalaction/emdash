@@ -7,7 +7,12 @@ import { useTaskConfig } from './task-config-context';
 interface BranchNameFieldProps {
   state: Pick<
     BranchNameState,
-    'branchName' | 'setBranchName' | 'resetBranchName' | 'isUserModified' | 'branchAlreadyExists'
+    | 'branchName'
+    | 'customBranchNameSeed'
+    | 'setBranchName'
+    | 'resetBranchName'
+    | 'isUserModified'
+    | 'branchAlreadyExists'
   >;
   pushBranch?: boolean;
   onPushBranchChange?: (value: boolean) => void;
@@ -15,12 +20,19 @@ interface BranchNameFieldProps {
 
 export function BranchNameField({ state, pushBranch, onPushBranchChange }: BranchNameFieldProps) {
   const { autoBranchName, customBranchNameControl } = useTaskConfig();
-  const { branchName, setBranchName, resetBranchName, isUserModified, branchAlreadyExists } = state;
+  const {
+    branchName,
+    customBranchNameSeed,
+    setBranchName,
+    resetBranchName,
+    isUserModified,
+    branchAlreadyExists,
+  } = state;
   const showPush = pushBranch !== undefined && onPushBranchChange !== undefined;
 
   function handleCustomBranchNameChange(checked: boolean) {
     if (checked) {
-      setBranchName(branchName);
+      setBranchName(customBranchNameSeed);
     } else {
       resetBranchName();
     }

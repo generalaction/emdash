@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { normalizeTaskName } from '@renderer/utils/taskNames';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
 
 export type BranchNameState = {
   branchName: string;
+  customBranchNameSeed: string;
   setBranchName: (value: string) => void;
   resetBranchName: () => void;
   isUserModified: boolean;
@@ -62,6 +64,7 @@ export function useBranchName(opts: {
   }
 
   const branchName = userValue !== undefined ? userValue : derive(taskName);
+  const customBranchNameSeed = normalizeTaskName(taskName);
 
   const setBranchName = useCallback((value: string) => {
     setUserValue(value);
@@ -79,5 +82,12 @@ export function useBranchName(opts: {
     branchName.trim().length > 0 &&
     (repo?.localBranches.some((b) => b.branch === branchName) ?? false);
 
-  return { branchName, setBranchName, resetBranchName, isUserModified, branchAlreadyExists };
+  return {
+    branchName,
+    customBranchNameSeed,
+    setBranchName,
+    resetBranchName,
+    isUserModified,
+    branchAlreadyExists,
+  };
 }
