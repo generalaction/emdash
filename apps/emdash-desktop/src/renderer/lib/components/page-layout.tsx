@@ -18,8 +18,8 @@ export function PageSidebarMenu<T extends string>({
   onSelect: (item: PageSidebarItem<T>) => void;
 }) {
   return (
-    <div className="sticky top-0 self-start py-10">
-      <nav className="flex w-52 flex-col gap-0.5">
+    <div className="sticky top-0 self-start py-10 [-webkit-app-region:drag]">
+      <nav className="flex w-52 flex-col gap-0.5 [-webkit-app-region:no-drag]">
         {items.map((item) => {
           const isActive = item.id === activeId && !item.isExternal;
           return (

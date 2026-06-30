@@ -1,5 +1,6 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
+import { buildCommandCodeHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -14,27 +15,17 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
-      kind: 'none',
+      kind: 'config',
+      scope: 'workspace',
+      supportedEvents: ['session', 'stop'],
     },
     hostDependency: npmDependency({
       id: 'commandcode',
       package: 'command-code',
-      binaryNames: ['command-code'],
+      binaryNames: ['command-code', 'commandcode', 'cmdc'],
       versionSuffix: '@latest',
     }),
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
-    },
     prompt: {
       kind: 'argv',
       flag: '',
@@ -53,7 +44,10 @@ export const provider = registerPluginBehavior(plugin, {
         defaultArgs: ['--trust', '--skip-onboarding'],
         autoApproveFlag: '--yolo',
         initialPromptFlag: '',
-        resumeFlag: '--continue',
+        resumeFlag: '--resume',
+        sessionIdFlag: '--resume',
+        sessionIdOnResumeOnly: true,
       }),
   },
+  hooks: buildCommandCodeHookConfig(),
 });

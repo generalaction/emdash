@@ -3,13 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm -r run dev",
-    "build": "pnpm -r run build",
-    "test": "pnpm -r run test",
-    "lint": "pnpm -r run lint",
-    "format": "pnpm -r run format",
-    "format:check": "pnpm -r run format:check",
-    "typecheck": "pnpm -r run typecheck"
+    "dev": "nx run-many -t dev --all --parallel=10",
+    "build": "nx run-many -t build --all",
+    "test": "nx run-many -t test --all",
+    "lint": "nx run-many -t lint --all",
+    "format": "nx run-many -t format --all",
+    "format:check": "nx run-many -t format:check --all",
+    "typecheck": "nx run-many -t typecheck --all",
+    "affected": "nx affected -t lint typecheck test",
+    "graph": "nx graph"
   },
   "engines": {
     "node": ">=24.0.0",
@@ -23,12 +25,26 @@
       "electron",
       "esbuild",
       "node-pty",
+      "nx",
       "protobufjs",
       "sqlite3"
     ],
     "ignoredBuiltDependencies": [
       "cpu-features",
       "ssh2"
+    ],
+    "ignoredOptionalDependencies": [
+      "@anthropic-ai/claude-agent-sdk-darwin-arm64",
+      "@anthropic-ai/claude-agent-sdk-darwin-x64",
+      "@anthropic-ai/claude-agent-sdk-linux-arm64",
+      "@anthropic-ai/claude-agent-sdk-linux-arm64-musl",
+      "@anthropic-ai/claude-agent-sdk-linux-x64",
+      "@anthropic-ai/claude-agent-sdk-linux-x64-musl",
+      "@anthropic-ai/claude-agent-sdk-win32-arm64",
+      "@anthropic-ai/claude-agent-sdk-win32-x64"
     ]
+  },
+  "devDependencies": {
+    "nx": "^23.0.0"
   }
 }

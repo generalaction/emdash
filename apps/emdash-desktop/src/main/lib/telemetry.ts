@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import type { IDisposable, IInitializable } from '@emdash/shared';
 import { app } from 'electron';
 import { KV } from '@main/db/kv';
 import { env as appEnv } from '@main/lib/env';
-import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
 
 interface InitOptions {
@@ -19,6 +19,9 @@ type TelemetryKVSchema = {
 
 const LIB_NAME = 'emdash';
 const isViteDevBuild = import.meta.env.DEV;
+const MAX_EVENT_TS_MS = 9_999_999_999_999;
+const MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1_000;
+const MAX_GENERIC_NUMBER = 1_000_000;
 
 class TelemetryService implements IInitializable, IDisposable {
   private enabled = true;
@@ -143,6 +146,12 @@ class TelemetryService implements IInitializable, IDisposable {
       'terminal_id',
       'was_crash',
       'type',
+      'status',
+      'automation_id',
+      'trigger_kind',
+      'duration_ms',
+      'error_step',
+      'error_code',
     ]);
     const passthroughProps = new Set([
       '$exception_message',
@@ -160,9 +169,11 @@ class TelemetryService implements IInitializable, IDisposable {
           sanitized[key] = value.trim().slice(0, maxLength);
         } else if (typeof value === 'number') {
           if (key === 'event_ts_ms') {
-            sanitized[key] = Math.max(0, Math.min(Math.trunc(value), 9_999_999_999_999));
+            sanitized[key] = Math.max(0, Math.min(Math.trunc(value), MAX_EVENT_TS_MS));
+          } else if (key === 'duration_ms') {
+            sanitized[key] = Math.max(0, Math.min(Math.trunc(value), MAX_DURATION_MS));
           } else {
-            sanitized[key] = Math.max(-1_000_000, Math.min(value, 1_000_000));
+            sanitized[key] = Math.max(-MAX_GENERIC_NUMBER, Math.min(value, MAX_GENERIC_NUMBER));
           }
         } else if (typeof value === 'boolean') {
           sanitized[key] = value;

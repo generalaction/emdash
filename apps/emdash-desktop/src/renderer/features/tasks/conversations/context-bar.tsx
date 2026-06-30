@@ -2,11 +2,11 @@ import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import {
   getRegisteredTaskData,
   getTaskStore,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import {
   useConversations,
   useTaskViewContext,
@@ -25,11 +25,15 @@ import { buildTaskContextActions, type ContextAction } from './context-actions';
 
 interface ContextBarProps {
   conversationId: string | undefined;
+  hideTrigger?: boolean;
 }
 
-export const ContextBar = observer(function ContextBar({ conversationId }: ContextBarProps) {
+export const ContextBar = observer(function ContextBar({
+  conversationId,
+  hideTrigger = false,
+}: ContextBarProps) {
   const { projectId, taskId } = useTaskViewContext();
-  const { groupId } = useTabGroupContext();
+  const { paneId } = usePaneContext();
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const { update: updateInterfaceSettings, isSaving: isSavingInterfaceSettings } =
@@ -51,9 +55,9 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
     [task?.linkedIssue, draftComments?.comments, promptLibrary]
   );
 
-  if (!draftComments || !hasConversation || actions.length === 0) return null;
-
-  const isActivePane = taskView.tabGroupManager.activeGroupId === groupId;
+  const isActivePane = taskView.paneLayout.activePaneId === paneId;
+  const hasVisibleContextBar = Boolean(draftComments && hasConversation && actions.length > 0);
+  const popoverActions = canApplyContext ? actions : [];
 
   const handleApplyAction = async (
     text: string,
@@ -70,7 +74,7 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
     });
 
     if (action.kind === 'draft-comments') {
-      draftComments.consumeAll();
+      draftComments?.consumeAll();
     }
 
     if (opts?.andSend) {
@@ -85,17 +89,30 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
     setMenuOpen(false);
   };
 
+  const contextPopover = (
+    <AddContextPopover
+      actions={hideTrigger ? popoverActions : actions}
+      disabled={!canApplyContext || isSavingPromptLibrary}
+      emptyMessage={canApplyContext ? undefined : 'No active sessions'}
+      hideTrigger={hideTrigger}
+      hotkeyEnabled={hideTrigger ? true : undefined}
+      isActivePane={isActivePane}
+      onApplyAction={handleApplyAction}
+      side="top"
+    />
+  );
+
+  if (hideTrigger) {
+    return <div className="relative h-0 w-full overflow-visible">{contextPopover}</div>;
+  }
+
+  if (!hasVisibleContextBar) return null;
+
   return (
     <ContextMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <ContextMenuTrigger>
         <div className="flex w-full items-center justify-center bg-background-secondary-1 px-4 pb-2">
-          <AddContextPopover
-            actions={actions}
-            disabled={!canApplyContext || isSavingPromptLibrary}
-            isActivePane={isActivePane}
-            onApplyAction={handleApplyAction}
-            side="top"
-          />
+          {contextPopover}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent finalFocus={false}>

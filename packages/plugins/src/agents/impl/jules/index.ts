@@ -1,5 +1,5 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -11,29 +11,11 @@ export const plugin = definePlugin(
     websiteUrl: 'https://jules.google/docs/cli/reference/',
   },
   {
-    autoApprove: {
-      kind: 'none',
-    },
-    effort: {
-      kind: 'none',
-    },
-    hooks: {
-      kind: 'none',
-    },
     hostDependency: npmDependency({
       id: 'jules',
       package: '@google/jules',
       versionArgs: ['version'],
     }),
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
-    },
     prompt: {
       kind: 'keystroke',
     },
@@ -46,9 +28,8 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
-    buildCommand: (ctx) =>
-      buildStandardCommand(ctx, {
-        initialPromptFlag: '',
-      }),
+    // The prompt is delivered via keystroke injection into the `jules` TUI, not
+    // as a CLI argument — `jules <text>` would be parsed as an unknown subcommand.
+    buildCommand: (ctx) => buildStandardCommand(ctx, {}),
   },
 });

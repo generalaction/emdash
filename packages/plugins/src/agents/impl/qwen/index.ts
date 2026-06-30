@@ -1,9 +1,9 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   npmDependency,
   qwenMcpAdapter,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import { buildQwenHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -19,25 +19,16 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'config',
-      scope: 'workspace',
-      supportedEvents: ['notification', 'stop'],
+      scope: 'global',
+      supportedEvents: ['notification', 'stop', 'session'],
     },
     hostDependency: npmDependency({ id: 'qwen', package: '@qwen-code/qwen-code' }),
     mcp: {
       kind: 'supported',
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
     },
     prompt: {
       kind: 'argv',
@@ -54,9 +45,12 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        autoApproveFlag: '--yolo',
+        autoApproveFlag: '--approval-mode=yolo',
         initialPromptFlag: '-i',
-        resumeFlag: '--continue',
+        resumeFlag: '--resume',
+        sessionIdFlag: '--resume',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '--continue',
       }),
   },
   hooks: buildQwenHookConfig(),

@@ -5,6 +5,7 @@ import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
+import { Spinner } from '@renderer/lib/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import { cn } from '@renderer/utils/utils';
@@ -29,6 +30,7 @@ export const ResourceMonitorView = observer(function ResourceMonitorView({
 }) {
   const store = appState.resourceMonitor;
   const snapshot = store.snapshot;
+  const isLoading = store.isLoadingInitialSnapshot;
   const memLabel = formatBytes(store.totalMemoryBytes);
   const cpuLabel = `${store.totalCpuPercent.toFixed(1)}%`;
 
@@ -58,33 +60,52 @@ export const ResourceMonitorView = observer(function ResourceMonitorView({
       </div>
 
       <div className="max-h-[24rem] min-h-[14rem] overflow-y-auto px-1.5 py-1.5">
-        {hasProcesses && (
-          <Section heading="Application">
-            <div className="flex flex-col">
-              {processes.map((p) => (
-                <ProcessRow key={p.pid} process={p} cpuCount={snapshot?.cpuCount} />
-              ))}
-            </div>
-          </Section>
-        )}
+        {isLoading ? (
+          <ResourceMonitorLoadingState />
+        ) : (
+          <>
+            {hasProcesses && (
+              <Section heading="Application">
+                <div className="flex flex-col">
+                  {processes.map((p) => (
+                    <ProcessRow key={p.pid} process={p} cpuCount={snapshot?.cpuCount} />
+                  ))}
+                </div>
+              </Section>
+            )}
 
-        <Section heading="Active sessions">
-          {hasProjects ? (
-            <div className="flex flex-col gap-1">
-              {groups.map((g) => (
-                <ProjectRow key={g.projectId} group={g} />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-md py-6 text-center text-xs text-foreground/40">
-              No active sessions
-            </div>
-          )}
-        </Section>
+            <Section heading="Active sessions">
+              {hasProjects ? (
+                <div className="flex flex-col gap-1">
+                  {groups.map((g) => (
+                    <ProjectRow key={g.projectId} group={g} />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md py-6 text-center text-xs text-foreground/40">
+                  No active sessions
+                </div>
+              )}
+            </Section>
+          </>
+        )}
       </div>
     </>
   );
 });
+
+function ResourceMonitorLoadingState() {
+  return (
+    <div
+      className="flex min-h-[13rem] flex-col items-center justify-center gap-2 text-xs text-foreground/50"
+      role="status"
+      aria-label="Loading resource monitor data"
+    >
+      <Spinner size="sm" className="text-foreground/60" />
+      <span>Loading resource data...</span>
+    </div>
+  );
+}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -209,10 +230,14 @@ function closeConversationTabsForSession(sessionId: string): void {
   const taskView = getTaskView(parsed.projectId, parsed.scopeId);
   if (!taskView) return;
 
-  for (const { tabManager } of taskView.tabGroupManager.groups) {
-    for (const [tabId, entry] of tabManager.entries) {
-      if (entry.kind === 'conversation' && entry.conversationId === parsed.leafId) {
-        tabManager.closeTab(tabId);
+  for (const { pane } of taskView.paneLayout.groups) {
+    for (const [tabId, entry] of pane.entries) {
+      if (
+        entry.kind === 'conversation' &&
+        (entry as unknown as { kind: 'conversation'; conversationId: string }).conversationId ===
+          parsed.leafId
+      ) {
+        pane.closeTab(tabId);
       }
     }
   }

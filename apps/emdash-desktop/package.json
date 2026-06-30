@@ -1,6 +1,6 @@
 {
   "name": "@emdash/emdash-desktop",
-  "version": "1.1.34",
+  "version": "1.1.35",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "keywords": [
     "claude",
@@ -19,8 +19,8 @@
   "main": "./out/main/index.js",
   "scripts": {
     "d": "pnpm install && pnpm run dev",
-    "dev": "electron-vite dev",
-    "dev:debug": "VITE_LOG_LEVEL=debug electron-vite dev",
+    "dev": "LOG_LEVEL=debug EMDASH_LOG_FILE=.emdash-logs/emdash.log electron-vite dev",
+    "dev:debug": "VITE_LOG_LEVEL=debug LOG_LEVEL=debug EMDASH_LOG_FILE=.emdash-logs/emdash.log electron-vite dev",
     "dev:main": "electron-vite dev --watch main",
     "dev:renderer": "electron-vite dev --watch renderer",
     "db:generate": "drizzle-kit generate",
@@ -46,14 +46,17 @@
     "lint": "oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/release/tsconfig.json",
-    "docs": "cd docs && pnpm run dev",
-    "docs:build": "cd docs && pnpm run build"
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.25.1",
+    "@emdash/chat-ui": "workspace:*",
+    "@emdash/core": "workspace:*",
     "@emdash/plugins": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/ui": "workspace:*",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
     "@llamaduck/forgejo-ts": "^14.0.3",
@@ -61,6 +64,7 @@
     "@octokit/rest": "^22.0.1",
     "@parcel/watcher": "^2.5.6",
     "@team-plain/graphql": "^1.0.1",
+    "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "better-sqlite3": "^12.6.0",
     "croner": "^10.0.1",
     "cronstrue": "^3.14.0",
@@ -75,6 +79,7 @@
     "pidusage": "^4.0.1",
     "smol-toml": "^1.6.0",
     "ssh2": "^1.17.0",
+    "ts-pattern": "^5.9.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

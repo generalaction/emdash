@@ -1,5 +1,13 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronRight, Copy, FileText, Folder, FolderOpen } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  FileText,
+  Folder,
+  FolderOpen,
+  Trash2,
+} from 'lucide-react';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect, useRef, useState } from 'react';
@@ -10,6 +18,7 @@ import {
   isChainExpanded,
   type TreeRow,
 } from '@renderer/features/tasks/editor/stores/files-store-utils';
+import { useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -30,10 +39,12 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
 import { cn } from '@renderer/utils/utils';
 import { basenameFromAnyPath } from '@shared/path-name';
+import type { FileTabResource } from './stores/file-tab-resource';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -58,6 +69,16 @@ function existingFilePaths(message: string): string[] {
 
 function joinRelPath(dir: string, name: string): string {
   return dir ? `${dir}/${name}` : name;
+}
+
+function isPathWithinDeletedItem(
+  path: string,
+  deletedPath: string,
+  deletedType: 'file' | 'directory'
+) {
+  return deletedType === 'file'
+    ? path === deletedPath
+    : path === deletedPath || path.startsWith(`${deletedPath}/`);
 }
 
 async function importLocalFiles(args: {
@@ -139,11 +160,12 @@ const FileTreeRow = observer(function FileTreeRow({
   const workspaceId = useWorkspaceId();
   const workspace = useWorkspace();
   const editorView = taskView.editorView;
+  const { isActive, open: openFile } = useTabSelection('file', row.node.path);
 
   const node = row.node;
   const isExpanded = isChainExpanded(row.chain, editorView.expandedPaths);
-  const isSelected = taskView.tabManager.activeFilePath === node.path;
-  const fileStatus = workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
+  const isSelected = isActive;
+  const fileStatus = workspace.gitWorktree.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = row.renderDepth * 12 + 4;
   const targetDirPath = node.type === 'directory' ? node.path : (node.parentPath ?? '');
   const chainPath = row.chain.length > 1 ? row.chain.map((n) => n.name).join('/') : null;
@@ -171,14 +193,14 @@ const FileTreeRow = observer(function FileTreeRow({
     if (node.type === 'directory') {
       toggleExpand();
     } else {
-      taskView.tabManager.openFilePreview(node.path);
+      openFile({ path: node.path }, { preview: true });
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (node.type === 'file') {
-      taskView.tabManager.openFile(node.path);
+      openFile({ path: node.path }, { preview: false });
     }
   };
 
@@ -188,7 +210,7 @@ const FileTreeRow = observer(function FileTreeRow({
       if (node.type === 'directory') {
         toggleExpand();
       } else {
-        taskView.tabManager.openFilePreview(node.path);
+        openFile({ path: node.path }, { preview: true });
       }
     }
   };
@@ -242,6 +264,54 @@ const FileTreeRow = observer(function FileTreeRow({
         variant: 'destructive',
       });
     }
+  };
+
+  const closeDeletedFileTabs = () => {
+    for (const { pane } of taskView.paneLayout.groups) {
+      for (const tab of pane.resolvedTabs) {
+        if (tab.kind !== 'file') continue;
+        const resource = tab.resource as FileTabResource;
+        if (isPathWithinDeletedItem(resource.path, node.path, node.type)) {
+          pane.closeTab(tab.tabId);
+        }
+      }
+    }
+  };
+
+  const deleteItem = async () => {
+    try {
+      const result = await rpc.workspace.fs.removeFile(projectId, workspaceId, node.path, {
+        recursive: node.type === 'directory',
+      });
+      if (!result.success) throw new Error(resultErrorMessage(result.error));
+      if (!result.data.success) throw new Error(result.data.error ?? 'Delete failed.');
+
+      closeDeletedFileTabs();
+      workspace.files.removeNode(node.path);
+      toast({ title: node.type === 'directory' ? 'Folder deleted' : 'File deleted' });
+    } catch (error) {
+      await workspace.files.loadDir(node.parentPath ?? '', true);
+      toast({
+        title: 'Delete failed',
+        description: error instanceof Error ? error.message : 'The item could not be deleted.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const confirmDelete = () => {
+    showModal('confirmActionModal', {
+      title: node.type === 'directory' ? 'Delete folder?' : 'Delete file?',
+      description:
+        node.type === 'directory'
+          ? `"${node.path}" and all of its contents will be deleted from the workspace.`
+          : `"${node.path}" will be deleted from the workspace.`,
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+      onSuccess: () => {
+        void deleteItem();
+      },
+    });
   };
 
   const [isDropTarget, setIsDropTarget] = useState(false);
@@ -374,6 +444,11 @@ const FileTreeRow = observer(function FileTreeRow({
         <ContextMenuItem onClick={() => void copyRelativePath()}>
           <Copy className="size-4" />
           Copy relative path
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onClick={confirmDelete}>
+          <Trash2 className="size-4" />
+          Delete
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

@@ -34,15 +34,12 @@ export const notificationSettingsSchema = z.object({
 
 export const taskSettingsSchema = z.object({
   autoGenerateName: z.boolean(),
+  autoApproveByDefault: z.boolean(),
   autoTrustWorktrees: z.boolean(),
   createBranchAndWorktree: z.boolean(),
   preserveNameCapitalization: z.boolean(),
   includeIssueContextByDefault: z.boolean(),
 });
-
-export const agentAutoApproveDefaultsSchema = z
-  .partialRecord(z.enum(AGENT_PROVIDER_IDS), z.boolean())
-  .default({});
 
 export const terminalSettingsSchema = z.object({
   fontFamily: z.string().optional(),
@@ -89,7 +86,6 @@ export const interfaceSettingsSchema = z.object({
   showLeftSidebarLineChanges: z.boolean(),
   showLeftSidebarPrStatus: z.boolean(),
   showLeftSidebarTimestamps: z.boolean(),
-  confirmTabClose: z.boolean(),
   hideContextBar: z.boolean(),
 });
 
@@ -109,6 +105,7 @@ export const browserProfileIdSchema = z
 export const browserSettingsSchema = z
   .object({
     defaultProfileId: z.union([browserProfileIdSchema, z.literal(BROWSER_ISOLATED_PROFILE_ID)]),
+    relaxCorsForLocalhost: z.boolean(),
     profiles: z
       .array(
         z.object({
@@ -139,7 +136,6 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   localProject: localProjectSettingsSchema,
   project: projectSettingsSchema,
   tasks: taskSettingsSchema,
-  agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
@@ -157,7 +153,6 @@ export const appSettingsSchema = z.object({
   localProject: localProjectSettingsSchema,
   project: projectSettingsSchema,
   tasks: taskSettingsSchema,
-  agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,

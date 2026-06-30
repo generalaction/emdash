@@ -250,9 +250,11 @@ export const AddProjectModal = observer(function AddProjectModal({
         : rpc.projects.inspectProjectPath({ type: 'local', path: pickState.path }),
     enabled: shouldCheckPickPathStatus,
   });
+  const pickPathInspectionError = mode === 'pick' ? pickPathStatusQuery.data?.error : undefined;
   const requiresGitInitialization =
     mode === 'pick' &&
     pickPathStatusQuery.data?.isDirectory === true &&
+    !pickPathStatusQuery.data.error &&
     pickPathStatusQuery.data.isGitRepo === false;
   const isCheckingPickPathStatus = shouldCheckPickPathStatus && pickPathStatusQuery.isPending;
 
@@ -260,6 +262,7 @@ export const AddProjectModal = observer(function AddProjectModal({
     activeMode.isValid &&
     (strategy === 'local' || !!selectedConnectionId) &&
     !isCheckingPickPathStatus &&
+    !pickPathInspectionError &&
     (mode !== 'new' || !githubAccountsQuery.isPending) &&
     (mode !== 'pick' || !requiresGitInitialization || !githubAccountsQuery.isPending) &&
     (!requiresGitInitialization || pickState.initGitRepository) &&
@@ -322,8 +325,12 @@ export const AddProjectModal = observer(function AddProjectModal({
       }
 
       void result.completion
-        .then(() => {
-          void maybeShowProjectConfigImportPrompt(result.projectId);
+        .then((completion) => {
+          if (completion.success) {
+            void maybeShowProjectConfigImportPrompt(result.projectId);
+            return;
+          }
+          log.error(completion.error);
         })
         .catch((error) => {
           log.error(error);
@@ -430,6 +437,7 @@ export const AddProjectModal = observer(function AddProjectModal({
             strategy={strategy}
             connectionId={selectedConnectionId}
             state={pickState}
+            inspectionError={pickPathInspectionError?.message}
             showInitializeGitPrompt={requiresGitInitialization}
           />
         )}

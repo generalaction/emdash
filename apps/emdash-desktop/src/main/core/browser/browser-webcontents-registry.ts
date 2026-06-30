@@ -4,6 +4,7 @@ import {
   session,
   type BrowserWindow,
   type BrowserWindowConstructorOptions,
+  type ClearDataOptions,
   type MenuItemConstructorOptions,
   type WebContents,
 } from 'electron';
@@ -14,10 +15,17 @@ import {
   isNamedBrowserProfileId,
   normalizeBrowserUrl,
   type BrowserDataClearKind,
+  type BrowsingDataKind,
 } from '@shared/browser';
 import type { AppSettings } from '@shared/core/app-settings';
+import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
-import { APP_SHORTCUTS, resolveDefaultHotkey } from '@shared/shortcuts';
+import {
+  APP_SHORTCUTS,
+  getElectronTabNavigationDirection,
+  resolveDefaultHotkey,
+  type ShortcutSettingsKey,
+} from '@shared/shortcuts';
 import { isGoogleAuthUrl, userAgentForBrowserUrl } from './browser-user-agent';
 
 type RegisteredBrowserSession = {
@@ -41,13 +49,24 @@ const BROWSER_POPUP_WINDOW_OPTIONS: BrowserWindowConstructorOptions = {
   },
 };
 
+// Electron's type union lags Chromium's supported `clearData` values.
+const SITE_DATA_CLEAR_DATA_TYPES = [
+  'backgroundFetch',
+  'cacheStorage',
+  'fileSystems',
+  'indexedDB',
+  'localStorage',
+  'serviceWorkers',
+  'webSQL',
+] as unknown as NonNullable<ClearDataOptions['dataTypes']>;
+
 export class BrowserWebContentsRegistry {
   private readonly sessionsByBrowserId = new Map<string, RegisteredBrowserSession>();
   private readonly webContentsByBrowserId = new Map<string, WebContents>();
   private readonly browserIdByWebContentsId = new Map<number, string>();
   private readonly pendingWebContentsIds = new Set<number>();
   private activeBrowserId: string | null = null;
-  private copyBrowserUrlShortcut = getBrowserCopyUrlShortcut();
+  private browserShortcuts = getBrowserShortcuts();
 
   registerSession(input: RegisteredBrowserSession): void {
     this.sessionsByBrowserId.set(input.browserId, input);
@@ -66,7 +85,7 @@ export class BrowserWebContentsRegistry {
   }
 
   setKeyboardSettings(keyboard: AppSettings['keyboard']): void {
-    this.copyBrowserUrlShortcut = getBrowserCopyUrlShortcut(keyboard);
+    this.browserShortcuts = getBrowserShortcuts(keyboard);
   }
 
   get registeredPartitions(): ReadonlySet<string> {
@@ -184,6 +203,16 @@ export class BrowserWebContentsRegistry {
     return true;
   }
 
+  /**
+   * Clears a category of browsing data across the given partitions. Used by the
+   * global "Browsing data" settings controls, which target every browser
+   * profile rather than a single open tab.
+   */
+  async clearBrowsingData(kind: BrowsingDataKind, partitions: readonly string[]): Promise<boolean> {
+    await Promise.all(partitions.map((partition) => clearPartitionBrowsingData(partition, kind)));
+    return true;
+  }
+
   private isRegisteredPartitionSession(webContents: WebContents): boolean {
     for (const partition of this.registeredPartitions) {
       if (session.fromPartition(partition) === webContents.session) {
@@ -211,7 +240,32 @@ export class BrowserWebContentsRegistry {
     });
 
     webContents.on('before-input-event', (event, input) => {
-      if (!isCopyBrowserUrlShortcut(input, this.copyBrowserUrlShortcut)) return;
+      const tabNavigationDirection = getElectronTabNavigationDirection(input);
+      if (tabNavigationDirection) {
+        const browserId = this.browserIdByWebContentsId.get(webContents.id);
+        if (browserId) {
+          event.preventDefault();
+          events.emit(tabNavigationShortcutChannel, {
+            source: { kind: 'browser', browserId },
+            direction: tabNavigationDirection,
+          });
+          return;
+        }
+      }
+
+      const shortcutKey = getBrowserShortcutKey(input, this.browserShortcuts);
+      if (shortcutKey === null) return;
+
+      if (shortcutKey !== 'browserCopyUrl') {
+        const browserId = this.browserIdByWebContentsId.get(webContents.id);
+        if (!browserId) return;
+        event.preventDefault();
+        events.emit(browserAppShortcutChannel, {
+          source: { kind: 'browser', browserId },
+          shortcutKey,
+        });
+        return;
+      }
 
       const normalized = normalizeBrowserUrl(webContents.getURL(), { allowSearchQueries: false });
       if (!normalized.ok || !isExternalHttpUrl(normalized.url)) return;
@@ -287,6 +341,30 @@ export class BrowserWebContentsRegistry {
 
 export const browserWebContentsRegistry = new BrowserWebContentsRegistry();
 
+async function clearPartitionBrowsingData(
+  partition: string,
+  kind: BrowsingDataKind
+): Promise<void> {
+  const partitionSession = session.fromPartition(partition);
+  switch (kind) {
+    case 'all':
+      // No options clears every data type, more thoroughly than clearStorageData.
+      await partitionSession.clearData();
+      return;
+    case 'cookies':
+      await partitionSession.clearData({ dataTypes: ['cookies'] });
+      return;
+    case 'siteData':
+      await partitionSession.clearData({
+        dataTypes: SITE_DATA_CLEAR_DATA_TYPES,
+      });
+      return;
+    case 'cache':
+      await partitionSession.clearData({ dataTypes: ['cache'] });
+      return;
+  }
+}
+
 function hardenBrowserPopupWindow(window: BrowserWindow): void {
   const webContents = window.webContents;
 
@@ -359,31 +437,63 @@ function getBrowserContextTarget(
   return null;
 }
 
-function getBrowserCopyUrlShortcut(keyboard?: AppSettings['keyboard']): string | null {
-  const configured = keyboard?.browserCopyUrl;
-  if (configured === null) return null;
-  const fallback = resolveDefaultHotkey(APP_SHORTCUTS.browserCopyUrl) ?? null;
-  if (configured && !parseShortcut(configured)) {
-    log.warn('Invalid browser copy URL shortcut, falling back to default', {
-      shortcut: configured,
-    });
-    return fallback;
+type ParsedShortcut = {
+  key: string;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+  control: boolean;
+};
+
+function getBrowserShortcuts(
+  keyboard?: AppSettings['keyboard']
+): Map<ShortcutSettingsKey, ParsedShortcut> {
+  const shortcuts = new Map<ShortcutSettingsKey, ParsedShortcut>();
+  for (const shortcutKey of Object.keys(APP_SHORTCUTS) as ShortcutSettingsKey[]) {
+    if (shortcutKey === 'closeModal') continue;
+
+    const configured = keyboard?.[shortcutKey];
+    if (configured === null) continue;
+
+    const fallback = resolveDefaultHotkey(APP_SHORTCUTS[shortcutKey]) ?? null;
+    const hotkey = configured ?? fallback;
+    if (hotkey === null) continue;
+
+    const parsed = parseShortcut(hotkey);
+    if (parsed) {
+      shortcuts.set(shortcutKey, parsed);
+      continue;
+    }
+
+    if (configured) {
+      const parsedFallback = fallback ? parseShortcut(fallback) : null;
+      if (parsedFallback) shortcuts.set(shortcutKey, parsedFallback);
+      log.warn('Invalid browser app shortcut, falling back to default', {
+        shortcutKey,
+        shortcut: configured,
+      });
+    }
   }
-  return configured ?? fallback;
+  return shortcuts;
 }
 
-function isCopyBrowserUrlShortcut(input: Electron.Input, shortcut: string | null): boolean {
-  if (shortcut === null) return false;
-  const parsed = parseShortcut(shortcut);
-  if (!parsed) return false;
-  return (
-    input.type === 'keyDown' &&
-    normalizeInputKey(input.key) === parsed.key &&
-    Boolean(input.shift) === parsed.shift &&
-    Boolean(input.alt) === parsed.alt &&
-    Boolean(input.meta) === parsed.meta &&
-    Boolean(input.control) === parsed.control
-  );
+function getBrowserShortcutKey(
+  input: Electron.Input,
+  shortcuts: ReadonlyMap<ShortcutSettingsKey, ParsedShortcut>
+): ShortcutSettingsKey | null {
+  if (input.type !== 'keyDown') return null;
+  for (const [shortcutKey, parsed] of shortcuts) {
+    if (
+      normalizeInputKey(input.key) === parsed.key &&
+      Boolean(input.shift) === parsed.shift &&
+      Boolean(input.alt) === parsed.alt &&
+      Boolean(input.meta) === parsed.meta &&
+      Boolean(input.control) === parsed.control
+    ) {
+      return shortcutKey;
+    }
+  }
+  return null;
 }
 
 function parseShortcut(shortcut: string): {

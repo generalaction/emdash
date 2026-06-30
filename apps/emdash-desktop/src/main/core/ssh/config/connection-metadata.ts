@@ -1,4 +1,4 @@
-import type { HostDependencySelection } from '@emdash/shared/deps/runtime';
+import type { HostDependencySelection } from '@emdash/core/deps/runtime';
 // DB metadata column helpers for SSH connections.
 import type { SshConnectionRow } from '@main/db/schema';
 import type { SshConfig } from '@shared/core/ssh/ssh';

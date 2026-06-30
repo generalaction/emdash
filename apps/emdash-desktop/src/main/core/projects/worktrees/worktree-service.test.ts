@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { GitRemote } from '@emdash/core/git';
+import { ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { Remote } from '@shared/core/git/git';
-import { ok } from '@shared/lib/result';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import { LocalWorktreeHost } from './hosts/local-worktree-host';
 import type { WorktreeHost } from './hosts/worktree-host';
@@ -41,7 +41,7 @@ function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider 
   } as ProjectSettingsProvider;
 }
 
-const originRemote = (url = 'ssh://example.com/repo.git'): Remote => ({ name: 'origin', url });
+const originRemote = (url = 'ssh://example.com/repo.git'): GitRemote => ({ name: 'origin', url });
 
 describe('WorktreeService', () => {
   let repoDir: string;
@@ -260,8 +260,8 @@ describe('WorktreeService', () => {
       if (result.success) throw new Error('expected failure');
       expect(result.error.type).toBe('worktree-setup-failed');
       if (result.error.type !== 'worktree-setup-failed') throw new Error('expected setup failure');
-      expect(String(result.error.cause)).toContain('Failed to remove stale worktree directory');
-      expect(String(result.error.cause)).toContain('permission denied');
+      expect(result.error.cause?.message).toContain('Failed to remove stale worktree directory');
+      expect(result.error.cause?.message).toContain('permission denied');
     });
 
     it('uses the current resolved pool path when creating a worktree', async () => {

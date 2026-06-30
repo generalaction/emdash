@@ -2,13 +2,13 @@ import { exec } from 'node:child_process';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
+import type { IDisposable, IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
-import { app, clipboard, dialog, shell } from 'electron';
+import { app, clipboard, dialog, Menu, shell } from 'electron';
 import { getMainWindow } from '@main/app/window';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
-import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
 import {
@@ -16,7 +16,13 @@ import {
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
 } from '@main/utils/remoteOpenIn';
-import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
+import {
+  appPasteChannel,
+  appRedoChannel,
+  appUndoChannel,
+  terminalContextMenuActionChannel,
+  type TerminalContextMenuAction,
+} from '@shared/events/appEvents';
 import {
   getAppById,
   getResolvedLabel,
@@ -30,10 +36,13 @@ import {
   checkMacApp,
   checkMacAppByName,
   checkMacMdfindQuery,
+  checkWindowsVisualStudio,
   escapeAppleScriptString,
   execFileCommand,
   listInstalledFontsAll,
   resolveAppVersion,
+  resolveWindowsVsProductPath,
+  spawnDetachedCommand,
 } from './utils';
 
 const FONT_CACHE_TTL_MS = 5 * 60 * 1_000;
@@ -179,6 +188,9 @@ class AppService implements IInitializable, IDisposable {
         if (!isAvailable && platformConfig?.mdfindQuery && platform === 'darwin') {
           isAvailable = await checkMacMdfindQuery(platformConfig.mdfindQuery);
         }
+        if (!isAvailable && platformConfig?.winVswhere && platform === 'win32') {
+          isAvailable = await checkWindowsVisualStudio();
+        }
         availability[openInApp.id] = isAvailable;
       } catch (error) {
         log.error(`Error checking installed app ${openInApp.id}:`, error);
@@ -231,8 +243,86 @@ class AppService implements IInitializable, IDisposable {
     clipboard.writeText(text);
   }
 
+  showTerminalContextMenu(args: {
+    requestId: string;
+    selectionText?: string | null;
+    linkText?: string | null;
+    x: number;
+    y: number;
+  }): void {
+    if (!args.requestId || typeof args.requestId !== 'string') {
+      throw new Error('Invalid context menu request');
+    }
+    const selectionText = args.selectionText ?? '';
+    const linkText = args.linkText?.trim() ?? '';
+    const hasSelection = selectionText.length > 0;
+    const hasLink = linkText.length > 0;
+    const emitAction = (action: TerminalContextMenuAction) => {
+      events.emit(terminalContextMenuActionChannel, { requestId: args.requestId, action });
+    };
+    const template: Electron.MenuItemConstructorOptions[] = [
+      {
+        label: 'Copy',
+        accelerator: 'CmdOrCtrl+C',
+        enabled: hasSelection,
+        click: () => clipboard.writeText(selectionText),
+      },
+      ...(hasLink
+        ? [
+            {
+              label: 'Copy Link',
+              click: () => clipboard.writeText(linkText),
+            },
+          ]
+        : []),
+      {
+        label: 'Paste',
+        accelerator: 'CmdOrCtrl+V',
+        click: () => emitAction('paste'),
+      },
+      { type: 'separator' },
+      {
+        label: 'Select All',
+        accelerator: 'CmdOrCtrl+A',
+        click: () => emitAction('select-all'),
+      },
+      {
+        label: 'Clear',
+        click: () => emitAction('clear'),
+      },
+    ];
+
+    Menu.buildFromTemplate(template).popup({
+      window: getMainWindow() ?? undefined,
+      x: Math.round(args.x),
+      y: Math.round(args.y),
+    });
+  }
+
   quit(): void {
     app.quit();
+  }
+
+  minimizeWindow(): void {
+    getMainWindow()?.minimize();
+  }
+
+  toggleMaximizeWindow(): void {
+    const win = getMainWindow();
+    if (!win) return;
+    if (win.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win.maximize();
+    }
+  }
+
+  closeWindow(): void {
+    getMainWindow()?.close();
+  }
+
+  isWindowMaximized(): boolean {
+    return getMainWindow()?.isMaximized() ?? false;
   }
 
   async openIn(args: {
@@ -436,6 +526,15 @@ class AppService implements IInitializable, IDisposable {
       const errorMessage = await shell.openPath(target);
       if (errorMessage) throw new Error(errorMessage);
       return;
+    }
+
+    if (platformConfig?.winVswhere && process.platform === 'win32') {
+      const productPath = await resolveWindowsVsProductPath();
+      if (productPath) {
+        await spawnDetachedCommand(productPath, [target]);
+        return;
+      }
+      // Fall through to the `devenv {{path}}` openCommands fallback (devenv on PATH).
     }
 
     if (platformConfig?.openUrls) {

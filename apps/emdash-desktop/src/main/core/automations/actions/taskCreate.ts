@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { err, ok, type Result } from '@emdash/shared';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -13,13 +14,12 @@ import {
 import { taskService } from '@main/core/tasks/task-service';
 import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
-import { resolveAutomationAgentAutoApprove } from '@shared/core/agents/agent-auto-approve-defaults';
+import { resolveAutomationAgentAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
 import type { CreateTaskParams } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
-import { err, ok, type Result } from '@shared/lib/result';
 import {
   markRunCreatingConversation,
   markRunFailed,
@@ -188,6 +188,7 @@ export async function executeTaskCreate(
           provider,
           automation.conversationConfig?.autoApprove
         ),
+        model: automation.conversationConfig?.model || undefined,
         initialPrompt: prompt,
         isInitialConversation: true,
       });

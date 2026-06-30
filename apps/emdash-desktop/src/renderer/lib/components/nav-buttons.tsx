@@ -15,7 +15,7 @@ export function applyHistoryEntry(entry: HistoryEntry): void {
       projectId: entry.projectId,
       taskId: entry.taskId,
     });
-    getTaskView(entry.projectId, entry.taskId)?.tabManager.setActiveTab(entry.tabId);
+    getTaskView(entry.projectId, entry.taskId)?.activePane.setActiveTab(entry.tabId);
   }
 }
 
@@ -37,7 +37,7 @@ export const NavButtons = observer(function NavButtons() {
         </TooltipTrigger>
         <TooltipContent>
           Go Back
-          <BoundShortcut settingsKey="navigateBack" variant="badge" />
+          <BoundShortcut settingsKey="navigateBack" variant="keycaps" />
         </TooltipContent>
       </Tooltip>
       <Tooltip>
@@ -54,7 +54,7 @@ export const NavButtons = observer(function NavButtons() {
         </TooltipTrigger>
         <TooltipContent>
           Go Forward
-          <BoundShortcut settingsKey="navigateForward" variant="badge" />
+          <BoundShortcut settingsKey="navigateForward" variant="keycaps" />
         </TooltipContent>
       </Tooltip>
     </div>

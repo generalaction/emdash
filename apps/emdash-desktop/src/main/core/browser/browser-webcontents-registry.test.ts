@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { events } from '@main/lib/events';
+import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
 const sessionsByPartition = new Map<string, object>();
@@ -42,6 +43,7 @@ function fakeWebContents(partition: string = PROFILE_PARTITION): FakeWebContents
     windowOpenHandler: null as FakeWebContents['windowOpenHandler'],
     close: vi.fn(),
     isDestroyed: () => false,
+    getURL: () => 'https://example.com',
     getUserAgent: () => 'base-ua',
     setUserAgent: vi.fn(),
     openDevTools: vi.fn(),
@@ -221,6 +223,101 @@ describe('BrowserWebContentsRegistry', () => {
     expect(registry.openDevTools('browser-1')).toBe(false);
   });
 
+  it('emits tab navigation shortcuts from focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'Tab',
+      control: true,
+      shift: true,
+      alt: false,
+      meta: false,
+    });
+
+    expect(keyEvent.preventDefault).toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(tabNavigationShortcutChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      direction: 'previous',
+    });
+  });
+
+  it('emits app shortcuts from focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'K',
+      control: false,
+      shift: false,
+      alt: false,
+      meta: true,
+    });
+
+    expect(keyEvent.preventDefault).toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(browserAppShortcutChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      shortcutKey: 'commandPalette',
+    });
+  });
+
+  it('does not emit disabled app shortcuts from focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.setKeyboardSettings({ commandPalette: null });
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'K',
+      control: false,
+      shift: false,
+      alt: false,
+      meta: true,
+    });
+
+    expect(keyEvent.preventDefault).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalledWith(browserAppShortcutChannel, expect.anything());
+  });
+
+  it('does not consume Escape in focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'Escape',
+      control: false,
+      shift: false,
+      alt: false,
+      meta: false,
+    });
+
+    expect(keyEvent.preventDefault).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalledWith(browserAppShortcutChannel, expect.anything());
+  });
+
   it('clears storage for a named profile without requiring an open browser', async () => {
     const registry = new BrowserWebContentsRegistry();
 
@@ -231,5 +328,44 @@ describe('BrowserWebContentsRegistry', () => {
       | { clearData: ReturnType<typeof vi.fn> }
       | undefined;
     expect(profileSession?.clearData).toHaveBeenCalled();
+  });
+
+  it('clears the requested browsing data category across every passed partition', async () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partitions = [PROFILE_PARTITION, 'persist:emdash-browser-profile-work'];
+
+    await expect(registry.clearBrowsingData('cache', partitions)).resolves.toBe(true);
+
+    for (const partition of partitions) {
+      const partitionSession = sessionsByPartition.get(partition) as
+        | { clearData: ReturnType<typeof vi.fn> }
+        | undefined;
+      expect(partitionSession?.clearData).toHaveBeenCalledWith({ dataTypes: ['cache'] });
+    }
+  });
+
+  it('passes no options for an "all" clear and dataTypes for other categories', async () => {
+    const registry = new BrowserWebContentsRegistry();
+
+    await registry.clearBrowsingData('all', [PROFILE_PARTITION]);
+    await registry.clearBrowsingData('cookies', [PROFILE_PARTITION]);
+    await registry.clearBrowsingData('siteData', [PROFILE_PARTITION]);
+
+    const partitionSession = sessionsByPartition.get(PROFILE_PARTITION) as {
+      clearData: ReturnType<typeof vi.fn>;
+    };
+    expect(partitionSession.clearData).toHaveBeenNthCalledWith(1);
+    expect(partitionSession.clearData).toHaveBeenNthCalledWith(2, { dataTypes: ['cookies'] });
+    expect(partitionSession.clearData).toHaveBeenNthCalledWith(3, {
+      dataTypes: [
+        'backgroundFetch',
+        'cacheStorage',
+        'fileSystems',
+        'indexedDB',
+        'localStorage',
+        'serviceWorkers',
+        'webSQL',
+      ],
+    });
   });
 });

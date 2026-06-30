@@ -36,6 +36,7 @@ describe('pluginRegistry', () => {
       expect(capabilities.hooks).toBeDefined();
       expect(capabilities.mcp).toBeDefined();
       expect(capabilities.plugins).toBeDefined();
+      expect(['supported', 'none']).toContain(capabilities.acp.kind);
       expect(['supported', 'none']).toContain(capabilities.autoApprove.kind);
       expect(['resumable', 'stateless']).toContain(capabilities.sessions.kind);
     }
@@ -124,5 +125,134 @@ describe('pluginRegistry', () => {
     for (const p of pluginRegistry.getAll()) {
       expect(typeof p.behavior.prompt?.buildCommand).toBe('function');
     }
+  });
+
+  it('passes Grok initial prompts as positional argv for interactive sessions', () => {
+    const result = pluginRegistry.get('grok')!.behavior.prompt!.buildCommand({
+      cli: 'grok',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+
+    expect(result).toEqual({
+      command: 'grok',
+      args: ['--always-approve', 'Fix the bug'],
+      env: {},
+    });
+  });
+
+  it('uses current Grok docs, npm release source, Windows install, and model flag', () => {
+    const grok = pluginRegistry.get('grok')!;
+
+    expect(grok.metadata.websiteUrl).toBe('https://docs.x.ai/build/overview');
+    expect(grok.capabilities.hostDependency.installDocs).toBe('https://docs.x.ai/build/overview');
+    expect(
+      grok.capabilities.hostDependency.installCommands.macos?.map((opt) => opt.method)
+    ).toEqual(['curl', 'npm']);
+    expect(grok.capabilities.hostDependency.installCommands.macos?.[1]?.command).toBe(
+      'npm install -g @xai-official/grok@latest'
+    );
+    expect(
+      grok.capabilities.hostDependency.installCommands.windows?.map((opt) => opt.method)
+    ).toEqual(['powershell', 'npm']);
+    expect(grok.capabilities.hostDependency.updates).toMatchObject({
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@xai-official/grok' },
+      update: { kind: 'package-manager' },
+    });
+
+    const result = grok.behavior.prompt!.buildCommand({
+      cli: 'grok',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'my-model',
+    });
+
+    expect(result.args).toEqual(['--always-approve', '-m', 'my-model', 'Fix the bug']);
+  });
+
+  it('uses the current Amp npm package for install and updates', () => {
+    const amp = pluginRegistry.get('amp')!;
+
+    expect(amp.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'npm install -g @ampcode/cli@latest'
+    );
+    expect(amp.capabilities.hostDependency.updates).toMatchObject({
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@ampcode/cli' },
+    });
+  });
+
+  it('exposes Amp modes as selectable models and passes them with -m', () => {
+    const amp = pluginRegistry.get('amp')!;
+
+    expect(amp.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        smart: { name: 'Smart' },
+        rush: { name: 'Rush' },
+        deep: { name: 'Deep' },
+      },
+    });
+
+    const result = amp.behavior.prompt!.buildCommand({
+      cli: 'amp',
+      autoApprove: true,
+      initialPrompt: '',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'deep',
+    });
+
+    expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'deep']);
+  });
+
+  it('registers Qoder CLI install metadata and interactive command args', () => {
+    const qoder = pluginRegistry.get('qoder')!;
+
+    expect(qoder.metadata.websiteUrl).toBe('https://qoder.com/en/cli');
+    expect(qoder.capabilities.hostDependency.binaryNames).toEqual(['qodercli']);
+    expect(qoder.capabilities.hostDependency.installDocs).toBe('https://qoder.com/en/cli');
+    expect(
+      qoder.capabilities.hostDependency.installCommands.macos?.map((opt) => opt.method)
+    ).toEqual(['npm', 'curl']);
+    expect(qoder.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'npm install -g @qoder-ai/qodercli'
+    );
+    expect(
+      qoder.capabilities.hostDependency.installCommands.windows?.map((opt) => opt.method)
+    ).toEqual(['npm', 'powershell']);
+
+    const fresh = qoder.behavior.prompt!.buildCommand({
+      cli: 'qodercli',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+
+    expect(fresh).toEqual({
+      command: 'qodercli',
+      args: ['--yolo', 'Fix the bug'],
+      env: {},
+    });
+
+    const resumed = qoder.behavior.prompt!.buildCommand({
+      cli: 'qodercli',
+      autoApprove: true,
+      initialPrompt: '',
+      sessionId: 'conv-1',
+      providerSessionId: 'qoder-session-1',
+      isResuming: true,
+      model: '',
+    });
+
+    expect(resumed.args).toEqual(['-r', 'qoder-session-1', '--yolo']);
   });
 });

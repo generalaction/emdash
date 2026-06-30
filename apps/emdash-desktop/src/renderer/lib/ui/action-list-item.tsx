@@ -1,5 +1,5 @@
 import { type LucideIcon } from 'lucide-react';
-import { Kbd } from '@renderer/lib/ui/kbd';
+import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 
 export function ActionListItem({
@@ -24,6 +24,7 @@ export function ActionListItem({
   return (
     <button
       type="button"
+      data-slot="button"
       aria-label={label}
       disabled={disabled}
       onClick={disabled ? undefined : onClick}
@@ -50,11 +51,7 @@ export function ActionListItem({
           </span>
         </div>
       </div>
-      {!disabled && isSelected && (
-        <Kbd className="size-6 bg-background-2 pt-1 text-foreground-muted group-hover:text-foreground">
-          ⏎
-        </Kbd>
-      )}
+      {!disabled && isSelected && <Shortcut hotkey="Enter" variant="keycaps" />}
     </button>
   );
 }

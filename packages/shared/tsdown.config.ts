@@ -2,19 +2,16 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
-    deps: 'src/host-dependencies/capability.ts',
-    'deps-runtime': 'src/host-dependencies/runtime/index.ts',
-    exec: 'src/exec/index.ts',
-    fs: 'src/fs/index.ts',
-    git: 'src/git/index.ts',
-    lib: 'src/lib/index.ts',
-    'agents-plugins': 'src/agents/plugins/index.ts',
-    'agents-plugins-helpers': 'src/agents/plugins/helpers/index.ts',
+    index: 'src/index.ts',
+    result: 'src/result/index.ts',
+    logger: 'src/logger/index.ts',
+    'logger-pino': 'src/logger/pino/index.ts',
+    'logger-transport': 'src/logger/transport/index.ts',
   },
   format: ['esm'],
   dts: true,
   deps: {
-    neverBundle: ['zod', '@parcel/watcher', 'react', 'smol-toml', 'semver'],
+    neverBundle: ['pino', 'fast-redact'],
   },
   sourcemap: true,
   clean: true,

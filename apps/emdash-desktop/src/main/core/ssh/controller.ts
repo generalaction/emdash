@@ -18,6 +18,7 @@ import type {
   SshHealthState,
 } from '@shared/core/ssh/ssh';
 import { createRPCController } from '@shared/lib/ipc/rpc';
+import { clearDependencyManager } from '../dependencies/dependency-managers';
 import {
   mergeSshConnectionMetadata,
   type SshConnectionMetadata,
@@ -167,6 +168,7 @@ export const sshController = createRPCController({
       throw new Error(`SSH connection is used by ${projectNames}`);
     }
 
+    clearDependencyManager(id);
     if (sshConnectionManager.getConnectionState(id) !== 'disconnected') {
       await sshConnectionManager.disconnect(id).catch((e) => {
         log.warn('sshController.deleteConnection: error disconnecting', {
@@ -175,8 +177,9 @@ export const sshController = createRPCController({
         });
       });
     }
-    await sshCredentialService.deleteAllCredentials(id);
     await db.delete(sshConnectionsTable).where(eq(sshConnectionsTable.id, id));
+
+    await sshCredentialService.deleteAllCredentials(id);
   },
 
   /** Test a connection without persisting anything. */
@@ -190,6 +193,7 @@ export const sshController = createRPCController({
 
   /** Intentionally close a connection and stop auto-reconnect. */
   disconnect: async (connectionId: string): Promise<void> => {
+    clearDependencyManager(connectionId);
     await sshConnectionManager.disconnect(connectionId);
   },
 

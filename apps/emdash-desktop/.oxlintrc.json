@@ -81,8 +81,8 @@
           {
             "patterns": [
               {
-                "group": ["@emdash/shared/deps", "@emdash/shared/deps/*"],
-                "message": "Import dependency types from @shared/core/agents/agent-payload instead of @emdash/shared/deps*."
+                "group": ["@emdash/core/deps", "@emdash/core/deps/*"],
+                "message": "Import dependency types from @shared/core/agents/agent-payload instead of @emdash/core/deps*."
               }
             ]
           }

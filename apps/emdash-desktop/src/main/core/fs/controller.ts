@@ -1,11 +1,11 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { err, ok } from '@emdash/shared';
 import { fsEvents } from '@main/core/fs/fs-events';
 import { events } from '@main/lib/events';
 import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
 import { planEventChannel } from '@shared/events/appEvents';
 import { createRPCController } from '@shared/lib/ipc/rpc';
-import { err, ok } from '@shared/lib/result';
 import { resolveWorkspace } from '../projects/utils';
 import {
   FileSystemErrorCodes,
@@ -104,7 +104,12 @@ export const filesController = createRPCController({
     }
   },
 
-  removeFile: async (projectId: string, workspaceId: string, filePath: string) => {
+  removeFile: async (
+    projectId: string,
+    workspaceId: string,
+    filePath: string,
+    options?: { recursive?: boolean }
+  ) => {
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
@@ -117,7 +122,7 @@ export const filesController = createRPCController({
     }
 
     try {
-      const result = await env.fs.remove(filePath);
+      const result = await env.fs.remove(filePath, options);
       return ok(result);
     } catch (e) {
       if (

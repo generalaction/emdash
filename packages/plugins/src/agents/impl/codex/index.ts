@@ -1,10 +1,10 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   codexMcpAdapter,
   homebrewOption,
   npmDependency,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -20,8 +20,22 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
+    models: {
+      kind: 'selectable',
+      modelOptions: {
+        'codex-mini-latest': {
+          name: 'Codex Mini',
+          modelFeatures: { intelligence: 3, speed: 5 },
+        },
+        'o4-mini': {
+          name: 'o4-mini',
+          modelFeatures: { intelligence: 4, speed: 4 },
+        },
+        o3: {
+          name: 'o3',
+          modelFeatures: { intelligence: 5, speed: 2 },
+        },
+      },
     },
     hooks: {
       kind: 'config',
@@ -50,12 +64,6 @@ export const plugin = definePlugin(
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
     },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
-    },
     prompt: {
       kind: 'argv',
       flag: '',
@@ -79,6 +87,7 @@ export const provider = registerPluginBehavior(plugin, {
         sessionIdOnResumeOnly: true,
         resumeWithoutSessionFlag: 'resume --last',
         deduplicateFlags: ['--dangerously-bypass-approvals-and-sandbox'],
+        modelFlag: '-m',
       }),
   },
   hooks: buildCodexHookConfig(),

@@ -1,3 +1,4 @@
+import type { IDisposable, IInitializable } from '@emdash/shared';
 import _electronUpdater, {
   type ProgressInfo,
   type UpdateInfo,
@@ -5,7 +6,6 @@ import _electronUpdater, {
 } from 'electron-updater';
 import { resolveAppVersion } from '@main/core/app/utils';
 import { events } from '@main/lib/events';
-import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { IS_CANARY, UPDATE_CHANNEL } from '@shared/app-identity';
 import {

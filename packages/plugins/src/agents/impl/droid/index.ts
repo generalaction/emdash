@@ -1,7 +1,11 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, droidMcpAdapter } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand, droidMcpAdapter } from '@emdash/core/agents/plugins/helpers';
 import { buildDroidHookConfig } from './hooks';
 import { icon } from './icon';
+
+// Droid reports its own UUID-based session ids; only accept well-formed UUIDs for resume.
+const DROID_SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validateSessionId = (id: string) => DROID_SESSION_ID_PATTERN.test(id);
 
 export const plugin = definePlugin(
   {
@@ -11,16 +15,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
   },
   {
-    autoApprove: {
-      kind: 'none',
-    },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'config',
       scope: 'workspace',
-      supportedEvents: ['notification', 'stop', 'session'],
+      supportedEvents: ['notification', 'stop', 'session', 'start'],
     },
     hostDependency: {
       id: 'droid',
@@ -54,12 +52,6 @@ export const plugin = definePlugin(
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
     },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
-    },
     prompt: {
       kind: 'argv',
       flag: '',
@@ -83,4 +75,5 @@ export const provider = registerPluginBehavior(plugin, {
   },
   hooks: buildDroidHookConfig(),
   mcp: droidMcpAdapter(),
+  sessions: { validateSessionId },
 });

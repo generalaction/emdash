@@ -1,6 +1,6 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { Octokit } from '@octokit/rest';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@shared/lib/result';
 import { isGitHubDotComHost, normalizeRepositoryHost } from '@shared/repository-ref';
 
 const POSITIVE_TTL_MS = 15 * 60 * 1000;

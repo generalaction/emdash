@@ -1,4 +1,5 @@
-import type { FetchError, PushError } from '@shared/core/git/git';
+import type { FetchError, PushError } from '@emdash/core/git';
+import { match } from 'ts-pattern';
 
 type PushLikeError = PushError | { type: string; message?: string };
 
@@ -7,6 +8,12 @@ export function extractErrorMessage(error: unknown): string {
     return String((error as { message: unknown }).message);
   }
   return 'Unknown error';
+}
+
+export function formatErrorType(error: unknown): string {
+  return error && typeof error === 'object' && 'type' in error
+    ? String((error as { type: unknown }).type)
+    : String(error);
 }
 
 export function splitPath(filePath: string) {
@@ -39,20 +46,26 @@ export function formatFetchErrorDetail(
 ): string {
   // SSH projects run git on the remote host, so credential fixes belong there.
   const machine = opts?.isSshProject ? 'the remote SSH machine' : 'this machine';
-  switch (error.type) {
-    case 'no_remote':
-      return 'No remote is configured for this repository.';
-    case 'auth_failed':
-      return error.message.toLowerCase().includes('github.com')
+  return match(error)
+    .with({ type: 'no_remote' }, () => 'No remote is configured for this repository.')
+    .with({ type: 'auth_failed' }, (e) =>
+      e.message.toLowerCase().includes('github.com')
         ? `GitHub authentication failed. Run "gh auth login" on ${machine}, then try again.`
-        : `Git authentication failed. Authenticate Git on ${machine}, then try again.`;
-    case 'network_error':
-      return 'Cannot reach the remote. Check your network connection, then try again.';
-    case 'remote_not_found':
-      return 'The remote repository was not found, or your Git credentials do not have access.';
-    case 'error':
-      return 'An unexpected error occurred while fetching from the remote.';
-  }
+        : `Git authentication failed. Authenticate Git on ${machine}, then try again.`
+    )
+    .with(
+      { type: 'network_error' },
+      () => 'Cannot reach the remote. Check your network connection, then try again.'
+    )
+    .with(
+      { type: 'remote_not_found' },
+      () => 'The remote repository was not found, or your Git credentials do not have access.'
+    )
+    .with(
+      { type: 'git_error' },
+      () => 'An unexpected error occurred while fetching from the remote.'
+    )
+    .exhaustive();
 }
 
 const GITHUB_REPOSITORY_ACCESS_ERROR =

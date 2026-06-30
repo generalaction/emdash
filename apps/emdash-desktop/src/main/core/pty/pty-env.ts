@@ -64,6 +64,7 @@ export const AGENT_ENV_VARS = [
   'GROK_CODE_XAI_API_KEY',
   'GROK_DEPLOYMENT_KEY',
   'GROK_HOME',
+  'GROK_POOL_IDLE_TIMEOUT_SECS',
   'GROK_PROXY_URL',
   'GROK_SANDBOX',
   'HTTP_PROXY',
@@ -80,6 +81,12 @@ export const AGENT_ENV_VARS = [
   'OPENCODE_MODEL',
   'OPENROUTER_API_KEY',
   'OPENROUTER_BASE_URL',
+  'QWEN_CODE_SUPPRESS_YOLO_WARNING',
+  'QWEN_DEFAULT_AUTH_TYPE',
+  'QWEN_HOME',
+  'QWEN_MODEL',
+  'QWEN_RUNTIME_DIR',
+  'QWEN_SANDBOX',
   'XAI_API_KEY',
 ] as const;
 
@@ -158,7 +165,7 @@ export interface AgentEnvOptions {
 
   /**
    * Emdash hook server connection details.  When set, injects
-   * EMDASH_HOOK_PORT, EMDASH_PTY_ID, and EMDASH_HOOK_TOKEN so agent CLIs
+   * EMDASH_HOOK_PORT, EMDASH_PTY_ID, and EMDASH_HOOK_NONCE so agent CLIs
    * can call back on lifecycle events.
    */
   hook?: {
@@ -286,6 +293,7 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
   if (hook && hook.port > 0) {
     env.EMDASH_HOOK_PORT = String(hook.port);
     env.EMDASH_PTY_ID = hook.ptyId;
+    env.EMDASH_HOOK_NONCE = hook.token;
     env.EMDASH_HOOK_TOKEN = hook.token;
   }
 

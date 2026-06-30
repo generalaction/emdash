@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { err, ok, type Result } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -15,7 +16,6 @@ import type {
   CreateTaskSuccess,
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
-import { err, ok, type Result } from '@shared/lib/result';
 import { mapTaskRowToTask } from '../utils/utils';
 
 type ConvInsert = typeof conversations.$inferInsert;
@@ -91,19 +91,23 @@ export async function prepareCreateTask(
   let convInsert: ConvInsert | undefined;
   if (params.taskConfig.initialConversation) {
     const ic = params.taskConfig.initialConversation;
-    const configObj: ConversationConfig = {};
-    if (ic.autoApprove !== undefined) configObj.autoApprove = ic.autoApprove;
-    if (ic.initialPrompt?.trim()) configObj.initialPrompt = ic.initialPrompt.trim();
-    const config = Object.keys(configObj).length > 0 ? configObj : undefined;
+    const configObj: ConversationConfig = {
+      version: '1',
+      type: 'pty',
+      ...(ic.autoApprove !== undefined && { autoApprove: ic.autoApprove }),
+      ...(ic.initialPrompt?.trim() && { initialPrompt: ic.initialPrompt.trim() }),
+      ...(ic.model && { model: ic.model }),
+    };
     convInsert = {
       id: ic.id,
       projectId: params.projectId,
       taskId: params.id,
       title: ic.title ?? '',
       provider: ic.provider,
-      config,
+      config: configObj,
       isInitialConversation: true,
       lastInteractedAt: new Date().toISOString(),
+      type: ic.type ?? null,
     };
   }
 

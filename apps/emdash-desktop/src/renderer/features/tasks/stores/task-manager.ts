@@ -1,17 +1,18 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
+import { match } from 'ts-pattern';
+import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import {
   getProjectManagerStore,
   getProjectSshConnectionId,
 } from '@renderer/features/projects/stores/project-selectors';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
-import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
-import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import { gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
+import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
@@ -45,65 +46,77 @@ import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 
 function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: boolean }): string {
-  switch (error.type) {
-    case 'project-not-found':
-      return 'Project not found.';
-    case 'initial-commit-required':
-      return 'Create an initial commit to enable branch-based tasks.';
-    case 'branch-create-failed': {
-      switch (error.error.type) {
+  return match(error)
+    .with({ type: 'project-not-found' }, () => 'Project not found.')
+    .with(
+      { type: 'initial-commit-required' },
+      () => 'Create an initial commit to enable branch-based tasks.'
+    )
+    .with({ type: 'branch-create-failed' }, (e) => {
+      switch (e.error.type) {
         case 'already_exists':
-          return `Branch "${error.error.name}" already exists. Try a different task name.`;
+          return `Branch "${e.error.branch}" already exists. Try a different task name.`;
         case 'fetch_failed':
-          return `Could not update "${error.error.remote}/${error.error.branch}" before creating the task: ${formatFetchErrorDetail(error.error.error, opts)}`;
+          return `Could not update "${e.error.remote}/${e.error.branch}" before creating the task: ${formatFetchErrorDetail(e.error.error, opts)}`;
         case 'invalid_base':
-          return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
+          return `Source branch "${e.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
-          return `Branch "${error.error.name}" is not a valid branch name.`;
+          return `Branch "${e.error.branch}" is not a valid branch name.`;
         default:
-          return `Could not create branch "${error.branch}": ${error.error.message}`;
+          return `Could not create branch "${e.branch}": ${e.error.message}`;
       }
-    }
-    case 'pr-fetch-failed':
-      return error.error.type === 'not_found'
-        ? `PR #${error.error.prNumber} was not found on remote "${error.remote}".`
-        : `Could not fetch the pull request branch: ${error.error.message}`;
-    case 'branch-not-found':
-      return `Branch "${error.branch}" was not found locally or on the remote. Make sure the PR branch exists.`;
-    case 'worktree-setup-failed':
-      return error.message
-        ? `Could not set up the worktree for branch "${error.branch}": ${error.message}`
-        : `Could not set up the worktree for branch "${error.branch}".`;
-    case 'provision-failed':
-      return error.message;
-    case 'provision-timeout':
-      return `Provisioning timed out after ${error.timeoutMs}ms.`;
-  }
+    })
+    .with({ type: 'pr-fetch-failed' }, (e) =>
+      e.error.type === 'not_found'
+        ? `PR #${e.error.prNumber} was not found on remote "${e.remote}".`
+        : `Could not fetch the pull request branch: ${e.error.message}`
+    )
+    .with(
+      { type: 'branch-not-found' },
+      (e) =>
+        `Branch "${e.branch}" was not found locally or on the remote. Make sure the PR branch exists.`
+    )
+    .with({ type: 'worktree-setup-failed' }, (e) =>
+      e.message
+        ? `Could not set up the worktree for branch "${e.branch}": ${e.message}`
+        : `Could not set up the worktree for branch "${e.branch}".`
+    )
+    .with({ type: 'provision-failed' }, (e) => e.message)
+    .with({ type: 'provision-timeout' }, (e) => `Provisioning timed out after ${e.timeoutMs}ms.`)
+    .exhaustive();
 }
 
 function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
-  switch (error.type) {
-    case 'no-intent':
-      return 'Workspace has no intent and no resolved path — cannot provision.';
-    case 'setup-failed':
-      return `Setup step '${error.stepKind}' failed (${error.stepErrorType})${error.message ? `: ${error.message}` : ''}.`;
-  }
+  return match(error)
+    .with(
+      { type: 'no-intent' },
+      () => 'Workspace has no intent and no resolved path — cannot provision.'
+    )
+    .with(
+      { type: 'missing-workspace' },
+      () => 'This task does not have a workspace record and cannot be opened.'
+    )
+    .with(
+      { type: 'setup-failed' },
+      (e) =>
+        `Setup step '${e.stepKind}' failed (${e.stepErrorType})${e.message ? `: ${e.message}` : ''}.`
+    )
+    .exhaustive();
 }
 
 function formatCreateTaskWarning(warning: CreateTaskWarning): string {
-  switch (warning.type) {
-    case 'branch-publish-failed': {
-      const detail = formatPushErrorDetail(warning.error);
-      return `Failed to publish branch "${warning.branch}" to "${warning.remote}": ${detail}`;
-    }
-  }
+  return match(warning)
+    .with({ type: 'branch-publish-failed' }, (w) => {
+      const detail = formatPushErrorDetail(w.error);
+      return `Failed to publish branch "${w.branch}" to "${w.remote}": ${detail}`;
+    })
+    .exhaustive();
 }
 
 export class TaskManagerStore {
   private readonly projectId: string;
-  private readonly _repository: RepositoryStore;
+  private readonly _repository: GitRepositoryStore;
   private readonly _settingsStore: ProjectSettingsStore;
-  private readonly _baseRef: string;
   private _loadPromise: Promise<void> | null = null;
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
@@ -111,7 +124,7 @@ export class TaskManagerStore {
   private _unsubTaskCreated: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
-  private _unsubGitWorkspaceChanged: (() => void) | null = null;
+  private _unsubGitWorktreeUpdate: (() => void) | null = null;
   private _unsubProvisionProgress: (() => void) | null = null;
   private _unsubStatusUpdated: (() => void) | null = null;
   private _unsubLifecycleScriptStatus: (() => void) | null = null;
@@ -122,14 +135,12 @@ export class TaskManagerStore {
 
   constructor(
     projectId: string,
-    repository: RepositoryStore,
-    settingsStore: ProjectSettingsStore,
-    baseRef: string
+    repository: GitRepositoryStore,
+    settingsStore: ProjectSettingsStore
   ) {
     this.projectId = projectId;
     this._repository = repository;
     this._settingsStore = settingsStore;
-    this._baseRef = baseRef;
     makeObservable(this, { tasks: observable });
 
     this._unsubTaskCreated = events.on(taskCreatedChannel, ({ task }) => {
@@ -205,7 +216,7 @@ export class TaskManagerStore {
         for (const [, store] of this.tasks) {
           if (!isRegistered(store)) continue;
           const task = store.data as Task;
-          const branchName = getTaskGitStore(task.projectId, task.id)?.branchName;
+          const branchName = getTaskGitWorktreeStore(task.projectId, task.id)?.branchName;
           if (branchName !== pr.headRefName) continue;
           runInAction(() => {
             const idx = task.prs.findIndex((p) => p.url === pr.url);
@@ -230,8 +241,8 @@ export class TaskManagerStore {
       }
     });
 
-    this._unsubGitWorkspaceChanged = events.on(gitWorkspaceChangedChannel, (payload) => {
-      if (payload.projectId !== this.projectId || payload.kind !== 'head') return;
+    this._unsubGitWorktreeUpdate = events.on(gitWorktreeUpdateChannel, (payload) => {
+      if (payload.projectId !== this.projectId || payload.update.kind !== 'head') return;
       for (const [, store] of this.tasks) {
         if (isRegistered(store) && store.workspaceId === payload.workspaceId) {
           void this._reloadPrsForTask(store);
@@ -342,6 +353,7 @@ export class TaskManagerStore {
           title: ic.title ?? '',
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
+          model: ic.model,
           isInitialConversation: true,
         };
         const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [
@@ -475,8 +487,7 @@ export class TaskManagerStore {
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           result.data.path,
           result.data.workspaceId,
-          this._settingsStore,
-          this._baseRef,
+          this._repository,
           result.data.sshConnectionId ?? undefined
         );
         current.activate();
@@ -506,8 +517,7 @@ export class TaskManagerStore {
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           path,
           workspaceId,
-          this._settingsStore,
-          this._baseRef,
+          this._repository,
           sshConnectionId
         );
         current.activate();
@@ -660,8 +670,8 @@ export class TaskManagerStore {
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
     this._unsubPrSyncProgress = null;
-    this._unsubGitWorkspaceChanged?.();
-    this._unsubGitWorkspaceChanged = null;
+    this._unsubGitWorktreeUpdate?.();
+    this._unsubGitWorktreeUpdate = null;
     this._unsubProvisionProgress?.();
     this._unsubProvisionProgress = null;
     this._unsubStatusUpdated?.();

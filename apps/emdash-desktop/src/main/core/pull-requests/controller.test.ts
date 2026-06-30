@@ -1,6 +1,6 @@
+import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
-import { err, ok } from '@shared/lib/result';
 import { pullRequestController } from './controller';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';

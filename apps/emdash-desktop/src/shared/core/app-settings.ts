@@ -1,7 +1,6 @@
 import type z from 'zod';
 import {
   appSettingsSchema,
-  type agentAutoApproveDefaultsSchema,
   type browserSettingsSchema,
   type changesViewModeSchema,
   type interfaceSettingsSchema,
@@ -18,7 +17,6 @@ export type LocalProjectSettings = z.infer<typeof localProjectSettingsSchema>;
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 export type NotificationSettings = z.infer<typeof notificationSettingsSchema>;
 export type TaskSettings = z.infer<typeof taskSettingsSchema>;
-export type AgentAutoApproveDefaults = z.infer<typeof agentAutoApproveDefaultsSchema>;
 export type TerminalSettings = z.infer<typeof terminalSettingsSchema>;
 export type Theme = z.infer<typeof themeSchema>;
 

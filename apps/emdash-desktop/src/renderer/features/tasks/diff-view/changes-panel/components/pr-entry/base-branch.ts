@@ -1,8 +1,8 @@
-import type { Branch } from '@shared/core/git/git';
+import type { GitBranchRef } from '@emdash/core/git';
 
 export function toShortBranchName(
   baseRef: string | undefined,
-  branches: Branch[]
+  branches: GitBranchRef[]
 ): string | undefined {
   const trimmed = baseRef?.trim();
   if (!trimmed) return undefined;
@@ -13,7 +13,9 @@ export function toShortBranchName(
 
   const knownRemotes = new Set(
     branches
-      .filter((branch): branch is Extract<Branch, { type: 'remote' }> => branch.type === 'remote')
+      .filter(
+        (branch): branch is Extract<GitBranchRef, { type: 'remote' }> => branch.type === 'remote'
+      )
       .map((branch) => branch.remote.name)
       .filter(Boolean)
   );
@@ -32,11 +34,11 @@ export function toShortBranchName(
 }
 
 export function resolveInitialBaseBranch(
-  branches: Branch[],
-  preferredBase: Branch | undefined,
-  defaultBranch: Branch | undefined,
+  branches: GitBranchRef[],
+  preferredBase: GitBranchRef | undefined,
+  defaultBranch: GitBranchRef | undefined,
   projectRemoteName: string
-): Branch | undefined {
+): GitBranchRef | undefined {
   const projectRemoteBranches = branches.filter(
     (branch) => branch.type === 'remote' && branch.remote.name === projectRemoteName
   );

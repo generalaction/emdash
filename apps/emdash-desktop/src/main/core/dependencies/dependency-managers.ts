@@ -1,5 +1,12 @@
-import type { Platform } from '@emdash/shared/deps';
-import { HostDependencyManager } from '@emdash/shared/deps/runtime';
+import type { Platform } from '@emdash/core/deps';
+import {
+  HostDependencyManager,
+  resolveActiveInstallation,
+  type DependencyId,
+  type DependencyProbeOptions,
+  type DependencyStatusUpdatedEvent,
+  type SelectedSource,
+} from '@emdash/core/deps/runtime';
 import { clearResolvedPathCache } from '@main/core/conversations/impl/resolve-agent-executable';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
@@ -7,11 +14,12 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
+import { setGitExecutableOverride } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { agentUpdateService } from './agent-update-service';
 import { hostDependencyStore } from './host-dependency-store';
 import { createLocalInstallCommandRunner, createSshInstallCommandRunner } from './install-runner';
-import { DEPENDENCIES, getDependencyDescriptor } from './registry';
+import { DEPENDENCIES, AGENT_DEPENDENCIES, getDependencyDescriptor } from './registry';
 
 async function resolveLocalInstallShellProfile() {
   const { defaultShell } = await appSettingsService.get('terminal');
@@ -26,10 +34,35 @@ async function resolveLocalInstallShellProfile() {
   });
 }
 
+function syncGitExecutable(event: DependencyStatusUpdatedEvent, connectionId?: string): void {
+  if (event.id !== 'git' || !event.hostDependency) return;
+
+  const activeInstallation = resolveActiveInstallation(
+    event.hostDependency.installations,
+    event.hostDependency.used
+  );
+
+  const executable = activeInstallation
+    ? (activeInstallation.pathEntry ?? activeInstallation.realpath)
+    : gitExecutableFromMissingSelection(event.hostDependency.used);
+
+  setGitExecutableOverride(executable, connectionId);
+}
+
+function gitExecutableFromMissingSelection(selection: SelectedSource): string | null {
+  if (selection.kind === 'pinned') return selection.realpath;
+  if (selection.kind === 'path') return selection.path;
+  if (selection.kind === 'cli') return selection.command;
+  return null;
+}
+
 function wireDesktopBridges(manager: HostDependencyManager, connectionId?: string): void {
   // AgentUpdateService owns the enriched event emission (adds latestVersion/updateAvailable)
   agentUpdateService.attach(manager, connectionId);
-  manager.onExecutableInvalidated.subscribe(({ id }) => {
+  manager.onStatusUpdated.subscribe((event: DependencyStatusUpdatedEvent) =>
+    syncGitExecutable(event, connectionId)
+  );
+  manager.onExecutableInvalidated.subscribe(({ id }: { id: DependencyId }) => {
     clearResolvedPathCache(id, connectionId);
   });
 }
@@ -44,6 +77,8 @@ export const localDependencyManager = new HostDependencyManager(new LocalExecuti
 wireDesktopBridges(localDependencyManager, undefined);
 
 const sshManagers = new Map<string, HostDependencyManager>();
+const sshManagerPromises = new Map<string, Promise<HostDependencyManager>>();
+const agentProbePromises = new WeakMap<HostDependencyManager, Promise<void>>();
 
 /** Resolve the OS platform of a remote machine via a lightweight `uname -s` probe. */
 async function resolveRemotePlatform(ctx: IExecutionContext): Promise<Platform> {
@@ -59,22 +94,66 @@ async function resolveRemotePlatform(ctx: IExecutionContext): Promise<Platform> 
 
 export async function getDependencyManager(connectionId?: string): Promise<HostDependencyManager> {
   if (!connectionId) return localDependencyManager;
-  let mgr = sshManagers.get(connectionId);
-  if (!mgr) {
-    const proxy = await sshConnectionManager.connect(connectionId);
-    const sshCtx = new SshExecutionContext(proxy);
-    const platform = await resolveRemotePlatform(sshCtx);
-    mgr = new HostDependencyManager(sshCtx, {
-      runInstallCommand: createSshInstallCommandRunner(proxy),
-      connectionId,
-      platform,
-      getSelection: (depId) => hostDependencyStore.getSelection(connectionId, depId),
-      logger: log,
-      dependencies: DEPENDENCIES,
-      getDependencyDescriptor,
+  const existing = sshManagers.get(connectionId);
+  if (existing) return existing;
+
+  const pending = sshManagerPromises.get(connectionId);
+  if (pending) return pending;
+
+  const promise = createSshDependencyManager(connectionId)
+    .then((mgr) => {
+      if (sshManagerPromises.get(connectionId) === promise) {
+        wireDesktopBridges(mgr, connectionId);
+        sshManagers.set(connectionId, mgr);
+      }
+      return mgr;
+    })
+    .finally(() => {
+      if (sshManagerPromises.get(connectionId) === promise) {
+        sshManagerPromises.delete(connectionId);
+      }
     });
-    wireDesktopBridges(mgr, connectionId);
-    sshManagers.set(connectionId, mgr);
-  }
+  sshManagerPromises.set(connectionId, promise);
+  return promise;
+}
+
+async function createSshDependencyManager(connectionId: string): Promise<HostDependencyManager> {
+  const proxy = await sshConnectionManager.connect(connectionId);
+  const sshCtx = new SshExecutionContext(proxy);
+  const platform = await resolveRemotePlatform(sshCtx);
+  const mgr = new HostDependencyManager(sshCtx, {
+    runInstallCommand: createSshInstallCommandRunner(proxy),
+    connectionId,
+    platform,
+    getSelection: (depId) => hostDependencyStore.getSelection(connectionId, depId),
+    logger: log,
+    dependencies: DEPENDENCIES,
+    getDependencyDescriptor,
+  });
   return mgr;
+}
+
+export function clearDependencyManager(connectionId: string): void {
+  sshManagers.delete(connectionId);
+  sshManagerPromises.delete(connectionId);
+  setGitExecutableOverride(null, connectionId);
+}
+
+export async function ensureAgentDependenciesProbed(
+  manager: HostDependencyManager,
+  options: DependencyProbeOptions = { refreshShellEnv: true }
+): Promise<void> {
+  if (AGENT_DEPENDENCIES.every((dependency) => manager.get(dependency.id) !== undefined)) return;
+
+  const existing = agentProbePromises.get(manager);
+  if (existing) {
+    await existing;
+    return;
+  }
+
+  const promise = manager.probeCategory('agent', options).finally(() => {
+    agentProbePromises.delete(manager);
+  });
+  agentProbePromises.set(manager, promise);
+  await promise;
 }

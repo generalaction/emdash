@@ -1,11 +1,11 @@
+import type { GitChange } from '@emdash/core/git';
 import { makeAutoObservable, runInAction } from 'mobx';
 import { describe, expect, it } from 'vitest';
 import { type PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { type GitChange } from '@shared/core/git/git';
+import { type GitWorktreeStore } from '../../stores/git-worktree-store';
 import { ChangesViewStore } from './changes-view-store';
-import { type GitStore } from './git-store';
 
-class FakeGitStore {
+class FakeGitWorktreeStore {
   unstagedFileChanges: GitChange[] = [];
   stagedFileChanges: GitChange[] = [];
   isLoading = true;
@@ -48,9 +48,9 @@ const change = (path: string): GitChange => ({
 });
 
 function createStore() {
-  const git = new FakeGitStore();
+  const git = new FakeGitWorktreeStore();
   const pr = new FakePrStore();
-  const store = new ChangesViewStore(git as unknown as GitStore, pr as unknown as PrStore);
+  const store = new ChangesViewStore(git as unknown as GitWorktreeStore, pr as unknown as PrStore);
 
   return { git, pr, store };
 }
@@ -111,5 +111,45 @@ describe('ChangesViewStore expanded sections', () => {
       staged: true,
       pullRequests: false,
     });
+  });
+
+  it('removes only completed unstaged paths so newer selections survive', () => {
+    const { git, store } = createStore();
+
+    runInAction(() =>
+      git.setStatus({
+        unstaged: [change('src/a.ts'), change('src/b.ts'), change('src/c.ts')],
+        staged: [],
+      })
+    );
+
+    store.toggleUnstagedItem('src/a.ts');
+    store.toggleUnstagedItem('src/b.ts');
+
+    // The user selects another file while staging a.ts is still in flight.
+    store.toggleUnstagedItem('src/c.ts');
+    store.removeUnstagedSelection(['src/a.ts']);
+
+    expect([...store.unstagedSelection]).toEqual(['src/b.ts', 'src/c.ts']);
+  });
+
+  it('removes only completed staged paths so newer selections survive', () => {
+    const { git, store } = createStore();
+
+    runInAction(() =>
+      git.setStatus({
+        unstaged: [],
+        staged: [change('src/a.ts'), change('src/b.ts'), change('src/c.ts')],
+      })
+    );
+
+    store.toggleStagedItem('src/a.ts');
+    store.toggleStagedItem('src/b.ts');
+
+    // The user selects another file while unstaging a.ts is still in flight.
+    store.toggleStagedItem('src/c.ts');
+    store.removeStagedSelection(['src/a.ts']);
+
+    expect([...store.stagedSelection]).toEqual(['src/b.ts', 'src/c.ts']);
   });
 });

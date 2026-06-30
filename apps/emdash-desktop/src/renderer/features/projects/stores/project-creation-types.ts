@@ -1,3 +1,6 @@
+import type { Result } from '@emdash/shared';
+import type { CreateProjectError } from '@shared/projects';
+
 interface BaseModeData {
   name: string;
   path: string;
@@ -26,9 +29,18 @@ export type ModeData = PickModeData | CloneModeData | NewModeData;
 
 export type ProjectType = { type: 'local' } | { type: 'ssh'; connectionId: string };
 
+export type ProjectCreationError =
+  | CreateProjectError
+  | { type: 'clone-failed'; message: string }
+  | { type: 'repository-create-failed'; message: string }
+  | { type: 'repository-response-incomplete'; message: string }
+  | { type: 'initialize-failed'; message: string };
+
+export type ProjectCreationCompletion = Result<void, ProjectCreationError>;
+
 export type StartProjectCreationResult =
   | { kind: 'existing'; projectId: string }
-  | { kind: 'creating'; projectId: string; completion: Promise<void> };
+  | { kind: 'creating'; projectId: string; completion: Promise<ProjectCreationCompletion> };
 
 export interface StartProjectCreationOptions {
   id?: string;

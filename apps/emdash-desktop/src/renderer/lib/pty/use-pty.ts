@@ -1,14 +1,17 @@
 import { type Terminal } from '@xterm/xterm';
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { reaction } from 'mobx';
+import { useCallback, useEffect, useRef } from 'react';
+import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
-import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
 import type { AppSettings } from '@shared/core/app-settings';
 import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
-import { appPasteChannel } from '@shared/events/appEvents';
+import { appPasteChannel, terminalContextMenuActionChannel } from '@shared/events/appEvents';
+import { getDomTabNavigationDirection } from '@shared/shortcuts';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
+import { TERMINAL_PADDING_PX } from './pty';
 import { measureDimensions } from './pty-dimensions';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
@@ -20,50 +23,30 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
+import { getTerminalContextLink } from './terminal-context-link';
 import { buildTerminalFontFamily } from './terminal-font';
+import { getCellMetrics } from './xterm-cell-metrics';
 
-// xterm's proposed API and internal fields are not in the public TypeScript
-// types. Both code paths are necessary: the proposed `dimensions` API works in
-// xterm 5.x, while xterm 6.x exposes cell metrics only via `_core`.
-interface XtermCellDimensions {
-  css: { cell: { width: number; height: number } };
-}
-interface XtermInternals {
-  dimensions?: XtermCellDimensions;
-  _core?: {
-    _renderService?: { dimensions?: XtermCellDimensions };
-    renderService?: { dimensions?: XtermCellDimensions };
-  };
-}
-
-const PTY_RESIZE_DEBOUNCE_MS = 120;
-const MIN_TERMINAL_COLS = 2;
-const MIN_TERMINAL_ROWS = 1;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
 
-function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
-  const t = terminal as unknown as XtermInternals;
-  // Proposed API (xterm 5.x). Undefined on the public Terminal in xterm 6.x.
-  const dims = t.dimensions;
-  if (dims && dims.css.cell.width !== 0 && dims.css.cell.height !== 0) {
-    return { width: dims.css.cell.width, height: dims.css.cell.height };
-  }
-  // xterm 6.x: the public Terminal delegates to `_core` (the internal Terminal instance).
-  // FitAddon receives this same internal object via addon.activate(terminal).
-  const coreDims = t._core?._renderService?.dimensions ?? t._core?.renderService?.dimensions;
-  if (coreDims?.css?.cell?.width && coreDims.css.cell.height) {
-    return { width: coreDims.css.cell.width, height: coreDims.css.cell.height };
-  }
-  return null;
+function dispatchTerminalTabNavigationHotkey(event: KeyboardEvent): boolean {
+  if (!getDomTabNavigationDirection(event)) return false;
+  return dispatchMatchingHotkeys(event, { dispatch: 'first' });
 }
 
 function getRecentSelection(selection: { text: string; capturedAt: number } | null): string {
   if (!selection) return '';
   if (Date.now() - selection.capturedAt > LAST_SELECTION_COPY_GRACE_MS) return '';
   return selection.text;
+}
+
+function createContextMenuRequestId(): string {
+  return typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
 }
 
 export interface UsePtyOptions {
@@ -106,7 +89,7 @@ export type PasteFromClipboardHandler = (helpers: {
  * are auto-registered inside an async IIFE, awaiting the historical buffer
  * fetch before mounting.
  *
- * When inside a PaneSizingProvider the terminal is pre-resized to the pane's
+ * When inside a PaneSizingContextProvider the terminal is pre-resized to the pane's
  * current dimensions BEFORE being appended to the visible DOM, eliminating
  * the flash caused by a post-mount resize.
  */
@@ -143,31 +126,19 @@ export function usePty(
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
-  // When inside a PaneSizingProvider, PTY resizes are broadcast to ALL sessions
-  // in the pane (including background ones).  Falls back to per-session resize
-  // for standalone terminals (chat, task terminal panel, etc.).
+  // The per-pane controller owns PTY backend resizes (broadcast to ALL sessions)
+  // and exposes an observable controllerDims box so this terminal can call
+  // term.resize() reactively. PtyPane guarantees a context is always present by
+  // self-provisioning a PaneDimensionProvider + PaneSizingContextProvider when
+  // no ancestor provides one.
   const paneSizing = usePaneSizingContext();
   // Ref so the main effect (which only re-runs on sessionId change) always
   // accesses the latest context value without needing it as a dependency.
   const paneSizingRef = useRef(paneSizing);
   paneSizingRef.current = paneSizing;
 
-  // Subscribe to panel drag state so ResizeObserver skips fits while dragging.
-  const isPanelDragging = useSyncExternalStore(
-    panelDragStore.subscribe,
-    panelDragStore.getSnapshot
-  );
-  // Keep a ref in sync so the ResizeObserver callback (inside the main effect)
-  // always reads the latest value without re-running the effect.
-  const isPanelDraggingRef = useRef(isPanelDragging);
-  isPanelDraggingRef.current = isPanelDragging;
-
   // Core xterm.js reference, kept alive across renders.
   const termRef = useRef<Terminal | null>(null);
-
-  // Resize debounce state.
-  const pendingResizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSentResizeRef = useRef<{ cols: number; rows: number } | null>(null);
 
   // First-message capture state.
   const firstMessageSentRef = useRef(false);
@@ -182,49 +153,30 @@ export function usePty(
   // Auto-copy on selection
   const autoCopyOnSelectionRef = useRef(false);
   const lastSelectionRef = useRef<{ text: string; capturedAt: number } | null>(null);
+  const contextMenuRequestIdRef = useRef<string | null>(null);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  const queuePtyResize = useCallback(
-    (newCols: number, newRows: number) => {
-      const c = Math.max(MIN_TERMINAL_COLS, Math.floor(newCols));
-      const r = Math.max(MIN_TERMINAL_ROWS, Math.floor(newRows));
-      const last = lastSentResizeRef.current;
-      if (last?.cols === c && last?.rows === r) return;
-      if (pendingResizeTimerRef.current) clearTimeout(pendingResizeTimerRef.current);
-      pendingResizeTimerRef.current = setTimeout(() => {
-        pendingResizeTimerRef.current = null;
-        lastSentResizeRef.current = { cols: c, rows: r };
-        void rpc.pty.resize(sessionId, c, r);
-      }, PTY_RESIZE_DEBOUNCE_MS);
-    },
-    [sessionId]
-  );
-
-  // Stable ref so measureAndResize can always call the latest queuePtyResize
-  // without needing it as a useCallback dependency.
-  const queuePtyResizeRef = useRef(queuePtyResize);
-  queuePtyResizeRef.current = queuePtyResize;
-
-  // measureAndResize is the single entry point for all DOM measurement + PTY
-  // resize work.  Mirrors xterm's FitAddon.proposeDimensions() by measuring
-  // terminal.element.parentElement (the FrontendPty's ownedContainer) — the
-  // exact space the terminal occupies — rather than a distant ancestor div.
-  // Reports to PaneSizingContext (which broadcasts to ALL sessions in the pane)
-  // or directly via queuePtyResize for standalone terminals.
+  // Calibrates the per-pane controller with the mounted terminal's real cell
+  // metrics. The controller recomputes cols/rows, updates controllerDims, and
+  // broadcasts rpc.pty.resize to ALL sessions. The MobX reaction below then
+  // applies term.resize() to the visible grid.
   //
-  // Runs synchronously (no rAF wrapper).  ResizeObserver fires after layout
-  // and before paint, so a sync term.resize() in that callback lets the xterm
-  // DOM catch up in the same paint as the new container size — eliminating
-  // the one-frame mismatch that produces the visible flicker on
-  // cmd+J / cmd+B toggles.  Other call sites (mount, font change, drag-end)
-  // also benefit from running before the next paint instead of one frame later.
+  // Cold-path retry: the terminal is opened off-DOM so xterm's font measurement
+  // may not be populated yet on the first call — retries up to 5 times.
+  //
+  // Runs synchronously so the xterm DOM catches up in the same paint as the
+  // new container size (ENG-1577).
   const measureAndResize = useCallback(
     (retries = 0) => {
       try {
         const term = termRef.current;
         if (!term) return;
         const pane = paneSizingRef.current;
+        if (!pane) {
+          log.warn('useTerminal: no PaneSizingContext — cannot calibrate', { sessionId });
+          return;
+        }
 
         const cell = getCellMetrics(term);
         if (!cell) {
@@ -236,31 +188,16 @@ export function usePty(
           return;
         }
 
-        // Measure the terminal's immediate parent (the FrontendPty's ownedContainer),
-        // matching FitAddon.proposeDimensions().  Fall back to the mount-target
-        // container for standalone terminals not using the pool.
-        const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
-        const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
-        if (!measureTarget) return;
-
-        const dims = measureDimensions(measureTarget, cell.width, cell.height);
-        if (!dims) return;
-        const { cols: targetCols, rows: targetRows } = dims;
-
-        if (term.cols !== targetCols || term.rows !== targetRows) {
-          term.resize(targetCols, targetRows);
-        }
-
-        if (pane) {
-          pane.reportDimensions(targetCols, targetRows);
-        } else {
-          queuePtyResizeRef.current(targetCols, targetRows);
-        }
+        // Calibrate the controller with exact cell metrics.
+        // The controller recomputes cols/rows, updates controllerDims, and
+        // broadcasts rpc.pty.resize to all sessions. The MobX reaction below
+        // applies term.resize() when controllerDims changes.
+        pane.calibrateCell(cell.width, cell.height);
       } catch (e) {
         log.warn('useTerminal: measureAndResize failed', { sessionId, error: e });
       }
     },
-    [sessionId, containerRef]
+    [sessionId]
   );
 
   // Stable ref so the retry setTimeout inside measureAndResize always calls
@@ -342,17 +279,24 @@ export function usePty(
     const prevCell = termRef.current ? getCellMetrics(termRef.current) : null;
     let targetDims: { cols: number; rows: number } | undefined;
 
-    if (pane?.containerRef.current && prevCell) {
-      const measured = measureDimensions(
-        pane.containerRef.current,
-        prevCell.width,
-        prevCell.height
-      );
-      if (measured) targetDims = measured;
-    }
-
-    if (!targetDims && pane) {
+    // Pane path: prefer the controller's current dims (already correct for the
+    // pane size); fall back to a fresh pixel measurement if the controller
+    // hasn't computed yet (e.g. very first mount before any calibration).
+    if (pane) {
       targetDims = pane.getCurrentDimensions() ?? undefined;
+      if (!targetDims && pane.containerRef.current && prevCell) {
+        // Mirror the controller's padding exactly so the pre-mount dims match
+        // what the controller will compute on first calibration.
+        const measured = measureDimensions(
+          pane.containerRef.current,
+          prevCell.width,
+          prevCell.height,
+          0,
+          TERMINAL_PADDING_PX,
+          { bottom: pane.bottomPadding }
+        );
+        if (measured) targetDims = measured;
+      }
     }
 
     // ── Mount ─────────────────────────────────────────────────────────────────
@@ -373,8 +317,10 @@ export function usePty(
       frontendPty.mount(container as HTMLElement, targetDims);
 
       // Always sync after mounting — targetDims may be stale if the pane was
-      // resized while this session was off-screen.  measureAndResize defers to
-      // rAF so it reads the live DOM and only calls term.resize() when needed.
+      // resized while this session was off-screen.
+      // Pane path: calibrate the controller cell metrics so it recomputes
+      //   cols/rows and applies term.resize() via the controllerDims reaction.
+      // Standalone path: measure locally and queue PTY resize.
       measureAndResize();
 
       // ── Load settings ──────────────────────────────────────────────────────
@@ -432,6 +378,13 @@ export function usePty(
       // ── Keyboard shortcuts ─────────────────────────────────────────────────
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
         if (document.querySelector('[role="dialog"]')) return false;
+
+        if (dispatchTerminalTabNavigationHotkey(event)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          return false;
+        }
 
         if (
           shouldCopySelectionFromTerminal(
@@ -566,6 +519,61 @@ export function usePty(
         if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
       });
 
+      // ── Native context menu ────────────────────────────────────────────────
+      const handleContextMenuMouseDown = (event: MouseEvent) => {
+        if (event.button !== 2) return;
+        event.preventDefault();
+        event.stopPropagation();
+      };
+      const handleContextMenu = (event: MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const requestId = createContextMenuRequestId();
+        contextMenuRequestIdRef.current = requestId;
+        const selectionText =
+          terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
+        const linkText = getTerminalContextLink(terminal, event);
+        void rpc.app.showTerminalContextMenu({
+          requestId,
+          selectionText,
+          linkText,
+          x: event.clientX,
+          y: event.clientY,
+        });
+      };
+      const offTerminalContextMenuAction = events.on(
+        terminalContextMenuActionChannel,
+        (payload) => {
+          if (payload.requestId !== contextMenuRequestIdRef.current) return;
+          contextMenuRequestIdRef.current = null;
+
+          if (payload.action === 'paste') {
+            pasteFromClipboard();
+            return;
+          }
+          if (payload.action === 'select-all') {
+            terminal.selectAll();
+            return;
+          }
+          if (payload.action === 'clear') {
+            frontendPty.clear();
+          }
+        }
+      );
+      frontendPty.ownedContainer.addEventListener('mousedown', handleContextMenuMouseDown, true);
+      frontendPty.ownedContainer.addEventListener('contextmenu', handleContextMenu);
+      cleanups.push(() => {
+        offTerminalContextMenuAction();
+        contextMenuRequestIdRef.current = null;
+        frontendPty.ownedContainer.removeEventListener(
+          'mousedown',
+          handleContextMenuMouseDown,
+          true
+        );
+        frontendPty.ownedContainer.removeEventListener('contextmenu', handleContextMenu);
+      });
+
       // ── Paste from app menu ────────────────────────────────────────────────
       const offPaste = events.on(appPasteChannel, () => {
         pasteFromClipboard();
@@ -615,61 +623,35 @@ export function usePty(
           )
       );
 
-      // ── ResizeObserver (observes the mount-target, not the owned container) ─
-      // Skips measuring while a panel drag is in progress; the drag-end effect
-      // below fires one measure once the drag completes.
-      //
-      // Single-shot layout changes (cmd+J drawer toggle, cmd+B sidebar toggle,
-      // navigation) need an *immediate* term.resize so the xterm DOM catches
-      // up in the same paint as the container — otherwise the user sees a
-      // frame where the container is at the new size but the terminal grid
-      // is still at the old size (the flicker).  Bursty changes (continuous
-      // window-corner resize) still need coalescing so we don't spam
-      // term.resize() every frame.
-      //
-      // Strategy: leading-edge fire after a quiet period; trailing-edge fire
-      // for the tail of a burst.
-      const RESIZE_QUIET_MS = 150;
-      const RESIZE_TRAILING_MS = 50;
-      let lastResizeAt = 0;
-      let trailingTimer: ReturnType<typeof setTimeout> | null = null;
-      const fireResize = () => {
-        lastResizeAt = performance.now();
-        measureAndResizeRef.current();
-      };
-      const resizeObserver = new ResizeObserver(() => {
-        if (isPanelDraggingRef.current) return;
-        if (performance.now() - lastResizeAt > RESIZE_QUIET_MS) {
-          fireResize();
-          return;
-        }
-        if (trailingTimer) clearTimeout(trailingTimer);
-        trailingTimer = setTimeout(() => {
-          trailingTimer = null;
-          fireResize();
-        }, RESIZE_TRAILING_MS);
-      });
-      resizeObserver.observe(container);
-      cleanups.push(() => {
-        resizeObserver.disconnect();
-        if (trailingTimer) {
-          clearTimeout(trailingTimer);
-          trailingTimer = null;
-        }
-      });
+      // ── Resize trigger ────────────────────────────────────────────────────
+      // React to controllerDims — the observable box updated by the per-pane
+      // resize controller when pane pixel dimensions or cell size changes.
+      // The controller owns PTY backend broadcasts; here we only apply
+      // term.resize() to keep the visible xterm grid in sync. The reaction
+      // fires synchronously within the ResizeObserver → MobX action → reaction
+      // chain, preserving the "resize before next paint" guarantee (ENG-1577).
+      const paneAtMount = paneSizingRef.current;
+      if (paneAtMount) {
+        const disposeReaction = reaction(
+          () => paneAtMount.controllerDims.get(),
+          (dims) => {
+            if (!dims) return;
+            const term = termRef.current;
+            if (!term) return;
+            if (term.cols !== dims.cols || term.rows !== dims.rows) {
+              term.resize(dims.cols, dims.rows);
+            }
+          }
+        );
+        cleanups.push(disposeReaction);
+      }
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
     return () => {
-      if (pendingResizeTimerRef.current) {
-        clearTimeout(pendingResizeTimerRef.current);
-        pendingResizeTimerRef.current = null;
-      }
-      // Reset dedup so the next session always gets a resize on mount.
-      lastSentResizeRef.current = null;
-      // ResizeObserver.disconnect() and other cleanups run BEFORE unmount —
-      // preserving the invariant that the ResizeObserver is torn down before
-      // the ownedContainer is reparented off-screen.
+      // controllerDims reaction and other cleanups run BEFORE unmount —
+      // preserving the invariant that they are torn down before the
+      // ownedContainer is reparented off-screen.
       for (const fn of cleanups) {
         try {
           fn();
@@ -690,18 +672,6 @@ export function usePty(
   useEffect(() => {
     applyTheme(theme);
   }, [theme, applyTheme]);
-
-  // ── Measure once when a panel drag ends ─────────────────────────────────────
-  // The ResizeObserver skips measurements during the drag; this effect fires a
-  // single measurement (which resizes the terminal and notifies PTYs) when done.
-  const prevIsPanelDraggingRef = useRef(isPanelDragging);
-  useEffect(() => {
-    const wasDragging = prevIsPanelDraggingRef.current;
-    prevIsPanelDraggingRef.current = isPanelDragging;
-    if (wasDragging && !isPanelDragging) {
-      measureAndResize();
-    }
-  }, [isPanelDragging, measureAndResize]);
 
   return { focus, setTheme, sendInput };
 }

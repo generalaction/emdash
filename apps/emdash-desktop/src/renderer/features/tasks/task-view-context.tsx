@@ -2,7 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { createContext, useContext, type ReactNode } from 'react';
 import { ProjectViewWrapper } from '@renderer/features/projects/components/project-view-wrapper';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
-import type { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
+import type { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
 import {
   getConversationsForTask,
   getTaskStore,
@@ -73,12 +73,12 @@ export function useWorkspaceId(): string {
   return workspaceId;
 }
 
-/** Returns the DevServerStore. Throws if the task is not provisioned. */
-export function useDevServers(): DevServerStore {
+/** Returns the PreviewServerStore. Throws if the task is not provisioned. */
+export function usePreviewServers(): PreviewServerStore {
   const { projectId, taskId } = useTaskViewContext();
-  const devServers = getTaskStore(projectId, taskId)?.viewModel?.devServers;
-  if (!devServers) throw new Error('useDevServers: task is not provisioned');
-  return devServers;
+  const previewServers = getTaskStore(projectId, taskId)?.viewModel?.previewServers;
+  if (!previewServers) throw new Error('usePreviewServers: task is not provisioned');
+  return previewServers;
 }
 
 /** Returns the WorkspaceViewModel. Throws if the task is not registered. */

@@ -4,16 +4,17 @@ import {
   type RemoteShellProfile,
 } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
+import { getGitExecutable } from '@main/core/utils/exec';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import { NON_INTERACTIVE_GIT_ENV } from './non-interactive-git-env';
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
-function withNonInteractiveGitEnv(command: string): string {
+function withNonInteractiveGitEnv(command: string, gitExecutable?: string): string {
   if (command !== 'git') return command;
   const envPrefix = Object.entries(NON_INTERACTIVE_GIT_ENV)
     .map(([key, value]) => `${key}=${quoteShellArg(value)}`)
     .join(' ');
-  return `${envPrefix} ${command}`;
+  return `${envPrefix} ${quoteShellArg(gitExecutable ?? command)}`;
 }
 
 /**
@@ -25,10 +26,11 @@ export function buildSshCommand(
   root: string | undefined,
   command: string,
   args: string[],
-  profile?: RemoteShellProfile
+  profile?: RemoteShellProfile,
+  gitExecutable?: string
 ): string {
   const escaped = args.map(quoteShellArg).join(' ');
-  const executable = withNonInteractiveGitEnv(command);
+  const executable = withNonInteractiveGitEnv(command, gitExecutable);
   const inner = args.length ? `${executable} ${escaped}` : executable;
   const body = root ? `cd ${quoteShellArg(root)} && ${inner}` : inner;
   return buildRemoteShellCommand(profile ?? FALLBACK_REMOTE_SHELL_PROFILE, body);
@@ -42,15 +44,15 @@ export class SshExecutionContext implements IExecutionContext {
 
   constructor(
     private readonly proxy: SshClientProxy,
-    opts: { root?: string } = {}
+    private readonly contextOptions: { root?: string; connectionId?: string } = {}
   ) {
-    this.root = opts.root;
+    this.root = contextOptions.root;
   }
 
   async exec(command: string, args: string[] = [], opts: ExecOptions = {}): Promise<ExecResult> {
     const { signal } = opts;
     const profile = await this.proxy.getRemoteShellProfile();
-    const full = buildSshCommand(this.root, command, args, profile);
+    const full = buildSshCommand(this.root, command, args, profile, this.gitExecutableFor(command));
     const combined = this._signal(signal);
 
     return new Promise((resolve, reject) => {
@@ -120,7 +122,7 @@ export class SshExecutionContext implements IExecutionContext {
   ): Promise<void> {
     const { signal } = opts;
     const profile = await this.proxy.getRemoteShellProfile();
-    const full = buildSshCommand(this.root, command, args, profile);
+    const full = buildSshCommand(this.root, command, args, profile, this.gitExecutableFor(command));
     const combined = this._signal(signal);
 
     return new Promise((resolve, reject) => {
@@ -171,6 +173,11 @@ export class SshExecutionContext implements IExecutionContext {
 
   dispose(): void {
     this._lifetime.abort();
+  }
+
+  private gitExecutableFor(command: string): string | undefined {
+    if (command !== 'git' || !this.contextOptions.connectionId) return undefined;
+    return getGitExecutable(this.contextOptions.connectionId);
   }
 
   private _signal(callerSignal?: AbortSignal): AbortSignal {

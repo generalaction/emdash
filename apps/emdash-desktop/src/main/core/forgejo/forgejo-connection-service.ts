@@ -1,7 +1,7 @@
 import { userGetCurrent } from '@llamaduck/forgejo-ts';
 import { createClient, type Client } from '@llamaduck/forgejo-ts/client';
 import { AxiosError } from 'axios';
-import { resolvePreferredRemote } from '@main/core/issues/git-remote-resolver';
+import { resolveRepositoryRemote } from '@main/core/issues/git-remote-resolver';
 import {
   assertRemoteHostMatchesInstance,
   hasKnownNetworkErrorCode,
@@ -177,11 +177,10 @@ export class ForgejoConnectionService {
   }
 
   async resolveRepo(
-    projectPath: string,
-    remoteName?: string
+    repositoryUrl: string | undefined
   ): Promise<{ client: Client; owner: string; repo: string; repoName: string }> {
     const { instanceUrl, client } = await this.requireAuth();
-    const remote = await resolvePreferredRemote(projectPath, remoteName);
+    const remote = resolveRepositoryRemote(repositoryUrl);
 
     assertRemoteHostMatchesInstance(remote.host, instanceUrl, 'Forgejo');
 

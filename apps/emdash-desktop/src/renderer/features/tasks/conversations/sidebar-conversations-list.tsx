@@ -3,6 +3,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import { useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 import {
   useConversations,
   useTaskViewContext,
@@ -33,9 +34,7 @@ const ConversationRow = observer(function ConversationRow({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
-  const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
-  const { tabManager, tabGroupManager } = taskView;
   const showConfirm = useShowModal('confirmActionModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
@@ -49,9 +48,11 @@ const ConversationRow = observer(function ConversationRow({
   }, []);
 
   const conversation = conversations.conversations.get(conversationId);
-  if (!conversation) return null;
 
-  const isActive = tabManager.activeConversationId === conversationId;
+  const tabKind = conversation?.data.type === 'acp' ? 'acp-chat' : 'conversation';
+  const { isActive, open: openConversation } = useTabSelection(tabKind, conversationId);
+
+  if (!conversation) return null;
   const displayTitle = formatConversationTitleForDisplay(
     conversation.data.providerId,
     conversation.data.title
@@ -74,8 +75,7 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   const handleDoubleClick = () => {
-    tabGroupManager.openConversation(conversationId);
-    handleRename();
+    openConversation({ conversationId }, { preview: false });
   };
 
   const handleDelete = () => {
@@ -96,12 +96,12 @@ const ConversationRow = observer(function ConversationRow({
         <div
           role="button"
           tabIndex={0}
-          onClick={() => tabGroupManager.openConversationPreview(conversationId)}
+          onClick={() => openConversation({ conversationId }, { preview: true })}
           onDoubleClick={handleDoubleClick}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              tabGroupManager.openConversationPreview(conversationId);
+              openConversation({ conversationId }, { preview: true });
             }
           }}
           className={cn(
@@ -163,7 +163,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   const { projectId, taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
-  const { tabGroupManager } = taskView;
+  const { paneLayout } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
   const conversationIds = Array.from(conversations.conversations.values())
     .sort((a, b) => {
@@ -187,7 +187,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       projectId,
       taskId,
       onSuccess: ({ conversationId }) => {
-        tabGroupManager.openConversation(conversationId);
+        paneLayout.open('conversation', { conversationId }, { preview: false });
       },
     });
   };

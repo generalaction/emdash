@@ -44,7 +44,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Supabase',
     description: 'Manage databases, authentication, and storage',
-    docsUrl: 'https://supabase.com/docs/guides/getting-started/mcp',
+    docsUrl: 'https://supabase.com/docs/guides/ai-tools/mcp',
     credentialKeys: [],
   },
   vercel: {
@@ -54,34 +54,28 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Vercel',
     description: 'Analyze, debug, and manage projects and deployments',
-    docsUrl: 'https://vercel.com/docs/mcp/vercel-mcp',
+    docsUrl: 'https://vercel.com/docs/agent-resources/vercel-mcp',
     credentialKeys: [],
   },
   sentry: {
     config: {
       type: 'http',
       url: 'https://mcp.sentry.dev/mcp',
-      headers: {
-        SENTRY_ACCESS_TOKEN: 'YOUR_ACCESS_TOKEN',
-      },
     },
     name: 'Sentry',
     description: 'Search, query, and debug errors intelligently',
     docsUrl: 'https://docs.sentry.io/product/sentry-mcp/',
-    credentialKeys: [{ key: 'SENTRY_ACCESS_TOKEN', required: true }],
+    credentialKeys: [],
   },
   stripe: {
     config: {
       type: 'http',
       url: 'https://mcp.stripe.com',
-      headers: {
-        STRIPE_SECRET_KEY: 'YOUR_SECRET_KEY',
-      },
     },
     name: 'Stripe',
     description: 'Payment processing and financial infrastructure tools',
     docsUrl: 'https://docs.stripe.com/mcp',
-    credentialKeys: [{ key: 'STRIPE_SECRET_KEY', required: true }],
+    credentialKeys: [],
   },
   figma: {
     config: {
@@ -116,11 +110,12 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   cloudflare: {
     config: {
       type: 'http',
-      url: 'https://bindings.mcp.cloudflare.com/mcp',
+      url: 'https://mcp.cloudflare.com/mcp',
     },
     name: 'Cloudflare Developer Platform',
     description: 'Build applications with compute, storage, and AI',
-    docsUrl: 'https://www.support.cloudflare.com/',
+    docsUrl:
+      'https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/',
     credentialKeys: [],
   },
   netlify: {
@@ -136,7 +131,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   chrome_devtools: {
     config: {
       command: 'npx',
-      args: ['chrome-devtools-mcp@latest'],
+      args: ['-y', 'chrome-devtools-mcp@latest'],
     },
     name: 'Chrome DevTools',
     description: 'Browser automation, debugging and performance analysis with Chrome DevTools',
@@ -146,12 +141,12 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   atlassian: {
     config: {
       type: 'http',
-      url: 'https://mcp.atlassian.com/v1/mcp',
+      url: 'https://mcp.atlassian.com/v1/mcp/authv2',
     },
     name: 'Atlassian',
     description: 'Access Jira & Confluence from Claude',
     docsUrl:
-      'https://community.atlassian.com/forums/Atlassian-Platform-articles/Using-the-Atlassian-Remote-MCP-Server-beta/ba-p/3005104',
+      'https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/',
     credentialKeys: [],
   },
   notion: {
@@ -202,14 +197,11 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     config: {
       type: 'http',
       url: 'https://mcp.neon.tech/mcp',
-      headers: {
-        Authorization: 'Bearer YOUR_API_KEY',
-      },
     },
     name: 'Neon',
     description: 'Manage Neon Postgres databases, branches, migrations, and queries',
     docsUrl: 'https://neon.com/docs/ai/neon-mcp-server',
-    credentialKeys: [{ key: 'Authorization', required: true }],
+    credentialKeys: [],
   },
   bigquery: {
     config: {
@@ -233,16 +225,16 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   },
   exa: {
     config: {
-      command: 'npx',
-      args: ['-y', 'exa-mcp-server', 'tools=web_search_exa,get_code_context_exa'],
-      env: {
-        EXA_API_KEY: 'YOUR_API_KEY',
+      type: 'http',
+      url: 'https://mcp.exa.ai/mcp',
+      headers: {
+        'x-api-key': 'YOUR_EXA_API_KEY',
       },
     },
     name: 'Exa',
     description: 'Web search and code context retrieval powered by Exa AI',
-    docsUrl: 'https://docs.exa.ai/reference/exa-mcp',
-    credentialKeys: [{ key: 'EXA_API_KEY', required: true }],
+    docsUrl: 'https://exa.ai/docs/reference/exa-mcp',
+    credentialKeys: [{ key: 'x-api-key', required: false }],
   },
   parallel: {
     config: {
@@ -252,6 +244,16 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     name: 'Parallel',
     description: 'Free real-time web search and clean markdown extraction from any URL',
     docsUrl: 'https://docs.parallel.ai/integrations/mcp/search-mcp',
+    credentialKeys: [],
+  },
+  openrouter: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.openrouter.ai/mcp',
+    },
+    name: 'OpenRouter',
+    description: 'Search live models, rankings, benchmarks, credits, and OpenRouter docs',
+    docsUrl: 'https://openrouter.ai/docs/mcp-server',
     credentialKeys: [],
   },
   resend: {
@@ -284,7 +286,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Honeycomb',
     description: 'Query and explore observability data and SLOs',
-    docsUrl: 'https://docs.honeycomb.io/troubleshoot/product-lifecycle/beta/mcp/',
+    docsUrl: 'https://docs.honeycomb.io/integrations/mcp/configuration-guide',
     credentialKeys: [],
   },
   graphos: {
@@ -304,7 +306,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Dev Manager',
     description:
-      'Launch and manage multiple dev servers in parallel with automatic port allocation',
+      'Launch and manage dev servers; requires the dev-manager daemon to be running separately',
     docsUrl: 'https://github.com/BloopAI/dev-manager-mcp',
     credentialKeys: [],
   },
@@ -325,7 +327,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Amplitude',
     description: 'Search, access, and get insights on your Amplitude data',
-    docsUrl: 'https://amplitude.com/docs/analytics/amplitude-mcp',
+    docsUrl: 'https://amplitude.com/docs/amplitude-ai/amplitude-mcp',
     credentialKeys: [],
   },
   asana: {
@@ -365,7 +367,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Jam',
     description: 'Record screen and collect automatic context for issues',
-    docsUrl: 'https://jam.dev/docs/debug-a-jam/mcp',
+    docsUrl: 'https://jam.dev/docs/jam-mcp',
     credentialKeys: [],
   },
   webflow: {
@@ -375,13 +377,13 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Webflow',
     description: 'Manage Webflow CMS, pages, assets and sites',
-    docsUrl: 'https://developers.webflow.com/mcp/v1.0.0/reference/overview',
+    docsUrl: 'https://developers.webflow.com/mcp/reference/overview',
     credentialKeys: [],
   },
   cloudinary: {
     config: {
       type: 'http',
-      url: 'https://asset-management.mcp.cloudinary.com/sse',
+      url: 'https://asset-management.mcp.cloudinary.com/mcp',
     },
     name: 'Cloudinary',
     description: 'Manage, transform and deliver your images & videos',
@@ -483,10 +485,97 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     config: {
       type: 'http',
       url: 'https://api.devrev.ai/mcp/v1',
+      headers: {
+        Authorization: 'Bearer YOUR_PAT',
+      },
     },
     name: 'DevRev',
     description: "Search and update your company's knowledge graph",
-    docsUrl: 'https://support.devrev.ai/en-US/devrev/article/ART-21859-remote-mcp-server',
+    docsUrl:
+      'https://support.devrev.ai/en-US/devrev/article/ZNqaZTsx-devrev-mcp-server-connect-your-ai-coding-assistant',
+    credentialKeys: [{ key: 'Authorization', required: false }],
+  },
+  prisma: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.prisma.io/mcp',
+    },
+    name: 'Prisma',
+    description: 'Manage Prisma Postgres databases, migrations, and connection strings',
+    docsUrl: 'https://www.prisma.io/docs/ai/tools/mcp-server',
+    credentialKeys: [],
+  },
+  railway: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.railway.com',
+    },
+    name: 'Railway',
+    description: 'Create projects, deploy services, and manage Railway infrastructure',
+    docsUrl: 'https://docs.railway.com/ai/mcp-server',
+    credentialKeys: [],
+  },
+  mongodb: {
+    config: {
+      command: 'npx',
+      args: ['-y', 'mongodb-mcp-server@latest'],
+      env: {
+        MDB_MCP_CONNECTION_STRING: 'mongodb://localhost:27017/myDatabase',
+      },
+    },
+    name: 'MongoDB',
+    description: 'Query and manage MongoDB databases and Atlas clusters',
+    docsUrl: 'https://www.mongodb.com/docs/mcp-server/',
+    credentialKeys: [{ key: 'MDB_MCP_CONNECTION_STRING', required: true }],
+  },
+  monday: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.monday.com/mcp',
+    },
+    name: 'monday.com',
+    description: 'Manage boards, items, and workflows in your monday.com workspace',
+    docsUrl: 'https://developer.monday.com/api-reference/docs/monday-mcp-overview',
+    credentialKeys: [],
+  },
+  shopify: {
+    config: {
+      command: 'npx',
+      args: ['-y', '@shopify/dev-mcp@latest'],
+    },
+    name: 'Shopify Dev',
+    description: 'Search Shopify docs, explore GraphQL schemas, and validate app code',
+    docsUrl: 'https://shopify.dev/docs/apps/build/ai-toolkit',
+    credentialKeys: [],
+  },
+  graphite: {
+    config: {
+      command: 'gt',
+      args: ['mcp'],
+    },
+    name: 'Graphite',
+    description: 'Generate and manage stacked pull requests with the Graphite CLI',
+    docsUrl: 'https://graphite.com/docs/gt-mcp',
+    credentialKeys: [],
+  },
+  axiom: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.axiom.co/mcp',
+    },
+    name: 'Axiom',
+    description: 'Query logs, traces, metrics, and alerts in Axiom observability datasets',
+    docsUrl: 'https://axiom.co/docs/console/intelligence/mcp-server',
+    credentialKeys: [],
+  },
+  azure: {
+    config: {
+      command: 'npx',
+      args: ['-y', '@azure/mcp@latest', 'server', 'start'],
+    },
+    name: 'Azure MCP Server',
+    description: 'Manage Azure resources and run cloud operations through natural language',
+    docsUrl: 'https://learn.microsoft.com/en-us/azure/developer/azure-mcp-server/',
     credentialKeys: [],
   },
 };

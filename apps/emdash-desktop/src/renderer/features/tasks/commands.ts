@@ -1,11 +1,13 @@
 import { browserControlsRegistry } from '@renderer/features/browser/browser-controls-registry';
+import type { BrowserTabResource } from '@renderer/features/browser/browser-tab-resource';
+import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   getRegisteredTaskData,
-  getTaskGitStore,
+  getTaskGitWorktreeStore,
   getTaskStore,
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { closeActiveTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
@@ -13,6 +15,7 @@ import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import { normalizeBrowserUrl } from '@shared/browser';
 import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
+import { runGitFetch, runGitPublishBranch, runGitPull, runGitPush } from './git-action-handlers';
 
 function taskDef(id: TaskCommandId): CommandDef {
   return TASK_COMMAND_DEFS.find((d) => d.id === id)!;
@@ -35,19 +38,22 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       if (taskStore?.state !== 'provisioned') return [];
 
       const taskView = getTaskView(projectId, taskId);
-      const tabManager = taskView?.tabManager;
-      const hasTabs = (tabManager?.resolvedTabs.length ?? 0) > 0;
+      const activePane = taskView?.activePane;
+      const hasTabs = (activePane?.resolvedTabs.length ?? 0) > 0;
 
-      const taskIds = sidebarStore.visibleTaskIdsForProject(projectId);
-      const currentIdx = taskIds.indexOf(taskId);
-
-      const git = getTaskGitStore(projectId, taskId);
-      const taskData = getRegisteredTaskData(projectId, taskId);
-      const activeBrowserTab = tabManager?.resolvedTabs.find(
-        (tab) => tab.isActive && tab.kind === 'browser'
+      const visibleTaskEntries = sidebarStore.visibleTaskEntries;
+      const currentIdx = visibleTaskEntries.findIndex(
+        (entry) => entry.projectId === projectId && entry.taskId === taskId
       );
-      const activeBrowserSession =
-        activeBrowserTab?.kind === 'browser' ? activeBrowserTab.session : null;
+
+      const git = getTaskGitWorktreeStore(projectId, taskId);
+      const repository = git ? getGitRepositoryStore(projectId) : undefined;
+      const taskData = getRegisteredTaskData(projectId, taskId);
+      const activeBrowserTab = activePane?.resolvedTabs.find(
+        (tab) => tab.isActive && tab.kind === 'browser'
+      ) as ResolvedTab<BrowserTabResource> | undefined;
+      const activeBrowserResource = activeBrowserTab?.resource as BrowserTabResource | undefined;
+      const activeBrowserSession = activeBrowserResource?.session ?? null;
 
       const newConversationDef = taskDef('task.newConversation');
       const newConversationSplitRightDef = taskDef('task.newConversationSplitRight');
@@ -85,7 +91,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                taskView?.tabGroupManager.openConversation(conversationId);
+                taskView?.paneLayout.open('conversation', { conversationId }, { preview: false });
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -102,7 +108,11 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                taskView?.tabGroupManager.openConversationInRightSplit(conversationId);
+                taskView?.paneLayout.open(
+                  'conversation',
+                  { conversationId },
+                  { preview: false, target: 'right' }
+                );
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -203,7 +213,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: openBrowserDef.shortcutKey,
           group: openBrowserDef.group,
           execute() {
-            taskView?.tabGroupManager.openBrowser();
+            taskView?.paneLayout.open('browser', {});
             taskView?.setFocusedRegion('main');
           },
         },
@@ -212,10 +222,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserGoBackDef.label,
           description: browserGoBackDef.description,
           group: browserGoBackDef.group,
-          enabled: activeBrowserTab?.kind === 'browser' && activeBrowserTab.session.canGoBack,
+          enabled: activeBrowserResource != null && (activeBrowserSession?.canGoBack ?? false),
           execute() {
-            if (activeBrowserTab?.kind !== 'browser') return;
-            const adapter = browserControlsRegistry.get(activeBrowserTab.browserId)?.adapter;
+            if (!activeBrowserResource) return;
+            const adapter = browserControlsRegistry.get(activeBrowserResource.browserId)?.adapter;
             if (adapter?.canGoBack()) adapter.goBack();
           },
         },
@@ -224,10 +234,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserGoForwardDef.label,
           description: browserGoForwardDef.description,
           group: browserGoForwardDef.group,
-          enabled: activeBrowserTab?.kind === 'browser' && activeBrowserTab.session.canGoForward,
+          enabled: activeBrowserResource != null && (activeBrowserSession?.canGoForward ?? false),
           execute() {
-            if (activeBrowserTab?.kind !== 'browser') return;
-            const adapter = browserControlsRegistry.get(activeBrowserTab.browserId)?.adapter;
+            if (!activeBrowserResource) return;
+            const adapter = browserControlsRegistry.get(activeBrowserResource.browserId)?.adapter;
             if (adapter?.canGoForward()) adapter.goForward();
           },
         },
@@ -236,10 +246,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserReloadDef.label,
           description: browserReloadDef.description,
           group: browserReloadDef.group,
-          enabled: activeBrowserTab != null,
+          enabled: activeBrowserResource != null,
           execute() {
-            if (activeBrowserTab?.kind !== 'browser') return;
-            browserControlsRegistry.get(activeBrowserTab.browserId)?.adapter?.reload();
+            if (!activeBrowserResource) return;
+            browserControlsRegistry.get(activeBrowserResource.browserId)?.adapter?.reload();
           },
         },
         {
@@ -247,10 +257,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserFocusUrlDef.label,
           description: browserFocusUrlDef.description,
           group: browserFocusUrlDef.group,
-          enabled: activeBrowserTab != null,
+          enabled: activeBrowserResource != null,
           execute() {
-            if (activeBrowserTab?.kind !== 'browser') return;
-            browserControlsRegistry.get(activeBrowserTab.browserId)?.focusUrl();
+            if (!activeBrowserResource) return;
+            browserControlsRegistry.get(activeBrowserResource.browserId)?.focusUrl();
           },
         },
         {
@@ -258,10 +268,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserOpenExternalDef.label,
           description: browserOpenExternalDef.description,
           group: browserOpenExternalDef.group,
-          enabled: activeBrowserTab != null,
+          enabled: activeBrowserResource != null,
           execute() {
-            if (activeBrowserTab?.kind !== 'browser') return;
-            const normalized = normalizeBrowserUrl(activeBrowserTab.session.currentUrl);
+            if (!activeBrowserResource || !activeBrowserSession) return;
+            const normalized = normalizeBrowserUrl(activeBrowserSession.currentUrl);
             if (
               normalized.ok &&
               (normalized.protocol === 'http:' || normalized.protocol === 'https:')
@@ -305,7 +315,18 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: 'Tabs',
           enabled: hasTabs,
           execute() {
-            if (tabManager) closeActiveTabWithConfirm(tabManager);
+            const activeId = activePane?.activeTabId;
+            if (activePane && activeId) activePane.requestCloseTab(activeId);
+          },
+        },
+        {
+          id: 'task.tabReopen',
+          label: 'Reopen Closed Tab',
+          description: 'Reopen the most recently closed tab',
+          shortcutKey: 'tabReopen',
+          group: 'Tabs',
+          execute() {
+            activePane?.reopenClosedTab();
           },
         },
         {
@@ -316,7 +337,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: 'Tabs',
           enabled: hasTabs,
           execute() {
-            tabManager?.setNextTabActive();
+            activePane?.setNextTabActive();
           },
         },
         {
@@ -327,7 +348,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: 'Tabs',
           enabled: hasTabs,
           execute() {
-            tabManager?.setPreviousTabActive();
+            activePane?.setPreviousTabActive();
           },
         },
         ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((n) => ({
@@ -337,7 +358,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: 'Tabs',
           enabled: hasTabs,
           execute() {
-            tabManager?.setTabActiveIndex(n - 1);
+            activePane?.setTabActiveIndex(n - 1);
           },
         })),
 
@@ -347,9 +368,9 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: gitFetchDef.label,
           description: gitFetchDef.description,
           group: gitFetchDef.group,
-          enabled: git != null,
+          enabled: repository != null,
           execute() {
-            void git?.fetchRemote();
+            if (repository) void runGitFetch(repository);
           },
         },
         {
@@ -359,7 +380,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: gitPullDef.group,
           enabled: git != null,
           execute() {
-            void git?.pull();
+            if (git) void runGitPull(git);
           },
         },
         {
@@ -372,10 +393,16 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: gitPushDef.group,
           enabled: git != null,
           execute() {
-            if (git?.isBranchPublished) {
-              void git.push();
+            if (!git) return;
+            if (git.isBranchPublished) {
+              void runGitPush(git);
             } else {
-              void git?.publishBranch();
+              if (!repository) return;
+              void runGitPublishBranch({
+                repository,
+                branchName: git.branchName,
+                workspaceId: taskStore.workspaceId ?? undefined,
+              });
             }
           },
         },
@@ -399,24 +426,26 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           id: nextTaskDef.id,
           label: nextTaskDef.label,
           description: nextTaskDef.description,
+          shortcutKey: nextTaskDef.shortcutKey,
           group: nextTaskDef.group,
-          enabled: currentIdx !== -1 && currentIdx < taskIds.length - 1,
+          enabled: currentIdx !== -1 && currentIdx < visibleTaskEntries.length - 1,
           hideFromPalette: true,
           execute() {
-            const nextId = taskIds[currentIdx + 1];
-            if (nextId) appState.navigation.navigate('task', { projectId, taskId: nextId });
+            const next = visibleTaskEntries[currentIdx + 1];
+            if (next) appState.navigation.navigate('task', next);
           },
         },
         {
           id: prevTaskDef.id,
           label: prevTaskDef.label,
           description: prevTaskDef.description,
+          shortcutKey: prevTaskDef.shortcutKey,
           group: prevTaskDef.group,
           enabled: currentIdx > 0,
           hideFromPalette: true,
           execute() {
-            const prevId = taskIds[currentIdx - 1];
-            if (prevId) appState.navigation.navigate('task', { projectId, taskId: prevId });
+            const previous = visibleTaskEntries[currentIdx - 1];
+            if (previous) appState.navigation.navigate('task', previous);
           },
         },
       ];

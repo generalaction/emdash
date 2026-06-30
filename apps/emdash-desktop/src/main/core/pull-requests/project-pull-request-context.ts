@@ -1,3 +1,5 @@
+import { err, ok, type Result } from '@emdash/shared';
+import { match, P } from 'ts-pattern';
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
 import {
   resolveProjectGitHubAuthContext,
@@ -5,7 +7,6 @@ import {
 } from '@main/core/github/services/project-github-auth-context';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import type { PullRequestError } from '@shared/core/pull-requests/pull-requests';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { ProviderRepositoryError } from '@shared/provider-repository';
 
 export type ProjectPullRequestContext = {
@@ -55,21 +56,29 @@ export async function resolveProjectPullRequestAuthContext(
 function collapseSourceContextErrorForPullRequests(
   error: ProjectPullRequestContextSourceError
 ): PullRequestError {
-  switch (error.type) {
-    case 'unconfigured':
-      return { type: 'github_no_account_selected', message: error.message };
-    case 'disabled':
-      return { type: 'github_account_disabled', message: error.message };
-    case 'project_not_found':
-    case 'account_selection_failed':
-      return collapseAuthContextErrorForPullRequests(error);
-    case 'no_remote':
-    case 'invalid_remote':
-    case 'unsupported_provider':
-    case 'host_unreachable':
-    case 'host_error':
-      return { type: 'remote_not_ready', status: error.type };
-  }
+  return match(error)
+    .with({ type: 'unconfigured' }, (e) => ({
+      type: 'github_no_account_selected' as const,
+      message: e.message,
+    }))
+    .with({ type: 'disabled' }, (e) => ({
+      type: 'github_account_disabled' as const,
+      message: e.message,
+    }))
+    .with(P.union({ type: 'project_not_found' }, { type: 'account_selection_failed' }), (e) =>
+      collapseAuthContextErrorForPullRequests(e)
+    )
+    .with(
+      P.union(
+        { type: 'no_remote' },
+        { type: 'invalid_remote' },
+        { type: 'unsupported_provider' },
+        { type: 'host_unreachable' },
+        { type: 'host_error' }
+      ),
+      (e) => ({ type: 'remote_not_ready' as const, status: e.type })
+    )
+    .exhaustive();
 }
 
 function collapseAuthContextErrorForPullRequests(

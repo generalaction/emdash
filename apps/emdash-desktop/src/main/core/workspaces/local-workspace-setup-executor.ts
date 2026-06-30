@@ -1,7 +1,7 @@
+import { err, ok, Result, type Result as ResultType } from '@emdash/shared/result';
 import { log } from '@main/lib/logger';
 import type { WorkspaceSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
 import type { SetupStepWarning } from '@shared/core/workspaces/workspace-setup-steps';
-import { err, ok } from '@shared/lib/result';
 import * as AddWorktreeStep from './setup-steps/add-worktree';
 import * as CopyPreservedFilesStep from './setup-steps/copy-preserved-files';
 import * as CreateLocalBranchStep from './setup-steps/create-local-branch';
@@ -12,6 +12,10 @@ import * as SetBranchBaseStep from './setup-steps/set-branch-base';
 import * as SetBranchTrackingStep from './setup-steps/set-branch-tracking';
 import type { StepContext } from './setup-steps/step-context';
 import type { SetupResult, WorkspaceSetupExecutor } from './workspace-setup-executor';
+
+/** Wraps a step promise, tagging the error with its step kind on failure. */
+const runStep = <T, E extends object, K extends string>(kind: K, p: Promise<ResultType<T, E>>) =>
+  Result.fromAsync(p).mapErr((e) => ({ ...e, kind }));
 
 export class LocalWorkspaceSetupExecutor implements WorkspaceSetupExecutor {
   constructor(private readonly ctx: StepContext) {}
@@ -26,20 +30,23 @@ export class LocalWorkspaceSetupExecutor implements WorkspaceSetupExecutor {
 
       switch (step.kind) {
         case 'git-fetch': {
-          const result = await GitFetchStep.execute(step.args, ctx);
-          if (!result.success) return err({ ...result.error, kind: 'git-fetch' });
+          const r = await runStep('git-fetch', GitFetchStep.execute(step.args, ctx));
+          if (!r.success) return r;
           break;
         }
 
         case 'ensure-remote': {
-          const result = await EnsureRemoteStep.execute(step.args, ctx);
-          if (!result.success) return err({ ...result.error, kind: 'ensure-remote' });
+          const r = await runStep('ensure-remote', EnsureRemoteStep.execute(step.args, ctx));
+          if (!r.success) return r;
           break;
         }
 
         case 'create-local-branch': {
-          const result = await CreateLocalBranchStep.execute(step.args, ctx);
-          if (!result.success) return err({ ...result.error, kind: 'create-local-branch' });
+          const r = await runStep(
+            'create-local-branch',
+            CreateLocalBranchStep.execute(step.args, ctx)
+          );
+          if (!r.success) return r;
           break;
         }
 
@@ -62,10 +69,10 @@ export class LocalWorkspaceSetupExecutor implements WorkspaceSetupExecutor {
         }
 
         case 'add-worktree': {
-          const result = await AddWorktreeStep.execute(step.args, ctx);
-          if (!result.success) return err({ ...result.error, kind: 'add-worktree' });
+          const r = await runStep('add-worktree', AddWorktreeStep.execute(step.args, ctx));
+          if (!r.success) return r;
           // Propagate the resolved path for subsequent steps.
-          ctx.resolvedWorktreePath = result.data.path;
+          ctx.resolvedWorktreePath = r.data.path;
           break;
         }
 

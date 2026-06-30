@@ -90,16 +90,7 @@ function PaletteItem({
     <Command.Item value={value} onSelect={onSelect} className={cn(PALETTE_ITEM_CLASS, 'group')}>
       {iconNode}
       <span className="flex-1 truncate">{item.title}</span>
-      {action?.shortcut && (
-        <>
-          <Shortcut hotkey={action.shortcut} className="group-aria-selected:hidden" />
-          <Shortcut
-            hotkey={action.shortcut}
-            variant="badge"
-            className="hidden group-aria-selected:inline-flex"
-          />
-        </>
-      )}
+      {action?.shortcut && <Shortcut hotkey={action.shortcut} variant="keycaps" />}
     </Command.Item>
   );
 }
@@ -248,14 +239,22 @@ export function CommandPaletteModal({
 
   const handleNavigateToConversation = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.tabGroupManager.openConversation(item.id);
+    getTaskView(item.projectId, item.taskId)?.paneLayout.open(
+      'conversation',
+      { conversationId: item.id },
+      { preview: false }
+    );
     handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
 
   const handleOpenFile = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.tabManager.openFile(item.id);
+    getTaskView(item.projectId, item.taskId)?.activePane.open(
+      'file',
+      { path: item.id },
+      { preview: false }
+    );
     handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
@@ -290,8 +289,8 @@ export function CommandPaletteModal({
         <ResourceMonitorView onBack={handleResourceMonitorBack} />
         <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
           <span className="flex items-center gap-1 text-xs text-foreground/40">
-            <Shortcut hotkey="Escape" variant="badge" />
-            <Shortcut hotkey="Backspace" variant="badge" />
+            <Shortcut hotkey="Escape" variant="keycaps" />
+            <Shortcut hotkey="Backspace" variant="keycaps" />
             Back
           </span>
         </div>
@@ -478,16 +477,16 @@ export function CommandPaletteModal({
 
       <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <Shortcut hotkey="ArrowUp" variant="badge" />
-          <Shortcut hotkey="ArrowDown" variant="badge" />
+          <Shortcut hotkey="ArrowUp" variant="keycaps" />
+          <Shortcut hotkey="ArrowDown" variant="keycaps" />
           Navigate
         </span>
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <Shortcut hotkey="Enter" variant="badge" />
+          <Shortcut hotkey="Enter" variant="keycaps" />
           Select
         </span>
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <Shortcut hotkey="Escape" variant="badge" />
+          <Shortcut hotkey="Escape" variant="keycaps" />
           Close
         </span>
       </div>

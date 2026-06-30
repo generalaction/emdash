@@ -1,3 +1,5 @@
+import { err, ok, type Result } from '@emdash/shared';
+import { match, P } from 'ts-pattern';
 import { normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import type { LinkedIssue } from '@shared/core/linked-issue';
@@ -6,7 +8,6 @@ import {
   type IssueListError,
   type IssueListResult,
 } from '@shared/issue-providers';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { RepositoryRef } from '@shared/repository-ref';
 import { githubAccountRegistry } from './accounts/github-account-registry-instance';
 import type { GitHubApiAuthContext } from './services/github-api-auth-service';
@@ -52,44 +53,43 @@ type IssueListErrorMetadata = Omit<
 >;
 
 function issueListErrorMetadata(error: IssueListError): IssueListErrorMetadata {
-  switch (error.type) {
-    case 'no_account_selected':
-    case 'account_disabled':
-    case 'generic':
-      return {};
-    case 'account_not_found':
-      return {
-        ...(error.host ? { host: error.host } : {}),
-        ...(error.accountId ? { accountId: error.accountId } : {}),
-      };
-    case 'account_host_mismatch':
-      return {
-        host: error.host,
-        accountId: error.accountId,
-        accountHost: error.accountHost,
-      };
-    case 'token_missing':
-      return {
-        host: error.host,
-        accountId: error.accountId,
-      };
-    case 'auth_required':
-    case 'not_found_or_no_access':
-    case 'forbidden':
-    case 'host_unreachable':
-    case 'unsupported_host':
-      return { host: error.host };
-    case 'sso_required':
-      return {
-        host: error.host,
-        ...(error.ssoUrl ? { ssoUrl: error.ssoUrl } : {}),
-      };
-    case 'rate_limited':
-      return {
-        host: error.host,
-        ...(error.resetAt ? { resetAt: error.resetAt } : {}),
-      };
-  }
+  return match(error)
+    .with(
+      P.union({ type: 'no_account_selected' }, { type: 'account_disabled' }, { type: 'generic' }),
+      () => ({})
+    )
+    .with({ type: 'account_not_found' }, (e) => ({
+      ...(e.host ? { host: e.host } : {}),
+      ...(e.accountId ? { accountId: e.accountId } : {}),
+    }))
+    .with({ type: 'account_host_mismatch' }, (e) => ({
+      host: e.host,
+      accountId: e.accountId,
+      accountHost: e.accountHost,
+    }))
+    .with({ type: 'token_missing' }, (e) => ({
+      host: e.host,
+      accountId: e.accountId,
+    }))
+    .with(
+      P.union(
+        { type: 'auth_required' },
+        { type: 'not_found_or_no_access' },
+        { type: 'forbidden' },
+        { type: 'host_unreachable' },
+        { type: 'unsupported_host' }
+      ),
+      (e) => ({ host: e.host })
+    )
+    .with({ type: 'sso_required' }, (e) => ({
+      host: e.host,
+      ...(e.ssoUrl ? { ssoUrl: e.ssoUrl } : {}),
+    }))
+    .with({ type: 'rate_limited' }, (e) => ({
+      host: e.host,
+      ...(e.resetAt ? { resetAt: e.resetAt } : {}),
+    }))
+    .exhaustive();
 }
 
 async function listIssues(
@@ -148,23 +148,21 @@ async function resolveRepository(opts: {
   const resolved = await githubRepositoryResolver.resolve(opts.repositoryUrl || opts.remote);
   if (resolved.success) return ok(resolved.data);
 
-  switch (resolved.error.type) {
-    case 'not_parseable':
-      return err({ type: 'generic', message: 'Repository URL is required.' });
-    case 'not_github':
-      return err({
-        type: 'unsupported_host',
-        host: resolved.error.host,
+  return match(resolved.error)
+    .with({ type: 'not_parseable' }, () =>
+      err({ type: 'generic' as const, message: 'Repository URL is required.' })
+    )
+    .with({ type: 'not_github' }, (e) =>
+      err({
+        type: 'unsupported_host' as const,
+        host: e.host,
         message: 'This remote does not appear to be GitHub or GitHub Enterprise.',
-      });
-    case 'host_unreachable':
-    case 'host_error':
-      return err({
-        type: 'host_unreachable',
-        host: resolved.error.host,
-        message: resolved.error.reason,
-      });
-  }
+      })
+    )
+    .with(P.union({ type: 'host_unreachable' }, { type: 'host_error' }), (e) =>
+      err({ type: 'host_unreachable' as const, host: e.host, message: e.reason })
+    )
+    .exhaustive();
 }
 
 async function getDefaultLinkedAccountConnection() {

@@ -1,8 +1,8 @@
+import type { GitRemote } from '@emdash/core/git';
 import { SelectContent, SelectItem } from '@renderer/lib/ui/select';
-import type { Remote } from '@shared/core/git/git';
 
 type RemoteSelectContentProps = {
-  remotes: Remote[];
+  remotes: GitRemote[];
   fallbackRemoteName?: string;
 };
 
@@ -25,7 +25,7 @@ export function RemoteSelectContent({
   );
 }
 
-export function RemoteSelectItem({ remote }: { remote: Remote }) {
+export function RemoteSelectItem({ remote }: { remote: GitRemote }) {
   return (
     <SelectItem value={remote.name} className="py-2">
       <div className="flex min-w-0 flex-1 items-center gap-2">

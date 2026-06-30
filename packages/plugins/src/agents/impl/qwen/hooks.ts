@@ -1,9 +1,9 @@
-import type { CanonicalHookEvent } from '@emdash/shared/agents/plugins';
+import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
 import {
   buildNestedJsonHookConfig,
   defaultHookEventParser,
   makeStdinHookCommand,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 
 export const QWEN_HOOKS_PATH = '.qwen/settings.json';
 
@@ -27,6 +27,7 @@ function parseQwenHookEvent(eventType: string, body: Record<string, unknown>): C
 export function buildQwenHookConfig() {
   return {
     ...buildNestedJsonHookConfig(QWEN_HOOKS_PATH, [
+      { hookKey: 'SessionStart', command: makeStdinHookCommand('session') },
       { hookKey: 'PermissionRequest', command: makeStdinHookCommand('notification') },
       { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
       { hookKey: 'SessionEnd', command: makeStdinHookCommand('stop') },

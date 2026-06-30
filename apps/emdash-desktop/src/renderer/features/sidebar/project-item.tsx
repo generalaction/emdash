@@ -13,12 +13,13 @@ import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
 import { useConfirmDeleteProject } from '@renderer/features/projects/hooks/use-confirm-delete-project';
 import {
+  isUnmountedProject,
   isUnregisteredProject,
   type UnregisteredProject,
 } from '@renderer/features/projects/stores/project';
 import {
   getProjectStore,
-  getRepositoryStore,
+  getGitRepositoryStore,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
@@ -39,6 +40,7 @@ import {
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import type { ConnectionState } from '@shared/core/ssh/ssh';
 import {
   SidebarItemMiniButton,
   SidebarMenuAction,
@@ -69,7 +71,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const project = getProjectStore(projectId);
 
   const prefetchRepository = useCallback(() => {
-    const repo = getRepositoryStore(projectId);
+    const repo = getGitRepositoryStore(projectId);
     void repo?.localData.load();
     void repo?.remoteData.load();
   }, [projectId]);
@@ -97,6 +99,12 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const sshConnectionState = sshConnectionId
     ? appState.sshConnections.stateFor(sshConnectionId)
     : null;
+  const displayedSshConnectionState: ConnectionState | null =
+    isUnmountedProject(project) &&
+    project.errorCode === 'ssh-disconnected' &&
+    sshConnectionState !== 'connected'
+      ? 'disconnected'
+      : sshConnectionState;
   const canReconnect = sshConnectionState !== 'connected';
   const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
   const projectLabel = project.name ?? 'project';
@@ -160,7 +168,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               {isSshProject ? (
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate">{project.name}</span>
-                  <ConnectionStatusDot state={sshConnectionState} />
+                  <ConnectionStatusDot state={displayedSshConnectionState} />
                 </span>
               ) : (
                 <span className="flex min-w-0 items-center gap-1.5">
@@ -200,7 +208,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             />
             <TooltipContent>
               New Task
-              <BoundShortcut settingsKey="newTask" variant="badge" />
+              <BoundShortcut settingsKey="newTask" variant="keycaps" />
             </TooltipContent>
           </Tooltip>
         </SidebarMenuRow>

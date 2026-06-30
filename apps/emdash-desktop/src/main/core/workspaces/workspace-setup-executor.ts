@@ -1,9 +1,9 @@
+import type { Result } from '@emdash/shared';
 import type { WorkspaceSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
 import type {
   SetupStepError,
   SetupStepWarning,
 } from '@shared/core/workspaces/workspace-setup-steps';
-import type { Result } from '@shared/lib/result';
 
 export type SetupSuccess = {
   /** Absolute path to the provisioned workspace directory. */

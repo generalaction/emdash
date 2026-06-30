@@ -24,7 +24,7 @@ export const FALLBACK_REMOTE_SHELL_PROFILE: RemoteShellProfile = {
 const CAPTURE_TIMEOUT_MS = 5_000;
 const SHELL_TIMEOUT_MS = 3_000;
 
-const LOGIN_SHELLS = new Set(['bash', 'ksh', 'zsh']);
+const LOGIN_SHELLS = new Set(['bash', 'fish', 'ksh', 'zsh']);
 const BASIC_POSIX_SHELLS = new Set(['dash', 'sh']);
 const SUPPORTED_REMOTE_SHELLS = new Set([...BASIC_POSIX_SHELLS, ...LOGIN_SHELLS]);
 const VOLATILE_ENV_KEYS = new Set(['_', 'PWD', 'OLDPWD', 'SHLVL', 'COLUMNS', 'LINES']);
@@ -75,7 +75,8 @@ export function buildRemoteShellCommand(
   command: string,
   env: Record<string, string> = {}
 ): string {
-  const shell = normalizeRemoteShell(profile.shell);
+  const profileShell = normalizeRemoteShell(profile.shell);
+  const shell = remoteCommandShell(profileShell);
   const prefix = `${buildRemoteShellEnvPrefix(shell, profile.env)}${buildRemoteShellEnvPrefix(
     shell,
     env
@@ -92,15 +93,23 @@ export function buildRemoteShellCommandWithPathLookup(
   env: Record<string, string> = {}
 ): string {
   const selectedShellEnv = { ...env, SHELL: shellName };
+  const commandShell = remoteCommandShell(shellName);
   const prefix = `${buildRemoteShellEnvPrefix(
-    shellName,
+    commandShell,
     withoutShellEnv(profile.env)
-  )}${buildRemoteShellEnvPrefix(shellName, selectedShellEnv)}`;
+  )}${buildRemoteShellEnvPrefix(commandShell, selectedShellEnv)}`;
   const remotePath = env.PATH ?? profile.env.PATH;
   const pathArg = remotePath ? `${quoteShellArg(`PATH=${remotePath}`)} ` : '';
   return `${quoteShellArg('/usr/bin/env')} ${pathArg}${quoteShellArg(
-    shellName
-  )} ${terminalCommandArgs(shellName).join(' ')} ${quoteShellArg(`${prefix}${command}`)}`;
+    commandShell
+  )} ${terminalCommandArgs(commandShell).join(' ')} ${quoteShellArg(`${prefix}${command}`)}`;
+}
+
+function remoteCommandShell(shell: string): string {
+  // fish is a valid interactive default shell, but it does not understand POSIX
+  // `export KEY=value` prefixes. Run the setup wrapper through sh and let the
+  // terminal command exec fish after cwd/env setup.
+  return terminalShellBasename(shell) === 'fish' ? DEFAULT_REMOTE_SHELL : shell;
 }
 
 export function includeRemoteUserBinDirs(env: Record<string, string>): Record<string, string> {

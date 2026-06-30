@@ -1,7 +1,8 @@
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
 import { rpc } from '@renderer/lib/ipc';
-import { gitRefToString, HEAD_REF, refsEqual, type GitRef } from '@shared/core/git/git';
+import { HEAD_REF, type GitRef } from '@shared/core/git/types';
+import { gitRefToString, refsEqual } from '@shared/core/git/utils';
 import { buildMonacoModelPath } from './monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
@@ -80,15 +81,22 @@ export class MonacoModelRegistry {
    */
   private modelMap = new Map<string, ModelEntry>();
 
+  /**
+   * Diff editor view states keyed by `${originalUri}::${modifiedUri}`.
+   * Saves and restores scroll/cursor for the Monaco diff editor across tab switches,
+   * mirroring how BufferModelEntry.viewState works for regular file tabs.
+   * Entries are swept out when either constituent model is evicted (see unregisterModel).
+   */
+  private diffViewStates = new Map<string, monaco.editor.IDiffEditorViewState>();
+
   // ---------------------------------------------------------------------------
   // Monaco readiness — awaited before creating any ITextModel instance.
   // ---------------------------------------------------------------------------
 
   /**
-   * Resolves with the Monaco namespace once a pool has finished initialization.
-   * Both codeEditorPool and diffEditorPool call notifyMonacoReady() from their
-   * onInit hooks, whichever resolves first wins (the promise is idempotent after
-   * the first resolution).
+   * Resolves once monacoBootstrap.init() completes.
+   * notifyMonacoReady() is called by the bootstrap; the promise is idempotent
+   * after the first resolution.
    */
   private readonly monacoReadyPromise: Promise<typeof monaco>;
   private resolveMonacoReady!: (m: typeof monaco) => void;
@@ -101,7 +109,7 @@ export class MonacoModelRegistry {
   }
 
   /**
-   * Called by MonacoPool instances after Monaco finishes loading.
+   * Called by monacoBootstrap after Monaco finishes loading.
    * Safe to call multiple times — only the first call has any effect.
    */
   notifyMonacoReady(m: typeof monaco): void {
@@ -346,10 +354,14 @@ export class MonacoModelRegistry {
     const [content, m] = await Promise.all([
       this.dedupFetch(fetchKey, async () => {
         if (ref.kind === 'staged') {
-          const res = await rpc.workspace.git.getFileAtIndex(projectId, workspaceId, filePath);
+          const res = await rpc.workspace.gitWorktree.getFileAtIndex(
+            projectId,
+            workspaceId,
+            filePath
+          );
           return res.success ? res.data.content : null;
         }
-        const res = await rpc.workspace.git.getFileAtRef(
+        const res = await rpc.workspace.gitWorktree.getFileAtRef(
           projectId,
           workspaceId,
           filePath,
@@ -555,6 +567,12 @@ export class MonacoModelRegistry {
           this.bufferVersions.delete(uri);
         });
       }
+      // Sweep any diff view states that referenced this model.
+      for (const key of this.diffViewStates.keys()) {
+        if (key.startsWith(uri + '::') || key.endsWith('::' + uri)) {
+          this.diffViewStates.delete(key);
+        }
+      }
     }, 60_000);
     this.evictionTimers.set(uri, t);
 
@@ -592,6 +610,49 @@ export class MonacoModelRegistry {
         editor.restoreViewState(entry.viewState);
       }
     }
+  }
+
+  detach(editor: monaco.editor.IStandaloneCodeEditor, previousUri?: string): void {
+    if (previousUri) {
+      const prev = this.modelMap.get(previousUri);
+      if (prev?.type === 'buffer') prev.viewState = editor.saveViewState();
+    }
+    editor.setModel(null);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Diff view state — scroll/cursor preservation across diff tab switches
+  // ---------------------------------------------------------------------------
+
+  private diffKey(originalUri: string, modifiedUri: string): string {
+    return `${originalUri}::${modifiedUri}`;
+  }
+
+  /**
+   * Save the diff editor's current viewport state (scroll + cursor) for the given
+   * model pair. Call this before swapping models (i.e. in the effect cleanup).
+   */
+  saveDiffViewState(
+    originalUri: string,
+    modifiedUri: string,
+    editor: monaco.editor.IStandaloneDiffEditor
+  ): void {
+    const vs = editor.saveViewState();
+    if (vs) this.diffViewStates.set(this.diffKey(originalUri, modifiedUri), vs);
+  }
+
+  /**
+   * Restore a previously saved diff editor viewport state.
+   * Call this after editor.setModel() so the editor has a layout target.
+   * No-ops silently if no state was ever saved for this pair.
+   */
+  restoreDiffViewState(
+    originalUri: string,
+    modifiedUri: string,
+    editor: monaco.editor.IStandaloneDiffEditor
+  ): void {
+    const vs = this.diffViewStates.get(this.diffKey(originalUri, modifiedUri));
+    if (vs) editor.restoreViewState(vs);
   }
 
   /**
@@ -762,12 +823,12 @@ export class MonacoModelRegistry {
     } else if (entry.type === 'git') {
       const res =
         entry.ref.kind === 'staged'
-          ? await rpc.workspace.git.getFileAtIndex(
+          ? await rpc.workspace.gitWorktree.getFileAtIndex(
               entry.projectId,
               entry.workspaceId,
               entry.filePath
             )
-          : await rpc.workspace.git.getFileAtRef(
+          : await rpc.workspace.gitWorktree.getFileAtRef(
               entry.projectId,
               entry.workspaceId,
               entry.filePath,

@@ -1,9 +1,9 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   geminiMcpAdapter,
   npmDependency,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -18,23 +18,11 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
-    hooks: {
-      kind: 'none',
-    },
     hostDependency: npmDependency({ id: 'gemini', package: '@google/gemini-cli' }),
     mcp: {
       kind: 'supported',
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
     },
     prompt: {
       kind: 'argv',

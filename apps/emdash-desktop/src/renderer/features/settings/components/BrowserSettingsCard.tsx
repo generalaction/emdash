@@ -1,4 +1,4 @@
-import { Check, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { browserControlsRegistry } from '@renderer/features/browser/browser-controls-registry';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
@@ -22,6 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/lib/ui/select';
+import { Switch } from '@renderer/lib/ui/switch';
+import { cn } from '@renderer/utils/utils';
 import {
   BROWSER_ISOLATED_PROFILE_ID,
   DEFAULT_BROWSER_PROFILE_ID,
@@ -30,6 +32,7 @@ import {
   isNamedBrowserProfileId,
   normalizeBrowserProfileSelection,
   type BrowserProfile,
+  type BrowsingDataKind,
 } from '@shared/browser';
 import { SettingRow } from './SettingRow';
 
@@ -44,6 +47,8 @@ export function BrowserSettingsCard() {
   const showConfirm = useShowModal('confirmActionModal');
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isBrowsingDataExpanded, setIsBrowsingDataExpanded] = useState(false);
+  const [isClearingBrowsingData, setIsClearingBrowsingData] = useState(false);
   const addInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,6 +87,41 @@ export function BrowserSettingsCard() {
       variant: 'destructive',
       onSuccess: () => {
         void clearProfileStorageAndReload(profile.id);
+      },
+    });
+  };
+
+  const runClearBrowsingData = async (kind: BrowsingDataKind, label: string) => {
+    setIsClearingBrowsingData(true);
+    try {
+      const result = await rpc.browser.clearBrowsingData(kind);
+      if (!result.success) {
+        toast({
+          title: 'Could not clear browsing data',
+          description: 'Try again, or reload the browser view manually.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      reloadAllBrowserSessions();
+      toast({ title: `${label} cleared` });
+    } catch (error) {
+      toast({
+        title: 'Could not clear browsing data',
+        description: errorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsClearingBrowsingData(false);
+    }
+  };
+
+  const clearBrowsingData = (kind: BrowsingDataKind, label: string) => {
+    showConfirm({
+      ...BROWSING_DATA_CONFIRMATIONS[kind],
+      variant: 'destructive',
+      onSuccess: () => {
+        void runClearBrowsingData(kind, label);
       },
     });
   };
@@ -135,6 +175,18 @@ export function BrowserSettingsCard() {
               <SelectItem value={BROWSER_ISOLATED_PROFILE_ID}>Isolated per task</SelectItem>
             </SelectContent>
           </Select>
+        }
+      />
+
+      <SettingRow
+        title="Disable CORS for localhost"
+        description="Allows pages opened from localhost in Emdash browser tabs to call APIs that do not send matching CORS headers."
+        control={
+          <Switch
+            checked={browserSettings?.relaxCorsForLocalhost ?? false}
+            disabled={disabled}
+            onCheckedChange={(next) => update({ relaxCorsForLocalhost: next })}
+          />
         }
       />
 
@@ -292,8 +344,123 @@ export function BrowserSettingsCard() {
           )}
         </div>
       </div>
+
+      <div className="rounded-lg border border-border/70 bg-background-secondary-1 p-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-1 basis-64 flex-col gap-0.5">
+            <div className="text-sm text-foreground">Browsing data</div>
+            <div className="text-xs text-foreground-passive">
+              Clear cookies, cached files, and site data from the in-app browser.
+            </div>
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-foreground-muted"
+              disabled={disabled || isClearingBrowsingData}
+              onClick={() => clearBrowsingData('all', 'All browsing data')}
+            >
+              Clear all browsing data
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-foreground-muted"
+              aria-expanded={isBrowsingDataExpanded}
+              aria-label={
+                isBrowsingDataExpanded
+                  ? 'Hide individual browsing data options'
+                  : 'Show individual browsing data options'
+              }
+              onClick={() => setIsBrowsingDataExpanded((expanded) => !expanded)}
+            >
+              <ChevronDown
+                className={cn(
+                  'size-4 transition-transform',
+                  isBrowsingDataExpanded && 'rotate-180'
+                )}
+              />
+            </Button>
+          </div>
+        </div>
+
+        {isBrowsingDataExpanded && (
+          <div className="mt-2 flex flex-col divide-y divide-border/40">
+            {BROWSING_DATA_CATEGORIES.map((category) => (
+              <div key={category.kind} className="flex h-9 items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  {category.label}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 text-foreground-muted"
+                  disabled={disabled || isClearingBrowsingData}
+                  onClick={() => clearBrowsingData(category.kind, category.label)}
+                >
+                  {category.actionLabel}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+const BROWSING_DATA_CATEGORIES: ReadonlyArray<{
+  kind: Exclude<BrowsingDataKind, 'all'>;
+  label: string;
+  actionLabel: string;
+}> = [
+  { kind: 'cookies', label: 'Cookies', actionLabel: 'Delete cookies' },
+  { kind: 'siteData', label: 'Site data', actionLabel: 'Delete site data' },
+  {
+    kind: 'cache',
+    label: 'Cached images and files',
+    actionLabel: 'Delete cached images and files',
+  },
+];
+
+const BROWSING_DATA_CONFIRMATIONS: Record<
+  BrowsingDataKind,
+  { title: string; description: string; confirmLabel: string }
+> = {
+  all: {
+    title: 'Clear all browsing data?',
+    description:
+      'This deletes cookies, cached files, and site data for every in-app browser profile. Open browser tabs will be signed out.',
+    confirmLabel: 'Clear all data',
+  },
+  cookies: {
+    title: 'Delete cookies?',
+    description:
+      'This deletes cookies for every in-app browser profile. Open browser tabs will be signed out.',
+    confirmLabel: 'Delete cookies',
+  },
+  siteData: {
+    title: 'Delete site data?',
+    description:
+      'This deletes local storage, IndexedDB, service workers, and other site data for every in-app browser profile. Open browser tabs may be signed out.',
+    confirmLabel: 'Delete site data',
+  },
+  cache: {
+    title: 'Delete cached images and files?',
+    description:
+      'This deletes cached images and files for every in-app browser profile. Pages may load more slowly the next time you open them.',
+    confirmLabel: 'Delete cached files',
+  },
+};
+
+function reloadAllBrowserSessions(): void {
+  for (const session of browserSessionStore.activeSessions) {
+    browserControlsRegistry.get(session.browserId)?.adapter?.reload();
+  }
 }
 
 async function clearProfileStorageAndReload(profileId: string): Promise<void> {

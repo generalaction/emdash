@@ -184,4 +184,36 @@ describe('SidebarStore project ordering', () => {
       'older-created-recently-used',
     ]);
   });
+
+  it('returns visible task entries in rendered project-tree order', () => {
+    const store = createStore([
+      mountedProject('project-1', 'Project 1', [
+        task('task-1a', {
+          createdAt: '2026-01-01T00:00:00.000Z',
+          lastInteractedAt: '2026-01-01T00:00:00.000Z',
+        }),
+        task('task-1b', {
+          createdAt: '2026-01-01T00:00:01.000Z',
+          lastInteractedAt: '2026-01-01T00:00:01.000Z',
+        }),
+      ]),
+      mountedProject('project-2', 'Project 2', [
+        task('task-2a', {
+          createdAt: '2026-01-01T00:00:00.000Z',
+          lastInteractedAt: '2026-01-01T00:00:00.000Z',
+        }),
+      ]),
+    ]);
+
+    store.setProjectOrder(['project-1', 'project-2']);
+    store.ensureProjectExpanded('project-1');
+    store.ensureProjectExpanded('project-2');
+    store.setTaskOrder('project-1', ['task-1a', 'task-1b']);
+
+    expect(store.visibleTaskEntries).toEqual([
+      { projectId: 'project-1', taskId: 'task-1a' },
+      { projectId: 'project-1', taskId: 'task-1b' },
+      { projectId: 'project-2', taskId: 'task-2a' },
+    ]);
+  });
 });

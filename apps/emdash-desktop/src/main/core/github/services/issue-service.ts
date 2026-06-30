@@ -1,6 +1,7 @@
+import { err, ok, type Result } from '@emdash/shared';
 import type { Octokit } from '@octokit/rest';
+import { match } from 'ts-pattern';
 import type { IssueListError } from '@shared/issue-providers';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { RepositoryRef } from '@shared/repository-ref';
 import type { GitHubApiAuthError } from './github-api-auth-errors';
 import type { GitHubApiAuthContext } from './github-api-auth-service';
@@ -172,32 +173,32 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
   }
 
   private mapAuthError(error: GitHubApiAuthError): IssueListError {
-    switch (error.type) {
-      case 'auth_required':
-        return { type: 'auth_required', host: error.host, message: error.message };
-      case 'account_not_found':
-        return {
-          type: 'account_not_found',
-          host: error.host,
-          accountId: error.accountId,
-          message: error.message,
-        };
-      case 'account_host_mismatch':
-        return {
-          type: 'account_host_mismatch',
-          host: error.host,
-          accountId: error.accountId,
-          accountHost: error.accountHost,
-          message: error.message,
-        };
-      case 'token_missing':
-        return {
-          type: 'token_missing',
-          host: error.host,
-          accountId: error.accountId,
-          message: error.message,
-        };
-    }
+    return match(error)
+      .with({ type: 'auth_required' }, (e) => ({
+        type: 'auth_required' as const,
+        host: e.host,
+        message: e.message,
+      }))
+      .with({ type: 'account_not_found' }, (e) => ({
+        type: 'account_not_found' as const,
+        host: e.host,
+        accountId: e.accountId,
+        message: e.message,
+      }))
+      .with({ type: 'account_host_mismatch' }, (e) => ({
+        type: 'account_host_mismatch' as const,
+        host: e.host,
+        accountId: e.accountId,
+        accountHost: e.accountHost,
+        message: e.message,
+      }))
+      .with({ type: 'token_missing' }, (e) => ({
+        type: 'token_missing' as const,
+        host: e.host,
+        accountId: e.accountId,
+        message: e.message,
+      }))
+      .exhaustive();
   }
 
   private mapApiError(error: unknown, fallback: string, repository: RepositoryRef): IssueListError {
@@ -211,32 +212,41 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
   }
 
   private mapOperationError(error: GitHubApiOperationError): IssueListError {
-    switch (error.type) {
-      case 'auth_required':
-        return { type: 'auth_required', host: error.host, message: error.message };
-      case 'not_found_or_no_access':
-        return { type: 'not_found_or_no_access', host: error.host, message: error.message };
-      case 'sso_required':
-        return {
-          type: 'sso_required',
-          host: error.host,
-          message: error.message,
-          ...(error.ssoUrl ? { ssoUrl: error.ssoUrl } : {}),
-        };
-      case 'rate_limited':
-        return {
-          type: 'rate_limited',
-          host: error.host,
-          message: error.message,
-          ...(error.resetAt ? { resetAt: error.resetAt } : {}),
-        };
-      case 'forbidden':
-        return { type: 'forbidden', host: error.host, message: error.message };
-      case 'host_unreachable':
-        return { type: 'host_unreachable', host: error.host, message: error.reason };
-      case 'api_error':
-        return { type: 'generic', message: error.message };
-    }
+    return match(error)
+      .with({ type: 'auth_required' }, (e) => ({
+        type: 'auth_required' as const,
+        host: e.host,
+        message: e.message,
+      }))
+      .with({ type: 'not_found_or_no_access' }, (e) => ({
+        type: 'not_found_or_no_access' as const,
+        host: e.host,
+        message: e.message,
+      }))
+      .with({ type: 'sso_required' }, (e) => ({
+        type: 'sso_required' as const,
+        host: e.host,
+        message: e.message,
+        ...(e.ssoUrl ? { ssoUrl: e.ssoUrl } : {}),
+      }))
+      .with({ type: 'rate_limited' }, (e) => ({
+        type: 'rate_limited' as const,
+        host: e.host,
+        message: e.message,
+        ...(e.resetAt ? { resetAt: e.resetAt } : {}),
+      }))
+      .with({ type: 'forbidden' }, (e) => ({
+        type: 'forbidden' as const,
+        host: e.host,
+        message: e.message,
+      }))
+      .with({ type: 'host_unreachable' }, (e) => ({
+        type: 'host_unreachable' as const,
+        host: e.host,
+        message: e.reason,
+      }))
+      .with({ type: 'api_error' }, (e) => ({ type: 'generic' as const, message: e.message }))
+      .exhaustive();
   }
 }
 

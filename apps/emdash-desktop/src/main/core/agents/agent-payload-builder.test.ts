@@ -1,5 +1,5 @@
-import type { CLIAgentPluginProvider } from '@emdash/shared/agents/plugins';
-import type { DependencyState } from '@emdash/shared/deps/runtime';
+import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
+import type { DependencyState } from '@emdash/core/deps/runtime';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@emdash/plugins/agents', () => ({
@@ -145,7 +145,6 @@ describe('buildAgentPayload', () => {
     vi.mocked(getPlugin).mockImplementation(() => {
       throw new Error('No plugin found');
     });
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(null);
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
     await expect(buildAgentPayload('unknown-agent')).rejects.toThrow('No plugin found');

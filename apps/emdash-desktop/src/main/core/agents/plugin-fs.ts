@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
-import type { PluginFs } from '@emdash/shared/agents/plugins';
+import type { PluginFs } from '@emdash/core/agents/plugins';
 
 /**
  * Create a CLIAgentPluginFs scoped to a given root directory.

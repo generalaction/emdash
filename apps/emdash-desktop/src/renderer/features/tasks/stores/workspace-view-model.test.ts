@@ -1,5 +1,7 @@
 import { makeObservable, observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { rpc } from '@renderer/lib/ipc';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { Terminal } from '@shared/core/terminals/terminals';
@@ -7,10 +9,51 @@ import type { TaskViewSnapshot } from '@shared/view-state';
 import { ConversationStore } from '../conversations/conversation-manager';
 import type { TerminalManagerStore, TerminalStore } from '../terminals/terminal-manager';
 import { conversationRegistry } from './conversation-registry';
+import { releaseConversationSessionManager } from './conversation-session-manager';
 import type { TaskStore } from './task-store';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
+
+vi.mock('@renderer/features/browser/browser-tab-item', () => ({
+  BrowserTabBarItem: () => null,
+  BrowserTabBarItemDragPreview: () => null,
+}));
+vi.mock('@renderer/features/tasks/editor/file-tab-item', () => ({
+  FileTabBarItem: () => null,
+  FileTabBarItemDragPreview: () => null,
+}));
+vi.mock('@renderer/features/tasks/conversations/conversation-tab-item', () => ({
+  ConversationTabBarItem: () => null,
+  ConversationTabBarItemDragPreview: () => null,
+}));
+vi.mock('@renderer/features/tasks/diff-view/diff-tab-item', () => ({
+  DiffTabBarItem: () => null,
+  DiffTabBarItemDragPreview: () => null,
+  diffGroupSuffix: (group: string) => `(${group})`,
+}));
+vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () => ({
+  formatConversationTitleForDisplay: (_providerId: unknown, title: unknown) =>
+    (title as string) ?? 'Conversation',
+}));
+
+// ACP imports chat-ui which calls document.createElement at module load time.
+// Stub out the entire chat-store chain to avoid the DOM dependency in node tests.
+vi.mock('@renderer/features/tasks/acp/acp-chat-store', () => ({
+  AcpChatStore: class {
+    conversationId = '';
+    dispose() {}
+    bootstrap() {}
+  },
+}));
+vi.mock('@renderer/features/tasks/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
+// Logger uses window.electronAPI which doesn't exist in the node test environment.
+vi.mock('@renderer/utils/logger', () => ({
+  log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: { on: () => () => {} },
@@ -23,49 +66,25 @@ vi.mock('@renderer/lib/ipc', () => ({
     viewState: {
       save: vi.fn(),
     },
-    repository: {
-      getLocalBranches: vi.fn().mockResolvedValue({
-        isUnborn: false,
-        currentBranch: 'main',
-        localBranches: [],
-      }),
-      getRemoteBranches: vi.fn().mockResolvedValue({
-        remoteBranches: [],
-        remotes: [],
-      }),
+    conversations: {
+      markConversationSeen: vi.fn().mockResolvedValue(undefined),
+    },
+    gitRepository: {
+      getDefaultBranch: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { defaultBranch: 'main' } }),
       resolveProviderRepository: vi.fn().mockResolvedValue({ success: false }),
     },
     workspace: {
+      gitWorktree: {},
       fs: {
         listFiles: vi.fn().mockResolvedValue({ success: true, data: [] }),
         watchSetPaths: vi.fn().mockResolvedValue(undefined),
         watchStop: vi.fn().mockResolvedValue(undefined),
       },
-      git: {
-        getFullStatus: vi.fn().mockResolvedValue({
-          success: true,
-          data: {
-            currentBranch: 'main',
-            headKind: 'branch',
-            unstaged: [],
-            staged: [],
-            untracked: [],
-            conflicts: [],
-            totalAdded: 0,
-            totalDeleted: 0,
-            ahead: 0,
-            behind: 0,
-          },
-        }),
-      },
     },
   },
 }));
-
-type HydrationHarness = {
-  openConversationIds: string[];
-  syncConversationHydration(openIds: string[]): void;
-};
 
 type FakeTerminalManager = TerminalManagerStore & {
   isLoaded: boolean;
@@ -144,9 +163,12 @@ function addConversation(
 }
 
 function conversationTabIds(viewModel: WorkspaceViewModel): string[] {
-  return viewModel.tabManager.resolvedTabs.flatMap((tab) =>
-    tab.kind === 'conversation' ? [tab.conversationId] : []
-  );
+  return viewModel.activePane.resolvedTabs.flatMap((tab) => {
+    if (tab.kind !== 'conversation') return [];
+    // resource is ConversationTabResource which holds the store
+    const id = (tab.resource as unknown as { store?: { data?: { id?: string } } })?.store?.data?.id;
+    return id ? [id] : [];
+  });
 }
 
 function makeViewModel(): WorkspaceViewModel {
@@ -196,15 +218,16 @@ function terminalRegistryEntries(): {
   ).entries;
 }
 
-function asHydrationHarness(viewModel: WorkspaceViewModel): HydrationHarness {
-  return viewModel as unknown as HydrationHarness;
-}
-
 afterEach(() => {
+  // Release the session manager first so the reconciler disposes cleanly.
+  releaseConversationSessionManager('task-1');
   conversationRegistry.release('task-1');
   terminalRegistry.release('task-1');
   terminalRegistryEntries().delete('task-1');
   workspaceRegistry.release('project-1', 'workspace-1');
+  // Clear cache keys written by TaskTabViewPersistor so tests don't pollute each other.
+  viewStateCache.delete('task:task-1:tabs');
+  viewStateCache.delete('task:task-persistor:tabs');
 });
 
 describe('WorkspaceViewModel terminal drawer snapshot', () => {
@@ -227,13 +250,9 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
   it('does not auto-create a terminal when stale restored tabs are empty but terminal records load', async () => {
     const terminals = makeTerminalManager({ terminalIds: ['terminal-1'], isLoaded: false });
     terminalRegistryEntries().set('task-1', terminals);
-    workspaceRegistry.acquire(
-      'project-1',
-      'workspace-1',
-      '/tmp/emdash-test-workspace',
-      { settings: {} } as never,
-      'main'
-    );
+    workspaceRegistry.acquire('project-1', 'workspace-1', '/tmp/emdash-test-workspace', {
+      settings: {},
+    } as never);
 
     const viewModel = makeProvisionedViewModel();
     viewModel.restoreSnapshot({
@@ -382,21 +401,29 @@ describe('WorkspaceViewModel default conversation tab', () => {
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-1', isInitialConversation: true });
-      viewModel.tabManager.openConversation('conversation-1');
+      viewModel.activePane.open(
+        'conversation',
+        { conversationId: 'conversation-1' },
+        { preview: false }
+      );
     });
     await Promise.resolve();
 
-    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
-    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
+    expect(viewModel.activePane.resolvedTabs).toHaveLength(0);
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-2', title: 'Conversation 2' });
     });
     await Promise.resolve();
 
-    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+    expect(viewModel.activePane.resolvedTabs).toHaveLength(0);
 
-    viewModel.tabManager.openConversation('conversation-2');
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-2' },
+      { preview: false }
+    );
 
     expect(conversationTabIds(viewModel)).toEqual(['conversation-2']);
 
@@ -426,26 +453,22 @@ describe('WorkspaceViewModel default conversation tab', () => {
     });
     await Promise.resolve();
 
-    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+    expect(viewModel.activePane.resolvedTabs).toHaveLength(0);
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-2', title: 'Conversation 2' });
     });
     await Promise.resolve();
 
-    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+    expect(viewModel.activePane.resolvedTabs).toHaveLength(0);
 
     viewModel.dispose();
   });
 
   it('does not reopen a closed initial conversation if provision finishes during the next create flow', async () => {
-    workspaceRegistry.acquire(
-      'project-1',
-      'workspace-1',
-      '/tmp/emdash-test-workspace',
-      { settings: {} } as never,
-      'main'
-    );
+    workspaceRegistry.acquire('project-1', 'workspace-1', '/tmp/emdash-test-workspace', {
+      settings: {},
+    } as never);
     const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
     vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
     vi.spyOn(conversations, 'dehydrateConversation').mockResolvedValue();
@@ -453,17 +476,25 @@ describe('WorkspaceViewModel default conversation tab', () => {
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-1', isInitialConversation: true });
-      viewModel.tabManager.openConversation('conversation-1');
+      viewModel.activePane.open(
+        'conversation',
+        { conversationId: 'conversation-1' },
+        { preview: false }
+      );
     });
     await Promise.resolve();
 
-    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-2', title: 'Conversation 2' });
     });
     viewModel.initialize();
-    viewModel.tabManager.openConversation('conversation-2');
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-2' },
+      { preview: false }
+    );
 
     expect(conversationTabIds(viewModel)).toEqual(['conversation-2']);
 
@@ -478,16 +509,24 @@ describe('WorkspaceViewModel conversation hydration', () => {
     const hydrateConversation = vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
     vi.spyOn(conversations, 'dehydrateConversation').mockResolvedValue();
 
-    viewModel.tabManager.openConversation('conversation-1');
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Hydration happens automatically when the tab is opened (via initialize → acquire).
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
     );
 
     expect(hydrateConversation).toHaveBeenCalledTimes(1);
     expect(hydrateConversation).toHaveBeenCalledWith('conversation-1');
+
+    // Opening the same tab again (no-op due to single-mount dedup in the pane) should not
+    // hydrate a second time.
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
+    );
+    expect(hydrateConversation).toHaveBeenCalledTimes(1);
 
     await Promise.resolve();
     viewModel.dispose();
@@ -504,25 +543,28 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.tabGroupManager.openConversationPreview('conversation-1');
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Open conv-1 as preview; initialize() hydrates it.
+    viewModel.paneLayout.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: true }
     );
     await Promise.resolve();
 
-    viewModel.tabGroupManager.openConversationPreview('conversation-2');
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Open conv-2 as preview; this retargets the preview slot, disposing conv-1 (dehydrate)
+    // and initializing conv-2 (hydrate).
+    viewModel.paneLayout.open(
+      'conversation',
+      { conversationId: 'conversation-2' },
+      { preview: true }
     );
     await Promise.resolve();
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
 
-    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
+    // Close conv-2; dispose() dehydrates it.
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(2);
     expect(dehydrateConversation).toHaveBeenLastCalledWith('conversation-2');
@@ -538,6 +580,9 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
+    // Restore two panes each with the same conversation (bypasses single-mount dedup).
+    // initialize() is called for each pane's tab, but ConversationSessionManager ref-counts
+    // so hydrateConversation is only called once.
     viewModel.restoreSnapshot({
       tabGroups: {
         activeGroupId: 'group-1',
@@ -575,26 +620,17 @@ describe('WorkspaceViewModel conversation hydration', () => {
       },
     } as TaskViewSnapshot);
 
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
     await Promise.resolve();
 
     expect(hydrateConversation).toHaveBeenCalledTimes(1);
 
-    const [firstGroup, secondGroup] = viewModel.tabGroupManager.groups;
-    firstGroup.tabManager.closeTab('tab-1');
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
-
+    const [firstGroup, secondGroup] = viewModel.paneLayout.groups;
+    // Closing tab in pane-1 does NOT dehydrate because pane-2 still holds a ref.
+    firstGroup.pane.closeTab('tab-1');
     expect(dehydrateConversation).not.toHaveBeenCalled();
 
-    secondGroup.tabManager.closeTab('tab-2');
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
-
+    // Closing the last tab triggers dehydration.
+    secondGroup.pane.closeTab('tab-2');
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
 
@@ -612,20 +648,30 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.tabManager.openConversation('conversation-1');
-    viewModel.tabManager.openConversation('conversation-2');
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Open two conversations; each initialize() acquires the session.
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
     );
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-2' },
+      { preview: false }
+    );
+    // Both hydrate() continuations are scheduled as microtasks (mock resolves immediately).
+    // Two awaits drain both, bringing each to 'running' state before dispose().
+    await Promise.resolve();
     await Promise.resolve();
 
-    viewModel.suspend();
+    // dispose() calls paneLayout.dispose() which _disposeEntry()s all tabs.
+    // Each entry's provider.dispose() triggers release() → reconciler.sync({}) →
+    // dehydrate (since state='running').
+    viewModel.dispose();
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(2);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-2');
-
-    viewModel.dispose();
   });
 
   it('dehydrates a stale conversation when its hydrate finishes after the tab closed', async () => {
@@ -637,20 +683,25 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.tabManager.openConversation('conversation-1');
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Open tab; hydrateConversation starts but is still pending.
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
     );
 
-    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
+    // Close tab while hydration is still in-flight; release() removes from desired set.
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
 
+    // Dehydration hasn't happened yet because hydration hasn't resolved.
     expect(dehydrateConversation).not.toHaveBeenCalled();
 
+    // When the hydrate promise resolves, the reconciler sees the conversation is no longer
+    // desired and dehydrates it. Two extra microtask drains let the reconciler's hydrate()
+    // continuation run and then the dehydrate() body run.
     hydrate.resolve();
     await hydrate.promise;
+    await Promise.resolve();
     await Promise.resolve();
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
@@ -670,27 +721,121 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.tabManager.openConversation('conversation-1');
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // First open: hydration fails.
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
     );
     await Promise.resolve();
 
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Closing and reopening triggers a second initialize() → acquire() → retry.
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
     );
     await Promise.resolve();
 
     expect(hydrateConversation).toHaveBeenCalledTimes(2);
 
-    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
+    // Close again to dehydrate.
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
 
+    viewModel.dispose();
+  });
+});
+
+describe('WorkspaceViewModel tab persistence adapter', () => {
+  const PERSISTOR_TASK_ID = 'task-persistor';
+
+  function makePersistorViewModel(): WorkspaceViewModel {
+    return new WorkspaceViewModel({
+      data: makeTask({ id: PERSISTOR_TASK_ID }),
+    } as unknown as TaskStore);
+  }
+
+  it('restores tabs from legacy aggregate tabGroups via the persistor', () => {
+    const viewModel = makePersistorViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [
+          {
+            groupId: 'group-1',
+            tabManager: { tabs: [], activeTabId: undefined },
+          },
+        ],
+        activeGroupId: 'group-1',
+        paneSizes: [100],
+      },
+    });
+
+    expect(viewModel.paneLayout.groups).toHaveLength(1);
+    expect(viewModel.paneLayout.groups[0].paneId).toBe('group-1');
+    viewModel.dispose();
+  });
+
+  it('gates default-conversation auto-open when tab state is restored', () => {
+    const conversations = conversationRegistry.acquire(PERSISTOR_TASK_ID, 'project-1', [
+      makeConversation({
+        id: 'conversation-1',
+        isInitialConversation: true,
+        taskId: PERSISTOR_TASK_ID,
+      }),
+    ]);
+    const viewModel = makePersistorViewModel();
+
+    viewModel.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [
+          {
+            groupId: 'group-1',
+            tabManager: { tabs: [], activeTabId: undefined },
+          },
+        ],
+        activeGroupId: 'group-1',
+        paneSizes: [100],
+      },
+    });
+
+    // Conversation list changes should not open a default conversation when tabs were restored.
+    runInAction(() => {
+      const conv = makeConversation({
+        id: 'conversation-2',
+        title: 'Conversation 2',
+        taskId: PERSISTOR_TASK_ID,
+      });
+      conversations.conversations.set(conv.id, new ConversationStore(conv));
+    });
+
+    expect(conversationTabIds(viewModel)).toHaveLength(0);
+    viewModel.dispose();
+    conversationRegistry.release(PERSISTOR_TASK_ID);
+  });
+
+  it('eager-writes dedicated tabs key when migrating from legacy aggregate', () => {
+    vi.mocked(rpc.viewState.save).mockClear();
+
+    const viewModel = makePersistorViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [{ groupId: 'g1', tabManager: { tabs: [], activeTabId: undefined } }],
+        activeGroupId: 'g1',
+        paneSizes: [100],
+      },
+    });
+
+    expect(vi.mocked(rpc.viewState.save)).toHaveBeenCalledWith(
+      `task:${PERSISTOR_TASK_ID}:tabs`,
+      expect.objectContaining({ groups: expect.any(Array) })
+    );
     viewModel.dispose();
   });
 });

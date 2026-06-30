@@ -1,11 +1,12 @@
+import type { GitObjectRef } from '@emdash/core/git';
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
 import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
+import type { DiffTabResource } from '@renderer/features/tasks/diff-view/stores/diff-tab-resource';
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
-import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import {
   useTaskViewContext,
   useWorkspaceId,
@@ -15,12 +16,13 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
-import { gitRefToString, HEAD_REF, STAGED_REF, type GitObjectRef } from '@shared/core/git/git';
+import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
+import { gitRefToString } from '@shared/core/git/utils';
 import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
 import type { ActiveFile } from '@shared/view-state';
 
 interface DiffFileRendererProps {
-  tab: DiffTabStore;
+  tab: DiffTabResource;
 }
 
 /**
@@ -238,7 +240,7 @@ function refShaOrString(ref: GitObjectRef | undefined): string {
   return ref.kind === 'commit' ? ref.sha : gitRefToString(ref);
 }
 
-function diffTabToCommentTarget(tab: DiffTabStore): DraftCommentTarget {
+function diffTabToCommentTarget(tab: DiffTabResource): DraftCommentTarget {
   if (tab.diffGroup === 'disk' || tab.diffGroup === 'staged') {
     return { kind: 'working-tree', group: tab.diffGroup, path: tab.path };
   }
@@ -262,7 +264,7 @@ function diffTabToCommentTarget(tab: DiffTabStore): DraftCommentTarget {
   };
 }
 
-function tabToActiveFile(tab: DiffTabStore): ActiveFile {
+function tabToActiveFile(tab: DiffTabResource): ActiveFile {
   return {
     path: tab.path,
     type: tab.diffGroup === 'disk' ? 'disk' : 'git',

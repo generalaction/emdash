@@ -7,7 +7,7 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   deps: {
-    neverBundle: ['zod', 'smol-toml', '@emdash/shared'],
+    neverBundle: ['zod', 'smol-toml', '@emdash/core'],
   },
   sourcemap: true,
   clean: true,

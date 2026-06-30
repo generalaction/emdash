@@ -1,15 +1,31 @@
-import { CheckCheckIcon, PlusIcon, X } from 'lucide-react';
+import { CheckCheckIcon, ChevronDownIcon, PlusIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
-import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
+import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
+import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import {
+  Dialog,
+  DialogContent,
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@renderer/lib/ui/dialog';
 import { Field } from '@renderer/lib/ui/field';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
@@ -27,25 +43,57 @@ export type InitialConversationState = {
   setPrompt: Dispatch<SetStateAction<string>>;
   issueContext: string | null;
   setIssueContext: (ctx: string | null) => void;
+  autoApprove: boolean;
+  setAutoApprove: (autoApprove: boolean) => void;
+  issueContextEditorOpen: boolean;
+  setIssueContextEditorOpen: (open: boolean) => void;
+  /** Selected model id, or null to use the agent CLI default. */
+  model: string | null;
+  setModel: (model: string | null) => void;
   connectionId?: string;
 };
 
+interface InitialConversationStateOptions {
+  resetPromptOnProjectChange?: boolean;
+}
+
 export function useInitialConversationState(
   projectId?: string,
-  initialProvider?: AgentProviderId
+  initialProvider?: AgentProviderId,
+  autoApproveByDefault = false,
+  options: InitialConversationStateOptions = {}
 ): InitialConversationState {
+  const { resetPromptOnProjectChange = true } = options;
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
+  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
+  const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
+  const [model, setModel] = useState<string | null>(null);
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
-  if (projectId !== prevProjectId) {
+  const [prevProviderId, setPrevProviderId] = useState(providerId);
+  const projectChanged = projectId !== prevProjectId;
+  const providerChanged = providerId !== prevProviderId;
+
+  if (projectChanged) {
     setPrevProjectId(projectId);
     setProviderOverride(null);
-    setPrompt('');
+    if (resetPromptOnProjectChange) {
+      setPrompt('');
+    }
     setIssueContext(null);
+    setAutoApproveOverride(null);
+    setIssueContextEditorOpen(false);
+    setModel(null);
+  } else if (providerChanged) {
+    setPrevProviderId(providerId);
+    setModel(null);
   }
+
+  const autoApproveSupported = providerId ? providerSupportsAutoApprove(providerId) : false;
+  const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
 
   return {
     provider: providerId,
@@ -55,8 +103,23 @@ export function useInitialConversationState(
     setPrompt,
     issueContext,
     setIssueContext,
+    autoApprove,
+    setAutoApprove: setAutoApproveOverride,
+    issueContextEditorOpen,
+    setIssueContextEditorOpen,
+    model,
+    setModel,
     connectionId,
   };
+}
+
+function useModelOptions(
+  providerId: AgentProviderId | null
+): Record<string, { name: string }> | null {
+  const { data: agents } = useAgents();
+  if (!providerId) return null;
+  const models = agents?.find((a) => a.id === providerId)?.capabilities.models;
+  return models?.kind === 'selectable' ? models.modelOptions : null;
 }
 
 interface InitialConversationFieldProps {
@@ -66,6 +129,7 @@ interface InitialConversationFieldProps {
   onPromptBlur?: () => void;
   placeholder?: string;
   textareaClassName?: string;
+  showAutoApproveToggle?: boolean;
 }
 
 export function InitialConversationField({
@@ -75,27 +139,46 @@ export function InitialConversationField({
   onPromptBlur,
   placeholder,
   textareaClassName,
+  showAutoApproveToggle = true,
 }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
-  const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
     () => buildTaskContextActions(linkedIssue, [], promptLibrary),
     [linkedIssue, promptLibrary]
   );
+  const modelOptions = useModelOptions(state.provider);
+  const defaultIssueContext = useMemo(
+    () => (linkedIssue ? buildIssueContextText(linkedIssue) : null),
+    [linkedIssue]
+  );
+  const issueContextKey =
+    state.issueContext && linkedIssue
+      ? `${linkedIssue.provider}:${linkedIssue.identifier}:${state.issueContext}`
+      : null;
+  const [visibleIssueContextKey, setVisibleIssueContextKey] = useState<string | null>(null);
 
   // Auto-inject issue context whenever the linked issue changes.
   useEffect(() => {
-    state.setIssueContext(
-      includeIssueContextByDefault && linkedIssue ? buildIssueContextText(linkedIssue) : null
-    );
+    state.setIssueContext(includeIssueContextByDefault ? defaultIssueContext : null);
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [includeIssueContextByDefault, linkedIssue?.identifier, linkedIssue?.provider]);
+  }, [defaultIssueContext, includeIssueContextByDefault]);
 
-  const autoApprove = state.provider ? autoApproveDefaults.getDefault(state.provider) : false;
+  // Let the issue combobox finish its close animation before mounting the editable context pill.
+  useEffect(() => {
+    if (!issueContextKey) {
+      setVisibleIssueContextKey(null);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setVisibleIssueContextKey(issueContextKey), 150);
+    return () => window.clearTimeout(timeout);
+  }, [issueContextKey]);
+
+  const canToggleAutoApprove = state.provider ? providerSupportsAutoApprove(state.provider) : false;
 
   const handleToggleAutoApprove = () => {
     if (!state.provider) return;
-    autoApproveDefaults.setDefault(state.provider, !autoApprove);
+    state.setAutoApprove(!state.autoApprove);
   };
 
   const handleActionClick = async (text: string) => {
@@ -128,6 +211,29 @@ export function InitialConversationField({
             contentClassName="w-64"
           />
           <div className="flex items-center gap-2">
+            {modelOptions ? (
+              <Select
+                value={state.model ?? ''}
+                onValueChange={(val) => state.setModel(val || null)}
+              >
+                <SelectTrigger className="h-6 gap-1 border-0 px-1 py-0 text-xs shadow-none focus:ring-0">
+                  <SelectValue placeholder="Default model">
+                    {state.model
+                      ? (modelOptions[state.model]?.name ?? state.model)
+                      : 'Default model'}
+                  </SelectValue>
+                  <ChevronDownIcon className="size-3 opacity-60" />
+                </SelectTrigger>
+                <SelectContent className="min-w-40">
+                  <SelectItem value="">Default model</SelectItem>
+                  {Object.entries(modelOptions).map(([id, opt]) => (
+                    <SelectItem key={id} value={id}>
+                      {opt.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
             <AddContextPopover
               actions={contextActions}
               disabled={contextActions.length === 0}
@@ -138,61 +244,30 @@ export function InitialConversationField({
                 </Button>
               )}
             />
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={handleToggleAutoApprove}
-                  disabled={!state.provider}
-                  data-active={autoApprove || undefined}
-                  className="transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive"
-                >
-                  <CheckCheckIcon className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Auto approve</TooltipContent>
-            </Tooltip>
+            {showAutoApproveToggle && canToggleAutoApprove ? (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={handleToggleAutoApprove}
+                    disabled={!state.provider}
+                    data-active={state.autoApprove || undefined}
+                    className="transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive"
+                  >
+                    <CheckCheckIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Auto approve</TooltipContent>
+              </Tooltip>
+            ) : null}
           </div>
         </div>
 
-        {/* Issue context pill */}
-        {state.issueContext && linkedIssue && (
+        {/* Issue context pill — click to edit in a modal */}
+        {state.issueContext && linkedIssue && visibleIssueContextKey === issueContextKey && (
           <div className="px-2 py-1">
-            <Popover>
-              <PopoverTrigger
-                className={cn(
-                  'group relative flex items-center gap-1.5 rounded bg-background-2 py-0.5 pr-6 pl-2 text-xs text-foreground-muted',
-                  'hover:bg-background-3 cursor-pointer'
-                )}
-              >
-                <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
-                <span className="font-mono">{linkedIssue.identifier}</span>
-                {linkedIssue.title && (
-                  <span className="max-w-48 truncate text-foreground-passive">
-                    {linkedIssue.title}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    state.setIssueContext(null);
-                  }}
-                  className={cn(
-                    'absolute right-1 flex items-center justify-center rounded p-0.5',
-                    'text-foreground-passive opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100'
-                  )}
-                >
-                  <X className="size-3" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent side="bottom" align="start" sideOffset={6} className="w-80 gap-0 p-0">
-                <pre className="p-3 font-mono text-xs whitespace-pre-wrap text-foreground-passive">
-                  {state.issueContext}
-                </pre>
-              </PopoverContent>
-            </Popover>
+            <IssueContextEditButton state={state} linkedIssue={linkedIssue} />
           </div>
         )}
 
@@ -208,5 +283,97 @@ export function InitialConversationField({
         />
       </div>
     </Field>
+  );
+}
+
+function IssueContextEditButton({
+  state,
+  linkedIssue,
+}: {
+  state: InitialConversationState;
+  linkedIssue: LinkedIssue;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  // Seed the draft from the current issue context whenever the dialog opens.
+  useEffect(() => {
+    if (open) setDraft(state.issueContext ?? '');
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [open]);
+
+  const defaultContext = useMemo(() => buildIssueContextText(linkedIssue), [linkedIssue]);
+  const hasChanges = draft !== defaultContext;
+  const handleReset = () => setDraft(defaultContext);
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    state.setIssueContextEditorOpen(nextOpen);
+  };
+  const handleSave = () => {
+    state.setIssueContext(draft.trim() || null);
+    handleOpenChange(false);
+  };
+
+  return (
+    <>
+      <div
+        className={cn(
+          'group relative flex items-center gap-1.5 rounded bg-background-2 py-0.5 pr-6 pl-2 text-xs text-foreground-muted',
+          'hover:bg-background-3'
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => handleOpenChange(true)}
+          className={cn('flex flex-1 items-center gap-1.5 cursor-pointer min-w-0 py-0.5')}
+        >
+          <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
+          <span className="font-mono">{linkedIssue.identifier}</span>
+          {linkedIssue.title && (
+            <span className="max-w-48 truncate text-foreground-passive">{linkedIssue.title}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            state.setIssueContextEditorOpen(false);
+            state.setIssueContext(null);
+          }}
+          className={cn(
+            'absolute right-1 flex items-center justify-center rounded p-0.5',
+            'text-foreground-passive opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100'
+          )}
+        >
+          <X className="size-3" />
+        </button>
+      </div>
+      {open ? (
+        <Dialog open={open} onOpenChange={handleOpenChange}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit issue context</DialogTitle>
+            </DialogHeader>
+            <DialogContentArea>
+              <Textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Edit the issue context sent to the agent..."
+                className="max-h-[60dvh] min-h-48 resize-none font-mono text-xs"
+              />
+            </DialogContentArea>
+            <DialogFooter>
+              {hasChanges ? (
+                <Button variant="ghost" size="sm" onClick={handleReset}>
+                  Reset to default
+                </Button>
+              ) : null}
+              <ConfirmButton size="sm" onClick={handleSave}>
+                Save
+              </ConfirmButton>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </>
   );
 }

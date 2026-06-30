@@ -1,4 +1,18 @@
-# Project Overview
+# AGENTS.md
+
+This is the root agent guide for Emdash. Treat it as the agent-facing companion to
+`README.md` and `CONTRIBUTING.md`: keep it focused on the commands, conventions,
+architecture facts, and safety rules coding agents need while editing this repository.
+
+When working in this repo:
+
+- Start with this file for repo-wide context and required commands.
+- Load only the relevant `agents/` topic page for the area you are changing.
+- Prefer updating the smallest applicable `agents/` page over expanding this file.
+- If nested `AGENTS.md` files are added later, the closest file to the edited path wins.
+- Explicit instructions from the user or maintainer override this file.
+
+## Project Overview
 
 Emdash is a cross-platform Electron app for orchestrating multiple AI coding agents in
 parallel, each isolated in its own Git worktree and able to run locally or over SSH.
@@ -18,7 +32,11 @@ Repo root:
 - `.github/` - GitHub issue templates, reusable actions, CI, and release workflows.
 - `agents/` - Agent-facing architecture, workflow, convention, integration, and risk docs.
 - `apps/emdash-desktop/` - The Electron desktop app (everything below).
-- `packages/` - Reserved for future shared workspace packages (currently empty).
+- `packages/` - Shared workspace packages: core runtime, shared primitives, UI, and plugins.
+  - `packages/core/` - Transport-agnostic core runtime primitives.
+  - `packages/shared/` - Shared workspace primitives.
+  - `packages/ui/` - Shared UI components and theme system.
+  - `packages/plugins/` - Plugin interfaces and helpers.
 - Root config files - `pnpm-workspace.yaml`, root `package.json` with aggregate scripts,
   `.nvmrc`, `.oxfmtrc.json`, `.oxlintrc.json`.
 
@@ -37,9 +55,15 @@ Inside `apps/emdash-desktop/`:
 
 ## Build & Development Commands
 
-The repo root only has aggregate scripts (`dev`, `build`, `test`, `lint`, `format`,
-`format:check`, `typecheck`) that delegate via `pnpm --filter` / `pnpm -r`. All other
-scripts below run from `apps/emdash-desktop/`.
+The repo root has aggregate scripts (`dev`, `build`, `test`, `lint`, `format`,
+`format:check`, `typecheck`) powered by Nx. They run targets in dependency order
+across all workspace packages with local caching. App-specific commands can be
+addressed directly with `nx <target> <project>` from the root.
+
+See `agents/workflows/nx.md` for the full guide to Nx task orchestration and
+caching in this repo.
+
+Use Node `24.14.0` from `.nvmrc` and `pnpm@10.28.2`.
 
 Install dependencies (repo root):
 
@@ -47,11 +71,19 @@ Install dependencies (repo root):
 pnpm install
 ```
 
-Start the app (repo root via `pnpm run dev`, or in `apps/emdash-desktop/`):
+Start the full workspace dev setup from the repo root. This builds `packages/**`
+once, then runs package watch builds and the Electron app in parallel:
 
 ```bash
-pnpm run d
 pnpm run dev
+```
+
+Start only the Electron app from `apps/emdash-desktop/`:
+
+```bash
+cd apps/emdash-desktop
+pnpm run dev
+pnpm run d
 ```
 
 Run main-process or renderer-only dev watches:
@@ -68,10 +100,23 @@ pnpm run dev:debug
 ```
 
 Use an isolated development database for schema or migration work by pointing
-`EMDASH_DB_FILE` at a scratch path, and reset the dev databases with:
+`EMDASH_DB_FILE` at a scratch path. From the repo root this starts the full workspace
+dev setup:
 
 ```bash
 EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
+```
+
+From `apps/emdash-desktop/`, this starts only the Electron app:
+
+```bash
+cd apps/emdash-desktop
+EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
+```
+
+Reset the dev databases from `apps/emdash-desktop/`:
+
+```bash
 pnpm run db:reset
 ```
 
@@ -235,14 +280,8 @@ pnpm run test
 - Renderer unit tests live under `src/renderer/tests/`.
 - Renderer browser tests live under `src/renderer/tests/browser/`.
 - Integration-style tests create temporary repos and worktrees in `os.tmpdir()`.
-- CI currently runs `.github/workflows/code-consistency-check.yml`, which enforces:
-
-```bash
-pnpm run format:check
-pnpm run typecheck
-pnpm run lint
-```
-
+- CI runs `.github/workflows/code-consistency-check.yml` via `nx affected`, which
+  enforces format:check, typecheck, and lint only for projects touched by the PR.
 - Tests are still expected locally before merge even though the consistency workflow
   currently covers format, typecheck, and lint.
 
@@ -345,6 +384,7 @@ pnpm run test
 - [Main process architecture](agents/architecture/main-process.md)
 - [Renderer architecture](agents/architecture/renderer.md)
 - [Shared modules](agents/architecture/shared.md)
+- [Nx task orchestration and caching](agents/workflows/nx.md)
 - [Testing workflow](agents/workflows/testing.md)
 - [Worktrees workflow](agents/workflows/worktrees.md)
 - [Remote development workflow](agents/workflows/remote-development.md)
@@ -355,6 +395,7 @@ pnpm run test
 - [Renderer patterns](agents/conventions/renderer-patterns.md)
 - [TypeScript and React conventions](agents/conventions/typescript.md)
 - [Config file rules](agents/conventions/config-files.md)
+- [UI styling conventions](agents/conventions/ui-styling.md)
 - [Versioned schema conventions](agents/conventions/versioned-schemas.md)
 - [Database risk notes](agents/risky-areas/database.md)
 - [PTY risk notes](agents/risky-areas/pty.md)

@@ -1,5 +1,6 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
+import { buildAuggieHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -11,25 +12,12 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.augmentcode.com/cli/overview',
   },
   {
-    autoApprove: {
-      kind: 'none',
-    },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
-      kind: 'none',
+      kind: 'config',
+      scope: 'workspace',
+      supportedEvents: ['notification', 'stop', 'session', 'start'],
     },
     hostDependency: npmDependency({ id: 'auggie', package: '@augmentcode/auggie' }),
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
-    },
     prompt: {
       kind: 'argv',
       flag: '',
@@ -47,7 +35,11 @@ export const provider = registerPluginBehavior(plugin, {
       buildStandardCommand(ctx, {
         defaultArgs: ['--allow-indexing'],
         initialPromptFlag: '',
-        resumeFlag: '--continue',
+        resumeFlag: '--resume',
+        sessionIdFlag: '--resume',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '--continue',
       }),
   },
+  hooks: buildAuggieHookConfig(),
 });

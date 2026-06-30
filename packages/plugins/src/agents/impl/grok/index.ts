@@ -1,5 +1,5 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
 import { buildGrokHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -9,14 +9,11 @@ export const plugin = definePlugin(
     name: 'Grok',
     description:
       "xAI's Grok CLI for terminal-first coding sessions with plans, subagents, and parallel work.",
-    websiteUrl: 'https://x.ai/cli',
+    websiteUrl: 'https://docs.x.ai/build/overview',
   },
   {
     autoApprove: {
       kind: 'supported',
-    },
-    effort: {
-      kind: 'none',
     },
     hooks: {
       kind: 'config',
@@ -31,36 +28,61 @@ export const plugin = definePlugin(
           {
             method: 'curl',
             command: 'curl -fsSL https://x.ai/cli/install.sh | bash',
+            updateCommand: 'grok update',
+            recommended: true,
+          },
+          {
+            method: 'npm',
+            command: 'npm install -g @xai-official/grok@latest',
+            updateCommand: 'npm install -g @xai-official/grok@latest',
+            uninstallCommand: 'npm uninstall -g @xai-official/grok',
           },
         ],
         linux: [
           {
             method: 'curl',
             command: 'curl -fsSL https://x.ai/cli/install.sh | bash',
+            updateCommand: 'grok update',
+            recommended: true,
+          },
+          {
+            method: 'npm',
+            command: 'npm install -g @xai-official/grok@latest',
+            updateCommand: 'npm install -g @xai-official/grok@latest',
+            uninstallCommand: 'npm uninstall -g @xai-official/grok',
+          },
+        ],
+        windows: [
+          {
+            method: 'powershell',
+            command:
+              'powershell -ExecutionPolicy ByPass -c "irm https://x.ai/cli/install.ps1 | iex"',
+            updateCommand: 'grok update',
+            recommended: true,
+          },
+          {
+            method: 'npm',
+            command: 'npm install -g @xai-official/grok@latest',
+            updateCommand: 'npm install -g @xai-official/grok@latest',
+            uninstallCommand: 'npm uninstall -g @xai-official/grok',
           },
         ],
       },
+      installDocs: 'https://docs.x.ai/build/overview',
       updates: {
         kind: 'supported',
         releaseSource: {
-          kind: 'none',
+          kind: 'npm',
+          package: '@xai-official/grok',
         },
         update: {
           kind: 'package-manager',
         },
       },
     },
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
-    },
     prompt: {
-      kind: 'keystroke',
+      kind: 'argv',
+      flag: '',
     },
     sessions: {
       kind: 'resumable',
@@ -74,10 +96,12 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag: '--always-approve',
+        initialPromptFlag: '',
         resumeFlag: '-r',
         sessionIdFlag: '-r',
         sessionIdOnResumeOnly: true,
         resumeWithoutSessionFlag: '-r',
+        modelFlag: '-m',
       }),
   },
   hooks: buildGrokHookConfig(),

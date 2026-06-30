@@ -1,13 +1,16 @@
 import './app/configure-app-identity';
+import './core/telemetry/automation-telemetry';
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
-import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
+import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
+import { LIBSECRET_PASSWORD_STORE, shouldForceLibsecretBackend } from './app/linux-secret-storage';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
+import { registerQuitHandler } from './app/shutdown';
 import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
@@ -15,21 +18,18 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
 import { cleanupLegacyBrowserPartitions } from './core/browser/browser-partition-cleanup';
+import { setBrowserCorsRelaxationSettings } from './core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from './core/browser/browser-webcontents-registry';
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
-import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
 import { githubAccountRegistry } from './core/github/accounts/github-account-registry-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
-import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
+import { remoteTmuxReaperService } from './core/pty/remote-tmux-reaper-service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
-import {
-  reconcileResourceSampler,
-  stopResourceSampler,
-} from './core/resource-monitor/resource-sampler';
+import { reconcileResourceSampler } from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
 import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
@@ -43,6 +43,7 @@ import {
   registerRendererLogHandler,
 } from './lib/file-logger';
 import { log } from './lib/logger';
+import { withRpcLogging } from './lib/rpc-logging';
 import { telemetryService } from './lib/telemetry';
 import { rpcRouter } from './rpc';
 import { resolveUserEnv } from './utils/userEnv';
@@ -53,6 +54,13 @@ if (import.meta.env.DEV) {
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+  if (
+    shouldForceLibsecretBackend(process.env, {
+      passwordStoreSwitchPresent: app.commandLine.hasSwitch('password-store'),
+    })
+  ) {
+    app.commandLine.appendSwitch('password-store', LIBSECRET_PASSWORD_STORE);
+  }
 }
 
 registerAppScheme();
@@ -74,7 +82,7 @@ if (!import.meta.env.DEV && !app.requestSingleInstanceLock()) {
 
 if (import.meta.env.DEV) {
   try {
-    app.dock?.setIcon(dockIcon);
+    app.dock?.setIcon(devIcon);
   } catch (err) {
     log.warn('Failed to set dock icon:', err);
   }
@@ -129,33 +137,41 @@ void app.whenReady().then(async () => {
     telemetryService.clearIdentity();
   });
 
-  gitWatcherRegistry.initialize();
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
+  remoteTmuxReaperService.initialize();
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
+  setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();
 
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
 
-  emdashAccountService.loadSessionToken().catch((e) => {
-    log.warn('Failed to load account session token:', e);
-  });
+  emdashAccountService
+    .initialize()
+    .then((result) => {
+      if (!result.success) {
+        log.warn('Failed to load account session token:', result.error);
+      }
+    })
+    .catch((e: unknown) => {
+      log.warn('Account session initialization threw unexpectedly:', e);
+    });
 
   const githubAuthServerAdapter = new GitHubAuthServerAdapter(githubAccountRegistry);
   providerTokenRegistry.register('github', (payload) =>
     githubAuthServerAdapter.storeOAuthToken(payload)
   );
 
-  registerRPCRouter(rpcRouter, ipcMain);
+  registerRPCRouter(rpcRouter, app.isPackaged ? ipcMain : withRpcLogging(ipcMain));
 
   void reconcileResourceSampler();
 
-  localDependencyManager.probeAll().catch((e) => {
+  localDependencyManager.probeAll().catch((e: unknown) => {
     log.error('Failed to probe dependencies:', e);
   });
 
@@ -181,19 +197,4 @@ void app.whenReady().then(async () => {
   }
 });
 
-app.on('before-quit', (event) => {
-  event.preventDefault();
-  telemetryService.capture('app_closed');
-  void telemetryService.dispose().finally(() => {
-    automationsService.stop();
-    agentHookService.dispose();
-    stopResourceSampler();
-    updateService.dispose();
-    prSyncScheduler.dispose();
-    void gitWatcherRegistry.dispose();
-    void projectManager.dispose().catch((e) => {
-      log.error('Failed to shutdown project manager:', e);
-    });
-    app.exit(0);
-  });
-});
+registerQuitHandler();

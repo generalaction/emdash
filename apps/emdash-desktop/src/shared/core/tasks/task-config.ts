@@ -14,6 +14,8 @@ const v1Schema = z.object({
       title: z.string().optional(),
       autoApprove: z.boolean().optional(),
       initialPrompt: z.string().optional(),
+      model: z.string().optional(),
+      type: z.enum(['pty', 'acp']).optional(),
     })
     .optional(),
   initialStatus: taskLifecycleStatuses.optional(),
