@@ -1,4 +1,5 @@
 import { ChatComposer, ImageViewerDialog } from '@emdash/ui/react/components';
+import { Button } from '@renderer/lib/ui/button';
 import type {
   ComposerAgentOption,
   ComposerAttachment,
@@ -12,7 +13,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
-import { openFileInTaskEditor } from '@renderer/features/tasks/stores/open-file-in-file-editor';
+import {
+  openExternalFilePath,
+  openFileInTaskEditor,
+} from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
@@ -55,6 +59,10 @@ function readImageFile(file: File): Promise<ComposerAttachment> {
       resolve({ id: crypto.randomUUID(), name: file.name, kind: 'image', mimeType: file.type });
     reader.readAsDataURL(file);
   });
+}
+
+function isAbsolutePath(p: string): boolean {
+  return p.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(p);
 }
 
 // ── Composer for a single store ────────────────────────────────────────────────
@@ -128,13 +136,32 @@ const ComposerForStore = observer(function ComposerForStore({
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith('image/'));
-    e.target.value = '';
-    if (files.length === 0) return;
-    const next = await Promise.all(files.map(readImageFile));
-    setAttachments((prev) => [...prev, ...next]);
+  const insertFileMentions = useCallback((files: File[]) => {
+    for (const file of files) {
+      if (file.type.startsWith('image/')) continue;
+      const abs = window.electronAPI.getPathForFile(file).trim().replace(/\\/g, '/');
+      if (!abs) continue;
+      const name = abs.split('/').pop() ?? abs;
+      editorApiRef.current?.insertMention({ id: abs, label: abs, name, kind: 'file' });
+    }
   }, []);
+
+  const handleFileInputChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files ?? []);
+      e.target.value = '';
+      if (files.length === 0) return;
+
+      const images = files.filter((f) => f.type.startsWith('image/'));
+      if (images.length > 0) {
+        const next = await Promise.all(images.map(readImageFile));
+        setAttachments((prev) => [...prev, ...next]);
+      }
+
+      insertFileMentions(files);
+    },
+    [insertFileMentions]
+  );
 
   const workspaceId = useObserver(
     () => asProvisioned(getTaskStore(store.projectId, store.taskId))?.workspaceId
@@ -177,14 +204,7 @@ const ComposerForStore = observer(function ComposerForStore({
 
   return createPortal(
     <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={handleFileInputChange}
-      />
+      <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileInputChange} />
       <ChatComposer
         isWorking={a.isWorking}
         canSubmit={a.canSubmit}
@@ -220,6 +240,7 @@ const ComposerForStore = observer(function ComposerForStore({
         attachments={attachments}
         onAttachmentsChange={setAttachments}
         onAttach={handleAttach}
+        onFilesDropped={insertFileMentions}
         onViewImage={(att) => onViewerOpen(att.previewUrl, att.name)}
       />
     </>,
@@ -272,7 +293,10 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
     () => ({
       onViewImage: (arg) => handleViewerOpen(arg.attachment.dataUrl, arg.attachment.name),
       onClickMention: (arg: Parameters<NonNullable<ChatCommands['onClickMention']>>[0]) => {
-        if (arg.kind === 'file' && store) {
+        if (arg.kind !== 'file' || !store) return;
+        if (isAbsolutePath(arg.id)) {
+          void openExternalFilePath(store.projectId, store.taskId, arg.id);
+        } else {
           void openFileInTaskEditor(store.projectId, store.taskId, arg.id);
         }
       },
@@ -299,20 +323,36 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         style={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* Loading / empty state overlay portaled into the library-owned slot.
+      {/* Loading / error / empty state overlay portaled into the library-owned slot.
           The slot sits at z-index 15 (above pinned, below composer at 20) so
-          the composer remains visible and interactive in both states.
-          During loading: opaque background covers the transcript area.
-          During empty: transparent so the content below shows through. */}
+          the composer remains visible and interactive in all states.
+          During loading/error: opaque background covers the transcript area.
+          During empty: transparent so the content below shows through.
+          Precedence: error > loading > empty. */}
       {overlaySlot &&
-        (store.historyLoading || store.isEmpty) &&
+        (store.loadError !== null || store.historyLoading || store.isEmpty) &&
         createPortal(
           <div
             className="absolute inset-0 flex items-center justify-center text-sm text-foreground-muted"
-            style={store.historyLoading ? { backgroundColor: 'var(--background)' } : undefined}
+            style={
+              store.loadError !== null || store.historyLoading
+                ? { backgroundColor: 'var(--background)' }
+                : undefined
+            }
             aria-live="polite"
           >
-            {store.historyLoading ? 'Loading chat...' : 'No messages'}
+            {store.loadError !== null ? (
+              <div className="flex flex-col items-center gap-3 px-6 text-center">
+                <span>Failed to load chat.</span>
+                <Button variant="outline" size="sm" onClick={() => store.retry()}>
+                  Retry
+                </Button>
+              </div>
+            ) : store.historyLoading ? (
+              'Loading chat...'
+            ) : (
+              'No messages'
+            )}
           </div>,
           overlaySlot
         )}

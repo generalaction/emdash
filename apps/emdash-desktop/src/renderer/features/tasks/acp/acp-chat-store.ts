@@ -22,6 +22,7 @@ import {
 } from '@renderer/lib/chat/advertised-command-provider';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { events, rpc } from '@renderer/lib/ipc';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import {
   acpSessionClosedChannel,
   acpSessionStateChannel,
@@ -63,6 +64,9 @@ export class AcpChatStore {
   /** True while the initial history fetch is in flight. Drives the "Loading chat..." overlay. */
   historyLoading = true;
 
+  /** Set when the load sequence (hydrate + fetch) fails. Drives the error overlay. Cleared on retry. */
+  loadError: string | null = null;
+
   /** Total item count across committed history and active turn. Drives the "No messages" empty state. */
   messageCount = 0;
 
@@ -78,6 +82,7 @@ export class AcpChatStore {
 
   private readonly _machine: SessionMachine;
   private _bootstrapped = false;
+  private _subscribed = false;
 
   private readonly _unsubs: Array<() => void> = [];
 
@@ -101,6 +106,7 @@ export class AcpChatStore {
       snapshot: observable.ref,
       terminals: observable,
       historyLoading: observable,
+      loadError: observable,
       messageCount: observable,
       affordances: computed,
       lifecycle: computed,
@@ -119,6 +125,7 @@ export class AcpChatStore {
       setModel: action,
       setMode: action,
       resolvePermission: action,
+      retry: action,
     });
   }
 
@@ -236,9 +243,27 @@ export class AcpChatStore {
   bootstrap(): void {
     if (this._bootstrapped) return;
     this._bootstrapped = true;
+    this._runBootstrap();
+  }
 
-    // Subscribe first so we don't miss events that arrive during the RPC round-trip.
-    this._subscribeEvents();
+  /**
+   * Retry a failed load. No-ops if a load is already in flight or succeeded.
+   * Resets historyLoading and loadError, then re-runs the hydrate chain.
+   * Does not re-subscribe to events (already subscribed from bootstrap).
+   */
+  retry(): void {
+    if (this.historyLoading || !this.loadError) return;
+    this.historyLoading = true;
+    this.loadError = null;
+    this._runBootstrap();
+  }
+
+  private _runBootstrap(): void {
+    // Subscribe once — never re-subscribe on retry so we don't double-handle events.
+    if (!this._subscribed) {
+      this._subscribed = true;
+      this._subscribeEvents();
+    }
 
     // Hydrate the conversation (starts the ACP session if not already running).
     void rpc.conversations
@@ -246,6 +271,10 @@ export class AcpChatStore {
       .then(() => this._fetchInitialState())
       .catch((err: unknown) => {
         console.error('[AcpChatStore] bootstrap error', err);
+        runInAction(() => {
+          this.historyLoading = false;
+          this.loadError = err instanceof Error ? err.message : 'Failed to load chat.';
+        });
       });
   }
 
@@ -286,6 +315,11 @@ export class AcpChatStore {
 
     void rpc.acp.prompt(this.conversationId, text, images).catch((err: unknown) => {
       console.error('[AcpChatStore] prompt error', err);
+      toast({
+        title: 'Failed to send message',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
     });
   }
 
@@ -293,6 +327,11 @@ export class AcpChatStore {
   stop(): void {
     void rpc.acp.cancel(this.conversationId).catch((err: unknown) => {
       console.error('[AcpChatStore] cancel error', err);
+      toast({
+        title: 'Failed to stop',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
     });
   }
 
@@ -335,6 +374,11 @@ export class AcpChatStore {
   setModel(modelId: string): void {
     void rpc.acp.setModel(this.conversationId, modelId).catch((err: unknown) => {
       console.error('[AcpChatStore] setModel error', err);
+      toast({
+        title: 'Failed to switch model',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
     });
   }
 
@@ -342,6 +386,11 @@ export class AcpChatStore {
   setMode(modeId: string): void {
     void rpc.acp.setMode(this.conversationId, modeId).catch((err: unknown) => {
       console.error('[AcpChatStore] setMode error', err);
+      toast({
+        title: 'Failed to switch mode',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
     });
   }
 
@@ -353,6 +402,11 @@ export class AcpChatStore {
       .resolvePermission(this.conversationId, request.requestId, optionId)
       .catch((err: unknown) => {
         console.error('[AcpChatStore] resolvePermission error', err);
+        toast({
+          title: 'Failed to resolve permission',
+          description: err instanceof Error ? err.message : undefined,
+          variant: 'destructive',
+        });
       });
   }
 
@@ -473,12 +527,14 @@ export class AcpChatStore {
       this._replayActiveUpdates();
       runInAction(() => {
         this.historyLoading = false;
+        this.loadError = null;
         this._syncMessageCount();
       });
     } catch (err) {
       console.error('[AcpChatStore] _fetchInitialState error', err);
       runInAction(() => {
         this.historyLoading = false;
+        this.loadError = err instanceof Error ? err.message : 'Failed to load chat.';
       });
     }
   }
