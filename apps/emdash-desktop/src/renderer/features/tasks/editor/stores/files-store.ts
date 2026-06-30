@@ -175,7 +175,7 @@ export class FilesStore {
     if (!this.subscriptionId) return;
 
     // Register only the directory scopes the user has expanded (and that are visible). Compaction
-    // is driven entirely by the core-provided `compactChain` metadata, so collapsed chains render
+    // is driven entirely by the core-provided directory preview metadata, so collapsed chains render
     // without any extra registration; expanding a chain adds every segment to `expandedPaths`, and
     // the scopes load progressively as each ancestor resolves.
     const rows = buildVisibleRows(

@@ -1,4 +1,4 @@
-import type { CompactChainSegment, FileNode, NodeId } from '@emdash/core/files';
+import type { DirectoryPreviewSegment, FileNode, NodeId } from '@emdash/core/files';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileTreeProjectionChannel } from '@shared/core/fs/fsEvents';
 import { FilesStore } from './files-store';
@@ -48,7 +48,7 @@ function node(
   type: 'file' | 'directory',
   parentId: NodeId | null = null,
   childrenLoaded = false,
-  compactChain?: CompactChainSegment[]
+  singleChildDirectoryChain?: DirectoryPreviewSegment[]
 ): FileNode {
   const parts = path.split('/').filter(Boolean);
   return {
@@ -58,7 +58,14 @@ function node(
     parentId,
     type,
     childrenLoaded,
-    ...(compactChain ? { compactChain } : {}),
+    ...(singleChildDirectoryChain
+      ? {
+          directoryPreview: {
+            childCount: singleChildDirectoryChain.length,
+            singleChildDirectoryChain,
+          },
+        }
+      : {}),
   };
 }
 

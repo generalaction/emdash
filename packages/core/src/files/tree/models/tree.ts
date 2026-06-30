@@ -3,9 +3,14 @@ export type FileTreeScope = NodeId | null;
 
 export type FileNodeType = 'file' | 'directory';
 
-export type CompactChainSegment = {
+export type DirectoryPreviewSegment = {
   name: string;
   path: string;
+};
+
+export type DirectoryPreview = {
+  childCount: number;
+  singleChildDirectoryChain: DirectoryPreviewSegment[];
 };
 
 export type FileNode = {
@@ -15,6 +20,5 @@ export type FileNode = {
   parentId: NodeId | null;
   type: FileNodeType;
   childrenLoaded: boolean;
-  childCount?: number;
-  compactChain?: CompactChainSegment[];
+  directoryPreview?: DirectoryPreview;
 };

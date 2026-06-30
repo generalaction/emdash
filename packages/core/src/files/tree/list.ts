@@ -1,166 +1,89 @@
-import { lstat, readdir } from 'node:fs/promises';
-import path from 'node:path';
-import { err, ok, type Result } from '@emdash/shared';
-import { isIgnoredInsideRoot } from '../ignores';
-import { contains, validateAbsolutePath } from '../paths';
-import { classifyFileTreeFsError, type FileTreeError } from './errors';
-import type { CompactChainSegment, FileNodeType } from './models/tree';
+import { type Result } from '@emdash/shared';
+import { createRootPathPolicy } from '../path-policy';
+import {
+  createTreeDirectoryReader,
+  type DevIno,
+  type DirectoryEntry,
+  type TreeDirectoryReader,
+} from './directory-reader';
+import type { FileTreeError } from './errors';
+import type { DirectoryPreviewSegment } from './models/tree';
 
-export type DevIno = `${number}:${number}`;
-
-export type ListedEntry = {
-  path: string;
-  name: string;
-  type: FileNodeType;
-  devIno?: DevIno;
-};
+export type { DevIno, DirectoryEntry as ListedEntry };
 
 export type DirectoryProbe = {
   childCount: number;
-  compactChain: CompactChainSegment[];
+  singleChildDirectoryChain: DirectoryPreviewSegment[];
 };
 
 const MAX_COMPACT_CHAIN_DEPTH = 64;
 
-type LightEntry = { path: string; name: string; type: FileNodeType };
-
 export async function listChildren(
   rootPath: string,
   dirPath: string
-): Promise<Result<ListedEntry[], FileTreeError>> {
-  const resolvedRoot = validateAbsolutePath(rootPath);
-  if (!resolvedRoot.success) return resolvedRoot;
-  const resolvedDir = resolveTreePath(resolvedRoot.data, dirPath);
-  if (!resolvedDir.success) return resolvedDir;
-
-  let entries;
-  try {
-    entries = await readdir(resolvedDir.data, { withFileTypes: true });
-  } catch (error) {
-    return err(classifyFileTreeFsError(error, resolvedDir.data));
-  }
-
-  const candidates: Array<Omit<ListedEntry, 'devIno'>> = [];
-  for (const entry of entries) {
-    if (!entry.isFile() && !entry.isDirectory()) continue;
-    const absPath = path.join(resolvedDir.data, entry.name);
-    if (isIgnoredInsideRoot(resolvedRoot.data, absPath)) continue;
-    candidates.push({
-      path: absPath,
-      name: path.basename(absPath),
-      type: entry.isDirectory() ? 'directory' : 'file',
-    });
-  }
-
-  const devInos = await Promise.all(candidates.map((entry) => statDevIno(entry.path)));
-  const listed: ListedEntry[] = candidates.map((entry, index) => ({
-    ...entry,
-    devIno: devInos[index],
-  }));
-
-  listed.sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
-  return ok(listed);
+): Promise<Result<DirectoryEntry[], FileTreeError>> {
+  const reader = readerForRoot(rootPath);
+  if (!reader.success) return reader;
+  const read = await reader.data.readChildren(dirPath, { includeDevIno: true, sort: true });
+  if (!read.success) return read;
+  return read.data.kind === 'entries'
+    ? { success: true, data: read.data.entries }
+    : { success: true, data: [] };
 }
 
 export async function probeDirectory(rootPath: string, dirPath: string): Promise<DirectoryProbe> {
-  const children = await listChildNames(rootPath, dirPath);
-  if (!children) return { childCount: 0, compactChain: [] };
+  const reader = readerForRoot(rootPath);
+  if (!reader.success) return { childCount: 0, singleChildDirectoryChain: [] };
+  return probeDirectoryWithReader(reader.data, dirPath);
+}
+
+export async function probeDirectoryWithReader(
+  reader: TreeDirectoryReader,
+  dirPath: string
+): Promise<DirectoryProbe> {
+  const children = await readProbeChildren(reader, dirPath);
+  if (!children) return { childCount: 0, singleChildDirectoryChain: [] };
 
   const childCount = children.length;
-  const compactChain: CompactChainSegment[] = [];
+  const singleChildDirectoryChain: DirectoryPreviewSegment[] = [];
   const visited = new Set<string>([dirPath]);
   let current = children;
   while (
     current.length === 1 &&
     current[0].type === 'directory' &&
     !visited.has(current[0].path) &&
-    compactChain.length < MAX_COMPACT_CHAIN_DEPTH
+    singleChildDirectoryChain.length < MAX_COMPACT_CHAIN_DEPTH
   ) {
     const only = current[0];
-    compactChain.push({ name: only.name, path: only.path });
+    singleChildDirectoryChain.push({ name: only.name, path: only.path });
     visited.add(only.path);
-    const next = await listChildNames(rootPath, only.path);
+    const next = await readProbeChildren(reader, only.path);
     if (!next) break;
     current = next;
   }
-  return { childCount, compactChain };
-}
-
-async function listChildNames(rootPath: string, dirPath: string): Promise<LightEntry[] | null> {
-  const resolvedRoot = validateAbsolutePath(rootPath);
-  if (!resolvedRoot.success) return null;
-  const resolvedDir = resolveTreePath(resolvedRoot.data, dirPath);
-  if (!resolvedDir.success) return null;
-
-  let entries;
-  try {
-    entries = await readdir(resolvedDir.data, { withFileTypes: true });
-  } catch {
-    return null;
-  }
-
-  const result: LightEntry[] = [];
-  for (const entry of entries) {
-    if (!entry.isFile() && !entry.isDirectory()) continue;
-    const absPath = path.join(resolvedDir.data, entry.name);
-    if (isIgnoredInsideRoot(resolvedRoot.data, absPath)) continue;
-    result.push({
-      path: absPath,
-      name: entry.name,
-      type: entry.isDirectory() ? 'directory' : 'file',
-    });
-  }
-  return result;
+  return { childCount, singleChildDirectoryChain };
 }
 
 export async function statEntry(
   rootPath: string,
   absPath: string
-): Promise<Result<ListedEntry, FileTreeError>> {
-  const resolvedRoot = validateAbsolutePath(rootPath);
-  if (!resolvedRoot.success) return resolvedRoot;
-  const resolvedPath = resolveTreePath(resolvedRoot.data, absPath);
-  if (!resolvedPath.success) return resolvedPath;
-
-  try {
-    const stats = await lstat(resolvedPath.data);
-    if (!stats.isFile() && !stats.isDirectory()) {
-      return err({ type: 'not-found', path: resolvedPath.data });
-    }
-    return ok({
-      path: resolvedPath.data,
-      name: path.basename(resolvedPath.data),
-      type: stats.isDirectory() ? 'directory' : 'file',
-      devIno: toDevIno(stats.dev, stats.ino),
-    });
-  } catch (error) {
-    return err(classifyFileTreeFsError(error, resolvedPath.data));
-  }
+): Promise<Result<DirectoryEntry, FileTreeError>> {
+  const reader = readerForRoot(rootPath);
+  if (!reader.success) return reader;
+  return reader.data.statEntry(absPath);
 }
 
-function resolveTreePath(rootPath: string, inputPath: string): Result<string, FileTreeError> {
-  const absPath = inputPath ? inputPath : rootPath;
-  const validated = validateAbsolutePath(absPath);
-  if (!validated.success) return validated;
-  if (!contains(rootPath, validated.data)) {
-    return err({ type: 'invalid-path', path: inputPath, message: 'Path is outside tree root' });
-  }
-  return ok(validated.data);
+function readerForRoot(rootPath: string): Result<TreeDirectoryReader, FileTreeError> {
+  const policy = createRootPathPolicy(rootPath);
+  if (!policy.success) return policy;
+  return { success: true, data: createTreeDirectoryReader(policy.data) };
 }
 
-async function statDevIno(absPath: string): Promise<DevIno | undefined> {
-  try {
-    const stats = await lstat(absPath);
-    return toDevIno(stats.dev, stats.ino);
-  } catch {
-    return undefined;
-  }
-}
-
-function toDevIno(dev: number, ino: number): DevIno | undefined {
-  if (!Number.isFinite(dev) || !Number.isFinite(ino) || ino === 0) return undefined;
-  return `${dev}:${ino}`;
+async function readProbeChildren(
+  reader: TreeDirectoryReader,
+  dirPath: string
+): Promise<DirectoryEntry[] | null> {
+  const read = await reader.readChildren(dirPath, { softFail: true });
+  if (!read.success || read.data.kind === 'unreadable') return null;
+  return read.data.entries;
 }

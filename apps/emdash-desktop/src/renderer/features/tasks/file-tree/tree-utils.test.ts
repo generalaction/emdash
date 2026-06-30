@@ -244,7 +244,7 @@ describe('file tree utils', () => {
     expect(rows[0].chain.map((node) => node.path)).toEqual(['src', 'src/components']);
   });
 
-  it('compacts a collapsed chain from core compactChain metadata without loaded children', () => {
+  it('compacts a collapsed chain from core directory preview metadata without loaded children', () => {
     const apps = toRenderableFileNode({
       id: 1,
       path: 'apps',
@@ -252,8 +252,10 @@ describe('file tree utils', () => {
       parentId: null,
       type: 'directory',
       childrenLoaded: false,
-      childCount: 1,
-      compactChain: [{ name: 'desktop', path: 'apps/desktop' }],
+      directoryPreview: {
+        childCount: 1,
+        singleChildDirectoryChain: [{ name: 'desktop', path: 'apps/desktop' }],
+      },
     });
     const childrenById = new Map<number | null, RenderableFileNode[]>([[null, [apps]]]);
 

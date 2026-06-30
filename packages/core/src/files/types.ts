@@ -41,7 +41,8 @@ export type {
   WriteFileResult,
 } from './fs/types';
 export type {
-  CompactChainSegment,
+  DirectoryPreview,
+  DirectoryPreviewSegment,
   FileNode,
   FileNodeType,
   FileTreeScope,

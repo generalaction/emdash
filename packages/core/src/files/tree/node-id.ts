@@ -1,4 +1,4 @@
-import type { DevIno, ListedEntry } from './list';
+import type { DevIno, DirectoryEntry } from './directory-reader';
 import type { FileNode, NodeId } from './models/tree';
 
 type NodeRecord = {
@@ -49,7 +49,7 @@ export class NodeIdAssigner {
     return [...this.records.values()].map((record) => record.node);
   }
 
-  upsert(entry: ListedEntry, parentId: NodeId | null, childrenLoaded?: boolean): FileNode {
+  upsert(entry: DirectoryEntry, parentId: NodeId | null, childrenLoaded?: boolean): FileNode {
     const existingId = this.pathToId.get(entry.path);
     const tombstone = entry.devIno ? this.tombstonesByDevIno.get(entry.devIno) : undefined;
     const inodeId = entry.devIno ? this.devInoToId.get(entry.devIno) : undefined;
@@ -119,6 +119,17 @@ export class NodeIdAssigner {
         const next: FileNode = {
           ...node,
           path: movedPath,
+          directoryPreview: node.directoryPreview
+            ? {
+                childCount: node.directoryPreview.childCount,
+                singleChildDirectoryChain: node.directoryPreview.singleChildDirectoryChain.map(
+                  (segment) => ({
+                    ...segment,
+                    path: movePathUnderPrefix(segment.path, oldPrefix, newPrefix) ?? segment.path,
+                  })
+                ),
+              }
+            : undefined,
         };
         this.setNode(next);
         moved.push(next);

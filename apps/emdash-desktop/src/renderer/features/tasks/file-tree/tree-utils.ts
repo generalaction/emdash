@@ -1,4 +1,4 @@
-import type { CompactChainSegment, FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
+import type { DirectoryPreviewSegment, FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
 
 export interface RenderableFileNode {
   id: NodeId;
@@ -11,10 +11,10 @@ export interface RenderableFileNode {
   childrenLoaded: boolean;
   isHidden: boolean;
   extension?: string;
-  /** Number of children, probed one level ahead by core; `undefined` for files/unprobed dirs. */
-  childCount?: number;
-  /** Core-computed single-child directory chain that collapses into this node's row. */
-  compactChain?: CompactChainSegment[];
+  directoryPreview?: {
+    childCount: number;
+    singleChildDirectoryChain: DirectoryPreviewSegment[];
+  };
 }
 
 export interface NestedFileNode {
@@ -84,8 +84,7 @@ export function toRenderableFileNode(node: CoreFileNode): RenderableFileNode {
     childrenLoaded: node.childrenLoaded,
     isHidden: name.startsWith('.'),
     extension,
-    childCount: node.childCount,
-    compactChain: node.compactChain,
+    directoryPreview: node.directoryPreview,
   };
 }
 
@@ -132,12 +131,12 @@ function loadedChildrenFor<T extends VisibleFileNode>(
   return childrenById.has(node.id) ? (childrenById.get(node.id) ?? []) : undefined;
 }
 
-function compactChainOf(node: VisibleFileNode): CompactChainSegment[] | undefined {
-  return 'compactChain' in node ? node.compactChain : undefined;
+function singleChildDirectoryChainOf(node: VisibleFileNode): DirectoryPreviewSegment[] | undefined {
+  return 'directoryPreview' in node ? node.directoryPreview?.singleChildDirectoryChain : undefined;
 }
 
 function syntheticChainNode(
-  segment: CompactChainSegment,
+  segment: DirectoryPreviewSegment,
   parent: RenderableFileNode
 ): RenderableFileNode {
   return {
@@ -158,8 +157,8 @@ function syntheticChainNode(
 /**
  * Build the compacted directory chain for `node`: a run of single-child directories rendered as one
  * row. While a scope is loaded, the chain follows real children; once it reaches an unloaded scope
- * it continues from the core-computed `compactChain` metadata so collapsed chains compact without
- * the renderer probing the filesystem.
+ * it continues from the core-computed directory preview metadata so collapsed chains compact
+ * without the renderer probing the filesystem.
  */
 function extendChain<T extends VisibleFileNode>(
   node: T,
@@ -184,7 +183,7 @@ function extendChain<T extends VisibleFileNode>(
       }
       break;
     }
-    const segments = compactChainOf(current);
+    const segments = singleChildDirectoryChainOf(current);
     if (!segments || segments.length === 0) break;
     let parent = current as unknown as RenderableFileNode;
     for (const segment of segments) {

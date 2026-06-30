@@ -2,12 +2,12 @@ import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { KeyedMutex, LiveCollection, type KeyedOp } from '../../lib';
 import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
-import { isIgnoredInsideRoot, watchIgnoreGlobs } from '../ignores';
-import { contains, validateAbsolutePath } from '../paths';
+import { createRootPathPolicy, type RootPathPolicy } from '../path-policy';
+import { createTreeDirectoryReader, type TreeDirectoryReader } from './directory-reader';
 import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';
-import { listChildren, probeDirectory } from './list';
-import type { CompactChainSegment, FileNode, NodeId } from './models/tree';
-import { NodeIdAssigner } from './node-id';
+import { probeDirectoryWithReader } from './list';
+import type { DirectoryPreview, FileNode, NodeId } from './models/tree';
+import { FileTreeStore, type FileTreeStoreRemoval } from './tree-store';
 import type {
   FileTreeSequences,
   FileTreeSnapshot,
@@ -31,7 +31,9 @@ export class FileTree implements IFileTree {
   private readonly collection = new LiveCollection<NodeId, FileNode, FileTreeError>({
     scopeOf: (node) => node.parentId,
   });
-  private readonly ids = new NodeIdAssigner();
+  private readonly store = new FileTreeStore();
+  private readonly pathPolicy: RootPathPolicy;
+  private readonly directoryReader: TreeDirectoryReader;
   private readonly onError: FileTreeOnError;
   private readonly mutationMutex = new KeyedMutex();
   private readonly revalidateTimer: ReturnType<typeof setInterval> | null;
@@ -45,6 +47,10 @@ export class FileTree implements IFileTree {
 
   constructor(options: FileTreeOptions) {
     this.rootPath = path.resolve(options.rootPath);
+    const policy = createRootPathPolicy(this.rootPath);
+    if (!policy.success) throw new Error(policy.error.message);
+    this.pathPolicy = policy.data;
+    this.directoryReader = createTreeDirectoryReader(this.pathPolicy);
     this.onError = options.onError ?? (() => {});
     this.watch = options.watcher.watch(
       this.rootPath,
@@ -55,7 +61,6 @@ export class FileTree implements IFileTree {
       },
       {
         debounceMs: WATCH_DEBOUNCE_MS,
-        ignore: watchIgnoreGlobs(),
         onResync: () => {
           void this.runMutation(() => this.resync()).catch((error) =>
             this.onError(`file-tree resync ${this.rootPath}`, error)
@@ -170,41 +175,20 @@ export class FileTree implements IFileTree {
 
   private collectGarbage(): number {
     const loaded = new Set<NodeId | null>(this.collection.loadedScopes());
-    const removed = this.ids.pruneToReachable(loaded);
-    if (removed.length === 0) return 0;
-    const ops: Array<KeyedOp<NodeId, FileNode>> = removed.map((node) => ({
-      op: 'del',
-      key: node.id,
-    }));
-    let sequence = this.collection.apply(ops);
-    for (const node of removed) {
-      if (node.type === 'directory') {
-        sequence = Math.max(sequence, this.collection.unloadScope(node.id));
-      }
-    }
-    return sequence;
+    return this.applyRemoval(this.store.pruneToReachable(loaded));
   }
 
   async revealPath(pathToReveal: string): Promise<Result<FileTreeSequences, FileTreeError>> {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
     return this.runMutation(async () => {
-      const validated = validateAbsolutePath(pathToReveal);
-      if (!validated.success) return validated;
-      if (!contains(this.rootPath, validated.data)) {
-        return err({
-          type: 'invalid-path',
-          path: pathToReveal,
-          message: 'Path is outside tree root',
-        });
-      }
-
-      const relativePath = path.relative(this.rootPath, validated.data);
-      const parts = relativePath.split(path.sep).filter(Boolean);
+      const relativeParts = this.pathPolicy.relativeParts(pathToReveal);
+      if (!relativeParts.success) return err(relativeParts.error);
+      const parts = relativeParts.data;
       let sequences: FileTreeSequences = {};
       for (let index = 0; index < parts.length; index += 1) {
         const absPath = path.join(this.rootPath, ...parts.slice(0, index + 1));
-        const node = this.ids.getByPath(absPath);
+        const node = this.store.getByPath(absPath);
         if (!node) return err({ type: 'not-found', path: absPath });
         const shouldExpand = index < parts.length - 1 || node.type === 'directory';
         if (!shouldExpand) continue;
@@ -223,7 +207,7 @@ export class FileTree implements IFileTree {
     const scopes = this.collection.loadedScopes();
     let sequences: FileTreeSequences = {};
     for (const scope of scopes) {
-      if (scope !== null && !this.ids.get(scope)) continue;
+      if (scope !== null && !this.store.get(scope)) continue;
       const refreshed = await this.loadDirectoryScope(scope);
       if (!refreshed.success) {
         const recovered = this.recoverMissingLoadedScope(scope, refreshed.error);
@@ -253,33 +237,40 @@ export class FileTree implements IFileTree {
   private async loadDirectoryScopeInternal(
     scope: NodeId | null
   ): Promise<Result<FileTreeSequences, FileTreeError>> {
-    const dirNode = scope === null ? null : this.ids.get(scope);
+    const dirNode = scope === null ? null : this.store.get(scope);
     if (scope !== null && !dirNode) return err({ type: 'not-found', id: scope });
     if (dirNode && dirNode.type !== 'directory') {
       return err({ type: 'not-directory', id: dirNode.id, path: dirNode.path });
     }
 
     const dirPath = dirNode?.path ?? this.rootPath;
-    const listed = await listChildren(this.rootPath, dirPath);
+    const listed = await this.directoryReader.readChildren(dirPath, {
+      includeDevIno: true,
+      sort: true,
+    });
     if (!listed.success) return listed;
+    const listedEntries = listed.data.kind === 'entries' ? listed.data.entries : [];
 
-    const listedEntries = listed.data.filter(
-      (entry) => !isIgnoredInsideRoot(this.rootPath, entry.path)
-    );
     const listedPaths = new Set(listedEntries.map((entry) => entry.path));
     let sequence = this.removeMissingChildren(scope, listedPaths);
 
     const nodes = await Promise.all(
       listedEntries.map(async (entry) => {
-        const node = this.ids.upsert(entry, scope, this.ids.getByPath(entry.path)?.childrenLoaded);
+        const node = this.store.upsert(
+          entry,
+          scope,
+          this.store.getByPath(entry.path)?.childrenLoaded
+        );
         if (entry.type !== 'directory') return node;
-        const probe = await probeDirectory(this.rootPath, entry.path);
+        const probe = await probeDirectoryWithReader(this.directoryReader, entry.path);
         const annotated: FileNode = {
           ...node,
-          childCount: probe.childCount,
-          compactChain: probe.compactChain,
+          directoryPreview: {
+            childCount: probe.childCount,
+            singleChildDirectoryChain: probe.singleChildDirectoryChain,
+          },
         };
-        this.ids.setNode(annotated);
+        this.store.setNode(annotated);
         return annotated;
       })
     );
@@ -291,7 +282,7 @@ export class FileTree implements IFileTree {
 
     if (dirNode && !dirNode.childrenLoaded) {
       const updated = { ...dirNode, childrenLoaded: true };
-      this.ids.setNode(updated);
+      this.store.setNode(updated);
       sequence = Math.max(sequence, this.collection.put(updated.id, updated));
     }
 
@@ -299,26 +290,17 @@ export class FileTree implements IFileTree {
   }
 
   private removeMissingChildren(parentId: NodeId | null, listedPaths: Set<string>): number {
-    const missing = this.ids
-      .childrenOf(parentId)
-      .filter((node) => !listedPaths.has(node.path))
-      .map((node) => node.id);
-    return this.removeSubtrees(missing);
+    return this.applyRemoval(this.store.removeMissingChildren(parentId, listedPaths));
   }
 
   private removeSubtrees(rootIds: NodeId[]): number {
-    const ops: Array<KeyedOp<NodeId, FileNode>> = [];
-    const removedScopes: NodeId[] = [];
-    for (const rootId of rootIds) {
-      const removed = this.ids.removeSubtree(rootId);
-      for (const node of removed) {
-        ops.push({ op: 'del', key: node.id });
-        if (node.type === 'directory') removedScopes.push(node.id);
-      }
-    }
+    return this.applyRemoval(this.store.removeSubtrees(rootIds));
+  }
 
-    let sequence = this.collection.apply(ops);
-    for (const scope of removedScopes) {
+  private applyRemoval(removal: FileTreeStoreRemoval): number {
+    if (removal.ops.length === 0 && removal.unloadedScopes.length === 0) return 0;
+    let sequence = this.collection.apply(removal.ops);
+    for (const scope of removal.unloadedScopes) {
       sequence = Math.max(sequence, this.collection.unloadScope(scope));
     }
     return sequence;
@@ -339,8 +321,9 @@ export class FileTree implements IFileTree {
   private async applyWatchEvents(events: WatchEvent[]): Promise<void> {
     if (this.disposed) return;
     const classification = await classifyFileTreeWatchEvents(events, {
-      rootPath: this.rootPath,
-      ids: this.ids,
+      pathPolicy: this.pathPolicy,
+      directoryReader: this.directoryReader,
+      store: this.store,
       isScopeLoaded: (scope) => this.collection.isScopeLoaded(scope),
     });
     this.collection.apply(classification.ops);
@@ -365,32 +348,32 @@ export class FileTree implements IFileTree {
 
     const changeOps: Array<KeyedOp<NodeId, FileNode>> = [];
     for (const id of targets) {
-      const node = this.ids.get(id);
+      const node = this.store.get(id);
       if (!node || node.type !== 'directory') continue;
-      const probe = await probeDirectory(this.rootPath, node.path);
-      if (
-        node.childCount === probe.childCount &&
-        compactChainsEqual(node.compactChain, probe.compactChain)
-      ) {
+      const probe = await probeDirectoryWithReader(this.directoryReader, node.path);
+      const nextPreview: DirectoryPreview = {
+        childCount: probe.childCount,
+        singleChildDirectoryChain: probe.singleChildDirectoryChain,
+      };
+      if (directoryPreviewsEqual(node.directoryPreview, nextPreview)) {
         continue;
       }
       const updated: FileNode = {
         ...node,
-        childCount: probe.childCount,
-        compactChain: probe.compactChain,
+        directoryPreview: nextPreview,
       };
-      this.ids.setNode(updated);
+      this.store.setNode(updated);
       changeOps.push({ op: 'put', key: id, value: updated });
     }
     if (changeOps.length > 0) this.collection.apply(changeOps);
   }
 
   private nearestTrackedDir(eventPath: string): NodeId | undefined {
-    const absPath = path.normalize(eventPath);
-    if (!contains(this.rootPath, absPath)) return undefined;
+    const absPath = this.pathPolicy.absoluteFromWatchEvent(eventPath);
+    if (!absPath) return undefined;
     let current = path.dirname(absPath);
-    while (current !== this.rootPath && contains(this.rootPath, current)) {
-      const node = this.ids.getByPath(current);
+    while (current !== this.rootPath && this.pathPolicy.contains(current)) {
+      const node = this.store.getByPath(current);
       if (node?.type === 'directory') return node.id;
       const parent = path.dirname(current);
       if (parent === current) break;
@@ -407,7 +390,7 @@ export class FileTree implements IFileTree {
       return;
     }
     this.collection.resetWithNewGeneration(
-      this.ids.entries().map((node) => [node.id, node] as const)
+      this.store.entries().map((node) => [node.id, node] as const)
     );
   }
 
@@ -420,12 +403,14 @@ function mergeSequences(left: FileTreeSequences, right: FileTreeSequences): File
   return { tree: Math.max(left.tree ?? 0, right.tree ?? 0) || undefined };
 }
 
-function compactChainsEqual(
-  left: CompactChainSegment[] | undefined,
-  right: CompactChainSegment[] | undefined
+function directoryPreviewsEqual(
+  left: DirectoryPreview | undefined,
+  right: DirectoryPreview | undefined
 ): boolean {
-  const a = left ?? [];
-  const b = right ?? [];
+  if (!left || !right) return left === right;
+  if (left.childCount !== right.childCount) return false;
+  const a = left.singleChildDirectoryChain;
+  const b = right.singleChildDirectoryChain;
   if (a.length !== b.length) return false;
   for (let index = 0; index < a.length; index += 1) {
     if (a[index].path !== b[index].path || a[index].name !== b[index].name) return false;

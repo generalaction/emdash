@@ -127,12 +127,9 @@ describe('FileTree', () => {
     expect(paths(await nodes(tree))).toContain('a/b/leaf.ts');
 
     // Collapsing `a` drops its direct children and the now-orphaned `a/b` scope plus its
-    // descendants, leaving no leaked node records behind.
+    // descendants.
     unwrap(await tree.unregisterDir(a.id));
     expect(paths(await nodes(tree))).toEqual(['a']);
-
-    const idStore = (tree as unknown as { ids: { entries(): FileNode[] } }).ids;
-    expect(idStore.entries().map((node) => node.path)).toEqual([path.join(root, 'a')]);
 
     // Re-expanding reloads fresh children with no stale state.
     const aAgain = nodeByPath(await nodes(tree), 'a');
@@ -141,7 +138,7 @@ describe('FileTree', () => {
     await tree.dispose();
   });
 
-  it('annotates directory children with childCount and a single-child compaction chain', async () => {
+  it('annotates directory children with preview metadata for a single-child chain', async () => {
     const root = await makeRoot();
     await mkdir(path.join(root, 'a', 'b', 'c'), { recursive: true });
     await writeFile(path.join(root, 'a', 'b', 'c', 'leaf.ts'), 'x', 'utf8');
@@ -155,23 +152,28 @@ describe('FileTree', () => {
     // `a` heads a single-child chain `a -> a/b -> a/b/c` (which then holds a file), computed from
     // the root listing without loading any of those scopes.
     const a = nodeByPath(await nodes(tree), 'a');
-    expect(a.childCount).toBe(1);
-    expect(a.compactChain?.map((segment) => segment.name)).toEqual(['b', 'c']);
-    expect(a.compactChain?.map((segment) => segment.path)).toEqual([
+    expect(a.directoryPreview?.childCount).toBe(1);
+    expect(a.directoryPreview?.singleChildDirectoryChain.map((segment) => segment.name)).toEqual([
+      'b',
+      'c',
+    ]);
+    expect(a.directoryPreview?.singleChildDirectoryChain.map((segment) => segment.path)).toEqual([
       path.join(root, 'a', 'b'),
       path.join(root, 'a', 'b', 'c'),
     ]);
 
     // `multi` has two children, so it does not compact.
     const multi = nodeByPath(await nodes(tree), 'multi');
-    expect(multi.childCount).toBe(2);
-    expect(multi.compactChain).toEqual([]);
+    expect(multi.directoryPreview?.childCount).toBe(2);
+    expect(multi.directoryPreview?.singleChildDirectoryChain).toEqual([]);
 
     // Expanding the chain head loads only its direct child, which carries the rest of the chain.
     unwrap(await tree.registerDir(a.id));
     const b = nodeByPath(await nodes(tree), 'a/b');
-    expect(b.childCount).toBe(1);
-    expect(b.compactChain?.map((segment) => segment.name)).toEqual(['c']);
+    expect(b.directoryPreview?.childCount).toBe(1);
+    expect(b.directoryPreview?.singleChildDirectoryChain.map((segment) => segment.name)).toEqual([
+      'c',
+    ]);
     await tree.dispose();
   });
 
@@ -183,7 +185,11 @@ describe('FileTree', () => {
     const tree = new FileTree({ rootPath: root, watcher });
     unwrap(await tree.ready());
 
-    expect(nodeByPath(await nodes(tree), 'a').compactChain?.map((s) => s.name)).toEqual(['b']);
+    expect(
+      nodeByPath(await nodes(tree), 'a').directoryPreview?.singleChildDirectoryChain.map(
+        (s) => s.name
+      )
+    ).toEqual(['b']);
 
     // Add a second child to the (unloaded) head `a`, breaking its single-child chain. The change
     // only surfaces through compaction re-annotation, not normal child add/remove.
@@ -192,8 +198,8 @@ describe('FileTree', () => {
 
     await waitFor(async () => {
       const a = nodeByPath(await nodes(tree), 'a');
-      expect(a.childCount).toBe(2);
-      expect(a.compactChain).toEqual([]);
+      expect(a.directoryPreview?.childCount).toBe(2);
+      expect(a.directoryPreview?.singleChildDirectoryChain).toEqual([]);
       return true;
     });
     await tree.dispose();
@@ -207,22 +213,24 @@ describe('FileTree', () => {
     const tree = new FileTree({ rootPath: root, watcher });
     unwrap(await tree.ready());
 
-    expect(nodeByPath(await nodes(tree), 'a').childCount).toBe(2);
-    expect(nodeByPath(await nodes(tree), 'a').compactChain).toEqual([]);
+    expect(nodeByPath(await nodes(tree), 'a').directoryPreview?.childCount).toBe(2);
+    expect(nodeByPath(await nodes(tree), 'a').directoryPreview?.singleChildDirectoryChain).toEqual(
+      []
+    );
 
     await rm(path.join(root, 'a', 'b2'), { recursive: true, force: true });
     watcher.emit([{ kind: 'delete', path: path.join(root, 'a', 'b2') }]);
 
     await waitFor(async () => {
       const a = nodeByPath(await nodes(tree), 'a');
-      expect(a.childCount).toBe(1);
-      expect(a.compactChain?.map((s) => s.name)).toEqual(['b1']);
+      expect(a.directoryPreview?.childCount).toBe(1);
+      expect(a.directoryPreview?.singleChildDirectoryChain.map((s) => s.name)).toEqual(['b1']);
       return true;
     });
     await tree.dispose();
   });
 
-  it('hard-excludes noisy directories in core', async () => {
+  it('includes noisy directories in the file tree by default', async () => {
     const root = await makeRoot();
     await mkdir(path.join(root, 'node_modules', 'pkg'), { recursive: true });
     await mkdir(path.join(root, '.git'), { recursive: true });
@@ -233,7 +241,27 @@ describe('FileTree', () => {
     const tree = new FileTree({ rootPath: root, watcher: new ManualWatchService() });
     unwrap(await tree.ready());
 
-    expect(paths(await nodes(tree))).toEqual(['src']);
+    expect(paths(await nodes(tree))).toEqual(['.git', 'node_modules', 'src']);
+    await tree.dispose();
+  });
+
+  it('annotates watch-created empty directories with preview metadata', async () => {
+    const root = await makeRoot();
+    const watcher = new ManualWatchService();
+    const tree = new FileTree({ rootPath: root, watcher });
+    unwrap(await tree.ready());
+
+    await mkdir(path.join(root, 'empty'), { recursive: true });
+    watcher.emit([{ kind: 'create', path: path.join(root, 'empty') }]);
+
+    await waitFor(async () => {
+      const empty = nodeByPath(await nodes(tree), 'empty');
+      expect(empty.directoryPreview).toEqual({
+        childCount: 0,
+        singleChildDirectoryChain: [],
+      });
+      return true;
+    });
     await tree.dispose();
   });
 

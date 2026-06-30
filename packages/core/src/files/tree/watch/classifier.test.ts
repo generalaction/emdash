@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, afterEach } from 'vitest';
 import type { WatchEvent } from '../../../watch';
-import { statEntry, type DevIno, type ListedEntry } from '../list';
+import { createRootPathPolicy } from '../../path-policy';
+import { createTreeDirectoryReader, type DevIno, type DirectoryEntry } from '../directory-reader';
+import { statEntry } from '../list';
 import type { FileNodeType, NodeId } from '../models/tree';
-import { NodeIdAssigner } from '../node-id';
+import { FileTreeStore } from '../tree-store';
 import { classifyFileTreeWatchEvents } from './classifier';
 
 const roots: string[] = [];
@@ -17,7 +19,7 @@ afterEach(async () => {
 describe('classifyFileTreeWatchEvents', () => {
   it('ignores content update events', async () => {
     const root = await makeRoot();
-    const ids = new NodeIdAssigner();
+    const ids = new FileTreeStore();
     ids.upsert(entry(root, 'a.txt', 'file', '1:1'), null);
 
     const classification = await classify(root, ids, [
@@ -31,7 +33,7 @@ describe('classifyFileTreeWatchEvents', () => {
   it('emits a put for a create event in a loaded scope', async () => {
     const root = await makeRoot();
     await writeFile(path.join(root, 'a.txt'), 'a', 'utf8');
-    const ids = new NodeIdAssigner();
+    const ids = new FileTreeStore();
 
     const classification = await classify(root, ids, [
       { kind: 'create', path: absPath(root, 'a.txt') },
@@ -51,7 +53,7 @@ describe('classifyFileTreeWatchEvents', () => {
     const root = await makeRoot();
     await mkdir(path.join(root, 'src'), { recursive: true });
     await writeFile(path.join(root, 'src', 'a.ts'), 'a', 'utf8');
-    const ids = new NodeIdAssigner();
+    const ids = new FileTreeStore();
     ids.upsert(unwrap(await statEntry(root, absPath(root, 'src'))), null);
 
     const classification = await classify(root, ids, [
@@ -62,30 +64,34 @@ describe('classifyFileTreeWatchEvents', () => {
     expect(ids.getByPath(absPath(root, 'src/a.ts'))).toBeUndefined();
   });
 
-  it('ignores runtime creates for excluded paths before statting them', async () => {
+  it('includes creates for paths that were previously globally excluded', async () => {
     const root = await makeRoot();
-    const ids = new NodeIdAssigner();
+    await mkdir(path.join(root, 'node_modules'), { recursive: true });
+    await writeFile(path.join(root, '.DS_Store'), 'x', 'utf8');
+    const ids = new FileTreeStore();
 
     const classification = await classify(
       root,
       ids,
       [
         { kind: 'create', path: absPath(root, 'node_modules') },
-        { kind: 'create', path: absPath(root, 'node_modules/pkg/index.js') },
         { kind: 'create', path: absPath(root, '.DS_Store') },
       ],
       { isScopeLoaded: () => true }
     );
 
-    expect(classification.ops).toEqual([]);
+    expect(classification.ops).toMatchObject([
+      { op: 'put', value: { path: absPath(root, 'node_modules'), parentId: null } },
+      { op: 'put', value: { path: absPath(root, '.DS_Store'), parentId: null } },
+    ]);
     expect(classification.unloadedScopes).toEqual([]);
-    expect(ids.getByPath(absPath(root, 'node_modules'))).toBeUndefined();
-    expect(ids.getByPath(absPath(root, '.DS_Store'))).toBeUndefined();
+    expect(ids.getByPath(absPath(root, 'node_modules'))).toBeDefined();
+    expect(ids.getByPath(absPath(root, '.DS_Store'))).toBeDefined();
   });
 
   it('cascades deletes for unmatched directory tombstones', async () => {
     const root = await makeRoot();
-    const ids = new NodeIdAssigner();
+    const ids = new FileTreeStore();
     const src = ids.upsert(entry(root, 'src', 'directory', '1:1'), null, true);
     const nested = ids.upsert(entry(root, 'src/nested', 'directory', '1:2'), src.id, true);
     const file = ids.upsert(entry(root, 'src/nested/a.ts', 'file', '1:3'), nested.id);
@@ -112,7 +118,7 @@ describe('classifyFileTreeWatchEvents', () => {
   it('reuses a file node id for a delete/create rename batch with matching inode', async () => {
     const root = await makeRoot();
     await writeFile(path.join(root, 'a.txt'), 'a', 'utf8');
-    const ids = new NodeIdAssigner();
+    const ids = new FileTreeStore();
     const before = ids.upsert(unwrap(await statEntry(root, absPath(root, 'a.txt'))), null);
 
     await rename(path.join(root, 'a.txt'), path.join(root, 'b.txt'));
@@ -137,7 +143,7 @@ describe('classifyFileTreeWatchEvents', () => {
     const root = await makeRoot();
     await mkdir(path.join(root, 'src', 'nested'), { recursive: true });
     await writeFile(path.join(root, 'src', 'nested', 'a.ts'), 'a', 'utf8');
-    const ids = new NodeIdAssigner();
+    const ids = new FileTreeStore();
     const src = ids.upsert(unwrap(await statEntry(root, absPath(root, 'src'))), null, true);
     const nested = ids.upsert(
       unwrap(await statEntry(root, absPath(root, 'src/nested'))),
@@ -189,7 +195,7 @@ describe('classifyFileTreeWatchEvents', () => {
   it('ignores events outside the watched root', async () => {
     const root = await makeRoot();
     const outside = await makeRoot();
-    const ids = new NodeIdAssigner();
+    const ids = new FileTreeStore();
 
     const classification = await classify(root, ids, [
       { kind: 'create', path: path.join(outside, 'a.txt') },
@@ -207,7 +213,7 @@ async function makeRoot(): Promise<string> {
 
 async function classify(
   rootPath: string,
-  ids: NodeIdAssigner,
+  ids: FileTreeStore,
   events: WatchEvent[],
   options: {
     loadedScopes?: Set<NodeId | null>;
@@ -215,9 +221,11 @@ async function classify(
   } = {}
 ) {
   const loadedScopes = options.loadedScopes ?? new Set<NodeId | null>([null]);
+  const pathPolicy = unwrap(createRootPathPolicy(rootPath));
   return classifyFileTreeWatchEvents(events, {
-    rootPath,
-    ids,
+    pathPolicy,
+    directoryReader: createTreeDirectoryReader(pathPolicy),
+    store: ids,
     isScopeLoaded: options.isScopeLoaded ?? ((scope) => loadedScopes.has(scope)),
   });
 }
@@ -227,7 +235,7 @@ function entry(
   relPath: string,
   type: FileNodeType,
   devIno?: DevIno
-): ListedEntry {
+): DirectoryEntry {
   const path = absPath(rootPath, relPath);
   return { path, name: basename(path), type, devIno };
 }

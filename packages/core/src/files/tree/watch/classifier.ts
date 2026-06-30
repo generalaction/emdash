@@ -1,15 +1,16 @@
 import path from 'node:path';
 import type { KeyedOp } from '../../../lib';
 import type { WatchEvent } from '../../../watch';
-import { isIgnoredInsideRoot } from '../../ignores';
-import { contains } from '../../paths';
-import { statEntry as statFileTreeEntry, type ListedEntry } from '../list';
+import type { RootPathPolicy } from '../../path-policy';
+import type { TreeDirectoryReader, DirectoryEntry } from '../directory-reader';
 import type { FileNode, NodeId } from '../models/tree';
-import type { NodeIdAssigner, Tombstone } from '../node-id';
+import type { Tombstone } from '../node-id';
+import type { FileTreeStore } from '../tree-store';
 
 export type FileTreeWatchClassifierOptions = {
-  rootPath: string;
-  ids: NodeIdAssigner;
+  pathPolicy: RootPathPolicy;
+  directoryReader: TreeDirectoryReader;
+  store: FileTreeStore;
   isScopeLoaded: (scope: NodeId | null) => boolean;
 };
 
@@ -27,32 +28,31 @@ export async function classifyFileTreeWatchEvents(
   const unloadedScopes: NodeId[] = [];
 
   for (const event of events) {
-    const absPath = absolutePathFromWatchEvent(options.rootPath, event);
+    const absPath = options.pathPolicy.absoluteFromWatchEvent(event.path);
     if (!absPath) continue;
-    if (isIgnoredInsideRoot(options.rootPath, absPath)) continue;
     if (event.kind === 'update') continue;
 
     if (event.kind === 'delete') {
-      const node = options.ids.getByPath(absPath);
+      const node = options.store.getByPath(absPath);
       if (!node) continue;
-      const tombstone = options.ids.markDeleted(node.id);
+      const tombstone = options.store.markDeleted(node.id);
       if (tombstone) tombstones.push(tombstone);
       continue;
     }
 
-    const stat = await statFileTreeEntry(options.rootPath, absPath);
+    const stat = await options.directoryReader.statEntry(absPath);
     if (!stat.success) continue;
-    const parentId = parentScopeFor(stat.data, options.rootPath, options.ids);
+    const parentId = parentScopeFor(stat.data, options.pathPolicy.rootPath, options.store);
     if (parentId === undefined || !options.isScopeLoaded(parentId)) continue;
 
     const matchedTombstone = stat.data.devIno
-      ? options.ids.tombstoneForDevIno(stat.data.devIno)
+      ? options.store.tombstoneForDevIno(stat.data.devIno)
       : undefined;
-    const node = options.ids.upsert(stat.data, parentId);
+    const node = options.store.upsert(stat.data, parentId);
     ops.push({ op: 'put', key: node.id, value: node });
 
     if (matchedTombstone && node.type === 'directory') {
-      for (const moved of options.ids.moveDescendantPaths(
+      for (const moved of options.store.moveDescendantPaths(
         matchedTombstone.id,
         matchedTombstone.node.path,
         node.path
@@ -63,32 +63,22 @@ export async function classifyFileTreeWatchEvents(
   }
 
   for (const tombstone of tombstones) {
-    if (options.ids.get(tombstone.id)) continue;
-    for (const removedNode of options.ids.removeTombstonedSubtree(tombstone)) {
-      ops.push({ op: 'del', key: removedNode.id });
-      if (removedNode.type === 'directory') unloadedScopes.push(removedNode.id);
-    }
+    if (options.store.get(tombstone.id)) continue;
+    const removal = options.store.removeTombstonedSubtree(tombstone);
+    ops.push(...removal.ops);
+    unloadedScopes.push(...removal.unloadedScopes);
   }
 
   return { ops, unloadedScopes };
 }
 
 function parentScopeFor(
-  entry: ListedEntry,
+  entry: DirectoryEntry,
   rootPath: string,
-  ids: NodeIdAssigner
+  store: FileTreeStore
 ): NodeId | null | undefined {
   const parentPath = path.dirname(entry.path);
   if (parentPath === entry.path || parentPath === rootPath) return null;
-  const parent = ids.getByPath(parentPath);
+  const parent = store.getByPath(parentPath);
   return parent?.type === 'directory' ? parent.id : undefined;
-}
-
-function absolutePathFromWatchEvent(rootPath: string, event: WatchEvent): string | null {
-  const relative = path.relative(rootPath, event.path).replace(/\\/g, '/');
-  if (!relative || relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)) {
-    return null;
-  }
-  const absPath = path.normalize(event.path);
-  return contains(rootPath, absPath) ? absPath : null;
 }
