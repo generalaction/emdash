@@ -14,7 +14,6 @@ import {
   useTerminalShellAvailability,
 } from '@renderer/lib/hooks/use-terminal-shell-availability';
 import { rpc } from '@renderer/lib/ipc';
-import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
@@ -152,15 +151,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           workspaceId={workspaceId}
         />
       </ResizablePanel>
-      <ResizableHandle
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          panelDragStore.setDragging(true);
-        }}
-        className="bg-transparent hover:bg-background-2"
-        onPointerUp={() => panelDragStore.setDragging(false)}
-        onPointerCancel={() => panelDragStore.setDragging(false)}
-      />
+      <ResizableHandle className="bg-transparent hover:bg-background-2" />
       <ResizablePanel id="terminal-drawer-sidebar" defaultSize="25%" minSize="150px" maxSize="50%">
         <TerminalDrawerSidebar
           className="h-full"

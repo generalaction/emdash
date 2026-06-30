@@ -1,9 +1,8 @@
 import { type Terminal } from '@xterm/xterm';
 import { reaction } from 'mobx';
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
-import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
 import type { AppSettings } from '@shared/core/app-settings';
 import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
@@ -12,6 +11,7 @@ import { appPasteChannel, terminalContextMenuActionChannel } from '@shared/event
 import { getDomTabNavigationDirection } from '@shared/shortcuts';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
+import { TERMINAL_PADDING_PX } from './pty';
 import { measureDimensions } from './pty-dimensions';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
@@ -23,14 +23,10 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
-import { createResizeScheduler } from './resize-scheduler';
 import { getTerminalContextLink } from './terminal-context-link';
 import { buildTerminalFontFamily } from './terminal-font';
 import { getCellMetrics } from './xterm-cell-metrics';
 
-const PTY_RESIZE_DEBOUNCE_MS = 120;
-const MIN_TERMINAL_COLS = 2;
-const MIN_TERMINAL_ROWS = 1;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
@@ -130,32 +126,19 @@ export function usePty(
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
-  // When inside a PaneSizingContextProvider, the per-pane controller owns PTY
-  // backend resizes (broadcast to ALL sessions) and exposes an observable
-  // controllerDims box so this terminal can call term.resize() reactively.
-  // Falls back to a per-session ResizeObserver path for standalone terminals.
+  // The per-pane controller owns PTY backend resizes (broadcast to ALL sessions)
+  // and exposes an observable controllerDims box so this terminal can call
+  // term.resize() reactively. PtyPane guarantees a context is always present by
+  // self-provisioning a PaneDimensionProvider + PaneSizingContextProvider when
+  // no ancestor provides one.
   const paneSizing = usePaneSizingContext();
   // Ref so the main effect (which only re-runs on sessionId change) always
   // accesses the latest context value without needing it as a dependency.
   const paneSizingRef = useRef(paneSizing);
   paneSizingRef.current = paneSizing;
 
-  // Subscribe to panel drag state so resize triggers skip fits while dragging.
-  const isPanelDragging = useSyncExternalStore(
-    panelDragStore.subscribe,
-    panelDragStore.getSnapshot
-  );
-  const isPanelDraggingRef = useRef(isPanelDragging);
-  isPanelDraggingRef.current = isPanelDragging;
-
   // Core xterm.js reference, kept alive across renders.
   const termRef = useRef<Terminal | null>(null);
-
-  // Resize debounce state.  lastRequestedResizeRef tracks the latest measured
-  // dimensions (including pending trailing values), while lastSentResizeRef
-  // tracks dimensions actually sent to rpc.pty.resize.
-  const lastRequestedResizeRef = useRef<{ cols: number; rows: number } | null>(null);
-  const lastSentResizeRef = useRef<{ cols: number; rows: number } | null>(null);
 
   // First-message capture state.
   const firstMessageSentRef = useRef(false);
@@ -174,54 +157,26 @@ export function usePty(
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  // Recreated per session so the trailing flush targets the current sessionId.
-  // See createResizeScheduler for the leading-edge rationale (ENG-1577).
-  const ptyResizeScheduler = useMemo(
-    () =>
-      createResizeScheduler<{ cols: number; rows: number }>((dims) => {
-        const lastSent = lastSentResizeRef.current;
-        if (lastSent?.cols === dims.cols && lastSent?.rows === dims.rows) return;
-        lastSentResizeRef.current = dims;
-        void rpc.pty.resize(sessionId, dims.cols, dims.rows);
-      }, PTY_RESIZE_DEBOUNCE_MS),
-    [sessionId]
-  );
-
-  const queuePtyResize = useCallback(
-    (newCols: number, newRows: number) => {
-      const c = Math.max(MIN_TERMINAL_COLS, Math.floor(newCols));
-      const r = Math.max(MIN_TERMINAL_ROWS, Math.floor(newRows));
-      const lastRequested = lastRequestedResizeRef.current;
-      if (lastRequested?.cols === c && lastRequested?.rows === r) return;
-      const dims = { cols: c, rows: r };
-      lastRequestedResizeRef.current = dims;
-      ptyResizeScheduler.schedule(dims);
-    },
-    [ptyResizeScheduler]
-  );
-
-  // Stable ref so measureAndResize can always call the latest queuePtyResize
-  // without needing it as a useCallback dependency.
-  const queuePtyResizeRef = useRef(queuePtyResize);
-  queuePtyResizeRef.current = queuePtyResize;
-
-  // measureAndResize is the entry point for DOM measurement + PTY resize work
-  // for STANDALONE terminals (no PaneSizingContext).  Mirrors xterm's
-  // FitAddon.proposeDimensions() by measuring the terminal's ownedContainer.
+  // Calibrates the per-pane controller with the mounted terminal's real cell
+  // metrics. The controller recomputes cols/rows, updates controllerDims, and
+  // broadcasts rpc.pty.resize to ALL sessions. The MobX reaction below then
+  // applies term.resize() to the visible grid.
   //
-  // For PANE terminals, the per-pane controller owns PTY backend resizes and
-  // controllerDims drives term.resize() via a MobX reaction below.
-  // In the pane path this function is only used to calibrate the controller's
-  // cell metrics so it can compute accurate cols/rows.
+  // Cold-path retry: the terminal is opened off-DOM so xterm's font measurement
+  // may not be populated yet on the first call — retries up to 5 times.
   //
-  // Runs synchronously (no rAF wrapper) so the xterm DOM catches up in the
-  // same paint as the new container size (ENG-1577).
+  // Runs synchronously so the xterm DOM catches up in the same paint as the
+  // new container size (ENG-1577).
   const measureAndResize = useCallback(
     (retries = 0) => {
       try {
         const term = termRef.current;
         if (!term) return;
         const pane = paneSizingRef.current;
+        if (!pane) {
+          log.warn('useTerminal: no PaneSizingContext — cannot calibrate', { sessionId });
+          return;
+        }
 
         const cell = getCellMetrics(term);
         if (!cell) {
@@ -233,33 +188,16 @@ export function usePty(
           return;
         }
 
-        if (pane) {
-          // Pane path: calibrate the controller with exact cell metrics.
-          // The controller recomputes cols/rows, updates controllerDims, and
-          // broadcasts to all sessions.  The MobX reaction below applies
-          // term.resize() when controllerDims changes.
-          pane.calibrateCell(cell.width, cell.height);
-          return;
-        }
-
-        // Standalone path: measure and resize locally.
-        const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
-        const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
-        if (!measureTarget) return;
-
-        const dims = measureDimensions(measureTarget, cell.width, cell.height);
-        if (!dims) return;
-        const { cols: targetCols, rows: targetRows } = dims;
-
-        if (term.cols !== targetCols || term.rows !== targetRows) {
-          term.resize(targetCols, targetRows);
-        }
-        queuePtyResizeRef.current(targetCols, targetRows);
+        // Calibrate the controller with exact cell metrics.
+        // The controller recomputes cols/rows, updates controllerDims, and
+        // broadcasts rpc.pty.resize to all sessions. The MobX reaction below
+        // applies term.resize() when controllerDims changes.
+        pane.calibrateCell(cell.width, cell.height);
       } catch (e) {
         log.warn('useTerminal: measureAndResize failed', { sessionId, error: e });
       }
     },
-    [sessionId, containerRef]
+    [sessionId]
   );
 
   // Stable ref so the retry setTimeout inside measureAndResize always calls
@@ -347,10 +285,15 @@ export function usePty(
     if (pane) {
       targetDims = pane.getCurrentDimensions() ?? undefined;
       if (!targetDims && pane.containerRef.current && prevCell) {
+        // Mirror the controller's padding exactly so the pre-mount dims match
+        // what the controller will compute on first calibration.
         const measured = measureDimensions(
           pane.containerRef.current,
           prevCell.width,
-          prevCell.height
+          prevCell.height,
+          0,
+          TERMINAL_PADDING_PX,
+          { bottom: pane.bottomPadding }
         );
         if (measured) targetDims = measured;
       }
@@ -681,15 +624,12 @@ export function usePty(
       );
 
       // ── Resize trigger ────────────────────────────────────────────────────
-      // Pane path: react to controllerDims — the observable box updated by the
-      // per-pane resize controller when pane pixel dimensions or cell size changes.
-      // The controller owns PTY backend broadcasts; here we only apply term.resize()
-      // to keep the visible xterm grid in sync. The reaction fires synchronously
-      // within the ResizeObserver → MobX action → reaction chain, preserving the
-      // "resize before next paint" guarantee that eliminates flicker (ENG-1577).
-      //
-      // Standalone path (no pane context): fall back to a ResizeObserver on the
-      // terminal's mount-target and handle backend resize directly.
+      // React to controllerDims — the observable box updated by the per-pane
+      // resize controller when pane pixel dimensions or cell size changes.
+      // The controller owns PTY backend broadcasts; here we only apply
+      // term.resize() to keep the visible xterm grid in sync. The reaction
+      // fires synchronously within the ResizeObserver → MobX action → reaction
+      // chain, preserving the "resize before next paint" guarantee (ENG-1577).
       const paneAtMount = paneSizingRef.current;
       if (paneAtMount) {
         const disposeReaction = reaction(
@@ -704,25 +644,14 @@ export function usePty(
           }
         );
         cleanups.push(disposeReaction);
-      } else {
-        const resizeObserver = new ResizeObserver(() => {
-          if (isPanelDraggingRef.current) return;
-          measureAndResizeRef.current();
-        });
-        resizeObserver.observe(container);
-        cleanups.push(() => resizeObserver.disconnect());
       }
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
     return () => {
-      ptyResizeScheduler.cancel();
-      // Reset dedup so the next session always gets a resize on mount.
-      lastRequestedResizeRef.current = null;
-      lastSentResizeRef.current = null;
-      // ResizeObserver.disconnect() and other cleanups run BEFORE unmount —
-      // preserving the invariant that the ResizeObserver is torn down before
-      // the ownedContainer is reparented off-screen.
+      // controllerDims reaction and other cleanups run BEFORE unmount —
+      // preserving the invariant that they are torn down before the
+      // ownedContainer is reparented off-screen.
       for (const fn of cleanups) {
         try {
           fn();
@@ -743,18 +672,6 @@ export function usePty(
   useEffect(() => {
     applyTheme(theme);
   }, [theme, applyTheme]);
-
-  // ── Measure once when a panel drag ends (standalone path only) ──────────────
-  // For pane terminals, the controller handles the post-drag recompute.
-  // For standalone terminals, fire a local measurement when drag ends.
-  const prevIsPanelDraggingRef = useRef(isPanelDragging);
-  useEffect(() => {
-    const wasDragging = prevIsPanelDraggingRef.current;
-    prevIsPanelDraggingRef.current = isPanelDragging;
-    if (wasDragging && !isPanelDragging && !paneSizing) {
-      measureAndResize();
-    }
-  }, [isPanelDragging, measureAndResize, paneSizing]);
 
   return { focus, setTheme, sendInput };
 }
