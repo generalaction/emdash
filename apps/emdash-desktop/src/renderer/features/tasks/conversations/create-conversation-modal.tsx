@@ -57,6 +57,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const showAutoApproveToggle = providerId ? providerSupportsAutoApprove(providerId) : false;
   const skipPermissions =
     showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);
+  const showInitialPromptField = initialPrompt !== undefined;
   const titleProviderId = providerId ?? 'claude';
   const title = nextDefaultConversationTitle(
     titleProviderId,
@@ -161,15 +162,17 @@ export const CreateConversationModal = observer(function CreateConversationModal
               </div>
             </Field>
           ) : null}
-          <Field>
-            <FieldLabel>Initial prompt</FieldLabel>
-            <Textarea
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Add an optional initial message..."
-              className="max-h-64 min-h-28 resize-none"
-            />
-          </Field>
+          {showInitialPromptField ? (
+            <Field>
+              <FieldLabel>Initial prompt</FieldLabel>
+              <Textarea
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="Add an optional initial message..."
+                className="max-h-64 min-h-28 resize-none"
+              />
+            </Field>
+          ) : null}
           {error && <p className="text-destructive text-xs">{error}</p>}
         </FieldGroup>
       </DialogContentArea>
