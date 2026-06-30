@@ -23,9 +23,9 @@ import { serializeMentionLabel } from '../serialize';
 import type { MentionItem } from '../types';
 
 export function buildMentionExtension(
-  // Use `any` for the Selected generic so our richer MentionItem attrs don't conflict
-  // with TipTap's narrower built-in MentionNodeAttrs type.
-  suggestion: Partial<SuggestionOptions<MentionItem, any>>
+  // Omit the Selected generic (defaults to TipTap's internal type) so our richer
+  // MentionItem attrs don't conflict with TipTap's narrower built-in MentionNodeAttrs type.
+  suggestion: Partial<SuggestionOptions<MentionItem>>
 ) {
   return TipTapMention.extend({
     name: 'mention',
@@ -66,11 +66,12 @@ export function buildMentionExtension(
         serializeMentionLabel(label, node.attrs.kind as string | null, name),
       ];
     },
-    // Cast to `any` to bypass the MentionNodeAttrs constraint; we control the attrs shape.
+    // Widen to the default SuggestionOptions to bypass the MentionNodeAttrs constraint;
+    // we control the attrs shape.
     suggestion: {
       char: '@',
       allowSpaces: false,
-      ...(suggestion as Partial<SuggestionOptions<any, any>>),
+      ...(suggestion as Partial<SuggestionOptions>),
     },
   });
 }

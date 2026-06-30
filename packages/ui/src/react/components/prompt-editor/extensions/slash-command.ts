@@ -20,7 +20,7 @@ import type { CommandItem } from '../types';
 const slashCommandPluginKey = new PluginKey('slashCommand');
 
 export function buildSlashCommandExtension(
-  suggestion: Partial<SuggestionOptions<CommandItem, any>>,
+  suggestion: Partial<SuggestionOptions<CommandItem>>,
   onExecute: (item: CommandItem) => void
 ) {
   return TipTapMention.extend({
@@ -77,7 +77,7 @@ export function buildSlashCommandExtension(
             .run();
         }
       },
-      ...(suggestion as Partial<SuggestionOptions<any, any>>),
+      ...(suggestion as Partial<SuggestionOptions>),
     },
   });
 }

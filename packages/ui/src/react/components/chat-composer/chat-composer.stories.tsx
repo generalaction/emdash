@@ -235,45 +235,49 @@ const MOCK_EFFORT_OPTIONS: Record<string, ComposerEffortOption> = {
  * over the "Effort" row at the bottom to open the flyout and select a level.
  * The row is hidden entirely when `effortOptions` is null.
  */
-export const WithEffortSelector: Story = {
-  render: () => {
-    const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
-    const [selectedEffort, setSelectedEffort] = useState<string | undefined>('medium');
+function EffortSelectorDemo() {
+  const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
+  const [selectedEffort, setSelectedEffort] = useState<string | undefined>('medium');
 
-    return (
-      <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
-        <ChatComposer
-          modelOptions={MOCK_MODELS}
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
-          effortOptions={MOCK_EFFORT_OPTIONS}
-          selectedEffort={selectedEffort}
-          onEffortChange={setSelectedEffort}
-          onSubmit={() => {}}
-        />
-      </Box>
-    );
-  },
+  return (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        modelOptions={MOCK_MODELS}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+        effortOptions={MOCK_EFFORT_OPTIONS}
+        selectedEffort={selectedEffort}
+        onEffortChange={setSelectedEffort}
+        onSubmit={() => {}}
+      />
+    </Box>
+  );
+}
+
+export const WithEffortSelector: Story = {
+  render: () => <EffortSelectorDemo />,
 };
 
 /**
  * WithoutEffortSelector — baseline confirming the effort row is absent when
  * `effortOptions` is null (agent doesn't advertise a thought_level option).
  */
-export const WithoutEffortSelector: Story = {
-  render: () => {
-    const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
+function WithoutEffortSelectorDemo() {
+  const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
 
-    return (
-      <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
-        <ChatComposer
-          modelOptions={MOCK_MODELS}
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
-          effortOptions={null}
-          onSubmit={() => {}}
-        />
-      </Box>
-    );
-  },
+  return (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        modelOptions={MOCK_MODELS}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+        effortOptions={null}
+        onSubmit={() => {}}
+      />
+    </Box>
+  );
+}
+
+export const WithoutEffortSelector: Story = {
+  render: () => <WithoutEffortSelectorDemo />,
 };

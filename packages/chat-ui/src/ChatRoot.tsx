@@ -1099,7 +1099,19 @@ export function ChatRoot(props: ChatRootProps) {
 
       const collapseTarget = t.closest('[data-collapse-id]') as HTMLElement | null;
       if (collapseTarget?.dataset.collapseId) {
-        viewState().toggleCollapsed(collapseTarget.dataset.collapseId);
+        const id = collapseTarget.dataset.collapseId;
+        // Anchor the toggled row at its current viewport position before the
+        // height change so expand/collapse grows downward instead of being
+        // re-pinned to the (shifting) bottom edge. Without this, a short,
+        // reserve-active transcript sits in `bottom` mode and the expansion's
+        // reserve→0 crossover snaps scrollTop to the new bottom, yanking the
+        // just-expanded header out of view.
+        const idx = unitIndexOf(id);
+        if (idx >= 0 && scrollEl) {
+          const offset = scrollEl.scrollTop - (virt.top(idx) + padTop());
+          setMode({ kind: 'anchor', itemId: id, offset });
+        }
+        viewState().toggleCollapsed(id);
         return;
       }
 

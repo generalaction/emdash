@@ -24,14 +24,18 @@ export const TOKEN_NAMESPACE = 'em';
  *
  * When TOKEN_NAMESPACE is empty, returns '--<name>' (prefix-free mode for tests).
  */
-export function nsName(name: string): string {
+export function nsName(name: string): `--${string}` {
   return TOKEN_NAMESPACE ? `--${TOKEN_NAMESPACE}-${name}` : `--${name}`;
 }
 
 /**
  * Returns a CSS var() reference to the namespaced custom property.
  * e.g. nsVar('background') → 'var(--em-background)'
+ *
+ * Typed as `var(--${string})` so it matches Vanilla Extract's CSSVarFunction and
+ * is assignable to any style property (including ones like `fontWeight` whose
+ * csstype definition rejects arbitrary strings).
  */
-export function nsVar(name: string): string {
+export function nsVar(name: string): `var(--${string})` {
   return `var(${nsName(name)})`;
 }

@@ -97,7 +97,7 @@ function emptySuggestion<T>(): SuggestionState<T> {
 
 /**
  * Build the `render` factory required by @tiptap/suggestion.
- * We use `any` for the generic params because the popup only needs
+ * We rely on SuggestionProps' default generics because the popup only needs
  * `items`, `clientRect`, and the `command` callback — all of which
  * are invariant regardless of whether we're rendering mentions or commands.
  */
@@ -105,20 +105,20 @@ function makeSuggestionRender<T>(
   setSuggestion: React.Dispatch<React.SetStateAction<SuggestionState<T>>>,
   popupRef: React.RefObject<ComboboxPopupHandle | null>
 ): () => {
-  onStart?: (props: SuggestionProps<any, any>) => void;
-  onUpdate?: (props: SuggestionProps<any, any>) => void;
+  onStart?: (props: SuggestionProps) => void;
+  onUpdate?: (props: SuggestionProps) => void;
   onExit?: () => void;
   onKeyDown?: (props: SuggestionKeyDownProps) => boolean;
 } {
   return () => ({
-    onStart(props: SuggestionProps<any, any>) {
+    onStart(props: SuggestionProps) {
       setSuggestion({
         items: props.items as T[],
         rect: props.clientRect?.() ?? null,
         onSelect: (item) => props.command(item),
       });
     },
-    onUpdate(props: SuggestionProps<any, any>) {
+    onUpdate(props: SuggestionProps) {
       setSuggestion({
         items: props.items as T[],
         rect: props.clientRect?.() ?? null,
