@@ -42,6 +42,8 @@ export type ChatToolCall = {
   status: ToolStatus;
   /** Short one-line synopsis shown alongside the tool name. */
   inputSummary?: string;
+  /** Id of the parent tool call (for hierarchical rendering). */
+  parentId?: string;
 };
 
 /**
@@ -90,6 +92,8 @@ export type ChatFileOpToolCall = {
   status: ToolStatus;
   /** Accumulating list of files touched. Replaced (not appended) on each update. */
   ops: FileOp[];
+  /** Id of the parent tool call (for hierarchical rendering). */
+  parentId?: string;
 };
 
 /**
@@ -109,6 +113,8 @@ export type ChatExecute = {
   startedAt: number;
   /** Frozen duration once status flips to 'done'. Absent when data is unavailable. */
   durationMs?: number;
+  /** Id of the parent tool call (for hierarchical rendering). */
+  parentId?: string;
 };
 
 /**
@@ -131,6 +137,8 @@ export type ChatDiff = {
   oldText: string | null;
   newText: string;
   status: ToolStatus;
+  /** Id of the parent tool call (for hierarchical rendering). */
+  parentId?: string;
 };
 
 /**

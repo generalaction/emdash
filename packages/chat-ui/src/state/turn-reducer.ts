@@ -45,15 +45,22 @@ export type ActiveTurnEvent =
       text: string;
       attachments?: ChatImageAttachment[];
     }
-  | { type: 'tool_start'; id: string; name: string; inputSummary?: string }
+  | { type: 'tool_start'; id: string; name: string; inputSummary?: string; parentId?: string }
   | { type: 'tool_update'; id: string; status?: ToolStatus; name?: string; inputSummary?: string }
   | { type: 'thinking_chunk'; id: string; text: string; startedAt?: number }
   | { type: 'thinking_done'; id: string; durationMs?: number }
-  | { type: 'file_op_start'; id: string; op: FileOpKind; ops: FileOp[] }
+  | { type: 'file_op_start'; id: string; op: FileOpKind; ops: FileOp[]; parentId?: string }
   | { type: 'file_op_update'; id: string; status?: ToolStatus; ops?: FileOp[] }
-  | { type: 'execute_start'; id: string; command: string; startedAt?: number }
+  | { type: 'execute_start'; id: string; command: string; startedAt?: number; parentId?: string }
   | { type: 'execute_update'; id: string; command?: string; status?: ToolStatus }
-  | { type: 'diff_start'; id: string; path: string; oldText: string | null; newText: string }
+  | {
+      type: 'diff_start';
+      id: string;
+      path: string;
+      oldText: string | null;
+      newText: string;
+      parentId?: string;
+    }
   | {
       type: 'diff_update';
       id: string;
@@ -151,6 +158,7 @@ export function applyTurnEvent(
           name: event.name,
           status: 'running',
           inputSummary: event.inputSummary,
+          ...(event.parentId !== undefined ? { parentId: event.parentId } : {}),
         } satisfies ChatToolCall,
       ];
     }
@@ -229,6 +237,7 @@ export function applyTurnEvent(
           op: event.op,
           status: 'running',
           ops: event.ops,
+          ...(event.parentId !== undefined ? { parentId: event.parentId } : {}),
         } satisfies ChatFileOpToolCall,
       ];
     }
@@ -270,6 +279,7 @@ export function applyTurnEvent(
           command: event.command,
           status: 'running',
           startedAt: event.startedAt ?? Date.now(),
+          ...(event.parentId !== undefined ? { parentId: event.parentId } : {}),
         } satisfies ChatExecute,
       ];
     }
@@ -316,6 +326,7 @@ export function applyTurnEvent(
           oldText: event.oldText,
           newText: event.newText,
           status: 'running',
+          ...(event.parentId !== undefined ? { parentId: event.parentId } : {}),
         } satisfies ChatDiff,
       ];
     }

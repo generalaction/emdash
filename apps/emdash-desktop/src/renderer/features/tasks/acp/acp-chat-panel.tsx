@@ -359,10 +359,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   if (!store) return null;
 
   return (
-    <div
-      className="relative h-full overflow-hidden"
-      style={{ backgroundColor: 'var(--background)' }}
-    >
+    <div className="relative h-full overflow-hidden bg-background-secondary-1">
       <ChatTranscript
         context={store.chatContext}
         state={store.chatState}
@@ -385,12 +382,9 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         (store.loadError !== null || store.historyLoading || store.isEmpty) &&
         createPortal(
           <div
-            className="absolute inset-0 flex items-center justify-center text-sm text-foreground-muted"
-            style={
-              store.loadError !== null || store.historyLoading
-                ? { backgroundColor: 'var(--background)' }
-                : undefined
-            }
+            className={`absolute inset-0 flex items-center justify-center text-sm text-foreground-muted ${
+              store.loadError !== null || store.historyLoading ? 'bg-background-secondary-1' : ''
+            }`}
             aria-live="polite"
           >
             {store.loadError !== null ? (

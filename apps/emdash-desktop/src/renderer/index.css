@@ -846,12 +846,12 @@
     --chat-fg-body: var(--foreground-muted);
     --chat-fg-muted: var(--foreground-muted);
     --chat-fg-passive: var(--foreground-passive);
-    --chat-bg: var(--background);
+    --chat-bg: var(--background-secondary-1);
     --chat-bg-1: var(--background-1);
     --chat-bg-2: var(--background-2);
     --chat-bg-3: var(--background-3);
     --chat-border: var(--border);
-    --chat-user-card-bg: var(--background-1);
+    --chat-user-card-bg: var(--background-2);
     --chat-user-card-border: var(--border);
     --chat-user-card-border-hover: var(--border-1);
     --chat-mention-chip-bg: var(--background-2);

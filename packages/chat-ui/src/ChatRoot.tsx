@@ -49,7 +49,7 @@ import { ThemeContext } from './components/contexts/ThemeContext';
 import { TurnStateContext } from './components/contexts/TurnStateContext';
 import { createFrameScheduler } from './components/engine/frame-scheduler';
 import { createTweenRegistry } from './components/engine/tween-registry';
-import { SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
+import { NODE_SEGMENTERS, SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
 import { UnitRow } from './components/engine/UnitRow';
 import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
 import type { ChatCaches } from './core/caches';
@@ -371,10 +371,10 @@ export function ChatRoot(props: ChatRootProps) {
         committedUnitsArr.length > 0
           ? committedUnitsArr[committedUnitsArr.length - 1].kind
           : undefined;
-      const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind);
+      const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
       committedUnitsArr = [...committedUnitsArr, ...newUnits];
     } else {
-      committedUnitsArr = flattenTier(next, ctx, SEGMENTERS, UNIT_REGISTRY);
+      committedUnitsArr = flattenTier(next, ctx, SEGMENTERS, UNIT_REGISTRY, undefined, NODE_SEGMENTERS);
     }
 
     lastCommitted = next;
@@ -389,7 +389,7 @@ export function ChatRoot(props: ChatRootProps) {
       committedUnitsArr.length > 0
         ? committedUnitsArr[committedUnitsArr.length - 1].kind
         : undefined;
-    return flattenTier(at, segmentCtx(), SEGMENTERS, UNIT_REGISTRY, prevKind);
+    return flattenTier(at, segmentCtx(), SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
   });
 
   const units = createMemo<UnitsView>(() => {
