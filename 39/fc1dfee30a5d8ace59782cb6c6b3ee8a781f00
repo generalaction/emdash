@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_b1ae12eee3c333::t_b5dd22c769de47 4,120,129,168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "39fc1dfee30a5d8ace59782cb6c6b3ee8a781f00",
+  "prompts": {},
+  "sessions": {
+    "s_b1ae12eee3c333": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f14b5-7f29-70b1-9b70-796d5b21d9e6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
