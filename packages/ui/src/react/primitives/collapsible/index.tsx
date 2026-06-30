@@ -8,14 +8,7 @@ import * as styles from './collapsible.css';
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-/**
- * Collapsible — wraps a trigger and an animated panel.
- *
- * Uncontrolled:  `<Collapsible defaultOpen>`
- * Controlled:    `<Collapsible open={open} onOpenChange={setOpen}>`
- * Disabled:      `<Collapsible disabled>`
- */
-function Collapsible({ ...props }: CollapsiblePrimitive.Root.Props) {
+function CollapsibleRoot({ ...props }: CollapsiblePrimitive.Root.Props) {
   return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />;
 }
 
@@ -26,11 +19,6 @@ export interface CollapsibleTriggerProps extends CollapsiblePrimitive.Trigger.Pr
   hideChevron?: boolean;
 }
 
-/**
- * CollapsibleTrigger — full-width ghost button.
- * The trailing chevron rotates 180° when the panel opens.
- * Use `data-panel-open` from the base-ui context for custom rendering if needed.
- */
 function CollapsibleTrigger({
   className,
   hideChevron = false,
@@ -51,15 +39,6 @@ function CollapsibleTrigger({
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
-/**
- * CollapsiblePanel — animated height panel.
- *
- * Uses base-ui's `--collapsible-panel-height` CSS variable for the open height
- * and `data-starting-style` / `data-ending-style` for enter/exit transitions.
- *
- * Pass `keepMounted` to preserve DOM state while hidden (e.g. forms, iframes).
- * Pass `hiddenUntilFound` to enable browser in-page search within the panel.
- */
 function CollapsiblePanel({ className, ...props }: CollapsiblePrimitive.Panel.Props) {
   return (
     <CollapsiblePrimitive.Panel
@@ -70,4 +49,8 @@ function CollapsiblePanel({ className, ...props }: CollapsiblePrimitive.Panel.Pr
   );
 }
 
-export { Collapsible, CollapsiblePanel, CollapsibleTrigger };
+export const Collapsible = {
+  Root: CollapsibleRoot,
+  Trigger: CollapsibleTrigger,
+  Panel: CollapsiblePanel,
+};

@@ -1,14 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from '.';
+import { Select } from '.';
 import { Box } from '../box';
 import * as s from '@react/story-layout.css';
 
@@ -23,16 +14,16 @@ type Story = StoryObj;
 export const Default: Story = {
   render: () => (
     <Box className={s.w48}>
-      <Select>
-        <SelectTrigger>
-          <SelectValue placeholder="Pick a fruit" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="apple">Apple</SelectItem>
-          <SelectItem value="banana">Banana</SelectItem>
-          <SelectItem value="cherry">Cherry</SelectItem>
-        </SelectContent>
-      </Select>
+      <Select.Root>
+        <Select.Trigger>
+          <Select.Value placeholder="Pick a fruit" />
+        </Select.Trigger>
+        <Select.Content>
+          <Select.Item value="apple">Apple</Select.Item>
+          <Select.Item value="banana">Banana</Select.Item>
+          <Select.Item value="cherry">Cherry</Select.Item>
+        </Select.Content>
+      </Select.Root>
     </Box>
   ),
 };
@@ -40,24 +31,24 @@ export const Default: Story = {
 export const WithGroups: Story = {
   render: () => (
     <Box className={s.w48}>
-      <Select>
-        <SelectTrigger>
-          <SelectValue placeholder="Pick a food" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectLabel>Fruits</SelectLabel>
-            <SelectItem value="apple">Apple</SelectItem>
-            <SelectItem value="banana">Banana</SelectItem>
-          </SelectGroup>
-          <SelectSeparator />
-          <SelectGroup>
-            <SelectLabel>Vegetables</SelectLabel>
-            <SelectItem value="carrot">Carrot</SelectItem>
-            <SelectItem value="pea">Pea</SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+      <Select.Root>
+        <Select.Trigger>
+          <Select.Value placeholder="Pick a food" />
+        </Select.Trigger>
+        <Select.Content>
+          <Select.Group>
+            <Select.Label>Fruits</Select.Label>
+            <Select.Item value="apple">Apple</Select.Item>
+            <Select.Item value="banana">Banana</Select.Item>
+          </Select.Group>
+          <Select.Separator />
+          <Select.Group>
+            <Select.Label>Vegetables</Select.Label>
+            <Select.Item value="carrot">Carrot</Select.Item>
+            <Select.Item value="pea">Pea</Select.Item>
+          </Select.Group>
+        </Select.Content>
+      </Select.Root>
     </Box>
   ),
 };
@@ -65,16 +56,16 @@ export const WithGroups: Story = {
 export const WithDefaultValue: Story = {
   render: () => (
     <Box className={s.w48}>
-      <Select defaultValue="banana">
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="apple">Apple</SelectItem>
-          <SelectItem value="banana">Banana</SelectItem>
-          <SelectItem value="cherry">Cherry</SelectItem>
-        </SelectContent>
-      </Select>
+      <Select.Root defaultValue="banana">
+        <Select.Trigger>
+          <Select.Value />
+        </Select.Trigger>
+        <Select.Content>
+          <Select.Item value="apple">Apple</Select.Item>
+          <Select.Item value="banana">Banana</Select.Item>
+          <Select.Item value="cherry">Cherry</Select.Item>
+        </Select.Content>
+      </Select.Root>
     </Box>
   ),
 };
@@ -82,14 +73,14 @@ export const WithDefaultValue: Story = {
 export const Disabled: Story = {
   render: () => (
     <Box className={s.w48}>
-      <Select disabled>
-        <SelectTrigger>
-          <SelectValue placeholder="Disabled" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="apple">Apple</SelectItem>
-        </SelectContent>
-      </Select>
+      <Select.Root disabled>
+        <Select.Trigger>
+          <Select.Value placeholder="Disabled" />
+        </Select.Trigger>
+        <Select.Content>
+          <Select.Item value="apple">Apple</Select.Item>
+        </Select.Content>
+      </Select.Root>
     </Box>
   ),
 };
@@ -97,18 +88,18 @@ export const Disabled: Story = {
 export const WithDisabledItem: Story = {
   render: () => (
     <Box className={s.w48}>
-      <Select>
-        <SelectTrigger>
-          <SelectValue placeholder="Pick a fruit" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="apple">Apple</SelectItem>
-          <SelectItem value="banana" disabled>
+      <Select.Root>
+        <Select.Trigger>
+          <Select.Value placeholder="Pick a fruit" />
+        </Select.Trigger>
+        <Select.Content>
+          <Select.Item value="apple">Apple</Select.Item>
+          <Select.Item value="banana" disabled>
             Banana (unavailable)
-          </SelectItem>
-          <SelectItem value="cherry">Cherry</SelectItem>
-        </SelectContent>
-      </Select>
+          </Select.Item>
+          <Select.Item value="cherry">Cherry</Select.Item>
+        </Select.Content>
+      </Select.Root>
     </Box>
   ),
 };

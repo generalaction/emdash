@@ -2,7 +2,7 @@ import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { SeparatedList } from '@/react/primitives/separated-list';
-import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '.';
+import { Collapsible } from '.';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta = {
@@ -13,13 +13,11 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-// ── Default (uncontrolled, closed) ────────────────────────────────────────────
-
 export const Default: Story = {
   render: () => (
-    <Collapsible className={s.w72}>
-      <CollapsibleTrigger>Advanced settings</CollapsibleTrigger>
-      <CollapsiblePanel>
+    <Collapsible.Root className={s.w72}>
+      <Collapsible.Trigger>Advanced settings</Collapsible.Trigger>
+      <Collapsible.Panel>
         <Box display="flex" flexDirection="column" gap="2" style={{ paddingTop: '0.5rem' }}>
           <span style={{ fontSize: 'var(--em-text-sm)', color: 'var(--em-foreground-muted)' }}>
             These settings are hidden by default.
@@ -27,29 +25,25 @@ export const Default: Story = {
           <span style={{ fontSize: 'var(--em-text-sm)' }}>Setting A: enabled</span>
           <span style={{ fontSize: 'var(--em-text-sm)' }}>Setting B: disabled</span>
         </Box>
-      </CollapsiblePanel>
-    </Collapsible>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   ),
 };
 
-// ── Default open ──────────────────────────────────────────────────────────────
-
 export const DefaultOpen: Story = {
   render: () => (
-    <Collapsible defaultOpen className={s.w72}>
-      <CollapsibleTrigger>Session details</CollapsibleTrigger>
-      <CollapsiblePanel>
+    <Collapsible.Root defaultOpen className={s.w72}>
+      <Collapsible.Trigger>Session details</Collapsible.Trigger>
+      <Collapsible.Panel>
         <Box display="flex" flexDirection="column" gap="2" style={{ paddingTop: '0.5rem' }}>
           <span style={{ fontSize: 'var(--em-text-sm)' }}>Branch: feature/my-feature</span>
           <span style={{ fontSize: 'var(--em-text-sm)' }}>Worktree: /tmp/my-feature</span>
           <span style={{ fontSize: 'var(--em-text-sm)' }}>Agent: Claude</span>
         </Box>
-      </CollapsiblePanel>
-    </Collapsible>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   ),
 };
-
-// ── Controlled ────────────────────────────────────────────────────────────────
 
 export const Controlled: Story = {
   render: function ControlledCollapsible() {
@@ -64,40 +58,36 @@ export const Controlled: Story = {
         >
           Panel is {open ? 'open' : 'closed'}
         </span>
-        <Collapsible open={open} onOpenChange={setOpen}>
-          <CollapsibleTrigger>Toggle panel</CollapsibleTrigger>
-          <CollapsiblePanel>
+        <Collapsible.Root open={open} onOpenChange={setOpen}>
+          <Collapsible.Trigger>Toggle panel</Collapsible.Trigger>
+          <Collapsible.Panel>
             <Box style={{ paddingTop: '0.5rem' }}>
               <span style={{ fontSize: 'var(--em-text-sm)' }}>Controlled content revealed.</span>
             </Box>
-          </CollapsiblePanel>
-        </Collapsible>
+          </Collapsible.Panel>
+        </Collapsible.Root>
       </Box>
     );
   },
 };
 
-// ── Disabled ──────────────────────────────────────────────────────────────────
-
 export const Disabled: Story = {
   render: () => (
-    <Collapsible disabled className={s.w72}>
-      <CollapsibleTrigger>Locked section</CollapsibleTrigger>
-      <CollapsiblePanel>
+    <Collapsible.Root disabled className={s.w72}>
+      <Collapsible.Trigger>Locked section</Collapsible.Trigger>
+      <Collapsible.Panel>
         <span style={{ fontSize: 'var(--em-text-sm)' }}>Never shown.</span>
-      </CollapsiblePanel>
-    </Collapsible>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   ),
 };
-
-// ── Nested / settings panel ───────────────────────────────────────────────────
 
 export const SettingsGroup: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="0" className={s.w80}>
-      <Collapsible defaultOpen>
-        <CollapsibleTrigger>General</CollapsibleTrigger>
-        <CollapsiblePanel>
+      <Collapsible.Root defaultOpen>
+        <Collapsible.Trigger>General</Collapsible.Trigger>
+        <Collapsible.Panel>
           <SeparatedList
             gap="0.5rem"
             style={{ paddingTop: '0.25rem', paddingBottom: '0.25rem', paddingLeft: '0.5rem' }}
@@ -106,11 +96,11 @@ export const SettingsGroup: Story = {
             <span style={{ fontSize: 'var(--em-text-sm)' }}>Theme</span>
             <span style={{ fontSize: 'var(--em-text-sm)' }}>Language</span>
           </SeparatedList>
-        </CollapsiblePanel>
-      </Collapsible>
-      <Collapsible>
-        <CollapsibleTrigger>SSH &amp; Connections</CollapsibleTrigger>
-        <CollapsiblePanel>
+        </Collapsible.Panel>
+      </Collapsible.Root>
+      <Collapsible.Root>
+        <Collapsible.Trigger>SSH &amp; Connections</Collapsible.Trigger>
+        <Collapsible.Panel>
           <SeparatedList
             gap="0.5rem"
             style={{ paddingTop: '0.25rem', paddingBottom: '0.25rem', paddingLeft: '0.5rem' }}
@@ -118,18 +108,18 @@ export const SettingsGroup: Story = {
             <span style={{ fontSize: 'var(--em-text-sm)' }}>Default SSH key</span>
             <span style={{ fontSize: 'var(--em-text-sm)' }}>Timeout</span>
           </SeparatedList>
-        </CollapsiblePanel>
-      </Collapsible>
-      <Collapsible>
-        <CollapsibleTrigger>Telemetry</CollapsibleTrigger>
-        <CollapsiblePanel>
+        </Collapsible.Panel>
+      </Collapsible.Root>
+      <Collapsible.Root>
+        <Collapsible.Trigger>Telemetry</Collapsible.Trigger>
+        <Collapsible.Panel>
           <Box style={{ padding: '0.5rem' }}>
             <span style={{ fontSize: 'var(--em-text-sm)', color: 'var(--em-foreground-muted)' }}>
               No telemetry settings configured.
             </span>
           </Box>
-        </CollapsiblePanel>
-      </Collapsible>
+        </Collapsible.Panel>
+      </Collapsible.Root>
     </Box>
   ),
 };

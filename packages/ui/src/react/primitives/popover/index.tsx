@@ -5,7 +5,7 @@ import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
 import * as styles from './popover.css';
 
-function Popover({ ...props }: PopoverPrimitive.Root.Props) {
+function PopoverRoot({ ...props }: PopoverPrimitive.Root.Props) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />;
 }
 
@@ -76,12 +76,12 @@ function PopoverClose({ ...props }: PopoverPrimitive.Close.Props) {
   return <PopoverPrimitive.Close data-slot="popover-close" {...props} />;
 }
 
-export {
-  Popover,
-  PopoverClose,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
+export const Popover = {
+  Root: PopoverRoot,
+  Trigger: PopoverTrigger,
+  Content: PopoverContent,
+  Header: PopoverHeader,
+  Title: PopoverTitle,
+  Description: PopoverDescription,
+  Close: PopoverClose,
 };

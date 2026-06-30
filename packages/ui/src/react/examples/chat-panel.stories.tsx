@@ -11,7 +11,7 @@ import { cx } from '@styles/utilities/cx';
 import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ImageViewerDialog } from '@/react/components/image-viewer-dialog';
+import { ImageViewerDialog } from '@/react/components/image-viewer';
 import { ChatComposer, stopReasonNotice } from '../components/chat-composer';
 import type {
   ComposerAttachment,
@@ -352,7 +352,7 @@ function LiveChatPanel({
         )}
       <ImageViewerDialog
         open={!!viewer}
-        onOpenChange={(o) => !o && setViewer(null)}
+        onOpenChange={(o: boolean) => !o && setViewer(null)}
         src={viewer?.src}
         alt={viewer?.alt}
       />

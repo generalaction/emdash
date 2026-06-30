@@ -2,15 +2,7 @@ import { type ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
 import { cx } from '@styles/utilities/cx';
 import { ChevronDown } from 'lucide-react';
 import * as React from 'react';
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxSeparator,
-  ComboboxTrigger,
-} from '@/react/primitives/combobox/combobox';
+import { Combobox } from '@/react/primitives/combobox/combobox';
 import {
   HoverCard,
   isEventInsideInteractiveLayer,
@@ -129,7 +121,7 @@ export function ComboboxPopover<T>({
   }
 
   return (
-    <Combobox
+    <Combobox.Root
       items={items}
       value={selectedItem ?? null}
       onValueChange={handleValueChange}
@@ -139,7 +131,7 @@ export function ComboboxPopover<T>({
       filter={filter ?? defaultFilter}
       autoHighlight
     >
-      <ComboboxTrigger
+      <Combobox.Trigger
         disabled={disabled}
         className={
           appearance === 'input'
@@ -149,35 +141,35 @@ export function ComboboxPopover<T>({
       >
         <span className={styles.triggerLabel}>{renderTrigger(selectedItem)}</span>
         <ChevronDown className={styles.triggerChevron} />
-      </ComboboxTrigger>
+      </Combobox.Trigger>
 
-      <ComboboxContent
+      <Combobox.Content
         ref={setAnchorEl}
         className={cx(styles.contentMinWidth, contentClassName)}
         style={contentStyle}
       >
-        <ComboboxInput showTrigger={false} placeholder={searchPlaceholder} />
-        <ComboboxList>
+        <Combobox.Input showTrigger={false} placeholder={searchPlaceholder} />
+        <Combobox.List>
           {(item: T) => {
             const key = itemToKey(item);
             return (
-              <ComboboxItem
+              <Combobox.Item
                 key={key}
                 value={item}
                 {...(renderItemDetail ? hoverCard.getRowHoverProps(key) : {})}
               >
                 {renderItem(item)}
-              </ComboboxItem>
+              </Combobox.Item>
             );
           }}
-        </ComboboxList>
+        </Combobox.List>
         {renderFooter && (
           <>
-            <ComboboxSeparator />
+            <Combobox.Separator />
             {renderFooter()}
           </>
         )}
-      </ComboboxContent>
+      </Combobox.Content>
 
       {renderItemDetail && activeDetailItem && (
         <HoverCard
@@ -190,6 +182,6 @@ export function ComboboxPopover<T>({
           {renderItemDetail(activeDetailItem)}
         </HoverCard>
       )}
-    </Combobox>
+    </Combobox.Root>
   );
 }

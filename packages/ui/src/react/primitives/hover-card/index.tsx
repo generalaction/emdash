@@ -16,7 +16,7 @@
  */
 
 import type { PopoverRootChangeEventDetails } from '@base-ui/react/popover';
-import { Popover, PopoverContent } from '@react/primitives/popover';
+import { Popover } from '@react/primitives/popover';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { hoverCardDefault } from './hover-card.css';
 
@@ -236,8 +236,8 @@ export function HoverCard({
   if (!anchor) return null;
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverContent
+    <Popover.Root open={open} onOpenChange={onOpenChange}>
+      <Popover.Content
         {...{ [HOVER_CARD_ATTR]: '' }}
         anchor={anchor}
         side={side}
@@ -248,7 +248,7 @@ export function HoverCard({
         onMouseLeave={popupHoverProps.onMouseLeave}
       >
         {children}
-      </PopoverContent>
-    </Popover>
+      </Popover.Content>
+    </Popover.Root>
   );
 }

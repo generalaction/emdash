@@ -14,15 +14,7 @@
 
 import * as React from 'react';
 import { Button } from '@/react/primitives/button';
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  type DialogSize,
-} from '@/react/primitives/dialog';
+import { Dialog, type DialogSize } from '@/react/primitives/dialog';
 import * as styles from './confirmation-dialog.css';
 
 export interface ConfirmationDialogProps {
@@ -76,30 +68,30 @@ export function ConfirmationDialog({
   const hasBody = description != null || children != null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size={size}>
-        <DialogHeader showCloseButton={false}>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Content size={size}>
+        <Dialog.Header showCloseButton={false}>
+          <Dialog.Title>{title}</Dialog.Title>
+        </Dialog.Header>
         {hasBody && (
-          <DialogBody>
+          <Dialog.Body>
             {typeof description === 'string' ? (
               <p className={styles.description}>{description}</p>
             ) : (
               description
             )}
             {children}
-          </DialogBody>
+          </Dialog.Body>
         )}
-        <DialogFooter>
+        <Dialog.Footer>
           <Button variant="ghost" onClick={handleCancel} disabled={isConfirming}>
             {cancelLabel}
           </Button>
           <Button variant="primary" tone={tone} onClick={handleConfirm} disabled={isConfirming}>
             {confirmLabel}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
   );
 }

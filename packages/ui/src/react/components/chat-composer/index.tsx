@@ -2,16 +2,7 @@ import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
 import { ArrowUp, CircleAlert, Paperclip, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxLabel,
-  ComboboxList,
-  ComboboxTrigger,
-} from '@/react/primitives/combobox/combobox';
+import { Combobox } from '@/react/primitives/combobox/combobox';
 import { ComboboxPopover } from '../combobox-popover';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
 import type {
@@ -384,7 +375,7 @@ function ComposerAgentSelector({
   }
 
   return (
-    <Combobox
+    <Combobox.Root
       value={selected ?? null}
       onValueChange={(item: ComposerAgentOption | null) => {
         if (!item || item.disabled) return;
@@ -399,22 +390,22 @@ function ComposerAgentSelector({
       }
       autoHighlight
     >
-      <ComboboxTrigger
+      <Combobox.Trigger
         aria-label={triggerLabel}
         title={triggerLabel}
         className={styles.agentTrigger}
       >
         {selected?.icon ?? <span className={styles.agentIconPlaceholder} />}
-      </ComboboxTrigger>
-      <ComboboxContent style={{ minWidth: '11.25rem' }}>
-        <ComboboxInput showTrigger={false} placeholder="Search agents…" />
-        <ComboboxList>
+      </Combobox.Trigger>
+      <Combobox.Content style={{ minWidth: '11.25rem' }}>
+        <Combobox.Input showTrigger={false} placeholder="Search agents…" />
+        <Combobox.List>
           {groups.map((group) =>
             group.label ? (
-              <ComboboxGroup key={group.label}>
-                <ComboboxLabel>{group.label}</ComboboxLabel>
+              <Combobox.Group key={group.label}>
+                <Combobox.Label>{group.label}</Combobox.Label>
                 {group.items.map((item) => (
-                  <ComboboxItem key={item.id} value={item} disabled={item.disabled}>
+                  <Combobox.Item key={item.id} value={item} disabled={item.disabled}>
                     {item.icon && <span style={{ flexShrink: 0 }}>{item.icon}</span>}
                     <span
                       style={{
@@ -427,12 +418,12 @@ function ComposerAgentSelector({
                     >
                       {item.name}
                     </span>
-                  </ComboboxItem>
+                  </Combobox.Item>
                 ))}
-              </ComboboxGroup>
+              </Combobox.Group>
             ) : (
               group.items.map((item) => (
-                <ComboboxItem key={item.id} value={item} disabled={item.disabled}>
+                <Combobox.Item key={item.id} value={item} disabled={item.disabled}>
                   {item.icon && <span style={{ flexShrink: 0 }}>{item.icon}</span>}
                   <span
                     style={{
@@ -445,13 +436,13 @@ function ComposerAgentSelector({
                   >
                     {item.name}
                   </span>
-                </ComboboxItem>
+                </Combobox.Item>
               ))
             )
           )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
+        </Combobox.List>
+      </Combobox.Content>
+    </Combobox.Root>
   );
 }
 

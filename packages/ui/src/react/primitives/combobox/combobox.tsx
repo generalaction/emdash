@@ -1,18 +1,13 @@
 import { Combobox as ComboboxPrimitive } from '@base-ui/react';
 import { Button } from '@react/primitives/button';
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from '@react/primitives/input-group';
+import { InputGroup } from '@react/primitives/input-group';
 import { ScrollContainer } from '@react/primitives/scroll-container';
 import { cx } from '@styles/utilities/cx';
 import { CheckIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
 import * as styles from './combobox.css';
 
-const Combobox = ComboboxPrimitive.Root;
+const ComboboxRoot = ComboboxPrimitive.Root;
 
 function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
   return <ComboboxPrimitive.Value data-slot="combobox-value" {...props} />;
@@ -34,7 +29,7 @@ function ComboboxClear({ className, ...props }: ComboboxPrimitive.Clear.Props) {
   return (
     <ComboboxPrimitive.Clear
       data-slot="combobox-clear"
-      render={<InputGroupButton />}
+      render={<InputGroup.Button />}
       className={cx(className)}
       {...props}
     >
@@ -61,19 +56,19 @@ function ComboboxInput({
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <InputGroup
+    <InputGroup.Root
       variant="embedded"
       className={typeof className === 'string' ? className : undefined}
     >
-      {leftAddon && <InputGroupAddon align="inline-start">{leftAddon}</InputGroupAddon>}
+      {leftAddon && <InputGroup.Addon align="inline-start">{leftAddon}</InputGroup.Addon>}
       <ComboboxPrimitive.Input
-        render={<InputGroupInput ref={inputRef} disabled={disabled} />}
+        render={<InputGroup.Input ref={inputRef} disabled={disabled} />}
         {...props}
       />
-      <InputGroupAddon align="inline-end">
+      <InputGroup.Addon align="inline-end">
         {rightAddon}
         {showTrigger && (
-          <InputGroupButton
+          <InputGroup.Button
             render={<ComboboxTrigger />}
             data-slot="input-group-button"
             className={styles.triggerButtonHideIfClear}
@@ -81,9 +76,9 @@ function ComboboxInput({
           />
         )}
         {showClear && <ComboboxClear disabled={disabled} />}
-      </InputGroupAddon>
+      </InputGroup.Addon>
       {children}
-    </InputGroup>
+    </InputGroup.Root>
   );
 }
 
@@ -257,25 +252,24 @@ function ComboboxChipsInput({ className, ...props }: ComboboxPrimitive.Input.Pro
   );
 }
 
-function useComboboxAnchor() {
+export function useComboboxAnchor() {
   return React.useRef<HTMLDivElement | null>(null);
 }
 
-export {
-  Combobox,
-  ComboboxInput,
-  ComboboxContent,
-  ComboboxList,
-  ComboboxItem,
-  ComboboxGroup,
-  ComboboxLabel,
-  ComboboxCollection,
-  ComboboxEmpty,
-  ComboboxSeparator,
-  ComboboxChips,
-  ComboboxChip,
-  ComboboxChipsInput,
-  ComboboxTrigger,
-  ComboboxValue,
-  useComboboxAnchor,
+export const Combobox = {
+  Root: ComboboxRoot,
+  Value: ComboboxValue,
+  Trigger: ComboboxTrigger,
+  Input: ComboboxInput,
+  Content: ComboboxContent,
+  List: ComboboxList,
+  Item: ComboboxItem,
+  Group: ComboboxGroup,
+  Label: ComboboxLabel,
+  Collection: ComboboxCollection,
+  Empty: ComboboxEmpty,
+  Separator: ComboboxSeparator,
+  Chips: ComboboxChips,
+  Chip: ComboboxChip,
+  ChipsInput: ComboboxChipsInput,
 };

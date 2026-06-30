@@ -6,14 +6,10 @@ import * as styles from './tabs.css';
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-const Tabs = TabsPrimitive.Root;
+const TabsRoot = TabsPrimitive.Root;
 
 // ── List ──────────────────────────────────────────────────────────────────────
 
-/**
- * The tab strip container. Uses bg-surface so it picks up the current surface
- * scope; each tab's hover/selected resolves from the same scope.
- */
 function TabsList({ className, ...props }: TabsPrimitive.List.Props) {
   return (
     <TabsPrimitive.List
@@ -31,10 +27,6 @@ export interface TabsTabProps extends TabsPrimitive.Tab.Props {
   tone?: ControlVariantProps['tone'];
 }
 
-/**
- * A single tab. base-ui sets data-selected / aria-selected on the active tab,
- * which the controlVariants recipe maps to bg-surface-selected automatically.
- */
 const TabsTab = React.forwardRef<HTMLButtonElement, TabsTabProps>(function TabsTab(
   { className, size = 'sm', tone = 'neutral', ...props },
   ref
@@ -61,4 +53,9 @@ function TabsPanel({ className, ...props }: TabsPrimitive.Panel.Props) {
   );
 }
 
-export { Tabs, TabsList, TabsTab, TabsPanel };
+export const Tabs = {
+  Root: TabsRoot,
+  List: TabsList,
+  Tab: TabsTab,
+  Panel: TabsPanel,
+};

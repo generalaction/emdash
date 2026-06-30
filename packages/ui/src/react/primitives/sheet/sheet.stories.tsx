@@ -1,15 +1,6 @@
 import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
-import {
-  Sheet,
-  SheetBody,
-  SheetClose,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@react/primitives/sheet';
+import { Sheet } from '@react/primitives/sheet';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
 import { sx } from '@styles/utilities/sprinkles.css';
@@ -24,36 +15,36 @@ type Story = StoryObj;
 
 export const Default: Story = {
   render: () => (
-    <Sheet>
-      <SheetTrigger render={<Button variant="ghost">Open sheet</Button>} />
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Sheet title</SheetTitle>
-        </SheetHeader>
-        <SheetBody>
+    <Sheet.Root>
+      <Sheet.Trigger render={<Button variant="ghost">Open sheet</Button>} />
+      <Sheet.Content>
+        <Sheet.Header>
+          <Sheet.Title>Sheet title</Sheet.Title>
+        </Sheet.Header>
+        <Sheet.Body>
           <p className={cx(sx({ color: 'foregroundMuted' }))}>
             This is the sheet body. Place forms, content, or any composition here. The body scrolls
             independently when it overflows, with a top fade when scrolled down.
           </p>
-        </SheetBody>
-        <SheetFooter>
-          <SheetClose render={<Button variant="ghost">Cancel</Button>} />
-          <SheetClose render={<Button variant="primary">Save</Button>} />
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </Sheet.Body>
+        <Sheet.Footer>
+          <Sheet.Close render={<Button variant="ghost">Cancel</Button>} />
+          <Sheet.Close render={<Button variant="primary">Save</Button>} />
+        </Sheet.Footer>
+      </Sheet.Content>
+    </Sheet.Root>
   ),
 };
 
 export const LeftSide: Story = {
   render: () => (
-    <Sheet>
-      <SheetTrigger render={<Button variant="ghost">Open left sheet</Button>} />
-      <SheetContent side="left">
-        <SheetHeader>
-          <SheetTitle>Navigation</SheetTitle>
-        </SheetHeader>
-        <SheetBody>
+    <Sheet.Root>
+      <Sheet.Trigger render={<Button variant="ghost">Open left sheet</Button>} />
+      <Sheet.Content side="left">
+        <Sheet.Header>
+          <Sheet.Title>Navigation</Sheet.Title>
+        </Sheet.Header>
+        <Sheet.Body>
           <p className={cx(sx({ color: 'foregroundMuted' }))}>
             This sheet slides in from the left. Use it for navigation drawers, sidebars, or
             secondary panels.
@@ -79,48 +70,48 @@ export const LeftSide: Story = {
               </button>
             ))}
           </Box>
-        </SheetBody>
-        <SheetFooter>
-          <SheetClose render={<Button variant="ghost">Close</Button>} />
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </Sheet.Body>
+        <Sheet.Footer>
+          <Sheet.Close render={<Button variant="ghost">Close</Button>} />
+        </Sheet.Footer>
+      </Sheet.Content>
+    </Sheet.Root>
   ),
 };
 
 export const ScrollableBody: Story = {
   render: () => (
-    <Sheet>
-      <SheetTrigger render={<Button variant="ghost">Open scrollable sheet</Button>} />
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Changelog</SheetTitle>
-        </SheetHeader>
-        <SheetBody>
+    <Sheet.Root>
+      <Sheet.Trigger render={<Button variant="ghost">Open scrollable sheet</Button>} />
+      <Sheet.Content>
+        <Sheet.Header>
+          <Sheet.Title>Changelog</Sheet.Title>
+        </Sheet.Header>
+        <Sheet.Body>
           {Array.from({ length: 20 }, (_, i) => (
             <p key={i} className={cx(sx({ color: 'foregroundMuted' }))}>
               {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
               tempor incididunt ut labore et dolore magna aliqua.
             </p>
           ))}
-        </SheetBody>
-        <SheetFooter>
-          <SheetClose render={<Button variant="ghost">Dismiss</Button>} />
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </Sheet.Body>
+        <Sheet.Footer>
+          <Sheet.Close render={<Button variant="ghost">Dismiss</Button>} />
+        </Sheet.Footer>
+      </Sheet.Content>
+    </Sheet.Root>
   ),
 };
 
 export const WithoutFooter: Story = {
   render: () => (
-    <Sheet>
-      <SheetTrigger render={<Button variant="ghost">Open detail sheet</Button>} />
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Details</SheetTitle>
-        </SheetHeader>
-        <SheetBody>
+    <Sheet.Root>
+      <Sheet.Trigger render={<Button variant="ghost">Open detail sheet</Button>} />
+      <Sheet.Content>
+        <Sheet.Header>
+          <Sheet.Title>Details</Sheet.Title>
+        </Sheet.Header>
+        <Sheet.Body>
           <p className={cx(sx({ color: 'foregroundMuted' }))}>
             This sheet has no footer — the close button in the header is the only dismiss
             affordance. Useful for detail panels, previews, or read-only views.
@@ -138,8 +129,8 @@ export const WithoutFooter: Story = {
             <p className={cx(sx({ fontWeight: 'medium', color: 'foreground' }))}>Component</p>
             <p>packages/ui/src/primitives/sheet.tsx</p>
           </Box>
-        </SheetBody>
-      </SheetContent>
-    </Sheet>
+        </Sheet.Body>
+      </Sheet.Content>
+    </Sheet.Root>
   ),
 };

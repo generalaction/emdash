@@ -1,14 +1,7 @@
 import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { SearchIcon, XIcon } from 'lucide-react';
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  InputGroupText,
-  InputGroupTextarea,
-} from '.';
+import { InputGroup } from '.';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta = {
@@ -22,12 +15,12 @@ type Story = StoryObj;
 export const WithLeadingIcon: Story = {
   render: () => (
     <Box className={s.w72}>
-      <InputGroup>
-        <InputGroupAddon align="inline-start">
+      <InputGroup.Root>
+        <InputGroup.Addon align="inline-start">
           <SearchIcon />
-        </InputGroupAddon>
-        <InputGroupInput placeholder="Search…" />
-      </InputGroup>
+        </InputGroup.Addon>
+        <InputGroup.Input placeholder="Search…" />
+      </InputGroup.Root>
     </Box>
   ),
 };
@@ -35,14 +28,14 @@ export const WithLeadingIcon: Story = {
 export const WithTrailingButton: Story = {
   render: () => (
     <Box className={s.w72}>
-      <InputGroup>
-        <InputGroupInput placeholder="Search…" />
-        <InputGroupAddon align="inline-end">
-          <InputGroupButton>
+      <InputGroup.Root>
+        <InputGroup.Input placeholder="Search…" />
+        <InputGroup.Addon align="inline-end">
+          <InputGroup.Button>
             <XIcon />
-          </InputGroupButton>
-        </InputGroupAddon>
-      </InputGroup>
+          </InputGroup.Button>
+        </InputGroup.Addon>
+      </InputGroup.Root>
     </Box>
   ),
 };
@@ -50,12 +43,12 @@ export const WithTrailingButton: Story = {
 export const WithPrefixText: Story = {
   render: () => (
     <Box className={s.w72}>
-      <InputGroup>
-        <InputGroupAddon align="inline-start">
-          <InputGroupText>https://</InputGroupText>
-        </InputGroupAddon>
-        <InputGroupInput placeholder="example.com" />
-      </InputGroup>
+      <InputGroup.Root>
+        <InputGroup.Addon align="inline-start">
+          <InputGroup.Text>https://</InputGroup.Text>
+        </InputGroup.Addon>
+        <InputGroup.Input placeholder="example.com" />
+      </InputGroup.Root>
     </Box>
   ),
 };
@@ -63,12 +56,12 @@ export const WithPrefixText: Story = {
 export const WithTextarea: Story = {
   render: () => (
     <Box className={s.w72}>
-      <InputGroup>
-        <InputGroupAddon align="block-start">
-          <InputGroupText>Note</InputGroupText>
-        </InputGroupAddon>
-        <InputGroupTextarea placeholder="Write something…" rows={3} />
-      </InputGroup>
+      <InputGroup.Root>
+        <InputGroup.Addon align="block-start">
+          <InputGroup.Text>Note</InputGroup.Text>
+        </InputGroup.Addon>
+        <InputGroup.Textarea placeholder="Write something…" rows={3} />
+      </InputGroup.Root>
     </Box>
   ),
 };
@@ -76,12 +69,12 @@ export const WithTextarea: Story = {
 export const Invalid: Story = {
   render: () => (
     <Box className={s.w72}>
-      <InputGroup>
-        <InputGroupAddon align="inline-start">
+      <InputGroup.Root>
+        <InputGroup.Addon align="inline-start">
           <SearchIcon />
-        </InputGroupAddon>
-        <InputGroupInput placeholder="Search…" aria-invalid="true" />
-      </InputGroup>
+        </InputGroup.Addon>
+        <InputGroup.Input placeholder="Search…" aria-invalid="true" />
+      </InputGroup.Root>
     </Box>
   ),
 };

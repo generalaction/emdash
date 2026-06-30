@@ -12,12 +12,7 @@ export interface ToggleProps
   icon?: boolean;
 }
 
-/**
- * A stateful button that toggles between pressed and not-pressed.
- * base-ui sets data-pressed / aria-pressed which the controlVariants recipe
- * already maps to bg-surface-selected, so no extra color rules needed.
- */
-const Toggle = React.forwardRef<HTMLButtonElement, ToggleProps>(function Toggle(
+export const Toggle = React.forwardRef<HTMLButtonElement, ToggleProps>(function Toggle(
   { className, size = 'base', tone = 'neutral', icon = false, ...props },
   ref
 ) {
@@ -38,11 +33,7 @@ export interface ToggleGroupProps extends ToggleGroupPrimitive.Props {
   tone?: ControlVariantProps['tone'];
 }
 
-/**
- * A group of Toggle buttons where one or many can be active.
- * Each item inside uses the Toggle component or raw TogglePrimitive.Item.
- */
-function ToggleGroup({ className, ...props }: ToggleGroupProps) {
+function ToggleGroupRoot({ className, ...props }: ToggleGroupProps) {
   return (
     <ToggleGroupPrimitive
       data-slot="toggle-group"
@@ -52,9 +43,6 @@ function ToggleGroup({ className, ...props }: ToggleGroupProps) {
   );
 }
 
-/**
- * A single item inside a ToggleGroup.
- */
 const ToggleGroupItem = React.forwardRef<
   HTMLButtonElement,
   TogglePrimitive.Props & Pick<ControlVariantProps, 'size' | 'tone'> & { icon?: boolean }
@@ -72,4 +60,7 @@ const ToggleGroupItem = React.forwardRef<
   );
 });
 
-export { Toggle, ToggleGroup, ToggleGroupItem };
+export const ToggleGroup = {
+  Root: ToggleGroupRoot,
+  Item: ToggleGroupItem,
+};

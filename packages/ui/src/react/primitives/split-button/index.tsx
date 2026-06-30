@@ -10,12 +10,7 @@
  * Escape, and positioning with no manual listeners required.
  */
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@react/primitives/dropdown-menu';
+import { DropdownMenu } from '@react/primitives/dropdown-menu';
 import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
 import { cx } from '@styles/utilities/cx';
 import { ChevronDownIcon } from 'lucide-react';
@@ -104,8 +99,8 @@ export function SplitButton({
       </Button>
 
       {/* Chevron trigger — opens the option menu */}
-      <DropdownMenu>
-        <DropdownMenuTrigger
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger
           disabled={disabled}
           aria-label="More options"
           className={cx(
@@ -115,16 +110,16 @@ export function SplitButton({
           )}
         >
           <ChevronDownIcon />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" sideOffset={4}>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content align="end" sideOffset={4}>
           {options.map((option) => (
-            <DropdownMenuItem key={option.id} onClick={() => handleMenuSelect(option)}>
+            <DropdownMenu.Item key={option.id} onClick={() => handleMenuSelect(option)}>
               <ToneDot tone={option.tone} />
               {option.label}
-            </DropdownMenuItem>
+            </DropdownMenu.Item>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
     </div>
   );
 }

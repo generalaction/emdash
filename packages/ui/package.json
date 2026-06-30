@@ -37,7 +37,7 @@
       "default": "./dist/react/patterns.js"
     },
     "./react/form": {
-      "types": "./dist/src/react/form/index.d.ts",
+      "types": "./dist/src/react/patterns/form/index.d.ts",
       "default": "./dist/react/form.js"
     },
     "./react/chat-ui": {

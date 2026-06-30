@@ -33,38 +33,12 @@ function AlertDescription({ className, ...props }: React.HTMLAttributes<HTMLPara
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
-  /**
-   * Status variant — controls the tinted background, border, and text color
-   * via the status surface cascade.
-   */
   status: SurfaceStatusName;
-  /**
-   * Override the default status icon. Pass `null` to suppress the icon entirely.
-   */
   icon?: React.ReactNode | null;
-  /**
-   * Called when the user clicks the dismiss button.
-   * When provided, a close button is rendered in the top-right corner.
-   */
   onDismiss?: () => void;
 }
 
-/**
- * Alert — a prominent, optionally dismissible notification banner for
- * page-level notices, form submission results, and async errors.
- *
- * Compose with `AlertTitle` and `AlertDescription` for structured content,
- * or pass children directly for simple single-line messages.
- *
- * Usage:
- *   <Alert status="info" onDismiss={() => setVisible(false)}>
- *     <AlertTitle>Update available</AlertTitle>
- *     <AlertDescription>Restart the app to apply the latest changes.</AlertDescription>
- *   </Alert>
- *
- *   <Alert status="destructive">Connection to remote host failed.</Alert>
- */
-function Alert({ status, icon, onDismiss, className, children, ...props }: AlertProps) {
+function AlertRoot({ status, icon, onDismiss, className, children, ...props }: AlertProps) {
   const resolvedIcon = icon === null ? null : (icon ?? STATUS_ICONS[status]);
 
   return (
@@ -95,4 +69,8 @@ function Alert({ status, icon, onDismiss, className, children, ...props }: Alert
   );
 }
 
-export { Alert, AlertDescription, AlertTitle };
+export const Alert = {
+  Root: AlertRoot,
+  Title: AlertTitle,
+  Description: AlertDescription,
+};

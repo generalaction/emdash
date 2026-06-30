@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/react/primitives/dialog';
+import { Dialog } from '@/react/primitives/dialog';
 import * as styles from './image-viewer-dialog.css';
 
 export interface ImageViewerDialogProps {
@@ -12,11 +12,11 @@ export interface ImageViewerDialogProps {
 
 export function ImageViewerDialog({ open, onOpenChange, src, alt }: ImageViewerDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl">
-        <DialogHeader>
-          <DialogTitle>{alt ?? 'Image'}</DialogTitle>
-        </DialogHeader>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Content size="xl">
+        <Dialog.Header>
+          <Dialog.Title>{alt ?? 'Image'}</Dialog.Title>
+        </Dialog.Header>
         <div className={styles.imageContainer}>
           {src ? (
             <img src={src} alt={alt ?? 'Image'} className={styles.image} />
@@ -24,7 +24,7 @@ export function ImageViewerDialog({ open, onOpenChange, src, alt }: ImageViewerD
             <p className={styles.unavailable}>Image content unavailable.</p>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </Dialog.Content>
+    </Dialog.Root>
   );
 }

@@ -10,7 +10,7 @@ export type SheetSide = 'right' | 'left';
 
 // ── Root parts ────────────────────────────────────────────────────────────────
 
-function Sheet({ ...props }: Drawer.Root.Props) {
+function SheetRoot({ ...props }: Drawer.Root.Props) {
   return <Drawer.Root data-slot="sheet" {...props} />;
 }
 
@@ -129,14 +129,14 @@ function SheetFooter({ className, children, ...props }: React.ComponentProps<'di
 
 // ── Exports ───────────────────────────────────────────────────────────────────
 
-export {
-  Sheet,
-  SheetTrigger,
-  SheetPortal,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetBody,
-  SheetFooter,
+export const Sheet = {
+  Root: SheetRoot,
+  Trigger: SheetTrigger,
+  Portal: SheetPortal,
+  Close: SheetClose,
+  Content: SheetContent,
+  Header: SheetHeader,
+  Title: SheetTitle,
+  Body: SheetBody,
+  Footer: SheetFooter,
 };

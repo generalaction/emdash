@@ -13,13 +13,7 @@ import { Alert } from '../primitives/alert';
 import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
 import { Input } from '../primitives/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../primitives/select';
+import { Select } from '../primitives/select';
 import { Surface } from '../primitives/surface/surface';
 import { ThemeProvider } from '../primitives/theme-provider';
 import { Toggle } from '../primitives/toggle';
@@ -103,15 +97,15 @@ function SurfaceCard({ level }: { level: SurfaceScopeName }) {
           Primary
         </Button>
       </Box>
-      <Select>
-        <SelectTrigger className={cx(sx({ width: 'full' }))}>
-          <SelectValue placeholder="Pick one…" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="a">Option A</SelectItem>
-          <SelectItem value="b">Option B</SelectItem>
-        </SelectContent>
-      </Select>
+      <Select.Root>
+        <Select.Trigger className={cx(sx({ width: 'full' }))}>
+          <Select.Value placeholder="Pick one…" />
+        </Select.Trigger>
+        <Select.Content>
+          <Select.Item value="a">Option A</Select.Item>
+          <Select.Item value="b">Option B</Select.Item>
+        </Select.Content>
+      </Select.Root>
     </Box>
   );
 }
@@ -321,9 +315,9 @@ function StatusRoom({ status }: { status: SurfaceStatusName }) {
   const [pressed, setPressed] = useState(false);
   return (
     <Box display="flex" flexDirection="column" gap="3">
-      <Alert status={status} icon={STATUS_ICON[status]}>
+      <Alert.Root status={status} icon={STATUS_ICON[status]}>
         <strong>{STATUS_LABEL[status]}:</strong> {STATUS_MESSAGE[status]}
-      </Alert>
+      </Alert.Root>
       <Box
         surface={status}
         display="flex"

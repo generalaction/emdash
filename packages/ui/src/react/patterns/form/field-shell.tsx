@@ -6,9 +6,9 @@ import {
   FieldDescription,
   FieldError,
   FieldLabel,
-} from '../primitives/field';
+} from './field/field';
 import { useFieldContext } from './form-context';
-import type { FieldVariants } from '../primitives/field.css';
+import type { FieldVariants } from './field/field.css';
 
 export type FieldOrientation = NonNullable<FieldVariants['orientation']>;
 

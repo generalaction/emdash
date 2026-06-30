@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 import { SearchInput } from '../../primitives/search-input';
-import { Tabs, TabsList, TabsTab } from '../../primitives/tabs/tabs';
+import { Tabs } from '../../primitives/tabs/tabs';
 import { ListView } from './index';
 import * as s from '../../story-layout.css';
 
@@ -279,14 +279,14 @@ function FullListViewDemo() {
       <ListView>
         <ListView.Toolbar>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Tabs value={status} onValueChange={(v) => setStatus(v ?? 'all')}>
-              <TabsList>
-                <TabsTab value="all">All</TabsTab>
-                <TabsTab value="open">Open</TabsTab>
-                <TabsTab value="closed">Closed</TabsTab>
-                <TabsTab value="merged">Merged</TabsTab>
-              </TabsList>
-            </Tabs>
+            <Tabs.Root value={status} onValueChange={(v) => setStatus(v ?? 'all')}>
+              <Tabs.List>
+                <Tabs.Tab value="all">All</Tabs.Tab>
+                <Tabs.Tab value="open">Open</Tabs.Tab>
+                <Tabs.Tab value="closed">Closed</Tabs.Tab>
+                <Tabs.Tab value="merged">Merged</Tabs.Tab>
+              </Tabs.List>
+            </Tabs.Root>
             <SearchInput
               size="sm"
               value={query}
@@ -605,13 +605,13 @@ function AgentsViewDemo() {
     <div className={s.w96} style={{ height: '40rem', display: 'flex', flexDirection: 'column' }}>
       <ListView>
         <ListView.Toolbar>
-          <Tabs value={filter} onValueChange={(v) => setFilter((v ?? 'all') as typeof filter)}>
-            <TabsList>
-              <TabsTab value="all">All</TabsTab>
-              <TabsTab value="installed">Installed</TabsTab>
-              <TabsTab value="not-installed">Not installed</TabsTab>
-            </TabsList>
-          </Tabs>
+          <Tabs.Root value={filter} onValueChange={(v) => setFilter((v ?? 'all') as typeof filter)}>
+            <Tabs.List>
+              <Tabs.Tab value="all">All</Tabs.Tab>
+              <Tabs.Tab value="installed">Installed</Tabs.Tab>
+              <Tabs.Tab value="not-installed">Not installed</Tabs.Tab>
+            </Tabs.List>
+          </Tabs.Root>
           <SearchInput
             size="sm"
             value={query}

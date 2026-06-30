@@ -2,15 +2,7 @@ import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
-import {
-  Popover,
-  PopoverClose,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from '.';
+import { Popover } from '.';
 import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
@@ -23,45 +15,45 @@ type Story = StoryObj;
 
 export const Default: Story = {
   render: () => (
-    <Popover>
-      <PopoverTrigger>
+    <Popover.Root>
+      <Popover.Trigger>
         <Button variant="ghost">Open popover</Button>
-      </PopoverTrigger>
-      <PopoverContent>
-        <PopoverHeader>
-          <PopoverTitle>Popover title</PopoverTitle>
-          <PopoverDescription>
+      </Popover.Trigger>
+      <Popover.Content>
+        <Popover.Header>
+          <Popover.Title>Popover title</Popover.Title>
+          <Popover.Description>
             This is a short description of the popover content.
-          </PopoverDescription>
-        </PopoverHeader>
+          </Popover.Description>
+        </Popover.Header>
         <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>
           Some body content here.
         </p>
-      </PopoverContent>
-    </Popover>
+      </Popover.Content>
+    </Popover.Root>
   ),
 };
 
 export const WithCloseButton: Story = {
   render: () => (
-    <Popover>
-      <PopoverTrigger>
+    <Popover.Root>
+      <Popover.Trigger>
         <Button variant="ghost">Open popover</Button>
-      </PopoverTrigger>
-      <PopoverContent>
-        <PopoverHeader>
-          <PopoverTitle>Settings</PopoverTitle>
-          <PopoverClose>
+      </Popover.Trigger>
+      <Popover.Content>
+        <Popover.Header>
+          <Popover.Title>Settings</Popover.Title>
+          <Popover.Close>
             <Button variant="ghost" size="sm" icon>
               ×
             </Button>
-          </PopoverClose>
-        </PopoverHeader>
+          </Popover.Close>
+        </Popover.Header>
         <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>
           Configure your preferences here.
         </p>
-      </PopoverContent>
-    </Popover>
+      </Popover.Content>
+    </Popover.Root>
   ),
 };
 
@@ -69,16 +61,16 @@ export const Aligned: Story = {
   render: () => (
     <Box display="flex" gap="4">
       {(['start', 'center', 'end'] as const).map((align) => (
-        <Popover key={align}>
-          <PopoverTrigger>
+        <Popover.Root key={align}>
+          <Popover.Trigger>
             <Button variant="ghost" size="sm">
               {align}
             </Button>
-          </PopoverTrigger>
-          <PopoverContent align={align}>
+          </Popover.Trigger>
+          <Popover.Content align={align}>
             <p className={cx(sx({ fontSize: 'sm' }))}>Aligned: {align}</p>
-          </PopoverContent>
-        </Popover>
+          </Popover.Content>
+        </Popover.Root>
       ))}
     </Box>
   ),

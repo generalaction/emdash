@@ -10,7 +10,7 @@ export type DialogSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
 // ── Root parts ────────────────────────────────────────────────────────────────
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
+function DialogRoot({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
 
@@ -133,15 +133,15 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   );
 }
 
-export {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogBody,
-  DialogFooter,
-  DialogHeader,
-  DialogOverlay,
-  DialogPortal,
-  DialogTitle,
-  DialogTrigger,
+export const Dialog = {
+  Root: DialogRoot,
+  Trigger: DialogTrigger,
+  Portal: DialogPortal,
+  Close: DialogClose,
+  Overlay: DialogOverlay,
+  Content: DialogContent,
+  Header: DialogHeader,
+  Body: DialogBody,
+  Footer: DialogFooter,
+  Title: DialogTitle,
 };

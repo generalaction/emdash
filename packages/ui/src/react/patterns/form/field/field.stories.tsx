@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { Box } from './box/box';
+import { Box } from '@/react/primitives/box';
+import { Input } from '@/react/primitives/input';
+import { Switch } from '@/react/primitives/switch';
+import { Textarea } from '@/react/primitives/textarea';
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from './field';
-import { Input } from './input';
-import { Switch } from './switch';
-import { Textarea } from './textarea';
-import * as s from '../story-layout.css';
+import * as s from '@/react/story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Field',

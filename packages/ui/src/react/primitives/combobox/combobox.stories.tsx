@@ -1,20 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
 import { Box } from '../box';
-import {
-  Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxLabel,
-  ComboboxList,
-  ComboboxSeparator,
-} from './combobox';
+import { Combobox } from './combobox';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta = {
@@ -31,19 +18,19 @@ const VEGGIES = ['Carrot', 'Celery', 'Pea', 'Spinach', 'Tomato', 'Zucchini'];
 export const Default: Story = {
   render: () => (
     <Box className={s.w64}>
-      <Combobox>
-        <ComboboxInput placeholder="Search fruits…" showTrigger showClear />
-        <ComboboxContent>
-          <ComboboxList>
+      <Combobox.Root>
+        <Combobox.Input placeholder="Search fruits…" showTrigger showClear />
+        <Combobox.Content>
+          <Combobox.List>
             {FRUITS.map((fruit) => (
-              <ComboboxItem key={fruit} value={fruit}>
+              <Combobox.Item key={fruit} value={fruit}>
                 {fruit}
-              </ComboboxItem>
+              </Combobox.Item>
             ))}
-            <ComboboxEmpty>No fruits found.</ComboboxEmpty>
-          </ComboboxList>
-        </ComboboxContent>
-      </Combobox>
+            <Combobox.Empty>No fruits found.</Combobox.Empty>
+          </Combobox.List>
+        </Combobox.Content>
+      </Combobox.Root>
     </Box>
   ),
 };
@@ -51,31 +38,31 @@ export const Default: Story = {
 export const WithGroups: Story = {
   render: () => (
     <Box className={s.w64}>
-      <Combobox>
-        <ComboboxInput placeholder="Search foods…" showTrigger showClear />
-        <ComboboxContent>
-          <ComboboxList>
-            <ComboboxGroup>
-              <ComboboxLabel>Fruits</ComboboxLabel>
+      <Combobox.Root>
+        <Combobox.Input placeholder="Search foods…" showTrigger showClear />
+        <Combobox.Content>
+          <Combobox.List>
+            <Combobox.Group>
+              <Combobox.Label>Fruits</Combobox.Label>
               {FRUITS.map((item) => (
-                <ComboboxItem key={item} value={item}>
+                <Combobox.Item key={item} value={item}>
                   {item}
-                </ComboboxItem>
+                </Combobox.Item>
               ))}
-            </ComboboxGroup>
-            <ComboboxSeparator />
-            <ComboboxGroup>
-              <ComboboxLabel>Vegetables</ComboboxLabel>
+            </Combobox.Group>
+            <Combobox.Separator />
+            <Combobox.Group>
+              <Combobox.Label>Vegetables</Combobox.Label>
               {VEGGIES.map((item) => (
-                <ComboboxItem key={item} value={item}>
+                <Combobox.Item key={item} value={item}>
                   {item}
-                </ComboboxItem>
+                </Combobox.Item>
               ))}
-            </ComboboxGroup>
-            <ComboboxEmpty>Nothing found.</ComboboxEmpty>
-          </ComboboxList>
-        </ComboboxContent>
-      </Combobox>
+            </Combobox.Group>
+            <Combobox.Empty>Nothing found.</Combobox.Empty>
+          </Combobox.List>
+        </Combobox.Content>
+      </Combobox.Root>
     </Box>
   ),
 };
@@ -86,24 +73,24 @@ export const MultiSelect: Story = {
 
     return (
       <Box className={s.w72}>
-        <Combobox multiple value={values} onValueChange={setValues}>
-          <ComboboxChips>
+        <Combobox.Root multiple value={values} onValueChange={setValues}>
+          <Combobox.Chips>
             {values.map((v) => (
-              <ComboboxChip key={v}>{v}</ComboboxChip>
+              <Combobox.Chip key={v}>{v}</Combobox.Chip>
             ))}
-            <ComboboxChipsInput placeholder="Add fruit…" />
-          </ComboboxChips>
-          <ComboboxContent>
-            <ComboboxList>
+            <Combobox.ChipsInput placeholder="Add fruit…" />
+          </Combobox.Chips>
+          <Combobox.Content>
+            <Combobox.List>
               {FRUITS.map((fruit) => (
-                <ComboboxItem key={fruit} value={fruit}>
+                <Combobox.Item key={fruit} value={fruit}>
                   {fruit}
-                </ComboboxItem>
+                </Combobox.Item>
               ))}
-              <ComboboxEmpty>No fruits found.</ComboboxEmpty>
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
+              <Combobox.Empty>No fruits found.</Combobox.Empty>
+            </Combobox.List>
+          </Combobox.Content>
+        </Combobox.Root>
       </Box>
     );
   },
@@ -112,18 +99,18 @@ export const MultiSelect: Story = {
 export const Disabled: Story = {
   render: () => (
     <Box className={s.w64}>
-      <Combobox disabled>
-        <ComboboxInput placeholder="Disabled combobox" showTrigger />
-        <ComboboxContent>
-          <ComboboxList>
+      <Combobox.Root disabled>
+        <Combobox.Input placeholder="Disabled combobox" showTrigger />
+        <Combobox.Content>
+          <Combobox.List>
             {FRUITS.map((fruit) => (
-              <ComboboxItem key={fruit} value={fruit}>
+              <Combobox.Item key={fruit} value={fruit}>
                 {fruit}
-              </ComboboxItem>
+              </Combobox.Item>
             ))}
-          </ComboboxList>
-        </ComboboxContent>
-      </Combobox>
+          </Combobox.List>
+        </Combobox.Content>
+      </Combobox.Root>
     </Box>
   ),
 };

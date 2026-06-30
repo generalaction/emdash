@@ -1,10 +1,4 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@react/primitives/select';
+import { Select } from '@react/primitives/select';
 import * as React from 'react';
 import { FormFieldShell, type FieldOrientation } from '../field-shell';
 import { useFieldContext } from '../form-context';
@@ -42,24 +36,24 @@ export function SelectField({
       className={className}
     >
       {({ id }) => (
-        <Select
+        <Select.Root
           value={field.state.value}
           onValueChange={(value) => {
             if (value !== null) field.handleChange(value);
           }}
           disabled={disabled}
         >
-          <SelectTrigger id={id} onBlur={field.handleBlur} appearance="input">
-            <SelectValue placeholder={placeholder} />
-          </SelectTrigger>
-          <SelectContent>
+          <Select.Trigger id={id} onBlur={field.handleBlur} appearance="input">
+            <Select.Value placeholder={placeholder} />
+          </Select.Trigger>
+          <Select.Content>
             {options.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
+              <Select.Item key={opt.value} value={opt.value}>
                 {opt.label}
-              </SelectItem>
+              </Select.Item>
             ))}
-          </SelectContent>
-        </Select>
+          </Select.Content>
+        </Select.Root>
       )}
     </FormFieldShell>
   );

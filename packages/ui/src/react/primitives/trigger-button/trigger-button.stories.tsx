@@ -1,13 +1,8 @@
 import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { TriggerButton } from '.';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../dropdown-menu';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../select';
+import { DropdownMenu } from '../dropdown-menu';
+import { Select } from '../select';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta = {
@@ -18,7 +13,6 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-/** Bare TriggerButton — becomes "active" (surface-selected) while expanded. */
 export const Bare: Story = {
   render: () => (
     <Box display="flex" flexWrap="wrap" alignItems="center" gap="3">
@@ -29,37 +23,34 @@ export const Bare: Story = {
   ),
 };
 
-/** Select using SelectTrigger (wraps TriggerButton internally). */
 export const AsSelectTrigger: Story = {
   render: () => (
-    <Select>
-      <SelectTrigger className={s.w48}>
-        <SelectValue placeholder="Pick an option" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="a">Alpha</SelectItem>
-        <SelectItem value="b">Beta</SelectItem>
-        <SelectItem value="c">Gamma</SelectItem>
-      </SelectContent>
-    </Select>
+    <Select.Root>
+      <Select.Trigger className={s.w48}>
+        <Select.Value placeholder="Pick an option" />
+      </Select.Trigger>
+      <Select.Content>
+        <Select.Item value="a">Alpha</Select.Item>
+        <Select.Item value="b">Beta</Select.Item>
+        <Select.Item value="c">Gamma</Select.Item>
+      </Select.Content>
+    </Select.Root>
   ),
 };
 
-/** Dropdown using TriggerButton as the trigger face. */
 export const AsDropdownTrigger: Story = {
   render: () => (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<TriggerButton className={s.w48}>Actions</TriggerButton>} />
-      <DropdownMenuContent>
-        <DropdownMenuItem>Edit</DropdownMenuItem>
-        <DropdownMenuItem>Duplicate</DropdownMenuItem>
-        <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger render={<TriggerButton className={s.w48}>Actions</TriggerButton>} />
+      <DropdownMenu.Content>
+        <DropdownMenu.Item>Edit</DropdownMenu.Item>
+        <DropdownMenu.Item>Duplicate</DropdownMenu.Item>
+        <DropdownMenu.Item variant="destructive">Delete</DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
   ),
 };
 
-/** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
     <Box
@@ -88,15 +79,15 @@ export const AcrossSurfaces: Story = {
             >
               {level}
             </span>
-            <Select>
-              <SelectTrigger className={s.w40}>
-                <SelectValue placeholder="Select…" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="a">Alpha</SelectItem>
-                <SelectItem value="b">Beta</SelectItem>
-              </SelectContent>
-            </Select>
+            <Select.Root>
+              <Select.Trigger className={s.w40}>
+                <Select.Value placeholder="Select…" />
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="a">Alpha</Select.Item>
+                <Select.Item value="b">Beta</Select.Item>
+              </Select.Content>
+            </Select.Root>
           </Box>
         )
       )}

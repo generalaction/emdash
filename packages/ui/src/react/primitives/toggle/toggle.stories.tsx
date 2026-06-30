@@ -1,5 +1,5 @@
 import { Box } from '@react/primitives/box';
-import { Toggle, ToggleGroup, ToggleGroupItem } from '@react/primitives/toggle';
+import { Toggle, ToggleGroup } from '@react/primitives/toggle';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, BoldIcon, ItalicIcon } from 'lucide-react';
 import * as s from '@react/story-layout.css';
@@ -12,7 +12,6 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-/** A standalone toggle — active state via data-pressed / aria-pressed. */
 export const Standalone: Story = {
   render: () => (
     <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
@@ -29,24 +28,22 @@ export const Standalone: Story = {
   ),
 };
 
-/** ToggleGroup with single selection (alignment). */
 export const Group: Story = {
   render: () => (
-    <ToggleGroup>
-      <ToggleGroupItem value="left" aria-label="Align left">
+    <ToggleGroup.Root>
+      <ToggleGroup.Item value="left" aria-label="Align left">
         <AlignLeftIcon />
-      </ToggleGroupItem>
-      <ToggleGroupItem value="center" aria-label="Align center">
+      </ToggleGroup.Item>
+      <ToggleGroup.Item value="center" aria-label="Align center">
         <AlignCenterIcon />
-      </ToggleGroupItem>
-      <ToggleGroupItem value="right" aria-label="Align right">
+      </ToggleGroup.Item>
+      <ToggleGroup.Item value="right" aria-label="Align right">
         <AlignRightIcon />
-      </ToggleGroupItem>
-    </ToggleGroup>
+      </ToggleGroup.Item>
+    </ToggleGroup.Root>
   ),
 };
 
-/** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
     <Box
@@ -81,14 +78,14 @@ export const AcrossSurfaces: Story = {
             <Toggle aria-label="Italic">
               <ItalicIcon />
             </Toggle>
-            <ToggleGroup>
-              <ToggleGroupItem value="left" aria-label="Left">
+            <ToggleGroup.Root>
+              <ToggleGroup.Item value="left" aria-label="Left">
                 <AlignLeftIcon />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="center" aria-label="Center">
+              </ToggleGroup.Item>
+              <ToggleGroup.Item value="center" aria-label="Center">
                 <AlignCenterIcon />
-              </ToggleGroupItem>
-            </ToggleGroup>
+              </ToggleGroup.Item>
+            </ToggleGroup.Root>
           </Box>
         )
       )}

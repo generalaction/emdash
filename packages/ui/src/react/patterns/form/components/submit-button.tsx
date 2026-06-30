@@ -1,6 +1,6 @@
 import { useStore } from '@tanstack/react-store';
 import * as React from 'react';
-import { Button, type ButtonProps } from '../../primitives/button';
+import { Button, type ButtonProps } from '../../../primitives/button';
 import { useFormContext } from '../form-context';
 
 export interface SubmitButtonProps extends Omit<ButtonProps, 'type' | 'disabled'> {

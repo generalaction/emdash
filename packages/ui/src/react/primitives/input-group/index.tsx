@@ -9,9 +9,11 @@ import * as React from 'react';
 import * as styles from './input-group.css';
 
 type InputGroupVariant = NonNullable<RecipeVariants<typeof styles.inputGroup>>['variant'];
-type InputGroupAddonAlign = NonNullable<RecipeVariants<typeof styles.inputGroupAddon>>['align'];
+export type InputGroupAddonAlign = NonNullable<
+  RecipeVariants<typeof styles.inputGroupAddon>
+>['align'];
 
-function InputGroup({
+function InputGroupRoot({
   className,
   variant = 'default',
   ...props
@@ -91,12 +93,11 @@ function InputGroupTextarea({ className, ...props }: React.ComponentProps<'texta
   );
 }
 
-export type { InputGroupAddonAlign };
-export {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupText,
-  InputGroupInput,
-  InputGroupTextarea,
+export const InputGroup = {
+  Root: InputGroupRoot,
+  Addon: InputGroupAddon,
+  Button: InputGroupButton,
+  Text: InputGroupText,
+  Input: InputGroupInput,
+  Textarea: InputGroupTextarea,
 };
