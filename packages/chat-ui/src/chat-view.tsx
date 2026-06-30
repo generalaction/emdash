@@ -49,6 +49,12 @@ export type ChatViewOptions = {
    * - `'none'` (default): no slot; use `setContentPadding` externally.
    */
   composer?: 'slot' | 'none';
+  /**
+   * When true, render an absolutely-positioned overlay slot above the
+   * transcript/scroll but below the composer. Use `view.contentOverlay` to
+   * portal loading/empty/disabled states into it.
+   */
+  contentOverlay?: boolean;
   stickToBottom?: boolean;
   pinUserMessages?: boolean;
   /** Extra class for the scroll container. */
@@ -77,6 +83,11 @@ export type ChatView = {
    * Use `onViewMounted` to be notified when it becomes available.
    */
   readonly composerSlot: HTMLElement | null;
+  /**
+   * The content overlay slot element (non-null only when `contentOverlay` is
+   * true and after mount). Portal loading/empty/disabled overlay UI here.
+   */
+  readonly contentOverlay: HTMLElement | null;
   /** Replace command callbacks without remounting. */
   setCommands(commands: ChatCommands): void;
   /** Scroll to the bottom of the transcript. */
@@ -147,6 +158,9 @@ export function createChatView(opts: ChatViewOptions): ChatView {
     get composerSlot() {
       return controls.composerSlot ?? null;
     },
+    get contentOverlay() {
+      return controls.contentOverlay ?? null;
+    },
     setCommands(c) {
       setCommandsSignal(c);
     },
@@ -195,6 +209,7 @@ export function createChatView(opts: ChatViewOptions): ChatView {
         controls={controls}
         pinUserMessages={opts.pinUserMessages}
         composer={opts.composer}
+        contentOverlay={opts.contentOverlay}
       />
     ),
     opts.parent

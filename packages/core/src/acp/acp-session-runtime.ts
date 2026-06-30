@@ -864,12 +864,14 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   ): Promise<Result<void, AcpRuntimeError>> {
     if (!conv.acpSessionId) return acpErr.noActiveSession(conv.conversationId);
 
-    // Synthesize user message update
+    // Synthesize user message update — include images so they appear as an
+    // attachment strip in the user's transcript bubble.
     const userUpdate: AgentUpdate = {
       kind: 'message',
       role: 'user',
       messageId: `${conv.conversationId}-${conv.machine.nextTurnIndex}-user`, // stable per-turn id
       text,
+      images,
     };
 
     const dispatchResult = this.dispatch(conv, { type: 'Prompt', userUpdate });

@@ -49,7 +49,7 @@ export function Code(props: CodeProps) {
   // effect runs a single time when the block crosses a safe parse boundary
   // (fence close or blank line), rather than waiting for the whole message.
   const settled = createMemo(
-    () => !streamAnim?.streaming() || blockIndex < (streamAnim?.settledCount() ?? 0),
+    () => !streamAnim?.streaming() || blockIndex < (streamAnim?.settledCount() ?? 0)
   );
 
   createEffect(() => {

@@ -114,7 +114,11 @@ export const FenceCloseHighlight: Story = {
     <ScriptedChat
       height={340}
       script={scenario(
-        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'How do I add two numbers?' }])],
+        [
+          seedStep([
+            { kind: 'message', id: 'u1', role: 'user', text: 'How do I add two numbers?' },
+          ]),
+        ],
         streamMessage({ id: 'a1', text: FENCE_CLOSE_BODY, chunkMs: 90 })
       )}
     />
@@ -143,7 +147,11 @@ export const IncrementalHighlight: Story = {
     <ScriptedChat
       height={360}
       script={scenario(
-        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'How do I add two numbers?' }])],
+        [
+          seedStep([
+            { kind: 'message', id: 'u1', role: 'user', text: 'How do I add two numbers?' },
+          ]),
+        ],
         streamMessage({ id: 'a1', text: INCREMENTAL_HIGHLIGHT_BODY, chunkMs: 80 })
       )}
     />

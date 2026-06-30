@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
-import type { ChatView } from '@renderer/lib/chat/chat-transcript';
+import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { AcpChatStore } from './acp-chat-store';
@@ -81,7 +81,7 @@ const ComposerForStore = observer(function ComposerForStore({
         .filter((att) => att.kind === 'image' && att.previewUrl)
         .map((att) => {
           const url = att.previewUrl!;
-          return { data: url.slice(url.indexOf(',') + 1), mimeType: att.mimeType ?? 'image/png' };
+          return { data: url.slice(url.indexOf(',') + 1), mimeType: att.mimeType ?? 'image/png', name: att.name };
         });
       if (!value.trim() && images.length === 0) return;
       store.submitPrompt(value, images);
@@ -112,16 +112,13 @@ const ComposerForStore = observer(function ComposerForStore({
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileInputChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith('image/'));
-      e.target.value = '';
-      if (files.length === 0) return;
-      const next = await Promise.all(files.map(readImageFile));
-      setAttachments((prev) => [...prev, ...next]);
-    },
-    []
-  );
+  const handleFileInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith('image/'));
+    e.target.value = '';
+    if (files.length === 0) return;
+    const next = await Promise.all(files.map(readImageFile));
+    setAttachments((prev) => [...prev, ...next]);
+  }, []);
 
   const { data: agents } = useAgents();
   const agentOptions = useMemo<ComposerAgentOption[]>(
@@ -195,12 +192,13 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   const viewRef = useRef<ChatView | null>(null);
   const [composerSlot, setComposerSlot] = useState<HTMLElement | null>(null);
-  const [composerHeight, setComposerHeight] = useState(0);
+  const [overlaySlot, setOverlaySlot] = useState<HTMLElement | null>(null);
   const [viewer, setViewer] = useState<{ src?: string; alt?: string } | null>(null);
 
   const handleReady = useCallback((view: ChatView) => {
     viewRef.current = view;
     setComposerSlot(view.composerSlot);
+    setOverlaySlot(view.contentOverlay);
   }, []);
 
   // Bind/unbind the view handle to the active store so the store can call
@@ -213,19 +211,16 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
     };
   }, [store]);
 
-  // Measure composer height so the loading overlay doesn't cover the composer.
-  useEffect(() => {
-    if (!composerSlot) return;
-    const update = () => setComposerHeight(composerSlot.offsetHeight);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(composerSlot);
-    return () => ro.disconnect();
-  }, [composerSlot]);
-
   const handleViewerOpen = useCallback((src?: string, alt?: string) => {
     setViewer({ src, alt });
   }, []);
+
+  const transcriptCommands = useMemo<ChatCommands>(
+    () => ({
+      onViewImage: (arg) => handleViewerOpen(arg.attachment.dataUrl, arg.attachment.name),
+    }),
+    [handleViewerOpen]
+  );
 
   if (!store) return null;
 
@@ -238,28 +233,31 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         context={store.chatContext}
         state={store.chatState}
         composer="slot"
+        contentOverlay
         stickToBottom
         pinUserMessages
         onReady={handleReady}
+        commands={transcriptCommands}
         style={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* Loading / empty state overlay.
-          During loading: opaque background covers the transcript but stops above
-          the composer (bottom inset = composerHeight).
-          During empty: transparent so the composer is visible below. */}
-      {(store.historyLoading || store.isEmpty) && (
-        <div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-foreground-muted"
-          style={{
-            bottom: composerHeight,
-            ...(store.historyLoading ? { backgroundColor: 'var(--background)' } : null),
-          }}
-          aria-live="polite"
-        >
-          {store.historyLoading ? 'Loading chat...' : 'No messages'}
-        </div>
-      )}
+      {/* Loading / empty state overlay portaled into the library-owned slot.
+          The slot sits at z-index 15 (above pinned, below composer at 20) so
+          the composer remains visible and interactive in both states.
+          During loading: opaque background covers the transcript area.
+          During empty: transparent so the content below shows through. */}
+      {overlaySlot &&
+        (store.historyLoading || store.isEmpty) &&
+        createPortal(
+          <div
+            className="absolute inset-0 flex items-center justify-center text-sm text-foreground-muted"
+            style={store.historyLoading ? { backgroundColor: 'var(--background)' } : undefined}
+            aria-live="polite"
+          >
+            {store.historyLoading ? 'Loading chat...' : 'No messages'}
+          </div>,
+          overlaySlot
+        )}
 
       {composerSlot && (
         <ComposerForStore

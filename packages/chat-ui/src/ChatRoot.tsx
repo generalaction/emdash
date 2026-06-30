@@ -67,6 +67,7 @@ import {
   canvas,
   composerSlotClass,
   composerSlotInnerClass,
+  contentOverlaySlotClass,
   defaultContentClass,
   outerClip,
   pinnedOverlay,
@@ -122,6 +123,11 @@ export type EngineControls = {
    * `composer === 'slot'`. The host portals its React composer into this element.
    */
   composerSlot?: HTMLElement | null;
+  /**
+   * Reference to the content overlay slot element. Set after mount when
+   * `contentOverlay` is true. The host portals overlay content into it.
+   */
+  contentOverlay?: HTMLElement | null;
   /**
    * Called once at the end of ChatRoot's onMount, after all controls and
    * composerSlot are wired. Used by createChatView to fire onViewMounted.
@@ -191,6 +197,12 @@ export type ChatRootProps = {
    * - `'none'` (default): no slot; host controls padBottom externally.
    */
   composer?: 'slot' | 'none';
+  /**
+   * When true, render an absolutely-positioned overlay slot above the
+   * transcript/scroll but below the composer (z-index 15). Hosts portal
+   * loading/empty/disabled states into `controls.contentOverlay`.
+   */
+  contentOverlay?: boolean;
 };
 
 // ── ChatRoot ──────────────────────────────────────────────────────────────────
@@ -258,6 +270,7 @@ export function ChatRoot(props: ChatRootProps) {
   // targets this so it only fires on genuine layout-width changes.
   let widthProbeEl: HTMLDivElement | undefined;
   let composerSlotEl: HTMLElement | undefined;
+  let contentOverlaySlotEl: HTMLElement | undefined;
   const virt = new Virtualizer();
   // Visible row wrapper elements keyed by unit index.
   const rowEls = new Map<number, HTMLDivElement>();
@@ -277,7 +290,27 @@ export function ChatRoot(props: ChatRootProps) {
   };
 
   // ── Geometry shadow ───────────────────────────────────────────────────────
-  const contentH = () => totalHeight() + padTop() + padBottom();
+  //
+  // reservedBottom: a minimum bottom spacer that ensures the last user message
+  // can always scroll to the top of the viewport. When the tail of content
+  // (from the user message to the end) is shorter than the viewport, the
+  // reserve expands maxScrollTop so scrollToItem(userMsg, 'start') can place
+  // the row at the top. As the answer streams in, tailHeight grows, the
+  // reserve shrinks, and once the tail fills the viewport the reserve is 0
+  // (normal scrolling). The space is kept for the next message — matches the
+  // "min reserve" behavior the user confirmed.
+  //
+  // Gated by pinUserMessages so views that don't need this behavior are unaffected.
+  // lastUserUnitIdx() is memoized on transcript changes, not per streaming tick.
+  const reservedBottom = () => {
+    if (!props.pinUserMessages) return 0;
+    const idx = lastUserUnitIdx();
+    if (idx < 0) return 0;
+    const tailHeight = totalHeight() - virt.top(idx);
+    return Math.max(0, viewHeight() - tailHeight);
+  };
+
+  const contentH = () => totalHeight() + padTop() + padBottom() + reservedBottom();
   const maxScrollTop = () => Math.max(0, contentH() - viewHeight());
   const stuckIntent = () => maxScrollTop() - scrollTop() <= STICK_THRESHOLD_PX;
 
@@ -456,6 +489,53 @@ export function ChatRoot(props: ChatRootProps) {
     );
   });
 
+  // ── Last user message unit index ──────────────────────────────────────────
+  // Finds the first unit index (in the full units() view) for the last user-
+  // role message. Scans activeTurn first so the reserve picks up the freshly-
+  // sent message during streaming (ACP bundles the prompt + response into one
+  // activeTurn), then falls back to committed. Used by reservedBottom below.
+  //
+  // Memoized on committedUnitsVersion + activeTurn identity so it does not
+  // recompute on every streaming text patch (only on structural turn changes).
+  const lastUserUnitIdx = createMemo(() => {
+    committedUnitsVersion();
+    const transcript = state().transcript.state;
+    let targetId: string | null = null;
+
+    // 1. Scan activeTurn backward for the latest user message.
+    const active = transcript.activeTurn;
+    if (active) {
+      for (let i = active.length - 1; i >= 0; i--) {
+        const item = active[i];
+        if (item && item.kind === 'message' && (item as ChatMessage).role === 'user') {
+          targetId = item.id;
+          break;
+        }
+      }
+    }
+
+    // 2. Fall back to the last committed user message.
+    if (targetId === null) {
+      const committed = transcript.committed;
+      for (let i = committed.length - 1; i >= 0; i--) {
+        const item = committed[i];
+        if (item && item.kind === 'message' && (item as ChatMessage).role === 'user') {
+          targetId = item.id;
+          break;
+        }
+      }
+    }
+
+    if (targetId === null) return -1;
+
+    // 3. Map itemId to its first unit index in the full (committed + active) view.
+    const us = units();
+    for (let i = 0; i < us.length; i++) {
+      if (us.at(i)?.itemId === targetId) return i;
+    }
+    return -1;
+  });
+
   const pinState = createMemo(() => {
     if (!props.pinUserMessages) return null;
     const turns = userTurns();
@@ -517,7 +597,14 @@ export function ChatRoot(props: ChatRootProps) {
     if (delta === 0) return;
     queueTotalFlush();
 
-    if (props.stickToBottom !== false && stuckIntent()) {
+    // Mirror the count-sync gate: honor atBottom so that the post-seed
+    // estimate->real height cascade keeps re-pinning to the true bottom.
+    // stuckIntent() is false when a single row's real height exceeds its
+    // estimate by more than STICK_THRESHOLD_PX (48px), which happens routinely
+    // with code blocks or long markdown. atBottom stays true through the cascade
+    // because each programmatic re-pin sets expectedScrollTop and readPhase
+    // does not flip it; only a genuine user scroll-up resets it to false.
+    if (props.stickToBottom !== false && (atBottom || stuckIntent())) {
       const target = maxScrollTop();
       if (scrollEl) {
         scrollEl.scrollTop = target;
@@ -919,6 +1006,7 @@ export function ChatRoot(props: ChatRootProps) {
       props.controls.loadOlder = doLoadOlder;
       props.controls.toggleCollapsed = (id) => viewState().toggleCollapsed(id);
       props.controls.composerSlot = composerSlotEl ?? null;
+      props.controls.contentOverlay = contentOverlaySlotEl ?? null;
       // Notify the view creator that all controls are wired.
       props.controls.onMounted?.();
     }
@@ -1179,6 +1267,17 @@ export function ChatRoot(props: ChatRootProps) {
                       </Show>
                     );
                   }}
+                </Show>
+                {/* Content overlay slot: absolute cover above transcript/scroll,
+                    below the composer (z-index 15). Hosts portal loading/empty/
+                    disabled states into this element. */}
+                <Show when={props.contentOverlay}>
+                  <div
+                    ref={(el) => {
+                      contentOverlaySlotEl = el;
+                    }}
+                    class={contentOverlaySlotClass}
+                  />
                 </Show>
                 {/* Composer slot: full-width blurred backdrop strip; the inner
                     centered div is what the host portals its React composer

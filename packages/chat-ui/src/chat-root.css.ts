@@ -89,6 +89,19 @@ export const defaultContentClass = style({
 });
 
 /**
+ * Content overlay slot — non-scrolling cover above the transcript/scroll,
+ * below the composer. Click-through by default so an empty/transparent overlay
+ * never blocks scrolling; host content opts into pointer-events as needed.
+ * z-index 15: above pinnedOverlay (10), below composerSlotClass (20).
+ */
+export const contentOverlaySlotClass = style({
+  position: 'absolute',
+  inset: 0,
+  zIndex: 15,
+  pointerEvents: 'none',
+});
+
+/**
  * Composer slot — sticky positioning layer only. Transparent so the scrollbar
  * at the viewport edge remains fully visible.
  */

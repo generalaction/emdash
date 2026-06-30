@@ -9,7 +9,7 @@
  */
 
 import { applyTurnEvent, finalizeTurn } from '@emdash/chat-ui';
-import type { ActiveTurnEvent, ChatItem, ToolStatus } from '@emdash/chat-ui';
+import type { ActiveTurnEvent, ChatImageAttachment, ChatItem, ToolStatus } from '@emdash/chat-ui';
 import type {
   AgentDiff,
   AgentToolStatus,
@@ -47,14 +47,21 @@ function mapToolStatus(status: AgentToolStatus | null | undefined): ToolStatus |
 export function mapAgentUpdate(update: AgentUpdate, turnId: string): ActiveTurnEvent[] {
   switch (update.kind) {
     case 'message': {
-      if (!update.text) return [];
+      const images = update.images ?? [];
+      if (!update.text && images.length === 0) return [];
       const msgSuffix = update.messageId ?? update.role;
+      const attachments: ChatImageAttachment[] = images.map((img, i) => ({
+        id: `${turnId}:message:${msgSuffix}:img:${i}`,
+        name: img.name ?? `image-${i + 1}`,
+        dataUrl: `data:${img.mimeType};base64,${img.data}`,
+      }));
       return [
         {
           type: 'message_chunk',
           id: `${turnId}:message:${msgSuffix}`,
           role: update.role,
           text: update.text,
+          attachments: attachments.length > 0 ? attachments : undefined,
         },
       ];
     }

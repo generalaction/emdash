@@ -217,6 +217,85 @@ describe('mapAgentUpdate — tool_update matches tool_call id', () => {
   });
 });
 
+// ── mapAgentUpdate — image attachments ────────────────────────────────────────
+
+describe('mapAgentUpdate — image attachments', () => {
+  it('a message with images produces a message_chunk with attachments', () => {
+    const update: AgentUpdate = {
+      kind: 'message',
+      role: 'user',
+      messageId: 'msg-1',
+      text: 'here is an image',
+      images: [{ data: 'abc123', mimeType: 'image/png', name: 'screenshot.png' }],
+    };
+    const evts = mapAgentUpdate(update, 'turn-1');
+    expect(evts).toHaveLength(1);
+    const evt = evts[0] as Extract<(typeof evts)[0], { type: 'message_chunk' }>;
+    expect(evt.type).toBe('message_chunk');
+    expect(evt.attachments).toHaveLength(1);
+    expect(evt.attachments?.[0].dataUrl).toBe('data:image/png;base64,abc123');
+    expect(evt.attachments?.[0].name).toBe('screenshot.png');
+    expect(evt.attachments?.[0].id).toContain('turn-1');
+  });
+
+  it('fallback name is used when image has no name', () => {
+    const update: AgentUpdate = {
+      kind: 'message',
+      role: 'user',
+      messageId: 'msg-2',
+      text: 'hi',
+      images: [{ data: 'xyz', mimeType: 'image/jpeg' }],
+    };
+    const evts = mapAgentUpdate(update, 'turn-1');
+    const evt = evts[0] as Extract<(typeof evts)[0], { type: 'message_chunk' }>;
+    expect(evt.attachments?.[0].name).toBe('image-1');
+    expect(evt.attachments?.[0].dataUrl).toBe('data:image/jpeg;base64,xyz');
+  });
+
+  it('an image-only message (no text) still emits a message_chunk', () => {
+    const update: AgentUpdate = {
+      kind: 'message',
+      role: 'user',
+      messageId: 'msg-3',
+      text: '',
+      images: [{ data: 'imgdata', mimeType: 'image/png', name: 'photo.png' }],
+    };
+    const evts = mapAgentUpdate(update, 'turn-1');
+    expect(evts).toHaveLength(1);
+    expect(evts[0].type).toBe('message_chunk');
+  });
+
+  it('a message with no images has undefined attachments', () => {
+    const update: AgentUpdate = {
+      kind: 'message',
+      role: 'assistant',
+      messageId: 'msg-4',
+      text: 'plain text response',
+    };
+    const evts = mapAgentUpdate(update, 'turn-1');
+    expect(evts).toHaveLength(1);
+    const evt = evts[0] as Extract<(typeof evts)[0], { type: 'message_chunk' }>;
+    expect(evt.attachments).toBeUndefined();
+  });
+
+  it('attachment ids are scoped per-image within the turn', () => {
+    const update: AgentUpdate = {
+      kind: 'message',
+      role: 'user',
+      messageId: 'msg-5',
+      text: 'two images',
+      images: [
+        { data: 'a', mimeType: 'image/png' },
+        { data: 'b', mimeType: 'image/jpeg' },
+      ],
+    };
+    const evts = mapAgentUpdate(update, 'turn-1');
+    const evt = evts[0] as Extract<(typeof evts)[0], { type: 'message_chunk' }>;
+    expect(evt.attachments).toHaveLength(2);
+    expect(evt.attachments?.[0].id).not.toBe(evt.attachments?.[1].id);
+  });
+});
+
 // ── foldTurn — unique ids in committed output ─────────────────────────────────
 
 describe('foldTurn — unique ids in committed output', () => {
