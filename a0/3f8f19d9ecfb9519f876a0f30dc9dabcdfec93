@@ -1,0 +1,26 @@
+packages/plugins/src/agents/impl/qoder/index.test.ts
+  s_11b01fca6c8bec::t_97536f2eb76be0 1-25,27-70
+  s_11b01fca6c8bec::t_7a99bbe55929d2 26
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_11b01fca6c8bec::t_97536f2eb76be0 286
+packages/plugins/src/agents/impl/qoder/index.ts
+  s_11b01fca6c8bec::t_97536f2eb76be0 3,18-22,72
+packages/plugins/src/agents/impl/qoder/hooks.ts
+  s_11b01fca6c8bec::t_97536f2eb76be0 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "a03f8f19d9ecfb9519f876a0f30dc9dabcdfec93",
+  "prompts": {},
+  "sessions": {
+    "s_11b01fca6c8bec": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f17dd-9e2f-73c2-b580-68f5313de821",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
