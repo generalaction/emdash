@@ -1,4 +1,10 @@
-import type { DirectoryPreviewSegment, FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
+import type {
+  DirectoryPreviewSegment,
+  FileNode as CoreFileNode,
+  FileSymlinkInfo,
+  FileNodeType,
+  NodeId,
+} from '@emdash/core/files';
 
 export interface RenderableFileNode {
   id: NodeId;
@@ -7,7 +13,8 @@ export interface RenderableFileNode {
   parentId: NodeId | null;
   parentPath: string | null;
   depth: number;
-  type: 'file' | 'directory';
+  type: FileNodeType;
+  symlink?: FileSymlinkInfo;
   childrenLoaded: boolean;
   isHidden: boolean;
   extension?: string;
@@ -81,6 +88,7 @@ export function toRenderableFileNode(node: CoreFileNode): RenderableFileNode {
     parentPath: parentPathForNormalizedPath(path),
     depth: parts.length - 1,
     type: node.type,
+    symlink: node.type === 'symlink' ? node.symlink : undefined,
     childrenLoaded: node.childrenLoaded,
     isHidden: name.startsWith('.'),
     extension,
@@ -90,9 +98,34 @@ export function toRenderableFileNode(node: CoreFileNode): RenderableFileNode {
 
 export function sortFileNodes<T extends VisibleFileNode>(nodes: readonly T[]): T[] {
   return [...nodes].sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+    const rankDiff = visibleNodeSortRank(a) - visibleNodeSortRank(b);
+    if (rankDiff !== 0) return rankDiff;
     return a.name.localeCompare(b.name);
   });
+}
+
+export function isExpandableFileTreeNode(node: VisibleFileNode): boolean {
+  return (
+    node.type === 'directory' ||
+    (node.type === 'symlink' &&
+      !!node.symlink &&
+      !node.symlink.broken &&
+      node.symlink.targetType === 'directory')
+  );
+}
+
+export function isOpenableFileTreeNode(node: VisibleFileNode): boolean {
+  return (
+    node.type === 'file' ||
+    (node.type === 'symlink' &&
+      !!node.symlink &&
+      !node.symlink.broken &&
+      node.symlink.targetType === 'file')
+  );
+}
+
+function visibleNodeSortRank(node: VisibleFileNode): number {
+  return isExpandableFileTreeNode(node) ? 0 : 1;
 }
 
 export interface TreeRow<T extends VisibleFileNode = VisibleFileNode> {
@@ -222,7 +255,7 @@ export function buildVisibleRows<T extends VisibleFileNode>(
         node.type === 'directory' ? extendChain(node, childrenById, loadedPaths) : [node];
       const terminus = chain[chain.length - 1];
       rows.push({ node: terminus, chain, renderDepth });
-      if (terminus.type === 'directory' && isChainExpanded(chain, expandedPaths)) {
+      if (isExpandableFileTreeNode(terminus) && isChainExpanded(chain, expandedPaths)) {
         walk(childrenFor(terminus, childrenById), renderDepth + 1);
       }
     }

@@ -267,4 +267,37 @@ describe('file tree utils', () => {
     expect(rows[0].node.path).toBe('apps/desktop');
     expect(rows[0].node.type).toBe('directory');
   });
+
+  it('expands symlink directories without compacting through them', () => {
+    const link = toRenderableFileNode({
+      id: 1,
+      path: 'linked',
+      name: 'linked',
+      parentId: null,
+      type: 'symlink',
+      symlink: { targetType: 'directory', broken: false },
+      childrenLoaded: true,
+    });
+    const nested = toRenderableFileNode({
+      id: 2,
+      path: 'linked/nested',
+      name: 'nested',
+      parentId: 1,
+      type: 'directory',
+      childrenLoaded: false,
+      directoryPreview: {
+        childCount: 1,
+        singleChildDirectoryChain: [{ name: 'leaf', path: 'linked/nested/leaf' }],
+      },
+    });
+    const childrenById = new Map<number | null, RenderableFileNode[]>([
+      [null, [link]],
+      [1, [nested]],
+    ]);
+
+    const rows = buildVisibleRows([link], new Set(['linked']), childrenById, new Set(['linked']));
+
+    expect(rows.map((row) => row.node.path)).toEqual(['linked', 'linked/nested/leaf']);
+    expect(rows[0].chain.map((node) => node.path)).toEqual(['linked']);
+  });
 });

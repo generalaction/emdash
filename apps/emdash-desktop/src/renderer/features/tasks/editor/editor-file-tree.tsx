@@ -6,6 +6,7 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  Link,
   Trash2,
 } from 'lucide-react';
 import { runInAction } from 'mobx';
@@ -15,7 +16,9 @@ import { CompactedPathLabel } from '@renderer/features/tasks/editor/compacted-pa
 import type { FilesStore } from '@renderer/features/tasks/editor/stores/files-store';
 import {
   buildVisibleRows,
+  isExpandableFileTreeNode,
   isChainExpanded,
+  isOpenableFileTreeNode,
   type TreeRow,
 } from '@renderer/features/tasks/file-tree/tree-utils';
 import { relativeToWorkspace } from '@renderer/features/tasks/stores/workspace-path';
@@ -64,14 +67,10 @@ function joinPath(dir: string, name: string): string {
   return dir ? `${dir}/${name}` : name;
 }
 
-function isPathWithinDeletedItem(
-  path: string,
-  deletedPath: string,
-  deletedType: 'file' | 'directory'
-) {
-  return deletedType === 'file'
-    ? path === deletedPath
-    : path === deletedPath || path.startsWith(`${deletedPath}/`);
+function isPathWithinDeletedItem(path: string, deletedPath: string, closesDescendants: boolean) {
+  return closesDescendants
+    ? path === deletedPath || path.startsWith(`${deletedPath}/`)
+    : path === deletedPath;
 }
 
 async function importLocalFiles(args: {
@@ -173,7 +172,11 @@ const FileTreeRow = observer(function FileTreeRow({
   const relNodePath = relativeToWorkspace(workspace.path, node.path);
   const fileStatus = workspace.gitWorktree.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = row.renderDepth * 12 + 4;
-  const targetDirPath = node.type === 'directory' ? node.path : (node.parentPath ?? '');
+  const isExpandable = isExpandableFileTreeNode(node);
+  const isOpenable = isOpenableFileTreeNode(node);
+  const deleteClosesDescendants = node.type === 'directory' || isExpandable;
+  const isSymlink = node.type === 'symlink';
+  const targetDirPath = isExpandable ? node.path : (node.parentPath ?? '');
   const chainPath = row.chain.length > 1 ? row.chain.map((n) => n.name).join('/') : null;
   const isHidden = row.chain.some((n) => n.isHidden);
 
@@ -195,16 +198,16 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (node.type === 'directory') {
+    if (isExpandable) {
       toggleExpand();
-    } else {
+    } else if (isOpenable) {
       openFile({ path: node.path }, { preview: true });
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (node.type === 'file') {
+    if (isOpenable) {
       openFile({ path: node.path }, { preview: false });
     }
   };
@@ -212,16 +215,16 @@ const FileTreeRow = observer(function FileTreeRow({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if (node.type === 'directory') {
+      if (isExpandable) {
         toggleExpand();
-      } else {
+      } else if (isOpenable) {
         openFile({ path: node.path }, { preview: true });
       }
     }
   };
 
   const copyFile = async () => {
-    if (node.type !== 'file') return;
+    if (!isOpenable) return;
 
     try {
       const result = await rpc.workspace.files.readFile(
@@ -297,7 +300,7 @@ const FileTreeRow = observer(function FileTreeRow({
       for (const tab of pane.resolvedTabs) {
         if (tab.kind !== 'file') continue;
         const resource = tab.resource as FileTabResource;
-        if (isPathWithinDeletedItem(resource.path, node.path, node.type)) {
+        if (isPathWithinDeletedItem(resource.path, node.path, deleteClosesDescendants)) {
           void pane.closeTab(tab.tabId);
         }
       }
@@ -315,7 +318,14 @@ const FileTreeRow = observer(function FileTreeRow({
       closeDeletedFileTabs();
       files?.removeNode(node.path);
       await files?.registerDir(node.parentPath ?? workspace.path, true);
-      toast({ title: node.type === 'directory' ? 'Folder deleted' : 'File deleted' });
+      toast({
+        title:
+          node.type === 'directory'
+            ? 'Folder deleted'
+            : isSymlink
+              ? 'Link deleted'
+              : 'File deleted',
+      });
     } catch (error) {
       await files?.registerDir(node.parentPath ?? workspace.path, true);
       toast({
@@ -328,11 +338,14 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const confirmDelete = () => {
     showModal('confirmActionModal', {
-      title: node.type === 'directory' ? 'Delete folder?' : 'Delete file?',
+      title:
+        node.type === 'directory' ? 'Delete folder?' : isSymlink ? 'Delete link?' : 'Delete file?',
       description:
         node.type === 'directory'
           ? `"${node.path}" and all of its contents will be deleted from the workspace.`
-          : `"${node.path}" will be deleted from the workspace.`,
+          : isSymlink
+            ? `"${node.path}" will be removed from the workspace. Its target will not be deleted.`
+            : `"${node.path}" will be deleted from the workspace.`,
       confirmLabel: 'Delete',
       variant: 'destructive',
       onSuccess: () => {
@@ -376,7 +389,7 @@ const FileTreeRow = observer(function FileTreeRow({
     void (async () => {
       if (!files) return;
       // Expand and load the target directory so optimistic nodes can be inserted immediately.
-      if (node.type === 'directory') {
+      if (isExpandable) {
         runInAction(() => {
           for (const segment of row.chain) {
             editorView.expandedPaths.add(segment.path);
@@ -419,10 +432,10 @@ const FileTreeRow = observer(function FileTreeRow({
         onDrop={handleDrop}
         role="treeitem"
         aria-selected={isSelected}
-        aria-expanded={node.type === 'directory' ? isExpanded : undefined}
+        aria-expanded={isExpandable ? isExpanded : undefined}
       >
         <span className="text-muted-foreground shrink-0">
-          {node.type === 'directory' ? (
+          {isExpandable ? (
             isExpanded ? (
               <ChevronDown className="h-3.5 w-3.5" />
             ) : (
@@ -434,7 +447,9 @@ const FileTreeRow = observer(function FileTreeRow({
         </span>
 
         <span className="shrink-0">
-          {node.type === 'directory' ? (
+          {isSymlink ? (
+            <Link className="text-muted-foreground h-3.5 w-3.5" />
+          ) : node.type === 'directory' ? (
             isExpanded ? (
               <FolderOpen className="text-muted-foreground h-3.5 w-3.5" />
             ) : (
@@ -458,7 +473,7 @@ const FileTreeRow = observer(function FileTreeRow({
         </span>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        {node.type === 'file' && (
+        {isOpenable && (
           <ContextMenuItem onClick={() => void copyFile()}>
             <FileText className="size-4" />
             Copy

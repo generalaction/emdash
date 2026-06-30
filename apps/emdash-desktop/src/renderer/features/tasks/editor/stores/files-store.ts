@@ -2,6 +2,7 @@ import type { FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import {
   buildVisibleRows,
+  isExpandableFileTreeNode,
   normalizeFileTreePath,
   sortFileNodes,
   toRenderableFileNode,
@@ -188,7 +189,7 @@ export class FilesStore {
     for (const row of rows) {
       for (const segment of row.chain) {
         if (
-          segment.type === 'directory' &&
+          isExpandableFileTreeNode(segment) &&
           segment.path !== this.rootPath &&
           expandedPaths.has(segment.path)
         ) {
@@ -440,7 +441,7 @@ export class FilesStore {
       nodes.set(renderNode.path, renderNode);
       pathToId.set(renderNode.path, renderNode.id);
       pushChild(childrenById, renderNode);
-      if (node.type === 'directory' && this.loadedScopes.has(node.id)) {
+      if (isExpandableFileTreeNode(renderNode) && this.loadedScopes.has(node.id)) {
         loadedPaths.add(renderNode.path);
       }
     }

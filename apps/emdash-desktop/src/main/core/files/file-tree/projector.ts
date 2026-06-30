@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { FileNode, FileTreeUpdate, IFileTree, NodeId } from '@emdash/core/files';
+import {
+  isExpandableFileNode,
+  type FileNode,
+  type FileTreeUpdate,
+  type IFileTree,
+  type NodeId,
+} from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
 import type {
   FileTreeProjectionOpenData,
@@ -267,7 +273,7 @@ export class FileTreeProjector {
     const targetId = this.idByPath.get(absPath);
     const target = targetId !== undefined ? this.nodeById.get(targetId) : undefined;
     if (!target) return scopes;
-    if (target.type === 'directory') scopes.push(target.id);
+    if (isExpandableFileNode(target)) scopes.push(target.id);
     let parentId = target.parentId;
     while (parentId !== null) {
       const parent = this.nodeById.get(parentId);
