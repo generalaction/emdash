@@ -4,10 +4,6 @@ import { getDiffTabManager } from '@renderer/features/tasks/diff-view/stores/dif
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
 import type { FileTabResource } from '@renderer/features/tasks/editor/stores/file-tab-resource';
-import {
-  buildVisibleRows,
-  expandedDirectoryPathsNeedingLoad,
-} from '@renderer/features/tasks/file-tree/tree-utils';
 import { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
@@ -279,29 +275,27 @@ export class WorkspaceViewModel implements ILifecycle {
     );
     this._sessionDisposers.push(closeEmptyTerminalDrawerDisposer);
 
-    const loadExpandedDirectoriesDisposer = reaction(
+    // Open this view's file-tree projection now that the workspace is provisioned.
+    this.editorView.startFiles(workspace.path);
+
+    const reconcileRegisteredScopesDisposer = reaction(
       () => {
-        const rows = buildVisibleRows(
-          workspace.files.rootNodes,
-          this.editorView.expandedPaths,
-          workspace.files.childrenById
-        );
-        return expandedDirectoryPathsNeedingLoad(
-          rows,
-          this.editorView.expandedPaths,
-          workspace.files.loadedPaths,
-          workspace.files.pendingPaths
-        ).join('\0');
+        const files = this.editorView.files;
+        if (!files) return '';
+        const expanded = [...this.editorView.expandedPaths].sort().join('\0');
+        const loaded = [...files.loadedPaths].sort().join('\0');
+        const pending = [...files.pendingPaths].sort().join('\0');
+        // `nodes.size` advances as scopes load, re-triggering progressive deep registration.
+        return `${expanded}::${loaded}::${pending}::${files.nodes.size}`;
       },
-      (key) => {
-        if (!key) return;
-        for (const path of key.split('\0')) {
-          void workspace.files.loadDir(path);
-        }
+      () => {
+        const files = this.editorView.files;
+        if (!files) return;
+        files.reconcileVisibleScopes(this.editorView.expandedPaths);
       },
       { fireImmediately: true }
     );
-    this._sessionDisposers.push(loadExpandedDirectoriesDisposer);
+    this._sessionDisposers.push(reconcileRegisteredScopesDisposer);
   }
 
   /**
@@ -327,9 +321,12 @@ export class WorkspaceViewModel implements ILifecycle {
     this._snapshotDisposer = null;
     this.paneLayout.stopPersistence();
 
-    // Dispose session-scoped reactions.
+    // Dispose session-scoped reactions before tearing down the projection they drive.
     for (const d of this._sessionDisposers) d();
     this._sessionDisposers = [];
+
+    // Close this view's file-tree projection subscription.
+    this.editorView.disposeFiles();
   }
 
   /**

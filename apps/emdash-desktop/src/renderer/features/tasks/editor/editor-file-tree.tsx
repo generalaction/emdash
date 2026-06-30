@@ -103,7 +103,7 @@ async function importLocalFiles(args: {
 
   const handleFailure = async (message: string) => {
     for (const p of inserted) files.removeNode(p);
-    await files.loadDir(destDirPath, true);
+    await files.registerDir(destDirPath, true);
     const existingPaths = existingFilePaths(message);
     if (existingPaths.length > 0 && !overwrite) {
       const description =
@@ -168,6 +168,7 @@ const FileTreeRow = observer(function FileTreeRow({
   const workspaceId = useWorkspaceId();
   const workspace = useWorkspace();
   const editorView = taskView.editorView;
+  const files = editorView.files;
   const { isActive, open: openFile } = useTabSelection('file', row.node.path);
 
   const node = row.node;
@@ -181,6 +182,8 @@ const FileTreeRow = observer(function FileTreeRow({
   const isHidden = row.chain.some((n) => n.isHidden);
 
   const toggleExpand = () => {
+    // Expansion drives registration: the view model reaction registers newly expanded scopes and
+    // unregisters collapsed ones with the projector, so we only toggle expandedPaths here.
     runInAction(() => {
       if (isChainExpanded(row.chain, editorView.expandedPaths)) {
         for (const segment of row.chain) {
@@ -189,9 +192,6 @@ const FileTreeRow = observer(function FileTreeRow({
       } else {
         for (const segment of row.chain) {
           editorView.expandedPaths.add(segment.path);
-        }
-        if (!workspace.files.loadedPaths.has(node.path)) {
-          void workspace.files.loadDir(node.path);
         }
       }
     });
@@ -317,11 +317,11 @@ const FileTreeRow = observer(function FileTreeRow({
       if (!result.data.success) throw new Error(result.data.error ?? 'Delete failed.');
 
       closeDeletedFileTabs();
-      workspace.files.removeNode(node.path);
-      await workspace.files.loadDir(node.parentPath ?? workspace.path, true);
+      files?.removeNode(node.path);
+      await files?.registerDir(node.parentPath ?? workspace.path, true);
       toast({ title: node.type === 'directory' ? 'Folder deleted' : 'File deleted' });
     } catch (error) {
-      await workspace.files.loadDir(node.parentPath ?? workspace.path, true);
+      await files?.registerDir(node.parentPath ?? workspace.path, true);
       toast({
         title: 'Delete failed',
         description: error instanceof Error ? error.message : 'The item could not be deleted.',
@@ -378,6 +378,7 @@ const FileTreeRow = observer(function FileTreeRow({
     if (srcPaths.length === 0) return;
 
     void (async () => {
+      if (!files) return;
       // Expand and load the target directory so optimistic nodes can be inserted immediately.
       if (node.type === 'directory') {
         runInAction(() => {
@@ -385,13 +386,13 @@ const FileTreeRow = observer(function FileTreeRow({
             editorView.expandedPaths.add(segment.path);
           }
         });
-        if (!workspace.files.loadedPaths.has(node.path)) {
-          await workspace.files.loadDir(node.path);
+        if (!files.loadedPaths.has(node.path)) {
+          await files.registerDir(node.path);
         }
       }
 
       await importLocalFiles({
-        files: workspace.files,
+        files,
         projectId,
         workspaceId,
         srcPaths,
@@ -490,8 +491,8 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
-  const files = workspace.files;
   const editorView = taskView.editorView;
+  const files = editorView.files;
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
 
   const visibleRows = files
@@ -513,9 +514,10 @@ export const EditorFileTree = observer(function EditorFileTree() {
     setIsDragOverRoot(false);
     const srcPaths = getDraggedFilePaths(event.dataTransfer);
     if (srcPaths.length === 0) return;
+    if (!files) return;
 
     void importLocalFiles({
-      files: workspace.files,
+      files,
       projectId,
       workspaceId,
       srcPaths,

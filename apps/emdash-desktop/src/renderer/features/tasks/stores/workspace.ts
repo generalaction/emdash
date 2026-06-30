@@ -3,7 +3,6 @@ import { computed, makeObservable } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { ConnectionState } from '@shared/core/ssh/ssh';
-import { FilesStore } from '../editor/stores/files-store';
 import { GitWorktreeStore } from './git-worktree-store';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
 
@@ -12,7 +11,6 @@ export class WorkspaceStore implements ILifecycle {
   readonly gitRepository: GitRepositoryStore;
   readonly sshConnectionId: string | undefined;
   readonly gitWorktree: GitWorktreeStore;
-  readonly files: FilesStore;
   readonly lifecycleScripts: LifecycleScriptsStore;
 
   constructor(
@@ -27,7 +25,6 @@ export class WorkspaceStore implements ILifecycle {
     this.sshConnectionId = sshConnectionId;
     this.gitRepository = gitRepository;
     this.gitWorktree = new GitWorktreeStore(projectId, workspaceId, this.gitRepository);
-    this.files = new FilesStore(projectId, workspaceId, path);
     this.lifecycleScripts = new LifecycleScriptsStore(projectId, workspaceId);
   }
 
@@ -44,7 +41,6 @@ export class WorkspaceStore implements ILifecycle {
 
   activate(): void {
     this.gitWorktree.start();
-    this.files.startWatching();
   }
 
   initialize(): void {
@@ -53,7 +49,6 @@ export class WorkspaceStore implements ILifecycle {
 
   dispose(): void {
     this.gitWorktree.dispose();
-    this.files.dispose();
     this.lifecycleScripts.dispose();
   }
 }

@@ -1,27 +1,16 @@
 import type { FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
-import type { KeyedOp } from '@emdash/core/lib';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import {
+  buildVisibleRows,
   normalizeFileTreePath,
   sortFileNodes,
   toRenderableFileNode,
   type RenderableFileNode,
 } from '@renderer/features/tasks/file-tree/tree-utils';
 import { events, rpc } from '@renderer/lib/ipc';
-import {
-  bindCollectionMirror,
-  coalesce,
-  CollectionMirror,
-  type CollectionMirrorChange,
-  type MirrorBinding,
-  type MirrorBindingStatus,
-} from '@renderer/lib/stores/live';
-import type { FileTreeMutationResult, FileTreeSnapshotResult } from '@shared/core/fs/file-tree';
-import {
-  fileTreeOperationErrorMessage,
-  type FileTreeOperationError,
-} from '@shared/core/fs/file-tree-errors';
-import { fileTreeUpdateChannel } from '@shared/core/fs/fsEvents';
+import type { FileTreeProjectionVersionResult } from '@shared/core/fs/file-tree';
+import { fileTreeOperationErrorMessage } from '@shared/core/fs/file-tree-errors';
+import { fileTreeProjectionChannel } from '@shared/core/fs/fsEvents';
 
 export interface FilesData {
   nodes: Map<string, RenderableFileNode>;
@@ -39,14 +28,29 @@ type OptimisticNode = {
   timer?: ReturnType<typeof setTimeout>;
 };
 
+type VersionWaiter = {
+  target: number;
+  resolve: () => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
 const OPTIMISTIC_NODE_TTL_MS = 15_000;
+const VERSION_WAIT_TIMEOUT_MS = 5_000;
+
+type Scope = NodeId | null;
 
 export class FilesStore {
-  private readonly mirror: CollectionMirror<NodeId, CoreFileNode>;
-  private readonly binding: MirrorBinding;
-  private readonly baseNodes = new Map<NodeId, CoreFileNode>();
-  private readonly basePathToId = new Map<string, NodeId>();
-  private readonly viewNodesById = new Map<NodeId, RenderableFileNode>();
+  // Authoritative projection state (raw core nodes, grouped by scope).
+  private readonly nodesById = new Map<NodeId, CoreFileNode>();
+  private readonly childIdsByScope = new Map<Scope, NodeId[]>();
+  private readonly loadedScopes = new Set<Scope>();
+
+  private readonly optimisticNodes = observable.map<NodeId, OptimisticNode>();
+  private readonly pendingPathSet = observable.set<string>();
+  /** Directory paths (excluding root) currently registered with the projector. */
+  private readonly registeredPaths = new Set<string>();
+  private readonly versionWaiters: VersionWaiter[] = [];
+
   private readonly viewData: FilesView = {
     nodes: new Map(),
     rootNodes: [],
@@ -54,8 +58,10 @@ export class FilesStore {
     loadedPaths: new Set(),
     pathToId: new Map(),
   };
-  private readonly optimisticNodes = observable.map<NodeId, OptimisticNode>();
-  private readonly pendingPathSet = observable.set<string>();
+
+  private subscriptionId: string | null = null;
+  private unsubscribe: (() => void) | null = null;
+  private version = 0;
   private nextOptimisticId = -1;
   private viewRevision = 0;
   private started = false;
@@ -66,40 +72,6 @@ export class FilesStore {
     private readonly workspaceId: string,
     private readonly workspacePath: string
   ) {
-    this.mirror = new CollectionMirror<NodeId, CoreFileNode>({
-      onApplied: (change) => this.applyMirrorChange(change),
-    });
-
-    const snapshot = coalesce(async (): Promise<FileTreeSnapshotResult> => {
-      const result = await rpc.workspace.fileTree.getSnapshot(this.projectId, this.workspaceId);
-      if (result.success) {
-        runInAction(() => {
-          this.syncError = null;
-        });
-      }
-      return result;
-    });
-
-    this.binding = bindCollectionMirror<NodeId, CoreFileNode, FileTreeOperationError>({
-      mirror: this.mirror,
-      subscribe: (push) =>
-        events.on(fileTreeUpdateChannel, (payload) => {
-          if (payload.workspaceId !== this.workspaceId) return;
-          push(payload.update);
-        }),
-      snapshot,
-      onError: (error) => {
-        runInAction(() => {
-          this.syncError = fileTreeOperationErrorMessage(error);
-        });
-      },
-      onUnexpectedError: (error) => {
-        runInAction(() => {
-          this.syncError = error instanceof Error ? error.message : String(error);
-        });
-      },
-    });
-
     makeObservable<this, 'syncError' | 'viewRevision'>(this, {
       syncError: observable,
       viewRevision: observable,
@@ -134,18 +106,16 @@ export class FilesStore {
   }
 
   get isLoading(): boolean {
-    return !this.mirror.hasSnapshot && this.binding.status !== 'error';
+    void this.viewRevision;
+    return !this.loadedScopes.has(null) && this.syncError === null;
   }
 
   get error(): string | undefined {
-    if (!this.mirror.hasSnapshot && this.binding.status === 'error') {
+    void this.viewRevision;
+    if (!this.loadedScopes.has(null) && this.syncError !== null) {
       return this.syncError ?? 'Failed to load file tree';
     }
     return undefined;
-  }
-
-  get syncStatus(): MirrorBindingStatus {
-    return this.binding.status;
   }
 
   get tree(): {
@@ -155,65 +125,145 @@ export class FilesStore {
     load: () => Promise<void>;
   } {
     return {
-      data: this.mirror.hasSnapshot ? this.view : null,
+      data: this.loadedScopes.has(null) ? this.view : null,
       loading: this.isLoading,
       error: this.error,
       load: () => this.resync(),
     };
   }
 
-  startWatching(): void {
+  get rootPath(): string {
+    return normalizeFileTreePath(this.workspacePath);
+  }
+
+  async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
-    this.binding.start();
+    await this.openProjection();
   }
 
   async resync(): Promise<void> {
+    this.teardownSubscription();
     this.started = true;
-    this.binding.start();
-    await this.binding.resync();
+    await this.openProjection();
   }
 
   dispose(): void {
-    this.binding.dispose();
-    this.mirror.dispose();
+    this.teardownSubscription();
     for (const optimistic of this.optimisticNodes.values()) {
       if (optimistic.timer) clearTimeout(optimistic.timer);
     }
+    for (const waiter of this.versionWaiters) clearTimeout(waiter.timer);
+    this.versionWaiters.length = 0;
     runInAction(() => {
-      this.baseNodes.clear();
-      this.basePathToId.clear();
-      this.clearViewData();
+      this.resetState();
       this.optimisticNodes.clear();
       this.pendingPathSet.clear();
       this.syncError = null;
-      this.bumpView();
+      this.rebuildView();
     });
     this.started = false;
   }
 
-  async loadDir(dirPath: string, force = false): Promise<void> {
-    const path = this.resolveWorkspacePath(dirPath);
-    if (!force && (this.loadedPaths.has(path) || this.pendingPathSet.has(path))) return;
+  reconcileVisibleScopes(expandedPaths: Set<string>): void {
+    if (!this.subscriptionId) return;
 
-    const dirId = this.idForPath(path);
+    const rows = buildVisibleRows(
+      this.viewData.rootNodes,
+      expandedPaths,
+      this.viewData.childrenById
+    );
+    const desired = new Set<string>();
+    for (const row of rows) {
+      for (const segment of row.chain) {
+        if (segment.type === 'directory' && segment.path !== this.rootPath) {
+          desired.add(segment.path);
+        }
+      }
+    }
+
+    for (const path of desired) {
+      if (this.registeredPaths.has(path) || this.pendingPathSet.has(path)) continue;
+      if (this.idForPath(path) === undefined) continue; // parent scope not loaded yet
+      void this.registerDir(path);
+    }
+    for (const path of [...this.registeredPaths]) {
+      if (!desired.has(path)) void this.unregisterDir(path);
+    }
+  }
+
+  async registerDir(dirPath: string, force = false): Promise<void> {
+    if (!this.subscriptionId) return;
+    const path = this.resolveWorkspacePath(dirPath);
+    if (!force && this.pendingPathSet.has(path)) return;
+    if (!force && path !== this.rootPath && this.registeredPaths.has(path)) return;
+
+    const dirId = path === this.rootPath ? null : this.idForPath(path);
     if (path !== this.rootPath && dirId === undefined) return;
 
     runInAction(() => {
       this.pendingPathSet.add(path);
     });
     try {
-      const result = await rpc.workspace.fileTree.expandDir(
+      const result = await rpc.workspace.fileTree.registerDir(
         this.projectId,
         this.workspaceId,
+        this.subscriptionId,
         dirId ?? null
       );
-      await this.waitForTreeMutation(result);
+      const succeeded = await this.awaitMutation(result);
+      if (succeeded && path !== this.rootPath) this.registeredPaths.add(path);
     } finally {
       runInAction(() => {
         this.pendingPathSet.delete(path);
       });
     }
+  }
+
+  async unregisterDir(dirPath: string): Promise<void> {
+    if (!this.subscriptionId) return;
+    const path = this.resolveWorkspacePath(dirPath);
+    if (path === this.rootPath) return;
+
+    const dirId = this.idForPath(path);
+    this.registeredPaths.delete(path);
+    if (dirId === undefined) return;
+
+    runInAction(() => {
+      this.loadedScopes.delete(dirId);
+      this.rebuildView();
+    });
+    await rpc.workspace.fileTree.unregisterDir(
+      this.projectId,
+      this.workspaceId,
+      this.subscriptionId,
+      dirId
+    );
+  }
+
+  async revealFile(filePath: string, expandedPaths: Set<string>): Promise<void> {
+    if (!this.subscriptionId) return;
+    const path = this.resolveWorkspacePath(filePath);
+    if (!path) return;
+
+    const result = await rpc.workspace.fileTree.revealPath(
+      this.projectId,
+      this.workspaceId,
+      this.subscriptionId,
+      path
+    );
+    const succeeded = await this.awaitMutation(result);
+    if (!succeeded) return;
+
+    const workspaceRelativePath = relativePath(this.rootPath, path);
+    const parts = workspaceRelativePath.split('/').filter(Boolean);
+    runInAction(() => {
+      for (let index = 1; index < parts.length; index += 1) {
+        const ancestor = joinPath(this.rootPath, parts.slice(0, index).join('/'));
+        expandedPaths.add(ancestor);
+        this.registeredPaths.add(ancestor);
+      }
+    });
   }
 
   addOptimisticNodes(nodes: Array<{ path: string; type: 'file' | 'directory' }>): string[] {
@@ -222,10 +272,15 @@ export class FilesStore {
     runInAction(() => {
       for (const { path: inputPath, type } of nodes) {
         const path = this.resolveWorkspacePath(inputPath);
-        if (!path || this.nodes.has(path) || this.optimisticNodeForPath(path)) continue;
+        if (
+          !path ||
+          this.viewData.nodes.has(path) ||
+          this.optimisticNodeForPath(path) !== undefined
+        )
+          continue;
 
         const parentPath = parentPathFromPath(path) ?? this.rootPath;
-        if (!this.loadedPaths.has(parentPath)) continue;
+        if (!this.viewData.loadedPaths.has(parentPath)) continue;
 
         let parentId: NodeId | null = null;
         if (parentPath !== this.rootPath) {
@@ -236,21 +291,19 @@ export class FilesStore {
 
         const id = this.nextOptimisticId;
         this.nextOptimisticId -= 1;
-        const node = {
-          id,
-          path,
-          name: basenameFromPath(path),
-          parentId,
-          type,
-          childrenLoaded: false,
-        };
         this.optimisticNodes.set(id, {
-          node,
+          node: {
+            id,
+            path,
+            name: basenameFromPath(path),
+            parentId,
+            type,
+            childrenLoaded: false,
+          },
         });
-        if (!this.basePathToId.has(path)) this.addNodeToView(node);
         inserted.push(path);
       }
-      if (inserted.length > 0) this.bumpView();
+      if (inserted.length > 0) this.rebuildView();
     });
 
     return inserted;
@@ -274,31 +327,67 @@ export class FilesStore {
     });
   }
 
-  async revealFile(filePath: string, expandedPaths: Set<string>): Promise<void> {
-    const path = this.resolveWorkspacePath(filePath);
-    if (!path) return;
+  private async openProjection(): Promise<void> {
+    const result = await rpc.workspace.fileTree.openProjection(this.projectId, this.workspaceId);
+    if (!result.success) {
+      runInAction(() => {
+        this.syncError = fileTreeOperationErrorMessage(result.error);
+      });
+      return;
+    }
 
-    const result = await rpc.workspace.fileTree.revealPath(this.projectId, this.workspaceId, path);
-    const succeeded = await this.waitForTreeMutation(result);
-    if (!succeeded) return;
+    this.unsubscribe = events.on(fileTreeProjectionChannel, (payload) => {
+      if (payload.workspaceId !== this.workspaceId) return;
+      if (payload.subscriptionId !== this.subscriptionId) return;
+      this.applyProjection(payload.version, payload.scopes);
+    });
 
-    const workspaceRelativePath = relativePath(this.rootPath, path);
-    const parts = workspaceRelativePath.split('/').filter(Boolean);
     runInAction(() => {
-      for (let index = 1; index < parts.length; index += 1) {
-        expandedPaths.add(joinPath(this.rootPath, parts.slice(0, index).join('/')));
-      }
+      this.subscriptionId = result.data.subscriptionId;
+      this.version = result.data.version;
+      this.syncError = null;
+      for (const scope of result.data.scopes) this.applyScope(scope.scopeId, scope.entries);
+      this.rebuildView();
+      this.pruneResolvedOptimistic();
     });
   }
 
-  get rootPath(): string {
-    return normalizeFileTreePath(this.workspacePath);
+  private applyProjection(
+    version: number,
+    scopes: Array<{ scopeId: Scope; entries: CoreFileNode[] }>
+  ): void {
+    runInAction(() => {
+      for (const scope of scopes) this.applyScope(scope.scopeId, scope.entries);
+      this.version = Math.max(this.version, version);
+      this.syncError = null;
+      this.rebuildView();
+      this.pruneResolvedOptimistic();
+    });
+    this.resolveVersionWaiters();
   }
 
-  private resolveWorkspacePath(path: string): string {
-    const normalized = normalizeFileTreePath(path);
-    if (isAbsolutePath(normalized)) return normalized;
-    return normalized ? joinPath(this.rootPath, normalized) : this.rootPath;
+  /** Replace a single scope's children wholesale, pruning vanished sub-scopes. */
+  private applyScope(scopeId: Scope, entries: CoreFileNode[]): void {
+    const previous = this.childIdsByScope.get(scopeId) ?? [];
+    const nextIds = entries.map((entry) => entry.id);
+    const nextSet = new Set(nextIds);
+    for (const id of previous) {
+      if (!nextSet.has(id)) this.pruneSubtree(id);
+    }
+    for (const node of entries) this.nodesById.set(node.id, node);
+    this.childIdsByScope.set(scopeId, nextIds);
+    this.loadedScopes.add(scopeId);
+  }
+
+  private pruneSubtree(id: NodeId): void {
+    if (!this.nodesById.has(id)) return;
+    const children = this.childIdsByScope.get(id);
+    if (children) {
+      for (const child of children) this.pruneSubtree(child);
+    }
+    this.childIdsByScope.delete(id);
+    this.loadedScopes.delete(id);
+    this.nodesById.delete(id);
   }
 
   private get view(): FilesView {
@@ -307,7 +396,7 @@ export class FilesStore {
   }
 
   private idForPath(path: string): NodeId | undefined {
-    return this.view.pathToId.get(path);
+    return this.viewData.pathToId.get(path);
   }
 
   private optimisticNodeForPath(path: string): NodeId | undefined {
@@ -317,88 +406,60 @@ export class FilesStore {
     return undefined;
   }
 
-  private applyMirrorChange(change: CollectionMirrorChange<NodeId, CoreFileNode>): void {
-    if (change.kind === 'snapshot') {
-      this.applyMirrorSnapshot(change.snapshot.entries);
-    } else {
-      this.applyMirrorDelta(change.update.ops);
-    }
+  private resolveWorkspacePath(path: string): string {
+    const normalized = normalizeFileTreePath(path);
+    if (isAbsolutePath(normalized)) return normalized;
+    return normalized ? joinPath(this.rootPath, normalized) : this.rootPath;
   }
 
-  private applyMirrorSnapshot(entries: Array<[NodeId, CoreFileNode]>): void {
-    this.baseNodes.clear();
-    this.basePathToId.clear();
-    this.clearViewData();
-    this.viewData.loadedPaths.add(this.rootPath);
+  private rebuildView(): void {
+    const nodes = new Map<string, RenderableFileNode>();
+    const childrenById = new Map<NodeId | null, RenderableFileNode[]>();
+    const loadedPaths = new Set<string>();
+    const pathToId = new Map<string, NodeId>();
 
-    for (const [id, node] of entries) {
-      this.baseNodes.set(id, node);
-      this.basePathToId.set(node.path, id);
-      this.addNodeToView(node, { sort: false });
+    if (this.loadedScopes.has(null)) loadedPaths.add(this.rootPath);
+
+    for (const node of this.nodesById.values()) {
+      const renderNode = toRenderableFileNode(node);
+      nodes.set(renderNode.path, renderNode);
+      pathToId.set(renderNode.path, renderNode.id);
+      pushChild(childrenById, renderNode);
+      if (node.type === 'directory' && this.loadedScopes.has(node.id)) {
+        loadedPaths.add(renderNode.path);
+      }
     }
 
-    for (const [parentId, siblings] of this.viewData.childrenById) {
-      this.viewData.childrenById.set(parentId, sortFileNodes(siblings));
-    }
-    this.refreshRootNodes();
-
-    const authoritativePaths = new Set(entries.map(([, node]) => node.path));
-    this.pruneOptimisticPaths(authoritativePaths);
-    for (const optimistic of this.optimisticNodes.values()) {
-      if (!this.basePathToId.has(optimistic.node.path)) this.addNodeToView(optimistic.node);
+    for (const { node } of this.optimisticNodes.values()) {
+      if (pathToId.has(node.path)) continue;
+      const renderNode = toRenderableFileNode(node);
+      nodes.set(renderNode.path, renderNode);
+      pushChild(childrenById, renderNode);
     }
 
+    for (const [parentId, siblings] of childrenById) {
+      childrenById.set(parentId, sortFileNodes(siblings));
+    }
+
+    this.viewData.nodes = nodes;
+    this.viewData.childrenById = childrenById;
+    this.viewData.loadedPaths = loadedPaths;
+    this.viewData.pathToId = pathToId;
+    this.viewData.rootNodes = childrenById.get(null) ?? [];
     this.bumpView();
   }
 
-  private applyMirrorDelta(ops: Array<KeyedOp<NodeId, CoreFileNode>>): void {
-    let changed = false;
-    for (const op of ops) {
-      changed =
-        op.op === 'put'
-          ? this.applyBasePut(op.key, op.value) || changed
-          : this.applyBaseDel(op.key) || changed;
-    }
-    if (changed) this.bumpView();
-  }
-
-  private applyBasePut(id: NodeId, node: CoreFileNode): boolean {
-    const previous = this.baseNodes.get(id);
-    if (previous) {
-      this.basePathToId.delete(previous.path);
-      this.removeNodeFromView(id);
-    }
-
-    const optimistic = this.optimisticNodeForPath(node.path);
-    if (optimistic !== undefined) this.removeOptimisticNodeFromView(optimistic);
-
-    this.baseNodes.set(id, node);
-    this.basePathToId.set(node.path, id);
-    this.addNodeToView(node);
-
-    if (previous && previous.path !== node.path) {
-      this.restoreOptimisticPath(previous.path);
-    }
-
-    return true;
-  }
-
-  private applyBaseDel(id: NodeId): boolean {
-    const previous = this.baseNodes.get(id);
-    if (!previous) return false;
-
-    this.baseNodes.delete(id);
-    this.basePathToId.delete(previous.path);
-    this.removeNodeFromView(id);
-    this.restoreOptimisticPath(previous.path);
-    return true;
-  }
-
-  private pruneOptimisticPaths(paths: Set<string>): void {
+  private pruneResolvedOptimistic(): void {
     const ids = [...this.optimisticNodes]
-      .filter(([, optimistic]) => paths.has(optimistic.node.path))
+      .filter(([, optimistic]) => this.viewData.pathToId.has(optimistic.node.path))
       .map(([id]) => id);
-    for (const id of ids) this.removeOptimisticNodeFromView(id);
+    if (ids.length === 0) return;
+    for (const id of ids) {
+      const optimistic = this.optimisticNodes.get(id);
+      if (optimistic?.timer) clearTimeout(optimistic.timer);
+      this.optimisticNodes.delete(id);
+    }
+    this.rebuildView();
   }
 
   private armOptimisticNodeExpiry(id: NodeId): void {
@@ -413,105 +474,85 @@ export class FilesStore {
   }
 
   private removeOptimisticNode(id: NodeId): void {
-    if (this.removeOptimisticNodeFromView(id)) this.bumpView();
-  }
-
-  private removeOptimisticNodeFromView(id: NodeId): boolean {
     const optimistic = this.optimisticNodes.get(id);
-    if (!optimistic) return false;
-    if (optimistic?.timer) clearTimeout(optimistic.timer);
+    if (!optimistic) return;
+    if (optimistic.timer) clearTimeout(optimistic.timer);
     this.optimisticNodes.delete(id);
-    return this.removeNodeFromView(id);
+    this.rebuildView();
   }
 
-  private restoreOptimisticPath(path: string): boolean {
-    if (this.basePathToId.has(path)) return false;
-    const optimistic = this.optimisticNodeForPath(path);
-    if (optimistic === undefined) return false;
-    const entry = this.optimisticNodes.get(optimistic);
-    if (!entry) return false;
-    return this.addNodeToView(entry.node);
-  }
-
-  private addNodeToView(node: CoreFileNode, opts: { sort?: boolean } = {}): boolean {
-    const renderNode = toRenderableFileNode(node);
-    this.viewNodesById.set(renderNode.id, renderNode);
-    this.viewData.nodes.set(renderNode.path, renderNode);
-    this.viewData.pathToId.set(renderNode.path, renderNode.id);
-    if (renderNode.type === 'directory' && renderNode.childrenLoaded) {
-      this.viewData.loadedPaths.add(renderNode.path);
-    }
-
-    const siblings = this.viewData.childrenById.get(renderNode.parentId) ?? [];
-    siblings.push(renderNode);
-    this.viewData.childrenById.set(
-      renderNode.parentId,
-      opts.sort === false ? siblings : sortFileNodes(siblings)
-    );
-    if (renderNode.parentId === null) this.refreshRootNodes();
-    return true;
-  }
-
-  private removeNodeFromView(id: NodeId): boolean {
-    const node = this.viewNodesById.get(id);
-    if (!node) return false;
-
-    this.viewNodesById.delete(id);
-    this.viewData.nodes.delete(node.path);
-    this.viewData.pathToId.delete(node.path);
-    if (node.type === 'directory') this.viewData.loadedPaths.delete(node.path);
-
-    const siblings = this.viewData.childrenById.get(node.parentId);
-    if (siblings) {
-      const next = siblings.filter((sibling) => sibling.id !== id);
-      if (next.length === 0) {
-        this.viewData.childrenById.delete(node.parentId);
-      } else {
-        this.viewData.childrenById.set(node.parentId, next);
-      }
-    }
-    if (node.parentId === null) this.refreshRootNodes();
-    return true;
-  }
-
-  private clearViewData(): void {
-    this.viewNodesById.clear();
-    this.viewData.nodes.clear();
-    this.viewData.rootNodes = [];
-    this.viewData.childrenById.clear();
-    this.viewData.loadedPaths.clear();
-    this.viewData.pathToId.clear();
-  }
-
-  private refreshRootNodes(): void {
-    this.viewData.rootNodes = this.viewData.childrenById.get(null) ?? [];
-  }
-
-  private bumpView(): void {
-    this.viewRevision += 1;
-  }
-
-  private async waitForTreeMutation(result: FileTreeMutationResult): Promise<boolean> {
+  private async awaitMutation(result: FileTreeProjectionVersionResult): Promise<boolean> {
     if (!result.success) {
       runInAction(() => {
         this.syncError = fileTreeOperationErrorMessage(result.error);
       });
       return false;
     }
-
-    const sequence = result.data.sequences.tree;
-    if (sequence !== undefined) {
-      try {
-        await this.mirror.waitForSequence(sequence);
-      } catch {
-        await this.binding.resync();
-      }
-    }
+    await this.waitForVersion(result.data.version);
     runInAction(() => {
       this.syncError = null;
     });
     return true;
   }
+
+  private waitForVersion(target: number): Promise<void> {
+    if (this.version >= target) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        this.removeVersionWaiter(waiter);
+        resolve();
+      }, VERSION_WAIT_TIMEOUT_MS);
+      const waiter: VersionWaiter = { target, resolve, timer };
+      this.versionWaiters.push(waiter);
+    });
+  }
+
+  private resolveVersionWaiters(): void {
+    if (this.versionWaiters.length === 0) return;
+    const ready = this.versionWaiters.filter((waiter) => this.version >= waiter.target);
+    for (const waiter of ready) {
+      clearTimeout(waiter.timer);
+      this.removeVersionWaiter(waiter);
+      waiter.resolve();
+    }
+  }
+
+  private removeVersionWaiter(waiter: VersionWaiter): void {
+    const index = this.versionWaiters.indexOf(waiter);
+    if (index !== -1) this.versionWaiters.splice(index, 1);
+  }
+
+  private teardownSubscription(): void {
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+    const subscriptionId = this.subscriptionId;
+    this.subscriptionId = null;
+    if (subscriptionId) {
+      void rpc.workspace.fileTree.closeProjection(this.projectId, this.workspaceId, subscriptionId);
+    }
+    this.started = false;
+  }
+
+  private resetState(): void {
+    this.nodesById.clear();
+    this.childIdsByScope.clear();
+    this.loadedScopes.clear();
+    this.registeredPaths.clear();
+    this.version = 0;
+  }
+
+  private bumpView(): void {
+    this.viewRevision += 1;
+  }
+}
+
+function pushChild(
+  childrenById: Map<NodeId | null, RenderableFileNode[]>,
+  node: RenderableFileNode
+): void {
+  const siblings = childrenById.get(node.parentId) ?? [];
+  siblings.push(node);
+  childrenById.set(node.parentId, siblings);
 }
 
 function parentPathFromPath(path: string): string | null {
