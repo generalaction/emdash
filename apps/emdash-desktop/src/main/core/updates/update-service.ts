@@ -28,6 +28,8 @@ const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const STARTUP_DELAY_MS = 30 * 1000; // 30 seconds
 const INSTALL_RESTART_GUARD_TIMEOUT_MS = 2 * 60 * 1000;
 
+type UpdateCheckSource = 'background' | 'manual';
+
 export interface UpdateState {
   status: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error';
   lastCheck?: Date;
@@ -50,6 +52,7 @@ class UpdateService implements IInitializable, IDisposable {
   private updateState: UpdateState;
   private checkTimer?: NodeJS.Timeout;
   private currentCheckPromise: Promise<UpdateInfo | null> | null = null;
+  private currentCheckSource: UpdateCheckSource | null = null;
   private initialized = false;
   private active = false;
   private installRequested = false;
@@ -126,6 +129,13 @@ class UpdateService implements IInitializable, IDisposable {
         return;
       }
 
+      if (this.updateState.status === 'checking' && this.currentCheckSource === 'background') {
+        this.updateState.status = 'idle';
+        this.updateState.error = undefined;
+        log.warn('Background update check failed; suppressing user-facing error');
+        return;
+      }
+
       const previousVersion = this.updateState.availableVersion;
       const previousInfo = this.updateState.updateInfo;
 
@@ -175,12 +185,17 @@ class UpdateService implements IInitializable, IDisposable {
     }, delay);
   }
 
-  async checkForUpdates(): Promise<UpdateInfo | null> {
+  async checkForUpdates(source: UpdateCheckSource = 'background'): Promise<UpdateInfo | null> {
     if (!this.active) return null;
-    if (this.currentCheckPromise) return this.currentCheckPromise;
+    if (this.currentCheckPromise) {
+      if (source === 'manual') this.currentCheckSource = 'manual';
+      return this.currentCheckPromise;
+    }
 
+    this.currentCheckSource = source;
     this.currentCheckPromise = this._performCheck().finally(() => {
       this.currentCheckPromise = null;
+      this.currentCheckSource = null;
       this.scheduleNextCheck();
     });
 
