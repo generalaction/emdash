@@ -1,0 +1,40 @@
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/issue-combobox-field.tsx
+  s_5a28e626612a4c::t_d3a706817a7882 31-38
+  s_5a28e626612a4c::t_c65c871f8c5a3a 1,7,10,17-18,65-66,73-86,90-102,104-133,135-164
+  s_5a28e626612a4c::t_594bcc78bd6d45 87-89
+  s_5a28e626612a4c::t_9c15e46a3f7be2 26-30,41
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/linked-entity-section.tsx
+  s_5a28e626612a4c::t_12d7a673d73291 56-57
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-actions.ts
+  s_5a28e626612a4c::t_d7fd2f34f30061 73-82
+apps/emdash-desktop/src/renderer/features/tasks/task-config/task-state-context.tsx
+  s_5a28e626612a4c::t_d957bf856ed42c 14
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/create-task-modal.tsx
+  s_5a28e626612a4c::t_3e6ac177c05717 144
+apps/emdash-desktop/src/renderer/tests/context-actions.test.ts
+  s_5a28e626612a4c::t_4035f7f53382fe 5,88-117
+  s_5a28e626612a4c::t_ea282d13ceb2d2 118-119
+apps/emdash-desktop/src/renderer/features/tasks/task-config/conversation-field.tsx
+  s_5a28e626612a4c::t_a2673f9a974b92 17-18,24
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_5a28e626612a4c::t_816c1cb9288624 35-39,151-154
+  s_5a28e626612a4c::t_8a0f843febd3a0 132,143,161-162,165-166,280-284,306,310,321-323,350-352
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-create-task-state.ts
+  s_5a28e626612a4c::t_41acef2d7911e9 29,38,131-136,152-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "588410caec9d44319fc25a3cabca131a9894739e",
+  "prompts": {},
+  "sessions": {
+    "s_5a28e626612a4c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f140d-2e19-73f0-993c-b5693daa6278",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
