@@ -8,8 +8,8 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The bridge reads the command-palette hotkey from app settings; with no
-// overrides it falls back to the 'Mod+K' default.
+// The bridge reads app-shortcut hotkeys from app settings; with no overrides it
+// falls back to the defaults from APP_SHORTCUTS.
 vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({ value: undefined }),
 }));
@@ -21,10 +21,17 @@ import { TerminalKeyboardBridge } from '@renderer/lib/components/terminal-keyboa
 // passes on a macOS CI runner.
 const PRIMARY_MODIFIER: 'metaKey' | 'ctrlKey' = detectPlatform() === 'mac' ? 'metaKey' : 'ctrlKey';
 
-function pressKey(target: EventTarget, key: string): KeyboardEvent {
+interface PressKeyOptions {
+  altKey?: boolean;
+  shiftKey?: boolean;
+}
+
+function pressKey(target: EventTarget, key: string, options: PressKeyOptions = {}): KeyboardEvent {
   const event = new KeyboardEvent('keydown', {
     key,
     [PRIMARY_MODIFIER]: true,
+    altKey: options.altKey ?? false,
+    shiftKey: options.shiftKey ?? false,
     bubbles: true,
     cancelable: true,
   });
@@ -121,6 +128,27 @@ describe('TerminalKeyboardBridge', () => {
 
     expect(firstSpy).toHaveBeenCalledTimes(1);
     expect(secondSpy).toHaveBeenCalledTimes(1);
+    expect(xtermSpy).not.toHaveBeenCalled();
+
+    xtermInput.removeEventListener('keydown', xtermSpy);
+  });
+
+  it('fires task navigation shortcuts when a terminal is focused', async () => {
+    const nextTaskSpy = vi.fn();
+    const prevTaskSpy = vi.fn();
+    const xtermSpy = vi.fn((event: KeyboardEvent) => event.stopPropagation());
+    registerHotkey('Mod+Alt+ArrowDown', nextTaskSpy);
+    registerHotkey('Mod+Alt+ArrowUp', prevTaskSpy);
+    xtermInput.addEventListener('keydown', xtermSpy);
+
+    xtermInput.focus();
+    const nextEvent = pressKey(xtermInput, 'ArrowDown', { altKey: true });
+    const prevEvent = pressKey(xtermInput, 'ArrowUp', { altKey: true });
+
+    expect(nextTaskSpy).toHaveBeenCalledTimes(1);
+    expect(prevTaskSpy).toHaveBeenCalledTimes(1);
+    expect(nextEvent.defaultPrevented).toBe(true);
+    expect(prevEvent.defaultPrevented).toBe(true);
     expect(xtermSpy).not.toHaveBeenCalled();
 
     xtermInput.removeEventListener('keydown', xtermSpy);

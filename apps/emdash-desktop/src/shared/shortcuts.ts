@@ -205,6 +205,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Switch to the next task',
     category: 'Task View',
     ignoreWhenMonacoFocused: true,
+    overrideTerminalFocus: true,
   },
   taskPrev: {
     defaultHotkey: 'Mod+Alt+ArrowUp',
@@ -212,6 +213,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Switch to the previous task',
     category: 'Task View',
     ignoreWhenMonacoFocused: true,
+    overrideTerminalFocus: true,
   },
   tabClose: {
     defaultHotkey: 'Mod+W',
