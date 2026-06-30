@@ -1272,17 +1272,23 @@ export function ChatRoot(props: ChatRootProps) {
                       <Show when={pinnedItem()}>
                         {(item) => (
                           <div
-                            class={`${pinnedOverlay} ${contentClass()}`}
+                            class={pinnedOverlay}
                             aria-hidden="true"
                             style={{ transform: `translateY(${ps().overlayTop}px)` }}
                           >
-                            <PinnedUserMessage
-                              item={item()}
-                              rowWidth={containerWidth()}
-                              theme={theme()}
-                              caches={caches()}
-                              expandedId={expandedUserId}
-                            />
+                            {/* Inner centered column carries the max-width cap so
+                                the pinned card matches the inline rows' width. The
+                                gutter padding lives on the outer overlay (above),
+                                mirroring the composer slot's two-level structure. */}
+                            <div class={contentClass()}>
+                              <PinnedUserMessage
+                                item={item()}
+                                rowWidth={containerWidth()}
+                                theme={theme()}
+                                caches={caches()}
+                                expandedId={expandedUserId}
+                              />
+                            </div>
                           </div>
                         )}
                       </Show>
