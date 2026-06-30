@@ -471,12 +471,7 @@ describe('measureTerminalCell', () => {
   it('cell height matches Math.floor(charHeight * lineHeight) for a fractional lineHeight', () => {
     // Use a lineHeight that produces a fractional product, so ceil and floor differ.
     const lineHeight = 1.2;
-    const result = measureTerminalCell(
-      'monospace',
-      13,
-      lineHeight,
-      0
-    );
+    const result = measureTerminalCell('monospace', 13, lineHeight, 0);
     expect(result).not.toBeNull();
     const { height } = result!;
 
@@ -503,7 +498,7 @@ describe('measureTerminalCell', () => {
     if (expectedFloor === expectedCeil) {
       console.warn(
         'measureTerminalCell ceil/floor test: charHeight * lineHeight was already an integer ' +
-        `(charHeight=${charHeight}, lineHeight=${lineHeight}). Test is vacuously true on this platform.`
+          `(charHeight=${charHeight}, lineHeight=${lineHeight}). Test is vacuously true on this platform.`
       );
     }
   });
@@ -541,10 +536,7 @@ describe('calibrateCell null-dims guard', () => {
     const alreadyCalibrated = hasCalibratedRef.current;
     hasCalibratedRef.current = true;
 
-    if (
-      cellSizeCurrent.width === calibrateWidth &&
-      cellSizeCurrent.height === calibrateHeight
-    ) {
+    if (cellSizeCurrent.width === calibrateWidth && cellSizeCurrent.height === calibrateHeight) {
       if (!alreadyCalibrated) {
         // Fixed version: guard the value, do not assert non-null.
         const dims = controllerDimsBox.get();
@@ -561,10 +553,7 @@ describe('calibrateCell null-dims guard', () => {
     // A second calibration that hits the fast path with a non-null box should flush.
     const alreadyCalibrated2 = hasCalibratedRef.current;
     hasCalibratedRef.current = true;
-    if (
-      cellSizeCurrent.width === calibrateWidth &&
-      cellSizeCurrent.height === calibrateHeight
-    ) {
+    if (cellSizeCurrent.width === calibrateWidth && cellSizeCurrent.height === calibrateHeight) {
       if (!alreadyCalibrated2) {
         const dims2 = controllerDimsBox.get();
         if (dims2) scheduler.schedule(dims2);
