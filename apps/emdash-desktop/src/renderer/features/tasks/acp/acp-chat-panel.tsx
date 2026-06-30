@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import {
-  openExternalFilePath,
+  openFileInAdjacentPane,
   openFileInTaskEditor,
 } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
@@ -60,10 +60,6 @@ function readImageFile(file: File): Promise<ComposerAttachment> {
       resolve({ id: crypto.randomUUID(), name: file.name, kind: 'image', mimeType: file.type });
     reader.readAsDataURL(file);
   });
-}
-
-function isAbsolutePath(p: string): boolean {
-  return p.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(p);
 }
 
 // ── Composer for a single store ────────────────────────────────────────────────
@@ -344,13 +340,14 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const transcriptCommands = useMemo<ChatCommands>(
     () => ({
       onViewImage: (arg) => handleViewerOpen(arg.attachment.dataUrl, arg.attachment.name),
+      onOpenFile: (arg) => {
+        if (!store) return;
+        const open = arg.source === 'diff' ? openFileInAdjacentPane : openFileInTaskEditor;
+        void open(store.projectId, store.taskId, arg.path);
+      },
       onClickMention: (arg: Parameters<NonNullable<ChatCommands['onClickMention']>>[0]) => {
         if (arg.kind !== 'file' || !store) return;
-        if (isAbsolutePath(arg.id)) {
-          void openExternalFilePath(store.projectId, store.taskId, arg.id);
-        } else {
-          void openFileInTaskEditor(store.projectId, store.taskId, arg.id);
-        }
+        void openFileInTaskEditor(store.projectId, store.taskId, arg.id);
       },
     }),
     [store, handleViewerOpen]
