@@ -98,6 +98,8 @@ export class AcpChatStore {
       lifecycle: computed,
       model: computed,
       modelOptions: computed,
+      permissionMode: computed,
+      permissionModeOptions: computed,
       commands: computed,
       isEmpty: computed,
       permissionQueue: computed,
@@ -107,6 +109,7 @@ export class AcpChatStore {
       submitPrompt: action,
       stop: action,
       setModel: action,
+      setMode: action,
       resolvePermission: action,
     });
   }
@@ -285,10 +288,52 @@ export class AcpChatStore {
     });
   }
 
+  /**
+   * Currently active permission mode id, derived from the `mode` config option
+   * (category === 'mode'). Read from configOptions rather than `modes` because
+   * an explicit setSessionMode only emits a `config_option_update`, not a
+   * `current_mode_update`, so `modes.currentModeId` can be stale. Null when the
+   * agent doesn't report a mode config option.
+   */
+  get permissionMode(): string | null {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'mode' && o.type === 'select'
+    );
+    return opt && typeof opt.currentValue === 'string' ? opt.currentValue : null;
+  }
+
+  /**
+   * Available permission modes as a record keyed by mode id, derived from the
+   * `mode` config option's options. Null when the agent doesn't advertise a
+   * mode config option (hides the selector).
+   */
+  get permissionModeOptions(): Record<string, { name: string; description?: string }> | null {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'mode' && o.type === 'select'
+    );
+    if (!opt || !('options' in opt) || !Array.isArray(opt.options)) return null;
+    const result: Record<string, { name: string; description?: string }> = {};
+    for (const o of opt.options as Array<{
+      value: string;
+      name: string;
+      description?: string | null;
+    }>) {
+      result[o.value] = { name: o.name, description: o.description ?? undefined };
+    }
+    return result;
+  }
+
   /** Switch the active model. */
   setModel(modelId: string): void {
     void rpc.acp.setModel(this.conversationId, modelId).catch((err: unknown) => {
       console.error('[AcpChatStore] setModel error', err);
+    });
+  }
+
+  /** Switch the session permission mode. */
+  setMode(modeId: string): void {
+    void rpc.acp.setMode(this.conversationId, modeId).catch((err: unknown) => {
+      console.error('[AcpChatStore] setMode error', err);
     });
   }
 

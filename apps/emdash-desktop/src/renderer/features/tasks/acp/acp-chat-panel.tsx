@@ -12,8 +12,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
-import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { openFileInTaskEditor } from '@renderer/features/tasks/stores/open-file-in-file-editor';
+import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
@@ -117,6 +117,13 @@ const ComposerForStore = observer(function ComposerForStore({
     [store]
   );
 
+  const handleModeChange = useCallback(
+    (modeId: string) => {
+      store.setMode(modeId);
+    },
+    [store]
+  );
+
   const handleAttach = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -190,6 +197,9 @@ const ComposerForStore = observer(function ComposerForStore({
         modelOptions={store.modelOptions}
         selectedModel={store.model ?? undefined}
         onModelChange={handleModelChange}
+        permissionModeOptions={store.permissionModeOptions}
+        selectedPermissionMode={store.permissionMode ?? undefined}
+        onPermissionModeChange={handleModeChange}
         agentOptions={agentOptions}
         selectedAgent={providerId ?? undefined}
         agentLocked

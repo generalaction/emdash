@@ -4,7 +4,12 @@ import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { ALL_COMMAND_DEFS } from '@shared/commands';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import type { CommandPaletteQuery, SearchItem, SearchItemKind, WorkspaceFileHit } from '@shared/core/search';
+import type {
+  CommandPaletteQuery,
+  SearchItem,
+  SearchItemKind,
+  WorkspaceFileHit,
+} from '@shared/core/search';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { Project } from '@shared/projects';
 import { conversationEvents } from '../conversations/conversation-events';

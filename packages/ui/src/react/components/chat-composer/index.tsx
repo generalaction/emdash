@@ -1,6 +1,6 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, CircleAlert, Paperclip, Square, X } from 'lucide-react';
+import { ArrowUp, CircleAlert, Paperclip, ShieldCheck, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { ComboboxPopover } from '../combobox-popover';
@@ -122,6 +122,14 @@ export interface ComposerModelOption {
   };
 }
 
+// ── Permission mode option types ──────────────────────────────────────────────
+
+/** Minimal mode descriptor the composer needs to render the permission-mode selector. */
+export interface ComposerPermissionModeOption {
+  name: string;
+  description?: string;
+}
+
 // ── Agent option types ────────────────────────────────────────────────────────
 
 /** Minimal agent descriptor the composer needs to render the agent selector. */
@@ -160,6 +168,10 @@ export interface ChatComposerProps {
   modelOptions?: Record<string, ComposerModelOption> | null;
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
+
+  permissionModeOptions?: Record<string, ComposerPermissionModeOption> | null;
+  selectedPermissionMode?: string;
+  onPermissionModeChange?: (modeId: string) => void;
 
   onSubmit: (text: string) => void;
   onStop?: () => void;
@@ -470,6 +482,9 @@ export function ChatComposer({
   modelOptions,
   selectedModel,
   onModelChange,
+  permissionModeOptions,
+  selectedPermissionMode,
+  onPermissionModeChange,
   onSubmit,
   onStop,
   onAttach,
@@ -566,6 +581,18 @@ export function ChatComposer({
 
   const modelItems: ModelItem[] = modelOptions
     ? Object.entries(modelOptions).map(([id, opt]) => ({ id, ...opt }))
+    : [];
+
+  // ── Permission mode items ────────────────────────────────────────────────────
+
+  interface PermissionModeItem {
+    id: string;
+    name: string;
+    description?: string;
+  }
+
+  const permissionModeItems: PermissionModeItem[] = permissionModeOptions
+    ? Object.entries(permissionModeOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
 
   // The permission band takes priority over the notice band.
@@ -708,6 +735,59 @@ export function ChatComposer({
               />
             ) : (
               <span />
+            )}
+            {permissionModeItems.length > 0 && (
+              <ComboboxPopover<PermissionModeItem>
+                items={permissionModeItems}
+                value={selectedPermissionMode ?? null}
+                onValueChange={(id) => onPermissionModeChange?.(id)}
+                itemToKey={(item) => item.id}
+                itemToLabel={(item) => item.name}
+                disabled={disabled}
+                searchPlaceholder="Search"
+                contentStyle={{ minWidth: '12.5rem' }}
+                renderTrigger={(selected) => (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
+                      fontSize: 'var(--em-text-xs)',
+                    }}
+                  >
+                    <ShieldCheck style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
+                    {selected?.name ?? 'Permissions…'}
+                  </span>
+                )}
+                renderItem={(item) => (
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <span
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontSize: 'var(--em-text-sm)',
+                      }}
+                    >
+                      {item.name}
+                    </span>
+                    {item.description && (
+                      <span
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontSize: 'var(--em-text-xs)',
+                          color: 'var(--em-foreground-muted)',
+                        }}
+                      >
+                        {item.description}
+                      </span>
+                    )}
+                  </div>
+                )}
+              />
             )}
           </div>
 

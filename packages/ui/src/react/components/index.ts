@@ -4,6 +4,7 @@ export type {
   ComposerAttachment,
   ComposerAgentOption,
   ComposerModelOption,
+  ComposerPermissionModeOption,
   ComposerNotice,
   ComposerNoticeVariant,
   ContextUsage,
