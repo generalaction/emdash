@@ -21,6 +21,14 @@ describe('buildTmuxShellLine', () => {
     expect(result.indexOf('mouse on')).toBeLessThan(result.indexOf('attach-session'));
     expect(result.indexOf('history-limit')).toBeLessThan(result.indexOf('attach-session'));
   });
+
+  it('pre-declares the terminal capabilities before attach so tmux skips the probe reply', () => {
+    const result = buildTmuxShellLine('agent-session', 'exec /bin/zsh -il');
+
+    // Server option (no `-t`), appended (`-a`), keyed by TERM, includes RGB/256.
+    expect(result).toContain('tmux set-option -as terminal-features ,xterm-256color:RGB:256:');
+    expect(result.indexOf('terminal-features')).toBeLessThan(result.indexOf('attach-session'));
+  });
 });
 
 describe('decodeTmuxSessionName', () => {

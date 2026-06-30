@@ -3,6 +3,12 @@ import { log } from '@main/lib/logger';
 
 export const TMUX_SESSION_PREFIX = 'emdash-';
 const TMUX_HISTORY_LIMIT = 100_000;
+// Capabilities the renderer terminal (xterm.js) actually supports, declared to
+// tmux so it never needs its attach-time probe reply (see buildTmuxShellLine).
+// Leading `,` + `set -a` appends a TERM-keyed entry. Only shell-neutral chars
+// (`,` `:` `-`), so it needs no quoting.
+const TMUX_TERMINAL_FEATURES =
+  ',xterm-256color:RGB:256:mouse:extkeys:strikethrough:focus:clipboard:ccolour:cstyle:title';
 
 export function buildTmuxShellLine(sessionName: string, commandLine: string): string {
   const quotedName = JSON.stringify(sessionName);
@@ -14,7 +20,14 @@ export function buildTmuxShellLine(sessionName: string, commandLine: string): st
   const newSession = `tmux -u new-session -d -s ${quotedName} ${quotedCmd}`;
   const enableMouse = `tmux set-option -t ${quotedName} mouse on 2>/dev/null || true`;
   const setHistoryLimit = `tmux set-option -t ${quotedName} history-limit ${TMUX_HISTORY_LIMIT} 2>/dev/null || true`;
-  const configure = `(${enableMouse}) && (${setHistoryLimit})`;
+  // Pre-declare the renderer terminal's (xterm.js) capabilities so tmux does not
+  // depend on the reply to its attach-time probe (DA1/DA2/XTVERSION). Over SSH
+  // that reply round-trips slowly and leaks into the focused pane as
+  // `1;2c0;276;0c`; the PTY input filter (terminal-reply-filter.ts) drops it, and
+  // this declaration keeps truecolor/256/mouse/etc. intact without the probe.
+  // `terminal-features` is a server option (no `-t`); `-a` appends, keyed by TERM.
+  const declareFeatures = `tmux set-option -as terminal-features ${TMUX_TERMINAL_FEATURES} 2>/dev/null || true`;
+  const configure = `(${enableMouse}) && (${setHistoryLimit}) && (${declareFeatures})`;
   const attach = `tmux -u attach-session -t ${quotedName}`;
   const script = `(${checkExists} || ${newSession}) && ${configure} && ${attach}`;
   return `/bin/sh -c ${JSON.stringify(script)}`;

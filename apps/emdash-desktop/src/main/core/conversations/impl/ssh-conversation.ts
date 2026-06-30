@@ -269,6 +269,7 @@ export class SshConversationProvider implements ConversationProvider {
           providerId: conversation.providerId,
           title: conversation.title,
           isRemote: true,
+          tmux: this.tmux,
         },
       });
       this.sessions.set(sessionId, pty);
