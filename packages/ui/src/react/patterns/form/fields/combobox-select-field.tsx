@@ -1,4 +1,4 @@
-import { ComboboxPopover } from '@react/primitives/combobox';
+import { ComboboxPopover } from '@/react/components/combobox-popover';
 import { FormFieldShell, type FieldOrientation } from '../field-shell';
 import { useFieldContext } from '../form-context';
 import type { SelectOption } from './select-field';

@@ -57,7 +57,7 @@ export const PolymorphicAs: Story = {
   ),
 };
 
-/** surface prop applies .surface-<value> class (cascade scope) + background: var(--surface). */
+/** surface prop applies .surface-<value> class (cascade scope) + background: var(--em-surface). */
 export const Surfaces: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="3" padding="4">

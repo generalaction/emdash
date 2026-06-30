@@ -122,7 +122,7 @@ export const AcrossSurfaces: Story = {
           >
             <span
               className={s.w36}
-              style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}
+              style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}
             >
               {level}
             </span>

@@ -54,14 +54,14 @@ function ElevationSwatch({ level, label }: { level: string; label: string }) {
         borderWidth="1"
         borderStyle="solid"
         borderColor="border"
-        style={{ background: `var(--surface-${level})` }}
+        style={{ background: `var(--em-surface-${level})` }}
         title={`--surface-${level}`}
       />
       <Box
         className={s.h6}
         width="full"
         rounded="sm"
-        style={{ background: `var(--surface-${level}-hover)` }}
+        style={{ background: `var(--em-surface-${level}-hover)` }}
         title={`--surface-${level}-hover`}
       />
       <Box
@@ -69,8 +69,8 @@ function ElevationSwatch({ level, label }: { level: string; label: string }) {
         width="full"
         rounded="sm"
         style={{
-          background: `var(--surface-${level}-selected)`,
-          boxShadow: isEmphasis ? 'inset 0 0 0 1px var(--border-primary)' : undefined,
+          background: `var(--em-surface-${level}-selected)`,
+          boxShadow: isEmphasis ? 'inset 0 0 0 1px var(--em-border-primary)' : undefined,
         }}
         title={`--surface-${level}-selected`}
       />
@@ -333,11 +333,11 @@ function StatusRoom({ status }: { status: SurfaceStatusName }) {
         borderWidth="1"
         borderStyle="solid"
         padding="3"
-        style={{ borderColor: `var(--surface-${status}-border)` }}
+        style={{ borderColor: `var(--em-surface-${status}-border)` }}
       >
         <span
           className={cx(sx({ flex: '1', fontSize: 'sm' }))}
-          style={{ color: `var(--surface-${status}-foreground)` }}
+          style={{ color: `var(--em-surface-${status}-foreground)` }}
         >
           Controls inside a status surface
         </span>
@@ -416,8 +416,8 @@ export const StatusSurfaces: Story = {
                 borderWidth="1"
                 borderStyle="solid"
                 style={{
-                  background: `var(--surface-${status})`,
-                  borderColor: `var(--surface-${status}-border)`,
+                  background: `var(--em-surface-${status})`,
+                  borderColor: `var(--em-surface-${status}-border)`,
                 }}
                 title={`--surface-${status}`}
               />
@@ -425,14 +425,14 @@ export const StatusSurfaces: Story = {
                 className={s.h6}
                 width="full"
                 rounded="sm"
-                style={{ background: `var(--surface-${status}-hover)` }}
+                style={{ background: `var(--em-surface-${status}-hover)` }}
                 title={`--surface-${status}-hover`}
               />
               <Box
                 className={s.h6}
                 width="full"
                 rounded="sm"
-                style={{ background: `var(--surface-${status}-selected)` }}
+                style={{ background: `var(--em-surface-${status}-selected)` }}
                 title={`--surface-${status}-selected`}
               />
             </Box>

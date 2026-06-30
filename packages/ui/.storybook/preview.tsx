@@ -7,6 +7,8 @@ import type { ThemeId } from '../src/react/primitives/theme-provider';
 import 'devicon/devicon.min.css';
 import '@emdash/chat-ui/style.css';
 import '../src/react/chat-ui/chat-theme.css';
+// Opt-in element-defaults (body bg/fg, scrollbars, selection) using --em-* tokens.
+import '../src/styles/base.css';
 
 const SURFACE_FAMILIES = [
   'none',
@@ -32,14 +34,14 @@ const withTheme: Decorator = (Story, context) => {
   const frameStyle: React.CSSProperties = fullscreen
     ? {
         height: '100vh',
-        fontFamily: 'var(--font-sans)',
-        backgroundColor: surface !== 'none' ? 'var(--surface)' : 'var(--background)',
+        fontFamily: 'var(--em-font-sans)',
+        backgroundColor: surface !== 'none' ? 'var(--em-surface)' : 'var(--em-background)',
       }
     : {
         minHeight: '100vh',
         padding: '2rem',
-        fontFamily: 'var(--font-sans)',
-        backgroundColor: surface !== 'none' ? 'var(--surface)' : 'var(--background)',
+        fontFamily: 'var(--em-font-sans)',
+        backgroundColor: surface !== 'none' ? 'var(--em-surface)' : 'var(--em-background)',
       };
 
   // ThemeProvider (default target="documentElement") applies the theme class to

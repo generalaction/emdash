@@ -133,7 +133,7 @@ export const WithoutFooter: Story = {
             borderColor="border"
             padding="3"
             fontSize="xs"
-            style={{ color: 'var(--foreground-muted)' }}
+            style={{ color: 'var(--em-foreground-muted)' }}
           >
             <p className={cx(sx({ fontWeight: 'medium', color: 'foreground' }))}>Component</p>
             <p>packages/ui/src/primitives/sheet.tsx</p>

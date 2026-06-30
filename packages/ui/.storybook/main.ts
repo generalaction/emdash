@@ -25,6 +25,14 @@ const config: StorybookConfig = {
           '@theme': resolve(root, 'theme'),
         },
       },
+      // Pre-bundle VE runtime modules so Vite doesn't re-optimize them mid-render
+      // (which would duplicate React and cause a `useState` null crash in Storybook).
+      optimizeDeps: {
+        include: [
+          '@vanilla-extract/sprinkles/createRuntimeSprinkles',
+          '@vanilla-extract/recipes/createRuntimeFn',
+        ],
+      },
     }),
 };
 

@@ -17,6 +17,7 @@ import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { svgContainer, svgDefaultSize } from '@styles/effects/svg-helpers.css';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 export const menuItemBase = recipe({
   base: [
@@ -28,12 +29,12 @@ export const menuItemBase = recipe({
       cursor: 'default',
       alignItems: 'center',
       gap: '0.5rem',
-      borderRadius: 'var(--radius-sm)',
+      borderRadius: tokenVars.radiusSm,
       paddingTop: '0.375rem',
       paddingBottom: '0.375rem',
       paddingLeft: '0.5rem',
       paddingRight: '0.5rem',
-      fontSize: 'var(--text-sm)',
+      fontSize: tokenVars.textSm,
       outline: 'none',
       userSelect: 'none',
     },

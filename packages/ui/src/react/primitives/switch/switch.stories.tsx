@@ -22,7 +22,7 @@ export const Controlled: Story = {
     return (
       <Box display="flex" alignItems="center" gap="2">
         <Switch checked={checked} onCheckedChange={setChecked} aria-label="Telemetry" />
-        <span style={{ fontSize: 'var(--text-sm)' }}>{checked ? 'On' : 'Off'}</span>
+        <span style={{ fontSize: 'var(--em-text-sm)' }}>{checked ? 'On' : 'Off'}</span>
       </Box>
     );
   },
@@ -47,8 +47,8 @@ export const InFormRow: Story = {
       className={s.w72}
     >
       <Box display="flex" flexDirection="column" gap="1">
-        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>Send telemetry</span>
-        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>
+        <span style={{ fontSize: 'var(--em-text-sm)', fontWeight: 500 }}>Send telemetry</span>
+        <span style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}>
           Anonymous usage data helps us improve.
         </span>
       </Box>

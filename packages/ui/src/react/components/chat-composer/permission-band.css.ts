@@ -1,11 +1,12 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 export const band = style({
   display: 'flex',
   alignItems: 'center',
   gap: '0.75rem',
-  borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
+  borderRadius: `${tokenVars.radiusXl} ${tokenVars.radiusXl} 0 0`,
   border: `1px solid ${vars.border}`,
   borderBottomWidth: 0,
   paddingLeft: '0.75rem',
@@ -14,7 +15,7 @@ export const band = style({
   paddingBottom: '0.5rem',
   backgroundColor: vars.surface,
   color: vars.foreground,
-  fontSize: 'var(--text-xs)',
+  fontSize: tokenVars.textXs,
 });
 
 export const bandIcon = style({

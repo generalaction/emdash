@@ -80,12 +80,12 @@ export const FilterBar: Story = {
         />
         <Box display="flex" flexDirection="column" gap="1">
           {filtered.length === 0 ? (
-            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--foreground-muted)' }}>
+            <span style={{ fontSize: 'var(--em-text-sm)', color: 'var(--em-foreground-muted)' }}>
               No results
             </span>
           ) : (
             filtered.map((item) => (
-              <span key={item} style={{ fontSize: 'var(--text-sm)' }}>
+              <span key={item} style={{ fontSize: 'var(--em-text-sm)' }}>
                 {item}
               </span>
             ))

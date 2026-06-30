@@ -3,7 +3,7 @@ import { cx } from '@styles/utilities/cx';
 import { useState } from 'react';
 import { Box } from '@/react/primitives/box';
 import { Button } from '@/react/primitives/button';
-import { ConfirmationDialog } from './confirmation-dialog';
+import { ConfirmationDialog } from '.';
 import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {

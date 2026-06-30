@@ -11,8 +11,8 @@ import {
   ComboboxLabel,
   ComboboxList,
   ComboboxTrigger,
-} from '../../primitives/combobox/combobox';
-import { ComboboxPopover } from '../combobox/combobox-popover';
+} from '@/react/primitives/combobox/combobox';
+import { ComboboxPopover } from '../combobox-popover';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
 import type {
   CommandItem,
@@ -679,8 +679,8 @@ export function ChatComposer({
                 renderTrigger={(selected) => (
                   <span
                     style={{
-                      color: selected ? 'var(--foreground)' : 'var(--foreground-muted)',
-                      fontSize: 'var(--text-xs)',
+                      color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
+                      fontSize: 'var(--em-text-xs)',
                     }}
                   >
                     {selected?.name ?? 'Model…'}
@@ -693,7 +693,7 @@ export function ChatComposer({
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
-                      fontSize: 'var(--text-sm)',
+                      fontSize: 'var(--em-text-sm)',
                     }}
                   >
                     {item.name}

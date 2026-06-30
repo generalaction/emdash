@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 export const imageContainer = style({
   display: 'flex',
@@ -19,6 +20,6 @@ export const image = style({
 });
 
 export const unavailable = style({
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
   color: vars.foregroundMuted,
 });

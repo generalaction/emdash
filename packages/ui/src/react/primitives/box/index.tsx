@@ -3,7 +3,7 @@
  *
  * Accepts Sprinkles props directly (layout, spacing, color, radius, type), an
  * optional `surface` prop that both scopes the surface cascade for descendants
- * (.surface-<value>) and paints background: var(--surface), plus a `className`
+ * (.surface-<value>) and paints background: var(--em-surface), plus a `className`
  * escape hatch for recipe/utility classes. Renders as `div` by default; any
  * HTML tag can be passed via `as`.
  *
@@ -28,7 +28,7 @@ export type BoxProps = React.HTMLAttributes<HTMLElement> &
     ref?: React.Ref<HTMLElement>;
     /**
      * Sets the surface cascade scope (.surface-<value>) AND paints
-     * background: var(--surface) so descendants resolve tokens correctly.
+     * background: var(--em-surface) so descendants resolve tokens correctly.
      * An explicit `background` prop overrides the paint while keeping the scope.
      */
     surface?: SurfaceProp;

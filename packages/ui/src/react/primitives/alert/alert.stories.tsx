@@ -95,7 +95,7 @@ export const Dismissible: Story = {
         )}
         {Object.values(visible).every((v) => !v) && (
           <Box display="flex" flexDirection="column" gap="2" style={{ alignItems: 'center' }}>
-            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--foreground-muted)' }}>
+            <span style={{ fontSize: 'var(--em-text-sm)', color: 'var(--em-foreground-muted)' }}>
               All alerts dismissed.
             </span>
             <Button

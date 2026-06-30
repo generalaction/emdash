@@ -1,13 +1,14 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { kfPopupIn } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 export const popupRoot = style({
   zIndex: 50,
   minWidth: '220px',
   maxWidth: '340px',
   overflow: 'hidden',
-  borderRadius: 'var(--radius-md)',
+  borderRadius: tokenVars.radiusMd,
   backgroundColor: vars.surface,
   color: vars.foreground,
   boxShadow: `0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
@@ -20,7 +21,7 @@ export const popupHeader = style({
   paddingRight: '0.5rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  fontSize: 'var(--text-xs)',
+  fontSize: tokenVars.textXs,
   color: vars.foregroundMuted,
 });
 
@@ -40,12 +41,12 @@ export const popupItem = style({
   userSelect: 'none',
   alignItems: 'center',
   gap: '0.5rem',
-  borderRadius: 'var(--radius-sm)',
+  borderRadius: tokenVars.radiusSm,
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
   paddingLeft: '0.5rem',
   paddingRight: '2rem',
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
   outline: 'none',
 });
 
@@ -85,7 +86,7 @@ export const popupItemDescription = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: 'var(--text-xs)',
+  fontSize: tokenVars.textXs,
   color: vars.foregroundMuted,
 });
 
@@ -96,7 +97,7 @@ export const popupDismiss = style({
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
-  borderRadius: 'var(--radius-sm)',
+  borderRadius: tokenVars.radiusSm,
   opacity: 0.5,
   selectors: {
     '&:hover': { opacity: 1 },

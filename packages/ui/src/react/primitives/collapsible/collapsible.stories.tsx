@@ -21,11 +21,11 @@ export const Default: Story = {
       <CollapsibleTrigger>Advanced settings</CollapsibleTrigger>
       <CollapsiblePanel>
         <Box display="flex" flexDirection="column" gap="2" style={{ paddingTop: '0.5rem' }}>
-          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--foreground-muted)' }}>
+          <span style={{ fontSize: 'var(--em-text-sm)', color: 'var(--em-foreground-muted)' }}>
             These settings are hidden by default.
           </span>
-          <span style={{ fontSize: 'var(--text-sm)' }}>Setting A: enabled</span>
-          <span style={{ fontSize: 'var(--text-sm)' }}>Setting B: disabled</span>
+          <span style={{ fontSize: 'var(--em-text-sm)' }}>Setting A: enabled</span>
+          <span style={{ fontSize: 'var(--em-text-sm)' }}>Setting B: disabled</span>
         </Box>
       </CollapsiblePanel>
     </Collapsible>
@@ -40,9 +40,9 @@ export const DefaultOpen: Story = {
       <CollapsibleTrigger>Session details</CollapsibleTrigger>
       <CollapsiblePanel>
         <Box display="flex" flexDirection="column" gap="2" style={{ paddingTop: '0.5rem' }}>
-          <span style={{ fontSize: 'var(--text-sm)' }}>Branch: feature/my-feature</span>
-          <span style={{ fontSize: 'var(--text-sm)' }}>Worktree: /tmp/my-feature</span>
-          <span style={{ fontSize: 'var(--text-sm)' }}>Agent: Claude</span>
+          <span style={{ fontSize: 'var(--em-text-sm)' }}>Branch: feature/my-feature</span>
+          <span style={{ fontSize: 'var(--em-text-sm)' }}>Worktree: /tmp/my-feature</span>
+          <span style={{ fontSize: 'var(--em-text-sm)' }}>Agent: Claude</span>
         </Box>
       </CollapsiblePanel>
     </Collapsible>
@@ -58,8 +58,8 @@ export const Controlled: Story = {
       <Box display="flex" flexDirection="column" gap="3" className={s.w72}>
         <span
           style={{
-            fontSize: 'var(--text-xs)',
-            color: 'var(--foreground-muted)',
+            fontSize: 'var(--em-text-xs)',
+            color: 'var(--em-foreground-muted)',
           }}
         >
           Panel is {open ? 'open' : 'closed'}
@@ -68,7 +68,7 @@ export const Controlled: Story = {
           <CollapsibleTrigger>Toggle panel</CollapsibleTrigger>
           <CollapsiblePanel>
             <Box style={{ paddingTop: '0.5rem' }}>
-              <span style={{ fontSize: 'var(--text-sm)' }}>Controlled content revealed.</span>
+              <span style={{ fontSize: 'var(--em-text-sm)' }}>Controlled content revealed.</span>
             </Box>
           </CollapsiblePanel>
         </Collapsible>
@@ -84,7 +84,7 @@ export const Disabled: Story = {
     <Collapsible disabled className={s.w72}>
       <CollapsibleTrigger>Locked section</CollapsibleTrigger>
       <CollapsiblePanel>
-        <span style={{ fontSize: 'var(--text-sm)' }}>Never shown.</span>
+        <span style={{ fontSize: 'var(--em-text-sm)' }}>Never shown.</span>
       </CollapsiblePanel>
     </Collapsible>
   ),
@@ -102,9 +102,9 @@ export const SettingsGroup: Story = {
             gap="0.5rem"
             style={{ paddingTop: '0.25rem', paddingBottom: '0.25rem', paddingLeft: '0.5rem' }}
           >
-            <span style={{ fontSize: 'var(--text-sm)' }}>Display name</span>
-            <span style={{ fontSize: 'var(--text-sm)' }}>Theme</span>
-            <span style={{ fontSize: 'var(--text-sm)' }}>Language</span>
+            <span style={{ fontSize: 'var(--em-text-sm)' }}>Display name</span>
+            <span style={{ fontSize: 'var(--em-text-sm)' }}>Theme</span>
+            <span style={{ fontSize: 'var(--em-text-sm)' }}>Language</span>
           </SeparatedList>
         </CollapsiblePanel>
       </Collapsible>
@@ -115,8 +115,8 @@ export const SettingsGroup: Story = {
             gap="0.5rem"
             style={{ paddingTop: '0.25rem', paddingBottom: '0.25rem', paddingLeft: '0.5rem' }}
           >
-            <span style={{ fontSize: 'var(--text-sm)' }}>Default SSH key</span>
-            <span style={{ fontSize: 'var(--text-sm)' }}>Timeout</span>
+            <span style={{ fontSize: 'var(--em-text-sm)' }}>Default SSH key</span>
+            <span style={{ fontSize: 'var(--em-text-sm)' }}>Timeout</span>
           </SeparatedList>
         </CollapsiblePanel>
       </Collapsible>
@@ -124,7 +124,7 @@ export const SettingsGroup: Story = {
         <CollapsibleTrigger>Telemetry</CollapsibleTrigger>
         <CollapsiblePanel>
           <Box style={{ padding: '0.5rem' }}>
-            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--foreground-muted)' }}>
+            <span style={{ fontSize: 'var(--em-text-sm)', color: 'var(--em-foreground-muted)' }}>
               No telemetry settings configured.
             </span>
           </Box>

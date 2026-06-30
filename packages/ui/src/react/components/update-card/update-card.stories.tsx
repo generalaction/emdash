@@ -110,10 +110,10 @@ export const AllStates: Story = {
         <div key={label}>
           <p
             style={{
-              fontSize: 'var(--text-xs)',
-              color: 'var(--foreground-muted)',
+              fontSize: 'var(--em-text-xs)',
+              color: 'var(--em-foreground-muted)',
               marginBottom: '0.375rem',
-              fontFamily: 'var(--font-mono)',
+              fontFamily: 'var(--em-font-mono)',
             }}
           >
             {label}
@@ -170,11 +170,11 @@ function InteractiveDemo() {
           onClick={advance}
           disabled={isLast}
           style={{
-            fontSize: 'var(--text-xs)',
-            color: isLast ? 'var(--foreground-muted)' : 'var(--foreground)',
+            fontSize: 'var(--em-text-xs)',
+            color: isLast ? 'var(--em-foreground-muted)' : 'var(--em-foreground)',
             background: 'none',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--em-border)',
+            borderRadius: 'var(--em-radius-sm)',
             padding: '0.25rem 0.75rem',
             cursor: isLast ? 'not-allowed' : 'pointer',
           }}
@@ -185,8 +185,8 @@ function InteractiveDemo() {
           type="button"
           onClick={reset}
           style={{
-            fontSize: 'var(--text-xs)',
-            color: 'var(--foreground-muted)',
+            fontSize: 'var(--em-text-xs)',
+            color: 'var(--em-foreground-muted)',
             background: 'none',
             border: 'none',
             cursor: 'pointer',
@@ -196,9 +196,9 @@ function InteractiveDemo() {
         </button>
         <span
           style={{
-            fontSize: 'var(--text-xs)',
-            color: 'var(--foreground-muted)',
-            fontFamily: 'var(--font-mono)',
+            fontSize: 'var(--em-text-xs)',
+            color: 'var(--em-foreground-muted)',
+            fontFamily: 'var(--em-font-mono)',
           }}
         >
           {stageIdx + 1} / {STAGES.length} — {status.kind}

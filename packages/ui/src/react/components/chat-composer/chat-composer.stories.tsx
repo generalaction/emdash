@@ -3,13 +3,13 @@ import { cx } from '@styles/utilities/cx';
 import { useEffect, useState } from 'react';
 import { Box } from '@/react/primitives/box';
 import { Button } from '@/react/primitives/button';
-import { ChatComposer } from './chat-composer';
+import { ChatComposer } from '.';
 import type {
   ComposerAgentOption,
   ComposerModelOption,
   ComposerNotice,
   ComposerNoticeVariant,
-} from './chat-composer';
+} from '.';
 import * as s from '@react/story-layout.css';
 import { sx } from '@styles/utilities/sprinkles.css';
 

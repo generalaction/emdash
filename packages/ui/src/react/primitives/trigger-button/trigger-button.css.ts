@@ -1,5 +1,6 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 /**
  * Input-appearance layout for TriggerButton.
@@ -15,7 +16,7 @@ export const triggerInputLayoutBase = style({
   gap: '0.375rem',
   paddingLeft: '0.625rem',
   paddingRight: '0.375rem',
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
   selectors: {
     '&[data-placeholder]': { color: vars.foregroundPassive },
   },
@@ -24,7 +25,7 @@ export const triggerInputLayoutBase = style({
 export const triggerInputLayoutSm = style({
   height: '1.5rem',
   paddingLeft: '0.5rem',
-  fontSize: 'var(--text-xs)',
+  fontSize: tokenVars.textXs,
 });
 
 /** Trailing chevron icon inside TriggerButton. */

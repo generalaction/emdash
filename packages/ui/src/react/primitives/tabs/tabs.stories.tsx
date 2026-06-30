@@ -65,7 +65,7 @@ export const AcrossSurfaces: Story = {
             rounded="lg"
             padding="3"
           >
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>
+            <span style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}>
               {level}
             </span>
             <Tabs defaultValue="a">

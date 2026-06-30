@@ -50,10 +50,10 @@ function VerticalFormDemo() {
       {submitted && (
         <pre
           style={{
-            fontSize: 'var(--text-xs)',
-            background: 'var(--surface-hover)',
+            fontSize: 'var(--em-text-xs)',
+            background: 'var(--em-surface-hover)',
             padding: '0.5rem',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: 'var(--em-radius-md)',
           }}
         >
           {JSON.stringify(submitted, null, 2)}

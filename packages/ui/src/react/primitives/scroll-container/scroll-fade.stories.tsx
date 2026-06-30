@@ -100,7 +100,7 @@ export const NonSurfaceBackground: Story = {
           s.h40,
           s.w80
         )}
-        style={{ background: 'var(--neutral-1)' }}
+        style={{ background: 'var(--em-neutral-1)' }}
       >
         <pre
           className={cx(

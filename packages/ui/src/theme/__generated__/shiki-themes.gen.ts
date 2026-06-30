@@ -4,143 +4,164 @@
 // Import via @emdash/ui/theme/shiki-themes.
 
 export const emSyntaxTheme = {
-  name: 'em-syntax',
-  type: 'light',
-  colors: {
-    'editor.background': 'var(--background)',
-    'editor.foreground': 'var(--foreground)',
-    'editor.selectionBackground': 'var(--syntax-editor-selection-bg)',
-    'editor.lineHighlightBackground': 'var(--neutral-2)',
-    'editorCursor.foreground': 'var(--foreground)',
-    'editor.findMatchBackground': 'var(--syntax-editor-find-match-bg)',
-    'editor.findMatchHighlightBackground': 'var(--syntax-editor-find-match-hl)',
-    'editorLineNumber.foreground': 'var(--neutral-9)',
-    'editorLineNumber.activeForeground': 'var(--foreground)',
-    'editorIndentGuide.background': 'var(--neutral-5)',
-    'editorBracketMatch.background': 'var(--neutral-4)',
-    'editorBracketMatch.border': 'var(--neutral-7)',
-    'scrollbarSlider.background': 'var(--syntax-editor-scrollbar-bg)',
-    'scrollbarSlider.hoverBackground': 'var(--syntax-editor-scrollbar-hover)',
+  "name": "em-syntax",
+  "type": "light",
+  "colors": {
+    "editor.background": "var(--em-background)",
+    "editor.foreground": "var(--em-foreground)",
+    "editor.selectionBackground": "var(--em-syntax-editor-selection-bg)",
+    "editor.lineHighlightBackground": "var(--em-neutral-2)",
+    "editorCursor.foreground": "var(--em-foreground)",
+    "editor.findMatchBackground": "var(--em-syntax-editor-find-match-bg)",
+    "editor.findMatchHighlightBackground": "var(--em-syntax-editor-find-match-hl)",
+    "editorLineNumber.foreground": "var(--em-neutral-9)",
+    "editorLineNumber.activeForeground": "var(--em-foreground)",
+    "editorIndentGuide.background": "var(--em-neutral-5)",
+    "editorBracketMatch.background": "var(--em-neutral-4)",
+    "editorBracketMatch.border": "var(--em-neutral-7)",
+    "scrollbarSlider.background": "var(--em-syntax-editor-scrollbar-bg)",
+    "scrollbarSlider.hoverBackground": "var(--em-syntax-editor-scrollbar-hover)"
   },
-  tokenColors: [
+  "tokenColors": [
     {
-      scope: ['comment', 'punctuation.definition.comment', 'string.comment'],
-      settings: {
-        foreground: 'var(--syntax-comment)',
-        fontStyle: 'italic',
-      },
-    },
-    {
-      scope: [
-        'keyword',
-        'storage.type',
-        'storage.modifier',
-        'keyword.control',
-        'keyword.operator.new',
-        'keyword.other.using',
-        'keyword.other.import',
-        'keyword.other.package',
+      "scope": [
+        "comment",
+        "punctuation.definition.comment",
+        "string.comment"
       ],
-      settings: {
-        foreground: 'var(--syntax-keyword)',
-      },
+      "settings": {
+        "foreground": "var(--em-syntax-comment)",
+        "fontStyle": "italic"
+      }
     },
     {
-      scope: [
-        'string',
-        'string.quoted',
-        'string.template',
-        'string.interpolated',
-        'punctuation.definition.string',
+      "scope": [
+        "keyword",
+        "storage.type",
+        "storage.modifier",
+        "keyword.control",
+        "keyword.operator.new",
+        "keyword.other.using",
+        "keyword.other.import",
+        "keyword.other.package"
       ],
-      settings: {
-        foreground: 'var(--syntax-string)',
-      },
+      "settings": {
+        "foreground": "var(--em-syntax-keyword)"
+      }
     },
     {
-      scope: ['constant.numeric', 'constant.language', 'constant.character', 'constant.other'],
-      settings: {
-        foreground: 'var(--syntax-number)',
-      },
-    },
-    {
-      scope: [
-        'entity.name.function',
-        'support.function',
-        'meta.function-call',
-        'variable.function',
+      "scope": [
+        "string",
+        "string.quoted",
+        "string.template",
+        "string.interpolated",
+        "punctuation.definition.string"
       ],
-      settings: {
-        foreground: 'var(--syntax-function)',
-      },
+      "settings": {
+        "foreground": "var(--em-syntax-string)"
+      }
     },
     {
-      scope: [
-        'entity.name.type',
-        'entity.name.class',
-        'entity.name.namespace',
-        'entity.name.enum',
-        'entity.name.interface',
-        'support.class',
-        'support.type',
+      "scope": [
+        "constant.numeric",
+        "constant.language",
+        "constant.character",
+        "constant.other"
       ],
-      settings: {
-        foreground: 'var(--syntax-type)',
-      },
+      "settings": {
+        "foreground": "var(--em-syntax-number)"
+      }
     },
     {
-      scope: ['variable', 'variable.other', 'variable.parameter', 'meta.definition.variable'],
-      settings: {
-        foreground: 'var(--syntax-variable)',
-      },
-    },
-    {
-      scope: [
-        'variable.other.property',
-        'variable.other.object.property',
-        'support.variable.property',
-        'meta.object-literal.key',
+      "scope": [
+        "entity.name.function",
+        "support.function",
+        "meta.function-call",
+        "variable.function"
       ],
-      settings: {
-        foreground: 'var(--syntax-property)',
-      },
+      "settings": {
+        "foreground": "var(--em-syntax-function)"
+      }
     },
     {
-      scope: [
-        'keyword.operator',
-        'punctuation.accessor',
-        'punctuation.separator',
-        'meta.brace',
-        'punctuation',
+      "scope": [
+        "entity.name.type",
+        "entity.name.class",
+        "entity.name.namespace",
+        "entity.name.enum",
+        "entity.name.interface",
+        "support.class",
+        "support.type"
       ],
-      settings: {
-        foreground: 'var(--syntax-operator)',
-      },
+      "settings": {
+        "foreground": "var(--em-syntax-type)"
+      }
     },
     {
-      scope: ['entity.name.tag', 'meta.tag', 'punctuation.definition.tag'],
-      settings: {
-        foreground: 'var(--syntax-tag)',
-      },
-    },
-    {
-      scope: ['entity.other.attribute-name', 'meta.attribute'],
-      settings: {
-        foreground: 'var(--syntax-attribute)',
-      },
-    },
-    {
-      scope: [
-        'string.regexp',
-        'constant.character.escape',
-        'constant.other.character-class.regexp',
+      "scope": [
+        "variable",
+        "variable.other",
+        "variable.parameter",
+        "meta.definition.variable"
       ],
-      settings: {
-        foreground: 'var(--syntax-regexp)',
-      },
+      "settings": {
+        "foreground": "var(--em-syntax-variable)"
+      }
     },
+    {
+      "scope": [
+        "variable.other.property",
+        "variable.other.object.property",
+        "support.variable.property",
+        "meta.object-literal.key"
+      ],
+      "settings": {
+        "foreground": "var(--em-syntax-property)"
+      }
+    },
+    {
+      "scope": [
+        "keyword.operator",
+        "punctuation.accessor",
+        "punctuation.separator",
+        "meta.brace",
+        "punctuation"
+      ],
+      "settings": {
+        "foreground": "var(--em-syntax-operator)"
+      }
+    },
+    {
+      "scope": [
+        "entity.name.tag",
+        "meta.tag",
+        "punctuation.definition.tag"
+      ],
+      "settings": {
+        "foreground": "var(--em-syntax-tag)"
+      }
+    },
+    {
+      "scope": [
+        "entity.other.attribute-name",
+        "meta.attribute"
+      ],
+      "settings": {
+        "foreground": "var(--em-syntax-attribute)"
+      }
+    },
+    {
+      "scope": [
+        "string.regexp",
+        "constant.character.escape",
+        "constant.other.character-class.regexp"
+      ],
+      "settings": {
+        "foreground": "var(--em-syntax-regexp)"
+      }
+    }
   ],
-  semanticHighlighting: true,
+  "semanticHighlighting": true
 } as const;
 
 export type EmSyntaxTheme = typeof emSyntaxTheme;

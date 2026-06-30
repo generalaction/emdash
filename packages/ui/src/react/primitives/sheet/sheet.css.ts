@@ -9,6 +9,7 @@ import {
   kfSlideOutToLeft,
 } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 export const backdrop = style({
   position: 'fixed',
@@ -32,7 +33,7 @@ export const sheetContent = recipe({
     width: '75%',
     flexDirection: 'column',
     overflow: 'hidden',
-    fontSize: 'var(--text-sm)',
+    fontSize: tokenVars.textSm,
     color: vars.foreground,
     backgroundColor: vars.surface,
     boxShadow: `0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
@@ -82,7 +83,7 @@ export const sheetHeaderInner = style({
 });
 
 export const sheetTitle = style({
-  fontSize: 'var(--text-sm)',
+  fontSize: tokenVars.textSm,
   letterSpacing: '-0.015em',
   color: vars.foreground,
 });
