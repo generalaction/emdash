@@ -26,6 +26,7 @@ export function useCreateTaskState(
 
   const [linkedType, setLinkedTypeRaw] = useState<LinkedType>(initialPR ? 'pr' : initialLinkedType);
   const [linkedIssue, setLinkedIssueRaw] = useState<LinkedIssue | null>(null);
+  const [linkedIssues, setLinkedIssuesRaw] = useState<LinkedIssue[]>([]);
   const [linkedPR, setLinkedPRRaw] = useState<PullRequest | null>(initialPR ?? null);
   const [prevProjectId, setPrevProjectId] = useState(projectId);
 
@@ -34,6 +35,7 @@ export function useCreateTaskState(
     setPrevProjectId(projectId);
     setLinkedTypeRaw(null);
     setLinkedIssueRaw(null);
+    setLinkedIssuesRaw([]);
     setLinkedPRRaw(null);
   }
 
@@ -126,6 +128,12 @@ export function useCreateTaskState(
 
   const setLinkedIssue = (issue: LinkedIssue | null) => {
     setLinkedIssueRaw(issue);
+    setLinkedIssuesRaw(issue ? [issue] : []);
+  };
+
+  const setLinkedIssues = (issues: LinkedIssue[]) => {
+    setLinkedIssuesRaw(issues);
+    setLinkedIssueRaw(issues[0] ?? null);
   };
 
   const setLinkedPR = (pr: PullRequest | null) => {
@@ -141,6 +149,8 @@ export function useCreateTaskState(
     setLinkedType,
     linkedIssue,
     setLinkedIssue,
+    linkedIssues,
+    setLinkedIssues,
     linkedPR,
     setLinkedPR,
     taskName,

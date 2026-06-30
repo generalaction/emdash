@@ -53,6 +53,8 @@ export function LinkedEntitySection({
         <IssueComboboxField
           value={state.linkedIssue}
           onValueChange={state.setLinkedIssue}
+          values={state.linkedIssues}
+          onValuesChange={state.setLinkedIssues}
           projectId={projectId}
           repositoryUrl={repositoryUrl}
           projectPath={projectPath}

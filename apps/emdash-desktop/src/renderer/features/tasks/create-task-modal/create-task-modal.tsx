@@ -141,6 +141,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             linkedIssue={
               state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
             }
+            linkedIssues={state.linkedType === 'issue' ? state.linkedIssues : undefined}
             includeIssueContextByDefault={includeIssueContextByDefault}
           >
             <TaskConfigPanel

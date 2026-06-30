@@ -70,6 +70,16 @@ export function buildIssueContextText(issue: LinkedIssue): string {
   return text;
 }
 
+export function buildIssuesContextText(issues: LinkedIssue[]): string | null {
+  if (issues.length === 0) return null;
+  if (issues.length === 1) return buildIssueContextText(issues[0]);
+
+  return [
+    `Related issues (${issues.length}):`,
+    ...issues.map((issue, index) => `Issue ${index + 1}:\n${buildIssueContextText(issue)}`),
+  ].join('\n\n');
+}
+
 export function buildContextActionText(action: ContextAction): string {
   switch (action.kind) {
     case 'linked-issue':

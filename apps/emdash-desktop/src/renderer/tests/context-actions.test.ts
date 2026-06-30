@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDraftCommentsContextAction,
   buildIssueContextText,
+  buildIssuesContextText,
   buildLinkedIssueContextAction,
   buildPromptLibraryContextActions,
   buildTaskContextActions,
@@ -81,6 +82,38 @@ describe('buildIssueContextText', () => {
     expect(text).toContain(
       'Context:\nLinear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good'
     );
+  });
+});
+
+describe('buildIssuesContextText', () => {
+  it('returns null when no issues are selected', () => {
+    expect(buildIssuesContextText([])).toBeNull();
+  });
+
+  it('preserves the single-issue context format for one issue', () => {
+    const issue = makeIssue();
+
+    expect(buildIssuesContextText([issue])).toBe(buildIssueContextText(issue));
+  });
+
+  it('builds an ordered related-issues block for multiple issues', () => {
+    const text = buildIssuesContextText([
+      makeIssue({ identifier: 'EMD-123', title: 'Parent issue' }),
+      makeIssue({
+        provider: 'linear',
+        identifier: 'LIN-42',
+        title: 'Sub-task',
+        url: 'https://example.com/issues/LIN-42',
+      }),
+    ]);
+
+    expect(text).toContain('Related issues (2):');
+    expect(text).toContain('Issue 1:\nProvider: GitHub');
+    expect(text).toContain('Identifier: EMD-123');
+    expect(text).toContain('Title: Parent issue');
+    expect(text).toContain('Issue 2:\nProvider: Linear');
+    expect(text).toContain('Identifier: LIN-42');
+    expect(text).toContain('Title: Sub-task');
   });
 });
 

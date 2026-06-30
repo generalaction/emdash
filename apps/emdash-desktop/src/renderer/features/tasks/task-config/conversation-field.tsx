@@ -14,12 +14,14 @@ export function ConversationField({
   onPromptBlur,
   showAutoApproveToggle,
 }: ConversationFieldProps) {
-  const { initialConversation, linkedIssue, includeIssueContextByDefault } = useTaskState();
+  const { initialConversation, linkedIssue, linkedIssues, includeIssueContextByDefault } =
+    useTaskState();
 
   return (
     <InitialConversationField
       state={initialConversation}
       linkedIssue={linkedIssue}
+      linkedIssues={linkedIssues}
       includeIssueContextByDefault={includeIssueContextByDefault}
       placeholder={placeholder}
       textareaClassName={textareaClassName}

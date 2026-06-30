@@ -32,7 +32,11 @@ import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
 import { usePromptFileDrop } from '../create-task-modal/use-prompt-file-drop';
 import { AddContextPopover } from './add-context-popover';
-import { buildIssueContextText, buildTaskContextActions } from './context-actions';
+import {
+  buildIssueContextText,
+  buildIssuesContextText,
+  buildTaskContextActions,
+} from './context-actions';
 import { useEffectiveProvider } from './use-effective-provider';
 
 export type InitialConversationState = {
@@ -125,6 +129,7 @@ function useModelOptions(
 interface InitialConversationFieldProps {
   state: InitialConversationState;
   linkedIssue?: LinkedIssue;
+  linkedIssues?: LinkedIssue[];
   includeIssueContextByDefault: boolean;
   onPromptBlur?: () => void;
   placeholder?: string;
@@ -135,6 +140,7 @@ interface InitialConversationFieldProps {
 export function InitialConversationField({
   state,
   linkedIssue,
+  linkedIssues,
   includeIssueContextByDefault,
   onPromptBlur,
   placeholder,
@@ -142,18 +148,22 @@ export function InitialConversationField({
   showAutoApproveToggle = true,
 }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
+  const issueContextIssues = useMemo(
+    () => (linkedIssues?.length ? linkedIssues : linkedIssue ? [linkedIssue] : []),
+    [linkedIssue, linkedIssues]
+  );
   const contextActions = useMemo(
     () => buildTaskContextActions(linkedIssue, [], promptLibrary),
     [linkedIssue, promptLibrary]
   );
   const modelOptions = useModelOptions(state.provider);
   const defaultIssueContext = useMemo(
-    () => (linkedIssue ? buildIssueContextText(linkedIssue) : null),
-    [linkedIssue]
+    () => buildIssuesContextText(issueContextIssues),
+    [issueContextIssues]
   );
   const issueContextKey =
-    state.issueContext && linkedIssue
-      ? `${linkedIssue.provider}:${linkedIssue.identifier}:${state.issueContext}`
+    state.issueContext && issueContextIssues.length > 0
+      ? `${issueContextIssues.map((issue) => `${issue.provider}:${issue.identifier}`).join('|')}:${state.issueContext}`
       : null;
   const [visibleIssueContextKey, setVisibleIssueContextKey] = useState<string | null>(null);
 
@@ -267,7 +277,11 @@ export function InitialConversationField({
         {/* Issue context pill — click to edit in a modal */}
         {state.issueContext && linkedIssue && visibleIssueContextKey === issueContextKey && (
           <div className="px-2 py-1">
-            <IssueContextEditButton state={state} linkedIssue={linkedIssue} />
+            <IssueContextEditButton
+              state={state}
+              linkedIssue={linkedIssue}
+              linkedIssues={issueContextIssues}
+            />
           </div>
         )}
 
@@ -289,9 +303,11 @@ export function InitialConversationField({
 function IssueContextEditButton({
   state,
   linkedIssue,
+  linkedIssues,
 }: {
   state: InitialConversationState;
   linkedIssue: LinkedIssue;
+  linkedIssues: LinkedIssue[];
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
@@ -302,7 +318,9 @@ function IssueContextEditButton({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [open]);
 
-  const defaultContext = useMemo(() => buildIssueContextText(linkedIssue), [linkedIssue]);
+  const defaultContext = useMemo(() => {
+    return buildIssuesContextText(linkedIssues) ?? buildIssueContextText(linkedIssue);
+  }, [linkedIssues, linkedIssue]);
   const hasChanges = draft !== defaultContext;
   const handleReset = () => setDraft(defaultContext);
   const handleOpenChange = (nextOpen: boolean) => {
@@ -329,6 +347,9 @@ function IssueContextEditButton({
         >
           <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
           <span className="font-mono">{linkedIssue.identifier}</span>
+          {linkedIssues.length > 1 ? (
+            <span className="text-foreground-passive">+{linkedIssues.length - 1}</span>
+          ) : null}
           {linkedIssue.title && (
             <span className="max-w-48 truncate text-foreground-passive">{linkedIssue.title}</span>
           )}

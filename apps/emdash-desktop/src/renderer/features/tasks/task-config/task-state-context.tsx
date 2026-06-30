@@ -11,6 +11,7 @@ export type TaskStateContextValue = {
   hasPR: boolean;
   isWorkspaceProviderEnabled: boolean;
   linkedIssue?: LinkedIssue;
+  linkedIssues?: LinkedIssue[];
   includeIssueContextByDefault: boolean;
 };
 
