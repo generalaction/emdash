@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/updates/update-service.ts
+  s_ccde527d92cb18::t_44408209cf9cfe 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "a7113c18b1983709c4cb302f88bd3e287d26a32f",
+  "prompts": {},
+  "sessions": {
+    "s_ccde527d92cb18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f17e4-4f4d-7673-be61-62638b7750bd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
