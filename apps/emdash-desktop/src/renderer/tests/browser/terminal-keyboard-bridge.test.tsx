@@ -154,6 +154,29 @@ describe('TerminalKeyboardBridge', () => {
     xtermInput.removeEventListener('keydown', xtermSpy);
   });
 
+  it('fires additional app navigation shortcuts when a terminal is focused', async () => {
+    const settingsSpy = vi.fn();
+    const nextTabSpy = vi.fn();
+    const filesSpy = vi.fn();
+    const xtermSpy = vi.fn((event: KeyboardEvent) => event.stopPropagation());
+    registerHotkey('Mod+,', settingsSpy);
+    registerHotkey('Mod+Alt+ArrowRight', nextTabSpy);
+    registerHotkey('Mod+Shift+2', filesSpy);
+    xtermInput.addEventListener('keydown', xtermSpy);
+
+    xtermInput.focus();
+    pressKey(xtermInput, ',');
+    pressKey(xtermInput, 'ArrowRight', { altKey: true });
+    pressKey(xtermInput, '2', { shiftKey: true });
+
+    expect(settingsSpy).toHaveBeenCalledTimes(1);
+    expect(nextTabSpy).toHaveBeenCalledTimes(1);
+    expect(filesSpy).toHaveBeenCalledTimes(1);
+    expect(xtermSpy).not.toHaveBeenCalled();
+
+    xtermInput.removeEventListener('keydown', xtermSpy);
+  });
+
   it('stays out of the way when no terminal is focused', async () => {
     const paletteSpy = vi.fn();
     const bubbleSpy = vi.fn();
