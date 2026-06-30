@@ -68,7 +68,11 @@ export function AutomationSettingsFields({
           isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
           includeIssueContextByDefault={false}
         >
-          <TaskConfigProvider showPrPresets={false} autoBranchName={true}>
+          <TaskConfigProvider
+            showPrPresets={false}
+            autoBranchName={!workspaceConfig.branchNameState.isUserModified}
+            customBranchNameControl
+          >
             <TaskConfigPanel
               tabs={[
                 {

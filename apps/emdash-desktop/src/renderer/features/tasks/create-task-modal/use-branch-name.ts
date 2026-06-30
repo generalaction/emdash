@@ -7,6 +7,7 @@ import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
 export type BranchNameState = {
   branchName: string;
   setBranchName: (value: string) => void;
+  resetBranchName: () => void;
   isUserModified: boolean;
   branchAlreadyExists: boolean;
 };
@@ -16,8 +17,9 @@ export function useBranchName(opts: {
   linkedIssue?: LinkedIssue | null;
   projectId?: string;
   resetKey?: unknown;
+  initialBranchName?: string;
 }): BranchNameState {
-  const { taskName, linkedIssue, projectId, resetKey } = opts;
+  const { taskName, linkedIssue, projectId, resetKey, initialBranchName } = opts;
 
   const { value: project } = useAppSettingsKey('project');
   const branchPrefix = project?.branchPrefix ?? '';
@@ -39,8 +41,8 @@ export function useBranchName(opts: {
     [branchPrefix, appendRandomSuffix, suffix, linkedIssue]
   );
 
-  const [userValue, setUserValue] = useState<string | undefined>(undefined);
-  const [isUserModified, setIsUserModified] = useState(false);
+  const [userValue, setUserValue] = useState<string | undefined>(initialBranchName);
+  const [isUserModified, setIsUserModified] = useState(Boolean(initialBranchName));
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
   const [prevLinkedIssue, setPrevLinkedIssue] = useState(linkedIssue);
 
@@ -48,8 +50,8 @@ export function useBranchName(opts: {
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey);
     setPrevLinkedIssue(linkedIssue);
-    setUserValue(undefined);
-    setIsUserModified(false);
+    setUserValue(initialBranchName);
+    setIsUserModified(Boolean(initialBranchName));
   }
 
   // When the linked issue changes (user selects a different issue), clear user override.
@@ -66,11 +68,16 @@ export function useBranchName(opts: {
     setIsUserModified(true);
   }, []);
 
+  const resetBranchName = useCallback(() => {
+    setUserValue(undefined);
+    setIsUserModified(false);
+  }, []);
+
   // Pre-flight: check against the already-loaded local branch list in the repository store.
   const repo = projectId ? getGitRepositoryStore(projectId) : undefined;
   const branchAlreadyExists =
     branchName.trim().length > 0 &&
     (repo?.localBranches.some((b) => b.branch === branchName) ?? false);
 
-  return { branchName, setBranchName, isUserModified, branchAlreadyExists };
+  return { branchName, setBranchName, resetBranchName, isUserModified, branchAlreadyExists };
 }

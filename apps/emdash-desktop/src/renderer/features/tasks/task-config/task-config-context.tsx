@@ -5,6 +5,8 @@ export type TaskConfigOptions = {
   showPrPresets?: boolean;
   /** When true, BranchNameField shows a read-only "auto-generated" placeholder instead of an input. Defaults to false. */
   autoBranchName?: boolean;
+  /** When true, BranchNameField can switch between auto-generated and custom branch names. */
+  customBranchNameControl?: boolean;
 };
 
 type ResolvedTaskConfig = Required<TaskConfigOptions>;
@@ -12,6 +14,7 @@ type ResolvedTaskConfig = Required<TaskConfigOptions>;
 const defaults: ResolvedTaskConfig = {
   showPrPresets: true,
   autoBranchName: false,
+  customBranchNameControl: false,
 };
 
 const TaskConfigContext = createContext<ResolvedTaskConfig>(defaults);
@@ -20,10 +23,12 @@ export function TaskConfigProvider({
   children,
   showPrPresets,
   autoBranchName,
+  customBranchNameControl,
 }: TaskConfigOptions & { children: React.ReactNode }) {
   const value: ResolvedTaskConfig = {
     showPrPresets: showPrPresets ?? defaults.showPrPresets,
     autoBranchName: autoBranchName ?? defaults.autoBranchName,
+    customBranchNameControl: customBranchNameControl ?? defaults.customBranchNameControl,
   };
 
   return <TaskConfigContext.Provider value={value}>{children}</TaskConfigContext.Provider>;

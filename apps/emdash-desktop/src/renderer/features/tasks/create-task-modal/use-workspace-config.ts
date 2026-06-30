@@ -111,6 +111,7 @@ export type WorkspaceConfigInitial = {
   mode?: WorkspaceMode;
   presetId?: WorkspacePresetId;
   selectedWorkspaceId?: string | null;
+  branchName?: string;
 };
 
 export function useWorkspaceConfig(opts: {
@@ -200,6 +201,7 @@ export function useWorkspaceConfig(opts: {
     linkedIssue,
     projectId,
     resetKey,
+    initialBranchName: initial?.branchName,
   });
 
   // ── Resolved config ──────────────────────────────────────────────────────

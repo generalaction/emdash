@@ -29,6 +29,7 @@ function workspaceInitialFromConfig(
 ): WorkspaceConfigInitial & { fromBranch?: GitBranchRef; pushBranch?: boolean } {
   if (!config) return { mode: 'new-worktree', presetId: 'new-worktree' };
   const { git, workspace } = config.workspaceConfig;
+  const branchName = config.branchNameOverride;
 
   if (workspace.kind === 'byoi' || (workspace as { host?: string }).host === 'byoi') {
     return { mode: 'sandbox', presetId: 'sandbox' };
@@ -40,6 +41,7 @@ function workspaceInitialFromConfig(
       presetId: 'new-worktree',
       fromBranch: git.fromBranch,
       pushBranch: git.pushBranch,
+      branchName,
     };
   }
 
@@ -158,7 +160,7 @@ export function useAutomationFormState(
         : wsConfig;
 
     const result: StoredAutomationTaskConfig = {
-      version: '1',
+      version: '2',
       taskConfig: {
         version: '1',
         name: taskName.effectiveTaskName?.trim() || name.trim(),
@@ -166,6 +168,11 @@ export function useAutomationFormState(
         initialStatus: seedConfig?.taskConfig.initialStatus,
       },
       workspaceConfig: patchedConfig,
+      branchNameOverride:
+        workspaceConfig.branchNameState.isUserModified &&
+        workspaceConfig.branchNameState.branchName.trim()
+          ? workspaceConfig.branchNameState.branchName.trim()
+          : undefined,
     };
 
     // Strip MobX Proxy wrappers (e.g. fromBranch coming from getGitRepositoryStore)
