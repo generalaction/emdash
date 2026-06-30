@@ -81,7 +81,11 @@ const ComposerForStore = observer(function ComposerForStore({
         .filter((att) => att.kind === 'image' && att.previewUrl)
         .map((att) => {
           const url = att.previewUrl!;
-          return { data: url.slice(url.indexOf(',') + 1), mimeType: att.mimeType ?? 'image/png', name: att.name };
+          return {
+            data: url.slice(url.indexOf(',') + 1),
+            mimeType: att.mimeType ?? 'image/png',
+            name: att.name,
+          };
         });
       if (!value.trim() && images.length === 0) return;
       store.submitPrompt(value, images);

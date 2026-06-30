@@ -1,4 +1,12 @@
-import type { ChatContext, ChatItem, ChatState, ChatView } from '@emdash/chat-ui';
+import type {
+  ChatContext,
+  ChatImageAttachment,
+  ChatItem,
+  ChatMessage,
+  ChatState,
+  ChatView,
+  ScrollMode,
+} from '@emdash/chat-ui';
 import { applyTurnEvent, createChatState } from '@emdash/chat-ui';
 import type { AgentUpdate, AcpPromptImage, AcpTurn, TerminalSnapshot } from '@emdash/core/acp';
 import {
@@ -59,10 +67,10 @@ export class AcpChatStore {
   /** The current active turn id (null when idle). */
   private _activeTurnId: string | null = null;
 
-  /** The currently-active view handle. Bound by AcpChatPanel; used for imperative scroll. */
+  /** The currently-active view handle. Bound by AcpChatPanel; used for declarative scroll. */
   private _view: ChatView | null = null;
-  /** Set by submitPrompt; cleared after the first user-message scroll fires. */
-  private _scrollUserToTopPending = false;
+  /** Temp id of the optimistic user message; cleared when the server echo replaces it. */
+  private _optimisticUserId: string | null = null;
 
   private readonly _machine: SessionMachine;
   private _bootstrapped = false;
@@ -226,7 +234,29 @@ export class AcpChatStore {
 
   /** Send a new user prompt to the ACP session. */
   submitPrompt(text: string, images?: AcpPromptImage[]): void {
-    this._scrollUserToTopPending = true;
+    // 1. Optimistic user message: insert immediately so the scroll can happen
+    //    before the IPC echo arrives. The server echo in _replayActiveUpdates
+    //    replaces this row and re-points the pinTop intent to the real id.
+    const optimisticId = `optimistic:user:${Date.now()}`;
+    this._optimisticUserId = optimisticId;
+    const optimistic: ChatMessage = {
+      kind: 'message',
+      id: optimisticId,
+      role: 'user',
+      text,
+      attachments: images?.map(toChatImageAttachment),
+    };
+    this.chatState.transcript.activeTurn.set([optimistic], 'generating');
+    runInAction(() => this._syncMessageCount());
+
+    // 2. Immediately pin the new user message to the top of the viewport.
+    //    activeTurnReserve() in ChatRoot ensures there is enough canvas space
+    //    for the scroll target to be reachable even before any agent reply.
+    const pinMode: ScrollMode = { kind: 'pinTop', itemId: optimisticId };
+    this._view?.setScrollMode(pinMode);
+    // Persist intent in ChatState so it survives a tab-switch during the request.
+    this.chatState.scroll.set(pinMode);
+
     void rpc.acp.prompt(this.conversationId, text, images).catch((err: unknown) => {
       console.error('[AcpChatStore] prompt error', err);
     });
@@ -428,7 +458,17 @@ export class AcpChatStore {
     }
 
     this.chatState.transcript.activeTurn.set(items, 'generating');
-    this._tryScrollUserToTop();
+    // Re-point pinTop from the optimistic id to the real server id now that
+    // the echo has arrived. The row content is stable from here on.
+    if (this._optimisticUserId) {
+      const realId = this._lastUserMessageId();
+      if (realId) {
+        const pinMode: ScrollMode = { kind: 'pinTop', itemId: realId };
+        this._view?.setScrollMode(pinMode);
+        this.chatState.scroll.set(pinMode);
+        this._optimisticUserId = null;
+      }
+    }
     runInAction(() => {
       this._syncMessageCount();
     });
@@ -442,7 +482,14 @@ export class AcpChatStore {
     this.chatState.transcript.activeTurn.set(items, 'generating');
     this.chatState.transcript.activeTurn.commit('done');
 
-    this._tryScrollUserToTop();
+    // If a pinTop is still active (shouldn't normally happen; guard only),
+    // revert to bottom now that the turn is done.
+    if (this._optimisticUserId) {
+      this._optimisticUserId = null;
+      const m: ScrollMode = { kind: 'bottom' };
+      this._view?.setScrollMode(m);
+      this.chatState.scroll.set(m);
+    }
     runInAction(() => {
       this._activeTurnId = null;
       this._syncMessageCount();
@@ -453,21 +500,6 @@ export class AcpChatStore {
   private _syncMessageCount(): void {
     const state = this.chatState.transcript.state;
     this.messageCount = state.committed.length + (state.activeTurn?.length ?? 0);
-  }
-
-  /**
-   * After a submit, scroll the new user message to the top of the viewport
-   * (ChatGPT-style) and let the answer stream below it. Fires once per submit
-   * on the first replay/commit that contains a user-role message, then resets.
-   */
-  private _tryScrollUserToTop(): void {
-    if (!this._scrollUserToTopPending || !this._view) return;
-
-    const id = this._lastUserMessageId();
-    if (!id) return;
-
-    this._view.scrollToItem(id, { align: 'start' });
-    this._scrollUserToTopPending = false;
   }
 
   /**
@@ -488,4 +520,20 @@ export class AcpChatStore {
     }
     return null;
   }
+}
+
+// ── Module helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Map an AcpPromptImage (base64 data + mimeType) to the ChatImageAttachment
+ * shape expected by @emdash/chat-ui's ChatMessage.attachments. The data URL is
+ * formed from the mimeType and base64 payload so the transcript can render a
+ * thumbnail inline without a round-trip to the main process.
+ */
+function toChatImageAttachment(img: AcpPromptImage): ChatImageAttachment {
+  return {
+    id: img.name ?? `img-${Date.now()}`,
+    name: img.name ?? 'image',
+    dataUrl: `data:${img.mimeType};base64,${img.data}`,
+  };
 }

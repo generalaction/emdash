@@ -34,7 +34,7 @@ import { ChatRoot } from './ChatRoot';
 import type { EngineControls } from './ChatRoot';
 import type { ChatCommands, ScrollToItemOptions } from './commands';
 import type { ChatItem } from './model';
-import type { ChatState } from './state/chat-state';
+import type { ChatState, ScrollMode } from './state/chat-state';
 
 export type ChatViewOptions = {
   /** Global services (theme, shared caches, measureEpoch). */
@@ -113,10 +113,20 @@ export type ChatView = {
    */
   setContentPadding(p: { top?: number; bottom?: number }): void;
   /**
+   * Declaratively set the scroll intent. ChatRoot projects the intent onto the
+   * DOM immediately (flush + scrollTop write) and persists it in the current
+   * ChatState so it survives subsequent tab switches.
+   *
+   * `bottom`  — re-pin to newest content on every content change.
+   * `anchor`  — keep the given item at the same viewport position.
+   * `pinTop`  — hold the given item at the top of the viewport.
+   */
+  setScrollMode(mode: ScrollMode): void;
+  /**
    * Replace the ChatState this view renders without tearing down the Solid root
    * (Monaco/CodeMirror model-swap pattern). Snapshots the outgoing model's
-   * scroll anchor and heightmap into the old state, then restores them from
-   * the new state. Safe to call while the outgoing state is still streaming.
+   * heightmap into the old state, then loads the incoming model's ScrollMode
+   * intent and projects it. Safe to call while the outgoing state is streaming.
    *
    * No-op when `state` is already the current model.
    */
@@ -181,6 +191,9 @@ export function createChatView(opts: ChatViewOptions): ChatView {
         if (p.top !== undefined) setPadTop(p.top);
         if (p.bottom !== undefined) setPadBottom(p.bottom);
       });
+    },
+    setScrollMode(m) {
+      controls.setScrollMode?.(m);
     },
     setModel(newState) {
       if (newState !== currentModel()) {

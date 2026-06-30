@@ -590,3 +590,148 @@ export const AutoThrash: Story = {
 export const LegacyOverlapCrash: Story = {
   args: { autoThrash: true, overlapMode: true },
 };
+
+// ── Send-and-Pin story ────────────────────────────────────────────────────────
+//
+// Exercises the setScrollMode(pinTop) path: a user sends a message (optimistic
+// insert), the view immediately pins the message at the top of the viewport, and
+// the "agent response" streams in below it while the pin holds. Verifies that:
+//   1. The pin is instant (no wait for an IPC echo).
+//   2. activeTurnReserve() creates enough canvas space for the scroll.
+//   3. The pin transitions to 'bottom' when the "turn" completes.
+
+function SendAndPinHarness() {
+  const ctx = createChatContext({ theme: DEFAULT_THEME, mentionProvider: mockMentionProvider });
+  onCleanup(() => ctx.dispose());
+
+  const state = createChatState(ctx, { uri: 'story-send-pin' });
+  onCleanup(() => state.dispose());
+
+  // Seed a short committed history.
+  state.transcript.history.seed(makeSeedItems(0, 3, /* sharedMessageId */ false).slice(0, 6));
+
+  let viewport: HTMLElement | undefined;
+  let currentView: ChatView | null = null;
+  const [sentCount, setSentCount] = createSignal(0);
+  const [pinned, setPinned] = createSignal(false);
+
+  onMount(() => {
+    if (!viewport) return;
+    const container = document.createElement('div');
+    container.style.cssText = 'position: absolute; inset: 0;';
+    viewport.appendChild(container);
+    currentView = createChatView({
+      context: ctx,
+      state,
+      parent: container,
+      stickToBottom: true,
+      pinUserMessages: true,
+      composer: 'none',
+    });
+  });
+
+  onCleanup(() => currentView?.dispose());
+
+  const handleSend = () => {
+    const n = sentCount() + 1;
+    setSentCount(n);
+
+    // Optimistic user message (mirrors AcpChatStore.submitPrompt).
+    const optimisticId = `optimistic:user:${Date.now()}`;
+    const optimistic = {
+      kind: 'message' as const,
+      id: optimisticId,
+      role: 'user' as const,
+      text: pick(USER_PROMPTS, n),
+    };
+    state.transcript.activeTurn.set([optimistic], 'generating');
+
+    // Pin immediately via the declarative API.
+    currentView?.setScrollMode({ kind: 'pinTop', itemId: optimisticId });
+    setPinned(true);
+
+    // Simulate agent response streaming in after 600ms, then commit.
+    let step = 0;
+    const body = pick(MARKDOWN_BODIES, n) ?? 'Done.';
+    const chunks = chunkText(body, { mode: 'word', size: 4 }).slice(0, 30);
+
+    const interval = setInterval(() => {
+      const response = {
+        kind: 'message' as const,
+        id: `agent-${n}`,
+        role: 'assistant' as const,
+        text: chunks.slice(0, step + 1).join(''),
+        streaming: step < chunks.length - 1,
+      };
+      state.transcript.activeTurn.set([optimistic, response], 'generating');
+      step++;
+      if (step >= chunks.length) {
+        clearInterval(interval);
+        state.transcript.activeTurn.commit('done');
+        // Revert to bottom intent after turn completes.
+        currentView?.setScrollMode({ kind: 'bottom' });
+        setPinned(false);
+      }
+    }, 80);
+    onCleanup(() => clearInterval(interval));
+  };
+
+  return (
+    <div
+      style={{
+        'font-family': 'system-ui, sans-serif',
+        display: 'flex',
+        'flex-direction': 'column',
+        gap: '8px',
+      }}
+    >
+      <div style={{ display: 'flex', gap: '8px', 'align-items': 'center' }}>
+        <button
+          onClick={handleSend}
+          style={{
+            padding: '6px 14px',
+            'border-radius': '6px',
+            border: '1px solid #ccc',
+            background: '#0070f3',
+            color: '#fff',
+            cursor: 'pointer',
+            'font-size': '13px',
+          }}
+        >
+          Send message
+        </button>
+        <span style={{ 'font-size': '12px', color: pinned() ? '#e55' : '#888' }}>
+          {pinned() ? 'pinTop active — message held at top' : 'bottom mode (follow newest)'}
+        </span>
+      </div>
+      <div
+        style={{
+          position: 'relative',
+          width: '640px',
+          height: '480px',
+          border: '1px solid #e5e7eb',
+          'border-radius': '8px',
+          overflow: 'hidden',
+        }}
+        ref={(el) => {
+          viewport = el;
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Send-and-pin: click "Send message" to insert an optimistic user message and
+ * instantly pin it at the top of the viewport via view.setScrollMode({ kind:'pinTop' }).
+ * The agent response streams in below the pinned message. The pin is released
+ * (mode → 'bottom') once the turn commits.
+ *
+ * Verify:
+ *  - The new message appears at the top immediately (no scroll lag).
+ *  - The agent response streams in below while the message stays pinned.
+ *  - After streaming finishes, further content follows the bottom.
+ */
+export const SendAndPin: StoryObj = {
+  render: () => <SendAndPinHarness />,
+};

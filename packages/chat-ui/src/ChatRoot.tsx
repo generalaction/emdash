@@ -60,7 +60,7 @@ import { STICK_THRESHOLD_PX } from './core/stick-to-bottom';
 import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
 import type { ChatItem, ChatMessage } from './model';
-import type { ChatState } from './state/chat-state';
+import type { ChatState, ScrollMode } from './state/chat-state';
 import { flattenTier, makeUnitsView, collectUserTurnUnits } from './state/flatten';
 import type { UnitsView } from './state/flatten';
 import {
@@ -128,6 +128,11 @@ export type EngineControls = {
    * `contentOverlay` is true. The host portals overlay content into it.
    */
   contentOverlay?: HTMLElement | null;
+  /**
+   * Declaratively set scroll intent; ChatRoot projects it immediately.
+   * Wired by onMount; safe to call from outside the Solid reactive context.
+   */
+  setScrollMode?(mode: ScrollMode): void;
   /**
    * Called once at the end of ChatRoot's onMount, after all controls and
    * composerSlot are wired. Used by createChatView to fire onViewMounted.
@@ -291,18 +296,20 @@ export function ChatRoot(props: ChatRootProps) {
 
   // ── Geometry shadow ───────────────────────────────────────────────────────
   //
-  // reservedBottom: a minimum bottom spacer that ensures the last user message
-  // can always scroll to the top of the viewport. When the tail of content
-  // (from the user message to the end) is shorter than the viewport, the
-  // reserve expands maxScrollTop so scrollToItem(userMsg, 'start') can place
-  // the row at the top. As the answer streams in, tailHeight grows, the
-  // reserve shrinks, and once the tail fills the viewport the reserve is 0
-  // (normal scrolling). The space is kept for the next message — matches the
-  // "min reserve" behavior the user confirmed.
+  // activeTurnReserve: the min-height of the active turn's response region,
+  // expressed as trailing canvas space. When the tail of content (from the last
+  // user message to the end) is shorter than the viewport, the reserve expands
+  // maxScrollTop so projectScroll('pinTop') can place the user message at the
+  // top. As the agent streams a response, tailHeight grows, reserve shrinks,
+  // and once the tail fills the viewport reserve is 0 (normal scrolling).
+  //
+  // INVARIANT: derives from virt.total() (real measured heights) and is added
+  // only in contentH — never fed back into virt — so there is no feedback loop
+  // and the heightmap is never polluted with reserve padding.
   //
   // Gated by pinUserMessages so views that don't need this behavior are unaffected.
   // lastUserUnitIdx() is memoized on transcript changes, not per streaming tick.
-  const reservedBottom = () => {
+  const activeTurnReserve = () => {
     if (!props.pinUserMessages) return 0;
     const idx = lastUserUnitIdx();
     if (idx < 0) return 0;
@@ -310,7 +317,7 @@ export function ChatRoot(props: ChatRootProps) {
     return Math.max(0, viewHeight() - tailHeight);
   };
 
-  const contentH = () => totalHeight() + padTop() + padBottom() + reservedBottom();
+  const contentH = () => totalHeight() + padTop() + padBottom() + activeTurnReserve();
   const maxScrollTop = () => Math.max(0, contentH() - viewHeight());
   const stuckIntent = () => maxScrollTop() - scrollTop() <= STICK_THRESHOLD_PX;
 
@@ -423,19 +430,11 @@ export function ChatRoot(props: ChatRootProps) {
         return unitReservedHeight(u, contentH);
       });
       refreshTotal();
-      // Honor sticky intent (atBottom) in addition to live geometry so that an
-      // async seed pins to the bottom within the same pre-paint reactive pass.
-      // stuckIntent() covers the streaming case (small deltas stay within the
-      // threshold). atBottom is reset to false by anchor-restore (restoreFrom)
-      // and by doScrollToItem (non-bottom aligns), so this never overrides them.
-      if (props.stickToBottom !== false && (atBottom || stuckIntent())) {
-        const target = maxScrollTop();
-        if (scrollEl) {
-          scrollEl.scrollTop = target;
-          expectedScrollTop = target;
-        }
-        setScrollTop(target);
-      }
+      // Re-project the current intent against the new geometry so that all
+      // modes (bottom, anchor, pinTop) stay correct after an async seed or
+      // content change. projectScroll flushes canvas height first so scrollTop
+      // is never clamped to the outgoing canvas height.
+      projectScroll(mode());
     });
   });
 
@@ -582,8 +581,83 @@ export function ChatRoot(props: ChatRootProps) {
     return { activeUserIdx, overlayTop };
   });
 
+  // ── Scroll intent (ScrollMode) ────────────────────────────────────────────
+  //
+  // A declarative intent loaded from ChatState on mount/swap and persisted back
+  // on every real user scroll. projectScroll() is the SOLE writer of scrollTop.
+  //
+  // `programmatic` counts in-flight programmatic scrollTop writes so readPhase
+  // can distinguish a user scroll from our own write without the fragile
+  // expectedScrollTop equality check.
+
+  // Seeded from the current model's persisted intent (may be default 'bottom').
+  const [mode, setModeSignal] = createSignal<ScrollMode>(
+    untrack(state).scroll.get(),
+    // Use object equality: ScrollMode objects are small; avoid spurious
+    // re-renders if the host calls setScrollMode with an equivalent object.
+    { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) }
+  );
+
+  // Persist intent to ChatState and update the local signal atomically.
+  const setMode = (m: ScrollMode) => {
+    setModeSignal(m);
+    state().scroll.set(m);
+  };
+
+  // Counter: >0 means we wrote scrollTop programmatically this microtask.
+  let programmatic = 0;
+
+  const writeScrollTop = (top: number) => {
+    if (!scrollEl) return;
+    programmatic++;
+    scrollEl.scrollTop = top;
+    setScrollTop(top);
+    // Decrement after the scroll event has been dispatched (async).
+    queueMicrotask(() => {
+      programmatic = Math.max(0, programmatic - 1);
+    });
+  };
+
+  // O(n) scan for the first unit whose itemId matches. Used by projectScroll
+  // for anchor and pinTop modes. N is the visible window (typically ≤ 50).
+  const unitIndexOf = (id: string): number => {
+    const us = untrack(units);
+    for (let i = 0; i < us.length; i++) {
+      if (us.at(i)?.itemId === id) return i;
+    }
+    return -1;
+  };
+
+  // The ONE function that writes scrollTop. Flush canvas height first so the
+  // browser never clamps scrollTop to a stale (outgoing) canvas height — this
+  // is the root cause of "open at top after tab switch".
+  const projectScroll = (m: ScrollMode) => {
+    if (!scrollEl) return;
+    // Synchronously update canvas height so scrollTop is never clamped.
+    if (canvasEl) canvasEl.style.height = `${contentH()}px`;
+
+    if (m.kind === 'anchor') {
+      const i = unitIndexOf(m.itemId);
+      if (i >= 0) {
+        writeScrollTop(Math.max(0, virt.top(i) + padTop() + m.offset));
+        return;
+      }
+      // Anchor item not found (transcript not yet loaded); fall through to bottom.
+    } else if (m.kind === 'pinTop') {
+      const i = unitIndexOf(m.itemId);
+      if (i >= 0) {
+        writeScrollTop(Math.max(0, virt.top(i) + padTop()));
+        return;
+      }
+      // pinTop item not found; fall through to bottom.
+    }
+    // bottom mode (or anchor/pinTop item not found yet): re-pin to end.
+    if (props.stickToBottom !== false) {
+      writeScrollTop(maxScrollTop());
+    }
+  };
+
   // ── Per-frame height coalescing ───────────────────────────────────────────
-  let expectedScrollTop = 0;
   let totalDirty = false;
 
   const queueTotalFlush = () => {
@@ -593,87 +667,59 @@ export function ChatRoot(props: ChatRootProps) {
   };
 
   // ── onHeightChanged — fully read-free ─────────────────────────────────────
+  // Re-project the current intent so all three modes stay correct as row heights
+  // change (estimate→real cascade, streaming growth, resize). No more atBottom
+  // gate or delta-shift branch — projectScroll handles all cases uniformly.
   const onHeightChanged = (index: number, delta: number) => {
     if (delta === 0) return;
     queueTotalFlush();
-
-    // Mirror the count-sync gate: honor atBottom so that the post-seed
-    // estimate->real height cascade keeps re-pinning to the true bottom.
-    // stuckIntent() is false when a single row's real height exceeds its
-    // estimate by more than STICK_THRESHOLD_PX (48px), which happens routinely
-    // with code blocks or long markdown. atBottom stays true through the cascade
-    // because each programmatic re-pin sets expectedScrollTop and readPhase
-    // does not flip it; only a genuine user scroll-up resets it to false.
-    if (props.stickToBottom !== false && (atBottom || stuckIntent())) {
-      const target = maxScrollTop();
-      if (scrollEl) {
-        scrollEl.scrollTop = target;
-        expectedScrollTop = target;
-      }
-      setScrollTop(target);
-    } else if (virt.top(index) + padTop() < scrollTop()) {
-      const next = scrollTop() + delta;
-      if (scrollEl) {
-        scrollEl.scrollTop = next;
-        expectedScrollTop = next;
-      }
-      setScrollTop(next);
-    }
+    projectScroll(mode());
   };
 
   // ── Frame scheduler — created EAGERLY (before onMount) ───────────────────
   //
   // Hoisted to component scope so tween arming (from UnitRow createEffects)
   // never hits a null reference. Phases guard on scrollEl for pre-mount safety.
-  //
-  // Local state vars that phases reference — hoisted from onMount:
   let lastScrollTop = 0;
-  // Initialize to true when stickToBottom is enabled so the count-sync gate
-  // pins to the bottom on the very first async seed (before readPhase has run).
-  let atBottom = props.stickToBottom !== false;
   let reachStartFired = false;
-  let lastAnchorWriteAt = 0;
-  const ANCHOR_WRITE_INTERVAL_MS = 150;
-  // Reused across throttled writes to avoid per-tick allocation on the hot path.
-  // Safe to alias: the next mount reads fields synchronously in onMount, and
-  // onCleanup writes its own values directly into ChatState.
-  const anchorScratch = {
-    anchorItemId: null as string | null,
-    offsetWithinItem: 0,
-    atBottom: true,
-  };
 
   const readPhase = () => {
     const el = scrollEl;
     if (!el) return;
     const st = el.scrollTop;
-    const userScrolled = st !== expectedScrollTop;
     setScrollVelocity(st - lastScrollTop);
     lastScrollTop = st;
     setScrollTop(st);
 
-    const nowAtBottom = stuckIntent();
-    if (nowAtBottom !== atBottom) {
-      atBottom = nowAtBottom;
-      props.onAtBottomChange?.(atBottom);
+    // Ignore our own programmatic writes; they must not mutate intent.
+    if (programmatic > 0) {
+      schedulePrefetch();
+      return;
     }
 
-    // Throttled (~150ms) scroll-anchor write-back into ChatState so it survives
-    // view dispose (e.g. tab switch). Throttled to avoid two O(log N) Fenwick
-    // queries + allocation on every frame; the onCleanup snapshot covers the
-    // final position on dispose (see below). Plain object mutation — not reactive.
-    // atBottom is always written on every tick regardless so the restore decision
-    // (re-pin to bottom vs restore anchor) is never stale.
-    const now = performance.now();
-    if (now - lastAnchorWriteAt >= ANCHOR_WRITE_INTERVAL_MS) {
-      lastAnchorWriteAt = now;
+    // A real user scroll is the only thing that changes intent.
+    const nowAtBottom = stuckIntent();
+    const prevMode = mode();
+    const prevAtBottom = prevMode.kind === 'bottom';
+    if (nowAtBottom) {
+      if (!prevAtBottom) {
+        setMode({ kind: 'bottom' });
+        props.onAtBottomChange?.(true);
+      }
+    } else {
       const pt = padTop();
       const anchorUnitIdx = virt.findIndex(Math.max(0, st - pt));
       const anchorUnit = units().at(anchorUnitIdx);
-      anchorScratch.anchorItemId = anchorUnit?.itemId ?? null;
-      anchorScratch.offsetWithinItem = st - (virt.top(anchorUnitIdx) + pt);
-      anchorScratch.atBottom = nowAtBottom;
-      state().scroll.set(anchorScratch);
+      if (anchorUnit) {
+        setMode({
+          kind: 'anchor',
+          itemId: anchorUnit.itemId,
+          offset: st - (virt.top(anchorUnitIdx) + pt),
+        });
+      }
+      if (prevAtBottom) {
+        props.onAtBottomChange?.(false);
+      }
     }
 
     if (st <= REACH_START_THRESHOLD_PX) {
@@ -685,11 +731,6 @@ export function ChatRoot(props: ChatRootProps) {
       reachStartFired = false;
     }
 
-    if (userScrolled) {
-      cancelPrefetch();
-      prefetchStart = -1;
-      prefetchEnd = -1;
-    }
     schedulePrefetch();
   };
 
@@ -807,11 +848,13 @@ export function ChatRoot(props: ChatRootProps) {
     if (!el) return;
     const target = maxScrollTop();
     if (opts?.behavior === 'smooth') {
+      // Smooth scroll bypasses writeScrollTop (can't count events precisely);
+      // setMode so the intent is correct after it settles.
+      setMode({ kind: 'bottom' });
       el.scrollTo({ top: target, behavior: 'smooth' });
     } else {
-      el.scrollTop = target;
-      expectedScrollTop = target;
-      setScrollTop(target);
+      setMode({ kind: 'bottom' });
+      writeScrollTop(target);
     }
   };
 
@@ -857,22 +900,22 @@ export function ChatRoot(props: ChatRootProps) {
     };
 
     const t0 = computeTarget();
-    el.scrollTo({ top: t0, behavior });
-    expectedScrollTop = t0;
 
-    // Disengage sticky intent when scrolling away from the bottom, so the
-    // (now stronger) count-sync gate does not re-pin on the next streaming tick.
-    // Mirrors the anchor-restore branch. stuckIntent() uses the pre-scroll
-    // scrollTop signal value here; readPhase will sync it on the next frame.
-    if (t0 < maxScrollTop() - STICK_THRESHOLD_PX) {
-      atBottom = false;
+    // Commit the scroll as an anchor intent so onHeightChanged keeps the row
+    // stable as content changes above. (readPhase will refine the offset after.)
+    const anchorUnit = us.at(idx);
+    if (anchorUnit) {
+      const newOffset = t0 - (virt.top(idx) + padTop());
+      setMode({ kind: 'anchor', itemId: anchorUnit.itemId, offset: newOffset + extraOffset });
     }
 
-    if (behavior !== 'smooth') {
+    if (behavior === 'smooth') {
+      el.scrollTo({ top: t0, behavior: 'smooth' });
+    } else {
+      writeScrollTop(t0);
       requestAnimationFrame(() => {
         const t1 = computeTarget();
-        el.scrollTo({ top: t1, behavior: 'auto' });
-        expectedScrollTop = t1;
+        writeScrollTop(t1);
       });
     }
   };
@@ -919,19 +962,16 @@ export function ChatRoot(props: ChatRootProps) {
       }
       if (newUnitIdx >= 0) {
         const newTop = virt.top(newUnitIdx) + padTop() + anchorOffset;
-        el.scrollTop = newTop;
-        expectedScrollTop = newTop;
-        setScrollTop(newTop);
+        writeScrollTop(newTop);
       }
     }
   };
 
   // ── Snapshot / restore helpers ────────────────────────────────────────────
   //
-  // Used by the dispose onCleanup and by the on(state) swap effect. Both read
-  // reactive signals (units, containerWidth, padTop, scrollTop, stuckIntent)
-  // inside untrack() so they can safely be called from either reactive or
-  // non-reactive contexts without adding extra dependencies.
+  // snapshotInto: persist only the heightmap. The scroll intent (ScrollMode)
+  // is already kept current in ChatState by setMode() — no extra DOM reads
+  // needed here. Called by the dispose onCleanup and by the swap effect.
 
   function snapshotInto(target: ChatState): void {
     const us = untrack(units);
@@ -943,56 +983,19 @@ export function ChatRoot(props: ChatRootProps) {
     }
     target.heightmap.setAll(entries);
     target.heightmap.lastWidth = w;
-
-    // Final scroll anchor snapshot. Only re-read scrollTop when the element is
-    // still in the layout tree. When detached, keep the throttled value already
-    // in ChatState. atBottom is sourced from the tracked local var (not a DOM
-    // read) so the restore decision stays correct regardless of attachment.
-    if (scrollEl?.isConnected) {
-      const st = scrollEl.scrollTop;
-      const pt = untrack(padTop);
-      const anchorUnitIdx = virt.findIndex(Math.max(0, st - pt));
-      const anchorUnit = us.at(anchorUnitIdx);
-      target.scroll.set({
-        anchorItemId: anchorUnit?.itemId ?? null,
-        offsetWithinItem: st - (virt.top(anchorUnitIdx) + pt),
-        atBottom,
-      });
-    }
+    // ScrollMode is already persisted continuously by setMode() in readPhase
+    // and by host calls to setScrollMode(). No DOM-derived anchor write here.
   }
 
-  function restoreFrom(target: ChatState): void {
-    const el = scrollEl;
-    if (!el) return;
-    const savedScroll = target.scroll.get();
-    if (savedScroll.anchorItemId !== null && !savedScroll.atBottom) {
-      // Anchor-based restore: find the item in the (already re-seeded) virt.
-      const us = untrack(units);
-      const anchorId = savedScroll.anchorItemId;
-      let anchorIdx = -1;
-      for (let i = 0; i < us.length; i++) {
-        if (us.at(i)?.itemId === anchorId) {
-          anchorIdx = i;
-          break;
-        }
-      }
-      if (anchorIdx >= 0) {
-        const target2 = virt.top(anchorIdx) + untrack(padTop) + savedScroll.offsetWithinItem;
-        el.scrollTop = target2;
-        expectedScrollTop = target2;
-        setScrollTop(target2);
-        atBottom = false;
-        return;
-      }
-      // Anchor item not found (transcript not yet loaded) — fall through to bottom.
-    }
-    if (props.stickToBottom !== false) {
-      const tgt = el.scrollHeight - el.clientHeight;
-      el.scrollTop = tgt;
-      expectedScrollTop = tgt;
-      setScrollTop(tgt);
-      atBottom = untrack(stuckIntent);
-    }
+  // attach: load the intent from a (possibly new) model and project it onto
+  // the DOM. Synchronously flushes canvas height before writing scrollTop so
+  // the browser never clamps to the outgoing model's stale canvas height —
+  // the root cause of "open at top after tab switch".
+  function attach(target: ChatState): void {
+    const m = target.scroll.get();
+    // Update the local signal without persisting (it already IS the canonical value).
+    setModeSignal(m);
+    projectScroll(m);
   }
 
   // ── DOM setup ─────────────────────────────────────────────────────────────
@@ -1007,12 +1010,14 @@ export function ChatRoot(props: ChatRootProps) {
       props.controls.toggleCollapsed = (id) => viewState().toggleCollapsed(id);
       props.controls.composerSlot = composerSlotEl ?? null;
       props.controls.contentOverlay = contentOverlaySlotEl ?? null;
+      // Declarative scroll intent: host sets intent; ChatRoot projects it.
+      props.controls.setScrollMode = (m: ScrollMode) => {
+        setMode(m);
+        projectScroll(m);
+      };
       // Notify the view creator that all controls are wired.
       props.controls.onMounted?.();
     }
-
-    atBottom = stuckIntent();
-    expectedScrollTop = el.scrollTop;
 
     const onScroll = () => {
       if (el.offsetParent === null) return;
@@ -1097,16 +1102,15 @@ export function ChatRoot(props: ChatRootProps) {
       onCleanup(() => document.removeEventListener('visibilitychange', onVisibilityChange));
     }
 
-    // Restore scroll from persisted anchor (survives tab switches). If no
-    // anchor has been recorded yet (first mount) or atBottom was true, fall
-    // back to sticking to the bottom when stickToBottom is not disabled.
-    restoreFrom(state());
+    // Attach to the initial model: load its persisted scroll intent and project
+    // it onto the DOM. Flushes canvas height first so scrollTop is never clamped.
+    attach(state());
 
     // ── Model-swap effect (view.setModel path) ────────────────────────────
     // When the host calls view.setModel(newState), the `state` signal changes.
-    // We snapshot the outgoing model's geometry/scroll, then seed the incoming
-    // model's virt + restore its scroll position. Created here (inside onMount)
-    // so scrollEl is guaranteed to be available when it fires.
+    // We snapshot the outgoing model's heightmap, then attach the incoming model
+    // (load its ScrollMode intent + project onto DOM). Created here (inside
+    // onMount) so scrollEl is guaranteed to be available when it fires.
     //
     // Ordering guarantee: the reset effect and incremental committed effect
     // (created before onMount in component scope) run first — virt is already
@@ -1120,8 +1124,8 @@ export function ChatRoot(props: ChatRootProps) {
           snapshotInto(prevModel);
           prevModel = next;
           // virt is already re-seeded by count-sync effect (ran before this);
-          // just restore the incoming scroll position.
-          restoreFrom(next);
+          // load the incoming model's intent and project it (no stale DOM reads).
+          attach(next);
           scheduler.forceReconcile(() => {
             totalDirty = true;
           });
