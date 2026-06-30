@@ -1,10 +1,9 @@
 import { lstatSync } from 'node:fs';
-import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
-import { classifyFileError, type FileError, type FilesOnError } from '../errors';
-import { isIgnoredInsideRoot, watchIgnoreGlobs } from '../ignores';
-import { contains, validateAbsolutePath } from '../paths';
+import { classifyFileError, type FileError } from '../errors';
+import { includeAllFiles } from '../exclusions';
+import { createRootPathPolicy, type RootPathPolicy } from '../path-policy';
 import type {
   FileChange,
   FileChangeSubscription,
@@ -19,17 +18,20 @@ const DEFAULT_CHANGE_DEBOUNCE_MS = 100;
 export type FileChangesOptions = {
   rootPath: string;
   watcher: IWatchService;
-  onError?: FilesOnError;
 };
 
 export class FileChanges implements IFileChanges {
   readonly rootPath: string;
+  private readonly pathPolicy: RootPathPolicy;
   private readonly watcher: IWatchService;
   private readonly subscriptions = new Set<WatchHandle>();
   private disposed = false;
 
   constructor(options: FileChangesOptions) {
-    this.rootPath = options.rootPath;
+    const policy = createRootPathPolicy(options.rootPath);
+    if (!policy.success) throw new Error(policy.error.message);
+    this.pathPolicy = policy.data;
+    this.rootPath = this.pathPolicy.rootPath;
     this.watcher = options.watcher;
   }
 
@@ -45,17 +47,17 @@ export class FileChanges implements IFileChanges {
       });
     }
 
-    const watchedPaths = normalizeWatchedPaths(this.rootPath, options.paths);
+    const watchedPaths = normalizeWatchedPaths(this.pathPolicy, options.paths);
     if (!watchedPaths.success) return watchedPaths;
+    const exclude = options.exclude ?? includeAllFiles;
 
     const handle = this.watcher.watch(
       this.rootPath,
       (events) => {
-        const changes = rawEventsToChanges(this.rootPath, events, watchedPaths.data);
+        const changes = rawEventsToChanges(this.pathPolicy, events, watchedPaths.data, exclude);
         if (changes.length > 0) cb({ kind: 'changes', changes });
       },
       {
-        ignore: watchIgnoreGlobs(),
         debounceMs: options.debounceMs ?? DEFAULT_CHANGE_DEBOUNCE_MS,
         onResync: () => cb({ kind: 'resync' }),
       }
@@ -92,37 +94,33 @@ export class FileChanges implements IFileChanges {
 }
 
 function normalizeWatchedPaths(
-  rootPath: string,
+  pathPolicy: RootPathPolicy,
   paths: string[] | undefined
-): Result<string[], FileError> {
+): Result<RootPathPolicy[], FileError> {
   if (!paths || paths.length === 0) return ok([]);
-  const normalized: string[] = [];
+  const normalized: RootPathPolicy[] = [];
   for (const input of paths) {
-    const validated = validateAbsolutePath(input);
-    if (!validated.success) return validated;
-    if (!contains(rootPath, validated.data)) {
-      return err({
-        type: 'invalid-path',
-        path: input,
-        message: `Watched path must be inside root: ${input}`,
-      });
-    }
-    normalized.push(validated.data);
+    const resolved = pathPolicy.resolveInsideRoot(input);
+    if (!resolved.success) return resolved;
+    const nestedPolicy = createRootPathPolicy(resolved.data);
+    if (!nestedPolicy.success) return nestedPolicy;
+    normalized.push(nestedPolicy.data);
   }
   return ok(normalized);
 }
 
 function rawEventsToChanges(
-  rootPath: string,
+  pathPolicy: RootPathPolicy,
   events: WatchEvent[],
-  watchedPaths: string[]
+  watchedPaths: RootPathPolicy[],
+  exclude: (absPath: string) => boolean
 ): FileChange[] {
   const changes: FileChange[] = [];
   for (const event of events) {
-    const absPath = absoluteFromRawEvent(rootPath, event);
+    const absPath = pathPolicy.absoluteFromWatchEvent(event.path);
     if (!absPath) continue;
-    if (isIgnoredInsideRoot(rootPath, absPath)) continue;
-    if (!isWatchedPath(absPath, rootPath, watchedPaths)) continue;
+    if (exclude(absPath)) continue;
+    if (!isWatchedPath(absPath, pathPolicy, watchedPaths)) continue;
     changes.push({
       kind: event.kind,
       path: absPath,
@@ -132,17 +130,13 @@ function rawEventsToChanges(
   return changes;
 }
 
-function absoluteFromRawEvent(rootPath: string, event: WatchEvent): string | null {
-  const relPath = path.relative(rootPath, event.path).replace(/\\/g, '/');
-  if (!relPath || relPath === '..' || relPath.startsWith('../') || path.isAbsolute(relPath)) {
-    return null;
-  }
-  return path.normalize(event.path);
-}
-
-function isWatchedPath(absPath: string, rootPath: string, watchedPaths: string[]): boolean {
-  if (watchedPaths.length === 0) return contains(rootPath, absPath);
-  return watchedPaths.some((watchedPath) => contains(watchedPath, absPath));
+function isWatchedPath(
+  absPath: string,
+  pathPolicy: RootPathPolicy,
+  watchedPaths: RootPathPolicy[]
+): boolean {
+  if (watchedPaths.length === 0) return pathPolicy.contains(absPath);
+  return watchedPaths.some((watchedPath) => watchedPath.contains(absPath));
 }
 
 function entryTypeForRawEvent(event: WatchEvent): FileEntryType {

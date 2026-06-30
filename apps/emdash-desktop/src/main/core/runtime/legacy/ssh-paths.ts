@@ -1,6 +1,7 @@
 import path from 'node:path';
-import { isIgnoredRelativePath, type FileError } from '@emdash/core/files';
+import type { FileError } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
+import { isLegacySshIgnoredRelativePath } from './ssh-ignored-paths';
 
 export function normalizeRemoteRootPath(rootPath: string): string {
   const normalized = path.posix.normalize(rootPath.replace(/\\/g, '/'));
@@ -35,5 +36,5 @@ export function isIgnoredRemotePath(rootPath: string, absPath: string): boolean 
   if (!rel || rel === '..' || rel.startsWith('../') || path.posix.isAbsolute(rel)) {
     return false;
   }
-  return isIgnoredRelativePath(rel);
+  return isLegacySshIgnoredRelativePath(rel);
 }

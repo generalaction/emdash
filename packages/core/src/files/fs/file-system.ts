@@ -8,6 +8,7 @@ import { classifyFileError, isFileNotFoundCode, type FileError } from '../errors
 import { validateAbsolutePath } from '../paths';
 import type {
   FileEnumeration,
+  FileEnumerationOptions,
   FileGlob,
   FileGlobOptions,
   FileStat,
@@ -201,10 +202,13 @@ export class FileSystem implements IFileSystem {
     return ok(this.globPaths(validated.data.patterns, validated.data.cwd, options));
   }
 
-  enumerate(absPath: string): Result<FileEnumeration, FileError> {
+  enumerate(
+    absPath: string,
+    options: FileEnumerationOptions = {}
+  ): Result<FileEnumeration, FileError> {
     const validated = validateAbsolutePath(absPath);
     if (!validated.success) return validated;
-    return ok(enumerateFiles(realpathOrResolve(validated.data)));
+    return ok(enumerateFiles(realpathOrResolve(validated.data), options));
   }
 
   private async writeBuffer(

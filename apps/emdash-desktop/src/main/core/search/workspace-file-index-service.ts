@@ -1,12 +1,13 @@
 import {
-  isIgnoredInsideRoot,
   type FileChange,
   type FileChangeUpdate,
+  type FileEnumerationOptions,
   type FileError,
 } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import { collectWithBudget } from './collect-with-budget';
+import { createSearchIndexExclusion } from './search-index-exclusions';
 import {
   WorkspaceFileIndexStore,
   type FileHit,
@@ -19,7 +20,8 @@ const DEFAULT_REINDEX_TIMEOUT_MS = 30_000;
 const DEFAULT_REINDEX_DEBOUNCE_MS = 3_000;
 
 export type WorkspaceFileEnumerator = (
-  rootPath: string
+  rootPath: string,
+  options?: FileEnumerationOptions
 ) => Result<AsyncIterable<string>, FileError>;
 
 export type WorkspaceFileIndexSource = {
@@ -119,7 +121,8 @@ export class WorkspaceFileIndexService {
         const source = this.activeSources.get(workspaceId);
         if (!source) return;
 
-        const enumeration = source.enumerate(source.rootPath);
+        const exclude = createSearchIndexExclusion(source.rootPath);
+        const enumeration = source.enumerate(source.rootPath, { exclude });
         if (!enumeration.success) {
           log.warn('WorkspaceFileIndexService: enumerate failed to start', {
             workspaceId,
@@ -128,7 +131,7 @@ export class WorkspaceFileIndexService {
           return;
         }
 
-        const result = await collectWithBudget(enumeration.data, {
+        const result = await collectWithBudget(filterExcluded(enumeration.data, exclude), {
           maxFiles: this.maxFiles,
           timeoutMs: this.reindexTimeoutMs,
           now: this.options.now,
@@ -167,6 +170,7 @@ export class WorkspaceFileIndexService {
   private applyChanges(workspaceId: string, changes: FileChange[]): void {
     let needsReindex = false;
     const rootPath = this.metaRootPath(workspaceId);
+    const exclude = createSearchIndexExclusion(rootPath);
     try {
       this.store.transaction(() => {
         let indexedFileCount = this.store.countIndexedFiles(workspaceId);
@@ -174,7 +178,7 @@ export class WorkspaceFileIndexService {
         const creates: string[] = [];
 
         for (const change of changes) {
-          if (isIgnoredInsideRoot(rootPath, change.path)) continue;
+          if (exclude(change.path)) continue;
 
           if (change.kind === 'delete') {
             if (change.entryType === 'file') {
@@ -285,6 +289,15 @@ export class WorkspaceFileIndexService {
       this.store.getMeta(workspaceId)?.rootPath ??
       ''
     );
+  }
+}
+
+async function* filterExcluded(
+  paths: AsyncIterable<string>,
+  exclude: (absPath: string) => boolean
+): AsyncIterable<string> {
+  for await (const path of paths) {
+    if (!exclude(path)) yield path;
   }
 }
 

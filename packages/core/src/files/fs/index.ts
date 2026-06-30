@@ -1,6 +1,7 @@
 export { FileSystem } from './file-system';
 export type {
   FileEnumeration,
+  FileEnumerationOptions,
   FileGlob,
   FileGlobOptions,
   FileStat,

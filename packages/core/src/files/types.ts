@@ -31,6 +31,7 @@ export type {
 } from './changes/types';
 export type {
   FileEnumeration,
+  FileEnumerationOptions,
   FileGlob,
   FileGlobOptions,
   FileStat,

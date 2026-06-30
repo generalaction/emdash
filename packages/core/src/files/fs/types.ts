@@ -1,5 +1,6 @@
 import type { Result } from '@emdash/shared';
 import type { FileError } from '../errors';
+import type { FileExclusionPredicate } from '../exclusions';
 
 export type FileStat = {
   path: string;
@@ -39,6 +40,10 @@ export type FileGlob = AsyncIterable<string>;
 
 export type FileEnumeration = AsyncIterable<string>;
 
+export type FileEnumerationOptions = {
+  exclude?: FileExclusionPredicate;
+};
+
 export interface IFileSystem {
   readText(path: string, options?: ReadFileOptions): Promise<Result<ReadTextResult, FileError>>;
   readBytes(path: string, options?: ReadFileOptions): Promise<Result<ReadBytesResult, FileError>>;
@@ -51,5 +56,5 @@ export interface IFileSystem {
   realPath(path: string): Promise<Result<string, FileError>>;
   copyFile(src: string, dest: string): Promise<Result<void, FileError>>;
   glob(patterns: string[], options: FileGlobOptions): Result<FileGlob, FileError>;
-  enumerate(path: string): Result<FileEnumeration, FileError>;
+  enumerate(path: string, options?: FileEnumerationOptions): Result<FileEnumeration, FileError>;
 }

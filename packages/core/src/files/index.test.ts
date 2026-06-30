@@ -6,8 +6,10 @@ describe('@emdash/core/files public exports', () => {
     const exported = files as Record<string, unknown>;
 
     expect(exported.FilesRuntime).toBeTypeOf('function');
-    expect(exported.isIgnored).toBeTypeOf('function');
-    expect(exported.watchIgnoreGlobs).toBeTypeOf('function');
+    expect(exported.includeAllFiles).toBeTypeOf('function');
+    expect(exported.createRootPathPolicy).toBeTypeOf('function');
     expect(exported.validateAbsolutePath).toBeTypeOf('function');
+    expect(exported.isIgnored).toBeUndefined();
+    expect(exported.watchIgnoreGlobs).toBeUndefined();
   });
 });

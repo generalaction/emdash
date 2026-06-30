@@ -88,7 +88,6 @@ export class FilesRuntime implements IFilesRuntime {
     const changes = new FileChanges({
       rootPath: realpathOrResolve(validatedRoot.data),
       watcher: this.watcher,
-      onError: this.options.onError,
     });
     const subscription = changes.watch(cb, options);
     if (!subscription.success) {

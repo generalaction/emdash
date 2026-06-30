@@ -84,14 +84,12 @@ describe('FileChanges feed', () => {
     ]);
   });
 
-  it('filters ignored paths and optional watched paths', async () => {
+  it('filters optional watched paths', async () => {
     const { files, watcher } = await createFiles();
     await mkdir(path.join(root!, 'src'));
     await mkdir(path.join(root!, 'other'));
-    await mkdir(path.join(root!, 'node_modules'), { recursive: true });
     await writeFile(path.join(root!, 'src/index.ts'), 'content');
     await writeFile(path.join(root!, 'other/index.ts'), 'content');
-    await writeFile(path.join(root!, 'node_modules/pkg.js'), 'content');
     const updates: FileChangeUpdate[] = [];
 
     const subscription = files.watch((update) => updates.push(update), {
@@ -102,13 +100,39 @@ describe('FileChanges feed', () => {
     watcher.emit([
       { kind: 'update', path: path.join(root!, 'src/index.ts') },
       { kind: 'update', path: path.join(root!, 'other/index.ts') },
-      { kind: 'update', path: path.join(root!, 'node_modules/pkg.js') },
     ]);
 
     expect(updates).toEqual([
       {
         kind: 'changes',
         changes: [{ kind: 'update', path: path.join(root!, 'src/index.ts'), entryType: 'file' }],
+      },
+    ]);
+  });
+
+  it('includes previously ignored paths by default and supports caller exclusions', async () => {
+    const { files, watcher } = await createFiles();
+    await mkdir(path.join(root!, 'node_modules'), { recursive: true });
+    await writeFile(path.join(root!, 'node_modules/pkg.js'), 'content');
+    await writeFile(path.join(root!, '.DS_Store'), 'content');
+    const updates: FileChangeUpdate[] = [];
+
+    const subscription = files.watch((update) => updates.push(update), {
+      exclude: (absPath) => absPath.endsWith('.DS_Store'),
+    });
+    expect(subscription.success).toBe(true);
+
+    watcher.emit([
+      { kind: 'update', path: path.join(root!, 'node_modules/pkg.js') },
+      { kind: 'update', path: path.join(root!, '.DS_Store') },
+    ]);
+
+    expect(updates).toEqual([
+      {
+        kind: 'changes',
+        changes: [
+          { kind: 'update', path: path.join(root!, 'node_modules/pkg.js'), entryType: 'file' },
+        ],
       },
     ]);
   });

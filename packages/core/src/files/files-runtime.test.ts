@@ -39,7 +39,7 @@ afterEach(async () => {
 });
 
 describe('FilesRuntime', () => {
-  it('wires file tree and change feeds through the same watch root and ignore set', async () => {
+  it('wires file tree and change feeds through the same watch root without broad ignores', async () => {
     const root = await makeRoot();
     await mkdir(path.join(root, 'src'));
     await writeFile(path.join(root, 'src/index.ts'), 'content');
@@ -56,7 +56,8 @@ describe('FilesRuntime', () => {
 
     expect(watcher.watches).toHaveLength(2);
     expect(watcher.watches[0].root).toBe(watcher.watches[1].root);
-    expect(watcher.watches[0].options.ignore).toEqual(watcher.watches[1].options.ignore);
+    expect(watcher.watches[0].options.ignore).toBeUndefined();
+    expect(watcher.watches[1].options.ignore).toBeUndefined();
 
     changes.data.unsubscribe();
     await fileTree.data.release();

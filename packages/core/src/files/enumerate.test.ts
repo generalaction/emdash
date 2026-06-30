@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 describe('enumerate', () => {
-  it('streams regular files recursively with the canonical ignore set', async () => {
+  it('streams regular files recursively without broad default exclusions', async () => {
     const root = await makeRoot();
     await mkdir(path.join(root, 'src', 'nested'), { recursive: true });
     await mkdir(path.join(root, 'node_modules', 'pkg'), { recursive: true });
@@ -32,15 +32,29 @@ describe('enumerate', () => {
     await writeFile(path.join(root, '.env'), 'env');
     await writeFile(path.join(root, 'src', 'index.ts'), 'src');
     await writeFile(path.join(root, 'src', 'nested', 'deep.ts'), 'deep');
-    await writeFile(path.join(root, 'node_modules', 'pkg', 'index.js'), 'ignored');
-    await writeFile(path.join(root, '.git', 'HEAD'), 'ignored');
+    await writeFile(path.join(root, 'node_modules', 'pkg', 'index.js'), 'dependency');
+    await writeFile(path.join(root, '.git', 'HEAD'), 'git');
 
     await expect(collect(enumerate(root))).resolves.toEqual([
       path.join(root, '.env'),
+      path.join(root, '.git/HEAD'),
+      path.join(root, 'node_modules/pkg/index.js'),
       path.join(root, 'README.md'),
       path.join(root, 'src/index.ts'),
       path.join(root, 'src/nested/deep.ts'),
     ]);
+  });
+
+  it('applies caller-owned exclusions when supplied', async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, 'src'), { recursive: true });
+    await mkdir(path.join(root, 'node_modules', 'pkg'), { recursive: true });
+    await writeFile(path.join(root, 'src', 'index.ts'), 'src');
+    await writeFile(path.join(root, 'node_modules', 'pkg', 'index.js'), 'dependency');
+
+    await expect(
+      collect(enumerate(root, { exclude: (absPath) => absPath.includes('node_modules') }))
+    ).resolves.toEqual([path.join(root, 'src/index.ts')]);
   });
 
   it('does not filter children when the root path contains an ignored ancestor segment', async () => {

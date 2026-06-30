@@ -1,5 +1,6 @@
 import type { Result, Unsubscribe } from '@emdash/shared';
 import type { FileError } from '../errors';
+import type { FileExclusionPredicate } from '../exclusions';
 
 export type FileEntryType = 'file' | 'directory' | 'unknown';
 export type FileChangeKind = 'create' | 'update' | 'delete';
@@ -20,6 +21,7 @@ export type FileChangeWatchOptions = {
    */
   paths?: string[];
   debounceMs?: number;
+  exclude?: FileExclusionPredicate;
 };
 
 export type FileChangeSubscription = {

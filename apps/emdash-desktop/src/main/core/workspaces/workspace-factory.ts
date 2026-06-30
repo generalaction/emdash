@@ -191,9 +191,9 @@ export function createWorkspaceFactory(
       onCreateSideEffect: (ws) => {
         void workspaceFileIndexService.onWorkspaceActivated(workspaceId, {
           rootPath: ws.path,
-          enumerate: (root) => {
+          enumerate: (root, options) => {
             const fs = filesRuntime.fileSystem();
-            return fs.success ? fs.data.enumerate(root) : fs;
+            return fs.success ? fs.data.enumerate(root, options) : fs;
           },
         });
         unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) =>

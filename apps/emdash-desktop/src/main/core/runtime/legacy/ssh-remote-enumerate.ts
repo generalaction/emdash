@@ -1,9 +1,9 @@
 import { StringDecoder } from 'node:string_decoder';
-import { IGNORED_PATH_SEGMENTS } from '@emdash/core/files';
 import type { ClientChannel } from 'ssh2';
 import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import { LEGACY_SSH_IGNORED_PATH_SEGMENTS } from './ssh-ignored-paths';
 import { isIgnoredRemotePath, toRemoteAbsolutePath } from './ssh-paths';
 
 export async function* enumerateRemoteWorkspace(
@@ -18,9 +18,9 @@ export async function* enumerateRemoteWorkspace(
 }
 
 export function buildFindPruneExpression(): string {
-  const ignoredNames = IGNORED_PATH_SEGMENTS.map((name) => `-name ${quoteShellArg(name)}`).join(
-    ' -o '
-  );
+  const ignoredNames = LEGACY_SSH_IGNORED_PATH_SEGMENTS.map(
+    (name) => `-name ${quoteShellArg(name)}`
+  ).join(' -o ');
   return ignoredNames ? `\\( ${ignoredNames} \\) -prune -o ` : '';
 }
 
