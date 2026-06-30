@@ -175,7 +175,7 @@ export function measureTerminalCell(
       mMetrics.actualBoundingBoxAscent + mMetrics.actualBoundingBoxDescent > 0
         ? mMetrics.actualBoundingBoxAscent + mMetrics.actualBoundingBoxDescent
         : fontSize;
-    const cellHeight = Math.ceil(charHeight * lineHeight);
+    const cellHeight = Math.floor(charHeight * lineHeight);
 
     if (cellWidth === 0 || cellHeight === 0) return null;
 

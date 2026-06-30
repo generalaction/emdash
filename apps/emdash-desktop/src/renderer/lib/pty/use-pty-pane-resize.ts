@@ -228,8 +228,12 @@ export function usePtyPaneResize(
     if (cellSizeRef.current?.width === width && cellSizeRef.current?.height === height) {
       // Cell metrics unchanged; if this is the first calibration, still flush the
       // backend broadcast that was suppressed during the seed-only phase.
+      // Guard against a null box value: the pane may have never produced dimensions
+      // (e.g. opened in a collapsed panel or before layout), so recompute() could
+      // have bailed before setting the box. Scheduling null would throw on flush.
       if (!alreadyCalibrated) {
-        schedulerRef.current?.schedule(controllerDimsBoxRef.current!.get()!);
+        const dims = controllerDimsBoxRef.current!.get();
+        if (dims) schedulerRef.current?.schedule(dims);
       }
       return;
     }
