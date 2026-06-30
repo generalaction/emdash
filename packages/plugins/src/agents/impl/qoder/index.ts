@@ -1,5 +1,6 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
+import { buildQoderHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -13,6 +14,11 @@ export const plugin = definePlugin(
   {
     autoApprove: {
       kind: 'supported',
+    },
+    hooks: {
+      kind: 'config',
+      scope: 'workspace',
+      supportedEvents: ['notification', 'stop', 'session', 'start', 'tool-use', 'tool-use-failure'],
     },
     hostDependency: npmDependency({
       id: 'qoder',
@@ -63,4 +69,5 @@ export const provider = registerPluginBehavior(plugin, {
         resumeWithoutSessionFlag: '-c',
       }),
   },
+  hooks: buildQoderHookConfig(),
 });

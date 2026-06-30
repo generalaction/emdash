@@ -283,6 +283,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'qoder.svg',
     alt: 'Qoder CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'droid',
