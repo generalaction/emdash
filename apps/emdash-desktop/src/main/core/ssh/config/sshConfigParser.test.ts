@@ -9,6 +9,7 @@ import {
 } from './sshConfigParser';
 
 const itWindows = process.platform === 'win32' ? it : it.skip;
+const itPosix = process.platform === 'win32' ? it.skip : it;
 const pathSuffix = (suffix: string) => {
   const escapedSuffix = suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replaceAll('/', '[\\\\/]');
   return new RegExp(`[\\\\/]${escapedSuffix}$`);
@@ -212,6 +213,32 @@ Host relative-windows-include
       {
         host: 'relative-windows-include',
         hostname: 'relative.internal',
+      },
+    ]);
+  });
+
+  itPosix('preserves backslash escaping in tilde Include patterns', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'emdash-ssh-config-posix-'));
+    await writeFile(
+      join(dir, 'config'),
+      `
+Include ~\\*.conf
+`,
+      'utf-8'
+    );
+    await writeFile(
+      join(dir, '~*.conf'),
+      `
+Host posix-escaped-include
+  HostName posix.internal
+`,
+      'utf-8'
+    );
+
+    expect(await parseSshConfigFileAt(join(dir, 'config'))).toEqual([
+      {
+        host: 'posix-escaped-include',
+        hostname: 'posix.internal',
       },
     ]);
   });
