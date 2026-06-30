@@ -1,6 +1,6 @@
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, Wrench, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useSyncCheckRuns } from '@renderer/features/tasks/diff-view/state/use-check-runs';
 import {
   useTaskViewContext,
@@ -91,7 +91,7 @@ export const CheckRunItem = observer(function CheckRunItem({
   const detailsUrl = check.detailsUrl;
   const canShowFixAction = bucket === 'fail';
 
-  const handleFixCheck = () => {
+  const handleFixCheck = useCallback(() => {
     showCreateConversationModal({
       projectId,
       taskId,
@@ -100,7 +100,7 @@ export const CheckRunItem = observer(function CheckRunItem({
         taskView.paneLayout.open('conversation', { conversationId }, { preview: false });
       },
     });
-  };
+  }, [showCreateConversationModal, projectId, taskId, check, pr, taskView]);
 
   return (
     <div className="group relative flex items-center gap-2 rounded-md px-3 py-2 hover:bg-background-1">
@@ -132,7 +132,7 @@ export const CheckRunItem = observer(function CheckRunItem({
                   <button
                     type="button"
                     aria-label={`Fix ${check.name} check with a new conversation`}
-                    className="flex size-6 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex size-6 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground"
                     onClick={(event) => {
                       event.stopPropagation();
                       handleFixCheck();
