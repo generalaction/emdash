@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
+import { Textarea } from '@renderer/lib/ui/textarea';
 import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import { nextDefaultConversationTitle } from './conversation-title-utils';
 import { useEffectiveProvider } from './use-effective-provider';
@@ -31,9 +32,11 @@ export const CreateConversationModal = observer(function CreateConversationModal
   onSuccess,
   projectId,
   taskId,
+  initialPrompt,
 }: BaseModalProps<{ conversationId: string }> & {
   projectId: string;
   taskId: string;
+  initialPrompt?: string;
 }) {
   const connectionId = getProjectSshConnectionId(projectId);
   const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
@@ -43,6 +46,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [error, setError] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState(initialPrompt ?? '');
   useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents();
@@ -82,6 +86,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
         provider: providerId,
         title,
         model: selectedModel ?? undefined,
+        initialPrompt: prompt.trim() || undefined,
       });
       setIsSubmitting(false);
       onSuccess({ conversationId: id });
@@ -97,6 +102,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     title,
     onSuccess,
     projectId,
+    prompt,
     taskId,
     skipPermissions,
     selectedModel,
@@ -155,6 +161,15 @@ export const CreateConversationModal = observer(function CreateConversationModal
               </div>
             </Field>
           ) : null}
+          <Field>
+            <FieldLabel>Initial prompt</FieldLabel>
+            <Textarea
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Add an optional initial message..."
+              className="max-h-64 min-h-28 resize-none"
+            />
+          </Field>
           {error && <p className="text-destructive text-xs">{error}</p>}
         </FieldGroup>
       </DialogContentArea>

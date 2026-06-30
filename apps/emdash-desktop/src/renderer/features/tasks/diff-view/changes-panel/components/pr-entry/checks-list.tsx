@@ -1,18 +1,13 @@
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, Wrench, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
-import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
-import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
+import { useMemo } from 'react';
 import { useSyncCheckRuns } from '@renderer/features/tasks/diff-view/state/use-check-runs';
-import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import {
-  useConversations,
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import {
@@ -21,7 +16,6 @@ import {
   type CheckRun,
   type CheckRunBucket,
 } from '@renderer/utils/github';
-import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { PullRequest, PullRequestComment } from '@shared/core/pull-requests/pull-requests';
 import { CommentsList } from './comments-list';
 import { buildPullRequestConversationItems } from './pull-request-conversation';
@@ -87,11 +81,7 @@ export const CheckRunItem = observer(function CheckRunItem({
 }) {
   const { projectId, taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
-  const conversations = useConversations();
-  const taskSettings = useTaskSettings();
-  const connectionId = getProjectSshConnectionId(projectId);
-  const { providerId, createDisabled } = useEffectiveProvider(connectionId);
-  const [isCreatingFixConversation, setIsCreatingFixConversation] = useState(false);
+  const showCreateConversationModal = useShowModal('createConversationModal');
   const bucket = computeCheckBucket(check);
   const duration = formatCheckDuration(
     check.startedAt ?? undefined,
@@ -100,40 +90,16 @@ export const CheckRunItem = observer(function CheckRunItem({
   const subtitle = check.appName ?? check.workflowName;
   const detailsUrl = check.detailsUrl;
   const canShowFixAction = bucket === 'fail';
-  const canCreateFixConversation = Boolean(providerId) && !createDisabled;
-  const fixConversationDisabled = isCreatingFixConversation || !canCreateFixConversation;
 
-  const handleFixCheck = async () => {
-    if (!providerId || fixConversationDisabled) return;
-
-    const id = crypto.randomUUID();
-    const autoApprove =
-      providerSupportsAutoApprove(providerId) && taskSettings.autoApproveByDefault;
-    setIsCreatingFixConversation(true);
-
-    try {
-      await conversations.createConversation({
-        projectId,
-        taskId,
-        id,
-        provider: providerId,
-        title: nextDefaultConversationTitle(
-          providerId,
-          Array.from(conversations.conversations.values(), (conversation) => conversation.data)
-        ),
-        autoApprove,
-        initialPrompt: buildFixCheckPrompt(check, pr),
-      });
-      taskView.paneLayout.open('conversation', { conversationId: id }, { preview: false });
-    } catch {
-      toast({
-        title: 'Failed to start fix conversation',
-        description: 'Refresh the task and try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsCreatingFixConversation(false);
-    }
+  const handleFixCheck = () => {
+    showCreateConversationModal({
+      projectId,
+      taskId,
+      initialPrompt: buildFixCheckPrompt(check, pr),
+      onSuccess: ({ conversationId }) => {
+        taskView.paneLayout.open('conversation', { conversationId }, { preview: false });
+      },
+    });
   };
 
   return (
@@ -167,17 +133,12 @@ export const CheckRunItem = observer(function CheckRunItem({
                     type="button"
                     aria-label={`Fix ${check.name} check with a new conversation`}
                     className="flex size-6 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={fixConversationDisabled}
                     onClick={(event) => {
                       event.stopPropagation();
-                      void handleFixCheck();
+                      handleFixCheck();
                     }}
                   >
-                    {isCreatingFixConversation ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Wrench className="size-3.5" />
-                    )}
+                    <Wrench className="size-3.5" />
                   </button>
                 }
               />
