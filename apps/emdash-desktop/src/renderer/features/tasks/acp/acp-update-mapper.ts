@@ -75,15 +75,26 @@ export function mapAgentUpdate(update: AgentUpdate, turnId: string): ActiveTurnE
     }
 
     case 'tool_call': {
-      const { toolCallId, title, toolKind, status, diffs } = update;
+      const { toolCallId, title, toolKind, status, diffs, parentToolCallId } = update;
       const toolId = `${turnId}:${toolCallId}`;
+      // Scope the parent id the same way toolId is scoped so buildItemForest
+      // can match child.parentId against the parent's item.id exactly.
+      const parentId = parentToolCallId ? `${turnId}:${parentToolCallId}` : undefined;
 
       // Edits carry their changes as diff content blocks → render ChatDiff rows.
+      // diff_start is idempotent (parentId is only read on creation).
       if (diffs.length > 0) {
         return diffs.flatMap((d: AgentDiff) => {
           const id = `${toolId}:${d.path}`;
           const events: ActiveTurnEvent[] = [
-            { type: 'diff_start', id, path: d.path, oldText: d.oldText, newText: d.newText },
+            {
+              type: 'diff_start',
+              id,
+              path: d.path,
+              oldText: d.oldText,
+              newText: d.newText,
+              ...(parentId ? { parentId } : {}),
+            },
           ];
           if (status && status !== 'in_progress' && status !== 'pending') {
             events.push({ type: 'diff_update', id, status: mapToolStatus(status) });
@@ -102,6 +113,7 @@ export function mapAgentUpdate(update: AgentUpdate, turnId: string): ActiveTurnE
           id: toolId,
           name: title,
           inputSummary: undefined,
+          ...(parentId ? { parentId } : {}),
         },
         // If the tool_call already carries a terminal status, emit a follow-up update.
         ...(status && status !== 'in_progress' && status !== 'pending'
@@ -117,20 +129,22 @@ export function mapAgentUpdate(update: AgentUpdate, turnId: string): ActiveTurnE
     }
 
     case 'tool_update': {
-      const { toolCallId, title, status, diffs } = update;
+      const { toolCallId, title, status, diffs, parentToolCallId } = update;
       const toolId = `${turnId}:${toolCallId}`;
+      const parentId = parentToolCallId ? `${turnId}:${parentToolCallId}` : undefined;
 
       if (diffs.length > 0) {
         return diffs.flatMap((d: AgentDiff) => {
           const id = `${toolId}:${d.path}`;
           return [
-            // diff_start is idempotent in the reducer; safe if the row already exists.
+            // diff_start is idempotent in the reducer; parentId is only read on creation.
             {
               type: 'diff_start',
               id,
               path: d.path,
               oldText: d.oldText,
               newText: d.newText,
+              ...(parentId ? { parentId } : {}),
             } satisfies ActiveTurnEvent,
             {
               type: 'diff_update',

@@ -53,14 +53,14 @@ function thinkingUpdate(messageId: string | null, text = 'thinking...'): AgentUp
   return { kind: 'thinking', messageId, text };
 }
 
-function toolCallUpdate(toolCallId: string): AgentUpdate {
+function toolCallUpdate(toolCallId: string, parentToolCallId: string | null = null): AgentUpdate {
   return {
     kind: 'tool_call',
     toolCallId,
     title: 'Bash',
     toolKind: 'execute',
     status: null,
-    parentToolCallId: null,
+    parentToolCallId,
     diffs: [],
   };
 }
@@ -77,26 +77,34 @@ function toolUpdateUpdate(toolCallId: string): AgentUpdate {
   };
 }
 
-function diffCallUpdate(toolCallId: string, path: string): AgentUpdate {
+function diffCallUpdate(
+  toolCallId: string,
+  path: string,
+  parentToolCallId: string | null = null
+): AgentUpdate {
   return {
     kind: 'tool_call',
     toolCallId,
     title: 'Edit',
     toolKind: 'edit',
     status: null,
-    parentToolCallId: null,
+    parentToolCallId,
     diffs: [{ path, oldText: 'old', newText: 'new' }],
   };
 }
 
-function diffUpdateUpdate(toolCallId: string, path: string): AgentUpdate {
+function diffUpdateUpdate(
+  toolCallId: string,
+  path: string,
+  parentToolCallId: string | null = null
+): AgentUpdate {
   return {
     kind: 'tool_update',
     toolCallId,
     title: null,
     toolKind: null,
     status: 'completed',
-    parentToolCallId: null,
+    parentToolCallId,
     diffs: [{ path, oldText: 'old', newText: 'new' }],
   };
 }
@@ -293,6 +301,76 @@ describe('mapAgentUpdate — image attachments', () => {
     const evt = evts[0] as Extract<(typeof evts)[0], { type: 'message_chunk' }>;
     expect(evt.attachments).toHaveLength(2);
     expect(evt.attachments?.[0].id).not.toBe(evt.attachments?.[1].id);
+  });
+});
+
+// ── mapAgentUpdate — parentId scoping ────────────────────────────────────────
+
+describe('mapAgentUpdate — parentId scoping', () => {
+  const TURN = 'turn-1';
+  const PARENT_RAW = 'tc-parent';
+  const PARENT_SCOPED = `${TURN}:${PARENT_RAW}`;
+
+  it('tool_call with parentToolCallId emits tool_start with scoped parentId', () => {
+    const evts = mapAgentUpdate(toolCallUpdate('tc-child', PARENT_RAW), TURN);
+    const start = evts.find((e) => e.type === 'tool_start') as
+      | Extract<ActiveTurnEvent, { type: 'tool_start' }>
+      | undefined;
+    expect(start).toBeDefined();
+    expect(start?.parentId).toBe(PARENT_SCOPED);
+  });
+
+  it('tool_call with parentToolCallId: null emits tool_start without parentId', () => {
+    const evts = mapAgentUpdate(toolCallUpdate('tc-no-parent', null), TURN);
+    const start = evts.find((e) => e.type === 'tool_start') as
+      | Extract<ActiveTurnEvent, { type: 'tool_start' }>
+      | undefined;
+    expect(start).toBeDefined();
+    expect(start?.parentId).toBeUndefined();
+  });
+
+  it('tool_call with diffs + parentToolCallId emits diff_start with scoped parentId', () => {
+    const evts = mapAgentUpdate(diffCallUpdate('tc-edit', 'src/foo.ts', PARENT_RAW), TURN);
+    const start = evts.find((e) => e.type === 'diff_start') as
+      | Extract<ActiveTurnEvent, { type: 'diff_start' }>
+      | undefined;
+    expect(start).toBeDefined();
+    expect(start?.parentId).toBe(PARENT_SCOPED);
+  });
+
+  it('tool_call with diffs + parentToolCallId: null emits diff_start without parentId', () => {
+    const evts = mapAgentUpdate(diffCallUpdate('tc-edit', 'src/foo.ts', null), TURN);
+    const start = evts.find((e) => e.type === 'diff_start') as
+      | Extract<ActiveTurnEvent, { type: 'diff_start' }>
+      | undefined;
+    expect(start).toBeDefined();
+    expect(start?.parentId).toBeUndefined();
+  });
+
+  it('tool_update with diffs + parentToolCallId emits diff_start with scoped parentId', () => {
+    const evts = mapAgentUpdate(diffUpdateUpdate('tc-edit', 'src/bar.ts', PARENT_RAW), TURN);
+    const start = evts.find((e) => e.type === 'diff_start') as
+      | Extract<ActiveTurnEvent, { type: 'diff_start' }>
+      | undefined;
+    expect(start).toBeDefined();
+    expect(start?.parentId).toBe(PARENT_SCOPED);
+  });
+
+  it('tool_update with diffs + parentToolCallId: null emits diff_start without parentId', () => {
+    const evts = mapAgentUpdate(diffUpdateUpdate('tc-edit', 'src/bar.ts', null), TURN);
+    const start = evts.find((e) => e.type === 'diff_start') as
+      | Extract<ActiveTurnEvent, { type: 'diff_start' }>
+      | undefined;
+    expect(start).toBeDefined();
+    expect(start?.parentId).toBeUndefined();
+  });
+
+  it('parentId is scoped to turnId — same raw parentToolCallId across turns produces distinct parentIds', () => {
+    const evts1 = mapAgentUpdate(toolCallUpdate('tc-child', PARENT_RAW), 'turn-1');
+    const evts2 = mapAgentUpdate(toolCallUpdate('tc-child', PARENT_RAW), 'turn-2');
+    const id1 = (evts1.find((e) => e.type === 'tool_start') as { parentId?: string })?.parentId;
+    const id2 = (evts2.find((e) => e.type === 'tool_start') as { parentId?: string })?.parentId;
+    expect(id1).not.toBe(id2);
   });
 });
 

@@ -482,52 +482,6 @@
     --composer-info-surface: var(--background-info);
     --composer-info-border: var(--border-info);
     --composer-info-surface-fg: var(--foreground-info);
-
-    /* ── ChatTranscript theme contract ──────────────────────────── */
-    /* Map --chat-* to desktop tokens for the @emdash/chat-ui transcript engine. */
-    --chat-fg: var(--foreground);
-    --chat-fg-body: var(--foreground-muted);
-    --chat-fg-muted: var(--foreground-muted);
-    --chat-fg-passive: var(--foreground-passive);
-    --chat-bg: var(--background);
-    --chat-bg-1: var(--background-1);
-    --chat-bg-2: var(--background-2);
-    --chat-bg-3: var(--background-3);
-    --chat-border: var(--border);
-    --chat-user-card-bg: var(--background-1);
-    --chat-user-card-border: var(--border);
-    --chat-user-card-border-hover: var(--border-1);
-    --chat-mention-chip-bg: var(--background-2);
-    --chat-mention-chip-fg: var(--foreground);
-    --chat-mention-file-bg: var(--background-2);
-    --chat-mention-file-fg: var(--foreground);
-    --chat-mention-issue-bg: var(--background-info);
-    --chat-mention-issue-fg: var(--foreground-info);
-    --chat-mention-symbol-bg: var(--background-info);
-    --chat-mention-symbol-fg: var(--foreground-info);
-    --chat-mention-custom-bg: var(--background-2);
-    --chat-mention-custom-fg: var(--foreground);
-    --chat-diff-added: var(--foreground-diff-added);
-    --chat-diff-deleted: var(--foreground-diff-deleted);
-    --chat-diff-modified: var(--foreground-diff-modified);
-    --chat-link: var(--foreground-info);
-    --chat-bubble-user: var(--background-3);
-    --chat-bubble-user-fg: var(--foreground);
-    --chat-mention-bg: var(--background-info);
-    --chat-mention-fg: var(--foreground-info);
-    --chat-code-bg: var(--background-1);
-    --chat-code-inline-bg: rgba(0, 0, 0, 0.06);
-    --chat-table-header-bg: var(--background-1);
-    --chat-font-sans:
-      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
-      'Droid Sans', 'Helvetica Neue', sans-serif;
-    --chat-font-mono:
-      'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
-    --chat-radius-sm: 0.375rem;
-    --chat-radius-md: 0.5rem;
-    --chat-radius-lg: 0.625rem;
-    --chat-radius-xl: 0.875rem;
-    --chat-radius-full: 9999px;
   }
 
   .emdark {
@@ -840,52 +794,109 @@
     --composer-info-surface: var(--background-info);
     --composer-info-border: var(--border-info);
     --composer-info-surface-fg: var(--foreground-info);
-
-    /* ── ChatTranscript theme contract ──────────────────────────── */
-    --chat-fg: var(--foreground);
-    --chat-fg-body: var(--foreground-muted);
-    --chat-fg-muted: var(--foreground-muted);
-    --chat-fg-passive: var(--foreground-passive);
-    --chat-bg: var(--background-secondary-1);
-    --chat-bg-1: var(--background-1);
-    --chat-bg-2: var(--background-2);
-    --chat-bg-3: var(--background-3);
-    --chat-border: var(--border);
-    --chat-user-card-bg: var(--background-2);
-    --chat-user-card-border: var(--border);
-    --chat-user-card-border-hover: var(--border-1);
-    --chat-mention-chip-bg: var(--background-2);
-    --chat-mention-chip-fg: var(--foreground);
-    --chat-mention-file-bg: var(--background-2);
-    --chat-mention-file-fg: var(--foreground);
-    --chat-mention-issue-bg: var(--background-info);
-    --chat-mention-issue-fg: var(--foreground-info);
-    --chat-mention-symbol-bg: var(--background-info);
-    --chat-mention-symbol-fg: var(--foreground-info);
-    --chat-mention-custom-bg: var(--background-2);
-    --chat-mention-custom-fg: var(--foreground);
-    --chat-diff-added: var(--foreground-diff-added);
-    --chat-diff-deleted: var(--foreground-diff-deleted);
-    --chat-diff-modified: var(--foreground-diff-modified);
-    --chat-link: var(--foreground-info);
-    --chat-bubble-user: var(--background-3);
-    --chat-bubble-user-fg: var(--foreground);
-    --chat-mention-bg: var(--background-info);
-    --chat-mention-fg: var(--foreground-info);
-    --chat-code-bg: var(--background-1);
-    --chat-code-inline-bg: rgba(255, 255, 255, 0.08);
-    --chat-table-header-bg: var(--background-1);
-    --chat-font-sans:
-      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
-      'Droid Sans', 'Helvetica Neue', sans-serif;
-    --chat-font-mono:
-      'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
-    --chat-radius-sm: 0.375rem;
-    --chat-radius-md: 0.5rem;
-    --chat-radius-lg: 0.625rem;
-    --chat-radius-xl: 0.875rem;
-    --chat-radius-full: 9999px;
   }
+}
+
+/*
+ * ChatTranscript (@emdash/chat-ui) theme contract overrides.
+ *
+ * These MUST stay UNLAYERED. chat-ui ships its built-in defaults via
+ * vanilla-extract `createGlobalTheme(':where(:root), :where(.emlight)')` and
+ * `createGlobalTheme(':where(.emdark)')`, which are unlayered. In the CSS
+ * cascade an unlayered declaration always beats a layered one regardless of
+ * specificity, so if these overrides lived inside `@layer base` the chat-ui
+ * defaults would win and these tokens would never apply. Keep them out of any
+ * `@layer` and rely on `.emlight`/`.emdark` (0,1,0) beating chat-ui's
+ * `:where(...)` (0,0,0) selectors.
+ */
+.emlight {
+  --chat-fg: var(--foreground);
+  --chat-fg-muted: var(--foreground-muted);
+  --chat-fg-passive: var(--foreground-passive);
+  --chat-bg: var(--background);
+  --chat-bg-1: var(--background-1);
+  --chat-bg-2: var(--background-2);
+  --chat-bg-3: var(--background-3);
+  --chat-border: var(--border);
+  --chat-user-card-bg: var(--background-1);
+  --chat-user-card-border: var(--border);
+  --chat-user-card-border-hover: var(--border-1);
+  --chat-mention-chip-bg: var(--background-2);
+  --chat-mention-chip-fg: var(--foreground);
+  --chat-mention-file-bg: var(--background-2);
+  --chat-mention-file-fg: var(--foreground);
+  --chat-mention-issue-bg: var(--background-info);
+  --chat-mention-issue-fg: var(--foreground-info);
+  --chat-mention-symbol-bg: var(--background-info);
+  --chat-mention-symbol-fg: var(--foreground-info);
+  --chat-mention-custom-bg: var(--background-2);
+  --chat-mention-custom-fg: var(--foreground);
+  --chat-diff-added: var(--foreground-diff-added);
+  --chat-diff-deleted: var(--foreground-diff-deleted);
+  --chat-diff-modified: var(--foreground-diff-modified);
+  --chat-link: var(--foreground-info);
+  --chat-bubble-user: var(--background-3);
+  --chat-bubble-user-fg: var(--foreground);
+  --chat-mention-bg: var(--background-info);
+  --chat-mention-fg: var(--foreground-info);
+  --chat-code-bg: var(--background-1);
+  --chat-code-inline-bg: rgba(0, 0, 0, 0.06);
+  --chat-table-header-bg: var(--background-1);
+  --chat-font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
+    'Droid Sans', 'Helvetica Neue', sans-serif;
+  --chat-font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
+  --chat-radius-sm: 0.375rem;
+  --chat-radius-md: 0.5rem;
+  --chat-radius-lg: 0.625rem;
+  --chat-radius-xl: 0.875rem;
+  --chat-radius-full: 9999px;
+}
+
+.emdark {
+  --chat-fg: var(--foreground);
+  --chat-fg-muted: var(--foreground-muted);
+  --chat-fg-passive: var(--foreground-passive);
+  --chat-bg: var(--background-secondary-1);
+  --chat-bg-1: var(--background-1);
+  --chat-bg-2: var(--background-2);
+  --chat-bg-3: var(--background-3);
+  --chat-border: var(--border);
+  --chat-user-card-bg: var(--background-3);
+  --chat-user-card-border: var(--border);
+  --chat-user-card-border-hover: var(--border-1);
+  --chat-mention-chip-bg: var(--neutral-5);
+  --chat-mention-chip-fg: var(--foreground);
+  --chat-mention-file-bg: var(--neutral-5);
+  --chat-mention-file-fg: var(--foreground);
+  --chat-mention-issue-bg: var(--background-info);
+  --chat-mention-issue-fg: var(--foreground-info);
+  --chat-mention-symbol-bg: var(--background-info);
+  --chat-mention-symbol-fg: var(--foreground-info);
+  --chat-mention-custom-bg: var(--neutral-5);
+  --chat-mention-custom-fg: var(--foreground);
+  --chat-diff-added: var(--foreground-diff-added);
+  --chat-diff-deleted: var(--foreground-diff-deleted);
+  --chat-diff-modified: var(--foreground-diff-modified);
+  --chat-link: var(--foreground-info);
+  --chat-bubble-user: var(--background-3);
+  --chat-bubble-user-fg: var(--foreground);
+  --chat-mention-bg: var(--background-info);
+  --chat-mention-fg: var(--foreground-info);
+  --chat-code-bg: var(--background-2);
+  --chat-code-inline-bg: rgba(255, 255, 255, 0.08);
+  --chat-table-header-bg: var(--background-2);
+  --chat-font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
+    'Droid Sans', 'Helvetica Neue', sans-serif;
+  --chat-font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
+  --chat-radius-sm: 0.375rem;
+  --chat-radius-md: 0.5rem;
+  --chat-radius-lg: 0.625rem;
+  --chat-radius-xl: 0.875rem;
+  --chat-radius-full: 9999px;
 }
 
 @layer base {
