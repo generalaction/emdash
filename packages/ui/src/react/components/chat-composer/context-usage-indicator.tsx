@@ -37,14 +37,7 @@ function ContextDonut({ fraction }: { fraction: number }) {
   const pct = Math.round(fraction * 100);
   return (
     <svg viewBox="0 0 36 36" className={styles.donut} aria-hidden="true">
-      <circle
-        className={styles.donutTrack}
-        cx="18"
-        cy="18"
-        r="15"
-        fill="none"
-        strokeWidth="5"
-      />
+      <circle className={styles.donutTrack} cx="18" cy="18" r="15" fill="none" strokeWidth="5" />
       <circle
         className={fraction >= 0.9 ? styles.donutProgressWarn : styles.donutProgress}
         cx="18"

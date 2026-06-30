@@ -3,16 +3,21 @@ import type {
   ComposerAgentOption,
   ComposerAttachment,
   ComposerPermissionRequest,
+  ContextMentionProvider,
+  MentionItem,
   PromptEditorRef,
 } from '@emdash/ui/react/components';
-import { observer } from 'mobx-react-lite';
+import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
+import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import { openFileInTaskEditor } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { rpc } from '@renderer/lib/ipc';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { AcpChatStore } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
@@ -124,6 +129,35 @@ const ComposerForStore = observer(function ComposerForStore({
     setAttachments((prev) => [...prev, ...next]);
   }, []);
 
+  const workspaceId = useObserver(
+    () => asProvisioned(getTaskStore(store.projectId, store.taskId))?.workspaceId
+  );
+
+  const mentionProvider = useMemo<ContextMentionProvider | undefined>(() => {
+    if (!workspaceId) return undefined;
+    const projectId = store.projectId;
+    const taskId = store.taskId;
+    const wsId = workspaceId;
+    return {
+      async search(query: string): Promise<MentionItem[]> {
+        if (query.length < 3) return [];
+        const items = await rpc.search.commandPalette({
+          query,
+          context: { projectId, taskId, workspaceId: wsId },
+        });
+        return items
+          .filter((i) => i.kind === 'file')
+          .map((i) => ({
+            id: i.id,
+            label: i.id,
+            name: i.title,
+            kind: 'file' as const,
+            description: i.subtitle,
+          }));
+      },
+    };
+  }, [store.projectId, store.taskId, workspaceId]);
+
   const { data: agents } = useAgents();
   const agentOptions = useMemo<ComposerAgentOption[]>(
     () =>
@@ -177,6 +211,7 @@ const ComposerForStore = observer(function ComposerForStore({
               }
             : null
         }
+        mentionProvider={mentionProvider}
         attachments={attachments}
         onAttachmentsChange={setAttachments}
         onAttach={handleAttach}
@@ -231,8 +266,13 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const transcriptCommands = useMemo<ChatCommands>(
     () => ({
       onViewImage: (arg) => handleViewerOpen(arg.attachment.dataUrl, arg.attachment.name),
+      onClickMention: (arg: Parameters<NonNullable<ChatCommands['onClickMention']>>[0]) => {
+        if (arg.kind === 'file' && store) {
+          void openFileInTaskEditor(store.projectId, store.taskId, arg.id);
+        }
+      },
     }),
-    [handleViewerOpen]
+    [store, handleViewerOpen]
   );
 
   if (!store) return null;

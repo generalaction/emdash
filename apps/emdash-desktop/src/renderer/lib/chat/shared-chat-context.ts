@@ -1,4 +1,5 @@
 import { createChatContext, type ChatContext } from '@emdash/chat-ui';
+import { workspaceFileMentionProvider } from './workspace-file-mention-provider';
 
 let shared: ChatContext | null = null;
 
@@ -11,7 +12,7 @@ let shared: ChatContext | null = null;
  * Per-conversation state lives in ChatState, which is created separately.
  */
 export function initSharedChatContext(): ChatContext {
-  if (!shared) shared = createChatContext();
+  if (!shared) shared = createChatContext({ mentionProvider: workspaceFileMentionProvider });
   return shared;
 }
 

@@ -138,10 +138,25 @@ function ProseFragment(props: {
       props.wordOffset !== undefined &&
       props.frontier !== undefined &&
       props.wordOffset >= props.frontier;
+
+    const handleMentionClick = () => {
+      if (!mention.mentionKind) return;
+      commands().onClickMention?.({
+        id: mention.id ?? mention.label,
+        label: mention.label,
+        kind: mention.mentionKind,
+        itemId: props.blockId,
+        source: 'prose-mention',
+      });
+    };
+    const isClickable = () => !!commands().onClickMention;
+
     return (
       <span
         classList={{ [cls]: true, [streamWord]: isNew }}
+        onClick={handleMentionClick}
         style={{
+          cursor: isClickable() ? 'pointer' : undefined,
           left: `${props.frag.x}px`,
           display: 'inline-flex',
           'align-items': 'center',

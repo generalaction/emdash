@@ -63,6 +63,7 @@ import type { ChatItem, ChatMessage } from './model';
 import type { ChatState, ScrollMode } from './state/chat-state';
 import { flattenTier, makeUnitsView, collectUserTurnUnits } from './state/flatten';
 import type { UnitsView } from './state/flatten';
+import { getItem } from './state/transcript';
 import {
   canvas,
   composerSlotClass,
@@ -314,7 +315,11 @@ export function ChatRoot(props: ChatRootProps) {
     const idx = lastUserUnitIdx();
     if (idx < 0) return 0;
     const tailHeight = totalHeight() - virt.top(idx);
-    return Math.max(0, viewHeight() - tailHeight);
+    // Subtract padBottom (composer height + TRANSCRIPT_VERTICAL_PADDING) so the
+    // reserve grants exactly enough room to bring the user message flush to the
+    // top edge, not past it. Without this, a short agent response allows the
+    // user message to over-scroll into blank space below the composer.
+    return Math.max(0, viewHeight() - padBottom() - tailHeight);
   };
 
   const contentH = () => totalHeight() + padTop() + padBottom() + activeTurnReserve();
@@ -537,7 +542,17 @@ export function ChatRoot(props: ChatRootProps) {
 
   const pinState = createMemo(() => {
     if (!props.pinUserMessages) return null;
-    const turns = userTurns();
+    const committedTurns = userTurns();
+    // Include the active-turn user message (optimistic send / live turn) so it
+    // can pin to the top too. lastUserUnitIdx() resolves active-first, is
+    // already memoized, and always sits after every committed unit, so
+    // appending it preserves the ascending order the binary search requires.
+    const activeIdx = lastUserUnitIdx();
+    const turns =
+      activeIdx >= 0 &&
+      (committedTurns.length === 0 || activeIdx > committedTurns[committedTurns.length - 1])
+        ? [...committedTurns, activeIdx]
+        : committedTurns;
     if (turns.length === 0) return null;
 
     const st = scrollTop();
@@ -1244,7 +1259,9 @@ export function ChatRoot(props: ChatRootProps) {
                       if (!unit) return undefined;
                       const transcript = state().transcript;
                       const idx = transcript.findIndexById(unit.itemId);
-                      const item = idx >= 0 ? transcript.state.committed[idx] : undefined;
+                      // Use getItem (committed-then-active) so optimistic / live
+                      // active-turn user messages resolve correctly.
+                      const item = idx >= 0 ? getItem(transcript.state, idx) : undefined;
                       // Validate kind+role so a corrupt idMap lookup can't hand a
                       // non-user item (or undefined) to PinnedUserMessage.
                       return item && item.kind === 'message' && item.role === 'user'
