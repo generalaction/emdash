@@ -1,0 +1,20 @@
+packages/plugins/src/agents/impl/qoder/icon.ts
+  s_9d95a1771897e5::t_00251cbf0c5ccf 10
+  s_9d95a1771897e5::t_970526a9b743e6 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "00773452d05fae9771c9a1c6682b967ebe179cee",
+  "prompts": {},
+  "sessions": {
+    "s_9d95a1771897e5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f180f-75dd-71b0-b2a2-e2f8a1ef9c7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
