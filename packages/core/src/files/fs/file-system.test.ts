@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -83,6 +83,25 @@ describe('FileSystem', () => {
     await expect(readFile(destPath, 'utf8')).resolves.toBe('a');
     await expect(fs.remove(srcPath)).resolves.toEqual({ success: true, data: undefined });
     await expect(fs.exists(srcPath)).resolves.toEqual({ success: true, data: false });
+  });
+
+  it('removes a symlink to a directory without removing the target directory', async () => {
+    const root = await makeRoot();
+    const targetDir = path.join(root, 'target');
+    const linkPath = path.join(root, 'link');
+    await mkdir(targetDir);
+    await writeFile(path.join(targetDir, 'file.txt'), 'target', 'utf8');
+    try {
+      await symlink(targetDir, linkPath, 'dir');
+    } catch {
+      // Some environments disallow symlink creation.
+      return;
+    }
+    const fs = new FileSystem();
+
+    await expect(fs.remove(linkPath)).resolves.toEqual({ success: true, data: undefined });
+    await expect(readFile(path.join(targetDir, 'file.txt'), 'utf8')).resolves.toBe('target');
+    await expect(fs.exists(linkPath)).resolves.toEqual({ success: true, data: false });
   });
 
   it('rejects empty paths', async () => {

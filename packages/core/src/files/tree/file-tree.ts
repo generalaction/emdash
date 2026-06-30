@@ -6,7 +6,12 @@ import { createRootPathPolicy, type RootPathPolicy } from '../path-policy';
 import { createTreeDirectoryReader, type TreeDirectoryReader } from './directory-reader';
 import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';
 import { probeDirectoryWithReader } from './list';
-import type { DirectoryPreview, FileNode, NodeId } from './models/tree';
+import {
+  isExpandableFileNode,
+  type DirectoryPreview,
+  type FileNode,
+  type NodeId,
+} from './models/tree';
 import { FileTreeStore, type FileTreeStoreRemoval } from './tree-store';
 import type {
   FileTreeSequences,
@@ -190,9 +195,9 @@ export class FileTree implements IFileTree {
         const absPath = path.join(this.rootPath, ...parts.slice(0, index + 1));
         const node = this.store.getByPath(absPath);
         if (!node) return err({ type: 'not-found', path: absPath });
-        const shouldExpand = index < parts.length - 1 || node.type === 'directory';
+        const shouldExpand = index < parts.length - 1 || isExpandableFileNode(node);
         if (!shouldExpand) continue;
-        if (node.type !== 'directory') {
+        if (!isExpandableFileNode(node)) {
           return err({ type: 'not-directory', id: node.id, path: node.path });
         }
         const expanded = await this.loadDirectoryScope(node.id);
@@ -239,13 +244,13 @@ export class FileTree implements IFileTree {
   ): Promise<Result<FileTreeSequences, FileTreeError>> {
     const dirNode = scope === null ? null : this.store.get(scope);
     if (scope !== null && !dirNode) return err({ type: 'not-found', id: scope });
-    if (dirNode && dirNode.type !== 'directory') {
+    if (dirNode && !isExpandableFileNode(dirNode)) {
       return err({ type: 'not-directory', id: dirNode.id, path: dirNode.path });
     }
 
     const dirPath = dirNode?.path ?? this.rootPath;
     const listed = await this.directoryReader.readChildren(dirPath, {
-      includeDevIno: true,
+      includeDevIno: !this.store.isUnderSymlinkTraversal(scope),
       sort: true,
     });
     if (!listed.success) return listed;
@@ -374,7 +379,7 @@ export class FileTree implements IFileTree {
     let current = path.dirname(absPath);
     while (current !== this.rootPath && this.pathPolicy.contains(current)) {
       const node = this.store.getByPath(current);
-      if (node?.type === 'directory') return node.id;
+      if (node && isExpandableFileNode(node)) return node.id;
       const parent = path.dirname(current);
       if (parent === current) break;
       current = parent;

@@ -265,7 +265,7 @@ describe('FileTree', () => {
     await tree.dispose();
   });
 
-  it('ignores symlinks consistently in snapshots and watch-created entries', async () => {
+  it('includes symlinks in snapshots and watch-created entries', async () => {
     const root = await makeRoot();
     await writeFile(path.join(root, 'target.txt'), 'x', 'utf8');
     const symlinkSupported = await trySymlink('target.txt', path.join(root, 'link.txt'));
@@ -275,7 +275,12 @@ describe('FileTree', () => {
     const tree = new FileTree({ rootPath: root, watcher });
     unwrap(await tree.ready());
 
-    expect(paths(await nodes(tree))).toEqual(['target.txt']);
+    const initial = await nodes(tree);
+    expect(paths(initial)).toEqual(['link.txt', 'target.txt']);
+    expect(nodeByPath(initial, 'link.txt')).toMatchObject({
+      type: 'symlink',
+      symlink: { targetType: 'file', broken: false },
+    });
 
     const patched = tree as unknown as {
       applyWatchEvents(events: WatchEvent[]): Promise<void>;
@@ -297,9 +302,42 @@ describe('FileTree', () => {
     watcher.emit([{ kind: 'create', path: path.join(root, 'watch-link.txt') }]);
     await applied;
 
-    expect(paths(await nodes(tree))).toEqual(['target.txt']);
+    expect(paths(await nodes(tree))).toEqual(['link.txt', 'target.txt', 'watch-link.txt']);
     patched.applyWatchEvents = originalApplyWatchEvents;
     tree.dispose();
+  });
+
+  it('expands symlink directories under their logical path without compact previews', async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, 'real', 'nested'), { recursive: true });
+    await writeFile(path.join(root, 'real', 'nested', 'a.ts'), 'x', 'utf8');
+    const symlinkSupported = await trySymlink('real', path.join(root, 'linked'), 'dir');
+    if (!symlinkSupported) return;
+
+    const tree = new FileTree({ rootPath: root, watcher: new ManualWatchService() });
+    unwrap(await tree.ready());
+
+    const initial = await nodes(tree);
+    const linked = nodeByPath(initial, 'linked');
+    const real = nodeByPath(initial, 'real');
+    expect(linked).toMatchObject({
+      type: 'symlink',
+      symlink: { targetType: 'directory', broken: false },
+    });
+    expect(linked.directoryPreview).toBeUndefined();
+    expect(real.directoryPreview?.singleChildDirectoryChain.map((segment) => segment.name)).toEqual(
+      ['nested']
+    );
+
+    unwrap(await tree.registerDir(linked.id));
+    unwrap(await tree.registerDir(real.id));
+
+    const expanded = await nodes(tree);
+    expect(paths(expanded)).toEqual(['linked', 'real', 'linked/nested', 'real/nested']);
+    expect(nodeByPath(expanded, 'linked/nested').id).not.toBe(
+      nodeByPath(expanded, 'real/nested').id
+    );
+    await tree.dispose();
   });
 
   it('reveals a nested path by loading each parent scope', async () => {
@@ -628,9 +666,13 @@ async function waitFor(check: () => Promise<boolean>, timeoutMs = 500): Promise<
   throw new Error('Timed out waiting for file tree condition');
 }
 
-async function trySymlink(target: string, linkPath: string): Promise<boolean> {
+async function trySymlink(
+  target: string,
+  linkPath: string,
+  type: 'file' | 'dir' = 'file'
+): Promise<boolean> {
   try {
-    await symlink(target, linkPath, 'file');
+    await symlink(target, linkPath, type);
     return true;
   } catch (error) {
     const code =

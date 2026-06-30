@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -133,6 +133,30 @@ describe('FileChanges feed', () => {
         changes: [
           { kind: 'update', path: path.join(root!, 'node_modules/pkg.js'), entryType: 'file' },
         ],
+      },
+    ]);
+  });
+
+  it('classifies symlink watch events explicitly', async () => {
+    const { files, watcher } = await createFiles();
+    await writeFile(path.join(root!, 'target.txt'), 'content');
+    try {
+      await symlink('target.txt', path.join(root!, 'link.txt'), 'file');
+    } catch {
+      // Some environments disallow symlink creation.
+      return;
+    }
+    const updates: FileChangeUpdate[] = [];
+
+    const subscription = files.watch((update) => updates.push(update));
+    expect(subscription.success).toBe(true);
+
+    watcher.emit([{ kind: 'create', path: path.join(root!, 'link.txt') }]);
+
+    expect(updates).toEqual([
+      {
+        kind: 'changes',
+        changes: [{ kind: 'create', path: path.join(root!, 'link.txt'), entryType: 'symlink' }],
       },
     ]);
   });

@@ -42,6 +42,7 @@ export type FileEnumeration = AsyncIterable<string>;
 
 export type FileEnumerationOptions = {
   exclude?: FileExclusionPredicate;
+  includeSymlinkFiles?: boolean;
 };
 
 export interface IFileSystem {

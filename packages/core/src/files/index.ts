@@ -13,5 +13,6 @@ export { includeAllFiles, type FileExclusionPredicate } from './exclusions';
 export { FileSystem } from './fs';
 export { createRootPathPolicy, type RootPathPolicy } from './path-policy';
 export { validateAbsolutePath, contains, type AbsPath } from './paths';
+export { isExpandableFileNode } from './tree/models/tree';
 export { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './tree/errors';
 export type * from './types';

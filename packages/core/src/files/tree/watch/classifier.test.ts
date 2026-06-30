@@ -6,7 +6,7 @@ import type { WatchEvent } from '../../../watch';
 import { createRootPathPolicy } from '../../path-policy';
 import { createTreeDirectoryReader, type DevIno, type DirectoryEntry } from '../directory-reader';
 import { statEntry } from '../list';
-import type { FileNodeType, NodeId } from '../models/tree';
+import type { NodeId } from '../models/tree';
 import { FileTreeStore } from '../tree-store';
 import { classifyFileTreeWatchEvents } from './classifier';
 
@@ -233,7 +233,7 @@ async function classify(
 function entry(
   rootPath: string,
   relPath: string,
-  type: FileNodeType,
+  type: 'file' | 'directory',
   devIno?: DevIno
 ): DirectoryEntry {
   const path = absPath(rootPath, relPath);

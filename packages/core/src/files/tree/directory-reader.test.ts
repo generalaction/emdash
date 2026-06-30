@@ -42,13 +42,14 @@ describe('TreeDirectoryReader', () => {
     expect(read.data.entries.map((entry) => entry.name)).toEqual(['src']);
   });
 
-  it('omits unsupported dirent types and can soft-fail unreadable paths', async () => {
+  it('includes symlink entries and can soft-fail unreadable paths', async () => {
     const root = await makeRoot();
     await writeFile(path.join(root, 'target.txt'), 'target');
     try {
       await symlink('target.txt', path.join(root, 'link.txt'), 'file');
     } catch {
       // Some environments disallow symlink creation.
+      return;
     }
 
     const reader = createReader(root);
@@ -57,7 +58,11 @@ describe('TreeDirectoryReader', () => {
 
     expect(read.success).toBe(true);
     if (read.success && read.data.kind === 'entries') {
-      expect(read.data.entries.map((entry) => entry.name)).toEqual(['target.txt']);
+      expect(read.data.entries.map((entry) => entry.name)).toEqual(['link.txt', 'target.txt']);
+      expect(read.data.entries.find((entry) => entry.name === 'link.txt')).toMatchObject({
+        type: 'symlink',
+        symlink: { targetType: 'file', broken: false },
+      });
     }
     expect(missing).toEqual({ success: true, data: { kind: 'unreadable' } });
   });

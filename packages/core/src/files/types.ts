@@ -41,6 +41,7 @@ export type {
   ReadTextResult,
   WriteFileResult,
 } from './fs/types';
+export type { FileSymlinkInfo, FileSymlinkTargetType } from './symlinks';
 export type {
   DirectoryPreview,
   DirectoryPreviewSegment,

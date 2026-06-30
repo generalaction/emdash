@@ -147,7 +147,7 @@ export class FileSystem implements IFileSystem {
     if (!validated.success) return validated;
 
     try {
-      const stat = await fs.stat(validated.data);
+      const stat = await fs.lstat(validated.data);
       if (stat.isDirectory()) {
         if (!options.recursive) {
           return err({

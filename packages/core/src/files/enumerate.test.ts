@@ -72,15 +72,38 @@ describe('enumerate', () => {
     ]);
   });
 
-  it('skips symlinks and other non-regular entries', async () => {
+  it('includes symlink files but skips symlink directories by default', async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, 'target-dir'), { recursive: true });
+    await writeFile(path.join(root, 'target.txt'), 'target');
+    await writeFile(path.join(root, 'target-dir/nested.txt'), 'nested');
+    try {
+      await symlink('target.txt', path.join(root, 'link.txt'), 'file');
+      await symlink('target-dir', path.join(root, 'linked-dir'), 'dir');
+    } catch {
+      // Some environments disallow symlink creation.
+      return;
+    }
+
+    await expect(collect(enumerate(root))).resolves.toEqual([
+      path.join(root, 'link.txt'),
+      path.join(root, 'target-dir/nested.txt'),
+      path.join(root, 'target.txt'),
+    ]);
+  });
+
+  it('can exclude symlink files from leaf results', async () => {
     const root = await makeRoot();
     await writeFile(path.join(root, 'target.txt'), 'target');
     try {
       await symlink('target.txt', path.join(root, 'link.txt'), 'file');
     } catch {
       // Some environments disallow symlink creation.
+      return;
     }
 
-    await expect(collect(enumerate(root))).resolves.toEqual([path.join(root, 'target.txt')]);
+    await expect(collect(enumerate(root, { includeSymlinkFiles: false }))).resolves.toEqual([
+      path.join(root, 'target.txt'),
+    ]);
   });
 });

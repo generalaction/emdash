@@ -1,7 +1,7 @@
 import type { KeyedOp } from '../../lib';
 import type { DevIno, DirectoryEntry } from './directory-reader';
-import type { FileNode, NodeId } from './models/tree';
-import { NodeIdAssigner, type Tombstone } from './node-id';
+import { isExpandableFileNode, type FileNode, type NodeId } from './models/tree';
+import { NodeIdAssigner, nodeHasSymlinkAncestor, type Tombstone } from './node-id';
 
 export type FileTreeStoreRemoval = {
   ops: Array<KeyedOp<NodeId, FileNode>>;
@@ -43,6 +43,10 @@ export class FileTreeStore {
     return this.ids.tombstoneForDevIno(devIno);
   }
 
+  isUnderSymlinkTraversal(scope: NodeId | null): boolean {
+    return nodeHasSymlinkAncestor((id) => this.ids.get(id), scope);
+  }
+
   moveDescendantPaths(rootId: NodeId, oldPrefix: string, newPrefix: string): FileNode[] {
     return this.ids.moveDescendantPaths(rootId, oldPrefix, newPrefix);
   }
@@ -76,7 +80,7 @@ export class FileTreeStore {
   private removalFor(removed: FileNode[]): FileTreeStoreRemoval {
     return {
       ops: removed.map((node) => ({ op: 'del', key: node.id })),
-      unloadedScopes: removed.filter((node) => node.type === 'directory').map((node) => node.id),
+      unloadedScopes: removed.filter((node) => isExpandableFileNode(node)).map((node) => node.id),
     };
   }
 }

@@ -3,7 +3,7 @@ import type { KeyedOp } from '../../../lib';
 import type { WatchEvent } from '../../../watch';
 import type { RootPathPolicy } from '../../path-policy';
 import type { TreeDirectoryReader, DirectoryEntry } from '../directory-reader';
-import type { FileNode, NodeId } from '../models/tree';
+import { isExpandableFileNode, type FileNode, type NodeId } from '../models/tree';
 import type { Tombstone } from '../node-id';
 import type { FileTreeStore } from '../tree-store';
 
@@ -45,13 +45,16 @@ export async function classifyFileTreeWatchEvents(
     const parentId = parentScopeFor(stat.data, options.pathPolicy.rootPath, options.store);
     if (parentId === undefined || !options.isScopeLoaded(parentId)) continue;
 
-    const matchedTombstone = stat.data.devIno
-      ? options.store.tombstoneForDevIno(stat.data.devIno)
+    const entry = options.store.isUnderSymlinkTraversal(parentId)
+      ? { ...stat.data, devIno: undefined }
+      : stat.data;
+    const matchedTombstone = entry.devIno
+      ? options.store.tombstoneForDevIno(entry.devIno)
       : undefined;
-    const node = options.store.upsert(stat.data, parentId);
+    const node = options.store.upsert(entry, parentId);
     ops.push({ op: 'put', key: node.id, value: node });
 
-    if (matchedTombstone && node.type === 'directory') {
+    if (matchedTombstone && isExpandableFileNode(node)) {
       for (const moved of options.store.moveDescendantPaths(
         matchedTombstone.id,
         matchedTombstone.node.path,
@@ -80,5 +83,5 @@ function parentScopeFor(
   const parentPath = path.dirname(entry.path);
   if (parentPath === entry.path || parentPath === rootPath) return null;
   const parent = store.getByPath(parentPath);
-  return parent?.type === 'directory' ? parent.id : undefined;
+  return parent && isExpandableFileNode(parent) ? parent.id : undefined;
 }

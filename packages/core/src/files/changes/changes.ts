@@ -142,7 +142,9 @@ function isWatchedPath(
 function entryTypeForRawEvent(event: WatchEvent): FileEntryType {
   if (event.kind === 'delete') return 'unknown';
   try {
-    return lstatSync(event.path).isDirectory() ? 'directory' : 'file';
+    const stat = lstatSync(event.path);
+    if (stat.isSymbolicLink()) return 'symlink';
+    return stat.isDirectory() ? 'directory' : 'file';
   } catch {
     return 'unknown';
   }

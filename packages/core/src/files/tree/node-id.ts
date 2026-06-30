@@ -1,5 +1,5 @@
 import type { DevIno, DirectoryEntry } from './directory-reader';
-import type { FileNode, NodeId } from './models/tree';
+import { isExpandableFileNode, type FileNode, type NodeId } from './models/tree';
 
 type NodeRecord = {
   node: FileNode;
@@ -55,17 +55,24 @@ export class NodeIdAssigner {
     const inodeId = entry.devIno ? this.devInoToId.get(entry.devIno) : undefined;
     const id = existingId ?? tombstone?.id ?? inodeId ?? this.nextId++;
     const previous = this.records.get(id)?.node;
-    const node: FileNode = {
+    const childrenLoadedValue =
+      entry.type === 'directory' ||
+      (entry.type === 'symlink' &&
+        !entry.symlink.broken &&
+        entry.symlink.targetType === 'directory')
+        ? (childrenLoaded ?? previous?.childrenLoaded ?? tombstone?.node.childrenLoaded ?? false)
+        : false;
+    const base = {
       id,
       path: entry.path,
       name: entry.name,
       parentId,
-      type: entry.type,
-      childrenLoaded:
-        entry.type === 'directory'
-          ? (childrenLoaded ?? previous?.childrenLoaded ?? tombstone?.node.childrenLoaded ?? false)
-          : false,
+      childrenLoaded: childrenLoadedValue,
     };
+    const node: FileNode =
+      entry.type === 'symlink'
+        ? { ...base, type: 'symlink', symlink: entry.symlink }
+        : { ...base, type: entry.type };
 
     this.setRecord(id, node, entry.devIno);
     if (tombstone?.devIno) this.tombstonesByDevIno.delete(tombstone.devIno);
@@ -161,7 +168,7 @@ export class NodeIdAssigner {
       visited.add(scope);
       for (const child of this.childrenOf(scope)) {
         reachable.add(child.id);
-        if (child.type === 'directory' && loadedScopes.has(child.id)) queue.push(child.id);
+        if (isExpandableFileNode(child) && loadedScopes.has(child.id)) queue.push(child.id);
       }
     }
 
@@ -226,6 +233,20 @@ export class NodeIdAssigner {
     children.delete(id);
     if (children.size === 0) this.childrenByParent.delete(parentId);
   }
+}
+
+export function nodeHasSymlinkAncestor(
+  getNode: (id: NodeId) => FileNode | undefined,
+  parentId: NodeId | null
+): boolean {
+  let currentId = parentId;
+  while (currentId !== null) {
+    const node = getNode(currentId);
+    if (!node) return false;
+    if (node.type === 'symlink') return true;
+    currentId = node.parentId;
+  }
+  return false;
 }
 
 function movePathUnderPrefix(

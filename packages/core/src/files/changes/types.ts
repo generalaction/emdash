@@ -2,7 +2,7 @@ import type { Result, Unsubscribe } from '@emdash/shared';
 import type { FileError } from '../errors';
 import type { FileExclusionPredicate } from '../exclusions';
 
-export type FileEntryType = 'file' | 'directory' | 'unknown';
+export type FileEntryType = 'file' | 'directory' | 'symlink' | 'unknown';
 export type FileChangeKind = 'create' | 'update' | 'delete';
 
 export type FileChange = {
