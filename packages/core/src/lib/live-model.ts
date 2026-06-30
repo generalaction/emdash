@@ -28,7 +28,7 @@ export type LiveModelOptions<T, E = unknown> = {
   revalidateIntervalMs?: number;
   /** Used to suppress no-op updates. */
   isEqual?: (a: T, b: T) => boolean;
-  /** Receives errors returned by background recomputes. */
+  /** Receives errors returned or thrown by background recomputes. */
   onError?: (error: E) => void;
 };
 
@@ -199,15 +199,14 @@ export class LiveModel<T, E = unknown> implements IDisposable {
   }
 
   private scheduleBackground(): void {
-    void this.schedule()
-      .then((result) => {
+    void this.schedule().then(
+      (result) => {
         if (!result.success) this.options.onError?.(result.error);
-      })
-      .catch((error) => {
-        queueMicrotask(() => {
-          throw error;
-        });
-      });
+      },
+      (error: unknown) => {
+        this.options.onError?.(error as E);
+      }
+    );
   }
 
   private armRevalidate(): void {

@@ -151,6 +151,37 @@ describe('LiveModel', () => {
     await expect(model.get()).resolves.toEqual(lv(4, 2)); // dirty: recomputes
   });
 
+  it('reports thrown background recompute errors without rethrowing them', async () => {
+    const unexpected = new Error('SSH connection is not available');
+    const errors: unknown[] = [];
+    let fail = false;
+    const model = new LiveModel<number>({
+      compute: async () => {
+        if (fail) throw unexpected;
+        return ok(1);
+      },
+      onError: (error) => errors.push(error),
+    });
+    const pushed: number[] = [];
+
+    model.subscribe((update) => pushed.push(update.value));
+    await vi.runAllTimersAsync();
+
+    const queueMicrotaskSpy = vi.spyOn(globalThis, 'queueMicrotask').mockImplementation(() => {});
+    try {
+      fail = true;
+      model.invalidate();
+      await vi.runAllTimersAsync();
+
+      expect(errors).toEqual([unexpected]);
+      expect(model.getCached()).toEqual(lv(1, 1));
+      expect(pushed).toEqual([1]);
+      expect(queueMicrotaskSpy).not.toHaveBeenCalled();
+    } finally {
+      queueMicrotaskSpy.mockRestore();
+    }
+  });
+
   it('rejects direct refresh after an unexpected thrown compute error', async () => {
     const unexpected = new Error('boom');
     const model = new LiveModel<number>({
