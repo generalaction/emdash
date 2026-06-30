@@ -97,12 +97,14 @@ export class GitWorktree implements IGitWorktree {
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => onError(`status ${this.worktree}`, error),
+      onUnexpectedError: (error) => onError(`status ${this.worktree}`, error),
     });
     this.headModel = new LiveModel<GitHeadModel>({
       compute: async () => ok(await this.computeHead()),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => onError(`head ${this.worktree}`, error),
+      onUnexpectedError: (error) => onError(`head ${this.worktree}`, error),
     });
 
     // The repository owns the `.git` (commonDir) watch and routes classified HEAD/index

@@ -82,12 +82,14 @@ export class GitRepository implements IGitRepository {
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`refs ${this.gitCommonDir}`, error),
+      onUnexpectedError: (error) => this.onError(`refs ${this.gitCommonDir}`, error),
     });
     this.remotesModel = new LiveModel<GitRemotesModel>({
       compute: async () => ok(await this.computeRemotes()),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`remotes ${this.gitCommonDir}`, error),
+      onUnexpectedError: (error) => this.onError(`remotes ${this.gitCommonDir}`, error),
     });
 
     this.commonDirWatch = options.watcher.watch(
