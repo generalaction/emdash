@@ -63,6 +63,8 @@ import type { ChatItem, ChatMessage } from './model';
 import type { ChatState, ScrollMode } from './state/chat-state';
 import { flattenTier, makeUnitsView, collectUserTurnUnits } from './state/flatten';
 import type { UnitsView } from './state/flatten';
+import type { LayoutSnapshot, PinSnapshot } from './state/geometry';
+import { samePin, sameRange } from './state/geometry';
 import { getItem } from './state/transcript';
 import {
   canvas,
@@ -105,6 +107,19 @@ const PREFETCH_MIN_REMAINING_MS = 3;
 // onReachStart fires when the top row is visible and scrollTop is within this
 // threshold of the canvas top. Debounced: only fires once until reset.
 const REACH_START_THRESHOLD_PX = 200;
+
+// Maximum absolute scrollTop delta that can originate from a writeScrollTop
+// self-write (sub-pixel / device-pixel rounding). Any delta larger than this
+// is classified as a real user scroll and updates lastUserScrollAt.
+// Keeping it tight (0.5 px) avoids suppressing short-distance programmatic
+// adjustments that should also be treated as self-writes.
+const USER_SCROLL_EPSILON = 0.5;
+
+// After a user/smooth scroll, suppress anchor projection until the gesture has
+// been quiet this long. Must be comfortably longer than one rAF frame (~16 ms)
+// so a momentary hold or an inter-event gap mid-drag does not open the gate
+// and let projectAnchor jump the thumb forward. Tunable.
+const SCROLL_SETTLE_MS = 120;
 
 // ── EngineControls ────────────────────────────────────────────────────────────
 
@@ -187,6 +202,14 @@ export type ChatRootProps = {
   onReachStart?: () => void;
   /** Fired when the "at bottom" sticky state changes. */
   onAtBottomChange?: (atBottom: boolean) => void;
+  /**
+   * Fired when the latest user message's viewport visibility changes.
+   * `true`  = the message body (or any part of it) intersects the viewport.
+   * `false` = the message has scrolled fully out of view in either direction.
+   * Useful for gating a scroll-to-bottom affordance on the most semantically
+   * meaningful scroll position rather than the generic at-bottom threshold.
+   */
+  onActiveUserMessageVisibilityChange?: (visible: boolean) => void;
   /**
    * Mutable holder that ChatRoot.onMount populates with imperative scroll
    * methods and the composer slot reference.
@@ -282,7 +305,6 @@ export function ChatRoot(props: ChatRootProps) {
   const rowEls = new Map<number, HTMLDivElement>();
 
   const [totalHeight, setTotalHeight] = createSignal(0);
-  const [scrollTop, setScrollTop] = createSignal(0);
   const [scrollVelocity, setScrollVelocity] = createSignal(0);
   const [viewHeight, setViewHeight] = createSignal(600);
   const [containerWidth, setContainerWidth] = createSignal(0);
@@ -332,6 +354,11 @@ export function ChatRoot(props: ChatRootProps) {
   }));
 
   let committedUnitsArr: ReturnType<typeof flattenTier> = [];
+  // O(1) lookup: itemId -> index of the FIRST unit for that item in the
+  // committed tier. Maintained in lock-step with committedUnitsArr. Active-tier
+  // items are handled by a small scan in firstUnitIndexOf since activeTurn is
+  // always short (≤ a handful of items per streaming turn).
+  const committedIndexById = new Map<string, number>();
   let lastCommitted: readonly ChatItem[] = [];
   const [committedUnitsVersion, setCommittedUnitsVersion] = createSignal(0);
   // Stable empty array passed to makeUnitsView when we need a committed-only
@@ -339,14 +366,20 @@ export function ChatRoot(props: ChatRootProps) {
   const NO_ACTIVE_UNITS: ReturnType<typeof flattenTier> = [];
 
   // ── Model-swap reset (must be created BEFORE the incremental committed effect)
-  // When state() changes (view.setModel), clear the incremental cache so the
-  // committed effect re-seeds from scratch against the new model. The deferred
-  // on() ensures this only fires on subsequent changes, not on initial mount.
+  // When state() changes (view.setModel), snapshot the OUTGOING model's heights
+  // BEFORE clearing committedUnitsArr (which still reflects the outgoing model).
+  // Then clear the incremental cache so the committed effect re-seeds from scratch.
+  // The deferred on() ensures this only fires on subsequent changes, not on mount.
   createEffect(
     on(
       state,
-      () => {
+      (_next, prevState) => {
+        // Snapshot outgoing model while committedUnitsArr and virt still reflect it.
+        if (prevState) {
+          snapshotInto(prevState);
+        }
         committedUnitsArr = [];
+        committedIndexById.clear();
         lastCommitted = [];
         // Do NOT bump committedUnitsVersion here — the incremental effect below
         // runs next (Solid executes effects in creation order) and will bump it
@@ -365,14 +398,23 @@ export function ChatRoot(props: ChatRootProps) {
       next.length > prev.length &&
       (prev.length === 0 || next[prev.length - 1] === prev[prev.length - 1])
     ) {
+      // Incremental append: only process the new tail.
       const tail = next.slice(prev.length);
       const prevKind =
         committedUnitsArr.length > 0
           ? committedUnitsArr[committedUnitsArr.length - 1].kind
           : undefined;
       const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
+      const base = committedUnitsArr.length;
+      for (let j = 0; j < newUnits.length; j++) {
+        const u = newUnits[j];
+        if (u && !committedIndexById.has(u.itemId)) {
+          committedIndexById.set(u.itemId, base + j);
+        }
+      }
       committedUnitsArr = [...committedUnitsArr, ...newUnits];
     } else {
+      // Full rebuild (seed, prepend, or non-append structural change).
       committedUnitsArr = flattenTier(
         next,
         ctx,
@@ -381,6 +423,13 @@ export function ChatRoot(props: ChatRootProps) {
         undefined,
         NODE_SEGMENTERS
       );
+      committedIndexById.clear();
+      for (let i = 0; i < committedUnitsArr.length; i++) {
+        const u = committedUnitsArr[i];
+        if (u && !committedIndexById.has(u.itemId)) {
+          committedIndexById.set(u.itemId, i);
+        }
+      }
     }
 
     lastCommitted = next;
@@ -404,6 +453,36 @@ export function ChatRoot(props: ChatRootProps) {
   });
 
   const userTopGap = UNIT_REGISTRY.message?.margin?.top ?? 8;
+
+  // ── Write-phase-owned geometry output signals ─────────────────────────────
+  // These are the ONLY write targets for the visible-row set and the pin
+  // overlay. They are written exclusively by commit() in the write phase, using
+  // sameRange / samePin equality guards so JSX reconciles only on actual changes.
+  const [visible, setVisible] = createSignal<number[]>([], { equals: sameRange });
+  const [pin, setPin] = createSignal<PinSnapshot | null>(null, { equals: samePin });
+
+  // Shadow geometry captured at the START of each read phase (before any DOM
+  // write). computeVisible/computePin consume these inside the write phase so
+  // they never force a layout read in the middle of a write sequence.
+  let shadowScrollTop = 0;
+  let shadowViewHeight = 600;
+
+  // needsProject: set by onHeightChanged / count-sync whenever geometry changes
+  // mid-stream so that a single projectAnchor runs in the write phase instead
+  // of one per measured row (the layout-thrash regression fix).
+  let needsProject = false;
+
+  // appliedTop: tracks the last translateY written for each row element.
+  // commit() skips the DOM write when the value hasn't changed.
+  const appliedTop = new Map<number, number>();
+
+  // lastLayout: previous LayoutSnapshot so commit() can diff field-by-field.
+  let lastLayout: LayoutSnapshot | null = null;
+
+  // lastVisibleStart/End: mirrors of the last derived visible range, used by
+  // the idle prefetch slice (which runs outside the reactive scheduler).
+  let lastVisibleStart = 0;
+  let lastVisibleEnd = -1;
 
   // ── Count sync effect ─────────────────────────────────────────────────────
   createEffect(() => {
@@ -441,11 +520,9 @@ export function ChatRoot(props: ChatRootProps) {
         return unitReservedHeight(u, contentH);
       });
       refreshTotal();
-      // Re-project the current intent against the new geometry so that all
-      // modes (tail, anchor) stay correct after an async seed or content change.
-      // projectAnchor flushes canvas height first so scrollTop is never clamped
-      // to the outgoing canvas height.
-      projectAnchor(anchor());
+      // Defer projection to the write phase: projectAnchor will fire once per
+      // frame (not once per row) preventing layout thrashing on streaming updates.
+      needsProject = true;
     });
   });
 
@@ -453,37 +530,6 @@ export function ChatRoot(props: ChatRootProps) {
   // (measureEpoch|width|collapsed) already handles width invalidation.
   // richInline cache is width-independent (intrinsic glyph widths).
   // measureEpoch bumps (on font load) invalidate everything globally.
-
-  // ── Visible range — direction-aware asymmetric overscan ───────────────────
-  const visibleRange = createMemo(() => {
-    totalHeight();
-    const v = scrollVelocity();
-    let before: number;
-    let after: number;
-    if (v > 0) {
-      before = OVERSCAN_TRAILING;
-      after = OVERSCAN_LEADING;
-    } else if (v < 0) {
-      before = OVERSCAN_LEADING;
-      after = OVERSCAN_TRAILING;
-    } else {
-      before = OVERSCAN_BASE;
-      after = OVERSCAN_BASE;
-    }
-    return virt.range(Math.max(0, scrollTop() - padTop()), viewHeight(), before, after);
-  });
-
-  const visibleIndexes = createMemo(() => {
-    totalHeight();
-    const n = units().length;
-    const { start, end } = visibleRange();
-    const visEnd = Math.min(end, n - 1);
-    const arr: number[] = [];
-    for (let i = start; i <= visEnd; i++) {
-      arr.push(i);
-    }
-    return arr;
-  });
 
   // ── Pinned user-message overlay ───────────────────────────────────────────
   // Tracks committedUnitsVersion only — not units() — so it does not recompute
@@ -538,21 +584,56 @@ export function ChatRoot(props: ChatRootProps) {
 
     if (targetId === null) return -1;
 
-    // 3. Map itemId to its first unit index in the full (committed + active) view.
-    const us = units();
-    for (let i = 0; i < us.length; i++) {
-      if (us.at(i)?.itemId === targetId) return i;
-    }
-    return -1;
+    // 3. Map itemId to its first unit index via the O(1) committed map +
+    //    O(activeTurn) scan — no full units() scan needed.
+    return firstUnitIndexOf(targetId);
   });
 
-  const pinState = createMemo(() => {
+  // ── Pure geometry compute functions (called from write phase only) ─────────
+  //
+  // These functions read virt, shadow values, and Solid signals lazily (signals
+  // are never subscribed inside a rAF callback — they just return cached values).
+  // They must NOT write any signals or DOM nodes.
+
+  /**
+   * Computes the list of unit indices that should be rendered, using the
+   * direction-aware asymmetric overscan and the current shadow scroll geometry.
+   */
+  function computeVisible(): number[] {
+    const st = shadowScrollTop;
+    const vh = shadowViewHeight;
+    const v = scrollVelocity();
+    let before: number;
+    let after: number;
+    if (v > 0) {
+      before = OVERSCAN_TRAILING;
+      after = OVERSCAN_LEADING;
+    } else if (v < 0) {
+      before = OVERSCAN_LEADING;
+      after = OVERSCAN_TRAILING;
+    } else {
+      before = OVERSCAN_BASE;
+      after = OVERSCAN_BASE;
+    }
+    const { start, end } = virt.range(Math.max(0, st - padTop()), vh, before, after);
+    const n = units().length;
+    const visEnd = Math.min(end, n - 1);
+    lastVisibleStart = start;
+    lastVisibleEnd = visEnd;
+    const arr: number[] = [];
+    for (let i = start; i <= visEnd; i++) arr.push(i);
+    return arr;
+  }
+
+  /**
+   * Computes the pinned-header state for the given scroll top and pad top.
+   * Returns null when pinUserMessages is off or no user message has scrolled
+   * past the top of the viewport.
+   */
+  function computePin(st: number, pt: number): PinSnapshot | null {
     if (!props.pinUserMessages) return null;
     const committedTurns = userTurns();
-    // Include the active-turn user message (optimistic send / live turn) so it
-    // can pin to the top too. lastUserUnitIdx() resolves active-first, is
-    // already memoized, and always sits after every committed unit, so
-    // appending it preserves the ascending order the binary search requires.
+    // Include the active-turn user message so it can pin to the top too.
     const activeIdx = lastUserUnitIdx();
     const turns =
       activeIdx >= 0 &&
@@ -560,10 +641,6 @@ export function ChatRoot(props: ChatRootProps) {
         ? [...committedTurns, activeIdx]
         : committedTurns;
     if (turns.length === 0) return null;
-
-    const st = scrollTop();
-    const pt = padTop();
-    totalHeight();
 
     const pinLine = userTopGap;
 
@@ -585,11 +662,12 @@ export function ChatRoot(props: ChatRootProps) {
     const activeUserIdx = turns[activePos];
     const nextUserIdx = turns[activePos + 1];
     let overlayH = 0;
-    const activeUnit = units().at(activeUserIdx);
-    if (activeUnit) {
-      const activeItemId = activeUnit.itemId;
-      for (let ui = activeUserIdx; ui < units().length; ui++) {
-        const u = units().at(ui);
+    const us = units();
+    const activeUnit = us.at(activeUserIdx);
+    const activeItemId = activeUnit?.itemId;
+    if (activeUnit && activeItemId) {
+      for (let ui = activeUserIdx; ui < us.length; ui++) {
+        const u = us.at(ui);
         if (!u || u.itemId !== activeItemId) break;
         overlayH += virt.size(ui);
       }
@@ -599,8 +677,31 @@ export function ChatRoot(props: ChatRootProps) {
       nextUserIdx !== undefined ? virt.top(nextUserIdx) + pt - st : Infinity;
     const overlayTop = Math.min(0, nextUserViewportTop - overlayH - pinLine);
 
-    return { activeUserIdx, overlayTop };
-  });
+    return { itemId: activeItemId ?? '', activeUserIdx, overlayTop };
+  }
+
+  /**
+   * Returns true if the latest user message's canvas block intersects the
+   * current scroll viewport [st, st+vh]. Uses the same unit-block summation as
+   * computePin. Called from writePhase using the frame's shadow geometry.
+   */
+  function computeActiveUserVisible(st: number, vh: number, pt: number): boolean {
+    const idx = lastUserUnitIdx();
+    if (idx < 0) return true; // no user message yet — nothing to chase
+    const us = units();
+    const itemId = us.at(idx)?.itemId;
+    if (!itemId) return true;
+    let height = 0;
+    for (let ui = idx; ui < us.length; ui++) {
+      const u = us.at(ui);
+      if (!u || u.itemId !== itemId) break;
+      height += virt.size(ui);
+    }
+    const top = virt.top(idx) + pt;
+    const bottom = top + height;
+    // Visible if the block intersects the viewport [st, st+vh].
+    return top < st + vh && bottom > st;
+  }
 
   // ── Scroll intent (ScrollMode) ────────────────────────────────────────────
   //
@@ -616,13 +717,20 @@ export function ChatRoot(props: ChatRootProps) {
   // a real user scroll (st !== expected) from an idle frame or our own write
   // (st === expected). Deterministic; replaces the old microtask-fragile counter.
 
+  // Structural equality for the anchor signal. Avoids JSON.stringify allocations
+  // on every setAnchor call (which happens on every user scroll tick).
+  const sameScrollMode = (a: ScrollMode, b: ScrollMode): boolean => {
+    if (a.kind !== b.kind) return false;
+    if (a.kind === 'anchor' && b.kind === 'anchor') {
+      return a.itemId === b.itemId && a.edge === b.edge && a.offset === b.offset;
+    }
+    return true; // both 'tail'
+  };
+
   // Seeded from the current model's persisted intent (may be default 'tail').
-  const [anchor, setAnchorSignal] = createSignal<ScrollMode>(
-    untrack(state).scroll.get(),
-    // Use object equality: ScrollMode objects are small; avoid spurious
-    // re-renders if the host calls setScrollMode with an equivalent object.
-    { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) }
-  );
+  const [anchor, setAnchorSignal] = createSignal<ScrollMode>(untrack(state).scroll.get(), {
+    equals: sameScrollMode,
+  });
 
   // Persist intent to ChatState and update the local signal atomically.
   const setAnchor = (m: ScrollMode) => {
@@ -636,21 +744,40 @@ export function ChatRoot(props: ChatRootProps) {
 
   const writeScrollTop = (top: number) => {
     if (!scrollEl) return;
-    scrollEl.scrollTop = top;
-    // Adopt the browser-clamped value in case it differs from `top`.
-    expectedScrollTop = scrollEl.scrollTop;
-    setScrollTop(expectedScrollTop);
+    // Clamp arithmetically: projectAnchor already wrote canvasEl.style.height =
+    // contentH() before calling us, so maxScrollTop() matches what the browser
+    // would compute. Avoiding the read-back (scrollEl.scrollTop after the write)
+    // eliminates the forced layout reflow that the read-back caused. Safe because
+    // USER_SCROLL_EPSILON filters any sub-pixel divergence in readPhase.
+    const clamped = Math.max(0, Math.min(top, maxScrollTop()));
+    scrollEl.scrollTop = clamped;
+    expectedScrollTop = clamped;
+    // Arm the scheduler so the write phase re-derives the visible set for the
+    // new scroll position (the scroll event may not fire for programmatic sets).
+    scheduler.request();
   };
 
-  // O(n) scan for the first unit whose itemId matches. Used by projectScroll
-  // for anchor and pinTop modes. N is the visible window (typically ≤ 50).
-  const unitIndexOf = (id: string): number => {
-    const us = untrack(units);
-    for (let i = 0; i < us.length; i++) {
-      if (us.at(i)?.itemId === id) return i;
+  // O(1) lookup: first unit index for the given itemId.
+  // Committed tier uses committedIndexById (maintained in lock-step with
+  // committedUnitsArr); active tier falls back to a small linear scan
+  // (activeTurn is always short — typically ≤ 5 units per streaming turn).
+  // Called from projectAnchor every frame when intent is 'anchor', and from
+  // lastUserUnitIdx. Declared as a function (not const) so it is hoisted and
+  // accessible from memos created earlier in the component body.
+  function firstUnitIndexOf(id: string): number {
+    const committedIdx = committedIndexById.get(id);
+    if (committedIdx !== undefined) return committedIdx;
+    const active = untrack(activeUnits);
+    const base = committedUnitsArr.length;
+    for (let i = 0; i < active.length; i++) {
+      if (active[i]?.itemId === id) return base + i;
     }
     return -1;
-  };
+  }
+
+  function unitIndexOf(id: string): number {
+    return firstUnitIndexOf(id);
+  }
 
   // The ONE function that writes scrollTop. Flush canvas height first so the
   // browser never clamps scrollTop to a stale (outgoing) canvas height — this
@@ -665,10 +792,16 @@ export function ChatRoot(props: ChatRootProps) {
       if (i >= 0) {
         const rowTop = virt.top(i) + padTop();
         const target =
-          m.edge === 'top'
-            ? rowTop + m.offset
-            : rowTop + virt.size(i) - viewHeight() + m.offset;
-        writeScrollTop(Math.max(0, target));
+          m.edge === 'top' ? rowTop + m.offset : rowTop + virt.size(i) - viewHeight() + m.offset;
+        const next = Math.max(0, target);
+        // Sub-pixel no-op guard: if the settle correction is smaller than 1 px
+        // (anchor already matches the current position), skip the write so the
+        // browser thumb is never perturbed by a near-zero adjustment.
+        // Compare against expectedScrollTop (our last written value) rather than
+        // reading scrollEl.scrollTop to preserve the no-DOM-read-in-write-phase
+        // invariant established by Option B.
+        if (Math.abs(next - expectedScrollTop) < 1) return;
+        writeScrollTop(next);
         return;
       }
       // Anchor item not found (transcript not yet loaded); fall through to tail.
@@ -688,14 +821,16 @@ export function ChatRoot(props: ChatRootProps) {
     scheduler.request();
   };
 
-  // ── onHeightChanged — fully read-free ─────────────────────────────────────
-  // Re-project the current intent so all modes stay correct as row heights
-  // change (estimate→real cascade, streaming growth, resize). No more atBottom
-  // gate or delta-shift branch — projectAnchor handles all cases uniformly.
-  const onHeightChanged = (index: number, delta: number) => {
+  // ── onHeightChanged — deferred (no per-row DOM read) ─────────────────────
+  // Sets needsProject instead of calling projectAnchor synchronously so that
+  // N row-height changes during a scroll sweep produce at most ONE projectAnchor
+  // (and thus at most ONE forced reflow) in the write phase per rAF frame.
+  // This collapses the per-row layout-thrash regression from the scroll rework.
+  const onHeightChanged = (_index: number, delta: number) => {
     if (delta === 0) return;
     queueTotalFlush();
-    projectAnchor(anchor());
+    needsProject = true;
+    scheduler.request();
   };
 
   // ── Frame scheduler — created EAGERLY (before onMount) ───────────────────
@@ -703,6 +838,10 @@ export function ChatRoot(props: ChatRootProps) {
   // Hoisted to component scope so tween arming (from UnitRow createEffects)
   // never hits a null reference. Phases guard on scrollEl for pre-mount safety.
   let reachStartFired = false;
+  // Cache to avoid emitting onActiveUserMessageVisibilityChange on every frame.
+  // `undefined` means "not yet emitted" — forces an emit on the first writePhase
+  // and after every model swap.
+  let lastActiveUserVisible: boolean | undefined;
 
   // Smooth-scroll suppression: when a smooth-scroll animation is in flight,
   // intermediate scrollTop updates are browser-driven and must not be treated
@@ -711,18 +850,30 @@ export function ChatRoot(props: ChatRootProps) {
   let smoothScrolling = false;
   let smoothScrollTarget: number | undefined;
 
+  // performance.now() of the last real user scroll or smooth-scroll animation
+  // frame. Projection (projectAnchor) is suppressed until SCROLL_SETTLE_MS ms
+  // after this timestamp — covering the whole gesture, not just one frame.
+  // Initialised to 0 so the first write-phase call (no prior scroll) is settled.
+  let lastUserScrollAt = 0;
+
   const readPhase = () => {
     const el = scrollEl;
     if (!el) return;
     const st = el.scrollTop;
+    // Capture shadow values for the write phase. These are stable for the
+    // entire frame: computeVisible/computePin consume them without re-reading.
+    shadowScrollTop = st;
+    shadowViewHeight = viewHeight();
     const userDelta = st - expectedScrollTop;
     setScrollVelocity(userDelta);
-    setScrollTop(st);
 
     // Smooth-scroll suppression: while a smooth scroll animation is in flight
     // the browser moves scrollTop without user input. Keep expectedScrollTop in
     // sync so we don't misread intermediate frames as user scrolls.
+    // Treat animation frames identically to user scrolls for settle-window
+    // purposes so projectAnchor never fights an in-flight animation.
     if (smoothScrolling) {
+      lastUserScrollAt = performance.now();
       expectedScrollTop = st;
       const target = smoothScrollTarget;
       if (target !== undefined && Math.abs(st - target) < 1) {
@@ -733,8 +884,10 @@ export function ChatRoot(props: ChatRootProps) {
     }
 
     // Only re-derive intent when the user actually moved the scrollbar.
-    // Idle frames where st === expectedScrollTop must never overwrite intent.
-    if (userDelta !== 0) {
+    // Use USER_SCROLL_EPSILON to filter sub-pixel self-write rounding so the
+    // arithmetic clamp in writeScrollTop is never misread as a user scroll.
+    if (Math.abs(userDelta) > USER_SCROLL_EPSILON) {
+      lastUserScrollAt = performance.now();
       expectedScrollTop = st;
       const nowAtBottom = maxScrollTop() - st <= STICK_THRESHOLD_PX;
       const prevAnchor = anchor();
@@ -776,17 +929,91 @@ export function ChatRoot(props: ChatRootProps) {
 
   const animatePhase = (): boolean => tweenRegistry.advance(performance.now());
 
+  // ── commit() — single-owner geometry committer ────────────────────────────
+  //
+  // commit() diffs a new LayoutSnapshot against lastLayout and applies only
+  // the changed fields to the DOM / signals. This ensures:
+  //   - No DOM read inside the write phase (all reads were in readPhase).
+  //   - At most one forced reflow per frame (from projectAnchor if needsProject).
+  //   - Zero signal writes on stable frames (snapshot diff + equals guards).
+
+  function commit(next: LayoutSnapshot, nextVisible: number[]): void {
+    const prev = lastLayout;
+
+    // Canvas height — write only when changed.
+    if (!prev || prev.canvasHeight !== next.canvasHeight) {
+      if (canvasEl) canvasEl.style.height = `${next.canvasHeight}px`;
+    }
+
+    // Visible set — setVisible uses sameRange so <For> reconciles on changes only.
+    setVisible(nextVisible);
+
+    // Row positions — only write transforms that actually changed.
+    const pt = padTop();
+    for (const idx of nextVisible) {
+      const top = virt.top(idx) + pt;
+      if (appliedTop.get(idx) !== top) {
+        appliedTop.set(idx, top);
+        const el = rowEls.get(idx);
+        if (el) el.style.transform = `translateY(${top}px)`;
+      }
+    }
+
+    // Pin overlay — setPin uses samePin so <Show> reconciles on changes only.
+    setPin(next.pin);
+
+    lastLayout = next;
+  }
+
   const writePhase = (): boolean => {
     if (totalDirty) {
       totalDirty = false;
       setTotalHeight(virt.total());
     }
-    const pt = padTop();
-    for (const idx of visibleIndexes()) {
-      const el = rowEls.get(idx);
-      if (el) el.style.transform = `translateY(${virt.top(idx) + pt}px)`;
+    // Projection is coalesced: at most one projectAnchor per frame (not per row).
+    // This is the fix for the per-row layout-thrash perf regression.
+    //
+    // Gate on a settle window instead of a per-frame flag: if the user scrolled
+    // (or a smooth-scroll animation ran) within the last SCROLL_SETTLE_MS, skip
+    // the correction so the browser thumb is never fought mid-gesture. This
+    // eliminates the in-direction jump that a per-frame gate allowed (any rAF
+    // tick landing between scroll events would open the old gate mid-drag).
+    // While unsettled, scheduler.request() keeps the loop alive so the
+    // projection fires after the window without any further events.
+    // request() does not increment the converge counter, so it cannot trip
+    // the MAX_CONVERGE halt in the frame scheduler.
+    if (needsProject) {
+      const settled = performance.now() - lastUserScrollAt > SCROLL_SETTLE_MS;
+      if (settled) {
+        needsProject = false;
+        projectAnchor(anchor());
+        // projectAnchor flushed canvas height and wrote scrollTop; re-capture
+        // shadow scrollTop so computeVisible/computePin use the projected value.
+        if (scrollEl) shadowScrollTop = scrollEl.scrollTop;
+      } else {
+        scheduler.request();
+      }
     }
-    if (canvasEl) canvasEl.style.height = `${contentH()}px`;
+    const nextVisible = computeVisible();
+    const pt = padTop();
+    const nextPin = computePin(shadowScrollTop, pt);
+    const next: LayoutSnapshot = {
+      start: nextVisible[0] ?? 0,
+      end: nextVisible[nextVisible.length - 1] ?? -1,
+      canvasHeight: contentH(),
+      pin: nextPin,
+    };
+    commit(next, nextVisible);
+
+    // Emit active-user-message visibility change when the state flips.
+    if (props.onActiveUserMessageVisibilityChange) {
+      const visible = computeActiveUserVisible(shadowScrollTop, shadowViewHeight, pt);
+      if (visible !== lastActiveUserVisible) {
+        lastActiveUserVisible = visible;
+        props.onActiveUserMessageVisibilityChange(visible);
+      }
+    }
+
     return false;
   };
 
@@ -800,6 +1027,29 @@ export function ChatRoot(props: ChatRootProps) {
   // ── Central tween registry — wired to eager scheduler ────────────────────
   const tweenRegistry = createTweenRegistry(virt, onHeightChanged, {
     requestFrame: () => scheduler.request(),
+  });
+
+  // ── Invalidation bridge — the single reactive input list ─────────────────
+  //
+  // One createEffect reads every layout-affecting signal and calls
+  // scheduler.request(). This replaces the per-memo dependency curation that
+  // drifted (and caused blank transcripts / stale pins). Any layout input
+  // change => one arm, never more, never fewer.
+  //
+  // Output signals (visible, pin) are intentionally NOT in this list —
+  // reading them here would create a feedback loop.
+  createEffect(() => {
+    // units() already tracks committedUnitsVersion() transitively — no need to
+    // list it here separately.
+    units();
+    totalHeight();
+    padTop();
+    padBottom();
+    viewHeight();
+    containerWidth();
+    measureEpoch();
+    expandedUserId();
+    scheduler.request();
   });
 
   // Idle-time prefetch state — referenced by readPhase / schedulePrefetch
@@ -822,7 +1072,8 @@ export function ChatRoot(props: ChatRootProps) {
   const runPrefetchSlice = (deadline: IdleDeadline) => {
     prefetchIdleId = null;
 
-    const { start: visStart, end: visEnd } = visibleRange();
+    const visStart = lastVisibleStart;
+    const visEnd = lastVisibleEnd;
     const us = units();
     const n = us.length;
     if (n === 0) return;
@@ -1020,11 +1271,15 @@ export function ChatRoot(props: ChatRootProps) {
   // needed here. Called by the dispose onCleanup and by the swap effect.
 
   function snapshotInto(target: ChatState): void {
-    const us = untrack(units);
+    // Use committedUnitsArr (not live units()) so that when this is called from
+    // the reset effect (before clearing), it captures the OUTGOING model's unit
+    // ids and measured sizes — not the incoming model's (which virt already
+    // reflects by the time the swap effect fires). Active-turn units are
+    // ephemeral and intentionally excluded; they are re-estimated on next mount.
     const w = untrack(containerWidth);
     const entries: Array<[string, number]> = [];
-    for (let i = 0; i < us.length; i++) {
-      const u = us.at(i);
+    for (let i = 0; i < committedUnitsArr.length; i++) {
+      const u = committedUnitsArr[i];
       if (u) entries.push([u.id, virt.size(i)]);
     }
     target.heightmap.setAll(entries);
@@ -1164,24 +1419,21 @@ export function ChatRoot(props: ChatRootProps) {
 
     // ── Model-swap effect (view.setModel path) ────────────────────────────
     // When the host calls view.setModel(newState), the `state` signal changes.
-    // We snapshot the outgoing model's heightmap, then attach the incoming model
-    // (load its ScrollMode intent + project onto DOM). Created here (inside
-    // onMount) so scrollEl is guaranteed to be available when it fires.
-    //
-    // Ordering guarantee: the reset effect and incremental committed effect
-    // (created before onMount in component scope) run first — virt is already
-    // re-seeded with new heights by the time this swap effect fires.
-    let prevModel = untrack(state);
+    // The reset effect (created before onMount in component scope) runs first
+    // and snapshots the outgoing model's heightmap into it before clearing
+    // committedUnitsArr. By the time this swap effect fires, virt is already
+    // re-seeded by the count-sync effect. We only need to attach the incoming
+    // model's intent and force a fresh geometry pass.
     createEffect(
       on(
         state,
         (next) => {
-          if (next === prevModel) return;
-          snapshotInto(prevModel);
-          prevModel = next;
-          // virt is already re-seeded by count-sync effect (ran before this);
-          // load the incoming model's intent and project it (no stale DOM reads).
+          // Reset visibility cache so the next writePhase re-emits for the new
+          // conversation, even if the boolean value happens to be the same.
+          lastActiveUserVisible = undefined;
+          // Load the incoming model's scroll intent and project it onto the DOM.
           attach(next);
+          needsProject = true;
           scheduler.forceReconcile(() => {
             totalDirty = true;
           });
@@ -1253,7 +1505,7 @@ export function ChatRoot(props: ChatRootProps) {
                     data-chat-canvas
                     class={`${canvas} ${contentClass()}`}
                   >
-                    <For each={visibleIndexes()}>
+                    <For each={visible()}>
                       {(unitIndex) => {
                         const u = () => units().at(unitIndex);
                         const isActiveTurn = () => {
@@ -1267,8 +1519,12 @@ export function ChatRoot(props: ChatRootProps) {
                               class={unitRowWrapper}
                               ref={(el) => {
                                 rowEls.set(unitIndex, el);
+                                // Seed initial transform; commit() reconciles on each frame.
                                 el.style.transform = `translateY(${virt.top(unitIndex) + padTop()}px)`;
-                                onCleanup(() => rowEls.delete(unitIndex));
+                                onCleanup(() => {
+                                  rowEls.delete(unitIndex);
+                                  appliedTop.delete(unitIndex);
+                                });
                               }}
                               data-index={String(unitIndex)}
                             >
@@ -1293,18 +1549,18 @@ export function ChatRoot(props: ChatRootProps) {
                     </For>
                   </div>
                 </div>
-                <Show when={pinState()}>
+                <Show when={pin()}>
                   {(ps) => {
+                    // Resolve the ChatMessage reactively via itemId (stable) so
+                    // a stale unit-index lookup can never hand a wrong item to
+                    // PinnedUserMessage. getItem searches committed-then-active
+                    // so optimistic / live active-turn user messages resolve too.
                     const pinnedItem = (): ChatMessage | undefined => {
-                      const unit = units().at(ps().activeUserIdx);
-                      if (!unit) return undefined;
+                      const itemId = ps().itemId;
+                      if (!itemId) return undefined;
                       const transcript = state().transcript;
-                      const idx = transcript.findIndexById(unit.itemId);
-                      // Use getItem (committed-then-active) so optimistic / live
-                      // active-turn user messages resolve correctly.
+                      const idx = transcript.findIndexById(itemId);
                       const item = idx >= 0 ? getItem(transcript.state, idx) : undefined;
-                      // Validate kind+role so a corrupt idMap lookup can't hand a
-                      // non-user item (or undefined) to PinnedUserMessage.
                       return item && item.kind === 'message' && item.role === 'user'
                         ? (item as ChatMessage)
                         : undefined;

@@ -76,13 +76,24 @@ export const popupItemIcon = style({
 globalStyle(`${popupItemIcon} svg`, { width: '1rem', height: '1rem' });
 
 export const popupItemLabel = style({
-  flex: '1 1 0%',
+  // basis 'auto' (not 0) so the label keeps its content width; a 0 basis
+  // collapsed the name to zero width whenever the description was long.
+  flexGrow: 1,
+  flexShrink: 1,
+  flexBasis: 'auto',
+  minWidth: 0,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 });
 
 export const popupItemDescription = style({
+  // High flex-shrink so the muted description ellipsizes before the (short)
+  // primary label, keeping the command/mention name visible.
+  flexGrow: 0,
+  flexShrink: 100,
+  flexBasis: 'auto',
+  minWidth: 0,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',

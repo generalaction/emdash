@@ -7,6 +7,7 @@ import type {
   MentionItem,
   PromptEditorRef,
 } from '@emdash/ui/react/components';
+import { ArrowDown } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -301,6 +302,9 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const [composerSlot, setComposerSlot] = useState<HTMLElement | null>(null);
   const [overlaySlot, setOverlaySlot] = useState<HTMLElement | null>(null);
   const [viewer, setViewer] = useState<{ src?: string; alt?: string } | null>(null);
+  // True while the latest user message is visible in the viewport. Defaults to
+  // true so the button does not flash on mount before the first frame fires.
+  const [activeUserVisible, setActiveUserVisible] = useState(true);
 
   const handleReady = useCallback((view: ChatView) => {
     viewRef.current = view;
@@ -366,6 +370,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         pinUserMessages
         onReady={handleReady}
         commands={transcriptCommands}
+        onActiveUserMessageVisibilityChange={setActiveUserVisible}
         style={{ position: 'absolute', inset: 0 }}
       />
 
@@ -408,6 +413,23 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
           onViewerOpen={handleViewerOpen}
         />
       )}
+
+      {composerSlot &&
+        !activeUserVisible &&
+        createPortal(
+          <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center">
+            <Button
+              variant="secondary"
+              size="icon-md"
+              aria-label="Scroll to bottom"
+              onClick={() => viewRef.current?.scrollToBottom({ behavior: 'smooth' })}
+              className="pointer-events-auto rounded-full shadow-md"
+            >
+              <ArrowDown />
+            </Button>
+          </div>,
+          composerSlot
+        )}
 
       <ImageViewerDialog
         open={!!viewer}

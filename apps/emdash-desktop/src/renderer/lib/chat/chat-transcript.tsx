@@ -43,6 +43,7 @@ export type ChatTranscriptProps = Pick<
   | 'contentClass'
   | 'onReachStart'
   | 'onAtBottomChange'
+  | 'onActiveUserMessageVisibilityChange'
 > & {
   /** Global services singleton shared across conversations. */
   context: ChatContext;
@@ -91,6 +92,9 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
       onReachStart: p.onReachStart ? () => propsRef.current.onReachStart?.() : undefined,
       onAtBottomChange: p.onAtBottomChange
         ? (b: boolean) => propsRef.current.onAtBottomChange?.(b)
+        : undefined,
+      onActiveUserMessageVisibilityChange: p.onActiveUserMessageVisibilityChange
+        ? (v: boolean) => propsRef.current.onActiveUserMessageVisibilityChange?.(v)
         : undefined,
       onViewMounted: (v) => propsRef.current.onReady?.(v),
     });

@@ -100,7 +100,11 @@ export async function openFileInAdjacentPane(
   }
 
   focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-  provisioned.viewModel?.paneLayout.open('file', { path: relPath }, { preview: false, target: 'right' });
+  provisioned.viewModel?.paneLayout.open(
+    'file',
+    { path: relPath },
+    { preview: false, target: 'right' }
+  );
 }
 
 export async function openExternalFilePath(

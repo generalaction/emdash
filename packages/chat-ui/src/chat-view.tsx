@@ -70,6 +70,11 @@ export type ChatViewOptions = {
   onReachStart?: () => void;
   onAtBottomChange?: (atBottom: boolean) => void;
   /**
+   * Fired when the latest user message's viewport visibility changes.
+   * See ChatRoot prop of the same name for full semantics.
+   */
+  onActiveUserMessageVisibilityChange?: (visible: boolean) => void;
+  /**
    * Called once after the Solid root mounts (after ChatRoot.onMount).
    * At this point `view.composerSlot` is set and all controls are wired.
    */
@@ -163,6 +168,9 @@ export function createChatView(opts: ChatViewOptions): ChatView {
   const onAtBottomChange = opts.onAtBottomChange
     ? (b: boolean) => opts.onAtBottomChange?.(b)
     : undefined;
+  const onActiveUserMessageVisibilityChange = opts.onActiveUserMessageVisibilityChange
+    ? (v: boolean) => opts.onActiveUserMessageVisibilityChange?.(v)
+    : undefined;
 
   // dispose is assigned after render() returns.
   let solidDispose: (() => void) | null = null;
@@ -222,6 +230,7 @@ export function createChatView(opts: ChatViewOptions): ChatView {
         commands={commands}
         onReachStart={onReachStart}
         onAtBottomChange={onAtBottomChange}
+        onActiveUserMessageVisibilityChange={onActiveUserMessageVisibilityChange}
         controls={controls}
         pinUserMessages={opts.pinUserMessages}
         composer={opts.composer}
