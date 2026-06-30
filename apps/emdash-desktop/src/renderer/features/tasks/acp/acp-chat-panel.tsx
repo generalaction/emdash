@@ -135,28 +135,20 @@ const ComposerForStore = observer(function ComposerForStore({
 
   const mentionProvider = useMemo<ContextMentionProvider | undefined>(() => {
     if (!workspaceId) return undefined;
-    const projectId = store.projectId;
-    const taskId = store.taskId;
     const wsId = workspaceId;
     return {
       async search(query: string): Promise<MentionItem[]> {
-        if (query.length < 3) return [];
-        const items = await rpc.search.commandPalette({
-          query,
-          context: { projectId, taskId, workspaceId: wsId },
-        });
-        return items
-          .filter((i) => i.kind === 'file')
-          .map((i) => ({
-            id: i.id,
-            label: i.id,
-            name: i.title,
-            kind: 'file' as const,
-            description: i.subtitle,
-          }));
+        const files = await rpc.search.searchWorkspaceFiles({ workspaceId: wsId, query });
+        return files.map((f) => ({
+          id: f.path,
+          label: f.path,
+          name: f.filename,
+          kind: 'file' as const,
+          description: f.path,
+        }));
       },
     };
-  }, [store.projectId, store.taskId, workspaceId]);
+  }, [workspaceId]);
 
   const { data: agents } = useAgents();
   const agentOptions = useMemo<ComposerAgentOption[]>(
@@ -212,6 +204,9 @@ const ComposerForStore = observer(function ComposerForStore({
             : null
         }
         mentionProvider={mentionProvider}
+        queryCommands={async (query) =>
+          store.commands.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
+        }
         attachments={attachments}
         onAttachmentsChange={setAttachments}
         onAttach={handleAttach}

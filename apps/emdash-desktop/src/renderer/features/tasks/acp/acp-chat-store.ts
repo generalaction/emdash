@@ -14,7 +14,7 @@ import {
   toSessionSnapshot,
   type SessionSnapshot,
 } from '@emdash/core/acp/session-machine';
-import type { ComposerModelOption } from '@emdash/ui/react/components';
+import type { CommandItem, ComposerModelOption } from '@emdash/ui/react/components';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -98,6 +98,7 @@ export class AcpChatStore {
       lifecycle: computed,
       model: computed,
       modelOptions: computed,
+      commands: computed,
       isEmpty: computed,
       permissionQueue: computed,
       lastStopReason: computed,
@@ -143,6 +144,21 @@ export class AcpChatStore {
       result[o.value] = { name: o.name, description: o.description ?? undefined };
     }
     return result;
+  }
+
+  /**
+   * Slash commands advertised by the agent via `available_commands_update`.
+   * Mapped to the composer's CommandItem shape with behavior='insert' so
+   * selecting a command inserts a /name pill that is sent as prompt text.
+   * Updates reactively as the agent sends new available_commands_update notifications.
+   */
+  get commands(): CommandItem[] {
+    return (this.snapshot?.availableCommands ?? []).map((c) => ({
+      id: c.name,
+      name: c.name,
+      description: c.description,
+      behavior: 'insert',
+    }));
   }
 
   /** True when history has loaded and there are no messages. Drives the "No messages" overlay. */
