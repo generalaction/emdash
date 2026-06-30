@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/renderer/lib/components/feedback-modal/use-feedback-submit.ts
+  s_e3e6f055d6d217::t_d590d6103572bf 22,31,40,70-74,82-87,164,203
+apps/emdash-desktop/src/main/core/app/controller.ts
+  s_e3e6f055d6d217::t_a67c621392b585 1-3,10-36,142
+apps/emdash-desktop/src/renderer/lib/components/feedback-modal/feedback-modal.tsx
+  s_e3e6f055d6d217::t_4a38cb7531061d 63-67,98
+  s_e3e6f055d6d217::t_0fdabf51c42e21 1
+apps/emdash-desktop/src/renderer/lib/components/feedback-modal/use-feedback-submit.test.ts
+  s_e3e6f055d6d217::t_60acdaa69f4623 12,19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "e3bc3f68213f8e2c4690d5ab51a671c6b529538b",
+  "prompts": {},
+  "sessions": {
+    "s_e3e6f055d6d217": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f1828-f890-7c82-a664-d719ea388945",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
