@@ -2,6 +2,7 @@ import type { FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import {
   buildVisibleRows,
+  isChainExpanded,
   isExpandableFileTreeNode,
   normalizeFileTreePath,
   sortFileNodes,
@@ -187,6 +188,13 @@ export class FilesStore {
     );
     const desired = new Set<string>();
     for (const row of rows) {
+      if (
+        isExpandableFileTreeNode(row.node) &&
+        row.node.path !== this.rootPath &&
+        isChainExpanded(row.chain, expandedPaths)
+      ) {
+        desired.add(row.node.path);
+      }
       for (const segment of row.chain) {
         if (
           isExpandableFileTreeNode(segment) &&

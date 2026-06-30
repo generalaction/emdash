@@ -405,6 +405,36 @@ describe('FilesStore', () => {
     store.dispose();
   });
 
+  it('registers an expanded compact row terminus discovered after loading the head', async () => {
+    mocks.openProjection.mockResolvedValue(openResult([node(1, '/repo/docs', 'directory')]));
+    mocks.registerDir.mockImplementation(async (_p, _w, _s, dirId) => {
+      if (dirId === 1) {
+        emitProjection(2, [
+          { scopeId: 1, entries: [node(2, '/repo/docs/api-reference', 'directory', 1)] },
+        ]);
+        return versionResult(2);
+      }
+      emitProjection(3, [
+        { scopeId: 2, entries: [node(3, '/repo/docs/api-reference/openapi.json', 'file', 2)] },
+      ]);
+      return versionResult(3);
+    });
+
+    const store = createStore();
+    await store.start();
+
+    const expanded = new Set(['/repo/docs']);
+    store.reconcileVisibleScopes(expanded);
+    await flushAsyncWork();
+    expect(mocks.registerDir).toHaveBeenCalledWith('project-1', 'workspace-1', SUBSCRIPTION_ID, 1);
+
+    store.reconcileVisibleScopes(expanded);
+    await flushAsyncWork();
+    expect(mocks.registerDir).toHaveBeenCalledWith('project-1', 'workspace-1', SUBSCRIPTION_ID, 2);
+    expect(store.nodes.has('/repo/docs/api-reference/openapi.json')).toBe(true);
+    store.dispose();
+  });
+
   it('registers an expanded directory but not its file children', async () => {
     mocks.openProjection.mockResolvedValue(openResult([node(1, '/repo/src', 'directory')]));
     mocks.registerDir.mockImplementation(async () => {
