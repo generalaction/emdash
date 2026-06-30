@@ -181,6 +181,31 @@ describe('WorkspaceFileIndexService', () => {
     expect(store.meta.get('ws-1')).toMatchObject({ status: 'stale', fileCount: 2 });
   });
 
+  it('marks the index stale for symlink changes instead of indexing them incrementally', async () => {
+    vi.useFakeTimers();
+    const store = new FakeStore();
+    store.meta.set('ws-1', {
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 1,
+      truncateReason: null,
+    });
+    store.paths.set('ws-1', new Set(['/repo/a.ts']));
+    const service = await createService(store, { reindexDebounceMs: 1_000 });
+
+    await service.onWorkspaceActivated('ws-1', {
+      rootPath: '/repo',
+      enumerate: enumerator(() => ['/repo/a.ts']),
+    });
+    service.onWorkspaceFileChange('ws-1', {
+      kind: 'changes',
+      changes: [{ kind: 'create', path: '/repo/link', entryType: 'symlink' }],
+    });
+
+    expect([...store.pathSet('ws-1')]).toEqual(['/repo/a.ts']);
+    expect(store.meta.get('ws-1')).toMatchObject({ status: 'stale', fileCount: 1 });
+  });
+
   it('ignores incremental changes while the current index is truncated', async () => {
     const store = new FakeStore();
     store.meta.set('ws-1', {

@@ -197,6 +197,11 @@ export class WorkspaceFileIndexService {
             continue;
           }
 
+          if (change.entryType === 'symlink') {
+            needsReindex = true;
+            continue;
+          }
+
           if (change.kind === 'create') {
             creates.push(change.path);
           }
