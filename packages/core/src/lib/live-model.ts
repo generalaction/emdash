@@ -28,8 +28,10 @@ export type LiveModelOptions<T, E = unknown> = {
   revalidateIntervalMs?: number;
   /** Used to suppress no-op updates. */
   isEqual?: (a: T, b: T) => boolean;
-  /** Receives errors returned or thrown by background recomputes. */
+  /** Receives errors returned by background recomputes. */
   onError?: (error: E) => void;
+  /** Receives unexpected errors thrown by background recomputes. */
+  onUnexpectedError?: (error: unknown) => void;
 };
 
 /**
@@ -204,7 +206,11 @@ export class LiveModel<T, E = unknown> implements IDisposable {
         if (!result.success) this.options.onError?.(result.error);
       },
       (error: unknown) => {
-        this.options.onError?.(error as E);
+        if (this.options.onUnexpectedError) {
+          this.options.onUnexpectedError(error);
+          return;
+        }
+        console.error('LiveModel background recompute threw unexpectedly', error);
       }
     );
   }
