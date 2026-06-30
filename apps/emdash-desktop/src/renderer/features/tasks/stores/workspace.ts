@@ -3,10 +3,12 @@ import { computed, makeObservable } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { ConnectionState } from '@shared/core/ssh/ssh';
+import { releaseFileModelManager } from '../editor/stores/file-model-manager';
 import { GitWorktreeStore } from './git-worktree-store';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
 
 export class WorkspaceStore implements ILifecycle {
+  readonly workspaceId: string;
   readonly path: string;
   readonly gitRepository: GitRepositoryStore;
   readonly sshConnectionId: string | undefined;
@@ -21,6 +23,7 @@ export class WorkspaceStore implements ILifecycle {
     sshConnectionId?: string
   ) {
     makeObservable(this, { connectionState: computed });
+    this.workspaceId = workspaceId;
     this.path = path;
     this.sshConnectionId = sshConnectionId;
     this.gitRepository = gitRepository;
@@ -50,5 +53,9 @@ export class WorkspaceStore implements ILifecycle {
   dispose(): void {
     this.gitWorktree.dispose();
     this.lifecycleScripts.dispose();
+    // Last task on this workspace has been released (ref-count hit 0 in
+    // WorkspaceRegistryStore), so the per-workspace Monaco model manager and its
+    // registered models can be torn down. No open editors remain at this point.
+    releaseFileModelManager(this.workspaceId);
   }
 }
