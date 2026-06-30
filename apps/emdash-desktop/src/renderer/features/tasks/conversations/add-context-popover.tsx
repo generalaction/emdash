@@ -1,5 +1,5 @@
 import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
-import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
+import { ChevronDown, ChevronUp, MessageSquare, MousePointer2, TextInitial } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Combobox,
@@ -60,6 +60,14 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
           text={`${action.commentCount} comment${action.commentCount !== 1 ? 's' : ''} in ${action.fileCount} file${action.fileCount !== 1 ? 's' : ''}`}
         />
       );
+    case 'browser-annotations':
+      return (
+        <ActionItemBaseRow
+          icon={<MousePointer2 className="size-3.5 shrink-0 text-foreground-muted" />}
+          label="Browser annotations"
+          text={`${action.annotationCount} annotation${action.annotationCount !== 1 ? 's' : ''} on ${action.pageCount} page${action.pageCount !== 1 ? 's' : ''}`}
+        />
+      );
     case 'prompt':
       return (
         <ActionItemBaseRow
@@ -118,6 +126,8 @@ export function AddContextPopover({
           );
         case 'draft-comments':
           return 'line comments'.includes(q);
+        case 'browser-annotations':
+          return 'browser annotations'.includes(q);
         case 'prompt':
           return (
             action.prompt.title.toLowerCase().includes(q) ||

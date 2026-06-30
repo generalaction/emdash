@@ -39,7 +39,9 @@ export const ContextBar = observer(function ContextBar({
   const { update: updateInterfaceSettings, isSaving: isSavingInterfaceSettings } =
     useAppSettingsKey('interface');
   const task = getRegisteredTaskData(projectId, taskId);
-  const draftComments = getTaskStore(projectId, taskId)?.draftComments;
+  const taskStore = getTaskStore(projectId, taskId);
+  const draftComments = taskStore?.draftComments;
+  const browserAnnotations = taskStore?.browserAnnotations;
   const { value: promptLibrary, isSaving: isSavingPromptLibrary } = usePromptLibrary();
   const activeSession = conversationId ? conversations.sessions.get(conversationId) : undefined;
   const activeConversationStore = conversationId
@@ -51,8 +53,14 @@ export const ContextBar = observer(function ContextBar({
   const [menuOpen, setMenuOpen] = useState(false);
 
   const actions = useMemo(
-    () => buildTaskContextActions(task?.linkedIssue, draftComments?.comments ?? [], promptLibrary),
-    [task?.linkedIssue, draftComments?.comments, promptLibrary]
+    () =>
+      buildTaskContextActions(
+        task?.linkedIssue,
+        draftComments?.comments ?? [],
+        browserAnnotations?.annotations ?? [],
+        promptLibrary
+      ),
+    [task?.linkedIssue, draftComments?.comments, browserAnnotations?.annotations, promptLibrary]
   );
 
   const isActivePane = taskView.paneLayout.activePaneId === paneId;
@@ -73,12 +81,15 @@ export const ContextBar = observer(function ContextBar({
       sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
     });
 
+    if (opts?.andSend) {
+      await rpc.pty.sendInput(activeSessionId, '\r');
+    }
+
     if (action.kind === 'draft-comments') {
       draftComments?.consumeAll();
     }
-
-    if (opts?.andSend) {
-      await rpc.pty.sendInput(activeSessionId, '\r');
+    if (action.kind === 'browser-annotations') {
+      browserAnnotations?.consumePending();
     }
 
     activeSession?.pty?.terminal.focus();

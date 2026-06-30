@@ -143,7 +143,7 @@ export function InitialConversationField({
 }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, [], promptLibrary),
+    () => buildTaskContextActions(linkedIssue, [], [], promptLibrary),
     [linkedIssue, promptLibrary]
   );
   const modelOptions = useModelOptions(state.provider);

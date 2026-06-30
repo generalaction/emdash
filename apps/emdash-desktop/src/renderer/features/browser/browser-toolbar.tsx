@@ -6,6 +6,7 @@ import {
   Globe,
   Loader2,
   Minus,
+  MousePointer2,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -71,6 +72,10 @@ export function BrowserToolbar({
   onReload,
   onForceReload,
   onSetZoomFactor,
+  annotationMode,
+  annotationCount,
+  annotationDisabled,
+  onToggleAnnotationMode,
   onFocusUrl,
 }: {
   session: BrowserSessionSnapshot;
@@ -82,6 +87,10 @@ export function BrowserToolbar({
   onReload?: () => void;
   onForceReload?: () => void;
   onSetZoomFactor?: (factor: number) => void;
+  annotationMode?: boolean;
+  annotationCount?: number;
+  annotationDisabled?: boolean;
+  onToggleAnnotationMode?: () => void;
   onFocusUrl?: (focus: () => void) => void;
 }) {
   const [urlText, setUrlText] = useState(browserUrlInputText(session.currentUrl));
@@ -234,6 +243,21 @@ export function BrowserToolbar({
           )}
         />
       </ToolbarIconButton>
+      <ToolbarIconButton
+        label="Annotation mode"
+        disabled={annotationDisabled}
+        active={Boolean(annotationMode)}
+        onClick={() => onToggleAnnotationMode?.()}
+      >
+        <span className="relative">
+          <MousePointer2 className="size-4" />
+          {annotationCount ? (
+            <span className="absolute -top-1.5 -right-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-background bg-blue-500 px-0.5 text-[9px] leading-none text-white">
+              {annotationCount > 9 ? '9+' : annotationCount}
+            </span>
+          ) : null}
+        </span>
+      </ToolbarIconButton>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -375,11 +399,13 @@ function useTransientFlag(durationMs: number): [boolean, () => void] {
 function ToolbarIconButton({
   label,
   disabled,
+  active,
   onClick,
   children,
 }: {
   label: string;
   disabled?: boolean;
+  active?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -391,9 +417,13 @@ function ToolbarIconButton({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-7 shrink-0"
+            className={cn(
+              'size-7 shrink-0',
+              active && 'border-blue-500/30 bg-blue-500/10 text-blue-600 hover:bg-blue-500/15'
+            )}
             disabled={disabled}
             aria-label={label}
+            aria-pressed={active || undefined}
             onClick={onClick}
           >
             {children}

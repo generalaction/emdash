@@ -8,6 +8,11 @@ vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     app: { readUserFile: vi.fn() },
     browser: { unregisterSession: vi.fn() },
+    ssh: {
+      getConnections: vi.fn(async () => []),
+      getConnectionState: vi.fn(async () => ({})),
+      getHealthStates: vi.fn(async () => ({})),
+    },
   },
 }));
 

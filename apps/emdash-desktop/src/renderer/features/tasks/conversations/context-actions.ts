@@ -1,3 +1,7 @@
+import {
+  formatBrowserAnnotationsForAgent,
+  type BrowserAnnotation,
+} from '@shared/browserAnnotations';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { formatCommentsForAgent } from '@shared/lineComments';
 import type { PromptLibraryPrompt } from '@shared/prompt-library';
@@ -5,7 +9,11 @@ import type { DraftComment } from '../diff-view/stores/draft-comments-store';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'prompt';
+export type ContextActionKind =
+  | 'linked-issue'
+  | 'draft-comments'
+  | 'browser-annotations'
+  | 'prompt';
 
 export interface IssueContextAction {
   id: string;
@@ -22,13 +30,25 @@ export interface DraftCommentsContextAction {
   fileCount: number;
 }
 
+export interface BrowserAnnotationsContextAction {
+  id: string;
+  kind: 'browser-annotations';
+  annotations: BrowserAnnotation[];
+  annotationCount: number;
+  pageCount: number;
+}
+
 export interface PromptContextAction {
   id: string;
   kind: 'prompt';
   prompt: PromptLibraryPrompt;
 }
 
-export type ContextAction = IssueContextAction | DraftCommentsContextAction | PromptContextAction;
+export type ContextAction =
+  | IssueContextAction
+  | DraftCommentsContextAction
+  | BrowserAnnotationsContextAction
+  | PromptContextAction;
 
 // ─── Text building ───────────────────────────────────────────────────────────
 
@@ -76,6 +96,8 @@ export function buildContextActionText(action: ContextAction): string {
       return buildIssueContextText(action.issue);
     case 'draft-comments':
       return formatCommentsForAgent(action.comments, { includeIntro: false });
+    case 'browser-annotations':
+      return formatBrowserAnnotationsForAgent(action.annotations, { includeIntro: false });
     case 'prompt':
       return action.prompt.prompt;
   }
@@ -107,6 +129,21 @@ export function buildDraftCommentsContextAction(
   };
 }
 
+export function buildBrowserAnnotationsContextAction(
+  annotations: BrowserAnnotation[]
+): BrowserAnnotationsContextAction | null {
+  const pendingAnnotations = annotations.filter((annotation) => annotation.status === 'pending');
+  if (pendingAnnotations.length === 0) return null;
+  const pageCount = new Set(pendingAnnotations.map((annotation) => annotation.url)).size;
+  return {
+    id: 'browser-annotations',
+    kind: 'browser-annotations',
+    annotations: pendingAnnotations,
+    annotationCount: pendingAnnotations.length,
+    pageCount,
+  };
+}
+
 export function buildPromptLibraryContextActions(
   prompts: PromptLibraryPrompt[]
 ): PromptContextAction[] {
@@ -122,11 +159,13 @@ export function buildPromptLibraryContextActions(
 export function buildTaskContextActions(
   issue: LinkedIssue | undefined,
   comments: DraftComment[],
+  browserAnnotations: BrowserAnnotation[],
   prompts: PromptLibraryPrompt[]
 ): ContextAction[] {
   return [
     buildLinkedIssueContextAction(issue),
     buildDraftCommentsContextAction(comments),
+    buildBrowserAnnotationsContextAction(browserAnnotations),
     ...buildPromptLibraryContextActions(prompts),
   ].filter((a): a is ContextAction => a !== null);
 }
