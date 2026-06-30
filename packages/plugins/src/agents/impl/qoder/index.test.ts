@@ -4,6 +4,16 @@ import { describe, expect, it } from 'vitest';
 import { QODER_SETTINGS_PATH } from './hooks';
 import { provider } from './index';
 
+const baseContext = {
+  cli: 'qodercli',
+  autoApprove: false,
+  initialPrompt: undefined,
+  sessionId: 'emdash-session-id',
+  providerSessionId: undefined,
+  isResuming: false,
+  model: '',
+};
+
 function createMemoryFs(files = new Map<string, string>()): PluginFs {
   return {
     read: async (path) => files.get(path) ?? null,
@@ -19,6 +29,33 @@ function createMemoryFs(files = new Map<string, string>()): PluginFs {
 }
 
 describe('qoder provider', () => {
+  it('continues the latest session before Qoder reports its session id', () => {
+    const command = provider.behavior.prompt!.buildCommand({
+      ...baseContext,
+      isResuming: true,
+    });
+
+    expect(command).toEqual({
+      command: 'qodercli',
+      args: ['-c'],
+      env: {},
+    });
+  });
+
+  it('resumes a stored provider session id with -r', () => {
+    const command = provider.behavior.prompt!.buildCommand({
+      ...baseContext,
+      providerSessionId: 'qoder-session-id',
+      isResuming: true,
+    });
+
+    expect(command).toEqual({
+      command: 'qodercli',
+      args: ['-r', 'qoder-session-id'],
+      env: {},
+    });
+  });
+
   it('declares workspace config hooks', () => {
     expect(provider.capabilities.hooks).toEqual({
       kind: 'config',
@@ -65,6 +102,18 @@ describe('qoder provider', () => {
       notificationType: 'permission_prompt',
       title: 'Permission Required',
       message: 'Qoder CLI is requesting permission to use Bash.',
+    });
+  });
+
+  it('extracts the provider session id from SessionStart hook payloads', () => {
+    const event = provider.behavior.hooks!.parseHookEvent!('session', {
+      hook_event_name: 'SessionStart',
+      session_id: 'qoder-session-id',
+    });
+
+    expect(event).toEqual({
+      kind: 'session',
+      providerSessionId: 'qoder-session-id',
     });
   });
 });
