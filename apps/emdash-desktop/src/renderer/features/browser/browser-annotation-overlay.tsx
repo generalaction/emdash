@@ -1,6 +1,14 @@
 import { MousePointer2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type WheelEvent,
+} from 'react';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { Textarea } from '@renderer/lib/ui/textarea';
@@ -11,6 +19,7 @@ import type {
 } from '@shared/browserAnnotations';
 import {
   buildBrowserAnnotationCaptureScript,
+  buildBrowserAnnotationScrollScript,
   parseBrowserAnnotationCaptureResult,
   withAreaBoundingBox,
 } from './browser-annotation-capture';
@@ -34,6 +43,7 @@ type ComposerState = {
 
 const MIN_AREA_SIZE = 8;
 const HOVER_CAPTURE_DELAY_MS = 80;
+const WHEEL_LINE_HEIGHT_PX = 40;
 
 export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverlay({
   active,
@@ -113,7 +123,9 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
     [adapter]
   );
 
-  const pointFromEvent = (event: React.PointerEvent<HTMLDivElement>): Point => {
+  const pointFromEvent = (
+    event: React.PointerEvent<HTMLDivElement> | WheelEvent<HTMLDivElement>
+  ): Point => {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
       x: Math.round(Math.max(0, Math.min(rect.width, event.clientX - rect.left))),
@@ -187,6 +199,26 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
     }
   };
 
+  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (!active || !adapter || composer || draft) return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearHoverTimer();
+    setHoverTarget(null);
+
+    const point = pointFromEvent(event);
+    const scale = event.deltaMode === 1 ? WHEEL_LINE_HEIGHT_PX : 1;
+    const rawDeltaX = event.deltaX * scale;
+    const rawDeltaY = event.deltaY * scale;
+    const deltaX = event.shiftKey && rawDeltaX === 0 ? rawDeltaY : rawDeltaX;
+    const deltaY = event.shiftKey && rawDeltaX === 0 ? 0 : rawDeltaY;
+    const script = buildBrowserAnnotationScrollScript(point.x, point.y, deltaX, deltaY);
+
+    void adapter.executeJavaScript(script).then(() => {
+      scheduleHoverTargetUpdate(point);
+    });
+  };
+
   const openComposer = (target: BrowserAnnotationTarget, anchor: Point) => {
     setComposer({ target, anchor });
     setComment('');
@@ -224,6 +256,7 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
       onPointerMove={handlePointerMove}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
+      onWheel={handleWheel}
       aria-label="Browser annotation overlay"
     >
       <div className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5 rounded-md border border-blue-500/30 bg-background/95 px-2 py-1 text-xs text-foreground shadow-sm">
@@ -251,6 +284,7 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
           onPointerDown={(event) => event.stopPropagation()}
           onPointerUp={(event) => event.stopPropagation()}
           onPointerMove={(event) => event.stopPropagation()}
+          onWheel={(event) => event.stopPropagation()}
         >
           <div className="flex min-w-0 items-center justify-between gap-2">
             <div className="min-w-0 truncate text-xs font-medium text-foreground">

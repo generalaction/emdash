@@ -146,3 +146,46 @@ export function buildBrowserAnnotationCaptureScript(
   };
 })()`;
 }
+
+export function buildBrowserAnnotationScrollScript(
+  x: number,
+  y: number,
+  deltaX: number,
+  deltaY: number
+): string {
+  const safeX = Math.round(Number.isFinite(x) ? x : 0);
+  const safeY = Math.round(Number.isFinite(y) ? y : 0);
+  const safeDeltaX = Math.round(Number.isFinite(deltaX) ? deltaX : 0);
+  const safeDeltaY = Math.round(Number.isFinite(deltaY) ? deltaY : 0);
+
+  return `(() => {
+  const pointX = ${safeX};
+  const pointY = ${safeY};
+  const deltaX = ${safeDeltaX};
+  const deltaY = ${safeDeltaY};
+  const canScroll = (element, axis) => {
+    if (!element) return false;
+    const style = window.getComputedStyle(element);
+    if (axis === 'x') {
+      if (!/(auto|scroll|overlay)/.test(style.overflowX)) return false;
+      return element.scrollWidth > element.clientWidth;
+    }
+    if (!/(auto|scroll|overlay)/.test(style.overflowY)) return false;
+    return element.scrollHeight > element.clientHeight;
+  };
+  const scrollableAncestor = (element, axis) => {
+    let current = element;
+    while (current && current !== document.documentElement) {
+      if (canScroll(current, axis)) return current;
+      current = current.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+  };
+  const start = document.elementFromPoint(pointX, pointY) || document.documentElement;
+  const targetX = scrollableAncestor(start, 'x');
+  const targetY = scrollableAncestor(start, 'y');
+  if (deltaX && targetX) targetX.scrollBy({ left: deltaX, behavior: 'auto' });
+  if (deltaY && targetY) targetY.scrollBy({ top: deltaY, behavior: 'auto' });
+  return true;
+})()`;
+}

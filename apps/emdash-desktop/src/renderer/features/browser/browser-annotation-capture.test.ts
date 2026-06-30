@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildBrowserAnnotationCaptureScript,
+  buildBrowserAnnotationScrollScript,
   parseBrowserAnnotationCaptureResult,
   withAreaBoundingBox,
 } from './browser-annotation-capture';
@@ -83,5 +84,23 @@ describe('buildBrowserAnnotationCaptureScript', () => {
     expect(script).toContain('const pointX = 13;');
     expect(script).toContain('const pointY = 0;');
     expect(script).toContain('const fallbackKind = "area";');
+  });
+});
+
+describe('buildBrowserAnnotationScrollScript', () => {
+  it('embeds sanitized coordinates and wheel deltas', () => {
+    const script = buildBrowserAnnotationScrollScript(
+      19.2,
+      Number.NEGATIVE_INFINITY,
+      Number.NaN,
+      120.4
+    );
+
+    expect(script).toContain('const pointX = 19;');
+    expect(script).toContain('const pointY = 0;');
+    expect(script).toContain('const deltaX = 0;');
+    expect(script).toContain('const deltaY = 120;');
+    expect(script).toContain('document.elementFromPoint(pointX, pointY)');
+    expect(script).toContain('scrollBy({ top: deltaY');
   });
 });
