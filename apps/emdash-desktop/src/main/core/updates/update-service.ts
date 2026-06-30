@@ -132,6 +132,7 @@ class UpdateService implements IInitializable, IDisposable {
       if (this.updateState.status === 'checking' && this.currentCheckSource === 'background') {
         this.updateState.status = 'idle';
         this.updateState.error = undefined;
+        events.emit(updateNotAvailableEvent, undefined);
         log.warn('Background update check failed; suppressing user-facing error');
         return;
       }
