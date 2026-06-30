@@ -5,7 +5,7 @@ import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings'
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
+import { modalStore } from '@renderer/lib/modal/modal-store';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -43,7 +43,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [error, setError] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents();
   const modelsCapability = agents?.find((a) => a.id === providerId)?.capabilities.models;
@@ -83,9 +82,11 @@ export const CreateConversationModal = observer(function CreateConversationModal
         title,
         model: selectedModel ?? undefined,
       });
+      if (modalStore.activeModalArgs?.onSuccess !== onSuccess) return;
       setIsSubmitting(false);
       onSuccess({ conversationId: id });
     } catch {
+      if (modalStore.activeModalArgs?.onSuccess !== onSuccess) return;
       setError('Failed to create conversation');
       setIsSubmitting(false);
     }
@@ -160,6 +161,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
       </DialogContentArea>
       <DialogFooter>
         <ConfirmButton
+          type="button"
           onClick={() => void handleCreateConversation()}
           disabled={createDisabled || isSubmitting}
         >
