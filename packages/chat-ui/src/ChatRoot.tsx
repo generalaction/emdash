@@ -1061,30 +1061,39 @@ export function ChatRoot(props: ChatRootProps) {
                   </div>
                 </div>
                 <Show when={pinState()}>
-                  {(state) => (
-                    <div
-                      class={`${pinnedOverlay} ${contentClass()}`}
-                      aria-hidden="true"
-                      style={{ transform: `translateY(${state().overlayTop}px)` }}
-                    >
-                      <PinnedUserMessage
-                        item={
-                          (() => {
-                            const unit = units().at(state().activeUserIdx);
-                            if (!unit) return undefined;
-                            const idx = props.state.transcript.findIndexById(unit.itemId);
-                            return idx >= 0
-                              ? (props.state.transcript.state.committed[idx] as ChatMessage)
-                              : undefined;
-                          })()!
-                        }
-                        rowWidth={containerWidth()}
-                        theme={theme()}
-                        caches={caches}
-                        expandedId={props.state.expandedUserId.get}
-                      />
-                    </div>
-                  )}
+                  {(state) => {
+                    const pinnedItem = (): ChatMessage | undefined => {
+                      const unit = units().at(state().activeUserIdx);
+                      if (!unit) return undefined;
+                      const idx = props.state.transcript.findIndexById(unit.itemId);
+                      const item =
+                        idx >= 0 ? props.state.transcript.state.committed[idx] : undefined;
+                      // Validate kind+role so a corrupt idMap lookup can't hand a
+                      // non-user item (or undefined) to PinnedUserMessage.
+                      return item && item.kind === 'message' && item.role === 'user'
+                        ? (item as ChatMessage)
+                        : undefined;
+                    };
+                    return (
+                      <Show when={pinnedItem()}>
+                        {(item) => (
+                          <div
+                            class={`${pinnedOverlay} ${contentClass()}`}
+                            aria-hidden="true"
+                            style={{ transform: `translateY(${state().overlayTop}px)` }}
+                          >
+                            <PinnedUserMessage
+                              item={item()}
+                              rowWidth={containerWidth()}
+                              theme={theme()}
+                              caches={caches}
+                              expandedId={props.state.expandedUserId.get}
+                            />
+                          </div>
+                        )}
+                      </Show>
+                    );
+                  }}
                 </Show>
                 {/* Composer slot: full-width blurred backdrop strip; the inner
                     centered div is what the host portals its React composer

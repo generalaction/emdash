@@ -14,6 +14,7 @@ import type {
 import { PermissionBand } from './permission-band';
 import type { ComposerPermissionRequest } from './permission-band';
 import * as styles from './chat-composer.css';
+import './composer-contract.css';
 
 export type { MentionItem, CommandItem };
 export type { MentionKind, CommandBehavior, ContextMentionProvider } from '../prompt-editor/types';

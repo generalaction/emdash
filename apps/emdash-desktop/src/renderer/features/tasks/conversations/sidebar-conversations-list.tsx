@@ -1,9 +1,9 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { MessageSquareCode, Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { useTabSelection } from '@renderer/features/tasks/task-tab-registry';
+import { conversationTabKind, useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 import {
   useConversations,
   useTaskViewContext,
@@ -49,7 +49,7 @@ const ConversationRow = observer(function ConversationRow({
 
   const conversation = conversations.conversations.get(conversationId);
 
-  const tabKind = conversation?.data.type === 'acp' ? 'acp-chat' : 'conversation';
+  const tabKind = conversationTabKind(conversation?.data.type);
   const { isActive, open: openConversation } = useTabSelection(tabKind, conversationId);
 
   if (!conversation) return null;
@@ -109,7 +109,17 @@ const ConversationRow = observer(function ConversationRow({
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
-          <AgentIcon id={conversation.data.providerId} size={16} className="size-4" />
+          <span className="relative inline-flex size-4 shrink-0">
+            <AgentIcon id={conversation.data.providerId} size={16} className="size-4" />
+            {conversation.data.type === 'acp' && (
+              <span
+                title="ACP chat"
+                className="absolute -right-1 -bottom-1 flex items-center justify-center rounded-full bg-background ring-1 ring-background"
+              >
+                <MessageSquareCode className="size-2.5 text-foreground-muted" />
+              </span>
+            )}
+          </span>
           {isEditing ? (
             <input
               ref={handleRenameInputRef}
@@ -186,8 +196,12 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     showCreateConversationModal({
       projectId,
       taskId,
-      onSuccess: ({ conversationId }) => {
-        paneLayout.open('conversation', { conversationId }, { preview: false });
+      onSuccess: ({ conversationId, type }) => {
+        if (type === 'acp') {
+          paneLayout.open('acp-chat', { conversationId }, { preview: false });
+        } else {
+          paneLayout.open('conversation', { conversationId }, { preview: false });
+        }
       },
     });
   };

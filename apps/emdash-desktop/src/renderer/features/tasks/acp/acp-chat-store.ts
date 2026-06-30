@@ -364,9 +364,15 @@ export class AcpChatStore {
 
     const sorted = Array.from(this._activeTurnUpdates.values()).sort((a, b) => a.seq - b.seq);
 
+    // Use the known active turn id so that item ids produced here match those
+    // that foldTurn will produce when the turn commits, avoiding row churn on
+    // the stream→commit transition. Fall back to 'active' only in the brief
+    // window before the first session-state arrives.
+    const turnId = this._activeTurnId ?? 'active';
+
     let items: ChatItem[] = [];
     for (const { update } of sorted) {
-      const evts = mapAgentUpdate(update);
+      const evts = mapAgentUpdate(update, turnId);
       for (const evt of evts) {
         items = applyTurnEvent(items, evt);
       }

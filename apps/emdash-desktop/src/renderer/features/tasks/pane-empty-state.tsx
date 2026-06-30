@@ -20,8 +20,13 @@ export function PaneEmptyState() {
       showCreateConversationModal({
         projectId,
         taskId,
-        onSuccess: ({ conversationId }) =>
-          pane.open('conversation', { conversationId, preview: false }),
+        onSuccess: ({ conversationId, type }) => {
+          if (type === 'acp') {
+            pane.open('acp-chat', { conversationId, preview: false });
+          } else {
+            pane.open('conversation', { conversationId, preview: false });
+          }
+        },
       }),
     () => showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined }),
   ];

@@ -17,14 +17,14 @@
  * content stays clear of the composer. No external ResizeObserver needed.
  */
 
-import { ChatTranscript } from '@emdash/ui/react/chat-ui';
-import type { ChatView } from '@emdash/ui/react/chat-ui';
 import { ChatComposer } from '@emdash/ui/react/components';
 import type { ComposerPermissionRequest } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useState, type CSSProperties } from 'react';
+import { useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
+import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
+import type { ChatView } from '@renderer/lib/chat/chat-transcript';
 import type { AcpChatStore } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 
@@ -84,7 +84,7 @@ const AcpChatStorePanel = observer(function AcpChatStorePanel({ store }: { store
   return (
     <div
       className="relative h-full overflow-hidden"
-      style={{ backgroundColor: 'var(--surface-paper)' }}
+      style={{ backgroundColor: 'var(--background)' }}
     >
       <ChatTranscript
         context={store.chatContext}
@@ -97,24 +97,20 @@ const AcpChatStorePanel = observer(function AcpChatStorePanel({ store }: { store
       />
       {composerSlot &&
         createPortal(
-          <div style={{ '--composer-bg': 'var(--surface-paper)' } as CSSProperties}>
-            <ChatComposer
-              isWorking={a.isWorking}
-              canSubmit={a.canSubmit}
-              onSubmit={handleSubmit}
-              onStop={a.isWorking ? handleStop : undefined}
-              permissionRequest={permissionRequest}
-              permissionQueueCount={store.permissionQueue.length}
-              onResolvePermission={handleResolvePermission}
-            />
-          </div>,
+          <ChatComposer
+            isWorking={a.isWorking}
+            canSubmit={a.canSubmit}
+            onSubmit={handleSubmit}
+            onStop={a.isWorking ? handleStop : undefined}
+            permissionRequest={permissionRequest}
+            permissionQueueCount={store.permissionQueue.length}
+            onResolvePermission={handleResolvePermission}
+          />,
           composerSlot
         )}
     </div>
   );
 });
-
-// ── Root Content component ────────────────────────────────────────────────────
 
 export const AcpChatPanel = observer(function AcpChatPanel() {
   const { pane } = usePaneContext();
