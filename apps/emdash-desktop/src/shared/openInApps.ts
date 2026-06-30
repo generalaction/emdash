@@ -12,6 +12,10 @@ export type PlatformConfig = {
   // query returns any results. Use when bundleIds/appNames can't distinguish
   // the app (e.g., stable and Canary share a bundle ID but differ in display name).
   mdfindQuery?: string;
+  // Windows only: detect and launch via `vswhere.exe` (the canonical Visual Studio
+  // locator). `devenv.exe` is rarely on PATH, so availability is resolved by running
+  // `vswhere -latest -property productPath` and launching the resolved devenv.exe.
+  winVswhere?: boolean;
   label?: string;
   iconPath?: string;
 };
@@ -57,6 +61,7 @@ const ICON_PATHS = {
   athas: 'athas.svg',
   kiro: 'kiro.png',
   antigravity: 'antigravity.png',
+  'visual-studio': 'visual-studio.svg',
 } as const;
 
 const _OPEN_IN_APPS = {
@@ -656,6 +661,21 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['rustrover {{path}}'],
         checkCommands: ['rustrover'],
+      },
+    },
+  },
+  'visual-studio': {
+    id: 'visual-studio',
+    label: 'Visual Studio',
+    iconPath: ICON_PATHS['visual-studio'],
+    hideIfUnavailable: true,
+    platforms: {
+      // Windows-only IDE. Detected and launched via vswhere (see winVswhere);
+      // the `devenv {{path}}` fallback covers setups where devenv.exe is on PATH.
+      win32: {
+        winVswhere: true,
+        openCommands: ['start "" devenv {{path}}'],
+        checkCommands: ['devenv'],
       },
     },
   },

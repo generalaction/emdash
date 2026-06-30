@@ -36,10 +36,13 @@ import {
   checkMacApp,
   checkMacAppByName,
   checkMacMdfindQuery,
+  checkWindowsVisualStudio,
   escapeAppleScriptString,
   execFileCommand,
   listInstalledFontsAll,
   resolveAppVersion,
+  resolveWindowsVsProductPath,
+  spawnDetachedCommand,
 } from './utils';
 
 const FONT_CACHE_TTL_MS = 5 * 60 * 1_000;
@@ -184,6 +187,9 @@ class AppService implements IInitializable, IDisposable {
         }
         if (!isAvailable && platformConfig?.mdfindQuery && platform === 'darwin') {
           isAvailable = await checkMacMdfindQuery(platformConfig.mdfindQuery);
+        }
+        if (!isAvailable && platformConfig?.winVswhere && platform === 'win32') {
+          isAvailable = await checkWindowsVisualStudio();
         }
         availability[openInApp.id] = isAvailable;
       } catch (error) {
@@ -520,6 +526,15 @@ class AppService implements IInitializable, IDisposable {
       const errorMessage = await shell.openPath(target);
       if (errorMessage) throw new Error(errorMessage);
       return;
+    }
+
+    if (platformConfig?.winVswhere && process.platform === 'win32') {
+      const productPath = await resolveWindowsVsProductPath();
+      if (productPath) {
+        await spawnDetachedCommand(productPath, [target]);
+        return;
+      }
+      // Fall through to the `devenv {{path}}` openCommands fallback (devenv on PATH).
     }
 
     if (platformConfig?.openUrls) {
