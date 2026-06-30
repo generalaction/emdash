@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-branch-name.ts
+  s_d4a3effa1f8bf8::t_f1651b9cd568f8 4,10,67,85-92
+apps/emdash-desktop/src/renderer/features/tasks/task-config/branch-name-field.tsx
+  s_d4a3effa1f8bf8::t_f1651b9cd568f8 10-15,23-30,35
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_d4a3effa1f8bf8::t_f1651b9cd568f8 55,59,62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "1e446054ed5db4511182a531010d4439183280c2",
+  "prompts": {},
+  "sessions": {
+    "s_d4a3effa1f8bf8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f1821-72cb-7c92-86ec-fabfcc51c62f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
