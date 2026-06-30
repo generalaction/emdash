@@ -21,7 +21,8 @@ export interface IFileTree {
   subscribeWithSnapshot(
     cb: (update: FileTreeUpdate) => void
   ): Promise<Result<SubscribedSnapshot<FileTreeSnapshot>, FileTreeError>>;
-  expandDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>>;
+  registerDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>>;
+  unregisterDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>>;
   revealPath(path: string): Promise<Result<FileTreeSequences, FileTreeError>>;
   refresh(): Promise<Result<FileTreeSnapshot, FileTreeError>>;
   dispose(): Promise<void>;

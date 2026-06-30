@@ -54,7 +54,7 @@ describe('LegacySshFilesRuntime file tree', () => {
     expect(src).toBeDefined();
     if (!src) return;
 
-    const expanded = await tree.expandDir(src.id);
+    const expanded = await tree.registerDir(src.id);
     expect(expanded.success).toBe(true);
 
     const expandedSnapshot = await tree.getSnapshot();

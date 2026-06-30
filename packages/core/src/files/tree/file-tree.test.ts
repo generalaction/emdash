@@ -66,7 +66,7 @@ describe('FileTree', () => {
     const src = nodeByPath(await nodes(tree), 'src');
     expect(src.childrenLoaded).toBe(false);
 
-    await expect(tree.expandDir(src.id)).resolves.toMatchObject({
+    await expect(tree.registerDir(src.id)).resolves.toMatchObject({
       success: true,
       data: { tree: expect.any(Number) },
     });
@@ -74,6 +74,44 @@ describe('FileTree', () => {
     const expanded = await nodes(tree);
     expect(paths(expanded)).toEqual(['src', 'README.md', 'src/nested']);
     expect(nodeByPath(expanded, 'src').childrenLoaded).toBe(true);
+    await tree.dispose();
+  });
+
+  it('unregisters a directory scope only when the last registrant releases it', async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, 'src', 'nested'), { recursive: true });
+    await writeFile(path.join(root, 'src', 'nested', 'a.ts'), 'a', 'utf8');
+
+    const tree = new FileTree({ rootPath: root, watcher: new ManualWatchService() });
+    unwrap(await tree.ready());
+    const src = nodeByPath(await nodes(tree), 'src');
+
+    // Two registrants for the same scope.
+    unwrap(await tree.registerDir(src.id));
+    unwrap(await tree.registerDir(src.id));
+    expect(paths(await nodes(tree))).toContain('src/nested');
+
+    // First release keeps the scope loaded.
+    unwrap(await tree.unregisterDir(src.id));
+    expect(paths(await nodes(tree))).toContain('src/nested');
+
+    // Last release unloads the scope's children.
+    unwrap(await tree.unregisterDir(src.id));
+    expect(paths(await nodes(tree))).not.toContain('src/nested');
+    await tree.dispose();
+  });
+
+  it('keeps the root scope pinned across register/unregister of root', async () => {
+    const root = await makeRoot();
+    await writeFile(path.join(root, 'README.md'), 'readme', 'utf8');
+
+    const tree = new FileTree({ rootPath: root, watcher: new ManualWatchService() });
+    unwrap(await tree.ready());
+
+    unwrap(await tree.registerDir(null));
+    unwrap(await tree.unregisterDir(null));
+    // Root must remain loaded even after balanced register/unregister.
+    expect(paths(await nodes(tree))).toEqual(['README.md']);
     await tree.dispose();
   });
 
@@ -275,10 +313,10 @@ describe('FileTree', () => {
     unwrap(await tree.ready());
 
     const patched = tree as unknown as {
-      refreshLoadedScopes(): Promise<Result<unknown, unknown>>;
+      refreshRegisteredScopes(): Promise<Result<unknown, unknown>>;
       applyWatchEvents(events: WatchEvent[]): Promise<void>;
     };
-    const originalRefreshLoadedScopes = patched.refreshLoadedScopes;
+    const originalRefreshLoadedScopes = patched.refreshRegisteredScopes;
     const originalApplyWatchEvents = patched.applyWatchEvents;
 
     let activeMutations = 0;
@@ -293,7 +331,7 @@ describe('FileTree', () => {
 
     let releaseRefresh: () => void = () => {};
     const refreshEntered = new Promise<void>((resolve) => {
-      patched.refreshLoadedScopes = async () => {
+      patched.refreshRegisteredScopes = async () => {
         enterMutation();
         resolve();
         await new Promise<void>((release) => {
@@ -335,7 +373,7 @@ describe('FileTree', () => {
     await watchApplied;
 
     expect(maxActiveMutations).toBe(1);
-    patched.refreshLoadedScopes = originalRefreshLoadedScopes;
+    patched.refreshRegisteredScopes = originalRefreshLoadedScopes;
     patched.applyWatchEvents = originalApplyWatchEvents;
     tree.dispose();
   });
