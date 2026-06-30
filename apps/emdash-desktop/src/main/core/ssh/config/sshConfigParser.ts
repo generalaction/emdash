@@ -19,13 +19,13 @@ function stripQuotes(value: string): string {
 }
 
 /**
- * Expands a leading `~` or `~/` to the user's home directory.
+ * Expands a leading `~`, `~/`, or `~\` to the user's home directory.
  */
 function expandTilde(filePath: string): string {
   if (filePath === '~') {
     return homedir();
   }
-  if (filePath.startsWith('~/')) {
+  if (filePath.startsWith('~/') || filePath.startsWith('~\\')) {
     return join(homedir(), filePath.slice(2));
   }
   return filePath;
@@ -83,7 +83,10 @@ async function resolveIncludePaths(value: string, configDir: string): Promise<st
       const absolutePattern = isAbsolute(expandedPattern)
         ? expandedPattern
         : resolve(configDir, expandedPattern);
-      return await glob(absolutePattern, { nodir: true });
+      return await glob(absolutePattern, {
+        nodir: true,
+        windowsPathsNoEscape: process.platform === 'win32',
+      });
     })
   );
 

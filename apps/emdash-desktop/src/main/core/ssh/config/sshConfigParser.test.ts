@@ -8,6 +8,12 @@ import {
   parseSshConfigFileAt,
 } from './sshConfigParser';
 
+const itWindows = process.platform === 'win32' ? it : it.skip;
+const pathSuffix = (suffix: string) => {
+  const escapedSuffix = suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replaceAll('/', '[\\\\/]');
+  return new RegExp(`[\\\\/]${escapedSuffix}$`);
+};
+
 describe('parseSshConfigContent', () => {
   it('lists concrete SSH config aliases with proxy and forwarding preview fields', () => {
     const hosts = parseSshConfigContent(`
@@ -35,8 +41,8 @@ Host plain
         hostname: 'dev.internal',
         user: 'alice',
         port: 2222,
-        identityFile: expect.stringContaining('/.ssh/dev_ed25519'),
-        identityAgent: expect.stringContaining('/.1password/agent.sock'),
+        identityFile: expect.stringMatching(pathSuffix('.ssh/dev_ed25519')),
+        identityAgent: expect.stringMatching(pathSuffix('.1password/agent.sock')),
         proxyCommand: 'cloudflared access ssh --hostname %h',
         forwardAgent: true,
         forwardAgentValue: '$SSH_AUTH_SOCK',
@@ -46,8 +52,8 @@ Host plain
         hostname: 'dev.internal',
         user: 'alice',
         port: 2222,
-        identityFile: expect.stringContaining('/.ssh/dev_ed25519'),
-        identityAgent: expect.stringContaining('/.1password/agent.sock'),
+        identityFile: expect.stringMatching(pathSuffix('.ssh/dev_ed25519')),
+        identityAgent: expect.stringMatching(pathSuffix('.1password/agent.sock')),
         proxyCommand: 'cloudflared access ssh --hostname %h',
         forwardAgent: true,
         forwardAgentValue: '$SSH_AUTH_SOCK',
@@ -130,6 +136,86 @@ Host included-alias
     ]);
   });
 
+  it('expands quoted and unquoted Include glob patterns', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'emdash-ssh-config-quoted-'));
+    await mkdir(join(dir, 'team config'));
+    await mkdir(join(dir, 'conf.d'));
+    await writeFile(
+      join(dir, 'config'),
+      `
+Include "team config/*.conf" conf.d/*.conf
+`,
+      'utf-8'
+    );
+    await writeFile(
+      join(dir, 'team config', 'primary.conf'),
+      `
+Host quoted-include
+  HostName quoted.internal
+`,
+      'utf-8'
+    );
+    await writeFile(
+      join(dir, 'conf.d', 'secondary.conf'),
+      `
+Host unquoted-include
+  HostName unquoted.internal
+`,
+      'utf-8'
+    );
+
+    expect(await parseSshConfigFileAt(join(dir, 'config'))).toEqual([
+      {
+        host: 'unquoted-include',
+        hostname: 'unquoted.internal',
+      },
+      {
+        host: 'quoted-include',
+        hostname: 'quoted.internal',
+      },
+    ]);
+  });
+
+  itWindows('expands Include glob patterns with Windows path separators', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'emdash-ssh-config-windows-'));
+    await mkdir(join(dir, 'absolute'));
+    await mkdir(join(dir, 'relative'));
+    await writeFile(
+      join(dir, 'config'),
+      `
+Include relative\\*.conf "${join(dir, 'absolute', '*.conf')}"
+`,
+      'utf-8'
+    );
+    await writeFile(
+      join(dir, 'absolute', 'team.conf'),
+      `
+Host absolute-windows-include
+  HostName absolute.internal
+`,
+      'utf-8'
+    );
+    await writeFile(
+      join(dir, 'relative', 'team.conf'),
+      `
+Host relative-windows-include
+  HostName relative.internal
+`,
+      'utf-8'
+    );
+
+    expect(await parseSshConfigFileAt(join(dir, 'config'))).toEqual([
+      {
+        host: 'absolute-windows-include',
+        hostname: 'absolute.internal',
+      },
+      {
+        host: 'relative-windows-include',
+        hostname: 'relative.internal',
+      },
+    ]);
+  });
+
   it('applies the same included snippet at each Include occurrence', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'emdash-ssh-config-repeat-'));
     await writeFile(
@@ -159,13 +245,13 @@ Host second
         host: 'first',
         hostname: 'first.internal',
         user: 'shared',
-        identityAgent: expect.stringContaining('/.ssh/shared-agent.sock'),
+        identityAgent: expect.stringMatching(pathSuffix('.ssh/shared-agent.sock')),
       },
       {
         host: 'second',
         hostname: 'second.internal',
         user: 'shared',
-        identityAgent: expect.stringContaining('/.ssh/shared-agent.sock'),
+        identityAgent: expect.stringMatching(pathSuffix('.ssh/shared-agent.sock')),
       },
     ]);
   });
