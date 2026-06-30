@@ -7,6 +7,7 @@ import { usePreviewServers, useTaskViewContext } from '@renderer/features/tasks/
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
+import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
 import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { BrowserAnnotationOverlay } from './browser-annotation-overlay';
@@ -219,6 +220,17 @@ export const BrowserPane = observer(function BrowserPane({
     [adapter, sessionBrowserId]
   );
 
+  const toggleAnnotationMode = useCallback(() => {
+    setAnnotationMode((value) => {
+      const enabled = !value;
+      captureTelemetry('browser_annotation_mode_toggled', {
+        enabled,
+        pending_count: browserAnnotations?.pendingCount ?? 0,
+      });
+      return enabled;
+    });
+  }, [browserAnnotations?.pendingCount]);
+
   // Must stay referentially stable: React re-invokes inline ref callbacks with
   // null + node on every render, which would wipe the adapter until the next
   // dom-ready and break everything adapter-backed (zoom, stop, force reload).
@@ -283,7 +295,7 @@ export const BrowserPane = observer(function BrowserPane({
         annotationMode={annotationMode}
         annotationCount={browserAnnotations?.pendingCount ?? 0}
         annotationDisabled={!canAnnotate}
-        onToggleAnnotationMode={() => setAnnotationMode((value) => !value)}
+        onToggleAnnotationMode={toggleAnnotationMode}
         onFocusUrl={(focus) => {
           focusUrlRef.current = focus;
         }}

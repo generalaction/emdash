@@ -111,6 +111,19 @@ export type TelemetryEventProperties = {
   terminal_created: { terminal_id: string };
   terminal_deleted: { terminal_id: string };
 
+  browser_annotation_mode_toggled: { enabled: boolean; pending_count: number };
+  browser_annotation_created: {
+    kind: 'element' | 'text' | 'area';
+    pending_count: number;
+    has_selected_text: boolean;
+  };
+  browser_annotations_assigned: {
+    annotation_count: number;
+    page_count: number;
+    and_send: boolean;
+    provider: AgentProviderId | null;
+  };
+
   pr_created: { is_draft: boolean };
   pr_creation_failed: { error_type: string };
   pr_merged: {

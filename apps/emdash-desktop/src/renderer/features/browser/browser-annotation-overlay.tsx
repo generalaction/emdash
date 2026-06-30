@@ -11,7 +11,9 @@ import {
 } from 'react';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
+import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { cn } from '@renderer/utils/utils';
 import type {
   BrowserAnnotationBoundingBox,
@@ -117,8 +119,12 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
     async (point: Point, kind: BrowserAnnotationTarget['kind'] = 'element') => {
       if (!adapter) return null;
       const script = buildBrowserAnnotationCaptureScript(point.x, point.y, kind);
-      const result = await adapter.executeJavaScript(script);
-      return parseBrowserAnnotationCaptureResult(result);
+      try {
+        const result = await adapter.executeJavaScript(script);
+        return parseBrowserAnnotationCaptureResult(result);
+      } catch {
+        return null;
+      }
     },
     [adapter]
   );
@@ -214,9 +220,12 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
     const deltaY = event.shiftKey && rawDeltaX === 0 ? 0 : rawDeltaY;
     const script = buildBrowserAnnotationScrollScript(point.x, point.y, deltaX, deltaY);
 
-    void adapter.executeJavaScript(script).then(() => {
-      scheduleHoverTargetUpdate(point);
-    });
+    void adapter
+      .executeJavaScript(script)
+      .catch(() => null)
+      .then(() => {
+        scheduleHoverTargetUpdate(point);
+      });
   };
 
   const openComposer = (target: BrowserAnnotationTarget, anchor: Point) => {
@@ -237,6 +246,11 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
       ...composer.target,
       browserId,
       comment: content,
+    });
+    captureTelemetry('browser_annotation_created', {
+      kind: composer.target.kind,
+      pending_count: store.pendingCount,
+      has_selected_text: Boolean(composer.target.selectedText),
     });
     closeComposer();
   };
@@ -327,7 +341,8 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
               disabled={!comment.trim() || !store}
               onClick={saveAnnotation}
             >
-              Save
+              <span>Save</span>
+              <Shortcut hotkey="Mod+Enter" variant="keycaps" />
             </Button>
           </div>
         </div>

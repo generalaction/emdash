@@ -20,6 +20,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
+import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { AddContextPopover } from './add-context-popover';
 import { buildTaskContextActions, type ContextAction } from './context-actions';
 
@@ -89,6 +90,12 @@ export const ContextBar = observer(function ContextBar({
       draftComments?.consumeAll();
     }
     if (action.kind === 'browser-annotations') {
+      captureTelemetry('browser_annotations_assigned', {
+        annotation_count: action.annotationCount,
+        page_count: action.pageCount,
+        and_send: Boolean(opts?.andSend),
+        provider: activeConversationStore?.data.providerId ?? null,
+      });
       browserAnnotations?.consumePending();
     }
 

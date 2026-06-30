@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   getTaskStore: vi.fn(),
   pastePromptInjection: vi.fn(),
   sendInput: vi.fn(),
+  captureTelemetry: vi.fn(),
   updateInterfaceSettings: vi.fn(),
 }));
 
@@ -83,6 +84,10 @@ vi.mock('@renderer/lib/ipc', () => ({
 
 vi.mock('@renderer/lib/pty/prompt-injection', () => ({
   pastePromptInjection: mocks.pastePromptInjection,
+}));
+
+vi.mock('@renderer/utils/telemetryClient', () => ({
+  captureTelemetry: mocks.captureTelemetry,
 }));
 
 let latestPopoverProps: AddContextPopoverProps | undefined;
@@ -166,6 +171,12 @@ describe('ContextBar browser annotations', () => {
     );
     expect(mocks.sendInput).toHaveBeenNthCalledWith(1, 'session-1', 'pasted annotation context');
     expect(mocks.sendInput).toHaveBeenNthCalledWith(2, 'session-1', '\r');
+    expect(mocks.captureTelemetry).toHaveBeenCalledWith('browser_annotations_assigned', {
+      annotation_count: 1,
+      page_count: 1,
+      and_send: true,
+      provider: 'claude',
+    });
     expect(mocks.browserAnnotations.consumePending).toHaveBeenCalledOnce();
     expect(mocks.activeSession.pty.terminal.focus).toHaveBeenCalledOnce();
   });
@@ -181,6 +192,10 @@ describe('ContextBar browser annotations', () => {
     ).rejects.toThrow('paste failed');
 
     expect(mocks.browserAnnotations.consumePending).not.toHaveBeenCalled();
+    expect(mocks.captureTelemetry).not.toHaveBeenCalledWith(
+      'browser_annotations_assigned',
+      expect.anything()
+    );
     expect(mocks.activeSession.pty.terminal.focus).not.toHaveBeenCalled();
   });
 });
