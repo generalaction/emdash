@@ -114,10 +114,11 @@ export class NodeIdAssigner {
     const moved: FileNode[] = [];
     const visit = (parentId: NodeId) => {
       for (const node of this.childrenOf(parentId)) {
-        if (!node.path.startsWith(`${oldPrefix}/`)) continue;
+        const movedPath = movePathUnderPrefix(node.path, oldPrefix, newPrefix);
+        if (!movedPath) continue;
         const next: FileNode = {
           ...node,
-          path: `${newPrefix}${node.path.slice(oldPrefix.length)}`,
+          path: movedPath,
         };
         this.setNode(next);
         moved.push(next);
@@ -137,6 +138,31 @@ export class NodeIdAssigner {
       if (node) children.push(node);
     }
     return children;
+  }
+
+  pruneToReachable(loadedScopes: ReadonlySet<NodeId | null>): FileNode[] {
+    const reachable = new Set<NodeId>();
+    const visited = new Set<NodeId | null>();
+    const queue: Array<NodeId | null> = [null];
+    while (queue.length > 0) {
+      const scope = queue.shift() as NodeId | null;
+      if (visited.has(scope)) continue;
+      visited.add(scope);
+      for (const child of this.childrenOf(scope)) {
+        reachable.add(child.id);
+        if (child.type === 'directory' && loadedScopes.has(child.id)) queue.push(child.id);
+      }
+    }
+
+    const removed: FileNode[] = [];
+    for (const id of [...this.records.keys()]) {
+      if (reachable.has(id)) continue;
+      const record = this.records.get(id);
+      if (!record) continue;
+      this.removeRecord(id);
+      removed.push(record.node);
+    }
+    return removed;
   }
 
   reset(nodes: Array<{ node: FileNode; devIno?: DevIno }>): void {
@@ -189,4 +215,28 @@ export class NodeIdAssigner {
     children.delete(id);
     if (children.size === 0) this.childrenByParent.delete(parentId);
   }
+}
+
+function movePathUnderPrefix(
+  childPath: string,
+  oldPrefix: string,
+  newPrefix: string
+): string | null {
+  const normalizedChild = normalizePathForComparison(childPath);
+  const normalizedOld = normalizePathForComparison(oldPrefix).replace(/\/+$/, '');
+  const oldWithSlash = `${normalizedOld}/`;
+  if (!normalizedChild.startsWith(oldWithSlash)) return null;
+
+  const relative = normalizedChild.slice(oldWithSlash.length);
+  const separator = preferredSeparator(newPrefix);
+  const base = newPrefix.replace(/[\\/]+$/, '');
+  return `${base}${separator}${relative.replace(/\//g, separator)}`;
+}
+
+function normalizePathForComparison(value: string): string {
+  return value.replace(/\\/g, '/');
+}
+
+function preferredSeparator(value: string): '/' | '\\' {
+  return value.lastIndexOf('\\') > value.lastIndexOf('/') ? '\\' : '/';
 }

@@ -4,7 +4,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import { isIgnoredInsideRoot } from '../ignores';
 import { contains, validateAbsolutePath } from '../paths';
 import { classifyFileTreeFsError, type FileTreeError } from './errors';
-import type { FileNodeType } from './models/tree';
+import type { CompactChainSegment, FileNodeType } from './models/tree';
 
 export type DevIno = `${number}:${number}`;
 
@@ -14,6 +14,15 @@ export type ListedEntry = {
   type: FileNodeType;
   devIno?: DevIno;
 };
+
+export type DirectoryProbe = {
+  childCount: number;
+  compactChain: CompactChainSegment[];
+};
+
+const MAX_COMPACT_CHAIN_DEPTH = 64;
+
+type LightEntry = { path: string; name: string; type: FileNodeType };
 
 export async function listChildren(
   rootPath: string,
@@ -54,6 +63,57 @@ export async function listChildren(
     return a.name.localeCompare(b.name);
   });
   return ok(listed);
+}
+
+export async function probeDirectory(rootPath: string, dirPath: string): Promise<DirectoryProbe> {
+  const children = await listChildNames(rootPath, dirPath);
+  if (!children) return { childCount: 0, compactChain: [] };
+
+  const childCount = children.length;
+  const compactChain: CompactChainSegment[] = [];
+  const visited = new Set<string>([dirPath]);
+  let current = children;
+  while (
+    current.length === 1 &&
+    current[0].type === 'directory' &&
+    !visited.has(current[0].path) &&
+    compactChain.length < MAX_COMPACT_CHAIN_DEPTH
+  ) {
+    const only = current[0];
+    compactChain.push({ name: only.name, path: only.path });
+    visited.add(only.path);
+    const next = await listChildNames(rootPath, only.path);
+    if (!next) break;
+    current = next;
+  }
+  return { childCount, compactChain };
+}
+
+async function listChildNames(rootPath: string, dirPath: string): Promise<LightEntry[] | null> {
+  const resolvedRoot = validateAbsolutePath(rootPath);
+  if (!resolvedRoot.success) return null;
+  const resolvedDir = resolveTreePath(resolvedRoot.data, dirPath);
+  if (!resolvedDir.success) return null;
+
+  let entries;
+  try {
+    entries = await readdir(resolvedDir.data, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+
+  const result: LightEntry[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile() && !entry.isDirectory()) continue;
+    const absPath = path.join(resolvedDir.data, entry.name);
+    if (isIgnoredInsideRoot(resolvedRoot.data, absPath)) continue;
+    result.push({
+      path: absPath,
+      name: entry.name,
+      type: entry.isDirectory() ? 'directory' : 'file',
+    });
+  }
+  return result;
 }
 
 export async function statEntry(

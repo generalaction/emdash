@@ -40,7 +40,13 @@ export type {
   ReadTextResult,
   WriteFileResult,
 } from './fs/types';
-export type { FileNode, FileNodeType, FileTreeScope, NodeId } from './tree/models/tree';
+export type {
+  CompactChainSegment,
+  FileNode,
+  FileNodeType,
+  FileTreeScope,
+  NodeId,
+} from './tree/models/tree';
 export type {
   FileTreeLease,
   FileTreeSequences,

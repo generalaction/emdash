@@ -352,8 +352,6 @@ class LegacySshFileTree implements IFileTree {
     NodeId | null,
     Promise<Result<FileTreeSequences, FileTreeError>>
   >();
-  /** Per-scope registration ref-count. A scope stays loaded while its count is > 0; root is pinned. */
-  private readonly scopeRefs = new Map<NodeId | null, number>();
   private readonly pollTimer: ReturnType<typeof setInterval>;
   private nextId = 1;
   private disposed = false;
@@ -383,7 +381,6 @@ class LegacySshFileTree implements IFileTree {
     const readyPromise = (async (): Promise<Result<void, FileTreeError>> => {
       const loaded = await this.loadDirectoryScope(null);
       if (!loaded.success) return err(loaded.error);
-      if (!this.scopeRefs.has(null)) this.scopeRefs.set(null, 1);
       return ok<void>();
     })().catch((error): Result<void, FileTreeError> => {
       if (this.readyPromise === readyPromise) {
@@ -420,25 +417,16 @@ class LegacySshFileTree implements IFileTree {
   async registerDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>> {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
-    const next = (this.scopeRefs.get(dirId) ?? 0) + 1;
-    this.scopeRefs.set(dirId, next);
-    if (next === 1 && !this.collection.isScopeLoaded(dirId)) {
-      return this.loadDirectoryScope(dirId);
-    }
-    return ok({});
+    // The caller (FileTreeProjector) is the sole ref-count authority, so a register is just
+    // "load this scope if it isn't already loaded"; the poller keeps a loaded scope fresh.
+    if (this.collection.isScopeLoaded(dirId)) return ok({});
+    return this.loadDirectoryScope(dirId);
   }
 
   async unregisterDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>> {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
-    const current = this.scopeRefs.get(dirId) ?? 0;
-    if (current <= 0) return ok({});
-    const next = current - 1;
-    if (next > 0) {
-      this.scopeRefs.set(dirId, next);
-      return ok({});
-    }
-    this.scopeRefs.delete(dirId);
+    // Root stays pinned for the tree's lifetime; everything else unloads on unregister.
     if (dirId === null) return ok({});
     const sequence = this.collection.unloadScope(dirId);
     return ok(sequence === 0 ? {} : { tree: sequence });
@@ -605,7 +593,6 @@ class LegacySshFileTree implements IFileTree {
 
     let sequence = this.collection.apply(ops);
     for (const scope of removedScopes) {
-      this.scopeRefs.delete(scope);
       sequence = Math.max(sequence, this.collection.unloadScope(scope));
     }
     return sequence;

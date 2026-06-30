@@ -5,8 +5,8 @@ import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
 import { isIgnoredInsideRoot, watchIgnoreGlobs } from '../ignores';
 import { contains, validateAbsolutePath } from '../paths';
 import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';
-import { listChildren } from './list';
-import type { FileNode, NodeId } from './models/tree';
+import { listChildren, probeDirectory } from './list';
+import type { CompactChainSegment, FileNode, NodeId } from './models/tree';
 import { NodeIdAssigner } from './node-id';
 import type {
   FileTreeSequences,
@@ -40,8 +40,6 @@ export class FileTree implements IFileTree {
     NodeId | null,
     Promise<Result<FileTreeSequences, FileTreeError>>
   >();
-  /** Per-scope registration ref-count. A scope stays loaded while its count is > 0; root is pinned. */
-  private readonly scopeRefs = new Map<NodeId | null, number>();
   private disposed = false;
   private readyPromise: Promise<Result<void, FileTreeError>> | null = null;
 
@@ -97,8 +95,6 @@ export class FileTree implements IFileTree {
       }
       const loaded = await this.runMutation(() => this.loadDirectoryScope(null));
       if (!loaded.success) return err(loaded.error);
-      // Pin root for the tree's lifetime so it is never unloaded by unregisterDir.
-      if (!this.scopeRefs.has(null)) this.scopeRefs.set(null, 1);
       return ok<void>();
     })().catch((error): Result<void, FileTreeError> => {
       if (this.readyPromise === readyPromise) {
@@ -151,40 +147,42 @@ export class FileTree implements IFileTree {
   async registerDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>> {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
-    return this.runMutation(() => this.retainScope(dirId));
+    return this.runMutation(() =>
+      this.collection.isScopeLoaded(dirId)
+        ? Promise.resolve(ok<FileTreeSequences>({}))
+        : this.loadDirectoryScope(dirId)
+    );
   }
 
   async unregisterDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>> {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
-    return this.runMutation(() => Promise.resolve(this.releaseScope(dirId)));
+    return this.runMutation(() => Promise.resolve(this.unloadScopeUnlessRoot(dirId)));
   }
 
-  private async retainScope(
-    scope: NodeId | null
-  ): Promise<Result<FileTreeSequences, FileTreeError>> {
-    const next = (this.scopeRefs.get(scope) ?? 0) + 1;
-    this.scopeRefs.set(scope, next);
-    // Only the first registrant needs to load; the watcher keeps an already-loaded scope fresh.
-    if (next === 1 && !this.collection.isScopeLoaded(scope)) {
-      return this.loadDirectoryScope(scope);
-    }
-    return ok({});
-  }
-
-  private releaseScope(scope: NodeId | null): Result<FileTreeSequences, FileTreeError> {
-    const current = this.scopeRefs.get(scope) ?? 0;
-    if (current <= 0) return ok({});
-    const next = current - 1;
-    if (next > 0) {
-      this.scopeRefs.set(scope, next);
-      return ok({});
-    }
-    this.scopeRefs.delete(scope);
-    // Root stays pinned: never unload it even if a registrant releases.
+  private unloadScopeUnlessRoot(scope: NodeId | null): Result<FileTreeSequences, FileTreeError> {
+    // Root stays pinned for the tree's lifetime; everything else unloads on unregister.
     if (scope === null) return ok({});
-    const sequence = this.collection.unloadScope(scope);
+    let sequence = this.collection.unloadScope(scope);
+    sequence = Math.max(sequence, this.collectGarbage());
     return ok(sequence === 0 ? {} : { tree: sequence });
+  }
+
+  private collectGarbage(): number {
+    const loaded = new Set<NodeId | null>(this.collection.loadedScopes());
+    const removed = this.ids.pruneToReachable(loaded);
+    if (removed.length === 0) return 0;
+    const ops: Array<KeyedOp<NodeId, FileNode>> = removed.map((node) => ({
+      op: 'del',
+      key: node.id,
+    }));
+    let sequence = this.collection.apply(ops);
+    for (const node of removed) {
+      if (node.type === 'directory') {
+        sequence = Math.max(sequence, this.collection.unloadScope(node.id));
+      }
+    }
+    return sequence;
   }
 
   async revealPath(pathToReveal: string): Promise<Result<FileTreeSequences, FileTreeError>> {
@@ -271,8 +269,19 @@ export class FileTree implements IFileTree {
     const listedPaths = new Set(listedEntries.map((entry) => entry.path));
     let sequence = this.removeMissingChildren(scope, listedPaths);
 
-    const nodes = listedEntries.map((entry) =>
-      this.ids.upsert(entry, scope, this.ids.getByPath(entry.path)?.childrenLoaded)
+    const nodes = await Promise.all(
+      listedEntries.map(async (entry) => {
+        const node = this.ids.upsert(entry, scope, this.ids.getByPath(entry.path)?.childrenLoaded);
+        if (entry.type !== 'directory') return node;
+        const probe = await probeDirectory(this.rootPath, entry.path);
+        const annotated: FileNode = {
+          ...node,
+          childCount: probe.childCount,
+          compactChain: probe.compactChain,
+        };
+        this.ids.setNode(annotated);
+        return annotated;
+      })
     );
     const loaded = await this.collection.loadScope(scope, async () =>
       ok(nodes.map((node) => [node.id, node] as const))
@@ -310,7 +319,6 @@ export class FileTree implements IFileTree {
 
     let sequence = this.collection.apply(ops);
     for (const scope of removedScopes) {
-      this.scopeRefs.delete(scope);
       sequence = Math.max(sequence, this.collection.unloadScope(scope));
     }
     return sequence;
@@ -337,6 +345,58 @@ export class FileTree implements IFileTree {
     });
     this.collection.apply(classification.ops);
     for (const scope of classification.unloadedScopes) this.collection.unloadScope(scope);
+    await this.reannotateCompaction(events, classification.ops);
+  }
+
+  private async reannotateCompaction(
+    events: WatchEvent[],
+    ops: Array<KeyedOp<NodeId, FileNode>>
+  ): Promise<void> {
+    const targets = new Set<NodeId>();
+    for (const op of ops) {
+      if (op.op === 'put' && op.value.type === 'directory') targets.add(op.value.id);
+    }
+    for (const event of events) {
+      if (event.kind === 'update') continue;
+      const head = this.nearestTrackedDir(event.path);
+      if (head !== undefined) targets.add(head);
+    }
+    if (targets.size === 0) return;
+
+    const changeOps: Array<KeyedOp<NodeId, FileNode>> = [];
+    for (const id of targets) {
+      const node = this.ids.get(id);
+      if (!node || node.type !== 'directory') continue;
+      const probe = await probeDirectory(this.rootPath, node.path);
+      if (
+        node.childCount === probe.childCount &&
+        compactChainsEqual(node.compactChain, probe.compactChain)
+      ) {
+        continue;
+      }
+      const updated: FileNode = {
+        ...node,
+        childCount: probe.childCount,
+        compactChain: probe.compactChain,
+      };
+      this.ids.setNode(updated);
+      changeOps.push({ op: 'put', key: id, value: updated });
+    }
+    if (changeOps.length > 0) this.collection.apply(changeOps);
+  }
+
+  private nearestTrackedDir(eventPath: string): NodeId | undefined {
+    const absPath = path.normalize(eventPath);
+    if (!contains(this.rootPath, absPath)) return undefined;
+    let current = path.dirname(absPath);
+    while (current !== this.rootPath && contains(this.rootPath, current)) {
+      const node = this.ids.getByPath(current);
+      if (node?.type === 'directory') return node.id;
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+    return undefined;
   }
 
   private async resync(): Promise<void> {
@@ -358,4 +418,17 @@ export class FileTree implements IFileTree {
 
 function mergeSequences(left: FileTreeSequences, right: FileTreeSequences): FileTreeSequences {
   return { tree: Math.max(left.tree ?? 0, right.tree ?? 0) || undefined };
+}
+
+function compactChainsEqual(
+  left: CompactChainSegment[] | undefined,
+  right: CompactChainSegment[] | undefined
+): boolean {
+  const a = left ?? [];
+  const b = right ?? [];
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index].path !== b[index].path || a[index].name !== b[index].name) return false;
+  }
+  return true;
 }
