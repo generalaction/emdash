@@ -1,41 +1,64 @@
 import type { NodeId } from '@emdash/core/files';
 import { err, ok } from '@emdash/shared';
 import { resolveWorkspace } from '@main/core/projects/utils';
-import type { FileTreeMutationResult, FileTreeSnapshotResult } from '@shared/core/fs/file-tree';
+import type {
+  FileTreeProjectionCloseResult,
+  FileTreeProjectionOpenResult,
+  FileTreeProjectionVersionResult,
+} from '@shared/core/fs/file-tree';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 
 export const fileTreeController = createRPCController({
-  getSnapshot: async (projectId: string, workspaceId: string): Promise<FileTreeSnapshotResult> => {
+  openProjection: async (
+    projectId: string,
+    workspaceId: string
+  ): Promise<FileTreeProjectionOpenResult> => {
     const workspace = resolveWorkspace(projectId, workspaceId);
     if (!workspace) return err({ type: 'not_found' });
-    return await workspace.fileTree.getSnapshot();
+    return await workspace.fileTreeProjector.openProjection();
   },
 
-  expandDir: async (
+  registerDir: async (
     projectId: string,
     workspaceId: string,
+    subscriptionId: string,
     dirId: NodeId | null
-  ): Promise<FileTreeMutationResult> => {
+  ): Promise<FileTreeProjectionVersionResult> => {
     const workspace = resolveWorkspace(projectId, workspaceId);
     if (!workspace) return err({ type: 'not_found' });
-    const result = await workspace.fileTree.expandDir(dirId);
-    return result.success ? ok({ sequences: result.data }) : err(result.error);
+    return await workspace.fileTreeProjector.registerDir(subscriptionId, dirId);
+  },
+
+  unregisterDir: async (
+    projectId: string,
+    workspaceId: string,
+    subscriptionId: string,
+    dirId: NodeId | null
+  ): Promise<FileTreeProjectionVersionResult> => {
+    const workspace = resolveWorkspace(projectId, workspaceId);
+    if (!workspace) return err({ type: 'not_found' });
+    return await workspace.fileTreeProjector.unregisterDir(subscriptionId, dirId);
   },
 
   revealPath: async (
     projectId: string,
     workspaceId: string,
+    subscriptionId: string,
     filePath: string
-  ): Promise<FileTreeMutationResult> => {
+  ): Promise<FileTreeProjectionVersionResult> => {
     const workspace = resolveWorkspace(projectId, workspaceId);
     if (!workspace) return err({ type: 'not_found' });
-    const result = await workspace.fileTree.revealPath(filePath);
-    return result.success ? ok({ sequences: result.data }) : err(result.error);
+    return await workspace.fileTreeProjector.revealPath(subscriptionId, filePath);
   },
 
-  refresh: async (projectId: string, workspaceId: string): Promise<FileTreeSnapshotResult> => {
+  closeProjection: async (
+    projectId: string,
+    workspaceId: string,
+    subscriptionId: string
+  ): Promise<FileTreeProjectionCloseResult> => {
     const workspace = resolveWorkspace(projectId, workspaceId);
     if (!workspace) return err({ type: 'not_found' });
-    return await workspace.fileTree.refresh();
+    await workspace.fileTreeProjector.closeProjection(subscriptionId);
+    return ok<void>();
   },
 });

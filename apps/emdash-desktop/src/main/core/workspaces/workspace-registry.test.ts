@@ -19,6 +19,7 @@ function makeWorkspace(id: string): {
       configPath: `/tmp/${id}/.emdash.json`,
       fileSystem: {} as Workspace['fileSystem'],
       fileTree: { dispose: fileTreeDispose } as unknown as Workspace['fileTree'],
+      fileTreeProjector: { dispose: vi.fn() } as unknown as Workspace['fileTreeProjector'],
       gitWorktree: { dispose: gitDispose } as unknown as Workspace['gitWorktree'],
       settings: {} as Workspace['settings'],
       lifecycleService: {

@@ -3,6 +3,7 @@ import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conve
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
+import { FileTreeProjector } from '@main/core/files/file-tree/projector';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
@@ -24,7 +25,7 @@ import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-reg
 import { handleGitWorktreeUpdate } from '@main/core/workspaces/workspace-worktree-update';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { fileChangesChannel, fileTreeUpdateChannel } from '@shared/core/fs/fsEvents';
+import { fileChangesChannel, fileTreeProjectionChannel } from '@shared/core/fs/fsEvents';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
@@ -147,8 +148,17 @@ export function createWorkspaceFactory(
       context.gitRepositoryFetchService ??
       new GitRepositoryFetchService(gitRepository, () => gitRepository.getBaseRemote());
     let unsubscribeGitUpdates: (() => void) | undefined;
-    let unsubscribeFileTreeUpdates: (() => void) | undefined;
     let unsubscribeFileChanges: (() => void) | undefined;
+
+    const fileTreeProjector = new FileTreeProjector(fileTree, (update) =>
+      events.emit(fileTreeProjectionChannel, {
+        projectId: context.projectId,
+        workspaceId,
+        subscriptionId: update.subscriptionId,
+        version: update.version,
+        scopes: update.scopes,
+      })
+    );
 
     const workspace: Workspace = {
       id: workspaceId,
@@ -156,6 +166,7 @@ export function createWorkspaceFactory(
       configPath,
       fileSystem,
       fileTree,
+      fileTreeProjector,
       gitWorktree,
       settings: context.settings,
       lifecycleService,
@@ -164,8 +175,7 @@ export function createWorkspaceFactory(
       dispose: async () => {
         unsubscribeGitUpdates?.();
         unsubscribeGitUpdates = undefined;
-        unsubscribeFileTreeUpdates?.();
-        unsubscribeFileTreeUpdates = undefined;
+        fileTreeProjector.dispose();
         unsubscribeFileChanges?.();
         unsubscribeFileChanges = undefined;
         await runtime.release();
@@ -195,13 +205,6 @@ export function createWorkspaceFactory(
             });
           })
         );
-        unsubscribeFileTreeUpdates = ws.fileTree.subscribe((update) => {
-          events.emit(fileTreeUpdateChannel, {
-            projectId: context.projectId,
-            workspaceId,
-            update,
-          });
-        });
         const fileChanges = filesRuntime.watchChanges(workDir, (update) => {
           if (type.kind === 'ssh') {
             invalidateLegacySshGitWorktreeStatus(ws.gitWorktree);
