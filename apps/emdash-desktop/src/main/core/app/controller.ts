@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { arch, release, version } from 'node:os';
+import { arch, release } from 'node:os';
 import { promisify } from 'node:util';
 import { getDiagnosticLogAttachment } from '@main/lib/file-logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -28,7 +28,7 @@ async function getPlatformDisplayName(): Promise<string> {
   }
 
   if (process.platform === 'linux') {
-    return `${version()} (${architecture})`;
+    return `Linux ${release()} (${architecture})`;
   }
 
   return `${process.platform} ${release()} (${architecture})`;
