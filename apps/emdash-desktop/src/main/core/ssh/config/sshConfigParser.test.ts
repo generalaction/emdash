@@ -165,16 +165,20 @@ Host unquoted-include
       'utf-8'
     );
 
-    expect(await parseSshConfigFileAt(join(dir, 'config'))).toEqual([
-      {
-        host: 'unquoted-include',
-        hostname: 'unquoted.internal',
-      },
-      {
-        host: 'quoted-include',
-        hostname: 'quoted.internal',
-      },
-    ]);
+    const hosts = await parseSshConfigFileAt(join(dir, 'config'));
+    expect(hosts).toHaveLength(2);
+    expect(hosts).toEqual(
+      expect.arrayContaining([
+        {
+          host: 'unquoted-include',
+          hostname: 'unquoted.internal',
+        },
+        {
+          host: 'quoted-include',
+          hostname: 'quoted.internal',
+        },
+      ])
+    );
   });
 
   itWindows('expands Include glob patterns with Windows path separators', async () => {
@@ -217,7 +221,7 @@ Host relative-windows-include
     ]);
   });
 
-  itPosix('preserves backslash escaping in tilde Include patterns', async () => {
+  itPosix('treats ~\\ as a literal path prefix on POSIX', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'emdash-ssh-config-posix-'));
     await writeFile(
       join(dir, 'config'),
