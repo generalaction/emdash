@@ -1,6 +1,7 @@
 import type { GitBranchRef } from '@emdash/core/git';
 import { useMemo, useState } from 'react';
 import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
+import { normalizeTaskName } from '@renderer/utils/taskNames';
 import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/core/automations/config';
@@ -116,6 +117,7 @@ export function useAutomationFormState(
     generatedName: seedConfig?.taskConfig.name,
     resetKey: effectiveProjectId,
   });
+  const effectiveTaskName = taskName.effectiveTaskName || normalizeTaskName(name);
 
   const workspaceConfig = useWorkspaceConfig({
     projectId: effectiveProjectId,
@@ -124,7 +126,7 @@ export function useAutomationFormState(
     currentBranch,
     repositoryWorkspaceId,
     pr: null, // automations don't link PRs
-    taskName: taskName.effectiveTaskName || name,
+    taskName: effectiveTaskName,
     linkedIssue: null,
     createBranchAndWorktreeDefault: wsInitial.mode === 'new-worktree',
     resetKey: effectiveProjectId,
@@ -163,7 +165,7 @@ export function useAutomationFormState(
       version: '2',
       taskConfig: {
         version: '1',
-        name: taskName.effectiveTaskName?.trim() || name.trim(),
+        name: effectiveTaskName,
         linkedIssue: seedConfig?.taskConfig.linkedIssue,
         initialStatus: seedConfig?.taskConfig.initialStatus,
       },
