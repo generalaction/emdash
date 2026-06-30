@@ -7,7 +7,7 @@
  *
  *   viewState       — collapse map (inverted semantics: true = expanded)
  *   expandedUserId  — the single expanded user message card id
- *   scroll          — declarative scroll intent (ScrollMode: bottom|anchor|pinTop)
+ *   scroll          — declarative scroll intent (ScrollMode: tail|anchor(edge))
  *   heightmap       — Map<unitId, measuredHeight> keyed by RenderUnit.id
  *                     (stable "${itemId}#self"). lastWidth is the container
  *                     width at snapshot time; used by ChatRoot to decide
@@ -40,21 +40,12 @@ import { createTranscript } from './transcript';
 import type { TranscriptApi } from './transcript';
 import { createViewState } from './view-state';
 import type { ViewState } from './view-state';
+export type { ScrollMode } from './scroll-mode';
+export { tailMode, pinTopMode } from './scroll-mode';
 
-/**
- * Declarative scroll intent. Owned by ChatState.scroll and projected onto the
- * DOM's scrollTop by ChatRoot's projectScroll() — the sole scrollTop writer.
- *
- * `bottom`  — follow newest content; re-pin whenever content grows.
- * `anchor`  — user parked at a specific row; keep that row stable as content
- *             grows above or below it.
- * `pinTop`  — hold a specific row (typically the last user message) at the top
- *             of the viewport; used while the agent streams a response.
- */
-export type ScrollMode =
-  | { kind: 'bottom' }
-  | { kind: 'anchor'; itemId: string; offset: number }
-  | { kind: 'pinTop'; itemId: string };
+// ScrollMode type and helpers live in scroll-mode.ts (re-exported above)
+// so unit tests can import them without pulling in DOM-dependent parse caches.
+import type { ScrollMode } from './scroll-mode';
 
 /**
  * Per-conversation heightmap snapshot.
@@ -169,8 +160,8 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
   });
 
   // Scroll mode — plain mutable value; not reactive (ChatRoot reads it once on
-  // mount/swap, writes it via setMode in readPhase and host calls). No signal.
-  let scrollMode: ScrollMode = { kind: 'bottom' };
+  // mount/swap, writes it via setAnchor in readPhase and host calls). No signal.
+  let scrollMode: ScrollMode = { kind: 'tail' };
 
   // Heightmap — plain Map keyed by RenderUnit.id.
   const heightmapData = new Map<string, number>();

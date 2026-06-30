@@ -28,7 +28,7 @@ import './styles/global.css';
 export { createChatContext } from './chat-context';
 export type { ChatContext, ChatContextOptions } from './chat-context';
 
-export { createChatState } from './state/chat-state';
+export { createChatState, tailMode, pinTopMode } from './state/chat-state';
 export type { ChatState, ChatStateOptions, ScrollMode, HeightmapStore } from './state/chat-state';
 
 export { createChatView } from './chat-view';

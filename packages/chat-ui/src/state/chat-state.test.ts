@@ -13,7 +13,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ScrollMode, HeightmapStore } from './chat-state';
+import type { HeightmapStore } from './chat-state';
+import type { ScrollMode } from './scroll-mode';
+import { tailMode, pinTopMode } from './scroll-mode';
 import { createViewState } from './view-state';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -121,27 +123,39 @@ describe('createViewState', () => {
 // ── scroll mode ──────────────────────────────────────────────────────────────
 
 describe('ScrollMode (plain object semantics)', () => {
-  it('default mode is bottom', () => {
-    const mode: ScrollMode = { kind: 'bottom' };
-    expect(mode.kind).toBe('bottom');
+  it('tailMode() produces { kind: tail }', () => {
+    const mode = tailMode();
+    expect(mode.kind).toBe('tail');
   });
 
-  it('anchor mode carries itemId and offset', () => {
-    let stored: ScrollMode = { kind: 'bottom' };
+  it('anchor mode carries itemId, edge, and offset', () => {
+    let stored: ScrollMode = tailMode();
     // Simulate readPhase write-back after user scrolls up
-    stored = { kind: 'anchor', itemId: 'msg-7', offset: 42 };
+    stored = { kind: 'anchor', itemId: 'msg-7', edge: 'top', offset: 42 };
     expect(stored.kind).toBe('anchor');
     if (stored.kind === 'anchor') {
       expect(stored.itemId).toBe('msg-7');
+      expect(stored.edge).toBe('top');
       expect(stored.offset).toBe(42);
     }
   });
 
-  it('pinTop mode carries itemId', () => {
-    const mode: ScrollMode = { kind: 'pinTop', itemId: 'user-msg-3' };
-    expect(mode.kind).toBe('pinTop');
-    if (mode.kind === 'pinTop') {
+  it('pinTopMode() produces a top-edge anchor with offset 0', () => {
+    const mode = pinTopMode('user-msg-3');
+    expect(mode.kind).toBe('anchor');
+    if (mode.kind === 'anchor') {
       expect(mode.itemId).toBe('user-msg-3');
+      expect(mode.edge).toBe('top');
+      expect(mode.offset).toBe(0);
+    }
+  });
+
+  it('anchor bottom-edge carries edge: bottom', () => {
+    const mode: ScrollMode = { kind: 'anchor', itemId: 'msg-9', edge: 'bottom', offset: -8 };
+    expect(mode.kind).toBe('anchor');
+    if (mode.kind === 'anchor') {
+      expect(mode.edge).toBe('bottom');
+      expect(mode.offset).toBe(-8);
     }
   });
 });
@@ -195,14 +209,14 @@ describe('ChatState tab-switch simulation', () => {
     // Shared state object that both "view A" and "view B" read/write.
     const viewState = createViewState();
     const heightmap = makeHeightmap();
-    let scroll: ScrollMode = { kind: 'bottom' };
+    let scroll: ScrollMode = tailMode();
 
     // View A: user interacts.
     viewState.toggleCollapsed('thinking-1');
     heightmap.setAll([['msg-10#self', 88]]);
     heightmap.lastWidth = 760;
-    // User scrolled up — readPhase writes an anchor intent.
-    scroll = { kind: 'anchor', itemId: 'msg-10', offset: 30 };
+    // User scrolled up — readPhase writes a top-edge anchor intent.
+    scroll = { kind: 'anchor', itemId: 'msg-10', edge: 'top', offset: 30 };
 
     // View A disposes (does NOT clear ChatState — only the DOM root goes away).
 
@@ -213,6 +227,7 @@ describe('ChatState tab-switch simulation', () => {
     expect(scroll.kind).toBe('anchor');
     if (scroll.kind === 'anchor') {
       expect(scroll.itemId).toBe('msg-10');
+      expect(scroll.edge).toBe('top');
       expect(scroll.offset).toBe(30);
     }
   });

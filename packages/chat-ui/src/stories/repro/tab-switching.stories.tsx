@@ -54,7 +54,7 @@ import type { ChatView } from '@/chat-view';
 import { createChatView } from '@/chat-view';
 import { generateMockTranscript, mockMentionProvider } from '@/mock-transcript';
 import type { ChatItem, ChatMessage, ChatPlanEntry, ChatThinking } from '@/model';
-import { createChatState } from '@/state/chat-state';
+import { createChatState, pinTopMode, tailMode } from '@/state/chat-state';
 import { chunkText } from '@/stories/_harness/streaming/scenario';
 import { storyViewport } from '@/stories/_harness/chat-host.css';
 
@@ -593,12 +593,13 @@ export const LegacyOverlapCrash: Story = {
 
 // ── Send-and-Pin story ────────────────────────────────────────────────────────
 //
-// Exercises the setScrollMode(pinTop) path: a user sends a message (optimistic
-// insert), the view immediately pins the message at the top of the viewport, and
-// the "agent response" streams in below it while the pin holds. Verifies that:
+// Exercises the setScrollMode(pinTopMode) path: a user sends a message
+// (optimistic insert), the view immediately pins the message at the top of the
+// viewport, and the "agent response" streams in below it while the pin holds.
+// Verifies that:
 //   1. The pin is instant (no wait for an IPC echo).
 //   2. activeTurnReserve() creates enough canvas space for the scroll.
-//   3. The pin transitions to 'bottom' when the "turn" completes.
+//   3. The pin transitions to 'tail' when the "turn" completes.
 
 function SendAndPinHarness() {
   const ctx = createChatContext({ theme: DEFAULT_THEME, mentionProvider: mockMentionProvider });
@@ -647,7 +648,7 @@ function SendAndPinHarness() {
     state.transcript.activeTurn.set([optimistic], 'generating');
 
     // Pin immediately via the declarative API.
-    currentView?.setScrollMode({ kind: 'pinTop', itemId: optimisticId });
+    currentView?.setScrollMode(pinTopMode(optimisticId));
     setPinned(true);
 
     // Simulate agent response streaming in after 600ms, then commit.
@@ -669,7 +670,7 @@ function SendAndPinHarness() {
         clearInterval(interval);
         state.transcript.activeTurn.commit('done');
         // Revert to bottom intent after turn completes.
-        currentView?.setScrollMode({ kind: 'bottom' });
+        currentView?.setScrollMode(tailMode());
         setPinned(false);
       }
     }, 80);
@@ -701,7 +702,7 @@ function SendAndPinHarness() {
           Send message
         </button>
         <span style={{ 'font-size': '12px', color: pinned() ? '#e55' : '#888' }}>
-          {pinned() ? 'pinTop active — message held at top' : 'bottom mode (follow newest)'}
+          {pinned() ? 'pinTop active — message held at top' : 'tail mode (follow newest)'}
         </span>
       </div>
       <div
@@ -723,9 +724,9 @@ function SendAndPinHarness() {
 
 /**
  * Send-and-pin: click "Send message" to insert an optimistic user message and
- * instantly pin it at the top of the viewport via view.setScrollMode({ kind:'pinTop' }).
+ * instantly pin it at the top of the viewport via view.setScrollMode(pinTopMode(...)).
  * The agent response streams in below the pinned message. The pin is released
- * (mode → 'bottom') once the turn commits.
+ * (mode → tail) once the turn commits.
  *
  * Verify:
  *  - The new message appears at the top immediately (no scroll lag).

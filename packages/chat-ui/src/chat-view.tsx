@@ -117,9 +117,12 @@ export type ChatView = {
    * DOM immediately (flush + scrollTop write) and persists it in the current
    * ChatState so it survives subsequent tab switches.
    *
-   * `bottom`  — re-pin to newest content on every content change.
-   * `anchor`  — keep the given item at the same viewport position.
-   * `pinTop`  — hold the given item at the top of the viewport.
+   * `tail`    — re-pin to newest content on every content change.
+   * `anchor`  — keep the given item's edge at the given viewport offset.
+   *             Use `pinTopMode(itemId)` to hold a row flush at the top.
+   *
+   * Use the `tailMode()` and `pinTopMode(itemId)` helpers from `@emdash/chat-ui`
+   * rather than constructing objects inline.
    */
   setScrollMode(mode: ScrollMode): void;
   /**

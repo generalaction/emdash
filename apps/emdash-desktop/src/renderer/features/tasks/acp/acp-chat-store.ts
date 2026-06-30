@@ -5,9 +5,8 @@ import type {
   ChatMessage,
   ChatState,
   ChatView,
-  ScrollMode,
 } from '@emdash/chat-ui';
-import { applyTurnEvent, createChatState } from '@emdash/chat-ui';
+import { applyTurnEvent, createChatState, pinTopMode, tailMode } from '@emdash/chat-ui';
 import type { AgentUpdate, AcpPromptImage, AcpTurn, TerminalSnapshot } from '@emdash/core/acp';
 import {
   SessionMachine,
@@ -316,7 +315,7 @@ export class AcpChatStore {
     // 2. Immediately pin the new user message to the top of the viewport.
     //    activeTurnReserve() in ChatRoot ensures there is enough canvas space
     //    for the scroll target to be reachable even before any agent reply.
-    const pinMode: ScrollMode = { kind: 'pinTop', itemId: optimisticId };
+    const pinMode = pinTopMode(optimisticId);
     this._view?.setScrollMode(pinMode);
     // Persist intent in ChatState so it survives a tab-switch during the request.
     this.chatState.scroll.set(pinMode);
@@ -673,7 +672,7 @@ export class AcpChatStore {
     if (this._optimisticUserId) {
       const realId = this._lastUserMessageId();
       if (realId) {
-        const pinMode: ScrollMode = { kind: 'pinTop', itemId: realId };
+        const pinMode = pinTopMode(realId);
         this._view?.setScrollMode(pinMode);
         this.chatState.scroll.set(pinMode);
         this._optimisticUserId = null;
@@ -693,10 +692,10 @@ export class AcpChatStore {
     this.chatState.transcript.activeTurn.commit('done');
 
     // If a pinTop is still active (shouldn't normally happen; guard only),
-    // revert to bottom now that the turn is done.
+    // revert to tail now that the turn is done.
     if (this._optimisticUserId) {
       this._optimisticUserId = null;
-      const m: ScrollMode = { kind: 'bottom' };
+      const m = tailMode();
       this._view?.setScrollMode(m);
       this.chatState.scroll.set(m);
     }
