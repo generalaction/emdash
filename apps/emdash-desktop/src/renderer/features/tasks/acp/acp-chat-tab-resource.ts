@@ -31,4 +31,10 @@ export class AcpChatTabResource implements TabResource {
       ?.conversations.get(this.store.conversationId);
     if (conversation && !conversation.seen) conversation.markSeen();
   }
+
+  rename(name: string): void {
+    void conversationRegistry
+      .get(this.store.taskId)
+      ?.renameConversation(this.store.conversationId, name);
+  }
 }

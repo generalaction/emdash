@@ -16,6 +16,7 @@ import { AgentStatusIndicator } from '../components/agent-status-indicator';
 import { ConversationAgentIcon } from '../conversations/conversation-agent-icon';
 import { formatConversationTitleForDisplay } from '../conversations/conversation-title-utils';
 import { conversationRegistry } from '../stores/conversation-registry';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import type { TaskTabContext } from '../stores/task-tab-context';
 import { AcpChatPanel } from './acp-chat-panel';
 import { getAcpChatResourceManager } from './acp-chat-resource-manager';
@@ -39,6 +40,7 @@ export const AcpChatTabBarItem = observer(function AcpChatTabBarItem({
     .get(store.taskId)
     ?.conversations.get(store.conversationId);
   const providerId = conversation?.data.providerId ?? '';
+  const rawTitle = conversation?.data.title ?? '';
   const label = conversation
     ? formatConversationTitleForDisplay(conversation.data.providerId, conversation.data.title)
     : 'ACP Chat';
@@ -57,6 +59,17 @@ export const AcpChatTabBarItem = observer(function AcpChatTabBarItem({
           </span>
         ) : undefined
       }
+      kindCommands={[
+        {
+          id: 'conversation:rename',
+          label: 'Rename',
+          group: 'edit',
+          shortcut: 'tabRename',
+          run: () => host.requestRename(tab.tabId),
+        },
+      ]}
+      renameValue={rawTitle}
+      renameMaxLength={MAX_CONVERSATION_TITLE_LENGTH}
     />
   );
 });
@@ -117,6 +130,15 @@ export const acpChatTabProvider: TabProvider<
     getAcpChatResourceManager(taskCtx.taskId, taskCtx.projectId).release(
       entry.state.conversationId
     );
+  },
+
+  commands: {
+    rename: {
+      label: 'Rename',
+      exec: (resource: AcpChatTabResource, name?: string) => {
+        if (name) resource.rename(name);
+      },
+    },
   },
 
   TabBarItem: AcpChatTabBarItem,
