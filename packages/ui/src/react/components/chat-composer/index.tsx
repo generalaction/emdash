@@ -11,6 +11,8 @@ import type {
   MentionItem,
   PromptEditorRef,
 } from '../prompt-editor/types';
+import { ContextUsageIndicator } from './context-usage-indicator';
+import type { ContextUsage } from './context-usage-indicator';
 import { PermissionBand } from './permission-band';
 import type { ComposerPermissionRequest } from './permission-band';
 import * as styles from './chat-composer.css';
@@ -23,6 +25,7 @@ export type {
   ContextMentionProvider,
   PromptEditorRef,
 } from '../prompt-editor/types';
+export type { ContextUsage } from './context-usage-indicator';
 
 export type ComposerNoticeVariant = 'error' | 'warning' | 'info';
 
@@ -161,6 +164,8 @@ export interface ChatComposerProps {
   onSubmit: (text: string) => void;
   onStop?: () => void;
   onAttach?: () => void;
+  /** Context-window usage data for the toolbar donut indicator. Hidden when null/undefined. */
+  contextUsage?: ContextUsage | null;
 
   /**
    * Host-controlled attachment list. The composer creates image attachments
@@ -468,6 +473,7 @@ export function ChatComposer({
   onSubmit,
   onStop,
   onAttach,
+  contextUsage,
   attachments = [],
   onAttachmentsChange,
   onFilesDropped,
@@ -705,8 +711,11 @@ export function ChatComposer({
             )}
           </div>
 
-          {/* Right: attach + send/stop */}
+          {/* Right: usage donut + attach + send/stop */}
           <div className={styles.toolbarRight}>
+            {contextUsage && contextUsage.size > 0 && (
+              <ContextUsageIndicator usage={contextUsage} disabled={disabled} />
+            )}
             {onAttach && (
               <Button
                 variant="ghost"

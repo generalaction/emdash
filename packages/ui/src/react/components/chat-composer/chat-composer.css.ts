@@ -269,6 +269,32 @@ export const barMeter = style({ display: 'flex', alignItems: 'center', gap: '0.1
 /** Send button override — fully rounded pill shape. */
 export const sendButtonRound = style({ borderRadius: '9999px' });
 
+// ── Context usage indicator ────────────────────────────────────────────────────
+
+/** Donut SVG container — sized to match other toolbar icons. */
+export const donut = style({
+  width: '1rem',
+  height: '1rem',
+  display: 'block',
+  overflow: 'visible',
+});
+
+/** Background track ring. */
+export const donutTrack = style({ stroke: vars.border });
+
+/** Foreground fill ring — normal state. */
+export const donutProgress = style({ stroke: vars.foreground });
+
+/** Foreground fill ring — warning state (>= 90% full). */
+export const donutProgressWarn = style({ stroke: vars.surfaceWarningForeground });
+
+/** Cost row shown below the description in the popover when cost is available. */
+export const usageCostRow = style({
+  marginTop: '0.375rem',
+  fontSize: tokenVars.textXs,
+  color: vars.foregroundMuted,
+});
+
 export const barDotFilled = style({
   width: '0.375rem',
   height: '0.375rem',

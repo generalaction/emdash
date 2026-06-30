@@ -168,6 +168,15 @@ const ComposerForStore = observer(function ComposerForStore({
         selectedAgent={providerId ?? undefined}
         agentLocked
         onAgentChange={() => {}}
+        contextUsage={
+          store.usage
+            ? {
+                used: store.usage.contextUsed,
+                size: store.usage.contextSize,
+                cost: store.usage.cost,
+              }
+            : null
+        }
         attachments={attachments}
         onAttachmentsChange={setAttachments}
         onAttach={handleAttach}

@@ -6,6 +6,7 @@ export type {
   ComposerModelOption,
   ComposerNotice,
   ComposerNoticeVariant,
+  ContextUsage,
   MentionItem,
   MentionKind,
   CommandItem,
