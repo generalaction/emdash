@@ -218,4 +218,3 @@ describe('PaneStore browser tabs', () => {
     );
   });
 });
-

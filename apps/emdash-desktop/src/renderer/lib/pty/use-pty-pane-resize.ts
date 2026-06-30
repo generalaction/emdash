@@ -20,7 +20,12 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { PaneDimensionSink } from '@renderer/features/tabs/pane-dimension-provider';
 import { rpc } from '@renderer/lib/ipc';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
-import { getFrontendPty, TERMINAL_LETTER_SPACING, TERMINAL_LINE_HEIGHT, TERMINAL_PADDING_PX } from './pty';
+import {
+  getFrontendPty,
+  TERMINAL_LETTER_SPACING,
+  TERMINAL_LINE_HEIGHT,
+  TERMINAL_PADDING_PX,
+} from './pty';
 import {
   computeGridDimensions,
   invalidateCellMetricsCache,

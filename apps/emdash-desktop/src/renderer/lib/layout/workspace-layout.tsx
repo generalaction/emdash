@@ -15,8 +15,7 @@ interface WorkspaceLayoutProps {
 }
 
 export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutProps) {
-  const { leftPanelRef, syncLeftOpenFromPanel, isLeftOpen } =
-    useWorkspaceLayoutContext();
+  const { leftPanelRef, syncLeftOpenFromPanel, isLeftOpen } = useWorkspaceLayoutContext();
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: 'workspace-outer',
     storage: localStorage,

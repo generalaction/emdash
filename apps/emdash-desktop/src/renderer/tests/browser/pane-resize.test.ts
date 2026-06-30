@@ -1,3 +1,4 @@
+import { action, makeObservable, observable } from 'mobx';
 /**
  * Browser-mode tests for PaneDimensionProvider's ResizeObserver path.
  *
@@ -13,7 +14,6 @@
  * overhead.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { action, makeObservable, observable } from 'mobx';
 import type { PaneDimensionSink } from '@renderer/features/tabs/pane-dimension-provider';
 import { computeGridDimensions } from '@renderer/lib/pty/pty-dimensions';
 import { createResizeScheduler } from '@renderer/lib/pty/resize-scheduler';
@@ -36,10 +36,7 @@ class TestSink implements PaneDimensionSink {
 // Mirrors the effect in pane-dimension-provider.tsx exactly so we test the
 // real observation path without a React renderer.
 
-function attachProvider(
-  el: HTMLElement,
-  sink: PaneDimensionSink
-): { disconnect: () => void } {
+function attachProvider(el: HTMLElement, sink: PaneDimensionSink): { disconnect: () => void } {
   const observer = new ResizeObserver((entries) => {
     const entry = entries[0];
     if (!entry) return;

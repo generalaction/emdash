@@ -129,4 +129,3 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
     </DndContext>
   );
 });
-
