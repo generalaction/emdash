@@ -176,10 +176,8 @@ export class FilesStore {
   reconcileVisibleScopes(expandedPaths: Set<string>): void {
     if (!this.subscriptionId) return;
 
-    // Register only the directory scopes the user has expanded (and that are visible). Compaction
-    // is driven entirely by the core-provided directory preview metadata, so collapsed chains render
-    // without any extra registration; expanding a chain adds every segment to `expandedPaths`, and
-    // the scopes load progressively as each ancestor resolves.
+    // Register directory scopes once they are expanded. Collapse only changes visibility; keeping
+    // loaded scopes retained makes re-expansion instant and leaves release to projection lifecycle.
     const rows = buildFileTreeVisibleRows(
       this.viewData.rootNodes,
       expandedPaths,
@@ -211,9 +209,6 @@ export class FilesStore {
       if (this.idForPath(path) === undefined) continue; // parent scope not loaded yet
       void this.registerDir(path);
     }
-    for (const path of [...this.registeredPaths]) {
-      if (!desired.has(path)) void this.unregisterDir(path);
-    }
   }
 
   async registerDir(dirPath: string, force = false): Promise<void> {
@@ -242,27 +237,6 @@ export class FilesStore {
         this.pendingPathSet.delete(path);
       });
     }
-  }
-
-  async unregisterDir(dirPath: string): Promise<void> {
-    if (!this.subscriptionId) return;
-    const path = this.resolveWorkspacePath(dirPath);
-    if (path === this.rootPath) return;
-
-    const dirId = this.idForPath(path);
-    this.registeredPaths.delete(path);
-    if (dirId === undefined) return;
-
-    runInAction(() => {
-      this.loadedScopes.delete(dirId);
-      this.rebuildView();
-    });
-    await rpc.workspace.fileTree.unregisterDir(
-      this.projectId,
-      this.workspaceId,
-      this.subscriptionId,
-      dirId
-    );
   }
 
   async revealFile(filePath: string, expandedPaths: Set<string>): Promise<void> {

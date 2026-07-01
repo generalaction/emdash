@@ -324,31 +324,6 @@ describe('FilesStore', () => {
     store.dispose();
   });
 
-  it('unregisters a collapsed directory and forgets it is loaded', async () => {
-    mocks.openProjection.mockResolvedValue(openResult([node(1, '/repo/src', 'directory')]));
-    mocks.registerDir.mockImplementation(async () => {
-      emitProjection(2, [{ scopeId: 1, entries: [node(2, '/repo/src/a.ts', 'file', 1)] }]);
-      return versionResult(2);
-    });
-    mocks.unregisterDir.mockResolvedValue(versionResult(3));
-
-    const store = createStore();
-    await store.start();
-    await store.registerDir('src');
-    expect(store.loadedPaths.has('/repo/src')).toBe(true);
-
-    await store.unregisterDir('src');
-
-    expect(mocks.unregisterDir).toHaveBeenCalledWith(
-      'project-1',
-      'workspace-1',
-      SUBSCRIPTION_ID,
-      1
-    );
-    expect(store.loadedPaths.has('/repo/src')).toBe(false);
-    store.dispose();
-  });
-
   it('does not register scopes for collapsed compactable chains', async () => {
     // `src` carries core compaction metadata, so it renders compacted while collapsed without the
     // renderer registering (loading) any scope.
@@ -469,7 +444,7 @@ describe('FilesStore', () => {
     store.dispose();
   });
 
-  it('unregisters a scope when it leaves the expanded set on collapse', async () => {
+  it('keeps loaded scopes warm when a parent collapses', async () => {
     mocks.openProjection.mockResolvedValue(openResult([node(1, '/repo/src', 'directory')]));
     mocks.registerDir.mockImplementation(async (_p, _w, _s, dirId) => {
       if (dirId === 1) {
@@ -487,7 +462,6 @@ describe('FilesStore', () => {
       emitProjection(3, [{ scopeId: 2, entries: [node(4, '/repo/src/sub/x.ts', 'file', 2)] }]);
       return versionResult(3);
     });
-    mocks.unregisterDir.mockResolvedValue(versionResult(4));
 
     const store = createStore();
     await store.start();
@@ -499,16 +473,22 @@ describe('FilesStore', () => {
     store.reconcileVisibleScopes(expanded);
     await flushAsyncWork();
     expect(mocks.registerDir).toHaveBeenCalledWith('project-1', 'workspace-1', SUBSCRIPTION_ID, 2);
+    expect(store.loadedPaths.has('/repo/src')).toBe(true);
+    expect(store.loadedPaths.has('/repo/src/sub')).toBe(true);
+    expect(store.nodes.has('/repo/src/sub/x.ts')).toBe(true);
 
-    // Collapse everything: `sub` is no longer expanded and must be unregistered.
-    store.reconcileVisibleScopes(new Set());
+    // Collapse only `src`; hidden descendants stay expanded in view state and remain retained.
+    store.reconcileVisibleScopes(new Set(['/repo/src/sub']));
     await flushAsyncWork();
-    expect(mocks.unregisterDir).toHaveBeenCalledWith(
-      'project-1',
-      'workspace-1',
-      SUBSCRIPTION_ID,
-      2
-    );
+    expect(mocks.unregisterDir).not.toHaveBeenCalled();
+    expect(store.loadedPaths.has('/repo/src')).toBe(true);
+    expect(store.loadedPaths.has('/repo/src/sub')).toBe(true);
+
+    // Re-expanding uses the warm retained scopes rather than replaying registrations.
+    store.reconcileVisibleScopes(expanded);
+    await flushAsyncWork();
+    expect(mocks.registerDir).toHaveBeenCalledTimes(2);
+    expect(store.nodes.has('/repo/src/sub/x.ts')).toBe(true);
     store.dispose();
   });
 

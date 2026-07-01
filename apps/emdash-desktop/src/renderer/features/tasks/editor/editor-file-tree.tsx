@@ -181,8 +181,7 @@ const FileTreeRow = observer(function FileTreeRow({
   const isHidden = row.chain.some((n) => n.isHidden);
 
   const toggleExpand = () => {
-    // Expansion drives registration: the view model reaction registers newly expanded scopes and
-    // unregisters collapsed ones with the projector, so we only toggle expandedPaths here.
+    // Expansion drives registration; collapse only changes visibility and keeps loaded scopes warm.
     runInAction(() => {
       if (isChainExpanded(row.chain, editorView.expandedPaths)) {
         for (const segment of row.chain) {
