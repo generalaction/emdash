@@ -57,12 +57,6 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        // Auto-approval of tool permissions is done via the MIMOCODE_PERMISSION
-        // env var, NOT a CLI flag. The interactive `mimo` TUI (the default
-        // command) only accepts --prompt / -c / -s / --fork / --model / --agent
-        // / --never-ask-questions; unknown flags like `--trust` or
-        // `--dangerously-skip-permissions` (the latter exists only on `mimo run`)
-        // make yargs print the usage menu instead of starting the agent.
         extraEnv: ctx.autoApprove ? { MIMOCODE_PERMISSION: '{"*":"allow"}' } : {},
         initialPromptFlag: '--prompt',
         resumeFlag: '--session',
