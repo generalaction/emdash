@@ -1,0 +1,75 @@
+apps/emdash-desktop/src/shared/core/agents/agent-payload.ts
+  s_994026aa89c597::t_b40d73a877bd43 161-177,186-187
+apps/emdash-desktop/src/shared/core/agents/reasoning-effort.ts
+  s_994026aa89c597::t_17abcac7b762b8 1-32
+packages/plugins/src/agents/impl/amp/index.ts
+  s_994026aa89c597::t_0298a30598caeb 89
+  s_994026aa89c597::t_bf0befb95942dc 48-49,54,59-60
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_994026aa89c597::t_81f73a6a2a68bd 31
+  s_994026aa89c597::t_218a485cd39d04 94,99
+  s_994026aa89c597::t_c850cf8955ebf6 252-258
+  s_994026aa89c597::t_199f97fad026ff 49-51
+  s_994026aa89c597::t_456f13a45d3639 23
+  s_994026aa89c597::t_6d7d17479ea50b 76
+  s_994026aa89c597::t_1d6090c0c919f1 122-123
+  s_994026aa89c597::t_ab7202f4d01b73 132
+apps/emdash-desktop/src/main/core/tasks/operations/createTask.ts
+  s_994026aa89c597::t_4aa2b9cb5c5616 100
+apps/emdash-desktop/src/shared/core/conversations/conversations.ts
+  s_994026aa89c597::t_0ea051b4a3a588 50-51
+  s_994026aa89c597::t_013e0462578203 27-28
+apps/emdash-desktop/src/shared/core/tasks/task-config.ts
+  s_994026aa89c597::t_b39db254d94389 18
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_994026aa89c597::t_a2e8caf0db4ac8 149
+apps/emdash-desktop/src/main/core/conversations/utils.ts
+  s_994026aa89c597::t_9372c29e8843b4 20
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_994026aa89c597::t_4896f401213170 163
+packages/core/src/agents/plugins/helpers/standard-command.ts
+  s_994026aa89c597::t_382243fcc614d7 141-145
+  s_994026aa89c597::t_3133db82a8344c 70-75
+apps/emdash-desktop/src/renderer/features/tasks/conversations/model-effort-selector.tsx
+  s_994026aa89c597::t_80532efe564360 1-138
+packages/core/src/agents/plugins/helpers/standard-command.test.ts
+  s_994026aa89c597::t_834e2c6b5081cc 103-165
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.ts
+  s_994026aa89c597::t_2b6474a9a94ee3 11-12,23-24,35-36
+  s_994026aa89c597::t_a49e8153a1ce20 51
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_994026aa89c597::t_a0256c50aa7223 357
+packages/core/src/agents/plugins/capabilities/prompt.ts
+  s_994026aa89c597::t_4f742a8324d154 18-19
+apps/emdash-desktop/src/main/core/conversations/createConversation.ts
+  s_994026aa89c597::t_3c3e58290069e7 61
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.ts
+  s_994026aa89c597::t_aa1737e82e6d4d 23
+packages/core/src/agents/plugins/capabilities/models.ts
+  s_994026aa89c597::t_d645fce348790d 4-34,45-46
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.test.ts
+  s_994026aa89c597::t_fd024e6b2e0886 23-24
+apps/emdash-desktop/src/renderer/features/tasks/conversations/create-conversation-modal.tsx
+  s_994026aa89c597::t_3d4c0eba544c52 67
+  s_994026aa89c597::t_fb1f29c438d7ab 23
+  s_994026aa89c597::t_f24eaf4b86e30b 108
+  s_994026aa89c597::t_da75b5c09fb629 88
+  s_994026aa89c597::t_8c948808d1cba2 42
+  s_994026aa89c597::t_2049ee558edeb2 131-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "726f996dfb6116f7f6413eaa6d1f67eed43ae21c",
+  "prompts": {},
+  "sessions": {
+    "s_994026aa89c597": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2c0b9d31-abb3-4bb9-bb50-43886a689a84",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
