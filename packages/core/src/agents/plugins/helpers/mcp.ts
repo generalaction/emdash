@@ -240,10 +240,7 @@ export function grokMcpAdapter(configPath = '.grok/config.toml') {
     format: 'toml',
     serversKey: 'mcp_servers',
     toNative(s) {
-      const entry = deepClone(s) as Record<string, unknown>;
-      delete entry.name;
-      delete entry.transport;
-      delete entry.type;
+      const { name: _name, transport: _transport, type: _type, ...entry } = s;
       if (typeof entry.enabled !== 'boolean') entry.enabled = true;
       return entry;
     },
