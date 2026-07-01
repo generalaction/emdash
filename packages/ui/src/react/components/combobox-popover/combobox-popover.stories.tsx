@@ -19,15 +19,6 @@ interface ModelItem {
 
 const MODELS: ModelItem[] = [
   {
-    id: 'claude-fable-5',
-    name: 'Claude Fable 5',
-    provider: 'Anthropic',
-    description: 'Balanced model for creative and everyday coding tasks.',
-    contextK: 200,
-    speed: 0.65,
-    intelligence: 0.8,
-  },
-  {
     id: 'claude-opus-4-8',
     name: 'Claude Opus 4.8',
     provider: 'Anthropic',
@@ -35,6 +26,15 @@ const MODELS: ModelItem[] = [
     contextK: 200,
     speed: 0.4,
     intelligence: 1.0,
+  },
+  {
+    id: 'claude-fable-5',
+    name: 'Claude Fable 5',
+    provider: 'Anthropic',
+    description: 'Balanced model for creative and everyday coding tasks.',
+    contextK: 200,
+    speed: 0.65,
+    intelligence: 0.8,
   },
   {
     id: 'claude-sonnet-5',
