@@ -55,13 +55,15 @@ export interface AddSshConnModalProps extends BaseModalProps<{ connectionId: str
 type TestState = 'idle' | 'testing' | 'success' | 'error';
 const MANUAL_CONNECTION_VALUE = '__manual__';
 const EMPTY_SSH_CONFIG_HOSTS: SshConfigHost[] = [];
+const DUPLICATE_CONNECTION_NAME_ERROR =
+  'An SSH connection with this name already exists. Choose a different name.';
 
 function formatSshConnectionError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const withoutIpcPrefix = message.replace(/^Error invoking remote method 'ssh\.[^']+':\s*/, '');
 
   if (/UNIQUE constraint failed: ssh_connections\.name/.test(withoutIpcPrefix)) {
-    return 'An SSH connection with this name already exists. Choose a different name.';
+    return DUPLICATE_CONNECTION_NAME_ERROR;
   }
 
   return withoutIpcPrefix;
@@ -155,11 +157,8 @@ export function AddSshConnModal({
             connection.name === value.name && (!initialConfig || connection.id !== initialConfig.id)
         );
         if (duplicateConnection) {
-          setTestState('error');
-          setTestResult({
-            success: false,
-            error: 'An SSH connection with this name already exists. Choose a different name.',
-          });
+          setTestState('idle');
+          setTestResult(null);
           return;
         }
 
@@ -330,16 +329,32 @@ export function AddSshConnModal({
                 Cancel
               </Button>
             )}
-            <ConfirmButton type="submit" form="add-ssh-conn-form" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <LoaderCircle className="size-4 animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                'Save'
-              )}
-            </ConfirmButton>
+            <form.Subscribe selector={(state) => state.values.name}>
+              {(name) => {
+                const duplicateConnection = sshConnections.connections.find(
+                  (connection) =>
+                    connection.name === name &&
+                    (!initialConfig || connection.id !== initialConfig.id)
+                );
+
+                return (
+                  <ConfirmButton
+                    type="submit"
+                    form="add-ssh-conn-form"
+                    disabled={isSubmitting || !!duplicateConnection}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <LoaderCircle className="size-4 animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      'Save'
+                    )}
+                  </ConfirmButton>
+                );
+              }}
+            </form.Subscribe>
           </div>
         </DialogFooter>
       }
@@ -380,11 +395,7 @@ export function AddSshConnModal({
                       {field.state.meta.isTouched && !field.state.meta.isValid && (
                         <FieldError errors={field.state.meta.errors} />
                       )}
-                      {isDuplicate && (
-                        <FieldError>
-                          An SSH connection with this name already exists. Choose a different name.
-                        </FieldError>
-                      )}
+                      {isDuplicate && <FieldError>{DUPLICATE_CONNECTION_NAME_ERROR}</FieldError>}
                     </Field>
                   );
                 }}
