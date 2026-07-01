@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.tsx
+  s_eb3769935cadf9::t_b8e0ee37887103 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "1576518c68f350d4b35efc03cd1ce16c2194181a",
+  "prompts": {},
+  "sessions": {
+    "s_eb3769935cadf9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3303b171-e8e9-4bc4-8b2a-d8b265b65760",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
