@@ -19,8 +19,8 @@ interface ModelItem {
 
 const MODELS: ModelItem[] = [
   {
-    id: 'claude-opus-4-8',
-    name: 'Claude Opus 4.8',
+    id: 'claude-opus-4',
+    name: 'Claude Opus 4',
     provider: 'Anthropic',
     description: 'Most capable model for complex reasoning and nuanced tasks.',
     contextK: 200,
@@ -28,17 +28,8 @@ const MODELS: ModelItem[] = [
     intelligence: 1.0,
   },
   {
-    id: 'claude-fable-5',
-    name: 'Claude Fable 5',
-    provider: 'Anthropic',
-    description: 'Balanced model for creative and everyday coding tasks.',
-    contextK: 200,
-    speed: 0.65,
-    intelligence: 0.8,
-  },
-  {
-    id: 'claude-sonnet-5',
-    name: 'Claude Sonnet 5',
+    id: 'claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
     provider: 'Anthropic',
     description: 'Excellent balance of speed and intelligence.',
     contextK: 200,
@@ -158,7 +149,7 @@ export default meta;
 type Story = StoryObj;
 
 function BasicStory() {
-  const [value, setValue] = useState<string>('claude-sonnet-5');
+  const [value, setValue] = useState<string>('claude-sonnet-4-5');
   return (
     <Box display="flex" flexDirection="column" alignItems="center" gap="4">
       <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--em-foreground-muted)' }}>
@@ -183,7 +174,7 @@ function BasicStory() {
 }
 
 function WithDetailHoverCardStory() {
-  const [value, setValue] = useState<string>('claude-sonnet-5');
+  const [value, setValue] = useState<string>('claude-sonnet-4-5');
   return (
     <Box display="flex" flexDirection="column" alignItems="center" gap="4">
       <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--em-foreground-muted)' }}>
@@ -252,7 +243,7 @@ function DetailCardAboveStory() {
 }
 
 function WithFooterStory() {
-  const [value, setValue] = useState<string>('claude-sonnet-5');
+  const [value, setValue] = useState<string>('claude-sonnet-4-5');
   const [lastAction, setLastAction] = useState<string>('—');
   return (
     <Box display="flex" flexDirection="column" alignItems="center" gap="4">

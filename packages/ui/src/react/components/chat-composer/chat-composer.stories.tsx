@@ -15,18 +15,13 @@ import * as s from '@react/story-layout.css';
 import { sx } from '@styles/utilities/sprinkles.css';
 
 const MOCK_MODELS: Record<string, ComposerModelOption> = {
-  'claude-opus-4-8': {
-    name: 'Claude Opus 4.8',
+  'claude-opus-4': {
+    name: 'Claude Opus 4',
     description: 'Most capable model for complex reasoning and nuanced tasks.',
     modelFeatures: { contextWindowSize: 200_000, speed: 0.4, intelligence: 1 },
   },
-  'claude-fable-5': {
-    name: 'Claude Fable 5',
-    description: 'Balanced model for creative and everyday coding tasks.',
-    modelFeatures: { contextWindowSize: 200_000, speed: 0.65, intelligence: 0.8 },
-  },
-  'claude-sonnet-5': {
-    name: 'Claude Sonnet 5',
+  'claude-sonnet-4-5': {
+    name: 'Claude Sonnet 4.5',
     description: 'Excellent balance of speed and intelligence for everyday tasks.',
     modelFeatures: { contextWindowSize: 200_000, speed: 0.75, intelligence: 0.85 },
   },
@@ -107,7 +102,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
   } = args;
 
   const [selectedAgent, setSelectedAgent] = useState('claude');
-  const [selectedModel, setSelectedModel] = useState('claude-sonnet-5');
+  const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -241,7 +236,7 @@ const MOCK_EFFORT_OPTIONS: Record<string, ComposerEffortOption> = {
  * The row is hidden entirely when `effortOptions` is null.
  */
 function EffortSelectorDemo() {
-  const [selectedModel, setSelectedModel] = useState('claude-sonnet-5');
+  const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [selectedEffort, setSelectedEffort] = useState<string | undefined>('medium');
 
   return (
@@ -268,7 +263,7 @@ export const WithEffortSelector: Story = {
  * `effortOptions` is null (agent doesn't advertise a thought_level option).
  */
 function WithoutEffortSelectorDemo() {
-  const [selectedModel, setSelectedModel] = useState('claude-sonnet-5');
+  const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
 
   return (
     <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
