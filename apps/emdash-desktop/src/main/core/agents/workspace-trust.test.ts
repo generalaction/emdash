@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { ITrustBehavior } from '@emdash/core/agents/plugins';
-import type { IFileSystem } from '@emdash/core/files';
-import { ok } from '@emdash/shared';
+import type { FileError, IFileSystem } from '@emdash/core/files';
+import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { IFilesRuntime } from '@main/core/runtime/types';
@@ -56,7 +56,10 @@ function makeCtx(): IExecutionContext {
   } as unknown as IExecutionContext;
 }
 
-function makeFilesRuntime(fs: Partial<IFileSystem>) {
+function makeFilesRuntime(
+  fs: Partial<IFileSystem>,
+  fileSystem: IFilesRuntime['fileSystem'] = vi.fn(() => ok(fs as unknown as IFileSystem))
+) {
   return {
     path: {
       join: (...parts: string[]) => path.posix.join(...parts),
@@ -73,7 +76,7 @@ function makeFilesRuntime(fs: Partial<IFileSystem>) {
     },
     openTree: vi.fn(),
     watchChanges: vi.fn(),
-    fileSystem: vi.fn(() => ok(fs as IFileSystem)),
+    fileSystem,
     dispose: vi.fn(),
   } as unknown as IFilesRuntime;
 }
@@ -173,6 +176,37 @@ describe('WorkspaceTrustService', () => {
     });
   });
 
+  it('logs a specific warning when the SSH filesystem cannot be opened', async () => {
+    const trustWorkspace = vi.fn();
+    const fileSystem: IFilesRuntime['fileSystem'] = vi.fn(() =>
+      err({
+        type: 'fs-error',
+        path: '/remote/worktree',
+        message: 'connection closed',
+      } satisfies FileError)
+    );
+    const files = makeFilesRuntime({}, fileSystem);
+    const service = makeService({
+      getTrustBehavior: vi.fn(() => ({ trustWorkspace })),
+    });
+
+    await service.maybeAutoTrust({
+      providerId: 'claude',
+      workspacePath: '/remote/worktree',
+      host: { kind: 'ssh', ctx: makeCtx(), files },
+    });
+
+    expect(fileSystem).toHaveBeenCalledTimes(1);
+    expect(trustWorkspace).not.toHaveBeenCalled();
+    expect(mockWarn).toHaveBeenCalledWith(
+      'WorkspaceTrust: failed to open filesystem for workspace trust',
+      {
+        path: '/remote/worktree',
+        error: 'connection closed',
+      }
+    );
+  });
+
   it('writes SSH config atomically through the remote PluginFs', async () => {
     const behavior: ITrustBehavior = {
       trustWorkspace: async (fs, ctx) => {
@@ -195,7 +229,10 @@ describe('WorkspaceTrustService', () => {
         ok({ bytesWritten: content.length })
       ),
     };
-    const files = makeFilesRuntime(remoteFs);
+    const fileSystem: IFilesRuntime['fileSystem'] = vi.fn(() =>
+      ok(remoteFs as unknown as IFileSystem)
+    );
+    const files = makeFilesRuntime(remoteFs, fileSystem);
     const ctx = makeCtx();
     const service = makeService({
       getTrustBehavior: vi.fn(() => behavior),
@@ -207,6 +244,7 @@ describe('WorkspaceTrustService', () => {
       host: { kind: 'ssh', ctx, files },
     });
 
+    expect(fileSystem).toHaveBeenCalledTimes(1);
     expect(remoteFs.writeText).toHaveBeenCalledTimes(1);
     const [tmpPath, content] = remoteFs.writeText.mock.calls[0];
     expect(tmpPath).toContain('/home/remote-user/.claude.json.');

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { PluginFs } from '@emdash/core/agents/plugins';
+import type { IFileSystem } from '@emdash/core/files';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { IFilesRuntime } from '@main/core/runtime/types';
 import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
@@ -31,11 +32,22 @@ export async function resolveTrustTarget(
     };
   }
 
-  const normalizedPath = await normalizeSshWorkspacePath(host.files, workspacePath);
+  if (!isAbsoluteSshWorkspacePath(host.files, workspacePath)) return null;
+
+  const opened = host.files.fileSystem();
+  if (!opened.success) {
+    log.warn('WorkspaceTrust: failed to open filesystem for workspace trust', {
+      path: workspacePath,
+      error: opened.error.message,
+    });
+    return null;
+  }
+
+  const normalizedPath = await normalizeSshWorkspacePath(opened.data, workspacePath);
   if (!normalizedPath) return null;
   const homeDir = await resolveRemoteHome(host.ctx);
   return {
-    fs: createRemotePluginFs(host.ctx, host.files, homeDir),
+    fs: createRemotePluginFs(host.ctx, opened.data, homeDir),
     lockKey: `ssh:${homeDir}`,
     workspacePath: normalizedPath,
   };
@@ -52,26 +64,21 @@ function normalizeLocalWorkspacePath(workspacePath: string): string | null {
   return path.normalize(workspacePath);
 }
 
-async function normalizeSshWorkspacePath(
-  files: IFilesRuntime,
-  workspacePath: string
-): Promise<string | null> {
+function isAbsoluteSshWorkspacePath(files: IFilesRuntime, workspacePath: string): boolean {
   if (!files.path.isAbsolute(workspacePath)) {
     log.warn('WorkspaceTrust: refusing to auto-trust non-absolute workspace path', {
       path: workspacePath,
     });
-    return null;
+    return false;
   }
 
-  const opened = files.fileSystem();
-  if (!opened.success) {
-    log.warn('WorkspaceTrust: failed to open filesystem for workspace trust', {
-      path: workspacePath,
-      error: opened.error.message,
-    });
-    return null;
-  }
+  return true;
+}
 
-  const realPath = await opened.data.realPath(workspacePath);
+async function normalizeSshWorkspacePath(
+  remoteFs: IFileSystem,
+  workspacePath: string
+): Promise<string | null> {
+  const realPath = await remoteFs.realPath(workspacePath);
   return realPath.success ? realPath.data : path.posix.normalize(workspacePath);
 }

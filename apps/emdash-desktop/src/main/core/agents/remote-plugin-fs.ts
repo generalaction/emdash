@@ -3,7 +3,6 @@ import path from 'node:path';
 import type { PluginFs } from '@emdash/core/agents/plugins';
 import { isFileNotFoundError, type IFileSystem } from '@emdash/core/files';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { IFilesRuntime } from '@main/core/runtime/types';
 
 const MAX_PLUGIN_READ_BYTES = 2 * 1024 * 1024;
 
@@ -13,7 +12,7 @@ const MAX_PLUGIN_READ_BYTES = 2 * 1024 * 1024;
  */
 export function createRemotePluginFs(
   ctx: IExecutionContext,
-  files: IFilesRuntime,
+  remoteFs: IFileSystem,
   root: string
 ): PluginFs {
   const absRoot = normalizeRoot(root);
@@ -29,16 +28,10 @@ export function createRemotePluginFs(
     return abs;
   }
 
-  function fileSystem(): IFileSystem {
-    const opened = files.fileSystem();
-    if (!opened.success) throw new Error(opened.error.message);
-    return opened.data;
-  }
-
   return {
     async read(value: string): Promise<string | null> {
       const abs = resolveSafe(value);
-      const result = await fileSystem().readText(abs, { maxBytes: MAX_PLUGIN_READ_BYTES });
+      const result = await remoteFs.readText(abs, { maxBytes: MAX_PLUGIN_READ_BYTES });
       if (result.success) return result.data.content;
       if (isFileNotFoundError(result.error)) return null;
       throw new Error(`Remote plugin fs: failed to read ${abs}: ${result.error.message}`);
@@ -47,7 +40,6 @@ export function createRemotePluginFs(
     async write(value: string, content: string): Promise<void> {
       const abs = resolveSafe(value);
       const tmpPath = `${abs}.${randomUUID()}.tmp`;
-      const remoteFs = fileSystem();
 
       try {
         await ctx.exec('mkdir', ['-p', path.posix.dirname(abs)]);
@@ -67,7 +59,7 @@ export function createRemotePluginFs(
     },
 
     async exists(value: string): Promise<boolean> {
-      const result = await fileSystem().exists(resolveSafe(value));
+      const result = await remoteFs.exists(resolveSafe(value));
       return result.success ? result.data : false;
     },
 
