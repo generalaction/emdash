@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/renderer/lib/components/add-ssh-conn-modal.tsx
+  s_b9c4571cf5b439::t_cdf1cd07e0ba81 153-165,360-367,380-387
+  s_b9c4571cf5b439::t_8d662ef893b940 59-60,62-69,191,289
+  s_b9c4571cf5b439::t_386c29f4b11a6e 61
+apps/emdash-desktop/src/main/core/ssh/controller.db.test.ts
+  s_b9c4571cf5b439::t_d39a5fc045e2f5 65,83-114
+  s_b9c4571cf5b439::t_5602b17a66209a 115
+apps/emdash-desktop/src/main/core/ssh/controller.ts
+  s_b9c4571cf5b439::t_0234672825b1eb 2,85-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "aa305e4c807d91a55838e04a12a0dbf50b19c60f",
+  "prompts": {},
+  "sessions": {
+    "s_b9c4571cf5b439": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f1c5e-f2aa-7928-a0e3-8e6ce9fbe096",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
