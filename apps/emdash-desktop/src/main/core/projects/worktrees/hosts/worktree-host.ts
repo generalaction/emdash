@@ -5,6 +5,7 @@ export type WorktreeHostPathApi = Pick<typeof path, 'dirname' | 'join'>;
 
 export interface WorktreeHost {
   readonly pathApi: WorktreeHostPathApi;
+  allowPath?(path: string): Promise<void>;
   existsAbsolute(path: string): Promise<boolean>;
   mkdirAbsolute(path: string, options?: { recursive?: boolean }): Promise<void>;
   removeAbsolute(

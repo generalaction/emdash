@@ -148,8 +148,8 @@ describe('WorkspaceBootstrapService', () => {
   });
 
   describe('ensureWorkspaceSetup', () => {
-    it('repairs persisted branch worktree paths before acquiring the workspace', async () => {
-      const serveBranchWorktree = vi.fn().mockResolvedValue(ok('/worktrees/task-branch'));
+    it('repairs persisted branch worktree paths at the stored path before acquiring', async () => {
+      const serveBranchWorktreeAtPath = vi.fn().mockResolvedValue(ok('/worktrees/stored-task'));
       const existsAbsolute = vi.fn().mockResolvedValue(true);
       const project = {
         projectId: 'proj-1',
@@ -167,7 +167,7 @@ describe('WorkspaceBootstrapService', () => {
           existsAbsolute,
         },
         worktreeService: {
-          serveBranchWorktree,
+          serveBranchWorktreeAtPath,
         },
       } as unknown as ProjectProvider;
 
@@ -176,7 +176,7 @@ describe('WorkspaceBootstrapService', () => {
           id: WS_ID,
           type: 'local',
           kind: 'worktree',
-          path: '/worktrees/broken-task-branch',
+          path: '/worktrees/stored-task',
           branchName: 'task/branch',
           config: {
             version: '2',
@@ -195,16 +195,20 @@ describe('WorkspaceBootstrapService', () => {
 
       expect(result.success).toBe(true);
       if (!result.success) throw new Error('expected success');
-      expect(result.data.path).toBe('/worktrees/task-branch');
-      expect(serveBranchWorktree).toHaveBeenCalledWith('task/branch', {
-        type: 'local',
-        branch: 'main',
-      });
-      expect(existsAbsolute).not.toHaveBeenCalledWith('/worktrees/broken-task-branch');
+      expect(result.data.path).toBe('/worktrees/stored-task');
+      expect(serveBranchWorktreeAtPath).toHaveBeenCalledWith(
+        'task/branch',
+        {
+          type: 'local',
+          branch: 'main',
+        },
+        '/worktrees/stored-task'
+      );
+      expect(existsAbsolute).not.toHaveBeenCalledWith('/worktrees/stored-task');
       expect(mocks.acquireWorkspace).toHaveBeenCalled();
 
       const [ws] = await fixture.db.select().from(workspaces).where(eq(workspaces.id, WS_ID));
-      expect(ws.path).toBe('/worktrees/task-branch');
+      expect(ws.path).toBe('/worktrees/stored-task');
       expect(ws.branchName).toBe('task/branch');
     });
   });

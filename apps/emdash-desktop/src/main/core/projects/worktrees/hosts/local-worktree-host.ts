@@ -60,6 +60,25 @@ export class LocalWorktreeHost implements WorktreeHost {
     }
   }
 
+  async allowPath(targetPath: string): Promise<void> {
+    const resolved = this.assertAbsolute(targetPath);
+    const parent = path.dirname(resolved);
+    let allowedRoot: string;
+    try {
+      allowedRoot = await fs.realpath(parent);
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+      const { realAncestor, unresolvedSegments } = await this.nearestExistingPath(parent);
+      const parentTarget = path.join(realAncestor, ...unresolvedSegments);
+      await fs.mkdir(parentTarget, { recursive: true });
+      allowedRoot = await fs.realpath(parentTarget);
+    }
+
+    if (!this.roots.some((existing) => existing === allowedRoot)) {
+      this.roots.push(allowedRoot);
+    }
+  }
+
   private assertAbsolute(input: string): string {
     const resolved = path.resolve(input);
     if (!path.isAbsolute(input)) {
@@ -121,7 +140,6 @@ export class LocalWorktreeHost implements WorktreeHost {
     }
 
     const { realAncestor, unresolvedSegments } = await this.nearestExistingPath(resolved);
-    this.assertInsideAllowedRoots(realAncestor, input);
     const target = path.join(realAncestor, ...unresolvedSegments);
     this.assertInsideAllowedRoots(target, input);
     return target;
