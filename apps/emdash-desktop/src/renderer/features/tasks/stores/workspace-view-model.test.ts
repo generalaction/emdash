@@ -218,16 +218,12 @@ afterEach(() => {
 });
 
 describe('WorkspaceViewModel terminal drawer snapshot', () => {
-  it('opens a new terminal task tab in the provided pane target', async () => {
-    const terminals = makeTerminalManager({ terminalIds: [], isLoaded: true });
-    terminals.createDefaultTerminal.mockResolvedValue(makeTerminal('terminal-1').data);
-    terminalRegistryEntries().set('task-1', terminals);
+  it('opens an existing terminal task tab in the provided pane target', () => {
     const viewModel = makeViewModel();
     const pane = { openKind: vi.fn() };
 
-    await viewModel.openNewTerminalTab({ pane });
+    viewModel.openTerminalTab('terminal-1', { pane });
 
-    expect(terminals.createDefaultTerminal).toHaveBeenCalledWith(undefined);
     expect(pane.openKind).toHaveBeenCalledWith('terminal', {
       terminalId: 'terminal-1',
       preview: false,

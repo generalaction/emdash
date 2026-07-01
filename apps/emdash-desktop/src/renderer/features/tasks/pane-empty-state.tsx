@@ -1,10 +1,7 @@
 import { FileSearch, MessageSquare } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
-import {
-  useTaskViewContext,
-  useWorkspaceViewModel,
-} from '@renderer/features/tasks/task-view-context';
+import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -14,7 +11,6 @@ import type { ShortcutSettingsKey } from '@shared/shortcuts';
 
 export function PaneEmptyState() {
   const { projectId, taskId, workspaceId } = useTaskViewContext();
-  const taskView = useWorkspaceViewModel();
   const { pane } = usePaneContext();
   const showCreateConversationModal = useShowModal('createConversationModal');
   const showCommandPalette = useShowModal('commandPaletteModal');
@@ -24,10 +20,8 @@ export function PaneEmptyState() {
       showCreateConversationModal({
         projectId,
         taskId,
-        onSuccess: ({ conversationId, openBrowserTab, openTerminalTab }) => {
+        onSuccess: ({ conversationId }) => {
           pane.open('conversation', { conversationId, preview: false });
-          if (openBrowserTab) pane.open('browser', {});
-          if (openTerminalTab) void taskView.openNewTerminalTab({ pane });
         },
       }),
     () => showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined }),

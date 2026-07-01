@@ -89,10 +89,8 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             showModal('createConversationModal', {
               projectId,
               taskId,
-              onSuccess: ({ conversationId, openBrowserTab, openTerminalTab }) => {
+              onSuccess: ({ conversationId }) => {
                 taskView?.paneLayout.open('conversation', { conversationId, preview: false });
-                if (openBrowserTab) taskView?.paneLayout.open('browser', {});
-                if (openTerminalTab) void taskView?.openNewTerminalTab();
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -108,13 +106,11 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             showModal('createConversationModal', {
               projectId,
               taskId,
-              onSuccess: ({ conversationId, openBrowserTab, openTerminalTab }) => {
+              onSuccess: ({ conversationId }) => {
                 taskView?.paneLayout.openInRightSplit('conversation', {
                   conversationId,
                   preview: false,
                 });
-                if (openBrowserTab) taskView?.paneLayout.open('browser', {});
-                if (openTerminalTab) void taskView?.openNewTerminalTab();
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -205,7 +201,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: newTerminalDef.shortcutKey,
           group: newTerminalDef.group,
           execute() {
-            void taskView?.openNewTerminalTab();
+            void taskView?.openNewTerminal();
           },
         },
         {

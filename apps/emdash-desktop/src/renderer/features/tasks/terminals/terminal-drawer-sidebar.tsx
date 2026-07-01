@@ -1,6 +1,7 @@
+import { useDraggable } from '@dnd-kit/core';
 import { ChevronDown, Pause, Play, Plus, Settings, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { type LifecycleScriptsStore } from '@renderer/features/tasks/stores/lifecycle-scripts';
 import { type TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
@@ -21,6 +22,7 @@ import type {
   TerminalShellAvailability,
   TerminalShellId,
 } from '@shared/core/terminals/terminal-settings';
+import { TERMINAL_DRAWER_DRAG_KIND, type TerminalDrawerDragData } from './terminal-drawer-dnd';
 import { scriptIcon } from './terminal-tabs';
 
 interface TerminalDrawerSidebarProps {
@@ -119,6 +121,11 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
             key={terminal.data.id}
             icon={<Terminal className="size-3" />}
             label={terminal.data.name}
+            dragData={{
+              kind: TERMINAL_DRAWER_DRAG_KIND,
+              terminalId: terminal.data.id,
+              label: terminal.data.name,
+            }}
             isActive={activeTerminalId === terminal.data.id}
             onSelect={() => onSelectTerminal(terminal.data.id)}
             onRename={(name) => onRenameTerminal(terminal.data.id, name)}
@@ -128,6 +135,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                 <TooltipTrigger>
                   <button
                     className="ml-1 flex size-5 shrink-0 items-center justify-center rounded text-foreground-muted opacity-0 group-hover:opacity-100 hover:bg-background hover:text-foreground"
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
                       onRemoveTerminal(terminal.data.id);
@@ -217,6 +225,7 @@ interface SidebarRowProps {
   onRename?: (name: string) => void;
   onHover?: () => void;
   action?: ReactNode;
+  dragData?: TerminalDrawerDragData;
 }
 
 function SidebarRow({
@@ -227,8 +236,15 @@ function SidebarRow({
   onRename,
   onHover,
   action,
+  dragData,
 }: SidebarRowProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const fallbackDragId = useId();
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: dragData ? `terminal-drawer-${dragData.terminalId}` : fallbackDragId,
+    data: dragData,
+    disabled: !dragData || isEditing,
+  });
 
   if (isEditing && onRename) {
     return (
@@ -253,9 +269,11 @@ function SidebarRow({
 
   return (
     <div
+      ref={dragData ? setNodeRef : undefined}
       className={cn(
         'group flex items-center justify-between px-3 py-1.5 cursor-pointer hover:bg-background-2 rounded-md',
-        isActive && 'bg-background-2 text-foreground'
+        isActive && 'bg-background-2 text-foreground',
+        isDragging && 'opacity-50'
       )}
       onClick={onSelect}
       onMouseEnter={onHover}
@@ -264,6 +282,8 @@ function SidebarRow({
         e.stopPropagation();
         setIsEditing(true);
       }}
+      {...(dragData ? attributes : {})}
+      {...(dragData ? listeners : {})}
     >
       <span
         className={cn(
@@ -275,6 +295,15 @@ function SidebarRow({
         <span className="truncate">{label}</span>
       </span>
       {action}
+    </div>
+  );
+}
+
+export function TerminalDrawerDragPreview({ label }: { label: string }) {
+  return (
+    <div className="flex min-w-36 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm shadow-lg">
+      <Terminal className="size-3 shrink-0 text-foreground-muted" />
+      <span className="truncate text-foreground-muted">{label}</span>
     </div>
   );
 }

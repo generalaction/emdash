@@ -40,8 +40,7 @@ interface TerminalTabPaneTarget {
   openKind(kind: string, args: unknown): void;
 }
 
-interface OpenNewTerminalTabOptions {
-  shell?: TerminalShellId;
+interface OpenTerminalTabOptions {
   pane?: TerminalTabPaneTarget;
 }
 
@@ -446,17 +445,14 @@ export class WorkspaceViewModel implements ILifecycle {
     return terminalId;
   }
 
-  /** Creates a new terminal session and opens it as a tab in the focused task pane. */
-  async openNewTerminalTab(options: OpenNewTerminalTabOptions = {}): Promise<string | undefined> {
+  /** Opens an existing task terminal session as a tab in the focused task pane. */
+  openTerminalTab(terminalId: string, options: OpenTerminalTabOptions = {}): void {
     this.setFocusedRegion('main');
 
-    const { shell, pane = this.paneLayout.focusedPane } = options;
-    const terminalId = await this._createDefaultTerminal(shell);
-    if (!terminalId) return undefined;
+    const { pane = this.paneLayout.focusedPane } = options;
     runInAction(() => {
       pane.openKind('terminal', { terminalId, preview: false });
     });
-    return terminalId;
   }
 
   private async _createDefaultTerminal(shell?: TerminalShellId): Promise<string | undefined> {

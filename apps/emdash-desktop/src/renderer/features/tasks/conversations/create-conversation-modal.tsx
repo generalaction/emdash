@@ -5,7 +5,6 @@ import { conversationRegistry } from '@renderer/features/tasks/stores/conversati
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
-import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -22,8 +21,6 @@ import {
 
 export interface CreateConversationModalResult {
   conversationId: string;
-  openBrowserTab: boolean;
-  openTerminalTab: boolean;
 }
 
 export const CreateConversationModal = observer(function CreateConversationModal({
@@ -43,8 +40,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
     autoApproveByDefault
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [openBrowserTab, setOpenBrowserTab] = useState(false);
-  const [openTerminalTab, setOpenTerminalTab] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useCloseGuard(isSubmitting);
 
@@ -77,7 +72,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
         initialPrompt,
       });
       setIsSubmitting(false);
-      onSuccess({ conversationId: id, openBrowserTab, openTerminalTab });
+      onSuccess({ conversationId: id });
     } catch {
       setError('Failed to create conversation');
       setIsSubmitting(false);
@@ -90,8 +85,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
     initialConversation.autoApprove,
     initialConversation.model,
     isSubmitting,
-    openBrowserTab,
-    openTerminalTab,
     providerId,
     title,
     onSuccess,
@@ -111,20 +104,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
             linkedIssue={task?.linkedIssue}
             includeIssueContextByDefault={includeIssueContextByDefault}
           />
-          <label className="flex w-fit items-center gap-2 text-sm text-foreground-muted">
-            <Checkbox
-              checked={openBrowserTab}
-              onCheckedChange={(checked) => setOpenBrowserTab(checked === true)}
-            />
-            <span>Open browser tab</span>
-          </label>
-          <label className="flex w-fit items-center gap-2 text-sm text-foreground-muted">
-            <Checkbox
-              checked={openTerminalTab}
-              onCheckedChange={(checked) => setOpenTerminalTab(checked === true)}
-            />
-            <span>Open terminal tab</span>
-          </label>
           {error && <p className="text-destructive text-xs">{error}</p>}
         </div>
       </DialogContentArea>
