@@ -10,6 +10,7 @@ import {
 import { enrichClaudeUpdate } from './acp-transform';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
+import { buildClaudeTrustBehavior } from './trust';
 
 const _require = createRequire(import.meta.url);
 
@@ -110,6 +111,9 @@ export const plugin = definePlugin(
     sessions: {
       kind: 'resumable',
     },
+    trust: {
+      kind: 'supported',
+    },
   },
   { icon }
 );
@@ -148,4 +152,5 @@ export const provider = registerPluginBehavior(plugin, {
   },
   hooks: buildClaudeHookConfig(),
   mcp: passthroughMcpAdapter('.claude.json'),
+  trust: buildClaudeTrustBehavior(),
 });

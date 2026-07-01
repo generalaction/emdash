@@ -11,6 +11,7 @@ import { modelsCapability } from './capabilities/models';
 import { pluginsCapability } from './capabilities/plugins';
 import { promptCapability } from './capabilities/prompt';
 import { sessionsCapability } from './capabilities/sessions';
+import { trustCapability } from './capabilities/trust';
 
 export const PLUGIN_CAPABILITIES = {
   acp: acpCapability,
@@ -23,6 +24,7 @@ export const PLUGIN_CAPABILITIES = {
   plugins: pluginsCapability,
   prompt: promptCapability,
   sessions: sessionsCapability,
+  trust: trustCapability,
 } as const;
 
 export type Capabilities = typeof PLUGIN_CAPABILITIES;
@@ -77,6 +79,7 @@ export type { IHooksBehavior } from './capabilities/hooks';
 export type { IMcpBehavior, McpServerRegistration } from './capabilities/mcp';
 export type { IPlugins } from './capabilities/plugins';
 export type { ISessionsBehavior } from './capabilities/sessions';
+export type { ITrustBehavior, TrustContext } from './capabilities/trust';
 
 // Typed registry factory
 export { createPluginRegistry } from '../../lib/plugins/registry';
