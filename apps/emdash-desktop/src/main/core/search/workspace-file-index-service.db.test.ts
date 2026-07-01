@@ -52,6 +52,27 @@ describe('WorkspaceFileIndexService', () => {
     ]);
   });
 
+  it('searches file mention candidates for empty, short, and FTS queries', async () => {
+    loadedService = await loadService();
+    const { service } = loadedService;
+
+    await service.onWorkspaceActivated('ws-1', {
+      rootPath: '/repo',
+      enumerate: enumerator(() => ['/repo/README.md', '/repo/package.json', '/repo/src/index.ts']),
+    });
+
+    expect(service.searchFiles('ws-1', '', 2)).toEqual([
+      { path: '/repo/README.md', filename: 'README.md' },
+      { path: '/repo/package.json', filename: 'package.json' },
+    ]);
+    expect(service.searchFiles('ws-1', 'in', 5)).toEqual([
+      { path: '/repo/src/index.ts', filename: 'index.ts' },
+    ]);
+    expect(service.searchFiles('ws-1', 'package', 5)).toEqual([
+      { path: '/repo/package.json', filename: 'package.json' },
+    ]);
+  });
+
   it('applies path-changing file events incrementally', async () => {
     loadedService = await loadService();
     const { service, sqlite } = loadedService;

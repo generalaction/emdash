@@ -22,6 +22,7 @@ export interface IWorkspaceFileIndexStore {
   deletePath(workspaceId: string, path: string): boolean;
   deleteSubtree(workspaceId: string, path: string): void;
   countIndexedFiles(workspaceId: string): number;
+  searchFiles(workspaceId: string, query: string, limit: number): FileHit[];
   search(workspaceId: string, query: string): FileHit[];
   deleteIndex(workspaceId: string): void;
   evict(staleDays: number): void;
@@ -141,7 +142,72 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
     return row.count;
   }
 
+  /**
+   * Dedicated file search for @-mention suggestions.
+   *
+   * Three branches by query length:
+   *   - empty/whitespace  -> first `limit` files ordered by path (initial options)
+   *   - 1-2 chars         -> LIKE %q% substring scan on filename and path
+   *   - 3+ chars          -> trigram FTS MATCH (same as `search()`)
+   */
+  searchFiles(workspaceId: string, query: string, limit: number): FileHit[] {
+    const trimmed = query.trim();
+
+    if (!trimmed) {
+      try {
+        return sqlite
+          .prepare(
+            `SELECT path, filename FROM workspace_file_index
+             WHERE workspace_id = ?
+             ORDER BY path
+             LIMIT ?`
+          )
+          .all(workspaceId, limit) as FileHit[];
+      } catch (e) {
+        log.warn('WorkspaceFileIndexStore: searchFiles (empty) failed', {
+          workspaceId,
+          error: String(e),
+        });
+        return [];
+      }
+    }
+
+    const hasLongTerm = trimmed.split(/[\s\-_/]+/).some((t) => t.length >= 3);
+
+    if (!hasLongTerm) {
+      const escaped = escapeSqliteLike(trimmed);
+      const pattern = `%${escaped}%`;
+      try {
+        return sqlite
+          .prepare(
+            `SELECT path, filename FROM workspace_file_index
+             WHERE workspace_id = ?
+               AND (filename LIKE ? ESCAPE '\\' OR path LIKE ? ESCAPE '\\')
+             LIMIT ?`
+          )
+          .all(workspaceId, pattern, pattern, limit) as FileHit[];
+      } catch (e) {
+        log.warn('WorkspaceFileIndexStore: searchFiles (LIKE) failed', {
+          workspaceId,
+          error: String(e),
+        });
+        return [];
+      }
+    }
+
+    return this.searchFts(workspaceId, trimmed, limit, 'searchFiles (FTS)');
+  }
+
   search(workspaceId: string, query: string): FileHit[] {
+    return this.searchFts(workspaceId, query, 20, 'search');
+  }
+
+  private searchFts(
+    workspaceId: string,
+    query: string,
+    limit: number,
+    logContext: string
+  ): FileHit[] {
     const terms = query
       .trim()
       .split(/[\s\-_/]+/)
@@ -158,11 +224,14 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
            WHERE workspace_file_index MATCH ?
              AND workspace_id = ?
            ORDER BY bm25(workspace_file_index, 1.0, 2.0)
-           LIMIT 20`
+           LIMIT ?`
         )
-        .all(ftsQuery, workspaceId) as FileHit[];
+        .all(ftsQuery, workspaceId, limit) as FileHit[];
     } catch (e) {
-      log.warn('WorkspaceFileIndexStore: search failed', { workspaceId, error: String(e) });
+      log.warn(`WorkspaceFileIndexStore: ${logContext} failed`, {
+        workspaceId,
+        error: String(e),
+      });
       return [];
     }
   }

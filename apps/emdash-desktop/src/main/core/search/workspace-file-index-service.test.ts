@@ -18,6 +18,7 @@ describe('WorkspaceFileIndexService', () => {
   it('delegates initialize and search to the store', async () => {
     const store = new FakeStore();
     store.searchResults = [{ path: '/repo/src/index.ts', filename: 'index.ts' }];
+    store.searchFilesResults = [{ path: '/repo/src/app.ts', filename: 'app.ts' }];
     const service = await createService(store);
 
     service.initialize();
@@ -26,7 +27,11 @@ describe('WorkspaceFileIndexService', () => {
     expect(service.search('ws-1', 'index')).toEqual([
       { path: '/repo/src/index.ts', filename: 'index.ts' },
     ]);
+    expect(service.searchFiles('ws-1', 'ap', 5)).toEqual([
+      { path: '/repo/src/app.ts', filename: 'app.ts' },
+    ]);
     expect(store.operations).toContain('search:index');
+    expect(store.operations).toContain('searchFiles:ap:5');
   });
 
   it('refreshes complete metadata on activation without enumerating', async () => {
@@ -252,6 +257,7 @@ class FakeStore implements IWorkspaceFileIndexStore {
   operations: string[] = [];
   evictedDays: number | undefined;
   searchResults: FileHit[] = [];
+  searchFilesResults: FileHit[] = [];
 
   transaction<T>(fn: () => T): T {
     this.operations.push('transaction');
@@ -307,6 +313,11 @@ class FakeStore implements IWorkspaceFileIndexStore {
   search(_workspaceId: string, query: string): FileHit[] {
     this.operations.push(`search:${query}`);
     return this.searchResults;
+  }
+
+  searchFiles(_workspaceId: string, query: string, limit: number): FileHit[] {
+    this.operations.push(`searchFiles:${query}:${limit}`);
+    return this.searchFilesResults;
   }
 
   deleteIndex(workspaceId: string): void {
