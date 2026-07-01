@@ -48,7 +48,7 @@ export const plugin = definePlugin(
         'gpt-5.3-codex-spark': {
           name: 'GPT-5.3 Codex Spark',
           description: 'Research-preview Codex model optimized for near-instant iteration.',
-          modelFeatures: { intelligence: 4, speed: 5 },
+          modelFeatures: { intelligence: 2, speed: 5 },
         },
       },
     },
