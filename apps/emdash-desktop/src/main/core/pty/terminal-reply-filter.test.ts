@@ -41,6 +41,10 @@ describe('stripUnsolicitedTerminalReplies', () => {
     expect(stripUnsolicitedTerminalReplies('\x1b[c')).toBe('\x1b[c');
   });
 
+  it('forwards the bare DA2 query (ESC[>c) unchanged — it has no params, so it is not a reply', () => {
+    expect(stripUnsolicitedTerminalReplies('\x1b[>c')).toBe('\x1b[>c');
+  });
+
   it('does not touch a cursor-position (CPR) reply', () => {
     expect(stripUnsolicitedTerminalReplies('\x1b[6;10R')).toBe('\x1b[6;10R');
   });

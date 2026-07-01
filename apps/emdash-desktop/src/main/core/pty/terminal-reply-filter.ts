@@ -4,7 +4,11 @@
 //   - DA2 reply:  ESC [ > <params> c     e.g. ESC[>0;276;0c (visible tail: 0;276;0c)
 //   - XTVERSION:  ESC P > | <text> ST    e.g. ESC P >|XTerm(380) ESC \
 // `ST` is either `ESC \` or the single-byte `0x9c`.
-const DA_REPLY = /\x1b\[[?>][0-9;]*c/g;
+// Require at least one parameter (`[0-9;]+`, not `*`): a real DA reply always
+// carries params, whereas the bare DA2 *query* `ESC[>c` has none. Using `*` would
+// also match that query and wrongly drop it (the DA1 query `ESC[c` lacks the
+// `?`/`>` leader, so it never matched either way).
+const DA_REPLY = /\x1b\[[?>][0-9;]+c/g;
 const XTVERSION_REPLY = /\x1bP>\|[^\x1b\x9c]*(?:\x1b\\|\x9c)/g;
 
 /**
