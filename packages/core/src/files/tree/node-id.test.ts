@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { ListedEntry } from './list';
+import type { DirectoryEntry } from './directory-reader';
 import type { NodeId } from './models/tree';
 import { NodeIdAssigner } from './node-id';
 
-function dir(path: string, name: string): ListedEntry {
+function dir(path: string, name: string): DirectoryEntry {
   return { path, name, type: 'directory' };
 }
 
-function file(path: string, name: string): ListedEntry {
+function file(path: string, name: string): DirectoryEntry {
   return { path, name, type: 'file' };
 }
 

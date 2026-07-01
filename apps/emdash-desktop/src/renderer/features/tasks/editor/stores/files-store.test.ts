@@ -9,7 +9,6 @@ const SUBSCRIPTION_ID = 'sub-1';
 const mocks = vi.hoisted(() => ({
   openProjection: vi.fn(),
   registerDir: vi.fn(),
-  unregisterDir: vi.fn(),
   revealPath: vi.fn(),
   closeProjection: vi.fn(),
   eventOn: vi.fn(),
@@ -21,7 +20,6 @@ vi.mock('@renderer/lib/ipc', () => ({
       fileTree: {
         openProjection: mocks.openProjection,
         registerDir: mocks.registerDir,
-        unregisterDir: mocks.unregisterDir,
         revealPath: mocks.revealPath,
         closeProjection: mocks.closeProjection,
       },
@@ -101,7 +99,6 @@ describe('FilesStore', () => {
     emit = undefined;
     mocks.openProjection.mockReset();
     mocks.registerDir.mockReset();
-    mocks.unregisterDir.mockReset();
     mocks.revealPath.mockReset();
     mocks.closeProjection.mockReset();
     mocks.eventOn.mockReset();
@@ -480,7 +477,7 @@ describe('FilesStore', () => {
     // Collapse only `src`; hidden descendants stay expanded in view state and remain retained.
     store.reconcileVisibleScopes(new Set(['/repo/src/sub']));
     await flushAsyncWork();
-    expect(mocks.unregisterDir).not.toHaveBeenCalled();
+    expect(mocks.closeProjection).not.toHaveBeenCalled();
     expect(store.loadedPaths.has('/repo/src')).toBe(true);
     expect(store.loadedPaths.has('/repo/src/sub')).toBe(true);
 

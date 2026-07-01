@@ -110,19 +110,6 @@ export class FileTreeProjector {
     return ok({ version: this.flushScopes(subscriptionId, sub, [dirId]) });
   }
 
-  async unregisterDir(
-    subscriptionId: string,
-    dirId: Scope
-  ): Promise<Result<FileTreeProjectionVersionData, FileTreeOperationError>> {
-    const sub = this.subscriptions.get(subscriptionId);
-    if (!sub) return err({ type: 'not_found' });
-    if (dirId === null || !sub.scopes.has(dirId)) return ok({ version: sub.version });
-
-    sub.scopes.delete(dirId);
-    await this.releaseScope(dirId);
-    return ok({ version: sub.version });
-  }
-
   async revealPath(
     subscriptionId: string,
     absPath: string

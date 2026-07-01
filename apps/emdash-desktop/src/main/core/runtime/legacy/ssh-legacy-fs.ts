@@ -8,7 +8,6 @@ import type { FileSymlinkInfo, FileSymlinkTargetType } from '@emdash/core/files'
 import type { SFTPWrapper } from 'ssh2';
 import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
-import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { FileWatchEvent } from '@shared/core/fs/fs';
 import {
@@ -20,9 +19,6 @@ import {
   type FileWatcher,
   type ListOptions,
   type ReadResult,
-  type SearchMatch,
-  type SearchOptions,
-  type SearchResult,
   type WriteResult,
 } from './ssh-legacy-fs-types';
 
@@ -45,11 +41,6 @@ type SftpAttrs = {
   atime: number;
   mode: number;
 };
-
-/**
- * Allowed image extensions for readImage
- */
-const ALLOWED_IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'];
 
 /**
  * Maximum file size for reading (100MB to prevent memory issues)
@@ -439,120 +430,6 @@ export class SshFileSystem implements LegacySshFileOperations {
   }
 
   /**
-   * Recursively list all files and directories via SSH find (single round-trip).
-   * Returns items in the same {path, type} format used by the local fs:list handler.
-   */
-  async listRecursive(options?: { includeDirs?: boolean; maxEntries?: number }): Promise<{
-    items: Array<{ path: string; type: 'file' | 'dir' }>;
-    truncated: boolean;
-  }> {
-    const includeDirs = options?.includeDirs ?? true;
-    const maxEntries = options?.maxEntries ?? 5000;
-
-    // Directories to prune from the listing
-    const pruneNames = [
-      '.git',
-      'node_modules',
-      'dist',
-      'build',
-      '.next',
-      'out',
-      '.turbo',
-      'coverage',
-      '.nyc_output',
-      '.cache',
-      'tmp',
-      'temp',
-      '__pycache__',
-      '.pytest_cache',
-      'venv',
-      '.venv',
-      'target',
-      '.terraform',
-      '.serverless',
-      'vendor',
-      'bower_components',
-      'worktrees',
-      '.worktrees',
-      '.DS_Store',
-    ];
-
-    // Build prune clause for find (names are hardcoded, but escape for safety)
-    const pruneExpr = pruneNames.map((name) => `-name ${quoteShellArg(name)}`).join(' -o ');
-
-    // Build find command: prune ignored dirs, print files (and optionally dirs)
-    const typeFilter = includeDirs ? '' : '-type f';
-    const command = [
-      `find ${quoteShellArg(this.remotePath)}`,
-      `\\( ${pruneExpr} \\) -prune -o`,
-      typeFilter ? `${typeFilter} -print` : '-print',
-      `2>/dev/null`,
-      `| head -n ${maxEntries + 1}`,
-    ]
-      .filter(Boolean)
-      .join(' ');
-
-    try {
-      const result = await this.exec(command);
-
-      const lines = result.stdout.split('\n').filter((line) => line.trim());
-
-      // Check if we exceeded maxEntries (we asked for maxEntries+1 to detect truncation)
-      const truncated = lines.length > maxEntries;
-      const effectiveLines = truncated ? lines.slice(0, maxEntries) : lines;
-
-      const items: Array<{ path: string; type: 'file' | 'dir' }> = [];
-
-      for (const line of effectiveLines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-
-        // Skip the root path itself
-        if (trimmed === this.remotePath || trimmed === this.remotePath + '/') continue;
-
-        const relPath = this.relativePath(trimmed);
-        if (!relPath) continue;
-
-        // Determine type: find outputs directories with trailing / when using -print,
-        // but standard find doesn't. We'll use a heuristic: if any other entry starts
-        // with this path + '/', it's a directory. For efficiency, detect trailing slash.
-        const isDir = trimmed.endsWith('/');
-        const cleanRel = relPath.replace(/\/$/, '');
-
-        if (!cleanRel) continue;
-
-        items.push({
-          path: cleanRel,
-          type: isDir ? 'dir' : 'file',
-        });
-      }
-
-      // Since `find` doesn't always indicate directories clearly with just -print,
-      // we do a second pass: any path that is a prefix of another path is a directory.
-      const pathSet = new Set(items.map((i) => i.path));
-      for (const item of items) {
-        if (item.type === 'file') {
-          // Check if any other path starts with this path + '/'
-          const prefix = item.path + '/';
-          for (const otherPath of pathSet) {
-            if (otherPath.startsWith(prefix)) {
-              item.type = 'dir';
-              break;
-            }
-          }
-        }
-      }
-
-      // Filter out dirs if not requested
-      const finalItems = includeDirs ? items : items.filter((i) => i.type === 'file');
-
-      return { items: finalItems, truncated };
-    } catch {
-      return { items: [], truncated: false };
-    }
-  }
-
-  /**
    * Check if a path exists via SFTP
    */
   async exists(path: string): Promise<boolean> {
@@ -598,14 +475,6 @@ export class SshFileSystem implements LegacySshFileOperations {
     }
   }
 
-  async copyLocalFile(localAbsPath: string, destRelPath: string): Promise<void> {
-    const sftp = await this.getSftp();
-    const remoteFull = this.resolveRemotePath(destRelPath);
-    await new Promise<void>((resolve, reject) => {
-      sftp.fastPut(localAbsPath, remoteFull, (e) => (e ? reject(e) : resolve()));
-    });
-  }
-
   async copyFile(src: string, dest: string): Promise<void> {
     const fullSrc = this.resolveRemotePath(src);
     const fullDest = this.resolveRemotePath(dest);
@@ -648,98 +517,6 @@ export class SshFileSystem implements LegacySshFileOperations {
         });
       });
     });
-  }
-
-  /**
-   * Search for content in files via SSH exec (grep)
-   * Uses grep on the remote host for better performance on large codebases
-   */
-  async search(query: string, options?: SearchOptions): Promise<SearchResult> {
-    const searchPattern = options?.pattern || query;
-    const basePath = this.remotePath;
-    const maxResults = options?.maxResults || 10000;
-    const caseFlag = options?.caseSensitive ? '' : '-i';
-
-    // Build grep command with shell-safe escaping
-    const escapedPattern = quoteShellArg(searchPattern);
-
-    // Build file extension filter if provided
-    let includeFilter = '';
-    if (options?.fileExtensions && options.fileExtensions.length > 0) {
-      const extensions = options.fileExtensions.map((ext) =>
-        ext.startsWith('.') ? ext : `.${ext}`
-      );
-      includeFilter = extensions.map((e) => `--include=${quoteShellArg(`*${e}`)}`).join(' ');
-    }
-
-    // Use grep recursively with line numbers
-    const command = `grep -rn ${caseFlag} ${includeFilter} -e ${escapedPattern} ${quoteShellArg(basePath)} 2>/dev/null | head -n ${maxResults}`;
-
-    try {
-      const result = await this.exec(command);
-
-      // If grep returns non-zero exit but no stderr, it just means no matches
-      if (result.exitCode !== 0 && result.exitCode !== 1) {
-        // grep exit code 1 means no matches found, which is fine
-        return { matches: [], total: 0, filesSearched: 0 };
-      }
-
-      const matches: SearchMatch[] = [];
-      const lines = result.stdout.split('\n').filter((line) => line.trim());
-      const seenFiles = new Set<string>();
-
-      for (const line of lines) {
-        // Parse grep output format: path:line:content
-        const firstColon = line.indexOf(':');
-        if (firstColon === -1) continue;
-
-        const filePath = line.substring(0, firstColon);
-        const rest = line.substring(firstColon + 1);
-
-        const secondColon = rest.indexOf(':');
-        if (secondColon === -1) continue;
-
-        const lineNum = parseInt(rest.substring(0, secondColon), 10);
-        const content = rest.substring(secondColon + 1);
-
-        if (isNaN(lineNum)) continue;
-
-        const relPath = this.relativePath(filePath);
-
-        // Apply file pattern filter if provided
-        if (options?.filePattern) {
-          const patternRegex = new RegExp(options.filePattern);
-          if (!patternRegex.test(relPath)) {
-            continue;
-          }
-        }
-
-        seenFiles.add(filePath);
-
-        // Find column by searching for the pattern in the content
-        const searchPat = options?.caseSensitive ? searchPattern : searchPattern.toLowerCase();
-        const column = content.indexOf(searchPat) + 1;
-
-        matches.push({
-          filePath: relPath,
-          line: lineNum,
-          column: column > 0 ? column : 1,
-          content: content.trim(),
-          preview: content.trim(),
-        });
-      }
-
-      return {
-        matches,
-        total: matches.length,
-        truncated: lines.length >= maxResults,
-        filesSearched: seenFiles.size,
-      };
-    } catch (error) {
-      log.error('Failed to search', { query, options, error });
-      // If command execution fails, return empty results
-      return { matches: [], total: 0, filesSearched: 0 };
-    }
   }
 
   /**
@@ -789,98 +566,6 @@ export class SshFileSystem implements LegacySshFileOperations {
       const message = error instanceof Error ? error.message : String(error);
       return { success: false, error: message };
     }
-  }
-
-  /**
-   * Read image file as base64 data URL via SFTP
-   */
-  async readImage(path: string): Promise<{
-    success: boolean;
-    dataUrl?: string;
-    mimeType?: string;
-    size?: number;
-    error?: string;
-  }> {
-    // Check file extension
-    const ext = path.toLowerCase().substring(path.lastIndexOf('.'));
-    if (!ALLOWED_IMAGE_EXTENSIONS.includes(ext)) {
-      return {
-        success: false,
-        error: `Unsupported image format: ${ext}`,
-      };
-    }
-
-    const fullPath = this.resolveRemotePath(path);
-    const sftp = await this.getSftp();
-
-    return new Promise((resolve, reject) => {
-      sftp.open(fullPath, 'r', (err, handle) => {
-        if (err) {
-          reject(this.mapSftpError(err, fullPath));
-          return;
-        }
-
-        sftp.fstat(handle, (statErr, stats) => {
-          if (statErr) {
-            sftp.close(handle, () => {});
-            reject(this.mapSftpError(statErr, fullPath));
-            return;
-          }
-
-          // Check file size limit (5MB for images)
-          const maxImageSize = 5 * 1024 * 1024;
-          if (stats.size > maxImageSize) {
-            sftp.close(handle, () => {});
-            resolve({
-              success: false,
-              error: `Image too large: ${stats.size} bytes (max ${maxImageSize})`,
-            });
-            return;
-          }
-
-          if (stats.size === 0) {
-            sftp.close(handle, () => {});
-            resolve({ success: false, error: 'Image file is empty' });
-            return;
-          }
-
-          const buffer = Buffer.alloc(stats.size);
-
-          sftp.read(handle, buffer, 0, stats.size, 0, (readErr) => {
-            sftp.close(handle, () => {});
-
-            if (readErr) {
-              reject(this.mapSftpError(readErr, fullPath));
-              return;
-            }
-
-            // Determine MIME type from extension
-            const mimeTypes: Record<string, string> = {
-              '.png': 'image/png',
-              '.jpg': 'image/jpeg',
-              '.jpeg': 'image/jpeg',
-              '.gif': 'image/gif',
-              '.webp': 'image/webp',
-              '.svg': 'image/svg+xml',
-              '.bmp': 'image/bmp',
-              '.ico': 'image/x-icon',
-            };
-            const mimeType = mimeTypes[ext] || 'application/octet-stream';
-
-            // Convert to base64
-            const base64 = buffer.toString('base64');
-            const dataUrl = `data:${mimeType};base64,${base64}`;
-
-            resolve({
-              success: true,
-              dataUrl,
-              mimeType,
-              size: stats.size,
-            });
-          });
-        });
-      });
-    });
   }
 
   // ─── Private utilities ────────────────────────────────────────────────────

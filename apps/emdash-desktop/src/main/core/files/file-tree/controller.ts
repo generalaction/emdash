@@ -29,17 +29,6 @@ export const fileTreeController = createRPCController({
     return await workspace.fileTreeProjector.registerDir(subscriptionId, dirId);
   },
 
-  unregisterDir: async (
-    projectId: string,
-    workspaceId: string,
-    subscriptionId: string,
-    dirId: NodeId | null
-  ): Promise<FileTreeProjectionVersionResult> => {
-    const workspace = resolveWorkspace(projectId, workspaceId);
-    if (!workspace) return err({ type: 'not_found' });
-    return await workspace.fileTreeProjector.unregisterDir(subscriptionId, dirId);
-  },
-
   revealPath: async (
     projectId: string,
     workspaceId: string,

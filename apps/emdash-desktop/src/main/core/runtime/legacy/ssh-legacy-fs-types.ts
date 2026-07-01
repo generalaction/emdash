@@ -92,58 +92,10 @@ export interface WriteResult {
 }
 
 /**
- * Options for search operations
- */
-export interface SearchOptions {
-  /**
-   * Optional override pattern. If omitted, the `query` argument to `IFileSystem.search()` is used.
-   */
-  pattern?: string;
-  /** Optional file pattern filter (e.g., "*.ts") */
-  filePattern?: string;
-  /** Maximum number of results to return */
-  maxResults?: number;
-  /** Case-sensitive search */
-  caseSensitive?: boolean;
-  /** File extensions to include */
-  fileExtensions?: string[];
-}
-
-/**
- * Result of a search operation
- */
-export interface SearchResult {
-  /** Search matches found */
-  matches: SearchMatch[];
-  /** Total number of matches */
-  total: number;
-  /** Whether results were truncated */
-  truncated?: boolean;
-  /** Number of files searched */
-  filesSearched?: number;
-}
-
-/**
- * Individual search match
- */
-export interface SearchMatch {
-  /** Path to the file containing the match */
-  filePath: string;
-  /** Line number (1-based) */
-  line: number;
-  /** Column number (1-based) */
-  column: number;
-  /** Match text */
-  content: string;
-  /** Preview with context */
-  preview?: string;
-}
-
-/**
  * Legacy workspace filesystem abstraction.
  *
  * This provider remains active for non-tree workspace file operations
- * (read/write/image/copy/search/config watches/project setup). Do not extend it
+ * (read/write/glob/copy/config watches/project setup). Do not extend it
  * for the editor file tree; file-tree reads, scopes, and deltas live in
  * `@emdash/core/files` and are exposed through `workspace.fileTree`.
  *
@@ -193,14 +145,6 @@ export interface LegacySshFileOperations {
   stat(path: string): Promise<FileEntry | null>;
 
   /**
-   * Search for content in files
-   * @param query - Search query string
-   * @param options - Search options
-   * @returns Promise resolving to search results
-   */
-  search(query: string, options?: SearchOptions): Promise<SearchResult>;
-
-  /**
    * Remove a file or directory.
    * @param path - Path relative to project root
    * @param options - Pass `{ recursive: true }` to remove directories and all contents
@@ -234,47 +178,7 @@ export interface LegacySshFileOperations {
    */
   copyFile(src: string, dest: string): Promise<void>;
 
-  /**
-   * Read image file as base64 data URL
-   * @param path - Image file path relative to project root
-   * @returns Promise resolving to image data
-   */
-  readImage?(path: string): Promise<{
-    success: boolean;
-    dataUrl?: string;
-    mimeType?: string;
-    size?: number;
-    error?: string;
-  }>;
-
-  /**
-   * Copy a local file into the project's .emdash attachments directory.
-   * Only supported on local filesystems (srcPath is an absolute local path).
-   * @param srcPath - Absolute local path of the source file
-   * @param subdir - Subdirectory inside .emdash/ (defaults to "attachments")
-   * @returns Promise resolving to the saved file paths
-   */
-  saveAttachment?(
-    srcPath: string,
-    subdir?: string
-  ): Promise<{
-    success: boolean;
-    absPath?: string;
-    relPath?: string;
-    fileName?: string;
-    error?: string;
-  }>;
-
   mkdir(diPath: string, options?: { recursive?: boolean }): Promise<void>;
-
-  /**
-   * Copy an absolute local file into this filesystem at the given relative path.
-   * Caller must ensure the destination parent directory exists.
-   * For SSH: transfers via SFTP fastPut. For local: delegates to fs.copyFile.
-   * @param localAbsPath - Absolute path of the source file on the local machine
-   * @param destRelPath  - Destination path relative to this filesystem's root
-   */
-  copyLocalFile?(localAbsPath: string, destRelPath: string): Promise<void>;
 }
 
 /**

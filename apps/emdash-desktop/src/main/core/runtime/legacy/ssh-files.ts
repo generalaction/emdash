@@ -129,42 +129,6 @@ export class LegacySshFilesRuntime implements IFilesRuntime {
     return ok(new LegacySshFileSystem(this.proxy));
   }
 
-  async copyFile(src: string, dest: string): Promise<Result<void, FileError>> {
-    const sourcePath = normalizeRemoteAbsolutePath(src);
-    if (!sourcePath.success) return sourcePath;
-    const destPath = normalizeRemoteAbsolutePath(dest);
-    if (!destPath.success) return destPath;
-
-    if (this.disposeRequested) {
-      return err({
-        type: 'fs-error',
-        path: destPath.data,
-        message: 'LegacySshFilesRuntime disposed',
-      });
-    }
-
-    try {
-      const destParent = path.posix.dirname(destPath.data);
-      const result = await execRemoteBuffer(
-        this.proxy,
-        [
-          `mkdir -p ${quoteShellArg(destParent)}`,
-          `cp -p ${quoteShellArg(sourcePath.data)} ${quoteShellArg(destPath.data)}`,
-        ].join(' && ')
-      );
-      if (result.exitCode !== 0) {
-        return err({
-          type: 'fs-error',
-          path: destPath.data,
-          message: result.stderr || `Remote copy exited with code ${result.exitCode}`,
-        });
-      }
-      return ok<void>();
-    } catch (error) {
-      return err(toFileError(error, destPath.data));
-    }
-  }
-
   watchChanges(
     rootPath: string,
     cb: (update: FileChangeUpdate) => void,

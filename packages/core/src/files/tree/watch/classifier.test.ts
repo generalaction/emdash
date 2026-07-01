@@ -5,7 +5,6 @@ import { describe, expect, it, afterEach } from 'vitest';
 import type { WatchEvent } from '../../../watch';
 import { createRootPathPolicy } from '../../path-policy';
 import { createTreeDirectoryReader, type DevIno, type DirectoryEntry } from '../directory-reader';
-import { statEntry } from '../list';
 import type { NodeId } from '../models/tree';
 import { FileTreeStore } from '../tree-store';
 import { classifyFileTreeWatchEvents } from './classifier';
@@ -228,6 +227,11 @@ async function classify(
     store: ids,
     isScopeLoaded: options.isScopeLoaded ?? ((scope) => loadedScopes.has(scope)),
   });
+}
+
+function statEntry(rootPath: string, entryPath: string) {
+  const pathPolicy = unwrap(createRootPathPolicy(rootPath));
+  return createTreeDirectoryReader(pathPolicy).statEntry(entryPath);
 }
 
 function entry(

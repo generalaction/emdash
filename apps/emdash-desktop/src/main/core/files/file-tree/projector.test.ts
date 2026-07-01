@@ -128,7 +128,7 @@ describe('FileTreeProjector', () => {
     projector.dispose();
   });
 
-  it('ref-counts core registrations across subscriptions', async () => {
+  it('ref-counts core registrations across projections', async () => {
     const tree = new FakeTree([[1, dirNode(1, '/repo/src')]], (scope) =>
       scope === 1 ? [[2, fileNode(2, '/repo/src/index.ts', 1)]] : undefined
     );
@@ -159,11 +159,11 @@ describe('FileTreeProjector', () => {
     expect(countOf(tree.registerCalls, null)).toBe(1);
     expect(countOf(tree.registerCalls, 1)).toBe(1);
 
-    await projector.unregisterDir(sub1, 1);
+    await projector.closeProjection(sub1);
     expect(tree.unregisterCalls).toEqual([]); // still held by sub2
 
-    await projector.unregisterDir(sub2, 1);
-    expect(tree.unregisterCalls).toEqual([1]); // released on last
+    await projector.closeProjection(sub2);
+    expect(tree.unregisterCalls).toEqual([null, 1]); // released on last projection close
 
     projector.dispose();
   });

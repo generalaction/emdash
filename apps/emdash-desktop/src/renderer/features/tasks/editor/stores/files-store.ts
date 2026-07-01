@@ -14,7 +14,7 @@ import type { FileTreeProjectionVersionResult } from '@shared/core/fs/file-tree'
 import { fileTreeOperationErrorMessage } from '@shared/core/fs/file-tree-errors';
 import { fileTreeProjectionChannel } from '@shared/core/fs/fsEvents';
 
-export interface FilesData {
+interface FilesData {
   nodes: Map<string, RenderableFileNode>;
   rootNodes: RenderableFileNode[];
   childrenById: Map<NodeId | null, RenderableFileNode[]>;
@@ -118,20 +118,6 @@ export class FilesStore {
       return this.syncError ?? 'Failed to load file tree';
     }
     return undefined;
-  }
-
-  get tree(): {
-    data: FilesData | null;
-    loading: boolean;
-    error?: string;
-    load: () => Promise<void>;
-  } {
-    return {
-      data: this.loadedScopes.has(null) ? this.view : null,
-      loading: this.isLoading,
-      error: this.error,
-      load: () => this.resync(),
-    };
   }
 
   get rootPath(): string {
@@ -386,11 +372,6 @@ export class FilesStore {
     this.childIdsByScope.delete(id);
     this.loadedScopes.delete(id);
     this.nodesById.delete(id);
-  }
-
-  private get view(): FilesView {
-    void this.viewRevision;
-    return this.viewData;
   }
 
   private idForPath(path: string): NodeId | undefined {
