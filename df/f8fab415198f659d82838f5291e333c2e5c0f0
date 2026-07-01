@@ -1,0 +1,23 @@
+packages/ui/src/react/examples/chat-panel.stories.tsx
+  s_75768714e5c64d::t_9690f0007306bf 88-89,93-94,178
+packages/ui/src/react/components/combobox-popover/combobox-popover.stories.tsx
+  s_75768714e5c64d::t_9690f0007306bf 22-23,31-32,152,177,246
+packages/ui/src/react/components/chat-composer/chat-composer.stories.tsx
+  s_75768714e5c64d::t_9690f0007306bf 18-19,23-24,105,239,266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "dff8fab415198f659d82838f5291e333c2e5c0f0",
+  "prompts": {},
+  "sessions": {
+    "s_75768714e5c64d": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f1e58-0e41-796b-b6b4-6328ab62b0d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
