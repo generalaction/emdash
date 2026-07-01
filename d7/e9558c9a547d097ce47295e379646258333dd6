@@ -1,0 +1,19 @@
+packages/plugins/src/agents/impl/mimocode/plugin-file.ts
+  s_1d6d71be612a4a::t_773a6fd794d040 46,49,54-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "d7e9558c9a547d097ce47295e379646258333dd6",
+  "prompts": {},
+  "sessions": {
+    "s_1d6d71be612a4a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f1eec-a3f2-789c-93ee-998eb0114b42",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
