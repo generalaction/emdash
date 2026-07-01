@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.ts
+  s_75768714e5c64d::t_53a69920f39731 9
+packages/ui/src/react/components/combobox-popover/combobox-popover.stories.tsx
+  s_75768714e5c64d::t_be51b64250327e 22-23,31-41,161,186,255
+packages/ui/src/react/examples/chat-panel.stories.tsx
+  s_75768714e5c64d::t_43783ed88393d9 88-89,93-99,183
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.test.ts
+  s_75768714e5c64d::t_1720b756c20e86 10,18,27,31,38,46,100,103
+packages/plugins/src/agents/impl/claude/index.ts
+  s_75768714e5c64d::t_adff51fa5898ce 38-39,42-47
+packages/ui/src/react/components/chat-composer/chat-composer.stories.tsx
+  s_75768714e5c64d::t_ffff2b88381121 18-19,23-29,110,244,271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "350fb615a28aefb60d4aface1531e73f8180e658",
+  "prompts": {},
+  "sessions": {
+    "s_75768714e5c64d": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f1e58-0e41-796b-b6b4-6328ab62b0d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
