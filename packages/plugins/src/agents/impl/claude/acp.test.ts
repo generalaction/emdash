@@ -1,6 +1,6 @@
 import { Readable, Writable } from 'node:stream';
-import type { Agent, Client } from '@agentclientprotocol/sdk';
-import type { AcpAgentApi, AcpClientFactory } from '@emdash/core/agents/plugins';
+import type { Agent } from '@agentclientprotocol/sdk';
+import type { AcpClientFactory } from '@emdash/core/agents/plugins';
 import { describe, expect, it, vi } from 'vitest';
 import { pluginRegistry } from '../../registry';
 
@@ -58,7 +58,7 @@ describe('claude acp behavior', () => {
       const stdin = new Writable({ write: (_c, _e, cb) => cb() });
       const stdout = new Readable({ read: () => {} });
 
-      const toClient: AcpClientFactory = (_agent: AcpAgentApi): Client => ({
+      const toClient: AcpClientFactory = () => ({
         requestPermission: vi.fn(),
         sessionUpdate: vi.fn(),
       });
