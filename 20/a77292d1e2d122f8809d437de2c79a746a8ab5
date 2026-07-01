@@ -1,0 +1,26 @@
+packages/ui/src/react/examples/chat-panel.stories.tsx
+  s_75768714e5c64d::t_fd9b09ed4842da 93-96
+  s_75768714e5c64d::t_21e6c0b493ee07 97
+packages/ui/src/react/components/combobox-popover/combobox-popover.stories.tsx
+  s_75768714e5c64d::t_fd9b09ed4842da 30-37
+  s_75768714e5c64d::t_2062afdd550781 38
+packages/ui/src/react/components/chat-composer/chat-composer.stories.tsx
+  s_75768714e5c64d::t_fd9b09ed4842da 23-26
+  s_75768714e5c64d::t_812853a1dec9a4 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "20a77292d1e2d122f8809d437de2c79a746a8ab5",
+  "prompts": {},
+  "sessions": {
+    "s_75768714e5c64d": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f1e58-0e41-796b-b6b4-6328ab62b0d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
