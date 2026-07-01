@@ -31,6 +31,7 @@ export const AGENT_PROVIDER_IDS = [
   'qoder',
   'letta',
   'autohand',
+  'mimocode',
 ] as const;
 
 export type AgentProviderId = (typeof AGENT_PROVIDER_IDS)[number];
@@ -707,6 +708,27 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'autohand.svg',
     alt: 'Autohand Code CLI',
     terminalOnly: true,
+  },
+  {
+    id: 'mimocode',
+    name: 'MiMo Code',
+    description:
+      "Xiaomi's terminal-native coding agent with persistent cross-session memory and OpenAI-compatible provider support.",
+    docUrl: 'https://github.com/XiaomiMiMo/MiMo-Code',
+    installCommand: 'npm install -g @mimo-ai/cli',
+    commands: ['mimo'],
+    versionArgs: ['--version'],
+    cli: 'mimo',
+    autoApproveViaEnv: true,
+    initialPromptFlag: '--prompt',
+    resumeFlag: '--session',
+    sessionIdFlag: '--session',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '--continue',
+    icon: 'mimocode.svg',
+    alt: 'MiMo Code CLI',
+    terminalOnly: true,
+    supportsHooks: true,
   },
 ];
 
