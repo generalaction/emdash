@@ -1,0 +1,39 @@
+{
+  "name": "@emdash/workspace-server",
+  "version": "0.1.0",
+  "description": "Emdash Workspace Server — runs as a daemon on remote machines and exposes workspace runtimes via oRPC",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Emdash Contributors",
+    "email": "support@emdash.sh"
+  },
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "scripts": {
+    "build": "tsdown",
+    "dev": "node --watch --experimental-strip-types src/index.ts",
+    "start": "node dist/index.mjs",
+    "test": "vitest run",
+    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/apps/workspace-server\"'",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "typecheck": "tsgo --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@emdash/core": "workspace:*",
+    "@emdash/shared": "workspace:*",
+    "@orpc/server": "^1.14.6",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.42",
+    "@typescript/native-preview": "7.0.0-dev.20260609.1",
+    "tsdown": "^0.22.2",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.28.0"
+  }
+}
