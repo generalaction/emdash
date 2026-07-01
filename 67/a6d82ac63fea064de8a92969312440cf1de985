@@ -1,0 +1,27 @@
+packages/plugins/src/agents/impl/grok/index.ts
+  s_05a12b5bf75ad9::t_9282e1f12e1352 113
+  s_05a12b5bf75ad9::t_8322edea3f2da7 83-87
+  s_05a12b5bf75ad9::t_67d25af4188a3c 2
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_05a12b5bf75ad9::t_db8be161779d2f 229-261
+  s_05a12b5bf75ad9::t_0031c8abe0ca5a 228
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_05a12b5bf75ad9::t_6195b610654c64 9
+  s_05a12b5bf75ad9::t_370e389746d91e 293-440
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "67a6d82ac63fea064de8a92969312440cf1de985",
+  "prompts": {},
+  "sessions": {
+    "s_05a12b5bf75ad9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fa8fdd71-c5bc-442b-9d6e-7d738dd37c8d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
