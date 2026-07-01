@@ -15,15 +15,15 @@ import * as s from '@react/story-layout.css';
 import { sx } from '@styles/utilities/sprinkles.css';
 
 const MOCK_MODELS: Record<string, ComposerModelOption> = {
-  'claude-opus-4-8': {
-    name: 'Claude Opus 4.8',
-    description: 'Most capable model for complex reasoning and nuanced tasks.',
-    modelFeatures: { contextWindowSize: 200_000, speed: 0.4, intelligence: 1 },
-  },
   'claude-fable-5': {
     name: 'Claude Fable 5',
     description: 'Balanced model for creative and everyday coding tasks.',
     modelFeatures: { contextWindowSize: 200_000, speed: 0.65, intelligence: 0.8 },
+  },
+  'claude-opus-4-8': {
+    name: 'Claude Opus 4.8',
+    description: 'Most capable model for complex reasoning and nuanced tasks.',
+    modelFeatures: { contextWindowSize: 200_000, speed: 0.4, intelligence: 1 },
   },
   'claude-sonnet-5': {
     name: 'Claude Sonnet 5',
