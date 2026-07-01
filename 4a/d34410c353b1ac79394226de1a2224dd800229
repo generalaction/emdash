@@ -1,0 +1,54 @@
+apps/emdash-desktop/src/assets/images/mimocode.svg
+  s_ec6e99d07f542c::t_681ab907008b79 1-4
+  s_ec6e99d07f542c::t_6cfa096aa24251 5
+packages/plugins/src/agents/impl/mimocode/plugin-file.ts
+  s_8ec4cfb54b9aee::t_f7db454fd01940 1-82
+packages/plugins/src/agents/impl/mimocode/index.test.ts
+  s_8ec4cfb54b9aee::t_d3bd45db003b37 35-38,40,54,69,85
+  s_8ec4cfb54b9aee::t_c6c9114079a0f3 2-6,9-23,25-34,42-43,58-68,71-84,86-88
+  s_8ec4cfb54b9aee::t_3c18ae33369061 24,39,41,44-53,55-57,70
+  s_8ec4cfb54b9aee::t_c4087cf68380fe 1,7-8
+packages/plugins/src/agents/impl/mimocode/icon.ts
+  s_8ec4cfb54b9aee::t_f93df6a18817d8 1-8,10-12
+  s_ec6e99d07f542c::t_0d8ec78a9c2c10 9
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_8ec4cfb54b9aee::t_372d10cce16609 344-354
+  s_8ec4cfb54b9aee::t_b41aba1e87a8a6 343
+packages/plugins/src/agents/registry.ts
+  s_8ec4cfb54b9aee::t_86578b6c186406 66
+  s_8ec4cfb54b9aee::t_b147e097f3698f 29
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_8ec4cfb54b9aee::t_97b04ba0d5351a 34
+  s_8ec4cfb54b9aee::t_d0c5a2090d9eff 712-721,723-732
+  s_8ec4cfb54b9aee::t_0804e00d0fbe7a 722
+packages/plugins/src/agents/impl/mimocode/index.ts
+  s_8ec4cfb54b9aee::t_0027c24b972c47 60-65
+  s_8ec4cfb54b9aee::t_fff5f74829dae5 66
+  s_8ec4cfb54b9aee::t_48e0d97e64528c 72,75
+  s_8ec4cfb54b9aee::t_ff5ca3f4afc674 13-17
+  s_8ec4cfb54b9aee::t_6db950270d1921 1-12,18-59,67-71,73-74,76-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "4ad34410c353b1ac79394226de1a2224dd800229",
+  "prompts": {},
+  "sessions": {
+    "s_8ec4cfb54b9aee": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3629fe32-4b66-4de8-a64d-01ca2121c8f0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_ec6e99d07f542c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "925f0b6d-4d68-498d-84ab-f0ef27a0c603",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
