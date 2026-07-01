@@ -1,0 +1,947 @@
+AGENTS.md
+  s_88273e794d2771::t_cb8102d146bbc1 1,3-6,10-14,21-29,33,36,39,41,45-46,48,54,68,75,81,87,91,94,97,100,103,109,112,119,128,136,139,143,146-154,158,161,166,173-174,178,183-185,194-195,198,216,220,222-231,238-256,260,269-279,281-283,289,295-296,298-299,302-313,317-321,326-336,338-340,352-357,359-372,376-382,385-386,389,391-393,399-402,404-408
+apps/emdash-desktop/drizzle/0018_repair_workspaces_ssh_fk.sql
+  s_88273e794d2771::t_be2c3eb7c1fa16 1-64
+apps/emdash-desktop/drizzle/meta/0018_snapshot.json
+  s_88273e794d2771::t_0fc93f046d2e07 1-1810
+apps/emdash-desktop/drizzle/meta/_journal.json
+  s_88273e794d2771::t_15e885c2b75b80 130-136
+apps/emdash-desktop/package.json
+  s_88273e794d2771::t_f3f42a10d18989 3,52
+apps/emdash-desktop/src/main/core/acp/acp-session-manager.ts
+  s_88273e794d2771::t_d2c404b36fc569 102-111
+apps/emdash-desktop/src/main/core/acp/controller.ts
+  s_88273e794d2771::t_56fca470b73368 33-40,66
+apps/emdash-desktop/src/main/core/acp/transport/legacy-ssh-acp-process-host.ts
+  s_88273e794d2771::t_4adec3b7ebb36f 19
+apps/emdash-desktop/src/main/core/acp/transport/transport.test.ts
+  s_88273e794d2771::t_2eca21f0fb4a40 35
+apps/emdash-desktop/src/main/core/agent-hooks/claude-trust-service.test.ts
+  s_88273e794d2771::t_d44a30380652b2 2-3,6,47-48,50-61,66-89,105,118,131,142,146,162,168-184,191,213,237,251,269,293,298,318,320,345,347,350-354,363-390
+apps/emdash-desktop/src/main/core/agent-hooks/claude-trust-service.ts
+  s_88273e794d2771::t_c62cf20b33da6e 4-5,11-12,31,34,37-38,51,53,55,59-64,66-73,78-79,120-121,127-134,138-144,167-169,224,226,228-229,233-236,242,247,252,254-258,262,266,270-271,273,278,282-283
+apps/emdash-desktop/src/main/core/agent-hooks/cursor-trust-service.test.ts
+  s_88273e794d2771::t_1abf2e6c7f559d 1-3,6,47-48,50-54,59-82,109,122,135,151,170-186,193,206,220,222,227,229,233-234,236,243-265
+apps/emdash-desktop/src/main/core/agent-hooks/cursor-trust-service.ts
+  s_88273e794d2771::t_cc2e25ac1d6d82 3-4,9-10,26,29,32-36,39,43,51,53,55,58-63,65-72,75,79-81,96-97,101-121,132-134,163,166,168-169,174,176-180,182-184,186,190-196,199-200
+apps/emdash-desktop/src/main/core/agent-hooks/workspace-trust-paths.ts
+  s_88273e794d2771::t_38527db667dc7d 1-2,5-14,16-17,19-28,31-37,40-42
+apps/emdash-desktop/src/main/core/agent-hooks/workspace-trust-service.test.ts
+  s_88273e794d2771::t_7e504bafba4cb3 3,28-29,39,56,58
+apps/emdash-desktop/src/main/core/agent-hooks/workspace-trust-service.ts
+  s_88273e794d2771::t_4a306265ac400d 3-7
+apps/emdash-desktop/src/main/core/agent-hooks/workspace-trust-types.ts
+  s_88273e794d2771::t_14797e38ce8986 1-23
+apps/emdash-desktop/src/main/core/app/controller.ts
+  s_88273e794d2771::t_cac0e39daef8eb 1-3,10-36,142
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.ts
+  s_88273e794d2771::t_48c1c5c7a03877 194
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_88273e794d2771::t_970e0b7869f011 5,208
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_88273e794d2771::t_14e0176cd27e10 122
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_88273e794d2771::t_194e9d10c7d825 15,49,60,70,80,122,124,196-201
+apps/emdash-desktop/src/main/core/files/browse-directory.test.ts
+  s_88273e794d2771::t_f8cf844fb658e2 1-189
+apps/emdash-desktop/src/main/core/files/browse-directory.ts
+  s_88273e794d2771::t_a65850b7ce167f 1-78
+apps/emdash-desktop/src/main/core/files/controller.ts
+  s_88273e794d2771::t_baa5f281c04438 1-6
+apps/emdash-desktop/src/main/core/files/file-system/controller.ts
+  s_88273e794d2771::t_53677c518e2e36 5-8,10-13,15-18,20,23-27,29-31,34-36,38,42-49,51-53,57-58,61,63,72-74,76-78,81-83,87-88,91,93,97-99,101-103,106,109-112,114-116,119-121,123,126-129,131-133,136-138,140,150-152,154
+apps/emdash-desktop/src/main/core/files/file-system/file-errors.ts
+  s_88273e794d2771::t_cee73874260e3b 1-17
+apps/emdash-desktop/src/main/core/files/file-system/image-support.ts
+  s_88273e794d2771::t_ce93580277a8b0 2-35,39-41,43-47,50-57
+apps/emdash-desktop/src/main/core/files/file-system/local-imports.test.ts
+  s_88273e794d2771::t_f93a2fce95d1a9 1-94
+apps/emdash-desktop/src/main/core/files/file-system/local-imports.ts
+  s_88273e794d2771::t_32612c2d3899d6 1-109
+apps/emdash-desktop/src/main/core/files/file-system/workspace-file-policy.ts
+  s_88273e794d2771::t_c9f18fc3bb2cd6 1-142
+apps/emdash-desktop/src/main/core/files/file-tree/controller.ts
+  s_88273e794d2771::t_b47c572665164d 1-53
+apps/emdash-desktop/src/main/core/files/file-tree/projector.test.ts
+  s_88273e794d2771::t_74abc964caec00 1-258
+apps/emdash-desktop/src/main/core/files/file-tree/projector.ts
+  s_88273e794d2771::t_00c4ea6adf94fe 1-15,17-18,20,22-26,29-33,35-47,49-52,54-56,58-60,62-67,70-73,75-77,79-83,85-90,93-98,100-110,113-131,133,136-140,144-180,182,185-189,192-196,198-205,207-208,210-211,214-219,221,223-231,234-242,245-306
+apps/emdash-desktop/src/main/core/files/path-utils.ts
+  s_88273e794d2771::t_94f3c8b827a601 1-40
+apps/emdash-desktop/src/main/core/files/realpath-containment.ts
+  s_88273e794d2771::t_adee2fe0d5092b 1-71
+apps/emdash-desktop/src/main/core/git/legacy/git-service.test.ts
+  s_88273e794d2771::t_d43f8221d6c867 2,48
+apps/emdash-desktop/src/main/core/git/legacy/git-service.ts
+  s_88273e794d2771::t_c9af2cb6d322a6 4,134,284-288,376-378,383-390
+apps/emdash-desktop/src/main/core/mcp/utils/registration.test.ts
+  s_88273e794d2771::t_4b349566b0a0ae 2-6,40-56
+apps/emdash-desktop/src/main/core/mcp/utils/registration.ts
+  s_88273e794d2771::t_95d20af8e63dc2 68-71
+apps/emdash-desktop/src/main/core/project-setup/repository-setup.test.ts
+  s_88273e794d2771::t_22beaaec74906c 1,9,18,25,34,45-64,69-70,72,90-91,100,140-141,159,173-175,178,195,200-203,212-213
+apps/emdash-desktop/src/main/core/project-setup/repository-setup.ts
+  s_88273e794d2771::t_37f0d696d5ae00 2,4,6,32-39,43-44,75-81,101-112,115,127-140
+apps/emdash-desktop/src/main/core/projects/create-project-provider.ts
+  s_88273e794d2771::t_89238a5b7e9288 1,3,9-13,18-19,32-37,40-42,48-58,61-65,68-71,86-87,95,102,106-108,119-123,127,129,137-142,144,168-169,181,196,200-203,235-236,247,254,257-286,301,314
+apps/emdash-desktop/src/main/core/projects/ensure-emdash-excluded.test.ts
+  s_88273e794d2771::t_cfb22941bca24c 1,5-30,32,36-39,42,44-54,56-58,63-65,69-71,75-77,81-89,93-98,102-104,110-116
+apps/emdash-desktop/src/main/core/projects/ensure-emdash-excluded.ts
+  s_88273e794d2771::t_75fbfd47e3d4d9 1,8-14,28-33,36-39,42-43,54,56,61-66
+apps/emdash-desktop/src/main/core/projects/operations/create-local-project.ts
+  s_88273e794d2771::t_c52594dd899ec7 2,7,91-106
+apps/emdash-desktop/src/main/core/projects/operations/create-ssh-project.ts
+  s_88273e794d2771::t_2bd1dfbb4eb9c8 2-3,7,27-30,32-58,109-124
+apps/emdash-desktop/src/main/core/projects/operations/createProject.test.ts
+  s_88273e794d2771::t_179ffd84a6b5b9 4,23-24,52-69,79,106,391-424,460-461,508,568
+apps/emdash-desktop/src/main/core/projects/path-utils.ts
+  s_88273e794d2771::t_b4c28b35aca900 2,13
+apps/emdash-desktop/src/main/core/projects/project-manager.ts
+  s_88273e794d2771::t_76792a03dd13c3 61-62
+apps/emdash-desktop/src/main/core/projects/project-provider.ts
+  s_88273e794d2771::t_ea04edda3e07b7 1,16,18,48-52,63-80,91-92,100-102,120-124,136-156
+apps/emdash-desktop/src/main/core/projects/settings/effective-task-settings.test.ts
+  s_88273e794d2771::t_861ad8398ac398 1-2,13,15-23,27-28,30-35,41-42,45-46,64-67,75-91,98
+apps/emdash-desktop/src/main/core/projects/settings/effective-task-settings.ts
+  s_88273e794d2771::t_ad6ab75f58c1ad 1,13-14,16,20-25,30-44
+apps/emdash-desktop/src/main/core/projects/settings/legacy-project-settings-migration.ts
+  s_88273e794d2771::t_b4fa85ec6e21e0 1,25-26,53-54,63-81,97,122,151
+apps/emdash-desktop/src/main/core/projects/settings/preserve-pattern-safety.ts
+  s_88273e794d2771::t_c0f1cd898f9548 1-34
+apps/emdash-desktop/src/main/core/projects/settings/project-settings-service.ts
+  s_88273e794d2771::t_0dbde57c9887ea 148
+apps/emdash-desktop/src/main/core/projects/settings/project-settings.test.ts
+  s_88273e794d2771::t_cd914e2b43ac82 5-6,24-79,147,162,177,198-199,210,239-240,249,271-272,279,286,309,318,335,349,382,421,454,472,488,501,516,531,539,541-542,568,570-571,592,606,608-609,631,645,647-648
+apps/emdash-desktop/src/main/core/projects/settings/providers/db-project-settings-provider.ts
+  s_88273e794d2771::t_e1f45d4b4e3c36 1,40-41,67,69-82,94-97,160
+apps/emdash-desktop/src/main/core/projects/settings/providers/local-project-settings-provider.ts
+  s_88273e794d2771::t_eb6f446ea0ef76 4-5,28,31,46-58
+apps/emdash-desktop/src/main/core/projects/settings/providers/ssh-project-settings-provider.ts
+  s_88273e794d2771::t_4cf8dbf668846e 2,23,25-31,36
+apps/emdash-desktop/src/main/core/projects/settings/sharing/codex-config-migration.ts
+  s_88273e794d2771::t_e647c5978fc4dd 1-2,15-23,86-87,96-102,104-116,131-134,140,143,149-150
+apps/emdash-desktop/src/main/core/projects/settings/sharing/conductor-config-migration.ts
+  s_88273e794d2771::t_557a31d25fc690 1-2,15-23,68-69,78-107,111-132,148-151,157,160,166-167
+apps/emdash-desktop/src/main/core/projects/settings/sharing/config-migration-utils.ts
+  s_88273e794d2771::t_db22610082e17f 1-108
+apps/emdash-desktop/src/main/core/projects/settings/sharing/config-migration.test.ts
+  s_88273e794d2771::t_4021b1dc8cbd68 1,14-15,17-22,24-25,27-43,45,47,50,55-69,90,114-117,147,158-161,186-194,199,219,240-243,267-274,279,301,303,331,363-366,394-401,406,425,427,462,489-492,516-523,528,547,549,571,594,607,614
+apps/emdash-desktop/src/main/core/projects/settings/sharing/config-migration.ts
+  s_88273e794d2771::t_c3cbf63fa4886c 1-2,12-17,25-26,41-42,46,48-56,59,64,80-89,101
+apps/emdash-desktop/src/main/core/projects/settings/sharing/paseo-config-migration.ts
+  s_88273e794d2771::t_026adfce0c9e13 1-2,15-23,62,90-91,100-106,108-120,139-142,148,151,157-158
+apps/emdash-desktop/src/main/core/projects/settings/sharing/project-settings-override-state.ts
+  s_88273e794d2771::t_f0d24ca5edd89c 18-19,21-30
+apps/emdash-desktop/src/main/core/projects/settings/sharing/project-settings-target-resolver.ts
+  s_88273e794d2771::t_e796eb29880a73 1,21-22,34,58-59,65-66,80-81,88-89,96-98,109-110,152-160,165-168
+apps/emdash-desktop/src/main/core/projects/settings/sharing/share-project-settings-to-config.test.ts
+  s_88273e794d2771::t_9db4a68c053a0f 1-2,41-117,126-127,152,157,177,195,222,231-234,251,256,266-275,291,296-299,305-308,328,342,357,372-406,432-433,437,477-482,484,486,490,492-494,496,555-556,560,579-590,594
+apps/emdash-desktop/src/main/core/projects/settings/sharing/share-project-settings-to-config.ts
+  s_88273e794d2771::t_7022e19a0d4daf 1,6,31-52,68-74
+apps/emdash-desktop/src/main/core/projects/settings/sharing/superset-config-migration.ts
+  s_88273e794d2771::t_39f00dfba21aec 1-2,15-23,84-85,94-100,102-114,122,140-143,149,152,158-159
+apps/emdash-desktop/src/main/core/projects/settings/worktree-directory.test.ts
+  s_88273e794d2771::t_bcd2916a6742a5 2,154-155,169
+apps/emdash-desktop/src/main/core/projects/settings/worktree-directory.ts
+  s_88273e794d2771::t_bfa71b5538a183 9-16,70,72-77,85
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.test.ts
+  s_88273e794d2771::t_94bbda83835938 4-5,7,11,47-110,139,145-158,161-168,179,186,194-196,223-228,232,239,297-301,305,369-370,372-375,379,475-504,518-522,526
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.ts
+  s_88273e794d2771::t_9d807b510737c4 1,5-11,15-19,26-29,35,41,49,62-63,84-88,92-101,103,107,123-139,141-145,224-225,235-236,243-244,258-259,277-278,307-310,333-334,362,365,376-379,441-445,448,450,459-461,464-465,468-472,474-507
+apps/emdash-desktop/src/main/core/pty/controller.test.ts
+  s_88273e794d2771::t_1a7c589de76d9a 1-3,7-24,43-46,50-52,72,97-107,114-124
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_88273e794d2771::t_08fd28c56f9b1a 2,6,159,165-169,173-182
+apps/emdash-desktop/src/main/core/runtime/files-helpers.test.ts
+  s_88273e794d2771::t_785218523d0982 3-4,6-25,28-29,33-34,37-44,47-56,59-62,64,67-71
+apps/emdash-desktop/src/main/core/runtime/files-helpers.ts
+  s_88273e794d2771::t_3a4ad6697c91b2 1-119
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-file-system.ts
+  s_88273e794d2771::t_544368c2b02f98 1,3-38,41-46,48-51,55-60,62-67,70-72,74-81,83-87,89-94,96-104,106-108,110-118,120-122,126-128,131-133,135,137-143,145-149,153-158,161-171,173-177,180-182,186-191,193-196,200-205,208-212,214-229,231-233,235-245,247-248,250-259,263-267,270-280,283-293,296-301,303-314,316-326,329-338,341-343,345-352,355-358,360-368,370-376,379-384,386-388,390,392-401,403-406,408-417,419-429,431-435,437-443,446-464,466-474,476-477,479-485,487-495,497-498
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-file-tree.test.ts
+  s_88273e794d2771::t_1f8eae6d2f1172 1-195
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-files.test.ts
+  s_88273e794d2771::t_7d265701e44017 1-187
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-files.ts
+  s_88273e794d2771::t_a88218bb0c4442 1-944
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-git.test.ts
+  s_88273e794d2771::t_14a4809f1e1337 1-147
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-git.ts
+  s_88273e794d2771::t_7677cb522530d0 56,234,473-476,507,510-511,515,519,523-524,528,541,559,577,630-631,647-664,684-687,694-709
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-ignored-paths.ts
+  s_88273e794d2771::t_954ac37504a3f0 1,3-4,8,14,44,46,48-53
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-legacy-fs-types.ts
+  s_88273e794d2771::t_3219ab2e75165f 5,8-11,25-27,95-106,108
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-legacy-fs.test.ts
+  s_88273e794d2771::t_2b3ea3f4c5bd84 3-4,7-18,55-88,126-140,172-233,287-315
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-legacy-fs.ts
+  s_88273e794d2771::t_19c7aacd027846 7,18,23,35-43,64-111,113-118,120,191-199,201-203,205-209,212-217,219-230,232-245,247-251,253,255-273,275-304,632-633,639,776,782,790,815-820
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-paths.ts
+  s_88273e794d2771::t_2b614cc5441087 1-40
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-remote-enumerate.ts
+  s_88273e794d2771::t_19a971d0790020 1-114
+apps/emdash-desktop/src/main/core/runtime/runtime-manager.ts
+  s_88273e794d2771::t_53a1235bf54e5b 1,9,19,21-36,84-90,99,106,115,120
+apps/emdash-desktop/src/main/core/runtime/types.ts
+  s_88273e794d2771::t_a760f0f563f1a2 1-2,18-33,36
+apps/emdash-desktop/src/main/core/search/collect-with-budget.test.ts
+  s_88273e794d2771::t_ce0a4e7d6b8bba 1-54
+apps/emdash-desktop/src/main/core/search/collect-with-budget.ts
+  s_88273e794d2771::t_91bb1b39581d46 1-40
+apps/emdash-desktop/src/main/core/search/controller.ts
+  s_88273e794d2771::t_7aea71d05085e4 1,7-8
+apps/emdash-desktop/src/main/core/search/search-index-exclusions.test.ts
+  s_88273e794d2771::t_3e4e154215fc98 1-23
+apps/emdash-desktop/src/main/core/search/search-index-exclusions.ts
+  s_88273e794d2771::t_ca99b9068bb829 1-70
+apps/emdash-desktop/src/main/core/search/search-service.ts
+  s_88273e794d2771::t_d0232eba034879 7-12,66-69
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.db.test.ts
+  s_88273e794d2771::t_0af732573e96e7 1-248
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.test.ts
+  s_88273e794d2771::t_e3396a1194f220 1-13,15,18-34,37-43,45,47-51,54,57-63,65-66,68-70,73-78,80,83-85,87-89,92-97,101-108,110,112-114,116-117,119,121-124,127-158,161-168,170-171,173-175,177-182,185-186,189-196,198-199,201-203,205-207,210-211,214-220,222-223,225-227,230-231,233,235-250,252-341
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.ts
+  s_88273e794d2771::t_edd00cd400d940 1-7,9-15,18-43,45-49,52-60,62-63,65-73,76-78,80-82,86-91,94-99,103-121,123-166,168-170,174-177,179-185,187-211,214-239,242-247,252-253,259-260,264-267,270,272-277,279,281,283-285,287-309,313-315
+apps/emdash-desktop/src/main/core/search/workspace-file-index-store.db.test.ts
+  s_88273e794d2771::t_ab38c949786e1f 1-203
+apps/emdash-desktop/src/main/core/search/workspace-file-index-store.ts
+  s_88273e794d2771::t_97245109ccb38d 1-339
+apps/emdash-desktop/src/main/core/ssh/controller.db.test.ts
+  s_88273e794d2771::t_d326707b09d2c3 1-133
+apps/emdash-desktop/src/main/core/ssh/controller.ts
+  s_88273e794d2771::t_7d90a78bc79317 180-181
+apps/emdash-desktop/src/main/core/tasks/operations/createTask.ts
+  s_88273e794d2771::t_9e6eb0f55cb727 96
+apps/emdash-desktop/src/main/core/tasks/task-builder.ts
+  s_88273e794d2771::t_4c29ccbd314646 3,53-54,72
+apps/emdash-desktop/src/main/core/terminals/lifecycle-script-settings.ts
+  s_88273e794d2771::t_a100b544f73eaa 1,7-10,18,21-22,24,27,42-47,49,52-53
+apps/emdash-desktop/src/main/core/terminals/prepareLifecycleScript.ts
+  s_88273e794d2771::t_5266c377174a54 1,3,13-14,19-21,28
+apps/emdash-desktop/src/main/core/terminals/runLifecycleScript.test.ts
+  s_88273e794d2771::t_34e393596a0769 39,41-44,56,63
+apps/emdash-desktop/src/main/core/terminals/runLifecycleScript.ts
+  s_88273e794d2771::t_4824a0d2b70b60 1,3-6,18-19,24-26,44
+apps/emdash-desktop/src/main/core/workspaces/byoi/provision-byoi-task.ts
+  s_88273e794d2771::t_97357a0d074cd9 86,129,133-136,142,149
+apps/emdash-desktop/src/main/core/workspaces/project-settings-controller.ts
+  s_88273e794d2771::t_e4ccda91776ced 1,4,7,10,13-19
+apps/emdash-desktop/src/main/core/workspaces/recovery-strategy.ts
+  s_88273e794d2771::t_c45a6a1fce4844 25,45
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/copy-preserved-files.ts
+  s_88273e794d2771::t_edff62402b9a3f 1,4-9,14-18,21,23,42-44,47-48,51-55,58-92
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.test.ts
+  s_88273e794d2771::t_8b917044d95b16 10,12-16
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/step-context.ts
+  s_88273e794d2771::t_b5c46214a387db 4,18-19,23-26
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.db.test.ts
+  s_88273e794d2771::t_d7814ff00626d6 153,167,201
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.ts
+  s_88273e794d2771::t_1e62c1cee09c33 148,202,313,315,353,359-360
+apps/emdash-desktop/src/main/core/workspaces/workspace-factory.ts
+  s_88273e794d2771::t_b45fcc9dd78bf8 6,10-11,28,81-90,105-106,151-161,166-169,178-181,189,192-198,208-234,290-291,294-295,330-366,375,403-405,416,466,478-479
+apps/emdash-desktop/src/main/core/workspaces/workspace-registry.test.ts
+  s_88273e794d2771::t_281d2e07fe7433 8,12,19-22,32,46-47,70-71,77,85,90,112,115,151,153,193,200-202,216,309,321,330
+apps/emdash-desktop/src/main/core/workspaces/workspace-registry.ts
+  s_88273e794d2771::t_44eca13655791a 2,14-20,24,35,41,45,50,53,61,68-71,76
+apps/emdash-desktop/src/main/core/workspaces/workspace.ts
+  s_88273e794d2771::t_16a6c1ed10b37b 1,3,12-15
+apps/emdash-desktop/src/main/db/initialize.ts
+  s_88273e794d2771::t_1c9ce9b7b68c0e 94,114-121,148
+apps/emdash-desktop/src/main/db/tests/migrations/0018_workspaces_ssh_fk.test.ts
+  s_88273e794d2771::t_cff7a632fd45c4 1-54
+apps/emdash-desktop/src/main/rpc.ts
+  s_88273e794d2771::t_f9e4254ca946a1 12-14,65,92-93
+apps/emdash-desktop/src/renderer/features/automations/components/CreateAutomationView.tsx
+  s_88273e794d2771::t_67feb9a010c21b 74,80
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_88273e794d2771::t_45524955d5fb0e 107-113
+apps/emdash-desktop/src/renderer/features/automations/useAutomationSettingsAutoSave.ts
+  s_88273e794d2771::t_65c11a56a251ff 28-34
+apps/emdash-desktop/src/renderer/features/command-palette/command-palette-modal.tsx
+  s_88273e794d2771::t_05e6b46678e05e 9,29,102,107,110-115,121,226-227,402
+apps/emdash-desktop/src/renderer/features/command-palette/search-utils.test.ts
+  s_88273e794d2771::t_0f029646213216 1-23
+apps/emdash-desktop/src/renderer/features/command-palette/search-utils.ts
+  s_88273e794d2771::t_b1d538568f2faa 1,20-32
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/remote-directory-selector.tsx
+  s_88273e794d2771::t_7af570be3f90d0 17,86,90-91,126-130,132,147,149-156,238
+apps/emdash-desktop/src/renderer/features/projects/stores/project-settings-store.ts
+  s_88273e794d2771::t_96c283bda3c970 4,6,37,40-41
+apps/emdash-desktop/src/renderer/features/sidebar/task-item.tsx
+  s_88273e794d2771::t_2c1eed342ae9a6 105
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-store.test.ts
+  s_88273e794d2771::t_36901d1b17be5c 1,170-203
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.test.ts
+  s_88273e794d2771::t_b6784d068b3bd3 36-47
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.ts
+  s_88273e794d2771::t_bdbe26f7c14e27 159-162,164-165
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-panel.tsx
+  s_88273e794d2771::t_8ebff1f7460f05 1-12,15-27,49-64,66-69,71-101,106-109,111-130,144-231,235-361,363,368,372-373,376-416,418,420-429,433-441
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-store.ts
+  s_88273e794d2771::t_a3e7f70778c58c 1-10,16-25,27,67-75,81-85,88,102-106,111-113,117-123,130,132-133,135,154-193,253-266,268-273,281-284,289-292,294-295,299-323,325-329,337-452,460-476,488-492,500,611-615,618-621,655-660,663,670-683,694-701,704,707-747
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-tab-provider.tsx
+  s_88273e794d2771::t_e9450ce38b2699 15-19,38-47,53-72,82-96,135-143
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-tab-resource.ts
+  s_88273e794d2771::t_7bb2f3a86b8d77 2,27-38
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.test.ts
+  s_88273e794d2771::t_8293be42b7ab7f 1-406
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts
+  s_88273e794d2771::t_5a7b57b9884145 12,41-45,47,50-57,61,64,71-74,78-82,85,88,90-97,113,116,123,132-134,138,140,147,163,171-173,177,200
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_88273e794d2771::t_e20a2ebfa6ed13 93-98,114-127
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-agent-icon.tsx
+  s_88273e794d2771::t_802eb27328b552 1-34
+apps/emdash-desktop/src/renderer/features/tasks/conversations/create-conversation-modal.tsx
+  s_88273e794d2771::t_b41bf728f39af4 26,28,36,48,57-58,67,72,83,92,95,111,167-174
+apps/emdash-desktop/src/renderer/features/tasks/conversations/default-conversation-seeder.ts
+  s_88273e794d2771::t_bf3c0837823af2 50-54
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_88273e794d2771::t_38b20632b3b3cb 1,28,55-57,78,95,99,104-105,122-123,189,196-200,231-247
+apps/emdash-desktop/src/renderer/features/tasks/conversations/sidebar-conversations-list.tsx
+  s_88273e794d2771::t_012a4951eb8f01 6,26,52,112-117,194-199
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.test.ts
+  s_88273e794d2771::t_4412ac4a7b0e8e 23-24
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.ts
+  s_88273e794d2771::t_fd09134d67faf6 23
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-list-item.tsx
+  s_88273e794d2771::t_2cded73470d7c5 9,13,20-25
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-tree-utils.test.ts
+  s_88273e794d2771::t_d86d41bb2044c0 1-21
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-tree-utils.ts
+  s_88273e794d2771::t_9411bfe63c0d9a 2-7,10,15-16,19-20,23-25,27,31,61-70
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/virtualized-changes-list.tsx
+  s_88273e794d2771::t_066c8ac22e3366 9,23,52
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/virtualized-changes-tree.tsx
+  s_88273e794d2771::t_32863489c8f391 6,9,17,31,43,54
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/staged-section.tsx
+  s_88273e794d2771::t_301b6bce09e559 147
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/unstaged-section.tsx
+  s_88273e794d2771::t_e522bc6a23a3b4 207
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/diff-tab-provider.tsx
+  s_88273e794d2771::t_6e70831e6761ac 13,44-52,54,79-84
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/image-diff-view.tsx
+  s_88273e794d2771::t_718226250660a2 87
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-file-tree.tsx
+  s_88273e794d2771::t_54a347b346c45d 9,14,18-19,21,23-24,55-57,61-63,66,70-73,90,95,97-99,129-150,166,172,175-179,184,200,202,209,217,219,226,229,235-250,264-272,286,302-303,311,318-327,329,340-341,345-347,363,389,391,397-398,403,434,437,449-451,475,505,508-515,532,535,539
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-provider.tsx
+  s_88273e794d2771::t_95469bd57efbc2 219-220
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-toolbar.tsx
+  s_88273e794d2771::t_38ded1fb5bc5c4 2-3,17-18,22
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-provider.tsx
+  s_88273e794d2771::t_cadd70b87cef4b 14,81-86,118
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/editor-view-store.ts
+  s_88273e794d2771::t_3b3fe726214267 11,33-39,53,58-76,153-156,189
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-model-manager.ts
+  s_88273e794d2771::t_ab5443623b22d7 43,99,104
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-tab-resource.ts
+  s_88273e794d2771::t_2cc0c78e061f2f 57
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/files-store.test.ts
+  s_88273e794d2771::t_ad90770439a1f8 1,3,6-8,10-13,20-24,33-40,43-70,74-76,81-86,90-92,96-97,99-103,105-115,120,123-129,131,133-145,147,149-153,155-186,188-203,206-210,213-234,236-246,248-261,265-305,308-311,313-340,344-360,363-364,366-376,380-402,404-405,407,409-426,428-429,431-440,444-460,463-464,466-498,501-506,508-514,518-524,527-531,533-535,537-544,546-560
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/files-store.ts
+  s_88273e794d2771::t_da2af68b917a0e 1-2,4-6,9-11,13-22,24-26,28-37,39-42,45-70,74-75,77-83,86-89,91-93,96-98,102-103,107,111-112,116-120,123-124,127-130,133-143,146-149,151-159,162-163,165-190,193-196,200-204,206-207,209-211,213,216-217,219-226,228-251,253-254,256-273,275-288,290-291,293,296-321,323-337,339-351,353-359,361-364,366-370,372-375,377-378,381-386,388-392,394-408,412-417,419-420,423-428,431-439,441,444-453,455-461,463-468,470-474,477-487,489-497,499-501,504-508,512-518,520,523-529,531-534,536-543,545-550,552-555,557-559,561-568
+apps/emdash-desktop/src/renderer/features/tasks/file-tree/tree-utils.test.ts
+  s_88273e794d2771::t_b40b1c93719145 2-12,28-34,39,51,85,97,111,125,143,162,177,189,202,207-345
+apps/emdash-desktop/src/renderer/features/tasks/file-tree/tree-utils.ts
+  s_88273e794d2771::t_be1bd82c6c8fda 1-43,46-48,51-59,62,78-97,99,101-102,107-129,131-133,137-198,201-210,217-220,227-254,256-257,259,261,264
+apps/emdash-desktop/src/renderer/features/tasks/pane-empty-state.tsx
+  s_88273e794d2771::t_8bcbd76e31bd89 23-29
+apps/emdash-desktop/src/renderer/features/tasks/stores/lifecycle-scripts.test.ts
+  s_88273e794d2771::t_a7724936aec1a0 1,3,104-105,114,117-120,131-132,155,159-170
+apps/emdash-desktop/src/renderer/features/tasks/stores/lifecycle-scripts.ts
+  s_88273e794d2771::t_3b27f6053896e4 12-13,43-44,48-50,118,121-122,189,191-192
+apps/emdash-desktop/src/renderer/features/tasks/stores/open-file-in-file-editor.ts
+  s_88273e794d2771::t_b173d16ca33649 9-29,38-44,49-89,96-100
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_88273e794d2771::t_f909e269558ce8 358,488-489,515-516
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.test.ts
+  s_88273e794d2771::t_8b8b40b703aed7 121-144
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.ts
+  s_88273e794d2771::t_7c13345f4fd9e1 14,106-107,117
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-tab-context.ts
+  s_88273e794d2771::t_97fba8971e4fca 19
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-tab-view-persistor.ts
+  s_88273e794d2771::t_7b114cb59f22ec 5-7,21-23,29-31,46,54-82
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-path.test.ts
+  s_88273e794d2771::t_f66f38d27a8333 1-24
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-path.ts
+  s_88273e794d2771::t_1f34343bb47d05 1-18
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.test.ts
+  s_88273e794d2771::t_db0911c42a337d 80-87
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_88273e794d2771::t_8d89ba087ead19 27,87,91,94-96,229-231,277-298,324,327-329,430-444
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace.ts
+  s_88273e794d2771::t_6965a6d224b2d7 6,11,26,56-59
+apps/emdash-desktop/src/renderer/features/tasks/tab-bar-actions.tsx
+  s_88273e794d2771::t_1879a291d24ac1 52-58
+apps/emdash-desktop/src/renderer/features/tasks/task-tab-registry.tsx
+  s_88273e794d2771::t_d023e73c2f0736 20,25,36,48-57
+apps/emdash-desktop/src/renderer/index.css
+  s_88273e794d2771::t_a4180b14fadd88 450-484,764-796,800-899
+apps/emdash-desktop/src/renderer/lib/chat/advertised-command-provider.ts
+  s_88273e794d2771::t_9a288a546ede33 1-41
+apps/emdash-desktop/src/renderer/lib/chat/chat-transcript.tsx
+  s_88273e794d2771::t_6b62debed7e8ad 1-154
+apps/emdash-desktop/src/renderer/lib/chat/shared-chat-context.ts
+  s_88273e794d2771::t_727f7128249aad 2-3,16-21
+apps/emdash-desktop/src/renderer/lib/chat/workspace-file-mention-provider.ts
+  s_88273e794d2771::t_9928ee44659ac4 1-26
+apps/emdash-desktop/src/renderer/lib/components/feedback-modal/feedback-modal.tsx
+  s_88273e794d2771::t_1f8b704d2ab6c9 1,63-67,98
+apps/emdash-desktop/src/renderer/lib/components/feedback-modal/use-feedback-submit.test.ts
+  s_88273e794d2771::t_647ca997d0a873 12,19
+apps/emdash-desktop/src/renderer/lib/components/feedback-modal/use-feedback-submit.ts
+  s_88273e794d2771::t_c4e325fde47baa 22,31,40,70-74,82-87,164,203
+apps/emdash-desktop/src/renderer/lib/drag-files.ts
+  s_88273e794d2771::t_f2cfd50f9dda87 28-29,46
+apps/emdash-desktop/src/renderer/lib/editor/html-renderer.tsx
+  s_88273e794d2771::t_6ef552988fc67e 6,14,45,70,83,93-97,106,143-144,179-184,190,197-202,218-223,248-249,256,258-262,280,289-290
+apps/emdash-desktop/src/renderer/lib/editor/markdown-renderer.tsx
+  s_88273e794d2771::t_6ddceaf4173546 3,7,17,32,34,45-52,54-68,89
+apps/emdash-desktop/src/renderer/lib/editor/workspace-resource-path.test.ts
+  s_88273e794d2771::t_f63d1362f20080 1-101
+apps/emdash-desktop/src/renderer/lib/editor/workspace-resource-path.ts
+  s_88273e794d2771::t_58e67fcb609e5b 1-63
+apps/emdash-desktop/src/renderer/lib/monaco/invalidation-bridges.ts
+  s_88273e794d2771::t_b7cd67373912ad 1,3,9,12,14,16-17,30-39
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-model-registry.ts
+  s_88273e794d2771::t_8385d4074e0a17 284-288,729-732,797,823,880,885
+apps/emdash-desktop/src/renderer/lib/pty/pty-session.test.ts
+  s_88273e794d2771::t_5cd4c080d4019e 85-96
+apps/emdash-desktop/src/renderer/lib/pty/pty-session.ts
+  s_88273e794d2771::t_aa8cf98a4e3baf 12-13,25,52-53
+apps/emdash-desktop/src/renderer/lib/stores/live/bind-mirror.test.ts
+  s_88273e794d2771::t_45ee1a3f0a24ae 3
+apps/emdash-desktop/src/renderer/lib/stores/live/bind-mirror.ts
+  s_88273e794d2771::t_eb6bad3487b85a 1
+apps/emdash-desktop/src/renderer/lib/stores/live/index.ts
+  s_88273e794d2771::t_2afc8159c92aaa 1
+apps/emdash-desktop/src/renderer/lib/stores/live/mirror-version.ts
+  s_88273e794d2771::t_e448c238eaa47d 16-17
+apps/emdash-desktop/src/renderer/lib/ui/markdown-renderer.tsx
+  s_88273e794d2771::t_9b3da07914d1ed 26,121-137,163-164,228,290,294,371,395,405,410-411
+apps/emdash-desktop/src/renderer/main.tsx
+  s_88273e794d2771::t_cada06df8a0699 4-5
+apps/emdash-desktop/src/renderer/tests/drag-files.test.ts
+  s_88273e794d2771::t_6d88052ce901ed 32,49,63
+apps/emdash-desktop/src/renderer/tests/markdown-renderer.test.ts
+  s_88273e794d2771::t_9389da4a8ce916 1-3,5,37-58,107-133
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_88273e794d2771::t_f3f0b5c755cd96 130
+apps/emdash-desktop/src/shared/core/automations/config.ts
+  s_88273e794d2771::t_cf5be114c50799 24-25
+apps/emdash-desktop/src/shared/core/fs/file-tree-errors.ts
+  s_88273e794d2771::t_8d819eca708a95 1-18
+apps/emdash-desktop/src/shared/core/fs/file-tree.ts
+  s_88273e794d2771::t_b53cb9ec922160 1-25
+apps/emdash-desktop/src/shared/core/fs/fs.ts
+  s_88273e794d2771::t_7f40c962117a78 1,7,11-37
+apps/emdash-desktop/src/shared/core/fs/fsEvents.ts
+  s_88273e794d2771::t_8ae63df2b5ed11 1,4,7-32
+apps/emdash-desktop/src/shared/core/project-settings/is-project-config-path.test.ts
+  s_88273e794d2771::t_8dbe2d7bcdff92 1-23
+apps/emdash-desktop/src/shared/core/project-settings/project-settings.ts
+  s_88273e794d2771::t_a95bdcb0df186e 1,6-10,87-92
+apps/emdash-desktop/src/shared/core/search.ts
+  s_88273e794d2771::t_70af656bd4c905 21-31
+apps/emdash-desktop/src/shared/events/appEvents.ts
+  s_88273e794d2771::t_c57a222a61f774 58
+apps/emdash-desktop/src/shared/lib/ipc/rpc.test.ts
+  s_88273e794d2771::t_127d835ee50297 32,38,113,115,140,193
+package.json
+  s_88273e794d2771::t_236551788b8ce7 44-50
+packages/chat-ui/package.json
+  s_88273e794d2771::t_93804182adb10e 37,48,54-56
+packages/chat-ui/src/ChatRoot.tsx
+  s_88273e794d2771::t_3bd2b126ec8e1a 37,52,63,66-68,73,111-123,142-151,164-169,205-212,229-234,240-245,248-249,251-252,290-293,302,321-347,352,357-361,363-365,371-381,383-396,404,410-417,420-435,444,450,460-489,500,506-507,516,526-528,537-607,621,624-625,627,629,631-636,638-645,668-673,683-735,738-745,747-818,827-832,835-836,844-860,866-886,889-918,935-970,976-1000,1002-1017,1019,1035-1057,1078-1079,1107-1109,1144,1146-1147,1150,1197-1215,1218,1238,1251,1265,1270-1304,1314,1316-1321,1339,1384-1394,1419-1446,1456,1462,1470,1476,1511,1525,1527-1530,1539,1544,1555-1607
+packages/chat-ui/src/chat-context.ts
+  s_88273e794d2771::t_6717bc1699028b 25,52-56,66-67,120
+packages/chat-ui/src/chat-root.css.ts
+  s_88273e794d2771::t_ce042228531b42 15-21,45-51,91-94,109-121,133-136
+packages/chat-ui/src/chat-view.contract.test.tsx
+  s_88273e794d2771::t_0ec16d09da640a 1-168
+packages/chat-ui/src/chat-view.tsx
+  s_88273e794d2771::t_9237722a6c527a 37,52-57,72-76,91-95,120-141,153-156,171-173,182-184,206-214,224,233,237
+packages/chat-ui/src/commands.ts
+  s_88273e794d2771::t_5d29371bf4ef83 54-65
+packages/chat-ui/src/components/contexts/StreamContext.ts
+  s_88273e794d2771::t_425d7aef122181 15-19,30,33-40
+packages/chat-ui/src/components/engine/unit-registry.ts
+  s_88273e794d2771::t_ceeae23a3aa261 25,29,99-135,156-157
+packages/chat-ui/src/components/primitives/BlockStackView.tsx
+  s_88273e794d2771::t_a7cb869ea664c8 23-33
+packages/chat-ui/src/components/rows/markdown/code/Code.tsx
+  s_88273e794d2771::t_97fd4d14232873 27,42-54,60-63
+packages/chat-ui/src/components/rows/markdown/prose/Prose.tsx
+  s_88273e794d2771::t_1c3b85a2fc91fe 17,22,56-58,61,145-157,161,163,200
+packages/chat-ui/src/components/rows/markdown/prose/prose.css.ts
+  s_88273e794d2771::t_5e3eee0d041cc0 195-201
+packages/chat-ui/src/components/rows/message/message.def.tsx
+  s_88273e794d2771::t_6c120d1f29ccf4 7,62-76,80,86
+packages/chat-ui/src/components/rows/tools/tool-group/tool-group.css.ts
+  s_88273e794d2771::t_89d7485095d6e1 1-22
+packages/chat-ui/src/components/rows/tools/tool-group/tool-group.def.tsx
+  s_88273e794d2771::t_8c2fe4e67329e6 1-231
+packages/chat-ui/src/core/caches.test.ts
+  s_88273e794d2771::t_74850c13a85def 176-299
+packages/chat-ui/src/core/caches.ts
+  s_88273e794d2771::t_874169b4e7605b 43,51-60,92-100,115-122,226-231,236-238,241-247,373-377,391,422,434-441,447-450,471-472,475
+packages/chat-ui/src/core/markdown/command-provider.ts
+  s_88273e794d2771::t_edf2aaa06e871b 1-47
+packages/chat-ui/src/core/markdown/document.ts
+  s_88273e794d2771::t_3a1263c611cf5d 62-74
+packages/chat-ui/src/core/markdown/mdast-mention.ts
+  s_88273e794d2771::t_7705a912e2d257 1-28
+packages/chat-ui/src/core/markdown/parse.test.ts
+  s_88273e794d2771::t_005a7fb9106521 2,4-9,18,29-32,37,42-46,51-103,106,133,150,152,168,176-203
+packages/chat-ui/src/core/markdown/parse.ts
+  s_88273e794d2771::t_01dd1b529385ca 5-14,40-41,55,57-58,60-63,65-70,72,74-76,79-87,89-97,100,110-119,131-134,141-144,151-154,168,204,212,228,242,253,265,297-298,346-350,357-368,373-374,380-386,391
+packages/chat-ui/src/core/markdown/remark-inline-mentions.ts
+  s_88273e794d2771::t_88592ff3984d09 1-177
+packages/chat-ui/src/core/measure/to-rich-items.ts
+  s_88273e794d2771::t_84af7bbe6e8f6f 15,68,88
+packages/chat-ui/src/index.tsx
+  s_88273e794d2771::t_2e6bab65f53fbe 31-32,101-104
+packages/chat-ui/src/model.ts
+  s_88273e794d2771::t_d0534def2423af 45-46,95-96,116-117,140-141
+packages/chat-ui/src/state/chat-state.test.ts
+  s_88273e794d2771::t_7266a3c7005871 5,16-18,123,125-128,131-159,208,212,218-219,227-232
+packages/chat-ui/src/state/chat-state.ts
+  s_88273e794d2771::t_7bf9b1616656cd 10,43-44,46-48,101-103,106-107,157,162-164,197-199
+packages/chat-ui/src/state/flatten.test.ts
+  s_88273e794d2771::t_a74aa195d136f8 27,363-437
+packages/chat-ui/src/state/flatten.ts
+  s_88273e794d2771::t_9f415ae7d1b996 53-95,98-103,111-115,125-126,136-147,149-150,152-157,159-169
+packages/chat-ui/src/state/geometry.test.ts
+  s_88273e794d2771::t_608f4a01f0361a 1-86
+packages/chat-ui/src/state/geometry.ts
+  s_88273e794d2771::t_2ec2c43793ae16 1-54
+packages/chat-ui/src/state/scroll-mode.ts
+  s_88273e794d2771::t_6529e80a8683e8 1-40
+packages/chat-ui/src/state/transcript.ts
+  s_88273e794d2771::t_f3b1ca54a270ca 194-200,207-213
+packages/chat-ui/src/state/turn-reducer.test.ts
+  s_88273e794d2771::t_8e4d83c6c2ae0a 1-107
+packages/chat-ui/src/state/turn-reducer.ts
+  s_88273e794d2771::t_7e82df2307c979 48,52,54,56-63,161,240,282,329
+packages/chat-ui/src/stories/_harness/chat-host.tsx
+  s_88273e794d2771::t_1ad6c767cb7a0b 27,64-65,141
+packages/chat-ui/src/stories/_harness/streaming/scenario.ts
+  s_88273e794d2771::t_5a797ae01dae28 205-206,208,218-225,273-274,276-285,293-300,343-344,347,354-360,392-393,395,401-407
+packages/chat-ui/src/stories/repro/blank-after-switch.stories.tsx
+  s_88273e794d2771::t_acc0bce243994f 1-309
+packages/chat-ui/src/stories/repro/fast-switch.stories.tsx
+  s_88273e794d2771::t_a266558e40331c 1-248
+packages/chat-ui/src/stories/repro/reserve-expand.stories.tsx
+  s_88273e794d2771::t_70feff88e70fda 1-33,36,40,43-112,117,119-120,123-134,139-145
+packages/chat-ui/src/stories/repro/tab-switching.stories.tsx
+  s_88273e794d2771::t_f8ab41405beb64 1-738
+packages/chat-ui/src/stories/rows/markdown/code-block.stories.tsx
+  s_88273e794d2771::t_bd1178ef3f7a1e 93-159
+packages/chat-ui/src/stories/rows/markdown/command-chip.stories.tsx
+  s_88273e794d2771::t_6d660ea17aac9e 1-89
+packages/chat-ui/src/stories/rows/tools/tool-group.stories.tsx
+  s_88273e794d2771::t_b23da6e9f06b2f 1-225
+packages/core/package.json
+  s_88273e794d2771::t_96625134cb97c3 36-38,40-42,72,75
+packages/core/src/acp/acp-session-runtime.test.ts
+  s_88273e794d2771::t_5105cf9977356b 410-414,438-440,460-462,502-504,544-546
+packages/core/src/acp/acp-session-runtime.ts
+  s_88273e794d2771::t_6610832dd8e1dc 395-417,890-891,897
+packages/core/src/acp/agent-update.ts
+  s_88273e794d2771::t_93c96d3953cd89 31-42,49-50
+packages/core/src/acp/runtime.ts
+  s_88273e794d2771::t_29dd1f4a84351d 122-126
+packages/core/src/acp/state.ts
+  s_88273e794d2771::t_5520095f713efc 34-35,40
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_88273e794d2771::t_d24e6cba6bf230 228-258
+packages/core/src/files/changes/changes.test.ts
+  s_88273e794d2771::t_867f04238653a2 1-39,42-43,45-47,50-71,74-83,87-93,95-98,100-102,105-109,113-118,120-123,125-127,130-136,140-161,164-166,168-170,172,175-176,178,180-181,184-186,188,190-196
+packages/core/src/files/changes/changes.ts
+  s_88273e794d2771::t_784d5efd8aa405 1-151
+packages/core/src/files/changes/types.ts
+  s_88273e794d2771::t_12e3de6aab82ff 1-39
+packages/core/src/files/enumerate.test.ts
+  s_88273e794d2771::t_8d7c1d8a57ffdf 1-109
+packages/core/src/files/enumerate.ts
+  s_88273e794d2771::t_ce91233d84baf3 1-72
+packages/core/src/files/errors.ts
+  s_88273e794d2771::t_54ad6faa9bbf53 1-34
+packages/core/src/files/exclusions.test.ts
+  s_88273e794d2771::t_b67e40c707379d 1-10
+packages/core/src/files/exclusions.ts
+  s_88273e794d2771::t_3969bcb909f1fc 1-5
+packages/core/src/files/files-runtime.test.ts
+  s_88273e794d2771::t_70904780bbcc0c 1-129
+packages/core/src/files/files-runtime.ts
+  s_88273e794d2771::t_5159b36f0d0d5f 3-17,19-21,24,26-27,31,33,43-53,55,74-116
+packages/core/src/files/fs/file-system.test.ts
+  s_88273e794d2771::t_f7c2a56067968d 1-171
+packages/core/src/files/fs/file-system.ts
+  s_88273e794d2771::t_d576ecf1fc453e 3-20,22-23,25-37,39-44,46-55,57-65,67-82,84-85,88-92,95-110,114-123,127-139,142-147,149-161,163-167,171-174,176,178,182-187,189-195,199-211,214-220,222-224,226,230-235,237-239,242-251,253,255-270,273-286,288,290
+packages/core/src/files/fs/index.ts
+  s_88273e794d2771::t_935deee96f7d1b 1-13
+packages/core/src/files/fs/types.ts
+  s_88273e794d2771::t_69ed7b7323e8fa 1-3,5,7-18,20-60
+packages/core/src/files/index.test.ts
+  s_88273e794d2771::t_8d0d13caad8eb5 2,4-6,8-12
+packages/core/src/files/index.ts
+  s_88273e794d2771::t_c01d52b1f85d70 1-18
+packages/core/src/files/path-policy.test.ts
+  s_88273e794d2771::t_bb40da57f162d6 1-47
+packages/core/src/files/path-policy.ts
+  s_88273e794d2771::t_6146e5f5099c3f 1-60
+packages/core/src/files/paths.ts
+  s_88273e794d2771::t_bde2448ac2eea0 3,5,7,11-12,14,17-19
+packages/core/src/files/symlinks.ts
+  s_88273e794d2771::t_df25cf33e6db09 1-8
+packages/core/src/files/tree/directory-reader.test.ts
+  s_88273e794d2771::t_ff4a57d1de7bff 1-81
+packages/core/src/files/tree/directory-reader.ts
+  s_88273e794d2771::t_4c365067e331e7 1-2,4-6,12,18-128,130-148,150-152,155-168,172,174-193,195-200,205
+packages/core/src/files/tree/file-tree.test.ts
+  s_88273e794d2771::t_10f4dfb124389c 1,6-7,11-12,24,36,69,80-233,244-339,351,367,369,426,454,471,481-553,557,559-560,574,576,578,586,593,607-608,611-618,622-626,636-653,669-686
+packages/core/src/files/tree/file-tree.ts
+  s_88273e794d2771::t_be4acc1bdb9003 3-6,8-15,30,39-41,43,55-58,63,68,70,76,81-86,106,141-157,160-164,167,170-171,173-178,181-183,186-211,215,245,247,251-255,257,259,262-280,290,298,302-303,305-308,310,326,329-331,336-387,391-392,398,401-404,410-424
+packages/core/src/files/tree/list.ts
+  s_88273e794d2771::t_aba32b76b8e489 1-45
+packages/core/src/files/tree/models/tree.ts
+  s_88273e794d2771::t_e9d9583f5fd676 1-2,6-11,13-18,24,26-45
+packages/core/src/files/tree/node-id.test.ts
+  s_88273e794d2771::t_ab1a3e047e410e 1-86
+packages/core/src/files/tree/node-id.ts
+  s_88273e794d2771::t_57d6b8b50e026b 1-2,52,58-65,70,72-75,124-125,128-139,161-185,237-274
+packages/core/src/files/tree/tree-store.ts
+  s_88273e794d2771::t_93bb45a2819b50 1-15,18-19,22-23,26-27,30-31,34-35,38-39,42-43,46-47,50-51,54-78,80,82-83
+packages/core/src/files/tree/types.ts
+  s_88273e794d2771::t_f66dcc1c92664b 2,24-25
+packages/core/src/files/tree/watch/classifier.test.ts
+  s_88273e794d2771::t_9ddbec87f47a24 1-2,4-10,12-16,20-22,24-26,33-35,37-39,42-46,48,52-56,58-60,63,66-70,72-74,76-77,79,82-85,87-88,92-96,98-105,113-114,118-121,123-127,133,137-138,142-155,157,159,162-163,171-175,179,184,188-191,195-197,199-200,207-212,214-216,219,223,225-228,232-234,237-243,247,255-259
+packages/core/src/files/tree/watch/classifier.ts
+  s_88273e794d2771::t_4a4107e829e7ea 2-8,11-13,23,31-32,36,38,43,45,48-52,54,57-58,69-72,78-86
+packages/core/src/files/types.ts
+  s_88273e794d2771::t_5f24d6bee92193 1-60
+packages/core/src/git/errors.ts
+  s_88273e794d2771::t_ca7d5752b2b6be 284-292
+packages/core/src/git/git-repository.test.ts
+  s_88273e794d2771::t_f4c0f7f7308793 7,66,141
+packages/core/src/git/git-repository.ts
+  s_88273e794d2771::t_39b2aea73f2a02 5-6,55
+packages/core/src/git/git-runtime.test.ts
+  s_88273e794d2771::t_e79a07070ac4ae 8,49,238
+packages/core/src/git/git-runtime.ts
+  s_88273e794d2771::t_20c69a9503c829 5-10,43,55,63
+packages/core/src/git/git-worktree.test.ts
+  s_88273e794d2771::t_5331b180537ffd 2,7,34,69-72,76,117,126-128,136,145-147,156,193,207,224,268,286,328,394,424,495,514-516,527,529,534,568,628-630,680,695
+packages/core/src/git/git-worktree.ts
+  s_88273e794d2771::t_04ede5edbb4a08 6,74,182,184-186,194,198,200,208-209,213-214,239,313,356,375,395,397-398,408,578,594,601,694-708
+packages/core/src/git/watch/classifier.ts
+  s_88273e794d2771::t_38b2b5cb9b6fee 2,25
+packages/core/src/watch/index.ts
+  s_88273e794d2771::t_6761aad68ed18a 1,3
+packages/core/src/watch/native-watch.ts
+  s_88273e794d2771::t_cc1c25e6e74462 4,17,28,66,99
+packages/core/src/watch/types.ts
+  s_88273e794d2771::t_f9cadcadf1b5c7 1,3-4,8,28,31-32
+packages/core/src/watch/watch-service.test.ts
+  s_88273e794d2771::t_d89839e35268bd 5,21,24-26,69-70,93,113
+packages/core/src/watch/watch-service.ts
+  s_88273e794d2771::t_9c57c0eac64e5b 5,7,13,17,29,36,49-50,52,117,142
+packages/core/tsdown.config.ts
+  s_88273e794d2771::t_f3aec248ed5ee8 10-11
+packages/plugins/package.json
+  s_88273e794d2771::t_89e51799caf388 30-32
+packages/plugins/src/agents/impl/claude/acp.test.ts
+  s_88273e794d2771::t_6f9ead6a5dfd9b 2-3,14-15,17,61
+packages/plugins/src/agents/impl/codex/acp.test.ts
+  s_88273e794d2771::t_c28dabab011d6e 1-3,5-45,48-56,58-61
+packages/plugins/src/agents/impl/codex/index.ts
+  s_88273e794d2771::t_a6aeff1ba41939 1-3,14-19,29-31,91-107
+packages/plugins/src/agents/impl/grok/index.ts
+  s_88273e794d2771::t_c133440bb10792 2,83-87,113
+packages/shared/package.json
+  s_88273e794d2771::t_0d3776dacf157c 36-39
+packages/shared/src/markdown/index.ts
+  s_88273e794d2771::t_a05b7c9cf6307a 1-2
+packages/shared/src/markdown/mention-grammar.test.ts
+  s_88273e794d2771::t_bc1f9af9f6077b 1-141
+packages/shared/src/markdown/mention-grammar.ts
+  s_88273e794d2771::t_a6ce898df8a8be 1-64
+packages/shared/tsdown.config.ts
+  s_88273e794d2771::t_1ea19685e24b7a 10
+packages/ui/.storybook/main.ts
+  s_88273e794d2771::t_bce22ebccd6938 28-35
+packages/ui/.storybook/preview.tsx
+  s_88273e794d2771::t_e90a6cde84d204 10-11,37-38,43-44
+packages/ui/package.json
+  s_88273e794d2771::t_541983804ba73a 19-20,40,85,97-100,109
+packages/ui/src/react/chat-ui/chat-theme.css
+  s_88273e794d2771::t_dee0b53573de83 12,26-29,32-33,35,37-41,44,48-50,54-56,59-60,62-69,72-74,77-84,88,104
+packages/ui/src/react/components/chat-composer/chat-composer.css.ts
+  s_88273e794d2771::t_eabed43704e80e 4,16,23,56,108-109,144,153,212,225,234,245,261,272-297,302,309-349
+packages/ui/src/react/components/chat-composer/chat-composer.stories.tsx
+  s_88273e794d2771::t_df061c9469346c 4-6,9,13-14,223-283
+packages/ui/src/react/components/chat-composer/composer-contract.css.ts
+  s_88273e794d2771::t_3c8b9f278828e3 1-218
+packages/ui/src/react/components/chat-composer/context-usage-indicator.tsx
+  s_88273e794d2771::t_b943c98420b996 1-95
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_88273e794d2771::t_9f26d6f67ca8e7 1,4-16,22-26,28,31-37,134-149,189-196,198-204,207-208,429,444,450-453,456-457,459,472,474,477,490,494-496,513-518,520,523,550-553,556,567-574,626-653,768-769,782,791-819,824-876,879,881-883
+packages/ui/src/react/components/chat-composer/permission-band.css.ts
+  s_88273e794d2771::t_de167790788d03 3,9,18
+packages/ui/src/react/components/chat-composer/permission-band.tsx
+  s_88273e794d2771::t_ff169c5c3ad1ab 18
+packages/ui/src/react/components/combobox-popover/combobox-popover.css.ts
+  s_88273e794d2771::t_4f0a0e9e6d55b9 4,12,16,58
+packages/ui/src/react/components/combobox-popover/combobox-popover.stories.tsx
+  s_88273e794d2771::t_8ea5d93d6df94f 4-7,85,94,98,104,114,117-118,123,132,155,180,208,226,231,250,255,281-283,291-292,296,311-313,321-322,326
+packages/ui/src/react/components/combobox-popover/index.tsx
+  s_88273e794d2771::t_1e3269f4370b2f 5,7-10,106-111,127,137,147,149,154-155,159,165,168,171,175,188
+packages/ui/src/react/components/confirmation-dialog/confirmation-dialog.css.ts
+  s_88273e794d2771::t_67711c5b5bc79c 3,6
+packages/ui/src/react/components/confirmation-dialog/confirmation-dialog.stories.tsx
+  s_88273e794d2771::t_42f2eb49fb39b1 3-6
+packages/ui/src/react/components/confirmation-dialog/index.tsx
+  s_88273e794d2771::t_cb8c9bec740fd7 16-17,71-75,77,84,86,93-95
+packages/ui/src/react/components/image-viewer/image-viewer-dialog.css.ts
+  s_88273e794d2771::t_01b93959427c57 3,23
+packages/ui/src/react/components/image-viewer/index.tsx
+  s_88273e794d2771::t_b8826da2791155 1,15-19,27-28
+packages/ui/src/react/components/index.ts
+  s_88273e794d2771::t_519655c7e02b05 7-8,11,17,19,24,26,28
+packages/ui/src/react/components/prompt-editor/extensions/mention.ts
+  s_88273e794d2771::t_9e8787e05b9be4 11-12,22,26-28,49-51,54-55,66,69-70,74
+packages/ui/src/react/components/prompt-editor/extensions/slash-command.ts
+  s_88273e794d2771::t_b0f5daef4dac92 15,17,23,34-36,80
+packages/ui/src/react/components/prompt-editor/mention-pill.css.ts
+  s_88273e794d2771::t_7a93b59a71057d 3,17,23,46
+packages/ui/src/react/components/prompt-editor/prompt-editor.css.ts
+  s_88273e794d2771::t_605deb4983c748 3,22,30
+packages/ui/src/react/components/prompt-editor/prompt-editor.tsx
+  s_88273e794d2771::t_88574c433a9877 28,77-79,82,101,109-110,115,122
+packages/ui/src/react/components/prompt-editor/serialize.test.ts
+  s_88273e794d2771::t_ba8639206d2811 4-10,15,38-43,45,88-89,93,126,132-133,136-137,141-187,190-193
+packages/ui/src/react/components/prompt-editor/serialize.ts
+  s_88273e794d2771::t_a3a4eb08ba13c0 5-6,13-14,17-38,47-48
+packages/ui/src/react/components/prompt-editor/slash-command-pill.tsx
+  s_88273e794d2771::t_8dc85bdab8eba0 2-5,7,9-10,12-21,23-49
+packages/ui/src/react/components/update-card/update-card.css.ts
+  s_88273e794d2771::t_1fe21fb889fe9c 19,67,83
+packages/ui/src/react/components/update-card/update-card.stories.tsx
+  s_88273e794d2771::t_82ebe51ac19111 4,113-114,116,173-174,176-177,188-189,199-201
+packages/ui/src/react/components/update-card/update-card.tsx
+  s_88273e794d2771::t_a3cfd1e4370cec 10
+packages/ui/src/react/examples/chat-panel.stories.tsx
+  s_88273e794d2771::t_3f4b46966da192 14,23,330,355
+packages/ui/src/react/examples/surface-cascade.stories.tsx
+  s_88273e794d2771::t_a85e8b08fa3494 12,16-17,51,58,66-67,100-108,318,320,330,334,413-414,422,429
+packages/ui/src/react/patterns/form/components/submit-button.tsx
+  s_88273e794d2771::t_e511b16223e1b7 3
+packages/ui/src/react/patterns/form/field-shell.tsx
+  s_88273e794d2771::t_df6717ed42c487 9,11
+packages/ui/src/react/patterns/form/field/field.css.ts
+  s_88273e794d2771::t_9c2879bc4e0eb3 5,57,67,72
+packages/ui/src/react/patterns/form/field/field.stories.tsx
+  s_88273e794d2771::t_d594a4fa46b3d7 3-6,8,136
+packages/ui/src/react/patterns/form/fields/combobox-select-field.tsx
+  s_88273e794d2771::t_c9f52b9c045bb4 1
+packages/ui/src/react/patterns/form/fields/number-field.tsx
+  s_88273e794d2771::t_1013b29bcaaa2e 1
+packages/ui/src/react/patterns/form/fields/select-field.tsx
+  s_88273e794d2771::t_8d25f50654a943 1,39,46-49,51,53,55-56
+packages/ui/src/react/patterns/form/fields/switch-field.tsx
+  s_88273e794d2771::t_06f269103d1296 1
+packages/ui/src/react/patterns/form/fields/text-field.tsx
+  s_88273e794d2771::t_a4b182fc7087fb 1
+packages/ui/src/react/patterns/form/fields/textarea-field.tsx
+  s_88273e794d2771::t_720ea6c19d15b1 1
+packages/ui/src/react/patterns/form/form.stories.tsx
+  s_88273e794d2771::t_6ff7d307279186 1-2,7-8,53-54,56
+packages/ui/src/react/patterns/list-view/list-view.stories.tsx
+  s_88273e794d2771::t_6194cb16fe84f0 12,74,76,84-90,184-185,213-214,245-246,249,282-289,308-309,333-334,371-372,385,412-414,418,422,427-428,527-528,533,539-541,544-550,557-558,608-614,635-636
+packages/ui/src/react/patterns/list-view/virtual-list.css.ts
+  s_88273e794d2771::t_e9b09962a2f288 2-3,34-35
+packages/ui/src/react/patterns/page-layout/page-layout.stories.tsx
+  s_88273e794d2771::t_5961cdb6455a55 32-33,40-42,51,164,279,281,301,303,305-306
+packages/ui/src/react/patterns/page-layout/page-sidebar-menu.css.ts
+  s_88273e794d2771::t_7fd6f1ef5213a7 35
+packages/ui/src/react/primitives/alert/alert.css.ts
+  s_88273e794d2771::t_22adb9bea9e8c7 9
+packages/ui/src/react/primitives/alert/alert.stories.tsx
+  s_88273e794d2771::t_9da07820375ac2 1-2,4,6-7,20-32,34-42,50-52,69-72,75-81,84-90,93,97-99,103,124-128,130,137-140
+packages/ui/src/react/primitives/alert/index.tsx
+  s_88273e794d2771::t_b21661f92cd9e0 5,41,72-76
+packages/ui/src/react/primitives/box/box.stories.tsx
+  s_88273e794d2771::t_7c8f8ab64be513 1,60
+packages/ui/src/react/primitives/box/index.tsx
+  s_88273e794d2771::t_726806981c57af 6,31
+packages/ui/src/react/primitives/button/button.stories.tsx
+  s_88273e794d2771::t_1a776722e70f08 1-2,5,125
+packages/ui/src/react/primitives/collapsible/collapsible.stories.tsx
+  s_88273e794d2771::t_54c0bdcebea522 1,4-6,18-20,22,25-26,28-29,35-37,39-41,43-44,55-56,61-63,65,67-68,76-81,88-90,95-97,99-103,108-109,111-115,117,121-122
+packages/ui/src/react/primitives/collapsible/index.tsx
+  s_88273e794d2771::t_9fc41e70b1278b 11,52-56
+packages/ui/src/react/primitives/combobox/combobox-popup.css.ts
+  s_88273e794d2771::t_da7e09f8273a46 4,11,24,44,49,79-84,91-96,100,111
+packages/ui/src/react/primitives/combobox/combobox-popup.stories.tsx
+  s_88273e794d2771::t_4d22d75ef2411a 9-10,16
+packages/ui/src/react/primitives/combobox/combobox.css.ts
+  s_88273e794d2771::t_31829d1bcd1bf9 6,72,83,108,116,141,145
+packages/ui/src/react/primitives/combobox/combobox.stories.tsx
+  s_88273e794d2771::t_02109e0efdf099 3-5,21-24,26,28,30-33,41-46,48,50,52-55,57,59,61-65,76-77,79,81-84,86,88,90-93,102-105,107,109,111-113
+packages/ui/src/react/primitives/combobox/combobox.tsx
+  s_88273e794d2771::t_5c7a7283b7af0b 2-4,10,32,59,63,65,68,71,79,81,255,259-274
+packages/ui/src/react/primitives/dialog/dialog.css.ts
+  s_88273e794d2771::t_eb1301664bf96a 5,39,41,95
+packages/ui/src/react/primitives/dialog/dialog.stories.tsx
+  s_88273e794d2771::t_f06fa1b3dd4e1c 1-2,5,18-24,29-35,51-57,62-67,75-81,85-88,95-97,103-109,119-124,130-136,143-149
+packages/ui/src/react/primitives/dialog/index.tsx
+  s_88273e794d2771::t_8e228c4ef9659a 2-3,13,136-146
+packages/ui/src/react/primitives/dropdown-menu/dropdown-menu.css.ts
+  s_88273e794d2771::t_bc797d6f52e6b8 11,27,52,66,71,93,98,117,122,142,147,187
+packages/ui/src/react/primitives/dropdown-menu/dropdown-menu.stories.tsx
+  s_88273e794d2771::t_c806d43f7f927a 1,4-5,17-18,20-23,26-28,31-37,43-44,46-51,54-56,59-61,64-68,74-75,77-78,80-83,85-86,88-91,98,100-101,103-111,118-119,121-134
+packages/ui/src/react/primitives/dropdown-menu/index.tsx
+  s_88273e794d2771::t_c847f41f9929a3 7,210-225
+packages/ui/src/react/primitives/hover-card/index.tsx
+  s_88273e794d2771::t_8fa0092ec1524e 19,239-240,251-252
+packages/ui/src/react/primitives/index.ts
+  s_88273e794d2771::t_8857d018a82850 1,4-7,9-11,15-31,37,52-53,55-64
+packages/ui/src/react/primitives/input-group/index.tsx
+  s_88273e794d2771::t_9fc547deab56f3 3-5,12-14,16,96-102
+packages/ui/src/react/primitives/input-group/input-group.css.ts
+  s_88273e794d2771::t_de93e64ecd96d4 5,15,104,113,159,170
+packages/ui/src/react/primitives/input-group/input-group.stories.tsx
+  s_88273e794d2771::t_8c88d80ee61c65 1,4-5,18-19,21-23,31-34,36-38,46-51,59-64,72-73,75-77
+packages/ui/src/react/primitives/input/input.stories.tsx
+  s_88273e794d2771::t_52ffb783a99659 1,3-4
+packages/ui/src/react/primitives/popover/index.tsx
+  s_88273e794d2771::t_ed6ba0785b9105 8,79-86
+packages/ui/src/react/primitives/popover/popover.css.ts
+  s_88273e794d2771::t_050d2f30168f78 11,25,29,51
+packages/ui/src/react/primitives/popover/popover.stories.tsx
+  s_88273e794d2771::t_8c48d425b45936 1-2,5,18-19,21-25,27-28,32-33,39-40,42-46,50-51,55-56,64-65,69-70,72-73
+packages/ui/src/react/primitives/scroll-container/scroll-container.stories.tsx
+  s_88273e794d2771::t_26236a4bcd9249 1-2,5-7
+packages/ui/src/react/primitives/scroll-container/scroll-fade.stories.tsx
+  s_88273e794d2771::t_fabb0c1a02275b 1-2,5,7,103
+packages/ui/src/react/primitives/search-input/index.tsx
+  s_88273e794d2771::t_b855780123625f 5
+packages/ui/src/react/primitives/search-input/search-input.css.ts
+  s_88273e794d2771::t_2f588b1d92a5eb 3,34
+packages/ui/src/react/primitives/search-input/search-input.stories.tsx
+  s_88273e794d2771::t_f694aff97e2800 1-2,5,83,88
+packages/ui/src/react/primitives/select/index.tsx
+  s_88273e794d2771::t_3d77b7069dc69f 6,9,167-177
+packages/ui/src/react/primitives/select/select.css.ts
+  s_88273e794d2771::t_9ef95e45c41387 11,40,67,78,83
+packages/ui/src/react/primitives/select/select.stories.tsx
+  s_88273e794d2771::t_a69f20fde0cdc2 2-4,17-26,34-51,59-68,76-83,91-97,99-102
+packages/ui/src/react/primitives/sheet/index.tsx
+  s_88273e794d2771::t_44efc38449e74b 2-3,13,132-141
+packages/ui/src/react/primitives/sheet/sheet.css.ts
+  s_88273e794d2771::t_80edc394362628 12,36,86
+packages/ui/src/react/primitives/sheet/sheet.stories.tsx
+  s_88273e794d2771::t_5b582d7a39f5e6 1-3,18-24,29-35,41-47,73-78,84-90,97-102,108-114,127,132-134
+packages/ui/src/react/primitives/split-button/index.tsx
+  s_88273e794d2771::t_f5266492bc295e 13,17,102-103,113-114,116,119,121-122
+packages/ui/src/react/primitives/split-button/split-button.css.ts
+  s_88273e794d2771::t_ae2954ae398acd 3,16,25,34
+packages/ui/src/react/primitives/switch/switch.stories.tsx
+  s_88273e794d2771::t_ee0df7965d6585 1-2,4-5,25,50-51
+packages/ui/src/react/primitives/tabs/tabs.stories.tsx
+  s_88273e794d2771::t_3ec263abffb36e 1,4,17-23,28-29,34-35,40-41,66,69-75
+packages/ui/src/react/primitives/tabs/tabs.tsx
+  s_88273e794d2771::t_ed763e1d21b517 9,56-61
+packages/ui/src/react/primitives/textarea/textarea.stories.tsx
+  s_88273e794d2771::t_f0b321678d6f94 1-2,4
+packages/ui/src/react/primitives/theme-provider.tsx
+  s_88273e794d2771::t_adc474b7048d93 142-146,148,217-221
+packages/ui/src/react/primitives/toggle/index.tsx
+  s_88273e794d2771::t_e218fe4144a788 15,36,63-66
+packages/ui/src/react/primitives/toggle/toggle.css.ts
+  s_88273e794d2771::t_df318f15abe898 3,10
+packages/ui/src/react/primitives/toggle/toggle.stories.tsx
+  s_88273e794d2771::t_a79df4451540d3 1-2,5,33-34,36-37,39-40,42-43,71,81-82,84-85,87-88
+packages/ui/src/react/primitives/trigger-button/trigger-button.css.ts
+  s_88273e794d2771::t_92e9c43e12b5a7 3,19,28
+packages/ui/src/react/primitives/trigger-button/trigger-button.stories.tsx
+  s_88273e794d2771::t_bd23cdb857d179 1,3-6,28-37,43-50,78,82-90
+packages/ui/src/react/primitives/typography/typography.variants.css.ts
+  s_88273e794d2771::t_cb4444fa786fca 7,18-21,24-27,30-32,34,37-40,43-46,49-52,55-58,61-64,67-70,73-76,79-82
+packages/ui/src/react/stories/palette.stories.tsx
+  s_88273e794d2771::t_a1ee9edbe0a478 20,22,42,65,67,84,147-148
+packages/ui/src/react/stories/rounding.stories.tsx
+  s_88273e794d2771::t_c5fd6217bf5463 36
+packages/ui/src/react/story-layout.css.ts
+  s_88273e794d2771::t_94320062b08dd0 13-14,85,117,127,131-132,135-136,140-141
+packages/ui/src/styles/base.css
+  s_88273e794d2771::t_bf2b676ede7d25 1-2,8-13,16-56
+packages/ui/src/styles/effects/effects.css
+  s_88273e794d2771::t_7a3f3e093a9828 22,27-31,42,49-50,52,62-63,65
+packages/ui/src/styles/global.css.ts
+  s_88273e794d2771::t_1eed7199663102 29-32
+packages/ui/src/styles/recipes/control.css.ts
+  s_88273e794d2771::t_55d7a8c03826c8 15,28,31,52-53
+packages/ui/src/styles/recipes/field-shell.css.ts
+  s_88273e794d2771::t_76e1453c5e2a90 14,17
+packages/ui/src/styles/recipes/input.css.ts
+  s_88273e794d2771::t_25a53ce61377d0 12,20,40
+packages/ui/src/styles/recipes/menu-item.css.ts
+  s_88273e794d2771::t_c851e54f621a54 20,32,37
+packages/ui/src/styles/recipes/popup-surface.css.ts
+  s_88273e794d2771::t_22157cdf1ce214 26,32
+packages/ui/src/styles/reset.css.ts
+  s_88273e794d2771::t_f485521cbca9f5 10,26
+packages/ui/src/styles/typography.css
+  s_88273e794d2771::t_99409fde8947c4 18-21,25-28,32-36,40-43,49-52,56-59,63-66,72-75,79-82,86-89,95-98
+packages/ui/src/styles/utilities/cx.ts
+  s_88273e794d2771::t_a53fc4178638f7 17
+packages/ui/src/theme/__generated__/semantic.css
+  s_88273e794d2771::t_7e8126d52e3645 6-74,78-146,150-218,222-290
+packages/ui/src/theme/__generated__/shiki-themes.gen.ts
+  s_88273e794d2771::t_740cc864206f9f 10-23,29,45,57,63,74,88,94,105,117,123,129,139
+packages/ui/src/theme/__generated__/theme.css
+  s_88273e794d2771::t_83b98a1ebf288e 8-335,339-666,670-997,1001-1328,1332-1659
+packages/ui/src/theme/core/codegen/emit-semantic-css.ts
+  s_88273e794d2771::t_8f8de544d7067a 9,14
+packages/ui/src/theme/core/codegen/emit-shiki.ts
+  s_88273e794d2771::t_caff0f510afc1c 15,22,34-47
+packages/ui/src/theme/core/contract/contract.css.ts
+  s_88273e794d2771::t_339dbf4708e829 16,28-29
+packages/ui/src/theme/core/contract/namespace.ts
+  s_88273e794d2771::t_44477413e3c094 1-41
+packages/ui/src/theme/core/contract/semantic-template.ts
+  s_88273e794d2771::t_0432e039865e8d 134-136,139-140
+packages/ui/src/theme/core/generate/resolve.ts
+  s_88273e794d2771::t_4720d3446f9211 14,39,43,78-80,115-119,134-138,150,152,180,182
+packages/ui/src/theme/core/generate/syntax.ts
+  s_88273e794d2771::t_025a85be423609 19,110,115,117-121
+packages/ui/src/theme/core/theme.test.ts
+  s_88273e794d2771::t_136f3191b57431 15,97,118-119,125-126,133-134,141-143,155,194,209-210,217-218,226-227,242-244,253-254,257,266,279,293-294,308-309,324,340,345-348
+packages/ui/src/theme/tokens.css.ts
+  s_88273e794d2771::t_dab5c23cc372c0 18,69,131-185
+packages/ui/vite.lib.config.ts
+  s_88273e794d2771::t_f89b1304256a8d 40
+pnpm-lock.yaml
+  s_88273e794d2771::t_73818f37bd9dab 18-19,336-338,369-371,390-395,455-456,463-465,495-499,501-502,559-561,671-673,676-681,688-689,1886-1890,4716-4719,5577-5580,6310-6313,6504-6507,7816-7819,7920-7923,7996-8001,8007,8009-8010,8016-8025,8034,9042-9043,11773-11774,12747-12748,13746-13754,14033-14034,15498-15499,15619-15623
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_88273e794d2771::t_bc809ff9732e3e 9,294-441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "4c9db93c07fa142326c06d8334bc22bfae658596",
+  "prompts": {},
+  "sessions": {
+    "s_88273e794d2771": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f1ee8-657c-747c-8df6-c89942d9f645",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
