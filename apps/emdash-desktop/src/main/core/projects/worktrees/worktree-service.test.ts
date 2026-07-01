@@ -6,6 +6,7 @@ import { ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import { LocalWorktreeHost } from './hosts/local-worktree-host';
 import type { WorktreeHost } from './hosts/worktree-host';
@@ -27,9 +28,12 @@ async function initRepo(dir: string): Promise<void> {
   await git(['commit', '--allow-empty', '-m', 'init'], { cwd: dir });
 }
 
-function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider {
+function makeSettings(
+  preservePatterns: string[] = [],
+  settings: Partial<ProjectSettings> = {}
+): ProjectSettingsProvider {
   return {
-    get: async () => ({ preservePatterns }),
+    get: async () => ({ preservePatterns, ...settings }),
     update: async () => ok(),
     patch: async () => ok(),
     ensure: async () => {},
@@ -422,9 +426,112 @@ describe('WorktreeService', () => {
       if (!result.success) throw new Error('expected success');
       expect(fs.readFileSync(path.join(result.data, '.env'), 'utf8')).toBe('SECRET=abc');
     });
+
+    it('runs a custom create command with documented variables', async () => {
+      const branchName = 'task/custom-create';
+      await git(['branch', branchName], { cwd: repoDir });
+      const logPath = path.join(poolDir, 'create.log');
+      const svc = makeService({
+        projectSettings: makeSettings([], {
+          worktreeLifecycle: {
+            createCommand: [
+              'git worktree add "$EMDASH_TARGET_DIR" "$EMDASH_BRANCH_NAME"',
+              `printf '%s|%s|%s|%s' "$EMDASH_PROJECT_ID" "$EMDASH_TASK_ID" "$EMDASH_WORKSPACE_ID" "$EMDASH_PROJECT_PATH" > ${JSON.stringify(logPath)}`,
+            ].join(' && '),
+          },
+        }),
+      });
+
+      const result = await svc.checkoutExistingBranch(branchName, {
+        lifecycleContext: {
+          projectId: 'project-1',
+          taskId: 'task-1',
+          workspaceId: 'workspace-1',
+        },
+      });
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(path.join(poolDir, 'task', 'custom-create'));
+      expect(fs.readFileSync(logPath, 'utf8')).toBe(`project-1|task-1|workspace-1|${repoDir}`);
+    });
+
+    it('returns setup failure when a custom create command does not create a worktree', async () => {
+      const branchName = 'task/custom-create-missing';
+      await git(['branch', branchName], { cwd: repoDir });
+      const svc = makeService({
+        projectSettings: makeSettings([], {
+          worktreeLifecycle: {
+            createCommand: 'true',
+          },
+        }),
+      });
+
+      const result = await svc.checkoutExistingBranch(branchName, {
+        lifecycleContext: {
+          projectId: 'project-1',
+          taskId: 'task-1',
+          workspaceId: 'workspace-1',
+        },
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) throw new Error('expected failure');
+      expect(result.error.type).toBe('worktree-setup-failed');
+      if (result.error.type !== 'worktree-setup-failed') throw new Error('expected setup failure');
+      expect(String(result.error.cause)).toContain('was not created');
+    });
   });
 
   describe('removeWorktree', () => {
+    it('runs a custom teardown command with the worktree path', async () => {
+      const branchName = 'task/custom-teardown';
+      await git(['branch', branchName], { cwd: repoDir });
+      const worktreePath = path.join(poolDir, branchName);
+      await git(['worktree', 'add', worktreePath, branchName], { cwd: repoDir });
+      const logPath = path.join(poolDir, 'teardown.log');
+      const svc = makeService({
+        projectSettings: makeSettings([], {
+          worktreeLifecycle: {
+            teardownCommand: `printf '%s|%s' "$EMDASH_BRANCH_NAME" "$EMDASH_WORKTREE_PATH" > ${JSON.stringify(logPath)} && git worktree remove "$EMDASH_WORKTREE_PATH"`,
+          },
+        }),
+      });
+
+      await svc.removeWorktree(worktreePath, {
+        branchName,
+        projectId: 'project-1',
+        taskId: 'task-1',
+        workspaceId: 'workspace-1',
+      });
+
+      expect(fs.existsSync(worktreePath)).toBe(false);
+      expect(fs.readFileSync(logPath, 'utf8')).toBe(`${branchName}|${worktreePath}`);
+    });
+
+    it('fails custom teardown when the command leaves the worktree path behind', async () => {
+      const branchName = 'task/custom-teardown-stuck';
+      await git(['branch', branchName], { cwd: repoDir });
+      const worktreePath = path.join(poolDir, branchName);
+      await git(['worktree', 'add', worktreePath, branchName], { cwd: repoDir });
+      const svc = makeService({
+        projectSettings: makeSettings([], {
+          worktreeLifecycle: {
+            teardownCommand: 'true',
+          },
+        }),
+      });
+
+      await expect(
+        svc.removeWorktree(worktreePath, {
+          branchName,
+          projectId: 'project-1',
+          taskId: 'task-1',
+          workspaceId: 'workspace-1',
+        })
+      ).rejects.toThrow('still exists');
+    });
+
     it('prunes git worktree metadata when directory removal fails', async () => {
       const worktreePath = path.join(poolDir, 'task', 'stuck-remove');
       const exec = vi.fn(async () => ({ stdout: '', stderr: '' }));

@@ -21,7 +21,7 @@ import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { WorkspaceType } from '../workspaces/workspace-factory';
 import type { ProjectSettingsProvider } from './settings/provider';
 import type { WorktreeHost } from './worktrees/hosts/worktree-host';
-import type { WorktreeService } from './worktrees/worktree-service';
+import type { WorktreeLifecycleContext, WorktreeService } from './worktrees/worktree-service';
 
 export type { WorkspaceProviderData };
 
@@ -113,10 +113,24 @@ export class ProjectProvider implements IReleasable, IDisposable {
     return this.worktreeService.getWorktree(branchName);
   }
 
-  async removeTaskWorktree(taskBranch: string): Promise<void> {
-    const worktreePath = await this.worktreeService.getWorktree(taskBranch);
+  async hasCustomWorktreeTeardownCommand(): Promise<boolean> {
+    return this.worktreeService.hasCustomTeardownCommand();
+  }
+
+  async removeTaskWorktree(
+    taskBranch: string,
+    options: { worktreePath?: string; lifecycleContext?: WorktreeLifecycleContext } = {}
+  ): Promise<void> {
+    const worktreePath =
+      options.worktreePath ?? (await this.worktreeService.getWorktree(taskBranch));
     if (worktreePath) {
-      await this.worktreeService.removeWorktree(worktreePath);
+      await this.worktreeService.removeWorktree(worktreePath, {
+        projectId: options.lifecycleContext?.projectId ?? this.projectId,
+        taskId: options.lifecycleContext?.taskId ?? '',
+        workspaceId: options.lifecycleContext?.workspaceId ?? '',
+        sourceBranch: options.lifecycleContext?.sourceBranch,
+        branchName: taskBranch,
+      });
     }
   }
 

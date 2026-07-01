@@ -4,6 +4,7 @@ import type {
   ProjectSettings,
   ShareableProjectSettingsWriteField,
 } from '@shared/core/project-settings/project-settings';
+import { isSafeRelativeWorktreeWorkingDirectory } from '@shared/core/project-settings/project-settings';
 import {
   SHAREABLE_FIELD_DESCRIPTOR_BY_ID,
   SHAREABLE_FIELD_DESCRIPTORS,
@@ -26,6 +27,9 @@ export type FormState = {
   githubAccountId: string | null | undefined;
   provisionCommand: string;
   terminateCommand: string;
+  worktreeCreateCommand: string;
+  worktreeTeardownCommand: string;
+  worktreeWorkingDirectory: string;
 };
 
 export type FormUpdate = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
@@ -33,6 +37,8 @@ export type FormUpdate = <K extends keyof FormState>(key: K, value: FormState[K]
 export type WorkspaceProviderValidationErrors = Partial<
   Record<'provisionCommand' | 'terminateCommand', string>
 >;
+
+export type WorktreeLifecycleValidationErrors = Partial<Record<'worktreeWorkingDirectory', string>>;
 
 function normalizeScript(val: string | string[] | undefined): string {
   if (Array.isArray(val)) return val.join('\n');
@@ -76,6 +82,9 @@ export function settingsToForm(
     githubAccountId: Object.hasOwn(s, 'githubAccountId') ? (s.githubAccountId ?? null) : undefined,
     provisionCommand: s.workspaceProvider?.provisionCommand ?? '',
     terminateCommand: s.workspaceProvider?.terminateCommand ?? '',
+    worktreeCreateCommand: s.worktreeLifecycle?.createCommand ?? '',
+    worktreeTeardownCommand: s.worktreeLifecycle?.teardownCommand ?? '',
+    worktreeWorkingDirectory: s.worktreeLifecycle?.workingDirectory ?? '',
   };
 }
 
@@ -98,8 +107,14 @@ export function formToSettings(f: FormState): ProjectSettings {
   };
   const provisionCommand = blankToUndefined(f.provisionCommand);
   const terminateCommand = blankToUndefined(f.terminateCommand);
+  const worktreeCreateCommand = blankToUndefined(f.worktreeCreateCommand);
+  const worktreeTeardownCommand = blankToUndefined(f.worktreeTeardownCommand);
+  const worktreeWorkingDirectory = blankToUndefined(f.worktreeWorkingDirectory);
   const githubAccountId = githubAccountIdToSettings(f.githubAccountId);
   const hasScripts = Object.values(scripts).some((value) => value !== undefined);
+  const hasWorktreeLifecycle = Boolean(
+    worktreeCreateCommand || worktreeTeardownCommand || worktreeWorkingDirectory
+  );
   return {
     preservePatterns: preservePatterns.length > 0 ? preservePatterns : undefined,
     shellSetup: blankToUndefined(f.shellSetup),
@@ -123,6 +138,13 @@ export function formToSettings(f: FormState): ProjectSettings {
             terminateCommand,
           }
         : undefined,
+    worktreeLifecycle: hasWorktreeLifecycle
+      ? {
+          createCommand: worktreeCreateCommand,
+          teardownCommand: worktreeTeardownCommand,
+          workingDirectory: worktreeWorkingDirectory,
+        }
+      : undefined,
   };
 }
 
@@ -141,6 +163,15 @@ export function validateWorkspaceProviderCommands(
     terminateCommand: hasTerminateCommand
       ? undefined
       : 'Terminate command is required when provision command is set.',
+  };
+}
+
+export function validateWorktreeLifecycleSettings(
+  form: FormState
+): WorktreeLifecycleValidationErrors {
+  if (isSafeRelativeWorktreeWorkingDirectory(form.worktreeWorkingDirectory)) return {};
+  return {
+    worktreeWorkingDirectory: 'Use a relative path inside the worktree.',
   };
 }
 

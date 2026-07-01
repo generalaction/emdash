@@ -13,6 +13,7 @@ import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/ta
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
+import { isSafeRelativeWorktreeWorkingDirectory } from '@shared/core/project-settings/project-settings';
 import type { Task, ProvisionWorkspaceError } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
@@ -107,7 +108,14 @@ export class WorkspaceBootstrapService {
     if (workspaceRow.path && workspaceBranchName && isWorktreeWorkspace && !isByoi) {
       const serveResult = await project.worktreeService.serveBranchWorktree(
         workspaceBranchName,
-        workspaceSourceBranch
+        workspaceSourceBranch,
+        undefined,
+        {
+          projectId: project.projectId,
+          taskId: task.id,
+          workspaceId: workspaceRow.id,
+          sourceBranch: workspaceSourceBranch?.branch,
+        }
       );
       if (!serveResult.success) {
         const provisionError = mapWorktreeErrorToProvisionError(
@@ -208,6 +216,12 @@ export class WorkspaceBootstrapService {
       host: project.worktreeHost,
       projectSettings: project.settings,
       worktreeService: project.worktreeService,
+      worktreeLifecycleContext: {
+        projectId: project.projectId,
+        taskId: task.id,
+        workspaceId: workspaceRow.id,
+        sourceBranch: intentSourceBranch?.branch,
+      },
     };
 
     const executor = new LocalWorkspaceSetupExecutor(stepCtx);
@@ -325,6 +339,9 @@ export class WorkspaceBootstrapService {
     workspaceSourceBranch?: GitBranchRef
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
     const type = project.defaultWorkspaceType;
+    const taskWorkDirResult = await this.resolveTaskWorkDir(project, workDir);
+    if (!taskWorkDirResult.success) return taskWorkDirResult;
+    const taskWorkDir = taskWorkDirResult.data;
 
     emitTaskProvisionProgress({
       taskId: task.id,
@@ -340,7 +357,7 @@ export class WorkspaceBootstrapService {
         project.projectId,
         createWorkspaceFactory(workspaceId, type, {
           task,
-          workDir,
+          workDir: taskWorkDir,
           projectId: project.projectId,
           projectPath: project.repoPath,
           workspaceRuntime: {
@@ -401,6 +418,36 @@ export class WorkspaceBootstrapService {
         await workspaceRegistry.teardown(workspaceId, 'terminate').catch(() => {});
       }
     }
+  }
+
+  private async resolveTaskWorkDir(
+    project: ProjectProvider,
+    worktreePath: string
+  ): Promise<Result<string, ProvisionWorkspaceError>> {
+    const workingDirectory = (await project.settings.get()).worktreeLifecycle?.workingDirectory;
+    const relativePath = workingDirectory?.trim();
+    if (!relativePath) return ok(worktreePath);
+
+    if (!isSafeRelativeWorktreeWorkingDirectory(relativePath)) {
+      return err({
+        type: 'setup-failed',
+        stepKind: 'workspace-acquire',
+        stepErrorType: 'error',
+        message: 'Configured agent working directory must stay inside the worktree.',
+      });
+    }
+
+    const resolvedPath = project.worktreeHost.pathApi.join(worktreePath, relativePath);
+    if (!(await project.worktreeHost.existsAbsolute(resolvedPath))) {
+      return err({
+        type: 'setup-failed',
+        stepKind: 'workspace-acquire',
+        stepErrorType: 'error',
+        message: `Configured agent working directory does not exist: ${relativePath}`,
+      });
+    }
+
+    return ok(resolvedPath);
   }
 
   /**

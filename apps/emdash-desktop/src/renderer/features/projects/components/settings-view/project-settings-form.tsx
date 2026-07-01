@@ -19,6 +19,7 @@ import { ProjectSettingsFooter } from './project-settings-footer';
 import { BaseProjectSettingsSection } from './sections/base-project-settings-section';
 import { ShareableSettingsSection } from './sections/shareable-project-settings-section';
 import { WorkspaceProviderSettingsSection } from './sections/workspace-provider-settings-section';
+import { WorktreeLifecycleSettingsSection } from './sections/worktree-lifecycle-settings-section';
 import { useProjectSettingsForm } from './use-project-settings-form';
 
 export interface ProjectSettingsFormProps {
@@ -85,6 +86,11 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             projectType={projectType}
             remotes={remotes}
             worktreeDirectoryError={formModel.worktreeDirectoryError}
+            update={formModel.update}
+          />
+          <WorktreeLifecycleSettingsSection
+            form={formModel.form}
+            errors={formModel.worktreeLifecycleErrors}
             update={formModel.update}
           />
           <WorkspaceProviderSettingsSection

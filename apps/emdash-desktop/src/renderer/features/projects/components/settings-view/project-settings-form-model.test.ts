@@ -8,6 +8,7 @@ import {
   normalizeShareableFieldValue,
   settingsToForm,
   validateWorkspaceProviderCommands,
+  validateWorktreeLifecycleSettings,
   type FormState,
 } from './project-settings-form-model';
 
@@ -31,6 +32,9 @@ function makeForm(overrides: Partial<FormState> = {}): FormState {
     githubAccountId: undefined,
     provisionCommand: '',
     terminateCommand: '',
+    worktreeCreateCommand: '',
+    worktreeTeardownCommand: '',
+    worktreeWorkingDirectory: '',
     ...overrides,
   };
 }
@@ -58,6 +62,11 @@ describe('project settings form model', () => {
           provisionCommand: './provision.sh',
           terminateCommand: './terminate.sh',
         },
+        worktreeLifecycle: {
+          createCommand: 'graft create "$EMDASH_BRANCH_NAME" "$EMDASH_TARGET_DIR"',
+          teardownCommand: 'graft remove "$EMDASH_WORKTREE_PATH"',
+          workingDirectory: 'services/web',
+        },
       },
       'origin',
       [origin, upstream]
@@ -79,6 +88,9 @@ describe('project settings form model', () => {
       githubAccountId: undefined,
       provisionCommand: './provision.sh',
       terminateCommand: './terminate.sh',
+      worktreeCreateCommand: 'graft create "$EMDASH_BRANCH_NAME" "$EMDASH_TARGET_DIR"',
+      worktreeTeardownCommand: 'graft remove "$EMDASH_WORKTREE_PATH"',
+      worktreeWorkingDirectory: 'services/web',
     });
   });
 
@@ -117,6 +129,9 @@ describe('project settings form model', () => {
           pushRemote: '',
           provisionCommand: ' ./provision.sh ',
           terminateCommand: ' ./terminate.sh ',
+          worktreeCreateCommand: ' graft create "$EMDASH_BRANCH_NAME" "$EMDASH_TARGET_DIR" ',
+          worktreeTeardownCommand: ' graft remove "$EMDASH_WORKTREE_PATH" ',
+          worktreeWorkingDirectory: ' services/web ',
         })
       )
     ).toEqual({
@@ -138,7 +153,24 @@ describe('project settings form model', () => {
         provisionCommand: './provision.sh',
         terminateCommand: './terminate.sh',
       },
+      worktreeLifecycle: {
+        createCommand: 'graft create "$EMDASH_BRANCH_NAME" "$EMDASH_TARGET_DIR"',
+        teardownCommand: 'graft remove "$EMDASH_WORKTREE_PATH"',
+        workingDirectory: 'services/web',
+      },
     });
+  });
+
+  it('omits worktree lifecycle settings when custom fields are blank', () => {
+    expect(
+      formToSettings(
+        makeForm({
+          worktreeCreateCommand: ' ',
+          worktreeTeardownCommand: ' ',
+          worktreeWorkingDirectory: ' ',
+        })
+      )
+    ).toEqual({ tmux: false });
   });
 
   it('preserves configured GitHub account ids in form state', () => {
@@ -192,6 +224,22 @@ describe('project settings form model', () => {
         })
       )
     ).toEqual({});
+  });
+
+  it('rejects unsafe worktree working directories', () => {
+    expect(
+      validateWorktreeLifecycleSettings(makeForm({ worktreeWorkingDirectory: 'services/web' }))
+    ).toEqual({});
+    expect(
+      validateWorktreeLifecycleSettings(makeForm({ worktreeWorkingDirectory: '../outside' }))
+    ).toEqual({
+      worktreeWorkingDirectory: 'Use a relative path inside the worktree.',
+    });
+    expect(
+      validateWorktreeLifecycleSettings(makeForm({ worktreeWorkingDirectory: '/tmp/repo' }))
+    ).toEqual({
+      worktreeWorkingDirectory: 'Use a relative path inside the worktree.',
+    });
   });
 
   it('normalizes shareable field values for comparison', () => {

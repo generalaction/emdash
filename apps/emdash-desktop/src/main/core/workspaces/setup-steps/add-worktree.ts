@@ -7,7 +7,12 @@ export async function execute(
   ctx: StepContext
 ): Promise<Result<Step.Success, Step.Error>> {
   const { branchName } = args;
-  const result = await ctx.worktreeService.serveBranchWorktree(branchName, undefined, false);
+  const result = await ctx.worktreeService.serveBranchWorktree(
+    branchName,
+    undefined,
+    false,
+    ctx.worktreeLifecycleContext
+  );
 
   if (result.success) {
     return ok({ path: result.data });
