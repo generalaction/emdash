@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/renderer/lib/components/add-ssh-conn-modal.tsx
+  s_959f16b115dfac::t_9331ee5eaf3654 133-138,161,376
+  s_959f16b115dfac::t_5568fe8d9edea3 334-340,345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "fc8d8c856f3d1d4bcb79d9caa97724d6a7cb6758",
+  "prompts": {},
+  "sessions": {
+    "s_959f16b115dfac": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f1e3c-ddec-7c2c-89eb-4f54276eb2ad",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
