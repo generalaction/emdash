@@ -410,8 +410,8 @@ describe('AcpSessionRuntime – permission requests', () => {
     const permPromise = Promise.resolve(
       h.client().requestPermission(makePermissionParams('session-perm'))
     ).then(() => {
-        settled = true;
-      });
+      settled = true;
+    });
 
     await Promise.resolve();
     expect(settled).toBe(false);
