@@ -4,40 +4,32 @@ import type { AcpAgentApi, AcpClientFactory } from '@emdash/core/agents/plugins'
 import { describe, expect, it, vi } from 'vitest';
 import { pluginRegistry } from '../../registry';
 
-describe('claude acp capability', () => {
+describe('codex acp capability', () => {
   it('declares acp: { kind: supported }', () => {
-    const claude = pluginRegistry.get('claude');
-    expect(claude).toBeDefined();
-    expect(claude!.capabilities.acp.kind).toBe('supported');
-  });
-
-  it('all non-ACP plugins default acp to { kind: none }', () => {
-    const acpProviders = new Set(['claude', 'codex']);
-    for (const p of pluginRegistry.getAll()) {
-      if (acpProviders.has(p.metadata.id)) continue;
-      expect(p.capabilities.acp.kind).toBe('none');
-    }
+    const codex = pluginRegistry.get('codex');
+    expect(codex).toBeDefined();
+    expect(codex!.capabilities.acp.kind).toBe('supported');
   });
 });
 
-describe('claude acp behavior', () => {
-  const claude = () => pluginRegistry.get('claude')!;
-  const acpBehavior = () => claude().behavior.acp!;
+describe('codex acp behavior', () => {
+  const codex = () => pluginRegistry.get('codex')!;
+  const acpBehavior = () => codex().behavior.acp!;
 
   it('behavior.acp is defined', () => {
     expect(acpBehavior()).toBeDefined();
   });
 
   describe('buildSpawn', () => {
-    const spawnCtx = { cwd: '/home/user/worktrees/task-1', env: {}, cli: '/usr/local/bin/claude' };
+    const spawnCtx = { cwd: '/home/user/worktrees/task-1', env: {}, cli: '/usr/local/bin/codex' };
 
-    it('passes CLAUDE_CODE_EXECUTABLE from ctx.cli', () => {
+    it('passes CODEX_PATH from ctx.cli', () => {
       const result = acpBehavior().buildSpawn(spawnCtx);
-      expect(result.env?.CLAUDE_CODE_EXECUTABLE).toBe('/usr/local/bin/claude');
+      expect(result.env?.CODEX_PATH).toBe('/usr/local/bin/codex');
     });
 
     it('sets ELECTRON_RUN_AS_NODE=1', () => {
-      const result = acpBehavior().buildSpawn({ ...spawnCtx, cli: '/x/claude' });
+      const result = acpBehavior().buildSpawn({ ...spawnCtx, cli: '/x/codex' });
       expect(result.env?.ELECTRON_RUN_AS_NODE).toBe('1');
     });
 
@@ -49,7 +41,7 @@ describe('claude acp behavior', () => {
     it('provides a non-empty args array pointing at the adapter entry', () => {
       const result = acpBehavior().buildSpawn(spawnCtx);
       expect(result.args.length).toBeGreaterThan(0);
-      expect(result.args[0]).toContain('claude-agent-acp');
+      expect(result.args[0]).toContain('codex-acp');
     });
   });
 
