@@ -168,7 +168,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
             <Field>
               <div className="flex items-center gap-2">
                 <Switch checked={useAcp} onCheckedChange={setUseAcpOverride} />
-                <FieldLabel>Use ACP</FieldLabel>
+                <FieldLabel>Use chat UI</FieldLabel>
               </div>
             </Field>
           ) : null}

@@ -360,37 +360,40 @@ export function ChatRoot(props: ChatRootProps) {
   // always short (≤ a handful of items per streaming turn).
   const committedIndexById = new Map<string, number>();
   let lastCommitted: readonly ChatItem[] = [];
+  // Identity of the model this effect last built from. A change signals a
+  // view.setModel swap and drives the snapshot + incremental-cache reset.
+  let lastState: ChatState | undefined;
   const [committedUnitsVersion, setCommittedUnitsVersion] = createSignal(0);
   // Stable empty array passed to makeUnitsView when we need a committed-only
   // view. Must not change identity so memos don't re-run on each access.
   const NO_ACTIVE_UNITS: ReturnType<typeof flattenTier> = [];
 
-  // ── Model-swap reset (must be created BEFORE the incremental committed effect)
-  // When state() changes (view.setModel), snapshot the OUTGOING model's heights
-  // BEFORE clearing committedUnitsArr (which still reflects the outgoing model).
-  // Then clear the incremental cache so the committed effect re-seeds from scratch.
-  // The deferred on() ensures this only fires on subsequent changes, not on mount.
-  createEffect(
-    on(
-      state,
-      (_next, prevState) => {
-        // Snapshot outgoing model while committedUnitsArr and virt still reflect it.
-        if (prevState) {
-          snapshotInto(prevState);
-        }
-        committedUnitsArr = [];
-        committedIndexById.clear();
-        lastCommitted = [];
-        // Do NOT bump committedUnitsVersion here — the incremental effect below
-        // runs next (Solid executes effects in creation order) and will bump it
-        // after rebuilding from the new model's committed items.
-      },
-      { defer: true }
-    )
-  );
-
+  // ── Committed-tier build + model-swap reset (single effect) ────────────────
+  // This effect owns BOTH the incremental committed build and the model-swap
+  // reset. They were previously split across two effects that relied on Solid
+  // running them in creation order; that assumption is unsafe — Solid notifies
+  // effects in observer (subscription) order, which shifts as each effect
+  // re-subscribes to state() on every run. On a fast tab swap the reset could
+  // run AFTER the rebuild and wipe the freshly built committedUnitsArr, leaving
+  // an empty transcript until the next named event. Folding both into one
+  // computation makes the ordering deterministic: on a state-identity change we
+  // snapshot the outgoing model and clear the incremental cache first, then
+  // rebuild from the incoming model — all within the same synchronous run.
   createEffect(() => {
-    const next = state().transcript.state.committed;
+    const s = state();
+    const next = s.transcript.state.committed;
+
+    if (s !== lastState) {
+      // Model swap: snapshot the outgoing model's heights while committedUnitsArr
+      // and virt still reflect it, then clear the incremental cache so the build
+      // below re-seeds from scratch for the incoming model.
+      if (lastState) snapshotInto(lastState);
+      committedUnitsArr = [];
+      committedIndexById.clear();
+      lastCommitted = [];
+      lastState = s;
+    }
+
     const prev = lastCommitted;
     const ctx = segmentCtx();
 

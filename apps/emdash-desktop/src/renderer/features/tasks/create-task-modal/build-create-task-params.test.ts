@@ -20,6 +20,8 @@ function makeInitialConversationState(
     setIssueContextEditorOpen: () => {},
     model: null,
     setModel: () => {},
+    useChatUi: false,
+    setUseChatUi: () => {},
   };
 }
 

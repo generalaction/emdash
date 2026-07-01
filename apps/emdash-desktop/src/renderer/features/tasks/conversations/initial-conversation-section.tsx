@@ -25,6 +25,7 @@ import {
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { providerSupportsAcp } from '@shared/core/agents/agent-acp';
 import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { LinkedIssue } from '@shared/core/linked-issue';
@@ -51,6 +52,9 @@ export type InitialConversationState = {
   model: string | null;
   setModel: (model: string | null) => void;
   connectionId?: string;
+  /** Whether to start this conversation as an ACP chat UI conversation. */
+  useChatUi: boolean;
+  setUseChatUi: (v: boolean) => void;
 };
 
 interface InitialConversationStateOptions {
@@ -71,6 +75,7 @@ export function useInitialConversationState(
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
   const [model, setModel] = useState<string | null>(null);
+  const [useChatUiOverride, setUseChatUiOverride] = useState(false);
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
   const [prevProviderId, setPrevProviderId] = useState(providerId);
@@ -87,13 +92,17 @@ export function useInitialConversationState(
     setAutoApproveOverride(null);
     setIssueContextEditorOpen(false);
     setModel(null);
+    setUseChatUiOverride(false);
   } else if (providerChanged) {
     setPrevProviderId(providerId);
     setModel(null);
+    setUseChatUiOverride(false);
   }
 
   const autoApproveSupported = providerId ? providerSupportsAutoApprove(providerId) : false;
   const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
+  const acpSupported = providerId ? providerSupportsAcp(providerId) : false;
+  const useChatUi = acpSupported && useChatUiOverride;
 
   return {
     provider: providerId,
@@ -110,6 +119,8 @@ export function useInitialConversationState(
     model,
     setModel,
     connectionId,
+    useChatUi,
+    setUseChatUi: setUseChatUiOverride,
   };
 }
 
@@ -175,10 +186,16 @@ export function InitialConversationField({
   }, [issueContextKey]);
 
   const canToggleAutoApprove = state.provider ? providerSupportsAutoApprove(state.provider) : false;
+  const canToggleChatUi = state.provider ? providerSupportsAcp(state.provider) : false;
 
   const handleToggleAutoApprove = () => {
     if (!state.provider) return;
     state.setAutoApprove(!state.autoApprove);
+  };
+
+  const handleToggleChatUi = () => {
+    if (!state.provider) return;
+    state.setUseChatUi(!state.useChatUi);
   };
 
   const handleActionClick = async (text: string) => {
@@ -211,6 +228,23 @@ export function InitialConversationField({
             contentClassName="w-64"
           />
           <div className="flex items-center gap-2">
+            {canToggleChatUi ? (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={handleToggleChatUi}
+                    disabled={!state.provider}
+                    data-active={state.useChatUi || undefined}
+                    className="transition-colors data-active:bg-background-2 data-active:text-foreground"
+                  >
+                    Chat UI
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Use chat UI (ACP)</TooltipContent>
+              </Tooltip>
+            ) : null}
             {modelOptions ? (
               <Select
                 value={state.model ?? ''}
