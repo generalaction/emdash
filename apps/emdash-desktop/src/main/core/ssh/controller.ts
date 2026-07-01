@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import {
   projects,
@@ -82,6 +82,21 @@ export const sshController = createRPCController({
       Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }
   ): Promise<SshConfig> => {
     const connectionId = config.id ?? randomUUID();
+    const existingConnectionWithName = await db
+      .select({ id: sshConnectionsTable.id })
+      .from(sshConnectionsTable)
+      .where(
+        config.id
+          ? and(eq(sshConnectionsTable.name, config.name), ne(sshConnectionsTable.id, connectionId))
+          : eq(sshConnectionsTable.name, config.name)
+      )
+      .limit(1);
+
+    if (existingConnectionWithName.length > 0) {
+      throw new Error(
+        `An SSH connection named “${config.name}” already exists. Choose a different name.`
+      );
+    }
 
     // Only update stored credentials when a non-empty value is provided.
     // On edits, leaving a field blank means "keep the existing credential".
