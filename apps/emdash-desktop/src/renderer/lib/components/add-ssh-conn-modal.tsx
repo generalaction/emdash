@@ -130,6 +130,12 @@ export function AddSshConnModal({
     initialConfig?.sshConfigAlias ?? ''
   );
 
+  const findDuplicateConnection = (name: string) =>
+    sshConnections.connections.find(
+      (connection) =>
+        connection.name === name && (!initialConfig || connection.id !== initialConfig.id)
+    );
+
   const form = useForm({
     defaultValues: {
       name: initialConfig?.name ?? '',
@@ -152,11 +158,7 @@ export function AddSshConnModal({
     onSubmit: async ({ value }) => {
       setIsSubmitting(true);
       try {
-        const duplicateConnection = sshConnections.connections.find(
-          (connection) =>
-            connection.name === value.name && (!initialConfig || connection.id !== initialConfig.id)
-        );
-        if (duplicateConnection) {
+        if (findDuplicateConnection(value.name)) {
           setTestState('idle');
           setTestResult(null);
           return;
@@ -329,19 +331,18 @@ export function AddSshConnModal({
                 Cancel
               </Button>
             )}
-            <form.Subscribe selector={(state) => state.values.name}>
-              {(name) => {
-                const duplicateConnection = sshConnections.connections.find(
-                  (connection) =>
-                    connection.name === name &&
-                    (!initialConfig || connection.id !== initialConfig.id)
-                );
-
+            <form.Subscribe
+              selector={(state) => ({
+                canSubmit: state.canSubmit,
+                name: state.values.name,
+              })}
+            >
+              {({ canSubmit, name }) => {
                 return (
                   <ConfirmButton
                     type="submit"
                     form="add-ssh-conn-form"
-                    disabled={isSubmitting || !!duplicateConnection}
+                    disabled={isSubmitting || !canSubmit || !!findDuplicateConnection(name)}
                   >
                     {isSubmitting ? (
                       <>
@@ -372,12 +373,7 @@ export function AddSshConnModal({
               {/* Connection name */}
               <form.Field name="name">
                 {(field) => {
-                  const duplicateConnection = sshConnections.connections.find(
-                    (connection) =>
-                      connection.name === field.state.value &&
-                      (!initialConfig || connection.id !== initialConfig.id)
-                  );
-                  const isDuplicate = field.state.meta.isTouched && !!duplicateConnection;
+                  const isDuplicate = !!findDuplicateConnection(field.state.value);
                   const isInvalid =
                     (field.state.meta.isTouched && !field.state.meta.isValid) || isDuplicate;
                   return (
