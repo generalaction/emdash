@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/codex/index.ts
+  s_df4c103c4ad851::t_20410312e82b95 38-41,43-46,48-51
+packages/plugins/src/agents/impl/index.test.ts
+  s_df4c103c4ad851::t_c63f0035fd131e 147-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "30ab8912dd391cc57853d06a97a722e2051f2e2a",
+  "prompts": {},
+  "sessions": {
+    "s_df4c103c4ad851": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f1dba-a229-76e7-86ad-945b37c17701",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
