@@ -209,8 +209,8 @@ function Harness(props: HarnessProps) {
     >
       <div style={{ 'font-size': '13px', color: '#555', 'max-width': '640px' }}>
         <strong>Blank-after-switch repro.</strong> Thrash the tabs (or switch manually), then stop.
-        If a tab with history shows no rows, the status line below reports <code>⚠ BLANK</code>. Then
-        click <strong>Send message</strong> — the transcript should reappear, confirming the
+        If a tab with history shows no rows, the status line below reports <code>⚠ BLANK</code>.
+        Then click <strong>Send message</strong> — the transcript should reappear, confirming the
         restore-on-named-event signature.
       </div>
 
