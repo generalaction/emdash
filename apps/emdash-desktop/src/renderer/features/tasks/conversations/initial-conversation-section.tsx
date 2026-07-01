@@ -1,4 +1,4 @@
-import { CheckCheckIcon, ChevronDownIcon, PlusIcon, X } from 'lucide-react';
+import { CheckCheckIcon, PlusIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
@@ -256,7 +256,6 @@ export function InitialConversationField({
                       ? (modelOptions[state.model]?.name ?? state.model)
                       : 'Default model'}
                   </SelectValue>
-                  <ChevronDownIcon className="size-3 opacity-60" />
                 </SelectTrigger>
                 <SelectContent className="min-w-40">
                   <SelectItem value="">Default model</SelectItem>
