@@ -6,6 +6,7 @@ import { ChangesListItem } from './changes-list-item';
 
 export interface VirtualizedChangesListProps {
   changes: GitChange[];
+  rootPath?: string;
   onSelectChange?: (change: GitChange) => void;
   onDoubleClickChange?: (change: GitChange) => void;
   isSelected?: (path: string) => boolean;
@@ -19,6 +20,7 @@ const ITEM_HEIGHT = 28;
 
 export function VirtualizedChangesList({
   changes,
+  rootPath,
   onSelectChange,
   onDoubleClickChange,
   isSelected,
@@ -47,6 +49,7 @@ export function VirtualizedChangesList({
             <ChangesListItem
               key={change.path}
               change={change}
+              rootPath={rootPath}
               isSelected={isSelected?.(change.path)}
               isActive={change.path === activePath}
               onToggleSelect={onToggleSelect}

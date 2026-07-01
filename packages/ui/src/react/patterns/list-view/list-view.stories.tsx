@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 import { SearchInput } from '../../primitives/search-input';
-import { Tabs, TabsList, TabsTab } from '../../primitives/tabs';
+import { Tabs } from '../../primitives/tabs/tabs';
 import { ListView } from './index';
 import * as s from '../../story-layout.css';
 
@@ -71,9 +71,9 @@ function ItemRow({
       <div style={{ minWidth: 0 }}>
         <div
           style={{
-            fontSize: 'var(--text-sm)',
+            fontSize: 'var(--em-text-sm)',
             fontWeight: 500,
-            color: 'var(--foreground)',
+            color: 'var(--em-foreground)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -81,7 +81,13 @@ function ItemRow({
         >
           {item.title}
         </div>
-        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)', marginTop: 2 }}>
+        <div
+          style={{
+            fontSize: 'var(--em-text-xs)',
+            color: 'var(--em-foreground-muted)',
+            marginTop: 2,
+          }}
+        >
           {item.subtitle}
         </div>
       </div>
@@ -175,8 +181,8 @@ export const LoadingSlot: Story = {
                 style={{
                   padding: '2rem',
                   textAlign: 'center',
-                  color: 'var(--foreground-muted)',
-                  fontSize: 'var(--text-sm)',
+                  color: 'var(--em-foreground-muted)',
+                  fontSize: 'var(--em-text-sm)',
                 }}
               >
                 Loading pull requests…
@@ -204,8 +210,8 @@ export const EmptySlot: Story = {
                 style={{
                   padding: '2rem',
                   textAlign: 'center',
-                  color: 'var(--foreground-muted)',
-                  fontSize: 'var(--text-sm)',
+                  color: 'var(--em-foreground-muted)',
+                  fontSize: 'var(--em-text-sm)',
                 }}
               >
                 <LayoutListIcon
@@ -236,11 +242,11 @@ export const ErrorSlot: Story = {
                 style={{
                   padding: '2rem',
                   textAlign: 'center',
-                  color: 'var(--foreground-muted)',
-                  fontSize: 'var(--text-sm)',
+                  color: 'var(--em-foreground-muted)',
+                  fontSize: 'var(--em-text-sm)',
                 }}
               >
-                <p style={{ color: 'var(--status-error)' }}>Failed to load items.</p>
+                <p style={{ color: 'var(--em-status-error)' }}>Failed to load items.</p>
               </div>
             }
             getItemKey={(x: never) => x}
@@ -273,14 +279,14 @@ function FullListViewDemo() {
       <ListView>
         <ListView.Toolbar>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Tabs value={status} onValueChange={(v) => setStatus(v ?? 'all')}>
-              <TabsList>
-                <TabsTab value="all">All</TabsTab>
-                <TabsTab value="open">Open</TabsTab>
-                <TabsTab value="closed">Closed</TabsTab>
-                <TabsTab value="merged">Merged</TabsTab>
-              </TabsList>
-            </Tabs>
+            <Tabs.Root value={status} onValueChange={(v) => setStatus(v ?? 'all')}>
+              <Tabs.List>
+                <Tabs.Tab value="all">All</Tabs.Tab>
+                <Tabs.Tab value="open">Open</Tabs.Tab>
+                <Tabs.Tab value="closed">Closed</Tabs.Tab>
+                <Tabs.Tab value="merged">Merged</Tabs.Tab>
+              </Tabs.List>
+            </Tabs.Root>
             <SearchInput
               size="sm"
               value={query}
@@ -299,8 +305,8 @@ function FullListViewDemo() {
             style={{
               display: 'flex',
               gap: '0.375rem',
-              fontSize: 'var(--text-xs)',
-              color: 'var(--foreground-muted)',
+              fontSize: 'var(--em-text-xs)',
+              color: 'var(--em-foreground-muted)',
             }}
           >
             <ListView.FilterButton
@@ -324,8 +330,8 @@ function FullListViewDemo() {
                 style={{
                   padding: '2rem',
                   textAlign: 'center',
-                  color: 'var(--foreground-muted)',
-                  fontSize: 'var(--text-sm)',
+                  color: 'var(--em-foreground-muted)',
+                  fontSize: 'var(--em-text-sm)',
                 }}
               >
                 No results.
@@ -362,8 +368,8 @@ function MultiSelectDemo() {
               type="button"
               onClick={sel.count === SELECT_ITEMS.length ? sel.clear : sel.selectAll}
               style={{
-                fontSize: 'var(--text-xs)',
-                color: 'var(--foreground-muted)',
+                fontSize: 'var(--em-text-xs)',
+                color: 'var(--em-foreground-muted)',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
@@ -376,7 +382,7 @@ function MultiSelectDemo() {
               {sel.count === SELECT_ITEMS.length ? 'Deselect all' : 'Select all'}
             </button>
             {sel.count > 0 && (
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>
+              <span style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}>
                 {sel.count} selected
               </span>
             )}
@@ -403,23 +409,23 @@ function MultiSelectDemo() {
               style={{
                 margin: '0.5rem',
                 padding: '0.5rem 0.75rem',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--surface-overlay)',
-                border: '1px solid var(--border)',
+                borderRadius: 'var(--em-radius-md)',
+                backgroundColor: 'var(--em-surface-overlay)',
+                border: '1px solid var(--em-border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                fontSize: 'var(--text-sm)',
+                fontSize: 'var(--em-text-sm)',
                 backdropFilter: 'blur(4px)',
               }}
             >
-              <span style={{ color: 'var(--foreground)' }}>{sel.count} items selected</span>
+              <span style={{ color: 'var(--em-foreground)' }}>{sel.count} items selected</span>
               <button
                 type="button"
                 onClick={sel.clear}
                 style={{
-                  fontSize: 'var(--text-xs)',
-                  color: 'var(--foreground-muted)',
+                  fontSize: 'var(--em-text-xs)',
+                  color: 'var(--em-foreground-muted)',
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
@@ -518,30 +524,38 @@ function AgentRow({ agent, isLast }: { agent: AgentItem; isLast: boolean }) {
         style={{
           width: 32,
           height: 32,
-          borderRadius: 'var(--radius-md)',
-          backgroundColor: 'var(--surface-hover)',
+          borderRadius: 'var(--em-radius-md)',
+          backgroundColor: 'var(--em-surface-hover)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          color: 'var(--foreground-muted)',
+          color: 'var(--em-foreground-muted)',
         }}
       >
         {agent.icon}
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--foreground)' }}>
+        <div
+          style={{ fontSize: 'var(--em-text-sm)', fontWeight: 500, color: 'var(--em-foreground)' }}
+        >
           {agent.name}
         </div>
-        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)', marginTop: 1 }}>
+        <div
+          style={{
+            fontSize: 'var(--em-text-xs)',
+            color: 'var(--em-foreground-muted)',
+            marginTop: 1,
+          }}
+        >
           {agent.description}
         </div>
       </div>
       {agent.installed && (
         <span
           style={{
-            fontSize: 'var(--text-xs)',
-            color: 'var(--status-success)',
+            fontSize: 'var(--em-text-xs)',
+            color: 'var(--em-status-success)',
             flexShrink: 0,
             alignSelf: 'center',
           }}
@@ -591,13 +605,13 @@ function AgentsViewDemo() {
     <div className={s.w96} style={{ height: '40rem', display: 'flex', flexDirection: 'column' }}>
       <ListView>
         <ListView.Toolbar>
-          <Tabs value={filter} onValueChange={(v) => setFilter((v ?? 'all') as typeof filter)}>
-            <TabsList>
-              <TabsTab value="all">All</TabsTab>
-              <TabsTab value="installed">Installed</TabsTab>
-              <TabsTab value="not-installed">Not installed</TabsTab>
-            </TabsList>
-          </Tabs>
+          <Tabs.Root value={filter} onValueChange={(v) => setFilter((v ?? 'all') as typeof filter)}>
+            <Tabs.List>
+              <Tabs.Tab value="all">All</Tabs.Tab>
+              <Tabs.Tab value="installed">Installed</Tabs.Tab>
+              <Tabs.Tab value="not-installed">Not installed</Tabs.Tab>
+            </Tabs.List>
+          </Tabs.Root>
           <SearchInput
             size="sm"
             value={query}
@@ -618,8 +632,8 @@ function AgentsViewDemo() {
                 style={{
                   padding: '2rem',
                   textAlign: 'center',
-                  color: 'var(--foreground-muted)',
-                  fontSize: 'var(--text-sm)',
+                  color: 'var(--em-foreground-muted)',
+                  fontSize: 'var(--em-text-sm)',
                 }}
               >
                 No agents match your search.

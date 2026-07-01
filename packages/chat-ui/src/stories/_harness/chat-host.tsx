@@ -24,7 +24,7 @@ import {
 } from 'solid-js';
 import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
-import type { ChatCommands, ChatItem, MentionProvider } from '@/index';
+import type { ChatCommands, ChatItem, CommandProvider, MentionProvider } from '@/index';
 import { createChatState } from '@/state/chat-state';
 import { storyViewport } from './chat-host.css';
 
@@ -61,6 +61,8 @@ export type ChatHostProps = {
   commands?: ChatCommands;
   /** Optional mention provider — when supplied, @-token text renders as pills. */
   mentionProvider?: MentionProvider;
+  /** Optional command provider — when supplied, /token text renders as chips. */
+  commandProvider?: CommandProvider;
 };
 
 /**
@@ -136,6 +138,7 @@ export function ChatHost(props: ChatHostProps) {
   const ctx = createChatContext({
     theme: DEFAULT_THEME,
     mentionProvider: props.mentionProvider,
+    commandProvider: props.commandProvider,
   });
   const state = createChatState(ctx);
   onCleanup(() => {

@@ -1,5 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import { buildStandardCommand, grokMcpAdapter } from '@emdash/core/agents/plugins/helpers';
 import { buildGrokHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -80,6 +80,11 @@ export const plugin = definePlugin(
         },
       },
     },
+    mcp: {
+      kind: 'supported',
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
+    },
     prompt: {
       kind: 'argv',
       flag: '',
@@ -105,4 +110,5 @@ export const provider = registerPluginBehavior(plugin, {
       }),
   },
   hooks: buildGrokHookConfig(),
+  mcp: grokMcpAdapter(),
 });

@@ -1,5 +1,5 @@
+import type { IFileSystem } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
-import type { FileSystemProvider } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
@@ -37,7 +37,8 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     private readonly projectId: string,
     protected readonly projectPath: string,
     protected readonly defaultBranchFallback: string = 'main',
-    private readonly configReader: Pick<FileSystemProvider, 'exists' | 'read'> | undefined,
+    private readonly configReader: Pick<IFileSystem, 'exists' | 'readText'> | undefined,
+    private readonly joinProjectPath: (rootPath: string, relPath: string) => string,
     private readonly options: DbProjectSettingsProviderOptions = {}
   ) {}
 
@@ -63,10 +64,22 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
 
   private async hasSharedPreservePatterns(): Promise<boolean> {
     if (!this.configReader) return false;
+    const configPath = this.projectFilePath(CONFIG_FILE);
     try {
-      if (!(await this.configReader.exists(CONFIG_FILE))) return false;
-      const { content } = await this.configReader.read(CONFIG_FILE);
-      const parsed = shareableProjectSettingsSchema.safeParse(parseJsonObject(content));
+      const exists = await this.configReader.exists(configPath);
+      if (!exists.success || !exists.data) return false;
+      const content = await this.configReader.readText(configPath);
+      if (!content.success) return false;
+      if (content.data.truncated) {
+        log.warn('Shared project settings were truncated during initialization', {
+          path: configPath,
+          totalSize: content.data.totalSize,
+        });
+        return false;
+      }
+      const parsed = shareableProjectSettingsSchema.safeParse(
+        parseJsonObject(content.data.content)
+      );
       if (!parsed.success) {
         log.warn('Failed to inspect shared project settings during initialization', parsed.error);
         return false;
@@ -76,6 +89,10 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
       log.warn('Failed to inspect shared project settings during initialization', error);
       return false;
     }
+  }
+
+  private projectFilePath(relPath: string): string {
+    return this.joinProjectPath(this.projectPath, relPath);
   }
 
   private async ensureRow(): Promise<void> {
@@ -140,6 +157,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
         projectId: this.projectId,
         row,
         configReader: this.configReader,
+        configPath: this.projectFilePath(CONFIG_FILE),
         defaultBranchFallback: this.defaultBranchFallback,
         storage: this.storage,
         git,

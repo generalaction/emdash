@@ -17,7 +17,6 @@ export const WORKSPACE_FILE_DRAG_TYPE = 'application/x-emdash-workspace-file';
 
 export type DraggedWorkspaceFile = {
   workspaceId: string;
-  relPath: string;
   /** Absolute path in the workspace environment where the target agent runs. */
   targetPath: string;
   /** Remote workspaces are Linux targets even when the renderer runs elsewhere. */
@@ -26,8 +25,8 @@ export type DraggedWorkspaceFile = {
 
 type DraggedWorkspaceFileInput = {
   workspaceId: string;
-  workspaceRootPath: string;
-  relPath: string;
+  /** Absolute path in the workspace environment where the target agent runs. */
+  targetPath: string;
   targetPlatform?: NodeJS.Platform;
 };
 
@@ -38,21 +37,13 @@ type DraggedWorkspaceFileInput = {
 // accepted by an unrelated drop.
 let draggedWorkspaceFile: DraggedWorkspaceFile | null = null;
 
-export function resolveWorkspaceFileTargetPath(rootPath: string, relPath: string): string {
-  const separator = rootPath.includes('\\') ? '\\' : '/';
-  const normalizedRoot = rootPath.replace(/[\\/]+$/, '');
-  const normalizedPath = relPath.replace(/^[\\/]+/, '').replace(/[\\/]+/g, separator);
-  return `${normalizedRoot}${separator}${normalizedPath}`;
-}
-
 export function setDraggedWorkspaceFile(
   dataTransfer: DataTransfer,
   input: DraggedWorkspaceFileInput
 ): void {
   const payload: DraggedWorkspaceFile = {
     workspaceId: input.workspaceId,
-    relPath: input.relPath,
-    targetPath: resolveWorkspaceFileTargetPath(input.workspaceRootPath, input.relPath),
+    targetPath: input.targetPath,
     targetPlatform: input.targetPlatform,
   };
 
@@ -95,7 +86,6 @@ function isDraggedWorkspaceFile(value: unknown): value is DraggedWorkspaceFile {
   const candidate = value as Partial<DraggedWorkspaceFile>;
   return (
     typeof candidate.workspaceId === 'string' &&
-    typeof candidate.relPath === 'string' &&
     typeof candidate.targetPath === 'string' &&
     (candidate.targetPlatform === undefined || isNodePlatform(candidate.targetPlatform))
   );

@@ -25,7 +25,13 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
   } = formState;
 
   function buildConversationConfig(): ConversationConfig {
-    return { prompt: prompt.trim(), provider, autoApprove: false };
+    const useChatUi = formState.initialConversation.useChatUi;
+    return {
+      prompt: prompt.trim(),
+      provider,
+      autoApprove: false,
+      type: useChatUi ? 'acp' : 'pty',
+    };
   }
 
   function savePatch(overrideTrigger?: TriggerConfig) {

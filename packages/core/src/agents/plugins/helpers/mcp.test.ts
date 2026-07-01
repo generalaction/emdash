@@ -6,6 +6,7 @@ import {
   createMcpAdapter,
   crushMcpAdapter,
   droidMcpAdapter,
+  grokMcpAdapter,
   opencodeMcpAdapter,
   passthroughMcpAdapter,
 } from './mcp';
@@ -286,6 +287,154 @@ describe('codexMcpAdapter', () => {
       headers: { Authorization: 'Bearer token' },
     });
     expect(result[0].http_headers).toBeUndefined();
+  });
+});
+
+// ── Grok TOML adapter ───────────────────────────────────────────────────────
+
+describe('grokMcpAdapter', () => {
+  const adapter = grokMcpAdapter('.grok/config.toml');
+
+  it('writes stdio servers with command/args/env and enabled=true, preserving config', async () => {
+    const fs = createMemoryFs({
+      '.grok/config.toml': '[models]\ndefault = "grok-build"\n',
+    });
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'postgres',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-postgres'],
+        env: { DATABASE_URL: 'postgres://localhost/mydb' },
+      },
+    ]);
+
+    const raw = await fs.read('.grok/config.toml');
+    const parsed = parseTOML(raw!) as Record<string, unknown>;
+    const servers = parsed.mcp_servers as Record<string, Record<string, unknown>>;
+
+    expect((parsed.models as Record<string, unknown>).default).toBe('grok-build');
+    expect(servers.postgres).toEqual({
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-postgres'],
+      env: { DATABASE_URL: 'postgres://localhost/mydb' },
+      enabled: true,
+    });
+  });
+
+  it('writes HTTP servers with url/headers, keeping the canonical headers key', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'sentry',
+        transport: 'http',
+        type: 'http',
+        url: 'https://mcp.sentry.dev/mcp',
+        headers: { Authorization: 'Bearer tok' },
+      },
+    ]);
+
+    const raw = await fs.read('.grok/config.toml');
+    const parsed = parseTOML(raw!) as Record<string, unknown>;
+    const servers = parsed.mcp_servers as Record<string, Record<string, unknown>>;
+
+    expect(servers.sentry).toEqual({
+      url: 'https://mcp.sentry.dev/mcp',
+      headers: { Authorization: 'Bearer tok' },
+      enabled: true,
+    });
+    expect(servers.sentry.type).toBeUndefined();
+    expect(servers.sentry.transport).toBeUndefined();
+    expect(servers.sentry.http_headers).toBeUndefined();
+  });
+
+  it('preserves an explicit enabled=false', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [{ name: 'off', command: 'node', enabled: false }]);
+
+    const parsed = parseTOML((await fs.read('.grok/config.toml'))!) as Record<string, unknown>;
+    const servers = parsed.mcp_servers as Record<string, Record<string, unknown>>;
+    expect(servers.off.enabled).toBe(false);
+  });
+
+  it('reads stdio and http servers, inferring transport from url presence', async () => {
+    const fs = createMemoryFs({
+      '.grok/config.toml': [
+        '[mcp_servers.postgres]',
+        'command = "npx"',
+        'args = ["-y", "@modelcontextprotocol/server-postgres"]',
+        'enabled = true',
+        '',
+        '[mcp_servers.postgres.env]',
+        'DATABASE_URL = "postgres://localhost/mydb"',
+        '',
+        '[mcp_servers.sentry]',
+        'url = "https://mcp.sentry.dev/mcp"',
+        'enabled = true',
+        '',
+        '[mcp_servers.sentry.headers]',
+        'Authorization = "Bearer tok"',
+      ].join('\n'),
+    });
+
+    const result = await adapter.readServers(fs);
+
+    expect(result).toContainEqual({
+      name: 'postgres',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-postgres'],
+      enabled: true,
+      env: { DATABASE_URL: 'postgres://localhost/mydb' },
+    });
+    expect(result).toContainEqual({
+      name: 'sentry',
+      transport: 'http',
+      type: 'http',
+      url: 'https://mcp.sentry.dev/mcp',
+      enabled: true,
+      headers: { Authorization: 'Bearer tok' },
+    });
+  });
+
+  it('round-trips a server read then written back', async () => {
+    const fs = createMemoryFs({
+      '.grok/config.toml': [
+        '[mcp_servers.docs]',
+        'url = "https://example.com/mcp"',
+        'enabled = true',
+      ].join('\n'),
+    });
+
+    const servers = await adapter.readServers(fs);
+    await adapter.writeServers(fs, servers);
+
+    const parsed = parseTOML((await fs.read('.grok/config.toml'))!) as Record<string, unknown>;
+    const written = parsed.mcp_servers as Record<string, Record<string, unknown>>;
+    expect(written.docs).toEqual({
+      url: 'https://example.com/mcp',
+      enabled: true,
+    });
+  });
+
+  it('removes only the named server', async () => {
+    const fs = createMemoryFs({
+      '.grok/config.toml': [
+        '[mcp_servers.keep]',
+        'command = "k"',
+        'enabled = true',
+        '',
+        '[mcp_servers.gone]',
+        'command = "g"',
+        'enabled = true',
+      ].join('\n'),
+    });
+
+    await adapter.removeServer(fs, 'gone');
+
+    const result = await adapter.readServers(fs);
+    expect(result.map((r) => r.name)).toEqual(['keep']);
   });
 });
 

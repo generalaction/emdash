@@ -51,6 +51,18 @@ export type ChatCommands = {
    * Called when the user clicks a Mermaid diagram block preview.
    */
   onViewMermaid?: (arg: { chart: string; blockId: string; source: 'mermaid-block' }) => void;
+
+  /**
+   * Called when the user clicks a resolved @-mention chip in the transcript.
+   * `id` is the stable identifier (e.g. a file path); `label` is the raw @-token text.
+   */
+  onClickMention?: (arg: {
+    id: string;
+    label: string;
+    kind: 'file' | 'issue' | 'symbol' | 'custom';
+    itemId: string;
+    source: 'prose-mention';
+  }) => void;
 };
 
 export type ScrollToItemOptions = {

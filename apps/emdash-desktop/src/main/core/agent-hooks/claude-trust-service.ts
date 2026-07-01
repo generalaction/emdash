@@ -1,16 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { isFileNotFoundError, isFileNotFoundException, type IFileSystem } from '@emdash/core/files';
+import { err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import {
-  FileSystemError,
-  FileSystemErrorCodes,
-  type FileSystemProvider,
-} from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { log } from '@main/lib/logger';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import { normalizeLocalWorkspacePath, normalizeSshWorkspacePath } from './workspace-trust-paths';
+import type { WorkspaceTrustLocalArgs, WorkspaceTrustSshArgs } from './workspace-trust-types';
 
 const CLAUDE_PROVIDER_ID: AgentProviderId = 'claude';
 const COPILOT_PROVIDER_ID: AgentProviderId = 'copilot';
@@ -29,19 +28,14 @@ export class ClaudeTrustService {
 
   async maybeAutoTrustLocal({
     providerId,
-    cwd,
+    workspacePath,
     homedir,
     force = false,
-  }: {
-    providerId: AgentProviderId;
-    cwd?: string;
-    homedir: string;
-    force?: boolean;
-  }): Promise<void> {
-    if (!cwd) return;
+  }: WorkspaceTrustLocalArgs): Promise<void> {
     const trustConfig = await this.getTrustConfig(providerId, force);
     if (!trustConfig) return;
-    const normalizedPath = path.resolve(cwd);
+    const normalizedPath = normalizeLocalWorkspacePath(workspacePath, 'ClaudeTrustService');
+    if (!normalizedPath) return;
     const configPath = path.join(homedir, trustConfig.configName);
     await this.withLock(configPath, () =>
       this.ensureTrusted(normalizedPath, {
@@ -54,29 +48,35 @@ export class ClaudeTrustService {
 
   async maybeAutoTrustSsh({
     providerId,
-    cwd,
+    workspacePath,
     ctx,
-    remoteFs,
+    files,
     force = false,
-  }: {
-    providerId: AgentProviderId;
-    cwd?: string;
-    ctx: IExecutionContext;
-    remoteFs: Pick<FileSystemProvider, 'realPath' | 'read' | 'write'>;
-    force?: boolean;
-  }): Promise<void> {
-    if (!cwd) return;
+  }: WorkspaceTrustSshArgs): Promise<void> {
     const trustConfig = await this.getTrustConfig(providerId, force);
     if (!trustConfig) return;
 
-    const normalizedPath = await remoteFs.realPath(cwd).catch(() => path.posix.resolve('/', cwd));
+    const normalizedPath = await normalizeSshWorkspacePath(
+      files,
+      workspacePath,
+      'ClaudeTrustService'
+    );
+    if (!normalizedPath) return;
     const homeDir = await resolveRemoteHome(ctx);
+    const homeFs = files.fileSystem();
+    if (!homeFs.success) {
+      log.warn('ClaudeTrustService: failed to open filesystem for auto-trust', {
+        path: normalizedPath,
+        error: homeFs.error.message,
+      });
+      return;
+    }
     const configPath = path.posix.join(homeDir, trustConfig.configName);
 
     await this.withLock(configPath, () =>
       this.ensureTrusted(normalizedPath, {
-        readConfig: () => readRemoteConfig(remoteFs, configPath),
-        writeConfig: (content) => writeRemoteConfigAtomic(remoteFs, ctx, configPath, content),
+        readConfig: () => readRemoteConfig(homeFs.data, configPath),
+        writeConfig: (content) => writeRemoteConfigAtomic(homeFs.data, ctx, configPath, content),
         trustConfig,
       })
     );
@@ -117,18 +117,31 @@ export class ClaudeTrustService {
   private async ensureTrusted(
     normalizedPath: string,
     io: {
-      readConfig: () => Promise<string | null>;
-      writeConfig: (content: string) => Promise<void>;
+      readConfig: () => Promise<TrustIoResult<string | null>>;
+      writeConfig: (content: string) => Promise<TrustIoResult<void>>;
       trustConfig: TrustConfig;
     }
   ): Promise<void> {
     try {
       const rawConfig = await io.readConfig();
-      const config = parseConfig(rawConfig, io.trustConfig.parseWarningName);
+      if (!rawConfig.success) {
+        log.warn('ClaudeTrustService: failed to read auto-trust config', {
+          path: normalizedPath,
+          error: rawConfig.error.message,
+        });
+        return;
+      }
+      const config = parseConfig(rawConfig.data, io.trustConfig.parseWarningName);
       if (!config) return;
       const nextConfig = io.trustConfig.withTrustedPath(config, normalizedPath);
       if (!nextConfig) return;
-      await io.writeConfig(JSON.stringify(nextConfig, null, 2) + '\n');
+      const written = await io.writeConfig(JSON.stringify(nextConfig, null, 2) + '\n');
+      if (!written.success) {
+        log.warn('ClaudeTrustService: failed to write auto-trust config', {
+          path: normalizedPath,
+          error: written.error.message,
+        });
+      }
     } catch (error: unknown) {
       log.warn('ClaudeTrustService: failed to auto-trust worktree', {
         path: normalizedPath,
@@ -150,6 +163,9 @@ type TrustConfig = {
     worktreePath: string
   ) => Record<string, unknown> | null;
 };
+
+type TrustIoError = { message: string };
+type TrustIoResult<T> = Result<T, TrustIoError>;
 
 function parseConfig(raw: string | null, warningName: string): Record<string, unknown> | null {
   if (!raw || raw.trim() === '') return {};
@@ -205,67 +221,66 @@ function withCopilotTrustedFolder(
   };
 }
 
-async function readLocalConfig(configPath: string): Promise<string | null> {
+async function readLocalConfig(configPath: string): Promise<TrustIoResult<string | null>> {
   try {
-    return await fs.readFile(configPath, 'utf8');
+    return ok(await fs.readFile(configPath, 'utf8'));
   } catch (error: unknown) {
-    if (isNodeNotFound(error)) return null;
-    throw error;
+    if (isFileNotFoundException(error)) return ok(null);
+    return err({ message: errorMessage(error) });
   }
 }
 
-async function writeLocalConfigAtomic(configPath: string, content: string): Promise<void> {
+async function writeLocalConfigAtomic(
+  configPath: string,
+  content: string
+): Promise<TrustIoResult<void>> {
   const tmpPath = `${configPath}.${randomUUID()}.tmp`;
   try {
     await fs.mkdir(path.dirname(configPath), { recursive: true });
     await fs.writeFile(tmpPath, content, 'utf8');
     await fs.rename(tmpPath, configPath);
+    return ok();
   } catch (error: unknown) {
     try {
       await fs.rm(tmpPath, { force: true });
     } catch {}
-    throw error;
+    return err({ message: errorMessage(error) });
   }
 }
 
 async function readRemoteConfig(
-  remoteFs: Pick<FileSystemProvider, 'read'>,
+  remoteFs: Pick<IFileSystem, 'readText'>,
   configPath: string
-): Promise<string | null> {
-  try {
-    const result = await remoteFs.read(configPath, CLAUDE_CONFIG_MAX_BYTES);
-    return result.content;
-  } catch (error: unknown) {
-    if (isFsNotFound(error)) return null;
-    throw error;
-  }
+): Promise<TrustIoResult<string | null>> {
+  const result = await remoteFs.readText(configPath, { maxBytes: CLAUDE_CONFIG_MAX_BYTES });
+  if (result.success) return ok(result.data.content);
+  if (isFileNotFoundError(result.error)) return ok(null);
+  return err(result.error);
 }
 
 async function writeRemoteConfigAtomic(
-  remoteFs: Pick<FileSystemProvider, 'write'>,
+  remoteFs: Pick<IFileSystem, 'writeText'>,
   ctx: IExecutionContext,
   configPath: string,
   content: string
-): Promise<void> {
+): Promise<TrustIoResult<void>> {
   const tmpPath = `${configPath}.${randomUUID()}.tmp`;
   try {
     await ctx.exec('mkdir', ['-p', path.posix.dirname(configPath)]);
-    await remoteFs.write(tmpPath, content);
+    const written = await remoteFs.writeText(tmpPath, content);
+    if (!written.success) return err(written.error);
     await ctx.exec('mv', [tmpPath, configPath]);
+    return ok();
   } catch (error: unknown) {
     try {
       await ctx.exec('rm', ['-f', tmpPath]);
     } catch {}
-    throw error;
+    return err({ message: errorMessage(error) });
   }
 }
 
-function isNodeNotFound(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException)?.code === 'ENOENT';
-}
-
-function isFsNotFound(error: unknown): boolean {
-  return error instanceof FileSystemError && error.code === FileSystemErrorCodes.NOT_FOUND;
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

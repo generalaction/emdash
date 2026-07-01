@@ -8,6 +8,7 @@ import { log } from '@renderer/utils/logger';
 import type { EditorViewSnapshot } from '@shared/view-state';
 import { allOpenFileResources } from '../pane-selectors';
 import type { FileTabResource } from './file-tab-resource';
+import { FilesStore } from './files-store';
 
 /**
  * Manages file persistence (save, conflict resolution) and sidebar navigation state.
@@ -29,6 +30,13 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
   /** Persisted navigation state for the file tree sidebar. */
   expandedPaths = observable.set<string>();
 
+  /**
+   * Per-view file-tree projection store. Created when the task session starts (`startFiles`) and
+   * torn down on suspend (`disposeFiles`), so projection state lives with this view's expansion
+   * state rather than being shared across all tasks on the same workspace.
+   */
+  files: FilesStore | null = null;
+
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly paneLayout: PaneLayoutStore;
@@ -42,8 +50,28 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     makeObservable(this, {
       isSaving: observable,
       pendingConflictUri: observable,
+      files: observable.ref,
       snapshot: computed,
     });
+  }
+
+  /** Opens the per-view file-tree projection. Idempotent. */
+  startFiles(workspacePath: string): void {
+    if (this.files) return;
+    const store = new FilesStore(this.projectId, this.workspaceId, workspacePath);
+    runInAction(() => {
+      this.files = store;
+    });
+    void store.start();
+  }
+
+  /** Closes the projection subscription and clears the per-view tree state. */
+  disposeFiles(): void {
+    const store = this.files;
+    runInAction(() => {
+      this.files = null;
+    });
+    store?.dispose();
   }
 
   /** Union of all open file resources across all panes. */
@@ -122,8 +150,10 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
 
     if (accept) {
       modelRegistry.reloadFromDisk(uri);
-      const filePath = uri.replace(`file://${this.modelRootPath}/`, '');
-      void rpc.workspace.editor.clearBuffer(this.projectId, this.workspaceId, filePath);
+      const filePath = modelRegistry.filePathForUri(uri);
+      if (filePath) {
+        void rpc.workspace.editor.clearBuffer(this.projectId, this.workspaceId, filePath);
+      }
     } else {
       runInAction(() => {
         this.isSaving = true;
@@ -156,6 +186,6 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
   }
 
   dispose(): void {
-    // Nothing to dispose — FileModelManager handles model lifecycle.
+    this.disposeFiles();
   }
 }

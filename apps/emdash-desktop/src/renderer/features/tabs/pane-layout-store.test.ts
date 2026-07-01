@@ -1,4 +1,4 @@
-import { runInAction } from 'mobx';
+import { intercept, runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -169,6 +169,40 @@ describe('PaneLayoutStore: isViewActive and onActivate', () => {
 
     expect(leftSpy).toHaveBeenCalledTimes(1);
     expect(rightSpy).toHaveBeenCalledTimes(1);
+    layout.dispose();
+  });
+
+  it('fires onActivate on the new resource when a preview tab is retargeted while the pane is visible', () => {
+    const layout = createLayout();
+    runInAction(() => layout.setViewActive(true));
+
+    // Open the first preview tab — resource A created and activated.
+    layout.open('browser', {}, { preview: true });
+    const tabId = layout.focusedPane.resolvedActiveTabId;
+
+    // Set up an intercept so the next resource written into _resources gets a
+    // spy as its onActivate. This fires synchronously before the value is stored,
+    // so the spy is installed before the reaction can call onActivate().
+    const spy = vi.fn();
+    const disposer = intercept(layout.focusedPane._resources, (change) => {
+      if (change.type === 'add' || change.type === 'update') {
+        (change.newValue as { onActivate?: () => void }).onActivate = spy;
+      }
+      return change;
+    });
+
+    // Open a second preview tab — retargets the same slot (same tabId, new resource B).
+    layout.open('browser', {}, { preview: true });
+    disposer();
+
+    // Confirm this actually took the retarget path (tabId must not have changed).
+    expect(layout.focusedPane.resolvedActiveTabId).toBe(tabId);
+
+    // With the fix: the reaction detected the new resource instance at the
+    // unchanged tabId and fired onActivate() on it. Without the fix the reaction
+    // does not re-fire because the tracked tabId is unchanged.
+    expect(spy).toHaveBeenCalledTimes(1);
+
     layout.dispose();
   });
 });

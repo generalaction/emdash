@@ -33,13 +33,13 @@
       "types": "./dist/exec.d.mts",
       "default": "./dist/exec.mjs"
     },
-    "./file-tree": {
-      "types": "./dist/file-tree.d.mts",
-      "default": "./dist/file-tree.mjs"
+    "./files": {
+      "types": "./dist/files.d.mts",
+      "default": "./dist/files.mjs"
     },
-    "./fs": {
-      "types": "./dist/fs.d.mts",
-      "default": "./dist/fs.mjs"
+    "./watch": {
+      "types": "./dist/watch.d.mts",
+      "default": "./dist/watch.mjs"
     },
     "./git": {
       "types": "./dist/git.d.mts",
@@ -69,9 +69,10 @@
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.25.1",
+    "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/shared": "workspace:*",
     "@parcel/watcher": "^2.5.6",
+    "glob": "^13.0.6",
     "semver": "^7.8.4",
     "smol-toml": "^1.6.0",
     "zod": "^4.4.3"

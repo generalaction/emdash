@@ -14,8 +14,7 @@
 // Functions, objects, and other non-string values are silently ignored so cx()
 // can be used in contexts where a className prop may be a render callback
 // (e.g. @base-ui/react components pass (state) => string as className).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type CxArg = any;
+type CxArg = unknown;
 
 export function cx(...args: CxArg[]): string {
   const result: string[] = [];

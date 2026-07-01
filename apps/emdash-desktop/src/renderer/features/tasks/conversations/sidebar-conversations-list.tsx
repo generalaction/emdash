@@ -3,13 +3,12 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { useTabSelection } from '@renderer/features/tasks/task-tab-registry';
+import { conversationTabKind, useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 import {
   useConversations,
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -24,6 +23,7 @@ import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
+import { ConversationAgentIcon } from './conversation-agent-icon';
 
 const ROW_HEIGHT = 32;
 
@@ -49,7 +49,7 @@ const ConversationRow = observer(function ConversationRow({
 
   const conversation = conversations.conversations.get(conversationId);
 
-  const tabKind = conversation?.data.type === 'acp' ? 'acp-chat' : 'conversation';
+  const tabKind = conversationTabKind(conversation?.data.type);
   const { isActive, open: openConversation } = useTabSelection(tabKind, conversationId);
 
   if (!conversation) return null;
@@ -109,7 +109,12 @@ const ConversationRow = observer(function ConversationRow({
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
-          <AgentIcon id={conversation.data.providerId} size={16} className="size-4" />
+          <ConversationAgentIcon
+            providerId={conversation.data.providerId}
+            isAcp={conversation.data.type === 'acp'}
+            size={16}
+            className="size-4"
+          />
           {isEditing ? (
             <input
               ref={handleRenameInputRef}
@@ -186,8 +191,12 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     showCreateConversationModal({
       projectId,
       taskId,
-      onSuccess: ({ conversationId }) => {
-        paneLayout.open('conversation', { conversationId }, { preview: false });
+      onSuccess: ({ conversationId, type }) => {
+        if (type === 'acp') {
+          paneLayout.open('acp-chat', { conversationId }, { preview: false });
+        } else {
+          paneLayout.open('conversation', { conversationId }, { preview: false });
+        }
       },
     });
   };

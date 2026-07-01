@@ -84,7 +84,7 @@ async function loadFromDisk(
   workspaceId: string,
   filePath: string
 ): Promise<SideState> {
-  const res = await rpc.workspace.fs.readImage(projectId, workspaceId, filePath);
+  const res = await rpc.workspace.files.readImage(projectId, workspaceId, filePath);
   if (!res.success) return { status: 'unavailable', reason: 'git-error' };
   const image = res.data;
   if (!image?.success) {

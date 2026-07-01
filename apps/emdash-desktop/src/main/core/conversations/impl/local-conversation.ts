@@ -119,7 +119,7 @@ export class LocalConversationProvider implements ConversationProvider {
     try {
       await workspaceTrustService.maybeAutoTrustLocal({
         providerId: conversation.providerId,
-        cwd: this.taskPath,
+        workspacePath: this.taskPath,
         homedir: homedir(),
         force: conversation.autoApprove === true,
       });

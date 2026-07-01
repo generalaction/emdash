@@ -6,18 +6,22 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  Link,
   Trash2,
 } from 'lucide-react';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { CompactedPathLabel } from '@renderer/features/tasks/editor/compacted-path-label';
 import type { FilesStore } from '@renderer/features/tasks/editor/stores/files-store';
 import {
-  buildVisibleRows,
+  buildFileTreeVisibleRows,
+  isExpandableFileTreeNode,
   isChainExpanded,
+  isOpenableFileTreeNode,
   type TreeRow,
-} from '@renderer/features/tasks/editor/stores/files-store-utils';
+} from '@renderer/features/tasks/file-tree/tree-utils';
+import { relativeToWorkspace } from '@renderer/features/tasks/stores/workspace-path';
 import { useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 import {
   useTaskViewContext,
@@ -48,37 +52,25 @@ import type { FileTabResource } from './stores/file-tab-resource';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
 
-function resultErrorMessage(error: { message?: string; type?: string }): string {
+type ResultLikeError = { message?: string; type?: string; paths?: readonly string[] };
+
+function resultErrorMessage(error: ResultLikeError): string {
   return error.message ?? error.type ?? 'Unknown error';
 }
 
-function existingFilePaths(message: string): string[] {
-  const pluralMarker = 'Files already exist:\n';
-  if (message.includes(pluralMarker)) {
-    return message
-      .slice(message.indexOf(pluralMarker) + pluralMarker.length)
-      .split('\n')
-      .map((p) => p.trim())
-      .filter(Boolean);
-  }
-
-  const singularMarker = 'File already exists: ';
-  const markerIndex = message.indexOf(singularMarker);
-  return markerIndex === -1 ? [] : [message.slice(markerIndex + singularMarker.length)];
+function conflictPaths(error: ResultLikeError): string[] {
+  if (error.type !== 'conflict' || !Array.isArray(error.paths)) return [];
+  return [...error.paths];
 }
 
-function joinRelPath(dir: string, name: string): string {
+function joinPath(dir: string, name: string): string {
   return dir ? `${dir}/${name}` : name;
 }
 
-function isPathWithinDeletedItem(
-  path: string,
-  deletedPath: string,
-  deletedType: 'file' | 'directory'
-) {
-  return deletedType === 'file'
-    ? path === deletedPath
-    : path === deletedPath || path.startsWith(`${deletedPath}/`);
+function isPathWithinDeletedItem(path: string, deletedPath: string, closesDescendants: boolean) {
+  return closesDescendants
+    ? path === deletedPath || path.startsWith(`${deletedPath}/`)
+    : path === deletedPath;
 }
 
 async function importLocalFiles(args: {
@@ -95,27 +87,16 @@ async function importLocalFiles(args: {
   // event arriving after the copy finishes is a no-op for already-present nodes.
   const inserted = files.addOptimisticNodes(
     srcPaths.map((srcPath) => ({
-      relPath: joinRelPath(destDirPath, basenameFromAnyPath(srcPath)),
+      path: joinPath(destDirPath, basenameFromAnyPath(srcPath)),
       type: 'file',
     }))
   );
 
-  try {
-    const result = await rpc.workspace.fs.copyLocalFiles(
-      projectId,
-      workspaceId,
-      srcPaths,
-      destDirPath,
-      {
-        overwrite,
-      }
-    );
-    if (!result.success) throw new Error(resultErrorMessage(result.error));
-  } catch (error) {
+  const handleFailure = async (error: ResultLikeError) => {
     for (const p of inserted) files.removeNode(p);
-    await files.loadDir(destDirPath, true);
-    const message = error instanceof Error ? error.message : 'The file could not be imported.';
-    const existingPaths = existingFilePaths(message);
+    await files.registerDir(destDirPath, true);
+    const message = resultErrorMessage(error);
+    const existingPaths = conflictPaths(error);
     if (existingPaths.length > 0 && !overwrite) {
       const description =
         existingPaths.length === 1
@@ -145,6 +126,28 @@ async function importLocalFiles(args: {
       description: message,
       variant: 'destructive',
     });
+  };
+
+  try {
+    const result = await rpc.workspace.files.copyLocalFiles(
+      projectId,
+      workspaceId,
+      srcPaths,
+      destDirPath,
+      {
+        overwrite,
+      }
+    );
+    if (!result.success) {
+      await handleFailure(result.error);
+      return;
+    }
+    files.confirmOptimisticNodes(inserted);
+  } catch (error) {
+    await handleFailure({
+      type: 'fs_error',
+      message: error instanceof Error ? error.message : 'The file could not be imported.',
+    });
   }
 }
 
@@ -160,18 +163,25 @@ const FileTreeRow = observer(function FileTreeRow({
   const workspaceId = useWorkspaceId();
   const workspace = useWorkspace();
   const editorView = taskView.editorView;
+  const files = editorView.files;
   const { isActive, open: openFile } = useTabSelection('file', row.node.path);
 
   const node = row.node;
   const isExpanded = isChainExpanded(row.chain, editorView.expandedPaths);
   const isSelected = isActive;
+  const relNodePath = relativeToWorkspace(workspace.path, node.path);
   const fileStatus = workspace.gitWorktree.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = row.renderDepth * 12 + 4;
-  const targetDirPath = node.type === 'directory' ? node.path : (node.parentPath ?? '');
+  const isExpandable = isExpandableFileTreeNode(node);
+  const isOpenable = isOpenableFileTreeNode(node);
+  const deleteClosesDescendants = node.type === 'directory' || isExpandable;
+  const isSymlink = node.type === 'symlink';
+  const targetDirPath = isExpandable ? node.path : (node.parentPath ?? '');
   const chainPath = row.chain.length > 1 ? row.chain.map((n) => n.name).join('/') : null;
   const isHidden = row.chain.some((n) => n.isHidden);
 
   const toggleExpand = () => {
+    // Expansion drives registration; collapse only changes visibility and keeps loaded scopes warm.
     runInAction(() => {
       if (isChainExpanded(row.chain, editorView.expandedPaths)) {
         for (const segment of row.chain) {
@@ -181,25 +191,22 @@ const FileTreeRow = observer(function FileTreeRow({
         for (const segment of row.chain) {
           editorView.expandedPaths.add(segment.path);
         }
-        if (!workspace.files.loadedPaths.has(node.path)) {
-          void workspace.files.loadDir(node.path);
-        }
       }
     });
   };
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (node.type === 'directory') {
+    if (isExpandable) {
       toggleExpand();
-    } else {
+    } else if (isOpenable) {
       openFile({ path: node.path }, { preview: true });
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (node.type === 'file') {
+    if (isOpenable) {
       openFile({ path: node.path }, { preview: false });
     }
   };
@@ -207,26 +214,40 @@ const FileTreeRow = observer(function FileTreeRow({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if (node.type === 'directory') {
+      if (isExpandable) {
         toggleExpand();
-      } else {
+      } else if (isOpenable) {
         openFile({ path: node.path }, { preview: true });
       }
     }
   };
 
   const copyFile = async () => {
-    if (node.type !== 'file') return;
+    if (!isOpenable) return;
 
     try {
-      const result = await rpc.workspace.fs.readFile(
+      const result = await rpc.workspace.files.readFile(
         projectId,
         workspaceId,
         node.path,
         MAX_COPY_FILE_BYTES
       );
-      if (!result.success) throw new Error(resultErrorMessage(result.error));
-      if (result.data.truncated) throw new Error('File is too large to copy.');
+      if (!result.success) {
+        toast({
+          title: 'Copy failed',
+          description: resultErrorMessage(result.error),
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (result.data.truncated) {
+        toast({
+          title: 'Copy failed',
+          description: 'File is too large to copy.',
+          variant: 'destructive',
+        });
+        return;
+      }
       await rpc.app.clipboardWriteText(result.data.content);
       toast({ title: 'File copied' });
     } catch (error) {
@@ -240,8 +261,15 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const copyPath = async () => {
     try {
-      const result = await rpc.workspace.fs.getAbsolutePath(projectId, workspaceId, node.path);
-      if (!result.success) throw new Error(resultErrorMessage(result.error));
+      const result = await rpc.workspace.files.getAbsolutePath(projectId, workspaceId, node.path);
+      if (!result.success) {
+        toast({
+          title: 'Copy failed',
+          description: resultErrorMessage(result.error),
+          variant: 'destructive',
+        });
+        return;
+      }
       await rpc.app.clipboardWriteText(result.data.path);
       toast({ title: 'Path copied' });
     } catch (error) {
@@ -255,7 +283,7 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const copyRelativePath = async () => {
     try {
-      await rpc.app.clipboardWriteText(node.path);
+      await rpc.app.clipboardWriteText(relNodePath);
       toast({ title: 'Relative path copied' });
     } catch (error) {
       toast({
@@ -271,8 +299,8 @@ const FileTreeRow = observer(function FileTreeRow({
       for (const tab of pane.resolvedTabs) {
         if (tab.kind !== 'file') continue;
         const resource = tab.resource as FileTabResource;
-        if (isPathWithinDeletedItem(resource.path, node.path, node.type)) {
-          pane.closeTab(tab.tabId);
+        if (isPathWithinDeletedItem(resource.path, node.path, deleteClosesDescendants)) {
+          void pane.closeTab(tab.tabId);
         }
       }
     }
@@ -280,17 +308,25 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const deleteItem = async () => {
     try {
-      const result = await rpc.workspace.fs.removeFile(projectId, workspaceId, node.path, {
+      const result = await rpc.workspace.files.removeFile(projectId, workspaceId, node.path, {
         recursive: node.type === 'directory',
       });
       if (!result.success) throw new Error(resultErrorMessage(result.error));
       if (!result.data.success) throw new Error(result.data.error ?? 'Delete failed.');
 
       closeDeletedFileTabs();
-      workspace.files.removeNode(node.path);
-      toast({ title: node.type === 'directory' ? 'Folder deleted' : 'File deleted' });
+      files?.removeNode(node.path);
+      await files?.registerDir(node.parentPath ?? workspace.path, true);
+      toast({
+        title:
+          node.type === 'directory'
+            ? 'Folder deleted'
+            : isSymlink
+              ? 'Link deleted'
+              : 'File deleted',
+      });
     } catch (error) {
-      await workspace.files.loadDir(node.parentPath ?? '', true);
+      await files?.registerDir(node.parentPath ?? workspace.path, true);
       toast({
         title: 'Delete failed',
         description: error instanceof Error ? error.message : 'The item could not be deleted.',
@@ -301,11 +337,14 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const confirmDelete = () => {
     showModal('confirmActionModal', {
-      title: node.type === 'directory' ? 'Delete folder?' : 'Delete file?',
+      title:
+        node.type === 'directory' ? 'Delete folder?' : isSymlink ? 'Delete link?' : 'Delete file?',
       description:
         node.type === 'directory'
           ? `"${node.path}" and all of its contents will be deleted from the workspace.`
-          : `"${node.path}" will be deleted from the workspace.`,
+          : isSymlink
+            ? `"${node.path}" will be removed from the workspace. Its target will not be deleted.`
+            : `"${node.path}" will be deleted from the workspace.`,
       confirmLabel: 'Delete',
       variant: 'destructive',
       onSuccess: () => {
@@ -321,8 +360,7 @@ const FileTreeRow = observer(function FileTreeRow({
     // without knowing which workspace rendered the file tree.
     setDraggedWorkspaceFile(event.dataTransfer, {
       workspaceId,
-      workspaceRootPath: workspace.path,
-      relPath: node.path,
+      targetPath: node.path,
       targetPlatform: workspace.sshConnectionId ? 'linux' : undefined,
     });
   };
@@ -348,20 +386,21 @@ const FileTreeRow = observer(function FileTreeRow({
     if (srcPaths.length === 0) return;
 
     void (async () => {
+      if (!files) return;
       // Expand and load the target directory so optimistic nodes can be inserted immediately.
-      if (node.type === 'directory') {
+      if (isExpandable) {
         runInAction(() => {
           for (const segment of row.chain) {
             editorView.expandedPaths.add(segment.path);
           }
         });
-        if (!workspace.files.loadedPaths.has(node.path)) {
-          await workspace.files.loadDir(node.path);
+        if (!files.loadedPaths.has(node.path)) {
+          await files.registerDir(node.path);
         }
       }
 
       await importLocalFiles({
-        files: workspace.files,
+        files,
         projectId,
         workspaceId,
         srcPaths,
@@ -392,10 +431,10 @@ const FileTreeRow = observer(function FileTreeRow({
         onDrop={handleDrop}
         role="treeitem"
         aria-selected={isSelected}
-        aria-expanded={node.type === 'directory' ? isExpanded : undefined}
+        aria-expanded={isExpandable ? isExpanded : undefined}
       >
         <span className="text-muted-foreground shrink-0">
-          {node.type === 'directory' ? (
+          {isExpandable ? (
             isExpanded ? (
               <ChevronDown className="h-3.5 w-3.5" />
             ) : (
@@ -407,7 +446,9 @@ const FileTreeRow = observer(function FileTreeRow({
         </span>
 
         <span className="shrink-0">
-          {node.type === 'directory' ? (
+          {isSymlink ? (
+            <Link className="text-muted-foreground h-3.5 w-3.5" />
+          ) : node.type === 'directory' ? (
             isExpanded ? (
               <FolderOpen className="text-muted-foreground h-3.5 w-3.5" />
             ) : (
@@ -431,7 +472,7 @@ const FileTreeRow = observer(function FileTreeRow({
         </span>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        {node.type === 'file' && (
+        {isOpenable && (
           <ContextMenuItem onClick={() => void copyFile()}>
             <FileText className="size-4" />
             Copy
@@ -460,30 +501,18 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
-  const files = workspace.files;
   const editorView = taskView.editorView;
+  const files = editorView.files;
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
 
-  const visibleRows = files ? buildVisibleRows(files.rootNodes, editorView.expandedPaths) : [];
-
-  const prefetchKey = files
-    ? visibleRows
-        .filter(
-          (row) =>
-            row.node.type === 'directory' &&
-            !files.loadedPaths.has(row.node.path) &&
-            !files.pendingPaths.has(row.node.path)
-        )
-        .map((row) => row.node.path)
-        .join('\0')
-    : '';
-
-  useEffect(() => {
-    if (!files || !prefetchKey) return;
-    for (const path of prefetchKey.split('\0')) {
-      void files.loadDir(path);
-    }
-  }, [prefetchKey, files]);
+  const visibleRows = files
+    ? buildFileTreeVisibleRows(
+        files.rootNodes,
+        editorView.expandedPaths,
+        files.childrenById,
+        files.loadedPaths
+      )
+    : [];
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -500,13 +529,14 @@ export const EditorFileTree = observer(function EditorFileTree() {
     setIsDragOverRoot(false);
     const srcPaths = getDraggedFilePaths(event.dataTransfer);
     if (srcPaths.length === 0) return;
+    if (!files) return;
 
     void importLocalFiles({
-      files: workspace.files,
+      files,
       projectId,
       workspaceId,
       srcPaths,
-      destDirPath: '',
+      destDirPath: workspace.path,
     });
   };
 

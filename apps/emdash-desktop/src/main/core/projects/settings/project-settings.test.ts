@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { IFileSystem } from '@emdash/core/files';
+import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { DEFAULT_PRESERVE_PATTERNS } from '@shared/core/project-settings/project-settings';
 import type { ProjectSettingsStorage } from './project-settings-storage';
 import { LocalProjectSettingsProvider } from './providers/local-project-settings-provider';
@@ -17,6 +18,62 @@ const storageMockState = vi.hoisted(() => ({
 function makeTrackingGit(isFileCleanlyTracked: boolean) {
   return {
     isFileCleanlyTracked: vi.fn().mockResolvedValue(isFileCleanlyTracked),
+  };
+}
+
+const projectId = () => `project-${randomUUID()}`;
+
+function makeLocalConfigReader(projectPath: string): Pick<IFileSystem, 'exists' | 'readText'> {
+  const resolvePath = (filePath: string) =>
+    path.isAbsolute(filePath) ? filePath : path.join(projectPath, filePath);
+  return {
+    exists: vi.fn(async (filePath: string) => ok(fs.existsSync(resolvePath(filePath)))),
+    readText: vi.fn(async (filePath: string) => {
+      try {
+        const content = fs.readFileSync(resolvePath(filePath), 'utf8');
+        return ok({ content, truncated: false, totalSize: Buffer.byteLength(content) });
+      } catch {
+        return err({
+          type: 'fs-error' as const,
+          path: filePath,
+          message: `File not found: ${filePath}`,
+          code: 'ENOENT',
+        });
+      }
+    }),
+  };
+}
+
+function makeLocalProvider(
+  projectPath: string,
+  options?: ConstructorParameters<typeof LocalProjectSettingsProvider>[4]
+): LocalProjectSettingsProvider {
+  return new LocalProjectSettingsProvider(
+    projectId(),
+    projectPath,
+    'main',
+    makeLocalConfigReader(projectPath),
+    options
+  );
+}
+
+function makeSshConfigReader(
+  config: unknown | null = null
+): Pick<IFileSystem, 'exists' | 'readText'> {
+  return {
+    exists: vi.fn(async () => ok(config !== null)),
+    readText: vi.fn(async (filePath: string) => {
+      if (config === null) {
+        return err({
+          type: 'fs-error' as const,
+          path: filePath,
+          message: `File not found: ${filePath}`,
+          code: 'NOT_FOUND',
+        });
+      }
+      const content = JSON.stringify(config);
+      return ok({ content, truncated: false, totalSize: Buffer.byteLength(content) });
+    }),
   };
 }
 
@@ -72,8 +129,6 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     };
   };
 
-  const projectId = () => `project-${randomUUID()}`;
-
   beforeEach(() => {
     storageMockState.storage = createStorage();
   });
@@ -89,7 +144,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
 
     await expect(provider.get()).resolves.toMatchObject({
       preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
@@ -104,7 +159,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       JSON.stringify({ shellSetup: 'nvm use' })
     );
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
 
     await expect(provider.get()).resolves.toMatchObject({
       preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
@@ -119,7 +174,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       JSON.stringify({ preservePatterns: ['.env.shared'] })
     );
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
 
     await expect(provider.get()).resolves.not.toHaveProperty('preservePatterns');
   });
@@ -140,9 +195,8 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       })
     );
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', {
-      git: makeTrackingGit(false),
-    });
+    const git = makeTrackingGit(false);
+    const provider = makeLocalProvider(projectPath, { git });
 
     await expect(provider.get()).resolves.toMatchObject({
       preservePatterns: ['.env.local'],
@@ -153,6 +207,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
         teardown: 'pnpm cleanup',
       },
     });
+    expect(git.isFileCleanlyTracked).toHaveBeenCalledWith(path.join(projectPath, '.emdash.json'));
   });
 
   it('migrates local-only shareable settings for rows already base-migrated', async () => {
@@ -181,9 +236,8 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       },
     };
     storageMockState.storage = settingsStorage;
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', {
-      git: makeTrackingGit(false),
-    });
+    const git = makeTrackingGit(false);
+    const provider = makeLocalProvider(projectPath, { git });
 
     await expect(provider.get()).resolves.toMatchObject({
       shellSetup: 'nvm use',
@@ -192,6 +246,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
         run: 'pnpm dev',
       },
     });
+    expect(git.isFileCleanlyTracked).toHaveBeenCalledWith(path.join(projectPath, '.emdash.json'));
 
     const result = await provider.update({ preservePatterns: [] });
     expect(result.success).toBe(true);
@@ -213,22 +268,22 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       })
     );
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', {
-      git: makeTrackingGit(true),
-    });
+    const git = makeTrackingGit(true);
+    const provider = makeLocalProvider(projectPath, { git });
 
     await expect(provider.get()).resolves.toMatchObject({
       preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
     });
     await expect(provider.get()).resolves.not.toHaveProperty('shellSetup');
     await expect(provider.get()).resolves.not.toHaveProperty('scripts');
+    expect(git.isFileCleanlyTracked).toHaveBeenCalledWith(path.join(projectPath, '.emdash.json'));
   });
 
   it('does not seed computed worktreeDirectory into project settings', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
 
     await expect(provider.get()).resolves.not.toHaveProperty('worktreeDirectory');
     await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
@@ -251,7 +306,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       },
     };
     storageMockState.storage = settingsStorage;
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
 
     await expect(provider.get()).resolves.toMatchObject({ baseRemote: 'upstream' });
     expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({ baseRemote: 'upstream' });
@@ -260,7 +315,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('keeps computed worktreeDirectory default separate from configured overrides', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
     const expectedOverridePath = path.resolve(projectPath, 'worktrees');
     const result = await provider.update({
       preservePatterns: [],
@@ -277,7 +332,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('stores the selected GitHub account as base project settings', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
 
     const result = await provider.update({
       preservePatterns: [],
@@ -291,7 +346,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('stores null GitHub account selection as an explicit project override', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
 
     const result = await provider.update({
       preservePatterns: [],
@@ -324,7 +379,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       },
     };
     storageMockState.storage = settingsStorage;
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
 
     const result = await provider.patch({ githubAccountId: 'github.com:42' });
 
@@ -363,7 +418,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       },
     };
     storageMockState.storage = settingsStorage;
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
 
     await expect(provider.ensure()).rejects.toThrow('db write failed');
     await expect(provider.ensure()).resolves.toBeUndefined();
@@ -396,7 +451,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       },
     };
     storageMockState.storage = settingsStorage;
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
 
     const result = await provider.patch({
       clearShareableFields: ['preservePatterns', 'scripts.run'],
@@ -414,7 +469,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
     const expectedPath = path.resolve(projectPath, 'worktrees');
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: expectedPath });
     expect(result.success).toBe(true);
@@ -430,7 +485,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
 
     expect(result).toEqual({
@@ -443,7 +498,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
     const foreignPath = process.platform === 'win32' ? '/tmp/worktrees' : 'C:\\worktrees';
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: foreignPath });
 
@@ -458,7 +513,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     tempDirs.push(projectPath);
     fs.writeFileSync(path.join(projectPath, 'not-a-directory'), 'file');
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
     const result = await provider.update({
       preservePatterns: [],
       worktreeDirectory: path.join(projectPath, 'not-a-directory', 'worktrees'),
@@ -473,7 +528,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    const provider = makeLocalProvider(projectPath);
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: '   ' });
     expect(result.success).toBe(true);
 
@@ -481,12 +536,10 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('normalizes and canonicalizes ssh absolute worktreeDirectory on update', async () => {
-    const projectFs = {
-      exists: vi.fn().mockResolvedValue(false),
-    } as unknown as SshFileSystem;
+    const projectFs = makeSshConfigReader();
     const rootFs = {
-      mkdir: vi.fn().mockResolvedValue(undefined),
-      realPath: vi.fn().mockResolvedValue('/canonical/ssh-worktrees'),
+      mkdir: vi.fn().mockResolvedValue(ok()),
+      realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
     };
 
     const provider = new SshProjectSettingsProvider(
@@ -512,12 +565,10 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('rejects ssh relative worktreeDirectory values', async () => {
-    const projectFs = {
-      exists: vi.fn().mockResolvedValue(false),
-    } as unknown as SshFileSystem;
+    const projectFs = makeSshConfigReader();
     const rootFs = {
-      mkdir: vi.fn().mockResolvedValue(undefined),
-      realPath: vi.fn().mockResolvedValue('/canonical/ssh-worktrees'),
+      mkdir: vi.fn().mockResolvedValue(ok()),
+      realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
     };
 
     const provider = new SshProjectSettingsProvider(
@@ -538,9 +589,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('uses project-scoped ssh default worktree directory when not configured', async () => {
-    const projectFs = {
-      exists: vi.fn().mockResolvedValue(false),
-    } as unknown as SshFileSystem;
+    const projectFs = makeSshConfigReader();
 
     const provider = new SshProjectSettingsProvider(
       projectId(),
@@ -554,12 +603,10 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('rejects tilde worktreeDirectory for ssh projects', async () => {
-    const projectFs = {
-      exists: vi.fn().mockResolvedValue(false),
-    } as unknown as SshFileSystem;
+    const projectFs = makeSshConfigReader();
     const rootFs = {
-      mkdir: vi.fn().mockResolvedValue(undefined),
-      realPath: vi.fn().mockResolvedValue('/canonical/ssh-worktrees'),
+      mkdir: vi.fn().mockResolvedValue(ok()),
+      realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
     };
 
     const provider = new SshProjectSettingsProvider(
@@ -581,12 +628,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('falls back to project-scoped ssh default when configured directory is invalid', async () => {
-    const projectFs = {
-      exists: vi.fn().mockResolvedValue(true),
-      read: vi.fn().mockResolvedValue({
-        content: JSON.stringify({ worktreeDirectory: '~/worktrees' }),
-      }),
-    } as unknown as SshFileSystem;
+    const projectFs = makeSshConfigReader({ worktreeDirectory: '~/worktrees' });
 
     const provider = new SshProjectSettingsProvider(
       projectId(),
@@ -600,12 +642,10 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('expands and caches ssh home for tilde worktreeDirectory values', async () => {
-    const projectFs = {
-      exists: vi.fn().mockResolvedValue(false),
-    } as unknown as SshFileSystem;
+    const projectFs = makeSshConfigReader();
     const rootFs = {
-      mkdir: vi.fn().mockResolvedValue(undefined),
-      realPath: vi.fn().mockResolvedValue('/canonical/ssh-worktrees'),
+      mkdir: vi.fn().mockResolvedValue(ok()),
+      realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
     };
     const ctx = {
       root: undefined,

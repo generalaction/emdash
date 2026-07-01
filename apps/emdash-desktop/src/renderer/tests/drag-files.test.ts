@@ -3,7 +3,6 @@ import {
   clearDraggedWorkspaceFile,
   getDraggedWorkspaceFile,
   hasDraggedWorkspaceFile,
-  resolveWorkspaceFileTargetPath,
   setDraggedWorkspaceFile,
 } from '@renderer/lib/drag-files';
 
@@ -25,29 +24,18 @@ function makeDataTransfer(): DataTransfer {
 }
 
 describe('drag-files', () => {
-  it('resolves workspace-relative paths into the workspace target path', () => {
-    expect(resolveWorkspaceFileTargetPath('/tmp/repo/', 'src/file name.ts')).toBe(
-      '/tmp/repo/src/file name.ts'
-    );
-    expect(resolveWorkspaceFileTargetPath('C:\\repo\\', 'src/file name.ts')).toBe(
-      'C:\\repo\\src\\file name.ts'
-    );
-  });
-
   it('carries workspace file payloads for same-window drops', () => {
     const dataTransfer = makeDataTransfer();
 
     setDraggedWorkspaceFile(dataTransfer, {
       workspaceId: 'workspace-1',
-      workspaceRootPath: '/remote/repo',
-      relPath: 'src/index.ts',
+      targetPath: '/remote/repo/src/index.ts',
       targetPlatform: 'linux',
     });
 
     expect(hasDraggedWorkspaceFile(dataTransfer)).toBe(true);
     expect(getDraggedWorkspaceFile(dataTransfer)).toEqual({
       workspaceId: 'workspace-1',
-      relPath: 'src/index.ts',
       targetPath: '/remote/repo/src/index.ts',
       targetPlatform: 'linux',
     });
@@ -58,8 +46,7 @@ describe('drag-files', () => {
     const sourceTransfer = makeDataTransfer();
     setDraggedWorkspaceFile(sourceTransfer, {
       workspaceId: 'workspace-1',
-      workspaceRootPath: '/repo',
-      relPath: 'src/index.ts',
+      targetPath: '/repo/src/index.ts',
     });
 
     const unrelatedTransfer = makeDataTransfer();
@@ -73,14 +60,12 @@ describe('drag-files', () => {
     const dataTransfer = makeDataTransfer();
     setDraggedWorkspaceFile(dataTransfer, {
       workspaceId: 'workspace-1',
-      workspaceRootPath: '/repo',
-      relPath: 'src/index.ts',
+      targetPath: '/repo/src/index.ts',
     });
     clearDraggedWorkspaceFile();
 
     expect(getDraggedWorkspaceFile(dataTransfer)).toEqual({
       workspaceId: 'workspace-1',
-      relPath: 'src/index.ts',
       targetPath: '/repo/src/index.ts',
     });
   });

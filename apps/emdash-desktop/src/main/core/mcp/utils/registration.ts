@@ -65,7 +65,10 @@ export function mcpServerFieldCount(server: McpServer): number {
   if (server.url) n += 10;
   if (server.headers && Object.keys(server.headers).length) n++;
   if (server.env && Object.keys(server.env).length) n++;
-  if (server.enabled !== undefined) n++;
+  // Enabled=true is the common/default state for providers, so it should not make
+  // an otherwise identical server win merge conflict resolution. Disabled state
+  // is meaningful user intent and should still be preferred.
+  if (server.enabled === false) n++;
   if (server.cwd) n++;
   if (server.timeout !== undefined) n++;
   if (server.oauth !== undefined) n++;

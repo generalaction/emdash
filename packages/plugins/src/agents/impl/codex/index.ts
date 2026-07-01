@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module';
+import { Readable, Writable } from 'node:stream';
+import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
@@ -8,6 +11,12 @@ import {
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
 
+const _require = createRequire(import.meta.url);
+
+function resolveCodexAcpEntry(): string {
+  return _require.resolve('@agentclientprotocol/codex-acp/dist/index.js');
+}
+
 export const plugin = definePlugin(
   {
     id: 'codex',
@@ -17,6 +26,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/openai/codex',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -76,6 +88,23 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: {
+    buildSpawn: (ctx) => ({
+      command: process.execPath,
+      args: [resolveCodexAcpEntry()],
+      env: {
+        ELECTRON_RUN_AS_NODE: '1',
+        CODEX_PATH: ctx.cli,
+      },
+    }),
+    connect: (io, toClient) => {
+      const stream = ndJsonStream(
+        Writable.toWeb(io.stdin) as WritableStream<Uint8Array>,
+        Readable.toWeb(io.stdout) as unknown as ReadableStream<Uint8Array>
+      );
+      return new ClientSideConnection((agent) => toClient(agent as never), stream);
+    },
+  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

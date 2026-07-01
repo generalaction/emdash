@@ -9,7 +9,7 @@
  * Theming model:
  *   chat-ui default (theme.css.ts :where())   — self-contained, Inter + JetBrains Mono
  *   └── this file (.emlight / .emdark rules)  — overrides fonts/colors for desktop
- *       └── --chat-font-sans: var(--font-sans) — system sans (not Inter) on desktop
+ *       └── --chat-font-sans: var(--em-font-sans) — system sans (not Inter) on desktop
  *
  * Import alongside @emdash/ui/theme/theme.css and semantic.css in the host app.
  * emdash-desktop imports this at main.tsx. The specificity of .emlight / .emdark
@@ -23,69 +23,69 @@
 .emlight,
 .emdark {
   /* ── Foregrounds ────────────────────────────────────────────────────────── */
-  --chat-fg: var(--foreground);
-  --chat-fg-body: var(--foreground-body);
-  --chat-fg-muted: var(--foreground-muted);
-  --chat-fg-passive: var(--foreground-passive);
+  --chat-fg: var(--em-foreground);
+  --chat-fg-body: var(--em-foreground-body);
+  --chat-fg-muted: var(--em-foreground-muted);
+  --chat-fg-passive: var(--em-foreground-passive);
 
   /* ── Backgrounds ────────────────────────────────────────────────────────── */
-  /* Bind to the concrete --surface-paper token (not the --surface indirection):
-   * --surface is declared once at :root as var(--surface-base) and is NOT
+  /* Bind to the concrete --em-surface-paper token (not the --em-surface indirection):
+   * --em-surface is declared once at :root as var(--em-surface-base) and is NOT
    * re-declared by .emdark, so it stays frozen at the light :root value and
-   * breaks in dark mode. --surface-paper IS redefined per-theme under
+   * breaks in dark mode. --em-surface-paper IS redefined per-theme under
    * .emlight/.emdark, and matches the ChatComposer's bg-surface (which resolves
-   * to --surface-paper inside the panel's .surface-paper scope). */
-  --chat-bg: var(--surface-paper);
-  --chat-bg-1: var(--background-1);
-  --chat-bg-2: var(--background-2);
-  --chat-bg-3: var(--background-3);
+   * to --em-surface-paper inside the panel's .surface-paper scope). */
+  --chat-bg: var(--em-surface-paper);
+  --chat-bg-1: var(--em-background-1);
+  --chat-bg-2: var(--em-background-2);
+  --chat-bg-3: var(--em-background-3);
 
   /* ── Border ─────────────────────────────────────────────────────────────── */
-  --chat-border: var(--border);
+  --chat-border: var(--em-border);
 
   /* ── User message card ───────────────────────────────────────────────────── */
   /* Elevated surface to match the ChatComposer (bg-surface-base-emphasis). */
-  --chat-user-card-bg: var(--surface-base-emphasis);
-  --chat-user-card-border: var(--border);
-  --chat-user-card-border-hover: var(--border-1);
+  --chat-user-card-bg: var(--em-surface-base-emphasis);
+  --chat-user-card-border: var(--em-border);
+  --chat-user-card-border-hover: var(--em-border-1);
 
   /* ── Context-mention pill ────────────────────────────────────────────────── */
   /* Mirror the ChatComposer MentionPill. Bind to a CONCRETE elevation token
-   * rather than the scope-relative --surface-hover indirection: the chat root
-   * sits outside any .surface-* scope, so --surface-hover falls back to the
-   * base value (white in dark mode). --surface-base-emphasis-hover is one rung
+   * rather than the scope-relative --em-surface-hover indirection: the chat root
+   * sits outside any .surface-* scope, so --em-surface-hover falls back to the
+   * base value (white in dark mode). --em-surface-base-emphasis-hover is one rung
    * above the user-card surface, so the chip stays visible on the card and on
    * the paper transcript background in both themes. */
-  --chat-mention-chip-bg: var(--surface-base-emphasis-hover);
-  --chat-mention-chip-fg: var(--foreground);
+  --chat-mention-chip-bg: var(--em-surface-base-emphasis-hover);
+  --chat-mention-chip-fg: var(--em-foreground);
   /* Per-kind mention pill colors */
-  --chat-mention-file-bg: var(--surface-base-emphasis-hover);
-  --chat-mention-file-fg: var(--foreground);
-  --chat-mention-issue-bg: var(--info-3);
-  --chat-mention-issue-fg: var(--info-11);
-  --chat-mention-symbol-bg: var(--info-3);
-  --chat-mention-symbol-fg: var(--info-11);
-  --chat-mention-custom-bg: var(--surface-base-emphasis-hover);
-  --chat-mention-custom-fg: var(--foreground);
+  --chat-mention-file-bg: var(--em-surface-base-emphasis-hover);
+  --chat-mention-file-fg: var(--em-foreground);
+  --chat-mention-issue-bg: var(--em-background-info);
+  --chat-mention-issue-fg: var(--em-foreground-info);
+  --chat-mention-symbol-bg: var(--em-background-info);
+  --chat-mention-symbol-fg: var(--em-foreground-info);
+  --chat-mention-custom-bg: var(--em-surface-base-emphasis-hover);
+  --chat-mention-custom-fg: var(--em-foreground);
 
   /* ── Diff / VCS ─────────────────────────────────────────────────────────── */
-  --chat-diff-added: var(--foreground-diff-added);
-  --chat-diff-deleted: var(--foreground-diff-deleted);
-  --chat-diff-modified: var(--foreground-diff-modified);
+  --chat-diff-added: var(--em-foreground-diff-added);
+  --chat-diff-deleted: var(--em-foreground-diff-deleted);
+  --chat-diff-modified: var(--em-foreground-diff-modified);
 
   /* ── Chat-specific semantic vars ────────────────────────────────────────── */
-  --chat-link: var(--info-11);
-  --chat-bubble-user: var(--background-3);
-  --chat-bubble-user-fg: var(--foreground);
-  --chat-mention-bg: var(--info-3);
-  --chat-mention-fg: var(--info-11);
-  /* --neutral-1 is lightest gray in light mode and near-black in dark mode */
-  --chat-code-bg: var(--neutral-1);
-  --chat-table-header-bg: var(--background-1);
+  --chat-link: var(--em-foreground-info);
+  --chat-bubble-user: var(--em-background-3);
+  --chat-bubble-user-fg: var(--em-foreground);
+  --chat-mention-bg: var(--em-background-info);
+  --chat-mention-fg: var(--em-foreground-info);
+  /* --em-neutral-1 is lightest gray in light mode and near-black in dark mode */
+  --chat-code-bg: var(--em-neutral-1);
+  --chat-table-header-bg: var(--em-background-1);
 
   /* ── Non-color design tokens ─────────────────────────────────────────────── */
   /* Mirror @emdash/ui/theme/theme.base.css so chat-ui inherits the app radius scale. */
-  --chat-font-sans: var(--font-sans);
+  --chat-font-sans: var(--em-font-sans);
   --chat-font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace;
   --chat-radius-sm: 0.375rem;
   --chat-radius-md: 0.5rem;
@@ -101,5 +101,5 @@
 
 .emdark {
   --chat-code-inline-bg: rgba(255, 255, 255, 0.08);
-  --chat-code-bg: var(--neutral-1);
+  --chat-code-bg: var(--em-neutral-1);
 }

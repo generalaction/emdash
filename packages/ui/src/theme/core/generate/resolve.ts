@@ -11,6 +11,7 @@
  */
 
 import Color from 'colorjs.io';
+import { nsName, nsVar } from '../contract/namespace';
 import {
   SURFACE_SCOPES,
   SURFACE_STATUSES,
@@ -35,11 +36,11 @@ function resolveRef(ref: string, scales: Scales, _surfaces: Surfaces): string {
       const match = part.match(/^([\w-]+\.\d+)\s+(\d+%?)$/);
       if (match) {
         const varName = match[1].replace('.', '-'); // "neutral.11" → "neutral-11"
-        return `var(--${varName}) ${match[2]}`;
+        return `${nsVar(varName)} ${match[2]}`;
       }
       // No percentage: just a reference
       const varName = part.replace('.', '-');
-      return `var(--${varName})`;
+      return nsVar(varName);
     });
     return `color-mix(in srgb, ${resolved.join(', ')})`;
   }
@@ -74,9 +75,9 @@ function buildSurfaceVars(surfaces: Surfaces): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const scopeName of SURFACE_SCOPES) {
     const level = surfaces[scopeName];
-    vars[`--surface-${scopeName}`] = level.base;
-    vars[`--surface-${scopeName}-hover`] = level.hover;
-    vars[`--surface-${scopeName}-selected`] = level.selected;
+    vars[nsName(`surface-${scopeName}`)] = level.base;
+    vars[nsName(`surface-${scopeName}-hover`)] = level.hover;
+    vars[nsName(`surface-${scopeName}-selected`)] = level.selected;
   }
   return vars;
 }
@@ -111,11 +112,11 @@ function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<stri
     const borderColor = ramp.steps[5]; // step 6
     const fgColor = ramp.steps[10]; // step 11
 
-    vars[`--surface-${status}`] = baseColor;
-    vars[`--surface-${status}-hover`] = hoverColor;
-    vars[`--surface-${status}-selected`] = selectedColor;
-    vars[`--surface-${status}-border`] = borderColor;
-    vars[`--surface-${status}-foreground`] = fgColor;
+    vars[nsName(`surface-${status}`)] = baseColor;
+    vars[nsName(`surface-${status}-hover`)] = hoverColor;
+    vars[nsName(`surface-${status}-selected`)] = selectedColor;
+    vars[nsName(`surface-${status}-border`)] = borderColor;
+    vars[nsName(`surface-${status}-foreground`)] = fgColor;
 
     // Per-scope variants: shift every sub-token by the neutral elevation delta.
     for (const scope of STATUS_LEVEL_SCOPES) {
@@ -130,11 +131,11 @@ function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<stri
         return toP3String(p3.to('p3') as Color);
       };
 
-      vars[`--surface-${status}-${scope}`] = shift(baseColor);
-      vars[`--surface-${status}-${scope}-hover`] = shift(hoverColor);
-      vars[`--surface-${status}-${scope}-selected`] = shift(selectedColor);
-      vars[`--surface-${status}-${scope}-border`] = shift(borderColor);
-      vars[`--surface-${status}-${scope}-foreground`] = shift(fgColor);
+      vars[nsName(`surface-${status}-${scope}`)] = shift(baseColor);
+      vars[nsName(`surface-${status}-${scope}-hover`)] = shift(hoverColor);
+      vars[nsName(`surface-${status}-${scope}-selected`)] = shift(selectedColor);
+      vars[nsName(`surface-${status}-${scope}-border`)] = shift(borderColor);
+      vars[nsName(`surface-${status}-${scope}-foreground`)] = shift(fgColor);
     }
   }
   return vars;
@@ -146,9 +147,9 @@ function buildPaletteVars(scales: Scales): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const [scaleName, ramp] of Object.entries(scales)) {
     ramp.steps.forEach((color: string, i: number) => {
-      vars[`--${scaleName}-${i + 1}`] = color;
+      vars[nsName(`${scaleName}-${i + 1}`)] = color;
     });
-    vars[`--${scaleName}-contrast`] = ramp.contrast;
+    vars[nsName(`${scaleName}-contrast`)] = ramp.contrast;
   }
   return vars;
 }
@@ -176,9 +177,9 @@ export function resolveCssVars(
   // 3. Status surface vars (--surface-destructive, --surface-warning, etc.)
   Object.assign(vars, buildStatusSurfaceVars(scales, surfaces));
 
-  // 4. Semantic slot vars (--background, --foreground, etc.)
+  // 4. Semantic slot vars (--em-background, --em-foreground, etc.)
   for (const [slot, ref] of Object.entries(SEMANTIC_TEMPLATE)) {
-    vars[`--${slot}`] = resolveRef(ref, scales, surfaces);
+    vars[nsName(slot)] = resolveRef(ref, scales, surfaces);
   }
 
   return vars;

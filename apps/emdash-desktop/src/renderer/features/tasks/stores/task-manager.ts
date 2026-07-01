@@ -355,6 +355,7 @@ export class TaskManagerStore {
           autoApprove: ic.autoApprove ?? false,
           model: ic.model,
           isInitialConversation: true,
+          type: ic.type ?? 'pty',
         };
         const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [
           optimistic,
@@ -479,16 +480,13 @@ export class TaskManagerStore {
       if (current && isUnprovisioned(current)) {
         conversationRegistry.acquire(taskId, this.projectId);
         terminalRegistry.acquire(taskId, this.projectId);
-        current.ensureRegisteredStores();
-        if (savedSnapshot && current.viewModel) {
-          current.viewModel.restoreSnapshot(savedSnapshot);
-        }
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           result.data.path,
           result.data.workspaceId,
           this._repository,
-          result.data.sshConnectionId ?? undefined
+          result.data.sshConnectionId ?? undefined,
+          savedSnapshot
         );
         current.activate();
       }
@@ -509,16 +507,13 @@ export class TaskManagerStore {
       if (current && isUnprovisioned(current)) {
         conversationRegistry.acquire(taskId, this.projectId);
         terminalRegistry.acquire(taskId, this.projectId);
-        current.ensureRegisteredStores();
-        if (savedSnapshot && current.viewModel) {
-          current.viewModel.restoreSnapshot(savedSnapshot);
-        }
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           path,
           workspaceId,
           this._repository,
-          sshConnectionId
+          sshConnectionId,
+          savedSnapshot
         );
         current.activate();
       }

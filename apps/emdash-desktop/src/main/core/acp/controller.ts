@@ -30,6 +30,14 @@ async function setMode(
   return acpSessionManager.setMode(conversationId, modeId);
 }
 
+async function setConfigOption(
+  conversationId: string,
+  configId: string,
+  value: string
+): Promise<Result<void, AcpRuntimeError>> {
+  return acpSessionManager.setConfigOption(conversationId, configId, value);
+}
+
 function getChatHistory(conversationId: string): Promise<ChatHistory> {
   return Promise.resolve(acpSessionManager.getChatHistory(conversationId));
 }
@@ -55,6 +63,7 @@ export const acpController = createRPCController({
   cancel,
   setModel,
   setMode,
+  setConfigOption,
   getChatHistory,
   getSessionState,
   resolvePermission,
