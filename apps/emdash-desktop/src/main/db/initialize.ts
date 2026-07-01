@@ -145,6 +145,7 @@ export async function initializeDatabase(
   // Lazily import the app singleton only when no explicit connection is given.
   // This keeps the module importable in non-Electron environments (Vitest).
   const conn = connection ?? (await import('./client')).sqlite;
+  conn.pragma('foreign_keys = ON');
   runBundledMigrations(conn);
   ensureSearchIndex(conn);
   ensureFileIndex(conn);

@@ -105,8 +105,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   private _contentFocuser: (() => void) | null = null;
   /** Disposes the per-pane onActivate effect reaction. */
   private readonly _onActivateDisposer: () => void;
-  /** Container element registered by PaneDimensionProvider for manual re-measurement. */
-  private _measureEl: HTMLElement | null = null;
 
   get ctx(): TabViewContext {
     return this._ctx;
@@ -158,14 +156,13 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       commitRename: action,
     });
 
-    // Fire onActivate() for the active tab whenever this pane becomes visible
-    // or the active tab changes while already visible.
+    // Fire onActivate() whenever the active visible resource instance changes.
+    // Tracking the resource instance (not just the tab id) ensures onActivate()
+    // fires after a preview-retarget, where retargetEntry() swaps in a new
+    // resource at the same tabId (leaving the id unchanged but the instance new).
     this._onActivateDisposer = reaction(
-      () => (this.isVisible ? this.resolvedActiveTabId : undefined),
-      (tabId) => {
-        if (!tabId) return;
-        this._resources.get(tabId)?.onActivate?.();
-      },
+      () => (this.isVisible ? this._resources.get(this.resolvedActiveTabId ?? '') : undefined),
+      (resource) => resource?.onActivate?.(),
       { fireImmediately: true }
     );
   }
@@ -488,17 +485,6 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
 
   setDimensions(width: number, height: number): void {
     this.dimensions = { width, height };
-  }
-
-  attachMeasureSource(el: HTMLElement | null): void {
-    this._measureEl = el;
-  }
-
-  remeasure(): void {
-    const el = this._measureEl;
-    if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
-    if (width > 0 || height > 0) this.setDimensions(width, height);
   }
 
   restoreSnapshot(snapshot: Partial<TabManagerSnapshot>): void {

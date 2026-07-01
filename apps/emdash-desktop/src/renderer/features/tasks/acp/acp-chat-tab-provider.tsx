@@ -1,4 +1,3 @@
-import { MessageSquareCode } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type {
   TabEntry,
@@ -13,6 +12,11 @@ import {
   GenericTabDragPreview,
   GenericTabItem,
 } from '@renderer/features/tabs/tab-bar/generic-tab-item';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
+import { AgentStatusIndicator } from '../components/agent-status-indicator';
+import { ConversationAgentIcon } from '../conversations/conversation-agent-icon';
+import { formatConversationTitleForDisplay } from '../conversations/conversation-title-utils';
+import { conversationRegistry } from '../stores/conversation-registry';
 import type { TaskTabContext } from '../stores/task-tab-context';
 import { AcpChatPanel } from './acp-chat-panel';
 import { getAcpChatResourceManager } from './acp-chat-resource-manager';
@@ -31,13 +35,41 @@ export const AcpChatTabBarItem = observer(function AcpChatTabBarItem({
   host,
   ctx,
 }: TabBarItemProps<AcpChatTabResource>) {
+  const store = tab.resource.store;
+  const conversation = conversationRegistry
+    .get(store.taskId)
+    ?.conversations.get(store.conversationId);
+  const providerId = conversation?.data.providerId ?? '';
+  const rawTitle = conversation?.data.title ?? '';
+  const label = conversation
+    ? formatConversationTitleForDisplay(conversation.data.providerId, conversation.data.title)
+    : 'ACP Chat';
+
   return (
     <GenericTabItem
       tab={tab}
       host={host}
       ctx={ctx}
-      label="ACP Chat"
-      preSlot={<MessageSquareCode size={16} />}
+      label={label}
+      preSlot={<ConversationAgentIcon providerId={providerId} isAcp size={16} />}
+      statusSlot={
+        conversation ? (
+          <span className="transition-opacity group-hover:opacity-0">
+            <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
+          </span>
+        ) : undefined
+      }
+      kindCommands={[
+        {
+          id: 'conversation:rename',
+          label: 'Rename',
+          group: 'edit',
+          shortcut: 'tabRename',
+          run: () => host.requestRename(tab.tabId),
+        },
+      ]}
+      renameValue={rawTitle}
+      renameMaxLength={MAX_CONVERSATION_TITLE_LENGTH}
     />
   );
 });
@@ -47,8 +79,21 @@ export const AcpChatTabBarItemDragPreview = observer(function AcpChatTabBarItemD
 }: {
   tab: ResolvedTab<AcpChatTabResource>;
 }) {
-  void tab;
-  return <GenericTabDragPreview preSlot={<MessageSquareCode size={16} />} label="ACP Chat" />;
+  const store = tab.resource.store;
+  const conversation = conversationRegistry
+    .get(store.taskId)
+    ?.conversations.get(store.conversationId);
+  const providerId = conversation?.data.providerId ?? '';
+  const label = conversation
+    ? formatConversationTitleForDisplay(conversation.data.providerId, conversation.data.title)
+    : 'ACP Chat';
+
+  return (
+    <GenericTabDragPreview
+      preSlot={<ConversationAgentIcon providerId={providerId} isAcp size={16} />}
+      label={label}
+    />
+  );
 });
 
 const AcpChatTabContent = observer(function AcpChatTabContent() {
@@ -85,6 +130,15 @@ export const acpChatTabProvider: TabProvider<
     getAcpChatResourceManager(taskCtx.taskId, taskCtx.projectId).release(
       entry.state.conversationId
     );
+  },
+
+  commands: {
+    rename: {
+      label: 'Rename',
+      exec: (resource: AcpChatTabResource, name?: string) => {
+        if (name) resource.rename(name);
+      },
+    },
   },
 
   TabBarItem: AcpChatTabBarItem,

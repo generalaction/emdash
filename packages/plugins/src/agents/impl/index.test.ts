@@ -211,4 +211,48 @@ describe('pluginRegistry', () => {
 
     expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'deep']);
   });
+
+  it('registers Qoder CLI install metadata and interactive command args', () => {
+    const qoder = pluginRegistry.get('qoder')!;
+
+    expect(qoder.metadata.websiteUrl).toBe('https://qoder.com/en/cli');
+    expect(qoder.capabilities.hostDependency.binaryNames).toEqual(['qodercli']);
+    expect(qoder.capabilities.hostDependency.installDocs).toBe('https://qoder.com/en/cli');
+    expect(
+      qoder.capabilities.hostDependency.installCommands.macos?.map((opt) => opt.method)
+    ).toEqual(['npm', 'curl']);
+    expect(qoder.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'npm install -g @qoder-ai/qodercli'
+    );
+    expect(
+      qoder.capabilities.hostDependency.installCommands.windows?.map((opt) => opt.method)
+    ).toEqual(['npm', 'powershell']);
+
+    const fresh = qoder.behavior.prompt!.buildCommand({
+      cli: 'qodercli',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+
+    expect(fresh).toEqual({
+      command: 'qodercli',
+      args: ['--yolo', 'Fix the bug'],
+      env: {},
+    });
+
+    const resumed = qoder.behavior.prompt!.buildCommand({
+      cli: 'qodercli',
+      autoApprove: true,
+      initialPrompt: '',
+      sessionId: 'conv-1',
+      providerSessionId: 'qoder-session-1',
+      isResuming: true,
+      model: '',
+    });
+
+    expect(resumed.args).toEqual(['-r', 'qoder-session-1', '--yolo']);
+  });
 });

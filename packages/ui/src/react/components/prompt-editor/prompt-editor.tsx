@@ -25,7 +25,7 @@ import {
   ComboboxPopup,
   type ComboboxPopupHandle,
   type ComboboxPopupItem,
-} from '../../primitives/combobox-popup';
+} from '../../primitives/combobox/combobox-popup';
 import { buildMentionExtension } from './extensions/mention';
 import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';
@@ -74,9 +74,12 @@ function mentionToPopupItem(item: MentionItem): ComboboxPopupItem {
 }
 
 function commandToPopupItem(item: CommandItem): ComboboxPopupItem {
+  // Primary text is the slash-prefixed command name so the popup reads as a list
+  // of commands; the human-readable description is the muted secondary text.
+  // Strip any leading slash the agent already included so we never double it.
   return {
     id: item.id,
-    label: item.label ?? item.name,
+    label: `/${item.name.replace(/^\/+/, '')}`,
     description: item.description,
   };
 }
@@ -95,7 +98,7 @@ function emptySuggestion<T>(): SuggestionState<T> {
 
 /**
  * Build the `render` factory required by @tiptap/suggestion.
- * We use `any` for the generic params because the popup only needs
+ * We rely on SuggestionProps' default generics because the popup only needs
  * `items`, `clientRect`, and the `command` callback — all of which
  * are invariant regardless of whether we're rendering mentions or commands.
  */
@@ -103,20 +106,20 @@ function makeSuggestionRender<T>(
   setSuggestion: React.Dispatch<React.SetStateAction<SuggestionState<T>>>,
   popupRef: React.RefObject<ComboboxPopupHandle | null>
 ): () => {
-  onStart?: (props: SuggestionProps<any, any>) => void;
-  onUpdate?: (props: SuggestionProps<any, any>) => void;
+  onStart?: (props: SuggestionProps) => void;
+  onUpdate?: (props: SuggestionProps) => void;
   onExit?: () => void;
   onKeyDown?: (props: SuggestionKeyDownProps) => boolean;
 } {
   return () => ({
-    onStart(props: SuggestionProps<any, any>) {
+    onStart(props: SuggestionProps) {
       setSuggestion({
         items: props.items as T[],
         rect: props.clientRect?.() ?? null,
         onSelect: (item) => props.command(item),
       });
     },
-    onUpdate(props: SuggestionProps<any, any>) {
+    onUpdate(props: SuggestionProps) {
       setSuggestion({
         items: props.items as T[],
         rect: props.clientRect?.() ?? null,

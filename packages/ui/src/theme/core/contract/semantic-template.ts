@@ -131,9 +131,11 @@ export const SEMANTIC_TEMPLATE = {
 } as const;
 
 export type SemanticSlot = keyof typeof SEMANTIC_TEMPLATE;
-export type SemanticVar = `--${SemanticSlot}`;
+export type SemanticVar = string;
+
+import { nsName } from './namespace';
 
 /** Array of all semantic CSS custom property names for runtime validation. */
-export const SEMANTIC_VARS: readonly SemanticVar[] = Object.keys(SEMANTIC_TEMPLATE).map(
-  (k) => `--${k}` as SemanticVar
+export const SEMANTIC_VARS: readonly SemanticVar[] = Object.keys(SEMANTIC_TEMPLATE).map((k) =>
+  nsName(k)
 );

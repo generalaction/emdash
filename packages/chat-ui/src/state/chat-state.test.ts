@@ -2,7 +2,7 @@
  * ChatState persistence unit tests.
  *
  * Tests the per-conversation state that must survive view dispose/recreate
- * (e.g. tab switch): viewState (collapse), scroll anchor, and heightmap.
+ * (e.g. tab switch): viewState (collapse), scroll mode (ScrollMode), and heightmap.
  *
  * Note: createChatState transitively imports parse.ts (via createParseCaches)
  * which pulls in decode-named-character-reference and requires a DOM. These
@@ -13,7 +13,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ScrollAnchor, HeightmapStore } from './chat-state';
+import type { HeightmapStore } from './chat-state';
+import type { ScrollMode } from './scroll-mode';
+import { tailMode, pinTopMode } from './scroll-mode';
 import { createViewState } from './view-state';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -118,24 +120,43 @@ describe('createViewState', () => {
   });
 });
 
-// ── scroll anchor ─────────────────────────────────────────────────────────────
+// ── scroll mode ──────────────────────────────────────────────────────────────
 
-describe('ScrollAnchor (plain object semantics)', () => {
-  it('default anchor has atBottom:true and null id', () => {
-    const anchor: ScrollAnchor = { anchorItemId: null, offsetWithinItem: 0, atBottom: true };
-    expect(anchor.atBottom).toBe(true);
-    expect(anchor.anchorItemId).toBeNull();
+describe('ScrollMode (plain object semantics)', () => {
+  it('tailMode() produces { kind: tail }', () => {
+    const mode = tailMode();
+    expect(mode.kind).toBe('tail');
   });
 
-  it('anchor values round-trip through assignment', () => {
-    let stored: ScrollAnchor = { anchorItemId: null, offsetWithinItem: 0, atBottom: true };
-    // Simulate readPhase write-back
-    stored = { anchorItemId: 'msg-7', offsetWithinItem: 42, atBottom: false };
-    expect(stored.anchorItemId).toBe('msg-7');
-    expect(stored.offsetWithinItem).toBe(42);
-    expect(stored.atBottom).toBe(false);
-    // Simulate remount read
-    expect(stored.anchorItemId).toBe('msg-7');
+  it('anchor mode carries itemId, edge, and offset', () => {
+    let stored: ScrollMode = tailMode();
+    // Simulate readPhase write-back after user scrolls up
+    stored = { kind: 'anchor', itemId: 'msg-7', edge: 'top', offset: 42 };
+    expect(stored.kind).toBe('anchor');
+    if (stored.kind === 'anchor') {
+      expect(stored.itemId).toBe('msg-7');
+      expect(stored.edge).toBe('top');
+      expect(stored.offset).toBe(42);
+    }
+  });
+
+  it('pinTopMode() produces a top-edge anchor with offset 0', () => {
+    const mode = pinTopMode('user-msg-3');
+    expect(mode.kind).toBe('anchor');
+    if (mode.kind === 'anchor') {
+      expect(mode.itemId).toBe('user-msg-3');
+      expect(mode.edge).toBe('top');
+      expect(mode.offset).toBe(0);
+    }
+  });
+
+  it('anchor bottom-edge carries edge: bottom', () => {
+    const mode: ScrollMode = { kind: 'anchor', itemId: 'msg-9', edge: 'bottom', offset: -8 };
+    expect(mode.kind).toBe('anchor');
+    if (mode.kind === 'anchor') {
+      expect(mode.edge).toBe('bottom');
+      expect(mode.offset).toBe(-8);
+    }
   });
 });
 
@@ -184,17 +205,18 @@ describe('HeightmapStore', () => {
 // ── lifecycle: simulate tab-switch (persist → new view reads same state) ──────
 
 describe('ChatState tab-switch simulation', () => {
-  it('viewState and heightmap survive a simulated tab-switch', () => {
+  it('viewState, heightmap, and scroll mode survive a simulated tab-switch', () => {
     // Shared state object that both "view A" and "view B" read/write.
     const viewState = createViewState();
     const heightmap = makeHeightmap();
-    let scroll: ScrollAnchor = { anchorItemId: null, offsetWithinItem: 0, atBottom: true };
+    let scroll: ScrollMode = tailMode();
 
     // View A: user interacts.
     viewState.toggleCollapsed('thinking-1');
     heightmap.setAll([['msg-10#self', 88]]);
     heightmap.lastWidth = 760;
-    scroll = { anchorItemId: 'msg-10', offsetWithinItem: 30, atBottom: false };
+    // User scrolled up — readPhase writes a top-edge anchor intent.
+    scroll = { kind: 'anchor', itemId: 'msg-10', edge: 'top', offset: 30 };
 
     // View A disposes (does NOT clear ChatState — only the DOM root goes away).
 
@@ -202,8 +224,11 @@ describe('ChatState tab-switch simulation', () => {
     expect(viewState.isCollapsed('thinking-1')).toBe(true);
     expect(heightmap.get('msg-10#self')).toBe(88);
     expect(heightmap.lastWidth).toBe(760);
-    expect(scroll.anchorItemId).toBe('msg-10');
-    expect(scroll.offsetWithinItem).toBe(30);
-    expect(scroll.atBottom).toBe(false);
+    expect(scroll.kind).toBe('anchor');
+    if (scroll.kind === 'anchor') {
+      expect(scroll.itemId).toBe('msg-10');
+      expect(scroll.edge).toBe('top');
+      expect(scroll.offset).toBe(30);
+    }
   });
 });

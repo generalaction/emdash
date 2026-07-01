@@ -12,12 +12,11 @@
  * cycle (via onMount/createEffect), so the next streaming tick finds the
  * correct frontier without any extra reactivity.
  *
- * `streaming` is a reactive accessor that reflects the parent message's
- * streaming flag. Code.tsx (and Diff.tsx) read it inside their highlight
- * effects so they can skip per-frame highlighting while streaming and run
- * exactly one full highlight when the accessor flips to false (message commits).
- * Using an accessor (not a plain boolean in the context value) is necessary
- * because Solid context values are not reactive when swapped.
+ * `streaming` and `settledCount` are reactive accessors (not plain values).
+ * Code.tsx reads them to highlight each block as soon as it crosses a safe
+ * parse boundary (fence close or blank line), rather than waiting for the
+ * whole message to commit. Using accessors (not plain values in the context)
+ * is necessary because Solid context values are not reactive when swapped.
  */
 
 import { createContext, useContext } from 'solid-js';
@@ -28,10 +27,17 @@ export type StreamAnimation = {
   frontier: Map<string, number>;
   /**
    * Reactive accessor: true while the parent message is still streaming,
-   * false once the message commits. Read inside effects that should be
-   * deferred until streaming ends (e.g. Shiki highlighting).
+   * false once the message commits.
    */
   streaming: Accessor<boolean>;
+  /**
+   * Reactive accessor: the number of blocks currently in the stable settled
+   * prefix for this message. A block at index `i` has crossed a safe parse
+   * boundary (fence close or blank line outside a fence) when `i < settledCount()`.
+   * Code blocks use this to highlight as soon as they settle rather than
+   * waiting for the whole message to commit.
+   */
+  settledCount: Accessor<number>;
 };
 
 export const StreamContext = createContext<StreamAnimation | null>(null);

@@ -1,4 +1,6 @@
 import { style } from '@vanilla-extract/css';
+import { vars } from '@theme/core/contract/contract.css';
+import { tokenVars } from '@theme/tokens.css';
 
 /** Scroll container: takes all available height, clips overflow. */
 export const scrollContainer = style({
@@ -29,6 +31,6 @@ export const loadingMore = style({
   paddingTop: '0.5rem',
   paddingBottom: '0.5rem',
   textAlign: 'center',
-  fontSize: 'var(--text-xs)',
-  color: 'var(--foreground-muted)',
+  fontSize: tokenVars.textXs,
+  color: vars.foregroundMuted,
 });

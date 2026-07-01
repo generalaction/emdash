@@ -24,7 +24,7 @@ const MSG_MARGIN_TOP = 8; // matches STUB_UNIT_DEFS['message'].margin.top
 import { unit } from '@core/units';
 import type { ItemSegmenter, UnitDef } from '@core/units';
 import type { ChatItem } from '@/model';
-import { flattenTier, makeUnitsView, collectUserTurnUnits } from './flatten';
+import { buildItemForest, flattenTier, makeUnitsView, collectUserTurnUnits } from './flatten';
 import { createTranscript } from './transcript';
 import { applyTurnEvent } from './turn-reducer';
 
@@ -358,5 +358,80 @@ describe('collectUserTurnUnits', () => {
     const indices = collectUserTurnUnits(tx.state.committed, view);
     expect(indices[0]).toBe(0);
     expect(indices[1]).toBe(2);
+  });
+});
+
+// ── buildItemForest ───────────────────────────────────────────────────────────
+
+describe('buildItemForest', () => {
+  function mkTool(id: string, parentId?: string): ChatItem {
+    return parentId
+      ? { kind: 'tool', id, name: 'bash', status: 'done', parentId }
+      : { kind: 'tool', id, name: 'bash', status: 'done' };
+  }
+
+  it('flat list — no parentIds — all items are roots with empty children', () => {
+    const items = [mkTool('a'), mkTool('b'), mkTool('c')];
+    const { nodes, childIds } = buildItemForest(items);
+    expect(childIds.size).toBe(0);
+    for (const item of items) {
+      expect(nodes.get(item.id)?.children).toHaveLength(0);
+    }
+  });
+
+  it('single parent-child pair', () => {
+    const items = [mkTool('parent'), mkTool('child', 'parent')];
+    const { nodes, childIds } = buildItemForest(items);
+    expect(childIds.has('child')).toBe(true);
+    expect(childIds.has('parent')).toBe(false);
+    expect(nodes.get('parent')?.children).toHaveLength(1);
+    expect(nodes.get('parent')?.children[0].item.id).toBe('child');
+    expect(nodes.get('child')?.children).toHaveLength(0);
+  });
+
+  it('multi-child: multiple items share the same parent', () => {
+    const items = [mkTool('p'), mkTool('c1', 'p'), mkTool('c2', 'p'), mkTool('c3', 'p')];
+    const { nodes, childIds } = buildItemForest(items);
+    expect(childIds.size).toBe(3);
+    const parentChildren = nodes.get('p')?.children ?? [];
+    expect(parentChildren).toHaveLength(3);
+    expect(parentChildren.map((n) => n.item.id)).toEqual(['c1', 'c2', 'c3']);
+  });
+
+  it('multi-level nesting: grandparent → parent → child', () => {
+    const items = [mkTool('gp'), mkTool('p', 'gp'), mkTool('c', 'p')];
+    const { nodes, childIds } = buildItemForest(items);
+    // Both 'p' and 'c' are children
+    expect(childIds.has('gp')).toBe(false);
+    expect(childIds.has('p')).toBe(true);
+    expect(childIds.has('c')).toBe(true);
+    // Grandparent has one child (parent)
+    const gpChildren = nodes.get('gp')?.children ?? [];
+    expect(gpChildren).toHaveLength(1);
+    expect(gpChildren[0].item.id).toBe('p');
+    // Parent has one child (c)
+    const pChildren = nodes.get('p')?.children ?? [];
+    expect(pChildren).toHaveLength(1);
+    expect(pChildren[0].item.id).toBe('c');
+  });
+
+  it('orphan parentId (pointing outside the tier) — treated as root', () => {
+    const items = [mkTool('child', 'nonexistent')];
+    const { nodes, childIds } = buildItemForest(items);
+    expect(childIds.has('child')).toBe(false);
+    expect(nodes.get('child')?.children).toHaveLength(0);
+  });
+
+  it('preserves original child order', () => {
+    const items = [mkTool('p'), mkTool('c3', 'p'), mkTool('c1', 'p'), mkTool('c2', 'p')];
+    const { nodes } = buildItemForest(items);
+    const childIds = nodes.get('p')?.children.map((n) => n.item.id) ?? [];
+    expect(childIds).toEqual(['c3', 'c1', 'c2']);
+  });
+
+  it('empty items array', () => {
+    const { nodes, childIds } = buildItemForest([]);
+    expect(nodes.size).toBe(0);
+    expect(childIds.size).toBe(0);
   });
 });

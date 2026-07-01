@@ -151,6 +151,71 @@ describe('LiveModel', () => {
     await expect(model.get()).resolves.toEqual(lv(4, 2)); // dirty: recomputes
   });
 
+  it('reports thrown background recompute errors without rethrowing them', async () => {
+    const unexpected = new Error('SSH connection is not available');
+    const returnedErrors: string[] = [];
+    const unexpectedErrors: unknown[] = [];
+    let fail = false;
+    const model = new LiveModel<number, string>({
+      compute: async () => {
+        if (fail) throw unexpected;
+        return ok(1);
+      },
+      onError: (error) => returnedErrors.push(error.toUpperCase()),
+      onUnexpectedError: (error) => unexpectedErrors.push(error),
+    });
+    const pushed: number[] = [];
+
+    model.subscribe((update) => pushed.push(update.value));
+    await vi.runAllTimersAsync();
+
+    const queueMicrotaskSpy = vi.spyOn(globalThis, 'queueMicrotask').mockImplementation(() => {});
+    try {
+      fail = true;
+      model.invalidate();
+      await vi.runAllTimersAsync();
+
+      expect(returnedErrors).toEqual([]);
+      expect(unexpectedErrors).toEqual([unexpected]);
+      expect(model.getCached()).toEqual(lv(1, 1));
+      expect(pushed).toEqual([1]);
+      expect(queueMicrotaskSpy).not.toHaveBeenCalled();
+    } finally {
+      queueMicrotaskSpy.mockRestore();
+    }
+  });
+
+  it('logs thrown background recompute errors when no handler is configured', async () => {
+    const unexpected = new Error('SSH connection is not available');
+    let fail = false;
+    const model = new LiveModel<number, string>({
+      compute: async () => {
+        if (fail) throw unexpected;
+        return ok(1);
+      },
+    });
+
+    model.subscribe(() => {});
+    await vi.runAllTimersAsync();
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const queueMicrotaskSpy = vi.spyOn(globalThis, 'queueMicrotask').mockImplementation(() => {});
+    try {
+      fail = true;
+      model.invalidate();
+      await vi.runAllTimersAsync();
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'LiveModel background recompute threw unexpectedly',
+        unexpected
+      );
+      expect(queueMicrotaskSpy).not.toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+      queueMicrotaskSpy.mockRestore();
+    }
+  });
+
   it('rejects direct refresh after an unexpected thrown compute error', async () => {
     const unexpected = new Error('boom');
     const model = new LiveModel<number>({

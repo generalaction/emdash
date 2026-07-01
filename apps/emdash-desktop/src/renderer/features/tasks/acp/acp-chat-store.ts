@@ -1,13 +1,30 @@
-import type { ChatContext, ChatItem, ChatState, ChatView } from '@emdash/chat-ui';
-import { applyTurnEvent, createChatState } from '@emdash/chat-ui';
-import type { AgentUpdate, AcpTurn, TerminalSnapshot } from '@emdash/core/acp';
+import type {
+  ChatContext,
+  ChatImageAttachment,
+  ChatItem,
+  ChatMessage,
+  ChatState,
+  ChatView,
+} from '@emdash/chat-ui';
+import { applyTurnEvent, createChatState, pinTopMode, tailMode } from '@emdash/chat-ui';
+import type { AgentUpdate, AcpPromptImage, AcpTurn, TerminalSnapshot } from '@emdash/core/acp';
 import {
   SessionMachine,
   toSessionSnapshot,
   type SessionSnapshot,
 } from '@emdash/core/acp/session-machine';
-import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import type {
+  CommandItem,
+  ComposerEffortOption,
+  ComposerModelOption,
+} from '@emdash/ui/react/components';
+import { action, computed, makeObservable, observable, runInAction, when } from 'mobx';
+import {
+  registerConversationCommands,
+  unregisterConversationCommands,
+} from '@renderer/lib/chat/advertised-command-provider';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
 import {
   acpSessionClosedChannel,
@@ -47,13 +64,28 @@ export class AcpChatStore {
 
   terminals: TerminalSnapshot[] = [];
 
+  /** True while the initial history fetch is in flight. Drives the "Loading chat..." overlay. */
+  historyLoading = true;
+
+  /** Set when the load sequence (hydrate + fetch) fails. Drives the error overlay. Cleared on retry. */
+  loadError: string | null = null;
+
+  /** Total item count across committed history and active turn. Drives the "No messages" empty state. */
+  messageCount = 0;
+
   /** Buffered active-turn updates, keyed by seq, until the initial state fetch completes. */
   private _activeTurnUpdates = new Map<number, { seq: number; update: AgentUpdate }>();
   /** The current active turn id (null when idle). */
   private _activeTurnId: string | null = null;
 
+  /** The currently-active view handle. Bound by AcpChatPanel; used for declarative scroll. */
+  private _view: ChatView | null = null;
+  /** Temp id of the optimistic user message; cleared when the server echo replaces it. */
+  private _optimisticUserId: string | null = null;
+
   private readonly _machine: SessionMachine;
   private _bootstrapped = false;
+  private _subscribed = false;
 
   private readonly _unsubs: Array<() => void> = [];
 
@@ -67,22 +99,40 @@ export class AcpChatStore {
     // Use the process-long shared ChatContext (created once in main.tsx bootstrap).
     // Per-conversation transcript state lives in ChatState, created here.
     this.chatContext = getSharedChatContext();
-    this.chatState = createChatState(this.chatContext);
+    this.chatState = createChatState(this.chatContext, { uri: conversationId });
+
+    // Register this conversation's advertised commands with the global command
+    // provider so slash-command chips render in the transcript.
+    registerConversationCommands(conversationId, () => this.commands.map((c) => c.name));
 
     makeObservable(this, {
       snapshot: observable.ref,
       terminals: observable,
+      historyLoading: observable,
+      loadError: observable,
+      messageCount: observable,
       affordances: computed,
       lifecycle: computed,
       model: computed,
+      modelOptions: computed,
+      permissionMode: computed,
+      permissionModeOptions: computed,
+      effort: computed,
+      effortOptions: computed,
+      commands: computed,
+      isEmpty: computed,
       permissionQueue: computed,
       lastStopReason: computed,
       usage: computed,
       applySnapshot: action,
       submitPrompt: action,
       stop: action,
+      cancelAndSubmit: action,
       setModel: action,
+      setMode: action,
+      setEffort: action,
       resolvePermission: action,
+      retry: action,
     });
   }
 
@@ -99,6 +149,46 @@ export class AcpChatStore {
    */
   get model(): string | null {
     return this._extractModel(this.snapshot?.configOptions ?? []);
+  }
+
+  /**
+   * All available model options as a ComposerModelOption record keyed by model id.
+   * Null when the agent doesn't report any model config option (hides the selector).
+   */
+  get modelOptions(): Record<string, ComposerModelOption> | null {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'model' && o.type === 'select'
+    );
+    if (!opt || !('options' in opt) || !Array.isArray(opt.options)) return null;
+    const result: Record<string, ComposerModelOption> = {};
+    for (const o of opt.options as Array<{
+      value: string;
+      name: string;
+      description?: string | null;
+    }>) {
+      result[o.value] = { name: o.name, description: o.description ?? undefined };
+    }
+    return result;
+  }
+
+  /**
+   * Slash commands advertised by the agent via `available_commands_update`.
+   * Mapped to the composer's CommandItem shape with behavior='insert' so
+   * selecting a command inserts a /name pill that is sent as prompt text.
+   * Updates reactively as the agent sends new available_commands_update notifications.
+   */
+  get commands(): CommandItem[] {
+    return (this.snapshot?.availableCommands ?? []).map((c) => ({
+      id: c.name,
+      name: c.name,
+      description: c.description,
+      behavior: 'insert',
+    }));
+  }
+
+  /** True when history has loaded and there are no messages. Drives the "No messages" overlay. */
+  get isEmpty(): boolean {
+    return !this.historyLoading && this.messageCount === 0;
   }
 
   /** FIFO queue of pending permission requests awaiting user resolution. */
@@ -160,9 +250,27 @@ export class AcpChatStore {
   bootstrap(): void {
     if (this._bootstrapped) return;
     this._bootstrapped = true;
+    this._runBootstrap();
+  }
 
-    // Subscribe first so we don't miss events that arrive during the RPC round-trip.
-    this._subscribeEvents();
+  /**
+   * Retry a failed load. No-ops if a load is already in flight or succeeded.
+   * Resets historyLoading and loadError, then re-runs the hydrate chain.
+   * Does not re-subscribe to events (already subscribed from bootstrap).
+   */
+  retry(): void {
+    if (this.historyLoading || !this.loadError) return;
+    this.historyLoading = true;
+    this.loadError = null;
+    this._runBootstrap();
+  }
+
+  private _runBootstrap(): void {
+    // Subscribe once — never re-subscribe on retry so we don't double-handle events.
+    if (!this._subscribed) {
+      this._subscribed = true;
+      this._subscribeEvents();
+    }
 
     // Hydrate the conversation (starts the ACP session if not already running).
     void rpc.conversations
@@ -170,23 +278,55 @@ export class AcpChatStore {
       .then(() => this._fetchInitialState())
       .catch((err: unknown) => {
         console.error('[AcpChatStore] bootstrap error', err);
+        runInAction(() => {
+          this.historyLoading = false;
+          this.loadError = err instanceof Error ? err.message : 'Failed to load chat.';
+        });
       });
   }
 
   /**
-   * Called by AcpChatStorePanel after the ChatView mounts. The view handle is
-   * not stored — transcript operations go directly through chatState.transcript.
-   * This method is a lifecycle hook for any view-specific initialization needed
-   * in subclasses (e.g. scroll-to-bottom on first attach).
+   * Bind or unbind the active ChatView handle. Called by AcpChatPanel when the
+   * active store changes (bind on switch-to, unbind on switch-away). Only the
+   * currently-visible conversation holds a view handle so imperative scroll
+   * calls (scrollToItem on submit) target the right view.
    */
-  attachView(_view: ChatView): void {
-    // no-op: transcript is seeded directly through chatState.transcript.
+  bindView(view: ChatView | null): void {
+    this._view = view;
   }
 
   /** Send a new user prompt to the ACP session. */
-  submitPrompt(text: string): void {
-    void rpc.acp.prompt(this.conversationId, text).catch((err: unknown) => {
+  submitPrompt(text: string, images?: AcpPromptImage[]): void {
+    // 1. Optimistic user message: insert immediately so the scroll can happen
+    //    before the IPC echo arrives. The server echo in _replayActiveUpdates
+    //    replaces this row and re-points the pinTop intent to the real id.
+    const optimisticId = `optimistic:user:${Date.now()}`;
+    this._optimisticUserId = optimisticId;
+    const optimistic: ChatMessage = {
+      kind: 'message',
+      id: optimisticId,
+      role: 'user',
+      text,
+      attachments: images?.map(toChatImageAttachment),
+    };
+    this.chatState.transcript.activeTurn.set([optimistic], 'generating');
+    runInAction(() => this._syncMessageCount());
+
+    // 2. Immediately pin the new user message to the top of the viewport.
+    //    activeTurnReserve() in ChatRoot ensures there is enough canvas space
+    //    for the scroll target to be reachable even before any agent reply.
+    const pinMode = pinTopMode(optimisticId);
+    this._view?.setScrollMode(pinMode);
+    // Persist intent in ChatState so it survives a tab-switch during the request.
+    this.chatState.scroll.set(pinMode);
+
+    void rpc.acp.prompt(this.conversationId, text, images).catch((err: unknown) => {
       console.error('[AcpChatStore] prompt error', err);
+      toast({
+        title: 'Failed to send message',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
     });
   }
 
@@ -194,6 +334,122 @@ export class AcpChatStore {
   stop(): void {
     void rpc.acp.cancel(this.conversationId).catch((err: unknown) => {
       console.error('[AcpChatStore] cancel error', err);
+      toast({
+        title: 'Failed to stop',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
+    });
+  }
+
+  /**
+   * Cancels the active turn, waits for the session to become ready, then
+   * submits `text` (with optional images). Used by the "Cancel & Send"
+   * confirmation flow when the user sends a new prompt while a turn is active.
+   */
+  cancelAndSubmit(text: string, images?: AcpPromptImage[]): void {
+    void rpc.acp.cancel(this.conversationId).catch((err: unknown) => {
+      console.error('[AcpChatStore] cancel error (cancelAndSubmit)', err);
+      toast({
+        title: 'Failed to stop',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
+    });
+
+    when(
+      () => this.affordances.canSubmit,
+      () => {
+        this.submitPrompt(text, images);
+      },
+      {
+        timeout: 10_000,
+        onError: () => {
+          toast({ title: 'Failed to send message', variant: 'destructive' });
+        },
+      }
+    );
+  }
+
+  /**
+   * Currently active permission mode id, derived from the `mode` config option
+   * (category === 'mode'). Read from configOptions rather than `modes` because
+   * an explicit setSessionMode only emits a `config_option_update`, not a
+   * `current_mode_update`, so `modes.currentModeId` can be stale. Null when the
+   * agent doesn't report a mode config option.
+   */
+  get permissionMode(): string | null {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'mode' && o.type === 'select'
+    );
+    return opt && typeof opt.currentValue === 'string' ? opt.currentValue : null;
+  }
+
+  /**
+   * Available permission modes as a record keyed by mode id, derived from the
+   * `mode` config option's options. Null when the agent doesn't advertise a
+   * mode config option (hides the selector).
+   */
+  get permissionModeOptions(): Record<string, { name: string; description?: string }> | null {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'mode' && o.type === 'select'
+    );
+    if (!opt || !('options' in opt) || !Array.isArray(opt.options)) return null;
+    const result: Record<string, { name: string; description?: string }> = {};
+    for (const o of opt.options as Array<{
+      value: string;
+      name: string;
+      description?: string | null;
+    }>) {
+      result[o.value] = { name: o.name, description: o.description ?? undefined };
+    }
+    return result;
+  }
+
+  /**
+   * Currently selected effort/thought level derived from the `thought_level`
+   * config option. Null when the agent doesn't report a thought_level option.
+   */
+  get effort(): string | null {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'thought_level' && o.type === 'select'
+    );
+    return opt && typeof opt.currentValue === 'string' ? opt.currentValue : null;
+  }
+
+  /**
+   * Available effort options keyed by id. Null when the agent doesn't
+   * advertise a thought_level config option (hides the effort selector).
+   */
+  get effortOptions(): Record<string, ComposerEffortOption> | null {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'thought_level' && o.type === 'select'
+    );
+    if (!opt || !('options' in opt) || !Array.isArray(opt.options)) return null;
+    const result: Record<string, ComposerEffortOption> = {};
+    for (const o of opt.options as Array<{
+      value: string;
+      name: string;
+      description?: string | null;
+    }>) {
+      result[o.value] = { name: o.name, description: o.description ?? undefined };
+    }
+    return result;
+  }
+
+  /** Switch the active effort/thought level. */
+  setEffort(value: string): void {
+    const opt = (this.snapshot?.configOptions ?? []).find(
+      (o) => o.category === 'thought_level' && o.type === 'select'
+    );
+    const configId = opt?.id ?? 'thought_level';
+    void rpc.acp.setConfigOption(this.conversationId, configId, value).catch((err: unknown) => {
+      console.error('[AcpChatStore] setEffort error', err);
+      toast({
+        title: 'Failed to switch effort level',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
     });
   }
 
@@ -201,6 +457,23 @@ export class AcpChatStore {
   setModel(modelId: string): void {
     void rpc.acp.setModel(this.conversationId, modelId).catch((err: unknown) => {
       console.error('[AcpChatStore] setModel error', err);
+      toast({
+        title: 'Failed to switch model',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
+    });
+  }
+
+  /** Switch the session permission mode. */
+  setMode(modeId: string): void {
+    void rpc.acp.setMode(this.conversationId, modeId).catch((err: unknown) => {
+      console.error('[AcpChatStore] setMode error', err);
+      toast({
+        title: 'Failed to switch mode',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
     });
   }
 
@@ -212,6 +485,11 @@ export class AcpChatStore {
       .resolvePermission(this.conversationId, request.requestId, optionId)
       .catch((err: unknown) => {
         console.error('[AcpChatStore] resolvePermission error', err);
+        toast({
+          title: 'Failed to resolve permission',
+          description: err instanceof Error ? err.message : undefined,
+          variant: 'destructive',
+        });
       });
   }
 
@@ -219,6 +497,7 @@ export class AcpChatStore {
   dispose(): void {
     for (const unsub of this._unsubs) unsub();
     this._unsubs.length = 0;
+    unregisterConversationCommands(this.conversationId);
     // chatState is per-conversation and must be disposed; chatContext is the
     // shared app-wide singleton and must NOT be disposed here.
     this.chatState.dispose();
@@ -329,8 +608,17 @@ export class AcpChatStore {
       // Each transcript method already batches its own signal writes internally.
       this.chatState.transcript.history.seed(historyItems);
       this._replayActiveUpdates();
+      runInAction(() => {
+        this.historyLoading = false;
+        this.loadError = null;
+        this._syncMessageCount();
+      });
     } catch (err) {
       console.error('[AcpChatStore] _fetchInitialState error', err);
+      runInAction(() => {
+        this.historyLoading = false;
+        this.loadError = err instanceof Error ? err.message : 'Failed to load chat.';
+      });
     }
   }
 
@@ -364,15 +652,35 @@ export class AcpChatStore {
 
     const sorted = Array.from(this._activeTurnUpdates.values()).sort((a, b) => a.seq - b.seq);
 
+    // Use the known active turn id so that item ids produced here match those
+    // that foldTurn will produce when the turn commits, avoiding row churn on
+    // the stream→commit transition. Fall back to 'active' only in the brief
+    // window before the first session-state arrives.
+    const turnId = this._activeTurnId ?? 'active';
+
     let items: ChatItem[] = [];
     for (const { update } of sorted) {
-      const evts = mapAgentUpdate(update);
+      const evts = mapAgentUpdate(update, turnId);
       for (const evt of evts) {
         items = applyTurnEvent(items, evt);
       }
     }
 
     this.chatState.transcript.activeTurn.set(items, 'generating');
+    // Re-point pinTop from the optimistic id to the real server id now that
+    // the echo has arrived. The row content is stable from here on.
+    if (this._optimisticUserId) {
+      const realId = this._lastUserMessageId();
+      if (realId) {
+        const pinMode = pinTopMode(realId);
+        this._view?.setScrollMode(pinMode);
+        this.chatState.scroll.set(pinMode);
+        this._optimisticUserId = null;
+      }
+    }
+    runInAction(() => {
+      this._syncMessageCount();
+    });
   }
 
   private _handleTurnCommitted(turn: AcpTurn): void {
@@ -383,8 +691,58 @@ export class AcpChatStore {
     this.chatState.transcript.activeTurn.set(items, 'generating');
     this.chatState.transcript.activeTurn.commit('done');
 
+    // If a pinTop is still active (shouldn't normally happen; guard only),
+    // revert to tail now that the turn is done.
+    if (this._optimisticUserId) {
+      this._optimisticUserId = null;
+      const m = tailMode();
+      this._view?.setScrollMode(m);
+      this.chatState.scroll.set(m);
+    }
     runInAction(() => {
       this._activeTurnId = null;
+      this._syncMessageCount();
     });
   }
+
+  /** Sync messageCount from the transcript. Must be called inside runInAction. */
+  private _syncMessageCount(): void {
+    const state = this.chatState.transcript.state;
+    this.messageCount = state.committed.length + (state.activeTurn?.length ?? 0);
+  }
+
+  /**
+   * Return the id of the last user-role message in the active turn, falling
+   * back to the last committed item if no active turn exists.
+   */
+  private _lastUserMessageId(): string | null {
+    const state = this.chatState.transcript.state;
+    const activeTurn = state.activeTurn;
+    const source: readonly ChatItem[] =
+      activeTurn && activeTurn.length > 0 ? activeTurn : state.committed;
+
+    for (let i = source.length - 1; i >= 0; i--) {
+      const item = source[i];
+      if (item && item.kind === 'message' && (item as { role?: string }).role === 'user') {
+        return item.id;
+      }
+    }
+    return null;
+  }
+}
+
+// ── Module helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Map an AcpPromptImage (base64 data + mimeType) to the ChatImageAttachment
+ * shape expected by @emdash/chat-ui's ChatMessage.attachments. The data URL is
+ * formed from the mimeType and base64 payload so the transcript can render a
+ * thumbnail inline without a round-trip to the main process.
+ */
+function toChatImageAttachment(img: AcpPromptImage): ChatImageAttachment {
+  return {
+    id: img.name ?? `img-${Date.now()}`,
+    name: img.name ?? 'image',
+    dataUrl: `data:${img.mimeType};base64,${img.data}`,
+  };
 }

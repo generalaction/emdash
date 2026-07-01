@@ -9,7 +9,7 @@
  */
 
 import { applyTurnEvent, finalizeTurn } from '@emdash/chat-ui';
-import type { ActiveTurnEvent, ChatItem, ToolStatus } from '@emdash/chat-ui';
+import type { ActiveTurnEvent, ChatImageAttachment, ChatItem, ToolStatus } from '@emdash/chat-ui';
 import type {
   AgentDiff,
   AgentToolStatus,
@@ -38,35 +38,63 @@ function mapToolStatus(status: AgentToolStatus | null | undefined): ToolStatus |
 
 /**
  * Maps a single AgentUpdate to zero or more ActiveTurnEvents.
+ *
+ * `turnId` is used to scope every emitted id to the current turn so that items
+ * from different committed turns never share an id. A kind-tag prefix also
+ * disambiguates `thinking` from `message` when ACP reuses the same `messageId`
+ * across both update kinds (Claude's standard behaviour).
  */
-export function mapAgentUpdate(update: AgentUpdate): ActiveTurnEvent[] {
+export function mapAgentUpdate(update: AgentUpdate, turnId: string): ActiveTurnEvent[] {
   switch (update.kind) {
     case 'message': {
-      if (!update.text) return [];
+      const images = update.images ?? [];
+      if (!update.text && images.length === 0) return [];
+      const msgSuffix = update.messageId ?? update.role;
+      const attachments: ChatImageAttachment[] = images.map((img, i) => ({
+        id: `${turnId}:message:${msgSuffix}:img:${i}`,
+        name: img.name ?? `image-${i + 1}`,
+        dataUrl: `data:${img.mimeType};base64,${img.data}`,
+      }));
       return [
         {
           type: 'message_chunk',
-          id: update.messageId ?? (update.role === 'user' ? 'user-message' : 'agent-message'),
+          id: `${turnId}:message:${msgSuffix}`,
           role: update.role,
           text: update.text,
+          attachments: attachments.length > 0 ? attachments : undefined,
         },
       ];
     }
 
     case 'thinking': {
       if (!update.text) return [];
-      return [{ type: 'thinking_chunk', id: update.messageId ?? 'thinking', text: update.text }];
+      const thinkSuffix = update.messageId ?? 'main';
+      return [
+        { type: 'thinking_chunk', id: `${turnId}:thinking:${thinkSuffix}`, text: update.text },
+      ];
     }
 
     case 'tool_call': {
-      const { toolCallId, title, toolKind, status, diffs } = update;
+      const { toolCallId, title, toolKind, status, diffs, parentToolCallId } = update;
+      const toolId = `${turnId}:${toolCallId}`;
+      // Scope the parent id the same way toolId is scoped so buildItemForest
+      // can match child.parentId against the parent's item.id exactly.
+      const parentId = parentToolCallId ? `${turnId}:${parentToolCallId}` : undefined;
 
       // Edits carry their changes as diff content blocks → render ChatDiff rows.
+      // diff_start is idempotent (parentId is only read on creation).
       if (diffs.length > 0) {
         return diffs.flatMap((d: AgentDiff) => {
-          const id = `${toolCallId}:${d.path}`;
+          const id = `${toolId}:${d.path}`;
           const events: ActiveTurnEvent[] = [
-            { type: 'diff_start', id, path: d.path, oldText: d.oldText, newText: d.newText },
+            {
+              type: 'diff_start',
+              id,
+              path: d.path,
+              oldText: d.oldText,
+              newText: d.newText,
+              ...(parentId ? { parentId } : {}),
+            },
           ];
           if (status && status !== 'in_progress' && status !== 'pending') {
             events.push({ type: 'diff_update', id, status: mapToolStatus(status) });
@@ -82,16 +110,17 @@ export function mapAgentUpdate(update: AgentUpdate): ActiveTurnEvent[] {
       return [
         {
           type: 'tool_start',
-          id: toolCallId,
+          id: toolId,
           name: title,
           inputSummary: undefined,
+          ...(parentId ? { parentId } : {}),
         },
         // If the tool_call already carries a terminal status, emit a follow-up update.
         ...(status && status !== 'in_progress' && status !== 'pending'
           ? [
               {
                 type: 'tool_update' as const,
-                id: toolCallId,
+                id: toolId,
                 status: mapToolStatus(status),
               },
             ]
@@ -100,19 +129,22 @@ export function mapAgentUpdate(update: AgentUpdate): ActiveTurnEvent[] {
     }
 
     case 'tool_update': {
-      const { toolCallId, title, status, diffs } = update;
+      const { toolCallId, title, status, diffs, parentToolCallId } = update;
+      const toolId = `${turnId}:${toolCallId}`;
+      const parentId = parentToolCallId ? `${turnId}:${parentToolCallId}` : undefined;
 
       if (diffs.length > 0) {
         return diffs.flatMap((d: AgentDiff) => {
-          const id = `${toolCallId}:${d.path}`;
+          const id = `${toolId}:${d.path}`;
           return [
-            // diff_start is idempotent in the reducer; safe if the row already exists.
+            // diff_start is idempotent in the reducer; parentId is only read on creation.
             {
               type: 'diff_start',
               id,
               path: d.path,
               oldText: d.oldText,
               newText: d.newText,
+              ...(parentId ? { parentId } : {}),
             } satisfies ActiveTurnEvent,
             {
               type: 'diff_update',
@@ -128,7 +160,7 @@ export function mapAgentUpdate(update: AgentUpdate): ActiveTurnEvent[] {
       return [
         {
           type: 'tool_update',
-          id: toolCallId,
+          id: toolId,
           status: mapToolStatus(status ?? undefined),
           name: title ?? undefined,
         },
@@ -136,13 +168,13 @@ export function mapAgentUpdate(update: AgentUpdate): ActiveTurnEvent[] {
     }
 
     case 'plan':
-      // ACP's stable `plan` update carries no id — use a constant so the reducer
-      // replaces the same row in place on each wholesale update. `streaming: true`
-      // enables the shimmer/auto-scroll; finalizeTurn settles it to false at turn end.
+      // Scope to the turn so that `plan` items from different committed turns
+      // carry distinct ids. `streaming: true` enables the shimmer/auto-scroll;
+      // finalizeTurn settles it to false at turn end.
       return [
         {
           type: 'plan_update',
-          id: 'plan',
+          id: `${turnId}:plan`,
           entries: update.entries,
           streaming: true,
         },
@@ -165,7 +197,7 @@ export function mapAgentUpdate(update: AgentUpdate): ActiveTurnEvent[] {
 export function foldTurn(turn: AcpTurn): ChatItem[] {
   let items: ChatItem[] = [];
   for (const { update } of turn.updates) {
-    const events = mapAgentUpdate(update);
+    const events = mapAgentUpdate(update, turn.id);
     for (const event of events) {
       items = applyTurnEvent(items, event);
     }

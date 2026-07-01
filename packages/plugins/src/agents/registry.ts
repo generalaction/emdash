@@ -29,6 +29,7 @@ import { provider as letta } from './impl/letta';
 import { provider as mistral } from './impl/mistral';
 import { provider as opencode } from './impl/opencode';
 import { provider as pi } from './impl/pi';
+import { provider as qoder } from './impl/qoder';
 import { provider as qwen } from './impl/qwen';
 import { provider as rovo } from './impl/rovo';
 
@@ -64,6 +65,7 @@ for (const p of [
   mistral,
   opencode,
   pi,
+  qoder,
   qwen,
   rovo,
 ]) {

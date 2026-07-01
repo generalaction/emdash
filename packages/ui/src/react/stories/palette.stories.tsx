@@ -14,13 +14,12 @@ function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [resolved, setResolved] = useState('');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ref.current) {
       const val = getComputedStyle(ref.current).backgroundColor;
-      if (val !== resolved) setResolved(val);
+      setResolved((prev) => (val !== prev ? val : prev));
     }
-  });
+  }, []);
 
   const isStep9 = step === 9;
 
@@ -40,7 +39,7 @@ function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
         style={{
           background: `var(${varName})`,
           boxShadow: isStep9
-            ? '0 0 0 2px var(--background), 0 0 0 4px var(--border-primary)'
+            ? '0 0 0 2px var(--em-background), 0 0 0 4px var(--em-border-primary)'
             : undefined,
         }}
       />
@@ -60,13 +59,12 @@ function ContrastSwatch({ scale }: { scale: ScaleName }) {
   const ref = useRef<HTMLDivElement>(null);
   const [resolved, setResolved] = useState('');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ref.current) {
       const val = getComputedStyle(ref.current).backgroundColor;
-      if (val !== resolved) setResolved(val);
+      setResolved((prev) => (val !== prev ? val : prev));
     }
-  });
+  }, []);
 
   return (
     <Box
@@ -83,7 +81,7 @@ function ContrastSwatch({ scale }: { scale: ScaleName }) {
         rounded="sm"
         style={{
           background: `var(--${scale}-contrast)`,
-          outline: '1px solid var(--border)',
+          outline: '1px solid var(--em-border)',
         }}
       />
       <span
@@ -146,8 +144,8 @@ function HeaderRow() {
         className={cx(s.w12, s.text9px)}
         style={{
           textAlign: 'center',
-          fontFamily: 'var(--font-mono)',
-          color: 'var(--foreground-passive)',
+          fontFamily: 'var(--em-font-mono)',
+          color: 'var(--em-foreground-passive)',
         }}
       >
         C

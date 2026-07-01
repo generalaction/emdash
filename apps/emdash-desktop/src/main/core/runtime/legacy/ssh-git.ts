@@ -254,10 +254,14 @@ class LegacySshGitRepository implements IGitRepository {
     this.refsModel = new LiveModel<GitRefsModel>({
       compute: async () => ok(await this.computeRefs()),
       onError: (error) => log.warn('LegacySshGitRepository: refs refresh failed', { error }),
+      onUnexpectedError: (error) =>
+        log.warn('LegacySshGitRepository: refs refresh failed', { error }),
     });
     this.remotesModel = new LiveModel<GitRemotesModel>({
       compute: async () => ok(await this.computeRemotes()),
       onError: (error) => log.warn('LegacySshGitRepository: remotes refresh failed', { error }),
+      onUnexpectedError: (error) =>
+        log.warn('LegacySshGitRepository: remotes refresh failed', { error }),
     });
     this.timers = [
       setInterval(() => this.refsModel.invalidate(), REFS_POLL_MS),
@@ -429,10 +433,14 @@ class LegacySshGitWorktree implements IGitWorktree {
     this.statusModel = new LiveModel<GitStatusModel>({
       compute: async () => ok(await this.computeStatus()),
       onError: (error) => log.warn('LegacySshGitWorktree: status refresh failed', { error }),
+      onUnexpectedError: (error) =>
+        log.warn('LegacySshGitWorktree: status refresh failed', { error }),
     });
     this.headModel = new LiveModel<GitHeadModel>({
       compute: async () => ok(await this.computeHead()),
       onError: (error) => log.warn('LegacySshGitWorktree: head refresh failed', { error }),
+      onUnexpectedError: (error) =>
+        log.warn('LegacySshGitWorktree: head refresh failed', { error }),
     });
     this.timers = [
       setInterval(() => void this.pollStatus('no'), STATUS_POLL_MS),

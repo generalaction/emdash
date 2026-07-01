@@ -7,7 +7,7 @@
  *
  *   viewState       — collapse map (inverted semantics: true = expanded)
  *   expandedUserId  — the single expanded user message card id
- *   scroll          — anchor-based scroll position (itemId + offset + atBottom)
+ *   scroll          — declarative scroll intent (ScrollMode: tail|anchor(edge))
  *   heightmap       — Map<unitId, measuredHeight> keyed by RenderUnit.id
  *                     (stable "${itemId}#self"). lastWidth is the container
  *                     width at snapshot time; used by ChatRoot to decide
@@ -40,23 +40,12 @@ import { createTranscript } from './transcript';
 import type { TranscriptApi } from './transcript';
 import { createViewState } from './view-state';
 import type { ViewState } from './view-state';
+export type { ScrollMode } from './scroll-mode';
+export { tailMode, pinTopMode } from './scroll-mode';
 
-/**
- * Anchor-based scroll position. Stored as an item id + pixel offset within
- * that item rather than a raw scrollTop so that the position remains valid
- * even when off-screen row heights are re-estimated on remount.
- *
- * `atBottom: true` overrides the anchor — the view should stick to the bottom
- * (correct for an active/streaming conversation).
- */
-export type ScrollAnchor = {
-  /** itemId of the row at the top of the viewport, or null if unknown. */
-  anchorItemId: string | null;
-  /** Pixel offset of the viewport top within the anchor row. */
-  offsetWithinItem: number;
-  /** True when the transcript was scrolled to the bottom at snapshot time. */
-  atBottom: boolean;
-};
+// ScrollMode type and helpers live in scroll-mode.ts (re-exported above)
+// so unit tests can import them without pulling in DOM-dependent parse caches.
+import type { ScrollMode } from './scroll-mode';
 
 /**
  * Per-conversation heightmap snapshot.
@@ -109,12 +98,13 @@ export type ChatState = {
   };
 
   /**
-   * Anchor-based scroll position. Written by ChatRoot on each read phase tick
-   * and on dispose; read by ChatRoot on mount to restore position.
+   * Declarative scroll intent. Written by ChatRoot's readPhase (user scroll)
+   * and by the host via view.setScrollMode(); read by ChatRoot on mount/swap
+   * to restore position without DOM geometry reads.
    */
   readonly scroll: {
-    get(): ScrollAnchor;
-    set(anchor: ScrollAnchor): void;
+    get(): ScrollMode;
+    set(mode: ScrollMode): void;
   };
 
   /**
@@ -164,14 +154,14 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
   createRoot((dispose) => {
     disposeRoot = dispose;
     transcript = createTranscript();
-    parseCaches = createParseCaches(ctx.mentionProvider, opts?.uri);
+    parseCaches = createParseCaches(ctx.mentionProvider, ctx.commandProvider, opts?.uri);
     viewState = createViewState();
     [getExpandedUserId, setExpandedUserId] = createSignal<string | null>(null);
   });
 
-  // Scroll anchor — plain mutable object; not reactive (ChatRoot reads it
-  // once on mount, writes it on readPhase/dispose). No signal needed.
-  let scrollAnchor: ScrollAnchor = { anchorItemId: null, offsetWithinItem: 0, atBottom: true };
+  // Scroll mode — plain mutable value; not reactive (ChatRoot reads it once on
+  // mount/swap, writes it via setAnchor in readPhase and host calls). No signal.
+  let scrollMode: ScrollMode = { kind: 'tail' };
 
   // Heightmap — plain Map keyed by RenderUnit.id.
   const heightmapData = new Map<string, number>();
@@ -204,9 +194,9 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
       set: setExpandedUserId,
     },
     scroll: {
-      get: () => scrollAnchor,
-      set: (anchor) => {
-        scrollAnchor = anchor;
+      get: () => scrollMode,
+      set: (mode) => {
+        scrollMode = mode;
       },
     },
     heightmap,

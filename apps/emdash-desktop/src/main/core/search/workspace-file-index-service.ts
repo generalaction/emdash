@@ -103,6 +103,95 @@ export class WorkspaceFileIndexService {
     this.store.deleteIndex(workspaceId);
   }
 
+  /**
+   * Dedicated file search for @-mention suggestions.
+   *
+   * Three branches by query length:
+   *   - empty/whitespace  → first `limit` files ordered by path (initial options)
+   *   - 1-2 chars         → LIKE %q% substring scan on filename and path
+   *   - 3+ chars          → trigram FTS MATCH (same as `search()`)
+   */
+  searchFiles(workspaceId: string, query: string, limit = 20): FileHit[] {
+    const trimmed = query.trim();
+
+    if (!trimmed) {
+      return Result.from(
+        Result.try(
+          () =>
+            sqlite
+              .prepare(
+                `SELECT path, filename FROM workspace_file_index
+                 WHERE workspace_id = ?
+                 ORDER BY path
+                 LIMIT ?`
+              )
+              .all(workspaceId, limit) as FileHit[]
+        )
+      )
+        .tapErr((e) =>
+          log.warn('WorkspaceFileIndexService: searchFiles (empty) failed', {
+            workspaceId,
+            error: e.message,
+          })
+        )
+        .unwrapOr([]);
+    }
+
+    const hasLongTerm = trimmed.split(/[\s\-_/]+/).some((t) => t.length >= 3);
+
+    if (!hasLongTerm) {
+      // LIKE fallback for 1-2 char queries. Escape LIKE special chars in the pattern.
+      const escaped = trimmed.replace(/[\\%_]/g, (c) => `\\${c}`);
+      const pattern = `%${escaped}%`;
+      return Result.from(
+        Result.try(
+          () =>
+            sqlite
+              .prepare(
+                `SELECT path, filename FROM workspace_file_index
+                 WHERE workspace_id = ?
+                   AND (filename LIKE ? ESCAPE '\\' OR path LIKE ? ESCAPE '\\')
+                 LIMIT ?`
+              )
+              .all(workspaceId, pattern, pattern, limit) as FileHit[]
+        )
+      )
+        .tapErr((e) =>
+          log.warn('WorkspaceFileIndexService: searchFiles (LIKE) failed', {
+            workspaceId,
+            error: e.message,
+          })
+        )
+        .unwrapOr([]);
+    }
+
+    // Trigram FTS path for 3+ char terms.
+    const terms = trimmed.split(/[\s\-_/]+/).filter((t) => t.length >= 3);
+    const ftsQuery = terms.map((t) => `"${t}"`).join(' AND ');
+    return Result.from(
+      Result.try(
+        () =>
+          sqlite
+            .prepare(
+              `SELECT path, filename
+               FROM workspace_file_index
+               WHERE workspace_file_index MATCH ?
+                 AND workspace_id = ?
+               ORDER BY bm25(workspace_file_index, 1.0, 2.0)
+               LIMIT ?`
+            )
+            .all(ftsQuery, workspaceId, limit) as FileHit[]
+      )
+    )
+      .tapErr((e) =>
+        log.warn('WorkspaceFileIndexService: searchFiles (FTS) failed', {
+          workspaceId,
+          error: e.message,
+        })
+      )
+      .unwrapOr([]);
+  }
+
   search(workspaceId: string, query: string): FileHit[] {
     return this.store.search(workspaceId, query);
   }

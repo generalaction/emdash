@@ -355,6 +355,7 @@ export class TaskManagerStore {
           autoApprove: ic.autoApprove ?? false,
           model: ic.model,
           isInitialConversation: true,
+          type: ic.type ?? 'pty',
         };
         const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [
           optimistic,

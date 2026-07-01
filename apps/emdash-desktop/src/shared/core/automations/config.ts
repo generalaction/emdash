@@ -21,6 +21,8 @@ export const conversationConfigSchema = z.object({
   autoApprove: z.boolean(),
   /** Model to pass to the agent CLI. Absent or empty string means use the CLI default. */
   model: z.string().optional(),
+  /** Conversation transport: 'pty' for terminal or 'acp' for structured chat UI. */
+  type: z.enum(['pty', 'acp']).optional(),
 });
 
 export type ConversationConfig = z.infer<typeof conversationConfigSchema>;

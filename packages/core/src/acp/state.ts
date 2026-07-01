@@ -31,11 +31,13 @@ export interface SessionUsage {
 /**
  * An image to include in a prompt, sent to the agent as an ACP `image` content
  * block. `data` is raw base64 (no `data:` URL prefix); `mimeType` is the image
- * media type (e.g. `image/png`).
+ * media type (e.g. `image/png`). `name` is an optional human-readable filename
+ * used for the thumbnail alt text / tooltip in the transcript.
  */
 export interface AcpPromptImage {
   data: string;
   mimeType: string;
+  name?: string;
 }
 
 /** Final state of a turn once it leaves the active slot. */

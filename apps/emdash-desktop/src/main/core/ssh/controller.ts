@@ -176,8 +176,9 @@ export const sshController = createRPCController({
         });
       });
     }
-    await sshCredentialService.deleteAllCredentials(id);
     await db.delete(sshConnectionsTable).where(eq(sshConnectionsTable.id, id));
+
+    await sshCredentialService.deleteAllCredentials(id);
   },
 
   /** Test a connection without persisting anything. */
