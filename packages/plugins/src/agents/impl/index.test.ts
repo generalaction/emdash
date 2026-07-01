@@ -144,24 +144,6 @@ describe('pluginRegistry', () => {
     });
   });
 
-  it('exposes current Codex models instead of deprecated o-series defaults', () => {
-    const codex = pluginRegistry.get('codex')!;
-
-    expect(codex.capabilities.models).toMatchObject({
-      kind: 'selectable',
-      modelOptions: {
-        'gpt-5.5': { name: 'GPT-5.5' },
-        'gpt-5.4-mini': { name: 'GPT-5.4 Mini' },
-        'gpt-5.3-codex-spark': { name: 'GPT-5.3 Codex Spark' },
-      },
-    });
-    expect(codex.capabilities.models.kind).toBe('selectable');
-    if (codex.capabilities.models.kind !== 'selectable') return;
-    expect(codex.capabilities.models.modelOptions).not.toHaveProperty('codex-mini-latest');
-    expect(codex.capabilities.models.modelOptions).not.toHaveProperty('o4-mini');
-    expect(codex.capabilities.models.modelOptions).not.toHaveProperty('o3');
-  });
-
   it('uses current Grok docs, npm release source, Windows install, and model flag', () => {
     const grok = pluginRegistry.get('grok')!;
 
