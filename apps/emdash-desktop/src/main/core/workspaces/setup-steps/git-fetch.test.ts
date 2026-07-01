@@ -7,9 +7,13 @@ function makeCtx(exec: StepContext['ctx']['exec']): StepContext {
     ctx: { exec } as StepContext['ctx'],
     repoPath: '/repo',
     worktreePoolPath: '/repo/.emdash/worktrees',
-    host: {} as StepContext['host'],
+    files: {} as StepContext['files'],
     projectSettings: {} as StepContext['projectSettings'],
-    worktreeService: {} as StepContext['worktreeService'],
+    worktreeService: {
+      findBranchAnywhere: vi.fn(),
+      removeWorktree: vi.fn(),
+      serveBranchWorktree: vi.fn(),
+    } as StepContext['worktreeService'],
   };
 }
 

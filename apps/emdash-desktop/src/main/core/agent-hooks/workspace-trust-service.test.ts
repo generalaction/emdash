@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { FileSystemProvider } from '@main/core/fs/types';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 
 vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: { get: vi.fn() },
@@ -25,12 +25,8 @@ function makeCtx(): IExecutionContext {
   };
 }
 
-function makeRemoteFs(): Pick<FileSystemProvider, 'realPath' | 'read' | 'write'> {
-  return {
-    realPath: vi.fn(),
-    read: vi.fn(),
-    write: vi.fn(),
-  };
+function makeFilesRuntime(): IFilesRuntime {
+  return { fileSystem: vi.fn() } as unknown as IFilesRuntime;
 }
 
 describe('WorkspaceTrustService', () => {
@@ -40,7 +36,7 @@ describe('WorkspaceTrustService', () => {
     const service = new WorkspaceTrustService([first, second]);
     const args = {
       providerId: 'cursor' as const,
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
       force: true,
     };
@@ -57,9 +53,9 @@ describe('WorkspaceTrustService', () => {
     const service = new WorkspaceTrustService([first, second]);
     const args = {
       providerId: 'cursor' as const,
-      cwd: '/remote/worktree',
+      workspacePath: '/remote/worktree',
       ctx: makeCtx(),
-      remoteFs: makeRemoteFs(),
+      files: makeFilesRuntime(),
       force: true,
     };
 

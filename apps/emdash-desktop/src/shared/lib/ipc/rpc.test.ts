@@ -29,13 +29,13 @@ const gitRepositoryController = createRPCController({
   branches: () => Promise.resolve(['main']),
 });
 
-const wsFsController = createRPCController({
+const wsFilesController = createRPCController({
   list: (dir: string) => Promise.resolve([dir]),
 });
 
 const workspaceNamespace = createRPCNamespace({
   gitWorktree: gitWorktreeController,
-  fs: wsFsController,
+  files: wsFilesController,
 });
 
 const router = createRPCRouter({
@@ -110,9 +110,9 @@ describe('createRPCClient', () => {
     const invoke = vi.fn().mockResolvedValue([]);
     const rpc = createRPCClient<Router>(invoke);
 
-    await rpc.workspace.fs.list('projects');
+    await rpc.workspace.files.list('projects');
 
-    expect(invoke).toHaveBeenCalledWith('workspace.fs.list', 'projects');
+    expect(invoke).toHaveBeenCalledWith('workspace.files.list', 'projects');
   });
 });
 
@@ -137,7 +137,7 @@ describe('registerRPCRouter', () => {
 
     expect(ipc.registeredChannels()).toContain('workspace.gitWorktree.clone');
     expect(ipc.registeredChannels()).toContain('gitRepository.branches');
-    expect(ipc.registeredChannels()).toContain('workspace.fs.list');
+    expect(ipc.registeredChannels()).toContain('workspace.files.list');
   });
 
   it('calls through to the original handler function with args', async () => {
@@ -190,7 +190,7 @@ describe('IpcClient type-safety', () => {
 
   it('types a nested namespace as a sub-namespace object, not a callable', () => {
     expectTypeOf(rpc.workspace).toEqualTypeOf<{
-      fs: { list: (dir: string) => Promise<string[]> };
+      files: { list: (dir: string) => Promise<string[]> };
       gitWorktree: { clone: (url: string) => Promise<string> };
     }>();
   });

@@ -77,10 +77,14 @@ vi.mock('@renderer/lib/ipc', () => ({
     },
     workspace: {
       gitWorktree: {},
-      fs: {
-        listFiles: vi.fn().mockResolvedValue({ success: true, data: [] }),
-        watchSetPaths: vi.fn().mockResolvedValue(undefined),
-        watchStop: vi.fn().mockResolvedValue(undefined),
+      fileTree: {
+        openProjection: vi.fn().mockResolvedValue({
+          success: true,
+          data: { subscriptionId: 'sub-1', version: 1, scopes: [{ scopeId: null, entries: [] }] },
+        }),
+        registerDir: vi.fn().mockResolvedValue({ success: true, data: { version: 2 } }),
+        revealPath: vi.fn().mockResolvedValue({ success: true, data: { version: 4 } }),
+        closeProjection: vi.fn().mockResolvedValue({ success: true, data: undefined }),
       },
     },
   },

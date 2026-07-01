@@ -9,8 +9,10 @@ import { browserController } from './core/browser/controller';
 import { conversationController } from './core/conversations/controller';
 import { editorBufferController } from './core/editor/controller';
 import { featurebaseController } from './core/featurebase/controller';
+import { machineFilesController } from './core/files/controller';
+import { workspaceFileSystemController } from './core/files/file-system/controller';
+import { fileTreeController } from './core/files/file-tree/controller';
 import { forgejoController } from './core/forgejo/controller';
-import { filesController } from './core/fs/controller';
 import { gitRepositoryController } from './core/git/repository/controller';
 import { gitWorktreeController } from './core/git/worktree/controller';
 import { githubController } from './core/github/controller';
@@ -60,6 +62,7 @@ export const rpcRouter = createRPCRouter({
   asana: asanaController,
   featurebase: featurebaseController,
   forgejo: forgejoController,
+  files: machineFilesController,
   github: githubController,
   gitlab: gitlabController,
   issues: issueController,
@@ -86,7 +89,8 @@ export const rpcRouter = createRPCRouter({
   projectSettings: projectSettingsController,
   workspace: createRPCNamespace({
     gitWorktree: gitWorktreeController,
-    fs: filesController,
+    files: workspaceFileSystemController,
+    fileTree: fileTreeController,
     editor: editorBufferController,
   }),
 });

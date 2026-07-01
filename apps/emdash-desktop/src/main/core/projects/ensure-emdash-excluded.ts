@@ -1,9 +1,16 @@
-import type { FileSystemProvider } from '@main/core/fs/types';
+import type { IFileSystem } from '@emdash/core/files';
 import { SSH_PROJECT_STATE_DIR_NAME } from '@main/core/settings/worktree-defaults';
 import { log } from '@main/lib/logger';
 
 const GIT_EXCLUDE_PATH = '.git/info/exclude';
 const IGNORE_PATTERN = `${SSH_PROJECT_STATE_DIR_NAME}/`;
+
+function joinProjectPath(rootPath: string, relativePath: string): string {
+  const separator = rootPath.includes('\\') && !rootPath.includes('/') ? '\\' : '/';
+  return rootPath.endsWith('/') || rootPath.endsWith('\\')
+    ? `${rootPath}${relativePath}`
+    : `${rootPath}${separator}${relativePath}`;
+}
 
 /**
  * Ensure the project's `.emdash/` runtime dir is git-ignored via `.git/info/exclude`.
@@ -18,17 +25,22 @@ const IGNORE_PATTERN = `${SSH_PROJECT_STATE_DIR_NAME}/`;
  * worktrees / submodules use a `.git` file whose exclude is out of this fs's root) and
  * skips when `.emdash` is already ignored (e.g. via a global gitignore).
  */
-export async function ensureEmdashGitExcluded(fs: FileSystemProvider): Promise<void> {
-  const gitDir = await fs.stat('.git').catch(() => null);
-  if (gitDir?.type !== 'dir') return;
+export async function ensureEmdashGitExcluded(fs: IFileSystem, repoPath: string): Promise<void> {
+  const gitPath = joinProjectPath(repoPath, '.git');
+  const excludePath = joinProjectPath(repoPath, GIT_EXCLUDE_PATH);
+
+  const gitDir = await fs.stat(gitPath);
+  if (!gitDir.success || gitDir.data.type !== 'directory') return;
 
   let existing = '';
-  if (await fs.exists(GIT_EXCLUDE_PATH)) {
-    const read = await fs.read(GIT_EXCLUDE_PATH);
+  const excludeExists = await fs.exists(excludePath);
+  if (excludeExists.success && excludeExists.data) {
+    const read = await fs.readText(excludePath);
+    if (!read.success) return;
     // `read` caps at a default byte limit; rewriting a truncated view would drop
     // any rules past the cut. Bail rather than risk corrupting the file.
-    if (read.truncated) return;
-    existing = read.content;
+    if (read.data.truncated) return;
+    existing = read.data.content;
   }
 
   const alreadyExcluded = existing
@@ -39,15 +51,19 @@ export async function ensureEmdashGitExcluded(fs: FileSystemProvider): Promise<v
 
   const base = existing.replace(/\s*$/, '');
   const next = base.length > 0 ? `${base}\n${IGNORE_PATTERN}\n` : `${IGNORE_PATTERN}\n`;
-  const result = await fs.write(GIT_EXCLUDE_PATH, next);
+  const result = await fs.writeText(excludePath, next);
   if (!result.success) {
-    throw new Error(result.error ?? `failed to write ${GIT_EXCLUDE_PATH}`);
+    throw new Error(result.error.message);
   }
 }
 
 /** Fire-and-forget wrapper that never rejects; logs and moves on. */
-export function ensureEmdashGitExcludedSafe(fs: FileSystemProvider, projectId: string): void {
-  void ensureEmdashGitExcluded(fs).catch((error) => {
+export function ensureEmdashGitExcludedSafe(
+  fs: IFileSystem,
+  repoPath: string,
+  projectId: string
+): void {
+  void ensureEmdashGitExcluded(fs, repoPath).catch((error) => {
     log.warn('ensureEmdashGitExcluded failed', {
       projectId,
       error: error instanceof Error ? error.message : String(error),

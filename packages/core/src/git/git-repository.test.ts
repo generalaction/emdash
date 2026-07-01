@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { FileWatchService } from '../fs';
+import { WatchService } from '../watch';
 import { GitRuntime, type GitRefsModel, type GitRepoUpdate } from './index';
 
 const execFileAsync = promisify(execFile);
@@ -63,7 +63,7 @@ async function eventually<T>(
 describe('GitRepository', () => {
   it('reads repository facts and emits updates after real git mutations', async () => {
     const { repo, remote } = await makeRepoWithRemote();
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher });
     const updates: GitRepoUpdate[] = [];
 
@@ -138,7 +138,7 @@ describe('GitRepository', () => {
 
   it('emits refs updates for external git mutations under the common dir', async () => {
     const { repo } = await makeRepoWithRemote();
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher });
     const updates: GitRepoUpdate[] = [];
 

@@ -1,3 +1,4 @@
+import { relativeToWorkspace } from '@renderer/features/tasks/stores/workspace-path';
 import type { SearchItem } from '@shared/core/search';
 
 /**
@@ -15,4 +16,17 @@ export function applyContextAffinity(
     // BM25: lower (more negative) is better
     return diff !== 0 ? diff : a.score - b.score;
   });
+}
+
+export function getPaletteFileDisplayPath({
+  workspacePath,
+  filePath,
+  fallback,
+}: {
+  workspacePath?: string;
+  filePath: string;
+  fallback?: string;
+}): string {
+  if (!workspacePath) return fallback ?? filePath.replace(/\\/g, '/');
+  return relativeToWorkspace(workspacePath, filePath);
 }

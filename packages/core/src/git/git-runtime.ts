@@ -1,9 +1,13 @@
 import path from 'node:path';
 import { err, ok, type Lease, type Result } from '@emdash/shared';
 import type { BoundExec } from '../exec';
-import { FileWatchService, realpathOrResolve, type IFileWatchService } from '../fs';
 import { KeyedMutex, ResourceMap } from '../lib';
-import { classifyCloneRepositoryError, gitErrorMessage } from './errors';
+import { WatchService, realpathOrResolve, type IWatchService } from '../watch';
+import {
+  classifyCloneRepositoryError,
+  gitErrorMessage,
+  isNotRepositoryInspectionError,
+} from './errors';
 import type { CloneRepositoryError } from './errors';
 import { createGitExec } from './git-env';
 import { GitRepository, type GitOnError } from './git-repository';
@@ -36,7 +40,7 @@ export type GitRuntimeOptions = {
    * File-watch service to use. Injected services are disposed by the injector;
    * when omitted, the runtime creates and disposes its own service.
    */
-  watcher?: IFileWatchService;
+  watcher?: IWatchService;
   executable?: string;
   env?: NodeJS.ProcessEnv;
   exec?: BoundExec;
@@ -48,7 +52,7 @@ export class GitRuntime implements IGitRuntime {
   private readonly worktrees: ResourceMap<WorktreeResource>;
   private readonly mutex: KeyedMutex;
   private readonly exec: BoundExec;
-  private readonly watcher: IFileWatchService;
+  private readonly watcher: IWatchService;
   private readonly ownsWatcher: boolean;
   private readonly onError: GitOnError;
   private disposeRequested = false;
@@ -56,7 +60,7 @@ export class GitRuntime implements IGitRuntime {
   constructor(options: GitRuntimeOptions = {}) {
     this.onError = options.onError ?? (() => {});
     this.ownsWatcher = !options.watcher;
-    this.watcher = options.watcher ?? new FileWatchService({ onError: this.onError });
+    this.watcher = options.watcher ?? new WatchService({ onError: this.onError });
     this.mutex = new KeyedMutex();
     this.exec =
       options.exec ??
@@ -304,13 +308,4 @@ export class GitRuntime implements IGitRuntime {
     if (!this.worktrees.idle || !this.repositories.idle) return;
     if (this.ownsWatcher) await this.watcher.dispose();
   }
-}
-
-function isNotRepositoryInspectionError(error: unknown): boolean {
-  const message = gitErrorMessage(error).toLowerCase();
-  return (
-    message.includes('not a git repository') ||
-    message.includes('not a git directory') ||
-    message.includes('must be run in a work tree')
-  );
 }

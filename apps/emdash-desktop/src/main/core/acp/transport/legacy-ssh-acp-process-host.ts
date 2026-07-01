@@ -15,8 +15,8 @@ import {
   buildSshCommand,
   SshExecutionContext,
 } from '@main/core/execution-context/ssh-execution-context';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
+import { SshFileSystem } from '@main/core/runtime/legacy/ssh-legacy-fs';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { quoteShellArg } from '@main/utils/shellEscape';
 

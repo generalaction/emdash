@@ -1,8 +1,26 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as nodeCrypto from 'node:crypto';
+import type * as fsPromises from 'node:fs/promises';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
-import { taskSessionManager } from '../tasks/task-session-manager';
-import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { ptySessionRegistry } from './pty-session-registry';
+
+const mocks = vi.hoisted(() => ({
+  getTask: vi.fn(),
+  getWorkspace: vi.fn(),
+  getWorkspaceId: vi.fn(),
+  randomUUID: vi.fn(),
+  readFile: vi.fn(),
+}));
+
+vi.mock('node:crypto', async (importActual) => {
+  const actual = await importActual<typeof nodeCrypto>();
+  return { ...actual, randomUUID: mocks.randomUUID };
+});
+
+vi.mock('node:fs/promises', async (importActual) => {
+  const actual = await importActual<typeof fsPromises>();
+  return { ...actual, readFile: mocks.readFile };
+});
 
 vi.mock('./persist-dropped-blob', () => ({
   cleanupExpiredDroppedBlobs: vi.fn().mockResolvedValue(undefined),
@@ -22,11 +40,16 @@ vi.mock('@main/lib/events', () => ({
 }));
 
 vi.mock('../tasks/task-session-manager', () => ({
-  taskSessionManager: {},
+  taskSessionManager: {
+    getTask: mocks.getTask,
+    getWorkspaceId: mocks.getWorkspaceId,
+  },
 }));
 
 vi.mock('../workspaces/workspace-registry', () => ({
-  workspaceRegistry: {},
+  workspaceRegistry: {
+    get: mocks.getWorkspace,
+  },
 }));
 
 const emitSpy = vi.spyOn(conversationEvents, '_emit');
@@ -46,15 +69,7 @@ function makePty(write = vi.fn()) {
 describe('ptyController', () => {
   beforeEach(() => {
     emitSpy.mockClear();
-  });
-
-  afterEach(() => {
-    // Tests below mutate the shared mock singletons; reset them so a later test
-    // still sees the empty `{}` the vi.mock factories return.
-    const taskMgr = taskSessionManager as unknown as Record<string, unknown>;
-    delete taskMgr.getTask;
-    delete taskMgr.getWorkspaceId;
-    delete (workspaceRegistry as unknown as Record<string, unknown>).get;
+    vi.clearAllMocks();
   });
 
   it('emits input-submitted for remote agent PTYs on enter', () => {
@@ -79,37 +94,33 @@ describe('ptyController', () => {
   });
 
   it('uploads remote attachments into the git-ignored .emdash dir, not the worktree root (#2680)', async () => {
-    const mkdir = vi.fn().mockResolvedValue(undefined);
-    const copyLocalFile = vi.fn().mockResolvedValue(undefined);
-    const workspace = { path: '/remote/worktree', fs: { mkdir, copyLocalFile } };
-
-    const taskMgr = taskSessionManager as unknown as {
-      getTask: (id: string) => unknown;
-      getWorkspaceId: (id: string) => string;
-    };
-    taskMgr.getTask = vi.fn(() => ({}));
-    taskMgr.getWorkspaceId = vi.fn(() => 'ws-1');
-    const wsReg = workspaceRegistry as unknown as { get: (id: string) => unknown };
-    wsReg.get = vi.fn(() => workspace);
+    const bytes = Buffer.from('content');
+    const mkdir = vi.fn().mockResolvedValue({ success: true });
+    const writeBytes = vi.fn().mockResolvedValue({ success: true });
+    mocks.randomUUID.mockReturnValue('upload-id');
+    mocks.readFile.mockResolvedValue(bytes);
+    mocks.getTask.mockReturnValue({});
+    mocks.getWorkspaceId.mockReturnValue('workspace-1');
+    mocks.getWorkspace.mockReturnValue({
+      path: '/remote/worktree',
+      fileSystem: { mkdir, writeBytes },
+    });
 
     const result = await ptyController.uploadFiles({
       sessionId: 'proj-1:task-1:conv-1',
       localPaths: ['/local/tmp/emdash-drop-abc-image.png'],
     });
 
-    expect(result.success).toBe(true);
-    expect(mkdir).toHaveBeenCalledWith('.emdash/uploads', { recursive: true });
-    expect(copyLocalFile).toHaveBeenCalledTimes(1);
-
-    const [src, destRel] = copyLocalFile.mock.calls[0]!;
-    expect(src).toBe('/local/tmp/emdash-drop-abc-image.png');
-    expect(destRel).toMatch(/^\.emdash\/uploads\/[0-9a-f-]+-emdash-drop-abc-image\.png$/);
-
-    if (result.success) {
-      // Lands under the git-ignored .emdash dir, never directly in the worktree root.
-      expect(result.data.remotePaths[0]).toMatch(
-        /^\/remote\/worktree\/\.emdash\/uploads\/[0-9a-f-]+-emdash-drop-abc-image\.png$/
-      );
-    }
+    expect(result).toEqual({
+      success: true,
+      data: {
+        remotePaths: ['/remote/worktree/.emdash/uploads/upload-id-emdash-drop-abc-image.png'],
+      },
+    });
+    expect(mkdir).toHaveBeenCalledWith('/remote/worktree/.emdash/uploads', { recursive: true });
+    expect(writeBytes).toHaveBeenCalledWith(
+      '/remote/worktree/.emdash/uploads/upload-id-emdash-drop-abc-image.png',
+      bytes
+    );
   });
 });

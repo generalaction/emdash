@@ -22,6 +22,7 @@ import { acpChatTabProvider } from './acp/acp-chat-tab-provider';
 import { conversationTabProvider } from './conversations/conversation-tab-provider';
 import { diffTabProvider } from './diff-view/diff-tab-provider';
 import { fileTabProvider } from './editor/file-tab-provider';
+import type { TaskTabContext } from './stores/task-tab-context';
 import { TaskTabViewPersistor } from './stores/task-tab-view-persistor';
 
 export const taskTabView = createTabView(
@@ -32,7 +33,7 @@ export const taskTabView = createTabView(
     diffTabProvider,
     browserTabProvider,
   ] as const,
-  { makePersistor: (ctx) => new TaskTabViewPersistor(ctx.viewId) }
+  { makePersistor: (ctx) => new TaskTabViewPersistor(ctx as TaskTabContext) }
 );
 
 type TaskRegistry = typeof taskTabView.registry;

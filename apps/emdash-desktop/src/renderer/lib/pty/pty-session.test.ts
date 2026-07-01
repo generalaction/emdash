@@ -82,6 +82,18 @@ describe('PtySession', () => {
     expect(frontendDispose).toHaveBeenCalledTimes(1);
   });
 
+  it('does not create a frontend PTY when prepare aborts connection', async () => {
+    const prepare = vi.fn(async () => false as const);
+    const session = new PtySession('session-1', prepare);
+
+    await session.connect();
+
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(frontendInstances).toEqual([]);
+    expect(frontendConnect).not.toHaveBeenCalled();
+    expect(session.status).toBe('disconnected');
+  });
+
   it('unsubscribes from backend start events only when destroyed', () => {
     const offPtyStarted = vi.fn();
     vi.mocked(events.on).mockReturnValue(offPtyStarted);

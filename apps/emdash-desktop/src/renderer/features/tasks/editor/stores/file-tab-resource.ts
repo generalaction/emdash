@@ -54,7 +54,7 @@ export class FileTabResource implements TabResource {
     this.contentType = fileKind;
     this.viewMode = isPreviewableKind(fileKind) ? 'preview' : 'source';
     this.content = '';
-    this.isLoading = fileKind === 'image';
+    this.isLoading = this.isExternal || fileKind === 'image';
     this.totalSize = null;
     this.externalError = undefined;
 

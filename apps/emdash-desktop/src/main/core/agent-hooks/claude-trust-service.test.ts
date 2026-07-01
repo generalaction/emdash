@@ -1,11 +1,9 @@
 import path from 'node:path';
+import type { IFileSystem } from '@emdash/core/files';
+import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import {
-  FileSystemError,
-  FileSystemErrorCodes,
-  type FileSystemProvider,
-} from '@main/core/fs/types';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 import { ClaudeTrustService } from './claude-trust-service';
 
 const mockReadFile = vi.hoisted(() => vi.fn());
@@ -38,14 +36,6 @@ vi.mock('@main/lib/logger', () => ({
   },
 }));
 
-function notFound(pathName: string): FileSystemError {
-  return new FileSystemError(
-    `File not found: ${pathName}`,
-    FileSystemErrorCodes.NOT_FOUND,
-    pathName
-  );
-}
-
 function makeService(overrides: { autoTrustWorktrees?: boolean } = {}): ClaudeTrustService {
   return new ClaudeTrustService({
     getTaskSettings: () =>
@@ -54,14 +44,47 @@ function makeService(overrides: { autoTrustWorktrees?: boolean } = {}): ClaudeTr
 }
 
 function makeRemoteFs(
-  overrides: Partial<Pick<FileSystemProvider, 'realPath' | 'read' | 'write'>> = {}
-): Pick<FileSystemProvider, 'realPath' | 'read' | 'write'> {
+  overrides: Partial<Pick<IFileSystem, 'realPath' | 'readText' | 'writeText'>> = {}
+): Pick<IFileSystem, 'realPath' | 'readText' | 'writeText'> {
   return {
-    realPath: vi.fn(async (p: string) => p),
-    read: vi.fn().mockRejectedValue(notFound('/home/remote-user/.claude.json')),
-    write: vi.fn().mockResolvedValue({ success: true, bytesWritten: 0 }),
+    realPath: vi.fn(async () => ok('/remote/worktree')),
+    readText: vi.fn(async (p: string) =>
+      err({
+        type: 'fs-error' as const,
+        path: p,
+        message: `File not found: ${p}`,
+        code: 'NOT_FOUND',
+      })
+    ),
+    writeText: vi.fn(async (_path: string, content: string) =>
+      ok({ bytesWritten: content.length })
+    ),
     ...overrides,
   };
+}
+
+function makeFilesRuntime(args: {
+  fs: Pick<IFileSystem, 'realPath' | 'readText' | 'writeText'>;
+}): IFilesRuntime {
+  return {
+    path: {
+      join: (...parts: string[]) => path.posix.join(...parts),
+      dirname: (value: string) => path.posix.dirname(value),
+      basename: (value: string) => path.posix.basename(value),
+      isAbsolute: (value: string) => path.posix.isAbsolute(value),
+      relative: (from: string, to: string) => path.posix.relative(from, to),
+      contains: (parent: string, child: string) => {
+        const rel = path.posix.relative(parent, child);
+        return (
+          rel === '' || (rel !== '..' && !rel.startsWith('../') && !path.posix.isAbsolute(rel))
+        );
+      },
+    },
+    openTree: vi.fn(),
+    watchChanges: vi.fn(),
+    fileSystem: vi.fn(() => ok(args.fs as IFileSystem)),
+    dispose: vi.fn(),
+  } as unknown as IFilesRuntime;
 }
 
 describe('ClaudeTrustService', () => {
@@ -79,7 +102,7 @@ describe('ClaudeTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'codex',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
     });
 
@@ -92,7 +115,7 @@ describe('ClaudeTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'claude',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
     });
 
@@ -105,7 +128,7 @@ describe('ClaudeTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'claude',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
       force: true,
     });
@@ -116,11 +139,11 @@ describe('ClaudeTrustService', () => {
 
   it('writes local config atomically when missing', async () => {
     const service = makeService();
-    const relPath = './relative/path';
+    const workspacePath = '/absolute/path';
 
     await service.maybeAutoTrustLocal({
       providerId: 'claude',
-      cwd: relPath,
+      workspacePath,
       homedir: '/home/local-user',
     });
 
@@ -136,10 +159,27 @@ describe('ClaudeTrustService', () => {
     expect(renameTo).toBe('/home/local-user/.claude.json');
 
     const written = JSON.parse(String(content));
-    expect(written.projects[path.resolve(relPath)]).toEqual({
+    expect(written.projects[workspacePath]).toEqual({
       hasTrustDialogAccepted: true,
       hasCompletedProjectOnboarding: true,
     });
+  });
+
+  it('refuses to auto-trust relative local workspace paths', async () => {
+    const service = makeService();
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'claude',
+      workspacePath: './relative/path',
+      homedir: '/home/local-user',
+    });
+
+    expect(mockReadFile).not.toHaveBeenCalled();
+    expect(mockWriteFile).not.toHaveBeenCalled();
+    expect(mockWarn).toHaveBeenCalledWith(
+      'ClaudeTrustService: refusing to auto-trust non-absolute workspace path',
+      { path: './relative/path' }
+    );
   });
 
   it('adds Copilot trusted folders', async () => {
@@ -148,7 +188,7 @@ describe('ClaudeTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'copilot',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
     });
 
@@ -170,7 +210,7 @@ describe('ClaudeTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'copilot',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
     });
 
@@ -194,7 +234,7 @@ describe('ClaudeTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'claude',
-      cwd: trustedPath,
+      workspacePath: trustedPath,
       homedir: '/home/local-user',
     });
 
@@ -208,7 +248,7 @@ describe('ClaudeTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'claude',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
     });
 
@@ -226,7 +266,7 @@ describe('ClaudeTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'claude',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
     });
 
@@ -250,12 +290,12 @@ describe('ClaudeTrustService', () => {
     await Promise.all([
       service.maybeAutoTrustLocal({
         providerId: 'claude',
-        cwd: '/worktree/a',
+        workspacePath: '/worktree/a',
         homedir: '/home/local-user',
       }),
       service.maybeAutoTrustLocal({
         providerId: 'claude',
-        cwd: '/worktree/b',
+        workspacePath: '/worktree/b',
         homedir: '/home/local-user',
       }),
     ]);
@@ -275,8 +315,9 @@ describe('ClaudeTrustService', () => {
   it('writes ssh config and renames tmp file remotely', async () => {
     const service = makeService();
     const remoteFs = makeRemoteFs({
-      realPath: vi.fn().mockResolvedValue('/remote/worktree'),
+      realPath: vi.fn(async () => ok('/remote/worktree')),
     });
+    const files = makeFilesRuntime({ fs: remoteFs });
 
     const ctx: IExecutionContext = {
       root: undefined,
@@ -301,17 +342,16 @@ describe('ClaudeTrustService', () => {
 
     await service.maybeAutoTrustSsh({
       providerId: 'claude',
-      cwd: '/remote/worktree',
+      workspacePath: '/remote/worktree',
       ctx,
-      remoteFs,
+      files,
     });
 
-    expect(remoteFs.read).toHaveBeenCalledWith(
-      '/home/remote-user/.claude.json',
-      expect.any(Number)
-    );
-    expect(remoteFs.write).toHaveBeenCalledTimes(1);
-    const [tmpPath, content] = vi.mocked(remoteFs.write).mock.calls[0];
+    expect(remoteFs.readText).toHaveBeenCalledWith('/home/remote-user/.claude.json', {
+      maxBytes: expect.any(Number),
+    });
+    expect(remoteFs.writeText).toHaveBeenCalledTimes(1);
+    const [tmpPath, content] = vi.mocked(remoteFs.writeText).mock.calls[0];
     expect(tmpPath).toContain('/home/remote-user/.claude.json.');
     const written = JSON.parse(String(content));
     expect(written.projects['/remote/worktree']).toEqual({
@@ -319,5 +359,33 @@ describe('ClaudeTrustService', () => {
       hasCompletedProjectOnboarding: true,
     });
     expect(ctx.exec).toHaveBeenCalledWith('mv', [tmpPath, '/home/remote-user/.claude.json']);
+  });
+
+  it('refuses to auto-trust relative ssh workspace paths', async () => {
+    const service = makeService();
+    const remoteFs = makeRemoteFs();
+    const files = makeFilesRuntime({ fs: remoteFs });
+    const ctx: IExecutionContext = {
+      root: undefined,
+      supportsLocalSpawn: false,
+      exec: vi.fn(),
+      execStreaming: vi.fn(),
+      dispose: vi.fn(),
+    };
+
+    await service.maybeAutoTrustSsh({
+      providerId: 'claude',
+      workspacePath: 'relative/worktree',
+      ctx,
+      files,
+    });
+
+    expect(remoteFs.realPath).not.toHaveBeenCalled();
+    expect(remoteFs.writeText).not.toHaveBeenCalled();
+    expect(ctx.exec).not.toHaveBeenCalled();
+    expect(mockWarn).toHaveBeenCalledWith(
+      'ClaudeTrustService: refusing to auto-trust non-absolute workspace path',
+      { path: 'relative/worktree' }
+    );
   });
 });

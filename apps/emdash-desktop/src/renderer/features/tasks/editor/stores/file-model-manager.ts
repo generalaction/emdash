@@ -40,7 +40,7 @@ type EntryState =
  *   - Removes the resource from the notification set.
  *   - When no resources remain, unregisters Monaco models.
  *
- * Save/conflict/restore remain in FileModelLifecycleStore (not tab-owned).
+ * Save/conflict/restore remain in EditorViewStore (not tab-owned).
  */
 export class FileModelManager {
   private readonly _entries = new Map<string, EntryState>();
@@ -96,12 +96,12 @@ export class FileModelManager {
     const kind = getFileKind(path);
 
     if (kind === 'image' || kind === 'svg') {
-      const result = await rpc.workspace.fs.readImage(
+      const result = await rpc.workspace.files.readImage(
         this._ctx.projectId,
         this._ctx.workspaceId,
         path
       );
-      const dataUrl = result.success ? (result.data?.dataUrl ?? '') : '';
+      const dataUrl = result.success && result.data.success ? result.data.dataUrl : '';
       runInAction(() => {
         const entry = this._entries.get(path);
         if (!entry) return;

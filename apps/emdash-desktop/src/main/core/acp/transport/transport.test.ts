@@ -32,7 +32,7 @@ vi.mock('@main/core/pty/pty-env', () => ({
   buildAgentEnv: vi.fn().mockReturnValue({}),
 }));
 
-vi.mock('@main/core/fs/impl/ssh-fs', () => ({
+vi.mock('@main/core/runtime/legacy/ssh-legacy-fs', () => ({
   SshFileSystem: function MockSshFileSystem() {
     return {
       read: vi.fn(),

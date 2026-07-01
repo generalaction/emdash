@@ -281,9 +281,11 @@ export class MonacoModelRegistry {
       type DiskFetchResult = { content: string; truncated: boolean; totalSize: number };
       const [fetchResult, monaco_] = await Promise.all([
         this.dedupFetch<DiskFetchResult>(fetchKey, async () => {
-          const res = await rpc.workspace.fs.readFile(projectId, workspaceId, filePath);
-          if (!res.success)
-            throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${res.error}`);
+          const res = await rpc.workspace.files.readFile(projectId, workspaceId, filePath);
+          if (!res.success) {
+            const detail = 'message' in res.error ? res.error.message : JSON.stringify(res.error);
+            throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${detail}`);
+          }
           const result = res.data.content;
           if (result === null) throw new Error(`registerModel(disk): null content for ${filePath}`);
           return { content: result, truncated: res.data.truncated, totalSize: res.data.totalSize };
@@ -724,6 +726,10 @@ export class MonacoModelRegistry {
     return this.modelMap.get(uri)?.model;
   }
 
+  filePathForUri(uri: string): string | undefined {
+    return this.modelMap.get(uri)?.filePath;
+  }
+
   /** Current text content of the buffer model. */
   getValue(uri: string): string | null {
     const entry = this.modelMap.get(uri);
@@ -788,7 +794,7 @@ export class MonacoModelRegistry {
     if (!buf || buf.type !== 'buffer') return null;
 
     const content = buf.model.getValue();
-    const result = await rpc.workspace.fs.writeFile(
+    const result = await rpc.workspace.files.writeFile(
       buf.projectId,
       buf.workspaceId,
       buf.filePath,
@@ -814,7 +820,7 @@ export class MonacoModelRegistry {
     const entry = this.modelMap.get(uri);
     if (!entry) return;
     if (entry.type === 'disk') {
-      const res = await rpc.workspace.fs.readFile(
+      const res = await rpc.workspace.files.readFile(
         entry.projectId,
         entry.workspaceId,
         entry.filePath
@@ -871,12 +877,12 @@ export class MonacoModelRegistry {
    * Return all registered disk:// URIs for the given workspace and file path.
    * Used by the FS-event invalidation bridge.
    */
-  findDiskUris(filter: { workspaceId: string; filePath: string }): string[] {
+  findDiskUris(filter: { workspaceId: string; filePath?: string }): string[] {
     const result: string[] = [];
     for (const [uri, entry] of this.modelMap) {
       if (entry.type !== 'disk') continue;
       if (entry.workspaceId !== filter.workspaceId) continue;
-      if (entry.filePath !== filter.filePath) continue;
+      if (filter.filePath !== undefined && entry.filePath !== filter.filePath) continue;
       result.push(uri);
     }
     return result;

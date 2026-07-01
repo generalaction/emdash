@@ -1,29 +1,20 @@
+import type { FileChange } from '@emdash/core/files';
 import { events } from '@renderer/lib/ipc';
-import type { FileWatchEvent } from '@shared/core/fs/fs';
-import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
+import { fileChangesChannel } from '@shared/core/fs/fsEvents';
 import { gitRepoUpdateChannel, gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
 import type { MonacoModelRegistry } from './monaco-model-registry';
 
 /** Disk models for paths affected by a watch event (atomic saves often use create/delete, not modify). */
-function diskUrisForFsWatchEvent(
+function diskUrisForFileChange(
   registry: MonacoModelRegistry,
   workspaceId: string,
-  e: FileWatchEvent
+  change: FileChange
 ): string[] {
-  if (e.path.startsWith('.git')) return [];
-  if (e.oldPath?.startsWith('.git')) return [];
+  if (change.path.split(/[\\/]/).includes('.git')) return [];
 
-  if (e.type === 'rename' && e.oldPath) {
-    return [
-      ...registry.findDiskUris({ workspaceId, filePath: e.path }),
-      ...registry.findDiskUris({ workspaceId, filePath: e.oldPath }),
-    ];
-  }
-
-  if (e.entryType !== 'file') return [];
-  if (e.type === 'modify' || e.type === 'create' || e.type === 'delete') {
-    return registry.findDiskUris({ workspaceId, filePath: e.path });
+  if (change.entryType !== 'directory') {
+    return registry.findDiskUris({ workspaceId, filePath: change.path });
   }
   return [];
 }
@@ -36,11 +27,16 @@ function diskUrisForFsWatchEvent(
  */
 export function wireModelRegistryInvalidation(registry: MonacoModelRegistry): () => void {
   // Disk file modifications → invalidate matching disk:// models.
-  const unsubFs = events.on(fsWatchEventChannel, ({ workspaceId, events: fsEvents }) => {
-    for (const e of fsEvents) {
-      const skippedGit = e.path.startsWith('.git') || e.oldPath?.startsWith('.git');
-      const uris = skippedGit ? [] : diskUrisForFsWatchEvent(registry, workspaceId, e);
-      if (skippedGit) continue;
+  const unsubFs = events.on(fileChangesChannel, ({ workspaceId, update }) => {
+    if (update.kind === 'resync') {
+      for (const uri of registry.findDiskUris({ workspaceId })) {
+        void registry.invalidateModel(uri);
+      }
+      return;
+    }
+
+    for (const change of update.changes) {
+      const uris = diskUrisForFileChange(registry, workspaceId, change);
       for (const uri of uris) {
         void registry.invalidateModel(uri);
       }

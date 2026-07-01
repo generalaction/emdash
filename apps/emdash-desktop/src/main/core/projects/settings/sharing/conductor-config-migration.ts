@@ -1,6 +1,6 @@
-import { err, ok, type Result } from '@emdash/shared';
+import type { IFileSystem } from '@emdash/core/files';
+import type { Result } from '@emdash/shared';
 import z from 'zod';
-import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
@@ -8,12 +8,19 @@ import {
   type ShareableProjectSettings,
   type ShareableProjectSettingsWriteField,
 } from '@shared/core/project-settings/project-settings';
-import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { ProjectProvider } from '../../project-provider';
 import { parseJsonObject } from '../project-settings-json';
 import type { ProjectConfigMigrator } from './config-migration';
-import { CONFIG_FILE } from './workspace-config-file';
+import {
+  addScript,
+  applyProjectConfigMigration,
+  errorMessage,
+  openProjectFileSystem,
+  projectPath,
+  trimmedText,
+  writeConfigFailed,
+} from './config-migration-utils';
 
 const CONDUCTOR_CONFIG_FILE = 'conductor.json';
 const CONDUCTOR_WORKTREE_INCLUDE_FILE = '.worktreeinclude';
@@ -39,15 +46,6 @@ type ConductorMigrationData = {
   unsupportedFields: string[];
 };
 
-function writeConfigFailed(message: string): Result<never, UpdateProjectSettingsError> {
-  return err({ type: 'write-config-failed', message });
-}
-
-function trimmedText(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
 function parseWorktreeInclude(content: string): string[] {
   return content
     .split(/\r?\n/)
@@ -67,7 +65,8 @@ function toConductorMigration(data: ConductorMigrationData): ProjectConfigMigrat
 }
 
 async function readConductorMigrationData(
-  fs: Pick<FileSystemProvider, 'exists' | 'read'>
+  project: ProjectProvider,
+  fileSystem: IFileSystem
 ): Promise<ConductorMigrationData> {
   const data: ConductorMigrationData = {
     settings: {},
@@ -76,41 +75,61 @@ async function readConductorMigrationData(
     unsupportedFields: [],
   };
 
-  const hasConductorConfig = await fs.exists(CONDUCTOR_CONFIG_FILE);
-  if (hasConductorConfig) {
-    const { content } = await fs.read(CONDUCTOR_CONFIG_FILE);
-    const conductorConfig = conductorConfigSchema.parse(parseJsonObject(content));
-    data.files.push(CONDUCTOR_CONFIG_FILE);
+  const conductorConfigPath = projectPath(project, CONDUCTOR_CONFIG_FILE);
+  const hasConductorConfig = await fileSystem.exists(conductorConfigPath);
+  if (!hasConductorConfig.success) {
+    log.warn('Failed to inspect Conductor config for migration', hasConductorConfig.error);
+  }
+  if (hasConductorConfig.success && hasConductorConfig.data) {
+    const content = await fileSystem.readText(conductorConfigPath);
+    if (!content.success) {
+      log.warn('Failed to read Conductor config for migration', content.error);
+    } else if (content.data.truncated) {
+      log.warn('Conductor config was truncated during migration', {
+        path: conductorConfigPath,
+        totalSize: content.data.totalSize,
+      });
+    } else {
+      const conductorConfig = conductorConfigSchema.parse(parseJsonObject(content.data.content));
+      data.files.push(CONDUCTOR_CONFIG_FILE);
 
-    const setup = trimmedText(conductorConfig.scripts?.setup);
-    const run = trimmedText(conductorConfig.scripts?.run);
-    const archive = trimmedText(conductorConfig.scripts?.archive);
+      const setup = trimmedText(conductorConfig.scripts?.setup);
+      const run = trimmedText(conductorConfig.scripts?.run);
+      const archive = trimmedText(conductorConfig.scripts?.archive);
 
-    if (setup) {
-      data.settings.scripts ??= {};
-      data.settings.scripts.setup = setup;
-      data.fields.push('scripts.setup');
-    }
-    if (run) {
-      data.settings.scripts ??= {};
-      data.settings.scripts.run = run;
-      data.fields.push('scripts.run');
-    }
-    if (archive) {
-      data.settings.scripts ??= {};
-      data.settings.scripts.teardown = archive;
-      data.fields.push('scripts.teardown');
-    }
+      addScript(data, 'scripts.setup', setup);
+      addScript(data, 'scripts.run', run);
+      addScript(data, 'scripts.teardown', archive);
 
-    if (conductorConfig.runScriptMode !== undefined) data.unsupportedFields.push('runScriptMode');
-    if (conductorConfig.enterpriseDataPrivacy !== undefined) {
-      data.unsupportedFields.push('enterpriseDataPrivacy');
+      if (conductorConfig.runScriptMode !== undefined) data.unsupportedFields.push('runScriptMode');
+      if (conductorConfig.enterpriseDataPrivacy !== undefined) {
+        data.unsupportedFields.push('enterpriseDataPrivacy');
+      }
     }
   }
 
-  if (await fs.exists(CONDUCTOR_WORKTREE_INCLUDE_FILE)) {
-    const { content } = await fs.read(CONDUCTOR_WORKTREE_INCLUDE_FILE);
-    const patterns = parseWorktreeInclude(content);
+  const worktreeIncludePath = projectPath(project, CONDUCTOR_WORKTREE_INCLUDE_FILE);
+  const hasWorktreeInclude = await fileSystem.exists(worktreeIncludePath);
+  if (!hasWorktreeInclude.success) {
+    log.warn(
+      'Failed to inspect Conductor worktree include for migration',
+      hasWorktreeInclude.error
+    );
+  }
+  if (hasWorktreeInclude.success && hasWorktreeInclude.data) {
+    const content = await fileSystem.readText(worktreeIncludePath);
+    if (!content.success) {
+      log.warn('Failed to read Conductor worktree include for migration', content.error);
+      return data;
+    }
+    if (content.data.truncated) {
+      log.warn('Conductor worktree include was truncated during migration', {
+        path: worktreeIncludePath,
+        totalSize: content.data.totalSize,
+      });
+      return data;
+    }
+    const patterns = parseWorktreeInclude(content.data.content);
     if (patterns.length > 0) {
       data.files.push(CONDUCTOR_WORKTREE_INCLUDE_FILE);
       data.settings.preservePatterns = patterns;
@@ -126,47 +145,25 @@ async function migrateConductorConfig(
   request: MigrateProjectConfigRequest
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   try {
-    const data = await readConductorMigrationData(project.fs);
+    const fileSystem = openProjectFileSystem(project);
+    if (!fileSystem.success) return fileSystem;
+
+    const data = await readConductorMigrationData(project, fileSystem.data);
     const migration = toConductorMigration(data);
     if (!migration) {
       return writeConfigFailed('No supported Conductor settings were found.');
     }
 
-    if (request.destination === 'local') {
-      const currentSettings = await project.settings.get();
-      const shareableSettings = mergeShareableProjectSettings(currentSettings, data.settings);
-      const updateResult = await project.settings.update({
-        ...currentSettings,
-        ...shareableSettings,
-      });
-      if (!updateResult.success) return updateResult;
-      return ok(migration);
-    }
-
-    const writeResult = await project.fs.write(
-      CONFIG_FILE,
-      `${JSON.stringify(data.settings, null, 2)}\n`
-    );
-    if (!writeResult.success) {
-      log.warn('Failed to write migrated project config file', writeResult.error);
-      return writeConfigFailed(writeResult.error ?? `Failed to write ${CONFIG_FILE}.`);
-    }
-
-    const clearResult = await project.settings.patch({ clearShareableFields: data.fields });
-    if (!clearResult.success) {
-      log.warn('Failed to clear imported local project settings', clearResult.error);
-      return writeConfigFailed(`Wrote ${CONFIG_FILE}, but failed to clear local project settings.`);
-    }
-
-    return ok(migration);
+    return await applyProjectConfigMigration(project, request, data, migration);
   } catch (error) {
     log.warn('Failed to migrate Conductor config to project config', error);
-    return writeConfigFailed(error instanceof Error ? error.message : String(error));
+    return writeConfigFailed(errorMessage(error));
   }
 }
 
 export const conductorConfigMigrator: ProjectConfigMigrator = {
   provider: 'conductor',
-  inspect: async (fs) => toConductorMigration(await readConductorMigrationData(fs)),
+  inspect: async (project, fileSystem) =>
+    toConductorMigration(await readConductorMigrationData(project, fileSystem)),
   migrate: migrateConductorConfig,
 };
