@@ -16,7 +16,8 @@
   "type": "module",
   "sideEffects": [
     "./dist/style.css",
-    "./src/react/chat-ui/chat-theme.css"
+    "./src/react/chat-ui/chat-theme.css",
+    "./src/styles/base.css"
   ],
   "exports": {
     "./react": {
@@ -36,7 +37,7 @@
       "default": "./dist/react/patterns.js"
     },
     "./react/form": {
-      "types": "./dist/src/react/form/index.d.ts",
+      "types": "./dist/src/react/patterns/form/index.d.ts",
       "default": "./dist/react/form.js"
     },
     "./react/chat-ui": {
@@ -81,6 +82,7 @@
       "default": "./dist/styles/global.js"
     },
     "./styles/base.css": "./src/styles/theme.base.css",
+    "./styles/global-base.css": "./src/styles/base.css",
     "./styles/effects.css": "./src/styles/effects/effects.css",
     "./styles/overflow-fade.css": "./src/styles/effects/overflow-fade.css",
     "./styles/typography.css": "./src/styles/typography.css",
@@ -92,10 +94,10 @@
     "dev": "vite build --config vite.lib.config.ts --watch",
     "build": "vite build --config vite.lib.config.ts",
     "test": "vitest run",
-    "theme:build": "tsx src/theme/core/codegen/run.ts && oxfmt src/theme/__generated__/theme.css src/theme/__generated__/semantic.css",
-    "theme:watch": "tsx --watch src/theme/core/codegen/run.ts",
-    "storybook:react": "storybook dev -p 6006 -c .storybook-react",
-    "build-storybook:react": "storybook build -c .storybook-react",
+    "build:theme": "tsx src/theme/core/codegen/run.ts && oxfmt src/theme/__generated__/theme.css src/theme/__generated__/semantic.css",
+    "watch:theme": "tsx --watch src/theme/core/codegen/run.ts",
+    "storybook": "storybook dev -p 6006 -c .storybook",
+    "build:storybook": "storybook build -c .storybook",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/ui/src\"'",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
@@ -104,6 +106,7 @@
   "dependencies": {
     "@base-ui/react": "^1.3.0",
     "@emdash/chat-ui": "workspace:*",
+    "@emdash/shared": "workspace:*",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@tiptap/core": "^3.26.1",
     "@tiptap/extension-mention": "^3.26.1",

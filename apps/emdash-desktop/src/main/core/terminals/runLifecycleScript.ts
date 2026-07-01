@@ -1,5 +1,9 @@
+import { ok, type Result } from '@emdash/shared';
 import { runLifecycleScriptWithPolicy } from './lifecycle-script-coordinator';
-import { resolveLifecycleScript } from './lifecycle-script-settings';
+import {
+  resolveLifecycleScript,
+  type LifecycleScriptSettingsError,
+} from './lifecycle-script-settings';
 
 export async function runLifecycleScript({
   projectId,
@@ -11,13 +15,15 @@ export async function runLifecycleScript({
   taskId: string;
   workspaceId: string;
   type: 'setup' | 'run' | 'teardown';
-}) {
-  const { workspace, script, shellSetup } = await resolveLifecycleScript({
+}): Promise<Result<void, LifecycleScriptSettingsError>> {
+  const resolved = await resolveLifecycleScript({
     projectId,
     workspaceId,
     type,
   });
-  if (!script) return;
+  if (!resolved.success) return resolved;
+  const { workspace, script, shellSetup } = resolved.data;
+  if (!script) return ok();
   await runLifecycleScriptWithPolicy({
     workspace,
     projectId,
@@ -35,4 +41,5 @@ export async function runLifecycleScript({
     },
     logPrefix: 'TerminalsController',
   });
+  return ok();
 }

@@ -7,7 +7,6 @@ import {
 } from '@shared/core/project-settings/project-settings';
 import { SHAREABLE_FIELD_ACCESSORS } from '@shared/core/project-settings/project-settings-fields';
 import type { ProjectSettingsResolvedTarget } from './project-settings-target-resolver';
-import { CONFIG_FILE } from './workspace-config-file';
 
 export async function computeProjectSettingsOverrideState(
   targets: ProjectSettingsResolvedTarget[]
@@ -16,10 +15,19 @@ export async function computeProjectSettingsOverrideState(
 
   for (const resolved of targets) {
     try {
-      if (!(await resolved.fs.exists(CONFIG_FILE))) continue;
+      const exists = await resolved.fileSystem.exists(resolved.configPath);
+      if (!exists.success || !exists.data) continue;
 
-      const { content } = await resolved.fs.read(CONFIG_FILE);
-      const parsed = shareableProjectSettingsSchema.safeParse(JSON.parse(content));
+      const content = await resolved.fileSystem.readText(resolved.configPath);
+      if (!content.success) continue;
+      if (content.data.truncated) {
+        log.warn('Project settings override source was truncated', {
+          path: resolved.configPath,
+          totalSize: content.data.totalSize,
+        });
+        continue;
+      }
+      const parsed = shareableProjectSettingsSchema.safeParse(JSON.parse(content.data.content));
       if (!parsed.success) continue;
 
       for (const field of SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS) {

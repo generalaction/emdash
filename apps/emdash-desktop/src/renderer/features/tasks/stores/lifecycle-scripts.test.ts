@@ -1,5 +1,6 @@
+import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
+import { fileChangesChannel } from '@shared/core/fs/fsEvents';
 import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
 import { lifecycleScriptStatusChannel } from '@shared/core/tasks/taskEvents';
 import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
@@ -8,8 +9,6 @@ import { LifecycleScriptsStore, LifecycleScriptStore } from './lifecycle-scripts
 const eventHandlers = new Map<string, (data: unknown) => void>();
 const offEvent = vi.fn();
 const getSettings = vi.hoisted(() => vi.fn());
-const watchSetPaths = vi.hoisted(() => vi.fn(async () => ({ success: true, data: {} })));
-const watchStop = vi.hoisted(() => vi.fn(async () => ({ success: true, data: {} })));
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
@@ -21,12 +20,6 @@ vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     projectSettings: {
       getSettings,
-    },
-    workspace: {
-      fs: {
-        watchSetPaths,
-        watchStop,
-      },
     },
   },
 }));
@@ -49,8 +42,6 @@ describe('LifecycleScriptStore', () => {
     eventHandlers.clear();
     offEvent.mockClear();
     getSettings.mockReset();
-    watchSetPaths.mockClear();
-    watchStop.mockClear();
   });
 
   it('tracks script running state from lifecycle status events', () => {
@@ -106,45 +97,39 @@ describe('LifecycleScriptsStore', () => {
     eventHandlers.clear();
     offEvent.mockClear();
     getSettings.mockReset();
-    watchSetPaths.mockClear();
-    watchStop.mockClear();
   });
 
   it('uses stable script IDs and reconciles command changes from .emdash.json watch events', async () => {
     getSettings
-      .mockResolvedValueOnce({ scripts: { run: 'pnpm dev' } })
-      .mockResolvedValueOnce({ scripts: { run: 'pnpm start' } });
+      .mockResolvedValueOnce(ok({ scripts: { run: 'pnpm dev' } }))
+      .mockResolvedValueOnce(ok({ scripts: { run: 'pnpm start' } }));
     const store = new LifecycleScriptsStore('project-1', 'workspace-1');
 
     await (store as unknown as { load(): Promise<void> }).load();
 
-    expect(watchSetPaths).toHaveBeenCalledWith(
-      'project-1',
-      'workspace-1',
-      [''],
-      'lifecycle-scripts'
-    );
     expect(store.tabs).toHaveLength(1);
     expect(store.tabs[0].data.id).toBe(createLifecycleScriptTerminalId('run'));
     expect(store.tabs[0].data.command).toBe('pnpm dev');
 
-    eventHandlers.get(`${fsWatchEventChannel.name}.`)?.({
+    eventHandlers.get(`${fileChangesChannel.name}.`)?.({
       projectId: 'project-1',
       workspaceId: 'workspace-1',
-      events: [{ type: 'modify', entryType: 'file', path: '.emdash.json' }],
+      update: {
+        kind: 'changes',
+        changes: [{ kind: 'update', entryType: 'file', path: '.emdash.json' }],
+      },
     });
 
     await expect.poll(() => store.tabs[0]?.data.command).toBe('pnpm start');
     expect(store.tabs[0].data.id).toBe(createLifecycleScriptTerminalId('run'));
 
     store.dispose();
-    expect(watchStop).toHaveBeenCalledWith('project-1', 'workspace-1', 'lifecycle-scripts');
   });
 
   it('reloads lifecycle scripts when project settings change', async () => {
     getSettings
-      .mockResolvedValueOnce({ scripts: { setup: 'pnpm install' } })
-      .mockResolvedValueOnce({ scripts: { setup: 'corepack install', run: 'pnpm dev' } });
+      .mockResolvedValueOnce(ok({ scripts: { setup: 'pnpm install' } }))
+      .mockResolvedValueOnce(ok({ scripts: { setup: 'corepack install', run: 'pnpm dev' } }));
     const store = new LifecycleScriptsStore('project-1', 'workspace-1');
 
     await (store as unknown as { load(): Promise<void> }).load();
@@ -167,10 +152,21 @@ describe('LifecycleScriptsStore', () => {
 
     const loadPromise = (store as unknown as { load(): Promise<void> }).load();
     store.dispose();
-    resolveSettings({ scripts: { run: 'pnpm dev' } });
+    resolveSettings(ok({ scripts: { run: 'pnpm dev' } }));
     await loadPromise;
 
     expect(store.tabs).toEqual([]);
-    expect(watchStop).toHaveBeenCalledWith('project-1', 'workspace-1', 'lifecycle-scripts');
+  });
+
+  it('keeps lifecycle script tabs empty when settings fail to load', async () => {
+    getSettings.mockResolvedValue({
+      success: false,
+      error: { type: 'fs_error', message: 'filesystem unavailable' },
+    });
+    const store = new LifecycleScriptsStore('project-1', 'workspace-1');
+
+    await (store as unknown as { load(): Promise<void> }).load();
+
+    expect(store.tabs).toEqual([]);
   });
 });

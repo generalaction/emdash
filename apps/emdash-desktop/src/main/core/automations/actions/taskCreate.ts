@@ -191,6 +191,7 @@ export async function executeTaskCreate(
         model: automation.conversationConfig?.model || undefined,
         initialPrompt: prompt,
         isInitialConversation: true,
+        type: automation.conversationConfig?.type ?? 'pty',
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);

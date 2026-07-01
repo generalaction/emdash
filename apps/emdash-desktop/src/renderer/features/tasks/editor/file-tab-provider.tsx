@@ -11,6 +11,7 @@ import { showModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { TaskTabContext } from '../stores/task-tab-context';
+import { resolveWorkspacePath } from '../stores/workspace-path';
 import { EditorProvider } from './editor-provider';
 import { FileContentPreview } from './file-content-preview';
 import { FileContentRenderer } from './file-content-renderer';
@@ -77,8 +78,12 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
     mount: 'single',
     resourceKey: (s: FilePayload) => s.path,
 
-    onBeforeOpen: (args: FileOpenArgs): FilePayload | null => {
-      return { path: args.path, isExternal: args.external };
+    onBeforeOpen: (args: FileOpenArgs, ctx: TabViewContext): FilePayload | null => {
+      const taskCtx = ctx as TaskTabContext;
+      return {
+        path: args.external ? args.path : resolveWorkspacePath(taskCtx.workspacePath, args.path),
+        isExternal: args.external,
+      };
     },
 
     initialize(
@@ -110,7 +115,7 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
 
     async onBeforeClose(
       entry: TabEntry<FilePayload>,
-      resource: FileTabResource,
+      _resource: FileTabResource,
       ctx: TabViewContext
     ): Promise<boolean> {
       if (entry.state.isExternal) return true;

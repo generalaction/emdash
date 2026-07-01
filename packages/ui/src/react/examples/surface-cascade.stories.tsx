@@ -9,18 +9,12 @@ import {
 import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
 import { AlertCircleIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon } from 'lucide-react';
 import React, { useState } from 'react';
+import { Alert } from '../primitives/alert';
 import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
-import { Callout } from '../primitives/callout';
 import { Input } from '../primitives/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../primitives/select';
-import { Surface } from '../primitives/surface';
+import { Select } from '../primitives/select';
+import { Surface } from '../primitives/surface/surface';
 import { ThemeProvider } from '../primitives/theme-provider';
 import { Toggle } from '../primitives/toggle';
 import * as s from '../story-layout.css';
@@ -54,14 +48,14 @@ function ElevationSwatch({ level, label }: { level: string; label: string }) {
         borderWidth="1"
         borderStyle="solid"
         borderColor="border"
-        style={{ background: `var(--surface-${level})` }}
+        style={{ background: `var(--em-surface-${level})` }}
         title={`--surface-${level}`}
       />
       <Box
         className={s.h6}
         width="full"
         rounded="sm"
-        style={{ background: `var(--surface-${level}-hover)` }}
+        style={{ background: `var(--em-surface-${level}-hover)` }}
         title={`--surface-${level}-hover`}
       />
       <Box
@@ -69,8 +63,8 @@ function ElevationSwatch({ level, label }: { level: string; label: string }) {
         width="full"
         rounded="sm"
         style={{
-          background: `var(--surface-${level}-selected)`,
-          boxShadow: isEmphasis ? 'inset 0 0 0 1px var(--border-primary)' : undefined,
+          background: `var(--em-surface-${level}-selected)`,
+          boxShadow: isEmphasis ? 'inset 0 0 0 1px var(--em-border-primary)' : undefined,
         }}
         title={`--surface-${level}-selected`}
       />
@@ -103,15 +97,15 @@ function SurfaceCard({ level }: { level: SurfaceScopeName }) {
           Primary
         </Button>
       </Box>
-      <Select>
-        <SelectTrigger className={cx(sx({ width: 'full' }))}>
-          <SelectValue placeholder="Pick one…" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="a">Option A</SelectItem>
-          <SelectItem value="b">Option B</SelectItem>
-        </SelectContent>
-      </Select>
+      <Select.Root>
+        <Select.Trigger className={cx(sx({ width: 'full' }))}>
+          <Select.Value placeholder="Pick one…" />
+        </Select.Trigger>
+        <Select.Content>
+          <Select.Item value="a">Option A</Select.Item>
+          <Select.Item value="b">Option B</Select.Item>
+        </Select.Content>
+      </Select.Root>
     </Box>
   );
 }
@@ -321,9 +315,9 @@ function StatusRoom({ status }: { status: SurfaceStatusName }) {
   const [pressed, setPressed] = useState(false);
   return (
     <Box display="flex" flexDirection="column" gap="3">
-      <Callout status={status} icon={STATUS_ICON[status]}>
+      <Alert.Root status={status} icon={STATUS_ICON[status]}>
         <strong>{STATUS_LABEL[status]}:</strong> {STATUS_MESSAGE[status]}
-      </Callout>
+      </Alert.Root>
       <Box
         surface={status}
         display="flex"
@@ -333,11 +327,11 @@ function StatusRoom({ status }: { status: SurfaceStatusName }) {
         borderWidth="1"
         borderStyle="solid"
         padding="3"
-        style={{ borderColor: `var(--surface-${status}-border)` }}
+        style={{ borderColor: `var(--em-surface-${status}-border)` }}
       >
         <span
           className={cx(sx({ flex: '1', fontSize: 'sm' }))}
-          style={{ color: `var(--surface-${status}-foreground)` }}
+          style={{ color: `var(--em-surface-${status}-foreground)` }}
         >
           Controls inside a status surface
         </span>
@@ -416,8 +410,8 @@ export const StatusSurfaces: Story = {
                 borderWidth="1"
                 borderStyle="solid"
                 style={{
-                  background: `var(--surface-${status})`,
-                  borderColor: `var(--surface-${status}-border)`,
+                  background: `var(--em-surface-${status})`,
+                  borderColor: `var(--em-surface-${status}-border)`,
                 }}
                 title={`--surface-${status}`}
               />
@@ -425,14 +419,14 @@ export const StatusSurfaces: Story = {
                 className={s.h6}
                 width="full"
                 rounded="sm"
-                style={{ background: `var(--surface-${status}-hover)` }}
+                style={{ background: `var(--em-surface-${status}-hover)` }}
                 title={`--surface-${status}-hover`}
               />
               <Box
                 className={s.h6}
                 width="full"
                 rounded="sm"
-                style={{ background: `var(--surface-${status}-selected)` }}
+                style={{ background: `var(--em-surface-${status}-selected)` }}
                 title={`--surface-${status}-selected`}
               />
             </Box>

@@ -1,11 +1,12 @@
+import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cloneProjectRepository, initializeProjectRepository } from './repository-setup';
 
 const mocks = vi.hoisted(() => {
   const cloneRepository = vi.fn();
   const commit = vi.fn();
-  const connect = vi.fn();
   const exists = vi.fn();
+  const fileSystem = vi.fn();
   const getHead = vi.fn();
   const mkdir = vi.fn();
   const openWorktree = vi.fn();
@@ -14,38 +15,26 @@ const mocks = vi.hoisted(() => {
   const releaseWorktree = vi.fn();
   const runtimeAcquire = vi.fn();
   const stage = vi.fn();
+  const stat = vi.fn();
   const write = vi.fn();
 
   return {
     cloneRepository,
     commit,
-    connect,
     exists,
+    fileSystem,
     getHead,
-    localFileSystem: vi.fn(function () {
-      return { exists, mkdir, write };
-    }),
     mkdir,
     openWorktree,
     publishBranch,
     releaseRuntime,
     releaseWorktree,
     runtimeAcquire,
-    sshFileSystem: vi.fn(function () {
-      return { exists, mkdir, write };
-    }),
     stage,
+    stat,
     write,
   };
 });
-
-vi.mock('@main/core/fs/impl/local-fs', () => ({
-  LocalFileSystem: mocks.localFileSystem,
-}));
-
-vi.mock('@main/core/fs/impl/ssh-fs', () => ({
-  SshFileSystem: mocks.sshFileSystem,
-}));
 
 vi.mock('@main/core/runtime/runtime-manager', () => ({
   runtimeManager: {
@@ -53,18 +42,34 @@ vi.mock('@main/core/runtime/runtime-manager', () => ({
   },
 }));
 
-vi.mock('@main/core/ssh/lifecycle/production-ssh-connection-manager', () => ({
-  sshConnectionManager: {
-    connect: mocks.connect,
-  },
-}));
+function makeFilesRuntime() {
+  return {
+    path: {
+      join: (...parts: string[]) => parts.join('/').replace(/\/+/g, '/'),
+      dirname: (value: string) => value.slice(0, value.lastIndexOf('/')) || '/',
+      basename: (value: string) => value.slice(value.lastIndexOf('/') + 1),
+      isAbsolute: (value: string) => value.startsWith('/'),
+      relative: (_from: string, to: string) => to,
+      contains: () => true,
+    },
+    fileSystem: mocks.fileSystem.mockImplementation(() =>
+      ok({
+        exists: mocks.exists,
+        mkdir: mocks.mkdir,
+        stat: mocks.stat,
+        writeText: mocks.write,
+      })
+    ),
+  };
+}
 
 describe('cloneProjectRepository', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.mkdir.mockResolvedValue(undefined);
+    mocks.exists.mockResolvedValue(ok(false));
+    mocks.mkdir.mockResolvedValue(ok());
     mocks.runtimeAcquire.mockResolvedValue({
-      value: { git: { cloneRepository: mocks.cloneRepository } },
+      value: { files: makeFilesRuntime(), git: { cloneRepository: mocks.cloneRepository } },
       release: mocks.releaseRuntime,
     });
   });
@@ -82,8 +87,8 @@ describe('cloneProjectRepository', () => {
       })
     ).resolves.toEqual({ success: true });
 
-    expect(mocks.localFileSystem).toHaveBeenCalledWith('/work');
-    expect(mocks.mkdir).toHaveBeenCalledWith('.', { recursive: true });
+    expect(mocks.fileSystem).toHaveBeenCalledWith();
+    expect(mocks.mkdir).toHaveBeenCalledWith('/work', { recursive: true });
     expect(mocks.runtimeAcquire).toHaveBeenCalledWith({ kind: 'local' });
     expect(mocks.cloneRepository).toHaveBeenCalledWith(
       'https://github.com/acme/repo.git',
@@ -92,9 +97,7 @@ describe('cloneProjectRepository', () => {
     expect(mocks.releaseRuntime).toHaveBeenCalledOnce();
   });
 
-  it('uses the ssh filesystem and ssh machine runtime for remote clones', async () => {
-    const proxy = { connectionId: 'conn-1' };
-    mocks.connect.mockResolvedValue(proxy);
+  it('uses the ssh machine runtime for remote clones', async () => {
     mocks.cloneRepository.mockResolvedValue({
       success: true,
       data: { kind: 'repository', rootPath: '/home/jona/repo', baseRef: 'main' },
@@ -108,8 +111,6 @@ describe('cloneProjectRepository', () => {
       })
     ).resolves.toEqual({ success: true });
 
-    expect(mocks.connect).toHaveBeenCalledWith('conn-1');
-    expect(mocks.sshFileSystem).toHaveBeenCalledWith(proxy, '/home/jona');
     expect(mocks.runtimeAcquire).toHaveBeenCalledWith({ kind: 'ssh', connectionId: 'conn-1' });
     expect(mocks.releaseRuntime).toHaveBeenCalledOnce();
   });
@@ -136,8 +137,8 @@ describe('cloneProjectRepository', () => {
 describe('initializeProjectRepository', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.exists.mockResolvedValue(true);
-    mocks.write.mockResolvedValue({ success: true, bytesWritten: 20 });
+    mocks.stat.mockResolvedValue(ok({ path: '/work/repo', type: 'directory' }));
+    mocks.write.mockResolvedValue(ok({ bytesWritten: 20 }));
     mocks.stage.mockResolvedValue({ success: true, data: {} });
     mocks.commit.mockResolvedValue({ success: true, data: { hash: 'abc123', sequences: {} } });
     mocks.getHead.mockResolvedValue({ kind: 'branch', name: 'main', oid: 'abc123' });
@@ -155,7 +156,7 @@ describe('initializeProjectRepository', () => {
       release: mocks.releaseWorktree,
     });
     mocks.runtimeAcquire.mockResolvedValue({
-      value: { git: { openWorktree: mocks.openWorktree } },
+      value: { files: makeFilesRuntime(), git: { openWorktree: mocks.openWorktree } },
       release: mocks.releaseRuntime,
     });
   });
@@ -169,12 +170,12 @@ describe('initializeProjectRepository', () => {
       })
     ).resolves.toEqual({ success: true });
 
-    expect(mocks.localFileSystem).toHaveBeenCalledWith('/work/repo');
-    expect(mocks.exists).toHaveBeenCalledWith('.');
-    expect(mocks.write).toHaveBeenCalledWith('README.md', '# Repo\n\nDescription\n');
+    expect(mocks.fileSystem).toHaveBeenCalledWith();
+    expect(mocks.stat).toHaveBeenCalledWith('/work/repo');
+    expect(mocks.write).toHaveBeenCalledWith('/work/repo/README.md', '# Repo\n\nDescription\n');
     expect(mocks.runtimeAcquire).toHaveBeenCalledWith({ kind: 'local' });
     expect(mocks.openWorktree).toHaveBeenCalledWith('/work/repo');
-    expect(mocks.stage).toHaveBeenCalledWith(['README.md']);
+    expect(mocks.stage).toHaveBeenCalledWith(['/work/repo/README.md']);
     expect(mocks.commit).toHaveBeenCalledWith('Initial commit');
     expect(mocks.publishBranch).toHaveBeenCalledWith('main', 'origin');
     expect(mocks.releaseWorktree).toHaveBeenCalledOnce();
@@ -191,12 +192,15 @@ describe('initializeProjectRepository', () => {
       })
     ).resolves.toEqual({ success: true });
 
-    expect(mocks.write).toHaveBeenCalledWith('README.md', '# Repo\n');
+    expect(mocks.write).toHaveBeenCalledWith('/work/repo/README.md', '# Repo\n');
     expect(mocks.publishBranch).toHaveBeenCalledWith('trunk', 'origin');
   });
 
   it('returns a setup failure when the target path does not exist', async () => {
-    mocks.exists.mockResolvedValue(false);
+    mocks.stat.mockResolvedValue({
+      success: false,
+      error: { type: 'fs-error', path: '/work/repo', message: 'missing', code: 'ENOENT' },
+    });
 
     await expect(
       initializeProjectRepository({
@@ -205,7 +209,8 @@ describe('initializeProjectRepository', () => {
       })
     ).resolves.toEqual({ success: false, error: 'Local path does not exist' });
 
-    expect(mocks.runtimeAcquire).not.toHaveBeenCalled();
+    expect(mocks.runtimeAcquire).toHaveBeenCalledWith({ kind: 'local' });
+    expect(mocks.releaseRuntime).toHaveBeenCalledOnce();
   });
 
   it('returns a setup failure when the initial commit fails', async () => {

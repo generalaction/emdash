@@ -5,16 +5,21 @@ import { WorkspaceRegistry } from './workspace-registry';
 function makeWorkspace(id: string): {
   workspace: Workspace;
   dispose: ReturnType<typeof vi.fn>;
+  fileTreeDispose: ReturnType<typeof vi.fn>;
   gitDispose: ReturnType<typeof vi.fn>;
 } {
   const dispose = vi.fn(async () => {});
+  const fileTreeDispose = vi.fn();
   const gitDispose = vi.fn();
 
   return {
     workspace: {
       id,
       path: `/tmp/${id}`,
-      fs: {} as Workspace['fs'],
+      configPath: `/tmp/${id}/.emdash.json`,
+      fileSystem: {} as Workspace['fileSystem'],
+      fileTree: { dispose: fileTreeDispose } as unknown as Workspace['fileTree'],
+      fileTreeProjector: { dispose: vi.fn() } as unknown as Workspace['fileTreeProjector'],
       gitWorktree: { dispose: gitDispose } as unknown as Workspace['gitWorktree'],
       settings: {} as Workspace['settings'],
       lifecycleService: {
@@ -24,6 +29,7 @@ function makeWorkspace(id: string): {
       gitRepositoryFetchService: {} as Workspace['gitRepositoryFetchService'],
     },
     dispose,
+    fileTreeDispose,
     gitDispose,
   };
 }
@@ -37,8 +43,8 @@ describe('WorkspaceRegistry', () => {
     const first = await registry.acquire('branch:main', 'test-project', factory);
     const second = await registry.acquire('branch:main', 'test-project', factory);
 
-    expect(first).toBe(workspace);
-    expect(second).toBe(workspace);
+    expect(first.workspace).toBe(workspace);
+    expect(second.workspace).toBe(workspace);
     expect(factory).toHaveBeenCalledTimes(1);
     expect(registry.get('branch:main')).toBe(workspace);
     expect(registry.refCount('branch:main')).toBe(2);
@@ -61,14 +67,14 @@ describe('WorkspaceRegistry', () => {
     expect(factory).toHaveBeenCalledTimes(1);
     resolveFactory?.({ workspace });
 
-    await expect(first).resolves.toBe(workspace);
-    await expect(second).resolves.toBe(workspace);
+    await expect(first.then((acquired) => acquired.workspace)).resolves.toBe(workspace);
+    await expect(second.then((acquired) => acquired.workspace)).resolves.toBe(workspace);
     expect(registry.refCount('branch:main')).toBe(2);
   });
 
   it('disposes workspace resources when ref count reaches zero', async () => {
     const registry = new WorkspaceRegistry();
-    const { workspace, dispose, gitDispose } = makeWorkspace('branch:main');
+    const { workspace, dispose, fileTreeDispose, gitDispose } = makeWorkspace('branch:main');
     const factory = vi.fn(async () => ({ workspace }));
 
     await registry.acquire('branch:main', 'test-project', factory);
@@ -76,10 +82,12 @@ describe('WorkspaceRegistry', () => {
 
     await registry.teardown('branch:main');
     expect(dispose).not.toHaveBeenCalled();
+    expect(fileTreeDispose).not.toHaveBeenCalled();
     expect(gitDispose).not.toHaveBeenCalled();
     expect(registry.refCount('branch:main')).toBe(1);
 
     await registry.teardown('branch:main');
+    expect(fileTreeDispose).toHaveBeenCalledTimes(1);
     expect(gitDispose).toHaveBeenCalledTimes(1);
     expect(dispose).toHaveBeenCalledTimes(1);
     expect(registry.get('branch:main')).toBeUndefined();
@@ -101,8 +109,10 @@ describe('WorkspaceRegistry', () => {
 
     await registry.teardownAll();
 
+    expect(first.fileTreeDispose).toHaveBeenCalledTimes(1);
     expect(first.gitDispose).toHaveBeenCalledTimes(1);
     expect(first.dispose).toHaveBeenCalledTimes(1);
+    expect(second.fileTreeDispose).toHaveBeenCalledTimes(1);
     expect(second.gitDispose).toHaveBeenCalledTimes(1);
     expect(second.dispose).toHaveBeenCalledTimes(1);
     expect(registry.refCount('branch:main')).toBe(0);
@@ -138,9 +148,9 @@ describe('WorkspaceRegistry', () => {
     });
     const factory = vi.fn(async () => ({ workspace, onCreate }));
 
-    const acquired = registry.acquire('branch:main', 'test-project', factory).then((ws) => {
+    const acquired = registry.acquire('branch:main', 'test-project', factory).then((result) => {
       order.push('acquired');
-      return ws;
+      return result.workspace;
     });
 
     await acquired;
@@ -180,12 +190,15 @@ describe('WorkspaceRegistry', () => {
 
   it('calls onDestroy before git.dispose and lifecycleService.dispose', async () => {
     const registry = new WorkspaceRegistry();
-    const { workspace, dispose, gitDispose } = makeWorkspace('branch:main');
+    const { workspace, dispose, fileTreeDispose, gitDispose } = makeWorkspace('branch:main');
     const order: string[] = [];
 
     dispose.mockImplementation(() => {
       order.push('lifecycleDispose');
       return undefined;
+    });
+    fileTreeDispose.mockImplementation(() => {
+      order.push('fileTreeDispose');
     });
     gitDispose.mockImplementation(() => {
       order.push('gitDispose');
@@ -200,7 +213,7 @@ describe('WorkspaceRegistry', () => {
     await registry.acquire('branch:main', 'test-project', factory);
     await registry.teardown('branch:main');
 
-    expect(order).toEqual(['onDestroy', 'gitDispose', 'lifecycleDispose']);
+    expect(order).toEqual(['onDestroy', 'fileTreeDispose', 'gitDispose', 'lifecycleDispose']);
   });
 
   it('calls onDestroy for each entry in teardownAll', async () => {
@@ -293,7 +306,7 @@ describe('WorkspaceRegistry', () => {
 
   it('releases leases for a project without running teardown hooks', async () => {
     const registry = new WorkspaceRegistry();
-    const { workspace, dispose, gitDispose } = makeWorkspace('branch:main');
+    const { workspace, dispose, fileTreeDispose, gitDispose } = makeWorkspace('branch:main');
     const onDestroy = vi.fn(async () => {});
     const onDetach = vi.fn(async () => {});
 
@@ -305,6 +318,7 @@ describe('WorkspaceRegistry', () => {
 
     await registry.releaseLeasesForProject('test-project');
 
+    expect(fileTreeDispose).toHaveBeenCalledTimes(1);
     expect(gitDispose).toHaveBeenCalledTimes(1);
     expect(dispose).not.toHaveBeenCalled();
     expect(onDestroy).not.toHaveBeenCalled();
@@ -313,6 +327,7 @@ describe('WorkspaceRegistry', () => {
 
     await registry.teardownAllForProject('test-project');
 
+    expect(fileTreeDispose).toHaveBeenCalledTimes(1);
     expect(gitDispose).toHaveBeenCalledTimes(1);
     expect(dispose).toHaveBeenCalledTimes(1);
     expect(onDestroy).toHaveBeenCalledTimes(1);

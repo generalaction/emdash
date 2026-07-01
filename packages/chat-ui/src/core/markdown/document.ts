@@ -59,6 +59,19 @@ export type InlineBreak = { kind: 'break' };
 
 export type InlineRun = InlineText | InlineCode | InlineMention | InlineBreak;
 
+/**
+ * The text shown inside a rendered mention pill.
+ *
+ * Slash-command chips (`tone: 'command'`) keep their `/`-prefixed `label` so they
+ * read as commands and stay visually distinct from file/issue/symbol mentions
+ * (whose `name` is a bare basename). All other mentions prefer the short `name`,
+ * falling back to `label`.
+ */
+export function mentionDisplayText(mention: InlineMention): string {
+  if (mention.tone === 'command') return mention.label;
+  return mention.name ?? mention.label;
+}
+
 // ── Block types ───────────────────────────────────────────────────────────────
 
 /** Stable ID format: `${messageId}#${blockIndex}` */

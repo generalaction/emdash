@@ -145,7 +145,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks>, I
     const overrideState = await computeProjectSettingsOverrideState(resolvedTargets);
     const configMigrations = hasConfiguredShareableProjectSettings(settings)
       ? []
-      : await inspectProjectConfigMigrations(project.fs);
+      : await inspectProjectConfigMigrations(project);
     return {
       settings,
       defaults,

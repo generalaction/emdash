@@ -127,6 +127,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Codex',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'claude',

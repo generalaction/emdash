@@ -2,7 +2,9 @@ import type { TabPersistenceAdapter } from '@renderer/features/tabs/persistence'
 import { rpc } from '@renderer/lib/ipc';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
-import type { TabGroupsSnapshot, TaskViewSnapshot } from '@shared/view-state';
+import type { TabDescriptor, TabGroupsSnapshot, TaskViewSnapshot } from '@shared/view-state';
+import type { TaskTabContext } from './task-tab-context';
+import { resolveWorkspacePath } from './workspace-path';
 
 /**
  * Persistence adapter for a single task's tab layout.
@@ -16,15 +18,17 @@ export class TaskTabViewPersistor implements TabPersistenceAdapter {
   private readonly _key: string;
   private readonly _legacyKey: string;
 
-  constructor(viewId: string) {
-    this._key = `task:${viewId}:tabs`;
-    this._legacyKey = `task:${viewId}`;
+  constructor(private readonly _ctx: TaskTabContext) {
+    this._key = `task:${_ctx.viewId}:tabs`;
+    this._legacyKey = `task:${_ctx.viewId}`;
   }
 
   load(fallback?: unknown): TabGroupsSnapshot | null {
     // Prefer the dedicated key when already populated.
     const dedicated = viewStateCache.peek(this._key);
-    if (dedicated) return dedicated as TabGroupsSnapshot;
+    if (dedicated) {
+      return normalizeTabGroupsSnapshot(dedicated as TabGroupsSnapshot, this._ctx.workspacePath);
+    }
 
     // Fall back to the legacy aggregate for users migrating from an older build.
     const aggregate = (fallback ?? viewStateCache.peek(this._legacyKey)) as
@@ -39,12 +43,41 @@ export class TaskTabViewPersistor implements TabPersistenceAdapter {
     viewStateCache.set(this._key, migrated);
     void rpc.viewState.save(this._key, migrated);
 
-    return migrated;
+    return normalizeTabGroupsSnapshot(migrated, this._ctx.workspacePath);
   }
 
   start(getSnapshot: () => TabGroupsSnapshot): () => void {
     return snapshotRegistry.register(this._key, getSnapshot);
   }
+}
+
+function normalizeTabGroupsSnapshot(
+  snapshot: TabGroupsSnapshot,
+  workspacePath: string | undefined
+): TabGroupsSnapshot {
+  return {
+    ...snapshot,
+    groups: snapshot.groups.map((group) => ({
+      ...group,
+      tabManager: {
+        ...group.tabManager,
+        tabs: group.tabManager.tabs.map((tab) => normalizeTabDescriptor(tab, workspacePath)),
+      },
+    })),
+  };
+}
+
+function normalizeTabDescriptor(
+  tab: TabDescriptor,
+  workspacePath: string | undefined
+): TabDescriptor {
+  if (tab.kind === 'file' && !tab.isExternal) {
+    return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
+  }
+  if (tab.kind === 'diff' && tab.diffGroup !== 'pr') {
+    return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
+  }
+  return tab;
 }
 
 /**

@@ -37,7 +37,7 @@ export default defineConfig({
         'react/primitives': resolve(__dirname, 'src/react/primitives/index.ts'),
         'react/components': resolve(__dirname, 'src/react/components/index.ts'),
         'react/patterns': resolve(__dirname, 'src/react/patterns/index.ts'),
-        'react/form': resolve(__dirname, 'src/react/form/index.ts'),
+        'react/form': resolve(__dirname, 'src/react/patterns/form/index.ts'),
         'styles/recipes/control': resolve(__dirname, 'src/styles/recipes/control.ts'),
         'styles/recipes/input': resolve(__dirname, 'src/styles/recipes/input.ts'),
         'styles/recipes/surface': resolve(__dirname, 'src/styles/recipes/surface.css.ts'),

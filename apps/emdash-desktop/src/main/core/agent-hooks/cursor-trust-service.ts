@@ -1,21 +1,18 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { IExecutionContext } from '@main/core/execution-context/types';
-import {
-  FileSystemError,
-  FileSystemErrorCodes,
-  type FileSystemProvider,
-} from '@main/core/fs/types';
+import { isFileNotFoundException, type IFileSystem } from '@emdash/core/files';
+import { err, ok, type Result } from '@emdash/shared';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { log } from '@main/lib/logger';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import { normalizeLocalWorkspacePath, normalizeSshWorkspacePath } from './workspace-trust-paths';
+import type { WorkspaceTrustLocalArgs, WorkspaceTrustSshArgs } from './workspace-trust-types';
 
 const CURSOR_PROVIDER_ID: AgentProviderId = 'cursor';
 const CURSOR_DATA_DIR_NAME = '.cursor';
 const CURSOR_PROJECTS_DIR_NAME = 'projects';
 const CURSOR_TRUST_MARKER_NAME = '.workspace-trusted';
-const CURSOR_TRUST_MARKER_MAX_BYTES = 1024;
 
 export class CursorTrustService {
   constructor(
@@ -26,26 +23,24 @@ export class CursorTrustService {
 
   async maybeAutoTrustLocal({
     providerId,
-    cwd,
+    workspacePath,
     homedir,
     force = false,
-  }: {
-    providerId: AgentProviderId;
-    cwd?: string;
-    homedir: string;
-    force?: boolean;
-  }): Promise<void> {
-    if (!cwd) return;
+  }: WorkspaceTrustLocalArgs): Promise<void> {
     if (!(await this.shouldAutoTrust(providerId, force))) return;
 
-    const workspacePath = path.resolve(cwd);
+    const normalizedWorkspacePath = normalizeLocalWorkspacePath(
+      workspacePath,
+      'CursorTrustService'
+    );
+    if (!normalizedWorkspacePath) return;
     const dataDir = path.join(homedir, CURSOR_DATA_DIR_NAME);
     const markerPath = path.join(
-      cursorProjectDir(workspacePath, dataDir, path),
+      cursorProjectDir(normalizedWorkspacePath, dataDir, path),
       CURSOR_TRUST_MARKER_NAME
     );
 
-    await this.ensureTrusted(markerPath, workspacePath, {
+    await this.ensureTrusted(markerPath, normalizedWorkspacePath, {
       exists: () => localExists(markerPath),
       write: (content) => writeLocalMarker(markerPath, content),
     });
@@ -53,31 +48,37 @@ export class CursorTrustService {
 
   async maybeAutoTrustSsh({
     providerId,
-    cwd,
+    workspacePath,
     ctx,
-    remoteFs,
+    files,
     force = false,
-  }: {
-    providerId: AgentProviderId;
-    cwd?: string;
-    ctx: IExecutionContext;
-    remoteFs: Pick<FileSystemProvider, 'realPath' | 'read' | 'write'>;
-    force?: boolean;
-  }): Promise<void> {
-    if (!cwd) return;
+  }: WorkspaceTrustSshArgs): Promise<void> {
     if (!(await this.shouldAutoTrust(providerId, force))) return;
 
-    const workspacePath = await remoteFs.realPath(cwd).catch(() => path.posix.resolve('/', cwd));
+    const normalizedWorkspacePath = await normalizeSshWorkspacePath(
+      files,
+      workspacePath,
+      'CursorTrustService'
+    );
+    if (!normalizedWorkspacePath) return;
     const homeDir = await resolveRemoteHome(ctx);
+    const homeFs = files.fileSystem();
+    if (!homeFs.success) {
+      log.warn('CursorTrustService: failed to open filesystem for auto-trust', {
+        path: normalizedWorkspacePath,
+        error: homeFs.error.message,
+      });
+      return;
+    }
     const dataDir = path.posix.join(homeDir, CURSOR_DATA_DIR_NAME);
     const markerPath = path.posix.join(
-      cursorProjectDir(workspacePath, dataDir, path.posix),
+      cursorProjectDir(normalizedWorkspacePath, dataDir, path.posix),
       CURSOR_TRUST_MARKER_NAME
     );
 
-    await this.ensureTrusted(markerPath, workspacePath, {
-      exists: () => remoteExists(remoteFs, markerPath),
-      write: (content) => remoteFs.write(markerPath, content).then(() => undefined),
+    await this.ensureTrusted(markerPath, normalizedWorkspacePath, {
+      exists: () => remoteExists(homeFs.data, markerPath),
+      write: (content) => writeRemoteText(homeFs.data, markerPath, content),
     });
   }
 
@@ -92,14 +93,32 @@ export class CursorTrustService {
     markerPath: string,
     workspacePath: string,
     io: {
-      exists: () => Promise<boolean>;
-      write: (content: string) => Promise<void>;
+      exists: () => Promise<TrustIoResult<boolean>>;
+      write: (content: string) => Promise<TrustIoResult<void>>;
     }
   ): Promise<void> {
     try {
-      if (await io.exists()) return;
+      const exists = await io.exists();
+      if (!exists.success) {
+        log.warn('CursorTrustService: failed to check auto-trust marker', {
+          path: workspacePath,
+          markerPath,
+          error: exists.error.message,
+        });
+        return;
+      }
+      if (exists.data) return;
 
-      await io.write(JSON.stringify(createTrustMarker(workspacePath), null, 2) + '\n');
+      const written = await io.write(
+        JSON.stringify(createTrustMarker(workspacePath), null, 2) + '\n'
+      );
+      if (!written.success) {
+        log.warn('CursorTrustService: failed to write auto-trust marker', {
+          path: workspacePath,
+          markerPath,
+          error: written.error.message,
+        });
+      }
     } catch (error: unknown) {
       log.warn('CursorTrustService: failed to auto-trust worktree', {
         path: workspacePath,
@@ -109,6 +128,9 @@ export class CursorTrustService {
     }
   }
 }
+
+type TrustIoError = { message: string };
+type TrustIoResult<T> = Result<T, TrustIoError>;
 
 export const cursorTrustService = new CursorTrustService({
   getTaskSettings: () => appSettingsService.get('tasks'),
@@ -138,38 +160,42 @@ function slugifyPath(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-async function localExists(markerPath: string): Promise<boolean> {
+async function localExists(markerPath: string): Promise<TrustIoResult<boolean>> {
   try {
     await fs.access(markerPath);
-    return true;
+    return ok(true);
   } catch (error: unknown) {
-    if (isNodeNotFound(error)) return false;
-    throw error;
+    if (isFileNotFoundException(error)) return ok(false);
+    return err({ message: errorMessage(error) });
   }
 }
 
 async function remoteExists(
-  remoteFs: Pick<FileSystemProvider, 'read'>,
+  remoteFs: Pick<IFileSystem, 'exists'>,
   markerPath: string
-): Promise<boolean> {
+): Promise<TrustIoResult<boolean>> {
+  return remoteFs.exists(markerPath);
+}
+
+async function writeLocalMarker(markerPath: string, content: string): Promise<TrustIoResult<void>> {
   try {
-    await remoteFs.read(markerPath, CURSOR_TRUST_MARKER_MAX_BYTES);
-    return true;
+    await fs.mkdir(path.dirname(markerPath), { recursive: true });
+    await fs.writeFile(markerPath, content, 'utf8');
+    return ok();
   } catch (error: unknown) {
-    if (isFsNotFound(error)) return false;
-    throw error;
+    return err({ message: errorMessage(error) });
   }
 }
 
-async function writeLocalMarker(markerPath: string, content: string): Promise<void> {
-  await fs.mkdir(path.dirname(markerPath), { recursive: true });
-  await fs.writeFile(markerPath, content, 'utf8');
+async function writeRemoteText(
+  remoteFs: Pick<IFileSystem, 'writeText'>,
+  absPath: string,
+  content: string
+): Promise<TrustIoResult<void>> {
+  const result = await remoteFs.writeText(absPath, content);
+  return result.success ? ok() : result;
 }
 
-function isNodeNotFound(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException)?.code === 'ENOENT';
-}
-
-function isFsNotFound(error: unknown): boolean {
-  return error instanceof FileSystemError && error.code === FileSystemErrorCodes.NOT_FOUND;
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

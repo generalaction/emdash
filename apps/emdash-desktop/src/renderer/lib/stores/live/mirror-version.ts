@@ -13,8 +13,8 @@ export class MirrorVersion {
   private waiters: Waiter[] = [];
 
   constructor(
-    private readonly waitLabel: string,
-    private readonly disposedLabel: string
+    private readonly waitLabel: 'live model',
+    private readonly disposedLabel: 'ModelMirror'
   ) {
     makeObservable<this, 'sequence' | 'generation'>(this, {
       sequence: observable,

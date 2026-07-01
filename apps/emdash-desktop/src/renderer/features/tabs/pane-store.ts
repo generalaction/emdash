@@ -156,14 +156,13 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       commitRename: action,
     });
 
-    // Fire onActivate() for the active tab whenever this pane becomes visible
-    // or the active tab changes while already visible.
+    // Fire onActivate() whenever the active visible resource instance changes.
+    // Tracking the resource instance (not just the tab id) ensures onActivate()
+    // fires after a preview-retarget, where retargetEntry() swaps in a new
+    // resource at the same tabId (leaving the id unchanged but the instance new).
     this._onActivateDisposer = reaction(
-      () => (this.isVisible ? this.resolvedActiveTabId : undefined),
-      (tabId) => {
-        if (!tabId) return;
-        this._resources.get(tabId)?.onActivate?.();
-      },
+      () => (this.isVisible ? this._resources.get(this.resolvedActiveTabId ?? '') : undefined),
+      (resource) => resource?.onActivate?.(),
       { fireImmediately: true }
     );
   }

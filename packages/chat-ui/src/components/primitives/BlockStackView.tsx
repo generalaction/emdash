@@ -20,6 +20,17 @@ export function BlockStackView(props: BlockStackViewProps) {
   const placed = () => props.node.layout.placed;
   return (
     <div style={{ position: 'relative', height: `${props.node.height}px`, width: '100%' }}>
+      {/*
+       * Key by reference. stack() rebuilds placed[] with fresh wrapper objects
+       * every layout pass, so <For> recreates each row on every streaming chunk.
+       * That remount is intentional: block defs snapshot props.node.layout at
+       * mount (e.g. `const l = props.node.layout` in code.def / prose.def), so a
+       * growing block's content only stays in sync if its row is recreated when
+       * the layout changes. (A persistent-row optimization keyed by block id was
+       * tried and reverted — it left growing blocks frozen at their first layout
+       * while the reserved height kept growing, producing one-line code blocks
+       * surrounded by blank space until the turn committed.)
+       */}
       <For each={placed()}>
         {(p) => (
           <div

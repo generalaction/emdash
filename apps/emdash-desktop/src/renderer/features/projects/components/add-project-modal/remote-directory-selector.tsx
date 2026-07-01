@@ -14,7 +14,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
-import type { FileEntry } from '@shared/core/ssh/ssh';
+import type { BrowseDirectoryResult, DirectoryEntry } from '@shared/core/fs/fs';
 
 interface RemoteDirectorySelectorProps {
   connectionId: string | undefined;
@@ -83,12 +83,12 @@ function directoryHistoryReducer(
 
 function useRemoteDirectoryBrowser(connectionId: string | undefined, initialPath: string) {
   const [currentPath, setCurrentPath] = useState<string>(initialPath);
-  const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
+  const [fileEntries, setFileEntries] = useState<DirectoryEntry[]>([]);
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [browseError, setBrowseError] = useState<string | null>(null);
   const [loadedPath, setLoadedPath] = useState<string | null>(null);
-  const directoryCacheRef = useRef(new Map<string, FileEntry[]>());
-  const inFlightRequestsRef = useRef(new Map<string, Promise<FileEntry[]>>());
+  const directoryCacheRef = useRef(new Map<string, DirectoryEntry[]>());
+  const inFlightRequestsRef = useRef(new Map<string, Promise<BrowseDirectoryResult>>());
   const cacheWriteRequestIdsRef = useRef(new Map<string, number>());
   const latestRequestIdRef = useRef(0);
 
@@ -123,13 +123,13 @@ function useRemoteDirectoryBrowser(connectionId: string | undefined, initialPath
 
       if (!request) {
         cacheWriteRequestIdsRef.current.set(cacheKey, requestId);
-        request = rpc.ssh
-          .listFiles({ connectionId, path: nextPath })
-          .then((entries) => {
-            if (cacheWriteRequestIdsRef.current.get(cacheKey) === requestId) {
-              directoryCacheRef.current.set(cacheKey, entries);
+        request = rpc.files
+          .browseDirectory({ type: 'ssh', connectionId, path: nextPath })
+          .then((result) => {
+            if (result.success && cacheWriteRequestIdsRef.current.get(cacheKey) === requestId) {
+              directoryCacheRef.current.set(cacheKey, result.data);
             }
-            return entries;
+            return result;
           })
           .finally(() => {
             if (inFlightRequestsRef.current.get(cacheKey) === request) {
@@ -144,9 +144,16 @@ function useRemoteDirectoryBrowser(connectionId: string | undefined, initialPath
       }
 
       try {
-        const entries = await request;
+        const result = await request;
         if (latestRequestIdRef.current !== requestId) return false;
+        if (!result.success) {
+          setBrowseError(result.error.message);
+          setFileEntries([]);
+          setLoadedPath(null);
+          return false;
+        }
 
+        const entries = result.data;
         setFileEntries(entries);
         setLoadedPath(nextPath);
         return true;
@@ -228,7 +235,7 @@ export function RemoteDirectorySelector({
     dispatchHistory({ type: options?.replaceHistory ? 'replace' : 'push', path: nextPath });
   };
 
-  const navigateTo = (entry: FileEntry) => {
+  const navigateTo = (entry: DirectoryEntry) => {
     if (entry.type !== 'directory') return;
     void navigateToPath(entry.path);
   };
@@ -319,8 +326,6 @@ export function RemoteDirectorySelector({
             >
               {isDirectory ? (
                 <Folder className="text-muted-foreground h-4 w-4 shrink-0" />
-              ) : entry.type === 'symlink' ? (
-                <Folder className="text-muted-foreground h-4 w-4 shrink-0 opacity-60" />
               ) : (
                 <FileCode className="text-muted-foreground h-4 w-4 shrink-0" />
               )}

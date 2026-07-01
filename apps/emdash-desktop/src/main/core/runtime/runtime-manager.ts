@@ -1,3 +1,4 @@
+import nodePath from 'node:path';
 import {
   createBoundExec,
   type BoundExec,
@@ -5,6 +6,7 @@ import {
   type ExecOptions,
   type ExecResult,
 } from '@emdash/core/exec';
+import { contains, FilesRuntime } from '@emdash/core/files';
 import { GitRuntime } from '@emdash/core/git';
 import { ResourceMap } from '@emdash/core/lib';
 import type { Lease } from '@emdash/shared';
@@ -14,8 +16,24 @@ import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-co
 import { getGitExecutable } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { ConstantHealthSource } from './health';
+import { LegacySshFilesRuntime } from './legacy/ssh-files';
 import { LegacySshGitRuntime } from './legacy/ssh-git';
-import { machineKey, type MachineRef, type MachineRuntime, type RuntimeManager } from './types';
+import {
+  machineKey,
+  type MachineRef,
+  type MachineRuntime,
+  type RuntimeManager,
+  type RuntimePath,
+} from './types';
+
+const nativeRuntimePath: RuntimePath = {
+  join: (...parts) => nodePath.join(...parts),
+  dirname: (p) => nodePath.dirname(p),
+  basename: (p) => nodePath.basename(p),
+  isAbsolute: (p) => nodePath.isAbsolute(p),
+  relative: (from, to) => nodePath.relative(from, to),
+  contains,
+};
 
 class DynamicGitExec implements BoundExec {
   readonly file = 'git';
@@ -63,6 +81,13 @@ class DynamicGitExec implements BoundExec {
 
 class LocalMachineRuntime implements MachineRuntime {
   readonly machine: MachineRef = { kind: 'local' };
+  readonly files = Object.assign(
+    new FilesRuntime({
+      onError: (context, error) =>
+        log.warn('Local file runtime background error', { context, error: String(error) }),
+    }),
+    { path: nativeRuntimePath }
+  );
   readonly git = new GitRuntime({
     exec: new DynamicGitExec(process.cwd()),
     onError: (context, error) =>
@@ -71,12 +96,14 @@ class LocalMachineRuntime implements MachineRuntime {
   readonly health = new ConstantHealthSource();
 
   async dispose(): Promise<void> {
+    await this.files.dispose();
     await this.git.dispose();
   }
 }
 
 class SshMachineRuntime implements MachineRuntime {
   readonly machine: MachineRef;
+  readonly files: LegacySshFilesRuntime;
   readonly git: LegacySshGitRuntime;
   readonly health = new ConstantHealthSource();
 
@@ -85,10 +112,12 @@ class SshMachineRuntime implements MachineRuntime {
     proxy: Awaited<ReturnType<typeof sshConnectionManager.connect>>
   ) {
     this.machine = { kind: 'ssh', connectionId };
+    this.files = new LegacySshFilesRuntime(proxy);
     this.git = new LegacySshGitRuntime(proxy, connectionId);
   }
 
   async dispose(): Promise<void> {
+    await this.files.dispose();
     await this.git.dispose();
   }
 }

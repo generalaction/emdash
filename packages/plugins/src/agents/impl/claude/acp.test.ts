@@ -1,6 +1,6 @@
 import { Readable, Writable } from 'node:stream';
-import type { Agent, Client } from '@agentclientprotocol/sdk';
-import type { AcpAgentApi, AcpClientFactory } from '@emdash/core/agents/plugins';
+import type { Agent } from '@agentclientprotocol/sdk';
+import type { AcpClientFactory } from '@emdash/core/agents/plugins';
 import { describe, expect, it, vi } from 'vitest';
 import { pluginRegistry } from '../../registry';
 
@@ -11,9 +11,10 @@ describe('claude acp capability', () => {
     expect(claude!.capabilities.acp.kind).toBe('supported');
   });
 
-  it('all non-claude plugins default acp to { kind: none }', () => {
+  it('all non-ACP plugins default acp to { kind: none }', () => {
+    const acpProviders = new Set(['claude', 'codex']);
     for (const p of pluginRegistry.getAll()) {
-      if (p.metadata.id === 'claude') continue;
+      if (acpProviders.has(p.metadata.id)) continue;
       expect(p.capabilities.acp.kind).toBe('none');
     }
   });
@@ -57,7 +58,7 @@ describe('claude acp behavior', () => {
       const stdin = new Writable({ write: (_c, _e, cb) => cb() });
       const stdout = new Readable({ read: () => {} });
 
-      const toClient: AcpClientFactory = (_agent: AcpAgentApi): Client => ({
+      const toClient: AcpClientFactory = () => ({
         requestPermission: vi.fn(),
         sessionUpdate: vi.fn(),
       });

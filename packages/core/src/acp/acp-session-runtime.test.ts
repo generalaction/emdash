@@ -407,12 +407,11 @@ describe('AcpSessionRuntime – permission requests', () => {
     await rt.start(makeStartInput({ conversationId: 'conv-perm' }));
 
     let settled = false;
-    const permPromise = h
-      .client()
-      .requestPermission(makePermissionParams('session-perm'))
-      .then(() => {
-        settled = true;
-      });
+    const permPromise = Promise.resolve(
+      h.client().requestPermission(makePermissionParams('session-perm'))
+    ).then(() => {
+      settled = true;
+    });
 
     await Promise.resolve();
     expect(settled).toBe(false);
@@ -436,9 +435,9 @@ describe('AcpSessionRuntime – permission requests', () => {
     h.agent.prompt = vi.fn().mockReturnValue(new Promise(() => {}));
     await rt.start(makeStartInput({ conversationId: 'conv-resolve' }));
 
-    const resultPromise: Promise<{ outcome: { outcome: string; optionId?: string } }> = h
-      .client()
-      .requestPermission(makePermissionParams('session-perm'));
+    const resultPromise = Promise.resolve(
+      h.client().requestPermission(makePermissionParams('session-perm'))
+    );
 
     await Promise.resolve();
     const requestId = rt.getSessionState('conv-resolve').pendingPermissions[0].requestId;
@@ -458,9 +457,9 @@ describe('AcpSessionRuntime – permission requests', () => {
     h.agent.prompt = vi.fn().mockReturnValue(new Promise(() => {}));
     await rt.start(makeStartInput({ conversationId: 'conv-cancel' }));
 
-    const resultPromise: Promise<{ outcome: { outcome: string } }> = h
-      .client()
-      .requestPermission(makePermissionParams('session-perm'));
+    const resultPromise = Promise.resolve(
+      h.client().requestPermission(makePermissionParams('session-perm'))
+    );
 
     await Promise.resolve();
     const requestId = rt.getSessionState('conv-cancel').pendingPermissions[0].requestId;
@@ -500,9 +499,9 @@ describe('AcpSessionRuntime – permission requests', () => {
     h.agent.prompt = vi.fn().mockReturnValue(new Promise(() => {}));
     await rt.start(makeStartInput({ conversationId: 'conv-stop' }));
 
-    const resultPromise: Promise<{ outcome: { outcome: string } }> = h
-      .client()
-      .requestPermission(makePermissionParams('session-perm'));
+    const resultPromise = Promise.resolve(
+      h.client().requestPermission(makePermissionParams('session-perm'))
+    );
 
     await Promise.resolve();
     const requestId = rt.getSessionState('conv-stop').pendingPermissions[0].requestId;
@@ -542,9 +541,9 @@ describe('AcpSessionRuntime – permission requests', () => {
     h.agent.prompt = vi.fn().mockReturnValue(new Promise(() => {}));
     await rt.start(makeStartInput({ conversationId: 'conv-crash' }));
 
-    const resultPromise: Promise<{ outcome: { outcome: string } }> = h
-      .client()
-      .requestPermission(makePermissionParams('session-crash'));
+    const resultPromise = Promise.resolve(
+      h.client().requestPermission(makePermissionParams('session-crash'))
+    );
 
     expect(rt.getSessionState('conv-crash').pendingPermissions).toHaveLength(1);
 

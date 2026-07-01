@@ -10,6 +10,7 @@ import type {
 import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
 import type { ActiveFile } from '@shared/view-state';
 import type { TaskTabContext } from '../stores/task-tab-context';
+import { resolveWorkspacePath } from '../stores/workspace-path';
 import { DiffTabBarItem, DiffTabBarItemDragPreview } from './diff-tab-item';
 import { DiffView } from './main-panel/diff-view';
 import { getDiffTabManager } from './stores/diff-tab-manager';
@@ -40,9 +41,17 @@ function diffResourceKey(s: DiffPayload): string {
   return `${base}|${origKey}|${modKey}`;
 }
 
-function activeFileToDiffPayload(activeFile: ActiveFile, status?: GitChangeStatus): DiffPayload {
+function activeFileToDiffPayload(
+  activeFile: ActiveFile,
+  status: GitChangeStatus | undefined,
+  workspacePath: string | undefined
+): DiffPayload {
+  const path =
+    activeFile.group === 'pr'
+      ? activeFile.path
+      : resolveWorkspacePath(workspacePath, activeFile.path);
   return {
-    path: activeFile.path,
+    path,
     diffGroup: activeFile.group,
     originalRef: activeFile.originalRef,
     modifiedRef: activeFile.modifiedRef,
@@ -67,8 +76,12 @@ export const diffTabProvider: TabProvider<'diff', DiffPayload, DiffTabResource, 
     mount: 'single',
     resourceKey: diffResourceKey,
 
-    onBeforeOpen(args: DiffOpenArgs): DiffPayload | null {
-      return activeFileToDiffPayload(args.activeFile, args.status);
+    onBeforeOpen(args: DiffOpenArgs, ctx: TabViewContext): DiffPayload | null {
+      return activeFileToDiffPayload(
+        args.activeFile,
+        args.status,
+        (ctx as TaskTabContext).workspacePath
+      );
     },
 
     initialize(

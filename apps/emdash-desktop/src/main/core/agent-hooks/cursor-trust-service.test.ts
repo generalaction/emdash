@@ -1,10 +1,9 @@
+import path from 'node:path';
+import type { IFileSystem } from '@emdash/core/files';
+import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import {
-  FileSystemError,
-  FileSystemErrorCodes,
-  type FileSystemProvider,
-} from '@main/core/fs/types';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 import { CursorTrustService } from './cursor-trust-service';
 
 const mockAccess = vi.hoisted(() => vi.fn());
@@ -37,14 +36,6 @@ function nodeNotFound() {
   return Object.assign(new Error('not found'), { code: 'ENOENT' });
 }
 
-function fsNotFound(pathName: string): FileSystemError {
-  return new FileSystemError(
-    `File not found: ${pathName}`,
-    FileSystemErrorCodes.NOT_FOUND,
-    pathName
-  );
-}
-
 function makeService(overrides: { autoTrustWorktrees?: boolean } = {}): CursorTrustService {
   return new CursorTrustService({
     getTaskSettings: () =>
@@ -53,14 +44,40 @@ function makeService(overrides: { autoTrustWorktrees?: boolean } = {}): CursorTr
 }
 
 function makeRemoteFs(
-  overrides: Partial<Pick<FileSystemProvider, 'realPath' | 'read' | 'write'>> = {}
-): Pick<FileSystemProvider, 'realPath' | 'read' | 'write'> {
+  overrides: Partial<Pick<IFileSystem, 'realPath' | 'exists' | 'writeText'>> = {}
+): Pick<IFileSystem, 'realPath' | 'exists' | 'writeText'> {
   return {
-    realPath: vi.fn(async (p: string) => p),
-    read: vi.fn().mockRejectedValue(fsNotFound('/home/remote-user/.cursor/projects/worktree')),
-    write: vi.fn().mockResolvedValue({ success: true, bytesWritten: 0 }),
+    realPath: vi.fn(async () => ok('/remote/worktree')),
+    exists: vi.fn(async () => ok(false)),
+    writeText: vi.fn(async (_path: string, content: string) =>
+      ok({ bytesWritten: content.length })
+    ),
     ...overrides,
   };
+}
+
+function makeFilesRuntime(args: {
+  fs: Pick<IFileSystem, 'realPath' | 'exists' | 'writeText'>;
+}): IFilesRuntime {
+  return {
+    path: {
+      join: (...parts: string[]) => path.posix.join(...parts),
+      dirname: (value: string) => path.posix.dirname(value),
+      basename: (value: string) => path.posix.basename(value),
+      isAbsolute: (value: string) => path.posix.isAbsolute(value),
+      relative: (from: string, to: string) => path.posix.relative(from, to),
+      contains: (parent: string, child: string) => {
+        const rel = path.posix.relative(parent, child);
+        return (
+          rel === '' || (rel !== '..' && !rel.startsWith('../') && !path.posix.isAbsolute(rel))
+        );
+      },
+    },
+    openTree: vi.fn(),
+    watchChanges: vi.fn(),
+    fileSystem: vi.fn(() => ok(args.fs as IFileSystem)),
+    dispose: vi.fn(),
+  } as unknown as IFilesRuntime;
 }
 
 function makeCtx(): IExecutionContext {
@@ -89,7 +106,7 @@ describe('CursorTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'claude',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
     });
 
@@ -102,7 +119,7 @@ describe('CursorTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'cursor',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
     });
 
@@ -115,7 +132,7 @@ describe('CursorTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'cursor',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
       force: true,
     });
@@ -131,7 +148,7 @@ describe('CursorTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'cursor',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
     });
 
@@ -150,13 +167,30 @@ describe('CursorTrustService', () => {
     });
   });
 
+  it('refuses to auto-trust relative local workspace paths', async () => {
+    const service = makeService();
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'cursor',
+      workspacePath: './relative/path',
+      homedir: '/home/local-user',
+    });
+
+    expect(mockAccess).not.toHaveBeenCalled();
+    expect(mockWriteFile).not.toHaveBeenCalled();
+    expect(mockWarn).toHaveBeenCalledWith(
+      'CursorTrustService: refusing to auto-trust non-absolute workspace path',
+      { path: './relative/path' }
+    );
+  });
+
   it('is idempotent when the local marker already exists', async () => {
     const service = makeService();
     mockAccess.mockResolvedValue(undefined);
 
     await service.maybeAutoTrustLocal({
       providerId: 'cursor',
-      cwd: '/tmp/worktree',
+      workspacePath: '/tmp/worktree',
       homedir: '/home/local-user',
     });
 
@@ -169,7 +203,7 @@ describe('CursorTrustService', () => {
 
     await service.maybeAutoTrustLocal({
       providerId: 'cursor',
-      cwd: '/Users/janburzinski/emdash/worktrees/emdash-official/tough-falcons-notice',
+      workspacePath: '/Users/janburzinski/emdash/worktrees/emdash-official/tough-falcons-notice',
       homedir: '/Users/janburzinski',
     });
 
@@ -183,26 +217,50 @@ describe('CursorTrustService', () => {
   it('writes the ssh Cursor workspace trust marker remotely', async () => {
     const service = makeService();
     const remoteFs = makeRemoteFs({
-      realPath: vi.fn().mockResolvedValue('/remote/worktree'),
+      realPath: vi.fn(async () => ok('/remote/worktree')),
     });
+    const files = makeFilesRuntime({ fs: remoteFs });
     const ctx = makeCtx();
 
     await service.maybeAutoTrustSsh({
       providerId: 'cursor',
-      cwd: '/remote/worktree',
+      workspacePath: '/remote/worktree',
       ctx,
-      remoteFs,
+      files,
     });
 
     const markerPath = '/home/remote-user/.cursor/projects/remote-worktree/.workspace-trusted';
-    expect(remoteFs.read).toHaveBeenCalledWith(markerPath, expect.any(Number));
-    expect(remoteFs.write).toHaveBeenCalledWith(markerPath, expect.any(String));
+    expect(remoteFs.exists).toHaveBeenCalledWith(markerPath);
+    expect(remoteFs.writeText).toHaveBeenCalledWith(markerPath, expect.any(String));
 
-    const marker = JSON.parse(String(vi.mocked(remoteFs.write).mock.calls[0][1]));
+    const marker = JSON.parse(String(vi.mocked(remoteFs.writeText).mock.calls[0][1]));
     expect(marker).toEqual({
       trustedAt: expect.any(String),
       workspacePath: '/remote/worktree',
       trustMethod: 'emdash-auto-trust',
     });
+  });
+
+  it('refuses to auto-trust relative ssh workspace paths', async () => {
+    const service = makeService();
+    const remoteFs = makeRemoteFs();
+    const files = makeFilesRuntime({ fs: remoteFs });
+    const ctx = makeCtx();
+
+    await service.maybeAutoTrustSsh({
+      providerId: 'cursor',
+      workspacePath: 'relative/worktree',
+      ctx,
+      files,
+    });
+
+    expect(remoteFs.realPath).not.toHaveBeenCalled();
+    expect(remoteFs.exists).not.toHaveBeenCalled();
+    expect(remoteFs.writeText).not.toHaveBeenCalled();
+    expect(ctx.exec).not.toHaveBeenCalled();
+    expect(mockWarn).toHaveBeenCalledWith(
+      'CursorTrustService: refusing to auto-trust non-absolute workspace path',
+      { path: 'relative/worktree' }
+    );
   });
 });

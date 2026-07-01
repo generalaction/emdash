@@ -26,8 +26,10 @@ export * from './surfaces.css';
 // 4. Mini-preflight (reset layer).
 export * from './reset.css';
 
-// 5. Global element defaults — body, scrollbars, selection (base layer).
-export * from './base.css';
+// 5. Global element defaults (body, scrollbars, selection) are now opt-in.
+// Import '@emdash/ui/styles/global-base.css' in the host app or Storybook
+// preview when you want these element defaults. They are NOT included here
+// so they don't fight the host app's own body/token CSS.
 
 // 6. Atomic utility classes — sx() sprinkles (utilities layer).
 export * from './utilities/sprinkles.css';

@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { ExecError, type BoundExec } from '../exec';
-import type { IFileWatchService, WatchHandle } from '../fs';
 import { LiveModel } from '../lib';
+import type { IWatchService, WatchHandle } from '../watch';
 import {
   classifyCommitError,
   classifyPullError,
@@ -71,7 +71,7 @@ export type GitWorktreeOptions = {
   gitDir: string;
   repository: GitRepository;
   exec: BoundExec;
-  watcher: IFileWatchService;
+  watcher: IWatchService;
   onError?: GitOnError;
 };
 
@@ -179,10 +179,11 @@ export class GitWorktree implements IGitWorktree {
   }
 
   async isFileCleanlyTracked(filePath: string): Promise<boolean> {
+    const relativePath = this.toRelativePath(filePath);
     try {
-      await this.exec.exec(['ls-files', '--error-unmatch', '--', filePath]);
-      await this.exec.exec(['diff', '--quiet', '--', filePath]);
-      await this.exec.exec(['diff', '--cached', '--quiet', '--', filePath]);
+      await this.exec.exec(['ls-files', '--error-unmatch', '--', relativePath]);
+      await this.exec.exec(['diff', '--quiet', '--', relativePath]);
+      await this.exec.exec(['diff', '--cached', '--quiet', '--', relativePath]);
       return true;
     } catch {
       return false;
@@ -190,12 +191,13 @@ export class GitWorktree implements IGitWorktree {
   }
 
   async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
-    return this.repository.readBlobAtRef(ref, filePath);
+    return this.repository.readBlobAtRef(ref, this.toRelativePath(filePath));
   }
 
   async getFileAtIndex(filePath: string): Promise<string | null> {
+    const relativePath = this.toRelativePath(filePath);
     try {
-      const { stdout } = await this.exec.exec(['show', `:${filePath}`]);
+      const { stdout } = await this.exec.exec(['show', `:${relativePath}`]);
       return stdout;
     } catch {
       return null;
@@ -203,11 +205,13 @@ export class GitWorktree implements IGitWorktree {
   }
 
   async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
-    return this.getImageBlob(filePath, `${ref}:${filePath}`);
+    const relativePath = this.toRelativePath(filePath);
+    return this.getImageBlob(relativePath, `${ref}:${relativePath}`);
   }
 
   async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
-    return this.getImageBlob(filePath, `:${filePath}`);
+    const relativePath = this.toRelativePath(filePath);
+    return this.getImageBlob(relativePath, `:${relativePath}`);
   }
 
   async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
@@ -232,7 +236,7 @@ export class GitWorktree implements IGitWorktree {
       if (!filePath) continue;
       const stat = numstat.get(filePath);
       changes.push({
-        path: filePath,
+        path: this.toAbsolutePath(filePath),
         status: mapGitChangeStatus(code),
         additions: stat?.additions ?? 0,
         deletions: stat?.deletions ?? 0,
@@ -306,7 +310,7 @@ export class GitWorktree implements IGitWorktree {
       if (filePath) statusByPath.set(filePath, mapGitChangeStatus(code));
     }
     return [...numstat.entries()].map(([filePath, stat]) => ({
-      path: filePath,
+      path: this.toAbsolutePath(filePath),
       status: statusByPath.get(filePath) ?? 'modified',
       additions: stat.additions,
       deletions: stat.deletions,
@@ -349,7 +353,7 @@ export class GitWorktree implements IGitWorktree {
   async stage(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
     if (paths.length === 0) return ok({});
     try {
-      await this.exec.exec(['add', '--', ...paths]);
+      await this.exec.exec(['add', '--', ...this.toRelativePaths(paths)]);
       return ok(await this.refreshStatus());
     } catch (error) {
       return err(toGitCommandError(error));
@@ -368,7 +372,7 @@ export class GitWorktree implements IGitWorktree {
   async unstage(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
     if (paths.length === 0) return ok({});
     try {
-      await this.exec.exec(['reset', 'HEAD', '--', ...paths]);
+      await this.exec.exec(['reset', 'HEAD', '--', ...this.toRelativePaths(paths)]);
       return ok(await this.refreshStatus());
     } catch (error) {
       return err(toGitCommandError(error));
@@ -388,9 +392,10 @@ export class GitWorktree implements IGitWorktree {
 
   async revert(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
     if (paths.length === 0) return ok({});
+    const relativePaths = this.toRelativePaths(paths);
     try {
-      const indexedPaths = await this.getIndexedPaths(paths);
-      const headPaths = await this.getHeadPaths(paths);
+      const indexedPaths = await this.getIndexedPaths(relativePaths);
+      const headPaths = await this.getHeadPaths(relativePaths);
       const indexedPathSet = new Set(indexedPaths);
       const headOnlyPaths = headPaths.filter((filePath) => !indexedPathSet.has(filePath));
       if (indexedPaths.length > 0) {
@@ -400,7 +405,7 @@ export class GitWorktree implements IGitWorktree {
         await this.exec.exec(['checkout', 'HEAD', '--', ...headOnlyPaths]);
       }
       const trackedPathSet = new Set([...indexedPaths, ...headPaths]);
-      const untrackedPaths = paths.filter((filePath) => !trackedPathSet.has(filePath));
+      const untrackedPaths = relativePaths.filter((filePath) => !trackedPathSet.has(filePath));
       if (untrackedPaths.length > 0) {
         await this.exec.exec(['clean', '-fd', '--', ...untrackedPaths]);
       }
@@ -570,7 +575,7 @@ export class GitWorktree implements IGitWorktree {
       if (entry.x !== ' ' && entry.x !== '?') {
         const stat = stagedNumstat.get(filePath);
         staged.push({
-          path: filePath,
+          path: this.toAbsolutePath(filePath),
           status,
           additions: stat?.additions ?? 0,
           deletions: stat?.deletions ?? 0,
@@ -586,14 +591,14 @@ export class GitWorktree implements IGitWorktree {
       const deletions = unstagedNumstat.get(filePath)?.deletions ?? 0;
       if (additions === 0 && deletions === 0 && isUntracked) {
         try {
-          const result = await countFileLines(path.join(this.worktree, filePath), {
+          const result = await countFileLines(this.toAbsolutePath(filePath), {
             maxBytes: MAX_DIFF_CONTENT_BYTES,
           });
           if (!result.truncated) additions = result.lines;
         } catch {}
       }
 
-      unstaged.push({ path: filePath, status, additions, deletions });
+      unstaged.push({ path: this.toAbsolutePath(filePath), status, additions, deletions });
     }
 
     const stagedAdded = staged.reduce((sum, change) => sum + change.additions, 0);
@@ -685,6 +690,21 @@ export class GitWorktree implements IGitWorktree {
     } catch {
       return new Set();
     }
+  }
+
+  private toAbsolutePath(filePath: string): string {
+    if (path.isAbsolute(filePath) || path.win32.isAbsolute(filePath))
+      return path.normalize(filePath);
+    return path.join(this.worktree, filePath);
+  }
+
+  private toRelativePath(filePath: string): string {
+    if (!path.isAbsolute(filePath) && !path.win32.isAbsolute(filePath)) return filePath;
+    return path.relative(this.worktree, filePath).replace(/\\/g, '/');
+  }
+
+  private toRelativePaths(paths: string[]): string[] {
+    return paths.map((filePath) => this.toRelativePath(filePath));
   }
 }
 

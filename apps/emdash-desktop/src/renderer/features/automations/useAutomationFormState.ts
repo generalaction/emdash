@@ -104,6 +104,13 @@ export function useAutomationFormState(
     initialConversation.setModel(seedModel);
   }
 
+  const seedType = seedConversationConfig?.type;
+  const [chatUiSeeded, setChatUiSeeded] = useState(false);
+  if (!chatUiSeeded && seedType === 'acp') {
+    setChatUiSeeded(true);
+    initialConversation.setUseChatUi(true);
+  }
+
   const { defaultBranch, isUnborn, currentBranch, repositoryWorkspaceId } =
     useProjectGitContext(effectiveProjectId);
 

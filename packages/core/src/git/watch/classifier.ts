@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { RawFileEvent } from '../../fs';
+import type { WatchEvent } from '../../watch';
 
 export type RepoWatchEffects = {
   refs: boolean;
@@ -22,7 +22,7 @@ export type GitWatchClassification = {
 };
 
 export function classifyGitWatchEvents(
-  events: RawFileEvent[],
+  events: WatchEvent[],
   layout: GitLayout
 ): GitWatchClassification {
   const repo: RepoWatchEffects = { refs: false, remotes: false };

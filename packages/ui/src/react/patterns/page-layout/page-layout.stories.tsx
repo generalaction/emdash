@@ -29,15 +29,17 @@ function Card({ title, rows = 3 }: { title: string; rows?: number }) {
   return (
     <div
       style={{
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--em-border)',
+        borderRadius: 'var(--em-radius-lg)',
         padding: '1rem 1.25rem',
         display: 'flex',
         flexDirection: 'column',
         gap: '0.75rem',
       }}
     >
-      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--foreground)' }}>
+      <div
+        style={{ fontSize: 'var(--em-text-sm)', fontWeight: 500, color: 'var(--em-foreground)' }}
+      >
         {title}
       </div>
       {Array.from({ length: rows }).map((_, i) => (
@@ -46,7 +48,7 @@ function Card({ title, rows = 3 }: { title: string; rows?: number }) {
           style={{
             height: '0.75rem',
             borderRadius: '999px',
-            backgroundColor: 'var(--background-2)',
+            backgroundColor: 'var(--em-background-2)',
             width: `${65 + (i % 3) * 10}%`,
           }}
         />
@@ -159,7 +161,7 @@ function SettingsDemo() {
         height: '40rem',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: 'var(--background)',
+        backgroundColor: 'var(--em-background)',
       }}
     >
       <PageLayout
@@ -274,9 +276,9 @@ function CustomSidebarDemo() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <p
                 style={{
-                  fontSize: 'var(--text-xs)',
+                  fontSize: 'var(--em-text-xs)',
                   fontWeight: 600,
-                  color: 'var(--foreground-muted)',
+                  color: 'var(--em-foreground-muted)',
                   paddingLeft: '0.75rem',
                   paddingBottom: '0.25rem',
                   textTransform: 'uppercase',
@@ -296,12 +298,12 @@ function CustomSidebarDemo() {
                     gap: '0.5rem',
                     width: '100%',
                     border: 'none',
-                    borderRadius: 'var(--radius-md)',
+                    borderRadius: 'var(--em-radius-md)',
                     padding: '0.5rem 0.75rem',
-                    fontSize: 'var(--text-sm)',
+                    fontSize: 'var(--em-text-sm)',
                     cursor: 'pointer',
-                    backgroundColor: selected === i ? 'var(--background-2)' : 'transparent',
-                    color: selected === i ? 'var(--foreground)' : 'var(--foreground-muted)',
+                    backgroundColor: selected === i ? 'var(--em-background-2)' : 'transparent',
+                    color: selected === i ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
                     textAlign: 'left',
                   }}
                 >

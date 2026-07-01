@@ -33,6 +33,10 @@
       "types": "./dist/logger-transport.d.mts",
       "default": "./dist/logger-transport.mjs"
     },
+    "./markdown": {
+      "types": "./dist/markdown.d.mts",
+      "default": "./dist/markdown.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

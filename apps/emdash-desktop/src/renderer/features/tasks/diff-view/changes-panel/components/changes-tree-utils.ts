@@ -1,27 +1,34 @@
 import type { GitChange } from '@emdash/core/git';
-import { makeNode, sortFileNodes } from '@renderer/features/tasks/editor/stores/files-store-utils';
-import { type FileNode } from '@shared/core/fs/fs';
+import {
+  makeNode,
+  normalizeFileTreePath,
+  sortFileNodes,
+  type NestedFileNode,
+} from '@renderer/features/tasks/file-tree/tree-utils';
 
 export interface ChangesTree {
-  rootNodes: FileNode[];
+  rootNodes: NestedFileNode[];
   changeByPath: Map<string, GitChange>;
   directoryPaths: Set<string>;
 }
 
-export function buildChangesTree(changes: GitChange[]): ChangesTree {
-  const nodesByPath = new Map<string, FileNode>();
+export function buildChangesTree(changes: GitChange[], rootPath?: string): ChangesTree {
+  const nodesByPath = new Map<string, NestedFileNode>();
   const changeByPath = new Map<string, GitChange>();
   const directoryPaths = new Set<string>();
-  const rootNodes: FileNode[] = [];
+  const rootNodes: NestedFileNode[] = [];
+  const normalizedRoot = rootPath ? normalizeFileTreePath(rootPath) : null;
 
   for (const change of changes) {
-    changeByPath.set(change.path, change);
+    const identityPath = normalizeFileTreePath(change.path);
+    const displayPath = displayPathForChange(identityPath, normalizedRoot);
+    changeByPath.set(displayPath, change);
 
-    const parts = change.path.split('/').filter(Boolean);
+    const parts = displayPath.split('/').filter(Boolean);
     if (parts.length === 0) continue;
 
     let prefix = '';
-    let parentNode: FileNode | null = null;
+    let parentNode: NestedFileNode | null = null;
     for (let i = 0; i < parts.length; i++) {
       const segment = parts[i]!;
       prefix = prefix ? `${prefix}/${segment}` : segment;
@@ -51,7 +58,16 @@ export function buildChangesTree(changes: GitChange[]): ChangesTree {
   };
 }
 
-function sortRecursively(nodes: FileNode[]): FileNode[] {
+export function displayPathForChange(identityPath: string, rootPath?: string | null): string {
+  const normalizedPath = normalizeFileTreePath(identityPath);
+  if (!rootPath) return normalizedPath;
+  const normalizedRoot = normalizeFileTreePath(rootPath);
+  if (normalizedPath === normalizedRoot) return normalizedPath;
+  const prefix = `${normalizedRoot}/`;
+  return normalizedPath.startsWith(prefix) ? normalizedPath.slice(prefix.length) : normalizedPath;
+}
+
+function sortRecursively(nodes: NestedFileNode[]): NestedFileNode[] {
   const sorted = sortFileNodes(nodes);
   for (const node of sorted) {
     if (node.children.length > 0) {

@@ -24,7 +24,7 @@ import { CopyButton } from '@components/primitives/CopyButton';
 import { applyTokenLines } from '@core/highlight/apply-tokens';
 import type { CodeLaidOut } from '@core/layout/layout-types';
 import type { CodeBlock } from '@core/markdown/document';
-import { For, createEffect, onCleanup } from 'solid-js';
+import { For, createEffect, createMemo, onCleanup } from 'solid-js';
 import { codeLine, codeWrapper } from './code.css';
 import { codeGroup } from '@components/primitives/copy-button.css';
 
@@ -39,15 +39,28 @@ export function Code(props: CodeProps) {
   const lineElsMap: Map<number, HTMLElement> = new Map();
   let wrapperEl: HTMLElement | undefined;
 
+  // Derive the block's position from its id (`${messageId}#${index}`).
+  // The id is stable for the lifetime of this component.
+  const blockIndex = Number(props.rawBlock.id.slice(props.rawBlock.id.lastIndexOf('#') + 1));
+
+  // A block is settled when the message is not streaming (streamAnim is null
+  // for committed messages), or when its index is below the settled-prefix
+  // count. This memo flips false→true exactly once per block, so the highlight
+  // effect runs a single time when the block crosses a safe parse boundary
+  // (fence close or blank line), rather than waiting for the whole message.
+  const settled = createMemo(
+    () => !streamAnim?.streaming() || blockIndex < (streamAnim?.settledCount() ?? 0)
+  );
+
   createEffect(() => {
     if (!wrapperEl) return;
     const lang = props.block.lang;
     if (!lang) return;
 
-    // Skip per-frame highlighting while the parent message is streaming.
-    // The effect tracks `streaming()` reactively so it re-runs exactly once
-    // when the message commits, running a single full highlight at that point.
-    if (streamAnim?.streaming()) return;
+    // Defer highlighting until this specific block has settled into the stable
+    // parse prefix. For committed messages streamAnim is null so settled() is
+    // always true; for streaming messages it flips true once and stays true.
+    if (!settled()) return;
 
     const code = props.rawBlock.code;
 
