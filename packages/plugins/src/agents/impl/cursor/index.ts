@@ -1,6 +1,7 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import { buildStandardCommand, cursorMcpAdapter } from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
+import { buildCursorTrustBehavior } from './trust';
 
 export const plugin = definePlugin(
   {
@@ -53,6 +54,9 @@ export const plugin = definePlugin(
     sessions: {
       kind: 'resumable',
     },
+    trust: {
+      kind: 'supported',
+    },
   },
   { icon }
 );
@@ -67,4 +71,5 @@ export const provider = registerPluginBehavior(plugin, {
       }),
   },
   mcp: cursorMcpAdapter(),
+  trust: buildCursorTrustBehavior(),
 });
