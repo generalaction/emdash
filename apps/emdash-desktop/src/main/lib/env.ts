@@ -5,6 +5,8 @@ const buildSchema = z.object({
   VITE_POSTHOG_KEY: z.string().optional(),
   VITE_POSTHOG_HOST: z.string().optional(),
   VITE_BUILD: z.enum(['canary', 'prod']).default('prod'),
+  VITE_FEEDBACK_RELAY_URL: z.string().optional(),
+  VITE_FEEDBACK_RELAY_SECRET: z.string().optional(),
 });
 
 // Dev-only overrides: read from process.env (supports non-VITE_ prefixed vars,

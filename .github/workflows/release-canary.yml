@@ -73,6 +73,7 @@ jobs:
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          feedback-relay-secret: ${{ secrets.FEEDBACK_RELAY_SECRET }}
           build-variant: canary
           setup-python: 'false'
 
@@ -115,6 +116,7 @@ jobs:
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          feedback-relay-secret: ${{ secrets.FEEDBACK_RELAY_SECRET }}
           build-variant: canary
           windows-native: 'true'
       - name: Export Python path for native modules
@@ -185,6 +187,7 @@ jobs:
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          feedback-relay-secret: ${{ secrets.FEEDBACK_RELAY_SECRET }}
           build-variant: canary
 
       - name: Import Apple signing certificate

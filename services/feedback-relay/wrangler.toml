@@ -1,0 +1,8 @@
+name = "emdash-feedback-relay"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+
+[vars]
+SLACK_CHANNEL_ID = "C0AUQALSAC8"
+
+# Secrets: wrangler secret put SLACK_BOT_TOKEN / RELAY_SHARED_SECRET

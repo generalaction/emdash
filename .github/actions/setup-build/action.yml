@@ -14,6 +14,14 @@ inputs:
     description: Build variant to embed (canary | prod)
     required: false
     default: 'prod'
+  feedback-relay-url:
+    description: Feedback → Slack relay Worker URL
+    required: false
+    default: 'https://emdash-feedback-relay.real-general-action.workers.dev'
+  feedback-relay-secret:
+    description: Feedback relay shared secret
+    required: false
+    default: ''
   windows-native:
     description: Set to true on Windows to pass MSVC/gyp flags to pnpm install
     required: false
@@ -64,7 +72,11 @@ runs:
         PH_KEY: ${{ inputs.posthog-key }}
         PH_HOST: ${{ inputs.posthog-host }}
         BUILD_VARIANT: ${{ inputs.build-variant }}
+        FEEDBACK_RELAY_URL: ${{ inputs.feedback-relay-url }}
+        FEEDBACK_RELAY_SECRET: ${{ inputs.feedback-relay-secret }}
       run: |
         echo "VITE_POSTHOG_KEY=$PH_KEY" >> apps/emdash-desktop/.env.production
         echo "VITE_POSTHOG_HOST=$PH_HOST" >> apps/emdash-desktop/.env.production
         echo "VITE_BUILD=$BUILD_VARIANT" >> apps/emdash-desktop/.env.production
+        echo "VITE_FEEDBACK_RELAY_URL=$FEEDBACK_RELAY_URL" >> apps/emdash-desktop/.env.production
+        echo "VITE_FEEDBACK_RELAY_SECRET=$FEEDBACK_RELAY_SECRET" >> apps/emdash-desktop/.env.production
