@@ -43,16 +43,16 @@ function getMimoSessionId(event) {
   if (!event.type?.startsWith('session.')) return undefined;
 
   const infoId = event.properties?.info?.id;
-  if (isNonEmptyString(infoId)) return infoId.trim();
+  if (isMimoSessionId(infoId)) return infoId.trim();
 
   const sessionId = event.properties?.sessionID;
-  if (isNonEmptyString(sessionId)) return sessionId.trim();
+  if (isMimoSessionId(sessionId)) return sessionId.trim();
 
   return undefined;
 }
 
-function isNonEmptyString(value) {
-  return typeof value === 'string' && value.trim().length > 0;
+function isMimoSessionId(value) {
+  return typeof value === 'string' && value.trim().startsWith('ses');
 }
 
 function toEmdashPayload(event) {
