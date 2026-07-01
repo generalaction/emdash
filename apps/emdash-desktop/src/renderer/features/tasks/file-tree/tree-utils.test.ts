@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildVisibleRows,
+  buildFileTreeVisibleRows,
+  buildNestedVisibleRows,
   makeNode,
   sortFileNodes,
   toRenderableFileNode,
@@ -35,7 +36,7 @@ describe('file tree utils', () => {
     const src = makeNode('src', 'directory');
     attach(src, makeNode('src/index.ts', 'file'));
 
-    const rows = buildVisibleRows([src, makeNode('README.md', 'file')], new Set());
+    const rows = buildNestedVisibleRows([src, makeNode('README.md', 'file')], new Set());
 
     expect(rows.map((row) => row.node.path)).toEqual(['src', 'README.md']);
   });
@@ -47,7 +48,7 @@ describe('file tree utils', () => {
     attach(src, components);
     attach(src, makeNode('src/index.ts', 'file'));
 
-    const rows = buildVisibleRows(
+    const rows = buildNestedVisibleRows(
       [src, makeNode('README.md', 'file')],
       new Set(['src', 'src/components'])
     );
@@ -81,7 +82,7 @@ describe('file tree utils', () => {
     const file = makeNode('README.md', 'file');
     file.children.push(makeNode('README.md/README.md', 'file'));
 
-    const rows = buildVisibleRows([file], new Set(['README.md']));
+    const rows = buildNestedVisibleRows([file], new Set(['README.md']));
 
     expect(rows.map((row) => row.node.path)).toEqual(['README.md']);
   });
@@ -93,7 +94,7 @@ describe('file tree utils', () => {
     attach(components, ui);
     attach(src, components);
 
-    const rows = buildVisibleRows([src], new Set());
+    const rows = buildNestedVisibleRows([src], new Set());
 
     expect(rows).toHaveLength(1);
     expect(rows[0].node.path).toBe('src/components/ui');
@@ -107,7 +108,7 @@ describe('file tree utils', () => {
     attach(src, components);
     attach(src, makeNode('src/index.ts', 'file'));
 
-    const rows = buildVisibleRows([src], new Set(['src']));
+    const rows = buildNestedVisibleRows([src], new Set(['src']));
 
     expect(rows.map((row) => row.chain.map((n) => n.name))).toEqual([
       ['src'],
@@ -121,7 +122,7 @@ describe('file tree utils', () => {
     attach(src, makeNode('src/components', 'directory'));
     attach(src, makeNode('src/lib', 'directory'));
 
-    const rows = buildVisibleRows([src], new Set(['src']));
+    const rows = buildNestedVisibleRows([src], new Set(['src']));
 
     expect(rows.map((row) => row.chain.map((n) => n.name))).toEqual([
       ['src'],
@@ -139,7 +140,7 @@ describe('file tree utils', () => {
     attach(components, ui);
     attach(src, components);
 
-    const rows = buildVisibleRows([src], new Set(['src/components/ui']));
+    const rows = buildNestedVisibleRows([src], new Set(['src/components/ui']));
 
     expect(rows.map((row) => row.node.path)).toEqual([
       'src/components/ui',
@@ -158,7 +159,7 @@ describe('file tree utils', () => {
     attach(b, c);
     attach(a, b);
 
-    const rows = buildVisibleRows([a], new Set(['a/b/c']));
+    const rows = buildNestedVisibleRows([a], new Set(['a/b/c']));
 
     expect(rows[0].chain.map((n) => n.name)).toEqual(['a', 'b', 'c']);
     expect(rows[0].node.path).toBe('a/b/c');
@@ -173,7 +174,7 @@ describe('file tree utils', () => {
     attach(components, ui);
     attach(src, components);
 
-    const rows = buildVisibleRows([src], new Set(['src/components']));
+    const rows = buildNestedVisibleRows([src], new Set(['src/components']));
 
     expect(rows.map((row) => row.node.path)).toEqual([
       'src/components/ui',
@@ -185,7 +186,7 @@ describe('file tree utils', () => {
     const loop = makeNode('loop', 'directory');
     loop.children.push(loop);
 
-    const rows = buildVisibleRows([loop], new Set());
+    const rows = buildNestedVisibleRows([loop], new Set());
 
     expect(rows).toHaveLength(1);
     expect(rows[0].chain).toHaveLength(1);
@@ -198,13 +199,13 @@ describe('file tree utils', () => {
     a.children.push(b);
     b.children.push(a);
 
-    const rows = buildVisibleRows([a], new Set());
+    const rows = buildNestedVisibleRows([a], new Set());
 
     expect(rows).toHaveLength(1);
     expect(rows[0].chain.map((n) => n.path)).toEqual(['a', 'a/b']);
   });
 
-  it('walks flat render nodes through a childrenById index', () => {
+  it('compacts flat render nodes from preview metadata and uses loaded real nodes', () => {
     const src = toRenderableFileNode({
       id: 1,
       path: 'src',
@@ -212,6 +213,10 @@ describe('file tree utils', () => {
       parentId: null,
       type: 'directory',
       childrenLoaded: true,
+      directoryPreview: {
+        childCount: 1,
+        singleChildDirectoryChain: [{ name: 'components', path: 'src/components' }],
+      },
     });
     const components = toRenderableFileNode({
       id: 2,
@@ -235,13 +240,46 @@ describe('file tree utils', () => {
       [2, [button]],
     ]);
 
-    const rows = buildVisibleRows([src], new Set(['src/components']), childrenById);
+    const rows = buildFileTreeVisibleRows(
+      [src],
+      new Set(['src/components']),
+      childrenById,
+      new Set(['src', 'src/components'])
+    );
 
     expect(rows.map((row) => row.node.path)).toEqual([
       'src/components',
       'src/components/Button.tsx',
     ]);
     expect(rows[0].chain.map((node) => node.path)).toEqual(['src', 'src/components']);
+  });
+
+  it('does not infer workspace file-tree compaction from loaded children without preview metadata', () => {
+    const src = toRenderableFileNode({
+      id: 1,
+      path: 'src',
+      name: 'src',
+      parentId: null,
+      type: 'directory',
+      childrenLoaded: true,
+    });
+    const components = toRenderableFileNode({
+      id: 2,
+      path: 'src/components',
+      name: 'components',
+      parentId: 1,
+      type: 'directory',
+      childrenLoaded: false,
+    });
+    const childrenById = new Map<number | null, RenderableFileNode[]>([
+      [null, [src]],
+      [1, [components]],
+    ]);
+
+    const rows = buildFileTreeVisibleRows([src], new Set(['src']), childrenById, new Set(['src']));
+
+    expect(rows.map((row) => row.node.path)).toEqual(['src', 'src/components']);
+    expect(rows[0].chain.map((node) => node.path)).toEqual(['src']);
   });
 
   it('compacts a collapsed chain from core directory preview metadata without loaded children', () => {
@@ -260,7 +298,7 @@ describe('file tree utils', () => {
     const childrenById = new Map<number | null, RenderableFileNode[]>([[null, [apps]]]);
 
     // `apps` is not loaded for this view, so the chain comes entirely from the core metadata.
-    const rows = buildVisibleRows([apps], new Set(), childrenById, new Set());
+    const rows = buildFileTreeVisibleRows([apps], new Set(), childrenById, new Set());
 
     expect(rows).toHaveLength(1);
     expect(rows[0].chain.map((node) => node.path)).toEqual(['apps', 'apps/desktop']);
@@ -295,7 +333,12 @@ describe('file tree utils', () => {
       [1, [nested]],
     ]);
 
-    const rows = buildVisibleRows([link], new Set(['linked']), childrenById, new Set(['linked']));
+    const rows = buildFileTreeVisibleRows(
+      [link],
+      new Set(['linked']),
+      childrenById,
+      new Set(['linked'])
+    );
 
     expect(rows.map((row) => row.node.path)).toEqual(['linked', 'linked/nested/leaf']);
     expect(rows[0].chain.map((node) => node.path)).toEqual(['linked']);

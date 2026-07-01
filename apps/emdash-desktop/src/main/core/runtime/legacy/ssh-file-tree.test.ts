@@ -139,4 +139,57 @@ describe('LegacySshFilesRuntime file tree', () => {
     await opened.data.release();
     await runtime.dispose();
   });
+
+  it('lists node_modules below an expanded remote directory', async () => {
+    vi.spyOn(SshFileSystem.prototype, 'list').mockImplementation(async (dirPath = '/repo') => {
+      if (dirPath === '/repo') return listResult([dirEntry('/repo/example-apps')]);
+      if (dirPath === '/repo/example-apps')
+        return listResult([dirEntry('/repo/example-apps/credential-sync')]);
+      if (dirPath === '/repo/example-apps/credential-sync') {
+        return listResult([
+          dirEntry('/repo/example-apps/credential-sync/lib'),
+          dirEntry('/repo/example-apps/credential-sync/node_modules'),
+          dirEntry('/repo/example-apps/credential-sync/pages'),
+        ]);
+      }
+      return listResult([]);
+    });
+
+    const runtime = new LegacySshFilesRuntime({} as never);
+    const opened = await runtime.openTree('/repo');
+    expect(opened.success).toBe(true);
+    if (!opened.success) return;
+
+    const tree = opened.data.value;
+    let snapshot = await tree.getSnapshot();
+    expect(snapshot.success).toBe(true);
+    if (!snapshot.success) return;
+
+    const exampleApps = snapshot.data.entries.find(
+      ([, node]) => node.path === '/repo/example-apps'
+    )?.[1];
+    expect(exampleApps).toBeDefined();
+    if (!exampleApps) return;
+    await tree.registerDir(exampleApps.id);
+
+    snapshot = await tree.getSnapshot();
+    expect(snapshot.success).toBe(true);
+    if (!snapshot.success) return;
+    const credentialSync = snapshot.data.entries.find(
+      ([, node]) => node.path === '/repo/example-apps/credential-sync'
+    )?.[1];
+    expect(credentialSync).toBeDefined();
+    if (!credentialSync) return;
+    await tree.registerDir(credentialSync.id);
+
+    snapshot = await tree.getSnapshot();
+    expect(snapshot.success).toBe(true);
+    if (!snapshot.success) return;
+    expect(snapshot.data.entries.map(([, node]) => node.path)).toContain(
+      '/repo/example-apps/credential-sync/node_modules'
+    );
+
+    await opened.data.release();
+    await runtime.dispose();
+  });
 });

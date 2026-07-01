@@ -1,7 +1,7 @@
 import type { FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import {
-  buildVisibleRows,
+  buildFileTreeVisibleRows,
   isChainExpanded,
   isExpandableFileTreeNode,
   normalizeFileTreePath,
@@ -180,7 +180,7 @@ export class FilesStore {
     // is driven entirely by the core-provided directory preview metadata, so collapsed chains render
     // without any extra registration; expanding a chain adds every segment to `expandedPaths`, and
     // the scopes load progressively as each ancestor resolves.
-    const rows = buildVisibleRows(
+    const rows = buildFileTreeVisibleRows(
       this.viewData.rootNodes,
       expandedPaths,
       this.viewData.childrenById,

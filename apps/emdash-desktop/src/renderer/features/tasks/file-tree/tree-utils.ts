@@ -134,38 +134,17 @@ export interface TreeRow<T extends VisibleFileNode = VisibleFileNode> {
   renderDepth: number;
 }
 
-function hasNestedChildren(node: VisibleFileNode): node is NestedFileNode {
-  return 'children' in node;
-}
-
-function childrenFor<T extends VisibleFileNode>(
-  node: T,
-  childrenById?: ChildrenById<T>
-): readonly T[] {
-  if (childrenById && 'id' in node) return childrenById.get(node.id) ?? [];
-  return hasNestedChildren(node) ? (node.children as unknown as readonly T[]) : [];
-}
-
-/**
- * The loaded children of `node`, or `undefined` when this view has not loaded that scope yet.
- * Nested git-changes nodes always carry their children inline, so they are always "loaded".
- */
-function loadedChildrenFor<T extends VisibleFileNode>(
-  node: T,
-  childrenById?: ChildrenById<T>,
-  loadedPaths?: ReadonlySet<string>
-): readonly T[] | undefined {
-  if (hasNestedChildren(node)) return node.children as unknown as readonly T[];
-  if (!childrenById || !('id' in node)) return undefined;
-  if (loadedPaths) {
-    return loadedPaths.has(node.path) ? (childrenById.get(node.id) ?? []) : undefined;
-  }
-  // Without explicit load info, treat presence in the index as "loaded".
-  return childrenById.has(node.id) ? (childrenById.get(node.id) ?? []) : undefined;
-}
-
-function singleChildDirectoryChainOf(node: VisibleFileNode): DirectoryPreviewSegment[] | undefined {
-  return 'directoryPreview' in node ? node.directoryPreview?.singleChildDirectoryChain : undefined;
+function loadedRenderableDirectoryChildForSegment(
+  node: RenderableFileNode,
+  segment: DirectoryPreviewSegment,
+  childrenById: ChildrenById<RenderableFileNode>,
+  loadedPaths: ReadonlySet<string>
+): RenderableFileNode | undefined {
+  if (!loadedPaths.has(node.path)) return undefined;
+  const segmentPath = normalizeFileTreePath(segment.path);
+  return (childrenById.get(node.id) ?? []).find(
+    (child) => child.type === 'directory' && child.path === segmentPath
+  );
 }
 
 function syntheticChainNode(
@@ -188,45 +167,49 @@ function syntheticChainNode(
 }
 
 /**
- * Build the compacted directory chain for `node`: a run of single-child directories rendered as one
- * row. While a scope is loaded, the chain follows real children; once it reaches an unloaded scope
- * it continues from the core-computed directory preview metadata so collapsed chains compact
- * without the renderer probing the filesystem.
+ * Build the compacted directory chain for a workspace file-tree node. Workspace compaction is
+ * model-driven: the renderer uses only core-provided preview metadata, never partial loaded-child
+ * structure.
  */
-function extendChain<T extends VisibleFileNode>(
-  node: T,
-  childrenById?: ChildrenById<T>,
-  loadedPaths?: ReadonlySet<string>
-): T[] {
-  const chain: T[] = [node];
+function extendFileTreePreviewChain(
+  node: RenderableFileNode,
+  childrenById: ChildrenById<RenderableFileNode>,
+  loadedPaths: ReadonlySet<string>
+): RenderableFileNode[] {
+  const chain: RenderableFileNode[] = [node];
+  const visited = new Set<string>([node.path]);
+  const segments = node.directoryPreview?.singleChildDirectoryChain;
+  if (!segments || segments.length === 0) return chain;
+
+  let parent = node;
+  for (const segment of segments) {
+    const next =
+      loadedRenderableDirectoryChildForSegment(parent, segment, childrenById, loadedPaths) ??
+      syntheticChainNode(segment, parent);
+    if (visited.has(next.path)) break;
+    chain.push(next);
+    visited.add(next.path);
+    parent = next;
+  }
+  return chain;
+}
+
+function extendNestedDirectoryChain(node: NestedFileNode): NestedFileNode[] {
+  const chain: NestedFileNode[] = [node];
   const visited = new Set<string>([node.path]);
   let current = node;
   while (current.type === 'directory') {
-    const children = loadedChildrenFor(current, childrenById, loadedPaths);
-    if (children !== undefined) {
-      if (
-        children.length === 1 &&
-        children[0].type === 'directory' &&
-        !visited.has(children[0].path)
-      ) {
-        current = children[0];
-        visited.add(current.path);
-        chain.push(current);
-        continue;
-      }
+    const children = current.children;
+    if (
+      children.length !== 1 ||
+      children[0].type !== 'directory' ||
+      visited.has(children[0].path)
+    ) {
       break;
     }
-    const segments = singleChildDirectoryChainOf(current);
-    if (!segments || segments.length === 0) break;
-    let parent = current as unknown as RenderableFileNode;
-    for (const segment of segments) {
-      const synthetic = syntheticChainNode(segment, parent);
-      if (visited.has(synthetic.path)) break;
-      chain.push(synthetic as unknown as T);
-      visited.add(synthetic.path);
-      parent = synthetic;
-    }
-    break;
+    current = children[0];
+    visited.add(current.path);
+    chain.push(current);
   }
   return chain;
 }
@@ -241,22 +224,45 @@ export function isChainExpanded<T extends VisibleFileNode>(
   return false;
 }
 
-export function buildVisibleRows<T extends VisibleFileNode>(
-  rootNodes: readonly T[],
+export function buildFileTreeVisibleRows(
+  rootNodes: readonly RenderableFileNode[],
   expandedPaths: Set<string>,
-  childrenById?: ChildrenById<T>,
-  loadedPaths?: ReadonlySet<string>
-): Array<TreeRow<T>> {
-  const rows: Array<TreeRow<T>> = [];
+  childrenById: ChildrenById<RenderableFileNode>,
+  loadedPaths: ReadonlySet<string>
+): Array<TreeRow<RenderableFileNode>> {
+  const rows: Array<TreeRow<RenderableFileNode>> = [];
 
-  function walk(nodes: readonly T[], renderDepth: number) {
+  function walk(nodes: readonly RenderableFileNode[], renderDepth: number) {
     for (const node of nodes) {
       const chain =
-        node.type === 'directory' ? extendChain(node, childrenById, loadedPaths) : [node];
+        node.type === 'directory'
+          ? extendFileTreePreviewChain(node, childrenById, loadedPaths)
+          : [node];
       const terminus = chain[chain.length - 1];
       rows.push({ node: terminus, chain, renderDepth });
       if (isExpandableFileTreeNode(terminus) && isChainExpanded(chain, expandedPaths)) {
-        walk(childrenFor(terminus, childrenById), renderDepth + 1);
+        walk(childrenById.get(terminus.id) ?? [], renderDepth + 1);
+      }
+    }
+  }
+
+  walk(rootNodes, 0);
+  return rows;
+}
+
+export function buildNestedVisibleRows(
+  rootNodes: readonly NestedFileNode[],
+  expandedPaths: Set<string>
+): Array<TreeRow<NestedFileNode>> {
+  const rows: Array<TreeRow<NestedFileNode>> = [];
+
+  function walk(nodes: readonly NestedFileNode[], renderDepth: number) {
+    for (const node of nodes) {
+      const chain = node.type === 'directory' ? extendNestedDirectoryChain(node) : [node];
+      const terminus = chain[chain.length - 1];
+      rows.push({ node: terminus, chain, renderDepth });
+      if (isExpandableFileTreeNode(terminus) && isChainExpanded(chain, expandedPaths)) {
+        walk(terminus.children, renderDepth + 1);
       }
     }
   }

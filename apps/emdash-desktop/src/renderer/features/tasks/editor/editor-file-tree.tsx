@@ -15,7 +15,7 @@ import React, { useRef, useState } from 'react';
 import { CompactedPathLabel } from '@renderer/features/tasks/editor/compacted-path-label';
 import type { FilesStore } from '@renderer/features/tasks/editor/stores/files-store';
 import {
-  buildVisibleRows,
+  buildFileTreeVisibleRows,
   isExpandableFileTreeNode,
   isChainExpanded,
   isOpenableFileTreeNode,
@@ -507,7 +507,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
 
   const visibleRows = files
-    ? buildVisibleRows(
+    ? buildFileTreeVisibleRows(
         files.rootNodes,
         editorView.expandedPaths,
         files.childrenById,

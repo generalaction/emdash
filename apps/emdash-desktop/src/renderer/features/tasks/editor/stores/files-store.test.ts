@@ -405,8 +405,14 @@ describe('FilesStore', () => {
     store.dispose();
   });
 
-  it('registers an expanded compact row terminus discovered after loading the head', async () => {
-    mocks.openProjection.mockResolvedValue(openResult([node(1, '/repo/docs', 'directory')]));
+  it('registers a preview compact row terminus once its real node is loaded', async () => {
+    mocks.openProjection.mockResolvedValue(
+      openResult([
+        node(1, '/repo/docs', 'directory', null, false, [
+          { name: 'api-reference', path: '/repo/docs/api-reference' },
+        ]),
+      ])
+    );
     mocks.registerDir.mockImplementation(async (_p, _w, _s, dirId) => {
       if (dirId === 1) {
         emitProjection(2, [

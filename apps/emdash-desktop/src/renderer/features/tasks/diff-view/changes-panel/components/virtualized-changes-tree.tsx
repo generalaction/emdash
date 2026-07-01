@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  buildVisibleRows,
+  buildNestedVisibleRows,
   isChainExpanded,
   type TreeRow,
 } from '@renderer/features/tasks/file-tree/tree-utils';
@@ -51,7 +51,7 @@ export function VirtualizedChangesTree({
   }, [tree.directoryPaths, collapsedPaths]);
 
   const visibleRows = useMemo(
-    () => buildVisibleRows(tree.rootNodes, expandedPaths),
+    () => buildNestedVisibleRows(tree.rootNodes, expandedPaths),
     [tree, expandedPaths]
   );
 
