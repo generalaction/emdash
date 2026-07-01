@@ -28,12 +28,26 @@ export interface AgentDiff {
   newText: string;
 }
 
+/**
+ * An image carried on a synthesized user message update. Structurally
+ * compatible with AcpPromptImage (defined in state.ts); duplicated here to
+ * avoid a circular import since state.ts imports AgentUpdate from this file.
+ */
+export interface AgentImage {
+  /** Raw base64 data, no `data:` URL prefix. */
+  data: string;
+  mimeType: string;
+  name?: string;
+}
+
 export type AgentUpdate =
   | {
       kind: 'message';
       role: 'user' | 'assistant';
       messageId: string | null;
       text: string;
+      /** Image attachments on synthesized user messages. Not set on real agent events. */
+      images?: AgentImage[];
     }
   | {
       kind: 'thinking';

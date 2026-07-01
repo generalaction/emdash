@@ -7,6 +7,7 @@ export default defineConfig({
     logger: 'src/logger/index.ts',
     'logger-pino': 'src/logger/pino/index.ts',
     'logger-transport': 'src/logger/transport/index.ts',
+    markdown: 'src/markdown/index.ts',
   },
   format: ['esm'],
   dts: true,

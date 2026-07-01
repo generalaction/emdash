@@ -333,6 +333,9 @@ importers:
       '@chenglou/pretext':
         specifier: ^0.0.8
         version: 0.0.8
+      '@emdash/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@fontsource-variable/inter':
         specifier: ^5.2.8
         version: 5.2.8
@@ -363,6 +366,9 @@ importers:
       beautiful-mermaid:
         specifier: ^1.1.3
         version: 1.1.3
+      mdast-util-to-string:
+        specifier: ^4.0.0
+        version: 4.0.0
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
@@ -381,6 +387,12 @@ importers:
       unified:
         specifier: ^11.0.5
         version: 11.0.5
+      unist-util-visit:
+        specifier: ^5.1.0
+        version: 5.1.0
+      vfile:
+        specifier: ^6.0.3
+        version: 6.0.3
     devDependencies:
       '@storybook/addon-docs':
         specifier: ^10.4.5
@@ -538,6 +550,9 @@ importers:
       '@emdash/chat-ui':
         specifier: workspace:*
         version: link:../chat-ui
+      '@emdash/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@fontsource-variable/jetbrains-mono':
         specifier: 5.2.8
         version: 5.2.8

@@ -47,7 +47,11 @@ export class DefaultConversationSeeder {
     runInAction(() => {
       for (const [id, store] of conversations.conversations) {
         if (store.isInitialConversation) {
-          this.paneLayout.open('conversation', { conversationId: id }, { preview: false });
+          if (store.data.type === 'acp') {
+            this.paneLayout.open('acp-chat', { conversationId: id }, { preview: false });
+          } else {
+            this.paneLayout.open('conversation', { conversationId: id }, { preview: false });
+          }
           return;
         }
       }

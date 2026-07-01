@@ -12,6 +12,13 @@ import { vars } from './styles/theme.css';
 /** Max-width of the centered content column — matches user message cards. */
 const CONTAINER_WIDTH = '42rem';
 
+/**
+ * Horizontal gutter applied to the scroll container, pinned overlay, and
+ * composer slot so the centered content column keeps breathing room from the
+ * viewport edge once the viewport is narrower than CONTAINER_WIDTH.
+ */
+const CONTENT_GUTTER = '16px';
+
 /** Outer clip container — clips the pinned overlay during scroll handoff. */
 export const outerClip = style({
   position: 'relative',
@@ -35,6 +42,13 @@ export const scrollContainer = style({
   // change contentRect.width, which would trigger prose re-wrap ("flash") and
   // transient height desync ("overlap") on every thinking expand/collapse.
   scrollbarGutter: 'stable',
+  // Horizontal breathing room so the centered content column never touches the
+  // viewport edge when the viewport is narrower than CONTAINER_WIDTH. Applied on
+  // this flow ancestor (not the content column) so the width probe and the
+  // absolutely-positioned rows both shrink correctly. The pinned overlay and
+  // composer slot carry the same gutter to stay aligned.
+  paddingLeft: CONTENT_GUTTER,
+  paddingRight: CONTENT_GUTTER,
 });
 
 /** Virtualizer canvas — positions all rows absolutely inside this container. */
@@ -74,6 +88,10 @@ export const pinnedOverlay = style({
   top: 0,
   zIndex: 10,
   willChange: 'transform',
+  // Match the scroll container gutter so the pinned card aligns with the
+  // scrolled rows instead of jumping 16px when a user message pins.
+  paddingLeft: CONTENT_GUTTER,
+  paddingRight: CONTENT_GUTTER,
 });
 
 /**
@@ -89,6 +107,19 @@ export const defaultContentClass = style({
 });
 
 /**
+ * Content overlay slot — non-scrolling cover above the transcript/scroll,
+ * below the composer. Click-through by default so an empty/transparent overlay
+ * never blocks scrolling; host content opts into pointer-events as needed.
+ * z-index 15: above pinnedOverlay (10), below composerSlotClass (20).
+ */
+export const contentOverlaySlotClass = style({
+  position: 'absolute',
+  inset: 0,
+  zIndex: 15,
+  pointerEvents: 'none',
+});
+
+/**
  * Composer slot — sticky positioning layer only. Transparent so the scrollbar
  * at the viewport edge remains fully visible.
  */
@@ -99,6 +130,10 @@ export const composerSlotClass = style({
   right: 0,
   width: '100%',
   zIndex: 20,
+  // Match the scroll container gutter so the composer column aligns with the
+  // message column when the viewport is narrower than CONTAINER_WIDTH.
+  paddingLeft: CONTENT_GUTTER,
+  paddingRight: CONTENT_GUTTER,
 });
 
 /**

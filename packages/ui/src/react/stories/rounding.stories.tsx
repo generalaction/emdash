@@ -33,7 +33,7 @@ export const Scale: Story = {
         </h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Each swatch uses{' '}
-          <code className={cx(sx({ fontFamily: 'mono' }))}>border-radius: var(--radius-*)</code>.
+          <code className={cx(sx({ fontFamily: 'mono' }))}>border-radius: var(--em-radius-*)</code>.
           The anchor is <code className={cx(sx({ fontFamily: 'mono' }))}>--radius: 0.5rem</code>;
           change it to rescale the whole system.
         </p>

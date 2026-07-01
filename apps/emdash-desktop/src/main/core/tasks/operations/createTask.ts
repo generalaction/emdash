@@ -93,7 +93,7 @@ export async function prepareCreateTask(
     const ic = params.taskConfig.initialConversation;
     const configObj: ConversationConfig = {
       version: '1',
-      type: 'pty',
+      type: ic.type ?? 'pty',
       ...(ic.autoApprove !== undefined && { autoApprove: ic.autoApprove }),
       ...(ic.initialPrompt?.trim() && { initialPrompt: ic.initialPrompt.trim() }),
       ...(ic.model && { model: ic.model }),

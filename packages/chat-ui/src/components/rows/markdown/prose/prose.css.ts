@@ -192,6 +192,13 @@ export const mentionPlain = style({
   color: vars.mentionFg,
 });
 
+/** Slash-command chip — reuses the generic mention chip tint. */
+export const commandChip = style({
+  borderRadius: vars.radiusSm,
+  background: vars.mentionCustomBg,
+  color: vars.mentionCustomFg,
+});
+
 export const linkFragment = style({
   color: vars.link,
   textDecoration: 'underline',

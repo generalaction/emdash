@@ -12,13 +12,15 @@
 
 import { Mention as TipTapMention } from '@tiptap/extension-mention';
 import { PluginKey } from '@tiptap/pm/state';
+import { ReactNodeViewRenderer } from '@tiptap/react';
 import type { SuggestionOptions } from '@tiptap/suggestion';
+import { SlashCommandPill } from '../slash-command-pill';
 import type { CommandItem } from '../types';
 
 const slashCommandPluginKey = new PluginKey('slashCommand');
 
 export function buildSlashCommandExtension(
-  suggestion: Partial<SuggestionOptions<CommandItem, any>>,
+  suggestion: Partial<SuggestionOptions<CommandItem>>,
   onExecute: (item: CommandItem) => void
 ) {
   return TipTapMention.extend({
@@ -28,6 +30,9 @@ export function buildSlashCommandExtension(
         id: { default: null },
         name: { default: null },
       };
+    },
+    addNodeView() {
+      return ReactNodeViewRenderer(SlashCommandPill, { as: 'span' });
     },
   }).configure({
     HTMLAttributes: { class: 'slash-command-chip' },
@@ -72,7 +77,7 @@ export function buildSlashCommandExtension(
             .run();
         }
       },
-      ...(suggestion as Partial<SuggestionOptions<any, any>>),
+      ...(suggestion as Partial<SuggestionOptions>),
     },
   });
 }

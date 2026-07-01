@@ -7,6 +7,7 @@
  */
 
 import { globalStyle } from '@vanilla-extract/css';
+import { tokenVars } from '@theme/tokens.css';
 import './layers.css';
 
 globalStyle('*, *::before, *::after', {
@@ -22,7 +23,7 @@ globalStyle('html, body', {
     reset: {
       margin: 0,
       lineHeight: 'inherit',
-      fontFamily: 'var(--font-sans)',
+      fontFamily: tokenVars.fontSans,
     },
   },
 });

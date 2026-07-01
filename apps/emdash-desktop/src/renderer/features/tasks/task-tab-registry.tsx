@@ -17,6 +17,7 @@
 import { browserTabProvider } from '@renderer/features/browser/browser-tab-provider';
 import { type KindOf, type OpenArgsOf } from '@renderer/features/tabs/core/tab-provider-registry';
 import { createTabView } from '@renderer/features/tabs/tab-view-factory';
+import type { ConversationType } from '@shared/core/conversations/conversations';
 import { acpChatTabProvider } from './acp/acp-chat-tab-provider';
 import { conversationTabProvider } from './conversations/conversation-tab-provider';
 import { diffTabProvider } from './diff-view/diff-tab-provider';
@@ -43,3 +44,13 @@ export const { useTabLayout, useTabSelection, TabLayoutProvider } = taskTabView;
 
 // Keep the registry export for consumers that still import it directly.
 export const taskTabRegistry = taskTabView.registry;
+
+/**
+ * Maps a conversation type to the corresponding tab kind so callers
+ * don't have to branch on 'acp' vs 'pty' inline.
+ */
+export function conversationTabKind(
+  type: ConversationType | undefined
+): 'conversation' | 'acp-chat' {
+  return type === 'acp' ? 'acp-chat' : 'conversation';
+}

@@ -99,6 +99,16 @@ export class AcpSessionManager {
     return rt.setMode(conversationId, modeId);
   }
 
+  async setConfigOption(
+    conversationId: string,
+    configId: string,
+    value: string
+  ): Promise<Result<void, AcpRuntimeError>> {
+    const rt = this.findRuntime(conversationId);
+    if (!rt) return ok();
+    return rt.setConfigOption(conversationId, configId, value);
+  }
+
   stop(conversationId: string): Result<void, AcpRuntimeError> {
     const key = this.convToMachine.get(conversationId);
     const runtime = key ? this.runtimes.get(key) : undefined;

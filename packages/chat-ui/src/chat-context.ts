@@ -22,6 +22,7 @@ import { createSharedCaches } from './core/caches';
 import type { ChatConfig } from './core/config';
 import { DEFAULT_CONFIG, buildChatTheme } from './core/config';
 import type { ChatHighlighter } from './core/highlight/highlighter';
+import type { CommandProvider } from './core/markdown/command-provider';
 import type { MentionProvider } from './core/markdown/mention-provider';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
 import type { ChatTheme } from './core/theme';
@@ -48,6 +49,11 @@ export type ChatContextOptions = {
    * Threaded into parse caches so @-token spans render as pills.
    */
   mentionProvider?: MentionProvider;
+  /**
+   * Optional synchronous /-command metadata resolver.
+   * Threaded into parse caches so /command spans render as chips.
+   */
+  commandProvider?: CommandProvider;
 };
 
 export type ChatContext = {
@@ -57,6 +63,8 @@ export type ChatContext = {
   readonly config: ChatConfig;
   /** Optional mention provider threaded into parse caches. */
   readonly mentionProvider: MentionProvider | undefined;
+  /** Optional command provider threaded into parse caches. */
+  readonly commandProvider: CommandProvider | undefined;
   /** Shared content-addressed caches (highlight / diff / mermaid / richInline). */
   readonly sharedCaches: SharedCaches;
   /**
@@ -109,6 +117,7 @@ export function createChatContext(opts: ChatContextOptions = {}): ChatContext {
     theme,
     config,
     mentionProvider: opts.mentionProvider,
+    commandProvider: opts.commandProvider,
     sharedCaches,
     measureEpoch,
     bumpEpoch,
