@@ -1,5 +1,6 @@
 import { gitErrorMessage, type DiffTarget, type GitObjectRef } from '@emdash/core/git';
 import { err, ok } from '@emdash/shared';
+import { lastTurnBaselineService } from '@main/core/git/last-turn-baseline-service';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -33,6 +34,27 @@ export const gitWorktreeController = createRPCController({
       return ok({ changes: await workspace.gitWorktree.getChangedFiles(base) });
     } catch (error) {
       log.error('gitCtrl.getChangedFiles failed', { projectId, workspaceId, base, error });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
+    }
+  },
+
+  /**
+   * Files changed during the most recent agent turn: the diff between the worktree snapshot
+   * captured at the start of that turn and the current worktree (#1635). Returns
+   * `{ baseline: null }` when no turn has been captured yet (e.g. before the first prompt or
+   * after a restart), so the renderer can fall back to the session diff.
+   */
+  getLastTurnChanges: async (projectId: string, workspaceId: string) => {
+    try {
+      const baseTree = lastTurnBaselineService.getBaseline(workspaceId);
+      if (!baseTree) return ok({ baseline: null });
+      const workspace = resolveWorkspace(projectId, workspaceId);
+      if (!workspace) return err({ type: 'not_found' as const });
+      const headTree = await workspace.gitWorktree.snapshotWorktreeTree();
+      const changes = await workspace.gitWorktree.getChangedFilesBetweenTrees(baseTree, headTree);
+      return ok({ baseline: { baseTree, changes } });
+    } catch (error) {
+      log.error('gitCtrl.getLastTurnChanges failed', { projectId, workspaceId, error });
       return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },

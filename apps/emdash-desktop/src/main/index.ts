@@ -22,6 +22,7 @@ import { setBrowserCorsRelaxationSettings } from './core/browser/browser-profile
 import { browserWebContentsRegistry } from './core/browser/browser-webcontents-registry';
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
+import { lastTurnBaselineService } from './core/git/last-turn-baseline-service';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
 import { githubAccountRegistry } from './core/github/accounts/github-account-registry-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
@@ -140,6 +141,7 @@ void app.whenReady().then(async () => {
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
   remoteTmuxReaperService.initialize();
+  lastTurnBaselineService.initialize();
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
