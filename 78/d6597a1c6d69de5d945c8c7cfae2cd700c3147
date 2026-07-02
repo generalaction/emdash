@@ -1,0 +1,35 @@
+apps/emdash-desktop/src/shared/core/automations/validation.ts
+  s_ebd582c25f699a::t_dc264be4ecdcdc 9-10,16-24,28-36,40,44,50-63
+  s_ebd582c25f699a::t_b2dcc5a19cade7 2,7-8,11-15,25-27
+  s_ebd582c25f699a::t_8e8e70f109ac1f 6
+apps/emdash-desktop/src/main/core/telemetry/automation-telemetry.ts
+  s_ebd582c25f699a::t_d5a4b94f19770e 18
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_ebd582c25f699a::t_bb4a62dc32adec 68,72
+apps/emdash-desktop/src/main/core/automations/repo.ts
+  s_ebd582c25f699a::t_f08308dbea654f 31,37,195
+apps/emdash-desktop/package.json
+  s_ebd582c25f699a::t_a7ff48f3fc853d 80
+apps/emdash-desktop/src/shared/core/automations/config.ts
+  s_ebd582c25f699a::t_648d2fc03470a4 7-8
+apps/emdash-desktop/src/shared/core/automations/validation.test.ts
+  s_ebd582c25f699a::t_929eca230f82d8 1-26
+pnpm-lock.yaml
+  s_ebd582c25f699a::t_7830677d39c8f9 101-103,6887-6889,14570-14573
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "78d6597a1c6d69de5d945c8c7cfae2cd700c3147",
+  "prompts": {},
+  "sessions": {
+    "s_ebd582c25f699a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f240e-d50b-7425-a452-475a906b05e9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
