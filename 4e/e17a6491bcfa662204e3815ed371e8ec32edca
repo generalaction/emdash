@@ -1,0 +1,77 @@
+agents/workflows/nx.md
+  s_16e572b4eafcd6::t_eac187e4d8fec6 31-32
+  s_16e572b4eafcd6::t_efc8c1a0d706f0 8-10
+  s_16e572b4eafcd6::t_e6ba1e8ebd7a18 24-26
+agents/conventions/ipc.md
+  s_16e572b4eafcd6::t_fd08a7ae6e2aa7 14
+  s_16e572b4eafcd6::t_43c30f62ce62f9 35
+agents/risky-areas/ssh.md
+  s_16e572b4eafcd6::t_df2a19a019faba 5-8
+agents/architecture/renderer.md
+  s_16e572b4eafcd6::t_145bdd0f7ffc3c 22-26
+agents/integrations/acp.md
+  s_16e572b4eafcd6::t_433290ba6f11e4 1-46
+agents/conventions/main-patterns.md
+  s_16e572b4eafcd6::t_52b3e8c42d5d50 70-72,74,76,79,87
+  s_16e572b4eafcd6::t_6ef931882686e1 9
+  s_16e572b4eafcd6::t_899165381b03eb 109-111
+  s_2d2a78e3a93ef3::t_bc5740f7295ca4 88
+agents/workflows/testing.md
+  s_16e572b4eafcd6::t_5a244a779a5ff1 25,30,32
+agents/architecture/main-process.md
+  s_16e572b4eafcd6::t_f7097044059bb2 52
+  s_16e572b4eafcd6::t_478c13bf992a15 60-61
+  s_16e572b4eafcd6::t_42f08db817d482 9-13,15-16,18,23-25,28-29,32-33,37-39,43,47
+agents/README.md
+  s_16e572b4eafcd6::t_a9b0184c87697c 18
+agents/integrations/mcp.md
+  s_16e572b4eafcd6::t_0884c9c89429c5 5-9,11-15,20-23,29-32
+agents/risky-areas/database.md
+  s_16e572b4eafcd6::t_d3996e591282ff 13
+  s_16e572b4eafcd6::t_e9bdac42dc6d22 126-128,133-134,137-148
+agents/conventions/renderer-patterns.md
+  s_16e572b4eafcd6::t_752b8356cc1cd7 93
+  s_16e572b4eafcd6::t_4743cca62d6f40 39-40
+agents/integrations/providers.md
+  s_16e572b4eafcd6::t_80f9169b4a37f6 56-62,64-65
+  s_16e572b4eafcd6::t_9333a700b7e0ee 5-6,8-14,16-26
+agents/conventions/versioned-schemas.md
+  s_16e572b4eafcd6::t_5f04f1858e683c 117,199
+  s_16e572b4eafcd6::t_27c6f1d5a717b1 70
+  s_16e572b4eafcd6::t_b4730af2957e23 151
+  s_16e572b4eafcd6::t_c00c4753949580 40-41,48
+  s_16e572b4eafcd6::t_bf2710e1e28e06 223-225,228-239
+AGENTS.md
+  s_16e572b4eafcd6::t_8a6fae790d768e 423
+agents/conventions/config-files.md
+  s_16e572b4eafcd6::t_3034aae608bee8 26
+agents/architecture/shared.md
+  s_16e572b4eafcd6::t_8896cfc98fc93a 5-7,9-10,12-16,18,20-25,27,29
+  s_16e572b4eafcd6::t_25f1c7b03dcf0d 33-34,36-43,45-46,50-53
+agents/workflows/remote-development.md
+  s_16e572b4eafcd6::t_cb6991d043095d 5-8,10-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "4ee17a6491bcfa662204e3815ed371e8ec32edca",
+  "prompts": {},
+  "sessions": {
+    "s_16e572b4eafcd6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed874068-9a8d-4aef-9b31-d0ede6db1f77",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_2d2a78e3a93ef3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9575ae58-d4be-4f2a-be08-b282d1717a18",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
