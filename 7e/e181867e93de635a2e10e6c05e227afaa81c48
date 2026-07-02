@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/mcp/components/McpCard.tsx
+  s_6351f329c43858::t_28d196fe5e32bc 35,37,75-87
+apps/emdash-desktop/src/renderer/features/mcp/components/ProviderSelect.tsx
+  s_6351f329c43858::t_3e1ec2d0672896 23-26,32-75,77-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "7ee181867e93de635a2e10e6c05e227afaa81c48",
+  "prompts": {},
+  "sessions": {
+    "s_6351f329c43858": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f226d-3623-71bd-9cf3-df2a6d7ea84a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
