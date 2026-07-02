@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/renderer/lib/CronPicker/types.ts
+  s_ebd582c25f699a::t_de70cc234ab79a 2
+apps/emdash-desktop/src/renderer/lib/CronPicker/CronPicker.tsx
+  s_ebd582c25f699a::t_e3adb5b863bc9a 22,28-32,213,221-224,251-262,271,273,275,277,362
+  s_ebd582c25f699a::t_20342460a99124 282-283
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationSettingsFields.tsx
+  s_ebd582c25f699a::t_e3f3b085a265d2 9-10,77-87
+  s_ebd582c25f699a::t_fc6205350a8667 62-66,69-72,74-76,88-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "e971a315a63481296fde85d95f344aff0d07a2ef",
+  "prompts": {},
+  "sessions": {
+    "s_ebd582c25f699a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f240e-d50b-7425-a452-475a906b05e9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
