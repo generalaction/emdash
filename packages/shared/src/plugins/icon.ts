@@ -1,8 +1,8 @@
 import z from 'zod';
-import { definePluginAsset, type InferPluginAssetType } from '../../../lib/plugins/asset';
+import { definePluginAsset, type InferPluginAssetType } from './asset';
 
 /**
- * Agent icon asset.
+ * Plugin icon asset.
  *
  * Icons are pure data so they can be validated, sent over IPC, and rendered
  * by a single app-owned component. The plugin's responsibility is to provide
@@ -41,5 +41,5 @@ export const iconAsset = definePluginAsset(
   })
 );
 
-export type AgentIconAsset = InferPluginAssetType<typeof iconAsset>;
-export type AgentIconVariant = AgentIconAsset['variants'][number];
+export type PluginIconAsset = InferPluginAssetType<typeof iconAsset>;
+export type PluginIconVariant = PluginIconAsset['variants'][number];

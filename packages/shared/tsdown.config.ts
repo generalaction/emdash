@@ -8,11 +8,12 @@ export default defineConfig({
     'logger-pino': 'src/logger/pino/index.ts',
     'logger-transport': 'src/logger/transport/index.ts',
     markdown: 'src/markdown/index.ts',
+    plugins: 'src/plugins/index.ts',
   },
   format: ['esm'],
   dts: true,
   deps: {
-    neverBundle: ['pino', 'fast-redact'],
+    neverBundle: ['pino', 'fast-redact', 'zod'],
   },
   sourcemap: true,
   clean: true,

@@ -1,7 +1,6 @@
+import { createPluginFramework, iconAsset } from '@emdash/shared/plugins';
 import z from 'zod';
 import { hostDependencyCapability } from '../../host-dependencies/capability';
-import { createPluginFramework } from '../../lib/plugins/framework';
-import { iconAsset } from './assets/icon';
 import { acpCapability } from './capabilities/acp';
 import { autoApproveCapability } from './capabilities/auto-approve';
 import { effortCapability } from './capabilities/effort';
@@ -52,8 +51,6 @@ export const { definePlugin, registerPluginBehavior } = createPluginFramework(
 export type CLIAgentPluginDefinition = ReturnType<typeof definePlugin>;
 export type CLIAgentPluginProvider = ReturnType<typeof registerPluginBehavior>;
 
-export type { AgentIconAsset, AgentIconVariant } from './assets/icon';
-
 // Convenience re-exports for impl packages
 export type { AgentCommand, CommandContext } from './capabilities/prompt';
 export type {
@@ -77,6 +74,3 @@ export type { IHooksBehavior } from './capabilities/hooks';
 export type { IMcpBehavior, McpServerRegistration } from './capabilities/mcp';
 export type { IPlugins } from './capabilities/plugins';
 export type { ISessionsBehavior } from './capabilities/sessions';
-
-// Typed registry factory
-export { createPluginRegistry } from '../../lib/plugins/registry';

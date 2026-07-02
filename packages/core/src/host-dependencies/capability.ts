@@ -1,5 +1,5 @@
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
-import { definePluginCapability } from '../lib/plugins/capability';
 import type { DependencyStatus, ProbeResult } from './runtime/types';
 
 export const PLATFORMS = ['macos', 'windows', 'linux'] as const;

@@ -503,6 +503,9 @@ importers:
       '@emdash/core':
         specifier: workspace:*
         version: link:../core
+      '@emdash/shared':
+        specifier: workspace:*
+        version: link:../shared
       smol-toml:
         specifier: ^1.6.0
         version: 1.6.1
@@ -534,6 +537,9 @@ importers:
       pino:
         specifier: ^9.14.0
         version: 9.14.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^20.19.42
