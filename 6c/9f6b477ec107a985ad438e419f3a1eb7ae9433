@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/mcp/components/ProviderSelect.tsx
+  s_7d9bc0e041d6e1::t_414b83d5d4acfc 23,31,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "6c9f6b477ec107a985ad438e419f3a1eb7ae9433",
+  "prompts": {},
+  "sessions": {
+    "s_7d9bc0e041d6e1": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f239d-615c-757d-92fe-958e9b40df65",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
