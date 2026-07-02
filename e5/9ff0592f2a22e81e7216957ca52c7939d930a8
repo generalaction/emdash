@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/main/core/agent-hooks/hook-reverse-tunnel-instance.ts
+  s_eed632dd684dc4::t_70fc51e1a23297 1-15
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_eed632dd684dc4::t_dcc7b89fe1a1e6 293-294,299-316
+  s_eed632dd684dc4::t_8f3e89e5e40543 317
+apps/emdash-desktop/src/main/core/agent-hooks/hook-reverse-tunnel.ts
+  s_eed632dd684dc4::t_0b530bd61a414b 1-78,80-82,89-96,98-155
+  s_eed632dd684dc4::t_a1271f1bc13886 79,83-88,97
+apps/emdash-desktop/src/main/core/agent-hooks/hook-reverse-tunnel.test.ts
+  s_eed632dd684dc4::t_ed6c77cdc7fa93 3
+  s_eed632dd684dc4::t_331b1fc2607732 32-35
+  s_eed632dd684dc4::t_ce64567f001c24 1-2,4-31,36-110,112-114,116-201
+  s_eed632dd684dc4::t_ad991cdfe4ae13 111
+  s_eed632dd684dc4::t_63ce3fe0d8dda1 115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "e59ff0592f2a22e81e7216957ca52c7939d930a8",
+  "prompts": {},
+  "sessions": {
+    "s_eed632dd684dc4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a5e6339f-8ea7-42e7-b5a8-47dcd96ce0a1",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
