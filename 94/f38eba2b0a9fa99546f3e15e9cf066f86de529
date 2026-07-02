@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/index.test.ts
+  s_d1bec9f20aaf90::t_9936f210b198a4 179-212
+packages/plugins/src/agents/impl/antigravity/index.ts
+  s_d1bec9f20aaf90::t_46519db56756dd 17-53,100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "94f38eba2b0a9fa99546f3e15e9cf066f86de529",
+  "prompts": {},
+  "sessions": {
+    "s_d1bec9f20aaf90": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f12e2-370b-7253-a7d0-76d5e44437cb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
