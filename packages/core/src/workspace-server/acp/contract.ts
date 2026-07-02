@@ -63,7 +63,8 @@ export const acpContract = {
       })
     )
     .output(acpResult),
-  killAllTerminals: oc.input(z.void().optional()).output(z.void()),
+  killConversationTerminals: oc.input(z.object({ conversationId: z.string() })).output(z.void()),
+  killTerminal: oc.input(z.object({ terminalId: z.string() })).output(z.void()),
   getHistory: oc
     .input(
       z.object({

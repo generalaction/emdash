@@ -10,7 +10,12 @@ import type {
   ComposerModelOption,
   ComposerNotice,
   ComposerNoticeVariant,
+  ComposerPermissionModeOption,
+  ContextMentionProvider,
+  MentionItem,
+  CommandItem,
 } from '.';
+import type { ComposerPermissionRequest } from './permission-band';
 import * as s from '@react/story-layout.css';
 import { sx } from '@styles/utilities/sprinkles.css';
 
@@ -72,6 +77,108 @@ const MOCK_AGENTS: ComposerAgentOption[] = [
   },
 ];
 
+// ── Mock @ mentions ───────────────────────────────────────────────────────────
+
+const MOCK_FILES: MentionItem[] = [
+  {
+    id: 'src/components/chat-composer.tsx',
+    label: 'src/components/chat-composer.tsx',
+    name: 'chat-composer.tsx',
+    kind: 'file',
+    description: 'UI',
+  },
+  {
+    id: 'src/components/prompt-editor/prompt-editor.tsx',
+    label: 'src/components/prompt-editor/prompt-editor.tsx',
+    name: 'prompt-editor.tsx',
+    kind: 'file',
+    description: 'UI',
+  },
+  {
+    id: 'src/lib/file-icons.ts',
+    label: 'src/lib/file-icons.ts',
+    name: 'file-icons.ts',
+    kind: 'file',
+  },
+  { id: 'package.json', label: 'package.json', name: 'package.json', kind: 'file' },
+  { id: 'README.md', label: 'README.md', name: 'README.md', kind: 'file' },
+  {
+    id: 'issue-42',
+    label: 'issue-42',
+    name: 'Issue #42: Dark mode toggle',
+    kind: 'issue',
+    description: 'open',
+  },
+  {
+    id: 'handleSubmit',
+    label: 'handleSubmit',
+    name: 'handleSubmit()',
+    kind: 'symbol',
+    description: 'chat-composer.tsx',
+  },
+];
+
+const mockMentionProvider: ContextMentionProvider = {
+  async search(query: string) {
+    await new Promise((r) => setTimeout(r, 80));
+    const q = query.toLowerCase();
+    return q
+      ? MOCK_FILES.filter(
+          (f) =>
+            f.label.toLowerCase().includes(q) ||
+            (f.name ?? '').toLowerCase().includes(q) ||
+            (f.description ?? '').toLowerCase().includes(q)
+        )
+      : MOCK_FILES;
+  },
+};
+
+// ── Mock / commands ───────────────────────────────────────────────────────────
+
+const MOCK_COMMANDS: CommandItem[] = [
+  { id: 'clear', name: 'clear', label: 'Clear conversation', description: 'Wipe the conversation history.', behavior: 'execute' },
+  { id: 'model', name: 'model', label: 'Switch model', description: 'Change the active model.', behavior: 'execute' },
+  { id: 'help', name: 'help', label: 'Help', description: 'Show available commands.', behavior: 'insert' },
+  { id: 'compact', name: 'compact', label: 'Compact', description: 'Summarize and compact the context.', behavior: 'execute' },
+];
+
+async function queryCommands(query: string): Promise<CommandItem[]> {
+  await new Promise((r) => setTimeout(r, 60));
+  const q = query.toLowerCase();
+  return q ? MOCK_COMMANDS.filter((c) => c.name.includes(q) || (c.label ?? '').toLowerCase().includes(q)) : MOCK_COMMANDS;
+}
+
+// ── Mock permission modes (approveSettings) ───────────────────────────────────
+
+const MOCK_PERMISSION_MODES: Record<string, ComposerPermissionModeOption> = {
+  default: { name: 'Default', description: 'Prompt for each sensitive action.' },
+  acceptEdits: { name: 'Accept edits', description: 'Auto-allow file edits, prompt for shell commands.' },
+  plan: { name: 'Plan only', description: 'Agent proposes changes but never writes files.' },
+  bypass: { name: 'Bypass all', description: 'Auto-approve everything — use with caution.' },
+};
+
+// ── Mock permission requests ──────────────────────────────────────────────────
+
+const MOCK_PERMISSION_REQUESTS: ComposerPermissionRequest[] = [
+  {
+    requestId: 'req-1',
+    title: 'Read a File',
+    options: [
+      { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'allow-always', name: 'Allow always', kind: 'allow_always' },
+      { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
+    ],
+  },
+  {
+    requestId: 'req-2',
+    title: 'Execute a Shell Command',
+    options: [
+      { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
+    ],
+  },
+];
+
 interface PlaygroundArgs {
   disabled: boolean;
   isWorking: boolean;
@@ -84,6 +191,8 @@ interface PlaygroundArgs {
   noticeVariant: ComposerNoticeVariant;
   noticeTitle: string;
   noticeMessage: string;
+  showPermissionModeSelector: boolean;
+  showPermissionRequest: boolean;
 }
 
 function ComposerPlayground(args: PlaygroundArgs) {
@@ -99,15 +208,23 @@ function ComposerPlayground(args: PlaygroundArgs) {
     noticeVariant,
     noticeTitle,
     noticeMessage,
+    showPermissionModeSelector,
+    showPermissionRequest,
   } = args;
 
   const [selectedAgent, setSelectedAgent] = useState('claude');
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [dismissed, setDismissed] = useState(false);
+  const [selectedPermissionMode, setSelectedPermissionMode] = useState('default');
+  const [permissionQueue, setPermissionQueue] = useState<ComposerPermissionRequest[]>([]);
 
   useEffect(() => {
     if (showNotice) setDismissed(false);
   }, [showNotice]);
+
+  useEffect(() => {
+    setPermissionQueue(showPermissionRequest ? MOCK_PERMISSION_REQUESTS : []);
+  }, [showPermissionRequest]);
 
   const noticeVisible = showNotice && !dismissed;
   const notice: ComposerNotice | null = noticeVisible
@@ -151,6 +268,15 @@ function ComposerPlayground(args: PlaygroundArgs) {
         onStop={() => {}}
         onAttach={showAttachButton ? () => {} : undefined}
         notice={notice}
+        mentionProvider={mockMentionProvider}
+        queryCommands={queryCommands}
+        onCommand={(item) => console.log('command:', item.id)}
+        permissionModeOptions={showPermissionModeSelector ? MOCK_PERMISSION_MODES : null}
+        selectedPermissionMode={selectedPermissionMode}
+        onPermissionModeChange={setSelectedPermissionMode}
+        permissionRequest={permissionQueue[0] ?? null}
+        permissionQueueCount={permissionQueue.length}
+        onResolvePermission={() => setPermissionQueue((q) => q.slice(1))}
       />
     </Box>
   );
@@ -197,6 +323,15 @@ const meta: Meta<PlaygroundArgs> = {
     },
     noticeTitle: { control: 'text', description: 'Optional notice heading.' },
     noticeMessage: { control: 'text', description: 'Notice body copy.' },
+    showPermissionModeSelector: {
+      control: 'boolean',
+      description: 'Render the approval-policy (Permissions…) selector in the toolbar.',
+    },
+    showPermissionRequest: {
+      control: 'boolean',
+      description:
+        'Seed a queue of mock permission requests. Resolve each with the SplitButton to advance to the next.',
+    },
   },
   args: {
     disabled: false,
@@ -211,6 +346,8 @@ const meta: Meta<PlaygroundArgs> = {
     noticeTitle: 'Turn limit reached',
     noticeMessage:
       'The agent hit the maximum number of turn requests. Send a new message to continue.',
+    showPermissionModeSelector: true,
+    showPermissionRequest: false,
   },
 };
 
