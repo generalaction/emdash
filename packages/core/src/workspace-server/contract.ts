@@ -1,0 +1,37 @@
+import { oc } from '@orpc/contract';
+import { z } from 'zod';
+import { acpContract } from './acp/contract';
+import { depsContract } from './deps/contract';
+import { filesContract } from './files/contract';
+import { gitContract } from './git/contract';
+import { ptyAgentContract } from './pty-agent/contract';
+import { clientHelloSchema, serverHelloSchema } from './versions/schemas';
+
+export const workspaceContract = {
+  health: oc.input(z.object({}).optional()).output(
+    z.object({
+      status: z.literal('ok'),
+      version: z.string(),
+      uptimeMs: z.number(),
+    })
+  ),
+  initialize: oc
+    .input(clientHelloSchema)
+    .errors({
+      PROTOCOL_INCOMPATIBLE: {
+        data: z.object({
+          action: z.enum(['upgrade-client', 'upgrade-server']),
+          clientProtocolVersion: z.string(),
+          serverProtocolVersion: z.string(),
+        }),
+      },
+    })
+    .output(serverHelloSchema),
+  git: gitContract,
+  files: filesContract,
+  deps: depsContract,
+  acp: acpContract,
+  ptyAgent: ptyAgentContract,
+};
+
+export type WorkspaceContract = typeof workspaceContract;

@@ -372,6 +372,19 @@ export function opencodeMcpAdapter(
 }
 
 /**
+ * MiMo Code adapter — OpenCode fork sharing the same MCP config schema
+ * (type:'remote'/url for HTTP; type:'local'/command[] for stdio).
+ * Write: ~/.config/mimocode/mimocode.json; read lower-priority config.json and
+ * project-local .mimocode/mimocode.json for existing installs.
+ */
+export function mimocodeMcpAdapter(
+  configPath = '.config/mimocode/mimocode.json',
+  legacyReadPaths = ['.config/mimocode/config.json', '.mimocode/mimocode.json']
+) {
+  return opencodeMcpAdapter(configPath, legacyReadPaths);
+}
+
+/**
  * Copilot adapter — injects `tools: ['*']` on write; strips it on read.
  * Write: ~/.copilot/mcp-config.json; legacy read: ~/.config/github-copilot/mcp.json.
  */

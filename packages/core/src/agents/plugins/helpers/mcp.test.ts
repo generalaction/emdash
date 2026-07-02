@@ -7,6 +7,7 @@ import {
   crushMcpAdapter,
   droidMcpAdapter,
   grokMcpAdapter,
+  mimocodeMcpAdapter,
   opencodeMcpAdapter,
   passthroughMcpAdapter,
 } from './mcp';
@@ -551,6 +552,91 @@ describe('opencodeMcpAdapter', () => {
       args: ['-y', '@local/mcp'],
       env: { CANONICAL: '1' },
     });
+  });
+});
+
+// ── MiMo Code adapter ───────────────────────────────────────────────────────
+
+describe('mimocodeMcpAdapter', () => {
+  const adapter = mimocodeMcpAdapter();
+
+  it('writes global MiMo Code MCP config using the OpenCode-compatible schema', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'playwright',
+        command: 'npx',
+        args: ['-y', '@playwright/mcp'],
+        env: { BROWSER: 'chromium' },
+        enabled: false,
+      },
+      {
+        name: 'docs',
+        transport: 'http',
+        type: 'http',
+        url: 'https://example.com/mcp',
+        headers: { Authorization: 'Bearer token' },
+        timeout: 30_000,
+      },
+    ]);
+
+    const raw = await fs.read('.config/mimocode/mimocode.json');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!) as { mcp: Record<string, Record<string, unknown>> };
+
+    expect(parsed.mcp.playwright).toEqual({
+      type: 'local',
+      command: ['npx', '-y', '@playwright/mcp'],
+      enabled: false,
+      environment: { BROWSER: 'chromium' },
+    });
+    expect(parsed.mcp.docs).toEqual({
+      type: 'remote',
+      url: 'https://example.com/mcp',
+      enabled: true,
+      headers: {
+        Authorization: 'Bearer token',
+        Accept: 'application/json, text/event-stream',
+      },
+      timeout: 30_000,
+    });
+  });
+
+  it('reads lower-priority MiMo Code config paths', async () => {
+    const fs = createMemoryFs({
+      '.config/mimocode/config.json': jsonFile({
+        mcp: {
+          globalLegacy: {
+            type: 'local',
+            command: ['node', 'server.js'],
+          },
+        },
+      }),
+      '.mimocode/mimocode.json': jsonFile({
+        mcp: {
+          local: {
+            type: 'local',
+            command: ['npx', '-y', '@local/mcp'],
+            environment: { LOCAL: '1' },
+          },
+        },
+      }),
+    });
+
+    await expect(adapter.readServers(fs)).resolves.toEqual([
+      {
+        name: 'globalLegacy',
+        command: 'node',
+        args: ['server.js'],
+      },
+      {
+        name: 'local',
+        command: 'npx',
+        args: ['-y', '@local/mcp'],
+        env: { LOCAL: '1' },
+      },
+    ]);
   });
 });
 

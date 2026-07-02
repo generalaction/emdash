@@ -419,6 +419,7 @@ pnpm run test
 - [Testing workflow](agents/workflows/testing.md)
 - [Worktrees workflow](agents/workflows/worktrees.md)
 - [Remote development workflow](agents/workflows/remote-development.md)
+- [Workspace server architecture](agents/architecture/workspace-server.md)
 - [Provider integration](agents/integrations/providers.md)
 - [MCP integration](agents/integrations/mcp.md)
 - [IPC conventions](agents/conventions/ipc.md)
