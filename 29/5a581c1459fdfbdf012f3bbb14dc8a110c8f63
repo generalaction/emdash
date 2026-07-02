@@ -1,0 +1,43 @@
+packages/plugins/src/agents/impl/index.test.ts
+  s_92b3f30d736897::t_9a7fdfc46e7304 179,189
+  s_92b3f30d736897::t_11754846a47f5a 180-188,190-192
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_92b3f30d736897::t_04e522b94cffa7 253,255-278
+  s_92b3f30d736897::t_26d11fca67256e 5,237-252,254
+  s_92b3f30d736897::t_e88e1426456d1b 279-280
+packages/plugins/src/agents/impl/codebuff/index.ts
+  s_92b3f30d736897::t_982fc2c4e11292 2-6,19-23,42
+packages/plugins/src/agents/impl/freebuff/index.ts
+  s_92b3f30d736897::t_0713f1a097d82a 2-6,19-23,40
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_92b3f30d736897::t_7771a735b2b2e6 426-430,463-464
+  s_92b3f30d736897::t_c3368f28bfa709 431-440,442-445,447-462
+  s_92b3f30d736897::t_a10c72e2dc3c8e 441,446
+  s_2e30b9e568af27::t_8d600fd27427b9 425
+agents/integrations/mcp.md
+  s_92b3f30d736897::t_8af1ded844ed7c 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "295a581c1459fdfbdf012f3bbb14dc8a110c8f63",
+  "prompts": {},
+  "sessions": {
+    "s_2e30b9e568af27": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "440d5763-8c78-404c-bed3-ac74ca52ba23",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_92b3f30d736897": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2184-9b1a-7c2a-93c5-557c4ee7b5b2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
