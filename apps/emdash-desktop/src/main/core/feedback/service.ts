@@ -1,9 +1,6 @@
 import { env } from '@main/lib/env';
 import { log } from '@main/lib/logger';
 
-// Kept in sync with services/feedback-relay.
-const RELAY_SECRET_HEADER = 'x-emdash-feedback-secret';
-
 export interface FeedbackFileInput {
   filename: string;
   mimeType: string;
@@ -31,7 +28,7 @@ export async function submitFeedback({ content, files }: SubmitFeedbackInput): P
   const headers: Record<string, string> = {};
   const secret = env.build.VITE_FEEDBACK_RELAY_SECRET;
   if (secret) {
-    headers[RELAY_SECRET_HEADER] = secret;
+    headers.authorization = `Bearer ${secret}`;
   }
 
   const response = await fetch(relayUrl, { method: 'POST', body: formData, headers });

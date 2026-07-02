@@ -1,11 +1,9 @@
 export interface Env {
   SLACK_BOT_TOKEN: string;
   SLACK_CHANNEL_ID: string;
-  // When set, requests must carry a matching x-emdash-feedback-secret header.
   RELAY_SHARED_SECRET?: string;
 }
 
-const SECRET_HEADER = 'x-emdash-feedback-secret';
 const MAX_FILES = 10;
 const MAX_TOTAL_BYTES = 8 * 1024 * 1024;
 
@@ -16,7 +14,8 @@ export default {
     }
 
     if (env.RELAY_SHARED_SECRET) {
-      const provided = request.headers.get(SECRET_HEADER) ?? '';
+      const auth = request.headers.get('authorization') ?? '';
+      const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       const enc = new TextEncoder();
       const a = enc.encode(provided);
       const b = enc.encode(env.RELAY_SHARED_SECRET);
@@ -97,8 +96,6 @@ async function postMessage(env: Env, text: string): Promise<void> {
   });
 }
 
-// Slack's external upload flow (the old files.upload is retired): per file, get
-// an upload URL, POST the bytes, then complete — with the text as initial_comment.
 async function uploadFilesWithMessage(env: Env, text: string, files: File[]): Promise<void> {
   const uploaded: { id: string; title: string }[] = [];
 
