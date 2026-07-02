@@ -1,18 +1,19 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
+import { acpContract } from './acp/contract';
+import { depsContract } from './deps/contract';
+import { filesContract } from './files/contract';
+import { gitContract } from './git/contract';
 import { clientHelloSchema, serverHelloSchema } from './versions/schemas';
 
 export const workspaceContract = {
-  health: oc
-    .input(z.object({}).optional())
-    .output(
-      z.object({
-        status: z.literal('ok'),
-        version: z.string(),
-        uptimeMs: z.number(),
-      })
-    ),
-
+  health: oc.input(z.object({}).optional()).output(
+    z.object({
+      status: z.literal('ok'),
+      version: z.string(),
+      uptimeMs: z.number(),
+    })
+  ),
   initialize: oc
     .input(clientHelloSchema)
     .errors({
@@ -25,6 +26,10 @@ export const workspaceContract = {
       },
     })
     .output(serverHelloSchema),
+  git: gitContract,
+  files: filesContract,
+  deps: depsContract,
+  acp: acpContract,
 };
 
 export type WorkspaceContract = typeof workspaceContract;

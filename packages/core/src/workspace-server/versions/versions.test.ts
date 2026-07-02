@@ -85,7 +85,7 @@ describe('negotiateProtocol', () => {
 describe('protocolUpgradeMessage', () => {
   it('returns a desktop app upgrade message for upgrade-client', () => {
     const msg = protocolUpgradeMessage('upgrade-client');
-    expect(msg).toContain('Emdash desktop app');
+    expect(msg).toContain('Emdash app');
     expect(msg.length).toBeGreaterThan(0);
   });
 
