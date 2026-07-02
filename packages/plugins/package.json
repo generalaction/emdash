@@ -14,6 +14,14 @@
     "./agents": {
       "types": "./dist/agents.d.mts",
       "default": "./dist/agents.mjs"
+    },
+    "./integrations": {
+      "types": "./dist/integrations.d.mts",
+      "default": "./dist/integrations.mjs"
+    },
+    "./issues": {
+      "types": "./dist/issues.d.mts",
+      "default": "./dist/issues.mjs"
     }
   },
   "scripts": {
@@ -31,6 +39,7 @@
     "@agentclientprotocol/codex-acp": "^1.0.2",
     "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/core": "workspace:*",
+    "@emdash/shared": "workspace:*",
     "smol-toml": "^1.6.0",
     "zod": "^4.4.3"
   },
