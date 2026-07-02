@@ -1,0 +1,34 @@
+apps/emdash-desktop/src/main/core/agent-hooks/hook-reverse-tunnel.ts
+  s_b0b98ca629bbaf::t_879680cb29517f 127
+  s_b0b98ca629bbaf::t_4cc7f939520915 42-59,64,68,70-76,78,81-83,86,90-94,100-102,120,128-130,164-165
+  s_b0b98ca629bbaf::t_42b04cdd839de4 166-167
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_b0b98ca629bbaf::t_ee0da853cedb82 204
+apps/emdash-desktop/src/main/core/agent-hooks/hook-config-service.ts
+  s_b0b98ca629bbaf::t_844b1050dbc4a1 107-108,111,117-119
+  s_b0b98ca629bbaf::t_ac6cf84b7e5817 93-98,103,106,116
+  s_b0b98ca629bbaf::t_149c32bc7cb316 92
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_b0b98ca629bbaf::t_2b91c7235e59b6 44,165,205-206,210-211,220,222,272-273
+  s_b0b98ca629bbaf::t_f9a0d6418ca4bc 373-397,399-405
+  s_b0b98ca629bbaf::t_bb29a999e518df 15
+  s_b0b98ca629bbaf::t_8d61dd2ac2dae4 398
+apps/emdash-desktop/src/main/core/agent-hooks/hook-reverse-tunnel.test.ts
+  s_b0b98ca629bbaf::t_88dd49aed8df0c 46-50,54-59,61,166-176,206-216,223,228,232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "72c815689304fe540332d14ec7f3d7e0939b3309",
+  "prompts": {},
+  "sessions": {
+    "s_b0b98ca629bbaf": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2473-8313-7c9f-9755-54ebfd3121fc",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
