@@ -46,10 +46,6 @@ export const router = i.router({
     };
   }),
 
-  // ---------------------------------------------------------------------------
-  // Domain stubs — handlers are implemented in follow-up work.
-  // ---------------------------------------------------------------------------
-
   git: {
     inspectPath: i.git.inspectPath.handler(notImplemented),
     ensureRepository: i.git.ensureRepository.handler(notImplemented),
