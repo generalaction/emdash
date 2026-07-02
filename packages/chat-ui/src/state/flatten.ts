@@ -50,7 +50,56 @@ function itemIsUser(item: ChatItem): boolean {
   return item.kind === 'message' && (item as ChatMessage).role === 'user';
 }
 
+// ── ItemNode ──────────────────────────────────────────────────────────────────
+
+/**
+ * A node in the item forest built by `buildItemForest`.
+ *
+ * `item` is the raw `ChatItem`. `children` are nodes whose `item.parentId`
+ * equals `item.id`, in the original transcript order.
+ */
+export type ItemNode = {
+  item: ChatItem;
+  children: ItemNode[];
+};
+
+/**
+ * Build a flat items array into a forest.
+ *
+ * Returns a Map from item id → `ItemNode` and a Set of child item ids (items
+ * that have a valid `parentId` pointing to another item in the same tier).
+ * Orphan `parentId` references (pointing outside the tier) are ignored — the
+ * orphaned item is treated as a root.
+ */
+export function buildItemForest(items: readonly ChatItem[]): {
+  nodes: Map<string, ItemNode>;
+  childIds: Set<string>;
+} {
+  const nodes = new Map<string, ItemNode>();
+  const childIds = new Set<string>();
+
+  for (const item of items) {
+    nodes.set(item.id, { item, children: [] });
+  }
+
+  for (const item of items) {
+    const parentId = (item as { parentId?: string }).parentId;
+    if (parentId && nodes.has(parentId)) {
+      nodes.get(parentId)!.children.push(nodes.get(item.id)!);
+      childIds.add(item.id);
+    }
+  }
+
+  return { nodes, childIds };
+}
+
 // ── flattenTier ───────────────────────────────────────────────────────────────
+
+/** Node segmenter: called instead of `segment()` when the item has children. */
+export type NodeSegmenter = {
+  segmentNode(node: ItemNode, ctx: SegmentCtx): RenderUnit[];
+  chrome?: GroupChrome;
+};
 
 /**
  * Segment one tier (committed or activeTurn) into a flat RenderUnit[].
@@ -59,6 +108,11 @@ function itemIsUser(item: ChatItem): boolean {
  * It is used to resolve the gapBefore of the first unit in this tier against
  * the cross-tier boundary seam. Omit for the committed tier (it is always
  * first).
+ *
+ * `nodeSegmenters` is an optional map from `ChatItem.kind` to a `NodeSegmenter`
+ * that is called *instead* of the regular `segment()` when an item has children
+ * (i.e. other items reference it via `parentId`). Child items are consumed by
+ * the parent's composite unit and skipped in the top-level iteration.
  */
 export function flattenTier(
   items: readonly ChatItem[],
@@ -68,7 +122,8 @@ export function flattenTier(
     { segment(item: ChatItem, ctx: SegmentCtx): RenderUnit[]; chrome?: GroupChrome }
   >,
   unitDefs?: Record<string, { margin?: Margin }>,
-  prevKind?: string
+  prevKind?: string,
+  nodeSegmenters?: Record<string, NodeSegmenter>
 ): RenderUnit[] {
   const out: RenderUnit[] = [];
 
@@ -78,19 +133,45 @@ export function flattenTier(
   // Track the kind of the last emitted unit for seam resolution.
   let lastKind = prevKind;
 
+  // Build the forest when node segmenters are provided so that parent items
+  // are routed to the composite path and child items are skipped.
+  let childIds: Set<string> | undefined;
+  let nodes: Map<string, ItemNode> | undefined;
+  if (nodeSegmenters && items.length > 0) {
+    const forest = buildItemForest(items);
+    if (forest.childIds.size > 0) {
+      childIds = forest.childIds;
+      nodes = forest.nodes;
+    }
+  }
+
   for (const item of items) {
-    const seg = segmenters[item.kind];
-    if (!seg) continue;
+    // Skip items that are children of another item in this tier.
+    if (childIds?.has(item.id)) continue;
 
-    const group = seg.segment(item, ctx);
+    // Route parent items (those with children) to the node segmenter.
+    const node = nodes?.get(item.id);
+    const nodeSeg = node && node.children.length > 0 ? nodeSegmenters?.[item.kind] : undefined;
+
+    let group: RenderUnit[];
+    let chrome: GroupChrome | undefined;
+
+    if (nodeSeg) {
+      group = nodeSeg.segmentNode(node!, ctx);
+      chrome = nodeSeg.chrome;
+    } else {
+      const seg = segmenters[item.kind];
+      if (!seg) continue;
+      group = seg.segment(item, ctx);
+      chrome = seg.chrome;
+    }
+
     stampGroupRoles(group);
-
     if (group.length === 0) continue;
 
     // Copy chrome from the segmenter onto each unit (allows UnitRow to read it
     // without looking up the segmenter). The chrome value is stable (segmenter
     // is module-level, not data-dependent).
-    const chrome = seg.chrome;
     if (chrome) {
       for (const u of group) {
         u.chrome = chrome;

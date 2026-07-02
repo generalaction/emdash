@@ -202,8 +202,10 @@ export function streamFileOp(opts: {
   pathMs?: number;
   /** Final status dispatched after the last path (default: 'done'). */
   finalStatus?: ToolStatus;
+  /** Optional id of the parent tool call for hierarchical rendering. */
+  parentId?: string;
 }): ScriptStep[] {
-  const { id, op, paths, pathMs = 300, finalStatus = 'done' } = opts;
+  const { id, op, paths, pathMs = 300, finalStatus = 'done', parentId } = opts;
 
   if (paths.length === 0) return [];
 
@@ -213,7 +215,14 @@ export function streamFileOp(opts: {
   const firstOps: FileOp[] = [{ path: paths[0] }];
   result.push({
     kind: 'call',
-    fn: (api: TranscriptApi) => driveEvent(api, { type: 'file_op_start', id, op, ops: firstOps }),
+    fn: (api: TranscriptApi) =>
+      driveEvent(api, {
+        type: 'file_op_start',
+        id,
+        op,
+        ops: firstOps,
+        ...(parentId !== undefined ? { parentId } : {}),
+      }),
   });
 
   // Reveal remaining paths one by one, each update includes all paths so far.
@@ -261,8 +270,19 @@ export function streamDiff(opts: {
   chunkMs?: number;
   /** Final status dispatched after the full content (default: 'done'). */
   finalStatus?: ToolStatus;
+  /** Optional id of the parent tool call for hierarchical rendering. */
+  parentId?: string;
 }): ScriptStep[] {
-  const { id, path, oldText, newText, headerMs = 700, chunkMs = 140, finalStatus = 'done' } = opts;
+  const {
+    id,
+    path,
+    oldText,
+    newText,
+    headerMs = 700,
+    chunkMs = 140,
+    finalStatus = 'done',
+    parentId,
+  } = opts;
 
   const result: ScriptStep[] = [];
 
@@ -270,7 +290,14 @@ export function streamDiff(opts: {
   result.push({
     kind: 'call',
     fn: (api: TranscriptApi) =>
-      driveEvent(api, { type: 'diff_start', id, path, oldText, newText: '' }),
+      driveEvent(api, {
+        type: 'diff_start',
+        id,
+        path,
+        oldText,
+        newText: '',
+        ...(parentId !== undefined ? { parentId } : {}),
+      }),
   });
 
   // Stage B — reveal content line-by-line; each update carries the full snapshot.
@@ -313,16 +340,24 @@ export function streamTool(opts: {
   id: string;
   name: string;
   inputSummary?: string;
+  /** Optional id of the parent tool call for hierarchical rendering. */
+  parentId?: string;
   steps: ToolUpdateStep[];
 }): ScriptStep[] {
-  const { id, name, inputSummary, steps: updates } = opts;
+  const { id, name, inputSummary, parentId, steps: updates } = opts;
 
   const result: ScriptStep[] = [];
 
   result.push({
     kind: 'call',
     fn: (api: TranscriptApi) =>
-      driveEvent(api, { type: 'tool_start', id, name, ...(inputSummary ? { inputSummary } : {}) }),
+      driveEvent(api, {
+        type: 'tool_start',
+        id,
+        name,
+        ...(inputSummary ? { inputSummary } : {}),
+        ...(parentId !== undefined ? { parentId } : {}),
+      }),
   });
 
   for (const u of updates) {
@@ -354,14 +389,22 @@ export function streamExecute(opts: {
   durationMs?: number;
   /** Final status (default: 'done'). */
   finalStatus?: ToolStatus;
+  /** Optional id of the parent tool call for hierarchical rendering. */
+  parentId?: string;
 }): ScriptStep[] {
-  const { id, command, durationMs = 800, finalStatus = 'done' } = opts;
+  const { id, command, durationMs = 800, finalStatus = 'done', parentId } = opts;
 
   return [
     {
       kind: 'call',
       fn: (api: TranscriptApi) =>
-        driveEvent(api, { type: 'execute_start', id, command, startedAt: Date.now() }),
+        driveEvent(api, {
+          type: 'execute_start',
+          id,
+          command,
+          startedAt: Date.now(),
+          ...(parentId !== undefined ? { parentId } : {}),
+        }),
     },
     { kind: 'wait', ms: durationMs },
     {

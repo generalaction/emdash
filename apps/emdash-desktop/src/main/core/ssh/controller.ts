@@ -11,7 +11,6 @@ import { telemetryService } from '@main/lib/telemetry';
 import type {
   ConnectionState,
   ConnectionTestResult,
-  FileEntry,
   SshConfig,
   SshConfigHost,
   SshConnectionUsage,
@@ -177,8 +176,9 @@ export const sshController = createRPCController({
         });
       });
     }
-    await sshCredentialService.deleteAllCredentials(id);
     await db.delete(sshConnectionsTable).where(eq(sshConnectionsTable.id, id));
+
+    await sshCredentialService.deleteAllCredentials(id);
   },
 
   /** Test a connection without persisting anything. */
@@ -223,61 +223,5 @@ export const sshController = createRPCController({
       .update(sshConnectionsTable)
       .set({ name, updatedAt: new Date().toISOString() })
       .where(eq(sshConnectionsTable.id, id));
-  },
-
-  /** List files/directories at a remote path via SFTP. */
-  listFiles: async ({
-    connectionId,
-    path: remotePath,
-  }: {
-    connectionId: string;
-    path: string;
-  }): Promise<FileEntry[]> => {
-    let proxy = sshConnectionManager.getProxy(connectionId);
-
-    if (!proxy || !proxy.isConnected) {
-      proxy = await sshConnectionManager.connect(connectionId);
-    }
-
-    return new Promise((resolve, reject) => {
-      proxy!.sftp((err, sftp) => {
-        if (err) {
-          reject(new Error(`SFTP error: ${err.message}`));
-          return;
-        }
-        sftp.readdir(remotePath, (readdirErr, list) => {
-          sftp.end();
-          if (readdirErr) {
-            reject(new Error(`readdir error: ${readdirErr.message}`));
-            return;
-          }
-          const entries: FileEntry[] = list
-            .map((item) => {
-              const mode = item.attrs.mode ?? 0;
-              const isDir = (mode & 0o170000) === 0o040000;
-              const isLink = (mode & 0o170000) === 0o120000;
-              const entryType: FileEntry['type'] = isLink
-                ? 'symlink'
-                : isDir
-                  ? 'directory'
-                  : 'file';
-              const fullPath = `${remotePath.replace(/\/$/, '')}/${item.filename}`;
-              return {
-                path: fullPath,
-                name: item.filename,
-                type: entryType,
-                size: item.attrs.size ?? 0,
-                modifiedAt: new Date((item.attrs.mtime ?? 0) * 1000),
-              };
-            })
-            .sort((a, b) => {
-              if (a.type === 'directory' && b.type !== 'directory') return -1;
-              if (a.type !== 'directory' && b.type === 'directory') return 1;
-              return a.name.localeCompare(b.name);
-            });
-          resolve(entries);
-        });
-      });
-    });
   },
 });

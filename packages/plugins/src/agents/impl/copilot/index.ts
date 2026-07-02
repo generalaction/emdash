@@ -6,6 +6,7 @@ import {
 } from '@emdash/core/agents/plugins/helpers';
 import { buildCopilotHookConfig } from './hooks';
 import { icon } from './icon';
+import { buildCopilotTrustBehavior } from './trust';
 
 export const plugin = definePlugin(
   {
@@ -37,6 +38,9 @@ export const plugin = definePlugin(
     sessions: {
       kind: 'resumable',
     },
+    trust: {
+      kind: 'supported',
+    },
   },
   { icon }
 );
@@ -54,4 +58,5 @@ export const provider = registerPluginBehavior(plugin, {
   },
   hooks: buildCopilotHookConfig(),
   mcp: copilotMcpAdapter(),
+  trust: buildCopilotTrustBehavior(),
 });

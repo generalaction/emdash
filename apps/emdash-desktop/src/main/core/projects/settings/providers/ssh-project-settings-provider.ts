@@ -1,8 +1,7 @@
 import path from 'node:path';
+import type { IFileSystem } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import type { FileSystemProvider } from '@main/core/fs/types';
 import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-defaults';
 import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { UpdateProjectSettingsError } from '@shared/projects';
@@ -21,14 +20,20 @@ export class SshProjectSettingsProvider extends DbProjectSettingsProvider {
 
   constructor(
     projectId: string,
-    private readonly fs: SshFileSystem,
+    fs: Pick<IFileSystem, 'exists' | 'readText'>,
     defaultBranchFallback: string = 'main',
-    private readonly rootFs?: Pick<FileSystemProvider, 'mkdir' | 'realPath'>,
+    private readonly rootFs?: {
+      mkdir(
+        path: string,
+        options?: { recursive?: boolean }
+      ): Promise<Result<void, { message: string }>>;
+      realPath(path: string): Promise<Result<string, { message: string }>>;
+    },
     projectPath: string = '/',
     private readonly ctx?: IExecutionContext,
     options: DbProjectSettingsProviderOptions = {}
   ) {
-    super(projectId, projectPath, defaultBranchFallback, fs, options);
+    super(projectId, projectPath, defaultBranchFallback, fs, path.posix.join, options);
   }
 
   private async getHomeDirectory(): Promise<Result<string, UpdateProjectSettingsError>> {

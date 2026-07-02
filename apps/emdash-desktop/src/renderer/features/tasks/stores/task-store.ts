@@ -11,6 +11,7 @@ import type {
   Task,
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
+import type { TaskViewSnapshot } from '@shared/view-state';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
@@ -102,7 +103,8 @@ export class TaskStore {
     path: string,
     workspaceId: string,
     gitRepository: GitRepositoryStore,
-    sshConnectionId?: string
+    sshConnectionId?: string,
+    savedSnapshot?: TaskViewSnapshot
   ): void {
     this.data = data;
     this.ensureRegisteredStores();
@@ -112,6 +114,7 @@ export class TaskStore {
     this.phase = null;
     this.errorMessage = undefined;
     this.provisionProgressMessage = null;
+    if (savedSnapshot) this.viewModel?.restoreSnapshot(savedSnapshot);
     this.viewModel?.initialize();
   }
 

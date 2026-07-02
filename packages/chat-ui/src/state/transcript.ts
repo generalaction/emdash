@@ -191,12 +191,26 @@ export function createTranscript(): TranscriptApi {
   const rebuildIdMap = (items: readonly ChatItem[]): void => {
     idMap.clear();
     for (let i = 0; i < items.length; i++) {
+      if (import.meta.env.DEV && idMap.has(items[i].id)) {
+        console.error(
+          `[chat-ui] duplicate ChatItem id "${items[i].id}" at index ${i} — ` +
+            'item ids must be unique across the entire transcript. ' +
+            'This will corrupt id-keyed lookups (heightmap, scroll anchor, reconcile).'
+        );
+      }
       idMap.set(items[i].id, i);
     }
   };
 
   const patchIdMap = (items: readonly ChatItem[], offset: number): void => {
     for (let i = 0; i < items.length; i++) {
+      if (import.meta.env.DEV && idMap.has(items[i].id)) {
+        console.error(
+          `[chat-ui] duplicate ChatItem id "${items[i].id}" at append offset ${offset + i} — ` +
+            'item ids must be unique across the entire transcript. ' +
+            'This will corrupt id-keyed lookups (heightmap, scroll anchor, reconcile).'
+        );
+      }
       idMap.set(items[i].id, offset + i);
     }
   };

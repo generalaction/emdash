@@ -1,7 +1,7 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
-import type { WorktreeHost } from '@main/core/projects/worktrees/hosts/worktree-host';
 import type { WorktreeService } from '@main/core/projects/worktrees/worktree-service';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 
 /**
  * Context passed to every workspace setup step executor.
@@ -15,12 +15,15 @@ export type StepContext = {
   repoPath: string;
   /** Absolute path to the worktree pool directory where worktrees are created. */
   worktreePoolPath: string;
-  /** Filesystem host (local or SSH). */
-  host: WorktreeHost;
+  /** Runtime-owned files capability for the project machine. */
+  files: IFilesRuntime;
   /** Project settings provider (used by copy-preserved-files). */
   projectSettings: ProjectSettingsProvider;
   /** Worktree service that owns checkout validation, stale cleanup, and checkout creation. */
-  worktreeService: Pick<WorktreeService, 'serveBranchWorktree'>;
+  worktreeService: Pick<
+    WorktreeService,
+    'findBranchAnywhere' | 'removeWorktree' | 'serveBranchWorktree'
+  >;
   /**
    * Resolved worktree path from a preceding `add-worktree` step.
    * Populated by the executor after a successful add-worktree step so that

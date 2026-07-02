@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONVERSATION_FRESH_RECOVERY_GRACE_MS } from '@main/core/conversations/conversation-session-supervisor';
 import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { ptyExitChannel } from '@shared/core/pty/ptyEvents';
@@ -35,10 +36,9 @@ vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   },
 }));
 
-vi.mock('@main/core/agent-hooks/workspace-trust-service', () => ({
+vi.mock('@main/core/agents/workspace-trust', () => ({
   workspaceTrustService: {
-    maybeAutoTrustLocal: vi.fn(),
-    maybeAutoTrustSsh: vi.fn(),
+    maybeAutoTrust: vi.fn(),
   },
 }));
 
@@ -204,6 +204,7 @@ function sshProvider(
     tmux,
     ctx,
     proxy: proxy as never,
+    filesRuntime: {} as IFilesRuntime,
   });
 }
 
@@ -215,7 +216,7 @@ function conversation(overrides: Partial<Conversation> = {}): Conversation {
     providerId: 'codex',
     title: 'Conversation 1',
     lastInteractedAt: null,
-    providerSessionId: 'provider-session-1',
+    sessionId: 'provider-session-1',
     isInitialConversation: false,
     ...overrides,
   };
@@ -472,7 +473,7 @@ describe('conversation provider respawn state', () => {
       data: fakePty(exitHandlers),
     });
     const provider = sshProvider();
-    const item = conversation({ providerSessionId: undefined });
+    const item = conversation({ sessionId: undefined });
 
     await provider.startSession(item, undefined, true);
 
@@ -493,7 +494,7 @@ describe('conversation provider respawn state', () => {
     });
     const provider = sshProvider();
     const initialPrompt = 'continue this task';
-    const item = conversation({ providerId: 'amp', providerSessionId: undefined });
+    const item = conversation({ providerId: 'amp', sessionId: undefined });
 
     try {
       await provider.startSession(item, undefined, true, initialPrompt);

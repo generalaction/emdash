@@ -15,6 +15,11 @@ vi.mock('@renderer/lib/ipc', () => ({
     browser: {
       unregisterSession: vi.fn(),
     },
+    ssh: {
+      getConnections: vi.fn(async () => []),
+      getConnectionState: vi.fn(async () => ({})),
+      getHealthStates: vi.fn(async () => ({})),
+    },
   },
 }));
 
@@ -28,6 +33,18 @@ vi.mock('@renderer/lib/monaco/monaco-model-registry', () => ({
   },
 }));
 
+vi.mock('@renderer/lib/stores/app-state', () => ({
+  appState: {
+    projects: {
+      projects: new Map(),
+    },
+    sshConnections: {
+      healthFor: vi.fn(() => ({ status: 'ok' })),
+    },
+  },
+  sidebarStore: {},
+}));
+
 vi.mock('@renderer/utils/telemetry-scope', () => ({
   setTelemetryConversationScope: vi.fn(),
 }));
@@ -35,20 +52,20 @@ vi.mock('@renderer/utils/telemetry-scope', () => ({
 // Stub out the React UI components brought in by the definitions bootstrap so
 // the test can run in the node Vitest project without a real DOM.
 vi.mock('@renderer/features/browser/browser-tab-item', () => ({
-  BrowserTabItem: () => null,
-  BrowserTabDragPreview: () => null,
+  BrowserTabBarItem: () => null,
+  BrowserTabBarItemDragPreview: () => null,
 }));
 vi.mock('@renderer/features/tasks/editor/file-tab-item', () => ({
-  FileTabItem: () => null,
-  FileTabDragPreview: () => null,
+  FileTabBarItem: () => null,
+  FileTabBarItemDragPreview: () => null,
 }));
 vi.mock('@renderer/features/tasks/conversations/conversation-tab-item', () => ({
-  ConversationTabItem: () => null,
-  ConversationTabDragPreview: () => null,
+  ConversationTabBarItem: () => null,
+  ConversationTabBarItemDragPreview: () => null,
 }));
 vi.mock('@renderer/features/tasks/diff-view/diff-tab-item', () => ({
-  DiffTabItem: () => null,
-  DiffTabDragPreview: () => null,
+  DiffTabBarItem: () => null,
+  DiffTabBarItemDragPreview: () => null,
   diffGroupSuffix: (group: string) => `(${group})`,
 }));
 vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () => ({
@@ -56,7 +73,20 @@ vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () =>
     (title as string) ?? 'Conversation',
 }));
 
-import type { BrowserResolvedData } from '@renderer/features/browser/browser-tab-provider';
+// ACP imports chat-ui which calls document.createElement at module load time.
+// Stub out the entire chat-store chain to avoid the DOM dependency in node tests.
+vi.mock('@renderer/features/tasks/acp/acp-chat-store', () => ({
+  AcpChatStore: class {
+    conversationId = '';
+    dispose() {}
+    bootstrap() {}
+  },
+}));
+vi.mock('@renderer/features/tasks/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
+import type { BrowserTabResource } from '@renderer/features/browser/browser-tab-resource';
 import { taskTabView } from '@renderer/features/tasks/task-tab-registry';
 import type { ResolvedTab } from './core/tab-provider';
 import { PaneStore } from './pane-store';
@@ -73,6 +103,10 @@ function createTabManager() {
   return new PaneStore(taskTabView.registry, testCtx);
 }
 
+function browserResource(tab: ResolvedTab | undefined): BrowserTabResource | undefined {
+  return tab?.resource as BrowserTabResource | undefined;
+}
+
 describe('PaneStore browser tabs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -85,13 +119,13 @@ describe('PaneStore browser tabs', () => {
 
     manager.open('browser', { initialUrl: 'localhost:5173' });
 
-    const tab = manager.resolvedTabs[0] as ResolvedTab<BrowserResolvedData> | undefined;
+    const tab = manager.resolvedTabs[0];
     expect(tab).toMatchObject({
       kind: 'browser',
       isActive: true,
     });
-    expect(tab?.session.currentUrl).toBe('http://localhost:5173/');
-    expect(tab?.session.partition).toBe('persist:emdash-browser-profile');
+    expect(browserResource(tab)?.session?.currentUrl).toBe('http://localhost:5173/');
+    expect(browserResource(tab)?.session?.partition).toBe('persist:emdash-browser-profile');
   });
 
   it('snapshots and restores browser tabs through tab manager state', () => {
@@ -121,8 +155,8 @@ describe('PaneStore browser tabs', () => {
   it('cleans up browser session state on close', () => {
     const manager = createTabManager();
     manager.open('browser', {});
-    const tab = manager.resolvedTabs[0] as ResolvedTab<BrowserResolvedData> | undefined;
-    const browserId = tab?.browserId ?? '';
+    const tab = manager.resolvedTabs[0];
+    const browserId = browserResource(tab)?.browserId ?? '';
     browserDiagnosticsStore.append({
       browserId,
       level: 'error',
@@ -141,7 +175,7 @@ describe('PaneStore browser tabs', () => {
     const manager = createTabManager();
     manager.open('browser', {});
     const oldTab = manager.resolvedTabs[0];
-    const oldBrowserId = (oldTab as ResolvedTab<BrowserResolvedData> | undefined)?.browserId ?? '';
+    const oldBrowserId = browserResource(oldTab)?.browserId ?? '';
 
     manager.restoreSnapshot({ tabs: [], activeTabId: undefined });
 
@@ -152,8 +186,8 @@ describe('PaneStore browser tabs', () => {
   it('cleans up browser sessions on dispose', () => {
     const manager = createTabManager();
     manager.open('browser', {});
-    const tab = manager.resolvedTabs[0] as ResolvedTab<BrowserResolvedData> | undefined;
-    const browserId = tab?.browserId ?? '';
+    const tab = manager.resolvedTabs[0];
+    const browserId = browserResource(tab)?.browserId ?? '';
 
     manager.dispose();
 
@@ -163,12 +197,12 @@ describe('PaneStore browser tabs', () => {
   it('detaches browser tabs for pane moves without removing session state', () => {
     const manager = createTabManager();
     manager.open('browser', {});
-    const tab = manager.resolvedTabs[0] as ResolvedTab<BrowserResolvedData> | undefined;
-    const browserId = tab?.browserId ?? '';
+    const tab = manager.resolvedTabs[0];
+    const browserId = browserResource(tab)?.browserId ?? '';
 
-    const entry = manager.detachTab(tab?.tabId ?? '');
+    const detached = manager.detachTab(tab?.tabId ?? '');
 
-    expect(entry?.kind).toBe('browser');
+    expect(detached?.entry?.kind).toBe('browser');
     expect(browserSessionStore.getSession(browserId)).toBeDefined();
     expect(manager.resolvedTabs).toEqual([]);
   });
@@ -183,8 +217,8 @@ describe('PaneStore browser tabs', () => {
     });
     const manager = createTabManager();
     manager.open('browser', { initialUrl: 'https://source.example/' });
-    const source = manager.resolvedTabs[0] as ResolvedTab<BrowserResolvedData> | undefined;
-    const sourceBrowserId = source?.browserId ?? '';
+    const source = manager.resolvedTabs[0];
+    const sourceBrowserId = browserResource(source)?.browserId ?? '';
 
     listeners[0]?.({
       sourceBrowserId,
@@ -196,8 +230,8 @@ describe('PaneStore browser tabs', () => {
       kind: 'browser',
       isActive: true,
     });
-    expect(
-      (manager.resolvedTabs[1] as ResolvedTab<BrowserResolvedData> | undefined)?.session.currentUrl
-    ).toBe('https://target.example/path');
+    expect(browserResource(manager.resolvedTabs[1])?.session?.currentUrl).toBe(
+      'https://target.example/path'
+    );
   });
 });

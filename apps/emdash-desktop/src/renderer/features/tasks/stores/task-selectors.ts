@@ -1,7 +1,7 @@
 import { isUnmountedProject } from '@renderer/features/projects/stores/project';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import type { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
-import type { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
+import type { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
 import type { AgentStatus } from '@shared/core/agents/agentEvents';
 import type { Task } from '@shared/core/tasks/tasks';
 import { conversationRegistry } from './conversation-registry';
@@ -41,10 +41,7 @@ export function getTaskView(projectId: string, taskId: string): WorkspaceViewMod
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */
-export function getEditorView(
-  projectId: string,
-  taskId: string
-): FileModelLifecycleStore | undefined {
+export function getEditorView(projectId: string, taskId: string): EditorViewStore | undefined {
   return getTaskView(projectId, taskId)?.editorView;
 }
 

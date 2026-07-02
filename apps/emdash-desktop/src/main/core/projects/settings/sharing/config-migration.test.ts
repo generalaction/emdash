@@ -1,3 +1,4 @@
+import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import {
   inspectProjectConfigMigrations,
@@ -10,30 +11,60 @@ vi.mock('@main/lib/logger', () => ({
   },
 }));
 
+const repoPath = '/repo';
+
 function createFs(initialFiles: Record<string, string>) {
-  const files = new Map(Object.entries(initialFiles));
+  const files = new Map(
+    Object.entries(initialFiles).map(([filePath, content]) => [
+      filePath.startsWith('/') ? filePath : `${repoPath}/${filePath}`,
+      content,
+    ])
+  );
   return {
-    exists: vi.fn((filePath: string) => Promise.resolve(files.has(filePath))),
-    read: vi.fn((filePath: string) => {
+    exists: vi.fn((filePath: string) => Promise.resolve(ok(files.has(filePath)))),
+    readText: vi.fn((filePath: string) => {
       const content = files.get(filePath);
-      if (content === undefined) throw new Error(`Missing file: ${filePath}`);
-      return Promise.resolve({
-        content,
-        truncated: false,
-        totalSize: Buffer.byteLength(content),
-      });
+      if (content === undefined) {
+        return Promise.resolve(
+          err({
+            type: 'fs-error' as const,
+            path: filePath,
+            message: `Missing file: ${filePath}`,
+            code: 'ENOENT',
+          })
+        );
+      }
+      return Promise.resolve(
+        ok({
+          content,
+          truncated: false,
+          totalSize: Buffer.byteLength(content),
+        })
+      );
     }),
-    write: vi.fn((filePath: string, content: string) => {
+    writeText: vi.fn((filePath: string, content: string) => {
       files.set(filePath, content);
-      return Promise.resolve({
-        success: true,
-        bytesWritten: Buffer.byteLength(content),
-      });
+      return Promise.resolve(ok({ bytesWritten: Buffer.byteLength(content) }));
     }),
     content(filePath: string) {
-      return files.get(filePath);
+      return files.get(filePath) ?? files.get(`${repoPath}/${filePath}`);
     },
   };
+}
+
+function createProject(
+  fileSystem: ReturnType<typeof createFs>,
+  settings: Record<string, unknown> = {}
+) {
+  const join = (...parts: string[]) => parts.join('/').replace(/\/+/g, '/');
+  return {
+    repoPath,
+    fileSystem,
+    projectConfigPath: join(repoPath, '.emdash.json'),
+    resolveProjectPath: (relativePath: string) => join(repoPath, relativePath),
+    configPathForDirectory: (directoryPath: string) => join(directoryPath, '.emdash.json'),
+    settings,
+  } as never;
 }
 
 describe('config migration', () => {
@@ -56,7 +87,7 @@ describe('config migration', () => {
       `,
     });
 
-    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([
+    await expect(inspectProjectConfigMigrations(createProject(fs))).resolves.toEqual([
       {
         provider: 'conductor',
         label: 'Conductor',
@@ -80,15 +111,10 @@ describe('config migration', () => {
     });
     const patch = vi.fn().mockResolvedValue({ success: true });
 
-    const result = await migrateProjectConfigFromProvider(
-      {
-        fs,
-        settings: {
-          patch,
-        },
-      } as never,
-      { provider: 'conductor', destination: 'shared' }
-    );
+    const result = await migrateProjectConfigFromProvider(createProject(fs, { patch }), {
+      provider: 'conductor',
+      destination: 'shared',
+    });
 
     expect(result.success).toBe(true);
     expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
@@ -118,7 +144,7 @@ describe('config migration', () => {
       }),
     });
 
-    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([
+    await expect(inspectProjectConfigMigrations(createProject(fs))).resolves.toEqual([
       {
         provider: 'conductor',
         label: 'Conductor',
@@ -129,15 +155,10 @@ describe('config migration', () => {
     ]);
 
     const patch = vi.fn().mockResolvedValue({ success: true });
-    const result = await migrateProjectConfigFromProvider(
-      {
-        fs,
-        settings: {
-          patch,
-        },
-      } as never,
-      { provider: 'conductor', destination: 'shared' }
-    );
+    const result = await migrateProjectConfigFromProvider(createProject(fs, { patch }), {
+      provider: 'conductor',
+      destination: 'shared',
+    });
 
     expect(result.success).toBe(true);
     expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
@@ -162,23 +183,20 @@ describe('config migration', () => {
     const update = vi.fn().mockResolvedValue({ success: true });
 
     const result = await migrateProjectConfigFromProvider(
-      {
-        fs,
-        settings: {
-          get: vi.fn().mockResolvedValue({
-            shellSetup: 'source .envrc',
-            scripts: {
-              setup: 'pnpm install',
-            },
-          }),
-          update,
-        },
-      } as never,
+      createProject(fs, {
+        get: vi.fn().mockResolvedValue({
+          shellSetup: 'source .envrc',
+          scripts: {
+            setup: 'pnpm install',
+          },
+        }),
+        update,
+      }),
       { provider: 'conductor', destination: 'local' }
     );
 
     expect(result.success).toBe(true);
-    expect(fs.write).not.toHaveBeenCalled();
+    expect(fs.writeText).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith({
       shellSetup: 'source .envrc',
       scripts: {
@@ -198,7 +216,7 @@ describe('config migration', () => {
       }),
     });
 
-    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([
+    await expect(inspectProjectConfigMigrations(createProject(fs))).resolves.toEqual([
       {
         provider: 'superset',
         label: 'Superset',
@@ -219,15 +237,10 @@ describe('config migration', () => {
     });
     const patch = vi.fn().mockResolvedValue({ success: true });
 
-    const result = await migrateProjectConfigFromProvider(
-      {
-        fs,
-        settings: {
-          patch,
-        },
-      } as never,
-      { provider: 'superset', destination: 'shared' }
-    );
+    const result = await migrateProjectConfigFromProvider(createProject(fs, { patch }), {
+      provider: 'superset',
+      destination: 'shared',
+    });
 
     expect(result.success).toBe(true);
     expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
@@ -251,22 +264,19 @@ describe('config migration', () => {
     const update = vi.fn().mockResolvedValue({ success: true });
 
     const result = await migrateProjectConfigFromProvider(
-      {
-        fs,
-        settings: {
-          get: vi.fn().mockResolvedValue({
-            scripts: {
-              setup: 'bun install',
-            },
-          }),
-          update,
-        },
-      } as never,
+      createProject(fs, {
+        get: vi.fn().mockResolvedValue({
+          scripts: {
+            setup: 'bun install',
+          },
+        }),
+        update,
+      }),
       { provider: 'superset', destination: 'local' }
     );
 
     expect(result.success).toBe(true);
-    expect(fs.write).not.toHaveBeenCalled();
+    expect(fs.writeText).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith({
       scripts: {
         setup: 'bun install',
@@ -288,9 +298,9 @@ describe('config migration', () => {
       }),
     });
 
-    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([]);
+    await expect(inspectProjectConfigMigrations(createProject(fs))).resolves.toEqual([]);
     await expect(
-      migrateProjectConfigFromProvider({ fs } as never, {
+      migrateProjectConfigFromProvider(createProject(fs), {
         provider: 'superset',
         destination: 'shared',
       })
@@ -318,7 +328,7 @@ describe('config migration', () => {
       }),
     });
 
-    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([
+    await expect(inspectProjectConfigMigrations(createProject(fs))).resolves.toEqual([
       {
         provider: 'paseo',
         label: 'Paseo',
@@ -350,15 +360,10 @@ describe('config migration', () => {
     });
     const patch = vi.fn().mockResolvedValue({ success: true });
 
-    const result = await migrateProjectConfigFromProvider(
-      {
-        fs,
-        settings: {
-          patch,
-        },
-      } as never,
-      { provider: 'paseo', destination: 'shared' }
-    );
+    const result = await migrateProjectConfigFromProvider(createProject(fs, { patch }), {
+      provider: 'paseo',
+      destination: 'shared',
+    });
 
     expect(result.success).toBe(true);
     expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
@@ -386,22 +391,19 @@ describe('config migration', () => {
     const update = vi.fn().mockResolvedValue({ success: true });
 
     const result = await migrateProjectConfigFromProvider(
-      {
-        fs,
-        settings: {
-          get: vi.fn().mockResolvedValue({
-            scripts: {
-              teardown: 'docker compose down',
-            },
-          }),
-          update,
-        },
-      } as never,
+      createProject(fs, {
+        get: vi.fn().mockResolvedValue({
+          scripts: {
+            teardown: 'docker compose down',
+          },
+        }),
+        update,
+      }),
       { provider: 'paseo', destination: 'local' }
     );
 
     expect(result.success).toBe(true);
-    expect(fs.write).not.toHaveBeenCalled();
+    expect(fs.writeText).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith({
       scripts: {
         setup: 'npm ci',
@@ -420,9 +422,9 @@ describe('config migration', () => {
       }),
     });
 
-    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([]);
+    await expect(inspectProjectConfigMigrations(createProject(fs))).resolves.toEqual([]);
     await expect(
-      migrateProjectConfigFromProvider({ fs } as never, {
+      migrateProjectConfigFromProvider(createProject(fs), {
         provider: 'paseo',
         destination: 'shared',
       })
@@ -457,7 +459,7 @@ describe('config migration', () => {
       `,
     });
 
-    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([
+    await expect(inspectProjectConfigMigrations(createProject(fs))).resolves.toEqual([
       {
         provider: 'codex',
         label: 'Codex',
@@ -484,15 +486,10 @@ describe('config migration', () => {
     });
     const patch = vi.fn().mockResolvedValue({ success: true });
 
-    const result = await migrateProjectConfigFromProvider(
-      {
-        fs,
-        settings: {
-          patch,
-        },
-      } as never,
-      { provider: 'codex', destination: 'shared' }
-    );
+    const result = await migrateProjectConfigFromProvider(createProject(fs, { patch }), {
+      provider: 'codex',
+      destination: 'shared',
+    });
 
     expect(result.success).toBe(true);
     expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
@@ -516,22 +513,19 @@ describe('config migration', () => {
     const update = vi.fn().mockResolvedValue({ success: true });
 
     const result = await migrateProjectConfigFromProvider(
-      {
-        fs,
-        settings: {
-          get: vi.fn().mockResolvedValue({
-            scripts: {
-              teardown: 'docker compose down',
-            },
-          }),
-          update,
-        },
-      } as never,
+      createProject(fs, {
+        get: vi.fn().mockResolvedValue({
+          scripts: {
+            teardown: 'docker compose down',
+          },
+        }),
+        update,
+      }),
       { provider: 'codex', destination: 'local' }
     );
 
     expect(result.success).toBe(true);
-    expect(fs.write).not.toHaveBeenCalled();
+    expect(fs.writeText).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith({
       scripts: {
         setup: 'npm ci',
@@ -550,9 +544,9 @@ describe('config migration', () => {
       `,
     });
 
-    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([]);
+    await expect(inspectProjectConfigMigrations(createProject(fs))).resolves.toEqual([]);
     await expect(
-      migrateProjectConfigFromProvider({ fs } as never, {
+      migrateProjectConfigFromProvider(createProject(fs), {
         provider: 'codex',
         destination: 'shared',
       })
@@ -574,7 +568,7 @@ describe('config migration', () => {
     });
 
     await expect(
-      migrateProjectConfigFromProvider({ fs } as never, {
+      migrateProjectConfigFromProvider(createProject(fs), {
         provider: 'conductor',
         destination: 'shared',
       })
@@ -597,7 +591,7 @@ describe('config migration', () => {
       '.emdash.json': JSON.stringify({ scripts: { run: 'pnpm dev' } }),
     });
 
-    const result = await migrateProjectConfigFromProvider({ fs } as never, {
+    const result = await migrateProjectConfigFromProvider(createProject(fs), {
       provider: 'conductor',
       destination: 'shared',
     });
@@ -610,14 +604,14 @@ describe('config migration', () => {
         message: '.emdash.json already exists.',
       },
     });
-    expect(fs.write).not.toHaveBeenCalled();
+    expect(fs.writeText).not.toHaveBeenCalled();
   });
 
   it('returns an error for unknown providers', async () => {
     const fs = createFs({});
 
     await expect(
-      migrateProjectConfigFromProvider({ fs } as never, {
+      migrateProjectConfigFromProvider(createProject(fs), {
         provider: 'unknown' as never,
         destination: 'shared',
       })

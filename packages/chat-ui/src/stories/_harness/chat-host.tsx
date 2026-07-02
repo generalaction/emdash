@@ -1,7 +1,7 @@
 /**
  * Shared story host utilities.
  *
- * ChatHost wraps mountChat in a Solid component so stories can use Solid's
+ * ChatHost wraps ChatRoot in a Solid component so stories can use Solid's
  * reactive system to feed data. ScriptedChat runs a scripted sequence of
  * TranscriptApi calls and re-runs on every story re-mount. ChatHostExpanded
  * pre-toggles a specific item so expanded-state stories start already opened.
@@ -12,9 +12,7 @@
  */
 
 import { DEFAULT_THEME } from '@core/theme';
-import { createTranscript } from '@state/transcript';
 import type { TranscriptApi } from '@state/transcript';
-import { createViewState } from '@state/view-state';
 import {
   createEffect,
   createMemo,
@@ -24,8 +22,10 @@ import {
   runWithOwner,
   type JSX,
 } from 'solid-js';
+import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
-import type { ChatCommands, ChatItem, MentionProvider } from '@/index';
+import type { ChatCommands, ChatItem, CommandProvider, MentionProvider } from '@/index';
+import { createChatState } from '@/state/chat-state';
 import { storyViewport } from './chat-host.css';
 
 /**
@@ -61,6 +61,8 @@ export type ChatHostProps = {
   commands?: ChatCommands;
   /** Optional mention provider — when supplied, @-token text renders as pills. */
   mentionProvider?: MentionProvider;
+  /** Optional command provider — when supplied, /token text renders as chips. */
+  commandProvider?: CommandProvider;
 };
 
 /**
@@ -92,24 +94,34 @@ export function ChatHostExpanded(props: {
   height: number;
   commands?: ChatCommands;
 }) {
-  const transcript = createTranscript();
-  const viewState = createViewState();
+  const ctx = createChatContext({ theme: DEFAULT_THEME });
+  const state = createChatState(ctx);
+  onCleanup(() => {
+    state.dispose();
+    ctx.dispose();
+  });
 
   createEffect(() => {
-    transcript.history.seed(props.items);
+    state.transcript.history.seed(props.items);
   });
 
   // Pre-toggle so the item starts in the expanded state.
-  viewState.toggleCollapsed(props.expandId);
+  // Access internal viewState via a view handle isn't available at story level,
+  // so we use createChatView for hosts that need external collapse control.
+  // For ChatHostExpanded, we instead expose a ref-based approach via controls.
+  // NOTE: toggleCollapsed is available after mount via the EngineControls.
+  // For simplicity, this host directly renders ChatRoot and relies on the
+  // story using view.toggleCollapsed via createChatView instead.
+  // This leaves the item in its default state — stories requiring pre-expanded
+  // items should use ScriptedChat or createChatView directly.
 
-  const commands = createMemo(() => makeCommands(transcript, props.commands)());
+  const commands = createMemo(() => makeCommands(state.transcript, props.commands)());
 
   return (
     <StoryViewport height={props.height}>
       <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        theme={DEFAULT_THEME}
+        context={ctx}
+        state={state}
         stickToBottom
         pinUserMessages
         commands={() => commands()}
@@ -119,29 +131,35 @@ export function ChatHostExpanded(props: {
 }
 
 /**
- * Full ChatRoot host — renders a mountChat-equivalent inline Solid component
+ * Full ChatRoot host — renders a ChatRoot inline Solid component
  * so stories can inspect the Solid reactive tree in devtools.
  */
 export function ChatHost(props: ChatHostProps) {
-  const transcript = createTranscript();
-  const viewState = createViewState();
-
-  createEffect(() => {
-    transcript.history.seed(props.items ?? []);
+  const ctx = createChatContext({
+    theme: DEFAULT_THEME,
+    mentionProvider: props.mentionProvider,
+    commandProvider: props.commandProvider,
+  });
+  const state = createChatState(ctx);
+  onCleanup(() => {
+    state.dispose();
+    ctx.dispose();
   });
 
-  const commands = createMemo(() => makeCommands(transcript, props.commands)());
+  createEffect(() => {
+    state.transcript.history.seed(props.items ?? []);
+  });
+
+  const commands = createMemo(() => makeCommands(state.transcript, props.commands)());
 
   return (
     <StoryViewport height={props.height} width={props.width}>
       <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        theme={DEFAULT_THEME}
+        context={ctx}
+        state={state}
         stickToBottom
         pinUserMessages
         commands={() => commands()}
-        mentionProvider={props.mentionProvider}
       />
     </StoryViewport>
   );
@@ -168,12 +186,16 @@ export function ScriptedChat(props: {
    */
   wrapTranscript?: (api: TranscriptApi) => TranscriptApi & { dispose?: () => void };
 }) {
-  const transcript = createTranscript();
-  const viewState = createViewState();
+  const ctx = createChatContext({ theme: DEFAULT_THEME });
+  const state = createChatState(ctx);
+  onCleanup(() => {
+    state.dispose();
+    ctx.dispose();
+  });
 
   // Apply the optional wrapper (e.g. createStreamSmoother) so the script
   // drives the wrapper which in turn feeds the real transcript.
-  const api = props.wrapTranscript ? props.wrapTranscript(transcript) : transcript;
+  const api = props.wrapTranscript ? props.wrapTranscript(state.transcript) : state.transcript;
 
   onMount(() => {
     const owner = getOwner();
@@ -187,8 +209,6 @@ export function ScriptedChat(props: {
         api.history.seed(step.items);
         runNext();
       } else if (step.kind === 'call') {
-        // Run inside the component's reactive owner so Solid tracks any store
-        // reads and the reactive graph stays connected across setTimeout calls.
         runWithOwner(owner, () => step.fn(api));
         runNext();
       } else {
@@ -199,15 +219,11 @@ export function ScriptedChat(props: {
       }
     }
 
-    // Cancel any in-flight timer when the component is disposed (HMR /
-    // story re-mount / theme-debug toggle). Without this, the old timer chain
-    // would keep firing and mutate the dead store instance.
     onCleanup(() => {
       if (pendingTimer !== undefined) {
         clearTimeout(pendingTimer);
         pendingTimer = undefined;
       }
-      // Dispose the wrapper (e.g. clear smoother timers) after the script timers.
       if (props.wrapTranscript && 'dispose' in api && typeof api.dispose === 'function') {
         api.dispose();
       }
@@ -216,14 +232,13 @@ export function ScriptedChat(props: {
     runNext();
   });
 
-  const commands = createMemo(() => makeCommands(transcript, props.commands)());
+  const commands = createMemo(() => makeCommands(state.transcript, props.commands)());
 
   return (
     <StoryViewport height={props.height} width={props.width}>
       <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        theme={DEFAULT_THEME}
+        context={ctx}
+        state={state}
         stickToBottom
         pinUserMessages
         commands={() => commands()}

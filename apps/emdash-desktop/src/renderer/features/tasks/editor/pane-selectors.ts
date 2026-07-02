@@ -2,39 +2,51 @@
  * Pane selectors for the editor domain.
  *
  * These helpers let editor code read file-tab state from a generic PaneStore /
- * PaneLayoutStore without the engine having to know about FileTabStore.
+ * PaneLayoutStore without the engine having to know about FileTabResource.
  */
 import type { PaneLayoutStore } from '@renderer/features/tabs/pane-layout-store';
 import type { PaneStore } from '@renderer/features/tabs/pane-store';
-import type { FileTabStore } from '@renderer/features/tasks/editor/stores/file-tab-store';
+import type { FileTabResource } from './stores/file-tab-resource';
 
-export function activeFileEntry(pane: PaneStore): FileTabStore | undefined {
-  return pane.activeEntryOfKind<FileTabStore>('file');
+export function activeFileResource(pane: PaneStore): FileTabResource | undefined {
+  return pane.activeResourceOfKind<FileTabResource>('file');
 }
 
-export function fileEntryByPath(pane: PaneStore, path: string): FileTabStore | undefined {
-  return pane.entriesOfKind<FileTabStore>('file').find((e) => e.path === path);
+export function fileResourceByPath(pane: PaneStore, path: string): FileTabResource | undefined {
+  return pane.resourcesOfKind<FileTabResource>('file').find((r) => r.path === path);
 }
 
 export function activeFilePath(pane: PaneStore): string | null {
-  return activeFileEntry(pane)?.path ?? null;
+  return activeFileResource(pane)?.path ?? null;
 }
 
-/** All open non-external file tab paths for a single pane, in tab-order. */
-export function openFilePaths(pane: PaneStore): string[] {
-  return pane
-    .entriesOfKind<FileTabStore>('file')
-    .filter((e) => !e.isExternal)
-    .map((e) => e.path);
+/** All open non-external file tab resources for a single pane, in tab-order. */
+export function openFileResources(pane: PaneStore): FileTabResource[] {
+  return pane.resourcesOfKind<FileTabResource>('file').filter((r) => !r.isExternal);
+}
+
+/** Union of open non-external file tab resources across all panes (de-duplicated by path). */
+export function allOpenFileResources(paneLayout: PaneLayoutStore): FileTabResource[] {
+  const seen = new Map<string, FileTabResource>();
+  for (const { pane } of paneLayout.groups) {
+    for (const resource of openFileResources(pane)) {
+      if (!seen.has(resource.path)) seen.set(resource.path, resource);
+    }
+  }
+  return [...seen.values()];
 }
 
 /** Union of open file paths across all panes (de-duplicated). */
 export function allOpenFilePaths(paneLayout: PaneLayoutStore): string[] {
-  const seen = new Set<string>();
-  for (const { pane } of paneLayout.groups) {
-    for (const path of openFilePaths(pane)) {
-      seen.add(path);
-    }
-  }
-  return [...seen];
+  return allOpenFileResources(paneLayout).map((r) => r.path);
 }
+
+// ---------------------------------------------------------------------------
+// Legacy aliases (for callers that still use old FileTabStore names)
+// TODO: remove once all callers are updated
+// ---------------------------------------------------------------------------
+
+/** @deprecated Use activeFileResource */
+export const activeFileEntry = activeFileResource;
+/** @deprecated Use fileResourceByPath */
+export const fileEntryByPath = fileResourceByPath;

@@ -226,6 +226,37 @@ export function codexMcpAdapter(configPath = '.codex/config.toml') {
 }
 
 /**
+ * Grok adapter — TOML file with stdio and streamable HTTP servers.
+ * Config: ~/.grok/config.toml, key: mcp_servers.
+ *
+ * Unlike Codex, Grok keeps HTTP `headers` under their canonical key (it does not
+ * rename them to `http_headers`) and marks every server with `enabled = true` by
+ * default, matching the `grok mcp add` CLI behavior. Transport is inferred from the
+ * presence of `url` (HTTP) vs `command` (stdio); there is no `type`/`transport` field.
+ */
+export function grokMcpAdapter(configPath = '.grok/config.toml') {
+  return createMcpAdapter({
+    configPath,
+    format: 'toml',
+    serversKey: 'mcp_servers',
+    toNative(s) {
+      const { name: _name, transport: _transport, type: _type, ...entry } = s;
+      if (typeof entry.enabled !== 'boolean') entry.enabled = true;
+      return entry;
+    },
+    fromNative(name, raw) {
+      const entry = deepClone(raw) as Record<string, unknown>;
+      const isHttp = typeof entry.url === 'string' && typeof entry.command !== 'string';
+      if (isHttp) {
+        entry.transport = 'http';
+        entry.type = 'http';
+      }
+      return { name, ...entry } as McpServerRegistration;
+    },
+  });
+}
+
+/**
  * Gemini adapter — HTTP servers use httpUrl instead of url; Accept header is injected.
  * Config: ~/.gemini/settings.json, key: mcpServers, JSON.
  */
@@ -338,6 +369,19 @@ export function opencodeMcpAdapter(
       return { name, ...entry } as McpServerRegistration;
     },
   });
+}
+
+/**
+ * MiMo Code adapter — OpenCode fork sharing the same MCP config schema
+ * (type:'remote'/url for HTTP; type:'local'/command[] for stdio).
+ * Write: ~/.config/mimocode/mimocode.json; read lower-priority config.json and
+ * project-local .mimocode/mimocode.json for existing installs.
+ */
+export function mimocodeMcpAdapter(
+  configPath = '.config/mimocode/mimocode.json',
+  legacyReadPaths = ['.config/mimocode/config.json', '.mimocode/mimocode.json']
+) {
+  return opencodeMcpAdapter(configPath, legacyReadPaths);
 }
 
 /**

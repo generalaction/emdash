@@ -139,8 +139,13 @@ export interface ThemeProviderProps {
    *
    * "wrapper" — applies the class to the wrapper element (controlled by `as`).
    * Portals that render outside the wrapper must use usePortalThemeClass().
+   *
+   * "none" — context-only mode. No theme class is written to the DOM at all.
+   * Use when the host application's own provider is the sole DOM class writer
+   * and you only need ThemeContext to be available inside the tree (e.g. when
+   * embedding @emdash/ui components inside an app that manages themes itself).
    */
-  target?: 'documentElement' | 'wrapper';
+  target?: 'documentElement' | 'wrapper' | 'none';
   /** Element type for the wrapper (only used when target="wrapper" or className/style are supplied). Defaults to 'div'. */
   as?: React.ElementType;
   className?: string;
@@ -208,6 +213,11 @@ export function ThemeProvider({
     () => ({ themeId: resolvedThemeId, setTheme, toggle }),
     [resolvedThemeId, setTheme, toggle]
   );
+
+  // In "none" mode: supply context without touching the DOM.
+  if (target === 'none') {
+    return <ThemeContext.Provider value={ctx}>{children}</ThemeContext.Provider>;
+  }
 
   if (target === 'documentElement') {
     // No wrapper needed for theming. Render a wrapper only if className/style

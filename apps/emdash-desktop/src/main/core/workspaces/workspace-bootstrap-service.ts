@@ -20,8 +20,6 @@ import { compileSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
 import type { WorkspaceType } from '@shared/core/workspaces/workspaces';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
 import { provisionBYOITask } from './byoi/provision-byoi-task';
-import { LocalWorkspaceSetupExecutor } from './local-workspace-setup-executor';
-import { applyRecovery } from './recovery-strategy';
 import { getProvisionedWorkspaceBranch } from './workspace-branch';
 import { createWorkspaceFactory } from './workspace-factory';
 import { computeWorkspaceKey } from './workspace-key';
@@ -147,7 +145,7 @@ export class WorkspaceBootstrapService {
 
     // Fast path: non-worktree path already persisted and still exists on disk.
     if (workspaceRow.path && !isByoi) {
-      const exists = await project.worktreeHost.existsAbsolute(workspaceRow.path);
+      const exists = await project.worktreeService.existsAtAbsolutePath(workspaceRow.path);
       if (exists) {
         return this._acquireAndBuild(
           workspaceRow.id,
@@ -201,28 +199,7 @@ export class WorkspaceBootstrapService {
     }
 
     const worktreePoolPath = await project.worktreeService.getWorktreePoolPath();
-    const stepCtx = {
-      ctx: project.ctx,
-      repoPath: project.repoPath,
-      worktreePoolPath,
-      host: project.worktreeHost,
-      projectSettings: project.settings,
-      worktreeService: project.worktreeService,
-    };
-
-    const executor = new LocalWorkspaceSetupExecutor(stepCtx);
-    let setupResult = await executor.execute(spec);
-
-    if (!setupResult.success) {
-      const recovery = await applyRecovery(setupResult.error, stepCtx);
-
-      if (recovery.kind === 'resolved') {
-        setupResult = ok({ path: recovery.path, warnings: [] });
-      } else if (recovery.kind === 'retry') {
-        setupResult = await executor.execute(spec);
-      }
-      // 'failed' falls through to the error check below
-    }
+    const setupResult = await project.runWorkspaceSetup(spec, worktreePoolPath);
 
     if (!setupResult.success) {
       const { kind, type } = setupResult.error;
@@ -333,9 +310,9 @@ export class WorkspaceBootstrapService {
       message: 'Initialising workspace…',
     });
 
-    let workspace;
+    let acquired;
     try {
-      workspace = await workspaceRegistry.acquire(
+      acquired = await workspaceRegistry.acquire(
         workspaceId,
         project.projectId,
         createWorkspaceFactory(workspaceId, type, {
@@ -373,13 +350,14 @@ export class WorkspaceBootstrapService {
     try {
       const buildResult = await buildTaskFromWorkspace(
         task,
-        workspace,
+        acquired.workspace,
         type,
         project.projectId,
         project.repoPath,
         project.settings,
         workspaceBranchName,
-        workspaceSourceBranch
+        workspaceSourceBranch,
+        acquired.sshFilesRuntime
       );
       buildSucceeded = true;
       return ok({

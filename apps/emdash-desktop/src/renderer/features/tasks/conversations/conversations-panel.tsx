@@ -1,7 +1,6 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
 import {
@@ -16,10 +15,9 @@ import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import { ContextBar } from './context-bar';
-import type { ConversationStore } from './conversation-manager';
-import type { ConversationResolvedData } from './conversation-tab-provider';
+import type { ConversationTabResource } from './conversation-tab-resource';
 import {
-  activeConversation as getActiveConversation,
+  activeConversationResource,
   activeConversationId as getActiveConversationId,
 } from './pane-selectors';
 
@@ -39,15 +37,14 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   // Build session ID list for PaneSizingContextProvider (all open conversation tabs).
   const allSessionIds = useMemo(() => {
     return pane.resolvedTabs
-      .filter((t): t is ResolvedTab<ConversationResolvedData> => t.kind === 'conversation')
-      .map((t) => conversations.sessions.get(t.store.data.id)?.sessionId)
+      .filter(
+        (t): t is typeof t & { resource: ConversationTabResource } => t.kind === 'conversation'
+      )
+      .map((t) => conversations.sessions.get(t.resource.store.data.id)?.sessionId)
       .filter((id): id is string => Boolean(id));
   }, [pane.resolvedTabs, conversations.sessions]);
 
-  const activeConversation: ConversationStore | undefined = getActiveConversation(
-    pane,
-    conversations
-  );
+  const activeConversation = activeConversationResource(pane)?.store;
   const activeSession = activeConversation
     ? (conversations.sessions.get(activeConversation.data.id) ?? null)
     : null;
@@ -92,8 +89,38 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     }
   }, [sessionStatus]);
 
+  // State-driven notification clearing: mark the active conversation as seen
+  // whenever this task view is the active route and the conversation has an
+  // unseen status. This covers the split-pane case where the same tab stays
+  // active — the engine's onActivate() only fires on tab identity changes.
+  const activeConversationSeen = activeConversation?.seen;
+  useEffect(() => {
+    if (isActive && activeConversation && !activeConversation.seen) {
+      activeConversation.markSeen();
+    }
+  }, [isActive, activeConversation, activeConversationSeen]);
+
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
   const hideContextBarTrigger = interfaceSettings?.hideContextBar ?? false;
+
+  // Measure the rendered height of the ContextBar so the PTY controller can
+  // subtract it from the available terminal height. The ContextBar renders null
+  // (height 0) when not visible and a fixed single-row bar otherwise, so the
+  // measured value is always accurate without needing to know its CSS internals.
+  const contextBarWrapperRef = useRef<HTMLDivElement>(null);
+  const [contextBarHeight, setContextBarHeight] = useState(0);
+  useEffect(() => {
+    const el = contextBarWrapperRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setContextBarHeight(entry.contentRect.height);
+    });
+    observer.observe(el);
+    // Initial measurement.
+    setContextBarHeight(el.getBoundingClientRect().height);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="flex h-full flex-col">
@@ -111,7 +138,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
             }
           }}
         >
-          <PaneSizingContextProvider sessionIds={allSessionIds}>
+          <PaneSizingContextProvider sessionIds={allSessionIds} bottomPadding={contextBarHeight}>
             <div className="flex min-h-0 flex-1 flex-col">
               {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
@@ -141,10 +168,12 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           </PaneSizingContextProvider>
         </div>
       </div>
-      <ContextBar
-        conversationId={getActiveConversationId(pane)}
-        hideTrigger={hideContextBarTrigger}
-      />
+      <div ref={contextBarWrapperRef}>
+        <ContextBar
+          conversationId={getActiveConversationId(pane)}
+          hideTrigger={hideContextBarTrigger}
+        />
+      </div>
     </div>
   );
 });

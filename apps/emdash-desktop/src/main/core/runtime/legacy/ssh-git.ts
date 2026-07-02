@@ -49,11 +49,11 @@ import { LiveModel, ResourceMap } from '@emdash/core/lib';
 import { err, ok, type Lease, type Result, type Unsubscribe } from '@emdash/shared';
 import { Result as ResultUtil } from '@emdash/shared/result';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitService } from '@main/core/git/legacy/git-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import type { ImageReadResult as LegacyImageReadResult } from '@shared/core/git/types';
+import { LegacySshFileSystem } from './ssh-file-system';
 
 const STATUS_POLL_MS = 10_000;
 const UNTRACKED_STATUS_POLL_MS = 30_000;
@@ -92,7 +92,10 @@ export class LegacySshGitRuntime implements IGitRuntime {
       log.warn('LegacySshGitRuntime: worktree teardown failed', { context, error: String(error) }),
   });
 
-  constructor(private readonly proxy: SshClientProxy) {}
+  constructor(
+    private readonly proxy: SshClientProxy,
+    private readonly connectionId: string
+  ) {}
 
   async openRepository(pathInsideRepo: string): Promise<Lease<IGitRepository>> {
     const lease = await this.acquireRepository(pathInsideRepo);
@@ -154,7 +157,10 @@ export class LegacySshGitRuntime implements IGitRuntime {
     repositoryUrl: string,
     targetPath: string
   ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>> {
-    const ctx = new SshExecutionContext(this.proxy, { root: path.posix.dirname(targetPath) });
+    const ctx = new SshExecutionContext(this.proxy, {
+      root: path.posix.dirname(targetPath),
+      connectionId: this.connectionId,
+    });
     try {
       await ctx.exec('git', ['clone', repositoryUrl, targetPath]);
     } catch (error) {
@@ -213,7 +219,7 @@ export class LegacySshGitRuntime implements IGitRuntime {
   }
 
   private async resolveGitCommonDir(root: string): Promise<string> {
-    const ctx = new SshExecutionContext(this.proxy, { root });
+    const ctx = new SshExecutionContext(this.proxy, { root, connectionId: this.connectionId });
     const { stdout } = await ctx.exec('git', [
       'rev-parse',
       '--path-format=absolute',
@@ -225,8 +231,8 @@ export class LegacySshGitRuntime implements IGitRuntime {
   }
 
   private createGit(root: string): GitService {
-    const fs = new SshFileSystem(this.proxy, root);
-    const ctx = new SshExecutionContext(this.proxy, { root });
+    const fs = new LegacySshFileSystem(this.proxy);
+    const ctx = new SshExecutionContext(this.proxy, { root, connectionId: this.connectionId });
     return new GitService(ctx, fs);
   }
 }
@@ -248,10 +254,14 @@ class LegacySshGitRepository implements IGitRepository {
     this.refsModel = new LiveModel<GitRefsModel>({
       compute: async () => ok(await this.computeRefs()),
       onError: (error) => log.warn('LegacySshGitRepository: refs refresh failed', { error }),
+      onUnexpectedError: (error) =>
+        log.warn('LegacySshGitRepository: refs refresh failed', { error }),
     });
     this.remotesModel = new LiveModel<GitRemotesModel>({
       compute: async () => ok(await this.computeRemotes()),
       onError: (error) => log.warn('LegacySshGitRepository: remotes refresh failed', { error }),
+      onUnexpectedError: (error) =>
+        log.warn('LegacySshGitRepository: remotes refresh failed', { error }),
     });
     this.timers = [
       setInterval(() => this.refsModel.invalidate(), REFS_POLL_MS),
@@ -423,10 +433,14 @@ class LegacySshGitWorktree implements IGitWorktree {
     this.statusModel = new LiveModel<GitStatusModel>({
       compute: async () => ok(await this.computeStatus()),
       onError: (error) => log.warn('LegacySshGitWorktree: status refresh failed', { error }),
+      onUnexpectedError: (error) =>
+        log.warn('LegacySshGitWorktree: status refresh failed', { error }),
     });
     this.headModel = new LiveModel<GitHeadModel>({
       compute: async () => ok(await this.computeHead()),
       onError: (error) => log.warn('LegacySshGitWorktree: head refresh failed', { error }),
+      onUnexpectedError: (error) =>
+        log.warn('LegacySshGitWorktree: head refresh failed', { error }),
     });
     this.timers = [
       setInterval(() => void this.pollStatus('no'), STATUS_POLL_MS),
@@ -454,6 +468,10 @@ class LegacySshGitWorktree implements IGitWorktree {
       this.headModel.refresh(),
     ]);
     return { status, head };
+  }
+
+  invalidateStatus(): void {
+    this.statusModel.invalidate();
   }
 
   subscribe(cb: (update: GitWorktreeUpdate) => void): Unsubscribe {
@@ -486,27 +504,28 @@ class LegacySshGitWorktree implements IGitWorktree {
   }
 
   isFileCleanlyTracked(filePath: string): Promise<boolean> {
-    return this.git.isFileCleanlyTracked(filePath);
+    return this.git.isFileCleanlyTracked(this.toGitPath(filePath));
   }
 
-  getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
-    return this.git.getChangedFiles(base) as Promise<GitChange[]>;
+  async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
+    return (await this.git.getChangedFiles(base)).map((change) => this.toAbsChange(change));
   }
 
   getFileAtRef(filePath: string, ref: string): Promise<string | null> {
-    return this.git.getFileAtRef(filePath, ref);
+    return this.git.getFileAtRef(this.toGitPath(filePath), ref);
   }
 
   getFileAtIndex(filePath: string): Promise<string | null> {
-    return this.git.getFileAtIndex(filePath);
+    return this.git.getFileAtIndex(this.toGitPath(filePath));
   }
 
   async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
-    return mapImageReadResult(await this.git.getImageAtRef(filePath, ref));
+    const gitPath = this.toGitPath(filePath);
+    return mapImageReadResult(await this.git.getImageAtRef(gitPath, ref));
   }
 
   async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
-    return mapImageReadResult(await this.git.getImageAtIndex(filePath));
+    return mapImageReadResult(await this.git.getImageAtIndex(this.toGitPath(filePath)));
   }
 
   getLog(options?: GitLogOptions): Promise<GitLogResult> {
@@ -519,7 +538,7 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   async stage(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
     try {
-      await this.git.stageFiles(paths);
+      await this.git.stageFiles(this.toGitPaths(paths));
       return ok(await this.refreshStatus());
     } catch (error) {
       return err(toGitCommandError(error));
@@ -537,7 +556,7 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   async unstage(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
     try {
-      await this.git.unstageFiles(paths);
+      await this.git.unstageFiles(this.toGitPaths(paths));
       return ok(await this.refreshStatus());
     } catch (error) {
       return err(toGitCommandError(error));
@@ -555,7 +574,7 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   async revert(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
     try {
-      await this.git.revertFiles(paths);
+      await this.git.revertFiles(this.toGitPaths(paths));
       return ok(await this.refreshStatus());
     } catch (error) {
       return err(toGitCommandError(error));
@@ -608,8 +627,8 @@ class LegacySshGitWorktree implements IGitWorktree {
       const status = await this.git.getFullStatus();
       return {
         kind: 'ok',
-        staged: status.staged,
-        unstaged: status.unstaged,
+        staged: status.staged.map((change) => this.toAbsChange(change)),
+        unstaged: status.unstaged.map((change) => this.toAbsChange(change)),
         stagedAdded: status.totalAdded,
         stagedDeleted: status.totalDeleted,
       };
@@ -623,6 +642,24 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   private async computeHead(): Promise<GitHeadModel> {
     return this.git.getHeadInfo();
+  }
+
+  private toAbsChange(change: GitChange): GitChange {
+    return { ...change, path: this.toAbsPath(change.path) };
+  }
+
+  private toAbsPath(filePath: string): string {
+    if (path.posix.isAbsolute(filePath)) return path.posix.normalize(filePath);
+    return path.posix.join(this.worktree, filePath);
+  }
+
+  private toGitPath(filePath: string): string {
+    if (!path.posix.isAbsolute(filePath)) return filePath;
+    return path.posix.relative(this.worktree, filePath);
+  }
+
+  private toGitPaths(paths: string[]): string[] {
+    return paths.map((filePath) => this.toGitPath(filePath));
   }
 
   private async refreshStatus(): Promise<GitSequences> {
@@ -644,10 +681,30 @@ class LegacySshGitWorktree implements IGitWorktree {
     if (!fingerprint) return;
     const previous = this.fingerprints[untracked];
     this.fingerprints[untracked] = fingerprint.hash;
+    if (previous === undefined) {
+      if (fingerprint.byteLength > 0 && this.statusModel.getCached()) this.statusModel.invalidate();
+      return;
+    }
     if (previous !== undefined && previous !== fingerprint.hash) {
       this.statusModel.invalidate();
     }
   }
+}
+
+type LegacySshGitStatusInvalidatable = IGitWorktree & {
+  invalidateStatus(): void;
+};
+
+export function invalidateLegacySshGitWorktreeStatus(worktree: IGitWorktree): boolean {
+  if (!isLegacySshGitStatusInvalidatable(worktree)) return false;
+  worktree.invalidateStatus();
+  return true;
+}
+
+function isLegacySshGitStatusInvalidatable(
+  worktree: IGitWorktree
+): worktree is LegacySshGitStatusInvalidatable {
+  return worktree instanceof LegacySshGitWorktree;
 }
 
 function mapImageReadResult(result: LegacyImageReadResult): ImageReadResult {

@@ -1,7 +1,5 @@
+import type { IFileSystem } from '@emdash/core/files';
 import { eq } from 'drizzle-orm';
-import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import type { FileSystemProvider } from '@main/core/fs/types';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
@@ -20,7 +18,8 @@ import type { ProjectProvider } from '../../project-provider';
 import { resolveWorkspace } from '../../utils';
 
 export type ProjectSettingsResolvedTarget = ProjectSettingsWriteTargetOption & {
-  fs: FileSystemProvider;
+  fileSystem: IFileSystem;
+  configPath: string;
 };
 
 function stripTarget(target: ProjectSettingsWriteTargetOption): ProjectSettingsWriteTarget {
@@ -32,7 +31,7 @@ function stripTarget(target: ProjectSettingsWriteTargetOption): ProjectSettingsW
 export function stripResolvedTarget(
   target: ProjectSettingsResolvedTarget
 ): ProjectSettingsWriteTargetOption {
-  const { fs: _fs, ...option } = target;
+  const { configPath: _configPath, fileSystem: _fileSystem, ...option } = target;
   return option;
 }
 
@@ -56,13 +55,15 @@ async function resolveTaskTarget(
   task: TaskTargetRow
 ): Promise<ProjectSettingsResolvedTarget | null> {
   let targetPath: string | null = null;
-  let fs: FileSystemProvider | null = null;
+  let fileSystem: IFileSystem | null = null;
+  let configPath: string | null = null;
 
   if (task.workspaceId) {
     const activeWorkspace = workspaceRegistry.get(task.workspaceId);
     if (activeWorkspace) {
       targetPath = activeWorkspace.path;
-      fs = activeWorkspace.fs;
+      fileSystem = activeWorkspace.fileSystem;
+      configPath = activeWorkspace.configPath;
     }
   }
 
@@ -76,23 +77,25 @@ async function resolveTaskTarget(
   }
   if (!targetPath) return null;
   if (targetPath === project.repoPath) return null;
+  const resolvedFileSystem = fileSystem ?? resolveProjectFileSystem(project);
+  if (!resolvedFileSystem) return null;
 
   return {
     type: 'task',
     taskId: task.id,
     label: task.name,
     path: targetPath,
-    fs:
-      fs ??
-      (project.defaultWorkspaceType.kind === 'ssh'
-        ? new SshFileSystem(project.defaultWorkspaceType.proxy, targetPath)
-        : new LocalFileSystem(targetPath)),
+    fileSystem: resolvedFileSystem,
+    configPath: configPath ?? project.configPathForDirectory(targetPath),
   };
 }
 
 export async function resolveAllProjectSettingsTargets(
   project: ProjectProvider
 ): Promise<ProjectSettingsResolvedTarget[]> {
+  const projectFileSystem = resolveProjectFileSystem(project);
+  if (!projectFileSystem) return [];
+
   const [projectRow] = await db
     .select({ name: projectsTable.name })
     .from(projectsTable)
@@ -103,7 +106,8 @@ export async function resolveAllProjectSettingsTargets(
     type: 'project',
     label: projectRow?.name ?? 'Project repository',
     path: project.repoPath,
-    fs: project.fs,
+    fileSystem: projectFileSystem,
+    configPath: project.projectConfigPath,
   };
   if (!projectRow) return [projectTarget];
 
@@ -145,16 +149,20 @@ export async function resolveProjectSettingsTarget(
 
   if (request.target.type === 'workspace') {
     const workspace = resolveWorkspace(project.projectId, request.target.workspaceId);
-    return workspace
-      ? {
-          type: 'workspace',
-          workspaceId: request.target.workspaceId,
-          label: 'Workspace',
-          path: workspace.path,
-          fs: workspace.fs,
-        }
-      : null;
+    if (!workspace) return null;
+    return {
+      type: 'workspace',
+      workspaceId: request.target.workspaceId,
+      label: 'Workspace',
+      path: workspace.path,
+      fileSystem: workspace.fileSystem,
+      configPath: workspace.configPath,
+    };
   }
 
   return null;
+}
+
+function resolveProjectFileSystem(project: ProjectProvider): IFileSystem | null {
+  return project.fileSystem;
 }

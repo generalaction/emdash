@@ -1,4 +1,5 @@
 export { KeyedMutex } from './keyed-mutex';
+export { LifecycleMap, type LifecycleHooks, type LifecycleStatus } from '@emdash/shared';
 export {
   LiveCollection,
   type CollectionSnapshot,

@@ -20,6 +20,7 @@ export function buildInitialConversation(
     initialPrompt: buildFinalPrompt(state.issueContext, state.prompt),
     autoApprove: providerSupportsAutoApprove(provider) && state.autoApprove,
     model: state.model ?? undefined,
+    type: state.useChatUi ? 'acp' : 'pty',
   };
 }
 

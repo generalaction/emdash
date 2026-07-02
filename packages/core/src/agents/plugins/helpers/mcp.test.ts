@@ -6,6 +6,8 @@ import {
   createMcpAdapter,
   crushMcpAdapter,
   droidMcpAdapter,
+  grokMcpAdapter,
+  mimocodeMcpAdapter,
   opencodeMcpAdapter,
   passthroughMcpAdapter,
 } from './mcp';
@@ -289,6 +291,154 @@ describe('codexMcpAdapter', () => {
   });
 });
 
+// ── Grok TOML adapter ───────────────────────────────────────────────────────
+
+describe('grokMcpAdapter', () => {
+  const adapter = grokMcpAdapter('.grok/config.toml');
+
+  it('writes stdio servers with command/args/env and enabled=true, preserving config', async () => {
+    const fs = createMemoryFs({
+      '.grok/config.toml': '[models]\ndefault = "grok-build"\n',
+    });
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'postgres',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-postgres'],
+        env: { DATABASE_URL: 'postgres://localhost/mydb' },
+      },
+    ]);
+
+    const raw = await fs.read('.grok/config.toml');
+    const parsed = parseTOML(raw!) as Record<string, unknown>;
+    const servers = parsed.mcp_servers as Record<string, Record<string, unknown>>;
+
+    expect((parsed.models as Record<string, unknown>).default).toBe('grok-build');
+    expect(servers.postgres).toEqual({
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-postgres'],
+      env: { DATABASE_URL: 'postgres://localhost/mydb' },
+      enabled: true,
+    });
+  });
+
+  it('writes HTTP servers with url/headers, keeping the canonical headers key', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'sentry',
+        transport: 'http',
+        type: 'http',
+        url: 'https://mcp.sentry.dev/mcp',
+        headers: { Authorization: 'Bearer tok' },
+      },
+    ]);
+
+    const raw = await fs.read('.grok/config.toml');
+    const parsed = parseTOML(raw!) as Record<string, unknown>;
+    const servers = parsed.mcp_servers as Record<string, Record<string, unknown>>;
+
+    expect(servers.sentry).toEqual({
+      url: 'https://mcp.sentry.dev/mcp',
+      headers: { Authorization: 'Bearer tok' },
+      enabled: true,
+    });
+    expect(servers.sentry.type).toBeUndefined();
+    expect(servers.sentry.transport).toBeUndefined();
+    expect(servers.sentry.http_headers).toBeUndefined();
+  });
+
+  it('preserves an explicit enabled=false', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [{ name: 'off', command: 'node', enabled: false }]);
+
+    const parsed = parseTOML((await fs.read('.grok/config.toml'))!) as Record<string, unknown>;
+    const servers = parsed.mcp_servers as Record<string, Record<string, unknown>>;
+    expect(servers.off.enabled).toBe(false);
+  });
+
+  it('reads stdio and http servers, inferring transport from url presence', async () => {
+    const fs = createMemoryFs({
+      '.grok/config.toml': [
+        '[mcp_servers.postgres]',
+        'command = "npx"',
+        'args = ["-y", "@modelcontextprotocol/server-postgres"]',
+        'enabled = true',
+        '',
+        '[mcp_servers.postgres.env]',
+        'DATABASE_URL = "postgres://localhost/mydb"',
+        '',
+        '[mcp_servers.sentry]',
+        'url = "https://mcp.sentry.dev/mcp"',
+        'enabled = true',
+        '',
+        '[mcp_servers.sentry.headers]',
+        'Authorization = "Bearer tok"',
+      ].join('\n'),
+    });
+
+    const result = await adapter.readServers(fs);
+
+    expect(result).toContainEqual({
+      name: 'postgres',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-postgres'],
+      enabled: true,
+      env: { DATABASE_URL: 'postgres://localhost/mydb' },
+    });
+    expect(result).toContainEqual({
+      name: 'sentry',
+      transport: 'http',
+      type: 'http',
+      url: 'https://mcp.sentry.dev/mcp',
+      enabled: true,
+      headers: { Authorization: 'Bearer tok' },
+    });
+  });
+
+  it('round-trips a server read then written back', async () => {
+    const fs = createMemoryFs({
+      '.grok/config.toml': [
+        '[mcp_servers.docs]',
+        'url = "https://example.com/mcp"',
+        'enabled = true',
+      ].join('\n'),
+    });
+
+    const servers = await adapter.readServers(fs);
+    await adapter.writeServers(fs, servers);
+
+    const parsed = parseTOML((await fs.read('.grok/config.toml'))!) as Record<string, unknown>;
+    const written = parsed.mcp_servers as Record<string, Record<string, unknown>>;
+    expect(written.docs).toEqual({
+      url: 'https://example.com/mcp',
+      enabled: true,
+    });
+  });
+
+  it('removes only the named server', async () => {
+    const fs = createMemoryFs({
+      '.grok/config.toml': [
+        '[mcp_servers.keep]',
+        'command = "k"',
+        'enabled = true',
+        '',
+        '[mcp_servers.gone]',
+        'command = "g"',
+        'enabled = true',
+      ].join('\n'),
+    });
+
+    await adapter.removeServer(fs, 'gone');
+
+    const result = await adapter.readServers(fs);
+    expect(result.map((r) => r.name)).toEqual(['keep']);
+  });
+});
+
 // ── OpenCode adapter ────────────────────────────────────────────────────────
 
 describe('opencodeMcpAdapter', () => {
@@ -402,6 +552,91 @@ describe('opencodeMcpAdapter', () => {
       args: ['-y', '@local/mcp'],
       env: { CANONICAL: '1' },
     });
+  });
+});
+
+// ── MiMo Code adapter ───────────────────────────────────────────────────────
+
+describe('mimocodeMcpAdapter', () => {
+  const adapter = mimocodeMcpAdapter();
+
+  it('writes global MiMo Code MCP config using the OpenCode-compatible schema', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'playwright',
+        command: 'npx',
+        args: ['-y', '@playwright/mcp'],
+        env: { BROWSER: 'chromium' },
+        enabled: false,
+      },
+      {
+        name: 'docs',
+        transport: 'http',
+        type: 'http',
+        url: 'https://example.com/mcp',
+        headers: { Authorization: 'Bearer token' },
+        timeout: 30_000,
+      },
+    ]);
+
+    const raw = await fs.read('.config/mimocode/mimocode.json');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!) as { mcp: Record<string, Record<string, unknown>> };
+
+    expect(parsed.mcp.playwright).toEqual({
+      type: 'local',
+      command: ['npx', '-y', '@playwright/mcp'],
+      enabled: false,
+      environment: { BROWSER: 'chromium' },
+    });
+    expect(parsed.mcp.docs).toEqual({
+      type: 'remote',
+      url: 'https://example.com/mcp',
+      enabled: true,
+      headers: {
+        Authorization: 'Bearer token',
+        Accept: 'application/json, text/event-stream',
+      },
+      timeout: 30_000,
+    });
+  });
+
+  it('reads lower-priority MiMo Code config paths', async () => {
+    const fs = createMemoryFs({
+      '.config/mimocode/config.json': jsonFile({
+        mcp: {
+          globalLegacy: {
+            type: 'local',
+            command: ['node', 'server.js'],
+          },
+        },
+      }),
+      '.mimocode/mimocode.json': jsonFile({
+        mcp: {
+          local: {
+            type: 'local',
+            command: ['npx', '-y', '@local/mcp'],
+            environment: { LOCAL: '1' },
+          },
+        },
+      }),
+    });
+
+    await expect(adapter.readServers(fs)).resolves.toEqual([
+      {
+        name: 'globalLegacy',
+        command: 'node',
+        args: ['server.js'],
+      },
+      {
+        name: 'local',
+        command: 'npx',
+        args: ['-y', '@local/mcp'],
+        env: { LOCAL: '1' },
+      },
+    ]);
   });
 });
 

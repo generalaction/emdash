@@ -44,29 +44,35 @@ export const StagedSection = observer(function StagedSection() {
   if (!diffView || !changesView) return null;
 
   const handleSelectChange = (change: GitChange) => {
-    taskView.activePane.open('diff', {
-      activeFile: {
-        path: change.path,
-        type: 'git',
-        group: 'staged',
-        originalRef: commitRef('HEAD'),
+    taskView.activePane.open(
+      'diff',
+      {
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'staged',
+          originalRef: commitRef('HEAD'),
+        },
+        status: change.status,
       },
-      status: change.status,
-      preview: true,
-    });
+      { preview: true }
+    );
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
-    taskView.activePane.open('diff', {
-      activeFile: {
-        path: change.path,
-        type: 'git',
-        group: 'staged',
-        originalRef: commitRef('HEAD'),
+    taskView.activePane.open(
+      'diff',
+      {
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'staged',
+          originalRef: commitRef('HEAD'),
+        },
+        status: change.status,
       },
-      status: change.status,
-      preview: false,
-    });
+      { preview: false }
+    );
   };
 
   const handleUnstageSelection = () => {
@@ -138,6 +144,7 @@ export const StagedSection = observer(function StagedSection() {
           <ChangesListOrTree
             viewMode={viewMode}
             changes={changes}
+            rootPath={workspace.path}
             isSelected={(path) => changesView.stagedSelection.has(path)}
             onToggleSelect={(path) => changesView.toggleStagedItem(path)}
             activePath={activePath}

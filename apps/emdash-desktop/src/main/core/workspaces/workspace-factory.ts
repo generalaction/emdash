@@ -3,11 +3,12 @@ import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conve
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
-import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import { FileTreeProjector } from '@main/core/files/file-tree/projector';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
+import { invalidateLegacySshGitWorktreeStatus } from '@main/core/runtime/legacy/ssh-git';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 import type { MachineRef, RuntimeManager } from '@main/core/runtime/types';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -24,6 +25,7 @@ import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-reg
 import { handleGitWorktreeUpdate } from '@main/core/workspaces/workspace-worktree-update';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { fileChangesChannel, fileTreeProjectionChannel } from '@shared/core/fs/fsEvents';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
@@ -71,12 +73,20 @@ export function createWorkspaceFactory(
   return async () => {
     const workDir = context.workDir;
 
-    // Transport-specific FS and exec
-    const workspaceFs =
-      type.kind === 'ssh' ? new SshFileSystem(type.proxy, workDir) : new LocalFileSystem(workDir);
-
     const ctx =
-      type.kind === 'ssh' ? new SshExecutionContext(type.proxy) : new LocalExecutionContext();
+      type.kind === 'ssh'
+        ? new SshExecutionContext(type.proxy, { connectionId: type.connectionId })
+        : new LocalExecutionContext();
+
+    const runtime = await acquireWorkspaceRuntime(context.workspaceRuntime, workDir);
+    const { gitWorktree, fileTree, filesRuntime } = runtime;
+    const openedFileSystem = filesRuntime.fileSystem();
+    if (!openedFileSystem.success) {
+      await runtime.release();
+      throw new Error(`Failed to open file system: ${openedFileSystem.error.message}`);
+    }
+    const fileSystem = openedFileSystem.data;
+    const configPath = filesRuntime.path.join(workDir, '.emdash.json');
 
     // Settings (shared)
     const projectSettings = await context.settings.get();
@@ -92,7 +102,8 @@ export function createWorkspaceFactory(
     const tmuxEnabled = projectSettings.tmux ?? false;
     const taskLevelSettings = await getEffectiveTaskSettings({
       projectSettings: context.settings,
-      taskFs: workspaceFs,
+      taskFs: fileSystem,
+      taskConfigPath: configPath,
     });
     const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
     const scripts = taskLevelSettings.scripts;
@@ -129,12 +140,6 @@ export function createWorkspaceFactory(
       terminals: workspaceTerminals,
     });
 
-    const runtimeLease = await context.workspaceRuntime.manager.acquire(
-      context.workspaceRuntime.machine
-    );
-    const worktreeLease = await runtimeLease.value.git.openWorktree(workDir);
-    const gitWorktree = worktreeLease.value;
-
     const gitRepository =
       context.gitRepository ?? new GitRepositoryService(gitWorktree.repository, context.settings);
 
@@ -143,11 +148,25 @@ export function createWorkspaceFactory(
       context.gitRepositoryFetchService ??
       new GitRepositoryFetchService(gitRepository, () => gitRepository.getBaseRemote());
     let unsubscribeGitUpdates: (() => void) | undefined;
+    let unsubscribeFileChanges: (() => void) | undefined;
+
+    const fileTreeProjector = new FileTreeProjector(fileTree, (update) =>
+      events.emit(fileTreeProjectionChannel, {
+        projectId: context.projectId,
+        workspaceId,
+        subscriptionId: update.subscriptionId,
+        version: update.version,
+        scopes: update.scopes,
+      })
+    );
 
     const workspace: Workspace = {
       id: workspaceId,
       path: workDir,
-      fs: workspaceFs,
+      configPath,
+      fileSystem,
+      fileTree,
+      fileTreeProjector,
       gitWorktree,
       settings: context.settings,
       lifecycleService,
@@ -156,8 +175,10 @@ export function createWorkspaceFactory(
       dispose: async () => {
         unsubscribeGitUpdates?.();
         unsubscribeGitUpdates = undefined;
-        await worktreeLease.release();
-        await runtimeLease.release();
+        fileTreeProjector.dispose();
+        unsubscribeFileChanges?.();
+        unsubscribeFileChanges = undefined;
+        await runtime.release();
       },
     };
 
@@ -165,8 +186,16 @@ export function createWorkspaceFactory(
 
     return {
       workspace,
+      sshFilesRuntime: type.kind === 'ssh' ? filesRuntime : undefined,
 
       onCreateSideEffect: (ws) => {
+        void workspaceFileIndexService.onWorkspaceActivated(workspaceId, {
+          rootPath: ws.path,
+          enumerate: (root, options) => {
+            const fs = filesRuntime.fileSystem();
+            return fs.success ? fs.data.enumerate(root, options) : fs;
+          },
+        });
         unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) =>
           handleGitWorktreeUpdate(workspaceId, update, (emitted) => {
             events.emit(gitWorktreeUpdateChannel, {
@@ -176,11 +205,37 @@ export function createWorkspaceFactory(
             });
           })
         );
+        const fileChanges = filesRuntime.watchChanges(workDir, (update) => {
+          if (type.kind === 'ssh') {
+            invalidateLegacySshGitWorktreeStatus(ws.gitWorktree);
+          }
+          events.emit(fileChangesChannel, {
+            projectId: context.projectId,
+            workspaceId,
+            update,
+          });
+          workspaceFileIndexService.onWorkspaceFileChange(workspaceId, update);
+        });
+        if (fileChanges.success) {
+          unsubscribeFileChanges = fileChanges.data.unsubscribe;
+          void fileChanges.data.ready().then((result) => {
+            if (!result.success) {
+              log.warn('WorkspaceFactory: file change feed failed to become ready', {
+                workspaceId,
+                error: result.error,
+              });
+            }
+          });
+        } else {
+          log.warn('WorkspaceFactory: failed to start file change feed', {
+            workspaceId,
+            error: fileChanges.error,
+          });
+        }
 
         if (ownsFetchService) {
           gitRepositoryFetchService.start();
         }
-        void workspaceFileIndexService.onWorkspaceCreated(workspaceId, ws);
         void (async () => {
           if (scripts?.setup && (projectSettings.autoRunSetupScriptOnTaskCreation ?? true)) {
             const setupResult = await runLifecycleScriptWithPolicy({
@@ -232,12 +287,13 @@ export function createWorkspaceFactory(
         if (ownsFetchService) {
           gitRepositoryFetchService.stop();
         }
-        workspaceFileIndexService.onWorkspaceDestroyed(workspaceId);
+        workspaceFileIndexService.onWorkspaceDeactivated(workspaceId);
+        const latestProjectSettings = await context.settings.get();
         const latestTaskSettings = await getEffectiveTaskSettings({
           projectSettings: context.settings,
-          taskFs: ws.fs,
+          taskFs: ws.fileSystem,
+          taskConfigPath: ws.configPath,
         });
-        const latestProjectSettings = await context.settings.get();
         const latestShellSetup = latestTaskSettings.shellSetup ?? latestProjectSettings.shellSetup;
         const teardownScript = latestTaskSettings.scripts?.teardown;
 
@@ -271,6 +327,43 @@ export function createWorkspaceFactory(
   };
 }
 
+async function acquireWorkspaceRuntime(
+  workspaceRuntime: WorkspaceFactoryContext['workspaceRuntime'],
+  workDir: string
+) {
+  const runtimeLease = await workspaceRuntime.manager.acquire(workspaceRuntime.machine);
+  try {
+    const worktreeLease = await runtimeLease.value.git.openWorktree(workDir);
+    try {
+      const openedFileTree = await runtimeLease.value.files.openTree(workDir);
+      if (!openedFileTree.success) {
+        throw new Error(`Failed to open file tree: ${JSON.stringify(openedFileTree.error)}`);
+      }
+      const fileTreeLease = openedFileTree.data;
+
+      let released = false;
+      return {
+        gitWorktree: worktreeLease.value,
+        fileTree: fileTreeLease.value,
+        filesRuntime: runtimeLease.value.files,
+        release: async () => {
+          if (released) return;
+          released = true;
+          await fileTreeLease.release();
+          await worktreeLease.release();
+          await runtimeLease.release();
+        },
+      };
+    } catch (error) {
+      await worktreeLease.release();
+      throw error;
+    }
+  } catch (error) {
+    await runtimeLease.release();
+    throw error;
+  }
+}
+
 type TaskProviderOpts = {
   projectId: string;
   taskId: string;
@@ -279,6 +372,7 @@ type TaskProviderOpts = {
   tmuxEnabled: boolean;
   shellSetup?: string;
   taskEnvVars: Record<string, string>;
+  filesRuntime?: IFilesRuntime;
 };
 
 async function resolveLocalConversationShellProfile(taskId: string): Promise<ResolvedShellProfile> {
@@ -306,7 +400,10 @@ export async function buildTaskProviders(
   opts: TaskProviderOpts
 ): Promise<{ conversations: ConversationProvider; terminals: TerminalProvider }> {
   if (type.kind === 'ssh') {
-    const ctx = new SshExecutionContext(type.proxy);
+    if (!opts.filesRuntime) {
+      throw new Error('Missing SSH files runtime for SSH task provider');
+    }
+    const ctx = new SshExecutionContext(type.proxy, { connectionId: type.connectionId });
     return {
       conversations: new SshConversationProvider({
         projectId: opts.projectId,
@@ -316,6 +413,7 @@ export async function buildTaskProviders(
         shellSetup: opts.shellSetup,
         ctx,
         proxy: type.proxy,
+        filesRuntime: opts.filesRuntime,
         taskEnvVars: opts.taskEnvVars,
       }),
       terminals: new SshTerminalProvider({
@@ -365,7 +463,7 @@ export async function buildTaskProviders(
  */
 export async function resolveTaskEnv(
   task: Pick<Task, 'id' | 'name'>,
-  workspace: Pick<Workspace, 'path' | 'fs'>,
+  workspace: Pick<Workspace, 'path' | 'fileSystem' | 'configPath'>,
   projectPath: string,
   settings: ProjectSettingsProvider
 ): Promise<{
@@ -377,7 +475,8 @@ export async function resolveTaskEnv(
   const defaultBranch = await settings.getDefaultBranch();
   const taskLevelSettings = await getEffectiveTaskSettings({
     projectSettings: settings,
-    taskFs: workspace.fs,
+    taskFs: workspace.fileSystem,
+    taskConfigPath: workspace.configPath,
   });
   return {
     taskEnvVars: getTaskEnvVars({

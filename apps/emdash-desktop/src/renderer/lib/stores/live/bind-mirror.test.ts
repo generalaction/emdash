@@ -1,7 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindCollectionMirror, bindMirror } from './bind-mirror';
-import { CollectionMirror } from './collection-mirror';
+import { bindMirror } from './bind-mirror';
 import { ModelMirror } from './model-mirror';
 
 function value(v: number, sequence: number, generation = 1) {
@@ -194,40 +193,6 @@ describe('bindMirror', () => {
     expect(mirror.value).toBe(200);
     expect(binding.status).toBe('live');
 
-    binding.dispose();
-  });
-
-  it('binds collection snapshots and updates', async () => {
-    const mirror = new CollectionMirror<string, number>();
-    let push: ((update: Parameters<typeof mirror.applyUpdate>[0]) => void) | undefined;
-    const binding = bindCollectionMirror({
-      mirror,
-      subscribe: (p) => {
-        push = p;
-        return () => {};
-      },
-      snapshot: async () => ok({ entries: [['a', 1]], generation: 1, sequence: 1 }),
-    });
-
-    binding.start();
-    await flush();
-    expect(binding.status).toBe('live');
-    expect(mirror.entries()).toEqual([['a', 1]]);
-    const currentSpy = vi.spyOn(mirror, 'current', 'get');
-
-    push?.({
-      kind: 'delta',
-      generation: 1,
-      sequence: 2,
-      ops: [{ op: 'put', key: 'b', value: 2 }],
-    });
-
-    expect(mirror.entries()).toEqual([
-      ['a', 1],
-      ['b', 2],
-    ]);
-    expect(currentSpy).not.toHaveBeenCalled();
-    currentSpy.mockRestore();
     binding.dispose();
   });
 });

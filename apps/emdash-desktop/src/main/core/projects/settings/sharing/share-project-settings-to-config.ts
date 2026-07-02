@@ -1,8 +1,9 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import type { WriteProjectConfigRequest } from '@shared/core/project-settings/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { ProjectProvider } from '../../project-provider';
+import { errorMessage, writeConfigFailed } from './config-migration-utils';
 import {
   resolveProjectSettingsTarget,
   type ProjectSettingsResolvedTarget,
@@ -12,14 +13,6 @@ import {
   parseWorkspaceConfigObject,
   patchShareableProjectSettingsFields,
 } from './workspace-config-file';
-
-function writeConfigFailed(message: string): Result<void, UpdateProjectSettingsError> {
-  return err({ type: 'write-config-failed', message });
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export async function shareProjectSettingsToConfig(
   project: ProjectProvider,
@@ -35,9 +28,28 @@ export async function shareProjectSettingsToConfig(
     const localSettings = await project.settings.get();
     let config: Record<string, unknown>;
     try {
-      if (await target.fs.exists(CONFIG_FILE)) {
-        const { content } = await target.fs.read(CONFIG_FILE);
-        config = parseWorkspaceConfigObject(content);
+      const exists = await target.fileSystem.exists(target.configPath);
+      if (!exists.success) {
+        const message = `Could not check existing ${CONFIG_FILE}: ${exists.error.message}`;
+        log.warn('Failed to check project config before writing', exists.error);
+        return writeConfigFailed(message);
+      }
+      if (exists.data) {
+        const content = await target.fileSystem.readText(target.configPath);
+        if (!content.success) {
+          const message = `Could not read existing ${CONFIG_FILE}: ${content.error.message}`;
+          log.warn('Failed to read project config before writing', content.error);
+          return writeConfigFailed(message);
+        }
+        if (content.data.truncated) {
+          const message = `Could not read existing ${CONFIG_FILE}: file was truncated.`;
+          log.warn('Project config was truncated before writing', {
+            path: target.configPath,
+            totalSize: content.data.totalSize,
+          });
+          return writeConfigFailed(message);
+        }
+        config = parseWorkspaceConfigObject(content.data.content);
       } else {
         config = {};
       }
@@ -53,10 +65,13 @@ export async function shareProjectSettingsToConfig(
       request.fields
     );
 
-    const writeResult = await target.fs.write(CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`);
-    if (!writeResult.success) {
-      log.warn('Failed to write project config file', writeResult.error);
-      return writeConfigFailed(writeResult.error ?? `Failed to write ${CONFIG_FILE}.`);
+    const written = await target.fileSystem.writeText(
+      target.configPath,
+      `${JSON.stringify(config, null, 2)}\n`
+    );
+    if (!written.success) {
+      log.warn('Failed to write project config to repo', written.error);
+      return writeConfigFailed(`Could not write ${CONFIG_FILE}: ${written.error.message}`);
     }
 
     const clearResult = await project.settings.patch({ clearShareableFields: writtenFields });

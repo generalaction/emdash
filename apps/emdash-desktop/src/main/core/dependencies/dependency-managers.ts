@@ -1,8 +1,11 @@
 import type { Platform } from '@emdash/core/deps';
 import {
   HostDependencyManager,
+  resolveActiveInstallation,
   type DependencyId,
   type DependencyProbeOptions,
+  type DependencyStatusUpdatedEvent,
+  type SelectedSource,
 } from '@emdash/core/deps/runtime';
 import { clearResolvedPathCache } from '@main/core/conversations/impl/resolve-agent-executable';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
@@ -11,6 +14,7 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
+import { setGitExecutableOverride } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { agentUpdateService } from './agent-update-service';
 import { hostDependencyStore } from './host-dependency-store';
@@ -30,9 +34,34 @@ async function resolveLocalInstallShellProfile() {
   });
 }
 
+function syncGitExecutable(event: DependencyStatusUpdatedEvent, connectionId?: string): void {
+  if (event.id !== 'git' || !event.hostDependency) return;
+
+  const activeInstallation = resolveActiveInstallation(
+    event.hostDependency.installations,
+    event.hostDependency.used
+  );
+
+  const executable = activeInstallation
+    ? (activeInstallation.pathEntry ?? activeInstallation.realpath)
+    : gitExecutableFromMissingSelection(event.hostDependency.used);
+
+  setGitExecutableOverride(executable, connectionId);
+}
+
+function gitExecutableFromMissingSelection(selection: SelectedSource): string | null {
+  if (selection.kind === 'pinned') return selection.realpath;
+  if (selection.kind === 'path') return selection.path;
+  if (selection.kind === 'cli') return selection.command;
+  return null;
+}
+
 function wireDesktopBridges(manager: HostDependencyManager, connectionId?: string): void {
   // AgentUpdateService owns the enriched event emission (adds latestVersion/updateAvailable)
   agentUpdateService.attach(manager, connectionId);
+  manager.onStatusUpdated.subscribe((event: DependencyStatusUpdatedEvent) =>
+    syncGitExecutable(event, connectionId)
+  );
   manager.onExecutableInvalidated.subscribe(({ id }: { id: DependencyId }) => {
     clearResolvedPathCache(id, connectionId);
   });
@@ -107,6 +136,7 @@ async function createSshDependencyManager(connectionId: string): Promise<HostDep
 export function clearDependencyManager(connectionId: string): void {
   sshManagers.delete(connectionId);
   sshManagerPromises.delete(connectionId);
+  setGitExecutableOverride(null, connectionId);
 }
 
 export async function ensureAgentDependenciesProbed(

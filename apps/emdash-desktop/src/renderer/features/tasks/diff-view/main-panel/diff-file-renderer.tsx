@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
 import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
-import type { DiffTabStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-store';
+import type { DiffTabResource } from '@renderer/features/tasks/diff-view/stores/diff-tab-resource';
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import {
   useTaskViewContext,
@@ -22,7 +22,7 @@ import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineC
 import type { ActiveFile } from '@shared/view-state';
 
 interface DiffFileRendererProps {
-  tab: DiffTabStore;
+  tab: DiffTabResource;
 }
 
 /**
@@ -240,7 +240,7 @@ function refShaOrString(ref: GitObjectRef | undefined): string {
   return ref.kind === 'commit' ? ref.sha : gitRefToString(ref);
 }
 
-function diffTabToCommentTarget(tab: DiffTabStore): DraftCommentTarget {
+function diffTabToCommentTarget(tab: DiffTabResource): DraftCommentTarget {
   if (tab.diffGroup === 'disk' || tab.diffGroup === 'staged') {
     return { kind: 'working-tree', group: tab.diffGroup, path: tab.path };
   }
@@ -264,7 +264,7 @@ function diffTabToCommentTarget(tab: DiffTabStore): DraftCommentTarget {
   };
 }
 
-function tabToActiveFile(tab: DiffTabStore): ActiveFile {
+function tabToActiveFile(tab: DiffTabResource): ActiveFile {
   return {
     path: tab.path,
     type: tab.diffGroup === 'disk' ? 'disk' : 'git',

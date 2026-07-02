@@ -9,31 +9,50 @@ import type { TaskViewSnapshot } from '@shared/view-state';
 import { ConversationStore } from '../conversations/conversation-manager';
 import type { TerminalManagerStore, TerminalStore } from '../terminals/terminal-manager';
 import { conversationRegistry } from './conversation-registry';
+import { releaseConversationSessionManager } from './conversation-session-manager';
 import type { TaskStore } from './task-store';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
 
 vi.mock('@renderer/features/browser/browser-tab-item', () => ({
-  BrowserTabItem: () => null,
-  BrowserTabDragPreview: () => null,
+  BrowserTabBarItem: () => null,
+  BrowserTabBarItemDragPreview: () => null,
 }));
 vi.mock('@renderer/features/tasks/editor/file-tab-item', () => ({
-  FileTabItem: () => null,
-  FileTabDragPreview: () => null,
+  FileTabBarItem: () => null,
+  FileTabBarItemDragPreview: () => null,
 }));
 vi.mock('@renderer/features/tasks/conversations/conversation-tab-item', () => ({
-  ConversationTabItem: () => null,
-  ConversationTabDragPreview: () => null,
+  ConversationTabBarItem: () => null,
+  ConversationTabBarItemDragPreview: () => null,
 }));
 vi.mock('@renderer/features/tasks/diff-view/diff-tab-item', () => ({
-  DiffTabItem: () => null,
-  DiffTabDragPreview: () => null,
+  DiffTabBarItem: () => null,
+  DiffTabBarItemDragPreview: () => null,
   diffGroupSuffix: (group: string) => `(${group})`,
 }));
 vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () => ({
   formatConversationTitleForDisplay: (_providerId: unknown, title: unknown) =>
     (title as string) ?? 'Conversation',
+}));
+
+// ACP imports chat-ui which calls document.createElement at module load time.
+// Stub out the entire chat-store chain to avoid the DOM dependency in node tests.
+vi.mock('@renderer/features/tasks/acp/acp-chat-store', () => ({
+  AcpChatStore: class {
+    conversationId = '';
+    dispose() {}
+    bootstrap() {}
+  },
+}));
+vi.mock('@renderer/features/tasks/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
+// Logger uses window.electronAPI which doesn't exist in the node test environment.
+vi.mock('@renderer/utils/logger', () => ({
+  log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -58,19 +77,18 @@ vi.mock('@renderer/lib/ipc', () => ({
     },
     workspace: {
       gitWorktree: {},
-      fs: {
-        listFiles: vi.fn().mockResolvedValue({ success: true, data: [] }),
-        watchSetPaths: vi.fn().mockResolvedValue(undefined),
-        watchStop: vi.fn().mockResolvedValue(undefined),
+      fileTree: {
+        openProjection: vi.fn().mockResolvedValue({
+          success: true,
+          data: { subscriptionId: 'sub-1', version: 1, scopes: [{ scopeId: null, entries: [] }] },
+        }),
+        registerDir: vi.fn().mockResolvedValue({ success: true, data: { version: 2 } }),
+        revealPath: vi.fn().mockResolvedValue({ success: true, data: { version: 4 } }),
+        closeProjection: vi.fn().mockResolvedValue({ success: true, data: undefined }),
       },
     },
   },
 }));
-
-type HydrationHarness = {
-  openConversationIds: string[];
-  syncConversationHydration(openIds: string[]): void;
-};
 
 type FakeTerminalManager = TerminalManagerStore & {
   isLoaded: boolean;
@@ -149,11 +167,12 @@ function addConversation(
 }
 
 function conversationTabIds(viewModel: WorkspaceViewModel): string[] {
-  return viewModel.activePane.resolvedTabs.flatMap((tab) =>
-    tab.kind === 'conversation'
-      ? [(tab as unknown as { kind: 'conversation'; conversationId: string }).conversationId]
-      : []
-  );
+  return viewModel.activePane.resolvedTabs.flatMap((tab) => {
+    if (tab.kind !== 'conversation') return [];
+    // resource is ConversationTabResource which holds the store
+    const id = (tab.resource as unknown as { store?: { data?: { id?: string } } })?.store?.data?.id;
+    return id ? [id] : [];
+  });
 }
 
 function makeViewModel(): WorkspaceViewModel {
@@ -203,11 +222,9 @@ function terminalRegistryEntries(): {
   ).entries;
 }
 
-function asHydrationHarness(viewModel: WorkspaceViewModel): HydrationHarness {
-  return viewModel as unknown as HydrationHarness;
-}
-
 afterEach(() => {
+  // Release the session manager first so the reconciler disposes cleanly.
+  releaseConversationSessionManager('task-1');
   conversationRegistry.release('task-1');
   terminalRegistry.release('task-1');
   terminalRegistryEntries().delete('task-1');
@@ -388,10 +405,11 @@ describe('WorkspaceViewModel default conversation tab', () => {
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-1', isInitialConversation: true });
-      viewModel.activePane.open('conversation', {
-        conversationId: 'conversation-1',
-        preview: false,
-      });
+      viewModel.activePane.open(
+        'conversation',
+        { conversationId: 'conversation-1' },
+        { preview: false }
+      );
     });
     await Promise.resolve();
 
@@ -405,7 +423,11 @@ describe('WorkspaceViewModel default conversation tab', () => {
 
     expect(viewModel.activePane.resolvedTabs).toHaveLength(0);
 
-    viewModel.activePane.open('conversation', { conversationId: 'conversation-2', preview: false });
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-2' },
+      { preview: false }
+    );
 
     expect(conversationTabIds(viewModel)).toEqual(['conversation-2']);
 
@@ -458,10 +480,11 @@ describe('WorkspaceViewModel default conversation tab', () => {
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-1', isInitialConversation: true });
-      viewModel.activePane.open('conversation', {
-        conversationId: 'conversation-1',
-        preview: false,
-      });
+      viewModel.activePane.open(
+        'conversation',
+        { conversationId: 'conversation-1' },
+        { preview: false }
+      );
     });
     await Promise.resolve();
 
@@ -471,7 +494,11 @@ describe('WorkspaceViewModel default conversation tab', () => {
       addConversation(conversations, { id: 'conversation-2', title: 'Conversation 2' });
     });
     viewModel.initialize();
-    viewModel.activePane.open('conversation', { conversationId: 'conversation-2', preview: false });
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-2' },
+      { preview: false }
+    );
 
     expect(conversationTabIds(viewModel)).toEqual(['conversation-2']);
 
@@ -486,16 +513,24 @@ describe('WorkspaceViewModel conversation hydration', () => {
     const hydrateConversation = vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
     vi.spyOn(conversations, 'dehydrateConversation').mockResolvedValue();
 
-    viewModel.activePane.open('conversation', { conversationId: 'conversation-1', preview: false });
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Hydration happens automatically when the tab is opened (via initialize → acquire).
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
     );
 
     expect(hydrateConversation).toHaveBeenCalledTimes(1);
     expect(hydrateConversation).toHaveBeenCalledWith('conversation-1');
+
+    // Opening the same tab again (no-op due to single-mount dedup in the pane) should not
+    // hydrate a second time.
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
+    );
+    expect(hydrateConversation).toHaveBeenCalledTimes(1);
 
     await Promise.resolve();
     viewModel.dispose();
@@ -512,31 +547,28 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.paneLayout.open('conversation', {
-      conversationId: 'conversation-1',
-      preview: true,
-    });
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Open conv-1 as preview; initialize() hydrates it.
+    viewModel.paneLayout.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: true }
     );
     await Promise.resolve();
 
-    viewModel.paneLayout.open('conversation', {
-      conversationId: 'conversation-2',
-      preview: true,
-    });
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Open conv-2 as preview; this retargets the preview slot, disposing conv-1 (dehydrate)
+    // and initializing conv-2 (hydrate).
+    viewModel.paneLayout.open(
+      'conversation',
+      { conversationId: 'conversation-2' },
+      { preview: true }
     );
     await Promise.resolve();
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
 
+    // Close conv-2; dispose() dehydrates it.
     viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(2);
     expect(dehydrateConversation).toHaveBeenLastCalledWith('conversation-2');
@@ -552,6 +584,9 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
+    // Restore two panes each with the same conversation (bypasses single-mount dedup).
+    // initialize() is called for each pane's tab, but ConversationSessionManager ref-counts
+    // so hydrateConversation is only called once.
     viewModel.restoreSnapshot({
       tabGroups: {
         activeGroupId: 'group-1',
@@ -589,26 +624,17 @@ describe('WorkspaceViewModel conversation hydration', () => {
       },
     } as TaskViewSnapshot);
 
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
     await Promise.resolve();
 
     expect(hydrateConversation).toHaveBeenCalledTimes(1);
 
     const [firstGroup, secondGroup] = viewModel.paneLayout.groups;
+    // Closing tab in pane-1 does NOT dehydrate because pane-2 still holds a ref.
     firstGroup.pane.closeTab('tab-1');
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
-
     expect(dehydrateConversation).not.toHaveBeenCalled();
 
+    // Closing the last tab triggers dehydration.
     secondGroup.pane.closeTab('tab-2');
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
-
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
 
@@ -626,20 +652,30 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.activePane.open('conversation', { conversationId: 'conversation-1', preview: false });
-    viewModel.activePane.open('conversation', { conversationId: 'conversation-2', preview: false });
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Open two conversations; each initialize() acquires the session.
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
     );
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-2' },
+      { preview: false }
+    );
+    // Both hydrate() continuations are scheduled as microtasks (mock resolves immediately).
+    // Two awaits drain both, bringing each to 'running' state before dispose().
+    await Promise.resolve();
     await Promise.resolve();
 
-    viewModel.suspend();
+    // dispose() calls paneLayout.dispose() which _disposeEntry()s all tabs.
+    // Each entry's provider.dispose() triggers release() → reconciler.sync({}) →
+    // dehydrate (since state='running').
+    viewModel.dispose();
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(2);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-2');
-
-    viewModel.dispose();
   });
 
   it('dehydrates a stale conversation when its hydrate finishes after the tab closed', async () => {
@@ -651,20 +687,25 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.activePane.open('conversation', { conversationId: 'conversation-1', preview: false });
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Open tab; hydrateConversation starts but is still pending.
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
     );
 
+    // Close tab while hydration is still in-flight; release() removes from desired set.
     viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
 
+    // Dehydration hasn't happened yet because hydration hasn't resolved.
     expect(dehydrateConversation).not.toHaveBeenCalled();
 
+    // When the hydrate promise resolves, the reconciler sees the conversation is no longer
+    // desired and dehydrates it. Two extra microtask drains let the reconciler's hydrate()
+    // continuation run and then the dehydrate() body run.
     hydrate.resolve();
     await hydrate.promise;
+    await Promise.resolve();
     await Promise.resolve();
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
@@ -684,23 +725,27 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.activePane.open('conversation', { conversationId: 'conversation-1', preview: false });
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // First open: hydration fails.
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
     );
     await Promise.resolve();
 
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
+    // Closing and reopening triggers a second initialize() → acquire() → retry.
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
+    viewModel.activePane.open(
+      'conversation',
+      { conversationId: 'conversation-1' },
+      { preview: false }
     );
     await Promise.resolve();
 
     expect(hydrateConversation).toHaveBeenCalledTimes(2);
 
+    // Close again to dehydrate.
     viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
-    asHydrationHarness(viewModel).syncConversationHydration(
-      asHydrationHarness(viewModel).openConversationIds
-    );
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');

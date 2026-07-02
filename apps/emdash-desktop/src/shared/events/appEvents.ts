@@ -55,7 +55,7 @@ export const ptyStartedChannel = defineEvent<{
 export type PlanEvent = {
   type: 'write_blocked' | 'remove_blocked';
   root: string;
-  relPath: string;
+  path: string;
   code?: string;
   message?: string;
 };

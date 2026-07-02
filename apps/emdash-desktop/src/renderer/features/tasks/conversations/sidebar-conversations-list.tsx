@@ -3,12 +3,12 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import { conversationTabKind, useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 import {
   useConversations,
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -23,7 +23,7 @@ import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
-import { activeConversationId as getActiveConversationId } from './pane-selectors';
+import { ConversationAgentIcon } from './conversation-agent-icon';
 
 const ROW_HEIGHT = 32;
 
@@ -34,9 +34,7 @@ const ConversationRow = observer(function ConversationRow({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
-  const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
-  const { activePane, paneLayout } = taskView;
   const showConfirm = useShowModal('confirmActionModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
@@ -50,9 +48,11 @@ const ConversationRow = observer(function ConversationRow({
   }, []);
 
   const conversation = conversations.conversations.get(conversationId);
-  if (!conversation) return null;
 
-  const isActive = getActiveConversationId(activePane) === conversationId;
+  const tabKind = conversationTabKind(conversation?.data.type);
+  const { isActive, open: openConversation } = useTabSelection(tabKind, conversationId);
+
+  if (!conversation) return null;
   const displayTitle = formatConversationTitleForDisplay(
     conversation.data.providerId,
     conversation.data.title
@@ -75,8 +75,7 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   const handleDoubleClick = () => {
-    paneLayout.open('conversation', { conversationId, preview: false });
-    handleRename();
+    openConversation({ conversationId }, { preview: false });
   };
 
   const handleDelete = () => {
@@ -97,12 +96,12 @@ const ConversationRow = observer(function ConversationRow({
         <div
           role="button"
           tabIndex={0}
-          onClick={() => paneLayout.open('conversation', { conversationId, preview: true })}
+          onClick={() => openConversation({ conversationId }, { preview: true })}
           onDoubleClick={handleDoubleClick}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              paneLayout.open('conversation', { conversationId, preview: true });
+              openConversation({ conversationId }, { preview: true });
             }
           }}
           className={cn(
@@ -110,7 +109,12 @@ const ConversationRow = observer(function ConversationRow({
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
-          <AgentIcon id={conversation.data.providerId} size={16} className="size-4" />
+          <ConversationAgentIcon
+            providerId={conversation.data.providerId}
+            isAcp={conversation.data.type === 'acp'}
+            size={16}
+            className="size-4"
+          />
           {isEditing ? (
             <input
               ref={handleRenameInputRef}
@@ -187,8 +191,12 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     showCreateConversationModal({
       projectId,
       taskId,
-      onSuccess: ({ conversationId }) => {
-        paneLayout.open('conversation', { conversationId, preview: false });
+      onSuccess: ({ conversationId, type }) => {
+        if (type === 'acp') {
+          paneLayout.open('acp-chat', { conversationId }, { preview: false });
+        } else {
+          paneLayout.open('conversation', { conversationId }, { preview: false });
+        }
       },
     });
   };

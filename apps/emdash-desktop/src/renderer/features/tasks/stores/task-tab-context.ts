@@ -16,6 +16,7 @@ export interface TaskTabContext extends TabViewContext {
   projectId: string;
   workspaceId: string;
   taskId: string;
+  workspacePath?: string;
   /** Workspace-scoped prefix for Monaco model URIs: `workspace:<workspaceId>`. */
   modelRootPath: string;
 }

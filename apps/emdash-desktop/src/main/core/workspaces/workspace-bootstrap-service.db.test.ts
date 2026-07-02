@@ -150,7 +150,7 @@ describe('WorkspaceBootstrapService', () => {
   describe('ensureWorkspaceSetup', () => {
     it('repairs persisted branch worktree paths before acquiring the workspace', async () => {
       const serveBranchWorktree = vi.fn().mockResolvedValue(ok('/worktrees/task-branch'));
-      const existsAbsolute = vi.fn().mockResolvedValue(true);
+      const existsAtAbsolutePath = vi.fn().mockResolvedValue(true);
       const project = {
         projectId: 'proj-1',
         type: 'local',
@@ -163,10 +163,8 @@ describe('WorkspaceBootstrapService', () => {
           getConfiguredRemotes: vi.fn(),
         },
         gitRepositoryFetchService: {},
-        worktreeHost: {
-          existsAbsolute,
-        },
         worktreeService: {
+          existsAtAbsolutePath,
           serveBranchWorktree,
         },
       } as unknown as ProjectProvider;
@@ -200,7 +198,7 @@ describe('WorkspaceBootstrapService', () => {
         type: 'local',
         branch: 'main',
       });
-      expect(existsAbsolute).not.toHaveBeenCalledWith('/worktrees/broken-task-branch');
+      expect(existsAtAbsolutePath).not.toHaveBeenCalledWith('/worktrees/broken-task-branch');
       expect(mocks.acquireWorkspace).toHaveBeenCalled();
 
       const [ws] = await fixture.db.select().from(workspaces).where(eq(workspaces.id, WS_ID));

@@ -281,3 +281,12 @@ export function classifyDeleteBranchError(error: unknown, branch: string): Delet
   }
   return commandError;
 }
+
+export function isNotRepositoryInspectionError(error: unknown): boolean {
+  const message = gitErrorMessage(error).toLowerCase();
+  return (
+    message.includes('not a git repository') ||
+    message.includes('not a git directory') ||
+    message.includes('must be run in a work tree')
+  );
+}

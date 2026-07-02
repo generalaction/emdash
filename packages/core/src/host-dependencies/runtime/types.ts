@@ -281,7 +281,7 @@ export type DependencyStatusUpdatedEvent = {
   id: string;
   state: DependencyState;
   connectionId?: string;
-  /** Present for agent-category deps after the host dependency has been computed. */
+  /** Present after the host dependency has been computed. */
   hostDependency?: HostDependency;
 };
 

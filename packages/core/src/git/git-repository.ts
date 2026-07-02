@@ -1,9 +1,9 @@
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import type { BoundExec } from '../exec';
-import type { IFileWatchService, WatchHandle } from '../fs';
-import { realpathOrResolve } from '../fs';
 import { LiveModel } from '../lib';
 import type { KeyedMutex } from '../lib';
+import type { IWatchService, WatchHandle } from '../watch';
+import { realpathOrResolve } from '../watch';
 import { CatFileBatch } from './cat-file-batch';
 import {
   classifyCreateBranchError,
@@ -52,7 +52,7 @@ export type GitRepositoryOptions = {
   objectStoreDir: string;
   exec: BoundExec;
   /** Injected file-watch service; disposed by the injector, not this class. */
-  watcher: IFileWatchService;
+  watcher: IWatchService;
   /** Serializes concurrent fetch operations on the same object store directory. */
   objectStoreMutex: KeyedMutex;
   onError?: GitOnError;
@@ -82,12 +82,14 @@ export class GitRepository implements IGitRepository {
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`refs ${this.gitCommonDir}`, error),
+      onUnexpectedError: (error) => this.onError(`refs ${this.gitCommonDir}`, error),
     });
     this.remotesModel = new LiveModel<GitRemotesModel>({
       compute: async () => ok(await this.computeRemotes()),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`remotes ${this.gitCommonDir}`, error),
+      onUnexpectedError: (error) => this.onError(`remotes ${this.gitCommonDir}`, error),
     });
 
     this.commonDirWatch = options.watcher.watch(

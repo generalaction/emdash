@@ -1,14 +1,17 @@
-/**
- * ChatPanel — composed story combining ChatTranscript (from @emdash/ui/react/chat-ui)
- * with ChatComposer (from @emdash/ui), mirroring the desktop chat-panel layout.
- */
-import type { ChatCommands, ChatHandle, MentionProvider } from '@emdash/chat-ui';
-import { applyTurnEvent, generateMockTranscript } from '@emdash/chat-ui';
+import type { ChatCommands, ChatView, MentionProvider } from '@emdash/chat-ui';
+import {
+  applyTurnEvent,
+  createChatContext,
+  createChatState,
+  generateMockTranscript,
+} from '@emdash/chat-ui';
 import { ChatTranscript } from '@react/chat-ui';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
 import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ImageViewerDialog } from '@/react/components/image-viewer';
 import { ChatComposer, stopReasonNotice } from '../components/chat-composer';
 import type {
   ComposerAttachment,
@@ -17,8 +20,7 @@ import type {
   ContextMentionProvider,
   MentionItem,
 } from '../components/chat-composer';
-import { ImageViewerDialog } from '../components/image-viewer-dialog';
-import type { ComposerPermissionRequest } from '../components/permission-band';
+import type { ComposerPermissionRequest } from '../components/chat-composer/permission-band';
 import { basename, fileIconClass } from '../components/prompt-editor/mention-pill-helpers';
 import type { PromptEditorRef } from '../components/prompt-editor/types';
 import { Box } from '../primitives/box';
@@ -146,12 +148,15 @@ const mockMentionProvider: ContextMentionProvider = {
 };
 
 const PAD_TOP = 16;
-const PAD_BOTTOM_MARGIN = 12;
 
 const SEED_ATTACHMENTS: ComposerAttachment[] = [
   { id: 'mock-img-1', name: 'screenshot.png', kind: 'image', previewUrl: RED_1PX },
   { id: 'mock-img-2', name: 'diagram.png', kind: 'image', previewUrl: BLUE_1PX },
 ];
+
+// Create a shared ChatContext for all stories in this module.
+// In a real app this would be a singleton created once at app startup.
+const storyChatContext = createChatContext({ mentionProvider: chatMentionProvider });
 
 function LiveChatPanel({
   notice,
@@ -162,25 +167,17 @@ function LiveChatPanel({
   permissionRequest?: ComposerPermissionRequest | null;
   permissionQueueCount?: number;
 }) {
-  const handleRef = useRef<ChatHandle | null>(null);
-  const composerRef = useRef<HTMLDivElement>(null);
+  // Create ChatState per panel instance so each story has an independent transcript.
+  const chatState = useMemo(() => createChatState(storyChatContext), []);
+  useEffect(() => () => chatState.dispose(), [chatState]);
+
+  const viewRef = useRef<ChatView | null>(null);
   const editorApiRef = useRef<PromptEditorRef | null>(null);
-  const [composerH, setComposerH] = useState(0);
+  const [composerSlot, setComposerSlot] = useState<HTMLElement | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [attachments, setAttachments] = useState<ComposerAttachment[]>(SEED_ATTACHMENTS);
   const [viewer, setViewer] = useState<{ src?: string; alt?: string } | null>(null);
-
-  useEffect(() => {
-    const el = composerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const h = entries[0]?.borderBoxSize[0]?.blockSize ?? entries[0]?.contentRect.height ?? 0;
-      setComposerH(Math.round(h));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const commands = useMemo(
     (): ChatCommands => ({
@@ -189,8 +186,8 @@ function LiveChatPanel({
     []
   );
 
-  const handleReady = useCallback((handle: ChatHandle) => {
-    handleRef.current = handle;
+  // Seed initial items into the transcript directly (no need to wait for onReady).
+  useEffect(() => {
     const items = generateMockTranscript(40, 1);
     const longUserText = [
       'Refactor the authentication module to use JWT tokens:',
@@ -207,7 +204,7 @@ function LiveChatPanel({
       '',
       'Preserve backward compatibility for existing sessions during the migration period.',
     ].join('\n');
-    handle.transcript.history.seed([
+    chatState.transcript.history.seed([
       { kind: 'message', id: 'long-user-seed', role: 'user', text: longUserText },
       {
         kind: 'message',
@@ -221,6 +218,11 @@ function LiveChatPanel({
       },
       ...items,
     ]);
+  }, [chatState]);
+
+  const handleReady = useCallback((view: ChatView) => {
+    viewRef.current = view;
+    setComposerSlot(view.composerSlot);
   }, []);
 
   const handleFilesDropped = useCallback((files: File[]) => {
@@ -237,8 +239,7 @@ function LiveChatPanel({
 
   const handleSubmit = useCallback(
     (text: string) => {
-      const api = handleRef.current?.transcript;
-      if (!api) return;
+      const api = chatState.transcript;
       const atts = attachments
         .filter((a) => a.kind === 'image')
         .map((a) => ({ id: a.id, name: a.name, dataUrl: a.previewUrl }));
@@ -263,7 +264,7 @@ function LiveChatPanel({
       api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), assistantEv), 'generating');
       api.activeTurn.commit('done');
     },
-    [attachments]
+    [attachments, chatState]
   );
 
   return (
@@ -277,79 +278,81 @@ function LiveChatPanel({
       borderStyle="solid"
       borderColor="border"
     >
+      {/* ChatTranscript fills the box; composer slot is rendered inside by Solid. */}
       <ChatTranscript
+        context={storyChatContext}
+        state={chatState}
+        composer="slot"
         className={cx(sx({ position: 'absolute', inset: '0' }))}
         stickToBottom
         pinUserMessages
-        mentionProvider={chatMentionProvider}
         padTop={PAD_TOP}
-        padBottom={composerH + PAD_BOTTOM_MARGIN}
         onReady={handleReady}
         onAtBottomChange={setAtBottom}
         commands={commands}
       />
 
-      <div
-        ref={composerRef}
-        className={cx(
-          s.bgSurface80,
-          s.backdropBlurSm,
-          s.mxAuto,
-          s.maxW2xl,
-          sx({
-            position: 'absolute',
-            left: '0',
-            right: '0',
-            bottom: '0',
-            width: 'full',
-            paddingBottom: '2',
-          })
-        )}
-      >
-        {!atBottom && (
+      {/* Scroll-to-bottom button floats above the composer slot. */}
+      {!atBottom && (
+        <div
+          className={cx(
+            s.negTop2,
+            s.left50pct,
+            s.negTranslateX,
+            s.negTranslateY,
+            sx({ position: 'absolute' })
+          )}
+        >
+          <Button
+            variant="primary"
+            size="sm"
+            icon
+            aria-label="Scroll to bottom"
+            onClick={() => viewRef.current?.scrollToBottom({ behavior: 'smooth' })}
+            className={cx(sx({ rounded: 'full' }), s.shadowMd)}
+          >
+            <ArrowDown />
+          </Button>
+        </div>
+      )}
+
+      {/* Portal the React ChatComposer into the Solid-owned composer slot. */}
+      {composerSlot &&
+        createPortal(
           <div
             className={cx(
-              s.negTop2,
-              s.left50pct,
-              s.negTranslateX,
-              s.negTranslateY,
-              sx({ position: 'absolute' })
+              s.bgSurface80,
+              s.backdropBlurSm,
+              s.mxAuto,
+              s.maxW2xl,
+              sx({ paddingBottom: '2' })
             )}
+            style={{ '--composer-bg': 'var(--em-surface-paper)' } as React.CSSProperties}
           >
-            <Button
-              variant="primary"
-              size="sm"
-              icon
-              aria-label="Scroll to bottom"
-              onClick={() => handleRef.current?.scrollToBottom({ behavior: 'smooth' })}
-              className={cx(sx({ rounded: 'full' }), s.shadowMd)}
-            >
-              <ArrowDown />
-            </Button>
-          </div>
+            <ChatComposer
+              onSubmit={handleSubmit}
+              mentionProvider={mockMentionProvider}
+              modelOptions={MOCK_MODELS}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
+              attachments={attachments}
+              onAttachmentsChange={setAttachments}
+              onFilesDropped={handleFilesDropped}
+              editorApiRef={editorApiRef}
+              notice={notice}
+              permissionRequest={permissionRequest}
+              permissionQueueCount={permissionQueueCount}
+              onResolvePermission={(optionId) => {
+                console.log('Permission resolved:', optionId);
+              }}
+              onViewImage={(att) => setViewer({ src: att.previewUrl, alt: att.name })}
+            />
+          </div>,
+          composerSlot
         )}
-        <ChatComposer
-          onSubmit={handleSubmit}
-          mentionProvider={mockMentionProvider}
-          modelOptions={MOCK_MODELS}
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
-          attachments={attachments}
-          onAttachmentsChange={setAttachments}
-          onFilesDropped={handleFilesDropped}
-          editorApiRef={editorApiRef}
-          notice={notice}
-          permissionRequest={permissionRequest}
-          permissionQueueCount={permissionQueueCount}
-          onResolvePermission={(optionId) => {
-            console.log('Permission resolved:', optionId);
-          }}
-          onViewImage={(att) => setViewer({ src: att.previewUrl, alt: att.name })}
-        />
-      </div>
       <ImageViewerDialog
         open={!!viewer}
-        onOpenChange={(o) => !o && setViewer(null)}
+        onOpenChange={(o: boolean) => !o && setViewer(null)}
         src={viewer?.src}
         alt={viewer?.alt}
       />

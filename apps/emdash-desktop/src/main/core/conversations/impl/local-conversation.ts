@@ -1,8 +1,8 @@
 import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { ensureHooksInstalled } from '@main/core/agent-hooks/hook-config-service';
-import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { getPlugin } from '@main/core/agents/plugin-registry';
+import { workspaceTrustService } from '@main/core/agents/workspace-trust';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import {
@@ -117,10 +117,10 @@ export class LocalConversationProvider implements ConversationProvider {
 
     let spill: SpillLargePromptResult | undefined;
     try {
-      await workspaceTrustService.maybeAutoTrustLocal({
+      await workspaceTrustService.maybeAutoTrust({
         providerId: conversation.providerId,
-        cwd: this.taskPath,
-        homedir: homedir(),
+        workspacePath: this.taskPath,
+        host: { kind: 'local', homedir: homedir() },
         force: conversation.autoApprove === true,
       });
       await ensureHooksInstalled({
@@ -157,7 +157,7 @@ export class LocalConversationProvider implements ConversationProvider {
         autoApprove: conversation.autoApprove ?? false,
         initialPrompt: agentSession.isResuming ? undefined : effectiveInitialPrompt,
         sessionId: agentSession.sessionId,
-        providerSessionId: conversation.providerSessionId ?? undefined,
+        providerSessionId: conversation.sessionId ?? undefined,
         isResuming: agentSession.isResuming,
         model: conversation.model ?? '',
       });

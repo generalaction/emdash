@@ -27,14 +27,15 @@ describe('createChatCaches().computeDiff', () => {
     expect(a).not.toBe(b);
   });
 
-  it('clear() evicts diff cache — new call recomputes', () => {
-    const caches = createChatCaches();
-    const a = caches.computeDiff('a\nb', 'a\nc');
-    caches.clear();
-    const b = caches.computeDiff('a\nb', 'a\nc');
-    // After clear, the reference is different (fresh array).
+  it('instances are isolated — diff cache is not shared across createChatCaches() calls', () => {
+    // Each createChatCaches() creates an isolated diff cache; a fresh instance
+    // always produces a new array reference for the same input.
+    const c1 = createChatCaches();
+    const a = c1.computeDiff('a\nb', 'a\nc');
+    const c2 = createChatCaches();
+    const b = c2.computeDiff('a\nb', 'a\nc');
+    // Different instances, same content, different references.
     expect(a).not.toBe(b);
-    // But the content is equal.
     expect(a).toEqual(b);
   });
 
@@ -165,11 +166,135 @@ describe('createChatCaches().parseBlocksStreaming', () => {
     expect(blocks[0].id).toBe('m1#0');
   });
 
-  it('clear() removes streaming records', () => {
+  it('clearAll() removes streaming records', () => {
     const caches = createChatCaches();
     caches.parseBlocksStreaming('m1', 'Para one.\n\nPara two grow');
-    caches.clear();
+    caches.clearAll();
     const blocks = caches.parseBlocksStreaming('m1', 'After clear');
     expect(blocks[0].id).toBe('m1#0');
+  });
+
+  // ── Fence-close boundary ──────────────────────────────────────────────────
+
+  it('closes a code block as a boundary even without a trailing blank line', () => {
+    const caches = createChatCaches();
+    // Fence closes on its own line with no blank line after it.
+    const text = 'Intro.\n\n```js\nconst x = 1;\n```\n';
+    const blocks = caches.parseBlocksStreaming('m1', text);
+    // Should have intro prose + code block in settled prefix; no growing tail.
+    expect(blocks.some((b) => b.kind === 'code')).toBe(true);
+    expect(blocks[0].kind).toBe('prose');
+    expect(blocks[1].kind).toBe('code');
+    // Both are settled — ids are sequential from 0.
+    expect(blocks[0].id).toBe('m1#0');
+    expect(blocks[1].id).toBe('m1#1');
+  });
+
+  it('code block keeps object identity after the fence closes when more text arrives', () => {
+    const caches = createChatCaches();
+    // First chunk: complete fenced code block with no trailing blank line.
+    const text1 = 'Intro.\n\n```js\nconst x = 1;\n```\n';
+    const blocks1 = caches.parseBlocksStreaming('m1', text1);
+    const codeBlock1 = blocks1[1];
+    expect(codeBlock1.kind).toBe('code');
+
+    // Second chunk: more prose arrives but the code block is now settled.
+    const text2 = text1 + 'Now call it.';
+    const blocks2 = caches.parseBlocksStreaming('m1', text2);
+    // Code block is still the exact same object reference (stable prefix).
+    expect(blocks2[1]).toBe(codeBlock1);
+    // Growing tail produces a new prose block.
+    expect(blocks2).toHaveLength(3);
+    expect(blocks2[2].kind).toBe('prose');
+  });
+
+  it('open fence does not trigger a fence-close boundary', () => {
+    const caches = createChatCaches();
+    // Fence is still open — no closing line yet.
+    const text = 'Intro.\n\n```js\nconst x = 1;\n';
+    const blocks = caches.parseBlocksStreaming('m1', text);
+    // The code block is in the growing tail; intro prose has blank-line settled.
+    expect(blocks.some((b) => b.kind === 'code')).toBe(true);
+  });
+
+  it('blank lines inside an open fence are still not boundaries', () => {
+    const caches = createChatCaches();
+    // Blank line inside the open fence must not commit the fence-open prefix.
+    const text = 'Intro.\n\n```js\nconst x = 1;\n\nconst y = 2;\n';
+    const blocks = caches.parseBlocksStreaming('m1', text);
+    // Still a code block in the growing tail.
+    expect(blocks.some((b) => b.kind === 'code')).toBe(true);
+  });
+});
+
+// ── settledBlockCount ─────────────────────────────────────────────────────────
+
+describe('createChatCaches().settledBlockCount', () => {
+  it('returns 0 before any streaming parse', () => {
+    const caches = createChatCaches();
+    expect(caches.settledBlockCount('m1')).toBe(0);
+  });
+
+  it('returns 0 while the tail is still growing (no safe boundary yet)', () => {
+    const caches = createChatCaches();
+    caches.parseBlocksStreaming('m1', 'Growing paragraph, no blank line yet');
+    expect(caches.settledBlockCount('m1')).toBe(0);
+  });
+
+  it('advances to 1 after the first blank-line boundary', () => {
+    const caches = createChatCaches();
+    caches.parseBlocksStreaming('m1', 'Para one.\n\nPara two grows');
+    expect(caches.settledBlockCount('m1')).toBe(1);
+  });
+
+  it('advances by the number of newly settled blocks per chunk', () => {
+    const caches = createChatCaches();
+    caches.parseBlocksStreaming('m1', 'Para one.\n\nPara two.\n\nPara three grows');
+    expect(caches.settledBlockCount('m1')).toBe(2);
+  });
+
+  it('advances to 2 when a code fence closes (no trailing blank line required)', () => {
+    const caches = createChatCaches();
+    // Intro para + code block settle once the fence closes.
+    caches.parseBlocksStreaming('m1', 'Intro.\n\n```js\nconst x = 1;\n```\n');
+    expect(caches.settledBlockCount('m1')).toBe(2);
+  });
+
+  it('does not advance past an open fence (blank lines inside are not boundaries)', () => {
+    const caches = createChatCaches();
+    // Intro prose settles at the blank line before the opening fence (count = 1).
+    // The blank line inside the open fence does NOT advance the count further.
+    caches.parseBlocksStreaming('m1', 'Intro.\n\n```js\nconst x = 1;\n\nconst y = 2;\n');
+    // Intro prose has settled (1 block), but the code block is still open.
+    expect(caches.settledBlockCount('m1')).toBe(1);
+  });
+
+  it('returns 0 after evictBlocks', () => {
+    const caches = createChatCaches();
+    caches.parseBlocksStreaming('m1', 'Para one.\n\nPara two grows');
+    caches.evictBlocks('m1');
+    expect(caches.settledBlockCount('m1')).toBe(0);
+  });
+
+  it('returns 0 after clearAll', () => {
+    const caches = createChatCaches();
+    caches.parseBlocksStreaming('m1', 'Para one.\n\nPara two grows');
+    caches.clearAll();
+    expect(caches.settledBlockCount('m1')).toBe(0);
+  });
+
+  it('resets to 0 after parseBlocks clears the streaming record', () => {
+    const caches = createChatCaches();
+    caches.parseBlocksStreaming('m1', 'Para one.\n\nPara two grows');
+    caches.parseBlocks('m1', 'Para one.\n\nPara two complete.');
+    expect(caches.settledBlockCount('m1')).toBe(0);
+  });
+
+  it('is independent per message id', () => {
+    const caches = createChatCaches();
+    caches.parseBlocksStreaming('m1', 'Para one.\n\nPara two grows');
+    caches.parseBlocksStreaming('m2', 'Other message, no boundary yet');
+    expect(caches.settledBlockCount('m1')).toBe(1);
+    expect(caches.settledBlockCount('m2')).toBe(0);
   });
 });

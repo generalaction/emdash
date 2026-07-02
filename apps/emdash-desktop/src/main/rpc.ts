@@ -1,5 +1,6 @@
 import { createRPCNamespace, createRPCRouter } from '../shared/lib/ipc/rpc';
 import { accountController } from './core/account/controller';
+import { acpController } from './core/acp/controller';
 import { agentsController } from './core/agents/controller';
 import { appController } from './core/app/controller';
 import { asanaController } from './core/asana/controller';
@@ -8,8 +9,10 @@ import { browserController } from './core/browser/controller';
 import { conversationController } from './core/conversations/controller';
 import { editorBufferController } from './core/editor/controller';
 import { featurebaseController } from './core/featurebase/controller';
+import { machineFilesController } from './core/files/controller';
+import { workspaceFileSystemController } from './core/files/file-system/controller';
+import { fileTreeController } from './core/files/file-tree/controller';
 import { forgejoController } from './core/forgejo/controller';
-import { filesController } from './core/fs/controller';
 import { gitRepositoryController } from './core/git/repository/controller';
 import { gitWorktreeController } from './core/git/worktree/controller';
 import { githubController } from './core/github/controller';
@@ -44,6 +47,7 @@ import { legacyPortController } from './db/legacy-port/controller';
 
 export const rpcRouter = createRPCRouter({
   account: accountController,
+  acp: acpController,
   agents: agentsController,
   legacyPort: legacyPortController,
   app: appController,
@@ -58,6 +62,7 @@ export const rpcRouter = createRPCRouter({
   asana: asanaController,
   featurebase: featurebaseController,
   forgejo: forgejoController,
+  files: machineFilesController,
   github: githubController,
   gitlab: gitlabController,
   issues: issueController,
@@ -84,7 +89,8 @@ export const rpcRouter = createRPCRouter({
   projectSettings: projectSettingsController,
   workspace: createRPCNamespace({
     gitWorktree: gitWorktreeController,
-    fs: filesController,
+    files: workspaceFileSystemController,
+    fileTree: fileTreeController,
     editor: editorBufferController,
   }),
 });

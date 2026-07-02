@@ -1,5 +1,5 @@
+import type { IFileSystem } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
-import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
 import {
@@ -22,7 +22,8 @@ import type { ProjectSettingsStorage, StoredProjectSettings } from './project-se
 export type LegacyProjectSettingsMigrationArgs = {
   projectId: string;
   row: StoredProjectSettings | undefined;
-  configReader: Pick<FileSystemProvider, 'exists' | 'read'> | undefined;
+  configReader: Pick<IFileSystem, 'exists' | 'readText'> | undefined;
+  configPath: string;
   defaultBranchFallback: string;
   storage: ProjectSettingsStorage;
   git?: ProjectSettingsGitInspector;
@@ -49,7 +50,8 @@ function normalizeLegacyDefaultBranch(
 }
 
 async function readLegacyProjectConfig(
-  configReader: Pick<FileSystemProvider, 'exists' | 'read'> | undefined
+  configReader: Pick<IFileSystem, 'exists' | 'readText'> | undefined,
+  configPath: string
 ): Promise<
   | (BaseProjectSettings & {
       remote?: string;
@@ -58,9 +60,25 @@ async function readLegacyProjectConfig(
 > {
   if (!configReader) return undefined;
   try {
-    if (!(await configReader.exists('.emdash.json'))) return undefined;
-    const { content } = await configReader.read('.emdash.json');
-    const parsed = legacyProjectConfigSchema.safeParse(parseJsonObject(content));
+    const exists = await configReader.exists(configPath);
+    if (!exists.success) {
+      log.warn('Failed to check legacy .emdash.json for migration', exists.error);
+      return undefined;
+    }
+    if (!exists.data) return undefined;
+    const content = await configReader.readText(configPath);
+    if (!content.success) {
+      log.warn('Failed to read legacy .emdash.json for migration', content.error);
+      return undefined;
+    }
+    if (content.data.truncated) {
+      log.warn('Legacy .emdash.json was truncated during migration', {
+        path: configPath,
+        totalSize: content.data.totalSize,
+      });
+      return undefined;
+    }
+    const parsed = legacyProjectConfigSchema.safeParse(parseJsonObject(content.data.content));
     if (!parsed.success) {
       log.warn('Failed to parse legacy .emdash.json for migration', parsed.error);
       return undefined;
@@ -76,6 +94,7 @@ export async function migrateLegacyProjectSettingsIfNeeded({
   projectId,
   row,
   configReader,
+  configPath,
   defaultBranchFallback,
   storage,
   git,
@@ -100,7 +119,7 @@ export async function migrateLegacyProjectSettingsIfNeeded({
     'shareable project settings'
   );
   const { remote, ...currentSettings } = current;
-  const legacy = await readLegacyProjectConfig(configReader);
+  const legacy = await readLegacyProjectConfig(configReader, configPath);
   const next: BaseProjectSettings = baseProjectSettingsSchema.parse({
     ...currentSettings,
     baseRemote: currentSettings.baseRemote ?? remote,
@@ -129,7 +148,7 @@ export async function migrateLegacyProjectSettingsIfNeeded({
   }
 
   if (legacy && !shareableAlreadyMigrated) {
-    if ((await git?.isFileCleanlyTracked('.emdash.json')) === false) {
+    if ((await git?.isFileCleanlyTracked(configPath)) === false) {
       const legacyShareable = shareableProjectSettingsSchema.parse(legacy);
       nextShareable = mergeShareableProjectSettings(currentShareable, legacyShareable);
     }

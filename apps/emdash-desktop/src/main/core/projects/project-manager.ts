@@ -1,6 +1,6 @@
+import { LifecycleMap } from '@emdash/shared';
 import { err, ok, type IDisposable, type IReleasable, type Result } from '@emdash/shared';
 import { HookCore, type Hookable } from '@main/lib/hookable';
-import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { createProvider } from './create-project-provider';
@@ -58,7 +58,8 @@ class ProjectSessionManager
           createProvider(project),
           project.type === 'ssh' ? SSH_PROVIDER_TIMEOUT_MS : LOCAL_PROVIDER_TIMEOUT_MS
         );
-        return ok(provider);
+        if (!provider.success) return err({ type: 'error', message: provider.error.message });
+        return ok(provider.data);
       } catch (e) {
         const initError = toInitError(e);
         log.error('ProjectManager: error during project initialization', {

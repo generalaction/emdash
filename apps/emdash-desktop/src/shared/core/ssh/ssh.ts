@@ -53,19 +53,6 @@ export interface ExecResult {
 }
 
 /**
- * File entry for SFTP operations
- * Represents a file or directory on a remote host
- */
-export interface FileEntry {
-  path: string;
-  name: string;
-  type: 'file' | 'directory' | 'symlink';
-  size: number;
-  modifiedAt: Date;
-  permissions?: string;
-}
-
-/**
  * Test connection result
  * Returned when testing an SSH connection
  */
@@ -101,7 +88,6 @@ export const SSH_IPC_CHANNELS = {
   CONNECT: 'ssh:connect',
   DISCONNECT: 'ssh:disconnect',
   EXECUTE_COMMAND: 'ssh:executeCommand',
-  LIST_FILES: 'ssh:listFiles',
   READ_FILE: 'ssh:readFile',
   WRITE_FILE: 'ssh:writeFile',
   GET_STATE: 'ssh:getState',

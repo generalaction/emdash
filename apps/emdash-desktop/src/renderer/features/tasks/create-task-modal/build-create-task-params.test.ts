@@ -16,8 +16,12 @@ function makeInitialConversationState(
     setIssueContext: () => {},
     autoApprove,
     setAutoApprove: () => {},
+    issueContextEditorOpen: false,
+    setIssueContextEditorOpen: () => {},
     model: null,
     setModel: () => {},
+    useChatUi: false,
+    setUseChatUi: () => {},
   };
 }
 

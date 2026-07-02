@@ -1,7 +1,6 @@
-import type { CollectionSnapshot, CollectionUpdate, LiveValue } from '@emdash/core/lib';
+import type { LiveValue } from '@emdash/core/lib';
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { makeObservable, observable, runInAction } from 'mobx';
-import type { CollectionMirror } from './collection-mirror';
 import type { ModelMirror } from './model-mirror';
 
 export type MirrorBindingStatus =
@@ -28,14 +27,6 @@ export type BindMirrorOptions<T, E = unknown> = {
   mirror: ModelMirror<T>;
   subscribe: (push: (value: LiveValue<T>) => void) => Unsubscribe;
   snapshot: () => Promise<Result<LiveValue<T>, E>>;
-  onError?: (error: E) => void;
-  onUnexpectedError?: (error: unknown) => void;
-};
-
-export type BindCollectionMirrorOptions<K, V, E = unknown> = {
-  mirror: CollectionMirror<K, V>;
-  subscribe: (push: (update: CollectionUpdate<K, V>) => void) => Unsubscribe;
-  snapshot: () => Promise<Result<CollectionSnapshot<K, V>, E>>;
   onError?: (error: E) => void;
   onUnexpectedError?: (error: unknown) => void;
 };
@@ -165,10 +156,4 @@ class MirrorBindingImpl<Snapshot, Update, E> implements MirrorBinding {
 
 export function bindMirror<T, E = unknown>(opts: BindMirrorOptions<T, E>): MirrorBinding {
   return new MirrorBindingImpl<LiveValue<T>, LiveValue<T>, E>(opts);
-}
-
-export function bindCollectionMirror<K, V, E = unknown>(
-  opts: BindCollectionMirrorOptions<K, V, E>
-): MirrorBinding {
-  return new MirrorBindingImpl<CollectionSnapshot<K, V>, CollectionUpdate<K, V>, E>(opts);
 }

@@ -201,35 +201,41 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
       : undefined;
 
   const openPreview = (change: GitChange) => {
-    taskView.activePane.open('diff', {
-      activeFile: {
-        path: change.path,
-        type: 'git',
-        group: 'git',
-        originalRef,
-        modifiedRef,
-        commitOriginalSha: originalSha,
-        commitModifiedSha: commit.hash,
+    taskView.activePane.open(
+      'diff',
+      {
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'git',
+          originalRef,
+          modifiedRef,
+          commitOriginalSha: originalSha,
+          commitModifiedSha: commit.hash,
+        },
+        status: change.status,
       },
-      status: change.status,
-      preview: true,
-    });
+      { preview: true }
+    );
   };
 
   const openDiff = (change: GitChange) => {
-    taskView.activePane.open('diff', {
-      activeFile: {
-        path: change.path,
-        type: 'git',
-        group: 'git',
-        originalRef,
-        modifiedRef,
-        commitOriginalSha: originalSha,
-        commitModifiedSha: commit.hash,
+    taskView.activePane.open(
+      'diff',
+      {
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'git',
+          originalRef,
+          modifiedRef,
+          commitOriginalSha: originalSha,
+          commitModifiedSha: commit.hash,
+        },
+        status: change.status,
       },
-      status: change.status,
-      preview: false,
-    });
+      { preview: false }
+    );
   };
 
   if (filesQuery.isLoading) {

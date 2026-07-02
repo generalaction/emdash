@@ -14,10 +14,12 @@ import type {
   LineLayout,
   ProseLaidOut,
 } from '@core/layout/layout-types';
+import { mentionDisplayText } from '@core/markdown/document';
 import type { InlineMention, InlineRun } from '@core/markdown/document';
 import { For, Match, Show, Switch, createMemo, onMount } from 'solid-js';
 import {
   bulletColor,
+  commandChip,
   inlineCodeChip,
   linkFragment,
   mentionChip,
@@ -51,10 +53,12 @@ function fragVisualClass(run: InlineRun, variant: string): string {
   if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(variant)) return '';
   if (run.kind === 'code') return inlineCodeChip;
   if (run.kind === 'mention') {
+    const mention = run as InlineMention;
+    // Slash-command chips use a dedicated style.
+    if (mention.tone === 'command') return commandChip;
     // Resolved context mentions use per-kind background colors.
     // Plain/math mentions (no mentionKind) keep the rounded-full blue tint.
-    const { mentionKind } = run as InlineMention;
-    if (mentionKind) return mentionChipByKind[mentionKind] ?? mentionChip;
+    if (mention.mentionKind) return mentionChipByKind[mention.mentionKind] ?? mentionChip;
     return mentionPlain;
   }
   if (run.kind === 'text' && run.href) return linkFragment;
@@ -138,10 +142,25 @@ function ProseFragment(props: {
       props.wordOffset !== undefined &&
       props.frontier !== undefined &&
       props.wordOffset >= props.frontier;
+
+    const handleMentionClick = () => {
+      if (!mention.mentionKind) return;
+      commands().onClickMention?.({
+        id: mention.id ?? mention.label,
+        label: mention.label,
+        kind: mention.mentionKind,
+        itemId: props.blockId,
+        source: 'prose-mention',
+      });
+    };
+    const isClickable = () => !!commands().onClickMention;
+
     return (
       <span
         classList={{ [cls]: true, [streamWord]: isNew }}
+        onClick={handleMentionClick}
         style={{
+          cursor: isClickable() ? 'pointer' : undefined,
           left: `${props.frag.x}px`,
           display: 'inline-flex',
           'align-items': 'center',
@@ -178,7 +197,7 @@ function ProseFragment(props: {
             {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '11px' }} />}
           </Show>
         </span>
-        <span>{mention.name ?? mention.label}</span>
+        <span>{mentionDisplayText(mention)}</span>
       </span>
     );
   }

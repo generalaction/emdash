@@ -1,11 +1,18 @@
 import type path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import type { FileSystemProvider } from '@main/core/fs/types';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 
 export type PathPlatform = 'posix' | 'win32';
 
 type PathApi = Pick<typeof path, 'join'>;
+
+export type WorktreeDirectoryFileSystem = {
+  mkdir(
+    path: string,
+    options?: { recursive?: boolean }
+  ): Promise<Result<void, { message: string }>>;
+  realPath(path: string): Promise<Result<string, { message: string }>>;
+};
 
 function isWindowsDriveAbsolute(input: string): boolean {
   return /^[A-Za-z]:[\\/]/.test(input);
@@ -60,14 +67,14 @@ export async function normalizeWorktreeDirectory(
 
 export async function canonicalizeWorktreeDirectory(
   directory: string,
-  fs: Pick<FileSystemProvider, 'mkdir' | 'realPath'>
+  fs: WorktreeDirectoryFileSystem
 ): Promise<Result<string, UpdateProjectSettingsError>> {
-  try {
-    await fs.mkdir(directory, { recursive: true });
-    return ok(await fs.realPath(directory));
-  } catch {
-    return err({ type: 'invalid-worktree-directory' });
-  }
+  const madeDir = await fs.mkdir(directory, { recursive: true });
+  if (!madeDir.success) return err({ type: 'invalid-worktree-directory' });
+
+  const realPath = await fs.realPath(directory);
+  if (!realPath.success) return err({ type: 'invalid-worktree-directory' });
+  return ok(realPath.data);
 }
 
 export async function resolveAndValidateWorktreeDirectory(
@@ -75,7 +82,7 @@ export async function resolveAndValidateWorktreeDirectory(
   options: {
     pathApi: PathApi;
     pathPlatform: PathPlatform;
-    fs: Pick<FileSystemProvider, 'mkdir' | 'realPath'>;
+    fs: WorktreeDirectoryFileSystem;
     homeDirectory?: string;
     resolveHomeDirectory?: () => Promise<string>;
   }
