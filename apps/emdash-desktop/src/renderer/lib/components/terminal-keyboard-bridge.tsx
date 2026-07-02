@@ -9,7 +9,7 @@ import {
 import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 
 function isTerminalFocused(): boolean {
-  return document.activeElement?.closest('.xterm') !== null;
+  return Boolean(document.activeElement?.closest('.xterm'));
 }
 
 /**
