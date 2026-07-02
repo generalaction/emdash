@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
+import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
@@ -45,8 +46,13 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [error, setError] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [useAcpOverride, setUseAcpOverride] = useState(false);
   useCloseGuard(isSubmitting);
+
+  const { value: promptLibrary } = usePromptLibrary();
+  const savedPrompts = promptLibrary.filter((p) => p.prompt.trim().length > 0);
+  const selectedPrompt = savedPrompts.find((p) => p.id === selectedPromptId) ?? null;
 
   const { data: agents } = useAgents();
   const modelsCapability = agents?.find((a) => a.id === providerId)?.capabilities.models;
@@ -90,6 +96,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
         title,
         model: selectedModel ?? undefined,
         type: conversationType,
+        initialPrompt: selectedPrompt?.prompt,
       });
       setIsSubmitting(false);
       onSuccess({ conversationId: id, type: conversationType });
@@ -108,6 +115,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     taskId,
     skipPermissions,
     selectedModel,
+    selectedPrompt,
     useAcp,
   ]);
 
@@ -150,6 +158,34 @@ export const CreateConversationModal = observer(function CreateConversationModal
                   ))}
                 </SelectContent>
               </Select>
+            </Field>
+          ) : null}
+          {savedPrompts.length > 0 ? (
+            <Field>
+              <FieldLabel>Prompt</FieldLabel>
+              <Select
+                value={selectedPromptId ?? ''}
+                onValueChange={(val) => setSelectedPromptId(val || null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No prompt">
+                    {selectedPrompt ? selectedPrompt.title : 'No prompt'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No prompt</SelectItem>
+                  {savedPrompts.map((prompt) => (
+                    <SelectItem key={prompt.id} value={prompt.id}>
+                      {prompt.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedPrompt ? (
+                <p className="text-muted-foreground line-clamp-2 text-xs">
+                  {selectedPrompt.prompt}
+                </p>
+              ) : null}
             </Field>
           ) : null}
           {showAutoApproveToggle ? (
