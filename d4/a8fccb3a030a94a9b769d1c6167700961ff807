@@ -1,0 +1,30 @@
+packages/plugins/src/agents/impl/pi/index.ts
+  s_f616687e829183::t_82cef2cec52b0a 24,51-53
+packages/plugins/src/agents/impl/pi/plugin-file.ts
+  s_f616687e829183::t_f021e02214a0ab 39-44
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_f616687e829183::t_5e82f1762331be 9
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_f616687e829183::t_fb9773ce245e4f 121-142,222-244
+packages/plugins/src/agents/impl/index.test.ts
+  s_f616687e829183::t_654f6623669d21 218-219
+  s_f616687e829183::t_766d8541c55b08 215-217,220-245
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_f616687e829183::t_e3a735a82bd6b9 129-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "d4a8fccb3a030a94a9b769d1c6167700961ff807",
+  "prompts": {},
+  "sessions": {
+    "s_f616687e829183": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2250-8011-7b03-bc06-4f1330e82ccd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
