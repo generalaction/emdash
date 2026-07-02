@@ -56,6 +56,7 @@ describe('conpty-dll', () => {
       writeFileSync(path.join(release, 'conpty.node'), '');
       const dllDir = makeDir('build', 'Release', 'conpty');
       writeFileSync(path.join(dllDir, 'conpty.dll'), '');
+      writeFileSync(path.join(dllDir, 'OpenConsole.exe'), '');
 
       expect(conptyDllPresentUnder(tempRoot)).toBe(true);
     });
@@ -77,6 +78,7 @@ describe('conpty-dll', () => {
       writeFileSync(path.join(prebuilds, 'conpty.node'), '');
       const dllDir = makeDir('prebuilds', `${process.platform}-${process.arch}`, 'conpty');
       writeFileSync(path.join(dllDir, 'conpty.dll'), '');
+      writeFileSync(path.join(dllDir, 'OpenConsole.exe'), '');
 
       expect(conptyDllPresentUnder(tempRoot)).toBe(true);
     });

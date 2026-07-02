@@ -68,7 +68,10 @@ export function conptyDllPresentUnder(packageRoot: string): boolean {
   ];
   for (const dir of candidateDirs) {
     if (!existsSync(path.join(dir, 'conpty.node'))) continue;
-    return existsSync(path.join(dir, 'conpty', 'conpty.dll'));
+    return (
+      existsSync(path.join(dir, 'conpty', 'conpty.dll')) &&
+      existsSync(path.join(dir, 'conpty', 'OpenConsole.exe'))
+    );
   }
   return false;
 }
