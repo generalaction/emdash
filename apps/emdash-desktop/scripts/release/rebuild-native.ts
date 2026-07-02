@@ -1,6 +1,8 @@
+import path from 'node:path';
 import { cwd } from 'node:process';
 import { parseArgs } from 'node:util';
 import { rebuild } from '@electron/rebuild';
+import { copyConptyDll } from '../copy-conpty-dll.ts';
 import { NATIVE_MODULES } from './lib/config.ts';
 import { exec } from './lib/exec.ts';
 import { fail, info, step } from './lib/log.ts';
@@ -32,5 +34,9 @@ await rebuild({
   force: true,
   buildFromSource: true,
 });
+
+// node-gyp rebuild wipes node-pty's build/Release, deleting the bundled
+// ConPTY that useConptyDll needs at runtime — restore it for the target arch.
+copyConptyDll({ nodePtyRoot: path.join(buildPath, 'node_modules', 'node-pty'), arch });
 
 info(`Native modules rebuilt for ${arch}`);

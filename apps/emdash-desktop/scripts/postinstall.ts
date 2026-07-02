@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { copyConptyDll, resolveNodePtyRoot } from './copy-conpty-dll.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -75,3 +76,9 @@ if (nativeModules.length === 0) {
 }
 
 runElectronRebuild(nativeModules);
+
+// node-gyp rebuild wipes node-pty's build/Release, deleting the bundled
+// ConPTY that useConptyDll needs at runtime — restore it (no-op off Windows).
+if (!disablePty) {
+  copyConptyDll({ nodePtyRoot: resolveNodePtyRoot() });
+}
