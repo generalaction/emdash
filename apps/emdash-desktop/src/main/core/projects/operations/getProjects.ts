@@ -62,13 +62,23 @@ export async function getProjectById(
 }
 
 export async function getLocalProjectByPath(path: string): Promise<LocalProject | undefined> {
-  // Scope to local projects (no SSH connection). Paths are no longer globally
-  // unique: a local and a remote project may share a path string (#2731), so a
-  // path-only lookup could otherwise return an SSH project here.
+  // Scope to local projects. Paths are no longer globally unique: a local and a
+  // remote project may share a path string (#2731), so a path-only lookup could
+  // otherwise return an SSH project here. `isNull(sshConnectionId)` keeps the query
+  // on the `idx_projects_local_path` partial index, and matching `workspaceProvider`
+  // guards the orphaned-SSH edge case (connection deleted -> `ssh_connection_id` set
+  // null while `workspace_provider` stays 'ssh'), consistent with the discriminant
+  // used elsewhere in this file.
   const [row] = await db
     .select()
     .from(projects)
-    .where(and(eq(projects.path, path), isNull(projects.sshConnectionId)))
+    .where(
+      and(
+        eq(projects.path, path),
+        isNull(projects.sshConnectionId),
+        eq(projects.workspaceProvider, 'local')
+      )
+    )
     .limit(1);
   if (!row) return undefined;
   return {
