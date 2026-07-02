@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { Cron } from 'croner';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import { db } from '@main/db/client';
@@ -29,16 +28,13 @@ import type {
   TriggerConfig,
 } from '@shared/core/automations/config';
 import { storedAutomationTaskConfig } from '@shared/core/automations/config';
-import { getLocalTimeZone } from '@shared/core/automations/timezone';
-import { assertValidCronTrigger } from '@shared/core/automations/validation';
-
-const DEFAULT_TZ = getLocalTimeZone();
+import { assertValidTrigger, getNextTriggerRunAt } from '@shared/core/automations/validation';
 
 function assertValidAutomationInput(input: {
   triggerConfig: TriggerConfig;
   conversationConfig: ConversationConfig;
 }): void {
-  assertValidCronTrigger(input.triggerConfig);
+  assertValidTrigger(input.triggerConfig);
   if (!input.conversationConfig.prompt.trim()) {
     throw new Error('conversation_config_prompt_required');
   }
@@ -196,10 +192,7 @@ export function getNextRunAt(
   trigger: TriggerConfig,
   from: number | Date = new Date()
 ): number | null {
-  const next = new Cron(trigger.expr, { timezone: trigger.tz || DEFAULT_TZ }).nextRun(
-    from instanceof Date ? from : new Date(from)
-  );
-  return next?.getTime() ?? null;
+  return getNextTriggerRunAt(trigger, from);
 }
 
 export async function listAutomations(projectId?: string): Promise<Automation[]> {

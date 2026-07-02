@@ -65,11 +65,11 @@ export type TelemetryEventProperties = {
 
   automation_created: {
     enabled: boolean;
-    trigger_kind: 'cron';
+    trigger_kind: 'cron' | 'rrule';
     provider: AgentProviderId | null;
     has_initial_prompt: boolean;
   };
-  automation_enabled_changed: { enabled: boolean; trigger_kind: 'cron' };
+  automation_enabled_changed: { enabled: boolean; trigger_kind: 'cron' | 'rrule' };
   automation_run_started: { trigger_kind: AutomationRunTriggerKind };
   automation_run_completed: {
     status: Extract<AutomationRunStatus, 'done' | 'failed' | 'skipped'>;

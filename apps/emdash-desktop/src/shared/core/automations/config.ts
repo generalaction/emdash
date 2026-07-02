@@ -4,6 +4,8 @@ import { workspaceConfig } from '@shared/core/workspaces/workspace-config';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 
 export const triggerConfigSchema = z.object({
+  /** Absent means cron for legacy stored automations. */
+  kind: z.enum(['cron', 'rrule']).optional(),
   expr: z.string(),
   tz: z.string().optional(),
 });

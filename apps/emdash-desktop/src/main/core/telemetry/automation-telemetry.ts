@@ -15,7 +15,7 @@ function automationTelemetryProps(automation: Automation) {
   return {
     automation_id: automation.id,
     project_id: automation.projectId,
-    trigger_kind: 'cron' as const,
+    trigger_kind: automation.triggerConfig?.kind ?? 'cron',
   };
 }
 
