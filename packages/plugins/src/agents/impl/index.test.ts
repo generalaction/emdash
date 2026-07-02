@@ -176,6 +176,40 @@ describe('pluginRegistry', () => {
     expect(result.args).toEqual(['--always-approve', '-m', 'my-model', 'Fix the bug']);
   });
 
+  it('exposes Antigravity models and passes the selected model flag', () => {
+    const antigravity = pluginRegistry.get('antigravity')!;
+
+    expect(antigravity.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        'Gemini 3.5 Flash (Medium)': {
+          name: 'Gemini 3.5 Flash (Medium)',
+        },
+        'Claude Opus 4.6 (Thinking)': {
+          name: 'Claude Opus 4.6 (Thinking)',
+        },
+      },
+    });
+
+    const result = antigravity.behavior.prompt!.buildCommand({
+      cli: 'agy',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'Claude Opus 4.6 (Thinking)',
+    });
+
+    expect(result.args).toEqual([
+      '--conversation=conv-1',
+      '--dangerously-skip-permissions',
+      '--model',
+      'Claude Opus 4.6 (Thinking)',
+      '-i',
+      'Fix the bug',
+    ]);
+  });
+
   it('uses the current Amp npm package for install and updates', () => {
     const amp = pluginRegistry.get('amp')!;
 
