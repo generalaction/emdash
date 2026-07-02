@@ -32,17 +32,28 @@ export function copyConptyDll(options: { nodePtyRoot: string; arch?: string }): 
     return false;
   }
 
+  const requiredFiles = ['conpty.dll', 'OpenConsole.exe'];
   const conptyBase = path.join(nodePtyRoot, 'third_party', 'conpty');
-  const versionFolder = existsSync(conptyBase) ? readdirSync(conptyBase)[0] : undefined;
+  // Pick the version folder deterministically and only if it holds the full
+  // payload for this arch — readdir order is not guaranteed and stray entries
+  // (dotfiles, incomplete folders) must not win or crash the copy below.
+  const versionFolder = (existsSync(conptyBase) ? readdirSync(conptyBase).sort() : []).find(
+    (folder) =>
+      requiredFiles.every((file) =>
+        existsSync(path.join(conptyBase, folder, `win10-${arch}`, file))
+      )
+  );
   if (!versionFolder) {
-    console.warn(`copy-conpty-dll: no bundled ConPTY found under ${conptyBase}, skipping`);
+    console.warn(
+      `copy-conpty-dll: no bundled ConPTY for arch ${arch} under ${conptyBase}, skipping`
+    );
     return false;
   }
 
   const sourceDir = path.join(conptyBase, versionFolder, `win10-${arch}`);
   const destDir = path.join(releaseDir, 'conpty');
   mkdirSync(destDir, { recursive: true });
-  for (const file of ['conpty.dll', 'OpenConsole.exe']) {
+  for (const file of requiredFiles) {
     copyFileSync(path.join(sourceDir, file), path.join(destDir, file));
   }
   console.log(`copy-conpty-dll: copied ConPTY ${versionFolder} (win10-${arch}) to ${destDir}`);

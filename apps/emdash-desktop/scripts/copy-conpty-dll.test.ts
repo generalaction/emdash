@@ -83,6 +83,28 @@ describe('copyConptyDll', () => {
       expect(copyConptyDll({ nodePtyRoot, arch: 'x64' })).toBe(false);
     });
 
+    it('ignores entries without the full arch payload instead of picking the first one', () => {
+      makeDir('third_party', 'conpty', '0.0.0-empty');
+      const incomplete = makeDir('third_party', 'conpty', '0.5.0', 'win10-x64');
+      writeFileSync(path.join(incomplete, 'conpty.dll'), 'dll-incomplete');
+      seedThirdParty('x64');
+      seedRebuiltOutput();
+
+      expect(copyConptyDll({ nodePtyRoot, arch: 'x64' })).toBe(true);
+
+      const destDir = path.join(nodePtyRoot, 'build', 'Release', 'conpty');
+      expect(readFileSync(path.join(destDir, 'conpty.dll'), 'utf8')).toBe('dll-x64');
+      expect(readFileSync(path.join(destDir, 'OpenConsole.exe'), 'utf8')).toBe('exe-x64');
+    });
+
+    it('skips without throwing when no version folder has the requested arch', () => {
+      seedThirdParty('x64');
+      seedRebuiltOutput();
+
+      expect(copyConptyDll({ nodePtyRoot, arch: 'arm64' })).toBe(false);
+      expect(existsSync(path.join(nodePtyRoot, 'build', 'Release', 'conpty'))).toBe(false);
+    });
+
     it('skips unsupported architectures', () => {
       seedThirdParty('x64');
       seedRebuiltOutput();
