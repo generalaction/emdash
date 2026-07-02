@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Automation } from '@shared/core/automations/automation';
 import type { ConversationConfig, TriggerConfig } from '@shared/core/automations/config';
-import { assertValidCronTrigger } from '@shared/core/automations/validation';
+import { assertValidTrigger } from '@shared/core/automations/validation';
 import { formatAutomationError } from './automation-run-format';
 import { useAutomations } from './use-automations';
 import { useAutomationFormState } from './useAutomationFormState';
@@ -40,7 +40,7 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
     try {
-      assertValidCronTrigger(activeTrigger);
+      assertValidTrigger(activeTrigger);
     } catch {
       return;
     }
@@ -58,7 +58,16 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
 
   function setCronExpr(expr: string) {
     formState.setCronExpr(expr);
-    savePatch({ expr, tz: cronTz });
+    savePatch({ kind: 'cron', expr, tz: cronTz });
+  }
+
+  function saveCurrentTrigger() {
+    savePatch();
+  }
+
+  function saveTriggerKind(kind: NonNullable<TriggerConfig['kind']>) {
+    const expr = kind === 'rrule' ? formState.rruleExpr : formState.cronExpr;
+    savePatch({ kind, expr, tz: cronTz });
   }
 
   // Provider lives inside the initialConversation sub-hook and is not directly
@@ -108,6 +117,8 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
   return {
     formState,
     setCronExpr,
+    saveCurrentTrigger,
+    saveTriggerKind,
     handlePromptBlur,
     handleNameBlur,
     isSaving: updateSettings.isPending || rename.isPending,

@@ -20,6 +20,7 @@ import {
 import type { BuiltinAutomationTemplate } from './automation-template';
 
 const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
+const DEFAULT_RRULE = 'DTSTART:20260706T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=MO';
 
 /**
  * Derives the initial workspace config state for seeding the form from a stored automation.
@@ -74,8 +75,16 @@ export function useAutomationFormState(
   const [projectId, setProjectId] = useState<string | undefined>(
     seed?.projectId ?? firstMountedProjectId()
   );
+  const [triggerKind, setTriggerKind] = useState<TriggerConfig['kind']>(
+    seedTrigger?.kind ?? initialTemplate?.defaultTrigger.kind ?? 'cron'
+  );
   const [cronExpr, setCronExpr] = useState<string>(
-    seedTrigger?.expr ?? initialTemplate?.defaultTrigger.expr ?? DEFAULT_CRON
+    seedTrigger?.kind === 'rrule'
+      ? DEFAULT_CRON
+      : (seedTrigger?.expr ?? initialTemplate?.defaultTrigger.expr ?? DEFAULT_CRON)
+  );
+  const [rruleExpr, setRRuleExpr] = useState<string>(
+    seedTrigger?.kind === 'rrule' ? seedTrigger.expr : DEFAULT_RRULE
   );
   const [cronTz] = useState<string>(seedTrigger?.tz ?? getLocalTimeZone());
 
@@ -181,11 +190,19 @@ export function useAutomationFormState(
     return JSON.parse(JSON.stringify(result)) as StoredAutomationTaskConfig;
   }
 
-  const triggerConfig: TriggerConfig = { expr: cronExpr.trim(), tz: cronTz };
+  const triggerConfig: TriggerConfig =
+    triggerKind === 'rrule'
+      ? { kind: 'rrule', expr: rruleExpr.trim(), tz: cronTz }
+      : { kind: 'cron', expr: cronExpr.trim(), tz: cronTz };
 
   function applyTemplate(template: BuiltinAutomationTemplate) {
     setName(template.name);
-    setCronExpr(template.defaultTrigger.expr);
+    setTriggerKind(template.defaultTrigger.kind ?? 'cron');
+    if (template.defaultTrigger.kind === 'rrule') {
+      setRRuleExpr(template.defaultTrigger.expr);
+    } else {
+      setCronExpr(template.defaultTrigger.expr);
+    }
     initialConversation.setPrompt(template.defaultConversationConfig.initialPrompt);
   }
 
@@ -195,8 +212,12 @@ export function useAutomationFormState(
     projectId,
     setProjectId,
     effectiveProjectId,
+    triggerKind,
+    setTriggerKind,
     cronExpr,
     setCronExpr,
+    rruleExpr,
+    setRRuleExpr,
     cronTz,
     initialConversation,
     workspaceConfig,

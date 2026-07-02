@@ -62,13 +62,22 @@ export const AutomationRow = observer(function AutomationRow({
   const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
   const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
 
-  const expr = automation.triggerConfig?.expr ?? null;
-  const cronLabel = expr
+  const trigger = automation.triggerConfig ?? null;
+  const scheduleLabel = trigger
     ? (() => {
+        if ((trigger.kind ?? 'cron') === 'rrule') {
+          return (
+            trigger.expr
+              .split('\n')
+              .find((line) => line.trim().startsWith('RRULE:'))
+              ?.replace(/^RRULE:/, 'RRULE: ')
+              .trim() ?? 'Custom RRULE'
+          );
+        }
         try {
-          return cronstrue.toString(expr.trim());
+          return cronstrue.toString(trigger.expr.trim());
         } catch {
-          return expr;
+          return trigger.expr;
         }
       })()
     : null;
@@ -106,10 +115,10 @@ export const AutomationRow = observer(function AutomationRow({
             <AgentStatusIndicator status={agentStatus} />
           </div>
           <div className="flex shrink-0 flex-row items-center gap-1 text-xs text-foreground-muted">
-            {cronLabel && (
+            {scheduleLabel && (
               <span className="flex items-center gap-1 rounded-md bg-background-1 px-2 py-1 text-foreground-muted group-hover:bg-background-2">
                 <Clock className="size-3 shrink-0" />
-                <span className="shrink-0">{cronLabel}</span>
+                <span className="shrink-0">{scheduleLabel}</span>
               </span>
             )}
             <div className="flex max-w-32 flex-row items-center gap-1.5 rounded-md bg-background-1 px-2 py-1 text-foreground-muted group-hover:bg-background-2">

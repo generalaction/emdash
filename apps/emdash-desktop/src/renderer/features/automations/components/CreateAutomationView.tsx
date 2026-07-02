@@ -12,7 +12,7 @@ import { Label } from '@renderer/lib/ui/label';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
 import type { Automation } from '@shared/core/automations/automation';
 import type { ConversationConfig } from '@shared/core/automations/config';
-import { assertValidCronTrigger } from '@shared/core/automations/validation';
+import { assertValidTrigger } from '@shared/core/automations/validation';
 import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';
@@ -65,7 +65,7 @@ export const CreateAutomationView = observer(function CreateAutomationView({
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
     try {
-      assertValidCronTrigger(triggerConfig);
+      assertValidTrigger(triggerConfig);
     } catch (validationError) {
       setCronError(formatAutomationError(validationError));
       return;

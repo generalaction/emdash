@@ -48,8 +48,15 @@ export const AutomationDetailView = observer(function AutomationDetailView({
 
   useAutomationEventBridge(automation.id);
 
-  const { formState, setCronExpr, handlePromptBlur, handleNameBlur, saveError } =
-    useAutomationSettingsAutoSave(automation);
+  const {
+    formState,
+    setCronExpr,
+    saveCurrentTrigger,
+    saveTriggerKind,
+    handlePromptBlur,
+    handleNameBlur,
+    saveError,
+  } = useAutomationSettingsAutoSave(automation);
   const { name, setName } = formState;
 
   const { runNow } = useAutomations();
@@ -131,6 +138,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
               setCronError(null);
             }}
             onCronErrorClear={() => setCronError(null)}
+            onTriggerKindChange={saveTriggerKind}
+            onRRuleExprBlur={saveCurrentTrigger}
             onPromptBlur={handlePromptBlur}
             error={saveError}
           />

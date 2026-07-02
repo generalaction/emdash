@@ -64,6 +64,7 @@ const FORM_ERROR_MESSAGES: Record<string, string> = {
   automation_run_already_queued: 'This automation already has a queued or running run',
   automation_run_not_found: 'This automation run no longer exists',
   cron_invalid: 'Enter a valid schedule',
+  rrule_invalid: 'Enter a valid RRULE schedule',
   deadline_policy_invalid: 'Choose a valid deadline policy',
   deadline_ms_invalid: 'Choose a positive deadline duration',
   run_update_failed: 'The automation run could not be updated',
