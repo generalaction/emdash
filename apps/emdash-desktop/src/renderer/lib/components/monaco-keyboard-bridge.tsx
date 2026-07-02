@@ -9,7 +9,7 @@ import {
 import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 
 function isMonacoFocused(): boolean {
-  return document.activeElement?.closest('.monaco-editor') !== null;
+  return Boolean(document.activeElement?.closest('.monaco-editor'));
 }
 
 /**
