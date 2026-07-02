@@ -113,9 +113,9 @@ async function uploadFilesWithMessage(env: Env, text: string, files: File[]): Pr
 
     const uploadUrl = String(urlData.upload_url);
     const fileId = String(urlData.file_id);
-    const putResponse = await fetch(uploadUrl, { method: 'POST', body: file });
-    if (!putResponse.ok) {
-      throw new Error(`file upload failed: ${putResponse.status}`);
+    const uploadResponse = await fetch(uploadUrl, { method: 'POST', body: file });
+    if (!uploadResponse.ok) {
+      throw new Error(`file upload failed: ${uploadResponse.status}`);
     }
 
     uploaded.push({ id: fileId, title: name });
