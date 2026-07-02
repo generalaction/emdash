@@ -1,6 +1,7 @@
 import * as nodePty from 'node-pty';
 import type { IPty } from 'node-pty';
 import { log } from '@main/lib/logger';
+import { markConptyDllUnavailable, resolveUseConptyDll } from './conpty-dll';
 import { normalizeSignal } from './exit-signals';
 import { suppressExpectedNodePtyErrors } from './node-pty-errors';
 import { PosixPtyTerminator } from './posix-pty-terminator';
@@ -29,20 +30,47 @@ export function spawnLocalPty(options: LocalSpawnOptions): LocalPtySession {
     rows,
   });
 
-  try {
+  const spawn = (useConptyDll: boolean) => {
     const proc = nodePty.spawn(command, args, {
       name: 'xterm-256color',
       cols,
       rows,
       cwd,
       env,
+      useConptyDll,
     });
     suppressExpectedNodePtyErrors(proc);
     return new LocalPtySession(id, proc);
+  };
+
+  const useConptyDll = resolveUseConptyDll();
+  try {
+    return spawn(useConptyDll);
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : String(e);
-    throw new Error(`Failed to spawn PTY: ${message}`);
+    if (!useConptyDll) throw spawnError(e);
+
+    // The bundled ConPTY can fail to load (AV quarantine, broken copy step).
+    // A PTY without mouse passthrough beats no PTY at all.
+    log.warn('LocalPtySession: bundled conpty.dll spawn failed, retrying with in-box ConPTY', {
+      id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    let session: LocalPtySession;
+    try {
+      session = spawn(false);
+    } catch (retryError: unknown) {
+      throw spawnError(retryError);
+    }
+    // The in-box ConPTY succeeded where the bundled dll failed, so the dll is
+    // the problem — stop paying a doomed spawn attempt on every future PTY.
+    markConptyDllUnavailable();
+    return session;
   }
+}
+
+function spawnError(e: unknown): Error {
+  const message = e instanceof Error ? e.message : String(e);
+  return new Error(`Failed to spawn PTY: ${message}`);
 }
 
 export class LocalPtySession implements Pty {

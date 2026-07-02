@@ -61,6 +61,37 @@ describe('spawnLocalPty integration', () => {
     expect(exit.exitCode).toBe(7);
   });
 
+  // Fullscreen TUI regression (ENG: mouse/scroll dead in opencode/claude/amp on
+  // Windows): the in-box Windows 10 ConPTY swallows mouse-mode and alt-screen
+  // DECSETs instead of passing them to the attached terminal, so xterm.js never
+  // enters mouse-tracking mode. With node-pty's bundled ConPTY
+  // (useConptyDll, see conpty-dll.ts) the sequences must arrive verbatim.
+  it.runIf(process.platform === 'win32')(
+    'passes mouse-mode DECSETs through to the terminal on Windows',
+    async () => {
+      const pty = spawnLocalPty({
+        id: 'local-mouse-decset-integration',
+        command: process.execPath,
+        args: [
+          '-e',
+          'process.stdout.write("\\x1b[?1049h\\x1b[?1002h\\x1b[?1006hready\\n"); setTimeout(() => process.exit(0), 200);',
+        ],
+        cwd: await tempCwd(),
+        env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
+        cols: 80,
+        rows: 24,
+      });
+
+      const exitPromise = waitForExit((handler) => pty.onExit(handler));
+      const data = await waitForData((handler) => pty.onData(handler), /ready/);
+      await exitPromise;
+
+      expect(data).toContain('\x1b[?1002h');
+      expect(data).toContain('\x1b[?1006h');
+      expect(data).toContain('\x1b[?1049h');
+    }
+  );
+
   it('can kill a real long-running local PTY process', async () => {
     const pty = spawnLocalPty({
       id: 'local-kill-integration',
