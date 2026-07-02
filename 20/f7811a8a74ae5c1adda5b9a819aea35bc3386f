@@ -1,0 +1,36 @@
+agents/workflows/worktrees.md
+  s_16e572b4eafcd6::t_e56240194c17fd 16-18
+agents/conventions/typescript.md
+  s_16e572b4eafcd6::t_12cf53ca9f9b49 5
+agents/conventions/ui-styling.md
+  s_16e572b4eafcd6::t_9b1cf608030452 158-160
+  s_16e572b4eafcd6::t_cd3427284a1467 170-171,173-180,196-200,204-205,216-217
+  s_16e572b4eafcd6::t_c727dab1474710 218
+agents/risky-areas/updater.md
+  s_16e572b4eafcd6::t_93902d6e4965b3 72-74
+agents/quickstart.md
+  s_16e572b4eafcd6::t_c9d4b8cbcb1b46 12-13
+agents/architecture/overview.md
+  s_16e572b4eafcd6::t_c5997ff4d2b512 32-33
+  s_16e572b4eafcd6::t_5cc5bf61097bca 24
+  s_16e572b4eafcd6::t_82ba2ae270ba5c 16
+  s_16e572b4eafcd6::t_0dc1d38170adf1 17
+agents/risky-areas/pty.md
+  s_16e572b4eafcd6::t_db9c1e69875043 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "20f7811a8a74ae5c1adda5b9a819aea35bc3386f",
+  "prompts": {},
+  "sessions": {
+    "s_16e572b4eafcd6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed874068-9a8d-4aef-9b31-d0ede6db1f77",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
