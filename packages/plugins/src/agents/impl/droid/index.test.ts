@@ -49,4 +49,20 @@ describe('droid provider', () => {
 
     expect(command.args).toEqual(['--resume', '31477a03-961a-4451-82d4-efded56947fc']);
   });
+
+  it('passes --auto high on resume when auto-approve is enabled', () => {
+    const command = provider.behavior.prompt!.buildCommand({
+      ...baseContext,
+      autoApprove: true,
+      providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
+      isResuming: true,
+    });
+
+    expect(command.args).toEqual([
+      '--resume',
+      '31477a03-961a-4451-82d4-efded56947fc',
+      '--auto',
+      'high',
+    ]);
+  });
 });
