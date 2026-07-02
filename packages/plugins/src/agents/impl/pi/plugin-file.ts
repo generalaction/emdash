@@ -3,7 +3,7 @@ export const PI_EXTENSION_CONTENT = `\
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 
 async function notifyEmdash(
-  eventType: 'stop' | 'error' | 'notification',
+  eventType: 'stop' | 'error' | 'notification' | 'session',
   body: Record<string, unknown> = {}
 ) {
   const port = process.env.EMDASH_HOOK_PORT;
