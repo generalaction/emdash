@@ -13,6 +13,8 @@ export default defineConfig({
     lib: 'src/lib/index.ts',
     'agents-plugins': 'src/agents/plugins/index.ts',
     'agents-plugins-helpers': 'src/agents/plugins/helpers/index.ts',
+    'live-model': 'src/live-model/index.ts',
+    'workspace-server': 'src/workspace-server/index.ts',
   },
   format: ['esm'],
   dts: true,
