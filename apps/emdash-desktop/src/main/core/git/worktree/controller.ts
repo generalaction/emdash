@@ -52,7 +52,9 @@ export const gitWorktreeController = createRPCController({
       if (!workspace) return err({ type: 'not_found' as const });
       const headTree = await workspace.gitWorktree.snapshotWorktreeTree();
       const changes = await workspace.gitWorktree.getChangedFilesBetweenTrees(baseTree, headTree);
-      return ok({ baseline: { baseTree, changes } });
+      // headTree lets the renderer diff baseTree -> headTree via the existing 'git' diff group
+      // (both immutable snapshots), so no live working-tree diff mode is needed.
+      return ok({ baseline: { baseTree, headTree, changes } });
     } catch (error) {
       log.error('gitCtrl.getLastTurnChanges failed', { projectId, workspaceId, error });
       return err({ type: 'git_error' as const, message: gitErrorMessage(error) });

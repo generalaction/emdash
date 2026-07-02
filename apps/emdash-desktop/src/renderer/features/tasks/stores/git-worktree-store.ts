@@ -39,7 +39,7 @@ export class GitWorktreeStore {
   private syncError: string | null = null;
   // "Last turn" diff data (#1635): the worktree snapshot at the start of the most recent
   // turn plus the files changed since, or null when no turn has been captured yet.
-  private _lastTurn: { baseTree: string; changes: GitChange[] } | null = null;
+  private _lastTurn: { baseTree: string; headTree: string; changes: GitChange[] } | null = null;
   private _lastTurnUnsub: (() => void) | null = null;
 
   constructor(
@@ -153,7 +153,7 @@ export class GitWorktreeStore {
   }
 
   /** The files changed during the most recent agent turn, or null if none captured (#1635). */
-  get lastTurnChanges(): { baseTree: string; changes: GitChange[] } | null {
+  get lastTurnChanges(): { baseTree: string; headTree: string; changes: GitChange[] } | null {
     return this._lastTurn;
   }
 
