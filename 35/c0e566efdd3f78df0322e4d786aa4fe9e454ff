@@ -1,0 +1,19 @@
+agents/integrations/mcp.md
+  s_92b3f30d736897::t_c51be2e843af70 6-7,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "35c0e566efdd3f78df0322e4d786aa4fe9e454ff",
+  "prompts": {},
+  "sessions": {
+    "s_92b3f30d736897": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2184-9b1a-7c2a-93c5-557c4ee7b5b2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
