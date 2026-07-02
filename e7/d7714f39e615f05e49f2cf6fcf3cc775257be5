@@ -1,0 +1,25 @@
+packages/plugins/src/agents/impl/droid/index.ts
+  s_d38a077952878b::t_e50820a6625f4d 73-76
+  s_d38a077952878b::t_cbd651cd4a7b75 18-20
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_d38a077952878b::t_71cd63eeaaf649 298
+packages/plugins/src/agents/impl/droid/index.test.ts
+  s_d38a077952878b::t_a4d81b8d8b1d74 1-18,20-27,29-32,34-38,40-52
+  s_d38a077952878b::t_b10341cb0f59f4 19,28,33,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "e7d7714f39e615f05e49f2cf6fcf3cc775257be5",
+  "prompts": {},
+  "sessions": {
+    "s_d38a077952878b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6962cb10-2535-4795-b84a-65637322ae3f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
