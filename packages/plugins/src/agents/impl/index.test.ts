@@ -212,6 +212,37 @@ describe('pluginRegistry', () => {
     expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'deep']);
   });
 
+  it('resumes Pi with the stored session file instead of the latest session', () => {
+    const pi = pluginRegistry.get('pi')!;
+
+    expect(pi.capabilities.hooks.kind).toBe('plugin');
+    if (pi.capabilities.hooks.kind !== 'plugin') throw new Error('Pi hooks should be plugin hooks');
+    expect(pi.capabilities.hooks.supportedEvents).toContain('session');
+
+    const fresh = pi.behavior.prompt!.buildCommand({
+      cli: 'pi',
+      autoApprove: false,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+    expect(fresh.args).toEqual(['Fix the bug']);
+
+    const resumed = pi.behavior.prompt!.buildCommand({
+      cli: 'pi',
+      autoApprove: false,
+      sessionId: 'conv-1',
+      providerSessionId: '/Users/test/.pi/agent/sessions/project/session.jsonl',
+      isResuming: true,
+      model: '',
+    });
+    expect(resumed.args).toEqual([
+      '--session',
+      '/Users/test/.pi/agent/sessions/project/session.jsonl',
+    ]);
+  });
+
   it('registers Qoder CLI install metadata and interactive command args', () => {
     const qoder = pluginRegistry.get('qoder')!;
 

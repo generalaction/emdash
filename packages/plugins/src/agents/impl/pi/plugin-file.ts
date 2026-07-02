@@ -36,6 +36,12 @@ function errorMessage(error: unknown): string {
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.on('session_start', async (_event, ctx) => {
+    const sessionFile = ctx.sessionManager.getSessionFile();
+    if (!sessionFile) return;
+    await notifyEmdash('session', { providerSessionId: sessionFile });
+  });
+
   pi.on('agent_end', async () => {
     await notifyEmdash('stop', { message: 'Task completed' });
   });
