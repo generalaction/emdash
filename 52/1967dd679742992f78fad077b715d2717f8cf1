@@ -1,0 +1,46 @@
+agents/integrations/providers.md
+  s_16e572b4eafcd6::t_c77de317c6659b 51-52
+agents/workflows/nx.md
+  s_16e572b4eafcd6::t_fe4a03e198d8fc 79
+  s_16e572b4eafcd6::t_fb0cd0d1e8997f 121-122,127-128
+agents/conventions/main-patterns.md
+  s_16e572b4eafcd6::t_5aa220cdb1a6bb 8-9,11,14-16
+  s_16e572b4eafcd6::t_c638027f1b4c23 59-60,64-65,68-73
+agents/conventions/versioned-schemas.md
+  s_16e572b4eafcd6::t_33566e276289c3 50
+  s_16e572b4eafcd6::t_7632ebfc417b84 229,232-233
+agents/conventions/renderer-patterns.md
+  s_16e572b4eafcd6::t_f6c3b0bc19f470 93-97
+  s_16e572b4eafcd6::t_8a3de00c8ee4b4 71
+agents/workflows/remote-development.md
+  s_16e572b4eafcd6::t_b13838d5b65811 18,24-27
+agents/workflows/testing.md
+  s_16e572b4eafcd6::t_432cb7601c46ac 18
+agents/risky-areas/database.md
+  s_16e572b4eafcd6::t_244c1543bf0bec 55-56,60,62
+  s_16e572b4eafcd6::t_1f6bacbc1a9e1f 174-175
+agents/architecture/renderer.md
+  s_16e572b4eafcd6::t_4657dfbc8022f8 58
+  s_16e572b4eafcd6::t_3dd2d2ed3b7dbf 34-35
+agents/architecture/main-process.md
+  s_16e572b4eafcd6::t_ef2862b8a83715 10-11
+  s_16e572b4eafcd6::t_c26cd2262d8fc1 26-31,38-40,42-44
+agents/conventions/config-files.md
+  s_16e572b4eafcd6::t_c5d30b9652a516 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "521967dd679742992f78fad077b715d2717f8cf1",
+  "prompts": {},
+  "sessions": {
+    "s_16e572b4eafcd6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed874068-9a8d-4aef-9b31-d0ede6db1f77",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
