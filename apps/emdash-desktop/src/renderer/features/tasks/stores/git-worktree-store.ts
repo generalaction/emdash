@@ -16,7 +16,7 @@ import {
   type MirrorBinding,
   type MirrorBindingStatus,
 } from '@renderer/lib/stores/live';
-import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
+import { gitWorktreeUpdateChannel, lastTurnBaselineChannel } from '@shared/core/git/events';
 import type { GitWorktreeMutationResult, GitWorktreeSnapshotError } from '@shared/core/git/rpc';
 import {
   commitOptimistically,
@@ -37,6 +37,10 @@ export class GitWorktreeStore {
   private readonly bindings: MirrorBinding[];
   private started = false;
   private syncError: string | null = null;
+  // "Last turn" diff data (#1635): the worktree snapshot at the start of the most recent
+  // turn plus the files changed since, or null when no turn has been captured yet.
+  private _lastTurn: { baseTree: string; changes: GitChange[] } | null = null;
+  private _lastTurnUnsub: (() => void) | null = null;
 
   constructor(
     private readonly projectId: string,
@@ -100,8 +104,10 @@ export class GitWorktreeStore {
       }),
     ];
 
-    makeObservable<this, 'effectiveStatus' | 'syncError'>(this, {
+    makeObservable<this, 'effectiveStatus' | 'syncError' | '_lastTurn'>(this, {
       syncError: observable,
+      _lastTurn: observable,
+      lastTurnChanges: computed,
       fileChanges: computed,
       stagedFileChanges: computed,
       unstagedFileChanges: computed,
@@ -126,6 +132,10 @@ export class GitWorktreeStore {
     if (this.started) return;
     this.started = true;
     for (const binding of this.bindings) binding.start();
+    // Re-fetch the last-turn diff whenever a new turn baseline is captured for this workspace.
+    this._lastTurnUnsub = events.on(lastTurnBaselineChannel, (payload) => {
+      if (payload.workspaceId === this.workspaceId) void this.refreshLastTurn();
+    });
   }
 
   async resync(): Promise<void> {
@@ -134,10 +144,33 @@ export class GitWorktreeStore {
 
   dispose(): void {
     for (const binding of this.bindings) binding.dispose();
+    this._lastTurnUnsub?.();
+    this._lastTurnUnsub = null;
     this.started = false;
     this.optimisticStatus.dispose();
     this.status.dispose();
     this.head.dispose();
+  }
+
+  /** The files changed during the most recent agent turn, or null if none captured (#1635). */
+  get lastTurnChanges(): { baseTree: string; changes: GitChange[] } | null {
+    return this._lastTurn;
+  }
+
+  /**
+   * Fetch the "last turn" changes (files changed since the most recent turn baseline) from the
+   * main process. Called on the baseline event and, while the last-turn scope is active, when
+   * the worktree changes during a turn.
+   */
+  async refreshLastTurn(): Promise<void> {
+    const result = await rpc.workspace.gitWorktree.getLastTurnChanges(
+      this.projectId,
+      this.workspaceId
+    );
+    if (!result.success) return;
+    runInAction(() => {
+      this._lastTurn = result.data.baseline;
+    });
   }
 
   get statusRevision(): number {
