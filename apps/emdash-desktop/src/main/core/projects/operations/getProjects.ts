@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import type { LocalProject, SshProject } from '@shared/projects';
@@ -62,7 +62,14 @@ export async function getProjectById(
 }
 
 export async function getLocalProjectByPath(path: string): Promise<LocalProject | undefined> {
-  const [row] = await db.select().from(projects).where(eq(projects.path, path)).limit(1);
+  // Scope to local projects (no SSH connection). Paths are no longer globally
+  // unique: a local and a remote project may share a path string (#2731), so a
+  // path-only lookup could otherwise return an SSH project here.
+  const [row] = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.path, path), isNull(projects.sshConnectionId)))
+    .limit(1);
   if (!row) return undefined;
   return {
     type: 'local' as const,
