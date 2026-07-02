@@ -1,5 +1,5 @@
-import { call, ORPCError } from '@orpc/server';
 import { PROTOCOL_VERSION } from '@emdash/core/workspace-server';
+import { call, ORPCError } from '@orpc/server';
 import { describe, expect, it } from 'vitest';
 import { router } from './router';
 

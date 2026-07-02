@@ -1,13 +1,13 @@
 {
   "name": "@emdash/workspace-server",
   "version": "0.1.0",
+  "private": true,
   "description": "Emdash Workspace Server — runs as a daemon on remote machines and exposes workspace runtimes via oRPC",
   "license": "Apache-2.0",
   "author": {
     "name": "Emdash Contributors",
     "email": "support@emdash.sh"
   },
-  "private": true,
   "type": "module",
   "main": "./dist/index.mjs",
   "scripts": {

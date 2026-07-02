@@ -1,9 +1,5 @@
 import { z } from 'zod';
-import { liveValue } from '../shared/schemas';
-
-// ---------------------------------------------------------------------------
-// FS types
-// ---------------------------------------------------------------------------
+import { result } from '../shared/schemas';
 
 export const fileStatSchema = z.object({
   path: z.string(),
@@ -22,23 +18,18 @@ export const readTextResultSchema = z.object({
   content: z.string(),
   truncated: z.boolean(),
   totalSize: z.number().int(),
+  etag: z.string(),
 });
 
 /**
- * On the wire, `bytes` is represented as a base64-encoded string rather than Uint8Array.
- * Uint8Array is not natively serializable by the oRPC RPC serializer.
- * Adapters on both sides must convert between Uint8Array and base64.
- *
- * Intentional wire divergence from ReadBytesResult.bytes (Uint8Array → base64 string).
+ * oRPC natively supports Blob — when returned inside an object it is transparently
+ * serialized as FormData by the RPC serializer. No base64 adapter needed on either side.
  */
 export const readBytesResultSchema = z.object({
-  bytes: z.string(), // base64 on the wire; adapters convert to/from Uint8Array
+  bytes: z.instanceof(Blob),
   truncated: z.boolean(),
   totalSize: z.number().int(),
-});
-
-export const writeFileResultSchema = z.object({
-  bytesWritten: z.number().int(),
+  etag: z.string(),
 });
 
 export const fileGlobOptionsSchema = z.object({
@@ -55,139 +46,108 @@ export const fileEnumerationOptionsSchema = z.object({
   includeSymlinkFiles: z.boolean().optional(),
 });
 
-// ---------------------------------------------------------------------------
-// File tree types
-// ---------------------------------------------------------------------------
-
-export const fileSymlinkTargetTypeSchema = z.enum(['file', 'directory', 'other', 'unknown']);
-
-export const fileSymlinkInfoSchema = z.object({
-  targetPath: z.string().optional(),
-  realPath: z.string().optional(),
-  targetType: fileSymlinkTargetTypeSchema,
-  broken: z.boolean(),
-});
-
-export const fileNodeTypeSchema = z.enum(['file', 'directory', 'symlink']);
-
-export const nodeIdSchema = z.number().int();
-
-const directoryPreviewSegmentSchema = z.object({
-  name: z.string(),
-  path: z.string(),
-});
-
-const directoryPreviewSchema = z.object({
-  childCount: z.number().int(),
-  singleChildDirectoryChain: z.array(directoryPreviewSegmentSchema),
-});
-
-const fileNodeBaseSchema = z.object({
-  id: nodeIdSchema,
-  path: z.string(),
-  name: z.string(),
-  parentId: nodeIdSchema.nullable(),
-  childrenLoaded: z.boolean(),
-  directoryPreview: directoryPreviewSchema.optional(),
-});
-
-export const fileNodeSchema = z.union([
-  fileNodeBaseSchema.extend({
-    type: z.enum(['file', 'directory']),
-  }),
-  fileNodeBaseSchema.extend({
-    type: z.literal('symlink'),
-    symlink: fileSymlinkInfoSchema,
-  }),
+export const fsErrorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('not-found'), path: z.string() }),
+  z.object({ type: z.literal('permission-denied'), path: z.string() }),
+  z.object({ type: z.literal('already-exists'), path: z.string() }),
+  z.object({ type: z.literal('not-a-directory'), path: z.string() }),
+  z.object({ type: z.literal('is-a-directory'), path: z.string() }),
+  z.object({ type: z.literal('invalid-path'), path: z.string(), message: z.string() }),
+  z.object({ type: z.literal('io'), path: z.string(), message: z.string() }),
 ]);
 
-// ---------------------------------------------------------------------------
-// Collection primitives (KeyedOp, Snapshot, Update) for FileTree
-// ---------------------------------------------------------------------------
-
-const keyedOpSchema = <K extends z.ZodTypeAny, V extends z.ZodTypeAny>(key: K, value: V) =>
-  z.union([
-    z.object({ op: z.literal('put'), key, value }),
-    z.object({ op: z.literal('del'), key }),
-  ]);
-
-export const fileTreeSnapshotSchema = z.object({
-  entries: z.array(z.tuple([nodeIdSchema, fileNodeSchema])),
-  generation: z.number().int(),
-  sequence: z.number().int(),
-});
-
-export const fileTreeUpdateSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('snapshot'),
-    entries: z.array(z.tuple([nodeIdSchema, fileNodeSchema])),
-    generation: z.number().int(),
-    sequence: z.number().int(),
-  }),
-  z.object({
-    kind: z.literal('delta'),
-    generation: z.number().int(),
-    ops: z.array(keyedOpSchema(nodeIdSchema, fileNodeSchema)),
-    sequence: z.number().int(),
-  }),
-]);
-
-export const fileTreeSequencesSchema = z.object({
-  tree: z.number().int().optional(),
-});
-
-// ---------------------------------------------------------------------------
-// File changes types
-// ---------------------------------------------------------------------------
-
-export const fileEntryTypeSchema = z.enum(['file', 'directory', 'symlink', 'unknown']);
-
-export const fileChangeKindSchema = z.enum(['create', 'update', 'delete']);
-
-export const fileChangeSchema = z.object({
-  kind: fileChangeKindSchema,
-  path: z.string(),
-  entryType: fileEntryTypeSchema,
-});
-
-export const fileChangeUpdateSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('changes'), changes: z.array(fileChangeSchema) }),
-  z.object({ kind: z.literal('resync') }),
-]);
+export type FsError = z.infer<typeof fsErrorSchema>;
 
 /**
- * Wire shape of FileChangeWatchOptions. The `exclude` predicate function is dropped
- * (cannot be serialized). The `paths` allow-list is preserved.
+ * The single result type for all mutations and for expand/collapse/reveal.
+ * No sequence is returned — clients trust the tree/content LiveModel streams
+ * to reflect changes via the fs watcher.
  */
-export const fileChangeWatchOptionsSchema = z.object({
-  paths: z.array(z.string()).optional(),
-  debounceMs: z.number().int().optional(),
+export const fsVoidResultSchema = result(z.void(), fsErrorSchema);
+
+export const fileEntryKindSchema = z.enum(['file', 'directory', 'symlink']);
+
+/**
+ * A single node in the normalized file tree.
+ *
+ * Paths are POSIX root-relative (e.g. 'src/index.ts'). The root node itself
+ * uses the key '' (empty string). Absolute paths appear only at the FS runtime
+ * boundary (server joins root + relPath).
+ *
+ * `children` is server-ordered (dirs-first, case-insensitive locale) and contains
+ * root-relative sibling paths. It is an empty array until `childrenLoaded` is true.
+ *
+ * `etag` is mtime+size based (VSCode style) and can be used for content-staleness
+ * detection; it is absent for directories.
+ */
+export const fileEntrySchema = z.object({
+  path: z.string(),
+  name: z.string(),
+  parentPath: z.string().nullable(),
+  kind: fileEntryKindSchema,
+  childrenLoaded: z.boolean(),
+  children: z.array(z.string()),
+  hasChildren: z.boolean().optional(),
+  etag: z.string().optional(),
+  size: z.number().int().optional(),
+  mtimeMs: z.number().optional(),
+  symlinkTarget: z.string().nullable().optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Error types
-// ---------------------------------------------------------------------------
+export type FileEntry = z.infer<typeof fileEntrySchema>;
 
-export const fileErrorSchema = z.union([
-  z.object({ type: z.literal('invalid-path'), path: z.string(), message: z.string() }),
-  z.object({
-    type: z.literal('fs-error'),
-    path: z.string(),
-    message: z.string(),
-    code: z.string().optional(),
+/**
+ * The normalized file tree model.
+ *
+ * `root` is the absolute POSIX path of the workspace root (e.g. '/home/user/repo').
+ * `entries` is a Record keyed by root-relative POSIX paths; the root itself is at key ''.
+ *
+ * Each directory entry has `childrenLoaded: false` and `children: []` until
+ * `tree.expand` is called. The client's refcount wrapper calls `expand`/`collapse`
+ * when views open/close directories.
+ */
+export const fileTreeModelSchema = z.object({
+  root: z.string(),
+  entries: z.record(z.string(), fileEntrySchema),
+});
+
+export type FileTreeModel = z.infer<typeof fileTreeModelSchema>;
+
+/**
+ * Shared fields present on both text and binary content models.
+ *
+ * `etag` is the VSCode-style staleness token (mtime.toString(29) + size.toString(31)).
+ * Clients use it to detect whether a file changed on disk and, for binary files,
+ * as a cache key when deciding whether to re-fetch via `fs.readBytes`.
+ */
+const fileContentBaseSchema = z.object({
+  path: z.string(),
+  etag: z.string(),
+  byteSize: z.number().int(),
+  readonly: z.boolean(),
+});
+
+/**
+ * Live model for the contents of a single open file. Discriminated by `kind`:
+ *
+ * - `text`: carries the decoded text content directly. Immer patches the `content`
+ *   string on external saves. `truncated` is true when the server capped the read.
+ *
+ * - `binary`: carries only metadata (etag, byteSize, mimeType). Raw bytes are never
+ *   included in the LiveModel stream — clients fetch them on demand via `fs.readBytes`,
+ *   using `etag` for cache validation to skip redundant fetches.
+ */
+export const fileContentModelSchema = z.discriminatedUnion('kind', [
+  fileContentBaseSchema.extend({
+    kind: z.literal('text'),
+    content: z.string(),
+    eol: z.enum(['lf', 'crlf']),
+    truncated: z.boolean(),
+  }),
+  fileContentBaseSchema.extend({
+    kind: z.literal('binary'),
+    mimeType: z.string().optional(),
   }),
 ]);
 
-export const fileTreeErrorSchema = z.union([
-  z.object({ type: z.literal('invalid-path'), path: z.string(), message: z.string() }),
-  z.object({
-    type: z.literal('not-found'),
-    id: nodeIdSchema.optional(),
-    path: z.string().optional(),
-  }),
-  z.object({ type: z.literal('not-directory'), id: nodeIdSchema.optional(), path: z.string() }),
-  z.object({ type: z.literal('fs-error'), path: z.string(), message: z.string() }),
-]);
-
-// FileTree LiveValue snapshots (used by openTree response and subscribe streams)
-export const fileTreeLiveSnapshotSchema = liveValue(fileTreeSnapshotSchema);
+export type FileContentModel = z.infer<typeof fileContentModelSchema>;

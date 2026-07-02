@@ -10,3 +10,5 @@ export * from './deps/schemas';
 export * from './deps/contract';
 export * from './acp/schemas';
 export * from './acp/contract';
+export * from './pty-agent/schemas';
+export * from './pty-agent/contract';

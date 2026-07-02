@@ -79,10 +79,9 @@ export const acpContract = {
   subscribeTerminalOutput: oc
     .input(z.object({ id: z.string(), offset: z.number().int().optional() }))
     .output(eventIterator(terminalOutputEventSchema)),
-  sessionConfig: createLiveModelContract(
-    sessionConfigStateSchema,
-    { snapshotInput: z.object({ conversationId: z.string() }) }
-  ),
+  sessionConfig: createLiveModelContract(sessionConfigStateSchema, {
+    snapshotInput: z.object({ conversationId: z.string() }),
+  }),
   sessionStateList: createLiveModelContract(sessionStateListSchema),
 };
 

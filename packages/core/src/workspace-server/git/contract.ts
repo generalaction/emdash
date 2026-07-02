@@ -1,10 +1,17 @@
 import { eventIterator, oc } from '@orpc/contract';
 import { z } from 'zod';
+import { createLiveModelContract } from '../../live-model';
 import { result } from '../shared/schemas';
 import {
+  addCheckoutOptionsSchema,
+  blameResultSchema,
+  checkoutInfoSchema,
+  checkoutStatusModelSchema,
   cloneRepositoryErrorSchema,
   commitErrorSchema,
   commitFileSchema,
+  conflictVersionsSchema,
+  createBranchErrorSchema,
   createBranchOptionsSchema,
   deleteBranchErrorSchema,
   diffTargetSchema,
@@ -13,186 +20,52 @@ import {
   fetchErrorSchema,
   fetchPrForReviewErrorSchema,
   fetchPrForReviewOptionsSchema,
+  fileDiffSchema,
+  fileDiffStalenessEventSchema,
   gitChangeSchema,
   gitCommandErrorSchema,
   gitHeadModelSchema,
   gitLogOptionsSchema,
   gitLogResultSchema,
+  gitOutputResultSchema,
   gitPathInspectionSchema,
   gitRefsModelSchema,
   gitRemotesModelSchema,
-  gitRepoSnapshotSchema,
-  gitRepoUpdateSchema,
   gitRepositoryInfoSchema,
-  gitSequencesSchema,
-  gitStatusFingerprintSchema,
-  gitStatusUntrackedModeSchema,
-  gitWorktreeSnapshotSchema,
-  gitWorktreeUpdateSchema,
+  gitStashesModelSchema,
+  gitVoidResultSchema,
   imageReadResultSchema,
-  pullErrorSchema,
+  mergeErrorSchema,
+  mergeOptionsSchema,
   pushErrorSchema,
+  pushOptionsSchema,
+  pullErrorSchema,
+  rebaseErrorSchema,
+  rebaseOptionsSchema,
+  resetModeSchema,
+  stashPushOptionsSchema,
+  switchErrorSchema,
+  switchOptionsSchema,
+  tagOptionsSchema,
+  commitOptionsSchema,
 } from './schemas';
 
-// ---------------------------------------------------------------------------
-// Shared commit result used by `repository.publishBranch` and `worktree.push`
-// ---------------------------------------------------------------------------
+const repoKey = z.object({ repositoryRoot: z.string() });
+const checkoutKey = z.object({ checkoutPath: z.string() });
 
-const outputSequencesResult = result(
-  z.object({ output: z.string(), sequences: gitSequencesSchema }),
-  pushErrorSchema
-);
+const repoModel = <T extends z.ZodTypeAny>(data: T) =>
+  createLiveModelContract(data, {
+    snapshotInput: repoKey,
+    subscribeInput: repoKey,
+    unsubscribeInput: repoKey,
+  });
 
-const sequencesResult = result(z.object({ sequences: gitSequencesSchema }), gitCommandErrorSchema);
-
-const fetchResult = result(z.object({ sequences: gitSequencesSchema }), fetchErrorSchema);
-
-// ---------------------------------------------------------------------------
-// repository.* procedures (take repositoryId)
-// ---------------------------------------------------------------------------
-
-const repositoryId = z.object({ repositoryId: z.string() });
-
-const repositoryContract = {
-  release: oc.input(repositoryId).output(z.void()),
-
-  getRefs: oc.input(repositoryId).output(gitRefsModelSchema),
-
-  getRemotes: oc.input(repositoryId).output(gitRemotesModelSchema),
-
-  getSnapshot: oc.input(repositoryId).output(gitRepoSnapshotSchema),
-
-  refresh: oc.input(repositoryId).output(gitRepoSnapshotSchema),
-
-  subscribe: oc.input(repositoryId).output(eventIterator(gitRepoUpdateSchema)),
-
-  getDefaultBranch: oc
-    .input(repositoryId.extend({ remote: z.string().optional() }))
-    .output(z.string()),
-
-  fetch: oc.input(repositoryId.extend({ remote: z.string().optional() })).output(fetchResult),
-
-  addRemote: oc
-    .input(repositoryId.extend({ name: z.string(), url: z.string() }))
-    .output(sequencesResult),
-
-  createBranch: oc
-    .input(repositoryId.extend({ options: createBranchOptionsSchema }))
-    .output(result(z.object({ sequences: gitSequencesSchema }), gitCommandErrorSchema)),
-
-  deleteBranch: oc
-    .input(repositoryId.extend({ branch: z.string(), force: z.boolean().optional() }))
-    .output(result(z.object({ sequences: gitSequencesSchema }), deleteBranchErrorSchema)),
-
-  fetchPrForReview: oc
-    .input(repositoryId.extend({ options: fetchPrForReviewOptionsSchema }))
-    .output(result(z.object({ sequences: gitSequencesSchema }), fetchPrForReviewErrorSchema)),
-
-  publishBranch: oc
-    .input(
-      repositoryId.extend({
-        branchName: z.string(),
-        remote: z.string().optional(),
-      })
-    )
-    .output(outputSequencesResult),
-
-  readBlobAtRef: oc
-    .input(repositoryId.extend({ ref: z.string(), filePath: z.string() }))
-    .output(z.string().nullable()),
-};
-
-// ---------------------------------------------------------------------------
-// worktree.* procedures (take worktreeId)
-// ---------------------------------------------------------------------------
-
-const worktreeId = z.object({ worktreeId: z.string() });
-
-const worktreeContract = {
-  release: oc.input(worktreeId).output(z.void()),
-
-  getStatus: oc.input(worktreeId).output(z.object({ status: z.any() })),
-
-  getHead: oc.input(worktreeId).output(gitHeadModelSchema),
-
-  getSnapshot: oc.input(worktreeId).output(gitWorktreeSnapshotSchema),
-
-  refresh: oc.input(worktreeId).output(gitWorktreeSnapshotSchema),
-
-  subscribe: oc.input(worktreeId).output(eventIterator(gitWorktreeUpdateSchema)),
-
-  getStatusFingerprint: oc
-    .input(worktreeId.extend({ untracked: gitStatusUntrackedModeSchema }))
-    .output(gitStatusFingerprintSchema),
-
-  isFileCleanlyTracked: oc.input(worktreeId.extend({ filePath: z.string() })).output(z.boolean()),
-
-  getChangedFiles: oc
-    .input(worktreeId.extend({ base: diffTargetSchema }))
-    .output(z.array(gitChangeSchema)),
-
-  getFileAtRef: oc
-    .input(worktreeId.extend({ filePath: z.string(), ref: z.string() }))
-    .output(z.string().nullable()),
-
-  getFileAtIndex: oc
-    .input(worktreeId.extend({ filePath: z.string() }))
-    .output(z.string().nullable()),
-
-  getImageAtRef: oc
-    .input(worktreeId.extend({ filePath: z.string(), ref: z.string() }))
-    .output(imageReadResultSchema),
-
-  getImageAtIndex: oc
-    .input(worktreeId.extend({ filePath: z.string() }))
-    .output(imageReadResultSchema),
-
-  getLog: oc
-    .input(worktreeId.extend({ options: gitLogOptionsSchema.optional() }))
-    .output(gitLogResultSchema),
-
-  getCommitFiles: oc
-    .input(worktreeId.extend({ hash: z.string() }))
-    .output(z.array(commitFileSchema)),
-
-  stage: oc
-    .input(worktreeId.extend({ paths: z.array(z.string()) }))
-    .output(result(gitSequencesSchema, gitCommandErrorSchema)),
-
-  stageAll: oc.input(worktreeId).output(result(gitSequencesSchema, gitCommandErrorSchema)),
-
-  unstage: oc
-    .input(worktreeId.extend({ paths: z.array(z.string()) }))
-    .output(result(gitSequencesSchema, gitCommandErrorSchema)),
-
-  unstageAll: oc.input(worktreeId).output(result(gitSequencesSchema, gitCommandErrorSchema)),
-
-  revert: oc
-    .input(worktreeId.extend({ paths: z.array(z.string()) }))
-    .output(result(gitSequencesSchema, gitCommandErrorSchema)),
-
-  revertAll: oc.input(worktreeId).output(result(gitSequencesSchema, gitCommandErrorSchema)),
-
-  commit: oc
-    .input(worktreeId.extend({ message: z.string() }))
-    .output(
-      result(z.object({ hash: z.string(), sequences: gitSequencesSchema }), commitErrorSchema)
-    ),
-
-  push: oc
-    .input(worktreeId.extend({ remote: z.string().optional() }))
-    .output(outputSequencesResult),
-
-  pull: oc
-    .input(worktreeId)
-    .output(
-      result(z.object({ output: z.string(), sequences: gitSequencesSchema }), pullErrorSchema)
-    ),
-};
-
-// ---------------------------------------------------------------------------
-// runtime-level procedures (no handle required)
-// ---------------------------------------------------------------------------
+const checkoutModel = <T extends z.ZodTypeAny>(data: T) =>
+  createLiveModelContract(data, {
+    snapshotInput: checkoutKey,
+    subscribeInput: checkoutKey,
+    unsubscribeInput: checkoutKey,
+  });
 
 const runtimeContract = {
   inspectPath: oc.input(z.object({ path: z.string() })).output(gitPathInspectionSchema),
@@ -204,22 +77,233 @@ const runtimeContract = {
   cloneRepository: oc
     .input(z.object({ repositoryUrl: z.string(), targetPath: z.string() }))
     .output(result(gitRepositoryInfoSchema, cloneRepositoryErrorSchema)),
+};
 
-  openRepository: oc.input(z.object({ pathInsideRepo: z.string() })).output(
-    z.object({
-      repositoryId: z.string(),
-      gitCommonDir: z.string(),
-      objectStoreDir: z.string(),
-    })
-  ),
+const repositoryContract = {
+  /** Branches, tags — shared across all checkouts. */
+  refs: repoModel(gitRefsModelSchema),
 
-  openWorktree: oc.input(z.object({ worktreePath: z.string() })).output(
-    z.object({
-      worktreeId: z.string(),
-      repositoryId: z.string(),
-      worktree: z.string(),
-    })
-  ),
+  /** Configured remotes for this repository. */
+  remotes: repoModel(gitRemotesModelSchema),
+
+  /** Stash list — owned by the repository, not a specific checkout. */
+  stashes: repoModel(gitStashesModelSchema),
+
+  listCheckouts: oc.input(repoKey).output(z.array(checkoutInfoSchema)),
+
+  addCheckout: oc
+    .input(repoKey.extend({ options: addCheckoutOptionsSchema }))
+    .output(result(checkoutInfoSchema, gitCommandErrorSchema)),
+
+  removeCheckout: oc
+    .input(repoKey.extend({ checkoutPath: z.string(), force: z.boolean().optional() }))
+    .output(gitVoidResultSchema),
+
+  pruneCheckouts: oc.input(repoKey).output(gitVoidResultSchema),
+
+  createBranch: oc
+    .input(repoKey.extend({ options: createBranchOptionsSchema }))
+    .output(result(z.void(), createBranchErrorSchema)),
+
+  deleteBranch: oc
+    .input(repoKey.extend({ branch: z.string(), force: z.boolean().optional() }))
+    .output(result(z.void(), deleteBranchErrorSchema)),
+
+  renameBranch: oc
+    .input(repoKey.extend({ oldName: z.string(), newName: z.string() }))
+    .output(gitVoidResultSchema),
+
+  setUpstream: oc
+    .input(repoKey.extend({ branch: z.string(), upstream: z.string().nullable() }))
+    .output(gitVoidResultSchema),
+
+  createTag: oc.input(repoKey.extend({ options: tagOptionsSchema })).output(gitVoidResultSchema),
+
+  deleteTag: oc.input(repoKey.extend({ name: z.string() })).output(gitVoidResultSchema),
+
+  addRemote: oc
+    .input(repoKey.extend({ name: z.string(), url: z.string() }))
+    .output(gitVoidResultSchema),
+
+  removeRemote: oc.input(repoKey.extend({ name: z.string() })).output(gitVoidResultSchema),
+
+  fetch: oc
+    .input(repoKey.extend({ remote: z.string().optional() }))
+    .output(result(z.void(), fetchErrorSchema)),
+
+  publishBranch: oc
+    .input(repoKey.extend({ branchName: z.string(), remote: z.string().optional() }))
+    .output(gitOutputResultSchema),
+
+  getDefaultBranch: oc.input(repoKey.extend({ remote: z.string().optional() })).output(z.string()),
+
+  fetchPrForReview: oc
+    .input(repoKey.extend({ options: fetchPrForReviewOptionsSchema }))
+    .output(result(z.void(), fetchPrForReviewErrorSchema)),
+
+  readBlobAtRef: oc
+    .input(repoKey.extend({ ref: z.string(), filePath: z.string() }))
+    .output(z.string().nullable()),
+
+  stashDrop: oc
+    .input(repoKey.extend({ stashIndex: z.number().int().nonnegative() }))
+    .output(gitVoidResultSchema),
+};
+
+const checkoutContract = {
+  /** Normalized working-tree status (staged + unstaged, flat map by path). */
+  status: checkoutModel(checkoutStatusModelSchema),
+
+  /** Current HEAD position (branch / detached / unborn). */
+  head: checkoutModel(gitHeadModelSchema),
+
+  stage: oc.input(checkoutKey.extend({ paths: z.array(z.string()) })).output(gitVoidResultSchema),
+
+  unstage: oc.input(checkoutKey.extend({ paths: z.array(z.string()) })).output(gitVoidResultSchema),
+
+  stageAll: oc.input(checkoutKey).output(gitVoidResultSchema),
+
+  unstageAll: oc.input(checkoutKey).output(gitVoidResultSchema),
+
+  revert: oc.input(checkoutKey.extend({ paths: z.array(z.string()) })).output(gitVoidResultSchema),
+
+  revertAll: oc.input(checkoutKey).output(gitVoidResultSchema),
+
+  /** Discard all untracked and ignored files. */
+  clean: oc
+    .input(
+      checkoutKey.extend({ paths: z.array(z.string()).optional(), force: z.boolean().optional() })
+    )
+    .output(gitVoidResultSchema),
+
+  /**
+   * Stage a specific hunk within a file.
+   * `hunkHeader` identifies the hunk (e.g. "@@ -1,4 +1,5 @@").
+   */
+  stageHunk: oc
+    .input(checkoutKey.extend({ path: z.string(), hunkHeader: z.string() }))
+    .output(gitVoidResultSchema),
+
+  unstageHunk: oc
+    .input(checkoutKey.extend({ path: z.string(), hunkHeader: z.string() }))
+    .output(gitVoidResultSchema),
+
+  discardHunk: oc
+    .input(checkoutKey.extend({ path: z.string(), hunkHeader: z.string() }))
+    .output(gitVoidResultSchema),
+
+  commit: oc
+    .input(checkoutKey.extend({ message: z.string(), options: commitOptionsSchema.optional() }))
+    .output(result(z.object({ hash: z.string() }), commitErrorSchema)),
+
+  switch: oc
+    .input(checkoutKey.extend({ options: switchOptionsSchema }))
+    .output(result(z.void(), switchErrorSchema)),
+
+  reset: oc
+    .input(checkoutKey.extend({ ref: z.string(), mode: resetModeSchema.optional() }))
+    .output(gitVoidResultSchema),
+
+  merge: oc
+    .input(checkoutKey.extend({ options: mergeOptionsSchema }))
+    .output(result(z.void(), mergeErrorSchema)),
+
+  mergeContinue: oc
+    .input(checkoutKey.extend({ message: z.string().optional() }))
+    .output(result(z.void(), mergeErrorSchema)),
+
+  mergeAbort: oc.input(checkoutKey).output(gitVoidResultSchema),
+
+  rebase: oc
+    .input(checkoutKey.extend({ options: rebaseOptionsSchema }))
+    .output(result(z.void(), rebaseErrorSchema)),
+
+  rebaseContinue: oc.input(checkoutKey).output(result(z.void(), rebaseErrorSchema)),
+
+  rebaseAbort: oc.input(checkoutKey).output(gitVoidResultSchema),
+
+  rebaseSkip: oc.input(checkoutKey).output(gitVoidResultSchema),
+
+  cherryPick: oc
+    .input(checkoutKey.extend({ commits: z.array(z.string()), noCommit: z.boolean().optional() }))
+    .output(result(z.void(), mergeErrorSchema)),
+
+  revertCommit: oc
+    .input(checkoutKey.extend({ commit: z.string(), noCommit: z.boolean().optional() }))
+    .output(result(z.void(), mergeErrorSchema)),
+
+  push: oc
+    .input(checkoutKey.extend({ options: pushOptionsSchema.optional() }))
+    .output(result(z.object({ output: z.string() }), pushErrorSchema)),
+
+  pull: oc.input(checkoutKey).output(result(z.object({ output: z.string() }), pullErrorSchema)),
+
+  sync: oc.input(checkoutKey).output(result(z.object({ output: z.string() }), pushErrorSchema)),
+
+  stashPush: oc
+    .input(checkoutKey.extend({ options: stashPushOptionsSchema.optional() }))
+    .output(gitVoidResultSchema),
+
+  stashApply: oc
+    .input(checkoutKey.extend({ stashIndex: z.number().int().nonnegative().optional() }))
+    .output(gitVoidResultSchema),
+
+  stashPop: oc
+    .input(checkoutKey.extend({ stashIndex: z.number().int().nonnegative().optional() }))
+    .output(gitVoidResultSchema),
+
+  getFileDiff: oc
+    .input(checkoutKey.extend({ path: z.string(), base: diffTargetSchema.optional() }))
+    .output(result(fileDiffSchema, gitCommandErrorSchema)),
+
+  /**
+   * Subscribes to staleness events for a file diff.
+   * Emits whenever the diff would change (content, index, or ref change).
+   * Callers re-fetch via getFileDiff on each event.
+   */
+  subscribeFileDiff: oc
+    .input(checkoutKey.extend({ path: z.string(), base: diffTargetSchema.optional() }))
+    .output(eventIterator(fileDiffStalenessEventSchema)),
+
+  getChangedFiles: oc
+    .input(checkoutKey.extend({ base: diffTargetSchema }))
+    .output(z.array(gitChangeSchema)),
+
+  getConflictVersions: oc
+    .input(checkoutKey.extend({ path: z.string() }))
+    .output(result(conflictVersionsSchema, gitCommandErrorSchema)),
+
+  // -- Content / history reads --
+
+  getFileAtRef: oc
+    .input(checkoutKey.extend({ filePath: z.string(), ref: z.string() }))
+    .output(z.string().nullable()),
+
+  getFileAtIndex: oc
+    .input(checkoutKey.extend({ filePath: z.string() }))
+    .output(z.string().nullable()),
+
+  getImageAtRef: oc
+    .input(checkoutKey.extend({ filePath: z.string(), ref: z.string() }))
+    .output(imageReadResultSchema),
+
+  getImageAtIndex: oc
+    .input(checkoutKey.extend({ filePath: z.string() }))
+    .output(imageReadResultSchema),
+
+  getLog: oc
+    .input(checkoutKey.extend({ options: gitLogOptionsSchema.optional() }))
+    .output(gitLogResultSchema),
+
+  getCommit: oc.input(checkoutKey.extend({ hash: z.string() })).output(commitFileSchema.nullable()),
+
+  getCommitFiles: oc
+    .input(checkoutKey.extend({ hash: z.string() }))
+    .output(z.array(commitFileSchema)),
+
+  blame: oc
+    .input(checkoutKey.extend({ path: z.string(), ref: z.string().optional() }))
+    .output(result(blameResultSchema, gitCommandErrorSchema)),
 };
 
 // ---------------------------------------------------------------------------
@@ -229,7 +313,7 @@ const runtimeContract = {
 export const gitContract = {
   ...runtimeContract,
   repository: repositoryContract,
-  worktree: worktreeContract,
+  checkout: checkoutContract,
 };
 
 export type GitContract = typeof gitContract;

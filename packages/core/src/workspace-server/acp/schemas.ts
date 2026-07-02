@@ -205,7 +205,6 @@ export const sessionStateSchema = z.object({
   pendingPermissions: z.array(acpPermissionRequestSchema),
 });
 
-
 export const sessionConfigStateSchema = z.object({
   modelOptions: modelOptionsSchema.nullable(),
   modeOptions: modeOptionsSchema,

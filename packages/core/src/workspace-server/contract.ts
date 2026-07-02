@@ -4,6 +4,7 @@ import { acpContract } from './acp/contract';
 import { depsContract } from './deps/contract';
 import { filesContract } from './files/contract';
 import { gitContract } from './git/contract';
+import { ptyAgentContract } from './pty-agent/contract';
 import { clientHelloSchema, serverHelloSchema } from './versions/schemas';
 
 export const workspaceContract = {
@@ -30,6 +31,7 @@ export const workspaceContract = {
   files: filesContract,
   deps: depsContract,
   acp: acpContract,
+  ptyAgent: ptyAgentContract,
 };
 
 export type WorkspaceContract = typeof workspaceContract;

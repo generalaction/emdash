@@ -1,9 +1,5 @@
 import { z } from 'zod';
-import { liveValue, result } from '../shared/schemas';
-
-// ---------------------------------------------------------------------------
-// Status models
-// ---------------------------------------------------------------------------
+import { result } from '../shared/schemas';
 
 export const gitChangeStatusSchema = z.enum([
   'added',
@@ -21,38 +17,69 @@ export const gitChangeSchema = z.object({
   indexOid: z.string().optional(),
 });
 
-export const gitStatusModelSchema = z.discriminatedUnion('kind', [
+/**
+ * Per-side status code from git porcelain v2 (XY format).
+ * Each file entry carries an `index` code and a `worktree` code independently.
+ */
+export const gitStatusCodeSchema = z.enum([
+  'unmodified',
+  'modified',
+  'added',
+  'deleted',
+  'renamed',
+  'copied',
+  'type-changed',
+  'untracked',
+  'ignored',
+  'unmerged',
+]);
+
+export const fileGitStatusSchema = z.object({
+  path: z.string(),
+  index: gitStatusCodeSchema,
+  worktree: gitStatusCodeSchema,
+  /** Original path, set for renames and copies. */
+  origPath: z.string().optional(),
+  isConflicted: z.boolean(),
+});
+
+export const checkoutOperationSchema = z.enum([
+  'none',
+  'merge',
+  'rebase',
+  'cherry-pick',
+  'revert',
+  'bisect',
+]);
+
+export const checkoutStatusSummarySchema = z.object({
+  staged: z.number().int().nonnegative(),
+  unstaged: z.number().int().nonnegative(),
+  conflicted: z.number().int().nonnegative(),
+  untracked: z.number().int().nonnegative(),
+});
+
+/**
+ * Normalized checkout status model.
+ * `entries` is a flat map keyed by path — each file appears once regardless of
+ * whether it is staged, unstaged, both, or conflicted.
+ */
+export const checkoutStatusModelSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('ok'),
-    staged: z.array(gitChangeSchema),
-    unstaged: z.array(gitChangeSchema),
-    stagedAdded: z.number().int(),
-    stagedDeleted: z.number().int(),
+    entries: z.record(z.string(), fileGitStatusSchema),
+    summary: checkoutStatusSummarySchema,
+    operation: checkoutOperationSchema,
   }),
   z.object({ kind: z.literal('too-many-files') }),
   z.object({ kind: z.literal('error'), message: z.string() }),
 ]);
-
-export const gitStatusUntrackedModeSchema = z.enum(['no', 'normal']);
-
-export const gitStatusFingerprintSchema = z.object({
-  hash: z.string(),
-  byteLength: z.number().int(),
-});
-
-// ---------------------------------------------------------------------------
-// Head model
-// ---------------------------------------------------------------------------
 
 export const gitHeadModelSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('branch'), name: z.string(), oid: z.string() }),
   z.object({ kind: z.literal('detached'), shortHash: z.string(), oid: z.string() }),
   z.object({ kind: z.literal('unborn'), name: z.string() }),
 ]);
-
-// ---------------------------------------------------------------------------
-// Refs / remotes models
-// ---------------------------------------------------------------------------
 
 export const gitRemoteSchema = z.object({
   name: z.string(),
@@ -92,15 +119,34 @@ export const gitBranchSchema = z.union([localBranchSchema, remoteBranchSchema]);
 
 export const gitRefsModelSchema = z.object({
   branches: z.array(gitBranchSchema),
+  tags: z.array(z.object({ name: z.string(), oid: z.string(), message: z.string().optional() })),
 });
 
 export const gitRemotesModelSchema = z.object({
   remotes: z.array(gitRemoteSchema),
 });
 
-// ---------------------------------------------------------------------------
-// Log models
-// ---------------------------------------------------------------------------
+export const gitStashSchema = z.object({
+  index: z.number().int().nonnegative(),
+  ref: z.string(),
+  message: z.string(),
+  branch: z.string().optional(),
+  oid: z.string(),
+  createdAt: z.number().int(),
+});
+
+export const gitStashesModelSchema = z.object({
+  stashes: z.array(gitStashSchema),
+});
+
+export const checkoutInfoSchema = z.object({
+  checkoutPath: z.string(),
+  isMain: z.boolean(),
+  head: gitHeadModelSchema,
+  branch: z.string().optional(),
+  locked: z.boolean().optional(),
+  prunable: z.boolean().optional(),
+});
 
 export const commitSchema = z.object({
   hash: z.string(),
@@ -125,9 +171,62 @@ export const gitLogResultSchema = z.object({
   aheadCount: z.number().int(),
 });
 
-// ---------------------------------------------------------------------------
-// Image read result
-// ---------------------------------------------------------------------------
+export const diffLineSchema = z.object({
+  type: z.enum(['context', 'add', 'del', 'no-newline']),
+  content: z.string(),
+  oldLineNo: z.number().int().optional(),
+  newLineNo: z.number().int().optional(),
+});
+
+export const diffHunkSchema = z.object({
+  header: z.string(),
+  oldStart: z.number().int(),
+  oldLines: z.number().int(),
+  newStart: z.number().int(),
+  newLines: z.number().int(),
+  lines: z.array(diffLineSchema),
+});
+
+export const fileDiffSchema = z.object({
+  path: z.string(),
+  oldOid: z.string().optional(),
+  newOid: z.string().optional(),
+  binary: z.boolean(),
+  additions: z.number().int(),
+  deletions: z.number().int(),
+  hunks: z.array(diffHunkSchema),
+});
+
+/** Returned by subscribeFileDiff — signals the diff is stale and should be re-fetched. */
+export const fileDiffStalenessEventSchema = z.object({
+  path: z.string(),
+  reason: z.enum(['content-changed', 'index-changed', 'ref-changed']),
+});
+
+export const blameHunkSchema = z.object({
+  oid: z.string(),
+  author: z.string(),
+  authorEmail: z.string(),
+  date: z.string(),
+  summary: z.string(),
+  startLine: z.number().int(),
+  lineCount: z.number().int(),
+});
+
+export const blameResultSchema = z.object({
+  hunks: z.array(blameHunkSchema),
+});
+
+export const conflictVersionsSchema = z.object({
+  /** Common ancestor version. */
+  base: z.string().optional(),
+  /** Our (current HEAD) version. */
+  ours: z.string().optional(),
+  /** Theirs (incoming) version. */
+  theirs: z.string().optional(),
+  /** Current working-tree version (with conflict markers). */
+  working: z.string().optional(),
+});
 
 export const imageBlobSchema = z.object({
   dataUrl: z.string(),
@@ -148,15 +247,6 @@ export const imageReadResultSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('unavailable'), reason: imageUnavailableReasonSchema }),
 ]);
 
-// ---------------------------------------------------------------------------
-// Diff target
-//
-// MergeBaseRange has no 'kind' field so this cannot be a discriminatedUnion;
-// z.union is used instead. This is an intentional wire divergence from the TS
-// type which relies on structural typing. Callers should treat DiffTarget as
-// a plain union on the wire.
-// ---------------------------------------------------------------------------
-
 export const diffModeSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('head') }),
   z.object({ kind: z.literal('staged') }),
@@ -175,10 +265,6 @@ export const mergeBaseRangeSchema = z.object({
 
 export const diffTargetSchema = z.union([diffModeSchema, gitObjectRefSchema, mergeBaseRangeSchema]);
 
-// ---------------------------------------------------------------------------
-// Path inspection
-// ---------------------------------------------------------------------------
-
 export const gitRepositoryInfoSchema = z.object({
   kind: z.literal('repository'),
   rootPath: z.string(),
@@ -190,68 +276,6 @@ export const gitPathInspectionSchema = z.union([
   z.object({ kind: z.literal('not-repository'), path: z.string() }),
   z.object({ kind: z.literal('inspect-failed'), path: z.string(), message: z.string() }),
 ]);
-
-// ---------------------------------------------------------------------------
-// Sequences
-// ---------------------------------------------------------------------------
-
-export const gitModelKindSchema = z.enum(['status', 'head', 'refs', 'remotes']);
-
-export const gitSequencesSchema = z.object({
-  status: z.number().int().optional(),
-  head: z.number().int().optional(),
-  refs: z.number().int().optional(),
-  remotes: z.number().int().optional(),
-});
-
-// ---------------------------------------------------------------------------
-// Model updates (carry generation + sequence for read-your-writes)
-// ---------------------------------------------------------------------------
-
-export const gitWorktreeUpdateSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('status'),
-    generation: z.number().int(),
-    sequence: z.number().int(),
-    model: gitStatusModelSchema,
-  }),
-  z.object({
-    kind: z.literal('head'),
-    generation: z.number().int(),
-    sequence: z.number().int(),
-    model: gitHeadModelSchema,
-  }),
-]);
-
-export const gitRepoUpdateSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('refs'),
-    generation: z.number().int(),
-    sequence: z.number().int(),
-    model: gitRefsModelSchema,
-  }),
-  z.object({
-    kind: z.literal('remotes'),
-    generation: z.number().int(),
-    sequence: z.number().int(),
-    model: gitRemotesModelSchema,
-  }),
-]);
-
-// Snapshots (LiveValue wrappers for read-model state)
-export const gitWorktreeSnapshotSchema = z.object({
-  status: liveValue(gitStatusModelSchema),
-  head: liveValue(gitHeadModelSchema),
-});
-
-export const gitRepoSnapshotSchema = z.object({
-  refs: liveValue(gitRefsModelSchema),
-  remotes: liveValue(gitRemotesModelSchema),
-});
-
-// ---------------------------------------------------------------------------
-// Error types
-// ---------------------------------------------------------------------------
 
 export const gitCommandErrorSchema = z.object({
   type: z.literal('git_error'),
@@ -345,9 +369,31 @@ export const deleteBranchErrorSchema = z.union([
   gitCommandErrorSchema,
 ]);
 
-// ---------------------------------------------------------------------------
-// Option / param types
-// ---------------------------------------------------------------------------
+export const mergeErrorSchema = z.union([
+  z.object({
+    type: z.literal('conflict'),
+    message: z.string(),
+    conflictedFiles: z.array(z.string()).optional(),
+  }),
+  z.object({ type: z.literal('already_up_to_date'), message: z.string() }),
+  gitCommandErrorSchema,
+]);
+
+export const rebaseErrorSchema = z.union([
+  z.object({
+    type: z.literal('conflict'),
+    message: z.string(),
+    conflictedFiles: z.array(z.string()).optional(),
+  }),
+  z.object({ type: z.literal('nothing_to_rebase'), message: z.string() }),
+  gitCommandErrorSchema,
+]);
+
+export const switchErrorSchema = z.union([
+  z.object({ type: z.literal('local_changes'), message: z.string() }),
+  z.object({ type: z.literal('not_found'), ref: z.string(), message: z.string() }),
+  gitCommandErrorSchema,
+]);
 
 export const ensureRepositoryOptionsSchema = z.object({
   initIfMissing: z.boolean().optional(),
@@ -380,16 +426,71 @@ export const gitLogOptionsSchema = z.object({
   head: gitObjectRefSchema.optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Convenience result helpers used by the contract
-// ---------------------------------------------------------------------------
+export const commitOptionsSchema = z.object({
+  amend: z.boolean().optional(),
+  signoff: z.boolean().optional(),
+  noVerify: z.boolean().optional(),
+  allowEmpty: z.boolean().optional(),
+});
 
-export const gitSequencesResultSchema = result(
-  z.object({ sequences: gitSequencesSchema }),
-  gitCommandErrorSchema
-);
+export const resetModeSchema = z.enum(['soft', 'mixed', 'hard']);
 
-export const gitOutputSequencesResultSchema = result(
-  z.object({ output: z.string(), sequences: gitSequencesSchema }),
-  pushErrorSchema
-);
+export const switchOptionsSchema = z.object({
+  /** Ref to switch to (branch name, tag, or commit SHA). */
+  ref: z.string(),
+  /** Create a new branch at this ref. */
+  newBranch: z.string().optional(),
+  /** Force switch even when local changes exist (discard). */
+  force: z.boolean().optional(),
+});
+
+export const mergeOptionsSchema = z.object({
+  branch: z.string(),
+  /** Prevent fast-forward; always create a merge commit. */
+  noFf: z.boolean().optional(),
+  squash: z.boolean().optional(),
+  message: z.string().optional(),
+});
+
+export const rebaseOptionsSchema = z.object({
+  /** Branch / ref to rebase onto. */
+  onto: z.string(),
+  /** Interactive (implies passing --interactive to git, not modelled further here). */
+  interactive: z.boolean().optional(),
+});
+
+export const pushOptionsSchema = z.object({
+  remote: z.string().optional(),
+  force: z.boolean().optional(),
+  setUpstream: z.boolean().optional(),
+});
+
+export const stashPushOptionsSchema = z.object({
+  message: z.string().optional(),
+  includeUntracked: z.boolean().optional(),
+  keepIndex: z.boolean().optional(),
+  paths: z.array(z.string()).optional(),
+});
+
+export const addCheckoutOptionsSchema = z.object({
+  /** Destination path for the new worktree. */
+  path: z.string(),
+  /** Branch to check out; creates it if combined with `newBranch`. */
+  ref: z.string().optional(),
+  /** Name for a new branch created at this worktree. */
+  newBranch: z.string().optional(),
+  force: z.boolean().optional(),
+});
+
+export const tagOptionsSchema = z.object({
+  name: z.string(),
+  ref: z.string().optional(),
+  message: z.string().optional(),
+  force: z.boolean().optional(),
+});
+
+/** result(void, gitCommandError) — for mutations with no payload on success. */
+export const gitVoidResultSchema = result(z.void(), gitCommandErrorSchema);
+
+/** result({ output }, pushError) — for push/publishBranch where stdout matters. */
+export const gitOutputResultSchema = result(z.object({ output: z.string() }), pushErrorSchema);

@@ -1,86 +1,61 @@
 import { eventIterator, oc } from '@orpc/contract';
 import { z } from 'zod';
+import { createLiveModelContract } from '../../live-model';
 import { result } from '../shared/schemas';
 import {
-  fileChangeUpdateSchema,
-  fileChangeWatchOptionsSchema,
-  fileEnumerationOptionsSchema,
-  fileErrorSchema,
-  fileGlobOptionsSchema,
-  fileNodeSchema,
+  fileContentModelSchema,
   fileStatSchema,
-  fileTreeErrorSchema,
-  fileTreeSequencesSchema,
-  fileTreeSnapshotSchema,
-  fileTreeUpdateSchema,
-  nodeIdSchema,
+  fileTreeModelSchema,
+  fsErrorSchema,
+  fsVoidResultSchema,
+  fileEnumerationOptionsSchema,
+  fileGlobOptionsSchema,
   readBytesResultSchema,
   readFileOptionsSchema,
   readTextResultSchema,
-  writeFileResultSchema,
 } from './schemas';
 
-// ---------------------------------------------------------------------------
-// fs.* procedures — path-based, no handle required
-// ---------------------------------------------------------------------------
+const rootKey = z.object({ rootPath: z.string() });
+const pathKey = z.object({ rootPath: z.string(), path: z.string() });
+
+// Tree is per-session: sessionId is part of the model key (required on all tree procedures).
+// Each session maintains its own expanded/loaded subtree. One shared fs watcher per rootPath
+// fans out to all session models (watcher refcounted by rootPath; models by (rootPath, sessionId)).
+const treeKey = z.object({ rootPath: z.string(), sessionId: z.string() });
+const treePathKey = treeKey.extend({ path: z.string() });
+
+// Content is shared per (rootPath, path). sessionId is an optional lease tag only —
+// content has no per-session divergence, so it is not part of the model key.
+const contentKey = z.object({
+  rootPath: z.string(),
+  path: z.string(),
+  sessionId: z.string().optional(),
+});
 
 const fsContract = {
+  stat: oc.input(pathKey).output(result(fileStatSchema, fsErrorSchema)),
+
+  exists: oc.input(pathKey).output(result(z.boolean(), fsErrorSchema)),
+
+  realPath: oc.input(pathKey).output(result(z.string(), fsErrorSchema)),
+
   readText: oc
-    .input(z.object({ path: z.string(), options: readFileOptionsSchema.optional() }))
-    .output(result(readTextResultSchema, fileErrorSchema)),
+    .input(pathKey.extend({ options: readFileOptionsSchema.optional() }))
+    .output(result(readTextResultSchema, fsErrorSchema)),
 
   /**
-   * bytes is base64 on the wire (intentional wire divergence from ReadBytesResult.bytes: Uint8Array).
+   * bytes is base64 on the wire (intentional wire divergence from readBytes(Uint8Array)).
    */
   readBytes: oc
-    .input(z.object({ path: z.string(), options: readFileOptionsSchema.optional() }))
-    .output(result(readBytesResultSchema, fileErrorSchema)),
-
-  writeText: oc
-    .input(z.object({ path: z.string(), content: z.string() }))
-    .output(result(writeFileResultSchema, fileErrorSchema)),
-
-  /**
-   * bytes is base64 on the wire (intentional wire divergence from writeBytes(Uint8Array)).
-   */
-  writeBytes: oc
-    .input(z.object({ path: z.string(), bytes: z.string() }))
-    .output(result(writeFileResultSchema, fileErrorSchema)),
-
-  stat: oc.input(z.object({ path: z.string() })).output(result(fileStatSchema, fileErrorSchema)),
-
-  exists: oc.input(z.object({ path: z.string() })).output(result(z.boolean(), fileErrorSchema)),
-
-  mkdir: oc
-    .input(
-      z.object({
-        path: z.string(),
-        options: z.object({ recursive: z.boolean().optional() }).optional(),
-      })
-    )
-    .output(result(z.void(), fileErrorSchema)),
-
-  remove: oc
-    .input(
-      z.object({
-        path: z.string(),
-        options: z.object({ recursive: z.boolean().optional() }).optional(),
-      })
-    )
-    .output(result(z.void(), fileErrorSchema)),
-
-  realPath: oc.input(z.object({ path: z.string() })).output(result(z.string(), fileErrorSchema)),
-
-  copyFile: oc
-    .input(z.object({ src: z.string(), dest: z.string() }))
-    .output(result(z.void(), fileErrorSchema)),
+    .input(pathKey.extend({ options: readFileOptionsSchema.optional() }))
+    .output(result(readBytesResultSchema, fsErrorSchema)),
 
   /**
    * Streams matched paths as an event iterator (models AsyncIterable<string>).
    * exclude predicate is dropped from the wire; use FileGlobOptions.cwd and dot.
    */
   glob: oc
-    .input(z.object({ patterns: z.array(z.string()), options: fileGlobOptionsSchema }))
+    .input(rootKey.extend({ patterns: z.array(z.string()), options: fileGlobOptionsSchema }))
     .output(eventIterator(z.string())),
 
   /**
@@ -88,67 +63,77 @@ const fsContract = {
    * The exclude predicate is dropped from the wire (not serializable).
    */
   enumerate: oc
-    .input(z.object({ path: z.string(), options: fileEnumerationOptionsSchema.optional() }))
+    .input(pathKey.extend({ options: fileEnumerationOptionsSchema.optional() }))
     .output(eventIterator(z.string())),
 };
 
-const runtimeContract = {
-  /**
-   * Opens a watched file tree at rootPath; returns a treeId handle for subsequent tree.* calls.
-   */
-  openTree: oc
-    .input(z.object({ rootPath: z.string() }))
-    .output(result(z.object({ treeId: z.string(), rootPath: z.string() }), fileTreeErrorSchema)),
+const treeContract = {
+  ...createLiveModelContract(fileTreeModelSchema, {
+    snapshotInput: treeKey,
+    subscribeInput: treeKey,
+    unsubscribeInput: treeKey,
+  }),
 
   /**
-   * Subscribes to file-change events for the given root.
-   * The stream emits FileChangeUpdate events (initial resync + subsequent changes).
-   * Aborting the request (closing the connection) unsubscribes.
-   *
-   * The exclude predicate is dropped from the wire — use paths allow-list instead.
+   * Loads a directory's children into this session's tree model.
+   * Sets childrenLoaded=true and populates children[] on the dir entry.
+   * The resulting patch flows over the subscribe stream.
    */
-  watchChanges: oc
-    .input(z.object({ rootPath: z.string(), options: fileChangeWatchOptionsSchema.optional() }))
-    .output(eventIterator(fileChangeUpdateSchema)),
+  expand: oc.input(treePathKey).output(fsVoidResultSchema),
+
+  /**
+   * Prunes a directory's children from this session's tree model.
+   * Sets childrenLoaded=false and clears children[] on the dir entry.
+   * The resulting patch flows over the subscribe stream.
+   */
+  collapse: oc.input(treePathKey).output(fsVoidResultSchema),
+
+  /**
+   * Ensures all ancestor directories of `path` are loaded in this session's model.
+   * Useful for reveal-in-tree operations.
+   */
+  reveal: oc.input(treePathKey).output(fsVoidResultSchema),
 };
 
-const treeId = z.object({ treeId: z.string() });
+const contentContract = createLiveModelContract(fileContentModelSchema, {
+  snapshotInput: contentKey,
+  subscribeInput: contentKey,
+  unsubscribeInput: contentKey,
+});
 
-const treeContract = {
-  release: oc.input(treeId).output(z.void()),
+const mutationsContract = {
+  createFile: oc
+    .input(rootKey.extend({ path: z.string(), content: z.string().optional() }))
+    .output(fsVoidResultSchema),
 
-  ready: oc.input(treeId).output(result(z.void(), fileTreeErrorSchema)),
+  createDirectory: oc.input(rootKey.extend({ path: z.string() })).output(fsVoidResultSchema),
 
-  getSnapshot: oc.input(treeId).output(result(fileTreeSnapshotSchema, fileTreeErrorSchema)),
+  rename: oc.input(rootKey.extend({ from: z.string(), to: z.string() })).output(fsVoidResultSchema),
 
-  refresh: oc.input(treeId).output(result(fileTreeSnapshotSchema, fileTreeErrorSchema)),
+  move: oc.input(rootKey.extend({ from: z.string(), to: z.string() })).output(fsVoidResultSchema),
 
-  /**
-   * Emits FileTreeUpdate events (initial snapshot + deltas).
-   */
-  subscribe: oc.input(treeId).output(eventIterator(fileTreeUpdateSchema)),
+  copy: oc.input(rootKey.extend({ from: z.string(), to: z.string() })).output(fsVoidResultSchema),
 
-  registerDir: oc
-    .input(treeId.extend({ dirId: nodeIdSchema.nullable() }))
-    .output(result(fileTreeSequencesSchema, fileTreeErrorSchema)),
+  delete: oc
+    .input(rootKey.extend({ path: z.string(), recursive: z.boolean().optional() }))
+    .output(fsVoidResultSchema),
 
-  unregisterDir: oc
-    .input(treeId.extend({ dirId: nodeIdSchema.nullable() }))
-    .output(result(fileTreeSequencesSchema, fileTreeErrorSchema)),
-
-  revealPath: oc
-    .input(treeId.extend({ path: z.string() }))
-    .output(result(fileTreeSequencesSchema, fileTreeErrorSchema)),
-
-  getNode: oc
-    .input(treeId.extend({ id: nodeIdSchema }))
-    .output(result(fileNodeSchema, fileTreeErrorSchema)),
+  writeFile: oc
+    .input(
+      rootKey.extend({
+        path: z.string(),
+        content: z.string(),
+        encoding: z.enum(['utf8', 'base64']).optional(),
+      })
+    )
+    .output(fsVoidResultSchema),
 };
 
 export const filesContract = {
-  ...runtimeContract,
   fs: fsContract,
   tree: treeContract,
+  content: contentContract,
+  mutations: mutationsContract,
 };
 
 export type FilesContract = typeof filesContract;
