@@ -511,6 +511,20 @@ class LegacySshGitWorktree implements IGitWorktree {
     return (await this.git.getChangedFiles(base)).map((change) => this.toAbsChange(change));
   }
 
+  /**
+   * The last-turn diff snapshot (#1635) relies on passing GIT_INDEX_FILE through the git
+   * exec, which the legacy SSH execution context does not support. Signal "unsupported" by
+   * throwing: LastTurnBaselineService treats it as no baseline, so the diff view falls back
+   * to the session scope on this deprecated runtime. The native runtime implements it.
+   */
+  async snapshotWorktreeTree(): Promise<string> {
+    throw new Error('snapshotWorktreeTree is not supported on the legacy SSH runtime');
+  }
+
+  async getChangedFilesBetweenTrees(): Promise<GitChange[]> {
+    return [];
+  }
+
   getFileAtRef(filePath: string, ref: string): Promise<string | null> {
     return this.git.getFileAtRef(this.toGitPath(filePath), ref);
   }
