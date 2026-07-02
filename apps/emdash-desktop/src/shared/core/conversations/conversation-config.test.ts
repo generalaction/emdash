@@ -7,7 +7,7 @@ describe('conversation-config v1 schema', () => {
       version: '1',
       type: 'pty',
       autoApprove: true,
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-5',
     });
     expect(result.status).toBe('ok');
     if (result.status === 'ok') {
@@ -15,7 +15,7 @@ describe('conversation-config v1 schema', () => {
         version: '1',
         type: 'pty',
         autoApprove: true,
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-5',
       });
     }
   });
@@ -24,18 +24,18 @@ describe('conversation-config v1 schema', () => {
     const result = conversationConfig.safeParse({
       version: '1',
       type: 'acp',
-      model: 'claude-opus-4-5',
+      model: 'claude-opus-4-8',
     });
     expect(result.status).toBe('ok');
     if (result.status === 'ok') {
-      expect(result.data).toEqual({ version: '1', type: 'acp', model: 'claude-opus-4-5' });
+      expect(result.data).toEqual({ version: '1', type: 'acp', model: 'claude-opus-4-8' });
     }
   });
 
   it('upgrades a v0 legacy row (no version field) to v1 pty', () => {
     const result = conversationConfig.safeParse({
       autoApprove: true,
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-5',
     });
     expect(result.status).toBe('ok');
     if (result.status === 'ok') {
@@ -43,7 +43,7 @@ describe('conversation-config v1 schema', () => {
         version: '1',
         type: 'pty',
         autoApprove: true,
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-5',
       });
     }
   });
@@ -97,10 +97,10 @@ describe('conversation-config v1 schema', () => {
   });
 
   it('parses and round-trips model field on v0 input (upgraded to v1)', () => {
-    const result = conversationConfig.safeParse({ model: 'claude-sonnet-4-5' });
+    const result = conversationConfig.safeParse({ model: 'claude-sonnet-5' });
     expect(result.status).toBe('ok');
     if (result.status === 'ok') {
-      expect(result.data.model).toBe('claude-sonnet-4-5');
+      expect(result.data.model).toBe('claude-sonnet-5');
     }
   });
 });
