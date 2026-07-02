@@ -4,7 +4,7 @@ import { log } from '@renderer/utils/logger';
 import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
 
 const DISCORD_WEBHOOK_URL =
-  'https://discord.com/api/webhooks/1473390363388416230/eRIo1UhylapH94KpqUUp5PDzkLhjBvcnjjyE_JezfHiAyfN3QEbRyEIJaSl8QQUz7Mak';
+  'https://discord.com/api/webhooks/1522337356185862194/pwsawgdkELfRDfT8y0dY463cfoAspkyRBVw6zjsS-oof2TJEqKm1igH6u1WFjL0PE0in';
 
 const DISCORD_MAX_FILES = 10;
 const DISCORD_MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
