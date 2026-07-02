@@ -1,0 +1,19 @@
+packages/plugins/src/agents/impl/droid/index.test.ts
+  s_a7424ad4e29ab6::t_d53e39334d9049 52-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "8ed6902f69480274bf74ab2a04f471df282a773c",
+  "prompts": {},
+  "sessions": {
+    "s_a7424ad4e29ab6": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f214c-22b1-7cfd-b39f-82777c6ad498",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
