@@ -732,4 +732,54 @@ describe('GitWorktree', () => {
       await runtime.dispose();
     }
   });
+
+  it('snapshots the worktree and diffs two snapshots, including untracked files (#1635)', async () => {
+    const repo = await makeRepo();
+    const watcher = new WatchService();
+    const runtime = new GitRuntime({ watcher });
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+
+      // Baseline captured at the start of a "turn": nothing has changed yet, so a diff
+      // against itself is empty.
+      const base = await worktree.snapshotWorktreeTree();
+      expect(base).toMatch(/^[0-9a-f]{40}$/);
+      await expect(worktree.getChangedFilesBetweenTrees(base, base)).resolves.toEqual([]);
+
+      // The turn modifies a tracked file, adds an untracked file, and adds a .gitignore
+      // that ignores another untracked file (which must be excluded from the snapshot).
+      await writeFile(repoFile(repo, 'tracked.txt'), 'after\n', 'utf8');
+      await writeFile(repoFile(repo, 'newfile.py'), 'print(1)\n', 'utf8');
+      await writeFile(repoFile(repo, 'secret.env'), 'TOKEN=x\n', 'utf8');
+      await writeFile(repoFile(repo, '.gitignore'), 'secret.env\n', 'utf8');
+
+      const head = await worktree.snapshotWorktreeTree();
+      expect(head).not.toBe(base);
+
+      const changes = await worktree.getChangedFilesBetweenTrees(base, head);
+      const byPath = new Map(changes.map((change) => [change.path, change]));
+      expect(byPath.get(repoFile(repo, 'tracked.txt'))?.status).toBe('modified');
+      expect(byPath.get(repoFile(repo, 'newfile.py'))?.status).toBe('added');
+      expect(byPath.get(repoFile(repo, '.gitignore'))?.status).toBe('added');
+      // The gitignored file is present on disk but must not leak into the snapshot diff.
+      expect(byPath.has(repoFile(repo, 'secret.env'))).toBe(false);
+
+      // The baseline preserves the pre-turn content for the diff's "before" side.
+      await expect(worktree.getFileAtRef('tracked.txt', base)).resolves.toBe('before\n');
+
+      // Snapshotting is non-destructive: the real index still sees the change as unstaged.
+      expect(await worktree.getStatus()).toMatchObject({
+        kind: 'ok',
+        unstaged: expect.arrayContaining([
+          expect.objectContaining({ path: repoFile(repo, 'tracked.txt'), status: 'modified' }),
+        ]),
+      });
+
+      await lease.release();
+    } finally {
+      await runtime.dispose();
+    }
+  });
 });

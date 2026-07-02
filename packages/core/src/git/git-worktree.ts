@@ -84,6 +84,7 @@ export class GitWorktree implements IGitWorktree {
   private readonly headModel: LiveModel<GitHeadModel>;
   private readonly worktreeWatch: WatchHandle;
   private readonly unregisterFromRepository: Unsubscribe;
+  private snapshotChain: Promise<unknown> = Promise.resolve();
 
   constructor(options: GitWorktreeOptions) {
     this.worktree = options.worktree;
@@ -226,6 +227,68 @@ export class GitWorktree implements IGitWorktree {
     const [numstatResult, nameStatusResult] = await Promise.all([
       this.exec.exec(diffArgs).catch(() => ({ stdout: '' })),
       this.exec.exec(nameArgs).catch(() => ({ stdout: '' })),
+    ]);
+    const numstat = parseNumstat(numstatResult.stdout);
+    const changes: GitChange[] = [];
+
+    for (const line of nameStatusResult.stdout.trim().split('\n').filter(Boolean)) {
+      const [code = '', ...parts] = line.split('\t');
+      const filePath = parts[parts.length - 1]?.trim();
+      if (!filePath) continue;
+      const stat = numstat.get(filePath);
+      changes.push({
+        path: this.toAbsolutePath(filePath),
+        status: mapGitChangeStatus(code),
+        additions: stat?.additions ?? 0,
+        deletions: stat?.deletions ?? 0,
+      });
+    }
+
+    return changes;
+  }
+
+  /**
+   * Capture the entire worktree (tracked + untracked, respecting `.gitignore`) as a git
+   * tree object, without touching the real index or working tree. Used to snapshot the
+   * worktree at a turn boundary so a later diff can show only that turn's changes (#1635).
+   *
+   * Writes into a throwaway index file inside the git dir. `this.exec` is bound to the git
+   * binary and cannot remove files itself (and has no fs over SSH), so the fixed path is
+   * emptied first (`read-tree --empty`) and reused rather than accumulating per-call files.
+   * Calls are serialized to keep that shared index file race-free.
+   */
+  async snapshotWorktreeTree(): Promise<string> {
+    const run = this.snapshotChain.then(() => this.computeWorktreeTree());
+    // Keep the chain alive even if this snapshot fails, so later snapshots still run.
+    this.snapshotChain = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
+  }
+
+  private async computeWorktreeTree(): Promise<string> {
+    const indexFile = path.join(this.gitDir, 'emdash-turn-snapshot.index');
+    const env = { GIT_INDEX_FILE: indexFile };
+    await this.exec.exec(['read-tree', '--empty'], { env });
+    await this.exec.exec(['add', '-A'], { env });
+    const { stdout } = await this.exec.exec(['write-tree'], { env });
+    return stdout.trim();
+  }
+
+  /**
+   * Files changed between two tree objects (as produced by {@link snapshotWorktreeTree}),
+   * in the same shape as {@link getChangedFiles}. Backs the "last turn" diff scope (#1635).
+   */
+  async getChangedFilesBetweenTrees(baseTree: string, headTree: string): Promise<GitChange[]> {
+    if (baseTree === headTree) return [];
+    const [numstatResult, nameStatusResult] = await Promise.all([
+      this.exec
+        .exec(['diff-tree', '--no-commit-id', '--numstat', '-r', baseTree, headTree])
+        .catch(() => ({ stdout: '' })),
+      this.exec
+        .exec(['diff-tree', '--no-commit-id', '--name-status', '-r', baseTree, headTree])
+        .catch(() => ({ stdout: '' })),
     ]);
     const numstat = parseNumstat(numstatResult.stdout);
     const changes: GitChange[] = [];
