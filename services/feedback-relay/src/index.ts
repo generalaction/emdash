@@ -16,8 +16,14 @@ export default {
     }
 
     if (env.RELAY_SHARED_SECRET) {
-      const provided = request.headers.get(SECRET_HEADER);
-      if (provided !== env.RELAY_SHARED_SECRET) {
+      const provided = request.headers.get(SECRET_HEADER) ?? '';
+      const enc = new TextEncoder();
+      const a = enc.encode(provided);
+      const b = enc.encode(env.RELAY_SHARED_SECRET);
+      const equal =
+        a.byteLength === b.byteLength &&
+        crypto.subtle.timingSafeEqual(a, b);
+      if (!equal) {
         return json({ ok: false, error: 'unauthorized' }, 401);
       }
     }
