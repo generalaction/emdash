@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/mcp/components/McpCard.tsx
+  s_7d9bc0e041d6e1::t_bd0ed7e03ce389 79-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "e5c508396390ac12875f0b660423e173b8baac45",
+  "prompts": {},
+  "sessions": {
+    "s_7d9bc0e041d6e1": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f239d-615c-757d-92fe-958e9b40df65",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
