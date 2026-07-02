@@ -1,0 +1,36 @@
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_ebd582c25f699a::t_7c248d0135d95a 23,78-80,85-87,193-196,200-205,215-216,219-220
+  s_ebd582c25f699a::t_70222a62a24078 82-84
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationRow.tsx
+  s_ebd582c25f699a::t_4304a9aca74a67 65-66,68,76,78,80,118,121
+  s_ebd582c25f699a::t_526a6ea2e98e37 69-75
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationSettingsFields.tsx
+  s_ebd582c25f699a::t_f52a843032cb4e 26,72-73,75
+  s_ebd582c25f699a::t_14f3a9af3e1a9b 9,11-18,27,37-38,44-45,47-48,69-71,77-112
+apps/emdash-desktop/src/renderer/features/automations/automation-run-format.ts
+  s_ebd582c25f699a::t_3d99962f456d41 67
+apps/emdash-desktop/src/renderer/features/automations/useAutomationSettingsAutoSave.ts
+  s_ebd582c25f699a::t_17d904fdca4dab 68-70,121
+  s_ebd582c25f699a::t_4c8378624f6415 4,43,61-67,120
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationDetailView.tsx
+  s_ebd582c25f699a::t_9b1004d43c1706 51-59,141
+  s_ebd582c25f699a::t_7b747b866ecbc6 142
+apps/emdash-desktop/src/renderer/features/automations/components/CreateAutomationView.tsx
+  s_ebd582c25f699a::t_2e77039f929828 15,68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "20fdb63deb16a4c3efcfd2bee2c267ee688b8a81",
+  "prompts": {},
+  "sessions": {
+    "s_ebd582c25f699a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f240e-d50b-7425-a452-475a906b05e9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
