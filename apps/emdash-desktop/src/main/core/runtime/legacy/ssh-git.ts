@@ -521,7 +521,7 @@ class LegacySshGitWorktree implements IGitWorktree {
     throw new Error('snapshotWorktreeTree is not supported on the legacy SSH runtime');
   }
 
-  async getChangedFilesBetweenTrees(): Promise<GitChange[]> {
+  async getChangedFilesBetweenTrees(_baseTree: string, _headTree: string): Promise<GitChange[]> {
     return [];
   }
 

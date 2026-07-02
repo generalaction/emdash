@@ -56,7 +56,19 @@ export const UnstagedSection = observer(function UnstagedSection() {
       ? _activeDiff.path
       : undefined;
 
-  const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'disk', HEAD_REF);
+  // Session opens files against HEAD on the 'disk' group; last-turn opens the immutable
+  // baseTree -> headTree snapshot on the 'git' group (see openChange below). Prefetch has to
+  // mirror whichever group and refs will actually be opened, or it warms the wrong models and
+  // every last-turn hover misses the cache.
+  const diskPrefetch = usePrefetchDiffModels(projectId, workspaceId, 'disk', HEAD_REF);
+  const gitPrefetch = usePrefetchDiffModels(
+    projectId,
+    workspaceId,
+    'git',
+    lastTurn ? commitRef(lastTurn.baseTree) : HEAD_REF,
+    lastTurn ? commitRef(lastTurn.headTree) : undefined
+  );
+  const prefetch = isLastTurn ? gitPrefetch : diskPrefetch;
 
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('unstaged');
 
@@ -160,10 +172,18 @@ export const UnstagedSection = observer(function UnstagedSection() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {!hasChanges && (
           <EmptyState
-            label={isLastTurn ? 'No changes this turn' : 'Working tree clean'}
+            label={
+              isLastTurn
+                ? lastTurn
+                  ? 'No changes this turn'
+                  : 'No turn recorded yet'
+                : 'Working tree clean'
+            }
             description={
               isLastTurn
-                ? 'The most recent turn made no file changes yet.'
+                ? lastTurn
+                  ? 'The most recent turn made no file changes.'
+                  : 'The agent has not run a turn in this task yet. Changes from the next turn will show up here.'
                 : 'No uncommitted file changes.'
             }
           />
