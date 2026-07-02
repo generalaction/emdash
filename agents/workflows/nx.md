@@ -5,9 +5,9 @@ sits on top of the existing tooling — `tsdown`, `electron-vite`, `vitest`, `ox
 `oxfmt` — and adds dependency-ordered execution, input hashing, and output caching
 without requiring any structural changes to packages.
 
-No `project.json` files exist. Nx infers all five projects from `package.json`
-`workspace:*` dependencies and runs each project's existing `package.json` scripts
-as Nx targets.
+No `project.json` files exist. Nx infers all six projects (five `packages/*` plus the
+`apps/emdash-desktop` app) from `package.json` `workspace:*` dependencies and runs each
+project's existing `package.json` scripts as Nx targets.
 
 The Nx MCP server is enabled for this workspace. In Cursor, agents can query the
 project graph, list targets, and run tasks through the MCP server directly without
@@ -21,14 +21,15 @@ Nx derives this graph from `workspace:*` dependency references:
 @emdash/shared    (leaf)
 @emdash/core      -> shared
 @emdash/plugins   -> core -> shared
-@emdash/ui        (leaf)
-@emdash/emdash-desktop -> shared, core, plugins, ui
+@emdash/chat-ui   -> shared
+@emdash/ui        -> chat-ui, shared
+@emdash/emdash-desktop -> shared, core, plugins, ui, chat-ui
 ```
 
 The `dependsOn: ["^build"]` default in `nx.json` means "build all upstream packages
 before running this target." A bare `nx build @emdash/emdash-desktop` therefore
-builds shared, core, plugins, and ui first, in dependency order, with parallelism
-where the graph allows.
+builds shared, core, plugins, chat-ui, and ui first, in dependency order, with
+parallelism where the graph allows.
 
 ## Common Commands
 

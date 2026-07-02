@@ -10,7 +10,7 @@
 
 - never hand-edit numbered migrations
 - never hand-edit `drizzle/meta/`
-- use `pnpm exec drizzle-kit generate` for new migrations
+- use `pnpm run db:generate` for new migrations
 - treat schema invariants and data migrations as high risk
 
 ## Current Behavior
@@ -109,7 +109,7 @@ transparently handles version detection, upgrade chains, and serialization.
 
 ```ts
 import { versionedJsonColumn } from '@main/db/versioned-column';
-import { myConfig } from '@shared/my-config';
+import { myConfig } from '@shared/core/<domain>/my-config';
 
 export const myTable = sqliteTable('my_table', {
   col: versionedJsonColumn(myConfig)('col'),
@@ -123,25 +123,29 @@ needed at call sites.
 
 ### Schema definitions
 
-Versioned schema definitions live in `src/shared/`. See
-`agents/conventions/versioned-schemas.md` for the full guide including the
-`defineVersionedSchema()` builder API, upgrade function patterns, and testing
+Versioned schema definitions live under `src/shared/core/<domain>/`, imported via the
+`@shared/core/...` alias. See `agents/conventions/versioned-schemas.md` for the full guide
+including the `defineVersionedSchema()` builder API, upgrade function patterns, and testing
 guidance.
 
 ### Column inventory
 
+Only these columns actually use `versionedJsonColumn(...)` in `src/main/db/schema.ts`:
+
 | Column | Schema file |
 |--------|-------------|
-| `workspaces.config` | `src/shared/workspace-config.ts` |
-| `workspaces.data` | `src/shared/workspace-provider-data.ts` |
-| `conversations.config` | `src/shared/conversation-config.ts` |
-| `tasks.workspace_intent` | `src/shared/workspace-config.ts` |
-| `tasks.task_config` | `src/shared/task-config.ts` |
-| `tasks.linked_issue` | `src/shared/linked-issue.ts` |
-| `automations.trigger_config` | `src/shared/automations/config.ts` |
-| `automations.conversation_config` | `src/shared/automations/config.ts` |
-| `automations.task_config` | `src/shared/automations/config.ts` |
-| `ssh_connections.metadata` | `src/shared/ssh-connection-metadata.ts` |
+| `workspaces.config` | `src/shared/core/workspaces/workspace-config.ts` |
+| `workspaces.data` | `src/shared/core/workspaces/workspace-provider-data.ts` |
+| `conversations.config` | `src/shared/core/conversations/conversation-config.ts` |
+| `tasks.linked_issue` | `src/shared/core/linked-issue.ts` |
+| `automations.trigger_config` | `src/shared/core/automations/config.ts` |
+| `automations.conversation_config` | `src/shared/core/automations/config.ts` |
+| `automations.task_config` | `src/shared/core/automations/config.ts` |
+| `ssh_connections.metadata` | `src/shared/core/ssh/ssh-connection-metadata.ts` |
+
+Note: `tasks.workspace_intent` is a plain `text('workspace_intent')` column, not versioned.
+There is no `tasks.task_config` column — the versioned `task_config` column lives on
+`automations`, nested via `src/shared/core/tasks/task-config.ts`.
 
 ### Snapshot columns and raw SQL
 

@@ -19,9 +19,11 @@ All paths are relative to `apps/emdash-desktop/`.
 
 ## Feature Areas (`src/renderer/features/`)
 
-- `tasks/` — task experience: `conversations/`, `diff-view/`, `editor/` (Monaco, file tree),
-  `terminals/`, `create-task-modal/`, `issue-context/`, `task-config/`, `tabs/`, `stores/`
-  (MobX task stores and `task-selectors.ts`), `hooks/`, `view/`
+- `tasks/` — task experience: `conversations/`, `diff-view/`, `editor/` (Monaco),
+  `file-tree/`, `terminals/`, `acp/` (maps ACP updates into `@emdash/chat-ui`, see
+  `agents/integrations/acp.md`), `create-task-modal/`, `issue-context/`, `task-config/`,
+  `components/`, `task-tab-registry.tsx` (tab definitions — no `tabs/` subdirectory),
+  `stores/` (MobX task stores and `task-selectors.ts`), `hooks/`, `view/`
 - `projects/` — project management, settings panel, branch selector; `stores/` holds
   project stores and `project-selectors.ts`
 - `sidebar/` — app sidebar

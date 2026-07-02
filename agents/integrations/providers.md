@@ -2,13 +2,28 @@
 
 ## Source Of Truth
 
-- `src/shared/core/agents/agent-provider-registry.ts`
-- `src/main/core/dependencies/dependency-managers.ts`
-- `src/main/core/pty/`
+Provider capabilities and behavior (ACP, MCP, hooks, models, prompt building, trust) are
+defined plugin-first:
 
-## Current Providers (32)
+- `packages/plugins/src/agents/impl/<provider>/` — one plugin per provider: capability
+  declarations plus behavior implementations
+- `packages/plugins/src/agents/registry.ts` — the runtime `pluginRegistry` that main-process
+  services query (`pluginRegistry.get(agentId)`, `pluginRegistry.getAll()`)
+- `packages/core/src/agents/plugins/` — the capability framework (`definePlugin`,
+  `registerPluginBehavior`, and capability contracts for acp, mcp, hooks, models, prompt,
+  sessions, trust, etc. — see `PLUGIN_CAPABILITIES` in `packages/core/src/agents/plugins/index.ts`)
 
-codex, claude, grok, devin, qwen, qoder, droid, gemini, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, continue, codebuff, freebuff, mistral, jules, junie, pi, autohand, letta
+`src/shared/core/agents/agent-provider-registry.ts` is UI / legacy-PTY parity metadata
+(display name, icon, docUrl, description, and legacy prompt/resume/session flags used mainly
+by `terminalOnly` providers) — treat it as a secondary, renderer-facing registry, not the
+primary provider-definition source. `src/main/core/dependencies/` handles CLI
+detection/probing, and `src/main/core/pty/` handles legacy PTY spawn behavior.
+
+## Current Providers
+
+See `AGENT_PROVIDER_IDS` in `src/shared/core/agents/agent-provider-registry.ts` for the
+canonical, always-current list — avoid hardcoding a count or name list here, it drifts (see
+`agents/README.md` maintenance rules).
 
 ## Provider Metadata Includes
 
@@ -38,9 +53,13 @@ or notify an inferred status for that event.
 
 ## Adding Or Changing A Provider
 
-1. update `src/shared/core/agents/agent-provider-registry.ts`
-2. update allowlisted agent env vars in `src/main/core/pty/pty-env.ts` if needed
-3. add or update hook/plugin installation in `src/main/core/agent-hooks/` if the provider
+1. add or update the plugin under `packages/plugins/src/agents/impl/<provider>/`
+   (capabilities + behavior: acp, mcp, hooks, prompt, sessions, trust as applicable) and
+   register it in `packages/plugins/src/agents/registry.ts`
+2. add or update the UI parity entry in `src/shared/core/agents/agent-provider-registry.ts`
+   (display metadata, icon, docUrl, legacy PTY flags)
+3. update allowlisted agent env vars in `src/main/core/pty/pty-env.ts` if needed
+4. add or update hook/plugin installation in `src/main/core/agent-hooks/` if the provider
    supports explicit events
-4. validate detection behavior in `src/main/core/dependencies/`
-5. add or update tests for any non-standard behavior
+5. validate detection behavior in `src/main/core/dependencies/`
+6. add or update tests for any non-standard behavior

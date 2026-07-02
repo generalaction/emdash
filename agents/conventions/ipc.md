@@ -11,7 +11,7 @@ The primary IPC mechanism is a typed RPC system:
 
 ```ts
 // Main — src/main/core/example/controller.ts
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 export const exampleController = createRPCController({
   async doSomething(id: string) {
     return await service.doSomething(id);
@@ -32,7 +32,7 @@ when a browser/Electron primitive cannot fit the RPC/event path.
 
 ## Event System
 
-Typed events use `createEventEmitter` from `src/shared/ipc/events.ts`. Event type definitions live in `src/shared/events/`.
+Typed events use `createEventEmitter` from `src/shared/lib/ipc/events.ts`. Cross-cutting event type definitions live in `src/shared/events/`; domain-scoped events live alongside their domain under `src/shared/core/<domain>/` (see `agents/architecture/shared.md`).
 
 ## Rules
 

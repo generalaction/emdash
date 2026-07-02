@@ -6,7 +6,7 @@ Each domain in `src/main/core/` exposes a `controller.ts` that defines RPC handl
 
 ```ts
 // src/main/core/tasks/controller.ts
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { createTask } from './createTask';
 import { getTasks } from './getTasks';
 
@@ -67,20 +67,24 @@ src/main/core/projects/
 └── project-manager.ts           # Orchestrates providers
 ```
 
-Used in: projects, filesystem (`local-fs.ts` / `ssh-fs.ts`), terminals (`local-terminal-provider.ts` / `ssh-terminal-provider.ts`)
+Used in: projects, terminals (`local-terminal-provider.ts` / `ssh-terminal-provider.ts`),
+remote filesystem access (`src/main/core/runtime/legacy/ssh-file-system.ts` over SFTP via
+`ssh-legacy-fs.ts`)
 
-## Result Type (`src/main/lib/result.ts`)
+## Result Type (`packages/shared/src/result/index.ts`)
 
-Explicit error handling via discriminated union:
+Explicit error handling via discriminated union, published as `@emdash/shared`:
 
 ```ts
-import { ok, err, type Result } from '../lib/result';
+import { ok, err, type Result } from '@emdash/shared';
 
 async function doSomething(): Promise<Result<Data, SomeError>> {
   if (problem) return err({ type: 'not_found' as const });
   return ok(data);
 }
 ```
+
+`@emdash/shared/result` is also a valid, narrower import for just the Result utilities.
 
 **Rules:**
 - Prefer `Result<T, E>` over thrown exceptions for expected failure modes
@@ -102,4 +106,6 @@ const unsub = events.on(ptyDataChannel, (data) => {...}, sessionId);
 
 Channel naming: without topic → `eventName`, with topic → `eventName.{topic}`
 
-Event type definitions live in `src/shared/events/`.
+Cross-cutting event type definitions live in `src/shared/events/`; domain-scoped events
+live alongside their domain under `src/shared/core/<domain>/` (see
+`agents/architecture/shared.md`).

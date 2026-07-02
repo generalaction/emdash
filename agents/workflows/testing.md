@@ -22,13 +22,14 @@ pnpm run test
 ## Current Setup
 
 - Vitest config is in `vitest.config.ts` (separate from the build config in `electron.vite.config.ts`).
-- Five test projects:
+- Six test projects:
   - `node` — `src/**/*.test.ts` excluding `_*` dirs, browser tests, migration tests, `*.db.test.ts`, and `src/main/db/legacy-port/**/*.test.ts`
   - `main-db` — `src/main/core/**/*.db.test.ts` and `src/main/db/legacy-port/**/*.test.ts` against real SQLite
   - `fixtures` — fixture generator, run via `pnpm run db:fixtures`
   - `migrations` — `src/main/db/tests/migrations/**`, run via `pnpm run test:migrations`
+  - `scripts` — `scripts/**/*.test.ts`, release and support script tests
   - `browser` — `src/renderer/tests/browser/**/*.test.{ts,tsx}` via Playwright
-- `pnpm run test` runs the `node`, `main-db`, `migrations`, and `browser` projects.
+- `pnpm run test` runs the `node`, `main-db`, `migrations`, `browser`, and `scripts` projects.
 - Tests use per-file `vi.mock()` setup.
 - Integration-style tests create temporary repos and worktrees in `os.tmpdir()`.
 

@@ -37,15 +37,15 @@ a serialized non-JSON value), a versioned schema is not necessary.
 
 ## Defining a versioned schema
 
-Schema definitions live in `src/shared/` so they can be imported by both the main
-process and the renderer.
+Schema definitions live under `src/shared/core/<domain>/` so they can be imported by both
+the main process and the renderer.
 
 ### Schemas that started versioned from day one
 
 Use `.initial()` if the stored JSON always had a `version` field from the start:
 
 ```ts
-// src/shared/my-config.ts
+// src/shared/core/<domain>/my-config.ts
 import z from 'zod';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema';
 
@@ -67,7 +67,7 @@ Use `.unversioned()` when the column was first written before the versioning sys
 existed (the data has no `version` field):
 
 ```ts
-// src/shared/my-config.ts
+// src/shared/core/<domain>/my-config.ts
 const v0Schema = z.object({
   name: z.string(),
   value: z.number().optional(),
@@ -114,7 +114,7 @@ In `src/main/db/schema.ts`, replace `text('col_name')` with `versionedJsonColumn
 
 ```ts
 import { versionedJsonColumn } from '@main/db/versioned-column';
-import { myConfig } from '@shared/my-config';
+import { myConfig } from '@shared/core/<domain>/my-config';
 
 export const myTable = sqliteTable('my_table', {
   // Before:
@@ -148,7 +148,7 @@ Use `.asNested()` to embed one versioned schema as a field of another Zod object
 This allows parent upgrade functions to call child upgrade logic automatically:
 
 ```ts
-import { childConfig } from '@shared/child-config';
+import { childConfig } from '@shared/core/<domain>/child-config';
 
 const parentV1Schema = z.object({
   version: z.literal('1'),
@@ -196,7 +196,7 @@ const snapshot = automationTriggerConfig.parseJson(row.triggerConfigSnapshot);
 Test versioned schemas directly without going through Drizzle:
 
 ```ts
-import { myConfig } from '@shared/my-config';
+import { myConfig } from '@shared/core/<domain>/my-config';
 
 it('parses a v0 object', () => {
   const result = myConfig.safeParse({ name: 'hello' });
@@ -220,15 +220,20 @@ For Drizzle column helpers, use the exported `parseVersionedColumn` and
 
 ## All migrated columns
 
+These are the only columns actually wired through `versionedJsonColumn(...)` in
+`src/main/db/schema.ts`:
+
 | Column | Schema file | Versioning |
 |--------|-------------|------------|
-| `workspaces.config` | `src/shared/workspace-config.ts` | v1 → v2 (versioned from start) |
-| `conversations.config` | `src/shared/conversation-config.ts` | unversioned (v0) |
-| `tasks.workspace_intent` | `src/shared/workspace-config.ts` | v1 → v2 |
-| `automations.trigger_config` | `src/shared/automations/config.ts` | unversioned (v0) |
-| `automations.conversation_config` | `src/shared/automations/config.ts` | unversioned (v0) |
-| `automations.task_config` | `src/shared/automations/config.ts` | v1 (versioned from start) |
-| `ssh_connections.metadata` | `src/shared/ssh-connection-metadata.ts` | unversioned (v0) |
-| `tasks.linked_issue` | `src/shared/linked-issue.ts` | unversioned (v0) |
-| `workspaces.data` | `src/shared/workspace-provider-data.ts` | unversioned (v0) |
-| `tasks.task_config` | `src/shared/task-config.ts` | v1 (versioned from start) |
+| `workspaces.config` | `src/shared/core/workspaces/workspace-config.ts` | v1 → v2 (versioned from start) |
+| `conversations.config` | `src/shared/core/conversations/conversation-config.ts` | unversioned (v0) |
+| `automations.trigger_config` | `src/shared/core/automations/config.ts` | unversioned (v0) |
+| `automations.conversation_config` | `src/shared/core/automations/config.ts` | unversioned (v0) |
+| `automations.task_config` | `src/shared/core/automations/config.ts` | v1 (versioned from start), nested schema at `src/shared/core/tasks/task-config.ts` |
+| `ssh_connections.metadata` | `src/shared/core/ssh/ssh-connection-metadata.ts` | unversioned (v0) |
+| `tasks.linked_issue` | `src/shared/core/linked-issue.ts` | unversioned (v0) |
+| `workspaces.data` | `src/shared/core/workspaces/workspace-provider-data.ts` | unversioned (v0) |
+
+Note: `tasks.workspace_intent` is a plain `text()` column, not versioned. There is no
+`tasks.task_config` column on the `tasks` table — the versioned `task_config` column
+belongs to `automations`.

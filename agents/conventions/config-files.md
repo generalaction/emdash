@@ -23,5 +23,5 @@ Per-project (user repos): `.emdash.json`
 
 ## Repo Rules
 
-- avoid editing `dist/`, `release/`, and `build/` unless the task is explicitly about packaging or signing
+- avoid editing `dist/`, `out/`, `release/`, and `build/` unless the task is explicitly about packaging or signing
 - update the narrowest relevant page in `agents/` instead of growing `AGENTS.md`

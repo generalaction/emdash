@@ -401,8 +401,9 @@ pnpm run test
   `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
 - Build-time telemetry configuration may use `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`.
 - Runtime feature flags are read through telemetry-backed feature flag helpers.
-- App path aliases are defined in `tsconfig.json` and mirrored in `electron.vite.config.ts`:
-  `@/*`, `@renderer/*`, `@main/*`, `@shared/*`, `@root/*`, and `@tooling/*`.
+- App path aliases are defined in `tsconfig.json`; Electron build aliases are mirrored per
+  target in `electron.vite.config.ts`. `@tooling/*` is Vitest-only and is not bundled into
+  production.
 - Versioned JSON column schemas use `defineVersionedSchema()` from
   `src/shared/lib/versioned-schema/versioned-schema.ts` and Drizzle
   `versionedJsonColumn()` from `src/main/db/versioned-column.ts`.
@@ -420,6 +421,7 @@ pnpm run test
 - [Worktrees workflow](agents/workflows/worktrees.md)
 - [Remote development workflow](agents/workflows/remote-development.md)
 - [Provider integration](agents/integrations/providers.md)
+- [ACP integration](agents/integrations/acp.md)
 - [MCP integration](agents/integrations/mcp.md)
 - [IPC conventions](agents/conventions/ipc.md)
 - [Main-process patterns](agents/conventions/main-patterns.md)

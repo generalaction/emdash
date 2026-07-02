@@ -15,7 +15,7 @@ This directory is the system of record for agent-facing repo guidance. Keep topi
 - `workflows/`
   - task-oriented procedures like testing, worktrees, remote development, and Nx task orchestration
 - `integrations/`
-  - provider, MCP, and external service guidance
+  - provider, ACP, MCP, and external service guidance
 - `risky-areas/`
   - places where incorrect changes are expensive
 - `conventions/`
