@@ -24,6 +24,7 @@ import { diffTabProvider } from './diff-view/diff-tab-provider';
 import { fileTabProvider } from './editor/file-tab-provider';
 import type { TaskTabContext } from './stores/task-tab-context';
 import { TaskTabViewPersistor } from './stores/task-tab-view-persistor';
+import { terminalTabProvider } from './terminals/terminal-tab-provider';
 
 export const taskTabView = createTabView(
   [
@@ -32,6 +33,7 @@ export const taskTabView = createTabView(
     fileTabProvider,
     diffTabProvider,
     browserTabProvider,
+    terminalTabProvider,
   ] as const,
   { makePersistor: (ctx) => new TaskTabViewPersistor(ctx as TaskTabContext) }
 );

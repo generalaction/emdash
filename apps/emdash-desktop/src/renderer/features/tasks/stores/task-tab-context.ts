@@ -19,4 +19,6 @@ export interface TaskTabContext extends TabViewContext {
   workspacePath?: string;
   /** Workspace-scoped prefix for Monaco model URIs: `workspace:<workspaceId>`. */
   modelRootPath: string;
+  /** Current remote connection for terminal/file-drop helpers, when this task is remote. */
+  getRemoteConnectionId?: () => string | undefined;
 }

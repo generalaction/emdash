@@ -1,5 +1,5 @@
-import { intercept, runInAction } from 'mobx';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { intercept, makeObservable, observable, runInAction } from 'mobx';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
@@ -8,6 +8,11 @@ vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     app: { readUserFile: vi.fn() },
     browser: { unregisterSession: vi.fn() },
+    ssh: {
+      getConnections: vi.fn(async () => []),
+      getConnectionState: vi.fn(async () => ({})),
+      getHealthStates: vi.fn(async () => ({})),
+    },
   },
 }));
 
@@ -61,7 +66,12 @@ vi.mock('@renderer/utils/logger', () => ({
 }));
 
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
+import { terminalRegistry } from '@renderer/features/tasks/stores/terminal-registry';
 import { taskTabView } from '@renderer/features/tasks/task-tab-registry';
+import type {
+  TerminalManagerStore,
+  TerminalStore,
+} from '@renderer/features/tasks/terminals/terminal-manager';
 import { PaneLayoutStore } from './pane-layout-store';
 
 const testCtx = {
@@ -74,6 +84,47 @@ const testCtx = {
 
 function createLayout(opts?: { onActiveTabChange?: (tabId: string | undefined) => void }) {
   return new PaneLayoutStore(taskTabView.registry, testCtx, undefined, opts);
+}
+
+class FakeTerminalManagerStore {
+  terminals = observable.map<string, TerminalStore>();
+  sessions = observable.map();
+  isLoaded: boolean;
+  dispose = vi.fn();
+
+  constructor({ terminalIds, isLoaded }: { terminalIds: string[]; isLoaded: boolean }) {
+    this.isLoaded = isLoaded;
+    for (const id of terminalIds) {
+      this.terminals.set(id, {
+        data: {
+          id,
+          projectId: 'project-1',
+          taskId: 'task-1',
+          shellId: 'system',
+          name: 'Terminal 1',
+        },
+      } as TerminalStore);
+    }
+    makeObservable(this, {
+      terminals: observable,
+      sessions: observable,
+      isLoaded: observable,
+    });
+  }
+}
+
+function terminalRegistryEntries(): {
+  set(taskId: string, manager: TerminalManagerStore): void;
+  delete(taskId: string): boolean;
+} {
+  return (
+    terminalRegistry as unknown as {
+      entries: {
+        set(taskId: string, manager: TerminalManagerStore): void;
+        delete(taskId: string): boolean;
+      };
+    }
+  ).entries;
 }
 
 describe('PaneLayoutStore: isViewActive and onActivate', () => {
@@ -198,6 +249,54 @@ describe('PaneLayoutStore: isViewActive and onActivate', () => {
     // unchanged tabId and fired onActivate() on it. Without the fix the reaction
     // does not re-fire because the tracked tabId is unchanged.
     expect(spy).toHaveBeenCalledTimes(1);
+
+    layout.dispose();
+  });
+});
+
+describe('PaneLayoutStore: single-mount explicit target opens', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    browserSessionStore.clear();
+    terminalRegistryEntries().set(
+      'task-1',
+      new FakeTerminalManagerStore({
+        terminalIds: ['terminal-1'],
+        isLoaded: true,
+      }) as unknown as TerminalManagerStore
+    );
+  });
+
+  afterEach(() => {
+    terminalRegistry.release('task-1');
+    terminalRegistryEntries().delete('task-1');
+  });
+
+  it('moves an existing single-mount tab to an explicit target pane', () => {
+    const layout = createLayout();
+
+    layout.open('terminal', { terminalId: 'terminal-1' });
+    const sourcePaneId = layout.activePaneId;
+    const sourcePane = layout.focusedPane;
+    const terminalTab = sourcePane.resolvedTabs[0]!;
+    const terminalResource = terminalTab.resource;
+
+    layout.open('browser', {});
+    layout.splitRight();
+    const targetPaneId = layout.activePaneId;
+    const targetPane = layout.focusedPane;
+
+    expect(targetPaneId).not.toBe(sourcePaneId);
+    expect(sourcePane.resolvedTabs.some((tab) => tab.kind === 'terminal')).toBe(true);
+    expect(targetPane.resolvedTabs.some((tab) => tab.kind === 'terminal')).toBe(false);
+
+    layout.open('terminal', { terminalId: 'terminal-1' }, { target: { paneId: targetPaneId } });
+
+    expect(sourcePane.resolvedTabs.some((tab) => tab.kind === 'terminal')).toBe(false);
+    const movedTerminalTab = targetPane.resolvedTabs.find((tab) => tab.kind === 'terminal');
+    expect(movedTerminalTab?.tabId).toBe(terminalTab.tabId);
+    expect(movedTerminalTab?.resource).toBe(terminalResource);
+    expect(targetPane.resolvedActiveTabId).toBe(terminalTab.tabId);
 
     layout.dispose();
   });
