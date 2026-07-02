@@ -295,6 +295,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['droid'],
     versionArgs: ['--version'],
     cli: 'droid',
+    autoApproveFlag: '--auto high',
     initialPromptFlag: '',
     resumeFlag: '--resume',
     /** Value is unused; presence signals that the session ID is passed as an argument to resumeFlag. */
