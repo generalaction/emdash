@@ -9,7 +9,7 @@
  * test file. Both `claude` and `codex` fixture tests import from here.
  */
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import { AcpTranscriptParser } from '@emdash/core/acp';
+import { AcpTranscriptParser, type TranscriptTurnOutcome } from '@emdash/core/acp';
 
 // ── Narrow fixture types (mirrors recorder.ts shapes for the used fields) ────
 
@@ -77,12 +77,7 @@ export function driveParser(events: RecordedEntry[], conversationId: string): Ac
       }
       case 'prompt_result': {
         const ev = entry.event as RecordedPromptResult;
-        parser.settleTurn(
-          ev.stopReason === 'cancelled'
-            ? { kind: 'cancelled', reason: ev.stopReason }
-            : { kind: 'done', ...(ev.stopReason ? { reason: ev.stopReason } : {}) },
-          entry.ts
-        );
+        parser.settleTurn(outcomeFromRecordedStopReason(ev.stopReason), entry.ts);
         break;
       }
       default:
@@ -91,4 +86,19 @@ export function driveParser(events: RecordedEntry[], conversationId: string): Ac
   }
 
   return parser;
+}
+
+function outcomeFromRecordedStopReason(
+  stopReason: string | null | undefined
+): TranscriptTurnOutcome {
+  if (stopReason === 'cancelled') return { kind: 'cancelled', reason: 'cancelled' };
+  if (
+    stopReason === 'end_turn' ||
+    stopReason === 'max_tokens' ||
+    stopReason === 'max_turn_requests' ||
+    stopReason === 'refusal'
+  ) {
+    return { kind: 'done', reason: stopReason };
+  }
+  return { kind: 'done' };
 }

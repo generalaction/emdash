@@ -5,13 +5,15 @@
  * affordances. Transcript content is projected separately by the ACP reducer.
  */
 
-import type { SessionConfigOption, SessionModeState, StopReason } from '@agentclientprotocol/sdk';
+import type { SessionConfigOption, SessionModeState } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
+import type { StopReason } from './models/common';
 import type { AcpPermissionRequest } from './models/permissions';
-import type { SessionSnapshot, SessionState } from './state';
+import type { QueuedPrompt } from './models/prompt';
+import type { QueuedPromptSummary, SessionLifecycle, SessionState } from './models/session';
 
 export type SessionPhase =
   | { kind: 'starting' }
@@ -25,17 +27,6 @@ export interface ControlTurn {
   id: string;
 }
 
-export interface PromptImagePayload {
-  data: string;
-  mimeType: string;
-  name?: string;
-}
-
-export interface QueuedPrompt {
-  text: string;
-  images?: readonly PromptImagePayload[];
-}
-
 export function phaseToLifecycle(phase: SessionPhase): SessionLifecycle {
   return phase.kind;
 }
@@ -46,14 +37,6 @@ export function activeTurnFromPhase(phase: SessionPhase): ControlTurn | null {
   }
   return null;
 }
-
-export type SessionLifecycle =
-  | 'starting'
-  | 'replaying'
-  | 'ready'
-  | 'working'
-  | 'cancelling'
-  | 'closed';
 
 export interface SessionMachineState {
   readonly conversationId: string;
@@ -86,7 +69,7 @@ export function initialMachineState(conversationId: string): SessionMachineState
 export type Command =
   | { type: 'Prompt'; prompt: QueuedPrompt }
   | { type: 'Cancel' }
-  | { type: 'RemoveQueuedPrompt'; index: number }
+  | { type: 'RemoveQueuedPrompt'; id: string }
   | { type: 'ResolvePermission'; requestId: string; optionId: string | null }
   | { type: 'SetMode'; modeId: string }
   | { type: 'SetConfigOption'; configId: string; value: string };
@@ -106,7 +89,7 @@ export type DomainEvent =
     }
   | { type: 'PromptStarted'; prompt: QueuedPrompt }
   | { type: 'PromptQueued'; prompt: QueuedPrompt }
-  | { type: 'QueuedPromptRemoved'; index: number }
+  | { type: 'QueuedPromptRemoved'; id: string }
   | { type: 'TurnEnded'; outcome: TurnOutcome }
   | { type: 'AgentActivity'; active: boolean }
   | { type: 'AgentsChanged'; runningCount: number }
@@ -151,8 +134,8 @@ export function decide(
       return ok([{ type: 'CancellationRequested' }]);
 
     case 'RemoveQueuedPrompt':
-      if (cmd.index < 0 || cmd.index >= s.queuedPrompts.length) return ok([]);
-      return ok([{ type: 'QueuedPromptRemoved', index: cmd.index }]);
+      if (!s.queuedPrompts.some((prompt) => prompt.id === cmd.id)) return ok([]);
+      return ok([{ type: 'QueuedPromptRemoved', id: cmd.id }]);
 
     case 'ResolvePermission':
       if (!s.pendingPermissions.some((p) => p.requestId === cmd.requestId)) {
@@ -249,7 +232,7 @@ export function evolve(
       return {
         state: {
           ...s,
-          queuedPrompts: s.queuedPrompts.filter((_, index) => index !== ev.index),
+          queuedPrompts: s.queuedPrompts.filter((prompt) => prompt.id !== ev.id),
         },
         effects: [{ type: 'state' }],
       };
@@ -405,6 +388,39 @@ export function isPromptReady(lifecycle: SessionLifecycle): boolean {
   return lifecycle === 'ready';
 }
 
+function promptSummary(prompt: QueuedPrompt): QueuedPromptSummary {
+  const attachments =
+    prompt.attachments?.map((attachment, index) => ({
+      id: `${prompt.id}:attachment:${index}`,
+      name: attachment.name ?? 'image',
+      mimeType: attachment.mimeType,
+    })) ?? [];
+  return {
+    id: prompt.id,
+    text: prompt.text,
+    ...(attachments.length > 0 ? { attachments } : {}),
+  };
+}
+
+export function projectSessionState(s: SessionMachineState): SessionState {
+  const activeTurn = activeTurnFromPhase(s.phase);
+  const lifecycle = phaseToLifecycle(s.phase);
+  const isWorking = s.phase.kind === 'working' || s.phase.kind === 'cancelling';
+  const isGenerating = isWorking || s.agentTurnActive || s.backgroundAgentCount > 0;
+  return {
+    lifecycle,
+    activeTurnId: activeTurn?.id ?? null,
+    pendingPermissions: structuredClone([...s.pendingPermissions]),
+    lastStopReason: s.lastStopReason,
+    queuedPrompts: s.queuedPrompts.map(promptSummary),
+    agentTurnActive: s.agentTurnActive,
+    backgroundAgentCount: s.backgroundAgentCount,
+    isGenerating,
+    canSubmit: isPromptReady(lifecycle),
+    canCancel: s.phase.kind === 'working' || s.agentTurnActive,
+  };
+}
+
 export class SessionMachine {
   private _state: SessionMachineState;
 
@@ -488,57 +504,7 @@ export class SessionMachine {
     return allEffects;
   }
 
-  applySnapshot(s: SessionSnapshot): void {
-    const activeTurnId = s.activeTurnId;
-    let phase: SessionPhase;
-    switch (s.lifecycle) {
-      case 'starting':
-        phase = { kind: 'starting' };
-        break;
-      case 'replaying':
-        phase = { kind: 'replaying', turn: { id: activeTurnId ?? 'replay' } };
-        break;
-      case 'working':
-        phase = { kind: 'working', turn: { id: activeTurnId ?? 'working' } };
-        break;
-      case 'cancelling':
-        phase = { kind: 'cancelling', turn: { id: activeTurnId ?? 'cancelling' } };
-        break;
-      case 'ready':
-        phase = { kind: 'ready' };
-        break;
-      case 'closed':
-        phase = { kind: 'closed', exitCode: null };
-        break;
-    }
-    this._state = {
-      ...this._state,
-      phase,
-      pendingPermissions: s.pendingPermissions,
-      modes: s.modes,
-      configOptions: s.configOptions,
-      lastStopReason: s.lastStopReason,
-      queuedPrompts: s.queuedPrompts,
-      agentTurnActive: s.agentTurnActive,
-      backgroundAgentCount: s.backgroundAgentCount,
-    };
-  }
-
   sessionState(): SessionState {
-    const activeTurn = activeTurnFromPhase(this._state.phase);
-    return {
-      lifecycle: this.lifecycle,
-      activeTurnId: activeTurn?.id ?? null,
-      pendingPermissions: structuredClone([...this._state.pendingPermissions]),
-      modes: this._state.modes ? structuredClone(this._state.modes) : null,
-      configOptions: structuredClone([...this._state.configOptions]),
-      lastStopReason: this._state.lastStopReason,
-      queuedPrompts: structuredClone([...this._state.queuedPrompts]),
-      agentTurnActive: this._state.agentTurnActive,
-      backgroundAgentCount: this._state.backgroundAgentCount,
-      isGenerating: this.isGenerating,
-      canSubmit: this.canSubmit,
-      canCancel: this.canCancel,
-    };
+    return projectSessionState(this._state);
   }
 }

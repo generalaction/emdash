@@ -15,7 +15,6 @@
  */
 
 import type {
-  ToolStatus,
   TranscriptDiff,
   TranscriptItem,
   TranscriptMcpTool,
@@ -27,6 +26,8 @@ import type {
   TranscriptTool,
   TranscriptWebFetch,
 } from '../models/transcript';
+import type { ToolStatus } from '../models/common';
+import { SESSION_PLAN_ID } from '../models/plan';
 import {
   makeDiffId,
   makeMessageId,
@@ -390,15 +391,13 @@ export function foldItem(
       const idx = base.findIndex((it) => it.kind === 'plan' && it.id === id);
       if (idx >= 0) {
         const plan = base[idx] as TranscriptPlan;
-        return base.map((it, i) =>
-          i === idx ? { ...plan, entries: event.entries, streaming: true } : it
-        );
+        return base.map((it, i) => (i === idx ? { ...plan, updatedAt: at } : it));
       }
       const newPlan: TranscriptPlan = {
         kind: 'plan',
         id,
-        entries: event.entries,
-        streaming: true,
+        planId: SESSION_PLAN_ID,
+        updatedAt: at,
       };
       return [...base, newPlan];
     }
@@ -418,7 +417,6 @@ export function foldItem(
  * - thinking status 'thinking' → 'done' + computed durationMs
  * - tool status 'running' → 'done'
  * - diff status 'running' → 'done'
- * - plan.streaming → false
  *
  * Input must be plain objects (not Solid/MobX proxies).
  */
@@ -448,7 +446,7 @@ export function finalizeItems(items: TranscriptItem[], at: number): TranscriptIt
       case 'diff':
         return item.status === 'running' ? { ...item, status: 'done' as const } : item;
       case 'plan':
-        return item.streaming ? { ...item, streaming: false } : item;
+        return item;
     }
   });
 }

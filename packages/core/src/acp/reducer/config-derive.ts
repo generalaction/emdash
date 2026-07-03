@@ -10,13 +10,19 @@
  */
 
 import type { SessionConfigOption } from '@agentclientprotocol/sdk';
-import type { ModelChoice, SelectableOption, SessionConfigState } from '../models/session';
+import type { EffortOption, ModeOption, ModelChoice, SessionConfigState } from '../models/config';
 
 /** Shape of a single ACP option entry within a select-type config option. */
 type RawOption = { value: string; name: string; description?: string | null };
 
-function toSelectable(raw: RawOption): SelectableOption {
-  const opt: SelectableOption = { id: raw.value, name: raw.name };
+function toEffortOption(raw: RawOption): EffortOption {
+  const opt: EffortOption = { id: raw.value, name: raw.name };
+  if (raw.description) opt.description = raw.description;
+  return opt;
+}
+
+function toModeOption(raw: RawOption): ModeOption {
+  const opt: ModeOption = { id: raw.value, name: raw.name };
   if (raw.description) opt.description = raw.description;
   return opt;
 }
@@ -69,13 +75,13 @@ export function deriveConfigGroups(
       case 'thought_level':
         efforts = {
           selected: rawSelected,
-          available: rawOptions.map(toSelectable),
+          available: rawOptions.map(toEffortOption),
         };
         break;
       case 'mode':
         modeOptions = {
           selected: rawSelected,
-          available: rawOptions.map(toSelectable),
+          available: rawOptions.map(toModeOption),
         };
         break;
       // Unknown categories (e.g. 'model_config') are ignored — extension point.

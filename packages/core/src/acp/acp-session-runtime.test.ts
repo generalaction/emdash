@@ -60,7 +60,7 @@ describe('AcpSessionRuntime - transcript projection', () => {
           resolvePrompt = resolve;
         })
     );
-    const promptPromise = rt.prompt('conv-transcript', 'hello');
+    const promptPromise = rt.prompt('conv-transcript', { text: 'hello' });
 
     await client.sessionUpdate({
       sessionId,
@@ -92,7 +92,7 @@ describe('AcpSessionRuntime - transcript projection', () => {
     h.agent.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
 
     await rt.start(makeStartInput({ conversationId: 'conv-prompt' }));
-    await rt.prompt('conv-prompt', 'hello');
+    await rt.prompt('conv-prompt', { text: 'hello' });
 
     const transcript = rt.getChatHistory('conv-prompt');
     expect(transcript.active).toBeNull();
@@ -155,12 +155,14 @@ describe('AcpSessionRuntime - transcript projection', () => {
 
     await rt.start(makeStartInput({ conversationId: 'conv-queue' }));
 
-    const first = rt.prompt('conv-queue', 'first');
-    const second = await rt.prompt('conv-queue', 'second');
+    const first = rt.prompt('conv-queue', { text: 'first' });
+    const second = await rt.prompt('conv-queue', { text: 'second' });
 
     expect(second.success).toBe(true);
     expect(h.agent.prompt).toHaveBeenCalledTimes(1);
-    expect(rt.getSessionState('conv-queue').queuedPrompts).toEqual([{ text: 'second' }]);
+    expect(rt.getSessionState('conv-queue').queuedPrompts).toEqual([
+      { id: expect.any(String), text: 'second' },
+    ]);
 
     resolveFirst({ stopReason: 'end_turn' });
     await first;
@@ -277,7 +279,7 @@ describe('AcpSessionRuntime - metadata and enrich', () => {
           resolvePrompt = resolve;
         })
     );
-    const promptPromise = rt.prompt('conv-enrich', 'run a tool');
+    const promptPromise = rt.prompt('conv-enrich', { text: 'run a tool' });
     const client = agent.capturedClient;
     if (!client) throw new Error('expected captured client');
     const raw = {

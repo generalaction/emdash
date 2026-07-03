@@ -32,9 +32,9 @@
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type { SubagentState } from '../models/agents';
-import type { SessionConfigState, SessionUsage } from '../models/session';
+import type { SessionConfigState, SessionUsage } from '../models/config';
+import type { TranscriptPlanState } from '../models/plan';
 import type {
-  TranscriptPlanState,
   TranscriptState,
   TranscriptTurn,
   TranscriptTurnOutcome,

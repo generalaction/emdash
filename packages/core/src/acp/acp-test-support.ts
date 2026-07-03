@@ -12,10 +12,11 @@ import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { SubagentState } from './models/agents';
-import type { SessionConfigState, SessionUsage } from './models/session';
-import type { TranscriptPlanState, TranscriptState } from './models/transcript';
+import type { SessionConfigState, SessionUsage } from './models/config';
+import type { TranscriptPlanState } from './models/plan';
+import type { SessionState } from './models/session';
+import type { TranscriptState } from './models/transcript';
 import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
-import type { SessionSnapshot } from './state';
 import type {
   AcpProcessHandle,
   AcpProcessHost,
@@ -29,7 +30,7 @@ import type {
  * `emitted(field)` returns all objects emitted via that method.
  */
 export function createRecordingListener() {
-  const snapshots: { conversationId: string; snapshot: SessionSnapshot }[] = [];
+  const snapshots: { conversationId: string; snapshot: SessionState }[] = [];
   const transcripts: {
     conversationId: string;
     transcript: TranscriptState;

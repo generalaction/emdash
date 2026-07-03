@@ -12,7 +12,7 @@ import {
 } from './session-machine';
 
 const CONV_ID = 'conv-test';
-const prompt = { text: 'hello' };
+const prompt = { id: 'prompt-1', text: 'hello' };
 
 function makeReady(): SessionMachineState {
   return evolve(initialMachineState(CONV_ID), { type: 'SessionReady' }).state;
@@ -26,7 +26,6 @@ function makeWorking(): SessionMachineState {
 }
 
 const permRequest: AcpPermissionRequest = {
-  conversationId: CONV_ID,
   requestId: 'req-1',
   title: 'Read a file',
   options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }],
@@ -84,14 +83,15 @@ describe('lifecycle control', () => {
   });
 
   it('drains one queued prompt when a turn ends', () => {
-    const s0 = evolve(makeWorking(), { type: 'PromptQueued', prompt: { text: 'queued' } }).state;
+    const queued = { id: 'prompt-2', text: 'queued' };
+    const s0 = evolve(makeWorking(), { type: 'PromptQueued', prompt: queued }).state;
     const { state, effects } = evolve(s0, {
       type: 'TurnEnded',
       outcome: { kind: 'stopped', stopReason: 'end_turn' },
     });
 
     expect(state.queuedPrompts).toHaveLength(0);
-    expect(effects).toContainEqual({ type: 'sendPrompt', prompt: { text: 'queued' } });
+    expect(effects).toContainEqual({ type: 'sendPrompt', prompt: queued });
   });
 
   it('tracks agent activity and background agent counts', () => {

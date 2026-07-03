@@ -33,16 +33,18 @@ import { AgentTerminalManager } from './agent-terminal-manager';
 import { FsPort, TerminalPort } from './client-ports';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
+import type { StopReason } from './models/common';
 import type { AcpPermissionRequest } from './models/permissions';
+import type { PromptInput, QueuedPrompt } from './models/prompt';
+import type { SessionState } from './models/session';
 import type { TerminalSnapshot } from './models/terminals';
-import type { TranscriptState } from './models/transcript';
+import type { TranscriptState, TranscriptTurnOutcome } from './models/transcript';
 import { PermissionBroker } from './permission-broker';
 import type { NormalizedEvent } from './reducer/normalized-event';
 import { AcpTranscriptParser } from './reducer/parser';
 import type { AcpSessionRuntimeDeps, AcpStartInput, IAcpSessionRuntime } from './runtime';
 import { SessionMachine } from './session-machine';
-import type { Command, DomainEvent, Effect, QueuedPrompt } from './session-machine';
-import { type AcpPromptImage, type SessionState, toSessionSnapshot } from './state';
+import type { Command, DomainEvent, Effect } from './session-machine';
 import type { AcpProcessHandle } from './transport';
 
 interface AcpConversation {
@@ -272,7 +274,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       }
 
       if (initialPrompt?.trim()) {
-        const promptResult = await this.sendPromptInternal(proc, conv, initialPrompt);
+        const promptResult = await this.sendPromptInternal(proc, conv, {
+          id: crypto.randomUUID(),
+          text: initialPrompt,
+        });
         if (!promptResult.success) {
           this.deps.logger.warn('AcpSessionRuntime: initial prompt failed', {
             conversationId,
@@ -294,8 +299,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
   async prompt(
     conversationId: string,
-    text: string,
-    images?: AcpPromptImage[]
+    input: PromptInput
   ): Promise<Result<void, AcpRuntimeError>> {
     const conv = this.resolveConv(conversationId);
     if (!conv) return acpErr.conversationNotFound(conversationId);
@@ -303,7 +307,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     if (!entry?.acpSessionId) return acpErr.noActiveSession(conversationId);
     const proc = this.processes.get(entry.processKey);
     if (!proc) return acpErr.noActiveSession(conversationId);
-    return this.sendPromptInternal(proc, conv, text, images);
+    return this.sendPromptInternal(proc, conv, {
+      id: crypto.randomUUID(),
+      ...input,
+    });
   }
 
   async cancel(conversationId: string): Promise<Result<void, AcpRuntimeError>> {
@@ -488,8 +495,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         lifecycle: 'closed',
         activeTurnId: null,
         pendingPermissions: [],
-        modes: null,
-        configOptions: [],
         lastStopReason: null,
         queuedPrompts: [],
         agentTurnActive: false,
@@ -616,7 +621,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     const entry = this.conversationIndex.get(conv.conversationId);
     const proc = entry ? this.processes.get(entry.processKey) : undefined;
     if (!proc) return acpErr.noActiveSession(conv.conversationId);
-    return this.sendPromptInternal(proc, conv, prompt.text, prompt.images);
+    return this.sendPromptInternal(proc, conv, prompt);
   }
 
   private dispatchAgentsChangedIfNeeded(
@@ -647,10 +652,9 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   }
 
   private emitSnapshot(conv: AcpConversation): void {
-    const snapshot = toSessionSnapshot(conv.machine.sessionState());
     this.deps.listener.onSnapshot({
       conversationId: conv.conversationId,
-      snapshot,
+      snapshot: conv.machine.sessionState(),
     });
   }
 
@@ -865,7 +869,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
         const requestId = crypto.randomUUID();
         const payload: AcpPermissionRequest = {
-          conversationId,
           requestId,
           toolCallId: params.toolCall?.toolCallId,
           title: params.toolCall?.title ?? 'Unknown',
@@ -946,13 +949,11 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   private async sendPromptInternal(
     proc: AcpAgentProcess,
     conv: AcpConversation,
-    text: string,
-    images?: readonly AcpPromptImage[]
+    prompt: QueuedPrompt
   ): Promise<Result<void, AcpRuntimeError>> {
     if (!conv.acpSessionId) return acpErr.noActiveSession(conv.conversationId);
 
     const messageId = `${conv.conversationId}-${conv.machine.nextTurnIndex}-user`;
-    const prompt = { text, ...(images !== undefined ? { images } : {}) };
     const dispatchResult = this.dispatchEffects(conv, { type: 'Prompt', prompt });
     if (!dispatchResult.success) return dispatchResult;
     const started = dispatchResult.data.some(
@@ -964,13 +965,13 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       kind: 'message',
       role: 'user',
       messageId,
-      text,
-      ...(images?.length
+      text: prompt.text,
+      ...(prompt.attachments?.length
         ? {
-            attachments: images.map((img, index) => ({
+            attachments: prompt.attachments.map((attachment, index) => ({
               id: `${messageId}-image-${index}`,
-              name: img.name ?? `image-${index + 1}`,
-              mimeType: img.mimeType,
+              name: attachment.name ?? `image-${index + 1}`,
+              mimeType: attachment.mimeType,
             })),
           }
         : {}),
@@ -981,15 +982,15 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       const res = await proc.agent.prompt({
         sessionId: conv.acpSessionId!,
         prompt: [
-          ...(images ?? []).map((img) => ({
+          ...(prompt.attachments ?? []).map((img) => ({
             type: 'image' as const,
             data: img.data,
             mimeType: img.mimeType,
           })),
-          ...(text ? [{ type: 'text' as const, text }] : []),
+          ...(prompt.text ? [{ type: 'text' as const, text: prompt.text }] : []),
         ],
       });
-      conv.transcript.settleTurn({ kind: 'done', reason: res.stopReason });
+      conv.transcript.settleTurn(outcomeFromStopReason(res.stopReason));
       this.emitTranscript(conv);
       this.applyEvent(conv, {
         type: 'TurnEnded',
@@ -1002,7 +1003,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         conversationId: conv.conversationId,
         error: errResult.error.type,
       });
-      conv.transcript.settleTurn({ kind: 'error', reason: errResult.error.type });
+      conv.transcript.settleTurn({ kind: 'error', reason: 'prompt_failed' });
       this.emitTranscript(conv);
       this.applyEvent(conv, { type: 'TurnEnded', outcome: { kind: 'errored' } });
       return errResult;
@@ -1105,4 +1106,11 @@ function runningBackgroundAgentCount(conv: AcpConversation): number {
   return conv.transcript.agents.filter(
     (agent) => agent.background === true && agent.status === 'running'
   ).length;
+}
+
+function outcomeFromStopReason(stopReason: StopReason): TranscriptTurnOutcome {
+  if (stopReason === 'cancelled') {
+    return { kind: 'cancelled', reason: stopReason };
+  }
+  return { kind: 'done', reason: stopReason };
 }

@@ -24,13 +24,13 @@
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type { SubagentState } from '../models/agents';
-import type { SessionCommand, SessionConfigState, SessionUsage } from '../models/session';
-import { emptyConfig } from '../models/session';
+import type { ToolStatus } from '../models/common';
+import type { SessionCommand, SessionConfigState, SessionUsage } from '../models/config';
+import { emptyConfig } from '../models/config';
+import { SESSION_PLAN_ID, type TranscriptPlanState } from '../models/plan';
 import type {
-  ToolStatus,
   TranscriptItem,
   TranscriptMessage,
-  TranscriptPlanState,
   TranscriptState,
   TranscriptThinking,
   TranscriptTurnInitiator,
@@ -358,7 +358,14 @@ function updatePlanSlice(
   at: number
 ): TranscriptPlanState | null {
   if (event.kind !== 'plan') return plan;
-  return { entries: event.entries, updatedAt: at };
+  return {
+    id: SESSION_PLAN_ID,
+    entries: event.entries.map((entry, index) => ({
+      id: `${SESSION_PLAN_ID}:entry:${index}`,
+      ...entry,
+    })),
+    updatedAt: at,
+  };
 }
 
 function assertTurnInvariants(turn: TranscriptTurn): void {

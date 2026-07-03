@@ -7,6 +7,7 @@
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
+import { SESSION_PLAN_ID } from '../models/plan';
 import { makeMessageId, makeThinkingId, makeToolId, makeTurnId, makeDiffId } from './ids';
 import { AcpTranscriptParser } from './parser';
 
@@ -433,10 +434,15 @@ describe('AcpTranscriptParser', () => {
 
     const items = p.activeTurn?.items ?? [];
     const plan = items.find((i) => i.kind === 'plan');
-    expect(plan).toBeDefined();
-    expect((plan as { streaming: boolean }).streaming).toBe(true);
+    expect(plan).toMatchObject({
+      kind: 'plan',
+      planId: SESSION_PLAN_ID,
+    });
     expect(p.plan).toMatchObject({
-      entries: [{ content: 'Step 1', status: 'pending', priority: 'high' }],
+      id: SESSION_PLAN_ID,
+      entries: [
+        { id: `${SESSION_PLAN_ID}:entry:0`, content: 'Step 1', status: 'pending', priority: 'high' },
+      ],
     });
   });
 
@@ -447,7 +453,15 @@ describe('AcpTranscriptParser', () => {
     expect(p.activeTurn?.initiator).toBe('agent');
     expect(p.activeTurn?.items.find((item) => item.kind === 'plan')).toBeDefined();
     expect(p.plan).toEqual({
-      entries: [{ content: 'Agent step', status: 'in_progress', priority: 'medium' }],
+      id: SESSION_PLAN_ID,
+      entries: [
+        {
+          id: `${SESSION_PLAN_ID}:entry:0`,
+          content: 'Agent step',
+          status: 'in_progress',
+          priority: 'medium',
+        },
+      ],
       updatedAt: 100,
     });
   });
@@ -595,7 +609,10 @@ describe('AcpTranscriptParser', () => {
 
     expect(p.history).toHaveLength(1);
     expect(p.plan).toEqual({
-      entries: [{ content: 'Step', status: 'pending', priority: 'low' }],
+      id: SESSION_PLAN_ID,
+      entries: [
+        { id: `${SESSION_PLAN_ID}:entry:0`, content: 'Step', status: 'pending', priority: 'low' },
+      ],
       updatedAt: 6,
     });
   });

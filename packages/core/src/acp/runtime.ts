@@ -3,10 +3,12 @@ import type { Result } from '@emdash/shared/result';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AcpRuntimeError } from './errors';
 import type { SubagentState } from './models/agents';
-import type { SessionConfigState, SessionUsage } from './models/session';
+import type { SessionConfigState, SessionUsage } from './models/config';
+import type { TranscriptPlanState } from './models/plan';
+import type { PromptInput } from './models/prompt';
+import type { SessionState } from './models/session';
 import type { TerminalSnapshot } from './models/terminals';
-import type { TranscriptPlanState, TranscriptState } from './models/transcript';
-import type { AcpPromptImage, SessionSnapshot, SessionState } from './state';
+import type { TranscriptState } from './models/transcript';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
 
 /**
@@ -39,13 +41,13 @@ export type ResolveAcpProvider = (providerId: string) => { behavior: IAcpBehavio
  */
 export interface AcpRuntimeListener {
   /**
-   * Session-level state changed (lifecycle, permissions, modes, config options,
-   * available commands). Carries a full `SessionSnapshot` so the renderer can
+   * Session-level state changed (lifecycle, permissions, queued prompts,
+   * activity, and affordances). Carries a full `SessionState` so the renderer can
    * apply it directly without a follow-up RPC call.
    * Replaces the previous `onState`, `onPermissionRequest`,
    * `onPermissionResolved`, and `onSessionMeta` callbacks.
    */
-  onSnapshot(e: { conversationId: string; snapshot: SessionSnapshot }): void;
+  onSnapshot(e: { conversationId: string; snapshot: SessionState }): void;
   onTranscript(e: {
     conversationId: string;
     transcript: TranscriptState;
@@ -115,11 +117,7 @@ export interface AcpSessionRuntimeDeps {
  */
 export interface IAcpSessionRuntime {
   start(input: AcpStartInput): Promise<Result<void, AcpRuntimeError>>;
-  prompt(
-    conversationId: string,
-    text: string,
-    images?: AcpPromptImage[]
-  ): Promise<Result<void, AcpRuntimeError>>;
+  prompt(conversationId: string, input: PromptInput): Promise<Result<void, AcpRuntimeError>>;
   cancel(conversationId: string): Promise<Result<void, AcpRuntimeError>>;
   setModel(conversationId: string, model: string): Promise<Result<void, AcpRuntimeError>>;
   setMode(conversationId: string, modeId: string): Promise<Result<void, AcpRuntimeError>>;

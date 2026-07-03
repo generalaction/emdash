@@ -1,15 +1,9 @@
 export type {
-  AttachmentRef,
-  PlanEntryPriority,
-  PlanEntryStatus,
-  ToolStatus,
   TranscriptDiff,
   TranscriptItem,
   TranscriptMcpTool,
   TranscriptMessage,
   TranscriptPlan,
-  TranscriptPlanEntry,
-  TranscriptPlanState,
   TranscriptSearch,
   TranscriptState,
   TranscriptSubagent,
@@ -20,7 +14,15 @@ export type {
   TranscriptTurnOutcome,
   TranscriptWebFetch,
 } from '../models/transcript';
+export type { AttachmentRef, ToolStatus } from '../models/common';
 export type { SubagentState } from '../models/agents';
+export type {
+  PlanEntryPriority,
+  PlanEntryStatus,
+  TranscriptPlanEntry,
+  TranscriptPlanEntryInput,
+  TranscriptPlanState,
+} from '../models/plan';
 
 export type {
   EnrichHook,
@@ -43,10 +45,12 @@ export { AcpTranscriptParser } from './parser';
 export type { AcpTranscriptParserDeps, ReplayEntry, ReplayResult } from './parser';
 
 export type {
+  EffortOption,
+  ModeOption,
   ModelChoice,
-  SelectableOption,
+  ModelOption,
   SessionCommand,
   SessionConfigState,
   SessionUsage,
-} from '../models/session';
-export { emptyConfig } from '../models/session';
+} from '../models/config';
+export { emptyConfig } from '../models/config';
