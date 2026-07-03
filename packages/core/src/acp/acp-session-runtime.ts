@@ -37,11 +37,18 @@ import type { AcpPermissionRequest } from './models/permissions';
 import type { PromptInput, QueuedPrompt } from './models/prompt';
 import type { SessionState, StopReason } from './models/session';
 import type { TerminalState } from './models/terminals';
-import type { TranscriptState, TranscriptTurnOutcome } from './models/transcript';
+import type { TranscriptToolCallItem, TranscriptTurnOutcome } from './models/turns';
 import { PermissionBroker } from './permission-broker';
+import { makeToolId } from './reducer/ids';
+import { createToolCallItem } from './reducer/item-fold';
 import type { NormalizedEvent } from './reducer/normalized-event';
 import { AcpTranscriptParser } from './reducer/parser';
-import type { AcpSessionRuntimeDeps, AcpStartInput, IAcpSessionRuntime } from './runtime';
+import type {
+  AcpChatHistory,
+  AcpSessionRuntimeDeps,
+  AcpStartInput,
+  IAcpSessionRuntime,
+} from './runtime';
 import { SessionMachine } from './session-machine';
 import type { Command, DomainEvent, Effect } from './session-machine';
 import type { AcpProcessHandle } from './transport';
@@ -487,10 +494,13 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     return this.conversationIndex.has(conversationId);
   }
 
-  getChatHistory(conversationId: string): TranscriptState {
+  getChatHistory(conversationId: string): AcpChatHistory {
     const conv = this.resolveConv(conversationId);
     if (!conv) return { committed: [], active: null };
-    return structuredClone(conv.transcript.snapshot);
+    return {
+      committed: structuredClone([...conv.transcript.history]),
+      active: conv.transcript.activeTurn ? structuredClone(conv.transcript.activeTurn) : null,
+    };
   }
 
   getSessionState(conversationId: string): SessionState {
@@ -666,7 +676,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   private emitTranscript(conv: AcpConversation): void {
     this.deps.listener.onTranscript({
       conversationId: conv.conversationId,
-      transcript: structuredClone(conv.transcript.snapshot),
+      committed: structuredClone([...conv.transcript.history]),
+      active: conv.transcript.activeTurn ? structuredClone(conv.transcript.activeTurn) : null,
       config: structuredClone(conv.transcript.config),
       usage: conv.transcript.usage ? structuredClone(conv.transcript.usage) : null,
       title: conv.transcript.title,
@@ -873,36 +884,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         }
 
         const requestId = crypto.randomUUID();
-        const rawToolCall = params.toolCall as
-          | {
-              rawInput?: unknown;
-              command?: string;
-              cwd?: string;
-              path?: string;
-              paths?: string[];
-            }
-          | undefined;
-        const paths = [
-          ...(typeof rawToolCall?.path === 'string' ? [rawToolCall.path] : []),
-          ...(Array.isArray(rawToolCall?.paths) ? rawToolCall.paths : []),
-        ];
+        const toolCall = buildPermissionToolCall(conv, params.toolCall);
         const payload: AcpPermissionRequest = {
           requestId,
-          toolCallId: params.toolCall?.toolCallId,
-          title: params.toolCall?.title ?? 'Unknown',
-          toolKind: params.toolCall?.kind ?? undefined,
-          ...(rawToolCall
-            ? {
-                context: {
-                  ...(typeof rawToolCall.cwd === 'string' ? { cwd: rawToolCall.cwd } : {}),
-                  ...(paths.length > 0 ? { paths } : {}),
-                  ...(typeof rawToolCall.command === 'string' ? { command: rawToolCall.command } : {}),
-                  ...(rawToolCall.rawInput !== undefined
-                    ? { inputSummary: JSON.stringify(rawToolCall.rawInput).slice(0, 500) }
-                    : {}),
-                },
-              }
-            : {}),
+          ...(toolCall !== undefined ? { toolCall } : {}),
           options: params.options.map((o) => ({
             optionId: o.optionId,
             name: o.name,
@@ -913,7 +898,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         this.deps.logger.debug('AcpSessionRuntime: requesting user permission', {
           conversationId,
           requestId,
-          title: payload.title,
+          title: payload.toolCall?.title ?? 'Unknown',
         });
 
         this.applyEvent(conv, { type: 'PermissionRequested', request: payload });
@@ -1009,16 +994,17 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     this.emitTranscript(conv);
 
     try {
+      const resolvedAttachments = await Promise.all(
+        (prompt.attachments ?? []).map((attachment) => this.deps.resolveAttachment(attachment))
+      );
       const res = await proc.agent.prompt({
         sessionId: conv.acpSessionId!,
         prompt: [
-          ...(prompt.attachments ?? [])
-            .filter((img) => img.type === 'image')
-            .map((img) => ({
-              type: 'image' as const,
-              data: img.data,
-              mimeType: img.mimeType,
-            })),
+          ...resolvedAttachments.map((attachment) => ({
+            type: 'image' as const,
+            data: attachment.data,
+            mimeType: attachment.mimeType,
+          })),
           ...(prompt.text ? [{ type: 'text' as const, text: prompt.text }] : []),
         ],
       });
@@ -1132,6 +1118,32 @@ function canAcceptTranscriptEvent(conv: AcpConversation): boolean {
     conv.machine.phase.kind === 'ready' ||
     conv.machine.agentTurnActive
   );
+}
+
+function buildPermissionToolCall(
+  conv: AcpConversation,
+  rawToolCall: RequestPermissionRequest['toolCall'] | undefined
+): TranscriptToolCallItem | undefined {
+  if (!rawToolCall) return undefined;
+  const activeTurn = conv.transcript.activeTurn;
+  const toolCallId = rawToolCall.toolCallId;
+  if (activeTurn) {
+    const id = makeToolId(activeTurn.id, toolCallId);
+    const existing = activeTurn.items.find(
+      (item): item is TranscriptToolCallItem =>
+        'toolCallId' in item && (item.id === id || item.toolCallId === toolCallId)
+    );
+    if (existing) return structuredClone(existing);
+  }
+
+  return createToolCallItem({
+    id: activeTurn ? makeToolId(activeTurn.id, toolCallId) : `permission:${toolCallId}`,
+    toolCallId,
+    title: rawToolCall.title ?? 'Unknown',
+    toolKind: rawToolCall.kind ?? null,
+    status: 'pending',
+    parentId: undefined,
+  });
 }
 
 function runningBackgroundAgentCount(conv: AcpConversation): number {

@@ -13,7 +13,6 @@ import { acpErr } from './errors';
 import type { AcpPermissionRequest } from './models/permissions';
 import type { QueuedPrompt } from './models/prompt';
 import type {
-  QueuedPromptSummary,
   SessionLifecycle,
   SessionState,
   StopReason,
@@ -392,22 +391,6 @@ export function isPromptReady(lifecycle: SessionLifecycle): boolean {
   return lifecycle === 'ready';
 }
 
-function promptSummary(prompt: QueuedPrompt): QueuedPromptSummary {
-  const attachments =
-    prompt.attachments?.map((attachment, index) => ({
-      id: `${prompt.id}:attachment:${index}`,
-      name: attachment.name ?? 'image',
-      mimeType: attachment.mimeType,
-    })) ?? [];
-  return {
-    id: prompt.id,
-    text: prompt.text,
-    ...(attachments.length > 0 ? { attachments } : {}),
-    createdAt: prompt.createdAt,
-    updatedAt: prompt.updatedAt,
-  };
-}
-
 export function projectSessionState(s: SessionMachineState): SessionState {
   const activeTurn = activeTurnFromPhase(s.phase);
   const lifecycle = phaseToLifecycle(s.phase);
@@ -418,7 +401,7 @@ export function projectSessionState(s: SessionMachineState): SessionState {
     activeTurnId: activeTurn?.id ?? null,
     pendingPermissions: structuredClone([...s.pendingPermissions]),
     lastStopReason: s.lastStopReason,
-    queuedPrompts: s.queuedPrompts.map(promptSummary),
+    queuedPrompts: structuredClone([...s.queuedPrompts]),
     agentTurnActive: s.agentTurnActive,
     backgroundAgentCount: s.backgroundAgentCount,
     isGenerating,

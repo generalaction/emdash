@@ -107,7 +107,7 @@ afterAll(() => {
 describe('AcpTranscriptParser – fixture snapshots', () => {
   it('claude – transcript', () => {
     const parser = driveParser(loadFixture('acp-claude.json'));
-    expect(parser.snapshot).toMatchSnapshot();
+    expect({ committed: parser.history, active: parser.activeTurn }).toMatchSnapshot();
   });
 
   it('claude – config', () => {
@@ -127,7 +127,7 @@ describe('AcpTranscriptParser – fixture snapshots', () => {
 
   it('codex – transcript', () => {
     const parser = driveParser(loadFixture('acp-codex.json'));
-    expect(parser.snapshot).toMatchSnapshot();
+    expect({ committed: parser.history, active: parser.activeTurn }).toMatchSnapshot();
   });
 
   it('codex – config', () => {

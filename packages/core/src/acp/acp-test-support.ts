@@ -11,11 +11,11 @@ import type { Client } from '@agentclientprotocol/sdk';
 import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
-import type { SubagentState } from './models/agents';
+import type { AgentState } from './models/agents';
 import type { SessionConfigState, SessionUsage } from './models/config';
-import type { TranscriptPlanState } from './models/plan';
+import type { PlanState } from './models/plan';
 import type { SessionState } from './models/session';
-import type { TranscriptState } from './models/transcript';
+import type { TranscriptTurn } from './models/turns';
 import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
 import type {
   AcpProcessHandle,
@@ -33,12 +33,13 @@ export function createRecordingListener() {
   const snapshots: { conversationId: string; snapshot: SessionState }[] = [];
   const transcripts: {
     conversationId: string;
-    transcript: TranscriptState;
+    committed: TranscriptTurn[];
+    active: TranscriptTurn | null;
     config: SessionConfigState;
     usage: SessionUsage | null;
     title: string | null;
-    agents: SubagentState[];
-    plan: TranscriptPlanState | null;
+    agents: AgentState[];
+    plan: PlanState | null;
   }[] = [];
   const closed: { conversationId: string; taskId: string; exitCode: number | null }[] = [];
   const agentEvents: { type: string; conversationId: string }[] = [];
@@ -292,6 +293,7 @@ export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}
     }),
     host: fakeHost,
     persistSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+    resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
     listener: recording.listener,
     logger: noopLogger,
     ...depOverrides,

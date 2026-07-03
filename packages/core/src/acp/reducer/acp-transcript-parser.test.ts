@@ -268,9 +268,9 @@ describe('AcpTranscriptParser', () => {
     ];
 
     const result = AcpTranscriptParser.replay(updates, deps());
-    expect(result.transcript.committed).toHaveLength(2);
+    expect(result.committed).toHaveLength(2);
     expect(
-      result.transcript.committed.map((turn) =>
+      result.committed.map((turn) =>
         turn.items.filter((item) => item.kind === 'message').map((item) => item.text)
       )
     ).toEqual([
@@ -365,7 +365,7 @@ describe('AcpTranscriptParser', () => {
     expect(items.find((i) => i.kind === 'web-fetch-tool-call')).toMatchObject({
       url: 'https://example.test',
     });
-    expect(items.find((i) => i.kind === 'subagent-tool-call')).toMatchObject({
+    expect(items.find((i) => i.kind === 'spawn-subagent-tool-call')).toMatchObject({
       name: 'Investigate failure',
     });
   });
@@ -418,12 +418,12 @@ describe('AcpTranscriptParser', () => {
     expect(p.activeTurn?.items.filter((i) => i.kind === 'tool-group')).toHaveLength(0);
   });
 
-  // ── Diff arriving on a later tool_update ─────────────────────────────────
+  // ── File operation tool calls ─────────────────────────────────────────────
 
-  it('diff arriving on tool_update creates diff row (late diff)', () => {
+  it('diff arriving on tool_update creates a modify-file tool call', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'edit file'));
-    // tool_call with kind=edit creates an edit tool row; diff arrives later.
+    // Edit tool calls without diff content stay suppressed until file context arrives.
     p.push({
       sessionUpdate: 'tool_call',
       sessionId: 'sess-1',
@@ -437,19 +437,56 @@ describe('AcpTranscriptParser', () => {
     p.push(toolUpdateWithDiff('tc-edit', 'src/foo.ts', 'old', 'new'));
 
     const items = p.activeTurn?.items ?? [];
-    const diff = items.find((i) => i.kind === 'diff');
-    expect(diff).toBeDefined();
     const turnId = makeTurnId(CID, 0);
     const toolId = makeToolId(turnId, 'tc-edit');
-    expect(diff?.id).toBe(makeDiffId(toolId, 'src/foo.ts'));
-    expect((diff as { status: string }).status).toBe('done');
-    expect(items.find((i) => i.kind === 'edit-tool-call')).toMatchObject({
-      id: toolId,
-      diffIds: [makeDiffId(toolId, 'src/foo.ts')],
+    expect(items.find((i) => i.kind === 'modify-file-tool-call')).toMatchObject({
+      id: makeDiffId(toolId, 'src/foo.ts'),
+      toolCallId: 'tc-edit',
+      path: 'src/foo.ts',
+      oldText: 'old',
+      newText: 'new',
+      status: 'done',
     });
   });
 
-  it('diff-less edit tool_update creates an edit tool-call row', () => {
+  it('oldText null creates a create-file tool call', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'create file'));
+    p.push(toolUpdateWithDiff('tc-create', 'src/new.ts', null, 'new file'));
+
+    expect(p.activeTurn?.items.find((i) => i.kind === 'create-file-tool-call')).toMatchObject({
+      toolCallId: 'tc-create',
+      path: 'src/new.ts',
+      content: 'new file',
+    });
+  });
+
+  it('multi-file patch creates one file-operation item per path and fans out status', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'patch files'));
+    p.push({
+      sessionUpdate: 'tool_call_update',
+      sessionId: 'sess-1',
+      toolCallId: 'tc-multi',
+      title: 'Apply patch',
+      kind: 'edit',
+      status: 'in_progress',
+      content: [
+        { type: 'diff', path: 'src/a.ts', oldText: 'a', newText: 'aa' },
+        { type: 'diff', path: 'src/b.ts', oldText: null, newText: 'b' },
+      ],
+    } as unknown as SessionUpdate);
+    p.push(toolUpdateDone('tc-multi'));
+
+    const fileOps = p.activeTurn?.items.filter(
+      (i) => i.kind === 'modify-file-tool-call' || i.kind === 'create-file-tool-call'
+    ) ?? [];
+    expect(fileOps).toHaveLength(2);
+    expect(fileOps.every((item) => item.toolCallId === 'tc-multi')).toBe(true);
+    expect(fileOps.every((item) => item.status === 'done')).toBe(true);
+  });
+
+  it('diff-less edit tool_update does not create a placeholder tool call', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'edit file'));
     p.push({
@@ -462,8 +499,7 @@ describe('AcpTranscriptParser', () => {
       content: [],
     } as unknown as SessionUpdate);
 
-    expect(p.activeTurn?.items.filter((i) => i.kind === 'edit-tool-call')).toHaveLength(1);
-    expect(p.activeTurn?.items.filter((i) => i.kind === 'diff')).toHaveLength(0);
+    expect(p.activeTurn?.items.filter((i) => i.kind.endsWith('-file-tool-call'))).toHaveLength(0);
   });
 
   // ── Plan ──────────────────────────────────────────────────────────────────
@@ -474,10 +510,11 @@ describe('AcpTranscriptParser', () => {
     p.push(planUpdate([{ content: 'Step 1', status: 'pending', priority: 'high' }]));
 
     const items = p.activeTurn?.items ?? [];
-    const plan = items.find((i) => i.kind === 'plan');
+    const plan = items.find((i) => i.kind === 'create-plan-tool-call');
     expect(plan).toMatchObject({
-      kind: 'plan',
+      kind: 'create-plan-tool-call',
       planId: SESSION_PLAN_ID,
+      status: 'done',
     });
     expect(p.plan).toMatchObject({
       id: SESSION_PLAN_ID,
@@ -492,7 +529,10 @@ describe('AcpTranscriptParser', () => {
     p.push(planUpdate([{ content: 'Agent step', status: 'in_progress', priority: 'medium' }]), 100);
 
     expect(p.activeTurn?.initiator).toBe('agent');
-    expect(p.activeTurn?.items.find((item) => item.kind === 'plan')).toBeDefined();
+    expect(p.activeTurn?.items.find((item) => item.kind === 'create-plan-tool-call')).toMatchObject({
+      status: 'running',
+      planId: SESSION_PLAN_ID,
+    });
     expect(p.plan).toEqual({
       id: SESSION_PLAN_ID,
       entries: [
@@ -536,8 +576,8 @@ describe('AcpTranscriptParser', () => {
         outputFile: '/tmp/agent-1.output',
       },
     ]);
-    expect(p.history[0].items.find((item) => item.kind === 'subagent-tool-call')).toMatchObject({
-      status: 'running',
+    expect(p.history[0].items.find((item) => item.kind === 'spawn-subagent-tool-call')).toMatchObject({
+      status: 'done',
       background: true,
       agentId: 'agent-1',
     });
@@ -571,7 +611,7 @@ describe('AcpTranscriptParser', () => {
 
     expect(p.activeTurn).toBeNull();
     expect(p.agents[0]).toMatchObject({
-      status: 'done',
+      status: 'completed',
       completedAt: 300,
       summary: 'Done',
     });
@@ -599,9 +639,9 @@ describe('AcpTranscriptParser', () => {
 
     // Replay path
     const replayResult = AcpTranscriptParser.replay(updates, deps());
-    const replayHistory = replayResult.transcript.committed;
+    const replayHistory = replayResult.committed;
 
-    expect(replayResult.transcript.active).toBeNull();
+    expect(replayResult.active).toBeNull();
     expect(replayHistory).toHaveLength(2);
     expect(liveHistory).toHaveLength(2);
 
@@ -629,7 +669,7 @@ describe('AcpTranscriptParser', () => {
     p.endTurn();
 
     const replayResult = AcpTranscriptParser.replay(updates, deps());
-    expect(replayResult.transcript.committed[0]).toEqual(p.history[0]);
+    expect(replayResult.committed[0]).toEqual(p.history[0]);
   });
 
   it('beginReplay/endReplay reset and rebuild session-scoped slices idempotently', () => {
@@ -1003,7 +1043,7 @@ describe('AcpTranscriptParser – session slices', () => {
     ] as unknown as SessionUpdate[];
 
     const result = AcpTranscriptParser.replay(updates as Iterable<SessionUpdate>, deps());
-    expect(result.transcript.active).toBeNull();
+    expect(result.active).toBeNull();
     expect(result.config.modelOptions?.selected).toBe('haiku');
     expect(result.usage?.contextUsed).toBe(500);
     expect(result.title).toBe('Replay title');

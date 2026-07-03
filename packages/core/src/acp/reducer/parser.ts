@@ -21,7 +21,8 @@
  *
  *   Bounded replay (static):
  *     const result = AcpTranscriptParser.replay(updates, { conversationId, enrich });
- *     result.transcript;            // TranscriptState (active === null)
+ *     result.committed;             // finalized turns
+ *     result.active;                // null after bounded replay
  *     result.config;                // SessionConfigState
  *     result.usage;                 // SessionUsage | null
  *     result.title;                 // string | null
@@ -31,14 +32,13 @@
  */
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { SubagentState } from '../models/agents';
+import type { AgentState } from '../models/agents';
 import type { SessionConfigState, SessionUsage } from '../models/config';
-import type { TranscriptPlanState } from '../models/plan';
+import type { PlanState } from '../models/plan';
 import type {
-  TranscriptState,
   TranscriptTurn,
   TranscriptTurnOutcome,
-} from '../models/transcript';
+} from '../models/turns';
 import type { EnrichHook, NormalizedEvent } from './normalized-event';
 import { initialState, reduce, type ParserState, type ReducerDeps } from './reducer';
 
@@ -48,12 +48,13 @@ export interface AcpTranscriptParserDeps {
 }
 
 export type ReplayResult = {
-  transcript: TranscriptState;
+  committed: TranscriptTurn[];
+  active: TranscriptTurn | null;
   config: SessionConfigState;
   usage: SessionUsage | null;
   title: string | null;
-  agents: SubagentState[];
-  plan: TranscriptPlanState | null;
+  agents: AgentState[];
+  plan: PlanState | null;
 };
 
 export type ReplayEntry = SessionUpdate | { update: SessionUpdate; ts?: number; at?: number };
@@ -119,11 +120,6 @@ export class AcpTranscriptParser {
     return this.state.transcript.active;
   }
 
-  /** Full transcript state snapshot (committed + active). */
-  get snapshot(): TranscriptState {
-    return this.state.transcript;
-  }
-
   /** Latest materialized session config (models / efforts / modes / commands). */
   get config(): SessionConfigState {
     return this.state.config;
@@ -139,11 +135,11 @@ export class AcpTranscriptParser {
     return this.state.title;
   }
 
-  get agents(): readonly SubagentState[] {
+  get agents(): readonly AgentState[] {
     return this.state.agents;
   }
 
-  get plan(): TranscriptPlanState | null {
+  get plan(): PlanState | null {
     return this.state.plan;
   }
 
@@ -156,7 +152,7 @@ export class AcpTranscriptParser {
    *
    * @param updates  An iterable of raw ACP SessionUpdate notifications.
    * @param deps     conversationId + optional EnrichHook.
-   * @returns        { transcript (active===null), config, usage, title }
+   * @returns        { committed, active, config, usage, title }
    */
   static replay(updates: Iterable<ReplayEntry>, deps: AcpTranscriptParserDeps): ReplayResult {
     const parser = new AcpTranscriptParser(deps);
@@ -172,7 +168,8 @@ export class AcpTranscriptParser {
     parser.endReplay(at);
 
     return {
-      transcript: parser.snapshot,
+      committed: [...parser.history],
+      active: parser.activeTurn,
       config: parser.config,
       usage: parser.usage,
       title: parser.title,

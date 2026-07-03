@@ -3,28 +3,28 @@
  *
  * foldItem applies one NormalizedEvent to an existing item list and returns
  * the updated list. The fold materializes streaming ACP updates into concrete
- * turn-owned models: messages, thinking segments, tool-call items, diff
- * children, plan markers, and deterministic tool groups.
+ * turn-owned models: messages, thinking segments, tool-call items, and
+ * deterministic tool groups.
  *
  * finalizeItems settles all in-progress streaming states for a turn that has
  * just been committed (message.streaming -> false, thinking done + durationMs,
- * running tool/diff/group -> done).
+ * running tool/group -> done).
  *
  * Both functions are pure and allocation-efficient: only changed items are
  * replaced; unchanged items are returned by reference.
  */
 
 import type {
-  TranscriptDiff,
-  TranscriptEditToolCall,
+  CreateFileToolCall,
+  CreatePlanToolCall,
+  ModifyFileToolCall,
   TranscriptItem,
   TranscriptMessage,
-  TranscriptPlanSnapshot,
   TranscriptThinking,
   TranscriptToolCallItem,
   TranscriptToolGroupSnapshot,
+  ToolStatus,
 } from '../models/turns';
-import type { ToolStatus } from '../models/tools';
 import { SESSION_PLAN_ID } from '../models/plan';
 import {
   makeDiffId,
@@ -115,7 +115,7 @@ function baseToolFields(
   };
 }
 
-function createToolCallItem(params: {
+export function createToolCallItem(params: {
   id: string;
   toolCallId: string;
   title: string;
@@ -134,7 +134,7 @@ function createToolCallItem(params: {
   );
   const { title, toolKind } = params;
   if (isSubagentKind(toolKind)) {
-    return { kind: 'subagent-tool-call', ...base, name: title };
+    return { kind: 'spawn-subagent-tool-call', ...base, name: title };
   }
   if (isSearchKind(toolKind)) {
     return { kind: 'search-tool-call', ...base, query: title };
@@ -147,9 +147,6 @@ function createToolCallItem(params: {
   }
   if (isReadKind(toolKind, title)) {
     return { kind: 'read-tool-call', ...base, ...(inferReadPath(title) ? { path: inferReadPath(title) } : {}) };
-  }
-  if (isEditKind(toolKind)) {
-    return { kind: 'edit-tool-call', ...base, ...(inferReadPath(title) ? { path: inferReadPath(title) } : {}) };
   }
   if (isExecuteKind(toolKind)) {
     return { kind: 'execute-tool-call', ...base, command: title };
@@ -177,7 +174,11 @@ function updateToolCallItem(
         ...common,
         ...(title !== null && inferReadPath(nextTitle) ? { path: inferReadPath(nextTitle) } : {}),
       };
-    case 'edit-tool-call':
+    case 'create-file-tool-call':
+      return common;
+    case 'modify-file-tool-call':
+      return common;
+    case 'delete-file-tool-call':
       return common;
     case 'search-tool-call':
       return { ...common, ...(title !== null ? { query: nextTitle } : {}) };
@@ -185,8 +186,10 @@ function updateToolCallItem(
       return { ...common, ...(title !== null ? { tool: nextTitle } : {}) };
     case 'web-fetch-tool-call':
       return { ...common, ...(title !== null ? { pageTitle: nextTitle } : {}) };
-    case 'subagent-tool-call':
+    case 'spawn-subagent-tool-call':
       return { ...common, ...(title !== null ? { name: nextTitle } : {}) };
+    case 'create-plan-tool-call':
+      return common;
     case 'unknown-tool-call':
       return { ...common, ...(title !== null ? { name: nextTitle } : {}) };
   }
@@ -211,7 +214,7 @@ function upsertSpecialEvent(
   switch (event.kind) {
     case 'subagent':
       next = {
-        kind: 'subagent-tool-call',
+        kind: 'spawn-subagent-tool-call',
         id,
         toolCallId: event.toolCallId,
         title: event.title,
@@ -220,7 +223,6 @@ function upsertSpecialEvent(
         ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
         ...(event.background !== undefined ? { background: event.background } : {}),
         ...(event.agentId !== undefined ? { agentId: event.agentId } : {}),
-        ...(event.outputFile !== undefined ? { outputFile: event.outputFile } : {}),
         ...(parentId !== undefined ? { parentId } : {}),
       };
       break;
@@ -286,56 +288,143 @@ function finalizeOpenThinking(items: TranscriptItem[], now: number): TranscriptI
   return changed ? result : items;
 }
 
-function applyDiffs(
+function upsertFileOperations(
   items: TranscriptItem[],
   toolId: string,
+  toolCallId: string,
+  title: string,
+  parentId: string | undefined,
   diffs: NormalizedDiff[],
   status: NormalizedToolStatus | null
-): { items: TranscriptItem[]; diffIds: string[] } {
+): TranscriptItem[] {
   let result = items;
-  const diffIds: string[] = [];
   for (const d of diffs) {
     const id = makeDiffId(toolId, d.path);
-    diffIds.push(id);
     const mapped = mapToolStatus(status);
-    const idx = result.findIndex((it) => it.kind === 'diff' && it.id === id);
+    const idx = result.findIndex((it) => isToolCallItem(it) && it.id === id);
+    const base = {
+      id,
+      toolCallId,
+      title,
+      path: d.path,
+      status: mapped ?? 'running',
+      ...(parentId !== undefined ? { parentId } : {}),
+    };
     if (idx >= 0) {
-      // Update existing diff row.
-      const existing = result[idx] as TranscriptDiff;
-      const updated: TranscriptDiff = {
-        ...existing,
-        ...(mapped !== undefined ? { status: mapped } : {}),
-        oldText: d.oldText,
-        newText: d.newText,
-      };
+      const existing = result[idx] as TranscriptToolCallItem;
+      const updated: TranscriptToolCallItem =
+        d.oldText === null
+          ? ({
+              ...existing,
+              kind: 'create-file-tool-call',
+              content: d.newText,
+              path: d.path,
+              title,
+              toolCallId,
+              ...(mapped !== undefined ? { status: mapped } : {}),
+              ...(parentId !== undefined ? { parentId } : {}),
+            } satisfies CreateFileToolCall)
+          : ({
+              ...existing,
+              kind: 'modify-file-tool-call',
+              oldText: d.oldText,
+              newText: d.newText,
+              path: d.path,
+              title,
+              toolCallId,
+              ...(mapped !== undefined ? { status: mapped } : {}),
+              ...(parentId !== undefined ? { parentId } : {}),
+            } satisfies ModifyFileToolCall);
       result = result.map((it, i) => (i === idx ? updated : it));
+    } else if (d.oldText === null) {
+      result = [
+        ...result,
+        {
+          kind: 'create-file-tool-call',
+          ...base,
+          content: d.newText,
+        } satisfies CreateFileToolCall,
+      ];
     } else {
-      const newDiff: TranscriptDiff = {
-        kind: 'diff',
-        id,
-        path: d.path,
-        oldText: d.oldText,
-        newText: d.newText,
-        status: mapped ?? 'running',
-        parentId: toolId,
-      };
-      result = [...result, newDiff];
+      result = [
+        ...result,
+        {
+          kind: 'modify-file-tool-call',
+          ...base,
+          oldText: d.oldText,
+          newText: d.newText,
+        } satisfies ModifyFileToolCall,
+      ];
     }
   }
-  return { items: result, diffIds };
+  return result;
 }
 
-function updateEditDiffIds(
+function updateFileOperationStatuses(
   items: TranscriptItem[],
-  toolId: string,
-  diffIds: string[]
+  toolCallId: string,
+  status: NormalizedToolStatus | null
 ): TranscriptItem[] {
-  if (diffIds.length === 0) return items;
+  const mapped = mapToolStatus(status);
+  if (mapped === undefined) return items;
   return items.map((item): TranscriptItem => {
-    if (item.kind !== 'edit-tool-call' || item.id !== toolId) return item;
-    const known = new Set([...(item.diffIds ?? []), ...diffIds]);
-    return { ...item, diffIds: [...known] } satisfies TranscriptEditToolCall;
+    switch (item.kind) {
+      case 'create-file-tool-call':
+      case 'modify-file-tool-call':
+      case 'delete-file-tool-call':
+        return item.toolCallId === toolCallId ? { ...item, status: mapped } : item;
+      default:
+        return item;
+    }
   });
+}
+
+function hasFileOperationsForToolCall(items: TranscriptItem[], toolCallId: string): boolean {
+  return items.some((item) => {
+    switch (item.kind) {
+      case 'create-file-tool-call':
+      case 'modify-file-tool-call':
+      case 'delete-file-tool-call':
+        return item.toolCallId === toolCallId;
+      default:
+        return false;
+    }
+  });
+}
+
+function planStatus(entries: Extract<NormalizedEvent, { kind: 'plan' }>['entries']): ToolStatus {
+  return entries.some((entry) => entry.status === 'in_progress') ? 'running' : 'done';
+}
+
+function upsertPlanToolCall(
+  items: TranscriptItem[],
+  turnId: string,
+  event: Extract<NormalizedEvent, { kind: 'plan' }>
+): TranscriptItem[] {
+  const id = makePlanId(turnId);
+  const idx = items.findIndex((it) => it.kind === 'create-plan-tool-call' && it.id === id);
+  const next: CreatePlanToolCall = {
+    kind: 'create-plan-tool-call',
+    id,
+    toolCallId: id,
+    title: 'Plan updated',
+    status: planStatus(event.entries),
+    planId: SESSION_PLAN_ID,
+  };
+  if (idx >= 0) {
+    const existing = items[idx] as CreatePlanToolCall;
+    return items.map((item, i) =>
+      i === idx
+        ? {
+            ...existing,
+            status: next.status,
+            title: next.title,
+            planId: next.planId,
+          }
+        : item
+    );
+  }
+  return [...items, next];
 }
 
 function readGroupStatus(children: TranscriptToolCallItem[]): ToolStatus {
@@ -473,20 +562,30 @@ export function foldItem(
       const toolId = makeToolId(turnId, event.toolCallId);
       const parentId = makeParentId(turnId, event.parentToolCallId);
       const base = finalizeOpenThinking(items, at);
+      if (event.diffs.length > 0) {
+        const next = upsertFileOperations(
+          base,
+          toolId,
+          event.toolCallId,
+          event.title,
+          parentId,
+          event.diffs,
+          event.status
+        );
+        return normalizeToolStructure(next, turnId);
+      }
+
+      if (isEditKind(event.toolKind)) return base;
+
       const tool = createToolCallItem({
         id: toolId,
         toolCallId: event.toolCallId,
         title: event.title,
-        toolKind: event.diffs.length > 0 ? 'edit' : event.toolKind,
+        toolKind: event.toolKind,
         status: event.status,
         parentId,
       });
-      let next = upsertToolCallItem(base, tool);
-
-      if (event.diffs.length > 0) {
-        const applied = applyDiffs(next, toolId, event.diffs, event.status);
-        next = updateEditDiffIds(applied.items, toolId, applied.diffIds);
-      }
+      const next = upsertToolCallItem(base, tool);
       return normalizeToolStructure(next, turnId);
     }
 
@@ -494,6 +593,18 @@ export function foldItem(
       const toolId = makeToolId(turnId, event.toolCallId);
       const parentId = makeParentId(turnId, event.parentToolCallId);
       const base = finalizeOpenThinking(items, at);
+      if (event.diffs.length > 0) {
+        const next = upsertFileOperations(
+          base,
+          toolId,
+          event.toolCallId,
+          event.title ?? 'Edit file',
+          parentId,
+          event.diffs,
+          event.status
+        );
+        return normalizeToolStructure(next, turnId);
+      }
 
       const idx = base.findIndex((it) => isToolCallItem(it) && it.id === toolId);
       let next: TranscriptItem[];
@@ -501,6 +612,10 @@ export function foldItem(
         const tool = base[idx] as TranscriptToolCallItem;
         const updated = updateToolCallItem(tool, event.title, event.status);
         next = base.map((it, i) => (i === idx ? updated : it));
+      } else if (hasFileOperationsForToolCall(base, event.toolCallId)) {
+        next = base;
+      } else if (isEditKind(event.toolKind)) {
+        next = base;
       } else {
         next = upsertToolCallItem(
           base,
@@ -508,24 +623,14 @@ export function foldItem(
             id: toolId,
             toolCallId: event.toolCallId,
             title: event.title ?? 'unknown',
-            toolKind: event.diffs.length > 0 ? 'edit' : event.toolKind,
+            toolKind: event.toolKind,
             status: event.status,
             parentId,
           })
         );
       }
 
-      if (event.diffs.length > 0) {
-        const applied = applyDiffs(next, toolId, event.diffs, event.status);
-        next = updateEditDiffIds(applied.items, toolId, applied.diffIds);
-      } else if (next.some((it) => it.kind === 'diff' && it.id.startsWith(`${toolId}:`))) {
-        const mapped = mapToolStatus(event.status);
-        if (mapped !== undefined) {
-          next = next.map((it) =>
-            it.kind === 'diff' && it.id.startsWith(`${toolId}:`) ? { ...it, status: mapped } : it
-          );
-        }
-      }
+      next = updateFileOperationStatuses(next, event.toolCallId, event.status);
       return normalizeToolStructure(next, turnId);
     }
 
@@ -538,20 +643,8 @@ export function foldItem(
     }
 
     case 'plan': {
-      const id = makePlanId(turnId);
       const base = finalizeOpenThinking(items, at);
-      const idx = base.findIndex((it) => it.kind === 'plan' && it.id === id);
-      if (idx >= 0) {
-        const plan = base[idx] as TranscriptPlanSnapshot;
-        return base.map((it, i) => (i === idx ? { ...plan, updatedAt: at } : it));
-      }
-      const newPlan: TranscriptPlanSnapshot = {
-        kind: 'plan',
-        id,
-        planId: SESSION_PLAN_ID,
-        updatedAt: at,
-      };
-      return [...base, newPlan];
+      return normalizeToolStructure(upsertPlanToolCall(base, turnId, event), turnId);
     }
 
     case 'ignored':
@@ -568,7 +661,6 @@ export function foldItem(
  * - message.streaming → false
  * - thinking status 'thinking' → 'done' + computed durationMs
  * - tool status 'running' → 'done'
- * - diff status 'running' → 'done'
  *
  * Input must be plain objects (not Solid/MobX proxies).
  */
@@ -581,25 +673,19 @@ export function finalizeItems(items: TranscriptItem[], at: number): TranscriptIt
         return item.status === 'thinking'
           ? { ...item, status: 'done' as const, durationMs: at - item.startedAt }
           : item;
-      case 'subagent-tool-call':
-        return item.background
-          ? item
-          : item.status === 'running'
-            ? { ...item, status: 'done' as const }
-            : item;
       case 'execute-tool-call':
       case 'read-tool-call':
-      case 'edit-tool-call':
+      case 'create-file-tool-call':
+      case 'modify-file-tool-call':
+      case 'delete-file-tool-call':
       case 'search-tool-call':
       case 'mcp-tool-call':
       case 'web-fetch-tool-call':
+      case 'spawn-subagent-tool-call':
+      case 'create-plan-tool-call':
       case 'unknown-tool-call':
       case 'tool-group':
         return item.status === 'running' ? { ...item, status: 'done' as const } : item;
-      case 'diff':
-        return item.status === 'running' ? { ...item, status: 'done' as const } : item;
-      case 'plan':
-        return item;
     }
   });
 }

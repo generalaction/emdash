@@ -27,7 +27,6 @@ function makeWorking(): SessionMachineState {
 
 const permRequest: AcpPermissionRequest = {
   requestId: 'req-1',
-  title: 'Read a file',
   options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }],
 };
 

@@ -1,24 +1,6 @@
 import { z } from 'zod';
-
-export const promptAttachmentSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('image'),
-    /** Base64-encoded bytes for one-shot prompt submission. Not stored in LiveModels. */
-    data: z.string(),
-    mimeType: z.string(),
-    name: z.string().optional(),
-    /** Original same-machine path when the attachment came from a local file. */
-    originalPath: z.string().optional(),
-  }),
-  z.object({
-    type: z.literal('local-file'),
-    /** Same-machine source path; AttachmentManager can reference instead of copying bytes. */
-    originalPath: z.string(),
-    mimeType: z.string(),
-    name: z.string().optional(),
-  }),
-]);
-export type PromptAttachment = z.infer<typeof promptAttachmentSchema>;
+import { promptAttachmentSchema } from './attachments';
+export type { PromptAttachment } from './attachments';
 
 export const promptInputSchema = z.object({
   text: z.string(),

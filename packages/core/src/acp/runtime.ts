@@ -2,13 +2,14 @@ import type { Logger } from '@emdash/shared/logger';
 import type { Result } from '@emdash/shared/result';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AcpRuntimeError } from './errors';
-import type { SubagentState } from './models/agents';
+import type { AgentState } from './models/agents';
+import type { PromptAttachment } from './models/attachments';
 import type { SessionConfigState, SessionUsage } from './models/config';
-import type { TranscriptPlanState } from './models/plan';
+import type { PlanState } from './models/plan';
 import type { PromptInput } from './models/prompt';
 import type { SessionState } from './models/session';
 import type { TerminalState } from './models/terminals';
-import type { TranscriptState } from './models/transcript';
+import type { TranscriptTurn } from './models/turns';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
 
 /**
@@ -34,6 +35,20 @@ export interface AcpStartInput {
  */
 export type ResolveAcpProvider = (providerId: string) => { behavior: IAcpBehavior } | null;
 
+export interface ResolvedPromptAttachment {
+  data: string;
+  mimeType: string;
+}
+
+export type ResolvePromptAttachment = (
+  attachment: PromptAttachment
+) => Promise<ResolvedPromptAttachment>;
+
+export interface AcpChatHistory {
+  committed: TranscriptTurn[];
+  active: TranscriptTurn | null;
+}
+
 /**
  * Outbound event sink injected into AcpSessionRuntime.
  * The desktop adapter maps these calls onto the IPC typed-event channels.
@@ -50,12 +65,13 @@ export interface AcpRuntimeListener {
   onSnapshot(e: { conversationId: string; snapshot: SessionState }): void;
   onTranscript(e: {
     conversationId: string;
-    transcript: TranscriptState;
+    committed: TranscriptTurn[];
+    active: TranscriptTurn | null;
     config: SessionConfigState;
     usage: SessionUsage | null;
     title: string | null;
-    agents: SubagentState[];
-    plan: TranscriptPlanState | null;
+    agents: AgentState[];
+    plan: PlanState | null;
   }): void;
   onClosed(e: { conversationId: string; taskId: string; exitCode: number | null }): void;
   onAgentEvent(e: {
@@ -104,6 +120,8 @@ export interface AcpSessionRuntimeDeps {
   ) => Promise<Result<void, SetSessionIdError>>;
   /** Outbound event sink (mapped to IPC channels by the desktop adapter). */
   listener: AcpRuntimeListener;
+  /** Resolves prompt attachment references to ACP image payload bytes at the runtime edge. */
+  resolveAttachment: ResolvePromptAttachment;
   logger: Logger;
 }
 
@@ -133,7 +151,7 @@ export interface IAcpSessionRuntime {
     optionId: string | null
   ): Result<void, AcpRuntimeError>;
   isRunning(conversationId: string): boolean;
-  getChatHistory(conversationId: string): TranscriptState;
+  getChatHistory(conversationId: string): AcpChatHistory;
   getSessionState(conversationId: string): SessionState;
   /** Returns snapshots of all live terminals for a conversation. Empty if none or unknown. */
   getTerminals(conversationId: string): TerminalState[];

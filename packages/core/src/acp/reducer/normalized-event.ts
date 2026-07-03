@@ -16,7 +16,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { AttachmentRef } from '../models/attachments';
 import type { SessionUsage } from '../models/config';
-import type { TranscriptPlanEntryInput } from '../models/plan';
+import type { PlanEntryInput } from '../models/plan';
 
 export type NormalizedDiff = {
   path: string;
@@ -113,7 +113,7 @@ export type NormalizedEvent =
     }
   | {
       kind: 'plan';
-      entries: TranscriptPlanEntryInput[];
+      entries: PlanEntryInput[];
     }
   | {
       /** Full config option array from config_option_update. */

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { toolCallGroupKindSchema, toolCallLinkFieldsSchema, toolStatusSchema } from '../tools';
+import { toolCallGroupKindSchema, toolCallLinkFieldsSchema, toolStatusSchema } from './tools';
 
 export const transcriptToolGroupSnapshotSchema = z
   .object({

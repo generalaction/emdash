@@ -1,28 +1,30 @@
 export type {
-  TranscriptDiff,
+  CreateFileToolCall,
+  CreatePlanToolCall,
+  DeleteFileToolCall,
+  ModifyFileToolCall,
   TranscriptItem,
   TranscriptMcpTool,
   TranscriptMessage,
-  TranscriptPlan,
   TranscriptSearch,
-  TranscriptState,
   TranscriptSubagent,
   TranscriptThinking,
   TranscriptTool,
+  TranscriptToolCallItem,
   TranscriptTurn,
   TranscriptTurnInitiator,
   TranscriptTurnOutcome,
   TranscriptWebFetch,
-} from '../models/transcript';
+  ToolStatus,
+} from '../models/turns';
 export type { AttachmentRef } from '../models/attachments';
-export type { SubagentState } from '../models/agents';
-export type { ToolStatus } from '../models/tools';
+export type { AgentState } from '../models/agents';
 export type {
+  PlanEntry,
+  PlanEntryInput,
   PlanEntryPriority,
   PlanEntryStatus,
-  TranscriptPlanEntry,
-  TranscriptPlanEntryInput,
-  TranscriptPlanState,
+  PlanState,
 } from '../models/plan';
 
 export type {

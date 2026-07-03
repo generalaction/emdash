@@ -73,7 +73,7 @@ describe('AcpSessionRuntime - transcript projection', () => {
     });
 
     expect(h.recording.transcripts.at(-1)?.conversationId).toBe('conv-transcript');
-    expect(h.recording.transcripts.at(-1)?.transcript.active?.items.at(-1)).toMatchObject({
+    expect(h.recording.transcripts.at(-1)?.active?.items.at(-1)).toMatchObject({
       kind: 'message',
       role: 'assistant',
       text: 'hello',
@@ -123,14 +123,14 @@ describe('AcpSessionRuntime - transcript projection', () => {
       expect(h.recording.transcripts.at(-1)?.plan).toMatchObject({
         entries: [{ content: 'Background step', status: 'in_progress', priority: 'medium' }],
       });
-      expect(h.recording.transcripts.at(-1)?.transcript.active?.initiator).toBe('agent');
+      expect(h.recording.transcripts.at(-1)?.active?.initiator).toBe('agent');
 
       vi.advanceTimersByTime(300);
       await Promise.resolve();
 
       expect(h.recording.snapshots.at(-1)?.snapshot.agentTurnActive).toBe(false);
-      expect(h.recording.transcripts.at(-1)?.transcript.active).toBeNull();
-      expect(h.recording.transcripts.at(-1)?.transcript.committed.at(-1)?.outcome).toEqual({
+      expect(h.recording.transcripts.at(-1)?.active).toBeNull();
+      expect(h.recording.transcripts.at(-1)?.committed.at(-1)?.outcome).toEqual({
         kind: 'done',
         reason: 'quiesced',
       });
@@ -191,7 +191,10 @@ describe('AcpSessionRuntime - permissions', () => {
     expect(rt.getSessionState('conv-perm').pendingPermissions).toHaveLength(1);
     expect(h.recording.snapshots.at(-1)?.snapshot.pendingPermissions[0]).toMatchObject({
       requestId: expect.any(String),
-      toolCallId: 'tool-1',
+      toolCall: {
+        kind: 'read-tool-call',
+        toolCallId: 'tool-1',
+      },
     });
 
     const requestId = rt.getSessionState('conv-perm').pendingPermissions[0].requestId;
@@ -303,10 +306,10 @@ describe('AcpSessionRuntime - metadata and enrich', () => {
       expect.objectContaining({ kind: 'tool_call', toolCallId: 'tool-1' }),
       raw
     );
-    expect(h.recording.transcripts.at(-1)?.transcript.active?.items[0]).toMatchObject({
+    expect(h.recording.transcripts.at(-1)?.active?.items[0]).toMatchObject({
       kind: 'message',
     });
-    expect(h.recording.transcripts.at(-1)?.transcript.active?.items.at(-1)).toMatchObject({
+    expect(h.recording.transcripts.at(-1)?.active?.items.at(-1)).toMatchObject({
       kind: 'execute-tool-call',
       parentId: 'conv-enrich:turn:0:tool:parent-1',
     });

@@ -2,10 +2,10 @@ import { readFileSync } from 'node:fs';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import { AcpTranscriptParser } from '../reducer/parser';
-import { subagentStateSchema } from './agents';
+import { agentStateSchema } from './agents';
 import { sessionConfigStateSchema, sessionUsageSchema } from './config';
-import { transcriptPlanStateSchema } from './plan';
-import { transcriptStateSchema } from './transcript';
+import { planStateSchema } from './plan';
+import { transcriptTurnSchema } from './turns';
 
 interface RecordedPrompt {
   kind: 'prompt';
@@ -82,14 +82,17 @@ describe('ACP zod models', () => {
     (fixtureName) => {
       const parser = driveParser(loadFixture(fixtureName));
 
-      expect(() => transcriptStateSchema.parse(parser.snapshot)).not.toThrow();
+      expect(() => transcriptTurnSchema.array().parse(parser.history)).not.toThrow();
+      expect(() =>
+        parser.activeTurn === null ? null : transcriptTurnSchema.parse(parser.activeTurn)
+      ).not.toThrow();
       expect(() => sessionConfigStateSchema.parse(parser.config)).not.toThrow();
       expect(() =>
         parser.usage === null ? null : sessionUsageSchema.parse(parser.usage)
       ).not.toThrow();
-      expect(() => subagentStateSchema.array().parse(parser.agents)).not.toThrow();
+      expect(() => agentStateSchema.array().parse(parser.agents)).not.toThrow();
       expect(() =>
-        parser.plan === null ? null : transcriptPlanStateSchema.parse(parser.plan)
+        parser.plan === null ? null : planStateSchema.parse(parser.plan)
       ).not.toThrow();
     }
   );

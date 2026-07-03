@@ -23,20 +23,18 @@
  */
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { SubagentState } from '../models/agents';
+import type { AgentState, AgentStatus } from '../models/agents';
 import type { SessionCommand, SessionConfigState, SessionUsage } from '../models/config';
 import { initialSessionConfigState } from '../models/config';
-import { SESSION_PLAN_ID, type TranscriptPlanState } from '../models/plan';
-import type { ToolStatus } from '../models/tools';
+import { SESSION_PLAN_ID, type PlanState } from '../models/plan';
 import type {
   TranscriptItem,
   TranscriptMessage,
-  TranscriptState,
   TranscriptThinking,
   TranscriptTurnInitiator,
   TranscriptTurnOutcome,
   TranscriptTurn,
-} from '../models/transcript';
+} from '../models/turns';
 import { deriveConfigGroups } from './config-derive';
 import { decodeSessionUpdate } from './decode';
 import { makeMessageId, makeThinkingId, makeTurnId } from './ids';
@@ -52,15 +50,20 @@ export interface SegmentState {
   thinking: number;
 }
 
+export interface TranscriptSlice {
+  committed: TranscriptTurn[];
+  active: TranscriptTurn | null;
+}
+
 export interface ParserState {
-  transcript: TranscriptState;
+  transcript: TranscriptSlice;
   config: SessionConfigState;
   usage: SessionUsage | null;
   title: string | null;
   pendingModeId: string | null;
   segment: SegmentState;
-  agents: SubagentState[];
-  plan: TranscriptPlanState | null;
+  agents: AgentState[];
+  plan: PlanState | null;
 }
 
 export type ReducerInput =
@@ -97,15 +100,15 @@ function initialSegment(): SegmentState {
   };
 }
 
-function nextTurnIndex(t: TranscriptState): number {
+function nextTurnIndex(t: TranscriptSlice): number {
   return t.committed.length + (t.active ? 1 : 0);
 }
 
 function openTurn(
-  t: TranscriptState,
+  t: TranscriptSlice,
   deps: ReducerDeps,
   initiator: TranscriptTurnInitiator
-): TranscriptState {
+): TranscriptSlice {
   const id = makeTurnId(deps.conversationId, nextTurnIndex(t));
   const turn: TranscriptTurn = { id, initiator, items: [] };
   return { ...t, active: turn };
@@ -116,10 +119,10 @@ function openTurn(
  * No-op when there is no active turn.
  */
 export function closeActive(
-  t: TranscriptState,
+  t: TranscriptSlice,
   at: number,
   outcome?: TranscriptTurnOutcome
-): TranscriptState {
+): TranscriptSlice {
   if (!t.active) return t;
   const committed: TranscriptTurn = {
     ...t.active,
@@ -172,10 +175,10 @@ function synthesizedMessageId(segment: SegmentState, kind: SynthesizedSegmentKin
 }
 
 function closeSynthesizedSegment(
-  transcript: TranscriptState,
+  transcript: TranscriptSlice,
   segment: SegmentState,
   at: number
-): { transcript: TranscriptState; segment: SegmentState } {
+): { transcript: TranscriptSlice; segment: SegmentState } {
   const active = transcript.active;
   if (!active || !segment.open) return { transcript, segment };
 
@@ -238,11 +241,11 @@ function resolveProviderThinkingMessageId(active: TranscriptTurn, messageId: str
 }
 
 function materializeEvent(
-  transcript: TranscriptState,
+  transcript: TranscriptSlice,
   segment: SegmentState,
   event: NormalizedEvent,
   at: number
-): { transcript: TranscriptState; segment: SegmentState; event: FoldEvent } {
+): { transcript: TranscriptSlice; segment: SegmentState; event: FoldEvent } {
   if (event.kind === 'message' || event.kind === 'thinking') {
     if (event.messageId === null) {
       const kind = segmentKind(event);
@@ -276,14 +279,14 @@ function materializeEvent(
   return { ...closed, event: event as FoldEvent };
 }
 
-function toToolStatus(
+function toAgentStatus(
   status: Extract<NormalizedEvent, { kind: 'subagent' }>['status']
-): ToolStatus {
+): AgentStatus {
   switch (status) {
     case 'completed':
-      return 'done';
+      return 'completed';
     case 'failed':
-      return 'error';
+      return 'failed';
     case 'pending':
     case 'in_progress':
     case null:
@@ -292,11 +295,11 @@ function toToolStatus(
 }
 
 function updateAgentSlice(
-  agents: SubagentState[],
+  agents: AgentState[],
   event: NormalizedEvent,
   launchTurnId: string | null,
   at: number
-): SubagentState[] {
+): AgentState[] {
   if (event.kind !== 'subagent' && event.kind !== 'subagent_update') return agents;
 
   const agentId = event.agentId ?? event.toolCallId;
@@ -306,9 +309,9 @@ function updateAgentSlice(
   const idx = agents.findIndex(
     (agent) => agent.agentId === agentId || agent.toolCallId === toolCallId
   );
-  const status = toToolStatus(event.status);
+  const status = toAgentStatus(event.status);
   const completedAt =
-    status === 'done' || status === 'error'
+    status === 'completed' || status === 'failed'
       ? { completedAt: at }
       : idx >= 0
         ? agents[idx].completedAt !== undefined
@@ -317,7 +320,7 @@ function updateAgentSlice(
         : {};
 
   if (event.kind === 'subagent') {
-    const next: SubagentState = {
+    const next: AgentState = {
       ...(idx >= 0 ? agents[idx] : {}),
       agentId,
       toolCallId,
@@ -332,7 +335,7 @@ function updateAgentSlice(
     return idx >= 0 ? agents.map((agent, i) => (i === idx ? next : agent)) : [...agents, next];
   }
 
-  const next: SubagentState = {
+  const next: AgentState = {
     ...(idx >= 0
       ? agents[idx]
       : {
@@ -353,10 +356,10 @@ function updateAgentSlice(
 }
 
 function updatePlanSlice(
-  plan: TranscriptPlanState | null,
+  plan: PlanState | null,
   event: NormalizedEvent,
   at: number
-): TranscriptPlanState | null {
+): PlanState | null {
   if (event.kind !== 'plan') return plan;
   return {
     id: SESSION_PLAN_ID,
@@ -383,7 +386,7 @@ function assertTurnInvariants(turn: TranscriptTurn): void {
   }
 }
 
-function assertTranscriptInvariants(transcript: TranscriptState): void {
+function assertTranscriptInvariants(transcript: TranscriptSlice): void {
   if (process.env.NODE_ENV === 'production') return;
   for (const turn of transcript.committed) assertTurnInvariants(turn);
   if (transcript.active) assertTurnInvariants(transcript.active);
@@ -508,7 +511,7 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
   ) {
     return s;
   }
-  const transcript: TranscriptState =
+  const transcript: TranscriptSlice =
     items === active.items ? t : { ...t, active: { ...active, items } };
   assertTranscriptInvariants(transcript);
   return { ...s, transcript, segment, agents, plan };

@@ -1,16 +1,17 @@
 import { z } from 'zod';
 import { stopReasonSchema } from '../session';
-import { transcriptDiffSchema } from './diffs';
 import { transcriptMessageSchema } from './messages';
-import { transcriptPlanSnapshotSchema } from './plan-snapshots';
 import { transcriptThinkingSchema } from './thinking';
 import {
-  transcriptEditToolCallSchema,
+  createFileToolCallSchema,
+  createPlanToolCallSchema,
+  deleteFileToolCallSchema,
+  modifyFileToolCallSchema,
+  spawnSubagentToolCallSchema,
   transcriptExecuteToolCallSchema,
   transcriptMcpToolCallSchema,
   transcriptReadToolCallSchema,
   transcriptSearchToolCallSchema,
-  transcriptSubagentToolCallSchema,
   transcriptUnknownToolCallSchema,
   transcriptWebFetchToolCallSchema,
 } from './tool-calls';
@@ -21,15 +22,16 @@ export const transcriptItemSchema = z.discriminatedUnion('kind', [
   transcriptThinkingSchema,
   transcriptExecuteToolCallSchema,
   transcriptReadToolCallSchema,
-  transcriptEditToolCallSchema,
+  createFileToolCallSchema,
+  modifyFileToolCallSchema,
+  deleteFileToolCallSchema,
   transcriptSearchToolCallSchema,
   transcriptMcpToolCallSchema,
   transcriptWebFetchToolCallSchema,
-  transcriptSubagentToolCallSchema,
+  spawnSubagentToolCallSchema,
+  createPlanToolCallSchema,
   transcriptUnknownToolCallSchema,
   transcriptToolGroupSnapshotSchema,
-  transcriptDiffSchema,
-  transcriptPlanSnapshotSchema,
 ]);
 export type TranscriptItem = z.infer<typeof transcriptItemSchema>;
 
