@@ -6,16 +6,9 @@ import { TaskStateProvider } from '@renderer/features/tasks/task-config/task-sta
 import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
 import { CronPicker } from '@renderer/lib/CronPicker';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
-import { Field, FieldDescription, FieldError, FieldGroup } from '@renderer/lib/ui/field';
+import { Field, FieldError, FieldGroup } from '@renderer/lib/ui/field';
+import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@renderer/lib/ui/select';
-import { Textarea } from '@renderer/lib/ui/textarea';
 import type { AutomationFormState } from '../useAutomationFormState';
 
 interface AutomationSettingsFieldsProps {
@@ -66,50 +59,35 @@ export function AutomationSettingsFields({
         </Field>
         <Field>
           <Label>Schedule</Label>
-          <Select
-            value={triggerKind ?? 'cron'}
-            onValueChange={(nextKind) => {
-              const typedKind = nextKind as NonNullable<AutomationFormState['triggerKind']>;
-              setTriggerKind(typedKind);
+          <CronPicker
+            value={cronExpr}
+            onChange={(nextCronExpr) => {
+              setTriggerKind('cron');
+              onCronExprChange(nextCronExpr);
               onCronErrorClear();
-              onTriggerKindChange?.(typedKind);
             }}
-          >
-            <SelectTrigger size="sm" className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="cron">Simple schedule</SelectItem>
-              <SelectItem value="rrule">Custom RRULE</SelectItem>
-            </SelectContent>
-          </Select>
-          {(triggerKind ?? 'cron') === 'rrule' ? (
-            <div className="flex flex-col gap-2">
-              <Textarea
-                value={rruleExpr}
-                onChange={(event) => {
-                  setRRuleExpr(event.target.value);
-                  onCronErrorClear();
-                }}
-                onBlur={onRRuleExprBlur}
-                spellCheck={false}
-                className="min-h-24 font-mono text-xs"
-                placeholder={'DTSTART:20260706T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=MO'}
-              />
-              <FieldDescription>
-                Example: <code>DTSTART:20260706T090000Z</code> +{' '}
-                <code>RRULE:FREQ=WEEKLY;BYDAY=MO</code> runs every Monday at 09:00 UTC.
-              </FieldDescription>
-            </div>
-          ) : (
-            <CronPicker
-              value={cronExpr}
-              onChange={(nextCronExpr) => {
-                onCronExprChange(nextCronExpr);
+            custom={{
+              selected: (triggerKind ?? 'cron') === 'rrule',
+              onSelect: () => {
+                setTriggerKind('rrule');
                 onCronErrorClear();
-              }}
-            />
-          )}
+                onTriggerKindChange?.('rrule');
+              },
+              content: (
+                <Input
+                  value={rruleExpr}
+                  onChange={(event) => {
+                    setRRuleExpr(event.target.value);
+                    onCronErrorClear();
+                  }}
+                  onBlur={onRRuleExprBlur}
+                  spellCheck={false}
+                  className="h-7 min-w-0 flex-1 font-mono text-xs"
+                  placeholder="RRULE"
+                />
+              ),
+            }}
+          />
           {cronError && <FieldError>{cronError}</FieldError>}
         </Field>
         <TaskStateProvider

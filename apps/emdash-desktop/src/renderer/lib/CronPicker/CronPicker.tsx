@@ -19,12 +19,17 @@ import {
   toCron,
   WEEKDAY_LABELS,
 } from './cron-utils';
-import type { CronPeriod, CronState } from './types';
+import type { CronPeriod, CronPickerPeriod, CronState } from './types';
 
 interface CronPickerProps {
   value: string;
   onChange: (cron: string) => void;
   className?: string;
+  custom?: {
+    selected: boolean;
+    onSelect: () => void;
+    content: React.ReactNode;
+  };
 }
 
 function useCronState(value: string): { state: CronState; parseError: boolean } {
@@ -205,7 +210,7 @@ function Label({ children }: { children: React.ReactNode }) {
   return <span className="text-sm text-foreground-passive">{children}</span>;
 }
 
-export function CronPicker({ value, onChange, className }: CronPickerProps) {
+export function CronPicker({ value, onChange, className, custom }: CronPickerProps) {
   const { state, parseError } = useCronState(value);
 
   function emit(next: CronState) {
@@ -213,6 +218,10 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
   }
 
   function handlePeriodChange(period: string) {
+    if (period === 'custom') {
+      custom?.onSelect();
+      return;
+    }
     emit(changePeriod(state, period as CronPeriod));
   }
 
@@ -239,12 +248,18 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
   }
 
   const { period, hour, minute, weekDay, monthDay, month } = state;
+  const selectedPeriod: CronPickerPeriod = custom?.selected ? 'custom' : period;
+  const periodOptions: readonly CronPickerPeriod[] = custom
+    ? [...PERIOD_ORDER, 'custom']
+    : PERIOD_ORDER;
 
-  const showMonth = period === 'year';
-  const showMonthDay = period === 'month' || period === 'year';
-  const showWeekDay = period === 'week';
-  const showTime = period === 'day' || period === 'week' || period === 'month' || period === 'year';
-  const showHourMinute = period === 'hour';
+  const showMonth = !custom?.selected && period === 'year';
+  const showMonthDay = !custom?.selected && (period === 'month' || period === 'year');
+  const showWeekDay = !custom?.selected && period === 'week';
+  const showTime =
+    !custom?.selected &&
+    (period === 'day' || period === 'week' || period === 'month' || period === 'year');
+  const showHourMinute = !custom?.selected && period === 'hour';
 
   return (
     <div className={cn('flex flex-col gap-1.5 border p-2 rounded-md', className)}>
@@ -253,16 +268,18 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
 
         {/* Period selector */}
         <InlineSelect
-          value={period}
+          value={selectedPeriod}
           onValueChange={handlePeriodChange}
-          renderValue={(v) => PERIOD_LABELS[v as CronPeriod] ?? v}
+          renderValue={(v) => (v === 'custom' ? 'Custom' : (PERIOD_LABELS[v as CronPeriod] ?? v))}
         >
-          {PERIOD_ORDER.map((p) => (
+          {periodOptions.map((p) => (
             <SelectItem key={p} value={p}>
-              {PERIOD_LABELS[p]}
+              {p === 'custom' ? 'Custom' : PERIOD_LABELS[p]}
             </SelectItem>
           ))}
         </InlineSelect>
+
+        {custom?.selected && custom.content}
 
         {/* Year: month selector */}
         {showMonth && (
@@ -342,7 +359,7 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
         )}
       </div>
 
-      {parseError && (
+      {!custom?.selected && parseError && (
         <p className="text-destructive text-xs">
           Could not parse the cron expression. Showing defaults — saving will overwrite it.
         </p>

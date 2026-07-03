@@ -1,4 +1,5 @@
 export type CronPeriod = 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
+export type CronPickerPeriod = CronPeriod | 'custom';
 
 export interface CronState {
   period: CronPeriod;
