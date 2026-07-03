@@ -17,13 +17,14 @@ const mockCreateClient = vi.mocked(createFeaturebaseClient);
 const host = { log: noopLogger, credentials: { apiKey: 'fb-token' } };
 
 function mockClient(list: ReturnType<typeof vi.fn>) {
-  mockCreateClient.mockReturnValue({
+  const client: FeaturebaseClient = {
     feedback: {
       posts: {
         list,
       },
     },
-  } as unknown as FeaturebaseClient);
+  };
+  mockCreateClient.mockReturnValue(client);
   return list;
 }
 

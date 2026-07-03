@@ -5,6 +5,7 @@ import { toIntegrationError } from '../../helpers/error';
 import type { IntegrationCredentials } from '../../host';
 import type { IntegrationError } from '../../types';
 import {
+  type FeaturebaseClient,
   type FeaturebaseCredentials,
   featurebaseCredentialsSchema,
   type FeaturebaseVerifiedConnection,
@@ -19,7 +20,7 @@ export function readFeaturebaseCredentials(
   return parseCredentials(featurebaseCredentialsSchema, credentials);
 }
 
-export function createFeaturebaseClient(credentials: FeaturebaseCredentials): Featurebase {
+export function createFeaturebaseClient(credentials: FeaturebaseCredentials): FeaturebaseClient {
   return new Featurebase({
     apiKey: credentials.apiKey,
     baseURL: FEATUREBASE_API_URL,
