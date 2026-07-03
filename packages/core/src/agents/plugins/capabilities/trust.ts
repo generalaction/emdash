@@ -1,5 +1,5 @@
-import z from 'zod';
 import { definePluginCapability } from '@emdash/shared/plugins';
+import z from 'zod';
 import type { PluginFs } from '../../runtime/fs';
 
 export type TrustContext = {
