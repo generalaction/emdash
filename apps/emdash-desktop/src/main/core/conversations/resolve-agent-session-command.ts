@@ -6,6 +6,7 @@ const PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME = new Set([
   'commandcode',
   'droid',
   'goose',
+  'pi',
 ]);
 
 /**
