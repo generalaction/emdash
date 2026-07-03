@@ -15,6 +15,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
   },
   {
+    autoApprove: {
+      kind: 'supported',
+    },
     hooks: {
       kind: 'config',
       scope: 'workspace',
@@ -67,6 +70,10 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
+        // Interactive `droid` only exposes `--auto <level>`; `--skip-permissions-unsafe`
+        // is exclusive to `droid exec`. `high` grants the broadest autonomy the
+        // interactive TUI supports (edits, installs, git push, deploys).
+        autoApproveFlag: '--auto high',
         initialPromptFlag: '',
         resumeFlag: '--resume',
         sessionIdFlag: '--resume',
