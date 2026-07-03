@@ -29,8 +29,8 @@ import { initialSessionConfigState } from '../models/config';
 import { SESSION_PLAN_ID, type PlanState } from '../models/plan';
 import type {
   TranscriptItem,
-  TranscriptMessage,
   TranscriptThinking,
+  ToolNode,
   TranscriptTurnInitiator,
   TranscriptTurnOutcome,
   TranscriptTurn,
@@ -104,13 +104,17 @@ function nextTurnIndex(t: TranscriptSlice): number {
   return t.committed.length + (t.active ? 1 : 0);
 }
 
+function nextTurnSeq(t: TranscriptSlice): number {
+  return t.committed.at(-1)?.seq !== undefined ? t.committed.at(-1)!.seq + 1 : 0;
+}
+
 function openTurn(
   t: TranscriptSlice,
   deps: ReducerDeps,
   initiator: TranscriptTurnInitiator
 ): TranscriptSlice {
   const id = makeTurnId(deps.conversationId, nextTurnIndex(t));
-  const turn: TranscriptTurn = { id, initiator, items: [] };
+  const turn: TranscriptTurn = { id, seq: nextTurnSeq(t), initiator, items: [] };
   return { ...t, active: turn };
 }
 
@@ -197,10 +201,6 @@ function closeSynthesizedSegment(
         return { ...item, status: 'done' as const, durationMs: at - item.startedAt };
       }
       return item;
-    }
-    if (item.kind === 'message' && item.id === itemId && item.streaming) {
-      changed = true;
-      return { ...item, streaming: false } satisfies TranscriptMessage;
     }
     return item;
   });
@@ -373,12 +373,37 @@ function updatePlanSlice(
 
 function assertTurnInvariants(turn: TranscriptTurn): void {
   const ids = new Set<string>();
-  let openThinking = 0;
-  for (const item of turn.items) {
+  const assertSortedSiblings = (items: TranscriptItem[] | ToolNode[]): void => {
+    let previousSeq = -1;
+    const siblingSeqs = new Set<number>();
+    for (const item of items) {
+      if (item.seq < previousSeq) {
+        throw new Error('AcpTranscriptParser invariant failed: sibling items are not sorted by seq');
+      }
+      previousSeq = item.seq;
+      if (siblingSeqs.has(item.seq)) {
+        throw new Error(
+          `AcpTranscriptParser invariant failed: duplicate sibling seq '${item.seq}'`
+        );
+      }
+      siblingSeqs.add(item.seq);
+    }
+  };
+  const visit = (item: TranscriptItem | ToolNode): void => {
     if (ids.has(item.id)) {
       throw new Error(`AcpTranscriptParser invariant failed: duplicate item id '${item.id}'`);
     }
     ids.add(item.id);
+    if ('children' in item && item.children?.length) {
+      assertSortedSiblings(item.children);
+      for (const child of item.children) visit(child);
+    }
+  };
+
+  let openThinking = 0;
+  assertSortedSiblings(turn.items);
+  for (const item of turn.items) {
+    visit(item);
     if (item.kind === 'thinking' && item.status === 'thinking') openThinking += 1;
   }
   if (openThinking > 1) {
@@ -388,6 +413,16 @@ function assertTurnInvariants(turn: TranscriptTurn): void {
 
 function assertTranscriptInvariants(transcript: TranscriptSlice): void {
   if (process.env.NODE_ENV === 'production') return;
+  let previousTurnSeq = -1;
+  for (const turn of transcript.committed) {
+    if (turn.seq <= previousTurnSeq) {
+      throw new Error('AcpTranscriptParser invariant failed: committed turns are not sorted by seq');
+    }
+    previousTurnSeq = turn.seq;
+  }
+  if (transcript.active && transcript.active.seq <= previousTurnSeq) {
+    throw new Error('AcpTranscriptParser invariant failed: active turn seq is not after history');
+  }
   for (const turn of transcript.committed) assertTurnInvariants(turn);
   if (transcript.active) assertTurnInvariants(transcript.active);
 }

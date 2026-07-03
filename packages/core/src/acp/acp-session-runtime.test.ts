@@ -101,8 +101,8 @@ describe('AcpSessionRuntime - transcript projection', () => {
       kind: 'message',
       role: 'user',
       text: 'hello',
-      streaming: false,
     });
+    expect(transcript.committed[0].items[0]).not.toHaveProperty('streaming');
   });
 
   it('folds idle-phase plan updates and settles them after quiesce', async () => {
@@ -311,7 +311,7 @@ describe('AcpSessionRuntime - metadata and enrich', () => {
     });
     expect(h.recording.transcripts.at(-1)?.active?.items.at(-1)).toMatchObject({
       kind: 'execute-tool-call',
-      parentId: 'conv-enrich:turn:0:tool:parent-1',
+      parentToolCallId: 'parent-1',
     });
     resolvePrompt({ stopReason: 'end_turn' });
     await promptPromise;

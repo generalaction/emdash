@@ -37,7 +37,7 @@ import type { AcpPermissionRequest } from './models/permissions';
 import type { PromptInput, QueuedPrompt } from './models/prompt';
 import type { SessionState, StopReason } from './models/session';
 import type { TerminalState } from './models/terminals';
-import type { TranscriptToolCallItem, TranscriptTurnOutcome } from './models/turns';
+import type { ToolCallItem, ToolNode, TranscriptTurnOutcome } from './models/turns';
 import { PermissionBroker } from './permission-broker';
 import { makeToolId } from './reducer/ids';
 import { createToolCallItem } from './reducer/item-fold';
@@ -1123,27 +1123,43 @@ function canAcceptTranscriptEvent(conv: AcpConversation): boolean {
 function buildPermissionToolCall(
   conv: AcpConversation,
   rawToolCall: RequestPermissionRequest['toolCall'] | undefined
-): TranscriptToolCallItem | undefined {
+): ToolCallItem | undefined {
   if (!rawToolCall) return undefined;
   const activeTurn = conv.transcript.activeTurn;
   const toolCallId = rawToolCall.toolCallId;
   if (activeTurn) {
     const id = makeToolId(activeTurn.id, toolCallId);
-    const existing = activeTurn.items.find(
-      (item): item is TranscriptToolCallItem =>
-        'toolCallId' in item && (item.id === id || item.toolCallId === toolCallId)
-    );
+    const existing = findToolCall(activeTurn.items, id, toolCallId);
     if (existing) return structuredClone(existing);
   }
 
   return createToolCallItem({
     id: activeTurn ? makeToolId(activeTurn.id, toolCallId) : `permission:${toolCallId}`,
+    seq: 0,
     toolCallId,
     title: rawToolCall.title ?? 'Unknown',
     toolKind: rawToolCall.kind ?? null,
     status: 'pending',
-    parentId: undefined,
+    parentToolCallId: undefined,
   });
+}
+
+function findToolCall(
+  items: Array<ToolNode | { kind: string; id: string }>,
+  id: string,
+  toolCallId: string
+): ToolCallItem | undefined {
+  for (const item of items) {
+    if (item.kind.endsWith('-tool-call') && 'toolCallId' in item) {
+      if (item.id === id || item.toolCallId === toolCallId) return item as ToolCallItem;
+      const found = findToolCall((item as ToolCallItem).children ?? [], id, toolCallId);
+      if (found) return found;
+    } else if (item.kind === 'tool-group' && 'children' in item) {
+      const found = findToolCall(item.children as ToolNode[], id, toolCallId);
+      if (found) return found;
+    }
+  }
+  return undefined;
 }
 
 function runningBackgroundAgentCount(conv: AcpConversation): number {

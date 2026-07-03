@@ -3,35 +3,13 @@ import { stopReasonSchema } from '../session';
 import { transcriptMessageSchema } from './messages';
 import { transcriptThinkingSchema } from './thinking';
 import {
-  createFileToolCallSchema,
-  createPlanToolCallSchema,
-  deleteFileToolCallSchema,
-  modifyFileToolCallSchema,
-  spawnSubagentToolCallSchema,
-  transcriptExecuteToolCallSchema,
-  transcriptMcpToolCallSchema,
-  transcriptReadToolCallSchema,
-  transcriptSearchToolCallSchema,
-  transcriptUnknownToolCallSchema,
-  transcriptWebFetchToolCallSchema,
+  toolNodeSchema,
 } from './tool-calls';
-import { transcriptToolGroupSnapshotSchema } from './tool-groups';
 
-export const transcriptItemSchema = z.discriminatedUnion('kind', [
+export const transcriptItemSchema = z.union([
   transcriptMessageSchema,
   transcriptThinkingSchema,
-  transcriptExecuteToolCallSchema,
-  transcriptReadToolCallSchema,
-  createFileToolCallSchema,
-  modifyFileToolCallSchema,
-  deleteFileToolCallSchema,
-  transcriptSearchToolCallSchema,
-  transcriptMcpToolCallSchema,
-  transcriptWebFetchToolCallSchema,
-  spawnSubagentToolCallSchema,
-  createPlanToolCallSchema,
-  transcriptUnknownToolCallSchema,
-  transcriptToolGroupSnapshotSchema,
+  toolNodeSchema,
 ]);
 export type TranscriptItem = z.infer<typeof transcriptItemSchema>;
 
@@ -75,6 +53,8 @@ export type TranscriptTurnOutcome = z.infer<typeof transcriptTurnOutcomeSchema>;
 export const transcriptTurnSchema = z.object({
   /** Reducer-generated turn id used to scope all item ids in this exchange. */
   id: z.string(),
+  /** Stable session order, assigned when the turn opens. */
+  seq: z.number().int(),
   /** Who opened the turn: a user prompt or agent-originated background activity. */
   initiator: transcriptTurnInitiatorSchema,
   items: z.array(transcriptItemSchema),

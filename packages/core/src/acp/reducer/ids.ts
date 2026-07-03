@@ -51,10 +51,10 @@ export function makeToolId(turnId: string, toolCallId: string): string {
 
 /**
  * Stable tool group item id.
- * Format: `${turnId}:tool-group:${groupKind}:${index}`
+ * Format: `${firstChildId}:group`
  */
-export function makeToolGroupId(turnId: string, groupKind: string, index: number): string {
-  return `${turnId}:tool-group:${groupKind}:${index}`;
+export function makeToolGroupId(firstChildId: string): string {
+  return `${firstChildId}:group`;
 }
 
 /**

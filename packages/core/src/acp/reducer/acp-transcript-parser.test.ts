@@ -239,8 +239,7 @@ describe('AcpTranscriptParser', () => {
       makeMessageId(makeTurnId(CID, 0), 'auto:assistant:0', 'assistant'),
       makeMessageId(makeTurnId(CID, 0), 'auto:assistant:1', 'assistant'),
     ]);
-    expect(messages[1].streaming).toBe(false);
-    expect(messages[2].streaming).toBe(true);
+    expect(messages.map((message) => message.seq)).toEqual([0, 1, 3]);
   });
 
   it('replay treats id-less user chunks after agent content as new turns', () => {
@@ -397,14 +396,14 @@ describe('AcpTranscriptParser', () => {
 
     const items = p.activeTurn?.items ?? [];
     expect(items.find((i) => i.kind === 'tool-group')).toMatchObject({
-      id: makeToolGroupId(makeTurnId(CID, 0), 'read-batch', 0),
+      id: makeToolGroupId(makeToolId(makeTurnId(CID, 0), 'read-1')),
       label: '2 file reads',
       groupKind: 'read-batch',
-      childIds: [
-        makeToolId(makeTurnId(CID, 0), 'read-1'),
-        makeToolId(makeTurnId(CID, 0), 'read-2'),
-      ],
       status: 'running',
+      children: [
+        { id: makeToolId(makeTurnId(CID, 0), 'read-1') },
+        { id: makeToolId(makeTurnId(CID, 0), 'read-2') },
+      ],
     });
   });
 
@@ -700,7 +699,7 @@ describe('AcpTranscriptParser', () => {
 
   // ── Finalization on commit ────────────────────────────────────────────────
 
-  it('committed turn has streaming=false on all messages', () => {
+  it('committed turn messages do not expose reducer-owned streaming state', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'hello'));
     p.push(assistantChunk('a1', 'world'));
@@ -709,20 +708,33 @@ describe('AcpTranscriptParser', () => {
     const turn = p.history[0];
     for (const item of turn.items) {
       if (item.kind === 'message') {
-        expect(item.streaming).toBe(false);
+        expect(item).not.toHaveProperty('streaming');
       }
     }
   });
 
-  it('active turn messages are streaming=true before commit', () => {
+  it('active turn messages do not expose reducer-owned streaming state', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'hello'));
     p.push(assistantChunk('a1', 'world'));
 
     const activeMsgs = (p.activeTurn?.items ?? []).filter((i) => i.kind === 'message');
     for (const m of activeMsgs) {
-      expect((m as { streaming: boolean }).streaming).toBe(true);
+      expect(m).not.toHaveProperty('streaming');
     }
+  });
+
+  it('assigns monotonic seq values to turns and items', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'first'));
+    p.push(assistantChunk('a1', 'one'));
+    p.endTurn();
+    p.push(userChunk('u2', 'second'));
+    p.push(toolCallUpdate('tc1', 'My Tool'));
+
+    expect(p.history[0].seq).toBe(0);
+    expect(p.activeTurn?.seq).toBe(1);
+    expect(p.activeTurn?.items.map((item) => item.seq)).toEqual([0, 1]);
   });
 
   // ── reset ─────────────────────────────────────────────────────────────────

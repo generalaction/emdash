@@ -6,9 +6,8 @@
  * turn-owned models: messages, thinking segments, tool-call items, and
  * deterministic tool groups.
  *
- * finalizeItems settles all in-progress streaming states for a turn that has
- * just been committed (message.streaming -> false, thinking done + durationMs,
- * running tool/group -> done).
+ * finalizeItems settles all in-progress states for a turn that has just been
+ * committed (thinking done + durationMs, running tool/group -> done).
  *
  * Both functions are pure and allocation-efficient: only changed items are
  * replaced; unchanged items are returned by reference.
@@ -21,15 +20,15 @@ import type {
   TranscriptItem,
   TranscriptMessage,
   TranscriptThinking,
-  TranscriptToolCallItem,
-  TranscriptToolGroupSnapshot,
+  ToolCallItem,
+  ToolGroup,
+  ToolNode,
   ToolStatus,
 } from '../models/turns';
 import { SESSION_PLAN_ID } from '../models/plan';
 import {
   makeDiffId,
   makeMessageId,
-  makeParentId,
   makePlanId,
   makeThinkingId,
   makeToolGroupId,
@@ -56,11 +55,11 @@ function mapToolStatus(status: NormalizedToolStatus | null | undefined): ToolSta
   }
 }
 
-function isToolCallItem(item: TranscriptItem): item is TranscriptToolCallItem {
+function isToolCallItem(item: TranscriptItem): item is ToolCallItem {
   return item.kind.endsWith('-tool-call');
 }
 
-function isToolGroup(item: TranscriptItem): item is TranscriptToolGroupSnapshot {
+function isToolGroup(item: TranscriptItem): item is ToolGroup {
   return item.kind === 'tool-group';
 }
 
@@ -97,39 +96,79 @@ function inferReadPath(title: string): string | undefined {
   return match?.[1];
 }
 
+function compareSeq(a: { seq: number }, b: { seq: number }): number {
+  return a.seq - b.seq;
+}
+
+function stripChildren<T extends ToolCallItem>(item: T): T {
+  if (!item.children?.length) return item;
+  const { children: _children, ...withoutChildren } = item;
+  return withoutChildren as T;
+}
+
+function flattenItems(items: TranscriptItem[]): TranscriptItem[] {
+  const flat: TranscriptItem[] = [];
+  const visit = (item: TranscriptItem | ToolNode): void => {
+    if (isToolGroup(item)) {
+      for (const child of item.children) visit(child);
+      return;
+    }
+    if (isToolCallItem(item)) {
+      flat.push(stripChildren(item));
+      for (const child of item.children ?? []) visit(child);
+      return;
+    }
+    flat.push(item);
+  };
+  for (const item of items) visit(item);
+  return flat.sort(compareSeq);
+}
+
+function maxSeq(items: TranscriptItem[]): number {
+  return items.reduce((max, item) => Math.max(max, item.seq), -1);
+}
+
+function nextSeq(items: TranscriptItem[]): number {
+  return maxSeq(items) + 1;
+}
+
 function baseToolFields(
   id: string,
+  seq: number,
   toolCallId: string,
   title: string,
   status: NormalizedToolStatus | null,
-  parentId: string | undefined,
+  parentToolCallId: string | undefined,
   inputSummary?: string
-): Omit<TranscriptToolCallItem, 'kind'> {
+): Omit<ToolCallItem, 'kind'> {
   return {
     id,
+    seq,
     toolCallId,
     title,
     status: mapToolStatus(status) ?? 'running',
     ...(inputSummary !== undefined ? { inputSummary } : {}),
-    ...(parentId !== undefined ? { parentId } : {}),
+    ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
   };
 }
 
 export function createToolCallItem(params: {
   id: string;
+  seq: number;
   toolCallId: string;
   title: string;
   toolKind: string | null;
   status: NormalizedToolStatus | null;
-  parentId: string | undefined;
+  parentToolCallId: string | undefined;
   inputSummary?: string;
-}): TranscriptToolCallItem {
+}): ToolCallItem {
   const base = baseToolFields(
     params.id,
+    params.seq,
     params.toolCallId,
     params.title,
     params.status,
-    params.parentId,
+    params.parentToolCallId,
     params.inputSummary
   );
   const { title, toolKind } = params;
@@ -155,10 +194,10 @@ export function createToolCallItem(params: {
 }
 
 function updateToolCallItem(
-  item: TranscriptToolCallItem,
+  item: ToolCallItem,
   title: string | null,
   status: NormalizedToolStatus | null
-): TranscriptToolCallItem {
+): ToolCallItem {
   const mapped = mapToolStatus(status ?? undefined);
   const nextTitle = title ?? item.title;
   const common = {
@@ -195,7 +234,7 @@ function updateToolCallItem(
   }
 }
 
-function upsertToolCallItem(items: TranscriptItem[], next: TranscriptToolCallItem): TranscriptItem[] {
+function upsertToolCallItem(items: TranscriptItem[], next: ToolCallItem): TranscriptItem[] {
   const idx = items.findIndex((item) => isToolCallItem(item) && item.id === next.id);
   if (idx >= 0) return items.map((item, i) => (i === idx ? next : item));
   return [...items, next];
@@ -207,15 +246,18 @@ function upsertSpecialEvent(
   turnId: string
 ): TranscriptItem[] {
   const id = makeToolId(turnId, event.toolCallId);
-  const parentId = makeParentId(turnId, event.parentToolCallId);
+  const existing = items.find((item): item is ToolCallItem => isToolCallItem(item) && item.id === id);
+  const seq = existing?.seq ?? nextSeq(items);
+  const parentToolCallId = event.parentToolCallId ?? undefined;
   const mapped = mapToolStatus(event.status) ?? 'running';
 
-  let next: TranscriptToolCallItem;
+  let next: ToolCallItem;
   switch (event.kind) {
     case 'subagent':
       next = {
         kind: 'spawn-subagent-tool-call',
         id,
+        seq,
         toolCallId: event.toolCallId,
         title: event.title,
         name: event.title,
@@ -223,44 +265,47 @@ function upsertSpecialEvent(
         ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
         ...(event.background !== undefined ? { background: event.background } : {}),
         ...(event.agentId !== undefined ? { agentId: event.agentId } : {}),
-        ...(parentId !== undefined ? { parentId } : {}),
+        ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
       };
       break;
     case 'search':
       next = {
         kind: 'search-tool-call',
         id,
+        seq,
         toolCallId: event.toolCallId,
         title: event.query,
         query: event.query,
         status: mapped,
         ...(event.matchCount !== undefined ? { matchCount: event.matchCount } : {}),
-        ...(parentId !== undefined ? { parentId } : {}),
+        ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
       };
       break;
     case 'mcp_tool':
       next = {
         kind: 'mcp-tool-call',
         id,
+        seq,
         toolCallId: event.toolCallId,
         title: event.tool,
         tool: event.tool,
         status: mapped,
         ...(event.server !== undefined ? { server: event.server } : {}),
         ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
-        ...(parentId !== undefined ? { parentId } : {}),
+        ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
       };
       break;
     case 'web_fetch':
       next = {
         kind: 'web-fetch-tool-call',
         id,
+        seq,
         toolCallId: event.toolCallId,
         title: event.title ?? event.url,
         url: event.url,
         status: mapped,
         ...(event.title !== undefined ? { pageTitle: event.title } : {}),
-        ...(parentId !== undefined ? { parentId } : {}),
+        ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
       };
       break;
   }
@@ -293,7 +338,7 @@ function upsertFileOperations(
   toolId: string,
   toolCallId: string,
   title: string,
-  parentId: string | undefined,
+  parentToolCallId: string | undefined,
   diffs: NormalizedDiff[],
   status: NormalizedToolStatus | null
 ): TranscriptItem[] {
@@ -304,15 +349,16 @@ function upsertFileOperations(
     const idx = result.findIndex((it) => isToolCallItem(it) && it.id === id);
     const base = {
       id,
+      seq: nextSeq(result),
       toolCallId,
       title,
       path: d.path,
       status: mapped ?? 'running',
-      ...(parentId !== undefined ? { parentId } : {}),
+      ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
     };
     if (idx >= 0) {
-      const existing = result[idx] as TranscriptToolCallItem;
-      const updated: TranscriptToolCallItem =
+      const existing = result[idx] as ToolCallItem;
+      const updated: ToolCallItem =
         d.oldText === null
           ? ({
               ...existing,
@@ -322,7 +368,7 @@ function upsertFileOperations(
               title,
               toolCallId,
               ...(mapped !== undefined ? { status: mapped } : {}),
-              ...(parentId !== undefined ? { parentId } : {}),
+              ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
             } satisfies CreateFileToolCall)
           : ({
               ...existing,
@@ -333,7 +379,7 @@ function upsertFileOperations(
               title,
               toolCallId,
               ...(mapped !== undefined ? { status: mapped } : {}),
-              ...(parentId !== undefined ? { parentId } : {}),
+              ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
             } satisfies ModifyFileToolCall);
       result = result.map((it, i) => (i === idx ? updated : it));
     } else if (d.oldText === null) {
@@ -406,6 +452,7 @@ function upsertPlanToolCall(
   const next: CreatePlanToolCall = {
     kind: 'create-plan-tool-call',
     id,
+    seq: idx >= 0 ? items[idx].seq : nextSeq(items),
     toolCallId: id,
     title: 'Plan updated',
     status: planStatus(event.entries),
@@ -427,73 +474,98 @@ function upsertPlanToolCall(
   return [...items, next];
 }
 
-function readGroupStatus(children: TranscriptToolCallItem[]): ToolStatus {
-  if (children.some((child) => child.status === 'running')) return 'running';
-  if (children.some((child) => child.status === 'error')) return 'error';
+function nodeStatus(node: ToolNode): ToolStatus {
+  return node.status;
+}
+
+function readGroupStatus(children: ToolNode[]): ToolStatus {
+  if (children.some((child) => nodeStatus(child) === 'running')) return 'running';
+  if (children.some((child) => nodeStatus(child) === 'error')) return 'error';
   return 'done';
 }
 
-function rebuildReadGroups(items: TranscriptItem[], turnId: string): TranscriptItem[] {
-  const source = items.filter((item) => !(isToolGroup(item) && item.groupKind === 'read-batch'));
-  const result: TranscriptItem[] = [];
-  let groupIndex = 0;
-  for (let i = 0; i < source.length; ) {
-    const item = source[i];
+function wrapReadGroups<T extends TranscriptItem | ToolNode>(items: T[]): Array<T | ToolGroup> {
+  const result: Array<T | ToolGroup> = [];
+  for (let i = 0; i < items.length; ) {
+    const item = items[i];
     if (item.kind !== 'read-tool-call') {
       result.push(item);
       i += 1;
       continue;
     }
 
-    const run: TranscriptToolCallItem[] = [item];
+    const run: ToolNode[] = [item];
     let j = i + 1;
-    while (j < source.length && source[j].kind === 'read-tool-call') {
-      run.push(source[j] as TranscriptToolCallItem);
+    while (j < items.length && items[j].kind === 'read-tool-call') {
+      run.push(items[j] as ToolNode);
       j += 1;
     }
 
     if (run.length > 1) {
       result.push({
         kind: 'tool-group',
-        id: makeToolGroupId(turnId, 'read-batch', groupIndex),
+        id: makeToolGroupId(run[0].id),
+        seq: run[0].seq,
         label: `${run.length} file reads`,
         groupKind: 'read-batch',
-        childIds: run.map((child) => child.id),
         status: readGroupStatus(run),
-        ...(run[0].parentId !== undefined ? { parentId: run[0].parentId } : {}),
+        children: run,
       });
-      groupIndex += 1;
+    } else {
+      result.push(item);
     }
-    result.push(...run);
     i = j;
   }
   return result;
 }
 
-function applyHierarchicalChildren(items: TranscriptItem[]): TranscriptItem[] {
-  const childrenByParent = new Map<string, string[]>();
-  for (const item of items) {
-    if ('parentId' in item && item.parentId !== undefined) {
-      const children = childrenByParent.get(item.parentId) ?? [];
-      children.push(item.id);
-      childrenByParent.set(item.parentId, children);
+function buildTree(flatItems: TranscriptItem[], turnId: string): TranscriptItem[] {
+  const toolById = new Map<string, ToolCallItem>();
+  const childrenByParent = new Map<string, ToolCallItem[]>();
+  const topLevel: TranscriptItem[] = [];
+
+  for (const item of flatItems) {
+    if (isToolCallItem(item)) {
+      toolById.set(item.id, stripChildren(item));
     }
   }
-  return items.map((item): TranscriptItem => {
-    if (!isToolCallItem(item)) return item;
-    const childIds = childrenByParent.get(item.id);
-    if (!childIds?.length) {
-      if (!item.childIds?.length) return item;
-      const { childIds: _childIds, ...withoutChildIds } = item;
-      return withoutChildIds as TranscriptItem;
+
+  for (const item of flatItems) {
+    if (!isToolCallItem(item)) {
+      topLevel.push(item);
+      continue;
     }
-    if (item.childIds?.join('\0') === childIds.join('\0')) return item;
-    return { ...item, childIds };
-  });
+
+    const parentItemId =
+      item.parentToolCallId !== undefined ? makeToolId(turnId, item.parentToolCallId) : undefined;
+    if (parentItemId !== undefined && toolById.has(parentItemId)) {
+      const children = childrenByParent.get(parentItemId) ?? [];
+      children.push(stripChildren(item));
+      childrenByParent.set(parentItemId, children);
+    } else {
+      topLevel.push(stripChildren(item));
+    }
+  }
+
+  const attachChildren = (item: ToolCallItem): ToolCallItem => {
+    const rawChildren = childrenByParent.get(item.id);
+    if (!rawChildren?.length) return stripChildren(item);
+
+    const children = wrapReadGroups(
+      rawChildren.map(attachChildren).sort(compareSeq)
+    ) as ToolNode[];
+    return { ...stripChildren(item), children };
+  };
+
+  const attached = topLevel.map((item): TranscriptItem =>
+    isToolCallItem(item) ? attachChildren(item) : item
+  );
+
+  return wrapReadGroups(attached.sort(compareSeq)) as TranscriptItem[];
 }
 
 function normalizeToolStructure(items: TranscriptItem[], turnId: string): TranscriptItem[] {
-  return applyHierarchicalChildren(rebuildReadGroups(items, turnId));
+  return buildTree(flattenItems(items), turnId);
 }
 
 /**
@@ -509,10 +581,11 @@ export function foldItem(
   turnId: string,
   at: number
 ): TranscriptItem[] {
+  const flatItems = flattenItems(items);
   switch (event.kind) {
     case 'message': {
       const id = makeMessageId(turnId, event.messageId, event.role);
-      const base = finalizeOpenThinking(items, at);
+      const base = finalizeOpenThinking(flatItems, at);
       const idx = base.findIndex((it) => it.kind === 'message' && it.id === id);
       if (idx >= 0) {
         // Append chunk to existing message.
@@ -524,66 +597,71 @@ export function foldItem(
             ? { attachments: [...(msg.attachments ?? []), ...event.attachments] }
             : {}),
         };
-        return base.map((it, i) => (i === idx ? updated : it));
+        return normalizeToolStructure(base.map((it, i) => (i === idx ? updated : it)), turnId);
       }
       // New message.
       const newMsg: TranscriptMessage = {
         kind: 'message',
         id,
+        seq: nextSeq(base),
         role: event.role,
         text: event.text,
-        streaming: true,
         ...(event.attachments?.length ? { attachments: event.attachments } : {}),
       };
-      return [...base, newMsg];
+      return normalizeToolStructure([...base, newMsg], turnId);
     }
 
     case 'thinking': {
       const id = makeThinkingId(turnId, event.messageId);
-      const idx = items.findIndex(
+      const idx = flatItems.findIndex(
         (it) => it.kind === 'thinking' && it.id === id && it.status === 'thinking'
       );
       if (idx >= 0) {
-        const th = items[idx] as TranscriptThinking;
-        return items.map((it, i) => (i === idx ? { ...th, text: th.text + event.text } : it));
+        const th = flatItems[idx] as TranscriptThinking;
+        return normalizeToolStructure(
+          flatItems.map((it, i) => (i === idx ? { ...th, text: th.text + event.text } : it)),
+          turnId
+        );
       }
       const newThinking: TranscriptThinking = {
         kind: 'thinking',
         id,
+        seq: nextSeq(flatItems),
         segmentId: event.messageId,
         text: event.text,
         status: 'thinking',
         startedAt: at,
       };
-      return [...finalizeOpenThinking(items, at), newThinking];
+      return normalizeToolStructure([...finalizeOpenThinking(flatItems, at), newThinking], turnId);
     }
 
     case 'tool_call': {
       const toolId = makeToolId(turnId, event.toolCallId);
-      const parentId = makeParentId(turnId, event.parentToolCallId);
-      const base = finalizeOpenThinking(items, at);
+      const parentToolCallId = event.parentToolCallId ?? undefined;
+      const base = finalizeOpenThinking(flatItems, at);
       if (event.diffs.length > 0) {
         const next = upsertFileOperations(
           base,
           toolId,
           event.toolCallId,
           event.title,
-          parentId,
+          parentToolCallId,
           event.diffs,
           event.status
         );
         return normalizeToolStructure(next, turnId);
       }
 
-      if (isEditKind(event.toolKind)) return base;
+      if (isEditKind(event.toolKind)) return normalizeToolStructure(base, turnId);
 
       const tool = createToolCallItem({
         id: toolId,
+        seq: nextSeq(base),
         toolCallId: event.toolCallId,
         title: event.title,
         toolKind: event.toolKind,
         status: event.status,
-        parentId,
+        parentToolCallId,
       });
       const next = upsertToolCallItem(base, tool);
       return normalizeToolStructure(next, turnId);
@@ -591,15 +669,15 @@ export function foldItem(
 
     case 'tool_update': {
       const toolId = makeToolId(turnId, event.toolCallId);
-      const parentId = makeParentId(turnId, event.parentToolCallId);
-      const base = finalizeOpenThinking(items, at);
+      const parentToolCallId = event.parentToolCallId ?? undefined;
+      const base = finalizeOpenThinking(flatItems, at);
       if (event.diffs.length > 0) {
         const next = upsertFileOperations(
           base,
           toolId,
           event.toolCallId,
           event.title ?? 'Edit file',
-          parentId,
+          parentToolCallId,
           event.diffs,
           event.status
         );
@@ -609,7 +687,7 @@ export function foldItem(
       const idx = base.findIndex((it) => isToolCallItem(it) && it.id === toolId);
       let next: TranscriptItem[];
       if (idx >= 0) {
-        const tool = base[idx] as TranscriptToolCallItem;
+        const tool = base[idx] as ToolCallItem;
         const updated = updateToolCallItem(tool, event.title, event.status);
         next = base.map((it, i) => (i === idx ? updated : it));
       } else if (hasFileOperationsForToolCall(base, event.toolCallId)) {
@@ -621,11 +699,12 @@ export function foldItem(
           base,
           createToolCallItem({
             id: toolId,
+            seq: nextSeq(base),
             toolCallId: event.toolCallId,
             title: event.title ?? 'unknown',
             toolKind: event.toolKind,
             status: event.status,
-            parentId,
+            parentToolCallId,
           })
         );
       }
@@ -638,12 +717,12 @@ export function foldItem(
     case 'search':
     case 'mcp_tool':
     case 'web_fetch': {
-      const base = finalizeOpenThinking(items, at);
+      const base = finalizeOpenThinking(flatItems, at);
       return upsertSpecialEvent(base, event, turnId);
     }
 
     case 'plan': {
-      const base = finalizeOpenThinking(items, at);
+      const base = finalizeOpenThinking(flatItems, at);
       return normalizeToolStructure(upsertPlanToolCall(base, turnId, event), turnId);
     }
 
@@ -656,19 +735,33 @@ export function foldItem(
 }
 
 /**
- * Settle all in-progress streaming states for a committed turn.
+ * Settle all in-progress states for a committed turn.
  *
- * - message.streaming → false
  * - thinking status 'thinking' → 'done' + computed durationMs
  * - tool status 'running' → 'done'
  *
  * Input must be plain objects (not Solid/MobX proxies).
  */
 export function finalizeItems(items: TranscriptItem[], at: number): TranscriptItem[] {
+  const finalizeNode = (item: ToolNode): ToolNode => {
+    if (isToolGroup(item)) {
+      const children = item.children.map(finalizeNode);
+      return { ...item, children, status: readGroupStatus(children) };
+    }
+
+    const children = item.children?.map(finalizeNode);
+    const status = item.status === 'running' ? 'done' : item.status;
+    return {
+      ...item,
+      status,
+      ...(children?.length ? { children } : {}),
+    } as ToolNode;
+  };
+
   return items.map((item): TranscriptItem => {
     switch (item.kind) {
       case 'message':
-        return item.streaming ? { ...item, streaming: false } : item;
+        return item;
       case 'thinking':
         return item.status === 'thinking'
           ? { ...item, status: 'done' as const, durationMs: at - item.startedAt }
@@ -685,7 +778,7 @@ export function finalizeItems(items: TranscriptItem[], at: number): TranscriptIt
       case 'create-plan-tool-call':
       case 'unknown-tool-call':
       case 'tool-group':
-        return item.status === 'running' ? { ...item, status: 'done' as const } : item;
+        return finalizeNode(item) as TranscriptItem;
     }
   });
 }
