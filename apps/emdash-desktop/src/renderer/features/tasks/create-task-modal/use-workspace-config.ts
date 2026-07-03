@@ -11,7 +11,11 @@ import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspacePresetId } from '@shared/core/workspaces/workspace-presets';
 import { compileSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
 import { useBranchName, type BranchNameState } from './use-branch-name';
-import { useBranchSelection, type BranchSelectionState } from './use-branch-selection';
+import {
+  useBranchSelection,
+  type BranchSelectionInitial,
+  type BranchSelectionState,
+} from './use-branch-selection';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -111,6 +115,7 @@ export type WorkspaceConfigInitial = {
   mode?: WorkspaceMode;
   presetId?: WorkspacePresetId;
   selectedWorkspaceId?: string | null;
+  branchSelection?: BranchSelectionInitial;
 };
 
 export function useWorkspaceConfig(opts: {
@@ -190,8 +195,7 @@ export function useWorkspaceConfig(opts: {
     projectId,
     defaultBranch,
     isUnborn,
-    currentBranch,
-    undefined,
+    initial?.branchSelection,
     createBranchAndWorktreeDefault
   );
 

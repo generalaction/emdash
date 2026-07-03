@@ -1,4 +1,3 @@
-import type { GitBranchRef } from '@emdash/core/git';
 import { useMemo, useState } from 'react';
 import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
 import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
@@ -26,7 +25,7 @@ const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
  */
 function workspaceInitialFromConfig(
   config: StoredAutomationTaskConfig | null | undefined
-): WorkspaceConfigInitial & { fromBranch?: GitBranchRef; pushBranch?: boolean } {
+): WorkspaceConfigInitial {
   if (!config) return { mode: 'new-worktree', presetId: 'new-worktree' };
   const { git, workspace } = config.workspaceConfig;
 
@@ -38,8 +37,22 @@ function workspaceInitialFromConfig(
     return {
       mode: 'new-worktree',
       presetId: 'new-worktree',
-      fromBranch: git.fromBranch,
-      pushBranch: git.pushBranch,
+      branchSelection: {
+        createBranchAndWorktree: true,
+        branchOverride: git.fromBranch,
+        pushBranch: git.pushBranch,
+      },
+    };
+  }
+
+  if (git.kind === 'use-branch') {
+    return {
+      mode: 'new-worktree',
+      presetId: 'new-worktree',
+      branchSelection: {
+        createBranchAndWorktree: false,
+        branchOverride: { type: 'local', branch: git.branchName },
+      },
     };
   }
 

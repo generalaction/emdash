@@ -14,7 +14,6 @@ export function useBranchSelection(
   selectedProjectId: string | undefined,
   defaultBranch: GitBranchRef | undefined,
   isUnborn: boolean,
-  currentBranchName?: string | null,
   initial?: BranchSelectionInitial,
   createBranchAndWorktreeByDefault = true
 ) {
@@ -44,11 +43,9 @@ export function useBranchSelection(
   );
 
   const selectedBranch: GitBranchRef | undefined =
-    !createBranchAndWorktree && currentBranchName
-      ? { type: 'local', branch: currentBranchName }
-      : branchOverride !== undefined && branchOverride.projectId === selectedProjectId
-        ? branchOverride.branch
-        : defaultBranch;
+    branchOverride !== undefined && branchOverride.projectId === selectedProjectId
+      ? branchOverride.branch
+      : defaultBranch;
 
   const setSelectedBranch = useCallback(
     (branch: GitBranchRef | undefined) => {
