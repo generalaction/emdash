@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/shared/openInApps.ts
+  s_2ff23cc11ed562::t_1d4907a07bb179 554-555
+  s_2ff23cc11ed562::t_a2c2ee7d2a3d55 542,544,551-552
+  s_2ff23cc11ed562::t_08e74342a8c9ce 61,535-541,543,545-550,553
+apps/emdash-desktop/src/shared/openInApps.test.ts
+  s_2ff23cc11ed562::t_ef9c59e9792ce2 83-87,90-92,94
+  s_2ff23cc11ed562::t_9437037524e196 70-82,88-89,93,95-96
+apps/emdash-desktop/src/assets/images/rider.svg
+  s_2ff23cc11ed562::t_eccd49b1704406 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "9e78be16002a21bee490f4947be81854a3677ad9",
+  "prompts": {},
+  "sessions": {
+    "s_2ff23cc11ed562": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2830-4010-7bc0-96ba-5f7afc26f89e",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
