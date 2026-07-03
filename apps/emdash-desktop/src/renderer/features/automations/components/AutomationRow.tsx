@@ -24,6 +24,7 @@ import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRunStatus } from '@shared/core/automations/automation-run';
+import { formatTriggerScheduleLabel } from '@shared/core/automations/validation';
 import { formatRunTriggerKindLabel } from '../automation-run-format';
 
 const RUN_STATUS_ICON: Record<
@@ -66,13 +67,7 @@ export const AutomationRow = observer(function AutomationRow({
   const scheduleLabel = trigger
     ? (() => {
         if ((trigger.kind ?? 'cron') === 'rrule') {
-          return (
-            trigger.expr
-              .split('\n')
-              .find((line) => line.trim().startsWith('RRULE:'))
-              ?.replace(/^RRULE:/, 'RRULE: ')
-              .trim() ?? 'Custom RRULE'
-          );
+          return formatTriggerScheduleLabel(trigger);
         }
         try {
           return cronstrue.toString(trigger.expr.trim());

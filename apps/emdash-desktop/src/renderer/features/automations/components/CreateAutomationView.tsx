@@ -12,7 +12,7 @@ import { Label } from '@renderer/lib/ui/label';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
 import type { Automation } from '@shared/core/automations/automation';
 import type { ConversationConfig } from '@shared/core/automations/config';
-import { assertValidTrigger } from '@shared/core/automations/validation';
+import { assertValidTrigger, normalizeTriggerConfig } from '@shared/core/automations/validation';
 import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';
@@ -64,8 +64,9 @@ export const CreateAutomationView = observer(function CreateAutomationView({
     setError(null);
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
+    const normalizedTriggerConfig = normalizeTriggerConfig(triggerConfig);
     try {
-      assertValidTrigger(triggerConfig);
+      assertValidTrigger(normalizedTriggerConfig);
     } catch (validationError) {
       setCronError(formatAutomationError(validationError));
       return;
@@ -83,7 +84,7 @@ export const CreateAutomationView = observer(function CreateAutomationView({
       const trimmedName = name.trim();
       const saved = await create.mutateAsync({
         name: trimmedName,
-        triggerConfig,
+        triggerConfig: normalizedTriggerConfig,
         conversationConfig,
         taskConfig,
         projectId: effectiveProjectId,

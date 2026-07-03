@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Automation } from '@shared/core/automations/automation';
 import type { ConversationConfig, TriggerConfig } from '@shared/core/automations/config';
-import { assertValidTrigger } from '@shared/core/automations/validation';
+import { assertValidTrigger, normalizeTriggerConfig } from '@shared/core/automations/validation';
 import { formatAutomationError } from './automation-run-format';
 import { useAutomations } from './use-automations';
 import { useAutomationFormState } from './useAutomationFormState';
@@ -11,6 +11,7 @@ export type AutomationSettingsAutoSave = ReturnType<typeof useAutomationSettings
 export function useAutomationSettingsAutoSave(automation: Automation) {
   const formState = useAutomationFormState(automation);
   const { updateSettings, rename } = useAutomations();
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const {
     effectiveProjectId,
@@ -36,14 +37,16 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
 
   function savePatch(overrideTrigger?: TriggerConfig) {
     if (!effectiveProjectId) return;
-    const activeTrigger = overrideTrigger ?? triggerConfig;
+    const activeTrigger = normalizeTriggerConfig(overrideTrigger ?? triggerConfig);
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
     try {
       assertValidTrigger(activeTrigger);
-    } catch {
+    } catch (error) {
+      setValidationError(formatAutomationError(error));
       return;
     }
+    setValidationError(null);
     if (!name.trim() || !prompt.trim()) return;
     void updateSettings.mutateAsync({
       id: automation.id,
@@ -108,11 +111,13 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     void rename.mutateAsync({ id: automation.id, name: trimmed });
   }
 
-  const saveError = updateSettings.error
-    ? formatAutomationError(updateSettings.error)
-    : rename.error
-      ? formatAutomationError(rename.error)
-      : null;
+  const saveError = validationError
+    ? validationError
+    : updateSettings.error
+      ? formatAutomationError(updateSettings.error)
+      : rename.error
+        ? formatAutomationError(rename.error)
+        : null;
 
   return {
     formState,

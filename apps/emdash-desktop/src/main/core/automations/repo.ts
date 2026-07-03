@@ -28,7 +28,11 @@ import type {
   TriggerConfig,
 } from '@shared/core/automations/config';
 import { storedAutomationTaskConfig } from '@shared/core/automations/config';
-import { assertValidTrigger, getNextTriggerRunAt } from '@shared/core/automations/validation';
+import {
+  assertValidTrigger,
+  getNextTriggerRunAt,
+  normalizeTriggerConfig,
+} from '@shared/core/automations/validation';
 
 function assertValidAutomationInput(input: {
   triggerConfig: TriggerConfig;
@@ -248,18 +252,18 @@ export async function createAutomation(input: CreateAutomationParams): Promise<A
     throw new Error('project_not_found');
   }
 
+  const now = Date.now();
+  const triggerConfig = normalizeTriggerConfig(input.triggerConfig, now);
   assertValidAutomationInput({
-    triggerConfig: input.triggerConfig,
+    triggerConfig,
     conversationConfig: input.conversationConfig,
   });
-
-  const now = Date.now();
   const [row] = await db
     .insert(automations)
     .values({
       id: randomUUID(),
       name: input.name.trim(),
-      triggerConfig: input.triggerConfig,
+      triggerConfig,
       conversationConfig: input.conversationConfig,
       taskConfig: input.taskConfig ?? null,
       projectId: input.projectId,
@@ -293,7 +297,10 @@ export async function updateAutomationSettings(
     if (!existingRow) return null;
 
     const existing = mapAutomationRow(existingRow);
-    const finalTriggerConfig = patch.triggerConfig ?? existing.triggerConfig;
+    const normalizedPatchTriggerConfig = patch.triggerConfig
+      ? normalizeTriggerConfig(patch.triggerConfig)
+      : undefined;
+    const finalTriggerConfig = normalizedPatchTriggerConfig ?? existing.triggerConfig;
     const finalConversationConfig = patch.conversationConfig ?? existing.conversationConfig;
     const finalProjectId = patch.projectId !== undefined ? patch.projectId : existing.projectId;
 
@@ -308,7 +315,7 @@ export async function updateAutomationSettings(
     const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
     if (patch.projectId !== undefined) values.projectId = patch.projectId;
     if (patch.triggerConfig !== undefined) {
-      values.triggerConfig = patch.triggerConfig;
+      values.triggerConfig = normalizedPatchTriggerConfig;
     }
     if (patch.conversationConfig !== undefined) {
       values.conversationConfig = patch.conversationConfig;
