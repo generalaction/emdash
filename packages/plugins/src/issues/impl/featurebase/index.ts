@@ -8,7 +8,7 @@ import {
 import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
 import type { IssueListResult } from '../../types';
-import { toIssue } from './mapper';
+import { toIssueData } from './mapper';
 
 export async function listIssues(
   credentials: IntegrationCredentials,
@@ -25,7 +25,7 @@ export async function listIssues(
       sortBy: 'recent',
       sortOrder: 'desc',
     });
-    return ok(result.data.map(toIssue));
+    return ok(result.data.map(toIssueData));
   } catch (error) {
     return err(toIntegrationError(error, 'Featurebase'));
   }
@@ -51,7 +51,7 @@ export async function searchIssues(
       sortOrder: 'desc',
       q: term,
     });
-    return ok(result.data.map(toIssue));
+    return ok(result.data.map(toIssueData));
   } catch (error) {
     return err(toIntegrationError(error, 'Featurebase'));
   }

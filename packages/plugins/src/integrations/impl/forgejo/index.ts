@@ -1,5 +1,6 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
-import { toForgejoErrorMessage, verifyForgejoCredentials } from './client';
+import { verifyForgejoCredentials } from './client';
 import { icon } from './icon';
 
 const plugin = defineIntegrationPlugin(
@@ -39,16 +40,17 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
-    async verify(_host, credentials) {
-      try {
-        const result = await verifyForgejoCredentials(credentials);
-        return { connected: true, ...result };
-      } catch (error) {
+    async verify(_host, credentials): Promise<VerifyResult> {
+      const result = await verifyForgejoCredentials(credentials);
+      if (!result.success)
         return {
           connected: false,
-          error: toForgejoErrorMessage(error, 'Failed to validate Forgejo credentials.'),
+          error: result.error.message,
         };
-      }
+      return {
+        connected: true,
+        ...result.data,
+      };
     },
   },
 });

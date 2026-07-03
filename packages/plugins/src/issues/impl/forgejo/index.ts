@@ -1,36 +1,84 @@
 import { err, ok } from '@emdash/shared';
-import { issueListIssues, type Issue as ForgejoIssue } from '@llamaduck/forgejo-ts';
-import { RemoteHostMismatchError } from '../../../integrations/helpers/hosted-instance';
+import { issueListIssues } from '@llamaduck/forgejo-ts';
+import { toIntegrationError } from '../../../integrations/helpers/error';
+import type { IntegrationCredentials } from '../../../integrations/host';
 import {
-  resolveForgejoRepo,
-  toForgejoErrorMessage,
+  createForgejoClient,
+  readForgejoCredentials,
 } from '../../../integrations/impl/forgejo/client';
-import { clampIssueLimit, issueError, normalizeSearchTerm } from '../../helpers/provider-inputs';
+import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
-import type { IssueData, IssueError } from '../../types';
+import type { IssueListResult } from '../../types';
+import { toIssueData } from './mapper';
+import { resolveForgejoRepository } from './repo-resolver';
 
-function toForgejoIssueError(error: unknown, fallback: string): IssueError {
-  if (error instanceof RemoteHostMismatchError) {
-    return issueError('unsupported_host', error.message);
+export async function listIssues(
+  credentials: IntegrationCredentials,
+  repositoryUrl: string | undefined,
+  limit: number
+): Promise<IssueListResult> {
+  const parsedCredentials = readForgejoCredentials(credentials);
+  if (!parsedCredentials.success) return err(parsedCredentials.error);
+
+  const repository = resolveForgejoRepository(parsedCredentials.data, repositoryUrl);
+  if (!repository.success) return err(repository.error);
+
+  const client = createForgejoClient(parsedCredentials.data);
+
+  try {
+    const { data: issues } = await issueListIssues({
+      client,
+      path: { owner: repository.data.owner, repo: repository.data.repo },
+      query: {
+        state: 'open',
+        type: 'issues',
+        sort: 'recentupdate',
+        limit: clampIssueLimit(limit, 50, 100),
+      },
+      throwOnError: true,
+    });
+
+    return ok((issues ?? []).map((issue) => toIssueData(issue, repository.data.repoName)));
+  } catch (error) {
+    return err(toIntegrationError(error, 'Forgejo'));
   }
-  return issueError('generic', toForgejoErrorMessage(error, fallback));
 }
 
-function toIssue(issue: ForgejoIssue, repoName: string): IssueData {
-  const assignee = issue.assignee;
-  const assigneeName = assignee?.full_name || assignee?.login;
-  const assigneeLogin = assignee?.login || assignee?.full_name;
+export async function searchIssues(
+  credentials: IntegrationCredentials,
+  repositoryUrl: string | undefined,
+  searchTerm: string,
+  limit: number
+): Promise<IssueListResult> {
+  const term = normalizeSearchTerm(searchTerm);
+  if (!term) return ok([]);
 
-  return {
-    identifier: `#${issue.number ?? 0}`,
-    title: issue.title ?? '',
-    url: issue.html_url ?? '',
-    description: issue.body ?? undefined,
-    status: issue.state ?? undefined,
-    assignees: assigneeName || assigneeLogin ? [assigneeName ?? assigneeLogin ?? ''] : undefined,
-    project: repoName,
-    updatedAt: issue.updated_at ?? undefined,
-  };
+  const parsedCredentials = readForgejoCredentials(credentials);
+  if (!parsedCredentials.success) return err(parsedCredentials.error);
+
+  const repository = resolveForgejoRepository(parsedCredentials.data, repositoryUrl);
+  if (!repository.success) return err(repository.error);
+
+  const client = createForgejoClient(parsedCredentials.data);
+
+  try {
+    const { data: issues } = await issueListIssues({
+      client,
+      path: { owner: repository.data.owner, repo: repository.data.repo },
+      query: {
+        state: 'open',
+        type: 'issues',
+        q: term,
+        sort: 'recentupdate',
+        limit: clampIssueLimit(limit, 20, 100),
+      },
+      throwOnError: true,
+    });
+
+    return ok((issues ?? []).map((issue) => toIssueData(issue, repository.data.repoName)));
+  } catch (error) {
+    return err(toIntegrationError(error, 'Forgejo'));
+  }
 }
 
 const plugin = defineIssuesPlugin(
@@ -41,55 +89,8 @@ const plugin = defineIssuesPlugin(
 
 export const provider = registerIssuesPluginBehavior(plugin, {
   issues: {
-    async listIssues(host, opts) {
-      const perPage = clampIssueLimit(opts.limit, 50, 100);
-
-      try {
-        const { client, owner, repo, repoName } = await resolveForgejoRepo(
-          host.credentials,
-          opts.repositoryUrl
-        );
-        const { data: issues } = await issueListIssues({
-          client,
-          path: { owner, repo },
-          query: { state: 'open', type: 'issues', sort: 'recentupdate', limit: perPage },
-          throwOnError: true,
-        });
-
-        return ok((issues ?? []).map((issue) => toIssue(issue, repoName)));
-      } catch (error) {
-        return err(toForgejoIssueError(error, 'Failed to fetch Forgejo issues.'));
-      }
-    },
-
-    async searchIssues(host, opts) {
-      const term = normalizeSearchTerm(opts.searchTerm);
-      if (!term) return ok([]);
-
-      const perPage = clampIssueLimit(opts.limit, 20, 100);
-
-      try {
-        const { client, owner, repo, repoName } = await resolveForgejoRepo(
-          host.credentials,
-          opts.repositoryUrl
-        );
-        const { data: issues } = await issueListIssues({
-          client,
-          path: { owner, repo },
-          query: {
-            state: 'open',
-            type: 'issues',
-            q: term,
-            sort: 'recentupdate',
-            limit: perPage,
-          },
-          throwOnError: true,
-        });
-
-        return ok((issues ?? []).map((issue) => toIssue(issue, repoName)));
-      } catch (error) {
-        return err(toForgejoIssueError(error, 'Failed to search Forgejo issues.'));
-      }
-    },
+    listIssues: (host, opts) => listIssues(host.credentials, opts.repositoryUrl, opts.limit),
+    searchIssues: (host, opts) =>
+      searchIssues(host.credentials, opts.repositoryUrl, opts.searchTerm, opts.limit),
   },
 });
