@@ -31,13 +31,13 @@ import { AgentTerminalManager } from './agent-terminal-manager';
 import type { AgentUpdate } from './agent-update';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
-import type { AcpPermissionRequest } from './permissions';
+import type { AcpPermissionRequest } from './models/permissions';
 import type { AcpSessionRuntimeDeps, AcpStartInput, IAcpSessionRuntime } from './runtime';
 import { SessionMachine } from './session-machine';
 import type { Command, DomainEvent, Effect } from './session-machine';
 import type { AcpPromptImage, ChatHistory, SessionState } from './state';
 import { toSessionSnapshot } from './state';
-import type { TerminalSnapshot } from './terminals';
+import type { TerminalSnapshot } from './models/terminals';
 import type { AcpProcessHandle } from './transport';
 import { readTextFile, writeTextFile } from './transport';
 

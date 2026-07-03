@@ -1,4 +1,4 @@
-import type { AcpTerminalExit } from './transport';
+import type { AcpTerminalExit } from '../transport';
 
 /**
  * Serializable snapshot of a managed terminal's state.

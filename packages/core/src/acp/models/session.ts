@@ -7,10 +7,7 @@
  * the workspace-server contract shapes in schemas.ts but are owned here so
  * the parser stays dependency-free of the contract/Zod layer.
  *
- * No Date, Map, or Set — fully LiveModel-compatible.
  */
-
-// ── Config option types ────────────────────────────────────────────────────
 
 /**
  * A single selectable option in any config group (model, effort, mode).
@@ -43,8 +40,6 @@ export type SessionCommand = {
   description: string;
   inputHint?: string;
 };
-
-// ── SessionConfigState ─────────────────────────────────────────────────────
 
 /**
  * Materialized view of session configuration derived from config_option_update,
@@ -88,8 +83,6 @@ export function emptyConfig(): SessionConfigState {
     availableCommands: [],
   };
 }
-
-// ── SessionUsage ────────────────────────────────────────────────────────────
 
 /**
  * Context-window consumption and cost figures from usage_update notifications.

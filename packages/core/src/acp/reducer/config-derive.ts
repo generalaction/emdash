@@ -10,14 +10,10 @@
  */
 
 import type { SessionConfigOption } from '@agentclientprotocol/sdk';
-import type { ModelChoice, SelectableOption, SessionConfigState } from './session-model';
-
-// ── Internal option type ───────────────────────────────────────────────────
+import type { ModelChoice, SelectableOption, SessionConfigState } from '../models/session';
 
 /** Shape of a single ACP option entry within a select-type config option. */
 type RawOption = { value: string; name: string; description?: string | null };
-
-// ── Helpers ────────────────────────────────────────────────────────────────
 
 function toSelectable(raw: RawOption): SelectableOption {
   const opt: SelectableOption = { id: raw.value, name: raw.name };
@@ -37,8 +33,6 @@ function selectOptions(opt: SessionConfigOption): RawOption[] {
   const raw = opt as unknown as { options?: RawOption[] };
   return Array.isArray(raw.options) ? raw.options : [];
 }
-
-// ── deriveConfigGroups ─────────────────────────────────────────────────────
 
 /**
  * Map a raw `SessionConfigOption[]` to the three typed groups of

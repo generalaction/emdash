@@ -1,7 +1,7 @@
 import { isErr, isOk } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import type { AgentUpdate } from './agent-update';
-import type { AcpPermissionRequest } from './permissions';
+import type { AcpPermissionRequest } from './models/permissions';
 import type { SessionMachineState } from './session-machine';
 import {
   decide,

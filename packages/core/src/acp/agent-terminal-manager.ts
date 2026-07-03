@@ -1,5 +1,5 @@
 import { ManagedAgentTerminal } from './managed-agent-terminal';
-import type { TerminalSnapshot } from './terminals';
+import type { TerminalSnapshot } from './models/terminals';
 import type { AcpProcessHost } from './transport';
 
 export interface AgentTerminalHooks {

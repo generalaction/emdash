@@ -30,7 +30,7 @@ import type {
   TranscriptPlan,
   TranscriptThinking,
   TranscriptTool,
-} from './model';
+} from '../models/transcript';
 import {
   makeDiffId,
   makeMessageId,
@@ -39,8 +39,6 @@ import {
   makeThinkingId,
   makeToolId,
 } from './ids';
-
-// ── Tool status mapping ─────────────────────────────────────────────────────
 
 function mapToolStatus(status: NormalizedToolStatus | null | undefined): ToolStatus | undefined {
   switch (status) {
@@ -55,8 +53,6 @@ function mapToolStatus(status: NormalizedToolStatus | null | undefined): ToolSta
       return undefined;
   }
 }
-
-// ── Open-thinking finalization ──────────────────────────────────────────────
 
 /**
  * Auto-finalize any open thinking rows when a non-thinking content event
@@ -77,8 +73,6 @@ function finalizeOpenThinking(items: TranscriptItem[], now: number): TranscriptI
   });
   return changed ? result : items;
 }
-
-// ── Diff application helpers ────────────────────────────────────────────────
 
 function applyDiffs(
   items: TranscriptItem[],
@@ -118,8 +112,6 @@ function applyDiffs(
   }
   return result;
 }
-
-// ── foldItem ────────────────────────────────────────────────────────────────
 
 /**
  * Apply one NormalizedEvent to a turn's item list, returning an updated list.
@@ -272,8 +264,6 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
   }
 }
 
-// ── finalizeItems ───────────────────────────────────────────────────────────
-
 /**
  * Settle all in-progress streaming states for a committed turn.
  *
@@ -315,8 +305,6 @@ export function finalizeItems(items: TranscriptItem[]): TranscriptItem[] {
     }
   });
 }
-
-// ── Utility: derive toolKind-aware FileOpKind ───────────────────────────────
 
 /**
  * Map an ACP toolKind string to a FileOpKind for file-op row rendering.

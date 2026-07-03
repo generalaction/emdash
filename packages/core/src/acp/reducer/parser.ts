@@ -33,8 +33,8 @@
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type { ProviderTransform } from './normalized-event';
-import type { TranscriptState, TranscriptTurn } from './model';
-import type { SessionConfigState, SessionUsage } from './session-model';
+import type { TranscriptState, TranscriptTurn } from '../models/transcript';
+import type { SessionConfigState, SessionUsage } from '../models/session';
 import { closeActive, initialState, reduce, type ParserState, type ReducerDeps } from './reducer';
 
 export interface AcpTranscriptParserDeps {
@@ -57,8 +57,6 @@ export class AcpTranscriptParser {
     this.state = initialState();
     this.deps = { ...deps, source: 'live' };
   }
-
-  // ── Live streaming API ────────────────────────────────────────────────────
 
   /**
    * Feed one raw ACP SessionUpdate into the parser.
@@ -86,8 +84,6 @@ export class AcpTranscriptParser {
     this.state = initialState();
   }
 
-  // ── Transcript access (backward-compatible) ───────────────────────────────
-
   /** All finalized, committed turns in chronological order. */
   get history(): readonly TranscriptTurn[] {
     return this.state.transcript.committed;
@@ -103,8 +99,6 @@ export class AcpTranscriptParser {
     return this.state.transcript;
   }
 
-  // ── Session slice access ──────────────────────────────────────────────────
-
   /** Latest materialized session config (models / efforts / modes / commands). */
   get config(): SessionConfigState {
     return this.state.config;
@@ -119,8 +113,6 @@ export class AcpTranscriptParser {
   get title(): string | null {
     return this.state.title;
   }
-
-  // ── Bounded replay (static) ───────────────────────────────────────────────
 
   /**
    * Fold a finite iterable of SessionUpdates and return all four slices.

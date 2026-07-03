@@ -4,7 +4,7 @@ import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AgentUpdate } from './agent-update';
 import type { AcpRuntimeError } from './errors';
 import type { AcpPromptImage, AcpTurn, ChatHistory, SessionSnapshot, SessionState } from './state';
-import type { TerminalSnapshot } from './terminals';
+import type { TerminalSnapshot } from './models/terminals';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
 
 /**

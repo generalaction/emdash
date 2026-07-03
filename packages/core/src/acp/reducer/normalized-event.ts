@@ -10,10 +10,8 @@
  */
 
 import type { AvailableCommand, SessionConfigOption, SessionUpdate } from '@agentclientprotocol/sdk';
-import type { AttachmentRef, TranscriptPlanEntry } from './model';
-import type { SessionUsage } from './session-model';
-
-// ── NormalizedEvent ─────────────────────────────────────────────────────────
+import type { AttachmentRef, TranscriptPlanEntry } from '../models/transcript';
+import type { SessionUsage } from '../models/session';
 
 export type NormalizedDiff = {
   path: string;
@@ -68,7 +66,6 @@ export type NormalizedEvent =
       kind: 'plan';
       entries: TranscriptPlanEntry[];
     }
-  // ── Session-config / meta variants (do not affect turn boundaries) ─────────
   | {
       /** Full config option array from config_option_update. */
       kind: 'config';
@@ -95,8 +92,6 @@ export type NormalizedEvent =
       title: string;
     }
   | { kind: 'ignored' };
-
-// ── Transform types ─────────────────────────────────────────────────────────
 
 /**
  * A stateless function that decodes and normalizes a raw ACP SessionUpdate

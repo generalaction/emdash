@@ -10,8 +10,6 @@
  * every item always has a non-null, stable id.
  */
 
-// ── Turn ids ────────────────────────────────────────────────────────────────
-
 /**
  * Stable turn id.
  * Format: `${conversationId}:turn:${turnIndex}`
@@ -20,8 +18,6 @@
 export function makeTurnId(conversationId: string, turnIndex: number): string {
   return `${conversationId}:turn:${turnIndex}`;
 }
-
-// ── Message ids ─────────────────────────────────────────────────────────────
 
 /**
  * Stable message item id.
@@ -35,8 +31,6 @@ export function makeMessageId(turnId: string, messageId: string | null, role: st
   return `${turnId}:message:${messageId ?? role}`;
 }
 
-// ── Thinking ids ────────────────────────────────────────────────────────────
-
 /**
  * Stable thinking item id.
  * Format: `${turnId}:thinking:${messageId ?? 'main'}`
@@ -47,8 +41,6 @@ export function makeMessageId(turnId: string, messageId: string | null, role: st
 export function makeThinkingId(turnId: string, messageId: string | null): string {
   return `${turnId}:thinking:${messageId ?? 'main'}`;
 }
-
-// ── Tool ids ────────────────────────────────────────────────────────────────
 
 /**
  * Stable tool/file-op/execute item id.
@@ -66,8 +58,6 @@ export function makeParentId(turnId: string, parentToolCallId: string | null): s
   return parentToolCallId != null ? `${turnId}:${parentToolCallId}` : undefined;
 }
 
-// ── Diff ids ────────────────────────────────────────────────────────────────
-
 /**
  * Stable diff item id.
  * Format: `${toolId}:${path}`
@@ -76,8 +66,6 @@ export function makeParentId(turnId: string, parentToolCallId: string | null): s
 export function makeDiffId(toolId: string, path: string): string {
   return `${toolId}:${path}`;
 }
-
-// ── Plan id ─────────────────────────────────────────────────────────────────
 
 /**
  * Stable plan item id — one plan per turn.

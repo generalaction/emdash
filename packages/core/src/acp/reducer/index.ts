@@ -18,7 +18,7 @@ export type {
   TranscriptThinking,
   TranscriptTool,
   TranscriptTurn,
-} from './model';
+} from '../models/transcript';
 
 export type {
   EnrichHook,
@@ -47,7 +47,7 @@ export type {
   SessionCommand,
   SessionConfigState,
   SessionUsage,
-} from './session-model';
-export { emptyConfig } from './session-model';
+} from '../models/session';
+export { emptyConfig } from '../models/session';
 
 export { deriveConfigGroups } from './config-derive';

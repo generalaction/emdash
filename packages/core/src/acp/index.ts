@@ -4,7 +4,7 @@ export { AcpSessionRuntime } from './acp-session-runtime';
 export { AgentTerminalManager } from './agent-terminal-manager';
 export type { AgentTerminalHooks as AgentTerminalListener } from './agent-terminal-manager';
 export type { AcpRuntimeError } from './errors';
-export type { AcpPermissionOption, AcpPermissionRequest } from './permissions';
+export type { AcpPermissionOption, AcpPermissionRequest } from './models/permissions';
 export type {
   AcpPromptImage,
   AcpTurn,
@@ -25,7 +25,7 @@ export type {
   AcpTerminalProcess,
 } from './transport';
 export { readTextFile, writeTextFile } from './transport';
-export type { TerminalSnapshot } from './terminals';
+export type { TerminalSnapshot } from './models/terminals';
 export type {
   AcpRuntimeListener,
   AcpSessionRuntimeDeps,

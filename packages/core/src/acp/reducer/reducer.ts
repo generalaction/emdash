@@ -24,14 +24,12 @@
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type { ProviderTransform } from './normalized-event';
-import type { TranscriptState, TranscriptTurn } from './model';
-import type { SessionConfigState, SessionUsage } from './session-model';
+import type { TranscriptState, TranscriptTurn } from '../models/transcript';
+import type { SessionConfigState, SessionUsage } from '../models/session';
 import { foldItem, finalizeItems } from './item-fold';
 import { makeMessageId, makeTurnId } from './ids';
 import { deriveConfigGroups } from './config-derive';
-import { emptyConfig } from './session-model';
-
-// ── Composite parser state ─────────────────────────────────────────────────
+import { emptyConfig } from '../models/session';
 
 export interface ParserState {
   transcript: TranscriptState;
@@ -40,13 +38,9 @@ export interface ParserState {
   title: string | null;
 }
 
-// ── Reducer input ───────────────────────────────────────────────────────────
-
 export type ReducerInput =
   | { kind: 'update'; update: SessionUpdate }
   | { kind: 'close' };
-
-// ── Reducer deps ────────────────────────────────────────────────────────────
 
 export interface ReducerDeps {
   conversationId: string;
@@ -54,8 +48,6 @@ export interface ReducerDeps {
   /** 'live' for interactive sessions; 'replay' for loadSession replay. */
   source: 'live' | 'replay';
 }
-
-// ── Initial state ───────────────────────────────────────────────────────────
 
 export function initialState(): ParserState {
   return {
@@ -65,8 +57,6 @@ export function initialState(): ParserState {
     title: null,
   };
 }
-
-// ── Transcript helpers ─────────────────────────────────────────────────────
 
 function nextTurnIndex(t: TranscriptState): number {
   return t.committed.length + (t.active ? 1 : 0);
@@ -102,14 +92,11 @@ export function isNewUserMessage(active: TranscriptTurn | null, messageId: strin
   return !active.items.some((it) => it.kind === 'message' && it.id === id);
 }
 
-// ── reduce ──────────────────────────────────────────────────────────────────
-
 /**
  * Pure reducer: (ParserState, ReducerInput, ReducerDeps) → ParserState.
  * All state changes return a new ParserState; no mutation occurs.
  */
 export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): ParserState {
-  // ── Explicit turn close ────────────────────────────────────────────────────
   if (input.kind === 'close') {
     const transcript = closeActive(s.transcript);
     return transcript === s.transcript ? s : { ...s, transcript };
@@ -117,7 +104,6 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
 
   const event = deps.transform(input.update);
 
-  // ── Session-config / meta slices (no turn boundary effect) ─────────────────
   switch (event.kind) {
     case 'config': {
       const groups = deriveConfigGroups(event.options);
@@ -135,7 +121,7 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
     case 'commands': {
       const availableCommands = event.commands.map((c) => {
         const raw = c as unknown as { name: string; description: string; input?: { hint?: string } };
-        const cmd: import('./session-model').SessionCommand = {
+        const cmd: import('../models/session').SessionCommand = {
           name: raw.name,
           description: raw.description,
         };
@@ -154,7 +140,6 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
       break; // falls through to transcript handling below
   }
 
-  // ── Transcript slice ────────────────────────────────────────────────────────
   let t = s.transcript;
 
   // OPEN boundary: a new user message starts a new turn.

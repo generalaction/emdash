@@ -13,7 +13,7 @@ import type {
   StopReason,
 } from '@agentclientprotocol/sdk';
 import type { AgentUpdate } from './agent-update';
-import type { AcpPermissionRequest } from './permissions';
+import type { AcpPermissionRequest } from './models/permissions';
 
 /**
  * Provider-neutral snapshot of ACP usage_update data.

@@ -1,5 +1,5 @@
 import { StringDecoder } from 'node:string_decoder';
-import type { TerminalSnapshot } from './terminals';
+import type { TerminalSnapshot } from './models/terminals';
 import type { AcpTerminalExit, AcpTerminalProcess } from './transport';
 
 /** Default per-terminal output byte cap (4 MB). */

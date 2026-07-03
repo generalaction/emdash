@@ -38,7 +38,7 @@ import { ok } from '@emdash/shared';
 import type { AgentUpdate } from './agent-update';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
-import type { AcpPermissionRequest } from './permissions';
+import type { AcpPermissionRequest } from './models/permissions';
 import type {
   AcpTurn,
   ChatHistory,

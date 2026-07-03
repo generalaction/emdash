@@ -3,13 +3,7 @@
  *
  * Plain JSON throughout — no Date, Map, or Set instances — so the model stays
  * compatible with LiveModel (Immer patches + structuredClone) and wire transport.
- *
- * No dependency on @emdash/chat-ui. Field shapes intentionally mirror the
- * chat-ui ChatItem types so alignment is straightforward; the dependency
- * direction is chat-ui → core, not the reverse.
  */
-
-// ── Supporting types ────────────────────────────────────────────────────────
 
 /**
  * A reference to a persisted attachment (image submitted with a user prompt).
@@ -50,8 +44,6 @@ export type ResourceTarget =
   | { kind: 'workspace-file'; path: string }
   | { kind: 'external'; url: string }
   | { kind: 'opaque' };
-
-// ── TranscriptItem union ────────────────────────────────────────────────────
 
 export type TranscriptMessage = {
   kind: 'message';
@@ -147,8 +139,6 @@ export type TranscriptItem =
   | TranscriptDiff
   | TranscriptResourceLink
   | TranscriptPlan;
-
-// ── Turn and state ──────────────────────────────────────────────────────────
 
 /**
  * A single prompt–response exchange materialized as a flat item list.
