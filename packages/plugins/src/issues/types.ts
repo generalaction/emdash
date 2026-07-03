@@ -1,4 +1,5 @@
 import type { Result } from '@emdash/shared';
+import { IntegrationError } from '../integrations/types';
 
 /** Canonical, provider-neutral issue shape. Providers map their vocabulary
  *  at the plugin edge; non-universal concepts stay optional. */
@@ -53,15 +54,7 @@ export type IssueDetail = IssueData & {
  * signals emit `generic`. Account-resolution failures are host concerns and
  * never originate from plugins.
  */
-export type IssueError =
-  | { type: 'auth_failed'; message: string }
-  | { type: 'rate_limited'; message: string; resetAt?: string }
-  | { type: 'not_found_or_no_access'; message: string }
-  | { type: 'sso_required'; message: string; ssoUrl?: string }
-  | { type: 'host_unreachable'; message: string }
-  | { type: 'unsupported_host'; message: string }
-  | { type: 'invalid_input'; message: string }
-  | { type: 'generic'; message: string };
+export type IssueError = IntegrationError;
 
 export type IssueListResult = Result<IssueData[], IssueError>;
 

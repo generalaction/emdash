@@ -1,5 +1,6 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
-import { toAsanaErrorMessage, verifyAsanaCredentials } from './client';
+import { verifyAsanaCredentials } from './client';
 import { icon } from './icon';
 
 const plugin = defineIntegrationPlugin(
@@ -34,16 +35,17 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
-    async verify(_host, credentials) {
-      try {
-        const result = await verifyAsanaCredentials(credentials);
-        return { connected: true, ...result };
-      } catch (error) {
+    async verify(_host, credentials): Promise<VerifyResult> {
+      const result = await verifyAsanaCredentials(credentials);
+      if (!result.success)
         return {
           connected: false,
-          error: toAsanaErrorMessage(error, 'Failed to validate Asana access token.'),
+          error: result.error.message,
         };
-      }
+      return {
+        connected: true,
+        ...result.data,
+      };
     },
   },
 });

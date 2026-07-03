@@ -1,30 +1,32 @@
+import { err, ok, type Result } from '@emdash/shared';
+import z from 'zod';
 import type { IntegrationCredentials } from '../host';
+import type { IntegrationError } from '../types';
 
-export function readCredentialString(
-  credentials: IntegrationCredentials,
-  key: string
-): string | null {
-  const value = credentials[key];
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+export function credentialString(message: string) {
+  return z.preprocess(
+    (value) => (typeof value === 'string' ? value.trim() : ''),
+    z.string().min(1, message)
+  );
 }
 
-export function readCredentialStringArray(
-  credentials: IntegrationCredentials,
-  key: string
-): string[] {
-  const value = credentials[key];
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+export function optionalCredentialString() {
+  return z.preprocess((value) => {
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }, z.string().optional());
 }
 
-export function requireCredentialString(
-  credentials: IntegrationCredentials,
-  key: string,
-  message: string
-): string {
-  const value = readCredentialString(credentials, key);
-  if (!value) throw new Error(message);
-  return value;
+export function parseCredentials<T>(
+  schema: z.ZodType<T>,
+  raw: IntegrationCredentials
+): Result<T, IntegrationError> {
+  const result = schema.safeParse(raw);
+  if (result.success) return ok(result.data);
+
+  return err({
+    type: 'invalid_input',
+    message: result.error.issues[0]?.message ?? 'Invalid credentials.',
+  });
 }

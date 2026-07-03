@@ -1,105 +1,117 @@
-import { err, ok } from '@emdash/shared';
-import { readCredentialString } from '../../../integrations/helpers/credentials';
+import { err, ok, type Result } from '@emdash/shared';
+import { toIntegrationError } from '../../../integrations/helpers/error';
 import type { IntegrationCredentials } from '../../../integrations/host';
-import {
-  fetchAsanaUser,
-  getAsanaClient,
-  toAsanaErrorMessage,
-  type AsanaClient,
-} from '../../../integrations/impl/asana/client';
-import { clampIssueLimit, issueError, normalizeSearchTerm } from '../../helpers/provider-inputs';
+import { createAsanaClient, readAsanaCredentials } from '../../../integrations/impl/asana/client';
+import type {
+  AsanaClient,
+  AsanaResponse,
+  AsanaSearchTasksOpts,
+  AsanaTask,
+  AsanaUser,
+  AsanaWorkspace,
+  RawAsanaTask,
+} from '../../../integrations/impl/asana/types';
+import type { IntegrationError } from '../../../integrations/types';
+import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
-import type { IssueData, IssueListResult } from '../../types';
-
-type AsanaTask = {
-  gid: string;
-  name?: string;
-  notes?: string;
-  permalink_url?: string;
-  completed?: boolean;
-  modified_at?: string;
-  assignee?: { name?: string } | null;
-  projects?: Array<{ name?: string }>;
-  memberships?: Array<{
-    section?: { name?: string } | null;
-    project?: { name?: string } | null;
-  }>;
-};
-
-type AsanaTasksResponse = {
-  data?: AsanaTask[];
-};
+import type { IssueListResult } from '../../types';
+import { toAsanaTask, toIssueData } from './mapper';
 
 const TASK_OPT_FIELDS =
   'name,notes,permalink_url,completed,modified_at,assignee.name,projects.name,memberships.section.name,memberships.project.name';
 
-function toIssue(task: AsanaTask): IssueData {
-  const projectName =
-    task.projects?.find((p) => !!p?.name)?.name ??
-    task.memberships?.find((m) => !!m?.project?.name)?.project?.name;
-  const sectionName = task.memberships?.find((m) => !!m?.section?.name)?.section?.name;
+async function getAsanaWorkspace(
+  client: AsanaClient,
+  workspaceGid: string | undefined
+): Promise<Result<AsanaWorkspace, IntegrationError>> {
+  if (workspaceGid) return ok({ gid: workspaceGid });
 
-  return {
-    identifier: task.gid,
-    displayIdentifier: null,
-    title: task.name ?? '',
-    url: task.permalink_url ?? '',
-    description: task.notes?.trim() || undefined,
-    status: sectionName ?? (task.completed ? 'Completed' : undefined),
-    assignees: task.assignee?.name ? [task.assignee.name] : undefined,
-    project: projectName,
-    updatedAt: task.modified_at,
-  };
-}
+  try {
+    const response = (await client.users.getUser('me', {
+      opt_fields: 'gid,name,workspaces.gid,workspaces.name',
+    })) as AsanaResponse<AsanaUser>;
 
-async function resolveClientAndWorkspace(
-  credentials: IntegrationCredentials
-): Promise<
-  { success: true; client: AsanaClient; workspaceGid: string } | { success: false; error: string }
-> {
-  const client = getAsanaClient(credentials);
-  let workspaceGid = readCredentialString(credentials, 'workspaceGid');
-
-  if (!workspaceGid) {
-    try {
-      const user = await fetchAsanaUser(client);
-      workspaceGid = user.workspaces?.[0]?.gid ?? null;
-    } catch (error) {
-      return {
-        success: false,
-        error: toAsanaErrorMessage(error, 'Failed to resolve Asana workspace.'),
-      };
+    const workspaceGid = response.data?.workspaces?.[0]?.gid;
+    if (!workspaceGid) {
+      return err({
+        type: 'generic',
+        message: 'No Asana workspace available for this account.',
+      });
     }
+    return ok({ gid: workspaceGid });
+  } catch (error) {
+    return err(toIntegrationError(error, 'Asana'));
   }
-
-  if (!workspaceGid) {
-    return { success: false, error: 'No Asana workspace available for this account.' };
-  }
-
-  return { success: true, client, workspaceGid };
 }
 
-async function listIssues(
+export async function listIssues(
   credentials: IntegrationCredentials,
   limit: number
 ): Promise<IssueListResult> {
-  const resolved = await resolveClientAndWorkspace(credentials);
-  if (!resolved.success) return err(issueError('generic', resolved.error));
+  const parsedCredentials = readAsanaCredentials(credentials);
+  if (!parsedCredentials.success) return err(parsedCredentials.error);
+  const client = createAsanaClient(parsedCredentials.data);
 
-  const sanitizedLimit = clampIssueLimit(limit, 50, 100);
+  const workspace = await getAsanaWorkspace(client, parsedCredentials.data.workspaceGid);
+  if (!workspace.success) return err(workspace.error);
 
   try {
-    const result = await resolved.client.get<AsanaTasksResponse>('/tasks', {
+    const response = (await client.tasks.getTasks({
       assignee: 'me',
-      workspace: resolved.workspaceGid,
+      workspace: workspace.data.gid,
       completed_since: 'now',
-      limit: sanitizedLimit,
+      limit: clampIssueLimit(limit, 50, 100),
       opt_fields: TASK_OPT_FIELDS,
-    });
+    })) as AsanaResponse<RawAsanaTask[]>;
 
-    return ok((result.data ?? []).map(toIssue));
+    return ok(
+      (response.data ?? [])
+        .map(toAsanaTask)
+        .filter((task): task is AsanaTask => task !== null)
+        .map(toIssueData)
+    );
   } catch (error) {
-    return err(issueError('generic', toAsanaErrorMessage(error, 'Failed to fetch Asana tasks.')));
+    return err(toIntegrationError(error, 'Asana'));
+  }
+}
+
+export async function searchIssues(
+  credentials: IntegrationCredentials,
+  searchTerm: string,
+  limit: number
+): Promise<IssueListResult> {
+  const term = normalizeSearchTerm(searchTerm);
+  if (!term) return ok([]);
+
+  const parsedCredentials = readAsanaCredentials(credentials);
+  if (!parsedCredentials.success) return err(parsedCredentials.error);
+  const client = createAsanaClient(parsedCredentials.data);
+
+  const workspace = await getAsanaWorkspace(client, parsedCredentials.data.workspaceGid);
+  if (!workspace.success) return err(workspace.error);
+
+  try {
+    const opts: AsanaSearchTasksOpts = {
+      text: term,
+      resource_subtype: 'default_task',
+      completed: false,
+      limit: clampIssueLimit(limit, 20, 100),
+      opt_fields: TASK_OPT_FIELDS,
+    };
+
+    const response = (await client.tasks.searchTasksForWorkspace(
+      workspace.data.gid,
+      opts
+    )) as AsanaResponse<RawAsanaTask[]>;
+
+    return ok(
+      (response.data ?? [])
+        .map(toAsanaTask)
+        .filter((task): task is AsanaTask => task !== null)
+        .map(toIssueData)
+    );
+  } catch (error) {
+    return err(toIntegrationError(error, 'Asana'));
   }
 }
 
@@ -108,34 +120,6 @@ const plugin = defineIssuesPlugin({ integrationId: 'asana' }, { issues: {} }, {}
 export const provider = registerIssuesPluginBehavior(plugin, {
   issues: {
     listIssues: (host, opts) => listIssues(host.credentials, opts.limit),
-    async searchIssues(host, opts) {
-      const term = normalizeSearchTerm(opts.searchTerm);
-      if (!term) return ok([]);
-
-      const resolved = await resolveClientAndWorkspace(host.credentials);
-      if (!resolved.success) return err(issueError('generic', resolved.error));
-
-      const sanitizedLimit = clampIssueLimit(opts.limit, 20, 100);
-
-      try {
-        const result = await resolved.client.get<AsanaTasksResponse>(
-          `/workspaces/${resolved.workspaceGid}/tasks/search`,
-          {
-            text: term,
-            resource_subtype: 'default_task',
-            completed: false,
-            limit: sanitizedLimit,
-            opt_fields: TASK_OPT_FIELDS,
-          }
-        );
-
-        return ok((result.data ?? []).map(toIssue));
-      } catch (error) {
-        host.log.error('[Asana] searchIssues error', { error });
-        return err(
-          issueError('generic', toAsanaErrorMessage(error, 'Failed to search Asana tasks.'))
-        );
-      }
-    },
+    searchIssues: (host, opts) => searchIssues(host.credentials, opts.searchTerm, opts.limit),
   },
 });
