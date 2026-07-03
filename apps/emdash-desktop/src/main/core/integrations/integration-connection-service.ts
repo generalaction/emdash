@@ -3,10 +3,8 @@ import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { ConnectionStatus } from '@shared/issue-providers';
-import {
-  DEFAULT_INTEGRATION_ACCOUNT_ID,
-  integrationCredentialStore,
-} from './integration-credential-store';
+import { DEFAULT_INTEGRATION_ACCOUNT_ID } from './integration-credential-store';
+import { integrationCredentialStore } from './integration-credential-store-instance';
 
 type ConnectResult =
   | { success: true; displayName?: string; displayDetail?: string }

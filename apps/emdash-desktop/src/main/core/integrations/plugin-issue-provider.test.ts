@@ -7,7 +7,7 @@ const { mockGetCredentials, mockCheckConnection } = vi.hoisted(() => ({
   mockCheckConnection: vi.fn(),
 }));
 
-vi.mock('./integration-credential-store', () => ({
+vi.mock('./integration-credential-store-instance', () => ({
   integrationCredentialStore: {
     get: mockGetCredentials,
     isConfigured: vi.fn(async () => true),
@@ -93,7 +93,6 @@ describe('createPluginIssueProvider', () => {
   it('derives capabilities from requiredInputs', () => {
     const provider = createPluginIssueProvider(makePlugin({ requiredInputs: ['repositoryUrl'] }));
     expect(provider.capabilities).toEqual({
-      requiresProjectPath: false,
       requiresRepositoryUrl: true,
       supportsIssueContext: false,
     });

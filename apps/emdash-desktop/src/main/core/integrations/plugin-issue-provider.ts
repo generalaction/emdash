@@ -15,7 +15,7 @@ import type {
   IssueSearchOpts,
 } from '../issues/issue-provider';
 import { integrationConnectionService } from './integration-connection-service';
-import { integrationCredentialStore } from './integration-credential-store';
+import { integrationCredentialStore } from './integration-credential-store-instance';
 
 const DEFAULT_LIST_LIMIT = 50;
 const DEFAULT_SEARCH_LIMIT = 20;
