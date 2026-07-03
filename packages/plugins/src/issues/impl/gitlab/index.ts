@@ -1,63 +1,76 @@
 import { err, ok } from '@emdash/shared';
-import { RemoteHostMismatchError } from '../../../integrations/helpers/hosted-instance';
+import { toIntegrationError } from '../../../integrations/helpers/error';
+import type { IntegrationCredentials } from '../../../integrations/host';
 import {
-  resolveGitLabProject,
-  toGitLabErrorMessage,
+  createGitLabClient,
+  readGitLabCredentials,
 } from '../../../integrations/impl/gitlab/client';
-import { clampIssueLimit, issueError, normalizeSearchTerm } from '../../helpers/provider-inputs';
+import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
-import type { IssueData, IssueError } from '../../types';
+import type { IssueListResult } from '../../types';
+import { toIssueData } from './mapper';
+import { resolveGitLabProject } from './repo-resolver';
 
-function toGitLabIssueError(error: unknown, fallback: string): IssueError {
-  if (error instanceof RemoteHostMismatchError) {
-    return issueError('unsupported_host', error.message);
+export async function listIssues(
+  credentials: IntegrationCredentials,
+  repositoryUrl: string | undefined,
+  limit: number
+): Promise<IssueListResult> {
+  const parsedCredentials = readGitLabCredentials(credentials);
+  if (!parsedCredentials.success) return err(parsedCredentials.error);
+
+  const client = createGitLabClient(parsedCredentials.data);
+  const project = await resolveGitLabProject(client, parsedCredentials.data, repositoryUrl);
+  if (!project.success) return err(project.error);
+
+  try {
+    const issues = await client.Issues.all({
+      projectId: project.data.projectId,
+      state: 'opened',
+      orderBy: 'updated_at',
+      sort: 'desc',
+      perPage: clampIssueLimit(limit, 50, 100),
+      maxPages: 1,
+    });
+
+    return ok(issues.map((issue) => toIssueData(issue, project.data.projectName)));
+  } catch (error) {
+    return err(toIntegrationError(error, 'GitLab'));
   }
-  return issueError('generic', toGitLabErrorMessage(error, fallback));
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
+export async function searchIssues(
+  credentials: IntegrationCredentials,
+  repositoryUrl: string | undefined,
+  searchTerm: string,
+  limit: number
+): Promise<IssueListResult> {
+  const term = normalizeSearchTerm(searchTerm);
+  if (!term) return ok([]);
 
-function readString(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
+  const parsedCredentials = readGitLabCredentials(credentials);
+  if (!parsedCredentials.success) return err(parsedCredentials.error);
 
-function readNumber(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
+  const client = createGitLabClient(parsedCredentials.data);
+  const project = await resolveGitLabProject(client, parsedCredentials.data, repositoryUrl);
+  if (!project.success) return err(project.error);
+
+  try {
+    const issues = await client.Issues.all({
+      projectId: project.data.projectId,
+      state: 'opened',
+      search: term,
+      in: 'title,description',
+      orderBy: 'updated_at',
+      sort: 'desc',
+      perPage: clampIssueLimit(limit, 20, 100),
+      maxPages: 1,
+    });
+
+    return ok(issues.map((issue) => toIssueData(issue, project.data.projectName)));
+  } catch (error) {
+    return err(toIntegrationError(error, 'GitLab'));
   }
-  return null;
-}
-
-function toIssue(raw: unknown, projectName: string | null): IssueData | null {
-  const item = asRecord(raw);
-  if (!item) return null;
-
-  const iid = readNumber(item.iid);
-  if (iid === null) return null;
-
-  const assigneeRecord =
-    asRecord(item.assignee) ?? (Array.isArray(item.assignees) ? asRecord(item.assignees[0]) : null);
-  const assigneeName = readString(assigneeRecord?.name) ?? readString(assigneeRecord?.username);
-  const assigneeUsername =
-    readString(assigneeRecord?.username) ?? readString(assigneeRecord?.name) ?? undefined;
-
-  return {
-    identifier: `#${iid}`,
-    title: readString(item.title) ?? '',
-    url: readString(item.web_url) ?? readString(item.webUrl) ?? '',
-    description: readString(item.description) ?? undefined,
-    status: readString(item.state) ?? undefined,
-    assignees:
-      assigneeName || assigneeUsername ? [assigneeName ?? assigneeUsername ?? ''] : undefined,
-    project: projectName ?? undefined,
-    updatedAt: readString(item.updated_at) ?? readString(item.updatedAt) ?? undefined,
-  };
 }
 
 const plugin = defineIssuesPlugin(
@@ -68,63 +81,8 @@ const plugin = defineIssuesPlugin(
 
 export const provider = registerIssuesPluginBehavior(plugin, {
   issues: {
-    async listIssues(host, opts) {
-      const perPage = clampIssueLimit(opts.limit, 50, 100);
-
-      try {
-        const { client, projectId, projectName } = await resolveGitLabProject(
-          host.credentials,
-          opts.repositoryUrl
-        );
-        const issues = (await client.Issues.all({
-          projectId,
-          state: 'opened',
-          orderBy: 'updated_at',
-          sort: 'desc',
-          perPage,
-          maxPages: 1,
-        })) as unknown[];
-
-        return ok(
-          (issues ?? [])
-            .map((issue) => toIssue(issue, projectName))
-            .filter((issue): issue is IssueData => issue !== null)
-        );
-      } catch (error) {
-        return err(toGitLabIssueError(error, 'Failed to fetch GitLab issues.'));
-      }
-    },
-
-    async searchIssues(host, opts) {
-      const term = normalizeSearchTerm(opts.searchTerm);
-      if (!term) return ok([]);
-
-      const perPage = clampIssueLimit(opts.limit, 20, 100);
-
-      try {
-        const { client, projectId, projectName } = await resolveGitLabProject(
-          host.credentials,
-          opts.repositoryUrl
-        );
-        const issues = (await client.Issues.all({
-          projectId,
-          state: 'opened',
-          search: term,
-          in: 'title,description',
-          orderBy: 'updated_at',
-          sort: 'desc',
-          perPage,
-          maxPages: 1,
-        })) as unknown[];
-
-        return ok(
-          (issues ?? [])
-            .map((issue) => toIssue(issue, projectName))
-            .filter((issue): issue is IssueData => issue !== null)
-        );
-      } catch (error) {
-        return err(toGitLabIssueError(error, 'Failed to search GitLab issues.'));
-      }
-    },
+    listIssues: (host, opts) => listIssues(host.credentials, opts.repositoryUrl, opts.limit),
+    searchIssues: (host, opts) =>
+      searchIssues(host.credentials, opts.repositoryUrl, opts.searchTerm, opts.limit),
   },
 });

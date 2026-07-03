@@ -1,8 +1,16 @@
 import type { IntegrationError } from '../types';
+import { hasKnownNetworkErrorCode } from './hosted-instance';
 
 type HttpErrorLike = Error & {
+  code?: unknown;
   status?: number;
   statusCode?: number;
+  cause?: {
+    response?: {
+      status?: number;
+      statusCode?: number;
+    };
+  };
   response?: {
     status?: number;
     statusCode?: number;
@@ -49,6 +57,13 @@ export function toIntegrationError(error: unknown, provider: string): Integratio
     };
   }
 
+  if (hasKnownNetworkErrorCode(error)) {
+    return {
+      type: 'host_unreachable',
+      message: `Unable to reach ${provider}. Check your URL and network connection.`,
+    };
+  }
+
   return {
     type: 'generic',
     message: `${provider} request failed.`,
@@ -62,7 +77,9 @@ function getHttpStatus(error: unknown): number | undefined {
     normalizeStatus(error.status) ??
     normalizeStatus(error.statusCode) ??
     normalizeStatus(error.response?.status) ??
-    normalizeStatus(error.response?.statusCode)
+    normalizeStatus(error.response?.statusCode) ??
+    normalizeStatus(error.cause?.response?.status) ??
+    normalizeStatus(error.cause?.response?.statusCode)
   );
 }
 
