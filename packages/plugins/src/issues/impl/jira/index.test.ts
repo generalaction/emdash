@@ -2,19 +2,19 @@ import type { Logger } from '@emdash/shared/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import * as jiraClient from '../../../integrations/impl/jira/client';
-import { buildListJql, buildSearchJql, provider } from './index';
+import type { JiraClient } from '../../../integrations/impl/jira/types';
+import { provider } from './index';
 
 vi.mock('../../../integrations/impl/jira/client', async (importOriginal) => {
   const actual = await importOriginal<typeof jiraClient>();
   return {
     ...actual,
-    doJiraGet: vi.fn(),
-    doJiraPost: vi.fn(),
+    createJiraClient: vi.fn(),
   };
 });
 
-const mockDoJiraGet = vi.mocked(jiraClient.doJiraGet);
-const mockDoJiraPost = vi.mocked(jiraClient.doJiraPost);
+const mockCreateJiraClient = vi.mocked(jiraClient.createJiraClient);
+const mockSearchForIssues = vi.fn();
 
 const issues = provider.behavior.issues;
 if (!issues) {
@@ -40,6 +40,14 @@ function makeHost(): ConnectedIntegrationHostContext {
   };
 }
 
+function makeClient(): JiraClient {
+  return {
+    issueSearch: {
+      searchForIssuesUsingJqlEnhancedSearchPost: mockSearchForIssues,
+    },
+  } as unknown as JiraClient;
+}
+
 function jiraIssue(key: string, summary = `${key} summary`) {
   return {
     id: key,
@@ -55,49 +63,24 @@ function jiraIssue(key: string, summary = `${key} summary`) {
   };
 }
 
-function postPayload(callIndex: number) {
-  return JSON.parse(String(mockDoJiraPost.mock.calls[callIndex]?.[3] || '{}')) as Record<
-    string,
-    unknown
-  >;
+function jiraError(status: number, message: string) {
+  return Object.assign(new Error(message), { status });
+}
+
+function searchParams(callIndex: number) {
+  return mockSearchForIssues.mock.calls[callIndex]?.[0] as Record<string, unknown>;
 }
 
 describe('jira issues plugin', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateJiraClient.mockReturnValue(makeClient());
   });
 
-  it('builds list JQL for mine, fallback, and bounded all modes', () => {
-    expect(buildListJql('mine')).toBe(
-      '(assignee = currentUser() OR reporter = currentUser()) ORDER BY updated DESC'
-    );
-    expect(buildListJql('mine-fallback')).toBe('assignee = currentUser() ORDER BY updated DESC');
-    expect(buildListJql('all')).toBe('updated >= -90d ORDER BY updated DESC');
-  });
-
-  it('builds search JQL for key-shaped and plain text terms', () => {
-    expect(buildSearchJql('ENG-976')).toBe('(key = "ENG-976" OR text ~ "ENG-976")');
-    expect(buildSearchJql('deprecated "search" endpoint')).toBe(
-      'text ~ "deprecated \\"search\\" endpoint"'
-    );
-    expect(buildSearchJql('path \\')).toBe('text ~ "path \\\\"');
-  });
-
-  it('lists Jira issues through enhanced search with nextPageToken pagination', async () => {
-    mockDoJiraPost
-      .mockResolvedValueOnce(
-        JSON.stringify({
-          issues: [jiraIssue('ENG-1')],
-          nextPageToken: 'page-2',
-          isLast: false,
-        })
-      )
-      .mockResolvedValueOnce(
-        JSON.stringify({
-          issues: [jiraIssue('ENG-2')],
-          isLast: true,
-        })
-      );
+  it('lists Jira issues through one enhanced search call', async () => {
+    mockSearchForIssues.mockResolvedValueOnce({
+      issues: [jiraIssue('ENG-1'), jiraIssue('ENG-2')],
+    });
 
     const result = await issues.listIssues(makeHost(), { limit: 2 });
 
@@ -108,74 +91,18 @@ describe('jira issues plugin', () => {
         expect.objectContaining({ identifier: 'ENG-2' }),
       ],
     });
-    expect(mockDoJiraPost).toHaveBeenCalledTimes(2);
-    expect(mockDoJiraPost.mock.calls[0]?.[0].pathname).toBe('/rest/api/3/search/jql');
-    expect(postPayload(0)).toEqual({
-      jql: buildListJql('mine'),
+    expect(mockSearchForIssues).toHaveBeenCalledTimes(1);
+    expect(searchParams(0)).toEqual({
+      jql: 'updated >= -90d ORDER BY updated DESC',
       maxResults: 2,
       fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
     });
-    expect(postPayload(1)).toEqual({
-      jql: buildListJql('mine'),
-      maxResults: 1,
-      fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
-      nextPageToken: 'page-2',
-    });
   });
 
-  it('retries list issues with assignee-only JQL when reporter query is not permitted', async () => {
-    mockDoJiraPost
-      .mockRejectedValueOnce(new Error('Jira API error 403: reporter is not queryable'))
-      .mockResolvedValueOnce(JSON.stringify({ issues: [jiraIssue('ENG-3')], isLast: true }));
-
-    const result = await issues.listIssues(makeHost(), { limit: 10 });
-
-    expect(result).toEqual({
-      success: true,
-      data: [expect.objectContaining({ identifier: 'ENG-3' })],
+  it('searches Jira issues through one enhanced search call', async () => {
+    mockSearchForIssues.mockResolvedValueOnce({
+      issues: [jiraIssue('ENG-976')],
     });
-    expect(mockDoJiraPost).toHaveBeenCalledTimes(2);
-    expect(postPayload(0).jql).toBe(buildListJql('mine'));
-    expect(postPayload(1).jql).toBe(buildListJql('mine-fallback'));
-  });
-
-  it('continues to broad list fallback when assignee-only JQL fails', async () => {
-    mockDoJiraPost
-      .mockRejectedValueOnce(new Error('Jira API error 403: reporter is not queryable'))
-      .mockRejectedValueOnce(new Error('Jira API error 500: temporary outage'))
-      .mockResolvedValueOnce(JSON.stringify({ issues: [jiraIssue('ENG-4')], isLast: true }));
-
-    const result = await issues.listIssues(makeHost(), { limit: 10 });
-
-    expect(result).toEqual({
-      success: true,
-      data: [expect.objectContaining({ identifier: 'ENG-4' })],
-    });
-    expect(mockDoJiraPost).toHaveBeenCalledTimes(3);
-    expect(postPayload(0).jql).toBe(buildListJql('mine'));
-    expect(postPayload(1).jql).toBe(buildListJql('mine-fallback'));
-    expect(postPayload(2).jql).toBe(buildListJql('all'));
-  });
-
-  it('does not hide auth failures behind broad list fallbacks', async () => {
-    mockDoJiraPost.mockRejectedValueOnce(new Error('Jira API error 401: unauthorized'));
-
-    const result = await issues.listIssues(makeHost(), { limit: 10 });
-
-    expect(result).toEqual({
-      success: false,
-      error: { type: 'generic', message: 'Jira API error 401: unauthorized' },
-    });
-    expect(mockDoJiraPost).toHaveBeenCalledTimes(1);
-  });
-
-  it('falls back from exact issue lookup to enhanced JQL search for key-shaped terms', async () => {
-    mockDoJiraGet.mockResolvedValueOnce(
-      JSON.stringify({ errorMessages: ['Issue does not exist'] })
-    );
-    mockDoJiraPost.mockResolvedValueOnce(
-      JSON.stringify({ issues: [jiraIssue('ENG-976')], isLast: true })
-    );
 
     const result = await issues.searchIssues(makeHost(), {
       searchTerm: 'ENG-976',
@@ -186,8 +113,60 @@ describe('jira issues plugin', () => {
       success: true,
       data: [expect.objectContaining({ identifier: 'ENG-976' })],
     });
-    expect(mockDoJiraGet.mock.calls[0]?.[0].pathname).toBe('/rest/api/3/issue/ENG-976');
-    expect(mockDoJiraPost.mock.calls[0]?.[0].pathname).toBe('/rest/api/3/search/jql');
-    expect(postPayload(0).jql).toBe('(key = "ENG-976" OR text ~ "ENG-976") ORDER BY updated DESC');
+    expect(mockSearchForIssues).toHaveBeenCalledTimes(1);
+    expect(searchParams(0)).toEqual({
+      jql: '(key = "ENG-976" OR text ~ "ENG-976") ORDER BY updated DESC',
+      maxResults: 5,
+      fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
+    });
+  });
+
+  it('searches plain text terms with escaped JQL text matching', async () => {
+    mockSearchForIssues.mockResolvedValueOnce({
+      issues: [],
+    });
+
+    const result = await issues.searchIssues(makeHost(), {
+      searchTerm: 'deprecated "search" endpoint',
+      limit: 5,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      data: [],
+    });
+    expect(mockSearchForIssues).toHaveBeenCalledTimes(1);
+    expect(searchParams(0)).toEqual({
+      jql: 'text ~ "deprecated \\"search\\" endpoint" ORDER BY updated DESC',
+      maxResults: 5,
+      fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
+    });
+  });
+
+  it('returns an empty list for empty search terms without creating a client', async () => {
+    const result = await issues.searchIssues(makeHost(), {
+      searchTerm: '   ',
+      limit: 5,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      data: [],
+    });
+    expect(mockCreateJiraClient).not.toHaveBeenCalled();
+  });
+
+  it('maps SDK errors through the generic integration error mapper', async () => {
+    mockSearchForIssues.mockRejectedValueOnce(jiraError(401, 'unauthorized'));
+
+    const result = await issues.listIssues(makeHost(), { limit: 10 });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'auth_failed',
+        message: 'Jira authentication failed. Check your credentials.',
+      },
+    });
   });
 });

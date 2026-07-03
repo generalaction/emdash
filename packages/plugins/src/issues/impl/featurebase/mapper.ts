@@ -1,7 +1,7 @@
 import type { Post } from 'featurebase-node/resources/feedback/posts/posts';
 import type { IssueData } from '../../types';
 
-export function toIssue(post: Post): IssueData {
+export function toIssueData(post: Post): IssueData {
   const tags = post.tags?.map((tag) => tag.name).filter((name): name is string => !!name) ?? [];
 
   return {

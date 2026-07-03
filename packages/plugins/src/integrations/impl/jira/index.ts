@@ -1,3 +1,4 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyJiraCredentials } from './client';
 import { icon } from './icon';
@@ -46,16 +47,17 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
-    async verify(_host, credentials) {
-      try {
-        const status = await verifyJiraCredentials(credentials);
-        return { connected: true, ...status };
-      } catch (error) {
+    async verify(_host, credentials): Promise<VerifyResult> {
+      const result = await verifyJiraCredentials(credentials);
+      if (!result.success)
         return {
           connected: false,
-          error: error instanceof Error ? error.message : String(error),
+          error: result.error.message,
         };
-      }
+      return {
+        connected: true,
+        ...result.data,
+      };
     },
   },
 });
