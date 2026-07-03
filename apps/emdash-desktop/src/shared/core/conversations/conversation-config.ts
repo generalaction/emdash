@@ -6,7 +6,7 @@ const conversationConfigV0Schema = z.object({
   /** @deprecated Moved to conversations.session_id column; stripped on upgrade to v1. */
   providerSessionId: z.string().optional(),
   initialPrompt: z.string().optional(),
-  /** Model to pass to the agent CLI (e.g. 'claude-sonnet-4-5', 'o4-mini'). Empty string or absent = CLI default. */
+  /** Model to pass to the agent CLI (e.g. 'claude-sonnet-5', 'o4-mini'). Empty string or absent = CLI default. */
   model: z.string().optional(),
 });
 

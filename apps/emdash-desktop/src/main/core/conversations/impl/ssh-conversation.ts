@@ -1,5 +1,5 @@
-import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { getPlugin } from '@main/core/agents/plugin-registry';
+import { workspaceTrustService } from '@main/core/agents/workspace-trust';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -117,11 +117,10 @@ export class SshConversationProvider implements ConversationProvider {
     if (!spawnToken) return;
 
     try {
-      await workspaceTrustService.maybeAutoTrustSsh({
+      await workspaceTrustService.maybeAutoTrust({
         providerId: conversation.providerId,
         workspacePath: this.taskPath,
-        ctx: this.ctx,
-        files: this.filesRuntime,
+        host: { kind: 'ssh', ctx: this.ctx, files: this.filesRuntime },
         force: conversation.autoApprove === true,
       });
 
