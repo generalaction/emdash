@@ -12,6 +12,7 @@
  */
 import { spawn, execSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { realpathSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import type {
   AcpFs,
@@ -55,10 +56,6 @@ class RecordingProcessHandle implements AcpProcessHandle {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Terminal process handle
-// ---------------------------------------------------------------------------
-
 class RecordingTerminalProcess extends EventEmitter implements AcpTerminalProcess {
   private _exitCode: number | null = null;
 
@@ -97,19 +94,11 @@ class RecordingTerminalProcess extends EventEmitter implements AcpTerminalProces
   }
 }
 
-// ---------------------------------------------------------------------------
-// File system adapter
-// ---------------------------------------------------------------------------
-
 const recordingFs: AcpFs = {
   readFile: (path, encoding) => readFile(path, encoding),
   writeFile: (path, content, encoding) => writeFile(path, content, encoding),
   mkdir: (path, opts) => mkdir(path, opts),
 };
-
-// ---------------------------------------------------------------------------
-// Binary resolution
-// ---------------------------------------------------------------------------
 
 /** Map of provider id → common binary names (first entry is tried first). */
 const PROVIDER_BINARY_NAMES: Record<string, string[]> = {
@@ -124,11 +113,26 @@ function resolveBinary(providerId: string): string {
   const fromEnv = process.env[envKey] ?? process.env['EMDASH_CLI_PATH'];
   if (fromEnv) return fromEnv;
 
+  // Strip workspace node_modules/.bin directories from PATH before calling
+  // `which`. When running via pnpm scripts, pnpm injects these at the front
+  // of PATH; a workspace shim (e.g. node_modules/.bin/codex) would otherwise
+  // shadow the globally-installed binary, resolving to a broken workspace copy
+  // that may be missing platform-native optional dependencies.
+  const cleanPath = (process.env['PATH'] ?? '')
+    .split(':')
+    .filter((p) => !p.includes('node_modules/.bin'))
+    .join(':');
+
   const names = PROVIDER_BINARY_NAMES[providerId] ?? [providerId];
   for (const name of names) {
     try {
-      const found = execSync(`which ${name}`, { encoding: 'utf8' }).trim();
-      if (found) return found;
+      const found = execSync(`which ${name}`, {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: cleanPath },
+      }).trim();
+      // Resolve symlinks so agent adapters that use `import.meta.url`-based
+      // require resolution find the correct native dependencies.
+      if (found) return realpathSync(found);
     } catch {
       // not found in PATH, try next
     }
@@ -139,10 +143,6 @@ function resolveBinary(providerId: string): string {
       `Set ${envKey} or EMDASH_CLI_PATH, or ensure the CLI is in PATH.`
   );
 }
-
-// ---------------------------------------------------------------------------
-// RecordingHost
-// ---------------------------------------------------------------------------
 
 /**
  * Standalone AcpProcessHost for fixture scripts.

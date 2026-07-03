@@ -38,10 +38,6 @@ import type {
 export type ConfigOption = SessionConfigOption;
 export type { SessionMode };
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface PromptStep {
   kind: 'prompt';
   text: string;
@@ -77,10 +73,6 @@ export interface SetModeStep {
 }
 
 export type ScenarioStep = PromptStep | SetModelStep | SetEffortStep | SetModeStep;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 /** Flatten grouped or flat SelectOptions to a uniform `{ value: string }[]`. */
 function flattenSelectOptions(options: SessionConfigSelectOptions): { value: string }[] {
@@ -122,10 +114,6 @@ function pickDifferentMode(modes: SessionMode[]): string | null {
   const alt = modes[1];
   return alt?.id ?? null;
 }
-
-// ---------------------------------------------------------------------------
-// Scenario
-// ---------------------------------------------------------------------------
 
 export const scenario: ScenarioStep[] = [
   // Step 1 — plain text answer, no tools

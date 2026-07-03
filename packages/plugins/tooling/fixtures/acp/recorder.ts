@@ -12,10 +12,6 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-// ---------------------------------------------------------------------------
-// Event variants
-// ---------------------------------------------------------------------------
-
 /** Raw ACP protocol fields from a session/update notification. */
 export interface RecordedSessionUpdate {
   kind: 'session_update';
@@ -135,10 +131,6 @@ export interface RecordedEntry {
   event: RecordedEvent;
 }
 
-// ---------------------------------------------------------------------------
-// Session metadata captured once from newSession / initialize responses
-// ---------------------------------------------------------------------------
-
 export interface TranscriptMeta {
   providerId: string;
   model: string | null;
@@ -150,10 +142,6 @@ export interface TranscriptMeta {
   initialConfigOptions: unknown;
   initialAvailableCommands: unknown;
 }
-
-// ---------------------------------------------------------------------------
-// Recorder
-// ---------------------------------------------------------------------------
 
 export class Recorder {
   private seq = 0;

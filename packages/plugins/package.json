@@ -24,7 +24,8 @@
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/plugins/src\"'",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo --noEmit",
+    "generate:acp-fixture": "tsx tooling/fixtures/create-acp-transcript.ts"
   },
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "^0.54.1",
@@ -39,6 +40,7 @@
     "oxfmt": "^0.51.0",
     "oxlint": "^1.69.0",
     "tsdown": "^0.22.2",
+    "tsx": "^4.22.4",
     "vitest": "^3.1.4"
   },
   "packageManager": "pnpm@10.28.2"

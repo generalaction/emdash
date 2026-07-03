@@ -86,7 +86,6 @@ export function buildRecordingClient(
   });
 
   const client: Client = {
-    // -------------------------------------------------------------------------
     sessionUpdate: async (params: SessionNotification): Promise<void> => {
       recorder.record({
         kind: 'session_update',
@@ -95,7 +94,6 @@ export function buildRecordingClient(
       });
     },
 
-    // -------------------------------------------------------------------------
     requestPermission: async (
       params: RequestPermissionRequest
     ): Promise<RequestPermissionResponse> => {
@@ -121,7 +119,6 @@ export function buildRecordingClient(
       return { outcome: { outcome: 'selected', optionId: resolvedOptionId } };
     },
 
-    // -------------------------------------------------------------------------
     readTextFile: async (params: ReadTextFileRequest): Promise<ReadTextFileResponse> => {
       let ok = false;
       let content = '';
@@ -135,7 +132,6 @@ export function buildRecordingClient(
       return { content };
     },
 
-    // -------------------------------------------------------------------------
     writeTextFile: async (params: WriteTextFileRequest): Promise<WriteTextFileResponse> => {
       await mkdir(dirname(params.path), { recursive: true });
       await writeFile(params.path, params.content ?? '', 'utf8');
@@ -143,7 +139,6 @@ export function buildRecordingClient(
       return {};
     },
 
-    // -------------------------------------------------------------------------
     createTerminal: async (params: CreateTerminalRequest): Promise<CreateTerminalResponse> => {
       const envRecord = params.env
         ? Object.fromEntries(params.env.map((e) => [e.name, e.value]))
@@ -159,7 +154,6 @@ export function buildRecordingClient(
       return { terminalId };
     },
 
-    // -------------------------------------------------------------------------
     terminalOutput: async (params: TerminalOutputRequest): Promise<TerminalOutputResponse> => {
       const terminal = terminals.get(params.terminalId);
       if (!terminal) {
@@ -173,7 +167,6 @@ export function buildRecordingClient(
       };
     },
 
-    // -------------------------------------------------------------------------
     waitForTerminalExit: async (
       params: WaitForTerminalExitRequest
     ): Promise<WaitForTerminalExitResponse> => {
@@ -185,7 +178,6 @@ export function buildRecordingClient(
       return { exitCode: status.exitCode, signal: status.signal ?? undefined };
     },
 
-    // -------------------------------------------------------------------------
     killTerminal: async (params: KillTerminalRequest): Promise<KillTerminalResponse> => {
       const terminal = terminals.get(params.terminalId);
       if (!terminal) {
@@ -195,7 +187,6 @@ export function buildRecordingClient(
       return {};
     },
 
-    // -------------------------------------------------------------------------
     releaseTerminal: async (params: ReleaseTerminalRequest): Promise<ReleaseTerminalResponse> => {
       terminals.release(params.terminalId);
       return {};

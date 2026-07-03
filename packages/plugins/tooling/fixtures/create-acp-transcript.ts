@@ -3,15 +3,13 @@
  *
  * Prerequisites (must be satisfied before running):
  *   1. Workspace packages built: run `pnpm build` from the repo root so that
- *      @emdash/core/acp, @emdash/plugins/agents, and @emdash/shared resolve
- *      from their dist/ directories.
+ *      @emdash/core/acp and @emdash/plugins src resolve from their dist/ directories.
  *   2. Target agent CLI installed and authenticated, e.g. `claude` on PATH.
  *   3. Network + API-token access (real model calls are made).
  *
- * Usage:
- *   node --experimental-strip-types tooling/fixtures/create-acp-transcript.ts \
- *     [--provider claude] [--model claude-sonnet-5] [--cwd /tmp/my-worktree] \
- *     [--out tooling/fixtures/transcripts/claude-acp-transcript.json]
+ * Usage (from packages/plugins):
+ *   pnpm fixtures:acp [--provider claude] [--model claude-sonnet-5] \
+ *     [--cwd /tmp/my-worktree] [--out src/agents/impl/claude/fixtures/acp-transcript.json]
  *
  * Environment overrides:
  *   EMDASH_<PROVIDERID_UPPER>_BIN   - absolute path to the provider CLI binary
@@ -23,9 +21,9 @@
  */
 import { execSync, execFileSync } from 'node:child_process';
 import { resolve, isAbsolute } from 'node:path';
-import { isErr } from '@emdash/shared';
+import { fileURLToPath } from 'node:url';
 import { createAcpAgentConnection } from '@emdash/core/acp';
-import { pluginRegistry } from '@emdash/plugins/agents';
+import { pluginRegistry } from '../../src/agents/registry';
 import { Recorder } from './acp/recorder';
 import { RecordingHost } from './acp/recording-host';
 import { buildRecordingClient } from './acp/recording-client';
@@ -34,10 +32,6 @@ import {
   type ConfigOption,
   type SessionMode,
 } from './acp/scenario';
-
-// ---------------------------------------------------------------------------
-// Options
-// ---------------------------------------------------------------------------
 
 export interface TranscriptOptions {
   /** Registered provider id, e.g. 'claude'. */
@@ -49,13 +43,13 @@ export interface TranscriptOptions {
    * When omitted a throwaway git worktree is created at HEAD and removed on exit.
    */
   cwd?: string;
-  /** Output file path. Defaults to `tooling/fixtures/transcripts/<providerId>-acp-transcript.json`. */
+  /**
+   * Output file path. Defaults to
+   * `src/agents/impl/<providerId>/fixtures/acp-transcript.json`
+   * relative to the package root (packages/plugins).
+   */
   out?: string;
 }
-
-// ---------------------------------------------------------------------------
-// Git worktree helpers
-// ---------------------------------------------------------------------------
 
 function repoRoot(): string {
   return execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
@@ -86,12 +80,7 @@ function removeWorktree(path: string): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Engine
-// ---------------------------------------------------------------------------
-
 export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
-  // -- Resolve plugin behavior -----------------------------------------------
   const plugin = pluginRegistry.get(opts.providerId);
   if (!plugin) {
     throw new Error(`[fixture] Unknown provider '${opts.providerId}'. Is it registered?`);
@@ -101,12 +90,13 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
   }
   const behavior = plugin.behavior.acp;
 
-  // -- Resolve output path ---------------------------------------------------
   const outPath = opts.out
     ? (isAbsolute(opts.out) ? opts.out : resolve(process.cwd(), opts.out))
-    : resolve(process.cwd(), `tooling/fixtures/transcripts/${opts.providerId}-acp-transcript.json`);
+    : resolve(
+        process.cwd(),
+        `src/agents/impl/${opts.providerId}/fixtures/acp-transcript.json`
+      );
 
-  // -- Set up CWD (worktree or caller-supplied) --------------------------------
   let worktreePath: string | null = null;
   let cwd: string;
   if (opts.cwd) {
@@ -143,23 +133,21 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
     }
   );
 
-  if (isErr(connResult)) {
+  if (!connResult.success) {
     if (worktreePath) removeWorktree(worktreePath);
     throw new Error(`[fixture] Spawn failed: ${JSON.stringify(connResult.error)}`);
   }
 
-  const { handle, agent, initialized } = connResult.data
+  const { handle, agent, initialized } = connResult.data;
 
   try {
-    // -- Initialize ----------------------------------------------------------
     console.log('[fixture] Awaiting initialize…');
     const initResult = await initialized;
-    if (isErr(initResult)) {
+    if (!initResult.success) {
       throw new Error(`[fixture] Initialize failed: ${JSON.stringify(initResult.error)}`);
     }
     console.log('[fixture] Initialized.', initResult.data);
 
-    // -- newSession ----------------------------------------------------------
     console.log('[fixture] Calling newSession…');
     const sessionResp = await agent.newSession({ cwd, mcpServers: [] });
     sessionId = sessionResp.sessionId;
@@ -177,7 +165,6 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
       initialAvailableCommands: null,
     };
 
-    // -- Scenario loop -------------------------------------------------------
     let stepIndex = 0;
     for (const step of scenario) {
       stepIndex++;
@@ -202,7 +189,7 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
           console.log('[fixture] Agent does not support setSessionConfigOption — skipping setModel');
           continue;
         }
-        const modelValue = step.resolveModel(initialConfigOptions);
+        const modelValue = step.resolveModel(initialConfigOptions as ConfigOption[]);
         if (!modelValue) {
           console.log('[fixture] No alternative model found — skipping setModel');
           continue;
@@ -237,7 +224,7 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
           console.log('[fixture] No effort config found — skipping setEffort');
           continue;
         }
-        const effortValue = step.resolveEffort(initialConfigOptions);
+        const effortValue = step.resolveEffort(initialConfigOptions as ConfigOption[]);
         if (!effortValue) {
           console.log('[fixture] No alternative effort value found — skipping setEffort');
           continue;
@@ -260,7 +247,7 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
           console.log('[fixture] Agent does not support setSessionMode — skipping setMode');
           continue;
         }
-        const modeId = step.resolveMode(initialModes);
+        const modeId = step.resolveMode(initialModes as SessionMode[]);
         if (!modeId) {
           console.log('[fixture] No alternative mode found — skipping setMode');
           continue;
@@ -271,7 +258,6 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
       }
     }
 
-    // -- Close session -------------------------------------------------------
     console.log('\n[fixture] Closing session…');
     try {
       await agent.closeSession?.({ sessionId });
@@ -287,18 +273,17 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
     }
     if (worktreePath) removeWorktree(worktreePath);
 
-    // -- Persist -------------------------------------------------------------
     console.log(`\n[fixture] Saving transcript to ${outPath}…`);
     await recorder.save(outPath);
-    console.log(
-      `[fixture] Done. ${recorder.events.length} events recorded.`
-    );
+    console.log(`[fixture] Done. ${recorder.events.length} events recorded.`);
   }
 }
 
-// ---------------------------------------------------------------------------
-// CLI entry
-// ---------------------------------------------------------------------------
+// Per-provider defaults applied when the provider is selected via --<id> flag.
+const PROVIDER_DEFAULTS: Record<string, { model?: string | null }> = {
+  claude: { model: 'claude-sonnet-5' },
+  codex: { model: null },
+};
 
 function parseArgs(): TranscriptOptions {
   const args = process.argv.slice(2);
@@ -307,17 +292,41 @@ function parseArgs(): TranscriptOptions {
     return i !== -1 ? args[i + 1] : undefined;
   };
 
-  const providerId = get('--provider') ?? process.env['EMDASH_FIXTURE_PROVIDER'] ?? 'claude';
-  const model = get('--model') ?? process.env['EMDASH_FIXTURE_MODEL'] ?? null;
+  // Accept --<providerId> as shorthand (e.g. --claude, --codex).
+  // The first unknown boolean flag (starts with -- but has no value) is treated
+  // as the provider id.
+  let providerId =
+    get('--provider') ?? process.env['EMDASH_FIXTURE_PROVIDER'];
+
+  if (!providerId) {
+    const shorthand = args.find(
+      (a) =>
+        a.startsWith('--') &&
+        !a.includes('=') &&
+        !['--provider', '--model', '--cwd', '--out'].includes(a) &&
+        args[args.indexOf(a) - 1] !== '--provider' &&
+        args[args.indexOf(a) - 1] !== '--model' &&
+        args[args.indexOf(a) - 1] !== '--cwd' &&
+        args[args.indexOf(a) - 1] !== '--out'
+    );
+    if (shorthand) providerId = shorthand.slice(2);
+  }
+
+  providerId ??= 'claude';
+
+  const defaults = PROVIDER_DEFAULTS[providerId] ?? {};
+  const model = get('--model') ?? process.env['EMDASH_FIXTURE_MODEL'] ?? defaults.model ?? null;
   const cwd = get('--cwd') ?? process.env['EMDASH_FIXTURE_CWD'];
   const out = get('--out') ?? process.env['EMDASH_FIXTURE_OUT'];
 
   return { providerId, model, cwd, out };
 }
 
-const opts = parseArgs();
-console.log('[fixture] Starting ACP transcript capture:', opts);
-runAcpTranscript(opts).catch((e) => {
-  console.error('[fixture] Fatal error:', e);
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const opts = parseArgs();
+  console.log('[fixture] Starting ACP transcript capture:', opts);
+  runAcpTranscript(opts).catch((e) => {
+    console.error('[fixture] Fatal error:', e);
+    process.exit(1);
+  });
+}
