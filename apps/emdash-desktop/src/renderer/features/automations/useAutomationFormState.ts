@@ -18,6 +18,7 @@ import {
   type WorkspaceConfigInitial,
 } from '../tasks/create-task-modal/use-workspace-config';
 import type { BuiltinAutomationTemplate } from './automation-template';
+import { buildRRuleTriggerExpr, getEditableRRuleExpr } from './rrule-form-utils';
 
 const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
 const DEFAULT_RRULE = 'FREQ=WEEKLY';
@@ -86,8 +87,7 @@ export function useAutomationFormState(
   const [rruleExpr, setRRuleExpr] = useState<string>(() => {
     if (seedTrigger?.kind !== 'rrule') return DEFAULT_RRULE;
 
-    const rruleLine = seedTrigger.expr.split('\n').find((line) => /^RRULE:/i.test(line));
-    return rruleLine ? rruleLine.replace(/^RRULE:/i, '') : seedTrigger.expr;
+    return getEditableRRuleExpr(seedTrigger.expr);
   });
   const [cronTz] = useState<string>(seedTrigger?.tz ?? getLocalTimeZone());
 
@@ -195,7 +195,14 @@ export function useAutomationFormState(
 
   const triggerConfig: TriggerConfig =
     triggerKind === 'rrule'
-      ? { kind: 'rrule', expr: rruleExpr.trim(), tz: cronTz }
+      ? {
+          kind: 'rrule',
+          expr: buildRRuleTriggerExpr(
+            rruleExpr,
+            seedTrigger?.kind === 'rrule' ? seedTrigger.expr : undefined
+          ),
+          tz: cronTz,
+        }
       : { kind: 'cron', expr: cronExpr.trim(), tz: cronTz };
 
   function applyTemplate(template: BuiltinAutomationTemplate) {
