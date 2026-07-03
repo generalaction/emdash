@@ -1,6 +1,241 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`AcpTranscriptParser – fixture snapshots > claude 1`] = `
+exports[`AcpTranscriptParser – fixture snapshots > claude – config 1`] = `
+{
+  "availableCommands": [
+    {
+      "description": "Build, review, refactor, or architect ASP.NET Core web applications using current official guidance for .NET web development. Use when working on Blazor Web Apps, Razor Pages, MVC, Minimal APIs, controller-based Web APIs, SignalR, gRPC, middleware, dependency injection, configuration, authentication, authorization, testing, performance, deployment, or ASP.NET Core upgrades. (user)",
+      "name": "aspnet-core",
+    },
+    {
+      "description": "Deep research harness — fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report. (dynamic workflow)",
+      "name": "deep-research",
+    },
+    {
+      "description": "Push a React design system to claude.ai/design. This runs a converter that bundles the real component code (from Storybook or a bare package) and uploads it. Use when the user runs /design-sync or says "sync my design system to Claude Design".",
+      "inputHint": "[<project hint, e.g. "Acme DS">]",
+      "name": "design-sync",
+    },
+    {
+      "description": "Use this skill whenever you are about to create ANY chart, graph, plot, dashboard, or data visualization, in ANY output medium — an HTML or React artifact, inline SVG, plotting code in any library (matplotlib, plotly, d3, Recharts, …), an image/PNG you will render and upload, or a chart shared into Slack. Read it BEFORE writing the first line of chart code, choosing chart colors, building a stat tile / meter / KPI row, or laying out a dashboard. Produces visualizations that read as one system — elegant, accessible, consistent in light and dark — using a brand-neutral placeholder palette you swap for your own. Teaches a design-system-agnostic method: a form heuristic, a color formula with a runnable validator, mark specs, and interaction rules. A validated default palette is documented in \`references/palette.md\` — swap that file's values for your brand's. Triggers on: "chart", "graph", "plot", "data viz", "visualization", "dashboard", "analytics", "visualize data", "categorical colors", "sequential / diverging palette", "stat tile", "sparkline", "heatmap", "legend", "axis", "tooltip", "chart colors", "color by series".",
+      "name": "dataviz",
+    },
+    {
+      "description": "Use this skill to configure the Claude Code harness via settings.json. Automated behaviors ("from now on when X", "each time X", "whenever X", "before/after X") require hooks configured in settings.json - the harness executes these, not Claude, so memory/preferences cannot fulfill them. Also use for: permissions ("allow X", "add permission", "move permission to"), env vars ("set X=Y"), hook troubleshooting, or any changes to settings.json/settings.local.json files. Examples: "allow npm commands", "add bq permission to global settings", "move permission to user settings", "set DEBUG=true", "when claude stops show X". For simple settings like theme/model, suggest the /config command.",
+      "name": "update-config",
+    },
+    {
+      "description": "Verify that a code change actually does what it's supposed to by exercising it end-to-end and observing behavior — drive the affected flow, not just tests or typecheck. Run before committing nontrivial changes. Don't invoke it on a diff that only touches tests, docs, or other code with no runtime surface to drive (a change to product source always has one) — there's nothing to observe.",
+      "name": "verify",
+    },
+    {
+      "description": "Enable debug logging for this session and help diagnose issues",
+      "inputHint": "[issue description]",
+      "name": "debug",
+    },
+    {
+      "description": "Review the current diff for correctness bugs and reuse/simplification/efficiency cleanups at the given effort level (low/medium: fewer, high-confidence findings; high→max: broader coverage, may include uncertain findings). Pass --comment to post findings as inline PR comments, or --fix to apply the findings to the working tree after the review.",
+      "inputHint": "[low|medium|high|xhigh|max] [--fix] [--comment] [<target>]",
+      "name": "code-review",
+    },
+    {
+      "description": "Review the changed code for reuse, simplification, efficiency, and altitude cleanups, then apply the fixes. Quality only — it does not hunt for bugs; use /code-review for that.",
+      "inputHint": "[<target>]",
+      "name": "simplify",
+    },
+    {
+      "description": "Research and plan a large-scale change, then execute it in parallel across 5–30 isolated worktree agents that each open a PR.",
+      "inputHint": "<instruction>",
+      "name": "batch",
+    },
+    {
+      "description": "Scan your transcripts for common read-only Bash and MCP tool calls, then add a prioritized allowlist to project .claude/settings.json to reduce permission prompts.",
+      "name": "fewer-permission-prompts",
+    },
+    {
+      "description": "Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo). Omit the interval to let the model self-pace.",
+      "inputHint": "[interval] [prompt]",
+      "name": "loop",
+    },
+    {
+      "description": "Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration.
+TRIGGER — read BEFORE opening the target file; don't skip because it "looks like a one-liner" — whenever: the prompt names Claude/Anthropic in any form (Claude, Anthropic, Fable, Opus, Sonnet, Haiku, \`anthropic\`, \`@anthropic-ai\`, \`claude-*\`, \`us.anthropic.*\`, \`[1m]\`); the user asks about an LLM (pricing/model choice/limits/caching) — never answer from memory; OR the task is LLM-shaped with provider unstated (agent/MCP/tool-definition/multi-agent/RAG/LLM-judge/computer-use; generate/summarize/extract/classify/rewrite/converse over NL; debugging refusals/cutoffs/streaming/tool-calls/tokens).
+SKIP only when another provider is being worked on (overrides all triggers): OpenAI/GPT/Gemini/Llama/Mistral/Cohere/Ollama named in the query; OR \`grep -rE 'openai|langchain_openai|google.generativeai|genai|mistralai|cohere|ollama'\` over the project hits (run this grep FIRST if no provider named — don't Read the file).",
+      "name": "claude-api",
+    },
+    {
+      "description": "Launch and drive this project's app to see a change working. Use when asked to run, start, or screenshot the app, or to confirm a change works in the real app (not just tests). First looks for a project skill that already covers launching the app; otherwise falls back to built-in patterns per project type (CLI, server, TUI, Electron, browser-driven, library).",
+      "name": "run",
+    },
+    {
+      "description": "Author or improve the run-<unit> skill — a per-project skill that tells agents how to build, launch, and drive this project's app. Use when the user asks to set up the project, get it running, write run instructions, or verify build/run steps work from a clean environment.",
+      "name": "run-skill-generator",
+    },
+    {
+      "description": "(removed) Ask Claude to create/manage subagents, or edit .claude/agents/",
+      "name": "agents",
+    },
+    {
+      "description": "Free up context by summarizing the conversation so far",
+      "inputHint": "<optional custom summarization instructions>",
+      "name": "compact",
+    },
+    {
+      "description": "Set a setting by key",
+      "inputHint": "key=value",
+      "name": "config",
+    },
+    {
+      "description": "Show current context usage",
+      "name": "context",
+    },
+    {
+      "description": "Dump the JS heap to ~/Desktop",
+      "name": "heapdump",
+    },
+    {
+      "description": "Initialize a new CLAUDE.md file with codebase documentation",
+      "name": "init",
+    },
+    {
+      "description": "Pick up skills added or changed on disk during this session",
+      "name": "reload-skills",
+    },
+    {
+      "description": "Review a GitHub pull request; for your working diff use /code-review",
+      "inputHint": "[pr number]",
+      "name": "review",
+    },
+    {
+      "description": "Complete a security review of the pending changes on the current branch",
+      "name": "security-review",
+    },
+    {
+      "description": "Show session cost, plan usage, and what's contributing to your limits",
+      "name": "usage",
+    },
+    {
+      "description": "Generate a report analyzing your Claude Code sessions",
+      "name": "insights",
+    },
+    {
+      "description": "Generate a one-line session recap now",
+      "name": "recap",
+    },
+    {
+      "description": "Set a goal — keep working until the condition is met",
+      "name": "goal",
+    },
+    {
+      "description": "Grant or revoke Claude agent access to your Design projects",
+      "inputHint": "consent | revoke",
+      "name": "design",
+    },
+    {
+      "description": "Help teammates ramp on Claude Code with a guide from your usage",
+      "name": "team-onboarding",
+    },
+  ],
+  "efforts": {
+    "available": [
+      {
+        "id": "default",
+        "name": "Default",
+      },
+      {
+        "id": "low",
+        "name": "Low",
+      },
+      {
+        "id": "medium",
+        "name": "Medium",
+      },
+      {
+        "id": "high",
+        "name": "High",
+      },
+      {
+        "id": "xhigh",
+        "name": "Xhigh",
+      },
+      {
+        "id": "max",
+        "name": "Max",
+      },
+    ],
+    "selected": "default",
+  },
+  "modeOptions": {
+    "available": [
+      {
+        "description": "Use a model classifier to approve/deny permission prompts",
+        "id": "auto",
+        "name": "Auto",
+      },
+      {
+        "description": "Standard behavior, prompts for dangerous operations",
+        "id": "default",
+        "name": "Default",
+      },
+      {
+        "description": "Auto-accept file edit operations",
+        "id": "acceptEdits",
+        "name": "Accept Edits",
+      },
+      {
+        "description": "Planning mode, no actual tool execution",
+        "id": "plan",
+        "name": "Plan Mode",
+      },
+      {
+        "description": "Don't prompt for permissions, deny if not pre-approved",
+        "id": "dontAsk",
+        "name": "Don't Ask",
+      },
+      {
+        "description": "Bypass all permission checks",
+        "id": "bypassPermissions",
+        "name": "Bypass Permissions",
+      },
+    ],
+    "selected": "acceptEdits",
+  },
+  "modelOptions": {
+    "available": [
+      {
+        "description": "Use the default model (currently Opus 4.8 (1M context)) · $5/$25 per Mtok",
+        "id": "default",
+        "name": "Default (recommended)",
+      },
+      {
+        "description": "Opus 4.8 with 1M context · Best for everyday, complex tasks · $5/$25 per Mtok",
+        "id": "opus[1m]",
+        "name": "Opus",
+      },
+      {
+        "description": "Fable 5 · Most capable for your hardest and longest-running tasks · $10/$50 per Mtok",
+        "id": "claude-fable-5[1m]",
+        "name": "Fable",
+      },
+      {
+        "description": "Sonnet 5 · Efficient for routine tasks · $2/$10 per Mtok · promo through Aug 31",
+        "id": "sonnet",
+        "name": "Sonnet",
+      },
+      {
+        "description": "Haiku 4.5 · Fastest for quick answers · $1/$5 per Mtok",
+        "id": "haiku",
+        "name": "Haiku",
+      },
+    ],
+    "selected": "default",
+  },
+}
+`;
+
+exports[`AcpTranscriptParser – fixture snapshots > claude – title 1`] = `"Understand what emdash is"`;
+
+exports[`AcpTranscriptParser – fixture snapshots > claude – transcript 1`] = `
 {
   "active": null,
   "committed": [
@@ -559,7 +794,118 @@ Separately — the background subagent finished its \`stopReason\` file search; 
 }
 `;
 
-exports[`AcpTranscriptParser – fixture snapshots > codex 1`] = `
+exports[`AcpTranscriptParser – fixture snapshots > claude – usage 1`] = `
+{
+  "contextSize": 1000000,
+  "contextUsed": 54442,
+  "cost": {
+    "amount": 0.8453810499999999,
+    "currency": "USD",
+  },
+}
+`;
+
+exports[`AcpTranscriptParser – fixture snapshots > codex – config 1`] = `
+{
+  "availableCommands": [
+    {
+      "description": "List configured Model Context Protocol (MCP) tools.",
+      "name": "mcp",
+    },
+    {
+      "description": "List available skills.",
+      "name": "skills",
+    },
+    {
+      "description": "Display session configuration and token usage.",
+      "name": "status",
+    },
+    {
+      "description": "Review uncommitted changes, or review with custom instructions.",
+      "inputHint": "optional review instructions",
+      "name": "review",
+    },
+    {
+      "description": "Review changes relative to a base branch.",
+      "inputHint": "branch name",
+      "name": "review-branch",
+    },
+    {
+      "description": "Review a specific commit.",
+      "inputHint": "commit sha",
+      "name": "review-commit",
+    },
+    {
+      "description": "Summarize conversation to avoid hitting the context limit.",
+      "name": "compact",
+    },
+    {
+      "description": "Set, pause, resume, or clear a task goal.",
+      "inputHint": "[<objective>|clear|pause|resume]",
+      "name": "goal",
+    },
+    {
+      "description": "Sign out of Codex. This option is available when you are logged in via ChatGPT.",
+      "name": "logout",
+    },
+    {
+      "description": "Build, review, refactor, or architect ASP.NET Core web applications using current official guidance for .NET web development. Use when working on Blazor Web Apps, Razor Pages, MVC, Minimal APIs, controller-based Web APIs, SignalR, gRPC, middleware, dependency injection, configuration, authentication, authorization, testing, performance, deployment, or ASP.NET Core upgrades.",
+      "name": "$aspnet-core",
+    },
+    {
+      "description": "Control the in-app Browser. Use to open, navigate, inspect, test, click, type, screenshot, or verify local targets such as localhost, 127.0.0.1, ::1, file://, the current in-app browser tab, and websites shown side by side inside Codex.",
+      "name": "$browser:control-in-app-browser",
+    },
+    {
+      "description": "Create, edit, redline, and comment on \`.docx\`, Word, and Google Docs-targeted document artifacts inside the container, with a strict render-and-verify workflow. Use \`render_docx.py\` to generate page PNGs (and optional PDF) for visual QA, then iterate until layout is flawless before delivering the final document.",
+      "name": "$documents:documents",
+    },
+    {
+      "description": "Read, create, inspect, render, and verify PDF files where visual layout matters. Use Poppler rendering plus Python tools such as reportlab, pdfplumber, and pypdf for generation and extraction.",
+      "name": "$pdf:pdf",
+    },
+    {
+      "description": "Create or edit PowerPoint or Google Slides decks",
+      "name": "$presentations:Presentations",
+    },
+    {
+      "description": "Use this skill when a user requests to create, modify, analyze, visualize, or work with spreadsheet files (\`.xlsx\`, \`.xls\`, \`.csv\`, \`.tsv\`) or Google Sheets-targeted spreadsheet artifacts with formulas, formatting, charts, tables, and recalculation.",
+      "name": "$spreadsheets:Spreadsheets",
+    },
+    {
+      "description": "Create or update a reusable personal Codex artifact-template skill. Use when the user invokes $template-creator or asks in natural language to create a template using, from, or based on an attached Word document, PowerPoint presentation, or Excel workbook, or explicitly asks to edit or update a passed artifact-template skill. Do not use for one-off artifact creation from an existing template.",
+      "name": "$template-creator:template-creator",
+    },
+    {
+      "description": "Generate or edit raster images when the task benefits from AI-created bitmap visuals such as photos, illustrations, textures, sprites, mockups, or transparent-background cutouts. Use when Codex should create a brand-new image, transform an existing image, or derive visual variants from references, and the output should be a bitmap asset rather than repo-native code or vector. Do not use when the task is better handled by editing existing SVG/vector/code-native assets, extending an established icon or logo system, or building the visual directly in HTML/CSS/canvas.",
+      "name": "$imagegen",
+    },
+    {
+      "description": "Use when the user asks how to build with OpenAI products or APIs, asks about Codex itself or choosing Codex surfaces, needs up-to-date official documentation with citations, help choosing the latest model for a use case, or model upgrade and prompt-upgrade guidance; use OpenAI docs MCP tools for non-Codex docs questions, use the Codex manual helper first for broad Codex self-knowledge, and restrict fallback browsing to official OpenAI domains.",
+      "name": "$openai-docs",
+    },
+    {
+      "description": "Create and scaffold plugin directories for Codex with a required \`.codex-plugin/plugin.json\`, optional plugin folders/files, valid manifest defaults, and personal-marketplace entries by default. Use when Codex needs to create a new personal plugin, add optional plugin structure, generate or update marketplace entries for plugin ordering and availability metadata, or update an existing local plugin during development with the CLI-driven cachebuster and reinstall flow.",
+      "name": "$plugin-creator",
+    },
+    {
+      "description": "Create or update a skill",
+      "name": "$skill-creator",
+    },
+    {
+      "description": "Install curated skills from openai/skills or other repos",
+      "name": "$skill-installer",
+    },
+  ],
+  "efforts": null,
+  "modeOptions": null,
+  "modelOptions": null,
+}
+`;
+
+exports[`AcpTranscriptParser – fixture snapshots > codex – title 1`] = `null`;
+
+exports[`AcpTranscriptParser – fixture snapshots > codex – transcript 1`] = `
 {
   "active": null,
   "committed": [
@@ -1153,5 +1499,13 @@ closed
       "source": "live",
     },
   ],
+}
+`;
+
+exports[`AcpTranscriptParser – fixture snapshots > codex – usage 1`] = `
+{
+  "contextSize": 258400,
+  "contextUsed": 73018,
+  "cost": null,
 }
 `;

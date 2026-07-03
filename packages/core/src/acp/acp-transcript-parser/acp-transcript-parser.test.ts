@@ -332,10 +332,10 @@ describe('AcpTranscriptParser', () => {
     const liveHistory = live.history;
 
     // Replay path
-    const replayState = AcpTranscriptParser.replay(updates, deps());
-    const replayHistory = replayState.committed;
+    const replayResult = AcpTranscriptParser.replay(updates, deps());
+    const replayHistory = replayResult.transcript.committed;
 
-    expect(replayState.active).toBeNull();
+    expect(replayResult.transcript.active).toBeNull();
     expect(replayHistory).toHaveLength(2);
     expect(liveHistory).toHaveLength(2);
 
@@ -345,10 +345,10 @@ describe('AcpTranscriptParser', () => {
     }
 
     // Key invariant: message text is identical
-    const liveText = liveHistory.flatMap((t) =>
+    const liveText = liveHistory.flatMap((t: { items: { kind: string; text?: string }[] }) =>
       t.items.filter((i) => i.kind === 'message').map((i) => (i as { text: string }).text)
     );
-    const replayText = replayHistory.flatMap((t) =>
+    const replayText = replayHistory.flatMap((t: { items: { kind: string; text?: string }[] }) =>
       t.items.filter((i) => i.kind === 'message').map((i) => (i as { text: string }).text)
     );
     expect(replayText).toEqual(liveText);
@@ -363,8 +363,8 @@ describe('AcpTranscriptParser', () => {
     p.endTurn();
     expect(p.history[0].source).toBe('live');
 
-    const replayState = AcpTranscriptParser.replay(updates, deps());
-    expect(replayState.committed[0].source).toBe('replay');
+    const replayResult = AcpTranscriptParser.replay(updates, deps());
+    expect(replayResult.transcript.committed[0].source).toBe('replay');
   });
 
   // ── Finalization on commit ────────────────────────────────────────────────
@@ -405,5 +405,241 @@ describe('AcpTranscriptParser', () => {
     p.reset();
     expect(p.history).toHaveLength(0);
     expect(p.activeTurn).toBeNull();
+  });
+});
+
+// ── Session slice tests ──────────────────────────────────────────────────────
+
+function configOptionUpdate(configOptions: unknown[]): SessionUpdate {
+  return {
+    sessionUpdate: 'config_option_update',
+    sessionId: 'sess-1',
+    configOptions,
+  } as unknown as SessionUpdate;
+}
+
+function currentModeUpdate(currentModeId: string): SessionUpdate {
+  return {
+    sessionUpdate: 'current_mode_update',
+    sessionId: 'sess-1',
+    currentModeId,
+  } as unknown as SessionUpdate;
+}
+
+function availableCommandsUpdate(availableCommands: unknown[]): SessionUpdate {
+  return {
+    sessionUpdate: 'available_commands_update',
+    sessionId: 'sess-1',
+    availableCommands,
+  } as unknown as SessionUpdate;
+}
+
+function usageUpdate(used: number, size: number, cost?: { amount: number; currency: string }): SessionUpdate {
+  return {
+    sessionUpdate: 'usage_update',
+    sessionId: 'sess-1',
+    used,
+    size,
+    cost: cost ?? null,
+  } as unknown as SessionUpdate;
+}
+
+function sessionInfoUpdate(title: string): SessionUpdate {
+  return {
+    sessionUpdate: 'session_info_update',
+    sessionId: 'sess-1',
+    title,
+  } as unknown as SessionUpdate;
+}
+
+describe('AcpTranscriptParser – session slices', () => {
+  // ── Config derivation ──────────────────────────────────────────────────────
+
+  it('config_option_update populates modelOptions, efforts, modeOptions', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(configOptionUpdate([
+      {
+        id: 'model', category: 'model', type: 'select', currentValue: 'opus',
+        options: [{ value: 'opus', name: 'Opus' }, { value: 'haiku', name: 'Haiku' }],
+      },
+      {
+        id: 'effort', category: 'thought_level', type: 'select', currentValue: 'high',
+        options: [{ value: 'low', name: 'Low' }, { value: 'high', name: 'High' }],
+      },
+      {
+        id: 'mode', category: 'mode', type: 'select', currentValue: 'default',
+        options: [{ value: 'default', name: 'Default' }, { value: 'plan', name: 'Plan' }],
+      },
+    ]));
+
+    const { modelOptions, efforts, modeOptions } = p.config;
+
+    expect(modelOptions?.selected).toBe('opus');
+    expect(modelOptions?.available).toHaveLength(2);
+    expect(modelOptions?.available[0]).toEqual({ id: 'opus', name: 'Opus' });
+
+    expect(efforts?.selected).toBe('high');
+    expect(efforts?.available).toHaveLength(2);
+    expect(efforts?.available[1]).toEqual({ id: 'high', name: 'High' });
+
+    expect(modeOptions?.selected).toBe('default');
+    expect(modeOptions?.available).toHaveLength(2);
+    expect(modeOptions?.available[0]).toEqual({ id: 'default', name: 'Default' });
+  });
+
+  it('config_option_update preserves description on options', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(configOptionUpdate([
+      {
+        id: 'model', category: 'model', type: 'select', currentValue: 'opus',
+        options: [{ value: 'opus', name: 'Opus', description: 'Most capable' }],
+      },
+    ]));
+    expect(p.config.modelOptions?.available[0].description).toBe('Most capable');
+  });
+
+  it('unknown category (model_config) is ignored', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(configOptionUpdate([
+      {
+        id: 'fast', category: 'model_config', type: 'select', currentValue: 'off',
+        options: [{ value: 'on', name: 'On' }, { value: 'off', name: 'Off' }],
+      },
+    ]));
+    // No crash; all groups remain null since no recognized category was present
+    expect(p.config.modelOptions).toBeNull();
+    expect(p.config.efforts).toBeNull();
+    expect(p.config.modeOptions).toBeNull();
+  });
+
+  // ── current_mode_update ────────────────────────────────────────────────────
+
+  it('current_mode_update sets modeOptions.selected when modeOptions is already populated', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(configOptionUpdate([
+      {
+        id: 'mode', category: 'mode', type: 'select', currentValue: 'default',
+        options: [{ value: 'default', name: 'Default' }, { value: 'acceptEdits', name: 'Accept Edits' }],
+      },
+    ]));
+    expect(p.config.modeOptions?.selected).toBe('default');
+
+    p.push(currentModeUpdate('acceptEdits'));
+    expect(p.config.modeOptions?.selected).toBe('acceptEdits');
+    // available list unchanged
+    expect(p.config.modeOptions?.available).toHaveLength(2);
+  });
+
+  it('current_mode_update is a no-op when modeOptions is null', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(currentModeUpdate('acceptEdits'));
+    expect(p.config.modeOptions).toBeNull();
+  });
+
+  // ── available_commands_update ──────────────────────────────────────────────
+
+  it('available_commands_update populates availableCommands', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(availableCommandsUpdate([
+      { name: 'review', description: 'Review code' },
+      { name: 'debug', description: 'Enable debug', input: { hint: '[issue]' } },
+    ]));
+    expect(p.config.availableCommands).toHaveLength(2);
+    expect(p.config.availableCommands[0]).toEqual({ name: 'review', description: 'Review code' });
+    expect(p.config.availableCommands[1]).toEqual({ name: 'debug', description: 'Enable debug', inputHint: '[issue]' });
+  });
+
+  it('available_commands_update replaces previous list', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(availableCommandsUpdate([{ name: 'a', description: 'A' }]));
+    p.push(availableCommandsUpdate([{ name: 'b', description: 'B' }, { name: 'c', description: 'C' }]));
+    expect(p.config.availableCommands).toHaveLength(2);
+    expect(p.config.availableCommands[0].name).toBe('b');
+  });
+
+  // ── usage_update ───────────────────────────────────────────────────────────
+
+  it('usage_update sets usage fields correctly', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(usageUpdate(1000, 200000, { amount: 0.02, currency: 'USD' }));
+    expect(p.usage).toEqual({ contextUsed: 1000, contextSize: 200000, cost: { amount: 0.02, currency: 'USD' } });
+  });
+
+  it('usage_update with no cost sets cost to null', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(usageUpdate(500, 100000));
+    expect(p.usage?.cost).toBeNull();
+  });
+
+  it('usage_update overwrites previous usage', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(usageUpdate(1000, 200000));
+    p.push(usageUpdate(2000, 200000));
+    expect(p.usage?.contextUsed).toBe(2000);
+  });
+
+  // ── session_info_update ────────────────────────────────────────────────────
+
+  it('session_info_update sets title', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(sessionInfoUpdate('My session title'));
+    expect(p.title).toBe('My session title');
+  });
+
+  it('session_info_update overwrites previous title', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(sessionInfoUpdate('First'));
+    p.push(sessionInfoUpdate('Second'));
+    expect(p.title).toBe('Second');
+  });
+
+  // ── No turn boundary side-effect ───────────────────────────────────────────
+
+  it('config/usage/title events do NOT open a transcript turn', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(configOptionUpdate([
+      { id: 'model', category: 'model', type: 'select', currentValue: 'opus', options: [] },
+    ]));
+    p.push(usageUpdate(100, 200000));
+    p.push(sessionInfoUpdate('A title'));
+    p.push(availableCommandsUpdate([{ name: 'foo', description: 'Foo' }]));
+
+    // None of the above should open a turn
+    expect(p.activeTurn).toBeNull();
+    expect(p.history).toHaveLength(0);
+  });
+
+  // ── reset clears session slices ────────────────────────────────────────────
+
+  it('reset clears config, usage, and title', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(usageUpdate(1000, 200000));
+    p.push(sessionInfoUpdate('Some title'));
+    p.push(configOptionUpdate([
+      { id: 'model', category: 'model', type: 'select', currentValue: 'opus', options: [] },
+    ]));
+    p.reset();
+    expect(p.usage).toBeNull();
+    expect(p.title).toBeNull();
+    expect(p.config.modelOptions).toBeNull();
+    expect(p.config.availableCommands).toHaveLength(0);
+  });
+
+  // ── static replay includes session slices ──────────────────────────────────
+
+  it('static replay returns config, usage, title alongside transcript', () => {
+    const updates = [
+      configOptionUpdate([
+        { id: 'model', category: 'model', type: 'select', currentValue: 'haiku', options: [{ value: 'haiku', name: 'Haiku' }] },
+      ]),
+      usageUpdate(500, 100000, { amount: 0.001, currency: 'USD' }),
+      sessionInfoUpdate('Replay title'),
+    ] as unknown as SessionUpdate[];
+
+    const result = AcpTranscriptParser.replay(updates as Iterable<SessionUpdate>, deps());
+    expect(result.transcript.active).toBeNull();
+    expect(result.config.modelOptions?.selected).toBe('haiku');
+    expect(result.usage?.contextUsed).toBe(500);
+    expect(result.title).toBe('Replay title');
   });
 });

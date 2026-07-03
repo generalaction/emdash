@@ -9,8 +9,9 @@
  * Contrast with TranscriptItem (accumulated materialized state).
  */
 
-import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import type { AvailableCommand, SessionConfigOption, SessionUpdate } from '@agentclientprotocol/sdk';
 import type { AttachmentRef, TranscriptPlanEntry } from './model';
+import type { SessionUsage } from './session-model';
 
 // ── NormalizedEvent ─────────────────────────────────────────────────────────
 
@@ -66,6 +67,32 @@ export type NormalizedEvent =
   | {
       kind: 'plan';
       entries: TranscriptPlanEntry[];
+    }
+  // ── Session-config / meta variants (do not affect turn boundaries) ─────────
+  | {
+      /** Full config option array from config_option_update. */
+      kind: 'config';
+      options: ReadonlyArray<SessionConfigOption>;
+    }
+  | {
+      /** Selected mode id from current_mode_update. */
+      kind: 'mode_selected';
+      modeId: string;
+    }
+  | {
+      /** Full available command list from available_commands_update. */
+      kind: 'commands';
+      commands: ReadonlyArray<AvailableCommand>;
+    }
+  | {
+      /** Usage figures from usage_update. */
+      kind: 'usage';
+      usage: SessionUsage;
+    }
+  | {
+      /** Session title from session_info_update. */
+      kind: 'title';
+      title: string;
     }
   | { kind: 'ignored' };
 

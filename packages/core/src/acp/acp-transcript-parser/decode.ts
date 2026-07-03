@@ -97,6 +97,45 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
       };
     }
 
+    case 'config_option_update': {
+      const raw = update as unknown as { configOptions?: unknown };
+      const options = Array.isArray(raw.configOptions) ? raw.configOptions : [];
+      return { kind: 'config', options };
+    }
+
+    case 'current_mode_update': {
+      const raw = update as unknown as { currentModeId?: string };
+      if (!raw.currentModeId) return { kind: 'ignored' };
+      return { kind: 'mode_selected', modeId: raw.currentModeId };
+    }
+
+    case 'available_commands_update': {
+      const raw = update as unknown as { availableCommands?: unknown };
+      const commands = Array.isArray(raw.availableCommands) ? raw.availableCommands : [];
+      return { kind: 'commands', commands };
+    }
+
+    case 'usage_update': {
+      const raw = update as unknown as {
+        used?: number;
+        size?: number;
+        cost?: { amount?: number; currency?: string } | null;
+      };
+      const contextUsed = raw.used ?? 0;
+      const contextSize = raw.size ?? 0;
+      const cost =
+        raw.cost && typeof raw.cost.amount === 'number' && raw.cost.currency
+          ? { amount: raw.cost.amount, currency: raw.cost.currency }
+          : null;
+      return { kind: 'usage', usage: { contextUsed, contextSize, cost } };
+    }
+
+    case 'session_info_update': {
+      const raw = update as unknown as { title?: string };
+      if (!raw.title) return { kind: 'ignored' };
+      return { kind: 'title', title: raw.title };
+    }
+
     // plan_update and plan_removed are UNSTABLE/ID-based ACP variants gated
     // behind PlanCapabilities — not emitted by Claude. Ignored for now.
     default:

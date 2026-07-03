@@ -2,8 +2,8 @@
  * Fixture-driven snapshot tests for AcpTranscriptParser.
  *
  * Replays each recorded ACP session transcript through the parser and
- * snapshots the final TranscriptState. No manual assertions — the snapshot
- * is the sole validation artifact.
+ * snapshots all four output slices: transcript, config, usage, and title.
+ * No manual assertions — the snapshots are the sole validation artifact.
  *
  * Clock is frozen so that startedAt/durationMs values in thinking rows are
  * deterministic across runs.
@@ -14,6 +14,8 @@ import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { AcpTranscriptParser } from './parser';
 import { defaultTransform } from './decode';
+
+// ── Narrow fixture types ──────────────────────────────────────────────────────
 
 interface RecordedPrompt {
   kind: 'prompt';
@@ -42,6 +44,8 @@ interface FixtureFile {
   meta: { sessionId: string; providerId: string };
   events: RecordedEntry[];
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function loadFixture(filename: string): FixtureFile {
   return JSON.parse(
@@ -88,6 +92,8 @@ function driveParser(fixture: FixtureFile): AcpTranscriptParser {
   return parser;
 }
 
+// ── Clock control ─────────────────────────────────────────────────────────────
+
 beforeAll(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2020-01-01T00:00:00.000Z'));
@@ -97,14 +103,46 @@ afterAll(() => {
   vi.useRealTimers();
 });
 
+// ── Snapshot tests ────────────────────────────────────────────────────────────
+
 describe('AcpTranscriptParser – fixture snapshots', () => {
-  it('claude', () => {
+  it('claude – transcript', () => {
     const parser = driveParser(loadFixture('acp-claude.json'));
     expect(parser.snapshot).toMatchSnapshot();
   });
 
-  it('codex', () => {
+  it('claude – config', () => {
+    const parser = driveParser(loadFixture('acp-claude.json'));
+    expect(parser.config).toMatchSnapshot();
+  });
+
+  it('claude – usage', () => {
+    const parser = driveParser(loadFixture('acp-claude.json'));
+    expect(parser.usage).toMatchSnapshot();
+  });
+
+  it('claude – title', () => {
+    const parser = driveParser(loadFixture('acp-claude.json'));
+    expect(parser.title).toMatchSnapshot();
+  });
+
+  it('codex – transcript', () => {
     const parser = driveParser(loadFixture('acp-codex.json'));
     expect(parser.snapshot).toMatchSnapshot();
+  });
+
+  it('codex – config', () => {
+    const parser = driveParser(loadFixture('acp-codex.json'));
+    expect(parser.config).toMatchSnapshot();
+  });
+
+  it('codex – usage', () => {
+    const parser = driveParser(loadFixture('acp-codex.json'));
+    expect(parser.usage).toMatchSnapshot();
+  });
+
+  it('codex – title', () => {
+    const parser = driveParser(loadFixture('acp-codex.json'));
+    expect(parser.title).toMatchSnapshot();
   });
 });

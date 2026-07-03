@@ -265,6 +265,9 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
     }
 
     case 'ignored':
+    // Session-config / meta variants never reach foldItem (router intercepts them),
+    // but the extended NormalizedEvent union requires a total switch.
+    default:
       return items;
   }
 }
