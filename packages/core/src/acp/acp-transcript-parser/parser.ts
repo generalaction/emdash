@@ -84,8 +84,6 @@ export class AcpTranscriptParser {
     return this.state;
   }
 
-  // ── Bounded replay (static) ───────────────────────────────────────────────
-
   /**
    * Fold a finite iterable of SessionUpdates into a TranscriptState.
    *

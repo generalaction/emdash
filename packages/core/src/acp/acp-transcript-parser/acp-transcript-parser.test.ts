@@ -11,8 +11,6 @@ import { AcpTranscriptParser } from './parser';
 import { defaultTransform } from './decode';
 import { makeMessageId, makeThinkingId, makeToolId, makeTurnId, makeDiffId } from './ids';
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
 const CID = 'conv-1';
 
 function deps() {
@@ -96,11 +94,7 @@ function planUpdate(entries: Array<{ content: string; status: string; priority: 
   } as unknown as SessionUpdate;
 }
 
-// ── Tests ────────────────────────────────────────────────────────────────────
-
 describe('AcpTranscriptParser', () => {
-
-  // ── Turn splitting ────────────────────────────────────────────────────────
 
   it('single user+assistant exchange produces one committed turn after endTurn', () => {
     const p = new AcpTranscriptParser(deps());

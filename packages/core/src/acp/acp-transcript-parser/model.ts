@@ -67,6 +67,8 @@ export type TranscriptMessage = {
 export type TranscriptThinking = {
   kind: 'thinking';
   id: string;
+  /** Provider-assigned message id for this thinking block, when available. */
+  messageId: string | null;
   /** Accumulating reasoning text. */
   text: string;
   /** 'thinking' while streaming; 'done' after finalization. */

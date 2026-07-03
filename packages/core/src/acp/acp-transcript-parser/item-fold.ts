@@ -172,6 +172,7 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
       const newThinking: TranscriptThinking = {
         kind: 'thinking',
         id,
+        messageId: event.messageId,
         text: event.text,
         status: 'thinking',
         startedAt: now,

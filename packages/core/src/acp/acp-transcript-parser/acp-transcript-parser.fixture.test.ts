@@ -1,0 +1,110 @@
+/**
+ * Fixture-driven snapshot tests for AcpTranscriptParser.
+ *
+ * Replays each recorded ACP session transcript through the parser and
+ * snapshots the final TranscriptState. No manual assertions — the snapshot
+ * is the sole validation artifact.
+ *
+ * Clock is frozen so that startedAt/durationMs values in thinking rows are
+ * deterministic across runs.
+ */
+
+import { readFileSync } from 'node:fs';
+import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
+import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import { AcpTranscriptParser } from './parser';
+import { defaultTransform } from './decode';
+
+interface RecordedPrompt {
+  kind: 'prompt';
+  sessionId: string;
+  content: Array<{ type: string; text?: string }>;
+}
+interface RecordedSessionUpdate {
+  kind: 'session_update';
+  sessionId: string;
+  update: unknown;
+}
+interface RecordedPromptResult {
+  kind: 'prompt_result';
+  sessionId: string;
+  stopReason: string | null | undefined;
+}
+type RecordedEvent = RecordedPrompt | RecordedSessionUpdate | RecordedPromptResult;
+
+interface RecordedEntry {
+  seq: number;
+  ts: number;
+  event: RecordedEvent | { kind: string };
+}
+
+interface FixtureFile {
+  meta: { sessionId: string; providerId: string };
+  events: RecordedEntry[];
+}
+
+function loadFixture(filename: string): FixtureFile {
+  return JSON.parse(
+    readFileSync(new URL(`./fixtures/${filename}`, import.meta.url), 'utf8')
+  ) as FixtureFile;
+}
+
+function driveParser(fixture: FixtureFile): AcpTranscriptParser {
+  const { meta, events } = fixture;
+  const parser = new AcpTranscriptParser({ conversationId: meta.sessionId, transform: defaultTransform });
+
+  for (const entry of events) {
+    const kind = (entry.event as { kind: string }).kind;
+
+    switch (kind) {
+      case 'prompt': {
+        const ev = entry.event as RecordedPrompt;
+        for (const block of ev.content) {
+          if (block.type === 'text' && block.text) {
+            parser.push({
+              sessionUpdate: 'user_message_chunk',
+              sessionId: ev.sessionId,
+              messageId: undefined,
+              content: { type: 'text', text: block.text },
+            } as unknown as SessionUpdate);
+          }
+        }
+        break;
+      }
+      case 'session_update': {
+        const ev = entry.event as RecordedSessionUpdate;
+        parser.push(ev.update as SessionUpdate);
+        break;
+      }
+      case 'prompt_result': {
+        parser.endTurn();
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  return parser;
+}
+
+beforeAll(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2020-01-01T00:00:00.000Z'));
+});
+
+afterAll(() => {
+  vi.useRealTimers();
+});
+
+describe('AcpTranscriptParser – fixture snapshots', () => {
+  it('claude', () => {
+    const parser = driveParser(loadFixture('acp-claude.json'));
+    expect(parser.snapshot).toMatchSnapshot();
+  });
+
+  it('codex', () => {
+    const parser = driveParser(loadFixture('acp-codex.json'));
+    expect(parser.snapshot).toMatchSnapshot();
+  });
+});
