@@ -48,7 +48,7 @@
     "@team-plain/graphql": "^1.0.1",
     "asana": "^3.1.12",
     "featurebase-node": "^0.14.0",
-    "jira-client": "^8.2.2",
+    "jira.js": "^5.4.0",
     "smol-toml": "^1.6.0",
     "trello": "^0.11.0",
     "zod": "^4.4.3"
