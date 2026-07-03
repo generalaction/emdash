@@ -54,7 +54,7 @@ export function SetupFormShell({
       <DialogContentArea className="pt-1">
         {children}
         {error ? (
-          <p className="text-foreground-destructive text-xs" role="alert">
+          <p className="text-xs text-foreground-destructive" role="alert">
             {error}
           </p>
         ) : null}
