@@ -506,6 +506,21 @@ importers:
       '@emdash/shared':
         specifier: workspace:*
         version: link:../shared
+      '@gitbeaker/rest':
+        specifier: ^43.8.0
+        version: 43.8.0
+      '@linear/sdk':
+        specifier: ^77.0.0
+        version: 77.0.0(graphql@16.14.1)
+      '@llamaduck/forgejo-ts':
+        specifier: ^14.0.3
+        version: 14.0.5
+      '@octokit/rest':
+        specifier: ^22.0.1
+        version: 22.0.1
+      '@team-plain/graphql':
+        specifier: ^1.0.1
+        version: 1.2.0
       smol-toml:
         specifier: ^1.6.0
         version: 1.6.1

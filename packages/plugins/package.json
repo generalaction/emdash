@@ -40,6 +40,11 @@
     "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/core": "workspace:*",
     "@emdash/shared": "workspace:*",
+    "@gitbeaker/rest": "^43.8.0",
+    "@linear/sdk": "^77.0.0",
+    "@llamaduck/forgejo-ts": "^14.0.3",
+    "@octokit/rest": "^22.0.1",
+    "@team-plain/graphql": "^1.0.1",
     "smol-toml": "^1.6.0",
     "zod": "^4.4.3"
   },

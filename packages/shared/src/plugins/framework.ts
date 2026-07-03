@@ -31,8 +31,9 @@ export function createPluginFramework<
     const resolved = {} as ResolvedCapabilityDescriptors<TCaps>;
     for (const key of Object.keys(capabilityMap) as (keyof TCaps)[]) {
       const provided = (capabilities as Record<keyof TCaps, unknown>)[key];
-      (resolved as Record<keyof TCaps, unknown>)[key] =
-        provided !== undefined ? provided : capabilityMap[key].defaultDescriptor;
+      const raw = provided !== undefined ? provided : capabilityMap[key].defaultDescriptor;
+      const parsed = capabilityMap[key].descriptorSchema.safeParse(raw);
+      (resolved as Record<keyof TCaps, unknown>)[key] = parsed.success ? parsed.data : raw;
     }
 
     return {

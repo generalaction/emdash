@@ -4,6 +4,8 @@ import type { Result } from '@emdash/shared';
  *  at the plugin edge; non-universal concepts stay optional. */
 export type IssueData = {
   identifier: string;
+  /** Override for compact UI display; null hides opaque provider ids. */
+  displayIdentifier?: string | null;
   title: string;
   url?: string;
   description?: string;

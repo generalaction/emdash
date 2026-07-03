@@ -9,13 +9,17 @@ import type {
   IssueSearchOpts,
 } from '../types';
 
+/**
+ * Host-supplied context an issues plugin needs before it can operate.
+ * Repository-scoped services (GitHub, GitLab, Forgejo) need `repositoryUrl`;
+ * account-scoped services (Linear, Jira, ...) need nothing.
+ */
+export const issueRequiredInputSchema = z.enum(['repositoryUrl']);
+
+export type IssueRequiredInput = z.infer<typeof issueRequiredInputSchema>;
+
 const issuesDescriptorSchema = z.object({
-  /**
-   * Repository-scoped services (GitHub, GitLab, Forgejo) resolve issues per
-   * repository; the host passes the resolved repository URL with every call.
-   * Account-scoped services (Linear, Jira, ...) list across the account.
-   */
-  requiresRepositoryUrl: z.boolean(),
+  requiredInputs: z.array(issueRequiredInputSchema).default([]),
 });
 
 export type IssuesDescriptor = z.infer<typeof issuesDescriptorSchema>;
@@ -26,7 +30,6 @@ export type IIssuesBehavior = {
     host: ConnectedIntegrationHostContext,
     opts: IssueSearchOpts
   ): Promise<IssueListResult>;
-  /** Optional; the host derives get-issue support from this method's presence. */
   getIssue?(host: ConnectedIntegrationHostContext, opts: IssueGetOpts): Promise<IssueGetResult>;
 };
 

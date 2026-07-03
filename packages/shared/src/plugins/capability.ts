@@ -31,6 +31,7 @@ export function definePluginCapability<TBehavior = never>() {
     descriptorSchema,
     defaultDescriptor,
     _descriptor: undefined as z.output<TSchema>,
+    _descriptorInput: undefined as z.input<TSchema>,
     _behavior: undefined as unknown as TBehavior,
     _hasDefault: (defaultDescriptor !== undefined) as [TDefault] extends [undefined] ? false : true,
   });
@@ -42,6 +43,7 @@ export type AnyPluginCapability = {
   descriptorSchema: z.ZodType;
   defaultDescriptor?: unknown;
   _descriptor: unknown;
+  _descriptorInput: unknown;
   _behavior: unknown;
   _hasDefault: boolean;
 };
@@ -69,11 +71,14 @@ type RequiredKeys<TCaps extends CapabilityMap> = Exclude<keyof TCaps, DefaultedK
 /**
  * What definePlugin accepts: required capabilities must be present; defaulted
  * capabilities (those declared with a defaultDescriptor) are optional.
+ *
+ * Authored descriptors use the schema's input type, so fields with schema
+ * defaults may be omitted; definePlugin parses them into the output shape.
  */
 export type CapabilityDescriptors<TCaps extends CapabilityMap> = {
-  [K in RequiredKeys<TCaps>]: TCaps[K]['_descriptor'];
+  [K in RequiredKeys<TCaps>]: TCaps[K]['_descriptorInput'];
 } & {
-  [K in DefaultedKeys<TCaps>]?: TCaps[K]['_descriptor'];
+  [K in DefaultedKeys<TCaps>]?: TCaps[K]['_descriptorInput'];
 };
 
 /** All capability slots after defaults are resolved — always fully populated. */
