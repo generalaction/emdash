@@ -1,19 +1,8 @@
-import type {
-  AvailableCommand,
-  SessionConfigOption,
-  SessionModeState,
-  StopReason,
-} from '@agentclientprotocol/sdk';
+import type { SessionConfigOption, SessionModeState, StopReason } from '@agentclientprotocol/sdk';
 import type { AcpPermissionRequest } from './models/permissions';
 import type { SessionLifecycle as MachineSessionLifecycle } from './session-machine';
 
 export type SessionLifecycle = MachineSessionLifecycle;
-
-export interface SessionUsage {
-  contextSize: number;
-  contextUsed: number;
-  cost: { amount: number; currency: string } | null;
-}
 
 export interface AcpPromptImage {
   data: string;
@@ -27,9 +16,7 @@ export interface SessionSnapshot {
   pendingPermissions: AcpPermissionRequest[];
   modes: SessionModeState | null;
   configOptions: SessionConfigOption[];
-  availableCommands: AvailableCommand[];
   lastStopReason: StopReason | null;
-  usage: SessionUsage | null;
 }
 
 export function toSessionSnapshot(s: SessionState): SessionSnapshot {
@@ -39,9 +26,7 @@ export function toSessionSnapshot(s: SessionState): SessionSnapshot {
     pendingPermissions: s.pendingPermissions,
     modes: s.modes,
     configOptions: s.configOptions,
-    availableCommands: s.availableCommands,
     lastStopReason: s.lastStopReason,
-    usage: s.usage,
   };
 }
 
@@ -51,7 +36,5 @@ export interface SessionState {
   pendingPermissions: AcpPermissionRequest[];
   modes: SessionModeState | null;
   configOptions: SessionConfigOption[];
-  availableCommands: AvailableCommand[];
   lastStopReason: StopReason | null;
-  usage: SessionUsage | null;
 }

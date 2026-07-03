@@ -9,9 +9,13 @@
  * Contrast with TranscriptItem (accumulated materialized state).
  */
 
-import type { AvailableCommand, SessionConfigOption, SessionUpdate } from '@agentclientprotocol/sdk';
-import type { AttachmentRef, TranscriptPlanEntry } from '../models/transcript';
+import type {
+  AvailableCommand,
+  SessionConfigOption,
+  SessionUpdate,
+} from '@agentclientprotocol/sdk';
 import type { SessionUsage } from '../models/session';
+import type { AttachmentRef, TranscriptPlanEntry } from '../models/transcript';
 
 export type NormalizedDiff = {
   path: string;
@@ -26,16 +30,17 @@ export type NormalizedEvent =
       kind: 'message';
       role: 'user' | 'assistant';
       /**
-       * Provider-assigned or synthesized message id, used as part of the stable item id.
+       * Provider-assigned message id. Null when the provider omitted it; the reducer
+       * synthesizes a stable segment id before folding the transcript item.
        */
-      messageId: string;
+      messageId: string | null;
       text: string;
       /** Attachment references for user messages submitted with images. */
       attachments?: AttachmentRef[];
     }
   | {
       kind: 'thinking';
-      messageId: string;
+      messageId: string | null;
       text: string;
     }
   | {

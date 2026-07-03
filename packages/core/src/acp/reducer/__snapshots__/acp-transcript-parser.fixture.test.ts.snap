@@ -243,7 +243,7 @@ exports[`AcpTranscriptParser – fixture snapshots > claude – transcript 1`] =
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:0",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:0:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:0:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
@@ -278,7 +278,7 @@ Let me provide a clean, concise one-liner based on what I've been given.",
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:1",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:1:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:1:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
@@ -299,7 +299,7 @@ Let me provide a clean, concise one-liner based on what I've been given.",
 Let me read the AGENTS.md file first to get the Repository Structure section.",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:1:toolu_019KBHfhSqsvBKYbM3VbKBJB",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:1:tool:toolu_019KBHfhSqsvBKYbM3VbKBJB",
           "kind": "tool",
           "name": "Read /private/tmp/emdash-acp-fixture-1783037827823/AGENTS.md (1 - 50)",
           "status": "done",
@@ -336,7 +336,7 @@ Let me make 3 concise bullet points that capture the essential structure:",
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:2",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:2:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:2:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
@@ -354,7 +354,7 @@ Let me make 3 concise bullet points that capture the essential structure:",
 Let me search for it using grep.",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:2:toolu_015T1fvNzvcrkCDuAoEEMf1p",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:2:tool:toolu_015T1fvNzvcrkCDuAoEEMf1p",
           "kind": "tool",
           "name": "grep -rn "toAgentUpdate" /private/tmp/emdash-acp-fixture-1783037827823 --include="*.ts" --include="*.tsx" | head -20",
           "status": "done",
@@ -384,7 +384,7 @@ The grep output shows \`export function toAgentUpdate(update: SessionUpdate): Ag
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:3",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:3:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:3:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
@@ -400,13 +400,13 @@ The grep output shows \`export function toAgentUpdate(update: SessionUpdate): Ag
           "text": "The user wants me to read two files and explain how they relate in two sentences. Let me read both files.",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:3:toolu_01EQQ7MeGGtaLE3iWWQR49hK",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:3:tool:toolu_01EQQ7MeGGtaLE3iWWQR49hK",
           "kind": "tool",
           "name": "Read /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts",
           "status": "done",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:3:toolu_01FKwN7A4ztxfhDKm2qSFUyg",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:3:tool:toolu_01FKwN7A4ztxfhDKm2qSFUyg",
           "kind": "tool",
           "name": "Read /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/session-machine.ts",
           "status": "done",
@@ -445,7 +445,7 @@ Let me write this in two sentences.",
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:4",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:4:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:4:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
@@ -496,14 +496,14 @@ The two load-bearing spots are the union definition and \`toAgentUpdate\` (both 
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:5",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:5:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:5:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Run \`git rev-parse --abbrev-ref HEAD\` and tell me the current branch name.",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:5:toolu_01JaFQWcogSDXZDV2gdCtAPX",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:5:tool:toolu_01JaFQWcogSDXZDV2gdCtAPX",
           "kind": "tool",
           "name": "git rev-parse --abbrev-ref HEAD",
           "status": "done",
@@ -521,14 +521,14 @@ The two load-bearing spots are the union definition and \`toAgentUpdate\` (both 
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:6",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:6:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:6:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Run \`ls packages\` and list the workspace package names.",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:6:toolu_01LD1XT6tVwgeJpJJpmz44o7",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:6:tool:toolu_01LD1XT6tVwgeJpJJpmz44o7",
           "kind": "tool",
           "name": "ls packages",
           "status": "done",
@@ -552,25 +552,19 @@ The two load-bearing spots are the union definition and \`toAgentUpdate\` (both 
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:7",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:7:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:7:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Create the file \`.acp-fixture-scratch/NOTES.md\` containing exactly this line: \`# ACP fixture notes\`",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:7:toolu_01JeGgFpDENi9UKyGyURTM6X:/private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:7:tool:toolu_01JeGgFpDENi9UKyGyURTM6X:/private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
           "kind": "diff",
           "newText": "# ACP fixture notes
 ",
           "oldText": null,
           "path": "/private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
-          "status": "done",
-        },
-        {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:7:toolu_01JeGgFpDENi9UKyGyURTM6X",
-          "kind": "tool",
-          "name": "unknown",
           "status": "done",
         },
         {
@@ -586,25 +580,19 @@ The two load-bearing spots are the union definition and \`toAgentUpdate\` (both 
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:8",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:8:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:8:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Append the line \`generated by fixture script\` to \`.acp-fixture-scratch/NOTES.md\`.",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:8:toolu_01SdTsjTARBJXjkPGAa31kzt:/private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:8:tool:toolu_01SdTsjTARBJXjkPGAa31kzt:/private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
           "kind": "diff",
           "newText": "# ACP fixture notes
 generated by fixture script",
           "oldText": "# ACP fixture notes",
           "path": "/private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
-          "status": "done",
-        },
-        {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:8:toolu_01SdTsjTARBJXjkPGAa31kzt",
-          "kind": "tool",
-          "name": "unknown",
           "status": "done",
         },
         {
@@ -625,14 +613,14 @@ generated by fixture script
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:9",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:9:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:9:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Rename \`.acp-fixture-scratch/NOTES.md\` to \`.acp-fixture-scratch/NOTES2.md\`, then delete \`.acp-fixture-scratch/NOTES2.md\`.",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:9:toolu_01LB5oK2J3sbz7XV51uMA5Ub",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:9:tool:toolu_01LB5oK2J3sbz7XV51uMA5Ub",
           "kind": "tool",
           "name": "mv .acp-fixture-scratch/NOTES.md .acp-fixture-scratch/NOTES2.md && rm .acp-fixture-scratch/NOTES2.md && ls -la .acp-fixture-scratch",
           "status": "done",
@@ -650,14 +638,14 @@ generated by fixture script
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:10",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:10:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:10:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Use a subagent (Task tool) to find all files under \`packages/core/src/acp\` that contain the string \`stopReason\`, then summarize what each file does.",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:10:toolu_01N3Y7C4y7eLVpC11EJGC4oA",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:10:tool:toolu_01N3Y7C4y7eLVpC11EJGC4oA",
           "kind": "tool",
           "name": "Find files containing stopReason",
           "status": "done",
@@ -675,14 +663,14 @@ generated by fixture script
       "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11",
       "items": [
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11:message:user",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Explain the ACP session lifecycle in detail, using markdown headings for each phase and including a fenced code block showing an example sequence of events.",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11:toolu_01AY8xD2Y4FtSd1YEV7FdL91",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11:tool:toolu_01AY8xD2Y4FtSd1YEV7FdL91",
           "kind": "tool",
           "name": "grep -rl "stopReason" /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp",
           "status": "done",
@@ -771,7 +759,7 @@ Note how \`decide\` gates the \`Prompt\`/\`ResolvePermission\` **commands** (rej
 Separately — the background subagent finished its \`stopReason\` file search; want me to relay its summary?",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11:toolu_01HiEJYjpi7zXdZACwyuVM4Q",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11:tool:toolu_01HiEJYjpi7zXdZACwyuVM4Q",
           "kind": "tool",
           "name": "for f in state.ts acp-test-support.ts acp-session-runtime.test.ts session-machine.test.ts acp-session-runtime.ts session-machine.ts; do echo "===== $f ====="; head -30 /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/$f; echo; done",
           "status": "done",
@@ -901,14 +889,14 @@ exports[`AcpTranscriptParser – fixture snapshots > codex – transcript 1`] = 
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:0",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:0:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:0:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "In one sentence, without reading any files, what is emdash?",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:0:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:0:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
@@ -920,26 +908,33 @@ exports[`AcpTranscriptParser – fixture snapshots > codex – transcript 1`] = 
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Think about how to explore this repo, then read \`AGENTS.md\` and give me the Repository Structure section as exactly 3 bullet points.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
-          "text": "I’ll verify the repo guidance from \`AGENTS.md\` directly, then condense only its Repository Structure section into three bullets.- Emdash is a pnpm workspace monorepo with the Electron app in \`apps/emdash-desktop/\` and shared packages under \`packages/\`.
-- The repo root contains app/package directories, agent docs, GitHub workflow files, workspace config, Nx config, formatting/linting config, and lockfile metadata.
-- \`apps/emdash-desktop/\` contains packaging assets, Drizzle migrations, scripts, Electron main/preload code, React renderer code, shared app types, ambient types, and tooling.",
+          "text": "I’ll verify the repo guidance from \`AGENTS.md\` directly, then condense only its Repository Structure section into three bullets.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:call_dMOHUTSuSmcFB4JThBpPj5nZ",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:tool:call_dMOHUTSuSmcFB4JThBpPj5nZ",
           "kind": "tool",
           "name": "sed -n '/^## Repository Structure$/,/^## Build & Development Commands$/p' AGENTS.md",
           "status": "done",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:auto:assistant:1",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "- Emdash is a pnpm workspace monorepo with the Electron app in \`apps/emdash-desktop/\` and shared packages under \`packages/\`.
+- The repo root contains app/package directories, agent docs, GitHub workflow files, workspace config, Nx config, formatting/linting config, and lockfile metadata.
+- \`apps/emdash-desktop/\` contains packaging assets, Drizzle migrations, scripts, Electron main/preload code, React renderer code, shared app types, ambient types, and tooling.",
         },
       ],
     },
@@ -947,24 +942,31 @@ exports[`AcpTranscriptParser – fixture snapshots > codex – transcript 1`] = 
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Search the codebase for the definition of \`toAgentUpdate\` — give the file path and line number.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
-          "text": "I’ll search by symbol name with \`rg\` so the result is tied to the actual checkout rather than memory.\`packages/core/src/acp/agent-update.ts:122\`",
+          "text": "I’ll search by symbol name with \`rg\` so the result is tied to the actual checkout rather than memory.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:call_sqP7LTqUlaTMofbbig96Qk08",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:tool:call_sqP7LTqUlaTMofbbig96Qk08",
           "kind": "search",
           "query": "Search for 'toAgentUpdate'",
           "status": "done",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:auto:assistant:1",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "\`packages/core/src/acp/agent-update.ts:122\`",
         },
       ],
     },
@@ -972,7 +974,7 @@ exports[`AcpTranscriptParser – fixture snapshots > codex – transcript 1`] = 
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
@@ -980,9 +982,9 @@ exports[`AcpTranscriptParser – fixture snapshots > codex – transcript 1`] = 
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:thinking:main",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:thinking:auto:thinking:0",
           "kind": "thinking",
-          "messageId": "main",
+          "messageId": "auto:thinking:0",
           "startedAt": 1577836800000,
           "status": "done",
           "text": "
@@ -992,35 +994,49 @@ exports[`AcpTranscriptParser – fixture snapshots > codex – transcript 1`] = 
 I think I need to form an answer after reviewing the relevant information. Using a specific tool seems necessary for this task to ensure accuracy and reliability in my response. I want to make sure that I gather all the essential details before crafting my answer. I'll do my best to summarize everything clearly and be helpful for the user's understanding!",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
-          "text": "I’ll read those two ACP core files directly and compare the data flow between the converter and the state machine.I’ve got the converter and the main state transitions; I’m reading the wrapper section too so the explanation reflects how updates actually enter the machine.\`agent-update.ts\` defines the provider-neutral \`AgentUpdate\` shape and \`toAgentUpdate()\`, which decodes raw ACP \`SessionUpdate\` messages into that internal vocabulary. \`session-machine.ts\` consumes those \`AgentUpdate\` values in commands/events, appending them to active turns, assigning sequence numbers, committing completed turns, and emitting update effects for the runtime or renderer.",
+          "text": "I’ll read those two ACP core files directly and compare the data flow between the converter and the state machine.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:call_8Xe7CkBGWr56UnafQajA6tJm",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:tool:call_8Xe7CkBGWr56UnafQajA6tJm",
           "kind": "tool",
           "name": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.ts'",
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:call_x033kE3l2l9CKnHIIMOL1MlJ",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:tool:call_x033kE3l2l9CKnHIIMOL1MlJ",
           "kind": "tool",
           "name": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:call_cJhMBU98lbEuPzKi0p4PHRCt",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:tool:call_cJhMBU98lbEuPzKi0p4PHRCt",
           "kind": "tool",
           "name": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:call_EpbDQ39xyA1D5C7qfQS7LEVO",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:auto:assistant:1",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "I’ve got the converter and the main state transitions; I’m reading the wrapper section too so the explanation reflects how updates actually enter the machine.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:tool:call_EpbDQ39xyA1D5C7qfQS7LEVO",
           "kind": "tool",
           "name": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
           "status": "done",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:auto:assistant:2",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "\`agent-update.ts\` defines the provider-neutral \`AgentUpdate\` shape and \`toAgentUpdate()\`, which decodes raw ACP \`SessionUpdate\` messages into that internal vocabulary. \`session-machine.ts\` consumes those \`AgentUpdate\` values in commands/events, appending them to active turns, assigning sequence numbers, committing completed turns, and emitting update effects for the runtime or renderer.",
         },
       ],
     },
@@ -1028,7 +1044,7 @@ I think I need to form an answer after reviewing the relevant information. Using
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
@@ -1036,9 +1052,9 @@ I think I need to form an answer after reviewing the relevant information. Using
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:thinking:main",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:thinking:auto:thinking:0",
           "kind": "thinking",
-          "messageId": "main",
+          "messageId": "auto:thinking:0",
           "startedAt": 1577836800000,
           "status": "done",
           "text": "
@@ -1048,33 +1064,40 @@ I think I need to form an answer after reviewing the relevant information. Using
 I need to respond with just a plan since the user is asking for a checklist or to-do plan. It seems like there’s no need for extra detail, but to be accurate, maybe I should check the relevant files. The user asked not to edit, but reading files is still possible. I probably should mention the relevant locations. I think I can use a search tool to look into AgentUpdate uses and create that checklist.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
-          "text": "I’m mapping the touchpoints for \`AgentUpdate\` first so the checklist covers the actual decode, state, and renderer paths instead of just the type definition.- [ ] Update the \`AgentUpdate\` union in [\`packages/core/src/acp/agent-update.ts\`]( /tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.ts ) to add \`foo?: string\` on the variant(s) that should carry it, and decide whether \`foo\` is baseline-only or part of the ACP decode path.
-- [ ] Thread \`foo\` through \`toAgentUpdate()\` in the same file, including any provider-enrichment behavior if \`foo\` is meant to come from raw ACP metadata instead of being synthesized later.
-- [ ] Update tests in [\`packages/core/src/acp/agent-update.test.ts\`]( /tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.test.ts ) to cover the new field for each supported variant and to lock down the unchanged cases.
-- [ ] Trace downstream consumers that pattern-match on \`AgentUpdate\`, especially [\`packages/core/src/acp/session-machine.ts\`]( /tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts ) and [\`apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts\`]( /tmp/emdash-acp-fixture-1783042314643/apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts ), and pass \`foo\` through only if the UI or state machine needs it.
-- [ ] Update any fixture, snapshot, or runtime tests that assert the full \`AgentUpdate\` shape, including ACP runtime tests and renderer mapper tests, so the new field does not create accidental breakage.",
+          "text": "I’m mapping the touchpoints for \`AgentUpdate\` first so the checklist covers the actual decode, state, and renderer paths instead of just the type definition.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:call_L8H2vFMxU8sqVLUvHG38FwYj",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:tool:call_L8H2vFMxU8sqVLUvHG38FwYj",
           "kind": "tool",
           "name": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.test.ts'",
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:call_4aV1pRthSPJZGbDql5SiEfWG",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:tool:call_4aV1pRthSPJZGbDql5SiEfWG",
           "kind": "tool",
           "name": "Read file '/tmp/emdash-acp-fixture-1783042314643/apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts'",
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:call_nutYXe2pUBohJK0zZA75dd6x",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:tool:call_nutYXe2pUBohJK0zZA75dd6x",
           "kind": "search",
           "query": "Search for 'AgentUpdate|toAgentUpdate|kind: 'message'|kind: 'thinking'|kind: 'tool_call'|kind: 'tool_update'|kind: 'plan'' in acp",
           "status": "done",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:auto:assistant:1",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "- [ ] Update the \`AgentUpdate\` union in [\`packages/core/src/acp/agent-update.ts\`]( /tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.ts ) to add \`foo?: string\` on the variant(s) that should carry it, and decide whether \`foo\` is baseline-only or part of the ACP decode path.
+- [ ] Thread \`foo\` through \`toAgentUpdate()\` in the same file, including any provider-enrichment behavior if \`foo\` is meant to come from raw ACP metadata instead of being synthesized later.
+- [ ] Update tests in [\`packages/core/src/acp/agent-update.test.ts\`]( /tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.test.ts ) to cover the new field for each supported variant and to lock down the unchanged cases.
+- [ ] Trace downstream consumers that pattern-match on \`AgentUpdate\`, especially [\`packages/core/src/acp/session-machine.ts\`]( /tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts ) and [\`apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts\`]( /tmp/emdash-acp-fixture-1783042314643/apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts ), and pass \`foo\` through only if the UI or state machine needs it.
+- [ ] Update any fixture, snapshot, or runtime tests that assert the full \`AgentUpdate\` shape, including ACP runtime tests and renderer mapper tests, so the new field does not create accidental breakage.",
         },
       ],
     },
@@ -1082,30 +1105,30 @@ I need to respond with just a plan since the user is asking for a checklist or t
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Run \`git rev-parse --abbrev-ref HEAD\` and tell me the current branch name.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
-          "text": "I’m checking the branch name directly from git so I can give you the exact current ref.\`HEAD\` — this checkout is in a detached HEAD state, not on a named branch.",
+          "text": "I’m checking the branch name directly from git so I can give you the exact current ref.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:call_dTkKdvmjAKbcGOqxLos2Hl3A",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:tool:call_dTkKdvmjAKbcGOqxLos2Hl3A",
           "kind": "tool",
           "name": "git rev-parse --abbrev-ref HEAD",
           "status": "done",
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:thinking:main",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:thinking:auto:thinking:0",
           "kind": "thinking",
-          "messageId": "main",
+          "messageId": "auto:thinking:0",
           "startedAt": 1577836800000,
           "status": "done",
           "text": "
@@ -1114,30 +1137,44 @@ I need to respond with just a plan since the user is asking for a checklist or t
 
 I need to mention that if the branch name is "HEAD," it might be in a detached state. I’ve got to make sure I communicate that clearly so anyone working with git understands what it means for their version control. It’s essential to emphasize what being in a detached HEAD state implies regarding committing changes, as it can lead to confusion if not properly addressed. I'll keep it straightforward and informative!",
         },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:auto:assistant:1",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "\`HEAD\` — this checkout is in a detached HEAD state, not on a named branch.",
+        },
       ],
     },
     {
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Run \`ls packages\` and list the workspace package names.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
-          "text": "I’m listing the \`packages/\` directory now and will report the workspace package folders that are present.\`chat-ui\`, \`core\`, \`plugins\`, \`shared\`, and \`ui\`.",
+          "text": "I’m listing the \`packages/\` directory now and will report the workspace package folders that are present.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:call_DagRCdNzm1jDfGHSmO0H6Awg",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:tool:call_DagRCdNzm1jDfGHSmO0H6Awg",
           "kind": "tool",
           "name": "List files in 'packages'",
           "status": "done",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:auto:assistant:1",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "\`chat-ui\`, \`core\`, \`plugins\`, \`shared\`, and \`ui\`.",
         },
       ],
     },
@@ -1145,7 +1182,7 @@ I need to mention that if the branch name is "HEAD," it might be in a detached s
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
@@ -1153,9 +1190,9 @@ I need to mention that if the branch name is "HEAD," it might be in a detached s
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:thinking:main",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:thinking:auto:thinking:0",
           "kind": "thinking",
-          "messageId": "main",
+          "messageId": "auto:thinking:0",
           "startedAt": 1577836800000,
           "status": "done",
           "text": "
@@ -1165,14 +1202,14 @@ I need to mention that if the branch name is "HEAD," it might be in a detached s
 I'm thinking about how to edit a file effectively. I need to use apply_patch, but first, I might want to ensure that the directory exists. I want to be careful because apply_patch can also create the file if the path is specified correctly. Making sure everything is in place will help avoid errors and complications later on. I just need to keep these steps in mind for a smooth process!",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
-          "text": "I’m creating the requested notes file with the exact one-line content, and I’ll keep it scoped to that path only.Created \`.acp-fixture-scratch/NOTES.md\` with exactly \`# ACP fixture notes\`.",
+          "text": "I’m creating the requested notes file with the exact one-line content, and I’ll keep it scoped to that path only.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:call_5G3PTdzqpvPGdY6lSvFGLGJH:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:tool:call_5G3PTdzqpvPGdY6lSvFGLGJH:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
           "kind": "diff",
           "newText": "# ACP fixture notes
 ",
@@ -1181,10 +1218,11 @@ I'm thinking about how to edit a file effectively. I need to use apply_patch, bu
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:call_5G3PTdzqpvPGdY6lSvFGLGJH",
-          "kind": "tool",
-          "name": "unknown",
-          "status": "done",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:auto:assistant:1",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "Created \`.acp-fixture-scratch/NOTES.md\` with exactly \`# ACP fixture notes\`.",
         },
       ],
     },
@@ -1192,21 +1230,21 @@ I'm thinking about how to edit a file effectively. I need to use apply_patch, bu
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Append the line \`generated by fixture script\` to \`.acp-fixture-scratch/NOTES.md\`.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
-          "text": "I’m appending the requested line to the existing notes file and leaving the original content intact.Appended \`generated by fixture script\` to \`.acp-fixture-scratch/NOTES.md\`.",
+          "text": "I’m appending the requested line to the existing notes file and leaving the original content intact.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:call_tXyN5u55PGr31y1rBSbwDPRP:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:tool:call_tXyN5u55PGr31y1rBSbwDPRP:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
           "kind": "diff",
           "newText": "# ACP fixture notes
 generated by fixture script
@@ -1217,10 +1255,11 @@ generated by fixture script
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:call_tXyN5u55PGr31y1rBSbwDPRP",
-          "kind": "tool",
-          "name": "unknown",
-          "status": "done",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:auto:assistant:1",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "Appended \`generated by fixture script\` to \`.acp-fixture-scratch/NOTES.md\`.",
         },
       ],
     },
@@ -1228,7 +1267,7 @@ generated by fixture script
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
@@ -1236,30 +1275,46 @@ generated by fixture script
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:thinking:main",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:thinking:auto:thinking:0",
           "kind": "thinking",
-          "messageId": "main",
+          "messageId": "auto:thinking:0",
           "startedAt": 1577836800000,
           "status": "done",
           "text": "
 
 **Considering file management**
 
-I need to rename a file first, then possibly apply a patch. After that, I might move it to a new location and then delete the original. It feels a bit convoluted, but I think breaking it into steps helps ensure I’m not missing anything important. Maybe I should confirm all the necessary changes before committing to the deletions to avoid errors later! Let's just take it step by step.
+I need to rename a file first, then possibly apply a patch. After that, I might move it to a new location and then delete the original. It feels a bit convoluted, but I think breaking it into steps helps ensure I’m not missing anything important. Maybe I should confirm all the necessary changes before committing to the deletions to avoid errors later! Let's just take it step by step.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:auto:assistant:0",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "I’m renaming the file first, then removing the renamed file so the scratch directory ends up clean.",
+        },
+        {
+          "durationMs": 0,
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:thinking:auto:thinking:1",
+          "kind": "thinking",
+          "messageId": "auto:thinking:1",
+          "startedAt": 1577836800000,
+          "status": "done",
+          "text": "
 
 **Considering content changes**
 
 I need to figure out if I should move content or maybe make some changes. It's looking like I might use the delete/add method. I don’t think renaming is necessary. I can add the new content first, and then I can go ahead and delete the old stuff. That seems like a straightforward approach! I wonder if there’s a more efficient way, but this sounds like it could work well.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:auto:assistant:1",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
-          "text": "I’m renaming the file first, then removing the renamed file so the scratch directory ends up clean.The rename helper needs a non-empty hunk, so I’m using a file move pattern that preserves the current contents before deleting the target.The rename-and-delete is done, and the scratch path now has no lingering \`NOTES.md\`.Renamed \`.acp-fixture-scratch/NOTES.md\` to \`.acp-fixture-scratch/NOTES2.md\`, then deleted \`.acp-fixture-scratch/NOTES2.md\`.",
+          "text": "The rename helper needs a non-empty hunk, so I’m using a file move pattern that preserves the current contents before deleting the target.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:call_krldrCarRuXYq8c00DESs1zE:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:tool:call_krldrCarRuXYq8c00DESs1zE:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
           "kind": "diff",
           "newText": "",
           "oldText": "# ACP fixture notes
@@ -1269,7 +1324,7 @@ generated by fixture script
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:call_krldrCarRuXYq8c00DESs1zE:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES2.md",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:tool:call_krldrCarRuXYq8c00DESs1zE:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES2.md",
           "kind": "diff",
           "newText": "# ACP fixture notes
 generated by fixture script
@@ -1279,10 +1334,11 @@ generated by fixture script
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:call_krldrCarRuXYq8c00DESs1zE",
-          "kind": "tool",
-          "name": "unknown",
-          "status": "done",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:auto:assistant:2",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "The rename-and-delete is done, and the scratch path now has no lingering \`NOTES.md\`.Renamed \`.acp-fixture-scratch/NOTES.md\` to \`.acp-fixture-scratch/NOTES2.md\`, then deleted \`.acp-fixture-scratch/NOTES2.md\`.",
         },
       ],
     },
@@ -1290,18 +1346,213 @@ generated by fixture script
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
           "text": "Use a subagent (Task tool) to find all files under \`packages/core/src/acp\` that contain the string \`stopReason\`, then summarize what each file does.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,
-          "text": "I’m finding the Task/subagent tool first, then I’ll delegate the search and summarize the results from the files it finds.I have the subagent tool; I’m delegating the file search so I can use its findings to summarize each ACP file without duplicating the scan locally.The search is running in the subagent now. I’m waiting for the result so I can turn it into a clean per-file summary.The subagent hasn’t finished yet, so I’m giving it more time rather than redoing its search.I’m nudging the subagent for the concrete output now so I can finish the summary instead of leaving it hanging.The agent has been interrupted with a tighter request; I’m waiting once more for the confirmed list.The subagent didn’t come back in time, so I’m finishing the same bounded search locally to avoid blocking the answer.I have the matching file set now; I’m narrowing it to the actual files that contain \`stopReason\` so the summary stays precise.I’m wrapping up by closing the subagent since the answer is assembled from the repo scan and the agent didn’t need to stay open.\`stopReason\` appears in these \`packages/core/src/acp\` files:
+          "text": "I’m finding the Task/subagent tool first, then I’ll delegate the search and summarize the results from the files it finds.",
+        },
+        {
+          "durationMs": 0,
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:0",
+          "kind": "thinking",
+          "messageId": "auto:thinking:0",
+          "startedAt": 1577836800000,
+          "status": "done",
+          "text": "
+
+**Exploring file summaries**
+
+I think I need to spawn an explorer and likely use one subagent for this task. I want to read about the AGENTS already in context. I’ll use the explorer to search for files that contain “stopReason” under packages/core/src/acp, and I'll summarize what each file does. I might ask to use a tool like rg and read the matching files for more details. Let's see what I can discover!",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:1",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "I have the subagent tool; I’m delegating the file search so I can use its findings to summarize each ACP file without duplicating the scan locally.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_U0X3lVrvv8SibOVvfLqNv1UL",
+          "kind": "tool",
+          "name": "spawnAgent",
+          "status": "done",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:2",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "The search is running in the subagent now. I’m waiting for the result so I can turn it into a clean per-file summary.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_rdtvueUm8DZ67xoFXfH6t5iV",
+          "kind": "tool",
+          "name": "wait",
+          "status": "done",
+        },
+        {
+          "durationMs": 0,
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:1",
+          "kind": "thinking",
+          "messageId": "auto:thinking:1",
+          "startedAt": 1577836800000,
+          "status": "done",
+          "text": "
+
+**Considering agent status**
+
+I need to think about whether I should send a request to check the agent's status or not. I could inspect things locally while I wait. I wonder if it's okay to continue without overlapping with the subagent's work. But since the user specifically asked to use the subagent, I might just wait a bit longer or send a progress inquiry. It feels like the agent is still busy, so maybe waiting more is better.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:3",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "The subagent hasn’t finished yet, so I’m giving it more time rather than redoing its search.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_Uf7LkLGngCf0W6f3PHkD5cyM",
+          "kind": "tool",
+          "name": "wait",
+          "status": "done",
+        },
+        {
+          "durationMs": 0,
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:2",
+          "kind": "thinking",
+          "messageId": "auto:thinking:2",
+          "startedAt": 1577836800000,
+          "status": "done",
+          "text": "
+
+**Considering interrupt options**
+
+I need to decide if I should use send_input to ask for a complete response. Maybe I could handle this myself? Since the user requested the use of a subagent, I wonder if I should mention that it might stall. But it could be better if the agent just runs. I think I’ll query with an interrupt to request a concise report. That seems like a good way to get clarity!",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:4",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "I’m nudging the subagent for the concrete output now so I can finish the summary instead of leaving it hanging.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_HD9SvVJVnuIV8lFW4GouE71Y",
+          "kind": "tool",
+          "name": "sendInput",
+          "status": "done",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:5",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "The agent has been interrupted with a tighter request; I’m waiting once more for the confirmed list.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_zlWroMrQjIwsLNdyjbuvoI9m",
+          "kind": "tool",
+          "name": "wait",
+          "status": "done",
+        },
+        {
+          "durationMs": 0,
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:3",
+          "kind": "thinking",
+          "messageId": "auto:thinking:3",
+          "startedAt": 1577836800000,
+          "status": "done",
+          "text": "
+
+**Considering search options**
+
+It seems the subagent might be unavailable, so I'm thinking we could conduct a local search ourselves. The user requested that we use the subagent, though, so I wonder if I should mention that it didn't return any results. However, if the subagent stalled, we could still summarize the findings from a local search. I'll use local rg to gather data on stopReason files and see what we can put together.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:6",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "The subagent didn’t come back in time, so I’m finishing the same bounded search locally to avoid blocking the answer.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_VY8bGhbVARun0bPiMEW0ZPJ4",
+          "kind": "search",
+          "query": "Search for 'stopReason' in acp",
+          "status": "done",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_rNvzMKvIYbci6gHFNcpP4NNR",
+          "kind": "tool",
+          "name": "List files in 'acp'",
+          "status": "done",
+        },
+        {
+          "durationMs": 0,
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:4",
+          "kind": "thinking",
+          "messageId": "auto:thinking:4",
+          "startedAt": 1577836800000,
+          "status": "done",
+          "text": "
+
+**Filtering files for stopReason**
+
+I need to filter out files containing the term "stopReason" from the output. The relevant files likely include session-machine.ts, acp-session-runtime.ts, and a few test files like acp-session-runtime.test.ts. The user wants a summary of what each file does, focusing on all matches in the specified directory, although I might skip the snapshots. I should list out the unique matching files using the rg command effectively. Let's proceed concisely!",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:7",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "I have the matching file set now; I’m narrowing it to the actual files that contain \`stopReason\` so the summary stays precise.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_53oAy9tdQgqO3XurfmMoYdKq",
+          "kind": "search",
+          "query": "Search for 'stopReason' in acp",
+          "status": "done",
+        },
+        {
+          "durationMs": 0,
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:5",
+          "kind": "thinking",
+          "messageId": "auto:thinking:5",
+          "startedAt": 1577836800000,
+          "status": "done",
+          "text": "
+
+**Considering file summaries**
+
+I need to summarize what each file does. I'm wondering if mentioning that the subagent is stalled is necessary—probably not. Should I close the agent? Maybe that's a good idea! Closing after the final summary could help keep things tidy. Let’s aim to close it at the end! It feels like a good plan to keep everything organized, which will help us stay on track with what we're doing.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:8",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "I’m wrapping up by closing the subagent since the answer is assembled from the repo scan and the agent didn’t need to stay open.",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_CN8W72UrQ7vpQbpLIxpbw6ad",
+          "kind": "tool",
+          "name": "closeAgent",
+          "status": "done",
+        },
+        {
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:9",
+          "kind": "message",
+          "role": "assistant",
+          "streaming": false,
+          "text": "\`stopReason\` appears in these \`packages/core/src/acp\` files:
 
 - [\`packages/core/src/acp/session-machine.ts\`]( /tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts ): the pure ACP session state machine; it tracks turn lifecycle, commits finished turns, and records the last stop reason from completed turns.
 - [\`packages/core/src/acp/acp-session-runtime.ts\`]( /tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/acp-session-runtime.ts ): the runtime that drives ACP sessions and turns provider stop reasons into \`TurnOutcome\` values for the state machine.
@@ -1315,100 +1566,13 @@ generated by fixture script
 - [\`packages/core/src/acp/acp-transcript-parser/model.ts\`]( /tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/acp-transcript-parser/model.ts ): type definitions for transcript parsing, including the model note that stop reasons are ephemeral session data.
 - [\`packages/core/src/acp/state.ts\`]( /tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/state.ts ): shared ACP turn/session state types, where each turn stores a \`stopReason\` for completed turns.",
         },
-        {
-          "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:main",
-          "kind": "thinking",
-          "messageId": "main",
-          "startedAt": 1577836800000,
-          "status": "done",
-          "text": "
-
-**Exploring file summaries**
-
-I think I need to spawn an explorer and likely use one subagent for this task. I want to read about the AGENTS already in context. I’ll use the explorer to search for files that contain “stopReason” under packages/core/src/acp, and I'll summarize what each file does. I might ask to use a tool like rg and read the matching files for more details. Let's see what I can discover!
-
-**Considering agent status**
-
-I need to think about whether I should send a request to check the agent's status or not. I could inspect things locally while I wait. I wonder if it's okay to continue without overlapping with the subagent's work. But since the user specifically asked to use the subagent, I might just wait a bit longer or send a progress inquiry. It feels like the agent is still busy, so maybe waiting more is better.
-
-**Considering interrupt options**
-
-I need to decide if I should use send_input to ask for a complete response. Maybe I could handle this myself? Since the user requested the use of a subagent, I wonder if I should mention that it might stall. But it could be better if the agent just runs. I think I’ll query with an interrupt to request a concise report. That seems like a good way to get clarity!
-
-**Considering search options**
-
-It seems the subagent might be unavailable, so I'm thinking we could conduct a local search ourselves. The user requested that we use the subagent, though, so I wonder if I should mention that it didn't return any results. However, if the subagent stalled, we could still summarize the findings from a local search. I'll use local rg to gather data on stopReason files and see what we can put together.
-
-**Filtering files for stopReason**
-
-I need to filter out files containing the term "stopReason" from the output. The relevant files likely include session-machine.ts, acp-session-runtime.ts, and a few test files like acp-session-runtime.test.ts. The user wants a summary of what each file does, focusing on all matches in the specified directory, although I might skip the snapshots. I should list out the unique matching files using the rg command effectively. Let's proceed concisely!
-
-**Considering file summaries**
-
-I need to summarize what each file does. I'm wondering if mentioning that the subagent is stalled is necessary—probably not. Should I close the agent? Maybe that's a good idea! Closing after the final summary could help keep things tidy. Let’s aim to close it at the end! It feels like a good plan to keep everything organized, which will help us stay on track with what we're doing.",
-        },
-        {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:call_U0X3lVrvv8SibOVvfLqNv1UL",
-          "kind": "tool",
-          "name": "spawnAgent",
-          "status": "done",
-        },
-        {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:call_rdtvueUm8DZ67xoFXfH6t5iV",
-          "kind": "tool",
-          "name": "wait",
-          "status": "done",
-        },
-        {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:call_Uf7LkLGngCf0W6f3PHkD5cyM",
-          "kind": "tool",
-          "name": "wait",
-          "status": "done",
-        },
-        {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:call_HD9SvVJVnuIV8lFW4GouE71Y",
-          "kind": "tool",
-          "name": "sendInput",
-          "status": "done",
-        },
-        {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:call_zlWroMrQjIwsLNdyjbuvoI9m",
-          "kind": "tool",
-          "name": "wait",
-          "status": "done",
-        },
-        {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:call_VY8bGhbVARun0bPiMEW0ZPJ4",
-          "kind": "search",
-          "query": "Search for 'stopReason' in acp",
-          "status": "done",
-        },
-        {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:call_rNvzMKvIYbci6gHFNcpP4NNR",
-          "kind": "tool",
-          "name": "List files in 'acp'",
-          "status": "done",
-        },
-        {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:call_53oAy9tdQgqO3XurfmMoYdKq",
-          "kind": "search",
-          "query": "Search for 'stopReason' in acp",
-          "status": "done",
-        },
-        {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:call_CN8W72UrQ7vpQbpLIxpbw6ad",
-          "kind": "tool",
-          "name": "closeAgent",
-          "status": "done",
-        },
       ],
     },
     {
       "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:message:user",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:message:auto:user:0",
           "kind": "message",
           "role": "user",
           "streaming": false,
@@ -1416,9 +1580,9 @@ I need to summarize what each file does. I'm wondering if mentioning that the su
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:thinking:main",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:thinking:auto:thinking:0",
           "kind": "thinking",
-          "messageId": "main",
+          "messageId": "auto:thinking:0",
           "startedAt": 1577836800000,
           "status": "done",
           "text": "
@@ -1428,7 +1592,7 @@ I need to summarize what each file does. I'm wondering if mentioning that the su
 I need to gather information from the files I've already read. There's no need to browse for new sources. I can use existing knowledge from session-machine.ts as a foundation. My goal is to ensure the answer is detailed while also being concise. I think using headings for each phase will help organize the information effectively. Let’s get started on crafting this response!",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:message:assistant",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:message:auto:assistant:0",
           "kind": "message",
           "role": "assistant",
           "streaming": false,

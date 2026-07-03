@@ -5,10 +5,10 @@
  * Fixture-driven provider-specific tests are a separate follow-up.
  */
 
-import { describe, expect, it } from 'vitest';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import { AcpTranscriptParser } from './parser';
+import { describe, expect, it } from 'vitest';
 import { makeMessageId, makeThinkingId, makeToolId, makeTurnId, makeDiffId } from './ids';
+import { AcpTranscriptParser } from './parser';
 
 const CID = 'conv-1';
 
@@ -85,7 +85,9 @@ function toolUpdateWithDiff(
   } as unknown as SessionUpdate;
 }
 
-function planUpdate(entries: Array<{ content: string; status: string; priority: string }>): SessionUpdate {
+function planUpdate(
+  entries: Array<{ content: string; status: string; priority: string }>
+): SessionUpdate {
   return {
     sessionUpdate: 'plan',
     sessionId: 'sess-1',
@@ -94,7 +96,6 @@ function planUpdate(entries: Array<{ content: string; status: string; priority: 
 }
 
 describe('AcpTranscriptParser', () => {
-
   it('single user+assistant exchange produces one committed turn after endTurn', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'hello'));
@@ -150,7 +151,7 @@ describe('AcpTranscriptParser', () => {
   it('multiple chunks with the same messageId accumulate into one message item', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'hel'));
-    p.push(userChunk('u1', 'lo'));   // same messageId → same message row
+    p.push(userChunk('u1', 'lo')); // same messageId → same message row
     p.endTurn();
 
     const turn = p.history[0];
@@ -163,13 +164,15 @@ describe('AcpTranscriptParser', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'question'));
     p.push(assistantChunk('a1', 'part1 '));
-    p.push(assistantChunk('a1', 'part2'));  // same assistant id → append
+    p.push(assistantChunk('a1', 'part2')); // same assistant id → append
     p.endTurn();
 
     const turn = p.history[0];
     const messages = turn.items.filter((i) => i.kind === 'message');
     expect(messages).toHaveLength(2); // one user, one assistant
-    const asst = messages.find((m) => (m as { role: string }).role === 'assistant') as { text: string };
+    const asst = messages.find((m) => (m as { role: string }).role === 'assistant') as {
+      text: string;
+    };
     expect(asst.text).toBe('part1 part2');
   });
 
@@ -184,11 +187,11 @@ describe('AcpTranscriptParser', () => {
     const liveItems = p.activeTurn?.items ?? [];
     expect(liveItems[0].id).toBe(expectedId);
 
-    p.push(userChunk('u1', 'chunk2'));  // same id, text appended
+    p.push(userChunk('u1', 'chunk2')); // same id, text appended
     expect(p.activeTurn?.items[0].id).toBe(expectedId);
   });
 
-  it('falls back to role as message id when messageId is absent', () => {
+  it('synthesizes a segment id when messageId is absent', () => {
     const p = new AcpTranscriptParser(deps());
     // Simulate a provider that doesn't supply messageId (null)
     const update: SessionUpdate = {
@@ -200,8 +203,72 @@ describe('AcpTranscriptParser', () => {
     p.push(update);
 
     const turnId = makeTurnId(CID, 0);
-    const expectedId = makeMessageId(turnId, 'user', 'user'); // falls back to 'user'
+    const expectedId = makeMessageId(turnId, 'auto:user:0', 'user');
     expect(p.activeTurn?.items[0].id).toBe(expectedId);
+  });
+
+  it('segments id-less assistant message runs around tool calls', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'do it'));
+    p.push({
+      sessionUpdate: 'agent_message_chunk',
+      sessionId: 'sess-1',
+      messageId: undefined,
+      content: { type: 'text', text: 'before' },
+    } as unknown as SessionUpdate);
+    p.push(toolCallUpdate('tc1', 'Run command'));
+    p.push({
+      sessionUpdate: 'agent_message_chunk',
+      sessionId: 'sess-1',
+      messageId: undefined,
+      content: { type: 'text', text: 'after' },
+    } as unknown as SessionUpdate);
+
+    const messages = (p.activeTurn?.items ?? []).filter((item) => item.kind === 'message');
+    expect(messages.map((message) => message.text)).toEqual(['do it', 'before', 'after']);
+    expect(messages.map((message) => message.id)).toEqual([
+      makeMessageId(makeTurnId(CID, 0), 'u1', 'user'),
+      makeMessageId(makeTurnId(CID, 0), 'auto:assistant:0', 'assistant'),
+      makeMessageId(makeTurnId(CID, 0), 'auto:assistant:1', 'assistant'),
+    ]);
+    expect(messages[1].streaming).toBe(false);
+    expect(messages[2].streaming).toBe(true);
+  });
+
+  it('replay treats id-less user chunks after agent content as new turns', () => {
+    const updates: SessionUpdate[] = [
+      {
+        sessionUpdate: 'user_message_chunk',
+        sessionId: 'sess-1',
+        content: { type: 'text', text: 'first' },
+      } as unknown as SessionUpdate,
+      {
+        sessionUpdate: 'agent_message_chunk',
+        sessionId: 'sess-1',
+        content: { type: 'text', text: 'one' },
+      } as unknown as SessionUpdate,
+      {
+        sessionUpdate: 'user_message_chunk',
+        sessionId: 'sess-1',
+        content: { type: 'text', text: 'second' },
+      } as unknown as SessionUpdate,
+      {
+        sessionUpdate: 'agent_message_chunk',
+        sessionId: 'sess-1',
+        content: { type: 'text', text: 'two' },
+      } as unknown as SessionUpdate,
+    ];
+
+    const result = AcpTranscriptParser.replay(updates, deps());
+    expect(result.transcript.committed).toHaveLength(2);
+    expect(
+      result.transcript.committed.map((turn) =>
+        turn.items.filter((item) => item.kind === 'message').map((item) => item.text)
+      )
+    ).toEqual([
+      ['first', 'one'],
+      ['second', 'two'],
+    ]);
   });
 
   // ── Lazy agent-initiated turn ─────────────────────────────────────────────
@@ -340,6 +407,23 @@ describe('AcpTranscriptParser', () => {
     expect(items.filter((i) => i.kind === 'tool')).toHaveLength(0);
   });
 
+  it('diff-less edit tool_update does not create a generic tool row', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'edit file'));
+    p.push({
+      sessionUpdate: 'tool_call_update',
+      sessionId: 'sess-1',
+      toolCallId: 'tc-edit',
+      title: null,
+      kind: 'edit',
+      status: 'in_progress',
+      content: [],
+    } as unknown as SessionUpdate);
+
+    expect(p.activeTurn?.items.filter((i) => i.kind === 'tool')).toHaveLength(0);
+    expect(p.activeTurn?.items.filter((i) => i.kind === 'diff')).toHaveLength(0);
+  });
+
   // ── Plan ──────────────────────────────────────────────────────────────────
 
   it('plan update creates a plan row', () => {
@@ -475,7 +559,11 @@ function availableCommandsUpdate(availableCommands: unknown[]): SessionUpdate {
   } as unknown as SessionUpdate;
 }
 
-function usageUpdate(used: number, size: number, cost?: { amount: number; currency: string }): SessionUpdate {
+function usageUpdate(
+  used: number,
+  size: number,
+  cost?: { amount: number; currency: string }
+): SessionUpdate {
   return {
     sessionUpdate: 'usage_update',
     sessionId: 'sess-1',
@@ -498,20 +586,40 @@ describe('AcpTranscriptParser – session slices', () => {
 
   it('config_option_update populates modelOptions, efforts, modeOptions', () => {
     const p = new AcpTranscriptParser(deps());
-    p.push(configOptionUpdate([
-      {
-        id: 'model', category: 'model', type: 'select', currentValue: 'opus',
-        options: [{ value: 'opus', name: 'Opus' }, { value: 'haiku', name: 'Haiku' }],
-      },
-      {
-        id: 'effort', category: 'thought_level', type: 'select', currentValue: 'high',
-        options: [{ value: 'low', name: 'Low' }, { value: 'high', name: 'High' }],
-      },
-      {
-        id: 'mode', category: 'mode', type: 'select', currentValue: 'default',
-        options: [{ value: 'default', name: 'Default' }, { value: 'plan', name: 'Plan' }],
-      },
-    ]));
+    p.push(
+      configOptionUpdate([
+        {
+          id: 'model',
+          category: 'model',
+          type: 'select',
+          currentValue: 'opus',
+          options: [
+            { value: 'opus', name: 'Opus' },
+            { value: 'haiku', name: 'Haiku' },
+          ],
+        },
+        {
+          id: 'effort',
+          category: 'thought_level',
+          type: 'select',
+          currentValue: 'high',
+          options: [
+            { value: 'low', name: 'Low' },
+            { value: 'high', name: 'High' },
+          ],
+        },
+        {
+          id: 'mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'plan', name: 'Plan' },
+          ],
+        },
+      ])
+    );
 
     const { modelOptions, efforts, modeOptions } = p.config;
 
@@ -530,23 +638,36 @@ describe('AcpTranscriptParser – session slices', () => {
 
   it('config_option_update preserves description on options', () => {
     const p = new AcpTranscriptParser(deps());
-    p.push(configOptionUpdate([
-      {
-        id: 'model', category: 'model', type: 'select', currentValue: 'opus',
-        options: [{ value: 'opus', name: 'Opus', description: 'Most capable' }],
-      },
-    ]));
+    p.push(
+      configOptionUpdate([
+        {
+          id: 'model',
+          category: 'model',
+          type: 'select',
+          currentValue: 'opus',
+          options: [{ value: 'opus', name: 'Opus', description: 'Most capable' }],
+        },
+      ])
+    );
     expect(p.config.modelOptions?.available[0].description).toBe('Most capable');
   });
 
   it('unknown category (model_config) is ignored', () => {
     const p = new AcpTranscriptParser(deps());
-    p.push(configOptionUpdate([
-      {
-        id: 'fast', category: 'model_config', type: 'select', currentValue: 'off',
-        options: [{ value: 'on', name: 'On' }, { value: 'off', name: 'Off' }],
-      },
-    ]));
+    p.push(
+      configOptionUpdate([
+        {
+          id: 'fast',
+          category: 'model_config',
+          type: 'select',
+          currentValue: 'off',
+          options: [
+            { value: 'on', name: 'On' },
+            { value: 'off', name: 'Off' },
+          ],
+        },
+      ])
+    );
     // No crash; all groups remain null since no recognized category was present
     expect(p.config.modelOptions).toBeNull();
     expect(p.config.efforts).toBeNull();
@@ -557,12 +678,20 @@ describe('AcpTranscriptParser – session slices', () => {
 
   it('current_mode_update sets modeOptions.selected when modeOptions is already populated', () => {
     const p = new AcpTranscriptParser(deps());
-    p.push(configOptionUpdate([
-      {
-        id: 'mode', category: 'mode', type: 'select', currentValue: 'default',
-        options: [{ value: 'default', name: 'Default' }, { value: 'acceptEdits', name: 'Accept Edits' }],
-      },
-    ]));
+    p.push(
+      configOptionUpdate([
+        {
+          id: 'mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'acceptEdits', name: 'Accept Edits' },
+          ],
+        },
+      ])
+    );
     expect(p.config.modeOptions?.selected).toBe('default');
 
     p.push(currentModeUpdate('acceptEdits'));
@@ -581,19 +710,30 @@ describe('AcpTranscriptParser – session slices', () => {
 
   it('available_commands_update populates availableCommands', () => {
     const p = new AcpTranscriptParser(deps());
-    p.push(availableCommandsUpdate([
-      { name: 'review', description: 'Review code' },
-      { name: 'debug', description: 'Enable debug', input: { hint: '[issue]' } },
-    ]));
+    p.push(
+      availableCommandsUpdate([
+        { name: 'review', description: 'Review code' },
+        { name: 'debug', description: 'Enable debug', input: { hint: '[issue]' } },
+      ])
+    );
     expect(p.config.availableCommands).toHaveLength(2);
     expect(p.config.availableCommands[0]).toEqual({ name: 'review', description: 'Review code' });
-    expect(p.config.availableCommands[1]).toEqual({ name: 'debug', description: 'Enable debug', inputHint: '[issue]' });
+    expect(p.config.availableCommands[1]).toEqual({
+      name: 'debug',
+      description: 'Enable debug',
+      inputHint: '[issue]',
+    });
   });
 
   it('available_commands_update replaces previous list', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(availableCommandsUpdate([{ name: 'a', description: 'A' }]));
-    p.push(availableCommandsUpdate([{ name: 'b', description: 'B' }, { name: 'c', description: 'C' }]));
+    p.push(
+      availableCommandsUpdate([
+        { name: 'b', description: 'B' },
+        { name: 'c', description: 'C' },
+      ])
+    );
     expect(p.config.availableCommands).toHaveLength(2);
     expect(p.config.availableCommands[0].name).toBe('b');
   });
@@ -603,7 +743,11 @@ describe('AcpTranscriptParser – session slices', () => {
   it('usage_update sets usage fields correctly', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(usageUpdate(1000, 200000, { amount: 0.02, currency: 'USD' }));
-    expect(p.usage).toEqual({ contextUsed: 1000, contextSize: 200000, cost: { amount: 0.02, currency: 'USD' } });
+    expect(p.usage).toEqual({
+      contextUsed: 1000,
+      contextSize: 200000,
+      cost: { amount: 0.02, currency: 'USD' },
+    });
   });
 
   it('usage_update with no cost sets cost to null', () => {
@@ -638,9 +782,11 @@ describe('AcpTranscriptParser – session slices', () => {
 
   it('config/usage/title events do NOT open a transcript turn', () => {
     const p = new AcpTranscriptParser(deps());
-    p.push(configOptionUpdate([
-      { id: 'model', category: 'model', type: 'select', currentValue: 'opus', options: [] },
-    ]));
+    p.push(
+      configOptionUpdate([
+        { id: 'model', category: 'model', type: 'select', currentValue: 'opus', options: [] },
+      ])
+    );
     p.push(usageUpdate(100, 200000));
     p.push(sessionInfoUpdate('A title'));
     p.push(availableCommandsUpdate([{ name: 'foo', description: 'Foo' }]));
@@ -656,9 +802,11 @@ describe('AcpTranscriptParser – session slices', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(usageUpdate(1000, 200000));
     p.push(sessionInfoUpdate('Some title'));
-    p.push(configOptionUpdate([
-      { id: 'model', category: 'model', type: 'select', currentValue: 'opus', options: [] },
-    ]));
+    p.push(
+      configOptionUpdate([
+        { id: 'model', category: 'model', type: 'select', currentValue: 'opus', options: [] },
+      ])
+    );
     p.reset();
     expect(p.usage).toBeNull();
     expect(p.title).toBeNull();
@@ -671,7 +819,13 @@ describe('AcpTranscriptParser – session slices', () => {
   it('static replay returns config, usage, title alongside transcript', () => {
     const updates = [
       configOptionUpdate([
-        { id: 'model', category: 'model', type: 'select', currentValue: 'haiku', options: [{ value: 'haiku', name: 'Haiku' }] },
+        {
+          id: 'model',
+          category: 'model',
+          type: 'select',
+          currentValue: 'haiku',
+          options: [{ value: 'haiku', name: 'Haiku' }],
+        },
       ]),
       usageUpdate(500, 100000, { amount: 0.001, currency: 'USD' }),
       sessionInfoUpdate('Replay title'),

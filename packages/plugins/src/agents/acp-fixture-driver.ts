@@ -28,7 +28,11 @@ interface RecordedPromptResult {
   sessionId: string;
   stopReason: string | null | undefined;
 }
-type AnyRecordedEvent = RecordedPrompt | RecordedSessionUpdate | RecordedPromptResult | { kind: string };
+type AnyRecordedEvent =
+  | RecordedPrompt
+  | RecordedSessionUpdate
+  | RecordedPromptResult
+  | { kind: string };
 
 export interface RecordedEntry {
   seq: number;
@@ -53,23 +57,26 @@ export function driveParser(events: RecordedEntry[], conversationId: string): Ac
         // Synthesize a user_message_chunk for each text block in the prompt.
         for (const block of ev.content) {
           if (block.type === 'text' && block.text) {
-            parser.push({
-              sessionUpdate: 'user_message_chunk',
-              sessionId: ev.sessionId,
-              messageId: undefined,
-              content: { type: 'text', text: block.text },
-            } as unknown as SessionUpdate);
+            parser.push(
+              {
+                sessionUpdate: 'user_message_chunk',
+                sessionId: ev.sessionId,
+                messageId: undefined,
+                content: { type: 'text', text: block.text },
+              } as unknown as SessionUpdate,
+              entry.ts
+            );
           }
         }
         break;
       }
       case 'session_update': {
         const ev = entry.event as RecordedSessionUpdate;
-        parser.push(ev.update as SessionUpdate);
+        parser.push(ev.update as SessionUpdate, entry.ts);
         break;
       }
       case 'prompt_result': {
-        parser.endTurn();
+        parser.endTurn(entry.ts);
         break;
       }
       default:

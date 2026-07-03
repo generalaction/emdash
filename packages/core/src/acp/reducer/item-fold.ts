@@ -8,19 +8,13 @@
  *
  * finalizeItems settles all in-progress streaming states for a turn that has
  * just been committed (message.streaming → false, thinking done + durationMs,
- * running tool/diff/execute → done, plan streaming → false).
+ * running tool/diff → done, plan streaming → false).
  *
  * Both functions are pure and allocation-efficient: only changed items are
  * replaced; unchanged items are returned by reference.
  */
 
 import type {
-  NormalizedDiff,
-  NormalizedEvent,
-  NormalizedToolStatus,
-} from './normalized-event';
-import type {
-  FileOpKind,
   ToolStatus,
   TranscriptDiff,
   TranscriptItem,
@@ -41,6 +35,12 @@ import {
   makeThinkingId,
   makeToolId,
 } from './ids';
+import type { NormalizedDiff, NormalizedEvent, NormalizedToolStatus } from './normalized-event';
+
+export type FoldEvent =
+  | Exclude<NormalizedEvent, { kind: 'message' | 'thinking' }>
+  | (Extract<NormalizedEvent, { kind: 'message' }> & { messageId: string })
+  | (Extract<NormalizedEvent, { kind: 'thinking' }> & { messageId: string });
 
 function mapToolStatus(status: NormalizedToolStatus | null | undefined): ToolStatus | undefined {
   switch (status) {
@@ -263,13 +263,16 @@ function applyDiffs(
  * Content-bearing events (message, tool, diff, plan) auto-finalize any open
  * thinking rows before appending (the agent has moved past the reasoning phase).
  */
-export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId: string): TranscriptItem[] {
-  const now = Date.now();
-
+export function foldItem(
+  items: TranscriptItem[],
+  event: FoldEvent,
+  turnId: string,
+  at: number
+): TranscriptItem[] {
   switch (event.kind) {
     case 'message': {
       const id = makeMessageId(turnId, event.messageId, event.role);
-      const base = finalizeOpenThinking(items, now);
+      const base = finalizeOpenThinking(items, at);
       const idx = base.findIndex((it) => it.kind === 'message' && it.id === id);
       if (idx >= 0) {
         // Append chunk to existing message.
@@ -297,12 +300,12 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
 
     case 'thinking': {
       const id = makeThinkingId(turnId, event.messageId);
-      const idx = items.findIndex((it) => it.kind === 'thinking' && it.id === id);
+      const idx = items.findIndex(
+        (it) => it.kind === 'thinking' && it.id === id && it.status === 'thinking'
+      );
       if (idx >= 0) {
         const th = items[idx] as TranscriptThinking;
-        return items.map((it, i) =>
-          i === idx ? { ...th, text: th.text + event.text } : it
-        );
+        return items.map((it, i) => (i === idx ? { ...th, text: th.text + event.text } : it));
       }
       const newThinking: TranscriptThinking = {
         kind: 'thinking',
@@ -310,15 +313,15 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
         messageId: event.messageId,
         text: event.text,
         status: 'thinking',
-        startedAt: now,
+        startedAt: at,
       };
-      return [...items, newThinking];
+      return [...finalizeOpenThinking(items, at), newThinking];
     }
 
     case 'tool_call': {
       const toolId = makeToolId(turnId, event.toolCallId);
       const parentId = makeParentId(turnId, event.parentToolCallId);
-      const base = finalizeOpenThinking(items, now);
+      const base = finalizeOpenThinking(items, at);
 
       // Edits with diffs: render ChatDiff rows, suppress generic tool placeholder.
       if (event.diffs.length > 0) {
@@ -330,7 +333,7 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
       if (event.toolKind === 'edit') return base;
 
       // Generic tool row — idempotent creation.
-      if (base.some((it) => it.kind === 'tool' && it.id === toolId)) return base;
+      if (base.some((it) => isToolRow(it) && it.id === toolId)) return base;
 
       return [...base, createToolRow(toolId, event.title, event.toolKind, event.status, parentId)];
     }
@@ -338,23 +341,34 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
     case 'tool_update': {
       const toolId = makeToolId(turnId, event.toolCallId);
       const parentId = makeParentId(turnId, event.parentToolCallId);
+      const base = finalizeOpenThinking(items, at);
 
       // Diffs on update (edit whose diff arrives late).
       if (event.diffs.length > 0) {
-        return applyDiffs(items, toolId, parentId, event.diffs, event.status);
+        return applyDiffs(base, toolId, parentId, event.diffs, event.status);
       }
 
       // Update an existing tool row by id.
-      const idx = items.findIndex((it) => isToolRow(it) && it.id === toolId);
+      const idx = base.findIndex((it) => isToolRow(it) && it.id === toolId);
       if (idx >= 0) {
-        const tool = items[idx] as ToolRow;
+        const tool = base[idx] as ToolRow;
         const updated = updateToolRow(tool, event.title, event.status);
-        return items.map((it, i) => (i === idx ? updated : it));
+        return base.map((it, i) => (i === idx ? updated : it));
       }
+
+      if (base.some((it) => it.kind === 'diff' && it.id.startsWith(`${toolId}:`))) {
+        const mapped = mapToolStatus(event.status);
+        if (mapped === undefined) return base;
+        return base.map((it) =>
+          it.kind === 'diff' && it.id.startsWith(`${toolId}:`) ? { ...it, status: mapped } : it
+        );
+      }
+
+      if (event.toolKind === 'edit') return base;
 
       // Late update for an unknown tool — create with current status.
       return [
-        ...items,
+        ...base,
         createToolRow(toolId, event.title ?? 'unknown', event.toolKind, event.status, parentId),
       ];
     }
@@ -363,13 +377,13 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
     case 'search':
     case 'mcp_tool':
     case 'web_fetch': {
-      const base = finalizeOpenThinking(items, now);
+      const base = finalizeOpenThinking(items, at);
       return upsertSpecialEvent(base, event, turnId);
     }
 
     case 'plan': {
       const id = makePlanId(turnId);
-      const base = finalizeOpenThinking(items, now);
+      const base = finalizeOpenThinking(items, at);
       const idx = base.findIndex((it) => it.kind === 'plan' && it.id === id);
       if (idx >= 0) {
         const plan = base[idx] as TranscriptPlan;
@@ -400,23 +414,19 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
  * - message.streaming → false
  * - thinking status 'thinking' → 'done' + computed durationMs
  * - tool status 'running' → 'done'
- * - file-op status 'running' → 'done'
- * - execute status 'running' → 'done' + computed durationMs
  * - diff status 'running' → 'done'
  * - plan.streaming → false
- * - resource-link status 'running' → 'done'
  *
  * Input must be plain objects (not Solid/MobX proxies).
  */
-export function finalizeItems(items: TranscriptItem[]): TranscriptItem[] {
-  const now = Date.now();
+export function finalizeItems(items: TranscriptItem[], at: number): TranscriptItem[] {
   return items.map((item): TranscriptItem => {
     switch (item.kind) {
       case 'message':
         return item.streaming ? { ...item, streaming: false } : item;
       case 'thinking':
         return item.status === 'thinking'
-          ? { ...item, status: 'done' as const, durationMs: now - item.startedAt }
+          ? { ...item, status: 'done' as const, durationMs: at - item.startedAt }
           : item;
       case 'tool':
         return item.status === 'running' ? { ...item, status: 'done' as const } : item;
@@ -428,37 +438,10 @@ export function finalizeItems(items: TranscriptItem[]): TranscriptItem[] {
         return item.status === 'running' ? { ...item, status: 'done' as const } : item;
       case 'web-fetch':
         return item.status === 'running' ? { ...item, status: 'done' as const } : item;
-      case 'file-op':
-        return item.status === 'running' ? { ...item, status: 'done' as const } : item;
-      case 'execute':
-        return item.status === 'running'
-          ? { ...item, status: 'done' as const, durationMs: item.durationMs ?? now - item.startedAt }
-          : item;
       case 'diff':
         return item.status === 'running' ? { ...item, status: 'done' as const } : item;
       case 'plan':
         return item.streaming ? { ...item, streaming: false } : item;
-      case 'resource-link':
-        return item.status === 'running' ? { ...item, status: 'done' as const } : item;
     }
   });
-}
-
-/**
- * Map an ACP toolKind string to a FileOpKind for file-op row rendering.
- * Returns null if the toolKind does not represent a file operation.
- */
-export function toFileOpKind(toolKind: string | null): FileOpKind | null {
-  switch (toolKind) {
-    case 'read':
-      return 'read';
-    case 'edit':
-      return 'edit';
-    case 'delete':
-      return 'delete';
-    case 'move':
-      return 'move';
-    default:
-      return null;
-  }
 }

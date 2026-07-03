@@ -42,19 +42,11 @@ export function makeThinkingId(turnId: string, messageId: string): string {
 }
 
 /**
- * Stable tool/file-op/execute item id.
- * Format: `${turnId}:${toolCallId}`
+ * Stable tool item id.
+ * Format: `${turnId}:tool:${toolCallId}`
  */
 export function makeToolId(turnId: string, toolCallId: string): string {
-  return `${turnId}:${toolCallId}`;
-}
-
-export function makeSpecialToolId(
-  turnId: string,
-  kind: 'subagent' | 'search' | 'mcp-tool' | 'web-fetch',
-  toolCallId: string
-): string {
-  return `${turnId}:${kind}:${toolCallId}`;
+  return `${turnId}:tool:${toolCallId}`;
 }
 
 /**
@@ -62,7 +54,7 @@ export function makeSpecialToolId(
  * Returns undefined when parentToolCallId is null (no parent).
  */
 export function makeParentId(turnId: string, parentToolCallId: string | null): string | undefined {
-  return parentToolCallId != null ? `${turnId}:${parentToolCallId}` : undefined;
+  return parentToolCallId != null ? makeToolId(turnId, parentToolCallId) : undefined;
 }
 
 /**

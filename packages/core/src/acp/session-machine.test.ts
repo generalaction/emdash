@@ -112,14 +112,21 @@ describe('permissions and metadata', () => {
     expect(isOk(result)).toBe(true);
   });
 
-  it('applies session metadata changes', () => {
+  it('applies control-plane metadata changes', () => {
     const { state } = evolve(makeReady(), {
       type: 'MetaChanged',
-      availableCommands: [{ name: 'help', description: 'Help' }],
-      usage: { contextSize: 100, contextUsed: 25, cost: null },
+      configOptions: [
+        {
+          id: 'model',
+          name: 'Model',
+          category: 'model',
+          type: 'select',
+          currentValue: 'default',
+          options: [],
+        },
+      ],
     });
-    expect(state.availableCommands).toHaveLength(1);
-    expect(state.usage?.contextUsed).toBe(25);
+    expect(state.configOptions).toHaveLength(1);
   });
 });
 

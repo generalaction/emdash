@@ -5,18 +5,13 @@
  * affordances. Transcript content is projected separately by the ACP reducer.
  */
 
-import type {
-  AvailableCommand,
-  SessionConfigOption,
-  SessionModeState,
-  StopReason,
-} from '@agentclientprotocol/sdk';
+import type { SessionConfigOption, SessionModeState, StopReason } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
 import type { AcpPermissionRequest } from './models/permissions';
-import type { SessionSnapshot, SessionState, SessionUsage } from './state';
+import type { SessionSnapshot, SessionState } from './state';
 
 export type SessionPhase =
   | { kind: 'starting' }
@@ -55,9 +50,7 @@ export interface SessionMachineState {
   readonly pendingPermissions: readonly AcpPermissionRequest[];
   readonly modes: SessionModeState | null;
   readonly configOptions: readonly SessionConfigOption[];
-  readonly availableCommands: readonly AvailableCommand[];
   readonly lastStopReason: StopReason | null;
-  readonly usage: SessionUsage | null;
   readonly nextTurnIndex: number;
 }
 
@@ -68,9 +61,7 @@ export function initialMachineState(conversationId: string): SessionMachineState
     pendingPermissions: [],
     modes: null,
     configOptions: [],
-    availableCommands: [],
     lastStopReason: null,
-    usage: null,
     nextTurnIndex: 0,
   };
 }
@@ -104,8 +95,6 @@ export type DomainEvent =
       type: 'MetaChanged';
       modes?: SessionModeState | null;
       configOptions?: readonly SessionConfigOption[] | null;
-      availableCommands?: readonly AvailableCommand[] | null;
-      usage?: SessionUsage | null;
     }
   | { type: 'ProcessClosed'; exitCode: number | null };
 
@@ -267,11 +256,6 @@ export function evolve(
             ev.configOptions !== undefined
               ? (ev.configOptions ?? s.configOptions)
               : s.configOptions,
-          availableCommands:
-            ev.availableCommands !== undefined
-              ? (ev.availableCommands ?? s.availableCommands)
-              : s.availableCommands,
-          usage: ev.usage !== undefined ? (ev.usage ?? s.usage) : s.usage,
         },
         effects: [{ type: 'meta' }],
       };
@@ -409,9 +393,7 @@ export class SessionMachine {
       pendingPermissions: s.pendingPermissions,
       modes: s.modes,
       configOptions: s.configOptions,
-      availableCommands: s.availableCommands,
       lastStopReason: s.lastStopReason,
-      usage: s.usage,
     };
   }
 
@@ -423,9 +405,7 @@ export class SessionMachine {
       pendingPermissions: structuredClone([...this._state.pendingPermissions]),
       modes: this._state.modes ? structuredClone(this._state.modes) : null,
       configOptions: structuredClone([...this._state.configOptions]),
-      availableCommands: structuredClone([...this._state.availableCommands]),
       lastStopReason: this._state.lastStopReason,
-      usage: this._state.usage ? structuredClone(this._state.usage) : null,
     };
   }
 }

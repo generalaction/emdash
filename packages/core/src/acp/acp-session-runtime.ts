@@ -12,6 +12,8 @@ import type {
   ReleaseTerminalResponse,
   RequestPermissionRequest,
   RequestPermissionResponse,
+  SessionConfigOption,
+  SessionModeState,
   SessionNotification,
   SessionUpdate,
   SetSessionConfigOptionRequest,
@@ -32,6 +34,7 @@ import { FsPort, TerminalPort } from './client-ports';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
 import type { AcpPermissionRequest } from './models/permissions';
+import type { TerminalSnapshot } from './models/terminals';
 import type { TranscriptState } from './models/transcript';
 import { PermissionBroker } from './permission-broker';
 import type { NormalizedEvent } from './reducer/normalized-event';
@@ -41,7 +44,6 @@ import { SessionMachine } from './session-machine';
 import type { Command, DomainEvent, Effect } from './session-machine';
 import type { AcpPromptImage, SessionState } from './state';
 import { toSessionSnapshot } from './state';
-import type { TerminalSnapshot } from './models/terminals';
 import type { AcpProcessHandle } from './transport';
 
 interface AcpConversation {
@@ -171,6 +173,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
               modes: resp.modes,
               configOptions: resp.configOptions,
             });
+            this.seedTranscriptMeta(conv, {
+              modes: resp.modes,
+              configOptions: resp.configOptions,
+            });
           }
           conv.transcript.endTurn();
           this.emitTranscript(conv);
@@ -208,6 +214,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
               modes: newResp.modes,
               configOptions: newResp.configOptions,
             });
+            this.seedTranscriptMeta(conv, {
+              modes: newResp.modes,
+              configOptions: newResp.configOptions,
+            });
           } catch (e) {
             this.cleanupFailedConversation(processKey, proc, conv);
             return acpErr.newSessionFailed(toSerializedError(e));
@@ -221,6 +231,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           establishedViaNewSession = true;
           this.applyEvent(conv, {
             type: 'SessionReady',
+            modes: newResp.modes,
+            configOptions: newResp.configOptions,
+          });
+          this.seedTranscriptMeta(conv, {
             modes: newResp.modes,
             configOptions: newResp.configOptions,
           });
@@ -470,9 +484,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         pendingPermissions: [],
         modes: null,
         configOptions: [],
-        availableCommands: [],
         lastStopReason: null,
-        usage: null,
       };
     }
     return conv.machine.sessionState();
@@ -584,7 +596,34 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     this.deps.listener.onTranscript({
       conversationId: conv.conversationId,
       transcript: structuredClone(conv.transcript.snapshot),
+      config: structuredClone(conv.transcript.config),
+      usage: conv.transcript.usage ? structuredClone(conv.transcript.usage) : null,
+      title: conv.transcript.title,
     });
+  }
+
+  private seedTranscriptMeta(
+    conv: AcpConversation,
+    meta: {
+      modes?: SessionModeState | null;
+      configOptions?: readonly SessionConfigOption[] | null;
+    }
+  ): void {
+    if (meta.configOptions !== undefined) {
+      conv.transcript.pushEvent({
+        kind: 'config',
+        options: meta.configOptions ?? [],
+      });
+    }
+    if (meta.modes?.currentModeId) {
+      conv.transcript.pushEvent({
+        kind: 'mode_selected',
+        modeId: meta.modes.currentModeId,
+      });
+    }
+    if (meta.configOptions !== undefined || meta.modes?.currentModeId) {
+      this.emitTranscript(conv);
+    }
   }
 
   /**
@@ -691,7 +730,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
         const rawUpdate = params.update;
 
-        // Route metadata notifications as MetaChanged facts before turn routing
+        // Route control-plane metadata to the machine while still allowing the
+        // parser to own the read-model projection below.
         switch (rawUpdate.sessionUpdate) {
           case 'current_mode_update': {
             const currentModeId = rawUpdate.currentModeId;
@@ -702,7 +742,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
                 modes: { ...currentModes, currentModeId },
               });
             }
-            return;
+            break;
           }
 
           case 'config_option_update': {
@@ -710,29 +750,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
               type: 'MetaChanged',
               configOptions: rawUpdate.configOptions,
             });
-            return;
-          }
-
-          case 'available_commands_update': {
-            this.applyEvent(conv, {
-              type: 'MetaChanged',
-              availableCommands: rawUpdate.availableCommands,
-            });
-            return;
-          }
-
-          case 'usage_update': {
-            this.applyEvent(conv, {
-              type: 'MetaChanged',
-              usage: {
-                contextSize: rawUpdate.size,
-                contextUsed: rawUpdate.used,
-                cost: rawUpdate.cost
-                  ? { amount: rawUpdate.cost.amount, currency: rawUpdate.cost.currency }
-                  : null,
-              },
-            });
-            return;
+            break;
           }
 
           default:
@@ -740,6 +758,20 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         }
 
         const event = proc.normalize(rawUpdate);
+        if (event.kind === 'ignored') return;
+
+        if (isTranscriptEvent(event) && !canAcceptTranscriptEvent(conv)) {
+          this.deps.logger.warn(
+            'AcpSessionRuntime: dropping transcript update outside active turn',
+            {
+              conversationId,
+              sessionUpdate: rawUpdate.sessionUpdate,
+              phase: conv.machine.phase.kind,
+            }
+          );
+          return;
+        }
+
         conv.transcript.pushEvent(event);
         this.emitTranscript(conv);
       },
@@ -912,6 +944,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         type: 'MetaChanged',
         configOptions: resp.configOptions,
       });
+      this.seedTranscriptMeta(conv, { configOptions: resp.configOptions });
       return ok();
     } catch (e) {
       const errResult = acpErr.setConfigFailed(toSerializedError(e));
@@ -952,4 +985,25 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   private drainPermissionResolvers(conv: AcpConversation): void {
     this.permissionBroker.drain(conv.machine.pendingPermissions);
   }
+}
+
+function isTranscriptEvent(event: NormalizedEvent): boolean {
+  switch (event.kind) {
+    case 'message':
+    case 'thinking':
+    case 'tool_call':
+    case 'tool_update':
+    case 'subagent':
+    case 'search':
+    case 'mcp_tool':
+    case 'web_fetch':
+    case 'plan':
+      return true;
+    default:
+      return false;
+  }
+}
+
+function canAcceptTranscriptEvent(conv: AcpConversation): boolean {
+  return conv.machine.phase.kind === 'working' || conv.machine.phase.kind === 'replaying';
 }

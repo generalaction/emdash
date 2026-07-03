@@ -31,9 +31,9 @@
  */
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { EnrichHook, NormalizedEvent } from './normalized-event';
-import type { TranscriptState, TranscriptTurn } from '../models/transcript';
 import type { SessionConfigState, SessionUsage } from '../models/session';
+import type { TranscriptState, TranscriptTurn } from '../models/transcript';
+import type { EnrichHook, NormalizedEvent } from './normalized-event';
 import { closeActive, initialState, reduce, type ParserState, type ReducerDeps } from './reducer';
 
 export interface AcpTranscriptParserDeps {
@@ -62,12 +62,12 @@ export class AcpTranscriptParser {
    * Routes to the appropriate slice (transcript or config/usage/title).
    * For transcript-affecting variants, may open or close a turn.
    */
-  push(update: SessionUpdate): void {
-    this.state = reduce(this.state, { kind: 'update', update }, this.deps);
+  push(update: SessionUpdate, at = Date.now()): void {
+    this.state = reduce(this.state, { kind: 'update', update, at }, this.deps);
   }
 
-  pushEvent(event: NormalizedEvent): void {
-    this.state = reduce(this.state, { kind: 'event', event }, this.deps);
+  pushEvent(event: NormalizedEvent, at = Date.now()): void {
+    this.state = reduce(this.state, { kind: 'event', event, at }, this.deps);
   }
 
   /**
@@ -76,8 +76,8 @@ export class AcpTranscriptParser {
    * the session state machine, not the transcript).
    * No-op when there is no active turn.
    */
-  endTurn(): void {
-    this.state = reduce(this.state, { kind: 'close' }, this.deps);
+  endTurn(at = Date.now()): void {
+    this.state = reduce(this.state, { kind: 'close', at }, this.deps);
   }
 
   /**
@@ -131,13 +131,15 @@ export class AcpTranscriptParser {
   static replay(updates: Iterable<SessionUpdate>, deps: AcpTranscriptParserDeps): ReplayResult {
     const replayDeps: ReducerDeps = { ...deps };
     let state = initialState();
+    let at = 0;
 
     for (const update of updates) {
-      state = reduce(state, { kind: 'update', update }, replayDeps);
+      state = reduce(state, { kind: 'update', update, at }, replayDeps);
+      at += 1;
     }
 
     // Close the trailing active transcript turn at EOF.
-    const transcript = closeActive(state.transcript);
+    const transcript = closeActive(state.transcript, at);
     return {
       transcript,
       config: state.config,

@@ -1,20 +1,14 @@
 export type {
   AttachmentRef,
-  FileOp,
-  FileOpKind,
   PlanEntryPriority,
   PlanEntryStatus,
-  ResourceTarget,
   ToolStatus,
   TranscriptDiff,
-  TranscriptExecute,
-  TranscriptFileOp,
   TranscriptItem,
   TranscriptMcpTool,
   TranscriptMessage,
   TranscriptPlan,
   TranscriptPlanEntry,
-  TranscriptResourceLink,
   TranscriptSearch,
   TranscriptState,
   TranscriptSubagent,
@@ -36,16 +30,16 @@ export {
   makeMessageId,
   makeParentId,
   makePlanId,
-  makeSpecialToolId,
   makeThinkingId,
   makeToolId,
   makeTurnId,
 } from './ids';
 
-export { finalizeItems, foldItem, toFileOpKind } from './item-fold';
+export { finalizeItems, foldItem } from './item-fold';
+export type { FoldEvent } from './item-fold';
 
 export { closeActive, initialState, isNewUserMessage, reduce } from './reducer';
-export type { ParserState, ReducerDeps, ReducerInput } from './reducer';
+export type { ParserState, ReducerDeps, ReducerInput, SegmentState } from './reducer';
 
 export { AcpTranscriptParser } from './parser';
 export type { AcpTranscriptParserDeps, ReplayResult } from './parser';

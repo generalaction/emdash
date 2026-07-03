@@ -11,8 +11,9 @@ import type { Client } from '@agentclientprotocol/sdk';
 import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
-import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
+import type { SessionConfigState, SessionUsage } from './models/session';
 import type { TranscriptState } from './models/transcript';
+import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
 import type { SessionSnapshot } from './state';
 import type {
   AcpProcessHandle,
@@ -28,7 +29,13 @@ import type {
  */
 export function createRecordingListener() {
   const snapshots: { conversationId: string; snapshot: SessionSnapshot }[] = [];
-  const transcripts: { conversationId: string; transcript: TranscriptState }[] = [];
+  const transcripts: {
+    conversationId: string;
+    transcript: TranscriptState;
+    config: SessionConfigState;
+    usage: SessionUsage | null;
+    title: string | null;
+  }[] = [];
   const closed: { conversationId: string; taskId: string; exitCode: number | null }[] = [];
   const agentEvents: { type: string; conversationId: string }[] = [];
   const terminalCreated: {

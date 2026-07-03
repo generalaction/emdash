@@ -5,13 +5,7 @@ export { AgentTerminalManager } from './agent-terminal-manager';
 export type { AgentTerminalHooks as AgentTerminalListener } from './agent-terminal-manager';
 export type { AcpRuntimeError } from './errors';
 export type { AcpPermissionOption, AcpPermissionRequest } from './models/permissions';
-export type {
-  AcpPromptImage,
-  SessionLifecycle,
-  SessionSnapshot,
-  SessionState,
-  SessionUsage,
-} from './state';
+export type { AcpPromptImage, SessionLifecycle, SessionSnapshot, SessionState } from './state';
 export { toSessionSnapshot } from './state';
 export type {
   AcpFs,

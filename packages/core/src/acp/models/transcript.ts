@@ -18,12 +18,6 @@ export type AttachmentRef = {
 
 export type ToolStatus = 'running' | 'done' | 'error';
 
-/** ACP tool-call categories that represent file operations. */
-export type FileOpKind = 'read' | 'edit' | 'delete' | 'move';
-
-/** A single file touched by a file-operation tool call. */
-export type FileOp = { path: string };
-
 /** Lifecycle status of a single plan entry. */
 export type PlanEntryStatus = 'pending' | 'in_progress' | 'completed';
 
@@ -35,15 +29,6 @@ export type TranscriptPlanEntry = {
   status: PlanEntryStatus;
   priority: PlanEntryPriority;
 };
-
-/**
- * Resolved addressing target for a resource link.
- * Pre-resolved by the enrichment layer before the item reaches chat-ui.
- */
-export type ResourceTarget =
-  | { kind: 'workspace-file'; path: string }
-  | { kind: 'external'; url: string }
-  | { kind: 'opaque' };
 
 export type TranscriptMessage = {
   kind: 'message';
@@ -117,25 +102,6 @@ export type TranscriptWebFetch = {
   parentId?: string;
 };
 
-export type TranscriptFileOp = {
-  kind: 'file-op';
-  id: string;
-  op: FileOpKind;
-  status: ToolStatus;
-  ops: FileOp[];
-  parentId?: string;
-};
-
-export type TranscriptExecute = {
-  kind: 'execute';
-  id: string;
-  command: string;
-  status: ToolStatus;
-  startedAt: number;
-  durationMs?: number;
-  parentId?: string;
-};
-
 export type TranscriptDiff = {
   kind: 'diff';
   id: string;
@@ -144,19 +110,6 @@ export type TranscriptDiff = {
   newText: string;
   status: ToolStatus;
   parentId?: string;
-};
-
-export type TranscriptResourceLink = {
-  kind: 'resource-link';
-  id: string;
-  uri: string;
-  name: string;
-  title?: string;
-  description?: string;
-  mimeType?: string;
-  size?: number;
-  target: ResourceTarget;
-  status?: ToolStatus;
 };
 
 export type TranscriptPlan = {
@@ -175,10 +128,7 @@ export type TranscriptItem =
   | TranscriptSearch
   | TranscriptMcpTool
   | TranscriptWebFetch
-  | TranscriptFileOp
-  | TranscriptExecute
   | TranscriptDiff
-  | TranscriptResourceLink
   | TranscriptPlan;
 
 /**

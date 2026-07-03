@@ -2,9 +2,10 @@ import type { Logger } from '@emdash/shared/logger';
 import type { Result } from '@emdash/shared/result';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AcpRuntimeError } from './errors';
+import type { SessionConfigState, SessionUsage } from './models/session';
+import type { TerminalSnapshot } from './models/terminals';
 import type { TranscriptState } from './models/transcript';
 import type { AcpPromptImage, SessionSnapshot, SessionState } from './state';
-import type { TerminalSnapshot } from './models/terminals';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
 
 /**
@@ -44,7 +45,13 @@ export interface AcpRuntimeListener {
    * `onPermissionResolved`, and `onSessionMeta` callbacks.
    */
   onSnapshot(e: { conversationId: string; snapshot: SessionSnapshot }): void;
-  onTranscript(e: { conversationId: string; transcript: TranscriptState }): void;
+  onTranscript(e: {
+    conversationId: string;
+    transcript: TranscriptState;
+    config: SessionConfigState;
+    usage: SessionUsage | null;
+    title: string | null;
+  }): void;
   onClosed(e: { conversationId: string; taskId: string; exitCode: number | null }): void;
   onAgentEvent(e: {
     type: 'start' | 'stop' | 'error';

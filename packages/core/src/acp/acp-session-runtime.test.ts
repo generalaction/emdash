@@ -53,6 +53,14 @@ describe('AcpSessionRuntime - pooling', () => {
 describe('AcpSessionRuntime - transcript projection', () => {
   it('sessionUpdate projects into transcript snapshots', async () => {
     const { h, rt, client, sessionId } = await startHarness('conv-transcript');
+    let resolvePrompt!: (value: { stopReason: 'end_turn' }) => void;
+    h.agent.prompt = vi.fn(
+      () =>
+        new Promise<{ stopReason: 'end_turn' }>((resolve) => {
+          resolvePrompt = resolve;
+        })
+    );
+    const promptPromise = rt.prompt('conv-transcript', 'hello');
 
     await client.sessionUpdate({
       sessionId,
@@ -64,17 +72,18 @@ describe('AcpSessionRuntime - transcript projection', () => {
       } as SessionUpdate,
     });
 
-    expect(h.recording.transcripts).toHaveLength(1);
-    expect(h.recording.transcripts[0].conversationId).toBe('conv-transcript');
-    expect(h.recording.transcripts[0].transcript.active?.items[0]).toMatchObject({
+    expect(h.recording.transcripts.at(-1)?.conversationId).toBe('conv-transcript');
+    expect(h.recording.transcripts.at(-1)?.transcript.active?.items.at(-1)).toMatchObject({
       kind: 'message',
       role: 'assistant',
       text: 'hello',
     });
-    expect(rt.getChatHistory('conv-transcript').active?.items[0]).toMatchObject({
+    expect(rt.getChatHistory('conv-transcript').active?.items.at(-1)).toMatchObject({
       kind: 'message',
       text: 'hello',
     });
+    resolvePrompt({ stopReason: 'end_turn' });
+    await promptPromise;
   });
 
   it('prompt synthesizes a user message and commits the active transcript turn', async () => {
@@ -104,9 +113,7 @@ describe('AcpSessionRuntime - permissions', () => {
     const permissionPromise = client.requestPermission({
       sessionId,
       toolCall: { toolCallId: 'tool-1', title: 'Read a file', kind: 'read' },
-      options: [
-        { optionId: 'allow', name: 'Allow', kind: 'allow_once' as PermissionOptionKind },
-      ],
+      options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' as PermissionOptionKind }],
     });
 
     expect(rt.getSessionState('conv-perm').pendingPermissions).toHaveLength(1);
@@ -160,8 +167,8 @@ describe('AcpSessionRuntime - capability ports', () => {
 });
 
 describe('AcpSessionRuntime - metadata and enrich', () => {
-  it('usage_update updates session snapshots without transcript output', async () => {
-    const { h, rt, client, sessionId } = await startHarness('conv-usage');
+  it('usage_update updates the parser-owned transcript payload metadata', async () => {
+    const { h, client, sessionId } = await startHarness('conv-usage');
 
     await client.sessionUpdate({
       sessionId,
@@ -174,12 +181,11 @@ describe('AcpSessionRuntime - metadata and enrich', () => {
       } as SessionUpdate,
     });
 
-    expect(rt.getSessionState('conv-usage').usage).toEqual({
+    expect(h.recording.transcripts.at(-1)?.usage).toEqual({
       contextUsed: 10,
       contextSize: 100,
       cost: { amount: 1.25, currency: 'USD' },
     });
-    expect(h.recording.transcripts).toHaveLength(0);
   });
 
   it('provider enrich receives NormalizedEvent and raw SessionUpdate', async () => {
@@ -199,6 +205,14 @@ describe('AcpSessionRuntime - metadata and enrich', () => {
     });
     const rt = new AcpSessionRuntime(h.deps);
     await rt.start(makeStartInput({ conversationId: 'conv-enrich' }));
+    let resolvePrompt!: (value: { stopReason: 'end_turn' }) => void;
+    agent.prompt = vi.fn(
+      () =>
+        new Promise<{ stopReason: 'end_turn' }>((resolve) => {
+          resolvePrompt = resolve;
+        })
+    );
+    const promptPromise = rt.prompt('conv-enrich', 'run a tool');
     const client = agent.capturedClient;
     if (!client) throw new Error('expected captured client');
     const raw = {
@@ -218,8 +232,13 @@ describe('AcpSessionRuntime - metadata and enrich', () => {
       raw
     );
     expect(h.recording.transcripts.at(-1)?.transcript.active?.items[0]).toMatchObject({
-      kind: 'tool',
-      parentId: 'conv-enrich:turn:0:parent-1',
+      kind: 'message',
     });
+    expect(h.recording.transcripts.at(-1)?.transcript.active?.items.at(-1)).toMatchObject({
+      kind: 'tool',
+      parentId: 'conv-enrich:turn:0:tool:parent-1',
+    });
+    resolvePrompt({ stopReason: 'end_turn' });
+    await promptPromise;
   });
 });
