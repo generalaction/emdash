@@ -46,7 +46,9 @@
     "lint": "oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json"
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json",
+    "fixtures:acp": "node --experimental-strip-types tooling/fixtures/create-acp-transcript.ts",
+    "fixtures:acp:claude": "node --experimental-strip-types tooling/fixtures/create-claude-acp-transcript.ts"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.1.0",
