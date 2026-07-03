@@ -1,27 +1,30 @@
 import { noopLogger } from '@emdash/shared/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as featurebaseClient from '../../../integrations/impl/featurebase/client';
-import {
-  FeaturebaseHttpError,
-  getFeaturebaseClient,
-  type FeaturebaseClient,
-} from '../../../integrations/impl/featurebase/client';
+import { createFeaturebaseClient } from '../../../integrations/impl/featurebase/client';
+import type { FeaturebaseClient } from '../../../integrations/impl/featurebase/types';
 import { provider } from './index';
 
 vi.mock('../../../integrations/impl/featurebase/client', async (importOriginal) => {
   const actual = await importOriginal<typeof featurebaseClient>();
-  return { ...actual, getFeaturebaseClient: vi.fn() };
+  return { ...actual, createFeaturebaseClient: vi.fn() };
 });
 
 const issues = provider.behavior.issues;
 if (!issues) throw new Error('Featurebase issues plugin has no issues behavior');
 
-const mockGetClient = vi.mocked(getFeaturebaseClient);
-const host = { log: noopLogger, credentials: {} };
+const mockCreateClient = vi.mocked(createFeaturebaseClient);
+const host = { log: noopLogger, credentials: { apiKey: 'fb-token' } };
 
-function mockClient(get: ReturnType<typeof vi.fn>) {
-  mockGetClient.mockReturnValue({ get } as unknown as FeaturebaseClient);
-  return get;
+function mockClient(list: ReturnType<typeof vi.fn>) {
+  mockCreateClient.mockReturnValue({
+    feedback: {
+      posts: {
+        list,
+      },
+    },
+  } as unknown as FeaturebaseClient);
+  return list;
 }
 
 describe('featurebase issues plugin', () => {
@@ -30,7 +33,7 @@ describe('featurebase issues plugin', () => {
   });
 
   it('maps Featurebase posts to Emdash issues', async () => {
-    const get = mockClient(
+    const list = mockClient(
       vi.fn().mockResolvedValue({
         data: [
           {
@@ -49,11 +52,10 @@ describe('featurebase issues plugin', () => {
 
     const result = await issues.listIssues(host, { limit: 10 });
 
-    expect(get).toHaveBeenCalledWith('/v2/posts', {
+    expect(list).toHaveBeenCalledWith({
       limit: 10,
       sortBy: 'recent',
       sortOrder: 'desc',
-      q: undefined,
     });
     expect(result).toEqual({
       success: true,
@@ -72,11 +74,11 @@ describe('featurebase issues plugin', () => {
   });
 
   it('uses q when searching Featurebase posts', async () => {
-    const get = mockClient(vi.fn().mockResolvedValue({ data: [] }));
+    const list = mockClient(vi.fn().mockResolvedValue({ data: [] }));
 
     const result = await issues.searchIssues(host, { searchTerm: ' dark mode ', limit: 5 });
 
-    expect(get).toHaveBeenCalledWith('/v2/posts', {
+    expect(list).toHaveBeenCalledWith({
       limit: 5,
       sortBy: 'recent',
       sortOrder: 'desc',
@@ -86,24 +88,26 @@ describe('featurebase issues plugin', () => {
   });
 
   it('does not search Featurebase for an empty term', async () => {
-    const get = mockClient(vi.fn());
+    const list = mockClient(vi.fn());
 
     const result = await issues.searchIssues(host, { searchTerm: '   ', limit: 5 });
 
-    expect(get).not.toHaveBeenCalled();
+    expect(list).not.toHaveBeenCalled();
     expect(result).toEqual({ success: true, data: [] });
   });
 
   it('maps Featurebase HTTP failures to a typed issue error', async () => {
-    mockClient(vi.fn().mockRejectedValue(new FeaturebaseHttpError(401, 'Invalid API key')));
+    mockClient(
+      vi.fn().mockRejectedValue(Object.assign(new Error('Invalid API key'), { status: 401 }))
+    );
 
     const result = await issues.listIssues(host, { limit: 10 });
 
     expect(result).toEqual({
       success: false,
       error: {
-        type: 'generic',
-        message: 'Featurebase authentication failed. Check your API key.',
+        type: 'auth_failed',
+        message: 'Featurebase authentication failed. Check your credentials.',
       },
     });
   });

@@ -1,5 +1,6 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
-import { toFeaturebaseErrorMessage, verifyFeaturebaseCredentials } from './client';
+import { verifyFeaturebaseCredentials } from './client';
 import { icon } from './icon';
 
 const plugin = defineIntegrationPlugin(
@@ -33,16 +34,17 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
-    async verify(_host, credentials) {
-      try {
-        await verifyFeaturebaseCredentials(credentials);
-        return { connected: true };
-      } catch (error) {
+    async verify(_host, credentials): Promise<VerifyResult> {
+      const result = await verifyFeaturebaseCredentials(credentials);
+      if (!result.success)
         return {
           connected: false,
-          error: toFeaturebaseErrorMessage(error, 'Failed to validate Featurebase API key.'),
+          error: result.error.message,
         };
-      }
+      return {
+        connected: true,
+        ...result.data,
+      };
     },
   },
 });

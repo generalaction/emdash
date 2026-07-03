@@ -1,78 +1,59 @@
 import { err, ok } from '@emdash/shared';
+import { toIntegrationError } from '../../../integrations/helpers/error';
+import type { IntegrationCredentials } from '../../../integrations/host';
 import {
-  getFeaturebaseClient,
-  toFeaturebaseErrorMessage,
+  createFeaturebaseClient,
+  readFeaturebaseCredentials,
 } from '../../../integrations/impl/featurebase/client';
-import { clampIssueLimit, issueError, normalizeSearchTerm } from '../../helpers/provider-inputs';
+import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
-import type { IssueData, IssueListResult } from '../../types';
+import type { IssueListResult } from '../../types';
+import { toIssue } from './mapper';
 
-type FeaturebasePost = {
-  id: string;
-  slug?: string;
-  postUrl?: string;
-  title?: string;
-  content?: string;
-  status?: { name?: string; type?: string } | null;
-  tags?: Array<{ name?: string }>;
-  updatedAt?: string;
-};
-
-type FeaturebasePostsResponse = {
-  data?: FeaturebasePost[];
-};
-
-function stripHtml(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  const stripped = value
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .trim();
-
-  return stripped || undefined;
-}
-
-function toIssue(post: FeaturebasePost): IssueData {
-  const tags = post.tags?.map((tag) => tag.name).filter((name): name is string => !!name) ?? [];
-
-  return {
-    identifier: post.slug ?? post.id,
-    title: post.title ?? '',
-    url: post.postUrl ?? '',
-    description: stripHtml(post.content),
-    status: post.status?.name ?? post.status?.type ?? undefined,
-    project: tags.length > 0 ? tags.join(', ') : undefined,
-    updatedAt: post.updatedAt ?? undefined,
-  };
-}
-
-async function fetchPosts(
-  host: Parameters<typeof getFeaturebaseClient>[0],
-  opts: { limit: number; searchTerm?: string }
+export async function listIssues(
+  credentials: IntegrationCredentials,
+  limit: number
 ): Promise<IssueListResult> {
-  const client = getFeaturebaseClient(host);
-  const limit = clampIssueLimit(opts.limit, 50, 100);
-  const q = normalizeSearchTerm(opts.searchTerm ?? '');
+  const parsedCredentials = readFeaturebaseCredentials(credentials);
+  if (!parsedCredentials.success) return err(parsedCredentials.error);
+
+  const client = createFeaturebaseClient(parsedCredentials.data);
 
   try {
-    const result = await client.get<FeaturebasePostsResponse>('/v2/posts', {
-      limit,
+    const result = await client.feedback.posts.list({
+      limit: clampIssueLimit(limit, 50, 100),
       sortBy: 'recent',
       sortOrder: 'desc',
-      q: q || undefined,
     });
-    return ok((result.data ?? []).map(toIssue));
+    return ok(result.data.map(toIssue));
   } catch (error) {
-    return err(
-      issueError('generic', toFeaturebaseErrorMessage(error, 'Failed to fetch Featurebase posts.'))
-    );
+    return err(toIntegrationError(error, 'Featurebase'));
+  }
+}
+
+export async function searchIssues(
+  credentials: IntegrationCredentials,
+  searchTerm: string,
+  limit: number
+): Promise<IssueListResult> {
+  const term = normalizeSearchTerm(searchTerm);
+  if (!term) return ok([]);
+
+  const parsedCredentials = readFeaturebaseCredentials(credentials);
+  if (!parsedCredentials.success) return err(parsedCredentials.error);
+
+  const client = createFeaturebaseClient(parsedCredentials.data);
+
+  try {
+    const result = await client.feedback.posts.list({
+      limit: clampIssueLimit(limit, 20, 100),
+      sortBy: 'recent',
+      sortOrder: 'desc',
+      q: term,
+    });
+    return ok(result.data.map(toIssue));
+  } catch (error) {
+    return err(toIntegrationError(error, 'Featurebase'));
   }
 }
 
@@ -80,14 +61,7 @@ const plugin = defineIssuesPlugin({ integrationId: 'featurebase' }, { issues: {}
 
 export const provider = registerIssuesPluginBehavior(plugin, {
   issues: {
-    listIssues: (host, opts) => fetchPosts(host.credentials, { limit: opts.limit }),
-    async searchIssues(host, opts) {
-      const term = normalizeSearchTerm(opts.searchTerm);
-      if (!term) return ok([]);
-      const result = await fetchPosts(host.credentials, { limit: opts.limit, searchTerm: term });
-      if (!result.success)
-        host.log.error('[Featurebase] searchIssues error', { error: result.error });
-      return result;
-    },
+    listIssues: (host, opts) => listIssues(host.credentials, opts.limit),
+    searchIssues: (host, opts) => searchIssues(host.credentials, opts.searchTerm, opts.limit),
   },
 });

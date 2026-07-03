@@ -1,64 +1,92 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  createFeaturebaseClient,
   FEATUREBASE_API_URL,
   FEATUREBASE_API_VERSION,
-  FeaturebaseClient,
-  type FeaturebaseHttpError,
+  readFeaturebaseCredentials,
+  verifyFeaturebaseCredentials,
 } from './client';
 
-describe('FeaturebaseClient', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+const postsListMock = vi.hoisted(() => vi.fn());
+const FeaturebaseMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    feedback: {
+      posts: {
+        list: postsListMock,
+      },
+    },
+  }))
+);
+
+vi.mock('featurebase-node', () => ({
+  default: FeaturebaseMock,
+}));
+
+describe('Featurebase client', () => {
+  beforeEach(() => {
+    FeaturebaseMock.mockClear();
+    postsListMock.mockReset();
   });
 
-  it('sends bearer auth, API version, and query params to Featurebase', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({ data: [] }),
+  it('parses and trims credentials', () => {
+    expect(readFeaturebaseCredentials({ apiKey: '  fb-token  ' })).toEqual({
+      success: true,
+      data: { apiKey: 'fb-token' },
     });
-    vi.stubGlobal('fetch', fetchMock);
+  });
 
-    const client = new FeaturebaseClient('fb-token');
-    await client.get('/v2/posts', {
-      limit: 10,
-      sortBy: 'recent',
-      sortOrder: 'desc',
-      q: 'dark mode',
-      inReview: undefined,
-    });
+  it('constructs the SDK client with auth, base URL, and API version', () => {
+    createFeaturebaseClient({ apiKey: 'fb-token' });
 
-    const url = fetchMock.mock.calls[0]?.[0] as URL;
-
-    expect(fetchMock).toHaveBeenCalledWith(url, {
-      headers: {
-        Authorization: 'Bearer fb-token',
+    expect(FeaturebaseMock).toHaveBeenCalledWith({
+      apiKey: 'fb-token',
+      baseURL: FEATUREBASE_API_URL,
+      defaultHeaders: {
         'Featurebase-Version': FEATUREBASE_API_VERSION,
       },
     });
-    expect(url.toString()).toBe(
-      `${FEATUREBASE_API_URL}/v2/posts?limit=10&sortBy=recent&sortOrder=desc&q=dark+mode`
-    );
   });
 
-  it('throws FeaturebaseHttpError with API error message when request fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
-        json: vi.fn().mockResolvedValue({
-          error: { message: 'Invalid API key', status: 401 },
-        }),
-      })
-    );
+  it('verifies the API key with a minimal posts request', async () => {
+    postsListMock.mockResolvedValue({ data: [] });
 
-    const client = new FeaturebaseClient('bad-token');
+    const result = await verifyFeaturebaseCredentials({ apiKey: 'fb-token' });
 
-    await expect(client.get('/v2/posts')).rejects.toMatchObject({
-      status: 401,
-      message: 'Invalid API key',
-    } satisfies Partial<FeaturebaseHttpError>);
+    expect(postsListMock).toHaveBeenCalledWith({ limit: 1 });
+    expect(result).toEqual({
+      success: true,
+      data: {
+        credentials: {
+          apiKey: 'fb-token',
+        },
+      },
+    });
+  });
+
+  it('maps authentication failures to an integration error', async () => {
+    postsListMock.mockRejectedValue(Object.assign(new Error('Invalid API key'), { status: 401 }));
+
+    const result = await verifyFeaturebaseCredentials({ apiKey: 'bad-token' });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'auth_failed',
+        message: 'Featurebase authentication failed. Check your credentials.',
+      },
+    });
+  });
+
+  it('rejects an empty API key without creating a client', async () => {
+    const result = await verifyFeaturebaseCredentials({ apiKey: '   ' });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'invalid_input',
+        message: 'Featurebase API key is required.',
+      },
+    });
+    expect(FeaturebaseMock).not.toHaveBeenCalled();
   });
 });
