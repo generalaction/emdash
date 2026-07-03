@@ -294,6 +294,28 @@ describe('AutomationScheduler bootstrap self-healing', () => {
     expect(countRunsByStatus(fixture, 'scheduled', 'automation-1')).toBe(1);
   });
 
+  it('schedules an RRULE run using the stored DTSTART anchor', async () => {
+    const now = Date.UTC(2026, 6, 6, 9, 0, 1);
+    vi.setSystemTime(now);
+
+    seedProject(fixture);
+    seedAutomation(fixture, {
+      triggerConfig: JSON.stringify({
+        kind: 'rrule',
+        expr: 'DTSTART;TZID=UTC:20260701T090000\nRRULE:FREQ=WEEKLY;BYDAY=MO',
+        tz: 'UTC',
+      }),
+    });
+
+    const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
+    await scheduler.reload();
+
+    const row = fixture.sqlite
+      .prepare('SELECT scheduled_at AS scheduledAt FROM automation_runs WHERE automation_id = ?')
+      .get('automation-1') as { scheduledAt: number } | undefined;
+    expect(row?.scheduledAt).toBe(Date.UTC(2026, 6, 13, 9, 0, 0));
+  });
+
   it('does not create a duplicate when a scheduled run already exists', async () => {
     const now = Date.UTC(2026, 4, 15, 12, 0, 0);
     vi.setSystemTime(now);
