@@ -4,7 +4,7 @@
  * NormalizedEvent is a delta/chunk — it represents a single ACP notification
  * after baseline decoding and optional provider enrichment. It is NEVER stored,
  * transported, or exported to consumers; it is the parser's private intermediate
- * type between the injected ProviderTransform and the item fold.
+ * type between the baseline decoder, optional EnrichHook, and the item fold.
  *
  * Contrast with TranscriptItem (accumulated materialized state).
  */
@@ -26,17 +26,16 @@ export type NormalizedEvent =
       kind: 'message';
       role: 'user' | 'assistant';
       /**
-       * Provider-assigned message id, used as part of the stable item id.
-       * Null when the provider doesn't supply one; the fold falls back to role.
+       * Provider-assigned or synthesized message id, used as part of the stable item id.
        */
-      messageId: string | null;
+      messageId: string;
       text: string;
       /** Attachment references for user messages submitted with images. */
       attachments?: AttachmentRef[];
     }
   | {
       kind: 'thinking';
-      messageId: string | null;
+      messageId: string;
       text: string;
     }
   | {
@@ -52,6 +51,39 @@ export type NormalizedEvent =
        */
       parentToolCallId: string | null;
       diffs: NormalizedDiff[];
+    }
+  | {
+      kind: 'subagent';
+      toolCallId: string;
+      title: string;
+      status: NormalizedToolStatus | null;
+      parentToolCallId: string | null;
+      inputSummary?: string;
+    }
+  | {
+      kind: 'search';
+      toolCallId: string;
+      query: string;
+      status: NormalizedToolStatus | null;
+      parentToolCallId: string | null;
+      matchCount?: number;
+    }
+  | {
+      kind: 'mcp_tool';
+      toolCallId: string;
+      server?: string;
+      tool: string;
+      status: NormalizedToolStatus | null;
+      parentToolCallId: string | null;
+      inputSummary?: string;
+    }
+  | {
+      kind: 'web_fetch';
+      toolCallId: string;
+      url: string;
+      title?: string;
+      status: NormalizedToolStatus | null;
+      parentToolCallId: string | null;
     }
   | {
       kind: 'tool_update';
@@ -94,35 +126,9 @@ export type NormalizedEvent =
   | { kind: 'ignored' };
 
 /**
- * A stateless function that decodes and normalizes a raw ACP SessionUpdate
- * into a NormalizedEvent. Injected into the parser; provided per-provider.
- *
- * Implementations should:
- *   1. Decode ACP-specific content blocks (text extraction, diff extraction).
- *   2. Enrich with vendor-specific metadata (e.g. parentToolCallId from _meta).
- *   3. Return `{ kind: 'ignored' }` for variants not yet handled.
- *
- * The function is stateless — all stateful folding (id synthesis, text
- * accumulation, turn boundaries) happens inside the parser reducer.
- */
-export type ProviderTransform = (update: SessionUpdate) => NormalizedEvent;
-
-/**
  * An optional enrichment hook that runs after baseline decoding.
  * Receives the decoded NormalizedEvent and the original raw SessionUpdate so
  * it can promote vendor _meta fields (e.g. parentToolCallId) into first-class
  * fields. Return the event unchanged if no enrichment is needed.
  */
 export type EnrichHook = (event: NormalizedEvent, raw: SessionUpdate) => NormalizedEvent;
-
-/**
- * Compose a baseline decode function with an optional per-provider enrich hook
- * into a single ProviderTransform.
- *
- * Usage:
- *   const transform = composeTransform(decodeSessionUpdate, enrichClaudeEvent);
- */
-export function composeTransform(decode: ProviderTransform, enrich?: EnrichHook): ProviderTransform {
-  if (!enrich) return decode;
-  return (update: SessionUpdate): NormalizedEvent => enrich(decode(update), update);
-}

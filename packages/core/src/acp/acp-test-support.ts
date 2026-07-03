@@ -12,7 +12,8 @@ import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
-import type { AcpTurn, SessionSnapshot } from './state';
+import type { TranscriptState } from './models/transcript';
+import type { SessionSnapshot } from './state';
 import type {
   AcpProcessHandle,
   AcpProcessHost,
@@ -27,8 +28,7 @@ import type {
  */
 export function createRecordingListener() {
   const snapshots: { conversationId: string; snapshot: SessionSnapshot }[] = [];
-  const updates: { conversationId: string; turnId: string; seq: number }[] = [];
-  const turns: { conversationId: string; turn: AcpTurn }[] = [];
+  const transcripts: { conversationId: string; transcript: TranscriptState }[] = [];
   const closed: { conversationId: string; taskId: string; exitCode: number | null }[] = [];
   const agentEvents: { type: string; conversationId: string }[] = [];
   const terminalCreated: {
@@ -53,8 +53,7 @@ export function createRecordingListener() {
 
   const listener: AcpRuntimeListener = {
     onSnapshot: (e) => snapshots.push(e),
-    onSessionUpdate: (e) => updates.push(e),
-    onTurnCommitted: (e) => turns.push(e),
+    onTranscript: (e) => transcripts.push(e),
     onClosed: (e) => closed.push(e),
     onAgentEvent: (e) => agentEvents.push(e),
     onTerminalCreated: (e) => terminalCreated.push(e),
@@ -66,8 +65,7 @@ export function createRecordingListener() {
   return {
     listener,
     snapshots,
-    updates,
-    turns,
+    transcripts,
     closed,
     agentEvents,
     terminalCreated,
@@ -76,8 +74,7 @@ export function createRecordingListener() {
     terminalReleased,
     clear() {
       snapshots.length = 0;
-      updates.length = 0;
-      turns.length = 0;
+      transcripts.length = 0;
       closed.length = 0;
       agentEvents.length = 0;
       terminalCreated.length = 0;

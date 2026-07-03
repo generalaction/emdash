@@ -23,9 +23,10 @@
  */
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { ProviderTransform } from './normalized-event';
+import type { EnrichHook, NormalizedEvent } from './normalized-event';
 import type { TranscriptState, TranscriptTurn } from '../models/transcript';
-import type { SessionConfigState, SessionUsage } from '../models/session';
+import type { SessionCommand, SessionConfigState, SessionUsage } from '../models/session';
+import { decodeSessionUpdate } from './decode';
 import { foldItem, finalizeItems } from './item-fold';
 import { makeMessageId, makeTurnId } from './ids';
 import { deriveConfigGroups } from './config-derive';
@@ -40,13 +41,12 @@ export interface ParserState {
 
 export type ReducerInput =
   | { kind: 'update'; update: SessionUpdate }
+  | { kind: 'event'; event: NormalizedEvent }
   | { kind: 'close' };
 
 export interface ReducerDeps {
   conversationId: string;
-  transform: ProviderTransform;
-  /** 'live' for interactive sessions; 'replay' for loadSession replay. */
-  source: 'live' | 'replay';
+  enrich?: EnrichHook;
 }
 
 export function initialState(): ParserState {
@@ -64,7 +64,7 @@ function nextTurnIndex(t: TranscriptState): number {
 
 function openTurn(t: TranscriptState, deps: ReducerDeps): TranscriptState {
   const id = makeTurnId(deps.conversationId, nextTurnIndex(t));
-  const turn: TranscriptTurn = { id, source: deps.source, items: [] };
+  const turn: TranscriptTurn = { id, items: [] };
   return { ...t, active: turn };
 }
 
@@ -86,7 +86,7 @@ export function closeActive(t: TranscriptState): TranscriptState {
  * Uses the CURRENT active turn's id — not a tentative next-turn id — so the
  * lookup matches the items already stored in the turn.
  */
-export function isNewUserMessage(active: TranscriptTurn | null, messageId: string | null): boolean {
+export function isNewUserMessage(active: TranscriptTurn | null, messageId: string): boolean {
   if (!active) return true;
   const id = makeMessageId(active.id, messageId, 'user');
   return !active.items.some((it) => it.kind === 'message' && it.id === id);
@@ -102,7 +102,12 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
     return transcript === s.transcript ? s : { ...s, transcript };
   }
 
-  const event = deps.transform(input.update);
+  const event =
+    input.kind === 'event'
+      ? input.event
+      : deps.enrich
+        ? deps.enrich(decodeSessionUpdate(input.update), input.update)
+        : decodeSessionUpdate(input.update);
 
   switch (event.kind) {
     case 'config': {
@@ -121,7 +126,7 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
     case 'commands': {
       const availableCommands = event.commands.map((c) => {
         const raw = c as unknown as { name: string; description: string; input?: { hint?: string } };
-        const cmd: import('../models/session').SessionCommand = {
+        const cmd: SessionCommand = {
           name: raw.name,
           description: raw.description,
         };

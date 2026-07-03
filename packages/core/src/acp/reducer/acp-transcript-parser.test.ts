@@ -8,13 +8,12 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { AcpTranscriptParser } from './parser';
-import { defaultTransform } from './decode';
 import { makeMessageId, makeThinkingId, makeToolId, makeTurnId, makeDiffId } from './ids';
 
 const CID = 'conv-1';
 
 function deps() {
-  return { conversationId: CID, transform: defaultTransform };
+  return { conversationId: CID };
 }
 
 function userChunk(messageId: string, text: string): SessionUpdate {
@@ -107,7 +106,6 @@ describe('AcpTranscriptParser', () => {
 
     const turn = p.history[0];
     expect(turn.id).toBe(makeTurnId(CID, 0));
-    expect(turn.source).toBe('live');
     expect(turn.items).toHaveLength(2);
     expect(turn.items[0].kind).toBe('message');
     expect(turn.items[1].kind).toBe('message');
@@ -202,7 +200,7 @@ describe('AcpTranscriptParser', () => {
     p.push(update);
 
     const turnId = makeTurnId(CID, 0);
-    const expectedId = makeMessageId(turnId, null, 'user'); // falls back to 'user'
+    const expectedId = makeMessageId(turnId, 'user', 'user'); // falls back to 'user'
     expect(p.activeTurn?.items[0].id).toBe(expectedId);
   });
 
@@ -267,6 +265,50 @@ describe('AcpTranscriptParser', () => {
     const items = p.activeTurn?.items ?? [];
     const tool = items.find((i) => i.kind === 'tool');
     expect((tool as { status: string }).status).toBe('done');
+  });
+
+  it('tool kinds can materialize richer tool rows', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'use tools'));
+    p.push(toolCallUpdate('search-1', 'Find symbols', 'search'));
+    p.push(toolCallUpdate('mcp-1', 'linear.searchIssues', 'mcp-tool'));
+    p.push(toolCallUpdate('fetch-1', 'https://example.test', 'web-fetch'));
+    p.push(toolCallUpdate('subagent-1', 'Investigate failure', 'subagent'));
+
+    const items = p.activeTurn?.items ?? [];
+    expect(items.find((i) => i.kind === 'search')).toMatchObject({
+      id: makeToolId(makeTurnId(CID, 0), 'search-1'),
+      query: 'Find symbols',
+      status: 'running',
+    });
+    expect(items.find((i) => i.kind === 'mcp-tool')).toMatchObject({
+      tool: 'linear.searchIssues',
+    });
+    expect(items.find((i) => i.kind === 'web-fetch')).toMatchObject({
+      url: 'https://example.test',
+    });
+    expect(items.find((i) => i.kind === 'subagent')).toMatchObject({
+      name: 'Investigate failure',
+    });
+  });
+
+  it('pushEvent can materialize enriched special tool events', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'search'));
+    p.pushEvent({
+      kind: 'search',
+      toolCallId: 'search-1',
+      query: 'NormalizedEvent',
+      status: 'completed',
+      parentToolCallId: null,
+      matchCount: 3,
+    });
+
+    expect(p.activeTurn?.items.find((i) => i.kind === 'search')).toMatchObject({
+      query: 'NormalizedEvent',
+      status: 'done',
+      matchCount: 3,
+    });
   });
 
   // ── Diff arriving on a later tool_update ─────────────────────────────────
@@ -354,17 +396,16 @@ describe('AcpTranscriptParser', () => {
     expect(replayText).toEqual(liveText);
   });
 
-  it('replay marks turns as source=replay, live marks them as source=live', () => {
+  it('replay and live produce the same transcript shape', () => {
     const updates = [userChunk('u1', 'hi'), assistantChunk('a1', 'hello')];
 
     const p = new AcpTranscriptParser(deps());
     p.push(updates[0]);
     p.push(updates[1]);
     p.endTurn();
-    expect(p.history[0].source).toBe('live');
 
     const replayResult = AcpTranscriptParser.replay(updates, deps());
-    expect(replayResult.transcript.committed[0].source).toBe('replay');
+    expect(replayResult.transcript.committed[0]).toEqual(p.history[0]);
   });
 
   // ── Finalization on commit ────────────────────────────────────────────────

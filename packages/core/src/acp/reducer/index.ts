@@ -10,14 +10,18 @@ export type {
   TranscriptExecute,
   TranscriptFileOp,
   TranscriptItem,
+  TranscriptMcpTool,
   TranscriptMessage,
   TranscriptPlan,
   TranscriptPlanEntry,
   TranscriptResourceLink,
+  TranscriptSearch,
   TranscriptState,
+  TranscriptSubagent,
   TranscriptThinking,
   TranscriptTool,
   TranscriptTurn,
+  TranscriptWebFetch,
 } from '../models/transcript';
 
 export type {
@@ -25,13 +29,18 @@ export type {
   NormalizedDiff,
   NormalizedEvent,
   NormalizedToolStatus,
-  ProviderTransform,
 } from './normalized-event';
-export { composeTransform } from './normalized-event';
 
-export { decodeSessionUpdate, defaultTransform } from './decode';
-
-export { makeDiffId, makeMessageId, makeParentId, makePlanId, makeThinkingId, makeToolId, makeTurnId } from './ids';
+export {
+  makeDiffId,
+  makeMessageId,
+  makeParentId,
+  makePlanId,
+  makeSpecialToolId,
+  makeThinkingId,
+  makeToolId,
+  makeTurnId,
+} from './ids';
 
 export { finalizeItems, foldItem, toFileOpKind } from './item-fold';
 

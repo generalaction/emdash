@@ -13,7 +13,6 @@ import { readFileSync } from 'node:fs';
 import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { AcpTranscriptParser } from './parser';
-import { defaultTransform } from './decode';
 
 // ── Narrow fixture types ──────────────────────────────────────────────────────
 
@@ -55,7 +54,7 @@ function loadFixture(filename: string): FixtureFile {
 
 function driveParser(fixture: FixtureFile): AcpTranscriptParser {
   const { meta, events } = fixture;
-  const parser = new AcpTranscriptParser({ conversationId: meta.sessionId, transform: defaultTransform });
+  const parser = new AcpTranscriptParser({ conversationId: meta.sessionId });
 
   for (const entry of events) {
     const kind = (entry.event as { kind: string }).kind;

@@ -6,7 +6,7 @@
  * so that a future migration can maintain render identity continuity.
  *
  * All functions are pure and total — no nullable returns. When a provider
- * messageId is absent the fold falls back to a role/kind suffix, ensuring
+ * messageId is absent the decoder synthesizes a role/kind suffix, ensuring
  * every item always has a non-null, stable id.
  */
 
@@ -21,25 +21,24 @@ export function makeTurnId(conversationId: string, turnIndex: number): string {
 
 /**
  * Stable message item id.
- * Format: `${turnId}:message:${messageId ?? role}`
+ * Format: `${turnId}:message:${messageId}`
  *
  * Uses the provider messageId when available for cross-chunk stability.
- * Falls back to role ('user'/'assistant') when absent — each role appears
- * at most once per turn, so the fallback is unambiguous.
+ * The decoder supplies role-based fallback ids when absent.
  */
-export function makeMessageId(turnId: string, messageId: string | null, role: string): string {
-  return `${turnId}:message:${messageId ?? role}`;
+export function makeMessageId(turnId: string, messageId: string, _role: string): string {
+  return `${turnId}:message:${messageId}`;
 }
 
 /**
  * Stable thinking item id.
- * Format: `${turnId}:thinking:${messageId ?? 'main'}`
+ * Format: `${turnId}:thinking:${messageId}`
  *
  * A kind-tag prefix ('thinking:') disambiguates from message items when
  * Claude reuses the same messageId across both update kinds.
  */
-export function makeThinkingId(turnId: string, messageId: string | null): string {
-  return `${turnId}:thinking:${messageId ?? 'main'}`;
+export function makeThinkingId(turnId: string, messageId: string): string {
+  return `${turnId}:thinking:${messageId}`;
 }
 
 /**
@@ -48,6 +47,14 @@ export function makeThinkingId(turnId: string, messageId: string | null): string
  */
 export function makeToolId(turnId: string, toolCallId: string): string {
   return `${turnId}:${toolCallId}`;
+}
+
+export function makeSpecialToolId(
+  turnId: string,
+  kind: 'subagent' | 'search' | 'mcp-tool' | 'web-fetch',
+  toolCallId: string
+): string {
+  return `${turnId}:${kind}:${toolCallId}`;
 }
 
 /**

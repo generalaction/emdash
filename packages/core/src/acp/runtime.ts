@@ -1,9 +1,9 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { Result } from '@emdash/shared/result';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
-import type { AgentUpdate } from './agent-update';
 import type { AcpRuntimeError } from './errors';
-import type { AcpPromptImage, AcpTurn, ChatHistory, SessionSnapshot, SessionState } from './state';
+import type { TranscriptState } from './models/transcript';
+import type { AcpPromptImage, SessionSnapshot, SessionState } from './state';
 import type { TerminalSnapshot } from './models/terminals';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
 
@@ -44,13 +44,7 @@ export interface AcpRuntimeListener {
    * `onPermissionResolved`, and `onSessionMeta` callbacks.
    */
   onSnapshot(e: { conversationId: string; snapshot: SessionSnapshot }): void;
-  onSessionUpdate(e: {
-    conversationId: string;
-    turnId: string;
-    update: AgentUpdate;
-    seq: number;
-  }): void;
-  onTurnCommitted(e: { conversationId: string; turn: AcpTurn }): void;
+  onTranscript(e: { conversationId: string; transcript: TranscriptState }): void;
   onClosed(e: { conversationId: string; taskId: string; exitCode: number | null }): void;
   onAgentEvent(e: {
     type: 'start' | 'stop' | 'error';
@@ -131,7 +125,7 @@ export interface IAcpSessionRuntime {
     optionId: string | null
   ): Result<void, AcpRuntimeError>;
   isRunning(conversationId: string): boolean;
-  getChatHistory(conversationId: string): ChatHistory;
+  getChatHistory(conversationId: string): TranscriptState;
   getSessionState(conversationId: string): SessionState;
   /** Returns snapshots of all live terminals for a conversation. Empty if none or unknown. */
   getTerminals(conversationId: string): TerminalSnapshot[];

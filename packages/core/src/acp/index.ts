@@ -7,14 +7,10 @@ export type { AcpRuntimeError } from './errors';
 export type { AcpPermissionOption, AcpPermissionRequest } from './models/permissions';
 export type {
   AcpPromptImage,
-  AcpTurn,
-  ChatHistory,
   SessionLifecycle,
   SessionSnapshot,
   SessionState,
   SessionUsage,
-  TurnSource,
-  TurnStatus,
 } from './state';
 export { toSessionSnapshot } from './state';
 export type {
@@ -34,14 +30,5 @@ export type {
   ResolveAcpProvider,
   SetSessionIdError,
 } from './runtime';
-export type {
-  AgentDiff,
-  AgentPlanEntry,
-  AgentPlanEntryPriority,
-  AgentPlanEntryStatus,
-  AgentToolStatus,
-  AgentUpdate,
-} from './agent-update';
-export { toAgentUpdate } from './agent-update';
 export { SessionMachine, isPromptReady } from './session-machine';
-export * from './acp-transcript-parser/index';
+export * from './reducer/index';

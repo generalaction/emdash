@@ -10,7 +10,7 @@
  * Two usage modes:
  *
  *   Live streaming (push / endTurn):
- *     const parser = new AcpTranscriptParser({ conversationId, transform });
+ *     const parser = new AcpTranscriptParser({ conversationId, enrich });
  *     parser.push(sessionUpdate);
  *     parser.endTurn();             // called when prompt() resolves
  *     parser.history;               // committed turns
@@ -20,26 +20,25 @@
  *     parser.title;                 // latest title, or null
  *
  *   Bounded replay (static):
- *     const result = AcpTranscriptParser.replay(updates, { conversationId, transform });
+ *     const result = AcpTranscriptParser.replay(updates, { conversationId, enrich });
  *     result.transcript;            // TranscriptState (active === null)
  *     result.config;                // SessionConfigState
  *     result.usage;                 // SessionUsage | null
  *     result.title;                 // string | null
  *
- * Provider transform injection:
- *   Import decodeSessionUpdate and an optional EnrichHook, compose via
- *   composeTransform, and pass as the `transform` dep.
+ * Provider enrichment:
+ *   Pass an optional EnrichHook; baseline decoding is owned by the reducer.
  */
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { ProviderTransform } from './normalized-event';
+import type { EnrichHook, NormalizedEvent } from './normalized-event';
 import type { TranscriptState, TranscriptTurn } from '../models/transcript';
 import type { SessionConfigState, SessionUsage } from '../models/session';
 import { closeActive, initialState, reduce, type ParserState, type ReducerDeps } from './reducer';
 
 export interface AcpTranscriptParserDeps {
   conversationId: string;
-  transform: ProviderTransform;
+  enrich?: EnrichHook;
 }
 
 export type ReplayResult = {
@@ -55,7 +54,7 @@ export class AcpTranscriptParser {
 
   constructor(deps: AcpTranscriptParserDeps) {
     this.state = initialState();
-    this.deps = { ...deps, source: 'live' };
+    this.deps = { ...deps };
   }
 
   /**
@@ -65,6 +64,10 @@ export class AcpTranscriptParser {
    */
   push(update: SessionUpdate): void {
     this.state = reduce(this.state, { kind: 'update', update }, this.deps);
+  }
+
+  pushEvent(event: NormalizedEvent): void {
+    this.state = reduce(this.state, { kind: 'event', event }, this.deps);
   }
 
   /**
@@ -122,11 +125,11 @@ export class AcpTranscriptParser {
    * as-of the last update seen.
    *
    * @param updates  An iterable of raw ACP SessionUpdate notifications.
-   * @param deps     conversationId + ProviderTransform.
+   * @param deps     conversationId + optional EnrichHook.
    * @returns        { transcript (active===null), config, usage, title }
    */
   static replay(updates: Iterable<SessionUpdate>, deps: AcpTranscriptParserDeps): ReplayResult {
-    const replayDeps: ReducerDeps = { ...deps, source: 'replay' };
+    const replayDeps: ReducerDeps = { ...deps };
     let state = initialState();
 
     for (const update of updates) {

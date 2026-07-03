@@ -59,8 +59,8 @@ export type TranscriptMessage = {
 export type TranscriptThinking = {
   kind: 'thinking';
   id: string;
-  /** Provider-assigned message id for this thinking block, when available. */
-  messageId: string | null;
+  /** Provider-assigned or synthesized message id for this thinking block. */
+  messageId: string;
   /** Accumulating reasoning text. */
   text: string;
   /** 'thinking' while streaming; 'done' after finalization. */
@@ -77,6 +77,43 @@ export type TranscriptTool = {
   name: string;
   status: ToolStatus;
   inputSummary?: string;
+  parentId?: string;
+};
+
+export type TranscriptSubagent = {
+  kind: 'subagent';
+  id: string;
+  name: string;
+  status: ToolStatus;
+  inputSummary?: string;
+  parentId?: string;
+};
+
+export type TranscriptSearch = {
+  kind: 'search';
+  id: string;
+  query: string;
+  status: ToolStatus;
+  matchCount?: number;
+  parentId?: string;
+};
+
+export type TranscriptMcpTool = {
+  kind: 'mcp-tool';
+  id: string;
+  server?: string;
+  tool: string;
+  status: ToolStatus;
+  inputSummary?: string;
+  parentId?: string;
+};
+
+export type TranscriptWebFetch = {
+  kind: 'web-fetch';
+  id: string;
+  url: string;
+  title?: string;
+  status: ToolStatus;
   parentId?: string;
 };
 
@@ -134,6 +171,10 @@ export type TranscriptItem =
   | TranscriptMessage
   | TranscriptThinking
   | TranscriptTool
+  | TranscriptSubagent
+  | TranscriptSearch
+  | TranscriptMcpTool
+  | TranscriptWebFetch
   | TranscriptFileOp
   | TranscriptExecute
   | TranscriptDiff
@@ -150,8 +191,6 @@ export type TranscriptItem =
  */
 export type TranscriptTurn = {
   id: string;
-  /** 'live' for turns initiated by the user; 'replay' for loadSession replay. */
-  source: 'live' | 'replay';
   items: TranscriptItem[];
 };
 

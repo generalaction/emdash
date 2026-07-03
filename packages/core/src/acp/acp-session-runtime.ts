@@ -28,18 +28,21 @@ import { isErr, LifecycleMap, ok, toSerializedError } from '@emdash/shared';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import { createAcpAgentConnection } from './acp-agent-connection';
 import { AgentTerminalManager } from './agent-terminal-manager';
-import type { AgentUpdate } from './agent-update';
+import { FsPort, TerminalPort } from './client-ports';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
 import type { AcpPermissionRequest } from './models/permissions';
+import type { TranscriptState } from './models/transcript';
+import { PermissionBroker } from './permission-broker';
+import type { NormalizedEvent } from './reducer/normalized-event';
+import { AcpTranscriptParser } from './reducer/parser';
 import type { AcpSessionRuntimeDeps, AcpStartInput, IAcpSessionRuntime } from './runtime';
 import { SessionMachine } from './session-machine';
 import type { Command, DomainEvent, Effect } from './session-machine';
-import type { AcpPromptImage, ChatHistory, SessionState } from './state';
+import type { AcpPromptImage, SessionState } from './state';
 import { toSessionSnapshot } from './state';
 import type { TerminalSnapshot } from './models/terminals';
 import type { AcpProcessHandle } from './transport';
-import { readTextFile, writeTextFile } from './transport';
 
 interface AcpConversation {
   conversationId: string;
@@ -48,16 +51,17 @@ interface AcpConversation {
   providerId: string;
   acpSessionId: string | null;
   machine: SessionMachine;
+  transcript: AcpTranscriptParser;
 }
 
 interface AcpAgentProcess {
   handle: AcpProcessHandle;
   agent: AcpAgentApi;
   /**
-   * Converts a raw ACP `SessionUpdate` into an `AgentUpdate`.
-   * Composed of the baseline `toAgentUpdate` plus the optional provider `enrich` hook.
+   * Converts a raw ACP `SessionUpdate` into a normalized transcript event.
+   * Composed of baseline decode plus the optional provider `enrich` hook.
    */
-  normalize: (raw: SessionUpdate) => AgentUpdate;
+  normalize: (raw: SessionUpdate) => NormalizedEvent;
   providerId: string;
   workspaceId: string;
   cwd: string;
@@ -77,16 +81,20 @@ interface AcpAgentProcess {
 export class AcpSessionRuntime implements IAcpSessionRuntime {
   private readonly deps: Required<AcpSessionRuntimeDeps>;
   private readonly terminals: AgentTerminalManager;
+  private readonly fsPort: FsPort;
+  private readonly terminalPort: TerminalPort;
   private readonly processes = new LifecycleMap<AcpAgentProcess, AcpRuntimeError, void>();
   private conversationIndex = new Map<
     string,
     { processKey: string; acpSessionId: string | null }
   >();
-  private permissionResolvers = new Map<string, (r: RequestPermissionResponse) => void>();
+  private readonly permissionBroker = new PermissionBroker();
 
   constructor(deps: AcpSessionRuntimeDeps) {
     this.deps = { ...deps };
     this.terminals = new AgentTerminalManager(this.deps.host, this.deps.listener);
+    this.fsPort = new FsPort(this.deps.host);
+    this.terminalPort = new TerminalPort(this.terminals);
   }
 
   async start(input: AcpStartInput): Promise<Result<void, AcpRuntimeError>> {
@@ -95,7 +103,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     if (this.conversationIndex.has(conversationId)) {
       this.deps.logger.debug('AcpSessionRuntime: conversation already running', { conversationId });
       const conv = this.resolveConv(conversationId);
-      if (conv) this.applyEvent(conv, { type: 'state' } as unknown as DomainEvent);
+      if (conv) this.emitSnapshot(conv);
       return ok();
     }
 
@@ -125,6 +133,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       providerId,
       acpSessionId: sessionId,
       machine: new SessionMachine(conversationId),
+      transcript: new AcpTranscriptParser({ conversationId, enrich: binding.behavior.enrich }),
     };
 
     proc.conversations.set(conversationId, conv);
@@ -163,6 +172,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
               configOptions: resp.configOptions,
             });
           }
+          conv.transcript.endTurn();
+          this.emitTranscript(conv);
           this.applyEvent(conv, { type: 'ReplayEnded', status: 'complete' });
           acpSessionId = conv.acpSessionId!;
           if (acpSessionId !== originalSessionId) {
@@ -180,6 +191,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           // Commit the replay turn as 'complete' even on failure: the session continues
           // with a fresh newSession, so the empty replay turn is not an error from the
           // user's perspective.
+          conv.transcript.endTurn();
+          this.emitTranscript(conv);
           this.applyEvent(conv, { type: 'ReplayEnded', status: 'complete' });
           proc.sessionToConversation.delete(originalSessionId);
           if (conv.acpSessionId !== originalSessionId) {
@@ -307,8 +320,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     const conv = this.resolveConv(conversationId);
     if (!conv) return acpErr.conversationNotFound(conversationId);
 
-    const resolver = this.permissionResolvers.get(requestId);
-    if (!resolver) {
+    const pending = conv.machine.pendingPermissions.some((p) => p.requestId === requestId);
+    if (!pending) {
       this.deps.logger.warn('AcpSessionRuntime: resolvePermission for unknown requestId', {
         conversationId,
         requestId,
@@ -323,16 +336,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     });
     if (!dispatchResult.success) return dispatchResult;
 
-    // Answer the non-serializable resolver callback.
-    // The effect interpreter already calls onPermissionResolved for cancelled drains;
-    // for user-initiated resolutions we call the resolver directly here and the
-    // effect from dispatch() handles the listener notification.
-    this.permissionResolvers.delete(requestId);
-    resolver(
-      optionId
-        ? { outcome: { outcome: 'selected', optionId } }
-        : { outcome: { outcome: 'cancelled' } }
-    );
+    this.permissionBroker.settle(requestId, optionId);
     return ok();
   }
 
@@ -451,10 +455,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     return this.conversationIndex.has(conversationId);
   }
 
-  getChatHistory(conversationId: string): ChatHistory {
+  getChatHistory(conversationId: string): TranscriptState {
     const conv = this.resolveConv(conversationId);
-    if (!conv) return { turns: [], complete: true };
-    return conv.machine.chatHistory();
+    if (!conv) return { committed: [], active: null };
+    return structuredClone(conv.transcript.snapshot);
   }
 
   getSessionState(conversationId: string): SessionState {
@@ -462,7 +466,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     if (!conv) {
       return {
         lifecycle: 'closed',
-        activeTurn: null,
+        activeTurnId: null,
         pendingPermissions: [],
         modes: null,
         configOptions: [],
@@ -520,11 +524,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         case 'permissionResolved':
           needsSnapshot = true;
           if (effect.cancelled) {
-            const resolver = this.permissionResolvers.get(effect.requestId);
-            if (resolver) {
-              this.permissionResolvers.delete(effect.requestId);
-              resolver({ outcome: { outcome: 'cancelled' } });
-            }
+            this.permissionBroker.cancel(effect.requestId);
           }
           break;
         default:
@@ -539,22 +539,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   private interpretEffect(conv: AcpConversation, effect: Effect): void {
     try {
       switch (effect.type) {
-        case 'update':
-          this.deps.listener.onSessionUpdate({
-            conversationId: conv.conversationId,
-            turnId: effect.turnId,
-            update: effect.update,
-            seq: effect.seq,
-          });
-          break;
-
-        case 'turnCommitted':
-          this.deps.listener.onTurnCommitted({
-            conversationId: conv.conversationId,
-            turn: structuredClone(effect.turn),
-          });
-          break;
-
         case 'closed':
           this.deps.listener.onClosed({
             conversationId: conv.conversationId,
@@ -593,6 +577,13 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     this.deps.listener.onSnapshot({
       conversationId: conv.conversationId,
       snapshot,
+    });
+  }
+
+  private emitTranscript(conv: AcpConversation): void {
+    this.deps.listener.onTranscript({
+      conversationId: conv.conversationId,
+      transcript: structuredClone(conv.transcript.snapshot),
     });
   }
 
@@ -748,9 +739,9 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
             break;
         }
 
-        // Route as a turn update — machine will warn if no active turn
-        const update = proc.normalize(rawUpdate);
-        this.applyEvent(conv, { type: 'Updated', update });
+        const event = proc.normalize(rawUpdate);
+        conv.transcript.pushEvent(event);
+        this.emitTranscript(conv);
       },
 
       requestPermission: (params: RequestPermissionRequest): Promise<RequestPermissionResponse> => {
@@ -787,74 +778,40 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
         this.applyEvent(conv, { type: 'PermissionRequested', request: payload });
 
-        return new Promise<RequestPermissionResponse>((resolve) => {
-          this.permissionResolvers.set(requestId, resolve);
-        });
+        return this.permissionBroker.request(payload);
       },
 
       readTextFile: async (params: ReadTextFileRequest): Promise<ReadTextFileResponse> => {
-        const content = await readTextFile(this.deps.host.fs, params.path);
-        return { content };
+        return this.fsPort.readTextFile(params);
       },
 
       writeTextFile: async (params: WriteTextFileRequest): Promise<WriteTextFileResponse> => {
-        await writeTextFile(this.deps.host.fs, params.path, params.content);
-        return {};
+        return this.fsPort.writeTextFile(params);
       },
 
       createTerminal: async (params: CreateTerminalRequest): Promise<CreateTerminalResponse> => {
         const proc = this.processes.get(processKey);
         if (!proc) throw new Error('AcpSessionRuntime: process not found for createTerminal');
         const conv = this.convForSession(proc, params.sessionId);
-        const envRecord = params.env
-          ? Object.fromEntries(params.env.map((e) => [e.name, e.value]))
-          : {};
-        const terminalId = await this.terminals.create(conv.conversationId, {
-          command: params.command,
-          args: params.args ?? [],
-          env: envRecord,
-          cwd: params.cwd ?? proc.cwd,
-          outputByteLimit: params.outputByteLimit,
-        });
-        return { terminalId };
+        return this.terminalPort.createTerminal(conv.conversationId, proc.cwd, params);
       },
 
       terminalOutput: async (params: TerminalOutputRequest): Promise<TerminalOutputResponse> => {
-        const terminal = this.terminals.get(params.terminalId);
-        if (!terminal) {
-          throw new Error(`AcpSessionRuntime: terminal not found: ${params.terminalId}`);
-        }
-        const snap = terminal.snapshot();
-        return {
-          output: snap.output,
-          truncated: snap.truncated,
-          exitStatus: snap.exitStatus ?? undefined,
-        };
+        return this.terminalPort.terminalOutput(params);
       },
 
       waitForTerminalExit: async (
         params: WaitForTerminalExitRequest
       ): Promise<WaitForTerminalExitResponse> => {
-        const terminal = this.terminals.get(params.terminalId);
-        if (!terminal) {
-          throw new Error(`AcpSessionRuntime: terminal not found: ${params.terminalId}`);
-        }
-        const status = await terminal.waitForExit();
-        return { exitCode: status.exitCode, signal: status.signal ?? undefined };
+        return this.terminalPort.waitForTerminalExit(params);
       },
 
       killTerminal: async (params: KillTerminalRequest): Promise<KillTerminalResponse> => {
-        const terminal = this.terminals.get(params.terminalId);
-        if (!terminal) {
-          throw new Error(`AcpSessionRuntime: terminal not found: ${params.terminalId}`);
-        }
-        terminal.kill();
-        return {};
+        return this.terminalPort.killTerminal(params);
       },
 
       releaseTerminal: async (params: ReleaseTerminalRequest): Promise<ReleaseTerminalResponse> => {
-        this.terminals.release(params.terminalId);
-        return {};
+        return this.terminalPort.releaseTerminal(params);
       },
     };
   }
@@ -887,18 +844,26 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   ): Promise<Result<void, AcpRuntimeError>> {
     if (!conv.acpSessionId) return acpErr.noActiveSession(conv.conversationId);
 
-    // Synthesize user message update — include images so they appear as an
-    // attachment strip in the user's transcript bubble.
-    const userUpdate: AgentUpdate = {
+    const messageId = `${conv.conversationId}-${conv.machine.nextTurnIndex}-user`;
+    const dispatchResult = this.dispatch(conv, { type: 'Prompt' });
+    if (!dispatchResult.success) return dispatchResult;
+
+    conv.transcript.pushEvent({
       kind: 'message',
       role: 'user',
-      messageId: `${conv.conversationId}-${conv.machine.nextTurnIndex}-user`, // stable per-turn id
+      messageId,
       text,
-      images,
-    };
-
-    const dispatchResult = this.dispatch(conv, { type: 'Prompt', userUpdate });
-    if (!dispatchResult.success) return dispatchResult;
+      ...(images?.length
+        ? {
+            attachments: images.map((img, index) => ({
+              id: `${messageId}-image-${index}`,
+              name: img.name ?? `image-${index + 1}`,
+              mimeType: img.mimeType,
+            })),
+          }
+        : {}),
+    });
+    this.emitTranscript(conv);
 
     try {
       const res = await proc.agent.prompt({
@@ -912,6 +877,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           ...(text ? [{ type: 'text' as const, text }] : []),
         ],
       });
+      conv.transcript.endTurn();
+      this.emitTranscript(conv);
       this.applyEvent(conv, {
         type: 'TurnEnded',
         outcome: { kind: 'stopped', stopReason: res.stopReason },
@@ -923,6 +890,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         conversationId: conv.conversationId,
         error: errResult.error.type,
       });
+      conv.transcript.endTurn();
+      this.emitTranscript(conv);
       this.applyEvent(conv, { type: 'TurnEnded', outcome: { kind: 'errored' } });
       return errResult;
     }
@@ -981,12 +950,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   }
 
   private drainPermissionResolvers(conv: AcpConversation): void {
-    for (const pending of conv.machine.pendingPermissions) {
-      const resolver = this.permissionResolvers.get(pending.requestId);
-      if (resolver) {
-        this.permissionResolvers.delete(pending.requestId);
-        resolver({ outcome: { outcome: 'cancelled' } });
-      }
-    }
+    this.permissionBroker.drain(conv.machine.pendingPermissions);
   }
 }

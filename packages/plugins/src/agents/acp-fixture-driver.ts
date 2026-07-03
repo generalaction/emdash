@@ -9,7 +9,7 @@
  * test file. Both `claude` and `codex` fixture tests import from here.
  */
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import { AcpTranscriptParser, defaultTransform } from '@emdash/core/acp';
+import { AcpTranscriptParser } from '@emdash/core/acp';
 
 // ── Narrow fixture types (mirrors recorder.ts shapes for the used fields) ────
 
@@ -42,7 +42,7 @@ export interface RecordedEntry {
  * additional assertions.
  */
 export function driveParser(events: RecordedEntry[], conversationId: string): AcpTranscriptParser {
-  const parser = new AcpTranscriptParser({ conversationId, transform: defaultTransform });
+  const parser = new AcpTranscriptParser({ conversationId });
 
   for (const entry of events) {
     const kind = (entry.event as { kind: string }).kind;

@@ -1,8 +1,8 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { AgentUpdate } from '@emdash/core/acp';
+import type { NormalizedEvent } from '@emdash/core/acp';
 
 /**
- * Claude-specific enrichment of a baseline `AgentUpdate`.
+ * Claude-specific enrichment of a baseline `NormalizedEvent`.
  *
  * The Claude ACP adapter stamps subagent child updates with
  * `_meta.claudeCode.parentToolUseId` to indicate that a tool call was produced
@@ -14,7 +14,7 @@ import type { AgentUpdate } from '@emdash/core/acp';
  * - The update is not a `tool_call` or `tool_update`.
  * - The vendor field is absent or not a string.
  */
-export function enrichClaudeUpdate(update: AgentUpdate, raw: SessionUpdate): AgentUpdate {
+export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate): NormalizedEvent {
   if (update.kind !== 'tool_call' && update.kind !== 'tool_update') return update;
 
   const parentToolUseId = (

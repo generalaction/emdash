@@ -3,17 +3,17 @@ import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import { type Logger, noopLogger } from '../lib';
-import type { AgentUpdate } from './agent-update';
-import { toAgentUpdate } from './agent-update';
 import type { InitializeFailedError, SpawnFailedError } from './errors';
 import { acpErr } from './errors';
+import type { NormalizedEvent } from './reducer/normalized-event';
+import { decodeSessionUpdate } from './reducer/decode';
 import type { AcpProcessHandle, AcpProcessHost } from './transport';
 
 /** Live connection to one spawned agent process. */
 export interface AcpAgentConnection {
   handle: AcpProcessHandle;
   agent: AcpAgentApi;
-  normalize: (raw: SessionUpdate) => AgentUpdate;
+  normalize: (raw: SessionUpdate) => NormalizedEvent;
   /** Resolves with agent capabilities once initialize completes, or an error if it fails. */
   initialized: Promise<Result<{ supportsLoadSession: boolean }, InitializeFailedError>>;
 }
@@ -75,8 +75,8 @@ export async function createAcpAgentConnection(
 
   const connection = behavior.connect({ stdin: handle.stdin, stdout: handle.stdout }, buildClient);
 
-  const normalize = (raw: SessionUpdate): AgentUpdate => {
-    const base = toAgentUpdate(raw);
+  const normalize = (raw: SessionUpdate): NormalizedEvent => {
+    const base = decodeSessionUpdate(raw);
     return behavior.enrich ? behavior.enrich(base, raw) : base;
   };
 

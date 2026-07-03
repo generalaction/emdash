@@ -9,12 +9,17 @@
  *   - Extracts text from content blocks for message and thinking variants.
  *   - Extracts diff blocks from ToolCallContent arrays.
  *   - Passes status and kind through unchanged (no UI-level remapping here).
+ *   - Synthesizes stable fallback message ids when providers omit them.
  *   - Sets parentToolCallId to null (providers enrich via EnrichHook).
  *   - Returns { kind: 'ignored' } for variants not yet rendered.
  */
 
 import type { SessionUpdate, ToolCallContent } from '@agentclientprotocol/sdk';
 import type { NormalizedDiff, NormalizedEvent, NormalizedToolStatus } from './normalized-event';
+
+const FALLBACK_USER_MESSAGE_ID = 'user';
+const FALLBACK_ASSISTANT_MESSAGE_ID = 'assistant';
+const FALLBACK_THINKING_MESSAGE_ID = 'main';
 
 function extractDiffs(content: ReadonlyArray<ToolCallContent> | null | undefined): NormalizedDiff[] {
   if (!content) return [];
@@ -38,7 +43,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
       return {
         kind: 'message',
         role: 'user',
-        messageId: update.messageId ?? null,
+        messageId: update.messageId ?? FALLBACK_USER_MESSAGE_ID,
         text: update.content.text,
       };
     }
@@ -48,7 +53,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
       return {
         kind: 'message',
         role: 'assistant',
-        messageId: update.messageId ?? null,
+        messageId: update.messageId ?? FALLBACK_ASSISTANT_MESSAGE_ID,
         text: update.content.text,
       };
     }
@@ -57,7 +62,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
       if (update.content.type !== 'text' || !update.content.text) return { kind: 'ignored' };
       return {
         kind: 'thinking',
-        messageId: update.messageId ?? null,
+        messageId: update.messageId ?? FALLBACK_THINKING_MESSAGE_ID,
         text: update.content.text,
       };
     }
@@ -143,8 +148,3 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
   }
 }
 
-/**
- * The default ProviderTransform — pure baseline decode with no enrichment.
- * Suitable for providers that don't need _meta promotion.
- */
-export const defaultTransform = decodeSessionUpdate;

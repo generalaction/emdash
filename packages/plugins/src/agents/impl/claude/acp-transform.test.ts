@@ -1,11 +1,13 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { AgentUpdate } from '@emdash/core/acp';
+import type { NormalizedEvent } from '@emdash/core/acp';
 import { describe, expect, it } from 'vitest';
 import { enrichClaudeUpdate } from './acp-transform';
 
 // ── fixtures ──────────────────────────────────────────────────────────────────
 
-function makeToolCall(overrides: Partial<AgentUpdate & { kind: 'tool_call' }> = {}): AgentUpdate {
+function makeToolCall(
+  overrides: Partial<NormalizedEvent & { kind: 'tool_call' }> = {}
+): NormalizedEvent {
   return {
     kind: 'tool_call',
     toolCallId: 'tc-1',
@@ -19,8 +21,8 @@ function makeToolCall(overrides: Partial<AgentUpdate & { kind: 'tool_call' }> = 
 }
 
 function makeToolUpdate(
-  overrides: Partial<AgentUpdate & { kind: 'tool_update' }> = {}
-): AgentUpdate {
+  overrides: Partial<NormalizedEvent & { kind: 'tool_update' }> = {}
+): NormalizedEvent {
   return {
     kind: 'tool_update',
     toolCallId: 'tc-1',
@@ -46,10 +48,10 @@ function makeRaw(meta?: Record<string, unknown>): SessionUpdate {
 
 describe('enrichClaudeUpdate', () => {
   it('is identity for message kind', () => {
-    const update: AgentUpdate = {
+    const update: NormalizedEvent = {
       kind: 'message',
       role: 'assistant',
-      messageId: null,
+      messageId: 'assistant',
       text: 'hello',
     };
     const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-1' } });
@@ -57,13 +59,13 @@ describe('enrichClaudeUpdate', () => {
   });
 
   it('is identity for thinking kind', () => {
-    const update: AgentUpdate = { kind: 'thinking', messageId: null, text: 'thinking...' };
+    const update: NormalizedEvent = { kind: 'thinking', messageId: 'main', text: 'thinking...' };
     const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-1' } });
     expect(enrichClaudeUpdate(update, raw)).toBe(update);
   });
 
   it('is identity for ignored kind', () => {
-    const update: AgentUpdate = { kind: 'ignored' };
+    const update: NormalizedEvent = { kind: 'ignored' };
     const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-1' } });
     expect(enrichClaudeUpdate(update, raw)).toBe(update);
   });

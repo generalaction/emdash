@@ -23,13 +23,15 @@ import type {
   FileOpKind,
   ToolStatus,
   TranscriptDiff,
-  TranscriptExecute,
-  TranscriptFileOp,
   TranscriptItem,
+  TranscriptMcpTool,
   TranscriptMessage,
   TranscriptPlan,
+  TranscriptSearch,
+  TranscriptSubagent,
   TranscriptThinking,
   TranscriptTool,
+  TranscriptWebFetch,
 } from '../models/transcript';
 import {
   makeDiffId,
@@ -52,6 +54,147 @@ function mapToolStatus(status: NormalizedToolStatus | null | undefined): ToolSta
     default:
       return undefined;
   }
+}
+
+type ToolRow =
+  | TranscriptTool
+  | TranscriptSubagent
+  | TranscriptSearch
+  | TranscriptMcpTool
+  | TranscriptWebFetch;
+
+function isToolRow(item: TranscriptItem): item is ToolRow {
+  return (
+    item.kind === 'tool' ||
+    item.kind === 'subagent' ||
+    item.kind === 'search' ||
+    item.kind === 'mcp-tool' ||
+    item.kind === 'web-fetch'
+  );
+}
+
+function isSubagentKind(toolKind: string | null | undefined): boolean {
+  return toolKind === 'subagent' || toolKind === 'task' || toolKind === 'agent';
+}
+
+function isSearchKind(toolKind: string | null | undefined): boolean {
+  return toolKind === 'search' || toolKind === 'grep';
+}
+
+function isMcpToolKind(toolKind: string | null | undefined): boolean {
+  return toolKind === 'mcp-tool' || toolKind === 'mcp_tool';
+}
+
+function isWebFetchKind(toolKind: string | null | undefined): boolean {
+  return toolKind === 'web-fetch' || toolKind === 'web_fetch' || toolKind === 'fetch';
+}
+
+function createToolRow(
+  id: string,
+  title: string,
+  toolKind: string | null,
+  status: NormalizedToolStatus | null,
+  parentId: string | undefined
+): ToolRow {
+  const mapped = mapToolStatus(status) ?? 'running';
+  const parent = parentId !== undefined ? { parentId } : {};
+
+  if (isSubagentKind(toolKind)) {
+    return { kind: 'subagent', id, name: title, status: mapped, ...parent };
+  }
+  if (isSearchKind(toolKind)) {
+    return { kind: 'search', id, query: title, status: mapped, ...parent };
+  }
+  if (isMcpToolKind(toolKind)) {
+    return { kind: 'mcp-tool', id, tool: title, status: mapped, ...parent };
+  }
+  if (isWebFetchKind(toolKind)) {
+    return { kind: 'web-fetch', id, url: title, status: mapped, ...parent };
+  }
+
+  return { kind: 'tool', id, name: title, status: mapped, ...parent };
+}
+
+function updateToolRow(
+  item: ToolRow,
+  title: string | null,
+  status: NormalizedToolStatus | null
+): ToolRow {
+  const mapped = mapToolStatus(status ?? undefined);
+  const statusPatch = mapped !== undefined ? { status: mapped } : {};
+
+  switch (item.kind) {
+    case 'tool':
+      return { ...item, ...statusPatch, ...(title !== null ? { name: title } : {}) };
+    case 'subagent':
+      return { ...item, ...statusPatch, ...(title !== null ? { name: title } : {}) };
+    case 'search':
+      return { ...item, ...statusPatch, ...(title !== null ? { query: title } : {}) };
+    case 'mcp-tool':
+      return { ...item, ...statusPatch, ...(title !== null ? { tool: title } : {}) };
+    case 'web-fetch':
+      return { ...item, ...statusPatch, ...(title !== null ? { title } : {}) };
+  }
+}
+
+function upsertSpecialEvent(
+  items: TranscriptItem[],
+  event: Extract<NormalizedEvent, { kind: 'subagent' | 'search' | 'mcp_tool' | 'web_fetch' }>,
+  turnId: string
+): TranscriptItem[] {
+  const id = makeToolId(turnId, event.toolCallId);
+  const parentId = makeParentId(turnId, event.parentToolCallId);
+  const mapped = mapToolStatus(event.status) ?? 'running';
+  const parent = parentId !== undefined ? { parentId } : {};
+  const idx = items.findIndex((item) => isToolRow(item) && item.id === id);
+
+  let next: ToolRow;
+  switch (event.kind) {
+    case 'subagent':
+      next = {
+        kind: 'subagent',
+        id,
+        name: event.title,
+        status: mapped,
+        ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
+        ...parent,
+      };
+      break;
+    case 'search':
+      next = {
+        kind: 'search',
+        id,
+        query: event.query,
+        status: mapped,
+        ...(event.matchCount !== undefined ? { matchCount: event.matchCount } : {}),
+        ...parent,
+      };
+      break;
+    case 'mcp_tool':
+      next = {
+        kind: 'mcp-tool',
+        id,
+        tool: event.tool,
+        status: mapped,
+        ...(event.server !== undefined ? { server: event.server } : {}),
+        ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
+        ...parent,
+      };
+      break;
+    case 'web_fetch':
+      next = {
+        kind: 'web-fetch',
+        id,
+        url: event.url,
+        status: mapped,
+        ...(event.title !== undefined ? { title: event.title } : {}),
+        ...parent,
+      };
+      break;
+  }
+
+  if (idx >= 0) return items.map((item, i) => (i === idx ? next : item));
+  return [...items, next];
 }
 
 /**
@@ -189,18 +332,7 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
       // Generic tool row — idempotent creation.
       if (base.some((it) => it.kind === 'tool' && it.id === toolId)) return base;
 
-      const newTool: TranscriptTool = {
-        kind: 'tool',
-        id: toolId,
-        name: event.title,
-        status: mapToolStatus(event.status) ?? 'running',
-        ...(parentId !== undefined ? { parentId } : {}),
-      };
-      const mapped = mapToolStatus(event.status);
-      // If already in a terminal state, create with that status directly.
-      const withStatus: TranscriptTool =
-        mapped !== undefined ? { ...newTool, status: mapped } : newTool;
-      return [...base, withStatus];
+      return [...base, createToolRow(toolId, event.title, event.toolKind, event.status, parentId)];
     }
 
     case 'tool_update': {
@@ -213,28 +345,26 @@ export function foldItem(items: TranscriptItem[], event: NormalizedEvent, turnId
       }
 
       // Update an existing tool row by id.
-      const idx = items.findIndex((it) => it.kind === 'tool' && it.id === toolId);
+      const idx = items.findIndex((it) => isToolRow(it) && it.id === toolId);
       if (idx >= 0) {
-        const tool = items[idx] as TranscriptTool;
-        const mapped = mapToolStatus(event.status ?? undefined);
-        const updated: TranscriptTool = {
-          ...tool,
-          ...(mapped !== undefined ? { status: mapped } : {}),
-          ...(event.title !== null ? { name: event.title } : {}),
-        };
+        const tool = items[idx] as ToolRow;
+        const updated = updateToolRow(tool, event.title, event.status);
         return items.map((it, i) => (i === idx ? updated : it));
       }
 
       // Late update for an unknown tool — create with current status.
-      const mapped = mapToolStatus(event.status ?? undefined);
-      const newTool: TranscriptTool = {
-        kind: 'tool',
-        id: toolId,
-        name: event.title ?? 'unknown',
-        status: mapped ?? 'running',
-        ...(parentId !== undefined ? { parentId } : {}),
-      };
-      return [...items, newTool];
+      return [
+        ...items,
+        createToolRow(toolId, event.title ?? 'unknown', event.toolKind, event.status, parentId),
+      ];
+    }
+
+    case 'subagent':
+    case 'search':
+    case 'mcp_tool':
+    case 'web_fetch': {
+      const base = finalizeOpenThinking(items, now);
+      return upsertSpecialEvent(base, event, turnId);
     }
 
     case 'plan': {
@@ -289,6 +419,14 @@ export function finalizeItems(items: TranscriptItem[]): TranscriptItem[] {
           ? { ...item, status: 'done' as const, durationMs: now - item.startedAt }
           : item;
       case 'tool':
+        return item.status === 'running' ? { ...item, status: 'done' as const } : item;
+      case 'subagent':
+        return item.status === 'running' ? { ...item, status: 'done' as const } : item;
+      case 'search':
+        return item.status === 'running' ? { ...item, status: 'done' as const } : item;
+      case 'mcp-tool':
+        return item.status === 'running' ? { ...item, status: 'done' as const } : item;
+      case 'web-fetch':
         return item.status === 'running' ? { ...item, status: 'done' as const } : item;
       case 'file-op':
         return item.status === 'running' ? { ...item, status: 'done' as const } : item;
