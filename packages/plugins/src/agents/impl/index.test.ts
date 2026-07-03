@@ -246,6 +246,34 @@ describe('pluginRegistry', () => {
     expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'deep']);
   });
 
+  it('exposes Mistral Vibe models and passes the selected model through env', () => {
+    const mistral = pluginRegistry.get('mistral')!;
+
+    expect(mistral.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        'mistral-medium-3.5': { name: 'Mistral Medium 3.5' },
+        'devstral-small': { name: 'Devstral Small' },
+        local: { name: 'Local Devstral' },
+      },
+    });
+
+    const result = mistral.behavior.prompt!.buildCommand({
+      cli: 'vibe',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'mistral-medium-3.5',
+    });
+
+    expect(result).toEqual({
+      command: 'vibe',
+      args: ['--agent', 'auto-approve', 'Fix the bug'],
+      env: { VIBE_ACTIVE_MODEL: 'mistral-medium-3.5' },
+    });
+  });
+
   it('resumes Pi with the stored session file instead of the latest session', () => {
     const pi = pluginRegistry.get('pi')!;
 
