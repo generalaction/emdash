@@ -45,7 +45,11 @@ import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { AutomationRunPill } from './components/automation-run-pill';
-import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
+import {
+  getIssueDisplayIdentifier,
+  IssueSelector,
+  ProviderLogo,
+} from './components/issue-selector/issue-selector';
 import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
 import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
@@ -416,6 +420,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
 });
 
 function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
+  const displayIdentifier = getIssueDisplayIdentifier(issue);
+
   return (
     <Tooltip>
       <TooltipTrigger
@@ -429,10 +435,10 @@ function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
             className="hover:bg-muted/30 flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted disabled:cursor-default disabled:opacity-60"
           >
             <ProviderLogo provider={issue.provider} className="h-3 w-3" />
-            {issue.provider === 'asana' ? (
-              <span className="max-w-[180px] truncate">{issue.title || 'Asana task'}</span>
+            {displayIdentifier ? (
+              <span className="font-mono">{displayIdentifier}</span>
             ) : (
-              <span className="font-mono">{issue.identifier}</span>
+              <span className="max-w-[180px] truncate">{issue.title || 'Linked issue'}</span>
             )}
           </button>
         }

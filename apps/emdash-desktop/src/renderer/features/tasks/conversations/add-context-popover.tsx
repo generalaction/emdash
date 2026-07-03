@@ -45,9 +45,7 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
     case 'linked-issue':
       return (
         <ActionItemBaseRow
-          icon={
-            <ProviderLogo provider={action.provider || 'linear'} className="h-3.5 w-3.5 shrink-0" />
-          }
+          icon={<ProviderLogo provider={action.provider} className="h-3.5 w-3.5 shrink-0" />}
           label={action.issue.title}
           text={action.issue.identifier}
         />

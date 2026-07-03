@@ -3,67 +3,8 @@ import type { LinkedIssue } from './core/linked-issue';
 export type IssueProviderType = LinkedIssue['provider'];
 
 export type IssueProviderCapabilities = {
-  requiresProjectPath: boolean;
   requiresRepositoryUrl: boolean;
   supportsIssueContext: boolean;
-};
-
-export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProviderCapabilities> = {
-  linear: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: false,
-    supportsIssueContext: true,
-  },
-  github: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: true,
-    supportsIssueContext: false,
-  },
-  jira: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: false,
-    supportsIssueContext: false,
-  },
-  gitlab: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: true,
-    supportsIssueContext: false,
-  },
-  plane: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: false,
-    supportsIssueContext: true,
-  },
-  forgejo: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: true,
-    supportsIssueContext: false,
-  },
-  featurebase: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: false,
-    supportsIssueContext: false,
-  },
-  plain: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: false,
-    supportsIssueContext: true,
-  },
-  asana: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: false,
-    supportsIssueContext: false,
-  },
-  monday: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: false,
-    supportsIssueContext: true,
-  },
-  trello: {
-    requiresProjectPath: false,
-    requiresRepositoryUrl: false,
-    supportsIssueContext: true,
-  },
 };
 
 export type ConnectionStatus = {

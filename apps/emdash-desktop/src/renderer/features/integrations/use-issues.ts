@@ -7,11 +7,7 @@ import type { IssueProviderType } from '@shared/issue-providers';
 const INITIAL_FETCH_LIMIT = 50;
 const SEARCH_LIMIT = 20;
 const SEARCH_DEBOUNCE_MS = 300;
-
-const SEARCH_MIN_LENGTH_BY_PROVIDER: Partial<Record<IssueProviderType, number>> = {
-  plane: 2,
-  plain: 2,
-};
+const SEARCH_MIN_LENGTH = 2;
 
 export interface UseIssuesResult {
   issues: LinkedIssue[];
@@ -29,11 +25,6 @@ interface UseIssuesOptions {
   enabled?: boolean;
   initialLimit?: number;
   searchLimit?: number;
-}
-
-function getSearchMinLength(provider: IssueProviderType | null): number {
-  if (!provider) return 1;
-  return SEARCH_MIN_LENGTH_BY_PROVIDER[provider] ?? 1;
 }
 
 export function useIssues(
@@ -86,8 +77,7 @@ export function useIssues(
     enabled: isReady,
   });
 
-  const minSearchLength = getSearchMinLength(provider);
-  const isActiveSearch = debouncedTerm.trim().length >= minSearchLength;
+  const isActiveSearch = debouncedTerm.trim().length >= SEARCH_MIN_LENGTH;
 
   const {
     data: searchIssues,

@@ -80,6 +80,7 @@ describe('GitHubDeviceFlowService', () => {
       identityClient: { getAuthenticatedUser },
       events: { emit },
       createDeviceAuth: () => async () => ({ token: 'gho_device' }),
+      config: { clientId: 'client-id', scopes: ['repo'] },
     });
 
     await expect(service.start()).resolves.toMatchObject({
@@ -100,6 +101,7 @@ describe('GitHubDeviceFlowService', () => {
       identityClient: { getAuthenticatedUser },
       events: { emit },
       createDeviceAuth: () => async () => ({ token: 'gho_device' }),
+      config: { clientId: 'client-id', scopes: ['repo'] },
     });
 
     await expect(service.start()).resolves.toEqual({

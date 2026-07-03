@@ -12,6 +12,7 @@ import { IntegrationsProvider, useIntegrationsContext } from './integrations-pro
 const mocks = vi.hoisted(() => ({
   checkAllConnections: vi.fn(),
   checkConfiguredConnections: vi.fn(),
+  listIntegrations: vi.fn(),
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -20,15 +21,11 @@ vi.mock('@renderer/lib/ipc', () => ({
       checkAllConnections: mocks.checkAllConnections,
       checkConfiguredConnections: mocks.checkConfiguredConnections,
     },
-    linear: { saveToken: vi.fn(), clearToken: vi.fn() },
-    jira: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
-    gitlab: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
-    plain: { saveToken: vi.fn(), clearToken: vi.fn() },
-    forgejo: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
-    featurebase: { saveToken: vi.fn(), clearToken: vi.fn() },
-    asana: { saveToken: vi.fn(), clearToken: vi.fn() },
-    monday: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
-    trello: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
+    integrations: {
+      list: mocks.listIntegrations,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    },
   },
 }));
 
@@ -38,11 +35,11 @@ type ProbeState = {
 };
 
 function Probe({ onRender }: { onRender: (state: ProbeState) => void }) {
-  const { isCheckingConnections, providers } = useIntegrationsContext();
+  const { isCheckingConnections, isIntegrationMutating } = useIntegrationsContext();
 
   onRender({
     isCheckingConnections,
-    linearIsMutating: providers.linear.isMutating,
+    linearIsMutating: isIntegrationMutating('linear'),
   });
 
   return null;
@@ -65,6 +62,7 @@ describe('IntegrationsProvider', () => {
     latest = null;
     mocks.checkAllConnections.mockReturnValue(new Promise(() => {}));
     mocks.checkConfiguredConnections.mockResolvedValue({});
+    mocks.listIntegrations.mockResolvedValue([]);
 
     queryClient = new QueryClient({
       defaultOptions: {
@@ -94,7 +92,7 @@ describe('IntegrationsProvider', () => {
     dom.window.close();
   });
 
-  it('does not mark providers as mutating during the initial live connection check', async () => {
+  it('does not mark integrations as mutating during the initial live connection check', async () => {
     await act(async () => {
       root.render(
         React.createElement(

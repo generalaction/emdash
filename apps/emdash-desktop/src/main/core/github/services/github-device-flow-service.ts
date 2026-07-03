@@ -4,10 +4,10 @@ import type { GitHubUser } from '@shared/github';
 import type { GitHubAccount, GitHubAccountRegistry } from '../accounts/github-account-registry';
 import type { GitHubIdentityClient } from './github-identity-client';
 
-const GITHUB_CONFIG = {
-  clientId: 'Ov23ligC35uHWopzCeWf',
-  scopes: ['repo', 'read:user', 'read:org'],
-} as const;
+export type GitHubDeviceFlowConfig = {
+  clientId: string;
+  scopes: string[];
+};
 
 type DeviceAuth = (options: { type: 'oauth' }) => Promise<{ token: string }>;
 
@@ -39,6 +39,7 @@ export class GitHubDeviceFlowService {
       identityClient: Pick<GitHubIdentityClient, 'getAuthenticatedUser'>;
       events: DeviceFlowEvents;
       createDeviceAuth: DeviceAuthFactory;
+      config: GitHubDeviceFlowConfig;
     }
   ) {}
 
@@ -48,8 +49,8 @@ export class GitHubDeviceFlowService {
 
     try {
       const auth = this.deps.createDeviceAuth({
-        clientId: GITHUB_CONFIG.clientId,
-        scopes: [...GITHUB_CONFIG.scopes],
+        clientId: this.deps.config.clientId,
+        scopes: [...this.deps.config.scopes],
         onVerification: (verification) => {
           this.deps.events.emit(githubAuthDeviceCodeChannel, {
             userCode: verification.user_code,

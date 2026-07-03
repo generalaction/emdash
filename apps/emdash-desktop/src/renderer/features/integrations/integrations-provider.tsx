@@ -1,159 +1,57 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useCallback, useContext } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
-import {
-  ISSUE_PROVIDER_CAPABILITIES,
-  type ConnectionStatusMap,
-  type IssueProviderType,
-} from '@shared/issue-providers';
-import type { ProviderInput, SetupIntegrationType } from './types';
-import { useProviderConnection } from './use-provider-connection';
+import type { ConnectionStatus } from '@shared/issue-providers';
+import type { IntegrationFormInput } from './types';
 
 export const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
+export const INTEGRATIONS_LIST_QUERY_KEY = ['integrations:list'] as const;
 
-const DEFAULT_CONNECTION_STATUS: ConnectionStatusMap = Object.fromEntries(
-  Object.entries(ISSUE_PROVIDER_CAPABILITIES).map(([provider, capabilities]) => [
-    provider,
-    { connected: false, capabilities },
-  ])
-) as ConnectionStatusMap;
+export type IntegrationMetadata = Awaited<ReturnType<typeof rpc.integrations.list>>[number];
+
+type ConnectionStatusByIntegration = Partial<Record<string, ConnectionStatus>>;
 
 type ConnectionMutationResult = { success?: boolean; error?: string } | null | undefined;
 
-type ProviderConnectionConfig<P extends SetupIntegrationType> = {
-  connectMutationFn: (input: ProviderInput[P]) => Promise<ConnectionMutationResult>;
-  disconnectMutationFn: () => Promise<unknown>;
-  validateInput?: (input: ProviderInput[P]) => string | null;
-};
-
-function validateTokenInput(token: string): string | null {
-  return token.trim() ? null : 'Invalid API key';
-}
-
-function validateJiraCredentials(input: {
-  siteUrl: string;
-  email: string;
-  token: string;
-}): string | null {
-  if (!input.siteUrl?.trim() || !input.email?.trim() || !input.token?.trim()) {
-    return 'Site URL, email, and API token are required.';
-  }
-  return null;
-}
-
-function validateInstanceCredentials(input: { instanceUrl: string; token: string }): string | null {
-  if (!input.instanceUrl?.trim() || !input.token?.trim()) {
-    return 'Instance URL and API token are required.';
-  }
-  return null;
-}
-
-function validatePlaneCredentials(input: {
-  apiBaseUrl: string;
-  workspaceSlug: string;
-  token: string;
-}): string | null {
-  if (!input.apiBaseUrl?.trim() || !input.workspaceSlug?.trim() || !input.token?.trim()) {
-    return 'API base URL, workspace slug, and API key are required.';
-  }
-  return null;
-}
-
-function validateMondayCredentials(input: { token: string; boardUrls: string }): string | null {
-  if (!input.token?.trim()) {
-    return 'API token is required.';
-  }
-  return null;
-}
-
-function validateTrelloCredentials(input: {
-  apiKey: string;
-  token: string;
-  boardUrls: string;
-}): string | null {
-  if (!input.apiKey?.trim() || !input.token?.trim()) {
-    return 'API key and token are required.';
-  }
-  return null;
-}
-
-const PROVIDER_CONNECTION_CONFIG: {
-  [P in SetupIntegrationType]: ProviderConnectionConfig<P>;
-} = {
-  linear: {
-    connectMutationFn: (apiKey) => rpc.linear.saveToken(apiKey),
-    disconnectMutationFn: () => rpc.linear.clearToken(),
-    validateInput: validateTokenInput,
-  },
-  jira: {
-    connectMutationFn: (credentials) => rpc.jira.saveCredentials(credentials),
-    disconnectMutationFn: () => rpc.jira.clearCredentials(),
-    validateInput: validateJiraCredentials,
-  },
-  gitlab: {
-    connectMutationFn: (credentials) => rpc.gitlab.saveCredentials(credentials),
-    disconnectMutationFn: () => rpc.gitlab.clearCredentials(),
-    validateInput: validateInstanceCredentials,
-  },
-  plane: {
-    connectMutationFn: (credentials) => rpc.plane.saveCredentials(credentials),
-    disconnectMutationFn: () => rpc.plane.clearCredentials(),
-    validateInput: validatePlaneCredentials,
-  },
-  plain: {
-    connectMutationFn: (apiKey) => rpc.plain.saveToken(apiKey),
-    disconnectMutationFn: () => rpc.plain.clearToken(),
-    validateInput: validateTokenInput,
-  },
-  forgejo: {
-    connectMutationFn: (credentials) => rpc.forgejo.saveCredentials(credentials),
-    disconnectMutationFn: () => rpc.forgejo.clearCredentials(),
-    validateInput: validateInstanceCredentials,
-  },
-  featurebase: {
-    connectMutationFn: (apiKey) => rpc.featurebase.saveToken(apiKey),
-    disconnectMutationFn: () => rpc.featurebase.clearToken(),
-    validateInput: validateTokenInput,
-  },
-  asana: {
-    connectMutationFn: (apiKey) => rpc.asana.saveToken(apiKey),
-    disconnectMutationFn: () => rpc.asana.clearToken(),
-    validateInput: validateTokenInput,
-  },
-  monday: {
-    connectMutationFn: (credentials) => rpc.monday.saveCredentials(credentials),
-    disconnectMutationFn: () => rpc.monday.clearCredentials(),
-    validateInput: validateMondayCredentials,
-  },
-  trello: {
-    connectMutationFn: (credentials) => rpc.trello.saveCredentials(credentials),
-    disconnectMutationFn: () => rpc.trello.clearCredentials(),
-    validateInput: validateTrelloCredentials,
-  },
-};
-
-type ProviderConnectionEntry<P extends SetupIntegrationType> = {
-  connect: (input: ProviderInput[P]) => Promise<void>;
-  disconnect: () => Promise<void>;
-  isMutating: boolean;
-};
-
-type ProviderConnectionMap = {
-  [P in SetupIntegrationType]: ProviderConnectionEntry<P>;
-};
-
 type IntegrationsContextValue = {
-  connectionStatus: ConnectionStatusMap;
-  configuredConnections: Partial<Record<IssueProviderType, boolean>>;
+  integrations: IntegrationMetadata[];
+  integrationById: Partial<Record<string, IntegrationMetadata>>;
+  connectionStatus: ConnectionStatusByIntegration;
+  configuredConnections: Partial<Record<string, boolean>>;
   isCheckingConfiguredConnections: boolean;
   isCheckingConnections: boolean;
-  providers: ProviderConnectionMap;
+  connectIntegration: (integrationId: string, input: IntegrationFormInput) => Promise<void>;
+  disconnectIntegration: (integrationId: string) => Promise<void>;
+  isIntegrationMutating: (integrationId: string) => boolean;
 };
 
 const IntegrationsContext = createContext<IntegrationsContextValue | null>(null);
 
+function defaultConnectionStatuses(
+  integrations: IntegrationMetadata[]
+): ConnectionStatusByIntegration {
+  return Object.fromEntries(
+    integrations
+      .filter((integration) => integration.features.includes('issues'))
+      .map((integration) => [
+        integration.id,
+        { connected: false, capabilities: integration.capabilities },
+      ])
+  );
+}
+
 export function IntegrationsProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
+  const [mutatingIntegrationIds, setMutatingIntegrationIds] = useState<Set<string>>(
+    () => new Set()
+  );
+
+  const { data: integrations = [] } = useQuery({
+    queryKey: INTEGRATIONS_LIST_QUERY_KEY,
+    queryFn: () => rpc.integrations.list(),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
 
   const { data: statusData, isFetching: isCheckingConnections } = useQuery({
     queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY,
@@ -174,71 +72,86 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
   }, [queryClient]);
 
-  const linearConnection = useProviderConnection({
-    ...PROVIDER_CONNECTION_CONFIG.linear,
-    invalidate: invalidateStatuses,
-  });
-  const jiraConnection = useProviderConnection({
-    ...PROVIDER_CONNECTION_CONFIG.jira,
-    invalidate: invalidateStatuses,
-  });
-  const gitlabConnection = useProviderConnection({
-    ...PROVIDER_CONNECTION_CONFIG.gitlab,
-    invalidate: invalidateStatuses,
-  });
-  const planeConnection = useProviderConnection({
-    ...PROVIDER_CONNECTION_CONFIG.plane,
-    invalidate: invalidateStatuses,
-  });
-  const plainConnection = useProviderConnection({
-    ...PROVIDER_CONNECTION_CONFIG.plain,
-    invalidate: invalidateStatuses,
-  });
-  const forgejoConnection = useProviderConnection({
-    ...PROVIDER_CONNECTION_CONFIG.forgejo,
-    invalidate: invalidateStatuses,
-  });
-  const featurebaseConnection = useProviderConnection({
-    ...PROVIDER_CONNECTION_CONFIG.featurebase,
-    invalidate: invalidateStatuses,
-  });
-  const asanaConnection = useProviderConnection({
-    ...PROVIDER_CONNECTION_CONFIG.asana,
-    invalidate: invalidateStatuses,
-  });
-  const mondayConnection = useProviderConnection({
-    ...PROVIDER_CONNECTION_CONFIG.monday,
-    invalidate: invalidateStatuses,
-  });
-  const trelloConnection = useProviderConnection({
-    ...PROVIDER_CONNECTION_CONFIG.trello,
-    invalidate: invalidateStatuses,
-  });
+  const setIntegrationMutating = useCallback((integrationId: string, isMutating: boolean) => {
+    setMutatingIntegrationIds((current) => {
+      if (current.has(integrationId) === isMutating) return current;
 
-  const connectionStatus = statusData
-    ? { ...DEFAULT_CONNECTION_STATUS, ...statusData }
-    : DEFAULT_CONNECTION_STATUS;
-  const providers: ProviderConnectionMap = {
-    linear: linearConnection,
-    jira: jiraConnection,
-    gitlab: gitlabConnection,
-    plane: planeConnection,
-    plain: plainConnection,
-    forgejo: forgejoConnection,
-    featurebase: featurebaseConnection,
-    asana: asanaConnection,
-    monday: mondayConnection,
-    trello: trelloConnection,
-  };
+      const next = new Set(current);
+      if (isMutating) {
+        next.add(integrationId);
+      } else {
+        next.delete(integrationId);
+      }
+      return next;
+    });
+  }, []);
+
+  const runConnectionMutation = useCallback(
+    async (
+      integrationId: string,
+      mutation: () => Promise<ConnectionMutationResult>,
+      fallbackError: string
+    ) => {
+      setIntegrationMutating(integrationId, true);
+      try {
+        const result = await mutation();
+        if (!result?.success) {
+          throw new Error(result?.error || fallbackError);
+        }
+      } finally {
+        setIntegrationMutating(integrationId, false);
+        invalidateStatuses();
+      }
+    },
+    [invalidateStatuses, setIntegrationMutating]
+  );
+
+  const connectIntegration = useCallback(
+    async (integrationId: string, input: IntegrationFormInput) =>
+      runConnectionMutation(
+        integrationId,
+        () => rpc.integrations.connect(integrationId, input),
+        'Failed to connect.'
+      ),
+    [runConnectionMutation]
+  );
+
+  const disconnectIntegration = useCallback(
+    async (integrationId: string) =>
+      runConnectionMutation(
+        integrationId,
+        () => rpc.integrations.disconnect(integrationId),
+        'Failed to disconnect.'
+      ),
+    [runConnectionMutation]
+  );
+
+  const isIntegrationMutating = useCallback(
+    (integrationId: string) => mutatingIntegrationIds.has(integrationId),
+    [mutatingIntegrationIds]
+  );
+
+  const connectionStatus = useMemo(
+    () => ({ ...defaultConnectionStatuses(integrations), ...(statusData ?? {}) }),
+    [integrations, statusData]
+  );
+  const integrationById = useMemo(
+    () => Object.fromEntries(integrations.map((integration) => [integration.id, integration])),
+    [integrations]
+  );
 
   return (
     <IntegrationsContext.Provider
       value={{
+        integrations,
+        integrationById,
         connectionStatus,
         configuredConnections,
         isCheckingConfiguredConnections,
         isCheckingConnections,
-        providers,
+        connectIntegration,
+        disconnectIntegration,
+        isIntegrationMutating,
       }}
     >
       {children}
