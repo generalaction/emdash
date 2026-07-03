@@ -49,7 +49,7 @@ function Probe({ initial }: { initial: Parameters<typeof useWorkspaceConfig>[0][
   return null;
 }
 
-describe('useWorkspaceConfig initial branch selection', () => {
+describe('useWorkspaceConfig branch selection', () => {
   let dom: JSDOM;
   let root: Root;
   let container: HTMLDivElement;
@@ -77,7 +77,25 @@ describe('useWorkspaceConfig initial branch selection', () => {
     });
   }
 
-  it('uses the configured default branch when checkout mode has no explicit selection', async () => {
+  it('uses the current branch when checkout mode is selected without an explicit branch', async () => {
+    await renderProbe(undefined);
+
+    act(() => {
+      latestState?.branchSelection.setCreateBranchAndWorktree(false);
+    });
+
+    expect(latestState?.branchSelection.createBranchAndWorktree).toBe(false);
+    expect(latestState?.branchSelection.selectedBranch).toEqual({
+      type: 'local',
+      branch: 'current-branch',
+    });
+    expect(latestState?.resolvedConfig.git).toEqual({
+      kind: 'use-branch',
+      branchName: 'current-branch',
+    });
+  });
+
+  it('uses the configured default branch when initial checkout mode has no explicit selection', async () => {
     await renderProbe({
       mode: 'new-worktree',
       presetId: 'new-worktree',

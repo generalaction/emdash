@@ -194,6 +194,7 @@ export function useWorkspaceConfig(opts: {
   const branchSelection = useBranchSelection(
     projectId,
     defaultBranch,
+    currentBranch,
     isUnborn,
     initial?.branchSelection,
     createBranchAndWorktreeDefault
