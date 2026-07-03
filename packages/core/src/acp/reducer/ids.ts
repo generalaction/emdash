@@ -50,6 +50,14 @@ export function makeToolId(turnId: string, toolCallId: string): string {
 }
 
 /**
+ * Stable tool group item id.
+ * Format: `${turnId}:tool-group:${groupKind}:${index}`
+ */
+export function makeToolGroupId(turnId: string, groupKind: string, index: number): string {
+  return `${turnId}:tool-group:${groupKind}:${index}`;
+}
+
+/**
  * Stable parent id for nested tool calls, scoped to the same turn.
  * Returns undefined when parentToolCallId is null (no parent).
  */

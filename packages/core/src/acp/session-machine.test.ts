@@ -12,7 +12,7 @@ import {
 } from './session-machine';
 
 const CONV_ID = 'conv-test';
-const prompt = { id: 'prompt-1', text: 'hello' };
+const prompt = { id: 'prompt-1', text: 'hello', createdAt: 100, updatedAt: 100 };
 
 function makeReady(): SessionMachineState {
   return evolve(initialMachineState(CONV_ID), { type: 'SessionReady' }).state;
@@ -83,7 +83,7 @@ describe('lifecycle control', () => {
   });
 
   it('drains one queued prompt when a turn ends', () => {
-    const queued = { id: 'prompt-2', text: 'queued' };
+    const queued = { id: 'prompt-2', text: 'queued', createdAt: 200, updatedAt: 200 };
     const s0 = evolve(makeWorking(), { type: 'PromptQueued', prompt: queued }).state;
     const { state, effects } = evolve(s0, {
       type: 'TurnEnded',

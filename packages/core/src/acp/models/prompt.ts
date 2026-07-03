@@ -7,6 +7,15 @@ export const promptAttachmentSchema = z.discriminatedUnion('type', [
     data: z.string(),
     mimeType: z.string(),
     name: z.string().optional(),
+    /** Original same-machine path when the attachment came from a local file. */
+    originalPath: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal('local-file'),
+    /** Same-machine source path; AttachmentManager can reference instead of copying bytes. */
+    originalPath: z.string(),
+    mimeType: z.string(),
+    name: z.string().optional(),
   }),
 ]);
 export type PromptAttachment = z.infer<typeof promptAttachmentSchema>;
@@ -20,5 +29,9 @@ export type PromptInput = z.infer<typeof promptInputSchema>;
 export const queuedPromptSchema = promptInputSchema.extend({
   /** Runtime-generated id used for queue removal and stable UI keys. */
   id: z.string(),
+  /** Epoch ms when this prompt entered the runtime queue/model. */
+  createdAt: z.number(),
+  /** Epoch ms when queued prompt content or attachments were last edited. */
+  updatedAt: z.number(),
 });
 export type QueuedPrompt = z.infer<typeof queuedPromptSchema>;

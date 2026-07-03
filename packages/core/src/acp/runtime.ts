@@ -7,7 +7,7 @@ import type { SessionConfigState, SessionUsage } from './models/config';
 import type { TranscriptPlanState } from './models/plan';
 import type { PromptInput } from './models/prompt';
 import type { SessionState } from './models/session';
-import type { TerminalSnapshot } from './models/terminals';
+import type { TerminalState } from './models/terminals';
 import type { TranscriptState } from './models/transcript';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
 
@@ -136,9 +136,9 @@ export interface IAcpSessionRuntime {
   getChatHistory(conversationId: string): TranscriptState;
   getSessionState(conversationId: string): SessionState;
   /** Returns snapshots of all live terminals for a conversation. Empty if none or unknown. */
-  getTerminals(conversationId: string): TerminalSnapshot[];
+  getTerminals(conversationId: string): TerminalState[];
   /** Returns snapshots of all live terminals across all conversations on this host. */
-  getHostTerminals(): TerminalSnapshot[];
+  getHostTerminals(): TerminalState[];
   /** Dispose and SIGTERM all live terminals on this host (e.g. on host teardown). */
   killAllTerminals(): void;
 }

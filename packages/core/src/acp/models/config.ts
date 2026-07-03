@@ -6,13 +6,19 @@ const configOptionBaseSchema = z.object({
   description: z.string().optional(),
 });
 
+export const modelScoreSchema = z.object({
+  value: z.number(),
+  max: z.number(),
+});
+export type ModelScore = z.infer<typeof modelScoreSchema>;
+
 export const modelOptionSchema = configOptionBaseSchema.extend({
   /** Optional model metadata used for ranking/display; absent when provider does not report it. */
   features: z
     .object({
       contextWindowSize: z.number().int().optional(),
-      speed: z.number().int().optional(),
-      intelligence: z.number().int().optional(),
+      speed: modelScoreSchema.optional(),
+      intelligence: modelScoreSchema.optional(),
     })
     .optional(),
 });
@@ -28,6 +34,8 @@ export type ModeOption = z.infer<typeof modeOptionSchema>;
 export const sessionCommandSchema = z.object({
   name: z.string(),
   description: z.string(),
+  /** Distinguishes provider-advertised ACP commands from Emdash-owned skills. */
+  source: z.literal('provider-command'),
   /** Optional provider hint for slash-command arguments, shown near the composer. */
   inputHint: z.string().optional(),
 });
@@ -60,14 +68,12 @@ export const sessionConfigStateSchema = z.object({
 });
 export type SessionConfigState = z.infer<typeof sessionConfigStateSchema>;
 
-export function emptyConfig(): SessionConfigState {
-  return {
-    modelOptions: null,
-    efforts: null,
-    modeOptions: null,
-    availableCommands: [],
-  };
-}
+export const initialSessionConfigState: SessionConfigState = {
+  modelOptions: null,
+  efforts: null,
+  modeOptions: null,
+  availableCommands: [],
+};
 
 export const sessionUsageSchema = z.object({
   /** Total context window capacity reported by the provider. */

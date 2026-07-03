@@ -33,11 +33,10 @@ import { AgentTerminalManager } from './agent-terminal-manager';
 import { FsPort, TerminalPort } from './client-ports';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
-import type { StopReason } from './models/common';
 import type { AcpPermissionRequest } from './models/permissions';
 import type { PromptInput, QueuedPrompt } from './models/prompt';
-import type { SessionState } from './models/session';
-import type { TerminalSnapshot } from './models/terminals';
+import type { SessionState, StopReason } from './models/session';
+import type { TerminalState } from './models/terminals';
 import type { TranscriptState, TranscriptTurnOutcome } from './models/transcript';
 import { PermissionBroker } from './permission-broker';
 import type { NormalizedEvent } from './reducer/normalized-event';
@@ -274,9 +273,12 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       }
 
       if (initialPrompt?.trim()) {
+        const now = Date.now();
         const promptResult = await this.sendPromptInternal(proc, conv, {
           id: crypto.randomUUID(),
           text: initialPrompt,
+          createdAt: now,
+          updatedAt: now,
         });
         if (!promptResult.success) {
           this.deps.logger.warn('AcpSessionRuntime: initial prompt failed', {
@@ -307,9 +309,12 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     if (!entry?.acpSessionId) return acpErr.noActiveSession(conversationId);
     const proc = this.processes.get(entry.processKey);
     if (!proc) return acpErr.noActiveSession(conversationId);
+    const now = Date.now();
     return this.sendPromptInternal(proc, conv, {
       id: crypto.randomUUID(),
       ...input,
+      createdAt: now,
+      updatedAt: now,
     });
   }
 
@@ -507,11 +512,11 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     return conv.machine.sessionState();
   }
 
-  getTerminals(conversationId: string): TerminalSnapshot[] {
+  getTerminals(conversationId: string): TerminalState[] {
     return this.terminals.listByConversation(conversationId);
   }
 
-  getHostTerminals(): TerminalSnapshot[] {
+  getHostTerminals(): TerminalState[] {
     return this.terminals.listAll();
   }
 
@@ -868,11 +873,36 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         }
 
         const requestId = crypto.randomUUID();
+        const rawToolCall = params.toolCall as
+          | {
+              rawInput?: unknown;
+              command?: string;
+              cwd?: string;
+              path?: string;
+              paths?: string[];
+            }
+          | undefined;
+        const paths = [
+          ...(typeof rawToolCall?.path === 'string' ? [rawToolCall.path] : []),
+          ...(Array.isArray(rawToolCall?.paths) ? rawToolCall.paths : []),
+        ];
         const payload: AcpPermissionRequest = {
           requestId,
           toolCallId: params.toolCall?.toolCallId,
           title: params.toolCall?.title ?? 'Unknown',
           toolKind: params.toolCall?.kind ?? undefined,
+          ...(rawToolCall
+            ? {
+                context: {
+                  ...(typeof rawToolCall.cwd === 'string' ? { cwd: rawToolCall.cwd } : {}),
+                  ...(paths.length > 0 ? { paths } : {}),
+                  ...(typeof rawToolCall.command === 'string' ? { command: rawToolCall.command } : {}),
+                  ...(rawToolCall.rawInput !== undefined
+                    ? { inputSummary: JSON.stringify(rawToolCall.rawInput).slice(0, 500) }
+                    : {}),
+                },
+              }
+            : {}),
           options: params.options.map((o) => ({
             optionId: o.optionId,
             name: o.name,
@@ -982,11 +1012,13 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       const res = await proc.agent.prompt({
         sessionId: conv.acpSessionId!,
         prompt: [
-          ...(prompt.attachments ?? []).map((img) => ({
-            type: 'image' as const,
-            data: img.data,
-            mimeType: img.mimeType,
-          })),
+          ...(prompt.attachments ?? [])
+            .filter((img) => img.type === 'image')
+            .map((img) => ({
+              type: 'image' as const,
+              data: img.data,
+              mimeType: img.mimeType,
+            })),
           ...(prompt.text ? [{ type: 'text' as const, text: prompt.text }] : []),
         ],
       });

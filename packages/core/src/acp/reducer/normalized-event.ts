@@ -14,7 +14,7 @@ import type {
   SessionConfigOption,
   SessionUpdate,
 } from '@agentclientprotocol/sdk';
-import type { AttachmentRef } from '../models/common';
+import type { AttachmentRef } from '../models/attachments';
 import type { SessionUsage } from '../models/config';
 import type { TranscriptPlanEntryInput } from '../models/plan';
 

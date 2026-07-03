@@ -10,10 +10,14 @@ import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
-import type { StopReason } from './models/common';
 import type { AcpPermissionRequest } from './models/permissions';
 import type { QueuedPrompt } from './models/prompt';
-import type { QueuedPromptSummary, SessionLifecycle, SessionState } from './models/session';
+import type {
+  QueuedPromptSummary,
+  SessionLifecycle,
+  SessionState,
+  StopReason,
+} from './models/session';
 
 export type SessionPhase =
   | { kind: 'starting' }
@@ -399,6 +403,8 @@ function promptSummary(prompt: QueuedPrompt): QueuedPromptSummary {
     id: prompt.id,
     text: prompt.text,
     ...(attachments.length > 0 ? { attachments } : {}),
+    createdAt: prompt.createdAt,
+    updatedAt: prompt.updatedAt,
   };
 }
 

@@ -14,8 +14,9 @@ export type {
   TranscriptTurnOutcome,
   TranscriptWebFetch,
 } from '../models/transcript';
-export type { AttachmentRef, ToolStatus } from '../models/common';
+export type { AttachmentRef } from '../models/attachments';
 export type { SubagentState } from '../models/agents';
+export type { ToolStatus } from '../models/tools';
 export type {
   PlanEntryPriority,
   PlanEntryStatus,
@@ -53,4 +54,4 @@ export type {
   SessionConfigState,
   SessionUsage,
 } from '../models/config';
-export { emptyConfig } from '../models/config';
+export { initialSessionConfigState } from '../models/config';

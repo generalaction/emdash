@@ -8,7 +8,14 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import { SESSION_PLAN_ID } from '../models/plan';
-import { makeMessageId, makeThinkingId, makeToolId, makeTurnId, makeDiffId } from './ids';
+import {
+  makeDiffId,
+  makeMessageId,
+  makeThinkingId,
+  makeToolGroupId,
+  makeToolId,
+  makeTurnId,
+} from './ids';
 import { AcpTranscriptParser } from './parser';
 
 const CID = 'conv-1';
@@ -312,27 +319,30 @@ describe('AcpTranscriptParser', () => {
 
   // ── Tool call ─────────────────────────────────────────────────────────────
 
-  it('tool_call creates a tool row with running status', () => {
+  it('tool_call creates an unknown tool-call row with running status', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'do something'));
     p.push(toolCallUpdate('tc1', 'My Tool'));
 
     const items = p.activeTurn?.items ?? [];
-    const tool = items.find((i) => i.kind === 'tool');
+    const tool = items.find((i) => i.kind === 'unknown-tool-call');
     expect(tool).toBeDefined();
-    expect((tool as { status: string }).status).toBe('running');
-    expect((tool as { id: string }).id).toBe(makeToolId(makeTurnId(CID, 0), 'tc1'));
+    expect(tool).toMatchObject({
+      id: makeToolId(makeTurnId(CID, 0), 'tc1'),
+      status: 'running',
+      toolCallId: 'tc1',
+    });
   });
 
-  it('tool_call_update updates tool status to done', () => {
+  it('tool_call_update updates tool-call status to done', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'do it'));
     p.push(toolCallUpdate('tc1', 'My Tool'));
     p.push(toolUpdateDone('tc1'));
 
     const items = p.activeTurn?.items ?? [];
-    const tool = items.find((i) => i.kind === 'tool');
-    expect((tool as { status: string }).status).toBe('done');
+    const tool = items.find((i) => i.kind === 'unknown-tool-call');
+    expect(tool).toMatchObject({ status: 'done' });
   });
 
   it('tool kinds can materialize richer tool rows', () => {
@@ -344,18 +354,18 @@ describe('AcpTranscriptParser', () => {
     p.push(toolCallUpdate('subagent-1', 'Investigate failure', 'subagent'));
 
     const items = p.activeTurn?.items ?? [];
-    expect(items.find((i) => i.kind === 'search')).toMatchObject({
+    expect(items.find((i) => i.kind === 'search-tool-call')).toMatchObject({
       id: makeToolId(makeTurnId(CID, 0), 'search-1'),
       query: 'Find symbols',
       status: 'running',
     });
-    expect(items.find((i) => i.kind === 'mcp-tool')).toMatchObject({
+    expect(items.find((i) => i.kind === 'mcp-tool-call')).toMatchObject({
       tool: 'linear.searchIssues',
     });
-    expect(items.find((i) => i.kind === 'web-fetch')).toMatchObject({
+    expect(items.find((i) => i.kind === 'web-fetch-tool-call')).toMatchObject({
       url: 'https://example.test',
     });
-    expect(items.find((i) => i.kind === 'subagent')).toMatchObject({
+    expect(items.find((i) => i.kind === 'subagent-tool-call')).toMatchObject({
       name: 'Investigate failure',
     });
   });
@@ -372,11 +382,40 @@ describe('AcpTranscriptParser', () => {
       matchCount: 3,
     });
 
-    expect(p.activeTurn?.items.find((i) => i.kind === 'search')).toMatchObject({
+    expect(p.activeTurn?.items.find((i) => i.kind === 'search-tool-call')).toMatchObject({
       query: 'NormalizedEvent',
       status: 'done',
       matchCount: 3,
     });
+  });
+
+  it('groups contiguous read tool calls into a deterministic tool group', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'read files'));
+    p.push(toolCallUpdate('read-1', 'Read src/a.ts', 'read'));
+    p.push(toolCallUpdate('read-2', 'Read src/b.ts', 'read'));
+
+    const items = p.activeTurn?.items ?? [];
+    expect(items.find((i) => i.kind === 'tool-group')).toMatchObject({
+      id: makeToolGroupId(makeTurnId(CID, 0), 'read-batch', 0),
+      label: '2 file reads',
+      groupKind: 'read-batch',
+      childIds: [
+        makeToolId(makeTurnId(CID, 0), 'read-1'),
+        makeToolId(makeTurnId(CID, 0), 'read-2'),
+      ],
+      status: 'running',
+    });
+  });
+
+  it('does not group non-contiguous read tool calls', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'read files'));
+    p.push(toolCallUpdate('read-1', 'Read src/a.ts', 'read'));
+    p.push(toolCallUpdate('exec-1', 'echo done', 'execute'));
+    p.push(toolCallUpdate('read-2', 'Read src/b.ts', 'read'));
+
+    expect(p.activeTurn?.items.filter((i) => i.kind === 'tool-group')).toHaveLength(0);
   });
 
   // ── Diff arriving on a later tool_update ─────────────────────────────────
@@ -384,7 +423,7 @@ describe('AcpTranscriptParser', () => {
   it('diff arriving on tool_update creates diff row (late diff)', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'edit file'));
-    // tool_call with kind=edit but no diffs yet → no placeholder row
+    // tool_call with kind=edit creates an edit tool row; diff arrives later.
     p.push({
       sessionUpdate: 'tool_call',
       sessionId: 'sess-1',
@@ -404,11 +443,13 @@ describe('AcpTranscriptParser', () => {
     const toolId = makeToolId(turnId, 'tc-edit');
     expect(diff?.id).toBe(makeDiffId(toolId, 'src/foo.ts'));
     expect((diff as { status: string }).status).toBe('done');
-    // No generic tool placeholder row for edit kind
-    expect(items.filter((i) => i.kind === 'tool')).toHaveLength(0);
+    expect(items.find((i) => i.kind === 'edit-tool-call')).toMatchObject({
+      id: toolId,
+      diffIds: [makeDiffId(toolId, 'src/foo.ts')],
+    });
   });
 
-  it('diff-less edit tool_update does not create a generic tool row', () => {
+  it('diff-less edit tool_update creates an edit tool-call row', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'edit file'));
     p.push({
@@ -421,7 +462,7 @@ describe('AcpTranscriptParser', () => {
       content: [],
     } as unknown as SessionUpdate);
 
-    expect(p.activeTurn?.items.filter((i) => i.kind === 'tool')).toHaveLength(0);
+    expect(p.activeTurn?.items.filter((i) => i.kind === 'edit-tool-call')).toHaveLength(1);
     expect(p.activeTurn?.items.filter((i) => i.kind === 'diff')).toHaveLength(0);
   });
 
@@ -487,7 +528,7 @@ describe('AcpTranscriptParser', () => {
       {
         agentId: 'agent-1',
         toolCallId: 'toolu_1',
-        turnId: makeTurnId(CID, 0),
+        launchTurnId: makeTurnId(CID, 0),
         name: 'Find events',
         status: 'running',
         startedAt: 100,
@@ -495,7 +536,7 @@ describe('AcpTranscriptParser', () => {
         outputFile: '/tmp/agent-1.output',
       },
     ]);
-    expect(p.history[0].items.find((item) => item.kind === 'subagent')).toMatchObject({
+    expect(p.history[0].items.find((item) => item.kind === 'subagent-tool-call')).toMatchObject({
       status: 'running',
       background: true,
       agentId: 'agent-1',
@@ -842,10 +883,15 @@ describe('AcpTranscriptParser – session slices', () => {
       ])
     );
     expect(p.config.availableCommands).toHaveLength(2);
-    expect(p.config.availableCommands[0]).toEqual({ name: 'review', description: 'Review code' });
+    expect(p.config.availableCommands[0]).toEqual({
+      name: 'review',
+      description: 'Review code',
+      source: 'provider-command',
+    });
     expect(p.config.availableCommands[1]).toEqual({
       name: 'debug',
       description: 'Enable debug',
+      source: 'provider-command',
       inputHint: '[issue]',
     });
   });

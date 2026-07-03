@@ -24,10 +24,10 @@
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type { SubagentState } from '../models/agents';
-import type { ToolStatus } from '../models/common';
 import type { SessionCommand, SessionConfigState, SessionUsage } from '../models/config';
-import { emptyConfig } from '../models/config';
+import { initialSessionConfigState } from '../models/config';
 import { SESSION_PLAN_ID, type TranscriptPlanState } from '../models/plan';
+import type { ToolStatus } from '../models/tools';
 import type {
   TranscriptItem,
   TranscriptMessage,
@@ -78,7 +78,7 @@ export interface ReducerDeps {
 export function initialState(): ParserState {
   return {
     transcript: { committed: [], active: null },
-    config: emptyConfig(),
+    config: initialSessionConfigState,
     usage: null,
     title: null,
     pendingModeId: null,
@@ -218,9 +218,9 @@ function resolveProviderThinkingMessageId(active: TranscriptTurn, messageId: str
     if (
       item.kind === 'thinking' &&
       item.status === 'thinking' &&
-      (item.messageId === messageId || item.messageId.startsWith(`${messageId}:segment:`))
+      (item.segmentId === messageId || item.segmentId.startsWith(`${messageId}:segment:`))
     ) {
-      return item.messageId;
+      return item.segmentId;
     }
   }
 
@@ -232,7 +232,7 @@ function resolveProviderThinkingMessageId(active: TranscriptTurn, messageId: str
 
   const prefix = `${messageId}:segment:`;
   const count = active.items.filter(
-    (item) => item.kind === 'thinking' && item.messageId.startsWith(prefix)
+    (item) => item.kind === 'thinking' && item.segmentId.startsWith(prefix)
   ).length;
   return `${prefix}${count + 1}`;
 }
@@ -294,7 +294,7 @@ function toToolStatus(
 function updateAgentSlice(
   agents: SubagentState[],
   event: NormalizedEvent,
-  turnId: string | null,
+  launchTurnId: string | null,
   at: number
 ): SubagentState[] {
   if (event.kind !== 'subagent' && event.kind !== 'subagent_update') return agents;
@@ -321,7 +321,7 @@ function updateAgentSlice(
       ...(idx >= 0 ? agents[idx] : {}),
       agentId,
       toolCallId,
-      turnId,
+      launchTurnId,
       name: event.title,
       status,
       startedAt: idx >= 0 ? agents[idx].startedAt : at,
@@ -338,7 +338,7 @@ function updateAgentSlice(
       : {
           agentId,
           toolCallId,
-          turnId,
+          launchTurnId,
           name: agentId,
           startedAt: at,
         }),
@@ -450,6 +450,7 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
         const cmd: SessionCommand = {
           name: raw.name,
           description: raw.description,
+          source: 'provider-command',
         };
         if (raw.input?.hint) cmd.inputHint = raw.input.hint;
         return cmd;

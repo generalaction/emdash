@@ -1,7 +1,26 @@
 import { z } from 'zod';
-import { attachmentRefSchema, stopReasonSchema } from './common';
+import { attachmentRefSchema } from './attachments';
 import { acpPermissionRequestSchema } from './permissions';
 
+export const stopReasonSchema = z.enum([
+  'end_turn',
+  'max_tokens',
+  'max_turn_requests',
+  'refusal',
+  'cancelled',
+]);
+export type StopReason = z.infer<typeof stopReasonSchema>;
+
+/**
+ * ACP session lifecycle owned by the SessionMachine.
+ *
+ * - `starting`: agent process/session setup is in progress.
+ * - `replaying`: an existing ACP session is loading historical updates.
+ * - `ready`: no foreground work is active; a prompt can start immediately.
+ * - `working`: a foreground user prompt turn is running.
+ * - `cancelling`: cancellation was requested; waiting for agent settlement.
+ * - `closed`: runtime session is no longer usable.
+ */
 export const sessionLifecycleSchema = z.enum([
   'starting',
   'replaying',
@@ -18,6 +37,10 @@ export const queuedPromptSummarySchema = z.object({
   text: z.string(),
   /** Attachment metadata only; queued prompt bytes remain internal to the runtime. */
   attachments: z.array(attachmentRefSchema).optional(),
+  /** Epoch ms when this prompt entered the queue. */
+  createdAt: z.number(),
+  /** Epoch ms when queued prompt content or attachments were last edited. */
+  updatedAt: z.number(),
 });
 export type QueuedPromptSummary = z.infer<typeof queuedPromptSummarySchema>;
 

@@ -161,7 +161,12 @@ describe('AcpSessionRuntime - transcript projection', () => {
     expect(second.success).toBe(true);
     expect(h.agent.prompt).toHaveBeenCalledTimes(1);
     expect(rt.getSessionState('conv-queue').queuedPrompts).toEqual([
-      { id: expect.any(String), text: 'second' },
+      {
+        id: expect.any(String),
+        text: 'second',
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number),
+      },
     ]);
 
     resolveFirst({ stopReason: 'end_turn' });
@@ -302,7 +307,7 @@ describe('AcpSessionRuntime - metadata and enrich', () => {
       kind: 'message',
     });
     expect(h.recording.transcripts.at(-1)?.transcript.active?.items.at(-1)).toMatchObject({
-      kind: 'tool',
+      kind: 'execute-tool-call',
       parentId: 'conv-enrich:turn:0:tool:parent-1',
     });
     resolvePrompt({ stopReason: 'end_turn' });

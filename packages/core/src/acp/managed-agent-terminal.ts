@@ -1,5 +1,5 @@
 import { StringDecoder } from 'node:string_decoder';
-import type { TerminalSnapshot } from './models/terminals';
+import type { TerminalState } from './models/terminals';
 import type { AcpTerminalExit, AcpTerminalProcess } from './transport';
 
 /** Default per-terminal output byte cap (4 MB). */
@@ -75,7 +75,7 @@ export class ManagedAgentTerminal {
     this.onOutput(text, this._truncated);
   }
 
-  snapshot(): TerminalSnapshot {
+  snapshot(): TerminalState {
     return {
       terminalId: this.terminalId,
       command: this.command,
