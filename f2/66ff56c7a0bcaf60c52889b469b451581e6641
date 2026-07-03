@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/main/core/automations/automation-scheduler.db.test.ts
+  s_b4915f40a1d8f7::t_4b6e300c3dd35f 297-318
+apps/emdash-desktop/src/shared/core/automations/validation.test.ts
+  s_b4915f40a1d8f7::t_b2f323b5a12287 2-7,26-82
+  s_b4915f40a1d8f7::t_a41717d15c73a0 83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "f266ff56c7a0bcaf60c52889b469b451581e6641",
+  "prompts": {},
+  "sessions": {
+    "s_b4915f40a1d8f7": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2487-1e28-7eb4-b210-843ab630b395",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
