@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-workspace-config.test.ts
+  s_63f2e28954e246::t_2d4605251a0d5e 80-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "3505d047c99da3beae0db03d1bba8490d0328568",
+  "prompts": {},
+  "sessions": {
+    "s_63f2e28954e246": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f284b-c8c4-73f1-9b84-df08fd88e383",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
