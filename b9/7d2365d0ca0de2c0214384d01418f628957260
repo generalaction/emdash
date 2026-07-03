@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/features/automations/rrule-form-utils.ts
+  s_f135aed8786cd7::t_7dfe590b9ded51 1-20
+apps/emdash-desktop/src/renderer/features/automations/rrule-form-utils.test.ts
+  s_f135aed8786cd7::t_ddb9bc41f77725 1-22
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_f135aed8786cd7::t_23acbf45e08550 21
+  s_f135aed8786cd7::t_f18991a811c21e 90,198-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "b97d2365d0ca0de2c0214384d01418f628957260",
+  "prompts": {},
+  "sessions": {
+    "s_f135aed8786cd7": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f26a8-1176-7053-b7b1-d3178221a00c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
