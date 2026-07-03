@@ -11,5 +11,8 @@ export const previewServersController = createRPCController({
 
   stop: async (id: string) => previewServerService.stop(id),
 
+  stopForWorkspace: async (args: { projectId: string; workspaceId: string }) =>
+    previewServerService.stopForWorkspace(args.projectId, args.workspaceId),
+
   restart: async (id: string) => previewServerService.restart(id),
 });
