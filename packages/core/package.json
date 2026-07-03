@@ -21,6 +21,10 @@
       "types": "./dist/acp-session-machine.d.mts",
       "default": "./dist/acp-session-machine.mjs"
     },
+    "./acp/transcript-parser": {
+      "types": "./dist/acp-transcript-parser.d.mts",
+      "default": "./dist/acp-transcript-parser.mjs"
+    },
     "./deps": {
       "types": "./dist/deps.d.mts",
       "default": "./dist/deps.mjs"

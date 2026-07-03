@@ -44,3 +44,4 @@ export type {
 } from './agent-update';
 export { toAgentUpdate } from './agent-update';
 export { SessionMachine, isPromptReady } from './session-machine';
+export * from './acp-transcript-parser/index';

@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     acp: 'src/acp/index.ts',
     'acp-session-machine': 'src/acp/session-machine.ts',
+    'acp-transcript-parser': 'src/acp/acp-transcript-parser/index.ts',
     deps: 'src/host-dependencies/capability.ts',
     'deps-runtime': 'src/host-dependencies/runtime/index.ts',
     exec: 'src/exec/index.ts',
