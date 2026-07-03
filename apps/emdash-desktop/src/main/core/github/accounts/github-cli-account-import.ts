@@ -1,11 +1,11 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { GitHubUser } from '@shared/github';
 import { normalizeRepositoryHost } from '@shared/repository-ref';
-import type { GitHubAccount, GitHubAccountRegistry } from './github-account-registry';
-
-export type GitHubCliAccountImportOptions = {
-  skipRemovedAccounts?: boolean;
-};
+import {
+  upsertGitHubAccount,
+  type GitHubAccount,
+  type GitHubAccountStore,
+} from './github-accounts';
 
 type GitHubIdentityClient = {
   getAuthenticatedUser(token: string, host?: string): Promise<GitHubUser | null>;
@@ -48,20 +48,15 @@ function cliEntries(status: GitHubCliAuthStatus): GitHubCliAuthStatusEntry[] {
 
 export class GitHubCliAccountImportService {
   constructor(
-    private readonly accountRegistry: GitHubAccountRegistry,
+    private readonly accountStore: Pick<GitHubAccountStore, 'upsertAccount'>,
     private readonly ctx: Pick<IExecutionContext, 'exec'>,
     private readonly identityClient: GitHubIdentityClient
   ) {}
 
-  async importAccounts(options: GitHubCliAccountImportOptions = {}): Promise<GitHubAccount[]> {
+  async importAccounts(): Promise<GitHubAccount[]> {
     const stdout = await this.readCliStatus();
     if (!stdout) return [];
 
-    const removedAccountIds = options.skipRemovedAccounts
-      ? new Set(
-          (await this.accountRegistry.listRemovedCliAccounts()).map((account) => account.accountId)
-        )
-      : new Set<string>();
     const imported: GitHubAccount[] = [];
     for (const entry of cliEntries(parseCliStatus(stdout))) {
       if (entry.state !== 'success') continue;
@@ -72,10 +67,8 @@ export class GitHubCliAccountImportService {
       const token = entry.token.trim();
       const user = await this.identityClient.getAuthenticatedUser(token, host);
       if (!user) continue;
-      const accountId = `${host}:${String(user.id)}`;
-      if (removedAccountIds.has(accountId)) continue;
 
-      const { account } = await this.accountRegistry.upsertAccount({
+      const { account } = await upsertGitHubAccount(this.accountStore, {
         accessToken: token,
         credentialSource: 'cli',
         providerAccount: {

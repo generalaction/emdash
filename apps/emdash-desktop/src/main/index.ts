@@ -23,10 +23,10 @@ import { browserWebContentsRegistry } from './core/browser/browser-webcontents-r
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
-import { githubAccountRegistry } from './core/github/accounts/github-account-registry-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
+import { providerAccountRegistry } from './core/provider-accounts/provider-account-registry-instance';
 import { remoteTmuxReaperService } from './core/pty/remote-tmux-reaper-service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import { reconcileResourceSampler } from './core/resource-monitor/resource-sampler';
@@ -162,7 +162,7 @@ void app.whenReady().then(async () => {
       log.warn('Account session initialization threw unexpectedly:', e);
     });
 
-  const githubAuthServerAdapter = new GitHubAuthServerAdapter(githubAccountRegistry);
+  const githubAuthServerAdapter = new GitHubAuthServerAdapter(providerAccountRegistry);
   providerTokenRegistry.register('github', (payload) =>
     githubAuthServerAdapter.storeOAuthToken(payload)
   );

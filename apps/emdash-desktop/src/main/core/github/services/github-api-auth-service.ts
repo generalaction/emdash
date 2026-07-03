@@ -1,6 +1,11 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { normalizeRepositoryHost } from '@shared/repository-ref';
-import type { GitHubAccount } from '../accounts/github-account-registry';
+import {
+  GITHUB_PROVIDER_ID,
+  toGitHubAccount,
+  type GitHubAccount,
+  type GitHubAccountStore,
+} from '../accounts/github-accounts';
 import {
   githubApiAccountHostMismatch,
   githubApiAccountNotFound,
@@ -13,11 +18,10 @@ export type GitHubApiAuthContext = {
   accountId?: string;
 };
 
-type GitHubAccountLookup = {
-  getDefaultAccountId(): Promise<string | null>;
-  listAccounts(): Promise<GitHubAccount[]>;
-  resolveToken(accountId: string): Promise<string | null>;
-};
+type GitHubAccountLookup = Pick<
+  GitHubAccountStore,
+  'getDefaultAccountId' | 'listAccounts' | 'resolveSecret'
+>;
 
 export class GitHubApiAuthService {
   constructor(private readonly accountLookup: GitHubAccountLookup) {}
@@ -32,7 +36,7 @@ export class GitHubApiAuthService {
     if (!account) return err(githubApiAuthRequired(normalizedHost));
     if (!account.success) return err(account.error);
 
-    const token = await this.accountLookup.resolveToken(account.data.id);
+    const token = await this.accountLookup.resolveSecret(GITHUB_PROVIDER_ID, account.data.id);
     if (!token) return err(githubApiTokenMissing(normalizedHost, account.data.id));
     return ok(token);
   }
@@ -41,7 +45,9 @@ export class GitHubApiAuthService {
     normalizedHost: string,
     accountId: string | null
   ): Promise<Result<GitHubAccount, GitHubApiAuthError> | null> {
-    const accounts = await this.accountLookup.listAccounts();
+    const accounts = (await this.accountLookup.listAccounts(GITHUB_PROVIDER_ID)).map(
+      toGitHubAccount
+    );
     if (accountId) {
       const account = accounts.find((candidate) => candidate.id === accountId);
       if (!account) return err(githubApiAccountNotFound(normalizedHost, accountId));
@@ -54,7 +60,7 @@ export class GitHubApiAuthService {
       return ok(account);
     }
 
-    const defaultAccountId = await this.accountLookup.getDefaultAccountId();
+    const defaultAccountId = await this.accountLookup.getDefaultAccountId(GITHUB_PROVIDER_ID);
     if (!defaultAccountId) return null;
 
     const defaultAccount =

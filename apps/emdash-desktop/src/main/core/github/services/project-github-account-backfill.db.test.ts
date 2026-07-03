@@ -1,37 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
-import type { GitHubAccount } from '../accounts/github-account-registry';
+import { GITHUB_PROVIDER_ID, upsertGitHubAccount } from '../accounts/github-accounts';
 import { ProjectGitHubAccountBackfillService } from './project-github-account-backfill';
-
-function account(id: string, host = id.split(':')[0]): GitHubAccount {
-  return {
-    id,
-    providerAccountId: id.split(':')[1] ?? id,
-    host,
-    login: id,
-    avatarUrl: '',
-    credentialSource: 'cli',
-    connectedAt: 1,
-    updatedAt: 1,
-  };
-}
-
-class AccountLookup {
-  defaultAccountId: string | null = 'github.com:42';
-  accounts: GitHubAccount[] = [account('github.com:42')];
-
-  getDefaultAccountId = vi.fn(async () => this.defaultAccountId);
-  listAccounts = vi.fn(async () => this.accounts);
-}
 
 class FakeProjectSettings {
   settings: ProjectSettings = {};
 
   get = vi.fn(async () => this.settings);
-  update = vi.fn(async (settings: ProjectSettings) => {
-    this.settings = settings;
-    return { success: true as const, data: undefined };
-  });
   patch = vi.fn(async (patch: { githubAccountId?: string | null }) => {
     this.settings = { ...this.settings, ...patch };
     return { success: true as const, data: undefined };
@@ -61,15 +37,36 @@ function makeProject({
 }
 
 describe('ProjectGitHubAccountBackfillService', () => {
-  let accountLookup: AccountLookup;
+  let fixture: RegistryFixture;
   let service: ProjectGitHubAccountBackfillService;
 
-  beforeEach(() => {
-    accountLookup = new AccountLookup();
-    service = new ProjectGitHubAccountBackfillService(accountLookup);
+  beforeEach(async () => {
+    fixture = await openRegistryFixture('empty');
+    service = new ProjectGitHubAccountBackfillService(fixture.registry);
   });
 
+  afterEach(() => {
+    fixture?.close();
+  });
+
+  async function upsertAccount(providerAccountId: string, host = 'github.com') {
+    return (
+      await upsertGitHubAccount(fixture.registry, {
+        accessToken: `token-${host}-${providerAccountId}`,
+        credentialSource: 'cli',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId,
+          host,
+          login: `user-${providerAccountId}`,
+          avatarUrl: '',
+        },
+      })
+    ).account;
+  }
+
   it('backfills GitHub.com projects without a selected account to the default account', async () => {
+    await upsertAccount('42');
     const { project, settings } = makeProject();
 
     await expect(service.backfillProject(project)).resolves.toEqual({
@@ -78,21 +75,22 @@ describe('ProjectGitHubAccountBackfillService', () => {
     });
 
     expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'github.com:42' });
-    expect(settings.update).not.toHaveBeenCalled();
   });
 
   it('does not override an existing project GitHub account selection', async () => {
+    await upsertAccount('42');
     const { project, settings } = makeProject({
       settings: { githubAccountId: 'github.com:84' },
     });
 
     await expect(service.backfillProject(project)).resolves.toEqual({ status: 'skipped' });
 
-    expect(settings.update).not.toHaveBeenCalled();
+    expect(settings.patch).not.toHaveBeenCalled();
   });
 
   it('backfills GitHub Enterprise projects to an account on the same host', async () => {
-    accountLookup.accounts = [account('github.com:42'), account('ghe.example.com:168')];
+    await upsertAccount('42');
+    await upsertAccount('168', 'ghe.example.com');
     const { project, settings } = makeProject({
       selectedRemoteUrl: 'https://ghe.example.com/acme/repo',
     });
@@ -103,16 +101,13 @@ describe('ProjectGitHubAccountBackfillService', () => {
     });
 
     expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'ghe.example.com:168' });
-    expect(settings.update).not.toHaveBeenCalled();
   });
 
   it('uses the default account when it belongs to the project remote host', async () => {
-    accountLookup.defaultAccountId = 'ghe.example.com:252';
-    accountLookup.accounts = [
-      account('ghe.example.com:168'),
-      account('ghe.example.com:252'),
-      account('github.com:42'),
-    ];
+    await upsertAccount('168', 'ghe.example.com');
+    await upsertAccount('252', 'ghe.example.com');
+    await upsertAccount('42');
+    await fixture.registry.setDefaultAccount(GITHUB_PROVIDER_ID, 'ghe.example.com:252');
     const { project, settings } = makeProject({
       selectedRemoteUrl: 'https://ghe.example.com/acme/repo',
     });
@@ -123,44 +118,40 @@ describe('ProjectGitHubAccountBackfillService', () => {
     });
 
     expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'ghe.example.com:252' });
-    expect(settings.update).not.toHaveBeenCalled();
   });
 
-  it('uses the oldest account for the project remote host when no default is set', async () => {
-    accountLookup.defaultAccountId = null;
-    accountLookup.accounts = [
-      { ...account('github.com:84'), connectedAt: 2 },
-      { ...account('github.com:42'), connectedAt: 1 },
-    ];
-    const { project, settings } = makeProject();
+  it('uses the oldest host account when the default is on a different host', async () => {
+    await upsertAccount('42'); // github.com default
+    await upsertAccount('168', 'ghe.example.com');
+    await upsertAccount('252', 'ghe.example.com');
+    const { project, settings } = makeProject({
+      selectedRemoteUrl: 'https://ghe.example.com/acme/repo',
+    });
 
     await expect(service.backfillProject(project)).resolves.toEqual({
       status: 'updated',
-      accountId: 'github.com:42',
+      accountId: 'ghe.example.com:168',
     });
 
-    expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'github.com:42' });
-    expect(settings.update).not.toHaveBeenCalled();
+    expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'ghe.example.com:168' });
   });
 
   it('does not backfill projects when no account exists for the remote host', async () => {
-    accountLookup.accounts = [account('github.com:42')];
+    await upsertAccount('42');
     const { project, settings } = makeProject({
       selectedRemoteUrl: 'https://ghe.example.com/acme/repo',
     });
 
     await expect(service.backfillProject(project)).resolves.toEqual({ status: 'skipped' });
 
-    expect(settings.update).not.toHaveBeenCalled();
+    expect(settings.patch).not.toHaveBeenCalled();
   });
 
-  it('leaves projects unconfigured when no default account exists', async () => {
-    accountLookup.defaultAccountId = null;
-    accountLookup.accounts = [];
+  it('leaves projects unconfigured when no accounts exist', async () => {
     const { project, settings } = makeProject();
 
     await expect(service.backfillProject(project)).resolves.toEqual({ status: 'skipped' });
 
-    expect(settings.update).not.toHaveBeenCalled();
+    expect(settings.patch).not.toHaveBeenCalled();
   });
 });

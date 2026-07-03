@@ -1,72 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  GitHubAccountRegistry,
-  type GitHubAccount,
-  type GitHubAccountMetadataStore,
-  type GitHubAccountSecretStore,
-} from './github-account-registry';
+import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitHubAccountService } from './github-account-service';
-
-class InMemoryMetadataStore implements GitHubAccountMetadataStore {
-  accounts = null as Awaited<ReturnType<GitHubAccountMetadataStore['getAccounts']>>;
-  defaultAccountId: string | null = null;
-  removedCliAccounts = null as Awaited<
-    ReturnType<GitHubAccountMetadataStore['getRemovedCliAccounts']>
-  >;
-
-  async getAccounts() {
-    return this.accounts;
-  }
-
-  async setAccounts(accounts: NonNullable<typeof this.accounts>) {
-    this.accounts = accounts;
-  }
-
-  async getDefaultAccountId() {
-    return this.defaultAccountId;
-  }
-
-  async setDefaultAccountId(accountId: string | null) {
-    this.defaultAccountId = accountId;
-  }
-
-  async getRemovedCliAccounts() {
-    return this.removedCliAccounts;
-  }
-
-  async setRemovedCliAccounts(accounts: NonNullable<typeof this.removedCliAccounts>) {
-    this.removedCliAccounts = accounts;
-  }
-}
-
-class InMemorySecretStore implements GitHubAccountSecretStore {
-  private readonly secrets = new Map<string, string>();
-
-  async getSecret(key: string) {
-    return this.secrets.get(key) ?? null;
-  }
-
-  async setSecret(key: string, value: string) {
-    this.secrets.set(key, value);
-  }
-
-  async deleteSecret(key: string) {
-    this.secrets.delete(key);
-  }
-}
+import { GITHUB_PROVIDER_ID, upsertGitHubAccount, type GitHubAccount } from './github-accounts';
 
 describe('GitHubAccountService', () => {
-  let registry: GitHubAccountRegistry;
+  let fixture: RegistryFixture;
   let service: GitHubAccountService;
   let importCliAccounts: () => Promise<GitHubAccount[]>;
   let clearOctokitCache: (host?: string, accountId?: string) => void;
 
-  beforeEach(() => {
-    registry = new GitHubAccountRegistry(new InMemoryMetadataStore(), new InMemorySecretStore());
+  beforeEach(async () => {
+    fixture = await openRegistryFixture('empty');
     importCliAccounts = async () => [];
     clearOctokitCache = vi.fn();
     service = new GitHubAccountService(
-      registry,
+      fixture.registry,
       {
         importAccounts: () => importCliAccounts(),
       },
@@ -74,9 +22,13 @@ describe('GitHubAccountService', () => {
     );
   });
 
+  afterEach(() => {
+    fixture?.close();
+  });
+
   async function upsertAccount(login: string, providerAccountId: string, host = 'github.com') {
     return (
-      await registry.upsertAccount({
+      await upsertGitHubAccount(fixture.registry, {
         accessToken: `token-${host}-${providerAccountId}`,
         credentialSource: host === 'github.com' ? 'emdash_oauth' : 'cli',
         providerAccount: {
@@ -93,7 +45,7 @@ describe('GitHubAccountService', () => {
   it('lists linked accounts with exactly one default account marker', async () => {
     const first = await upsertAccount('monalisa', '42');
     const second = await upsertAccount('enterprise-monalisa', '42', 'ghe.example.com');
-    await registry.setDefaultAccountId(second.id);
+    await fixture.registry.setDefaultAccount(GITHUB_PROVIDER_ID, second.id);
 
     await expect(service.listAccounts()).resolves.toEqual([
       {
@@ -119,26 +71,24 @@ describe('GitHubAccountService', () => {
     const account = await upsertAccount('monalisa', '42');
 
     await expect(service.setDefaultAccount('github.com:missing')).resolves.toBeNull();
-    await expect(registry.getDefaultAccountId()).resolves.toBe(account.id);
+    await expect(fixture.registry.getDefaultAccountId(GITHUB_PROVIDER_ID)).resolves.toBe(
+      account.id
+    );
+  });
+
+  it('marks the new default account in the returned summary', async () => {
+    await upsertAccount('monalisa', '42');
+    const second = await upsertAccount('octocat', '84');
+
+    await expect(service.setDefaultAccount(second.id)).resolves.toMatchObject({
+      accountId: second.id,
+      isDefault: true,
+    });
   });
 
   it('imports CLI accounts and returns the refreshed account list', async () => {
     const existing = await upsertAccount('monalisa', '42');
-    importCliAccounts = async () => [
-      (
-        await registry.upsertAccount({
-          accessToken: 'token-ghe',
-          credentialSource: 'cli',
-          providerAccount: {
-            providerId: 'github',
-            providerAccountId: '168',
-            host: 'ghe.example.com',
-            login: 'enterprise',
-            avatarUrl: 'https://ghe.example.com/avatars/168',
-          },
-        })
-      ).account,
-    ];
+    importCliAccounts = async () => [await upsertAccount('enterprise', '168', 'ghe.example.com')];
 
     const result = await service.importCliAccounts();
 
@@ -147,7 +97,9 @@ describe('GitHubAccountService', () => {
       { accountId: existing.id, login: 'monalisa', isDefault: true },
       { accountId: 'ghe.example.com:168', login: 'enterprise', isDefault: false },
     ]);
-    await expect(registry.resolveToken('ghe.example.com:168')).resolves.toBe('token-ghe');
+    await expect(
+      fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'ghe.example.com:168')
+    ).resolves.toBe('token-ghe.example.com-168');
   });
 
   it('deduplicates imported account ids returned by the CLI importer', async () => {
@@ -164,12 +116,12 @@ describe('GitHubAccountService', () => {
   it('returns the fallback default when removing the default account', async () => {
     const first = await upsertAccount('monalisa', '42');
     const second = await upsertAccount('octocat', '84');
-    await registry.setDefaultAccountId(second.id);
+    await fixture.registry.setDefaultAccount(GITHUB_PROVIDER_ID, second.id);
 
     const accounts = await service.removeAccount(second.id);
 
     expect(accounts).toMatchObject([{ accountId: first.id, isDefault: true }]);
-    await expect(registry.resolveToken(second.id)).resolves.toBeNull();
+    await expect(fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, second.id)).resolves.toBeNull();
     expect(clearOctokitCache).toHaveBeenCalledWith('github.com', second.id);
   });
 

@@ -1,7 +1,11 @@
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
 import { githubAuthDeviceCodeChannel, githubAuthErrorChannel } from '@shared/events/githubEvents';
 import type { GitHubUser } from '@shared/github';
-import type { GitHubAccount, GitHubAccountRegistry } from '../accounts/github-account-registry';
+import {
+  upsertGitHubAccount,
+  type GitHubAccount,
+  type GitHubAccountStore,
+} from '../accounts/github-accounts';
 import type { GitHubIdentityClient } from './github-identity-client';
 
 export type GitHubDeviceFlowConfig = {
@@ -35,7 +39,7 @@ export class GitHubDeviceFlowService {
 
   constructor(
     private readonly deps: {
-      accountRegistry: GitHubAccountRegistry;
+      accountStore: Pick<GitHubAccountStore, 'upsertAccount'>;
       identityClient: Pick<GitHubIdentityClient, 'getAuthenticatedUser'>;
       events: DeviceFlowEvents;
       createDeviceAuth: DeviceAuthFactory;
@@ -78,7 +82,7 @@ export class GitHubDeviceFlowService {
         return { success: false, error: message };
       }
 
-      const { account } = await this.deps.accountRegistry.upsertAccount({
+      const { account } = await upsertGitHubAccount(this.deps.accountStore, {
         accessToken: token,
         credentialSource: 'device_flow',
         providerAccount: {

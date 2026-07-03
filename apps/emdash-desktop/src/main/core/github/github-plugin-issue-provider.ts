@@ -1,11 +1,12 @@
 import type { IssuesPluginProvider, IssueError } from '@emdash/plugins/issues';
 import { err, ok, type Result } from '@emdash/shared';
 import { match, P } from 'ts-pattern';
-import { githubAccountRegistry } from '@main/core/github/accounts/github-account-registry-instance';
+import { GITHUB_PROVIDER_ID, toGitHubAccount } from '@main/core/github/accounts/github-accounts';
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
 import { githubApiBaseUrlForHost } from '@main/core/github/services/github-api-base-url';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
+import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { log } from '@main/lib/logger';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import {
@@ -151,9 +152,12 @@ async function resolveGitHubPluginCredentials(
   authContext: GitHubApiAuthContext | undefined
 ): Promise<Result<{ accessToken: string; apiBaseUrl: string }, IssueListError>> {
   const normalizedHost = normalizeRepositoryHost(repository.host);
-  const accounts = await githubAccountRegistry.listAccounts();
+  const accounts = (await providerAccountRegistry.listAccounts(GITHUB_PROVIDER_ID)).map(
+    toGitHubAccount
+  );
   const accountId =
-    authContext?.accountId?.trim() || (await githubAccountRegistry.getDefaultAccountId());
+    authContext?.accountId?.trim() ||
+    (await providerAccountRegistry.getDefaultAccountId(GITHUB_PROVIDER_ID));
   if (!accountId) {
     return err({
       type: 'auth_required',
@@ -183,7 +187,7 @@ async function resolveGitHubPluginCredentials(
     });
   }
 
-  const accessToken = await githubAccountRegistry.resolveToken(account.id);
+  const accessToken = await providerAccountRegistry.resolveSecret(GITHUB_PROVIDER_ID, account.id);
   if (!accessToken) {
     return err({
       type: 'token_missing',
@@ -205,15 +209,15 @@ function toCapabilities(plugin: IssuesPluginProvider): IssueProviderCapabilities
 }
 
 async function getDefaultLinkedAccountConnection(capabilities: IssueProviderCapabilities) {
-  const defaultAccountId = await githubAccountRegistry.getDefaultAccountId();
+  const defaultAccountId = await providerAccountRegistry.getDefaultAccountId(GITHUB_PROVIDER_ID);
   if (!defaultAccountId) return null;
 
-  const account = (await githubAccountRegistry.listAccounts()).find(
-    (candidate) => candidate.id === defaultAccountId
-  );
+  const account = (await providerAccountRegistry.listAccounts(GITHUB_PROVIDER_ID))
+    .map(toGitHubAccount)
+    .find((candidate) => candidate.id === defaultAccountId);
   if (!account) return null;
 
-  const token = await githubAccountRegistry.resolveToken(account.id);
+  const token = await providerAccountRegistry.resolveSecret(GITHUB_PROVIDER_ID, account.id);
   if (!token) return null;
 
   return {
@@ -280,7 +284,8 @@ export function createGitHubPluginIssueProvider(plugin: IssuesPluginProvider): I
   return {
     type: 'github',
     capabilities,
-    isConfigured: async () => (await githubAccountRegistry.listAccounts()).length > 0,
+    isConfigured: async () =>
+      (await providerAccountRegistry.listAccounts(GITHUB_PROVIDER_ID)).length > 0,
     checkConnection: async () => {
       const linkedAccountConnection = await getDefaultLinkedAccountConnection(capabilities);
       if (linkedAccountConnection) return linkedAccountConnection;

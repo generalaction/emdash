@@ -5,22 +5,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   mockListAccounts,
   mockGetDefaultAccountId,
-  mockResolveToken,
+  mockResolveSecret,
   mockResolve,
   mockAuthContext,
 } = vi.hoisted(() => ({
   mockListAccounts: vi.fn(),
   mockGetDefaultAccountId: vi.fn(),
-  mockResolveToken: vi.fn(),
+  mockResolveSecret: vi.fn(),
   mockResolve: vi.fn(),
   mockAuthContext: vi.fn(),
 }));
 
-vi.mock('@main/core/github/accounts/github-account-registry-instance', () => ({
-  githubAccountRegistry: {
+vi.mock('@main/core/provider-accounts/provider-account-registry-instance', () => ({
+  providerAccountRegistry: {
     listAccounts: mockListAccounts,
     getDefaultAccountId: mockGetDefaultAccountId,
-    resolveToken: mockResolveToken,
+    resolveSecret: mockResolveSecret,
   },
 }));
 
@@ -47,6 +47,23 @@ const repository = {
 };
 
 type IssueRows = { identifier: string; title: string; url: string }[];
+
+function providerAccountRow(accountId: string, host: string, login: string) {
+  return {
+    providerId: 'github',
+    accountId,
+    credentialRef: `provider-credential:github:${accountId}`,
+    isDefault: true,
+    meta: {
+      version: '1',
+      host,
+      login,
+      providerAccountId: accountId.split(':').pop() ?? accountId,
+    },
+    createdAt: 1,
+    updatedAt: 1,
+  };
+}
 
 function makePlugin(listIssues = vi.fn(async () => ok([] as IssueRows))): {
   plugin: IssuesPluginProvider;
@@ -100,7 +117,7 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
 
   it('rejects accounts whose host does not match the repository', async () => {
     mockListAccounts.mockResolvedValue([
-      { id: 'ghe.example.com:7', login: 'octocat', host: 'ghe.example.com' },
+      providerAccountRow('ghe.example.com:7', 'ghe.example.com', 'octocat'),
     ]);
     mockGetDefaultAccountId.mockResolvedValue('ghe.example.com:7');
     const { plugin } = makePlugin();
@@ -117,10 +134,10 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
 
   it('reports a missing token for a known account', async () => {
     mockListAccounts.mockResolvedValue([
-      { id: 'github.com:42', login: 'octocat', host: 'github.com' },
+      providerAccountRow('github.com:42', 'github.com', 'octocat'),
     ]);
     mockGetDefaultAccountId.mockResolvedValue('github.com:42');
-    mockResolveToken.mockResolvedValue(null);
+    mockResolveSecret.mockResolvedValue(null);
     const { plugin } = makePlugin();
     const provider = createGitHubPluginIssueProvider(plugin);
 
@@ -130,10 +147,10 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
 
   it('invokes the plugin with the resolved token and api base url', async () => {
     mockListAccounts.mockResolvedValue([
-      { id: 'github.com:42', login: 'octocat', host: 'github.com' },
+      providerAccountRow('github.com:42', 'github.com', 'octocat'),
     ]);
     mockGetDefaultAccountId.mockResolvedValue('github.com:42');
-    mockResolveToken.mockResolvedValue('gho_token');
+    mockResolveSecret.mockResolvedValue('gho_token');
     const { plugin, listIssues } = makePlugin(
       vi.fn(async () => ok([{ identifier: '#1', title: 'Bug', url: 'https://x' }]))
     );

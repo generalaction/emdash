@@ -1,6 +1,6 @@
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
+import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { events } from '@main/lib/events';
-import { githubAccountRegistry } from '../accounts/github-account-registry-instance';
 import {
   defaultGitHubDeviceAuthFactory,
   GitHubDeviceFlowService,
@@ -20,7 +20,7 @@ function resolveDeviceFlowConfig(): GitHubDeviceFlowConfig {
 }
 
 export const githubDeviceFlowService = new GitHubDeviceFlowService({
-  accountRegistry: githubAccountRegistry,
+  accountStore: providerAccountRegistry,
   identityClient: githubIdentityClient,
   events,
   createDeviceAuth: defaultGitHubDeviceAuthFactory,

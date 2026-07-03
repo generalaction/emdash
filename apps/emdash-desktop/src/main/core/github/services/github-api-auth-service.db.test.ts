@@ -1,69 +1,20 @@
 import { err, ok } from '@emdash/shared';
-import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  GitHubAccountRegistry,
-  type GitHubAccountMetadataStore,
-  type GitHubAccountSecretStore,
-} from '../accounts/github-account-registry';
+import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { upsertGitHubAccount } from '../accounts/github-accounts';
 import { GitHubApiAuthService } from './github-api-auth-service';
 
-class InMemoryMetadataStore implements GitHubAccountMetadataStore {
-  accounts = null as Awaited<ReturnType<GitHubAccountMetadataStore['getAccounts']>>;
-  defaultAccountId: string | null = null;
-  removedCliAccounts = null as Awaited<
-    ReturnType<GitHubAccountMetadataStore['getRemovedCliAccounts']>
-  >;
-
-  async getAccounts() {
-    return this.accounts;
-  }
-
-  async setAccounts(accounts: NonNullable<typeof this.accounts>) {
-    this.accounts = accounts;
-  }
-
-  async getDefaultAccountId() {
-    return this.defaultAccountId;
-  }
-
-  async setDefaultAccountId(accountId: string | null) {
-    this.defaultAccountId = accountId;
-  }
-
-  async getRemovedCliAccounts() {
-    return this.removedCliAccounts;
-  }
-
-  async setRemovedCliAccounts(accounts: NonNullable<typeof this.removedCliAccounts>) {
-    this.removedCliAccounts = accounts;
-  }
-}
-
-class InMemorySecretStore implements GitHubAccountSecretStore {
-  private readonly secrets = new Map<string, string>();
-
-  async getSecret(key: string) {
-    return this.secrets.get(key) ?? null;
-  }
-
-  async setSecret(key: string, value: string) {
-    this.secrets.set(key, value);
-  }
-
-  async deleteSecret(key: string) {
-    this.secrets.delete(key);
-  }
-}
-
 describe('GitHubApiAuthService', () => {
-  let registry: GitHubAccountRegistry;
-  let secretStore: InMemorySecretStore;
+  let fixture: RegistryFixture;
   let service: GitHubApiAuthService;
 
-  beforeEach(() => {
-    secretStore = new InMemorySecretStore();
-    registry = new GitHubAccountRegistry(new InMemoryMetadataStore(), secretStore);
-    service = new GitHubApiAuthService(registry);
+  beforeEach(async () => {
+    fixture = await openRegistryFixture('empty');
+    service = new GitHubApiAuthService(fixture.registry);
+  });
+
+  afterEach(() => {
+    fixture?.close();
   });
 
   async function upsertAccount({
@@ -78,7 +29,7 @@ describe('GitHubApiAuthService', () => {
     token?: string;
   } = {}) {
     return (
-      await registry.upsertAccount({
+      await upsertGitHubAccount(fixture.registry, {
         accessToken: token,
         credentialSource: 'emdash_oauth',
         providerAccount: {
@@ -148,8 +99,8 @@ describe('GitHubApiAuthService', () => {
   });
 
   it('returns token missing when the selected account token is missing', async () => {
-    const account = await upsertAccount({ providerAccountId: '42' });
-    await secretStore.deleteSecret(`github-account-token:${account.id}`);
+    await upsertAccount({ providerAccountId: '42' });
+    fixture.secretStore.secrets.clear();
 
     await expect(service.getToken('github.com', { accountId: 'github.com:42' })).resolves.toEqual(
       err({
