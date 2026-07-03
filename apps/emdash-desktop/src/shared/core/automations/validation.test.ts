@@ -34,6 +34,28 @@ describe('automation trigger validation', () => {
     );
   });
 
+  it('preserves case-insensitive RRULE property prefixes', () => {
+    const normalized = normalizeTriggerConfig(
+      { kind: 'rrule', expr: 'Rrule:FREQ=WEEKLY;BYDAY=MO', tz: 'UTC' },
+      Date.UTC(2026, 6, 1, 9, 0, 0)
+    );
+
+    expect(normalized.expr).toBe('DTSTART;TZID=UTC:20260701T090000\nRrule:FREQ=WEEKLY;BYDAY=MO');
+    expect(getNextTriggerRunAt(normalized, Date.UTC(2026, 6, 1, 10, 0, 0))).toBe(
+      Date.UTC(2026, 6, 6, 9, 0, 0)
+    );
+  });
+
+  it('does not double-prefix malformed RRULE-looking input', () => {
+    const normalized = normalizeTriggerConfig(
+      { kind: 'rrule', expr: 'Rrule FREQ=WEEKLY;BYDAY=MO', tz: 'UTC' },
+      Date.UTC(2026, 6, 1, 9, 0, 0)
+    );
+
+    expect(normalized.expr).toBe('DTSTART;TZID=UTC:20260701T090000\nRrule FREQ=WEEKLY;BYDAY=MO');
+    expect(() => assertValidTrigger(normalized)).toThrow('rrule_invalid');
+  });
+
   it('keeps RRULE schedules stable across delayed scheduler passes', () => {
     const trigger = normalizeTriggerConfig(
       { kind: 'rrule', expr: 'FREQ=WEEKLY;BYDAY=MO', tz: 'UTC' },

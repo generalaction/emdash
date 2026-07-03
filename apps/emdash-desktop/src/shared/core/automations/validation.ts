@@ -29,8 +29,8 @@ function hasDtstart(expr: string): boolean {
   return /^DTSTART(?:;[^:]*)?:/im.test(expr);
 }
 
-function hasRRulePrefix(expr: string): boolean {
-  return /^RRULE:/im.test(expr);
+function startsWithRRuleProperty(expr: string): boolean {
+  return /^RRULE\b/im.test(expr);
 }
 
 function getTimeZone(trigger: TriggerConfig): string {
@@ -109,7 +109,7 @@ export function normalizeTriggerConfig(
 
   const timeZone = getTimeZone(trigger);
   const anchorDate = anchor instanceof Date ? anchor : new Date(anchor);
-  const rruleExpr = hasRRulePrefix(expr) ? expr : `RRULE:${expr}`;
+  const rruleExpr = startsWithRRuleProperty(expr) ? expr : `RRULE:${expr}`;
   return {
     ...trigger,
     expr: `DTSTART;TZID=${timeZone}:${formatDtstart(anchorDate, timeZone)}\n${rruleExpr}`,
