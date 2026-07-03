@@ -9,14 +9,18 @@ export type {
   TranscriptMessage,
   TranscriptPlan,
   TranscriptPlanEntry,
+  TranscriptPlanState,
   TranscriptSearch,
   TranscriptState,
   TranscriptSubagent,
   TranscriptThinking,
   TranscriptTool,
   TranscriptTurn,
+  TranscriptTurnInitiator,
+  TranscriptTurnOutcome,
   TranscriptWebFetch,
 } from '../models/transcript';
+export type { SubagentState } from '../models/agents';
 
 export type {
   EnrichHook,
@@ -35,14 +39,8 @@ export {
   makeTurnId,
 } from './ids';
 
-export { finalizeItems, foldItem } from './item-fold';
-export type { FoldEvent } from './item-fold';
-
-export { closeActive, initialState, isNewUserMessage, reduce } from './reducer';
-export type { ParserState, ReducerDeps, ReducerInput, SegmentState } from './reducer';
-
 export { AcpTranscriptParser } from './parser';
-export type { AcpTranscriptParserDeps, ReplayResult } from './parser';
+export type { AcpTranscriptParserDeps, ReplayEntry, ReplayResult } from './parser';
 
 export type {
   ModelChoice,
@@ -52,5 +50,3 @@ export type {
   SessionUsage,
 } from '../models/session';
 export { emptyConfig } from '../models/session';
-
-export { deriveConfigGroups } from './config-derive';

@@ -25,6 +25,17 @@ export interface ControlTurn {
   id: string;
 }
 
+export interface PromptImagePayload {
+  data: string;
+  mimeType: string;
+  name?: string;
+}
+
+export interface QueuedPrompt {
+  text: string;
+  images?: readonly PromptImagePayload[];
+}
+
 export function phaseToLifecycle(phase: SessionPhase): SessionLifecycle {
   return phase.kind;
 }
@@ -52,6 +63,9 @@ export interface SessionMachineState {
   readonly configOptions: readonly SessionConfigOption[];
   readonly lastStopReason: StopReason | null;
   readonly nextTurnIndex: number;
+  readonly queuedPrompts: readonly QueuedPrompt[];
+  readonly agentTurnActive: boolean;
+  readonly backgroundAgentCount: number;
 }
 
 export function initialMachineState(conversationId: string): SessionMachineState {
@@ -63,12 +77,16 @@ export function initialMachineState(conversationId: string): SessionMachineState
     configOptions: [],
     lastStopReason: null,
     nextTurnIndex: 0,
+    queuedPrompts: [],
+    agentTurnActive: false,
+    backgroundAgentCount: 0,
   };
 }
 
 export type Command =
-  | { type: 'Prompt' }
+  | { type: 'Prompt'; prompt: QueuedPrompt }
   | { type: 'Cancel' }
+  | { type: 'RemoveQueuedPrompt'; index: number }
   | { type: 'ResolvePermission'; requestId: string; optionId: string | null }
   | { type: 'SetMode'; modeId: string }
   | { type: 'SetConfigOption'; configId: string; value: string };
@@ -86,8 +104,12 @@ export type DomainEvent =
       modes?: SessionModeState | null;
       configOptions?: readonly SessionConfigOption[] | null;
     }
-  | { type: 'PromptStarted' }
+  | { type: 'PromptStarted'; prompt: QueuedPrompt }
+  | { type: 'PromptQueued'; prompt: QueuedPrompt }
+  | { type: 'QueuedPromptRemoved'; index: number }
   | { type: 'TurnEnded'; outcome: TurnOutcome }
+  | { type: 'AgentActivity'; active: boolean }
+  | { type: 'AgentsChanged'; runningCount: number }
   | { type: 'CancellationRequested' }
   | { type: 'PermissionRequested'; request: AcpPermissionRequest }
   | { type: 'PermissionResolved'; requestId: string }
@@ -107,6 +129,7 @@ export type Effect =
   | { type: 'meta' }
   | { type: 'closed'; exitCode: number | null }
   | { type: 'agentEvent'; phase: 'start' | 'stop' | 'error' }
+  | { type: 'sendPrompt'; prompt: QueuedPrompt }
   | { type: 'warn'; message: string };
 
 export function decide(
@@ -115,14 +138,21 @@ export function decide(
 ): Result<DomainEvent[], AcpRuntimeError> {
   switch (cmd.type) {
     case 'Prompt':
+      if (s.phase.kind === 'working' || s.phase.kind === 'cancelling' || s.agentTurnActive) {
+        return ok([{ type: 'PromptQueued', prompt: cmd.prompt }]);
+      }
       if (!isPromptReady(phaseToLifecycle(s.phase))) {
         return acpErr.invalidState(`Cannot send a prompt while session is '${s.phase.kind}'`);
       }
-      return ok([{ type: 'PromptStarted' }]);
+      return ok([{ type: 'PromptStarted', prompt: cmd.prompt }]);
 
     case 'Cancel':
-      if (s.phase.kind !== 'working') return ok([]);
+      if (s.phase.kind !== 'working' && !s.agentTurnActive) return ok([]);
       return ok([{ type: 'CancellationRequested' }]);
+
+    case 'RemoveQueuedPrompt':
+      if (cmd.index < 0 || cmd.index >= s.queuedPrompts.length) return ok([]);
+      return ok([{ type: 'QueuedPromptRemoved', index: cmd.index }]);
 
     case 'ResolvePermission':
       if (!s.pendingPermissions.some((p) => p.requestId === cmd.requestId)) {
@@ -199,26 +229,82 @@ export function evolve(
       if (s.phase.kind !== 'ready') return warn(s, `PromptStarted in phase '${s.phase.kind}'`);
       const turn = makeTurn(s);
       return {
-        state: { ...s, phase: { kind: 'working', turn }, nextTurnIndex: s.nextTurnIndex + 1 },
+        state: {
+          ...s,
+          phase: { kind: 'working', turn },
+          nextTurnIndex: s.nextTurnIndex + 1,
+          agentTurnActive: false,
+        },
         effects: [{ type: 'state' }, { type: 'agentEvent', phase: 'start' }],
       };
     }
+
+    case 'PromptQueued':
+      return {
+        state: { ...s, queuedPrompts: [...s.queuedPrompts, ev.prompt] },
+        effects: [{ type: 'state' }],
+      };
+
+    case 'QueuedPromptRemoved':
+      return {
+        state: {
+          ...s,
+          queuedPrompts: s.queuedPrompts.filter((_, index) => index !== ev.index),
+        },
+        effects: [{ type: 'state' }],
+      };
 
     case 'TurnEnded': {
       const active = activeTurnFromPhase(s.phase);
       if (!active) return warn(s, `TurnEnded with no active turn (phase: '${s.phase.kind}')`);
       const stopReason = ev.outcome.kind === 'stopped' ? ev.outcome.stopReason : null;
+      const { queuedPrompts, effects: queueEffects } = dequeuePromptEffects(s.queuedPrompts);
       return {
-        state: { ...s, phase: { kind: 'ready' }, lastStopReason: stopReason },
+        state: {
+          ...s,
+          phase: { kind: 'ready' },
+          lastStopReason: stopReason,
+          queuedPrompts,
+          agentTurnActive: false,
+        },
         effects: [
           { type: 'state' },
           { type: 'agentEvent', phase: ev.outcome.kind === 'errored' ? 'error' : 'stop' },
+          ...queueEffects,
         ],
       };
     }
 
+    case 'AgentActivity': {
+      const wasActive = s.agentTurnActive;
+      const { queuedPrompts, effects: queueEffects } =
+        !ev.active && s.phase.kind === 'ready'
+          ? dequeuePromptEffects(s.queuedPrompts)
+          : {
+              queuedPrompts: s.queuedPrompts,
+              effects: [] as Effect[],
+            };
+      return {
+        state: {
+          ...s,
+          agentTurnActive: ev.active,
+          queuedPrompts,
+        },
+        effects: [
+          ...(wasActive !== ev.active ? ([{ type: 'state' }] as Effect[]) : []),
+          ...queueEffects,
+        ],
+      };
+    }
+
+    case 'AgentsChanged':
+      return {
+        state: { ...s, backgroundAgentCount: ev.runningCount },
+        effects: [{ type: 'state' }],
+      };
+
     case 'CancellationRequested': {
-      if (s.phase.kind !== 'working') {
+      if (s.phase.kind !== 'working' && !s.agentTurnActive) {
         return warn(s, `CancellationRequested in phase '${s.phase.kind}'`);
       }
       const drainEffects: Effect[] = s.pendingPermissions.map((p) => ({
@@ -226,6 +312,12 @@ export function evolve(
         requestId: p.requestId,
         cancelled: true,
       }));
+      if (s.phase.kind !== 'working') {
+        return {
+          state: { ...s, agentTurnActive: false, pendingPermissions: [] },
+          effects: [...drainEffects, { type: 'state' }],
+        };
+      }
       return {
         state: { ...s, phase: { kind: 'cancelling', turn: s.phase.turn }, pendingPermissions: [] },
         effects: [...drainEffects, { type: 'state' }],
@@ -296,6 +388,19 @@ function needsSetupMetaEffect(ev: {
   return ev.modes !== undefined || ev.configOptions !== undefined;
 }
 
+function dequeuePromptEffects(queuedPrompts: readonly QueuedPrompt[]): {
+  queuedPrompts: readonly QueuedPrompt[];
+  effects: Effect[];
+} {
+  const [next, ...rest] = queuedPrompts;
+  return next
+    ? { queuedPrompts: rest, effects: [{ type: 'sendPrompt', prompt: next }] }
+    : {
+        queuedPrompts,
+        effects: [],
+      };
+}
+
 export function isPromptReady(lifecycle: SessionLifecycle): boolean {
   return lifecycle === 'ready';
 }
@@ -325,21 +430,40 @@ export class SessionMachine {
   get lastStopReason(): StopReason | null {
     return this._state.lastStopReason;
   }
+  get queuedPrompts(): readonly QueuedPrompt[] {
+    return this._state.queuedPrompts;
+  }
+  get agentTurnActive(): boolean {
+    return this._state.agentTurnActive;
+  }
+  get backgroundAgentCount(): number {
+    return this._state.backgroundAgentCount;
+  }
   get isWorking(): boolean {
     return this._state.phase.kind === 'working' || this._state.phase.kind === 'cancelling';
   }
   get isBusy(): boolean {
     const k = this._state.phase.kind;
-    return k === 'starting' || k === 'replaying' || k === 'working' || k === 'cancelling';
+    return (
+      k === 'starting' ||
+      k === 'replaying' ||
+      k === 'working' ||
+      k === 'cancelling' ||
+      this._state.agentTurnActive ||
+      this._state.backgroundAgentCount > 0
+    );
   }
   get hasPendingPermission(): boolean {
     return this._state.pendingPermissions.length > 0;
   }
   get canSubmit(): boolean {
-    return isPromptReady(this.lifecycle) && !this.hasPendingPermission;
+    return isPromptReady(this.lifecycle);
   }
   get canCancel(): boolean {
-    return this._state.phase.kind === 'working';
+    return this._state.phase.kind === 'working' || this._state.agentTurnActive;
+  }
+  get isGenerating(): boolean {
+    return this.isWorking || this._state.agentTurnActive || this._state.backgroundAgentCount > 0;
   }
 
   dispatch(cmd: Command): Result<Effect[], AcpRuntimeError> {
@@ -394,6 +518,9 @@ export class SessionMachine {
       modes: s.modes,
       configOptions: s.configOptions,
       lastStopReason: s.lastStopReason,
+      queuedPrompts: s.queuedPrompts,
+      agentTurnActive: s.agentTurnActive,
+      backgroundAgentCount: s.backgroundAgentCount,
     };
   }
 
@@ -406,6 +533,12 @@ export class SessionMachine {
       modes: this._state.modes ? structuredClone(this._state.modes) : null,
       configOptions: structuredClone([...this._state.configOptions]),
       lastStopReason: this._state.lastStopReason,
+      queuedPrompts: structuredClone([...this._state.queuedPrompts]),
+      agentTurnActive: this._state.agentTurnActive,
+      backgroundAgentCount: this._state.backgroundAgentCount,
+      isGenerating: this.isGenerating,
+      canSubmit: this.canSubmit,
+      canCancel: this.canCancel,
     };
   }
 }

@@ -6,8 +6,8 @@
  * so that a future migration can maintain render identity continuity.
  *
  * All functions are pure and total — no nullable returns. When a provider
- * messageId is absent the decoder synthesizes a role/kind suffix, ensuring
- * every item always has a non-null, stable id.
+ * messageId is absent the reducer's segmenter synthesizes a stable messageId
+ * before item folding, ensuring every item always has a non-null id.
  */
 
 /**
@@ -23,8 +23,8 @@ export function makeTurnId(conversationId: string, turnIndex: number): string {
  * Stable message item id.
  * Format: `${turnId}:message:${messageId}`
  *
- * Uses the provider messageId when available for cross-chunk stability.
- * The decoder supplies role-based fallback ids when absent.
+ * Uses the provider messageId when available; otherwise uses the reducer's
+ * synthesized segment id.
  */
 export function makeMessageId(turnId: string, messageId: string, _role: string): string {
   return `${turnId}:message:${messageId}`;

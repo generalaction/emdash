@@ -64,6 +64,17 @@ export type NormalizedEvent =
       status: NormalizedToolStatus | null;
       parentToolCallId: string | null;
       inputSummary?: string;
+      background?: boolean;
+      agentId?: string;
+      outputFile?: string;
+    }
+  | {
+      kind: 'subagent_update';
+      toolCallId?: string;
+      agentId?: string;
+      status: NormalizedToolStatus;
+      summary?: string;
+      outputFile?: string;
     }
   | {
       kind: 'search';

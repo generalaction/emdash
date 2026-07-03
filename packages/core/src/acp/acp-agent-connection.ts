@@ -5,8 +5,8 @@ import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/a
 import { type Logger, noopLogger } from '../lib';
 import type { InitializeFailedError, SpawnFailedError } from './errors';
 import { acpErr } from './errors';
-import type { NormalizedEvent } from './reducer/normalized-event';
 import { decodeSessionUpdate } from './reducer/decode';
+import type { NormalizedEvent } from './reducer/normalized-event';
 import type { AcpProcessHandle, AcpProcessHost } from './transport';
 
 /** Live connection to one spawned agent process. */

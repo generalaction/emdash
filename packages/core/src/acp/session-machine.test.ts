@@ -12,6 +12,7 @@ import {
 } from './session-machine';
 
 const CONV_ID = 'conv-test';
+const prompt = { text: 'hello' };
 
 function makeReady(): SessionMachineState {
   return evolve(initialMachineState(CONV_ID), { type: 'SessionReady' }).state;
@@ -19,7 +20,7 @@ function makeReady(): SessionMachineState {
 
 function makeWorking(): SessionMachineState {
   const ready = makeReady();
-  const result = decide(ready, { type: 'Prompt' });
+  const result = decide(ready, { type: 'Prompt', prompt });
   if (!isOk(result)) throw new Error('decide Prompt failed');
   return evolve(ready, result.data[0]).state;
 }
@@ -41,17 +42,17 @@ describe('initialMachineState', () => {
 
 describe('decide Prompt', () => {
   it('accepted when ready', () => {
-    const result = decide(makeReady(), { type: 'Prompt' });
+    const result = decide(makeReady(), { type: 'Prompt', prompt });
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
-    expect(result.data).toEqual([{ type: 'PromptStarted' }]);
+    expect(result.data).toEqual([{ type: 'PromptStarted', prompt }]);
   });
 
-  it('rejected outside ready', () => {
-    const result = decide(makeWorking(), { type: 'Prompt' });
-    expect(isErr(result)).toBe(true);
-    if (!isErr(result)) return;
-    expect(result.error.type).toBe('invalid_state');
+  it('queues while a turn is already in flight', () => {
+    const result = decide(makeWorking(), { type: 'Prompt', prompt });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.data).toEqual([{ type: 'PromptQueued', prompt }]);
   });
 });
 
@@ -69,7 +70,7 @@ describe('lifecycle control', () => {
 
   it('ready -> working -> ready and preserves stop reason', () => {
     const s0 = makeReady();
-    const { state: s1, effects } = evolve(s0, { type: 'PromptStarted' });
+    const { state: s1, effects } = evolve(s0, { type: 'PromptStarted', prompt });
     expect(phaseToLifecycle(s1.phase)).toBe('working');
     expect(activeTurnFromPhase(s1.phase)?.id).toBe('turn-conv-test-0');
     expect(effects.some((e) => e.type === 'agentEvent' && e.phase === 'start')).toBe(true);
@@ -80,6 +81,25 @@ describe('lifecycle control', () => {
     });
     expect(phaseToLifecycle(s2.phase)).toBe('ready');
     expect(s2.lastStopReason).toBe('end_turn');
+  });
+
+  it('drains one queued prompt when a turn ends', () => {
+    const s0 = evolve(makeWorking(), { type: 'PromptQueued', prompt: { text: 'queued' } }).state;
+    const { state, effects } = evolve(s0, {
+      type: 'TurnEnded',
+      outcome: { kind: 'stopped', stopReason: 'end_turn' },
+    });
+
+    expect(state.queuedPrompts).toHaveLength(0);
+    expect(effects).toContainEqual({ type: 'sendPrompt', prompt: { text: 'queued' } });
+  });
+
+  it('tracks agent activity and background agent counts', () => {
+    const active = evolve(makeReady(), { type: 'AgentActivity', active: true }).state;
+    expect(active.agentTurnActive).toBe(true);
+
+    const counted = evolve(active, { type: 'AgentsChanged', runningCount: 2 }).state;
+    expect(counted.backgroundAgentCount).toBe(2);
   });
 
   it('cancel drains pending permissions', () => {
@@ -137,7 +157,7 @@ describe('SessionMachine wrapper', () => {
     expect(machine.canSubmit).toBe(true);
     expect(machine.canCancel).toBe(false);
 
-    const result = machine.dispatch({ type: 'Prompt' });
+    const result = machine.dispatch({ type: 'Prompt', prompt });
     expect(isOk(result)).toBe(true);
     expect(machine.canSubmit).toBe(false);
     expect(machine.canCancel).toBe(true);

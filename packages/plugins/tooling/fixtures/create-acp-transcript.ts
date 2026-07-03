@@ -25,13 +25,9 @@ import { fileURLToPath } from 'node:url';
 import { createAcpAgentConnection } from '@emdash/core/acp';
 import { pluginRegistry } from '../../src/agents/registry';
 import { Recorder } from './acp/recorder';
-import { RecordingHost } from './acp/recording-host';
 import { buildRecordingClient } from './acp/recording-client';
-import {
-  scenario,
-  type ConfigOption,
-  type SessionMode,
-} from './acp/scenario';
+import { RecordingHost } from './acp/recording-host';
+import { scenario, type ConfigOption, type SessionMode } from './acp/scenario';
 
 export interface TranscriptOptions {
   /** Registered provider id, e.g. 'claude'. */
@@ -91,11 +87,10 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
   const behavior = plugin.behavior.acp;
 
   const outPath = opts.out
-    ? (isAbsolute(opts.out) ? opts.out : resolve(process.cwd(), opts.out))
-    : resolve(
-        process.cwd(),
-        `src/agents/impl/${opts.providerId}/fixtures/acp-transcript.json`
-      );
+    ? isAbsolute(opts.out)
+      ? opts.out
+      : resolve(process.cwd(), opts.out)
+    : resolve(process.cwd(), `src/agents/impl/${opts.providerId}/fixtures/acp-transcript.json`);
 
   let worktreePath: string | null = null;
   let cwd: string;
@@ -115,11 +110,7 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
   const host = new RecordingHost();
 
   let sessionId: string | null = null;
-  const { client, dispose: disposeClient } = buildRecordingClient(
-    recorder,
-    host,
-    () => sessionId
-  );
+  const { client, dispose: disposeClient } = buildRecordingClient(recorder, host, () => sessionId);
 
   const connResult = await createAcpAgentConnection(
     { host, behavior },
@@ -186,7 +177,9 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
         recorder.record({ kind: 'prompt_result', sessionId, stopReason });
       } else if (step.kind === 'setModel') {
         if (!agent.setSessionConfigOption) {
-          console.log('[fixture] Agent does not support setSessionConfigOption — skipping setModel');
+          console.log(
+            '[fixture] Agent does not support setSessionConfigOption — skipping setModel'
+          );
           continue;
         }
         const modelValue = step.resolveModel(initialConfigOptions as ConfigOption[]);
@@ -209,7 +202,9 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
         });
       } else if (step.kind === 'setEffort') {
         if (!agent.setSessionConfigOption) {
-          console.log('[fixture] Agent does not support setSessionConfigOption — skipping setEffort');
+          console.log(
+            '[fixture] Agent does not support setSessionConfigOption — skipping setEffort'
+          );
           continue;
         }
         const effortConfig = initialConfigOptions.find(
@@ -295,8 +290,7 @@ function parseArgs(): TranscriptOptions {
   // Accept --<providerId> as shorthand (e.g. --claude, --codex).
   // The first unknown boolean flag (starts with -- but has no value) is treated
   // as the provider id.
-  let providerId =
-    get('--provider') ?? process.env['EMDASH_FIXTURE_PROVIDER'];
+  let providerId = get('--provider') ?? process.env['EMDASH_FIXTURE_PROVIDER'];
 
   if (!providerId) {
     const shorthand = args.find(

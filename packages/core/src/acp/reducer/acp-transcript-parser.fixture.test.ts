@@ -10,8 +10,8 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 import { AcpTranscriptParser } from './parser';
 
 // ── Narrow fixture types ──────────────────────────────────────────────────────

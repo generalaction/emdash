@@ -31,10 +31,16 @@
  */
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import type { SubagentState } from '../models/agents';
 import type { SessionConfigState, SessionUsage } from '../models/session';
-import type { TranscriptState, TranscriptTurn } from '../models/transcript';
+import type {
+  TranscriptPlanState,
+  TranscriptState,
+  TranscriptTurn,
+  TranscriptTurnOutcome,
+} from '../models/transcript';
 import type { EnrichHook, NormalizedEvent } from './normalized-event';
-import { closeActive, initialState, reduce, type ParserState, type ReducerDeps } from './reducer';
+import { initialState, reduce, type ParserState, type ReducerDeps } from './reducer';
 
 export interface AcpTranscriptParserDeps {
   conversationId: string;
@@ -46,7 +52,11 @@ export type ReplayResult = {
   config: SessionConfigState;
   usage: SessionUsage | null;
   title: string | null;
+  agents: SubagentState[];
+  plan: TranscriptPlanState | null;
 };
+
+export type ReplayEntry = SessionUpdate | { update: SessionUpdate; ts?: number; at?: number };
 
 export class AcpTranscriptParser {
   private state: ParserState;
@@ -77,7 +87,19 @@ export class AcpTranscriptParser {
    * No-op when there is no active turn.
    */
   endTurn(at = Date.now()): void {
-    this.state = reduce(this.state, { kind: 'close', at }, this.deps);
+    this.state = reduce(this.state, { kind: 'turn_end', at }, this.deps);
+  }
+
+  settleTurn(outcome: TranscriptTurnOutcome, at = Date.now()): void {
+    this.state = reduce(this.state, { kind: 'turn_end', outcome, at }, this.deps);
+  }
+
+  beginReplay(at = Date.now()): void {
+    this.state = reduce(this.state, { kind: 'replay_start', at }, this.deps);
+  }
+
+  endReplay(at = Date.now()): void {
+    this.state = reduce(this.state, { kind: 'replay_end', at }, this.deps);
   }
 
   /**
@@ -117,6 +139,14 @@ export class AcpTranscriptParser {
     return this.state.title;
   }
 
+  get agents(): readonly SubagentState[] {
+    return this.state.agents;
+  }
+
+  get plan(): TranscriptPlanState | null {
+    return this.state.plan;
+  }
+
   /**
    * Fold a finite iterable of SessionUpdates and return all four slices.
    *
@@ -128,23 +158,26 @@ export class AcpTranscriptParser {
    * @param deps     conversationId + optional EnrichHook.
    * @returns        { transcript (active===null), config, usage, title }
    */
-  static replay(updates: Iterable<SessionUpdate>, deps: AcpTranscriptParserDeps): ReplayResult {
-    const replayDeps: ReducerDeps = { ...deps };
-    let state = initialState();
+  static replay(updates: Iterable<ReplayEntry>, deps: AcpTranscriptParserDeps): ReplayResult {
+    const parser = new AcpTranscriptParser(deps);
     let at = 0;
 
-    for (const update of updates) {
-      state = reduce(state, { kind: 'update', update, at }, replayDeps);
+    parser.beginReplay(at);
+    for (const entry of updates) {
+      const update = 'sessionUpdate' in entry ? entry : entry.update;
+      at = 'sessionUpdate' in entry ? at : (entry.at ?? entry.ts ?? at);
+      parser.push(update, at);
       at += 1;
     }
+    parser.endReplay(at);
 
-    // Close the trailing active transcript turn at EOF.
-    const transcript = closeActive(state.transcript, at);
     return {
-      transcript,
-      config: state.config,
-      usage: state.usage,
-      title: state.title,
+      transcript: parser.snapshot,
+      config: parser.config,
+      usage: parser.usage,
+      title: parser.title,
+      agents: [...parser.agents],
+      plan: parser.plan,
     };
   }
 }

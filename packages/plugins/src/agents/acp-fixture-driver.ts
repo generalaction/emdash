@@ -76,7 +76,13 @@ export function driveParser(events: RecordedEntry[], conversationId: string): Ac
         break;
       }
       case 'prompt_result': {
-        parser.endTurn(entry.ts);
+        const ev = entry.event as RecordedPromptResult;
+        parser.settleTurn(
+          ev.stopReason === 'cancelled'
+            ? { kind: 'cancelled', reason: ev.stopReason }
+            : { kind: 'done', ...(ev.stopReason ? { reason: ev.stopReason } : {}) },
+          entry.ts
+        );
         break;
       }
       default:

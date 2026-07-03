@@ -104,6 +104,71 @@ describe('AcpSessionRuntime - transcript projection', () => {
       streaming: false,
     });
   });
+
+  it('folds idle-phase plan updates and settles them after quiesce', async () => {
+    vi.useFakeTimers();
+    try {
+      const { h, client, sessionId } = await startHarness('conv-idle-plan');
+
+      await client.sessionUpdate({
+        sessionId,
+        update: {
+          sessionUpdate: 'plan',
+          sessionId,
+          entries: [{ content: 'Background step', status: 'in_progress', priority: 'medium' }],
+        } as SessionUpdate,
+      });
+
+      expect(h.recording.snapshots.at(-1)?.snapshot.agentTurnActive).toBe(true);
+      expect(h.recording.transcripts.at(-1)?.plan).toMatchObject({
+        entries: [{ content: 'Background step', status: 'in_progress', priority: 'medium' }],
+      });
+      expect(h.recording.transcripts.at(-1)?.transcript.active?.initiator).toBe('agent');
+
+      vi.advanceTimersByTime(300);
+      await Promise.resolve();
+
+      expect(h.recording.snapshots.at(-1)?.snapshot.agentTurnActive).toBe(false);
+      expect(h.recording.transcripts.at(-1)?.transcript.active).toBeNull();
+      expect(h.recording.transcripts.at(-1)?.transcript.committed.at(-1)?.outcome).toEqual({
+        kind: 'done',
+        reason: 'quiesced',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('queues prompts while a prompt is in flight and delivers the next after turn end', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpSessionRuntime(h.deps);
+    let resolveFirst!: (value: { stopReason: 'end_turn' }) => void;
+    h.agent.prompt = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ stopReason: 'end_turn' }>((resolve) => {
+            resolveFirst = resolve;
+          })
+      )
+      .mockResolvedValueOnce({ stopReason: 'end_turn' });
+
+    await rt.start(makeStartInput({ conversationId: 'conv-queue' }));
+
+    const first = rt.prompt('conv-queue', 'first');
+    const second = await rt.prompt('conv-queue', 'second');
+
+    expect(second.success).toBe(true);
+    expect(h.agent.prompt).toHaveBeenCalledTimes(1);
+    expect(rt.getSessionState('conv-queue').queuedPrompts).toEqual([{ text: 'second' }]);
+
+    resolveFirst({ stopReason: 'end_turn' });
+    await first;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(h.agent.prompt).toHaveBeenCalledTimes(2);
+    expect(rt.getSessionState('conv-queue').queuedPrompts).toHaveLength(0);
+  });
 });
 
 describe('AcpSessionRuntime - permissions', () => {

@@ -2,9 +2,10 @@ import type { Logger } from '@emdash/shared/logger';
 import type { Result } from '@emdash/shared/result';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AcpRuntimeError } from './errors';
+import type { SubagentState } from './models/agents';
 import type { SessionConfigState, SessionUsage } from './models/session';
 import type { TerminalSnapshot } from './models/terminals';
-import type { TranscriptState } from './models/transcript';
+import type { TranscriptPlanState, TranscriptState } from './models/transcript';
 import type { AcpPromptImage, SessionSnapshot, SessionState } from './state';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
 
@@ -51,6 +52,8 @@ export interface AcpRuntimeListener {
     config: SessionConfigState;
     usage: SessionUsage | null;
     title: string | null;
+    agents: SubagentState[];
+    plan: TranscriptPlanState | null;
   }): void;
   onClosed(e: { conversationId: string; taskId: string; exitCode: number | null }): void;
   onAgentEvent(e: {

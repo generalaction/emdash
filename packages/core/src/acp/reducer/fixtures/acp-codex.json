@@ -26109,9 +26109,7 @@
           "rawInput": {
             "prompt": "Find all files under `packages/core/src/acp` that contain the string `stopReason`. For each matching file, report the file path and a one-sentence summary of what the file does. Use the repo tree and file contents, not guesses. Keep the result concise and grouped by file.",
             "senderThreadId": "019f259a-9386-7e20-9af4-b4fdcd67bdac",
-            "receiverThreadIds": [
-              "019f259c-8089-7470-a1ac-f0481c9eb13a"
-            ],
+            "receiverThreadIds": ["019f259c-8089-7470-a1ac-f0481c9eb13a"],
             "agentsStates": {
               "019f259c-8089-7470-a1ac-f0481c9eb13a": {
                 "status": "pendingInit",
@@ -26571,9 +26569,7 @@
           "rawInput": {
             "prompt": null,
             "senderThreadId": "019f259a-9386-7e20-9af4-b4fdcd67bdac",
-            "receiverThreadIds": [
-              "019f259c-8089-7470-a1ac-f0481c9eb13a"
-            ],
+            "receiverThreadIds": ["019f259c-8089-7470-a1ac-f0481c9eb13a"],
             "agentsStates": {},
             "status": "inProgress"
           },
@@ -28264,9 +28260,7 @@
           "rawInput": {
             "prompt": null,
             "senderThreadId": "019f259a-9386-7e20-9af4-b4fdcd67bdac",
-            "receiverThreadIds": [
-              "019f259c-8089-7470-a1ac-f0481c9eb13a"
-            ],
+            "receiverThreadIds": ["019f259c-8089-7470-a1ac-f0481c9eb13a"],
             "agentsStates": {},
             "status": "inProgress"
           },
@@ -29912,9 +29906,7 @@
           "rawInput": {
             "prompt": "Return the matching `packages/core/src/acp` files containing `stopReason`, and for each give the path plus a one-sentence description of the file's purpose. Keep it terse and only include confirmed matches.",
             "senderThreadId": "019f259a-9386-7e20-9af4-b4fdcd67bdac",
-            "receiverThreadIds": [
-              "019f259c-8089-7470-a1ac-f0481c9eb13a"
-            ],
+            "receiverThreadIds": ["019f259c-8089-7470-a1ac-f0481c9eb13a"],
             "agentsStates": {},
             "status": "inProgress"
           },
@@ -29935,9 +29927,7 @@
           "rawInput": {
             "prompt": "Return the matching `packages/core/src/acp` files containing `stopReason`, and for each give the path plus a one-sentence description of the file's purpose. Keep it terse and only include confirmed matches.",
             "senderThreadId": "019f259a-9386-7e20-9af4-b4fdcd67bdac",
-            "receiverThreadIds": [
-              "019f259c-8089-7470-a1ac-f0481c9eb13a"
-            ],
+            "receiverThreadIds": ["019f259c-8089-7470-a1ac-f0481c9eb13a"],
             "agentsStates": {
               "019f259c-8089-7470-a1ac-f0481c9eb13a": {
                 "status": "running",
@@ -30277,9 +30267,7 @@
           "rawInput": {
             "prompt": null,
             "senderThreadId": "019f259a-9386-7e20-9af4-b4fdcd67bdac",
-            "receiverThreadIds": [
-              "019f259c-8089-7470-a1ac-f0481c9eb13a"
-            ],
+            "receiverThreadIds": ["019f259c-8089-7470-a1ac-f0481c9eb13a"],
             "agentsStates": {},
             "status": "inProgress"
           },
@@ -35572,9 +35560,7 @@
           "rawInput": {
             "prompt": null,
             "senderThreadId": "019f259a-9386-7e20-9af4-b4fdcd67bdac",
-            "receiverThreadIds": [
-              "019f259c-8089-7470-a1ac-f0481c9eb13a"
-            ],
+            "receiverThreadIds": ["019f259c-8089-7470-a1ac-f0481c9eb13a"],
             "agentsStates": {},
             "status": "inProgress"
           },
@@ -35595,9 +35581,7 @@
           "rawInput": {
             "prompt": null,
             "senderThreadId": "019f259a-9386-7e20-9af4-b4fdcd67bdac",
-            "receiverThreadIds": [
-              "019f259c-8089-7470-a1ac-f0481c9eb13a"
-            ],
+            "receiverThreadIds": ["019f259c-8089-7470-a1ac-f0481c9eb13a"],
             "agentsStates": {
               "019f259c-8089-7470-a1ac-f0481c9eb13a": {
                 "status": "running",

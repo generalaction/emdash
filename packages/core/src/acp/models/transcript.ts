@@ -30,6 +30,11 @@ export type TranscriptPlanEntry = {
   priority: PlanEntryPriority;
 };
 
+export type TranscriptPlanState = {
+  entries: TranscriptPlanEntry[];
+  updatedAt: number;
+};
+
 export type TranscriptMessage = {
   kind: 'message';
   id: string;
@@ -72,6 +77,9 @@ export type TranscriptSubagent = {
   status: ToolStatus;
   inputSummary?: string;
   parentId?: string;
+  background?: boolean;
+  agentId?: string;
+  outputFile?: string;
 };
 
 export type TranscriptSearch = {
@@ -134,14 +142,23 @@ export type TranscriptItem =
 /**
  * A single prompt–response exchange materialized as a flat item list.
  *
- * No `stopReason` or turn-level status: stop reasons are ephemeral session
- * state (recorded by the session state machine, not the transcript). The
- * distinction between a turn being active vs committed is carried by whether
- * it is `TranscriptState.active` or in `TranscriptState.committed`.
+ * Outcome is only present when the runtime has an explicit settlement reason.
+ * Replayed history may end without one; replay finalization must not fabricate
+ * a successful completion.
  */
+export type TranscriptTurnInitiator = 'user' | 'agent';
+
+export type TranscriptTurnOutcome =
+  | { kind: 'done'; reason?: string }
+  | { kind: 'cancelled'; reason?: string }
+  | { kind: 'error'; reason?: string }
+  | { kind: 'interrupted'; reason?: string };
+
 export type TranscriptTurn = {
   id: string;
+  initiator: TranscriptTurnInitiator;
   items: TranscriptItem[];
+  outcome?: TranscriptTurnOutcome;
 };
 
 /**

@@ -41,9 +41,8 @@ import type { NormalizedEvent } from './reducer/normalized-event';
 import { AcpTranscriptParser } from './reducer/parser';
 import type { AcpSessionRuntimeDeps, AcpStartInput, IAcpSessionRuntime } from './runtime';
 import { SessionMachine } from './session-machine';
-import type { Command, DomainEvent, Effect } from './session-machine';
-import type { AcpPromptImage, SessionState } from './state';
-import { toSessionSnapshot } from './state';
+import type { Command, DomainEvent, Effect, QueuedPrompt } from './session-machine';
+import { type AcpPromptImage, type SessionState, toSessionSnapshot } from './state';
 import type { AcpProcessHandle } from './transport';
 
 interface AcpConversation {
@@ -54,6 +53,8 @@ interface AcpConversation {
   acpSessionId: string | null;
   machine: SessionMachine;
   transcript: AcpTranscriptParser;
+  agentTurnQuiesceTimer: ReturnType<typeof setTimeout> | null;
+  lastRunningAgentCount: number;
 }
 
 interface AcpAgentProcess {
@@ -136,6 +137,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       acpSessionId: sessionId,
       machine: new SessionMachine(conversationId),
       transcript: new AcpTranscriptParser({ conversationId, enrich: binding.behavior.enrich }),
+      agentTurnQuiesceTimer: null,
+      lastRunningAgentCount: 0,
     };
 
     proc.conversations.set(conversationId, conv);
@@ -159,6 +162,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
         // Open replay turn
         this.applyEvent(conv, { type: 'ReplayStarted' });
+        conv.transcript.beginReplay();
+        conv.lastRunningAgentCount = 0;
 
         let loadedSuccessfully = false;
         try {
@@ -178,7 +183,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
               configOptions: resp.configOptions,
             });
           }
-          conv.transcript.endTurn();
+          conv.transcript.endReplay();
           this.emitTranscript(conv);
           this.applyEvent(conv, { type: 'ReplayEnded', status: 'complete' });
           acpSessionId = conv.acpSessionId!;
@@ -197,7 +202,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           // Commit the replay turn as 'complete' even on failure: the session continues
           // with a fresh newSession, so the empty replay turn is not an error from the
           // user's perspective.
-          conv.transcript.endTurn();
+          conv.transcript.endReplay();
           this.emitTranscript(conv);
           this.applyEvent(conv, { type: 'ReplayEnded', status: 'complete' });
           proc.sessionToConversation.delete(originalSessionId);
@@ -373,6 +378,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     this.conversationIndex.delete(conversationId);
 
     if (conv) {
+      this.clearAgentTurnQuiesce(conv);
       this.drainPermissionResolvers(conv);
       this.terminals.disposeConversation(conv.conversationId);
     }
@@ -485,6 +491,12 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         modes: null,
         configOptions: [],
         lastStopReason: null,
+        queuedPrompts: [],
+        agentTurnActive: false,
+        backgroundAgentCount: 0,
+        isGenerating: false,
+        canSubmit: false,
+        canCancel: false,
       };
     }
     return conv.machine.sessionState();
@@ -508,10 +520,19 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
    * Emits one consolidated snapshot if any snapshot-triggering effects appeared.
    */
   private dispatch(conv: AcpConversation, command: Command): Result<void, AcpRuntimeError> {
+    const result = this.dispatchEffects(conv, command);
+    if (!result.success) return result;
+    return ok();
+  }
+
+  private dispatchEffects(
+    conv: AcpConversation,
+    command: Command
+  ): Result<Effect[], AcpRuntimeError> {
     const result = conv.machine.dispatch(command);
     if (!result.success) return result;
     this._interpretEffects(conv, result.data);
-    return ok();
+    return ok(result.data);
   }
 
   /**
@@ -569,6 +590,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           });
           break;
 
+        case 'sendPrompt':
+          void this.sendQueuedPrompt(conv, effect.prompt);
+          break;
+
         case 'warn':
           this.deps.logger.warn(`AcpSessionRuntime: ${effect.message}`, {
             conversationId: conv.conversationId,
@@ -582,6 +607,43 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+
+  private async sendQueuedPrompt(
+    conv: AcpConversation,
+    prompt: QueuedPrompt
+  ): Promise<Result<void, AcpRuntimeError>> {
+    const entry = this.conversationIndex.get(conv.conversationId);
+    const proc = entry ? this.processes.get(entry.processKey) : undefined;
+    if (!proc) return acpErr.noActiveSession(conv.conversationId);
+    return this.sendPromptInternal(proc, conv, prompt.text, prompt.images);
+  }
+
+  private dispatchAgentsChangedIfNeeded(
+    conv: AcpConversation,
+    previousRunningAgentCount: number
+  ): void {
+    const nextRunningAgentCount = runningBackgroundAgentCount(conv);
+    if (nextRunningAgentCount === previousRunningAgentCount) return;
+    conv.lastRunningAgentCount = nextRunningAgentCount;
+    this.applyEvent(conv, { type: 'AgentsChanged', runningCount: nextRunningAgentCount });
+  }
+
+  private scheduleAgentTurnQuiesce(conv: AcpConversation): void {
+    if (conv.agentTurnQuiesceTimer) clearTimeout(conv.agentTurnQuiesceTimer);
+    conv.agentTurnQuiesceTimer = setTimeout(() => {
+      conv.agentTurnQuiesceTimer = null;
+      if (!conv.machine.agentTurnActive) return;
+      conv.transcript.settleTurn({ kind: 'done', reason: 'quiesced' });
+      this.emitTranscript(conv);
+      this.applyEvent(conv, { type: 'AgentActivity', active: false });
+    }, 250);
+  }
+
+  private clearAgentTurnQuiesce(conv: AcpConversation): void {
+    if (!conv.agentTurnQuiesceTimer) return;
+    clearTimeout(conv.agentTurnQuiesceTimer);
+    conv.agentTurnQuiesceTimer = null;
   }
 
   private emitSnapshot(conv: AcpConversation): void {
@@ -599,6 +661,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       config: structuredClone(conv.transcript.config),
       usage: conv.transcript.usage ? structuredClone(conv.transcript.usage) : null,
       title: conv.transcript.title,
+      agents: structuredClone([...conv.transcript.agents]),
+      plan: conv.transcript.plan ? structuredClone(conv.transcript.plan) : null,
     });
   }
 
@@ -688,6 +752,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
     for (const conv of proc.conversations.values()) {
       this.conversationIndex.delete(conv.conversationId);
+      this.clearAgentTurnQuiesce(conv);
       this.applyEvent(conv, { type: 'ProcessClosed', exitCode });
       this.terminals.disposeConversation(conv.conversationId);
     }
@@ -760,6 +825,11 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         const event = proc.normalize(rawUpdate);
         if (event.kind === 'ignored') return;
 
+        const idleTranscriptEvent = isIdleAgentTranscriptEvent(conv, event);
+        if (idleTranscriptEvent) {
+          this.applyEvent(conv, { type: 'AgentActivity', active: true });
+        }
+
         if (isTranscriptEvent(event) && !canAcceptTranscriptEvent(conv)) {
           this.deps.logger.warn(
             'AcpSessionRuntime: dropping transcript update outside active turn',
@@ -772,7 +842,12 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           return;
         }
 
+        const previousRunningAgentCount = conv.lastRunningAgentCount;
         conv.transcript.pushEvent(event);
+        this.dispatchAgentsChangedIfNeeded(conv, previousRunningAgentCount);
+        if (idleTranscriptEvent) {
+          this.scheduleAgentTurnQuiesce(conv);
+        }
         this.emitTranscript(conv);
       },
 
@@ -872,13 +947,18 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     proc: AcpAgentProcess,
     conv: AcpConversation,
     text: string,
-    images?: AcpPromptImage[]
+    images?: readonly AcpPromptImage[]
   ): Promise<Result<void, AcpRuntimeError>> {
     if (!conv.acpSessionId) return acpErr.noActiveSession(conv.conversationId);
 
     const messageId = `${conv.conversationId}-${conv.machine.nextTurnIndex}-user`;
-    const dispatchResult = this.dispatch(conv, { type: 'Prompt' });
+    const prompt = { text, ...(images !== undefined ? { images } : {}) };
+    const dispatchResult = this.dispatchEffects(conv, { type: 'Prompt', prompt });
     if (!dispatchResult.success) return dispatchResult;
+    const started = dispatchResult.data.some(
+      (effect) => effect.type === 'agentEvent' && effect.phase === 'start'
+    );
+    if (!started) return ok();
 
     conv.transcript.pushEvent({
       kind: 'message',
@@ -909,7 +989,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           ...(text ? [{ type: 'text' as const, text }] : []),
         ],
       });
-      conv.transcript.endTurn();
+      conv.transcript.settleTurn({ kind: 'done', reason: res.stopReason });
       this.emitTranscript(conv);
       this.applyEvent(conv, {
         type: 'TurnEnded',
@@ -922,7 +1002,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         conversationId: conv.conversationId,
         error: errResult.error.type,
       });
-      conv.transcript.endTurn();
+      conv.transcript.settleTurn({ kind: 'error', reason: errResult.error.type });
       this.emitTranscript(conv);
       this.applyEvent(conv, { type: 'TurnEnded', outcome: { kind: 'errored' } });
       return errResult;
@@ -1004,6 +1084,25 @@ function isTranscriptEvent(event: NormalizedEvent): boolean {
   }
 }
 
+function isIdleAgentTranscriptEvent(conv: AcpConversation, event: NormalizedEvent): boolean {
+  return (
+    conv.machine.phase.kind === 'ready' &&
+    isTranscriptEvent(event) &&
+    !(event.kind === 'message' && event.role === 'user')
+  );
+}
+
 function canAcceptTranscriptEvent(conv: AcpConversation): boolean {
-  return conv.machine.phase.kind === 'working' || conv.machine.phase.kind === 'replaying';
+  return (
+    conv.machine.phase.kind === 'working' ||
+    conv.machine.phase.kind === 'replaying' ||
+    conv.machine.phase.kind === 'ready' ||
+    conv.machine.agentTurnActive
+  );
+}
+
+function runningBackgroundAgentCount(conv: AcpConversation): number {
+  return conv.transcript.agents.filter(
+    (agent) => agent.background === true && agent.status === 'running'
+  ).length;
 }

@@ -157,6 +157,9 @@ function upsertSpecialEvent(
         name: event.title,
         status: mapped,
         ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
+        ...(event.background !== undefined ? { background: event.background } : {}),
+        ...(event.agentId !== undefined ? { agentId: event.agentId } : {}),
+        ...(event.outputFile !== undefined ? { outputFile: event.outputFile } : {}),
         ...parent,
       };
       break;
@@ -431,7 +434,11 @@ export function finalizeItems(items: TranscriptItem[], at: number): TranscriptIt
       case 'tool':
         return item.status === 'running' ? { ...item, status: 'done' as const } : item;
       case 'subagent':
-        return item.status === 'running' ? { ...item, status: 'done' as const } : item;
+        return item.background
+          ? item
+          : item.status === 'running'
+            ? { ...item, status: 'done' as const }
+            : item;
       case 'search':
         return item.status === 'running' ? { ...item, status: 'done' as const } : item;
       case 'mcp-tool':

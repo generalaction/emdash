@@ -13,23 +13,28 @@
  *
  *   ignored → no-op on all slices.
  *
- *   close → finalize + commit the active transcript turn.
+ *   turn_end / replay_end → finalize + commit the active transcript turn.
  *
  * Turn boundary rules (transcript only):
  *   OPEN (implicit):  a new user message (new item id) → close active + open.
  *   OPEN (lazy):      agent content with no active turn → open.
- *   CLOSE (explicit): 'close' input → closeActive.
+ *   CLOSE (explicit): 'turn_end' / 'replay_end' input → closeActive.
  *   CLOSE (implicit): next new user message while a turn is active → closeActive + open.
  */
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import type { SubagentState } from '../models/agents';
 import type { SessionCommand, SessionConfigState, SessionUsage } from '../models/session';
 import { emptyConfig } from '../models/session';
 import type {
+  ToolStatus,
   TranscriptItem,
   TranscriptMessage,
+  TranscriptPlanState,
   TranscriptState,
   TranscriptThinking,
+  TranscriptTurnInitiator,
+  TranscriptTurnOutcome,
   TranscriptTurn,
 } from '../models/transcript';
 import { deriveConfigGroups } from './config-derive';
@@ -54,12 +59,16 @@ export interface ParserState {
   title: string | null;
   pendingModeId: string | null;
   segment: SegmentState;
+  agents: SubagentState[];
+  plan: TranscriptPlanState | null;
 }
 
 export type ReducerInput =
   | { kind: 'update'; update: SessionUpdate; at: number }
   | { kind: 'event'; event: NormalizedEvent; at: number }
-  | { kind: 'close'; at: number };
+  | { kind: 'replay_start'; at: number }
+  | { kind: 'replay_end'; at: number }
+  | { kind: 'turn_end'; at: number; outcome?: TranscriptTurnOutcome };
 
 export interface ReducerDeps {
   conversationId: string;
@@ -74,6 +83,8 @@ export function initialState(): ParserState {
     title: null,
     pendingModeId: null,
     segment: initialSegment(),
+    agents: [],
+    plan: null,
   };
 }
 
@@ -90,9 +101,13 @@ function nextTurnIndex(t: TranscriptState): number {
   return t.committed.length + (t.active ? 1 : 0);
 }
 
-function openTurn(t: TranscriptState, deps: ReducerDeps): TranscriptState {
+function openTurn(
+  t: TranscriptState,
+  deps: ReducerDeps,
+  initiator: TranscriptTurnInitiator
+): TranscriptState {
   const id = makeTurnId(deps.conversationId, nextTurnIndex(t));
-  const turn: TranscriptTurn = { id, items: [] };
+  const turn: TranscriptTurn = { id, initiator, items: [] };
   return { ...t, active: turn };
 }
 
@@ -100,11 +115,16 @@ function openTurn(t: TranscriptState, deps: ReducerDeps): TranscriptState {
  * Finalize and commit the active turn to history.
  * No-op when there is no active turn.
  */
-export function closeActive(t: TranscriptState, at: number): TranscriptState {
+export function closeActive(
+  t: TranscriptState,
+  at: number,
+  outcome?: TranscriptTurnOutcome
+): TranscriptState {
   if (!t.active) return t;
   const committed: TranscriptTurn = {
     ...t.active,
     items: finalizeItems(t.active.items, at),
+    ...(outcome !== undefined ? { outcome } : {}),
   };
   return { committed: [...t.committed, committed], active: null };
 }
@@ -256,13 +276,130 @@ function materializeEvent(
   return { ...closed, event: event as FoldEvent };
 }
 
+function toToolStatus(
+  status: Extract<NormalizedEvent, { kind: 'subagent' }>['status']
+): ToolStatus {
+  switch (status) {
+    case 'completed':
+      return 'done';
+    case 'failed':
+      return 'error';
+    case 'pending':
+    case 'in_progress':
+    case null:
+      return 'running';
+  }
+}
+
+function updateAgentSlice(
+  agents: SubagentState[],
+  event: NormalizedEvent,
+  turnId: string | null,
+  at: number
+): SubagentState[] {
+  if (event.kind !== 'subagent' && event.kind !== 'subagent_update') return agents;
+
+  const agentId = event.agentId ?? event.toolCallId;
+  if (!agentId) return agents;
+
+  const toolCallId = event.toolCallId ?? agentId;
+  const idx = agents.findIndex(
+    (agent) => agent.agentId === agentId || agent.toolCallId === toolCallId
+  );
+  const status = toToolStatus(event.status);
+  const completedAt =
+    status === 'done' || status === 'error'
+      ? { completedAt: at }
+      : idx >= 0
+        ? agents[idx].completedAt !== undefined
+          ? { completedAt: agents[idx].completedAt }
+          : {}
+        : {};
+
+  if (event.kind === 'subagent') {
+    const next: SubagentState = {
+      ...(idx >= 0 ? agents[idx] : {}),
+      agentId,
+      toolCallId,
+      turnId,
+      name: event.title,
+      status,
+      startedAt: idx >= 0 ? agents[idx].startedAt : at,
+      ...(event.background !== undefined ? { background: event.background } : {}),
+      ...(event.outputFile !== undefined ? { outputFile: event.outputFile } : {}),
+      ...completedAt,
+    };
+    return idx >= 0 ? agents.map((agent, i) => (i === idx ? next : agent)) : [...agents, next];
+  }
+
+  const next: SubagentState = {
+    ...(idx >= 0
+      ? agents[idx]
+      : {
+          agentId,
+          toolCallId,
+          turnId,
+          name: agentId,
+          startedAt: at,
+        }),
+    agentId,
+    toolCallId,
+    status,
+    ...(event.summary !== undefined ? { summary: event.summary } : {}),
+    ...(event.outputFile !== undefined ? { outputFile: event.outputFile } : {}),
+    ...completedAt,
+  };
+  return idx >= 0 ? agents.map((agent, i) => (i === idx ? next : agent)) : [...agents, next];
+}
+
+function updatePlanSlice(
+  plan: TranscriptPlanState | null,
+  event: NormalizedEvent,
+  at: number
+): TranscriptPlanState | null {
+  if (event.kind !== 'plan') return plan;
+  return { entries: event.entries, updatedAt: at };
+}
+
+function assertTurnInvariants(turn: TranscriptTurn): void {
+  const ids = new Set<string>();
+  let openThinking = 0;
+  for (const item of turn.items) {
+    if (ids.has(item.id)) {
+      throw new Error(`AcpTranscriptParser invariant failed: duplicate item id '${item.id}'`);
+    }
+    ids.add(item.id);
+    if (item.kind === 'thinking' && item.status === 'thinking') openThinking += 1;
+  }
+  if (openThinking > 1) {
+    throw new Error('AcpTranscriptParser invariant failed: multiple open thinking rows');
+  }
+}
+
+function assertTranscriptInvariants(transcript: TranscriptState): void {
+  if (process.env.NODE_ENV === 'production') return;
+  for (const turn of transcript.committed) assertTurnInvariants(turn);
+  if (transcript.active) assertTurnInvariants(transcript.active);
+}
+
 /**
  * Pure reducer: (ParserState, ReducerInput, ReducerDeps) → ParserState.
  * All state changes return a new ParserState; no mutation occurs.
  */
 export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): ParserState {
-  if (input.kind === 'close') {
+  if (input.kind === 'replay_start') {
+    return initialState();
+  }
+
+  if (input.kind === 'replay_end') {
     const transcript = closeActive(s.transcript, input.at);
+    return transcript === s.transcript
+      ? { ...s, segment: initialSegment() }
+      : { ...s, transcript, segment: initialSegment() };
+  }
+
+  if (input.kind === 'turn_end') {
+    const transcript = closeActive(s.transcript, input.at, input.outcome);
     return transcript === s.transcript
       ? { ...s, segment: initialSegment() }
       : { ...s, transcript, segment: initialSegment() };
@@ -318,25 +455,31 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
       return { ...s, title: event.title };
     case 'ignored':
       return s;
+    case 'subagent_update': {
+      const agents = updateAgentSlice(s.agents, event, s.transcript.active?.id ?? null, input.at);
+      return agents === s.agents ? s : { ...s, agents };
+    }
     default:
       break; // falls through to transcript handling below
   }
 
   let t = s.transcript;
   let segment = s.segment;
+  const plan = updatePlanSlice(s.plan, event, input.at);
+  let agents = s.agents;
 
   // OPEN boundary: a new user message starts a new turn.
   if (event.kind === 'message' && event.role === 'user') {
     if (isNewUserMessage(t.active, event, segment)) {
       t = closeActive(t, input.at);
-      t = openTurn(t, deps);
+      t = openTurn(t, deps, 'user');
       segment = initialSegment();
     }
   }
 
   // Lazy open: agent-initiated content with no active turn.
   if (!t.active) {
-    t = openTurn(t, deps);
+    t = openTurn(t, deps, 'agent');
     segment = initialSegment();
   }
 
@@ -345,10 +488,20 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
   segment = materialized.segment;
 
   const active = t.active!;
+  agents = updateAgentSlice(agents, materialized.event, active.id, input.at);
   const items = foldItem(active.items, materialized.event, active.id, input.at);
 
-  if (items === active.items && t === s.transcript && segment === s.segment) return s;
+  if (
+    items === active.items &&
+    t === s.transcript &&
+    segment === s.segment &&
+    agents === s.agents &&
+    plan === s.plan
+  ) {
+    return s;
+  }
   const transcript: TranscriptState =
     items === active.items ? t : { ...t, active: { ...active, items } };
-  return { ...s, transcript, segment };
+  assertTranscriptInvariants(transcript);
+  return { ...s, transcript, segment, agents, plan };
 }

@@ -435,6 +435,91 @@ describe('AcpTranscriptParser', () => {
     const plan = items.find((i) => i.kind === 'plan');
     expect(plan).toBeDefined();
     expect((plan as { streaming: boolean }).streaming).toBe(true);
+    expect(p.plan).toMatchObject({
+      entries: [{ content: 'Step 1', status: 'pending', priority: 'high' }],
+    });
+  });
+
+  it('idle-phase plan opens an agent turn and updates the session-scoped plan slice', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(planUpdate([{ content: 'Agent step', status: 'in_progress', priority: 'medium' }]), 100);
+
+    expect(p.activeTurn?.initiator).toBe('agent');
+    expect(p.activeTurn?.items.find((item) => item.kind === 'plan')).toBeDefined();
+    expect(p.plan).toEqual({
+      entries: [{ content: 'Agent step', status: 'in_progress', priority: 'medium' }],
+      updatedAt: 100,
+    });
+  });
+
+  it('subagent events update the agents registry and preserve background rows on commit', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.pushEvent(
+      {
+        kind: 'subagent',
+        toolCallId: 'toolu_1',
+        title: 'Find events',
+        status: 'in_progress',
+        parentToolCallId: null,
+        background: true,
+        agentId: 'agent-1',
+        outputFile: '/tmp/agent-1.output',
+      },
+      100
+    );
+    p.endTurn(200);
+
+    expect(p.agents).toEqual([
+      {
+        agentId: 'agent-1',
+        toolCallId: 'toolu_1',
+        turnId: makeTurnId(CID, 0),
+        name: 'Find events',
+        status: 'running',
+        startedAt: 100,
+        background: true,
+        outputFile: '/tmp/agent-1.output',
+      },
+    ]);
+    expect(p.history[0].items.find((item) => item.kind === 'subagent')).toMatchObject({
+      status: 'running',
+      background: true,
+      agentId: 'agent-1',
+    });
+  });
+
+  it('subagent_update completes a background agent without opening a turn', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.pushEvent(
+      {
+        kind: 'subagent',
+        toolCallId: 'toolu_1',
+        title: 'Find events',
+        status: 'in_progress',
+        parentToolCallId: null,
+        background: true,
+        agentId: 'agent-1',
+      },
+      100
+    );
+    p.endTurn(150);
+    p.pushEvent(
+      {
+        kind: 'subagent_update',
+        toolCallId: 'toolu_1',
+        agentId: 'agent-1',
+        status: 'completed',
+        summary: 'Done',
+      },
+      300
+    );
+
+    expect(p.activeTurn).toBeNull();
+    expect(p.agents[0]).toMatchObject({
+      status: 'done',
+      completedAt: 300,
+      summary: 'Done',
+    });
   });
 
   // ── replay vs push+endTurn parity ─────────────────────────────────────────
@@ -490,6 +575,29 @@ describe('AcpTranscriptParser', () => {
 
     const replayResult = AcpTranscriptParser.replay(updates, deps());
     expect(replayResult.transcript.committed[0]).toEqual(p.history[0]);
+  });
+
+  it('beginReplay/endReplay reset and rebuild session-scoped slices idempotently', () => {
+    const p = new AcpTranscriptParser(deps());
+    const updates = [
+      userChunk('u1', 'plan'),
+      planUpdate([{ content: 'Step', status: 'pending', priority: 'low' }]),
+    ];
+
+    p.beginReplay(0);
+    p.push(updates[0], 1);
+    p.push(updates[1], 2);
+    p.endReplay(3);
+    p.beginReplay(4);
+    p.push(updates[0], 5);
+    p.push(updates[1], 6);
+    p.endReplay(7);
+
+    expect(p.history).toHaveLength(1);
+    expect(p.plan).toEqual({
+      entries: [{ content: 'Step', status: 'pending', priority: 'low' }],
+      updatedAt: 6,
+    });
   });
 
   // ── Finalization on commit ────────────────────────────────────────────────

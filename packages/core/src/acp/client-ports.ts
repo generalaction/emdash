@@ -40,7 +40,9 @@ export class TerminalPort {
     defaultCwd: string,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse> {
-    const envRecord = params.env ? Object.fromEntries(params.env.map((e) => [e.name, e.value])) : {};
+    const envRecord = params.env
+      ? Object.fromEntries(params.env.map((e) => [e.name, e.value]))
+      : {};
     const terminalId = await this.terminals.create(conversationId, {
       command: params.command,
       args: params.args ?? [],
