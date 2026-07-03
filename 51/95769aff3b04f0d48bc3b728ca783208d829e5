@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_034529fa02eb79::t_0498e2616e8bd8 86-91
+apps/emdash-desktop/src/shared/core/automations/validation.ts
+  s_034529fa02eb79::t_a395dc77774e64 78-81,92-97,103-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "5195769aff3b04f0d48bc3b728ca783208d829e5",
+  "prompts": {},
+  "sessions": {
+    "s_034529fa02eb79": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2683-2c6d-7de2-9daa-8c5836a782b4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
