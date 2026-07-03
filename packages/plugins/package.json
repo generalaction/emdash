@@ -43,9 +43,14 @@
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
     "@llamaduck/forgejo-ts": "^14.0.3",
+    "@makeplane/plane-node-sdk": "^0.2.11",
     "@octokit/rest": "^22.0.1",
     "@team-plain/graphql": "^1.0.1",
+    "asana": "^3.1.12",
+    "featurebase-node": "^0.14.0",
+    "jira-client": "^8.2.2",
     "smol-toml": "^1.6.0",
+    "trello": "^0.11.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
