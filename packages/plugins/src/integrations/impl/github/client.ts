@@ -1,39 +1,53 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { Octokit } from '@octokit/rest';
+import { parseCredentials } from '../../helpers/credentials';
+import { toIntegrationError } from '../../helpers/error';
 import type { IntegrationCredentials } from '../../host';
+import type { IntegrationError } from '../../types';
+import {
+  type GitHubClient,
+  type GitHubCredentials,
+  gitHubCredentialsSchema,
+  type GitHubVerifiedConnection,
+} from './types';
 
-export type GitHubCredentials = {
-  accessToken: string;
-  apiBaseUrl: string;
-};
+const VERIFY_TIMEOUT_MS = 10_000;
 
-export const GITHUB_DOTCOM_API_BASE_URL = 'https://api.github.com';
-
-export function readGitHubCredentials(credentials: IntegrationCredentials): GitHubCredentials {
-  const accessToken =
-    typeof credentials.accessToken === 'string' ? credentials.accessToken.trim() : '';
-  if (!accessToken) throw new Error('GitHub access token is required.');
-
-  const apiBaseUrl =
-    typeof credentials.apiBaseUrl === 'string' && credentials.apiBaseUrl.trim()
-      ? credentials.apiBaseUrl.trim().replace(/\/+$/, '')
-      : GITHUB_DOTCOM_API_BASE_URL;
-
-  return { accessToken, apiBaseUrl };
+export function readGitHubCredentials(
+  credentials: IntegrationCredentials
+): Result<GitHubCredentials, IntegrationError> {
+  return parseCredentials(gitHubCredentialsSchema, credentials);
 }
 
-export function createGitHubClient(credentials: GitHubCredentials): Octokit {
+export function createGitHubClient(credentials: GitHubCredentials): GitHubClient {
   return new Octokit({ auth: credentials.accessToken, baseUrl: credentials.apiBaseUrl });
 }
 
-/**
- * Service host for an API base URL: api.github.com maps back to github.com,
- * GHES instances use `https://<host>/api/v3` so the URL host is the instance.
- */
-export function githubServiceHostForApiBaseUrl(apiBaseUrl: string): string {
+export async function verifyGitHubCredentials(
+  rawCredentials: IntegrationCredentials
+): Promise<Result<GitHubVerifiedConnection, IntegrationError>> {
+  const credentials = readGitHubCredentials(rawCredentials);
+  if (!credentials.success) return err(credentials.error);
+
+  const octokit = createGitHubClient(credentials.data);
   try {
-    const host = new URL(apiBaseUrl).host;
-    return host === 'api.github.com' ? 'github.com' : host;
-  } catch {
-    return 'github.com';
+    const { data } = await octokit.rest.users.getAuthenticated({
+      request: { timeout: VERIFY_TIMEOUT_MS },
+    });
+
+    const host = new URL(credentials.data.apiBaseUrl).host;
+
+    return ok({
+      account: {
+        id: String(data.id),
+        login: data.login,
+        ...(data.avatar_url ? { avatarUrl: data.avatar_url } : {}),
+        host: host === 'api.github.com' ? 'github.com' : host,
+      },
+      displayName: data.name ?? data.login,
+      credentials: credentials.data,
+    });
+  } catch (error) {
+    return err(toIntegrationError(error, 'GitHub'));
   }
 }

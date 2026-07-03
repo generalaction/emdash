@@ -153,11 +153,14 @@ describe('github issues plugin', () => {
 
       expect(result).toEqual({
         success: false,
-        error: { type: 'auth_failed', message: 'Bad credentials' },
+        error: {
+          type: 'auth_failed',
+          message: 'GitHub authentication failed. Check your credentials.',
+        },
       });
     });
 
-    it('maps 403 with an SSO header to sso_required with the SSO URL', async () => {
+    it('maps 403 with an SSO header to auth_failed', async () => {
       const result = await listWithResponse(
         jsonResponse(
           403,
@@ -172,14 +175,13 @@ describe('github issues plugin', () => {
       expect(result).toEqual({
         success: false,
         error: {
-          type: 'sso_required',
-          message: 'Resource protected by organization SAML enforcement.',
-          ssoUrl: 'https://github.com/orgs/acme/sso?authorization_request=abc123',
+          type: 'auth_failed',
+          message: 'GitHub credentials were accepted but are missing required permissions.',
         },
       });
     });
 
-    it('maps 403 with a rate limit header to rate_limited with resetAt', async () => {
+    it('maps 403 with a rate limit header to auth_failed', async () => {
       const resetEpochSeconds = 1750000000;
       const result = await listWithResponse(
         jsonResponse(
@@ -192,9 +194,8 @@ describe('github issues plugin', () => {
       expect(result).toEqual({
         success: false,
         error: {
-          type: 'rate_limited',
-          message: 'API rate limit exceeded',
-          resetAt: new Date(resetEpochSeconds * 1000).toISOString(),
+          type: 'auth_failed',
+          message: 'GitHub credentials were accepted but are missing required permissions.',
         },
       });
     });
@@ -204,7 +205,10 @@ describe('github issues plugin', () => {
 
       expect(result).toEqual({
         success: false,
-        error: { type: 'auth_failed', message: 'Forbidden' },
+        error: {
+          type: 'auth_failed',
+          message: 'GitHub credentials were accepted but are missing required permissions.',
+        },
       });
     });
 
@@ -213,7 +217,10 @@ describe('github issues plugin', () => {
 
       expect(result).toEqual({
         success: false,
-        error: { type: 'not_found_or_no_access', message: 'Not Found' },
+        error: {
+          type: 'not_found_or_no_access',
+          message: 'GitHub resource was not found or you do not have access.',
+        },
       });
     });
 
@@ -222,7 +229,10 @@ describe('github issues plugin', () => {
 
       expect(result).toEqual({
         success: false,
-        error: { type: 'rate_limited', message: 'Too many requests' },
+        error: {
+          type: 'rate_limited',
+          message: 'GitHub API rate limit exceeded. Please try again shortly.',
+        },
       });
     });
 
@@ -231,7 +241,10 @@ describe('github issues plugin', () => {
 
       expect(result).toEqual({
         success: false,
-        error: { type: 'host_unreachable', message: 'Bad gateway' },
+        error: {
+          type: 'host_unreachable',
+          message: 'GitHub API is temporarily unavailable. Please try again.',
+        },
       });
     });
 
@@ -242,11 +255,14 @@ describe('github issues plugin', () => {
 
       expect(result).toEqual({
         success: false,
-        error: { type: 'host_unreachable', message: 'fetch failed' },
+        error: {
+          type: 'host_unreachable',
+          message: 'GitHub API is temporarily unavailable. Please try again.',
+        },
       });
     });
 
-    it('returns a generic error when the access token is missing', async () => {
+    it('returns an invalid input error when the access token is missing', async () => {
       const fetchMock = stubFetch(jsonResponse(200, []));
 
       const result = await issues.listIssues(
@@ -257,11 +273,11 @@ describe('github issues plugin', () => {
       expect(fetchMock).not.toHaveBeenCalled();
       expect(result).toEqual({
         success: false,
-        error: { type: 'generic', message: 'GitHub access token is required.' },
+        error: { type: 'invalid_input', message: 'GitHub access token is required.' },
       });
     });
 
-    it('returns a generic error for an unparsable repository URL', async () => {
+    it('returns an invalid input error for an unparsable repository URL', async () => {
       const fetchMock = stubFetch(jsonResponse(200, []));
 
       const result = await issues.listIssues(host, { repositoryUrl: 'not-a-url', limit: 5 });
@@ -269,7 +285,26 @@ describe('github issues plugin', () => {
       expect(fetchMock).not.toHaveBeenCalled();
       expect(result).toEqual({
         success: false,
-        error: { type: 'generic', message: 'Unable to parse repository URL.' },
+        error: { type: 'invalid_input', message: 'Unable to parse repository URL.' },
+      });
+    });
+
+    it('returns unsupported host when the remote does not match configured GitHub host', async () => {
+      const fetchMock = stubFetch(jsonResponse(200, []));
+
+      const result = await issues.listIssues(host, {
+        repositoryUrl: 'https://ghe.example.com/acme/widgets',
+        limit: 5,
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'unsupported_host',
+          message:
+            'Git remote host "ghe.example.com" does not match configured GitHub instance "github.com".',
+        },
       });
     });
   });

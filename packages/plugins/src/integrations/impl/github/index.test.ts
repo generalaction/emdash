@@ -42,6 +42,10 @@ describe('github integration verify', () => {
         host: 'github.com',
       },
       displayName: 'Mona Lisa',
+      credentials: {
+        accessToken: 'gho_test',
+        apiBaseUrl: 'https://api.github.com',
+      },
     });
     const requestUrl = fetchMock.mock.calls[0]?.[0] as string;
     const options = fetchMock.mock.calls[0]?.[1] as { headers: Record<string, string> };
@@ -64,6 +68,10 @@ describe('github integration verify', () => {
       connected: true,
       account: { id: '7', login: 'hubot', host: 'ghe.example.com' },
       displayName: 'hubot',
+      credentials: {
+        accessToken: 'ghe_token',
+        apiBaseUrl: 'https://ghe.example.com/api/v3',
+      },
     });
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://ghe.example.com/api/v3/user');
   });
@@ -77,7 +85,10 @@ describe('github integration verify', () => {
 
     const result = await auth.verify({ log }, { accessToken: 'gho_bad' });
 
-    expect(result).toEqual({ connected: false, error: 'Bad credentials' });
+    expect(result).toEqual({
+      connected: false,
+      error: 'GitHub authentication failed. Check your credentials.',
+    });
     expect(log.warn).toHaveBeenCalledWith(
       expect.stringContaining('GitHub credential verification failed')
     );

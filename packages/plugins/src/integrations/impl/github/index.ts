@@ -1,12 +1,7 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
-import {
-  createGitHubClient,
-  githubServiceHostForApiBaseUrl,
-  readGitHubCredentials,
-} from './client';
+import { verifyGitHubCredentials } from './client';
 import { icon } from './icon';
-
-const VERIFY_TIMEOUT_MS = 10_000;
 
 const plugin = defineIntegrationPlugin(
   {
@@ -33,28 +28,19 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
-    async verify(host, credentials) {
-      try {
-        const parsed = readGitHubCredentials(credentials);
-        const octokit = createGitHubClient(parsed);
-        const { data } = await octokit.rest.users.getAuthenticated({
-          request: { timeout: VERIFY_TIMEOUT_MS },
-        });
+    async verify(_host, credentials): Promise<VerifyResult> {
+      const result = await verifyGitHubCredentials(credentials);
+      if (!result.success) {
         return {
-          connected: true,
-          account: {
-            id: String(data.id),
-            login: data.login,
-            ...(data.avatar_url ? { avatarUrl: data.avatar_url } : {}),
-            host: githubServiceHostForApiBaseUrl(parsed.apiBaseUrl),
-          },
-          displayName: data.name ?? data.login,
+          connected: false,
+          error: result.error.message,
         };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'GitHub verification failed.';
-        host.log.warn(`GitHub credential verification failed: ${message}`);
-        return { connected: false, error: message };
       }
+
+      return {
+        connected: true,
+        ...result.data,
+      };
     },
   },
 });
