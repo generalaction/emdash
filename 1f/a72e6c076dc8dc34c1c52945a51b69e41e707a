@@ -1,0 +1,36 @@
+apps/emdash-desktop/src/renderer/features/tasks/stores/preview-server-store.test.ts
+  s_023312edb2a486::t_bf534cebe113d8 17
+  s_023312edb2a486::t_9d76c235ba2d1d 74
+  s_023312edb2a486::t_423f68e08f4c54 186-210
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-pill.tsx
+  s_023312edb2a486::t_461ec520b3528b 1,16,24-27,53
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-servers-badge.tsx
+  s_023312edb2a486::t_ecf67f537ca4e6 1-89
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-menu-items.tsx
+  s_023312edb2a486::t_1a14079d69cc9a 1-82
+apps/emdash-desktop/src/renderer/features/tasks/stores/preview-server-store.ts
+  s_023312edb2a486::t_eaa0cb999e0f02 117-124
+apps/emdash-desktop/src/main/core/preview-servers/controller.ts
+  s_023312edb2a486::t_16a872cf992721 14-16
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-pills.tsx
+  s_023312edb2a486::t_ea455558f7c2f8 5,17-21
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-format.ts
+  s_023312edb2a486::t_57af88f5b3b290 1
+  s_023312edb2a486::t_614211c2e2eaa8 35-39,49-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "1fa72e6c076dc8dc34c1c52945a51b69e41e707a",
+  "prompts": {},
+  "sessions": {
+    "s_023312edb2a486": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b827b65e-d1f1-4310-875b-9fd10f62b15c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
