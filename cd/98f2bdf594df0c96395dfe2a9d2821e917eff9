@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-workspace-config.test.ts
+  s_76d080c0208c6c::t_9c0c94c73147b3 52,80-98
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-workspace-config.ts
+  s_76d080c0208c6c::t_8b3524a750526a 197
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-branch-selection.ts
+  s_76d080c0208c6c::t_4dfc51318a6d55 16,46-52,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "cd98f2bdf594df0c96395dfe2a9d2821e917eff9",
+  "prompts": {},
+  "sessions": {
+    "s_76d080c0208c6c": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f28c2-c15c-78be-91b9-a4a5705e2eef",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
