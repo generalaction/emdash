@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-context-menu.tsx
+  s_e780216e58a816::t_b977c1eb5fd0f2 85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "8fbcdfaf57fd6f882a3808b0d4ec6572483d3310",
+  "prompts": {},
+  "sessions": {
+    "s_e780216e58a816": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2888-64c4-7789-ad34-e514639863b3",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
