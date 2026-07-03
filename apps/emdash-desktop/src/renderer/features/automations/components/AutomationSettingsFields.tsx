@@ -83,7 +83,7 @@ export function AutomationSettingsFields({
                   onBlur={onRRuleExprBlur}
                   spellCheck={false}
                   className="h-7 min-w-0 flex-1 font-mono text-xs"
-                  placeholder="RRULE"
+                  placeholder="FREQ=WEEKLY"
                 />
               ),
             }}

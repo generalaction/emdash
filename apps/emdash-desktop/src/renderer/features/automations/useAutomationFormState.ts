@@ -20,7 +20,7 @@ import {
 import type { BuiltinAutomationTemplate } from './automation-template';
 
 const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
-const DEFAULT_RRULE = 'DTSTART:20260706T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=MO';
+const DEFAULT_RRULE = 'FREQ=WEEKLY';
 
 /**
  * Derives the initial workspace config state for seeding the form from a stored automation.
