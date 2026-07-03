@@ -75,6 +75,10 @@ function dateToFloatingDateInTimeZone(date: Date, timeZone: string): Date {
   return new Date(partsToUtc(getDateParts(date, timeZone)));
 }
 
+function getTimeZoneOffsetAt(timestamp: number, timeZone: string): number {
+  return partsToUtc(getDateParts(new Date(timestamp), timeZone)) - timestamp;
+}
+
 function floatingDateToUtc(date: Date, timeZone: string): number {
   const floatingParts: DateParts = {
     year: date.getUTCFullYear(),
@@ -85,17 +89,20 @@ function floatingDateToUtc(date: Date, timeZone: string): number {
     second: date.getUTCSeconds(),
   };
   const utcGuess = partsToUtc(floatingParts);
-  const guessPartsInZone = getDateParts(new Date(utcGuess), timeZone);
-  const offset = partsToUtc(guessPartsInZone) - utcGuess;
-  return utcGuess - offset;
+  const firstOffset = getTimeZoneOffsetAt(utcGuess, timeZone);
+  const correctedUtc = utcGuess - firstOffset;
+  const correctedOffset = getTimeZoneOffsetAt(correctedUtc, timeZone);
+  if (correctedOffset === firstOffset) return correctedUtc;
+
+  return utcGuess - (firstOffset + correctedOffset) / 2;
 }
 
 function formatDtstart(date: Date, timeZone: string): string {
   const parts = getDateParts(date, timeZone);
   const pad = (value: number) => String(value).padStart(2, '0');
-  return `${parts.year}${pad(parts.month)}${pad(parts.day)}T${pad(parts.hour)}${pad(
-    parts.minute
-  )}${pad(parts.second)}`;
+  return `${String(parts.year).padStart(4, '0')}${pad(parts.month)}${pad(parts.day)}T${pad(
+    parts.hour
+  )}${pad(parts.minute)}${pad(parts.second)}`;
 }
 
 export function normalizeTriggerConfig(

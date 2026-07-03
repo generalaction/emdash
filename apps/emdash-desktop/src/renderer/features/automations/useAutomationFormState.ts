@@ -83,9 +83,12 @@ export function useAutomationFormState(
       ? DEFAULT_CRON
       : (seedTrigger?.expr ?? initialTemplate?.defaultTrigger.expr ?? DEFAULT_CRON)
   );
-  const [rruleExpr, setRRuleExpr] = useState<string>(
-    seedTrigger?.kind === 'rrule' ? seedTrigger.expr : DEFAULT_RRULE
-  );
+  const [rruleExpr, setRRuleExpr] = useState<string>(() => {
+    if (seedTrigger?.kind !== 'rrule') return DEFAULT_RRULE;
+
+    const rruleLine = seedTrigger.expr.split('\n').find((line) => /^RRULE:/i.test(line));
+    return rruleLine ? rruleLine.replace(/^RRULE:/i, '') : seedTrigger.expr;
+  });
   const [cronTz] = useState<string>(seedTrigger?.tz ?? getLocalTimeZone());
 
   const effectiveProjectId =
