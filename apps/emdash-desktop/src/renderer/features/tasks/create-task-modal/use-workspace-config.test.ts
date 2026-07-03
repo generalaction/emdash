@@ -77,6 +77,26 @@ describe('useWorkspaceConfig initial branch selection', () => {
     });
   }
 
+  it('uses the configured default branch when checkout mode has no explicit selection', async () => {
+    await renderProbe({
+      mode: 'new-worktree',
+      presetId: 'new-worktree',
+      branchSelection: {
+        createBranchAndWorktree: false,
+      },
+    });
+
+    expect(latestState?.branchSelection.createBranchAndWorktree).toBe(false);
+    expect(latestState?.branchSelection.selectedBranch).toEqual({
+      type: 'local',
+      branch: 'main',
+    });
+    expect(latestState?.resolvedConfig.git).toEqual({
+      kind: 'use-branch',
+      branchName: 'main',
+    });
+  });
+
   it('restores checkout-branch automations as use-branch configs', async () => {
     await renderProbe({
       mode: 'new-worktree',
