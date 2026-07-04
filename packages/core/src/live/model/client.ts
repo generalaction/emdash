@@ -85,7 +85,7 @@ export class LiveModelClient<T> {
    * safety net that catches shape regressions early.
    */
   private validate(next: unknown): next is T {
-    if (process.env['NODE_ENV'] === 'production') return true;
+    if (readNodeEnv() === 'production') return true;
     const r = this.schema.safeParse(next);
     if (!r.success) {
       console.warn('[LiveModelClient] patched result failed validation — resyncing', r.error);
@@ -103,4 +103,8 @@ export class LiveModelClient<T> {
       this.resyncing = false;
     }
   }
+}
+
+function readNodeEnv(): string | undefined {
+  return typeof process !== 'undefined' ? process.env['NODE_ENV'] : undefined;
 }

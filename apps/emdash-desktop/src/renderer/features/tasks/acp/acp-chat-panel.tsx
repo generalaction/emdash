@@ -135,7 +135,8 @@ const ComposerForStore = observer(function ComposerForStore({
   }, [store]);
 
   const handleResolvePermission = useCallback(
-    (optionId: string) => {
+    (optionId: string | null) => {
+      if (!optionId) return;
       store.resolvePermission(optionId);
     },
     [store]

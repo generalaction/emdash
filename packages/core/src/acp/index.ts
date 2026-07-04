@@ -10,6 +10,8 @@ export { PermissionBroker } from './session/permission-broker';
 export { SessionMachine, isPromptReady } from './machine/machine';
 export * from './state/live-models';
 export * from './api/contract';
+export * from './api/router';
+export type { HistoryPage, ResumeResult } from './api/queries';
 export { AgentTerminalManager } from './agent-terminal-manager';
 export type { AgentTerminalHooks as AgentTerminalListener } from './agent-terminal-manager';
 export type { AcpRuntimeError } from './errors';

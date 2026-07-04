@@ -10,22 +10,23 @@ import type { PromptInput } from '../models/prompt';
 import type { SessionState } from '../models/session';
 import type { TerminalState } from '../models/terminals';
 import type { TranscriptTurn } from '../models/turns';
-import type { TerminalOutputEvent } from '../api/streams';
 import type { SessionLiveModels, SessionsListModel } from '../state/live-models';
 import type { StoredAttachment } from './attachment-store';
 import { SessionManager, type HistoryPage } from './session-manager';
 import type { AcpRuntimeDeps, AcpStartInput } from './types';
 import type { ResumeResult } from '../api/queries';
-import { TerminalOutputHub } from './terminal-output-hub';
+import { TerminalLiveRegistry } from './terminal-live-registry';
+import type { LiveLogServer } from '../../live/log';
+import type { LiveModelServer } from '../../live/model';
 
 export class AcpRuntime {
   readonly terminals: AgentTerminalManager;
   readonly pool: ConnectionPool;
   readonly manager: SessionManager;
-  private readonly terminalOutputHub = new TerminalOutputHub();
+  private readonly terminalLiveRegistry = new TerminalLiveRegistry();
 
   constructor(private readonly deps: AcpRuntimeDeps) {
-    this.terminals = new AgentTerminalManager(deps.host, this.terminalOutputHub.hooks);
+    this.terminals = new AgentTerminalManager(deps.host, this.terminalLiveRegistry.hooks);
     const fs = new FsPort(deps.host);
     const terminalPort = new TerminalPort(this.terminals);
     let manager: SessionManager | null = null;
@@ -137,15 +138,6 @@ export class AcpRuntime {
     this.manager.killAllTerminals();
   }
 
-  subscribeTerminalOutput(
-    terminalId: string,
-    offset?: number
-  ): AsyncGenerator<TerminalOutputEvent> {
-    return this.terminalOutputHub.subscribe(terminalId, offset, () =>
-      this.terminals.get(terminalId)?.snapshot()
-    );
-  }
-
   async uploadAttachment(input: {
     data: Uint8Array;
     mimeType: AttachmentMimeType;
@@ -175,5 +167,13 @@ export class AcpRuntime {
 
   sessionsListLiveModel(): SessionsListModel {
     return this.manager.sessionsList;
+  }
+
+  terminalsLiveModel(conversationId: string): LiveModelServer<TerminalState[]> {
+    return this.terminalLiveRegistry.getTerminalsModel(conversationId);
+  }
+
+  terminalOutputLog(terminalId: string): LiveLogServer | null {
+    return this.terminalLiveRegistry.getTerminalLog(terminalId);
   }
 }

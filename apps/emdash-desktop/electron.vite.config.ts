@@ -7,6 +7,14 @@ export default defineConfig({
   main: {
     root: 'src/main',
     envDir: resolve('.'),
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          'acp-runtime': resolve('src/main/core/acp/runtime-process/entry.ts'),
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': resolve('src'),

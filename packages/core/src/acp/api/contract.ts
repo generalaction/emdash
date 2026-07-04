@@ -1,4 +1,4 @@
-import { eventIterator, oc } from '@orpc/contract';
+import { oc } from '@orpc/contract';
 import { resultSchema } from '@emdash/shared';
 import { z } from 'zod';
 import {
@@ -26,7 +26,6 @@ import {
 import { acpRuntimeErrorSchema } from './errors';
 import { acpLiveContract } from './live';
 import { historyPageInputSchema, historyPageSchema, resumeResultSchema } from './queries';
-import { terminalOutputEventSchema, terminalOutputInputSchema } from './streams';
 
 const voidResult = resultSchema(z.void(), acpRuntimeErrorSchema);
 const startResult = resultSchema(z.object({ sessionId: z.string() }), acpRuntimeErrorSchema);
@@ -57,7 +56,6 @@ export const acpContract = {
   downloadAttachment: oc.input(downloadAttachmentCommandSchema).output(attachmentDownloadResult),
   deleteAttachment: oc.input(deleteAttachmentCommandSchema).output(voidResult),
   getHistory: oc.input(historyPageInputSchema).output(historyResult),
-  subscribeTerminalOutput: oc.input(terminalOutputInputSchema).output(eventIterator(terminalOutputEventSchema)),
   live: acpLiveContract,
 };
 

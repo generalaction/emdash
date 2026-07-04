@@ -30,7 +30,6 @@ import type {
   ChatViewOptions,
   ChatItem,
 } from '@emdash/chat-ui';
-import { createChatView } from '@emdash/chat-ui';
 import { createElement, useEffect, useRef } from 'react';
 
 export type ChatTranscriptProps = Pick<
@@ -75,33 +74,40 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
   useEffect(() => {
     if (!ref.current) return;
     const p = propsRef.current;
+    let disposed = false;
+    let createdView: ChatView | null = null;
 
-    const view = createChatView({
-      context: p.context,
-      state: p.state,
-      parent: ref.current,
-      composer: p.composer,
-      contentOverlay: p.contentOverlay,
-      stickToBottom: p.stickToBottom,
-      pinUserMessages: p.pinUserMessages,
-      class: p.class,
-      contentClass: p.contentClass,
-      commands: p.commands ?? {},
-      padTop: p.padTop,
-      // Thread stable wrappers that read from propsRef at call time — never stale.
-      onReachStart: p.onReachStart ? () => propsRef.current.onReachStart?.() : undefined,
-      onAtBottomChange: p.onAtBottomChange
-        ? (b: boolean) => propsRef.current.onAtBottomChange?.(b)
-        : undefined,
-      onActiveUserMessageVisibilityChange: p.onActiveUserMessageVisibilityChange
-        ? (v: boolean) => propsRef.current.onActiveUserMessageVisibilityChange?.(v)
-        : undefined,
-      onViewMounted: (v) => propsRef.current.onReady?.(v),
+    void import('@emdash/chat-ui').then(({ createChatView }) => {
+      if (disposed || !ref.current) return;
+      const view = createChatView({
+        context: p.context,
+        state: p.state,
+        parent: ref.current,
+        composer: p.composer,
+        contentOverlay: p.contentOverlay,
+        stickToBottom: p.stickToBottom,
+        pinUserMessages: p.pinUserMessages,
+        class: p.class,
+        contentClass: p.contentClass,
+        commands: p.commands ?? {},
+        padTop: p.padTop,
+        // Thread stable wrappers that read from propsRef at call time — never stale.
+        onReachStart: p.onReachStart ? () => propsRef.current.onReachStart?.() : undefined,
+        onAtBottomChange: p.onAtBottomChange
+          ? (b: boolean) => propsRef.current.onAtBottomChange?.(b)
+          : undefined,
+        onActiveUserMessageVisibilityChange: p.onActiveUserMessageVisibilityChange
+          ? (v: boolean) => propsRef.current.onActiveUserMessageVisibilityChange?.(v)
+          : undefined,
+        onViewMounted: (v) => propsRef.current.onReady?.(v),
+      });
+      createdView = view;
+      viewRef.current = view;
     });
-    viewRef.current = view;
 
     return () => {
-      view.dispose();
+      disposed = true;
+      createdView?.dispose();
       viewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,10 +151,3 @@ export type {
   ChatState,
 } from '@emdash/chat-ui';
 export type LoadOlderFn = (items: ChatItem[]) => void;
-export {
-  createChatContext,
-  createChatState,
-  createChatView,
-  createDefaultHighlighter,
-  generateMockTranscript,
-} from '@emdash/chat-ui';

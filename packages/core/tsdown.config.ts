@@ -3,6 +3,7 @@ import { defineConfig } from 'tsdown';
 export default defineConfig({
   entry: {
     acp: 'src/acp/index.ts',
+    'acp-client': 'src/acp/client.ts',
     'acp-transcript-parser': 'src/acp/reducer/index.ts',
     deps: 'src/host-dependencies/capability.ts',
     'deps-runtime': 'src/host-dependencies/runtime/index.ts',

@@ -9,6 +9,10 @@ enablePatches();
 // of structurally-shared state into an immediate TypeError rather than a silent
 // drift. Disabled in prod because Object.freeze is O(N) and the invariant
 // (current is only ever replaced, never mutated in place) is enforced by design.
-setAutoFreeze(process.env['NODE_ENV'] !== 'production');
+setAutoFreeze(readNodeEnv() !== 'production');
 
 export { applyPatches, produceWithPatches, type Patch };
+
+function readNodeEnv(): string | undefined {
+  return typeof process !== 'undefined' ? process.env['NODE_ENV'] : undefined;
+}

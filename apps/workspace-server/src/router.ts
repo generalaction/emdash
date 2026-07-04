@@ -198,7 +198,6 @@ export const router = i.router({
     downloadAttachment: i.acp.downloadAttachment.handler(notImplemented),
     deleteAttachment: i.acp.deleteAttachment.handler(notImplemented),
     getHistory: i.acp.getHistory.handler(notImplemented),
-    subscribeTerminalOutput: i.acp.subscribeTerminalOutput.handler(notImplemented),
     live: {
       sessionStateList: {
         snapshot: i.acp.live.sessionStateList.snapshot.handler(notImplemented),
@@ -229,6 +228,16 @@ export const router = i.router({
         snapshot: i.acp.live.activeTurn.snapshot.handler(notImplemented),
         subscribe: i.acp.live.activeTurn.subscribe.handler(notImplemented),
         unsubscribe: i.acp.live.activeTurn.unsubscribe.handler(notImplemented),
+      },
+      terminals: {
+        snapshot: i.acp.live.terminals.snapshot.handler(notImplemented),
+        subscribe: i.acp.live.terminals.subscribe.handler(notImplemented),
+        unsubscribe: i.acp.live.terminals.unsubscribe.handler(notImplemented),
+      },
+      terminalOutput: {
+        snapshot: i.acp.live.terminalOutput.snapshot.handler(notImplemented),
+        subscribe: i.acp.live.terminalOutput.subscribe.handler(notImplemented),
+        unsubscribe: i.acp.live.terminalOutput.unsubscribe.handler(notImplemented),
       },
     },
   },

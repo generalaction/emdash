@@ -111,24 +111,7 @@ export class LocalAcpProcessHost implements AcpProcessHost {
   async resolveSpawnContext(
     providerId: string
   ): Promise<{ cli: string; agentEnv: Record<string, string> }> {
-    const rawEnv = buildAgentEnv({ agentApiVars: true });
-    const filteredEnv = Object.fromEntries(
-      Object.entries(rawEnv).filter((e): e is [string, string] => e[1] !== undefined)
-    );
-
-    const plugin = getPlugin(providerId);
-    const binaryName = plugin.capabilities.hostDependency.binaryNames[0] ?? providerId;
-    const cachedStatePath = localDependencyManager.get(providerId as never)?.path;
-
-    const cli = await resolveAgentExecutable({
-      providerId,
-      binaryName,
-      ctx: new LocalExecutionContext(),
-      hostDependencyStore,
-      cachedStatePath,
-    });
-
-    return { cli, agentEnv: filteredEnv };
+    return resolveLocalAcpSpawnContext(providerId);
   }
 
   async spawn(spec: {
@@ -169,4 +152,27 @@ export class LocalAcpProcessHost implements AcpProcessHost {
 
     return new LocalAcpTerminalProcess(child);
   }
+}
+
+export async function resolveLocalAcpSpawnContext(
+  providerId: string
+): Promise<{ cli: string; agentEnv: Record<string, string> }> {
+    const rawEnv = buildAgentEnv({ agentApiVars: true });
+    const filteredEnv = Object.fromEntries(
+      Object.entries(rawEnv).filter((e): e is [string, string] => e[1] !== undefined)
+    );
+
+    const plugin = getPlugin(providerId);
+    const binaryName = plugin.capabilities.hostDependency.binaryNames[0] ?? providerId;
+    const cachedStatePath = localDependencyManager.get(providerId as never)?.path;
+
+    const cli = await resolveAgentExecutable({
+      providerId,
+      binaryName,
+      ctx: new LocalExecutionContext(),
+      hostDependencyStore,
+      cachedStatePath,
+    });
+
+    return { cli, agentEnv: filteredEnv };
 }

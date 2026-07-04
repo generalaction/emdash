@@ -1,12 +1,14 @@
 import { z } from 'zod';
-import { createLiveModelContract } from '../../live';
+import { createLiveLogContract, createLiveModelContract } from '../../live';
 import { agentStateSchema } from '../models/agents';
 import { sessionConfigStateSchema } from '../models/config';
 import { planStateSchema } from '../models/plan';
 import { sessionStateSchema, sessionSummarySchema } from '../models/session';
+import { terminalStateSchema } from '../models/terminals';
 import { transcriptTurnSchema } from '../models/turns';
 
 const conversationInput = z.object({ conversationId: z.string() });
+const terminalInput = z.object({ terminalId: z.string() });
 
 export const acpLiveContract = {
   sessionStateList: createLiveModelContract(z.record(z.string(), sessionSummarySchema)),
@@ -34,5 +36,15 @@ export const acpLiveContract = {
     snapshotInput: conversationInput,
     subscribeInput: conversationInput,
     unsubscribeInput: conversationInput,
+  }),
+  terminals: createLiveModelContract(z.array(terminalStateSchema), {
+    snapshotInput: conversationInput,
+    subscribeInput: conversationInput,
+    unsubscribeInput: conversationInput,
+  }),
+  terminalOutput: createLiveLogContract({
+    snapshotInput: terminalInput,
+    subscribeInput: terminalInput,
+    unsubscribeInput: terminalInput,
   }),
 };

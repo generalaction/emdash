@@ -105,7 +105,7 @@ describe('AcpRuntime session manager', () => {
     });
   });
 
-  it('streams terminal output from buffered offset through live chunks and exit', async () => {
+  it('publishes terminal state and output through live primitives', async () => {
     const { h, rt, client, sessionId } = await startHarness('conv-terminal');
     const terminal = new FakeAcpTerminalProcess();
     h.fakeHost.nextTerminal = terminal;
@@ -115,25 +115,28 @@ describe('AcpRuntime session manager', () => {
       args: [],
       cwd: '/tmp',
     });
+
+    expect(rt.terminalsLiveModel('conv-terminal').snapshot().data).toMatchObject([
+      { terminalId: created.terminalId, command: 'echo', exitStatus: null },
+    ]);
+
+    const log = rt.terminalOutputLog(created.terminalId);
+    if (!log) throw new Error('expected terminal log');
+    const updates: unknown[] = [];
+    const unsub = log.subscribe((update) => updates.push(update));
     terminal.pushOutput('hello');
 
-    const stream = rt.subscribeTerminalOutput(created.terminalId, 2);
-    await expect(stream.next()).resolves.toMatchObject({
-      value: { kind: 'chunk', chunk: 'llo' },
-      done: false,
-    });
-    const live = stream.next();
     terminal.pushOutput(' world');
-    await expect(live).resolves.toMatchObject({
-      value: { kind: 'chunk', chunk: ' world' },
-      done: false,
-    });
-    const finished = stream.next();
+
+    expect(log.snapshot().data.text).toBe('hello world');
+    expect(updates).toHaveLength(2);
+    expect(updates.at(-1)).toMatchObject({ delta: { chunk: ' world' } });
+
     terminal.triggerExit({ exitCode: 0, signal: null });
-    await expect(finished).resolves.toMatchObject({
-      value: { kind: 'finished', exitStatus: { exitCode: 0, signal: null } },
-      done: false,
-    });
+    expect(rt.terminalsLiveModel('conv-terminal').snapshot().data).toMatchObject([
+      { terminalId: created.terminalId, exitStatus: { exitCode: 0, signal: null } },
+    ]);
+    unsub();
   });
 
   it('removes sessions when the process closes', async () => {
