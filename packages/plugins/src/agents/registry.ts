@@ -33,6 +33,7 @@ import { provider as pi } from './impl/pi';
 import { provider as qoder } from './impl/qoder';
 import { provider as qwen } from './impl/qwen';
 import { provider as rovo } from './impl/rovo';
+import { provider as zero } from './impl/zero';
 
 export const pluginRegistry = createPluginRegistry<CLIAgentPluginProvider>();
 
@@ -70,6 +71,7 @@ for (const p of [
   qoder,
   qwen,
   rovo,
+  zero,
 ]) {
   pluginRegistry.register(p);
 }

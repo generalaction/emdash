@@ -32,6 +32,7 @@ export const AGENT_PROVIDER_IDS = [
   'letta',
   'autohand',
   'mimocode',
+  'zero',
 ] as const;
 
 export type AgentProviderId = (typeof AGENT_PROVIDER_IDS)[number];
@@ -731,6 +732,21 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'MiMo Code CLI',
     terminalOnly: true,
     supportsHooks: true,
+  },
+  {
+    id: 'zero',
+    name: 'Zero',
+    description:
+      'Terminal coding agent with local sessions, multi-provider model support, MCP, skills, hooks, and headless exec workflows.',
+    docUrl: 'https://zero.gitlawb.com/',
+    installCommand: 'npm install -g @gitlawb/zero',
+    commands: ['zero'],
+    versionArgs: ['--version'],
+    cli: 'zero',
+    useKeystrokeInjection: true,
+    icon: 'zero.svg',
+    alt: 'Zero CLI',
+    terminalOnly: true,
   },
 ];
 
