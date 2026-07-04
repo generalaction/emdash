@@ -16,6 +16,9 @@ import {
 } from '@shared/core/automations/config';
 import { conversationConfig } from '@shared/core/conversations/conversation-config';
 import { linkedIssue } from '@shared/core/linked-issue';
+import { loopConfig } from '@shared/core/loops/loop-config';
+import { loopPhaseCriteria } from '@shared/core/loops/loop-phase-criteria';
+import type { LoopStatus, PhaseStatus } from '@shared/core/loops/loops';
 import { providerAccountMeta } from '@shared/core/provider-accounts/provider-account-meta';
 import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
 import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
@@ -396,6 +399,63 @@ export const conversations = sqliteTable(
   })
 );
 
+export const loops = sqliteTable(
+  'loops',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    status: text('status').$type<LoopStatus>().notNull().default('draft'),
+    currentPhaseIndex: integer('current_phase_index').notNull().default(0),
+    config: versionedJsonColumn(loopConfig)('config'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    projectIdIdx: index('idx_loops_project_id').on(table.projectId),
+    taskIdIdx: index('idx_loops_task_id').on(table.taskId),
+  })
+);
+
+export const loopPhases = sqliteTable(
+  'loop_phases',
+  {
+    id: text('id').primaryKey(),
+    loopId: text('loop_id')
+      .notNull()
+      .references(() => loops.id, { onDelete: 'cascade' }),
+    idx: integer('idx').notNull(),
+    name: text('name').notNull(),
+    goal: text('goal').notNull(),
+    status: text('status').$type<PhaseStatus>().notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    conversationId: text('conversation_id').references(() => conversations.id, {
+      onDelete: 'set null',
+    }),
+    criteria: versionedJsonColumn(loopPhaseCriteria)('criteria'),
+    lastError: text('last_error'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    loopIdIdx: index('idx_loop_phases_loop_id').on(table.loopId),
+  })
+);
+
 export const terminals = sqliteTable(
   'terminals',
   {
@@ -518,6 +578,10 @@ export type ProjectSettingsRow = typeof projectSettings.$inferSelect;
 export type ProjectSettingsInsert = typeof projectSettings.$inferInsert;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
+export type LoopRow = typeof loops.$inferSelect;
+export type LoopInsert = typeof loops.$inferInsert;
+export type LoopPhaseRow = typeof loopPhases.$inferSelect;
+export type LoopPhaseInsert = typeof loopPhases.$inferInsert;
 export type TerminalRow = typeof terminals.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type EditorBufferRow = typeof editorBuffers.$inferSelect;
