@@ -1,6 +1,7 @@
 import {
   VERIFIER_IDS,
   type CreateLoopParams,
+  type LoopProviderId,
   type LoopVerifierAvailability,
   type VerifierId,
 } from '@shared/core/loops/loops';
@@ -117,6 +118,7 @@ export function buildCreateLoopParams(input: {
   projectId: string;
   taskId: string;
   name: string;
+  provider?: LoopProviderId;
   planSource: string;
   validationCommands: string[];
   selectedVerifiers: Set<VerifierId>;
@@ -129,6 +131,7 @@ export function buildCreateLoopParams(input: {
     projectId: input.projectId,
     taskId: input.taskId,
     name: input.name.trim(),
+    ...(input.provider ? { provider: input.provider } : {}),
     planSource: input.planSource.trim(),
     validationCommands: input.validationCommands.map((command) => command.trim()).filter(Boolean),
     verifiers: Array.from(input.selectedVerifiers),

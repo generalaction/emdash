@@ -7,6 +7,7 @@ import { hydrateConversation } from '@main/core/conversations/hydrateConversatio
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { err, ok, type Result } from '@main/lib/result';
+import { resolveLoopProvider } from '@shared/core/loops/loops';
 import {
   phaseConversationTitle,
   verificationConversationTitle,
@@ -103,13 +104,14 @@ async function startConversation(
   title: string
 ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
   let conversationId = '';
+  const provider = resolveLoopProvider(ctx.loop.config);
 
   try {
     const conversation = await createConversation({
       id: randomUUID(),
       projectId: ctx.loop.projectId,
       taskId: ctx.loop.taskId,
-      provider: 'claude',
+      provider,
       title,
       isInitialConversation: false,
       type: 'acp',

@@ -1,6 +1,8 @@
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loopsStore } from '@renderer/features/loops/loops-store';
+import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
 import { Button } from '@renderer/lib/ui/button';
@@ -31,7 +33,10 @@ import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { cn } from '@renderer/utils/utils';
 import {
+  DEFAULT_LOOP_PROVIDER,
+  LOOP_PROVIDER_IDS,
   VERIFIER_IDS,
+  type LoopProviderId,
   type LoopVerifierAvailability,
   type VerifierId,
 } from '@shared/core/loops/loops';
@@ -47,6 +52,11 @@ import {
   validationError,
 } from './create-loop-form-model';
 import { verifierLabel } from './loop-format';
+
+const LOOP_PROVIDER_LABELS: Record<LoopProviderId, string> = {
+  claude: 'Claude Code',
+  codex: 'Codex',
+};
 
 function fallbackAvailability(): LoopVerifierAvailability[] {
   return VERIFIER_IDS.map((id) => ({
@@ -67,6 +77,7 @@ export function CreateLoopModal({
   taskId: string;
 }) {
   const [name, setName] = useState('');
+  const [provider, setProvider] = useState<LoopProviderId>(DEFAULT_LOOP_PROVIDER);
   const [phases, setPhases] = useState<DraftPhase[]>(() => [makePhase(0)]);
   const [selectedVerifiers, setSelectedVerifiers] = useState<Set<VerifierId>>(() => new Set());
   const [validationCommands, setValidationCommands] = useState<string[]>(['pnpm run test']);
@@ -80,6 +91,7 @@ export function CreateLoopModal({
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const chatUiEnabled = useFeatureFlag('chat-ui');
 
   useCloseGuard(isSubmitting);
 
@@ -210,6 +222,7 @@ export function CreateLoopModal({
         projectId,
         taskId,
         name,
+        provider: chatUiEnabled ? provider : undefined,
         planSource: 'manual',
         validationCommands,
         selectedVerifiers,
@@ -248,6 +261,31 @@ export function CreateLoopModal({
               onChange={(event) => setName(event.target.value)}
             />
           </Field>
+
+          {chatUiEnabled ? (
+            <Field>
+              <FieldLabel>Agent</FieldLabel>
+              <Select
+                value={provider}
+                onValueChange={(value) => setProvider(value as LoopProviderId)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    <AgentIcon id={provider} size={16} className="rounded-sm" />
+                    {LOOP_PROVIDER_LABELS[provider]}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {LOOP_PROVIDER_IDS.map((providerId) => (
+                    <SelectItem key={providerId} value={providerId}>
+                      <AgentIcon id={providerId} size={16} className="rounded-sm" />
+                      {LOOP_PROVIDER_LABELS[providerId]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          ) : null}
 
           <Field>
             <div className="flex items-center justify-between gap-3">

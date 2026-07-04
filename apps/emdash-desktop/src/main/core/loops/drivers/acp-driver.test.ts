@@ -59,7 +59,11 @@ describe('acpLoopSessionDriver', () => {
     mockConversationLookup({ projectId: 'project-1', taskId: 'task-1' });
   });
 
-  function makeLoopContext(): { loop: Loop; phase: LoopPhase; review: boolean } {
+  function makeLoopContext(patch: Partial<Loop> = {}): {
+    loop: Loop;
+    phase: LoopPhase;
+    review: boolean;
+  } {
     const loop: Loop = {
       id: 'loop-1',
       projectId: 'project-1',
@@ -71,6 +75,7 @@ describe('acpLoopSessionDriver', () => {
       config: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
+      ...patch,
     };
     const phase: LoopPhase = {
       id: 'phase-1',
@@ -105,8 +110,50 @@ describe('acpLoopSessionDriver', () => {
     const result = await acpLoopSessionDriver.startPhaseSession(makeLoopContext());
 
     expect(result.success).toBe(true);
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'claude',
+        type: 'acp',
+      })
+    );
     expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-loop');
     expect(hydrateConversationMock).toHaveBeenCalledWith('project-1', 'task-1', 'conv-loop');
+  });
+
+  it('uses the loop config provider when creating ACP conversations', async () => {
+    vi.mocked(createConversation).mockResolvedValueOnce({
+      id: 'conv-codex',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      providerId: 'codex',
+      title: 'loop-1',
+      type: 'acp',
+      isInitialConversation: false,
+      lastInteractedAt: null,
+    });
+    hydrateConversationMock.mockResolvedValueOnce(undefined);
+
+    const result = await acpLoopSessionDriver.startPhaseSession(
+      makeLoopContext({
+        config: {
+          version: '1',
+          provider: 'codex',
+          verifiers: ['gh'],
+          reviewEnabled: false,
+          validationCommands: ['pnpm run test'],
+          planSource: 'manual',
+        },
+      })
+    );
+
+    expect(result.success).toBe(true);
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'codex',
+        type: 'acp',
+      })
+    );
+    expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-codex');
   });
 
   it('starts verification conversations with auto-approval and a verify title', async () => {

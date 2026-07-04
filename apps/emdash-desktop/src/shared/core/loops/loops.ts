@@ -10,17 +10,22 @@ export const PHASE_STATUSES = [
   'failed',
 ] as const;
 export const VERIFIER_IDS = ['gh', 'vercel', 'convex', 'agent-browser'] as const;
+export const LOOP_PROVIDER_IDS = ['claude', 'codex'] as const;
 
 export const loopStatusSchema = z.enum(LOOP_STATUSES);
 export const phaseStatusSchema = z.enum(PHASE_STATUSES);
 export const verifierIdSchema = z.enum(VERIFIER_IDS);
+export const loopProviderSchema = z.enum(LOOP_PROVIDER_IDS);
 
 export type LoopStatus = z.infer<typeof loopStatusSchema>;
 export type PhaseStatus = z.infer<typeof phaseStatusSchema>;
 export type VerifierId = z.infer<typeof verifierIdSchema>;
+export type LoopProviderId = z.infer<typeof loopProviderSchema>;
+export const DEFAULT_LOOP_PROVIDER: LoopProviderId = 'claude';
 
 export const loopConfigV1Schema = z.object({
   version: z.literal('1'),
+  provider: loopProviderSchema.optional(),
   verifiers: z.array(verifierIdSchema),
   reviewEnabled: z.boolean(),
   validationCommands: z.array(z.string()),
@@ -65,6 +70,10 @@ export function isPhaseStatus(value: unknown): value is PhaseStatus {
 
 export function isVerifierId(value: unknown): value is VerifierId {
   return typeof value === 'string' && VERIFIER_ID_SET.has(value);
+}
+
+export function resolveLoopProvider(config: LoopConfig | null | undefined): LoopProviderId {
+  return config?.provider ?? DEFAULT_LOOP_PROVIDER;
 }
 
 export function isLoopConfig(value: unknown): value is LoopConfig {
@@ -123,6 +132,7 @@ export type CreateLoopParams = {
   projectId: string;
   taskId: string;
   name: string;
+  provider?: LoopProviderId;
   planSource: string;
   validationCommands: string[];
   verifiers: VerifierId[];

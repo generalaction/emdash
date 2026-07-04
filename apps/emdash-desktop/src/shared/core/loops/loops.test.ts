@@ -2,17 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { loopConfig } from './loop-config';
 import { loopPhaseCriteria } from './loop-phase-criteria';
 import {
+  DEFAULT_LOOP_PROVIDER,
   isLoopConfig,
   isLoopPhaseCriterion,
   isLoopStatus,
   isPhaseStatus,
   isVerifierId,
+  resolveLoopProvider,
 } from './loops';
 
 describe('loop versioned schemas', () => {
   it('parses a v1 loop config', () => {
     const result = loopConfig.safeParse({
       version: '1',
+      provider: 'codex',
       verifiers: ['gh', 'agent-browser'],
       reviewEnabled: true,
       validationCommands: ['pnpm run test'],
@@ -27,6 +30,7 @@ describe('loop versioned schemas', () => {
     if (result.status === 'ok') {
       expect(result.data).toEqual({
         version: '1',
+        provider: 'codex',
         verifiers: ['gh', 'agent-browser'],
         reviewEnabled: true,
         validationCommands: ['pnpm run test'],
@@ -39,9 +43,25 @@ describe('loop versioned schemas', () => {
     }
   });
 
+  it('defaults missing loop providers to Claude', () => {
+    const result = loopConfig.safeParse({
+      version: '1',
+      verifiers: ['gh'],
+      reviewEnabled: false,
+      validationCommands: [],
+      planSource: 'phase plan',
+    });
+
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') {
+      expect(resolveLoopProvider(result.data)).toBe(DEFAULT_LOOP_PROVIDER);
+    }
+  });
+
   it('round-trips a v1 loop config through serialize and parseJson', () => {
     const config = loopConfig.safeParse({
       version: '1',
+      provider: 'claude',
       verifiers: ['vercel', 'convex'],
       reviewEnabled: false,
       validationCommands: ['pnpm run typecheck', 'pnpm run lint'],
@@ -58,6 +78,7 @@ describe('loop versioned schemas', () => {
   it('rejects invalid verifier ids in loop config', () => {
     const result = loopConfig.safeParse({
       version: '1',
+      provider: 'codex',
       verifiers: ['unknown'],
       reviewEnabled: false,
       validationCommands: [],

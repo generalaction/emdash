@@ -3,13 +3,14 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { loopPhases, loops, tasks } from '@main/db/schema';
 import { err, ok, type Result } from '@main/lib/result';
-import type {
-  CreateLoopParams,
-  Loop,
-  LoopConfig,
-  LoopPhase,
-  LoopPhaseCriteria,
-  LoopWithPhases,
+import {
+  DEFAULT_LOOP_PROVIDER,
+  type CreateLoopParams,
+  type Loop,
+  type LoopConfig,
+  type LoopPhase,
+  type LoopPhaseCriteria,
+  type LoopWithPhases,
 } from '@shared/core/loops/loops';
 import {
   mapLoopPhaseRow,
@@ -114,6 +115,7 @@ export async function createLoop(
   const slug = await uniqueSlug(normalized.data.taskId, slugify(normalized.data.name));
   const config: LoopConfig = {
     version: '1',
+    provider: normalized.data.provider ?? DEFAULT_LOOP_PROVIDER,
     verifiers: normalized.data.verifiers,
     reviewEnabled: normalized.data.reviewEnabled,
     validationCommands: normalized.data.validationCommands,

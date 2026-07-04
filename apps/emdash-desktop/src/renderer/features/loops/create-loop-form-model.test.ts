@@ -56,6 +56,7 @@ describe('create loop form model', () => {
       projectId: 'project-1',
       taskId: 'task-1',
       name: 'Loop',
+      provider: 'codex',
       planSource: 'manual',
       validationCommands: ['pnpm run test'],
       selectedVerifiers: new Set(['gh']),
@@ -68,6 +69,7 @@ describe('create loop form model', () => {
     });
 
     expect(params.agentBrowser).toBeUndefined();
+    expect(params.provider).toBe('codex');
   });
 
   it('keeps an empty Agent Browser config object when selected without optional inputs', () => {
