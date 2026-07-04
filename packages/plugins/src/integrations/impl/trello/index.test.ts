@@ -117,7 +117,7 @@ describe('trello integration verify', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('returns a helpful authentication error when Trello rejects the credentials', async () => {
+  it('surfaces the underlying error when Trello rejects the credentials', async () => {
     routeFetch({ '/1/members/me': errorResponse(401, 'invalid token') });
 
     const result = await auth.verify(host, {
@@ -127,7 +127,7 @@ describe('trello integration verify', () => {
 
     expect(result).toEqual({
       connected: false,
-      error: 'Trello request failed.',
+      error: 'Request failed: 401  - invalid token',
     });
   });
 });

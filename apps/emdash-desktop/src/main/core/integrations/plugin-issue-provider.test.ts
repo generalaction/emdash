@@ -18,11 +18,20 @@ vi.mock('./integration-connection-service', () => ({
   integrationConnectionService: { checkConnection: mockCheckConnection },
 }));
 
-vi.mock('@main/lib/logger', () => ({
-  log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
-}));
+vi.mock('@main/lib/logger', () => {
+  const log = {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+    child: vi.fn(),
+  };
+  log.child.mockReturnValue(log);
+  return { log };
+});
 
-import { createPluginIssueProvider, mapPluginIssueError } from './plugin-issue-provider';
+import { mapPluginIssueError } from '../issues/plugin-issue-adapter';
+import { createPluginIssueProvider } from './plugin-issue-provider';
 
 function makePlugin(overrides: {
   requiredInputs?: 'repositoryUrl'[];

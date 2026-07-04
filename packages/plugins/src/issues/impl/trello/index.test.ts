@@ -194,14 +194,14 @@ describe('trello issues plugin', () => {
       }
     });
 
-    it('returns a generic provider error when an API request fails', async () => {
+    it('surfaces the underlying error message when an API request fails', async () => {
       fetchMock.mockRejectedValue(new Error('Rate limit exceeded'));
 
       const result = await issues.listIssues(host(CREDENTIALS), { limit: 50 });
 
       expect(result).toEqual({
         success: false,
-        error: { type: 'generic', message: 'Trello request failed.' },
+        error: { type: 'generic', message: 'Rate limit exceeded' },
       });
     });
 

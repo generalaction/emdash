@@ -97,14 +97,14 @@ describe('monday integration verify', () => {
     expect(mondaySdk.request).not.toHaveBeenCalled();
   });
 
-  it('surfaces the API error message when validation fails', async () => {
-    mondaySdk.request.mockRejectedValueOnce(clientError(401, 'Not Authenticated'));
+  it('surfaces the API error message for unclassified failures', async () => {
+    mondaySdk.request.mockRejectedValueOnce(clientError(400, 'Some field is invalid'));
 
     const result = await auth.verify(host, {
       apiToken: 'bad-token',
     });
 
-    expect(result).toEqual({ connected: false, error: 'Not Authenticated' });
+    expect(result).toEqual({ connected: false, error: 'Some field is invalid' });
   });
 
   it('returns a helpful authentication error when Monday rejects the token', async () => {

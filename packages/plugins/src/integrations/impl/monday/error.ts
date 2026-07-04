@@ -13,51 +13,38 @@ export function toMondayIntegrationError(
   fallback = 'Monday.com request failed.'
 ): IntegrationError {
   const status = getStatus(error);
-  const apiMessage = getApiMessage(error);
 
   if (status === 401) {
     return {
       type: 'auth_failed',
-      message: apiMessage ?? MONDAY_API_ERROR_MESSAGES.AUTH_FAILED,
+      message: MONDAY_API_ERROR_MESSAGES.AUTH_FAILED,
     };
   }
 
   if (status === 403) {
     return {
       type: 'auth_failed',
-      message: apiMessage ?? MONDAY_API_ERROR_MESSAGES.MISSING_PERMISSIONS,
+      message: MONDAY_API_ERROR_MESSAGES.MISSING_PERMISSIONS,
     };
   }
 
   if (status === 429) {
     return {
       type: 'rate_limited',
-      message: apiMessage ?? MONDAY_API_ERROR_MESSAGES.RATE_LIMITED,
+      message: MONDAY_API_ERROR_MESSAGES.RATE_LIMITED,
     };
   }
 
   if (typeof status === 'number' && status >= 500) {
     return {
       type: 'host_unreachable',
-      message: apiMessage ?? MONDAY_API_ERROR_MESSAGES.UNAVAILABLE,
+      message: MONDAY_API_ERROR_MESSAGES.UNAVAILABLE,
     };
   }
-
-  if (apiMessage) return { type: 'generic', message: apiMessage };
   if (error instanceof Error && error.message) return { type: 'generic', message: error.message };
   return { type: 'generic', message: fallback };
 }
 
 function getStatus(error: unknown): number | undefined {
-  if (error instanceof ClientError) return error.response.status;
-  return undefined;
-}
-
-function getApiMessage(error: unknown): string | undefined {
-  if (error instanceof ClientError) {
-    const message = error.response.errors?.[0]?.message;
-    return message || error.message || undefined;
-  }
-
-  return error instanceof Error && error.message ? error.message : undefined;
+  return error instanceof ClientError && error.response.status ? error.response.status : undefined;
 }

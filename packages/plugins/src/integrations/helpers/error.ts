@@ -19,7 +19,11 @@ type HttpErrorLike = Error & {
   };
 };
 
-export function toIntegrationError(error: unknown, provider: string): IntegrationError {
+export function toIntegrationError(
+  error: unknown,
+  provider: string,
+  fallback = `${provider} request failed.`
+): IntegrationError {
   const status = getHttpStatus(error);
 
   if (status === 401) {
@@ -64,10 +68,11 @@ export function toIntegrationError(error: unknown, provider: string): Integratio
     };
   }
 
-  return {
-    type: 'generic',
-    message: `${provider} request failed.`,
-  };
+  if (error instanceof Error && error.message) {
+    return { type: 'generic', message: error.message };
+  }
+
+  return { type: 'generic', message: fallback };
 }
 
 function getHttpStatus(error: unknown): number | undefined {

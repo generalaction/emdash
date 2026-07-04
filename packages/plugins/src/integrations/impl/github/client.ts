@@ -1,9 +1,9 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { Octokit } from '@octokit/rest';
 import { parseCredentials } from '../../helpers/credentials';
-import { toIntegrationError } from '../../helpers/error';
 import type { IntegrationCredentials } from '../../host';
 import type { IntegrationError } from '../../types';
+import { toGitHubIntegrationError } from './error';
 import {
   type GitHubClient,
   type GitHubCredentials,
@@ -48,6 +48,6 @@ export async function verifyGitHubCredentials(
       credentials: credentials.data,
     });
   } catch (error) {
-    return err(toIntegrationError(error, 'GitHub'));
+    return err(toGitHubIntegrationError(error, 'Failed to verify GitHub credentials.'));
   }
 }

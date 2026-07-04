@@ -160,7 +160,7 @@ describe('github issues plugin', () => {
       });
     });
 
-    it('maps 403 with an SSO header to auth_failed', async () => {
+    it('maps 403 with an SSO header to sso_required with the authorization URL', async () => {
       const result = await listWithResponse(
         jsonResponse(
           403,
@@ -175,13 +175,14 @@ describe('github issues plugin', () => {
       expect(result).toEqual({
         success: false,
         error: {
-          type: 'auth_failed',
-          message: 'GitHub credentials were accepted but are missing required permissions.',
+          type: 'sso_required',
+          message: 'GitHub requires single sign-on authorization for this organization.',
+          ssoUrl: 'https://github.com/orgs/acme/sso?authorization_request=abc123',
         },
       });
     });
 
-    it('maps 403 with a rate limit header to auth_failed', async () => {
+    it('maps 403 with an exhausted rate limit to rate_limited with resetAt', async () => {
       const resetEpochSeconds = 1750000000;
       const result = await listWithResponse(
         jsonResponse(
@@ -194,8 +195,9 @@ describe('github issues plugin', () => {
       expect(result).toEqual({
         success: false,
         error: {
-          type: 'auth_failed',
-          message: 'GitHub credentials were accepted but are missing required permissions.',
+          type: 'rate_limited',
+          message: 'GitHub API rate limit exceeded. Please try again shortly.',
+          resetAt: new Date(resetEpochSeconds * 1000).toISOString(),
         },
       });
     });

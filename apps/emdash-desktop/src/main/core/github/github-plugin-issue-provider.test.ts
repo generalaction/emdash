@@ -32,9 +32,17 @@ vi.mock('@main/core/github/services/project-github-auth-context', () => ({
   resolveProjectGitHubAuthContext: mockAuthContext,
 }));
 
-vi.mock('@main/lib/logger', () => ({
-  log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
-}));
+vi.mock('@main/lib/logger', () => {
+  const log = {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+    child: vi.fn(),
+  };
+  log.child.mockReturnValue(log);
+  return { log };
+});
 
 import { createGitHubPluginIssueProvider } from './github-plugin-issue-provider';
 

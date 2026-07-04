@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { GitLabClient, GitLabCredentials } from '../../../integrations/impl/gitlab/types';
-import { resolveGitLabProject } from './repo-resolver';
+import { resolveGitLabProject } from './project-resolver';
+import type { GitLabClient, GitLabCredentials } from './types';
 
 const credentials: GitLabCredentials = {
   instanceUrl: 'https://gitlab.example.com',

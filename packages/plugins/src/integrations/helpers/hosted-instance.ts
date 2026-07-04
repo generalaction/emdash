@@ -1,3 +1,6 @@
+import { err, ok, type Result } from '@emdash/shared';
+import type { IntegrationError } from '../types';
+
 const NETWORK_ERROR_CODES = new Set(['ENOTFOUND', 'ECONNREFUSED', 'ETIMEDOUT', 'EAI_AGAIN']);
 
 export function normalizeHostedInstanceUrl(instanceUrl: string): string | null {
@@ -27,25 +30,27 @@ export function hasKnownNetworkErrorCode(error: unknown): boolean {
   return typeof code === 'string' && NETWORK_ERROR_CODES.has(code);
 }
 
-/** The git remote points at a different host than the configured instance. */
-export class RemoteHostMismatchError extends Error {
-  constructor(remoteHost: string, instanceHost: string, providerName: string) {
-    super(
-      `Git remote host "${remoteHost}" does not match configured ${providerName} instance "${instanceHost}".`
-    );
-    this.name = 'RemoteHostMismatchError';
-  }
-}
-
-export function assertRemoteHostMatchesInstance(
+export function checkRemoteHostMatchesInstance(
   remoteHost: string,
   instanceUrl: string,
   providerName: string
-): void {
-  const instanceHost = new URL(instanceUrl).hostname.toLowerCase();
-  if (remoteHost === instanceHost) {
-    return;
+): Result<void, IntegrationError> {
+  let instanceHost: string;
+  try {
+    instanceHost = new URL(instanceUrl).hostname.toLowerCase();
+  } catch {
+    return err({
+      type: 'invalid_input',
+      message: `A valid ${providerName} instance URL is required.`,
+    });
   }
 
-  throw new RemoteHostMismatchError(remoteHost, instanceHost, providerName);
+  if (remoteHost !== instanceHost) {
+    return err({
+      type: 'unsupported_host',
+      message: `Git remote host "${remoteHost}" does not match configured ${providerName} instance "${instanceHost}".`,
+    });
+  }
+
+  return ok(undefined);
 }

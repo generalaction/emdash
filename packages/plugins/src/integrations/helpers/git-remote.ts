@@ -55,16 +55,3 @@ export function parseGitRemoteUrl(remoteUrl: string): ParsedGitRemote | null {
 
   return null;
 }
-
-export function resolveRepositoryRemote(repositoryUrl: string | undefined): ParsedGitRemote {
-  const remoteUrl = repositoryUrl?.trim();
-  if (!remoteUrl) {
-    throw new Error('Repository URL is required.');
-  }
-
-  const remote = parseGitRemoteUrl(remoteUrl);
-  if (!remote) {
-    throw new Error('Unable to parse repository URL.');
-  }
-  return remote;
-}

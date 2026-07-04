@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  assertRemoteHostMatchesInstance,
+  checkRemoteHostMatchesInstance,
   hasKnownNetworkErrorCode,
   normalizeHostedInstanceUrl,
-  RemoteHostMismatchError,
 } from './hosted-instance';
 
 describe('normalizeHostedInstanceUrl', () => {
@@ -32,19 +31,33 @@ describe('hasKnownNetworkErrorCode', () => {
   });
 });
 
-describe('assertRemoteHostMatchesInstance', () => {
+describe('checkRemoteHostMatchesInstance', () => {
   it('allows matching hosts', () => {
-    expect(() =>
-      assertRemoteHostMatchesInstance('gitlab.example.com', 'https://gitlab.example.com', 'GitLab')
-    ).not.toThrow();
+    expect(
+      checkRemoteHostMatchesInstance('gitlab.example.com', 'https://gitlab.example.com', 'GitLab')
+    ).toEqual({ success: true, data: undefined });
   });
 
-  it('throws a typed mismatch error for mismatched hosts', () => {
-    expect(() =>
-      assertRemoteHostMatchesInstance('other.example.com', 'https://gitlab.example.com', 'GitLab')
-    ).toThrow(RemoteHostMismatchError);
-    expect(() =>
-      assertRemoteHostMatchesInstance('other.example.com', 'https://gitlab.example.com', 'GitLab')
-    ).toThrow('does not match configured GitLab instance');
+  it('returns an unsupported_host error for mismatched hosts', () => {
+    expect(
+      checkRemoteHostMatchesInstance('other.example.com', 'https://gitlab.example.com', 'GitLab')
+    ).toEqual({
+      success: false,
+      error: {
+        type: 'unsupported_host',
+        message:
+          'Git remote host "other.example.com" does not match configured GitLab instance "gitlab.example.com".',
+      },
+    });
+  });
+
+  it('returns an invalid_input error for an invalid instance URL', () => {
+    expect(checkRemoteHostMatchesInstance('gitlab.example.com', 'not a url', 'GitLab')).toEqual({
+      success: false,
+      error: {
+        type: 'invalid_input',
+        message: 'A valid GitLab instance URL is required.',
+      },
+    });
   });
 });

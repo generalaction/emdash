@@ -1,5 +1,5 @@
 import { err, ok } from '@emdash/shared';
-import type { IntegrationCredentials } from '../../../integrations/host';
+import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import {
   createLinearClient,
   readLinearCredentials,
@@ -7,53 +7,60 @@ import {
 import { toLinearIntegrationError } from '../../../integrations/impl/linear/error';
 import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
-import type { IssueGetResult, IssueListResult } from '../../types';
+import type {
+  IssueGetOpts,
+  IssueGetResult,
+  IssueListResult,
+  IssueQueryOpts,
+  IssueSearchOpts,
+} from '../../types';
 import { getLinearIssueDetails } from './context';
 import { toIssueData, toIssueDetail } from './mapper';
 import { queryLinearIssues, queryLinearIssueWithActivity, searchLinearIssues } from './queries';
 
 export async function listIssues(
-  credentials: IntegrationCredentials,
-  limit: number
+  host: ConnectedIntegrationHostContext,
+  opts: IssueQueryOpts
 ): Promise<IssueListResult> {
-  const parsedCredentials = readLinearCredentials(credentials);
+  const parsedCredentials = readLinearCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
   const client = createLinearClient(parsedCredentials.data);
-  const sanitizedLimit = clampIssueLimit(limit, 50, 200);
+  const sanitizedLimit = clampIssueLimit(opts.limit, 50, 200);
   try {
     const issues = await queryLinearIssues(client, sanitizedLimit);
     return ok(issues.map(toIssueData));
   } catch (error) {
+    host.log.warn('Linear listIssues failed', { error });
     return err(toLinearIntegrationError(error, 'Unable to fetch Linear issues.'));
   }
 }
 
 export async function searchIssues(
-  credentials: IntegrationCredentials,
-  searchTerm: string,
-  limit: number
+  host: ConnectedIntegrationHostContext,
+  opts: IssueSearchOpts
 ): Promise<IssueListResult> {
-  const term = normalizeSearchTerm(searchTerm);
+  const term = normalizeSearchTerm(opts.searchTerm);
   if (!term) return ok([]);
-  const parsedCredentials = readLinearCredentials(credentials);
+  const parsedCredentials = readLinearCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
   const client = createLinearClient(parsedCredentials.data);
-  const sanitizedLimit = clampIssueLimit(limit, 20, 200);
+  const sanitizedLimit = clampIssueLimit(opts.limit, 20, 200);
   try {
     const issues = await searchLinearIssues(client, term, sanitizedLimit);
     return ok(issues.map(toIssueData));
   } catch (error) {
+    host.log.warn('Linear searchIssues failed', { error });
     return err(toLinearIntegrationError(error, 'Unable to search Linear issues.'));
   }
 }
 
 export async function getIssue(
-  credentials: IntegrationCredentials,
-  identifier: string
+  host: ConnectedIntegrationHostContext,
+  opts: IssueGetOpts
 ): Promise<IssueGetResult> {
-  const term = normalizeSearchTerm(identifier);
+  const term = normalizeSearchTerm(opts.identifier);
   if (!term) return err({ type: 'invalid_input', message: 'Linear issue identifier is required.' });
-  const parsedCredentials = readLinearCredentials(credentials);
+  const parsedCredentials = readLinearCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
   const client = createLinearClient(parsedCredentials.data);
   try {
@@ -64,6 +71,7 @@ export async function getIssue(
     const { context } = await getLinearIssueDetails(client, issue);
     return ok(toIssueDetail(issue, context));
   } catch (error) {
+    host.log.warn('Linear getIssue failed', { error });
     return err(toLinearIntegrationError(error, 'Unable to fetch Linear issue context.'));
   }
 }
@@ -71,9 +79,5 @@ export async function getIssue(
 const plugin = defineIssuesPlugin({ integrationId: 'linear' }, { issues: {} }, {});
 
 export const provider = registerIssuesPluginBehavior(plugin, {
-  issues: {
-    listIssues: (host, opts) => listIssues(host.credentials, opts.limit),
-    searchIssues: (host, opts) => searchIssues(host.credentials, opts.searchTerm, opts.limit),
-    getIssue: (host, opts) => getIssue(host.credentials, opts.identifier),
-  },
+  issues: { listIssues, searchIssues, getIssue },
 });

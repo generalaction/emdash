@@ -1,7 +1,7 @@
 import { err, ok } from '@emdash/shared';
 import { toIntegrationError } from '../../../integrations/helpers/error';
 import { mapWithConcurrency } from '../../../integrations/helpers/map-with-concurrency';
-import type { IntegrationCredentials } from '../../../integrations/host';
+import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import {
   createTrelloClient,
   readTrelloCredentials,
@@ -9,7 +9,13 @@ import {
 import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { sortByUpdatedAtDesc } from '../../helpers/sort-by-updated-at-desc';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
-import type { IssueGetResult, IssueListResult } from '../../types';
+import type {
+  IssueGetOpts,
+  IssueGetResult,
+  IssueListResult,
+  IssueQueryOpts,
+  IssueSearchOpts,
+} from '../../types';
 import { resolveTrelloBoards, TRELLO_REQUEST_CONCURRENCY } from './board-resolver';
 import { formatTrelloContext } from './context';
 import { toIssueData } from './mapper';
@@ -17,14 +23,14 @@ import { toIssueData } from './mapper';
 const TRELLO_CARD_FIELDS = 'name,desc,url,shortLink,dateLastActivity';
 
 export async function listIssues(
-  credentials: IntegrationCredentials,
-  limit: number
+  host: ConnectedIntegrationHostContext,
+  opts: IssueQueryOpts
 ): Promise<IssueListResult> {
-  const parsedCredentials = readTrelloCredentials(credentials);
+  const parsedCredentials = readTrelloCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
 
   const client = createTrelloClient(parsedCredentials.data);
-  const sanitizedLimit = clampIssueLimit(limit, 50, 200);
+  const sanitizedLimit = clampIssueLimit(opts.limit, 50, 200);
 
   try {
     const boards = await resolveTrelloBoards(client);
@@ -43,23 +49,23 @@ export async function listIssues(
     const issues = sortByUpdatedAtDesc(cardsPerBoard.flat());
     return ok(issues.slice(0, sanitizedLimit));
   } catch (error) {
-    return err(toIntegrationError(error, 'Trello'));
+    host.log.warn('Trello listIssues failed', { error });
+    return err(toIntegrationError(error, 'Trello', 'Unable to fetch Trello cards.'));
   }
 }
 
 export async function searchIssues(
-  credentials: IntegrationCredentials,
-  searchTerm: string,
-  limit: number
+  host: ConnectedIntegrationHostContext,
+  opts: IssueSearchOpts
 ): Promise<IssueListResult> {
-  const term = normalizeSearchTerm(searchTerm);
+  const term = normalizeSearchTerm(opts.searchTerm);
   if (!term) return ok([]);
 
-  const parsedCredentials = readTrelloCredentials(credentials);
+  const parsedCredentials = readTrelloCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
 
   const client = createTrelloClient(parsedCredentials.data);
-  const sanitizedLimit = clampIssueLimit(limit, 20, 200);
+  const sanitizedLimit = clampIssueLimit(opts.limit, 20, 200);
 
   try {
     const boards = await resolveTrelloBoards(client);
@@ -78,22 +84,23 @@ export async function searchIssues(
     const issues = sortByUpdatedAtDesc((result.cards ?? []).map((card) => toIssueData(card)));
     return ok(issues);
   } catch (error) {
-    return err(toIntegrationError(error, 'Trello'));
+    host.log.warn('Trello searchIssues failed', { error });
+    return err(toIntegrationError(error, 'Trello', 'Unable to search Trello cards.'));
   }
 }
 
 export async function getIssue(
-  credentials: IntegrationCredentials,
-  identifier: string
+  host: ConnectedIntegrationHostContext,
+  opts: IssueGetOpts
 ): Promise<IssueGetResult> {
-  const parsedCredentials = readTrelloCredentials(credentials);
+  const parsedCredentials = readTrelloCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
 
   const client = createTrelloClient(parsedCredentials.data);
 
   try {
     const card = await client.cards.getCard({
-      id: identifier,
+      id: opts.identifier,
       fields: TRELLO_CARD_FIELDS,
       board: true,
       boardFields: ['name'],
@@ -102,16 +109,13 @@ export async function getIssue(
     });
     return ok({ ...toIssueData(card), context: formatTrelloContext(card) });
   } catch (error) {
-    return err(toIntegrationError(error, 'Trello'));
+    host.log.warn('Trello getIssue failed', { error });
+    return err(toIntegrationError(error, 'Trello', 'Unable to fetch Trello card context.'));
   }
 }
 
 const plugin = defineIssuesPlugin({ integrationId: 'trello' }, { issues: {} }, {});
 
 export const provider = registerIssuesPluginBehavior(plugin, {
-  issues: {
-    listIssues: (host, opts) => listIssues(host.credentials, opts.limit),
-    searchIssues: (host, opts) => searchIssues(host.credentials, opts.searchTerm, opts.limit),
-    getIssue: (host, opts) => getIssue(host.credentials, opts.identifier),
-  },
+  issues: { listIssues, searchIssues, getIssue },
 });

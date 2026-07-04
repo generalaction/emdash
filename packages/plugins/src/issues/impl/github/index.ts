@@ -1,25 +1,24 @@
 import { err, ok } from '@emdash/shared';
-import { toIntegrationError } from '../../../integrations/helpers/error';
-import type { IntegrationCredentials } from '../../../integrations/host';
+import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import {
   createGitHubClient,
   readGitHubCredentials,
 } from '../../../integrations/impl/github/client';
+import { toGitHubIntegrationError } from '../../../integrations/impl/github/error';
+import { resolveGitHubRepository } from '../../../integrations/impl/github/repo-resolver';
 import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
-import type { IssueListResult } from '../../types';
+import type { IssueListResult, IssueQueryOpts, IssueSearchOpts } from '../../types';
 import { toIssueData } from './mapper';
-import { resolveGitHubRepository } from './repo-resolver';
 
 export async function listIssues(
-  credentials: IntegrationCredentials,
-  repositoryUrl: string | undefined,
-  limit: number
+  host: ConnectedIntegrationHostContext,
+  opts: IssueQueryOpts
 ): Promise<IssueListResult> {
-  const parsedCredentials = readGitHubCredentials(credentials);
+  const parsedCredentials = readGitHubCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
 
-  const repository = resolveGitHubRepository(parsedCredentials.data, repositoryUrl);
+  const repository = resolveGitHubRepository(parsedCredentials.data, opts.repositoryUrl);
   if (!repository.success) return err(repository.error);
 
   const octokit = createGitHubClient(parsedCredentials.data);
@@ -29,30 +28,29 @@ export async function listIssues(
       owner: repository.data.owner,
       repo: repository.data.repo,
       state: 'open',
-      per_page: clampIssueLimit(limit, 50, 100),
+      per_page: clampIssueLimit(opts.limit, 50, 100),
       sort: 'updated',
       direction: 'desc',
     });
 
     return ok(data.filter((issue) => !issue.pull_request).map(toIssueData));
   } catch (error) {
-    return err(toIntegrationError(error, 'GitHub'));
+    host.log.warn('GitHub listIssues failed', { error });
+    return err(toGitHubIntegrationError(error, 'Unable to fetch GitHub issues.'));
   }
 }
 
 export async function searchIssues(
-  credentials: IntegrationCredentials,
-  repositoryUrl: string | undefined,
-  searchTerm: string,
-  limit: number
+  host: ConnectedIntegrationHostContext,
+  opts: IssueSearchOpts
 ): Promise<IssueListResult> {
-  const term = normalizeSearchTerm(searchTerm);
+  const term = normalizeSearchTerm(opts.searchTerm);
   if (!term) return ok([]);
 
-  const parsedCredentials = readGitHubCredentials(credentials);
+  const parsedCredentials = readGitHubCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
 
-  const repository = resolveGitHubRepository(parsedCredentials.data, repositoryUrl);
+  const repository = resolveGitHubRepository(parsedCredentials.data, opts.repositoryUrl);
   if (!repository.success) return err(repository.error);
 
   const octokit = createGitHubClient(parsedCredentials.data);
@@ -60,14 +58,15 @@ export async function searchIssues(
   try {
     const { data } = await octokit.rest.search.issuesAndPullRequests({
       q: `${term} repo:${repository.data.slug} is:issue is:open`,
-      per_page: clampIssueLimit(limit, 20, 100),
+      per_page: clampIssueLimit(opts.limit, 20, 100),
       sort: 'updated',
       order: 'desc',
     });
 
     return ok(data.items.map(toIssueData));
   } catch (error) {
-    return err(toIntegrationError(error, 'GitHub'));
+    host.log.warn('GitHub searchIssues failed', { error });
+    return err(toGitHubIntegrationError(error, 'Unable to search GitHub issues.'));
   }
 }
 
@@ -78,9 +77,5 @@ const plugin = defineIssuesPlugin(
 );
 
 export const provider = registerIssuesPluginBehavior(plugin, {
-  issues: {
-    listIssues: (host, opts) => listIssues(host.credentials, opts.repositoryUrl, opts.limit),
-    searchIssues: (host, opts) =>
-      searchIssues(host.credentials, opts.repositoryUrl, opts.searchTerm, opts.limit),
-  },
+  issues: { listIssues, searchIssues },
 });

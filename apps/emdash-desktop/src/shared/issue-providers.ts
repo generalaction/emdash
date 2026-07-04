@@ -53,4 +53,4 @@ export type IssueListResult =
 
 export type IssueContextResult =
   | { success: true; issue: LinkedIssue }
-  | { success: false; error: string };
+  | { success: false; error: string; errorType?: IssueListError['type'] };

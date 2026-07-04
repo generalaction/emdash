@@ -6,6 +6,13 @@ import type { GitHubApiAuthContext } from '@main/core/github/services/github-api
 import { githubApiBaseUrlForHost } from '@main/core/github/services/github-api-base-url';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
+import {
+  clampIssueProviderLimit,
+  DEFAULT_LIST_LIMIT,
+  DEFAULT_SEARCH_LIMIT,
+  toIssueProviderCapabilities,
+  toLinkedIssue,
+} from '@main/core/issues/plugin-issue-adapter';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { log } from '@main/lib/logger';
 import type { LinkedIssue } from '@shared/core/linked-issue';
@@ -200,14 +207,6 @@ async function resolveGitHubPluginCredentials(
   return ok({ accessToken, apiBaseUrl: githubApiBaseUrlForHost(normalizedHost) });
 }
 
-function toCapabilities(plugin: IssuesPluginProvider): IssueProviderCapabilities {
-  const requiredInputs = plugin.capabilities.issues.requiredInputs;
-  return {
-    requiresRepositoryUrl: requiredInputs.includes('repositoryUrl'),
-    supportsIssueContext: !!plugin.behavior.issues?.getIssue,
-  };
-}
-
 async function getDefaultLinkedAccountConnection(capabilities: IssueProviderCapabilities) {
   const defaultAccountId = await providerAccountRegistry.getDefaultAccountId(GITHUB_PROVIDER_ID);
   if (!defaultAccountId) return null;
@@ -228,7 +227,8 @@ async function getDefaultLinkedAccountConnection(capabilities: IssueProviderCapa
 }
 
 export function createGitHubPluginIssueProvider(plugin: IssuesPluginProvider): IssueProvider {
-  const capabilities = toCapabilities(plugin);
+  const capabilities = toIssueProviderCapabilities(plugin);
+  const pluginLog = log.child({ integration: 'github' });
 
   async function invoke(
     opts: IssueQueryOpts,
@@ -244,21 +244,19 @@ export function createGitHubPluginIssueProvider(plugin: IssuesPluginProvider): I
     const credentials = await resolveGitHubPluginCredentials(repository.data, authContext.data);
     if (!credentials.success) return toIssueListResult(err(credentials.error));
 
+    const host = { log: pluginLog, credentials: credentials.data };
     const behavior = plugin.behavior.issues;
     const result =
       kind === 'search'
-        ? await behavior?.searchIssues?.(
-            { log, credentials: credentials.data },
-            {
-              limit: opts.limit ?? 20,
-              searchTerm: searchTerm ?? '',
-              repositoryUrl: repository.data.repositoryUrl,
-            }
-          )
-        : await behavior?.listIssues?.(
-            { log, credentials: credentials.data },
-            { limit: opts.limit ?? 50, repositoryUrl: repository.data.repositoryUrl }
-          );
+        ? await behavior?.searchIssues?.(host, {
+            limit: clampIssueProviderLimit(opts.limit, DEFAULT_SEARCH_LIMIT),
+            searchTerm: searchTerm ?? '',
+            repositoryUrl: repository.data.repositoryUrl,
+          })
+        : await behavior?.listIssues?.(host, {
+            limit: clampIssueProviderLimit(opts.limit, DEFAULT_LIST_LIMIT),
+            repositoryUrl: repository.data.repositoryUrl,
+          });
 
     if (!result) return { success: true, issues: [] };
     if (!result.success)
@@ -266,18 +264,7 @@ export function createGitHubPluginIssueProvider(plugin: IssuesPluginProvider): I
 
     return {
       success: true,
-      issues: result.data.map((issue) => ({
-        provider: 'github',
-        identifier: issue.identifier,
-        displayIdentifier: issue.displayIdentifier,
-        title: issue.title,
-        url: issue.url ?? '',
-        description: issue.description,
-        status: issue.status,
-        assignees: issue.assignees,
-        updatedAt: issue.updatedAt,
-        fetchedAt: new Date().toISOString(),
-      })),
+      issues: result.data.map((issue) => toLinkedIssue('github', issue)),
     };
   }
 

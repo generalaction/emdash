@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { GitHubCredentials } from '../../../integrations/impl/github/types';
 import { resolveGitHubRepository } from './repo-resolver';
+import type { GitHubCredentials } from './types';
 
 const credentials: GitHubCredentials = {
   accessToken: 'token',
@@ -44,6 +44,21 @@ describe('resolveGitHubRepository', () => {
         owner: 'acme',
         repo: 'widgets',
         slug: 'acme/widgets',
+      },
+    });
+  });
+
+  it('requires a valid API base URL', () => {
+    expect(
+      resolveGitHubRepository(
+        { accessToken: 'token', apiBaseUrl: 'not a url' },
+        'https://github.com/acme/widgets.git'
+      )
+    ).toEqual({
+      success: false,
+      error: {
+        type: 'invalid_input',
+        message: 'A valid GitHub API base URL is required.',
       },
     });
   });

@@ -1,26 +1,29 @@
 import { err, ok } from '@emdash/shared';
 import { issueListIssues } from '@llamaduck/forgejo-ts';
 import { toIntegrationError } from '../../../integrations/helpers/error';
-import type { IntegrationCredentials } from '../../../integrations/host';
+import { resolveRemoteRepository } from '../../../integrations/helpers/repository-remote';
+import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import {
   createForgejoClient,
   readForgejoCredentials,
 } from '../../../integrations/impl/forgejo/client';
 import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
-import type { IssueListResult } from '../../types';
+import type { IssueListResult, IssueQueryOpts, IssueSearchOpts } from '../../types';
 import { toIssueData } from './mapper';
-import { resolveForgejoRepository } from './repo-resolver';
 
 export async function listIssues(
-  credentials: IntegrationCredentials,
-  repositoryUrl: string | undefined,
-  limit: number
+  host: ConnectedIntegrationHostContext,
+  opts: IssueQueryOpts
 ): Promise<IssueListResult> {
-  const parsedCredentials = readForgejoCredentials(credentials);
+  const parsedCredentials = readForgejoCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
 
-  const repository = resolveForgejoRepository(parsedCredentials.data, repositoryUrl);
+  const repository = resolveRemoteRepository(
+    opts.repositoryUrl,
+    parsedCredentials.data.instanceUrl,
+    'Forgejo'
+  );
   if (!repository.success) return err(repository.error);
 
   const client = createForgejoClient(parsedCredentials.data);
@@ -33,30 +36,33 @@ export async function listIssues(
         state: 'open',
         type: 'issues',
         sort: 'recentupdate',
-        limit: clampIssueLimit(limit, 50, 100),
+        limit: clampIssueLimit(opts.limit, 50, 100),
       },
       throwOnError: true,
     });
 
-    return ok((issues ?? []).map((issue) => toIssueData(issue, repository.data.repoName)));
+    return ok((issues ?? []).map((issue) => toIssueData(issue, repository.data.repo)));
   } catch (error) {
-    return err(toIntegrationError(error, 'Forgejo'));
+    host.log.warn('Forgejo listIssues failed', { error });
+    return err(toIntegrationError(error, 'Forgejo', 'Unable to fetch Forgejo issues.'));
   }
 }
 
 export async function searchIssues(
-  credentials: IntegrationCredentials,
-  repositoryUrl: string | undefined,
-  searchTerm: string,
-  limit: number
+  host: ConnectedIntegrationHostContext,
+  opts: IssueSearchOpts
 ): Promise<IssueListResult> {
-  const term = normalizeSearchTerm(searchTerm);
+  const term = normalizeSearchTerm(opts.searchTerm);
   if (!term) return ok([]);
 
-  const parsedCredentials = readForgejoCredentials(credentials);
+  const parsedCredentials = readForgejoCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
 
-  const repository = resolveForgejoRepository(parsedCredentials.data, repositoryUrl);
+  const repository = resolveRemoteRepository(
+    opts.repositoryUrl,
+    parsedCredentials.data.instanceUrl,
+    'Forgejo'
+  );
   if (!repository.success) return err(repository.error);
 
   const client = createForgejoClient(parsedCredentials.data);
@@ -70,14 +76,15 @@ export async function searchIssues(
         type: 'issues',
         q: term,
         sort: 'recentupdate',
-        limit: clampIssueLimit(limit, 20, 100),
+        limit: clampIssueLimit(opts.limit, 20, 100),
       },
       throwOnError: true,
     });
 
-    return ok((issues ?? []).map((issue) => toIssueData(issue, repository.data.repoName)));
+    return ok((issues ?? []).map((issue) => toIssueData(issue, repository.data.repo)));
   } catch (error) {
-    return err(toIntegrationError(error, 'Forgejo'));
+    host.log.warn('Forgejo searchIssues failed', { error });
+    return err(toIntegrationError(error, 'Forgejo', 'Unable to search Forgejo issues.'));
   }
 }
 
@@ -88,9 +95,5 @@ const plugin = defineIssuesPlugin(
 );
 
 export const provider = registerIssuesPluginBehavior(plugin, {
-  issues: {
-    listIssues: (host, opts) => listIssues(host.credentials, opts.repositoryUrl, opts.limit),
-    searchIssues: (host, opts) =>
-      searchIssues(host.credentials, opts.repositoryUrl, opts.searchTerm, opts.limit),
-  },
+  issues: { listIssues, searchIssues },
 });
