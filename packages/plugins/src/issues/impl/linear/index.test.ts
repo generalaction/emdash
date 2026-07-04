@@ -1,15 +1,20 @@
 import type { Logger } from '@emdash/shared/logger';
+import type * as LinearSdk from '@linear/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import { provider } from './index';
 
 const { rawRequest } = vi.hoisted(() => ({ rawRequest: vi.fn() }));
 
-vi.mock('@linear/sdk', () => ({
-  LinearClient: class {
-    client = { rawRequest };
-  },
-}));
+vi.mock('@linear/sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof LinearSdk>();
+  return {
+    ...actual,
+    LinearClient: class {
+      client = { rawRequest };
+    },
+  };
+});
 
 const issues = provider.behavior.issues;
 if (!issues) {
@@ -71,7 +76,6 @@ describe('linear issues plugin', () => {
         expect.objectContaining({
           identifier: 'GEN-626',
           branchName: 'jona/gen-626-linear-issue-branch-name-creation',
-          context: undefined,
         }),
       ],
     });
@@ -129,38 +133,34 @@ describe('linear issues plugin', () => {
     rawRequest
       .mockResolvedValueOnce({
         data: {
-          searchIssues: {
-            nodes: [
-              linearIssueNode({
-                comments: {
-                  pageInfo: { hasNextPage: true, endCursor: 'comment-cursor-1' },
-                  nodes: [
-                    {
-                      id: 'comment-1',
-                      body: 'First page comment.',
-                      createdAt: '2026-04-17T12:05:00.000Z',
-                      updatedAt: '2026-04-17T12:05:00.000Z',
-                      url: 'https://linear.app/general-action/issue/GEN-626#comment-1',
-                      user: { displayName: 'Jona', name: 'jona' },
-                    },
-                  ],
+          issue: linearIssueNode({
+            comments: {
+              pageInfo: { hasNextPage: true, endCursor: 'comment-cursor-1' },
+              nodes: [
+                {
+                  id: 'comment-1',
+                  body: 'First page comment.',
+                  createdAt: '2026-04-17T12:05:00.000Z',
+                  updatedAt: '2026-04-17T12:05:00.000Z',
+                  url: 'https://linear.app/general-action/issue/GEN-626#comment-1',
+                  user: { displayName: 'Jona', name: 'jona' },
                 },
-                history: {
-                  pageInfo: { hasNextPage: true, endCursor: 'history-cursor-1' },
-                  nodes: [
-                    {
-                      id: 'history-1',
-                      createdAt: '2026-04-17T12:10:00.000Z',
-                      updatedAt: '2026-04-17T12:10:00.000Z',
-                      actor: { displayName: 'Jona', name: 'jona' },
-                      fromState: { name: 'Todo' },
-                      toState: { name: 'Backlog' },
-                    },
-                  ],
+              ],
+            },
+            history: {
+              pageInfo: { hasNextPage: true, endCursor: 'history-cursor-1' },
+              nodes: [
+                {
+                  id: 'history-1',
+                  createdAt: '2026-04-17T12:10:00.000Z',
+                  updatedAt: '2026-04-17T12:10:00.000Z',
+                  actor: { displayName: 'Jona', name: 'jona' },
+                  fromState: { name: 'Todo' },
+                  toState: { name: 'Backlog' },
                 },
-              }),
-            ],
-          },
+              ],
+            },
+          }),
         },
       })
       .mockResolvedValueOnce({
@@ -207,9 +207,8 @@ describe('linear issues plugin', () => {
     });
 
     expect(rawRequest).toHaveBeenCalledTimes(3);
-    expect(rawRequest).toHaveBeenNthCalledWith(1, expect.stringContaining('IssueContext'), {
-      term: 'GEN-626',
-      limit: 3,
+    expect(rawRequest).toHaveBeenNthCalledWith(1, expect.stringContaining('IssueWithActivity'), {
+      id: 'GEN-626',
     });
     expect(rawRequest).toHaveBeenNthCalledWith(2, expect.stringContaining('IssueComments'), {
       issueId: 'issue-1',
@@ -244,29 +243,25 @@ describe('linear issues plugin', () => {
 
       return Promise.resolve({
         data: {
-          searchIssues: {
-            nodes: [
-              linearIssueNode({
-                comments: {
-                  pageInfo: { hasNextPage: true, endCursor: 'comment-cursor-1' },
-                  nodes: [
-                    {
-                      id: 'comment-1',
-                      body: 'First page comment still survives.',
-                      createdAt: '2026-04-17T12:05:00.000Z',
-                      updatedAt: '2026-04-17T12:05:00.000Z',
-                      url: 'https://linear.app/general-action/issue/GEN-626#comment-1',
-                      user: { displayName: 'Jona', name: 'jona' },
-                    },
-                  ],
+          issue: linearIssueNode({
+            comments: {
+              pageInfo: { hasNextPage: true, endCursor: 'comment-cursor-1' },
+              nodes: [
+                {
+                  id: 'comment-1',
+                  body: 'First page comment still survives.',
+                  createdAt: '2026-04-17T12:05:00.000Z',
+                  updatedAt: '2026-04-17T12:05:00.000Z',
+                  url: 'https://linear.app/general-action/issue/GEN-626#comment-1',
+                  user: { displayName: 'Jona', name: 'jona' },
                 },
-                history: {
-                  pageInfo: { hasNextPage: true, endCursor: 'history-cursor-1' },
-                  nodes: [],
-                },
-              }),
-            ],
-          },
+              ],
+            },
+            history: {
+              pageInfo: { hasNextPage: true, endCursor: 'history-cursor-1' },
+              nodes: [],
+            },
+          }),
         },
       });
     });
@@ -281,10 +276,21 @@ describe('linear issues plugin', () => {
     );
   });
 
-  it('returns not found when no searched issue matches the identifier exactly', async () => {
-    rawRequest.mockResolvedValue({
-      data: { searchIssues: { nodes: [linearIssueNode({ identifier: 'GEN-999' })] } },
+  it('returns not found when the direct lookup resolves no issue', async () => {
+    rawRequest.mockResolvedValue({ data: { issue: null } });
+
+    const result = await issues.getIssue?.(makeHost(), {
+      identifier: 'GEN-626',
     });
+
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'not_found_or_no_access', message: 'Linear issue not found: GEN-626' },
+    });
+  });
+
+  it('returns not found when Linear rejects the lookup with an entity-not-found error', async () => {
+    rawRequest.mockRejectedValue(new Error('Entity not found: Issue - Could not find Issue.'));
 
     const result = await issues.getIssue?.(makeHost(), {
       identifier: 'GEN-626',

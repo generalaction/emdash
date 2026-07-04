@@ -1,3 +1,4 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyLinearCredentials } from './client';
 import { icon } from './icon';
@@ -34,17 +35,10 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
-    async verify(_host, credentials) {
-      try {
-        const status = await verifyLinearCredentials(credentials);
-        return { connected: true, ...status };
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Failed to validate Linear token. Please try again.';
-        return { connected: false, error: message };
-      }
+    async verify(_host, credentials): Promise<VerifyResult> {
+      const result = await verifyLinearCredentials(credentials);
+      if (!result.success) return { connected: false, error: result.error.message };
+      return { connected: true, ...result.data };
     },
   },
 });

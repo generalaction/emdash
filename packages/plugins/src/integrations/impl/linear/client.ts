@@ -1,40 +1,44 @@
-import { LinearClient } from '@linear/sdk';
-import { readCredentialString, requireCredentialString } from '../../helpers/credentials';
+import { err, ok, type Result } from '@emdash/shared';
+import { LinearClient as LinearSdkClient } from '@linear/sdk';
+import { parseCredentials } from '../../helpers/credentials';
 import type { IntegrationCredentials } from '../../host';
+import type { IntegrationError } from '../../types';
+import { toLinearIntegrationError } from './error';
+import {
+  type LinearClient,
+  type LinearCredentials,
+  linearCredentialsSchema,
+  type LinearVerifiedConnection,
+} from './types';
 
-let client: LinearClient | null = null;
-let clientToken: string | null = null;
-
-export function linearApiKey(credentials: IntegrationCredentials): string {
-  return requireCredentialString(credentials, 'apiKey', 'Linear API key is required.');
+export function readLinearCredentials(
+  credentials: IntegrationCredentials
+): Result<LinearCredentials, IntegrationError> {
+  return parseCredentials(linearCredentialsSchema, credentials);
 }
 
-export function getLinearClientForToken(token: string): LinearClient {
-  if (!client || clientToken !== token) {
-    client = new LinearClient({ apiKey: token });
-    clientToken = token;
+export function createLinearClient(credentials: LinearCredentials): LinearClient {
+  return new LinearSdkClient({ apiKey: credentials.apiKey });
+}
+
+export async function verifyLinearCredentials(
+  rawCredentials: IntegrationCredentials
+): Promise<Result<LinearVerifiedConnection, IntegrationError>> {
+  const credentials = readLinearCredentials(rawCredentials);
+  if (!credentials.success) return err(credentials.error);
+
+  const client = createLinearClient(credentials.data);
+  try {
+    const viewer = await client.viewer;
+    const organization = await viewer.organization;
+    const displayName = viewer.displayName || viewer.name || organization.name;
+    return ok({
+      displayName,
+      displayDetail:
+        organization.name && organization.name !== displayName ? organization.name : undefined,
+      credentials: credentials.data,
+    });
+  } catch (error) {
+    return err(toLinearIntegrationError(error, 'Failed to validate Linear token.'));
   }
-  return client;
-}
-
-export function getLinearClient(credentials: IntegrationCredentials): LinearClient {
-  return getLinearClientForToken(linearApiKey(credentials));
-}
-
-export async function verifyLinearCredentials(credentials: IntegrationCredentials): Promise<{
-  displayName?: string;
-  displayDetail?: string;
-}> {
-  const apiKey = readCredentialString(credentials, 'apiKey');
-  if (!apiKey) {
-    throw new Error('Linear API key cannot be empty.');
-  }
-
-  const client = getLinearClientForToken(apiKey);
-  const viewer = await client.viewer;
-  const org = await viewer.organization;
-  const displayName = viewer.displayName ?? org?.name ?? undefined;
-  const displayDetail =
-    org?.name && viewer.displayName && org.name !== viewer.displayName ? org.name : undefined;
-  return { displayName, displayDetail };
 }

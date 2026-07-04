@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { formatLinearContext, hydrateIssueActivity } from './issue-activity';
+import type { LinearClient } from '../../../integrations/impl/linear/types';
+import { formatLinearContext, getLinearIssueDetails, hydrateIssueActivity } from './context';
+
+function makeClient(rawRequest: ReturnType<typeof vi.fn>): LinearClient {
+  return { client: { rawRequest } } as unknown as LinearClient;
+}
 
 function comment(id: string, body: string, user: { displayName: string; name: string } | null) {
   return {
@@ -93,7 +98,7 @@ describe('hydrateIssueActivity', () => {
       history: emptyPage(),
     };
 
-    const hydrated = await hydrateIssueActivity({ client: { rawRequest } }, issue);
+    const hydrated = await hydrateIssueActivity(makeClient(rawRequest), issue);
 
     expect(hydrated).toBe(issue);
     expect(rawRequest).not.toHaveBeenCalled();
@@ -157,7 +162,7 @@ describe('hydrateIssueActivity', () => {
       },
     };
 
-    const hydrated = await hydrateIssueActivity({ client: { rawRequest } }, issue);
+    const hydrated = await hydrateIssueActivity(makeClient(rawRequest), issue);
 
     expect(rawRequest).toHaveBeenCalledTimes(3);
     expect(hydrated.comments.nodes.map((node) => node.id)).toEqual([
@@ -168,5 +173,23 @@ describe('hydrateIssueActivity', () => {
     expect(hydrated.comments.pageInfo).toEqual({ hasNextPage: false, endCursor: null });
     expect(hydrated.history.nodes).toEqual([expect.objectContaining({ id: 'history-2' })]);
     expect(hydrated.history.pageInfo).toEqual({ hasNextPage: false, endCursor: null });
+  });
+});
+
+describe('getLinearIssueDetails', () => {
+  it('falls back to first-page context when pagination fails', async () => {
+    const rawRequest = vi.fn().mockRejectedValue(new Error('Linear pagination failed'));
+    const issue = {
+      id: 'issue-1',
+      comments: {
+        pageInfo: { hasNextPage: true, endCursor: 'comment-cursor-1' },
+        nodes: [comment('comment-1', 'Survives.', { displayName: 'Jona', name: 'jona' })],
+      },
+      history: emptyPage(),
+    };
+
+    const { context } = await getLinearIssueDetails(makeClient(rawRequest), issue);
+
+    expect(context).toContain('Survives.');
   });
 });
