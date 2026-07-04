@@ -1,59 +1,40 @@
-import {
-  AuthenticationError,
-  ForbiddenError,
-  PlainClient,
-  PlainError,
-  RateLimitError,
-} from '@team-plain/graphql';
-import { readCredentialString } from '../../helpers/credentials';
+import { err, ok, type Result } from '@emdash/shared';
+import { PlainClient as PlainSdkClient } from '@team-plain/graphql';
+import { parseCredentials } from '../../helpers/credentials';
 import type { IntegrationCredentials } from '../../host';
+import type { IntegrationError } from '../../types';
+import { toPlainIntegrationError } from './error';
+import {
+  type PlainClient,
+  type PlainCredentials,
+  plainCredentialsSchema,
+  type PlainVerifiedConnection,
+} from './types';
 
-let client: PlainClient | null = null;
-let clientToken: string | null = null;
-
-export function toPlainErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof AuthenticationError) {
-    return error.message || 'Plain authentication failed. Check your API key.';
-  }
-  if (error instanceof ForbiddenError) {
-    return error.message || 'Plain API key was accepted but is missing required permissions.';
-  }
-  if (error instanceof RateLimitError)
-    return 'Plain API rate limit exceeded. Please try again shortly.';
-  if (error instanceof PlainError && error.message) return error.message;
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
+export function readPlainCredentials(
+  credentials: IntegrationCredentials
+): Result<PlainCredentials, IntegrationError> {
+  return parseCredentials(plainCredentialsSchema, credentials);
 }
 
-export function plainApiKey(credentials: IntegrationCredentials): string {
-  const apiKey = readCredentialString(credentials, 'apiKey');
-  if (!apiKey) throw new Error('Plain API key cannot be empty.');
-  return apiKey;
+export function createPlainClient(credentials: PlainCredentials): PlainClient {
+  return new PlainSdkClient({ apiKey: credentials.apiKey });
 }
 
-export function getPlainClient(credentials: IntegrationCredentials): PlainClient {
-  const apiKey = plainApiKey(credentials);
-  if (!client || clientToken !== apiKey) {
-    client = new PlainClient({ apiKey });
-    clientToken = apiKey;
-  }
-  return client;
-}
+export async function verifyPlainCredentials(
+  rawCredentials: IntegrationCredentials
+): Promise<Result<PlainVerifiedConnection, IntegrationError>> {
+  const credentials = readPlainCredentials(rawCredentials);
+  if (!credentials.success) return err(credentials.error);
 
-export async function validatePlainCredentials(credentials: IntegrationCredentials): Promise<void> {
-  const client = getPlainClient(credentials);
+  const client = createPlainClient(credentials.data);
   try {
-    await client.query.threads({ first: 1 });
+    const workspace = await client.query.myWorkspace();
+    return ok({
+      displayName: workspace.name || workspace.publicName || undefined,
+      credentials: credentials.data,
+    });
   } catch (error) {
-    if (
-      error instanceof ForbiddenError ||
-      error instanceof AuthenticationError ||
-      error instanceof RateLimitError ||
-      error instanceof PlainError
-    ) {
-      throw error;
-    }
-    if (error instanceof Error) throw new PlainError(error.message);
-    throw new PlainError('Plain is not configured. Connect Plain in settings.');
+    return err(toPlainIntegrationError(error, 'Failed to validate Plain API key.'));
   }
 }

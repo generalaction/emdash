@@ -1,5 +1,6 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
-import { toPlainErrorMessage, validatePlainCredentials } from './client';
+import { verifyPlainCredentials } from './client';
 import { icon } from './icon';
 
 const plugin = defineIntegrationPlugin(
@@ -33,16 +34,18 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
-    async verify(_host, credentials) {
-      try {
-        await validatePlainCredentials(credentials);
-        return { connected: true };
-      } catch (error) {
+    async verify(_host, credentials): Promise<VerifyResult> {
+      const result = await verifyPlainCredentials(credentials);
+      if (!result.success)
         return {
           connected: false,
-          error: toPlainErrorMessage(error, 'Failed to validate Plain API key.'),
+          error: result.error.message,
         };
-      }
+
+      return {
+        connected: true,
+        ...result.data,
+      };
     },
   },
 });
