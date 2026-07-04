@@ -25,6 +25,12 @@ export const loopConfigV1Schema = z.object({
   reviewEnabled: z.boolean(),
   validationCommands: z.array(z.string()),
   planSource: z.string(),
+  agentBrowser: z
+    .object({
+      targetUrl: z.string().optional(),
+      cdpPort: z.number().int().positive().optional(),
+    })
+    .optional(),
 });
 
 export type LoopConfig = z.infer<typeof loopConfigV1Schema>;
@@ -68,3 +74,62 @@ export function isLoopConfig(value: unknown): value is LoopConfig {
 export function isLoopPhaseCriterion(value: unknown): value is LoopPhaseCriterion {
   return loopPhaseCriterionSchema.safeParse(value).success;
 }
+
+export type Loop = {
+  id: string;
+  projectId: string;
+  taskId: string;
+  name: string;
+  slug: string;
+  status: LoopStatus;
+  currentPhaseIndex: number;
+  config: LoopConfig | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LoopPhase = {
+  id: string;
+  loopId: string;
+  idx: number;
+  name: string;
+  goal: string;
+  status: PhaseStatus;
+  attempts: number;
+  conversationId: string | null;
+  criteria: LoopPhaseCriteria | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LoopWithPhases = Loop & {
+  phases: LoopPhase[];
+};
+
+export type CreateLoopCriterionParams = {
+  description: string;
+  verifier: VerifierId;
+};
+
+export type CreateLoopPhaseParams = {
+  name: string;
+  goal: string;
+  criteria: CreateLoopCriterionParams[];
+};
+
+export type CreateLoopParams = {
+  id?: string;
+  projectId: string;
+  taskId: string;
+  name: string;
+  planSource: string;
+  validationCommands: string[];
+  verifiers: VerifierId[];
+  reviewEnabled: boolean;
+  phases: CreateLoopPhaseParams[];
+  agentBrowser?: {
+    targetUrl?: string;
+    cdpPort?: number;
+  };
+};
