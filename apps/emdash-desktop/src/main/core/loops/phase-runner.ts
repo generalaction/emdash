@@ -106,6 +106,8 @@ function evidenceText(evidence: VerifierEvidence): string {
   return JSON.stringify({
     summary: evidence.summary,
     command: evidence.command,
+    exitCode: evidence.exitCode,
+    durationMs: evidence.durationMs,
     stdoutTail: evidence.stdoutTail,
     stderrTail: evidence.stderrTail,
     evidencePath: evidence.evidencePath,
@@ -116,6 +118,8 @@ function errorText(error: VerifierError): string {
   return JSON.stringify({
     message: error.message,
     command: error.command,
+    exitCode: error.exitCode,
+    durationMs: error.durationMs,
     stdoutTail: error.stdoutTail,
     stderrTail: error.stderrTail,
     evidencePath: error.evidencePath,

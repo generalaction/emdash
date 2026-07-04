@@ -4,7 +4,14 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@main/lib/result';
 import { loopPhaseUpdatedChannel, loopUpdatedChannel } from '@shared/core/loops/loopEvents';
-import type { CreateLoopParams, Loop, LoopPhase, LoopWithPhases } from '@shared/core/loops/loops';
+import {
+  VERIFIER_IDS,
+  type CreateLoopParams,
+  type Loop,
+  type LoopPhase,
+  type LoopVerifierAvailability,
+  type LoopWithPhases,
+} from '@shared/core/loops/loops';
 import { getLoopSessionDriver } from './drivers/driver-registry';
 import type { LoopSessionDriver } from './drivers/session-driver';
 import {
@@ -19,6 +26,7 @@ import {
 } from './operations/loop-operations';
 import type { LoopOperationError } from './operations/types';
 import { PhaseRunner, type LoopRunControl } from './phase-runner';
+import { requireVerifier } from './verifiers/registry';
 
 export type LoopServiceError =
   | LoopOperationError
@@ -121,6 +129,40 @@ export class LoopService {
 
   async getLoop(loopId: string): Promise<Result<LoopWithPhases, LoopServiceError>> {
     return loadLoop(loopId);
+  }
+
+  async getVerifierAvailability(
+    taskId: string
+  ): Promise<Result<LoopVerifierAvailability[], LoopServiceError>> {
+    const cwd = resolveWorkspacePath(taskId);
+    if (!cwd.success) {
+      return ok(
+        VERIFIER_IDS.map((id) => {
+          const verifier = requireVerifier(id);
+          return {
+            id,
+            label: verifier.label,
+            available: false,
+            reason: cwd.error.message,
+          };
+        })
+      );
+    }
+
+    const availability = await Promise.all(
+      VERIFIER_IDS.map(async (id) => {
+        const verifier = requireVerifier(id);
+        const result = await verifier.checkAvailability(cwd.data);
+        return {
+          id,
+          label: verifier.label,
+          available: result.success ? result.data.available : false,
+          reason: result.success ? result.data.message : result.error.message,
+        };
+      })
+    );
+
+    return ok(availability);
   }
 
   async startLoop(loopId: string): Promise<Result<LoopWithPhases, LoopServiceError>> {

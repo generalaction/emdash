@@ -5,6 +5,7 @@ export const loopsController = createRPCController({
   createLoop: loopService.createLoop.bind(loopService),
   getLoopsForProject: loopService.getLoopsForProject.bind(loopService),
   getLoop: loopService.getLoop.bind(loopService),
+  getVerifierAvailability: loopService.getVerifierAvailability.bind(loopService),
   startLoop: loopService.startLoop.bind(loopService),
   pauseLoop: loopService.pauseLoop.bind(loopService),
   resumeLoop: loopService.resumeLoop.bind(loopService),

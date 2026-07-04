@@ -7,6 +7,7 @@ export const SETTINGS_TABS = [
   { id: 'repository', label: 'Repository' },
   { id: 'storage', label: 'Storage' },
   { id: 'interface', label: 'Interface' },
+  { id: 'experimental', label: 'Experimental' },
   { id: 'browser', label: 'Browser' },
 ] as const;
 

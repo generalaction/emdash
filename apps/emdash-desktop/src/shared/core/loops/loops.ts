@@ -133,3 +133,10 @@ export type CreateLoopParams = {
     cdpPort?: number;
   };
 };
+
+export type LoopVerifierAvailability = {
+  id: VerifierId;
+  label: string;
+  available: boolean;
+  reason?: string;
+};

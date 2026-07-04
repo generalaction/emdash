@@ -15,6 +15,7 @@ export const viewEvents: Record<
   | 'home_viewed'
   | 'project_viewed'
   | 'task_viewed'
+  | 'loop_viewed'
   | 'settings_viewed'
   | 'library_viewed'
   | 'skills_viewed'
@@ -26,6 +27,7 @@ export const viewEvents: Record<
   library: 'library_viewed',
   project: 'project_viewed',
   task: 'task_viewed',
+  loop: 'loop_viewed',
   settings: 'settings_viewed',
   skills: 'skills_viewed',
   mcp: 'mcp_viewed',
