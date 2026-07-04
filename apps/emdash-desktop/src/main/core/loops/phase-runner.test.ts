@@ -231,4 +231,58 @@ describe('PhaseRunner', () => {
     expect(memory.current().phases[0]?.status).toBe('failed');
     expect(memory.current().status).toBe('failed');
   });
+
+  it('cancels and fails attempts when a prompt exceeds the configured timeout', async () => {
+    const verifiers = new Map<BuiltInVerifierId, LoopVerifier>([
+      ['unit-tests', passingVerifier('unit-tests')],
+      ['gh', passingVerifier('gh')],
+    ]);
+    const memory = makeMemoryDeps(loop, verifiers);
+    driver.sendPrompt = vi.fn(
+      (): ReturnType<LoopSessionDriver['sendPrompt']> => new Promise(() => {})
+    );
+    driver.cancelPrompt = vi.fn(async () => ok(undefined));
+
+    const result = await new PhaseRunner({
+      ...memory.deps,
+      promptTimeoutMs: 1,
+    }).runPhase({
+      loop,
+      phase: loop.phases[0]!,
+      cwd: '/tmp/workspace',
+      driver,
+      control: makeControl(),
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.kind).toBe('failed');
+    expect(driver.sendPrompt).toHaveBeenCalledTimes(MAX_PHASE_ATTEMPTS);
+    expect(driver.cancelPrompt).toHaveBeenCalledTimes(MAX_PHASE_ATTEMPTS);
+    expect(memory.current().phases[0]?.lastError).toBe('Loop prompt timed out after 1s.');
+    expect(memory.current().phases[0]?.lastError).not.toBe('undefined');
+  });
+
+  it('does not persist literal undefined from prompt failures', async () => {
+    const verifiers = new Map<BuiltInVerifierId, LoopVerifier>([
+      ['unit-tests', passingVerifier('unit-tests')],
+      ['gh', passingVerifier('gh')],
+    ]);
+    const memory = makeMemoryDeps(loop, verifiers);
+    driver.sendPrompt = vi.fn(
+      (): ReturnType<LoopSessionDriver['sendPrompt']> =>
+        Promise.resolve(err({ kind: 'prompt-failed' as const, message: 'undefined' }))
+    );
+
+    const result = await new PhaseRunner(memory.deps).runPhase({
+      loop,
+      phase: loop.phases[0]!,
+      cwd: '/tmp/workspace',
+      driver,
+      control: makeControl(),
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.kind).toBe('failed');
+    expect(memory.current().phases[0]?.lastError).toBe('Loop prompt failed');
+  });
 });

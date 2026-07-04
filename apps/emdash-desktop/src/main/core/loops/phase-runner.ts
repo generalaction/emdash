@@ -1,6 +1,10 @@
 import { err, ok, type Result } from '@main/lib/result';
 import type { Loop, LoopPhase, LoopPhaseCriteria, LoopWithPhases } from '@shared/core/loops/loops';
-import type { LoopSessionDriver } from './drivers/session-driver';
+import type {
+  LoopSessionDriver,
+  LoopSessionDriverError,
+  PromptResult,
+} from './drivers/session-driver';
 import {
   getLoop,
   updateLoop as updateLoopRow,
@@ -26,6 +30,7 @@ import type {
 } from './verifiers/types';
 
 export const MAX_PHASE_ATTEMPTS = 3;
+export const DEFAULT_PROMPT_TIMEOUT_MS = 20 * 60 * 1000;
 
 export type LoopRunError =
   | { kind: 'paused'; message: string }
@@ -50,6 +55,7 @@ export type PhaseRunnerDeps = {
   updatePhase: typeof updatePhaseRow;
   getVerifier(id: BuiltInVerifierId): LoopVerifier | undefined;
   getDiff(cwd: string): Promise<string>;
+  promptTimeoutMs: number;
   onLoopUpdated?(loop: Loop): void;
   onPhaseUpdated?(phase: LoopPhase): void;
 };
@@ -93,7 +99,30 @@ function defaultDeps(): PhaseRunnerDeps {
     updatePhase: updatePhaseRow,
     getVerifier,
     getDiff: defaultGetDiff,
+    promptTimeoutMs: resolvePromptTimeoutMs(),
   };
+}
+
+function resolvePromptTimeoutMs(): number {
+  const raw = process.env.EMDASH_LOOP_PROMPT_TIMEOUT_MS;
+  if (!raw) return DEFAULT_PROMPT_TIMEOUT_MS;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PROMPT_TIMEOUT_MS;
+}
+
+function isMeaningfulMessage(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  return normalized !== '' && normalized !== 'undefined' && normalized !== 'null';
+}
+
+function safeMessage(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && isMeaningfulMessage(value)) return value;
+  if (value instanceof Error && isMeaningfulMessage(value.message)) return value.message;
+  if (value && typeof value === 'object' && 'message' in value) {
+    const message = (value as { message?: unknown }).message;
+    if (typeof message === 'string' && isMeaningfulMessage(message)) return message;
+  }
+  return fallback;
 }
 
 function stopError(reason: 'pause' | 'cancel'): LoopRunError {
@@ -150,7 +179,7 @@ function updateCriteriaForVerifier(
 function failureSummary(
   failures: Array<VerifierError | { kind: 'sentinel'; message: string }>
 ): string {
-  return failures.map((failure) => failure.message).join('\n');
+  return failures.map((failure) => safeMessage(failure.message, 'Loop attempt failed')).join('\n');
 }
 
 export class PhaseRunner {
@@ -193,7 +222,10 @@ export class PhaseRunner {
       if (!conversationId) {
         const session = await input.driver.startPhaseSession({ loop, phase, review: false });
         if (!session.success) {
-          return err({ kind: 'driver-error', message: session.error.message });
+          return err({
+            kind: 'driver-error',
+            message: safeMessage(session.error.message, 'Failed to start loop session'),
+          });
         }
         conversationId = session.data.conversationId;
         await input.control.setActiveConversation(conversationId, input.driver);
@@ -224,14 +256,19 @@ export class PhaseRunner {
               reviewFeedback,
             });
 
-      const promptResult = await input.driver.sendPrompt(conversationId, prompt);
+      const promptResult = await this.sendPromptWithTimeout(input.driver, conversationId, prompt);
       const afterPromptStop = ensureNotStopped();
       if (!afterPromptStop.success) {
         await input.control.setActiveConversation(null, null);
         return ok({ kind: afterPromptStop.error.kind, loop, phase } as RunPhaseResult);
       }
       if (!promptResult.success) {
-        retryFailures = [{ kind: 'sentinel', message: promptResult.error.message }];
+        retryFailures = [
+          {
+            kind: 'sentinel',
+            message: safeMessage(promptResult.error.message, 'Loop prompt failed'),
+          },
+        ];
         const exhausted = await this.handleAttemptFailure(loop, phase, retryFailures);
         if (!exhausted.success) return err(exhausted.error);
         if (exhausted.data.kind === 'failed') return ok(exhausted.data);
@@ -404,16 +441,25 @@ export class PhaseRunner {
     phase = reviewing.data;
 
     const session = await driver.startPhaseSession({ loop, phase, review: true });
-    if (!session.success) return err({ kind: 'driver-error', message: session.error.message });
+    if (!session.success) {
+      return err({
+        kind: 'driver-error',
+        message: safeMessage(session.error.message, 'Failed to start loop review session'),
+      });
+    }
     await control.setActiveConversation(session.data.conversationId, driver);
 
     const diff = await this.deps.getDiff(cwd);
-    const promptResult = await driver.sendPrompt(
+    const promptResult = await this.sendPromptWithTimeout(
+      driver,
       session.data.conversationId,
       buildReviewPrompt({ loop, phase, diff })
     );
     if (!promptResult.success) {
-      return err({ kind: 'driver-error', message: promptResult.error.message });
+      return err({
+        kind: 'driver-error',
+        message: safeMessage(promptResult.error.message, 'Loop review prompt failed'),
+      });
     }
 
     const sentinel = parseReviewSentinel(promptResult.data.finalText);
@@ -427,6 +473,35 @@ export class PhaseRunner {
     return sentinel.kind === 'approved'
       ? ok({ kind: 'approved' })
       : ok({ kind: 'changes', feedback: sentinel.feedback });
+  }
+
+  private async sendPromptWithTimeout(
+    driver: LoopSessionDriver,
+    conversationId: string,
+    prompt: string
+  ): Promise<Result<PromptResult, LoopSessionDriverError>> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const promptPromise = driver
+      .sendPrompt(conversationId, prompt)
+      .catch((error): Result<PromptResult, LoopSessionDriverError> => {
+        return err({ kind: 'prompt-failed', message: safeMessage(error, 'Loop prompt failed') });
+      });
+
+    const timeoutPromise = new Promise<Result<PromptResult, LoopSessionDriverError>>((resolve) => {
+      timeout = setTimeout(() => {
+        void driver.cancelPrompt(conversationId).catch(() => {});
+        resolve(
+          err({
+            kind: 'prompt-failed',
+            message: `Loop prompt timed out after ${Math.ceil(this.deps.promptTimeoutMs / 1000)}s.`,
+          })
+        );
+      }, this.deps.promptTimeoutMs);
+    });
+
+    const result = await Promise.race([promptPromise, timeoutPromise]);
+    if (timeout) clearTimeout(timeout);
+    return result;
   }
 
   private async handleAttemptFailure(

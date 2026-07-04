@@ -1,4 +1,4 @@
-import { ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loopPhaseUpdatedChannel, loopUpdatedChannel } from '@shared/core/loops/loopEvents';
 import type { Loop, LoopPhase, LoopWithPhases } from '@shared/core/loops/loops';
@@ -19,10 +19,15 @@ const ipcMocks = vi.hoisted(() => ({
     deleteLoop: vi.fn(),
   },
 }));
+const toastMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: { on: ipcMocks.eventsOn },
   rpc: { loops: ipcMocks.loopsRpc },
+}));
+
+vi.mock('@renderer/lib/hooks/use-toast', () => ({
+  toast: toastMock,
 }));
 
 type EventDefinition<TData> = {
@@ -167,6 +172,31 @@ describe('LoopsStore', () => {
     expect(rpc.startLoop).toHaveBeenCalledWith('loop-1');
     expect(store.getLoop('loop-1')?.status).toBe('running');
     expect(store.isActionPending('loop-1')).toBe(false);
+
+    store.dispose();
+  });
+
+  it('toasts failed loop actions while preserving inline action errors', async () => {
+    const events = createEventClient();
+    const rpc = rpcWith({
+      resumeLoop: vi.fn(async () =>
+        err({
+          kind: 'workspace-unavailable',
+          message: 'Workspace path no longer exists: /tmp/worktree',
+        })
+      ),
+    });
+    const store = new LoopsStore({ rpcClient: rpc, eventClient: events.client });
+
+    const result = await store.resumeLoop('loop-1');
+
+    expect(result.success).toBe(false);
+    expect(store.getActionError('loop-1')).toBe('Workspace path no longer exists: /tmp/worktree');
+    expect(toastMock).toHaveBeenCalledWith({
+      title: 'Resume loop failed',
+      description: 'Workspace path no longer exists: /tmp/worktree',
+      variant: 'destructive',
+    });
 
     store.dispose();
   });

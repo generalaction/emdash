@@ -1,5 +1,4 @@
-import { taskSessionManager } from '@main/core/tasks/task-session-manager';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import { resolveTaskWorkspaceTarget } from '@main/core/workspaces/resolve-task-workspace-target';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@main/lib/result';
@@ -85,16 +84,12 @@ async function loadLoop(loopId: string): Promise<Result<LoopWithPhases, LoopServ
   return ok(loop);
 }
 
-function resolveWorkspacePath(taskId: string): Result<string, LoopServiceError> {
-  const workspaceId = taskSessionManager.getWorkspaceId(taskId);
-  if (!workspaceId) {
-    return err({ kind: 'workspace-unavailable', message: 'No active workspace found for task' });
+async function resolveWorkspacePath(taskId: string): Promise<Result<string, LoopServiceError>> {
+  const target = await resolveTaskWorkspaceTarget(taskId);
+  if (!target.success) {
+    return err({ kind: 'workspace-unavailable', message: target.error.message });
   }
-  const workspace = workspaceRegistry.get(workspaceId);
-  if (!workspace) {
-    return err({ kind: 'workspace-unavailable', message: 'Workspace is not mounted' });
-  }
-  return ok(workspace.path);
+  return ok(target.data.path);
 }
 
 export class LoopService {
@@ -134,7 +129,7 @@ export class LoopService {
   async getVerifierAvailability(
     taskId: string
   ): Promise<Result<LoopVerifierAvailability[], LoopServiceError>> {
-    const cwd = resolveWorkspacePath(taskId);
+    const cwd = await resolveWorkspacePath(taskId);
     if (!cwd.success) {
       return ok(
         VERIFIER_IDS.map((id) => {
@@ -268,7 +263,7 @@ export class LoopService {
       });
     }
 
-    const cwd = resolveWorkspacePath(loopResult.data.taskId);
+    const cwd = await resolveWorkspacePath(loopResult.data.taskId);
     if (!cwd.success) return cwd;
 
     const running = await updateLoop(loopId, { status: 'running' });

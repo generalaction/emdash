@@ -1,5 +1,6 @@
 import type { Result } from '@emdash/shared';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
 import { loopPhaseUpdatedChannel, loopUpdatedChannel } from '@shared/core/loops/loopEvents';
 import type {
@@ -190,23 +191,29 @@ export class LoopsStore {
   }
 
   startLoop(loopId: string): Promise<LoopRpcResult<LoopWithPhases>> {
-    return this.runLoopAction(loopId, () => this.rpcClient.startLoop(loopId));
+    return this.runLoopAction(loopId, 'Start loop failed', () => this.rpcClient.startLoop(loopId));
   }
 
   pauseLoop(loopId: string): Promise<LoopRpcResult<LoopWithPhases>> {
-    return this.runLoopAction(loopId, () => this.rpcClient.pauseLoop(loopId));
+    return this.runLoopAction(loopId, 'Pause loop failed', () => this.rpcClient.pauseLoop(loopId));
   }
 
   resumeLoop(loopId: string): Promise<LoopRpcResult<LoopWithPhases>> {
-    return this.runLoopAction(loopId, () => this.rpcClient.resumeLoop(loopId));
+    return this.runLoopAction(loopId, 'Resume loop failed', () =>
+      this.rpcClient.resumeLoop(loopId)
+    );
   }
 
   cancelLoop(loopId: string): Promise<LoopRpcResult<LoopWithPhases>> {
-    return this.runLoopAction(loopId, () => this.rpcClient.cancelLoop(loopId));
+    return this.runLoopAction(loopId, 'Cancel loop failed', () =>
+      this.rpcClient.cancelLoop(loopId)
+    );
   }
 
   retryPhase(loopId: string, phaseId: string): Promise<LoopRpcResult<LoopWithPhases>> {
-    return this.runLoopAction(loopId, () => this.rpcClient.retryPhase(loopId, phaseId));
+    return this.runLoopAction(loopId, 'Retry phase failed', () =>
+      this.rpcClient.retryPhase(loopId, phaseId)
+    );
   }
 
   async deleteLoop(loopId: string): Promise<LoopRpcResult<void>> {
@@ -247,6 +254,7 @@ export class LoopsStore {
 
   private async runLoopAction(
     loopId: string,
+    errorTitle: string,
     action: () => Promise<LoopRpcResult<LoopWithPhases>>
   ): Promise<LoopRpcResult<LoopWithPhases>> {
     runInAction(() => {
@@ -260,7 +268,9 @@ export class LoopsStore {
       if (result.success) {
         this.applyLoopWithPhases(result.data);
       } else {
-        this.actionErrors.set(loopId, messageFromUnknown(result.error));
+        const message = messageFromUnknown(result.error);
+        this.actionErrors.set(loopId, message);
+        toast({ title: errorTitle, description: message, variant: 'destructive' });
       }
     });
     return result;
