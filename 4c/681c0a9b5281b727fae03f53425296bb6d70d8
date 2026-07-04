@@ -1,0 +1,40 @@
+packages/plugins/src/agents/impl/zero/index.ts
+  s_b7e10501dc2874::t_2b0edf4200d915 1-15,17,21-26,28-29
+  s_b7e10501dc2874::t_4ba6d28c6915a6 16
+  s_b7e10501dc2874::t_85f17d3a1cbd06 18-20
+  s_b7e10501dc2874::t_3188e965bc38c8 27
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_b7e10501dc2874::t_5ba5740fe5efe8 35,736-745,747-749
+  s_b7e10501dc2874::t_8e0a7c029e8e98 746
+  s_b7e10501dc2874::t_3a559a43f096fe 750
+agents/integrations/providers.md
+  s_b7e10501dc2874::t_ca2f9cbdc70334 11,13
+  s_b7e10501dc2874::t_7010a88dc11b77 6-7,44-47,49-50
+packages/plugins/src/agents/impl/zero/index.test.ts
+  s_b7e10501dc2874::t_3acac27843d1d6 1-21,24-42
+  s_b7e10501dc2874::t_f087d7377bab8e 22
+  s_b7e10501dc2874::t_b639224f41a001 23
+apps/emdash-desktop/src/assets/images/zero.svg
+  s_b7e10501dc2874::t_d73c41f1df0070 1-4
+packages/plugins/src/agents/impl/zero/icon.ts
+  s_b7e10501dc2874::t_a536ffa58d6029 9
+  s_b7e10501dc2874::t_a17575842577ae 1-8,10-12
+packages/plugins/src/agents/registry.ts
+  s_b7e10501dc2874::t_486ad5c3fd35ff 36,74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4c681c0a9b5281b727fae03f53425296bb6d70d8",
+  "prompts": {},
+  "sessions": {
+    "s_b7e10501dc2874": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2b97-14be-7866-a0d4-dfc1719eab0a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
