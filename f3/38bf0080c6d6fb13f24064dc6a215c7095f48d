@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/components/TelemetryCard.tsx
+  s_514e285814b704::t_705f73e69d897b 2,32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f338bf0080c6d6fb13f24064dc6a215c7095f48d",
+  "prompts": {},
+  "sessions": {
+    "s_514e285814b704": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2e6a-b303-7671-82e7-d6112aa25814",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
