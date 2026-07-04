@@ -67,13 +67,6 @@ function readString(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
-function readStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => (typeof item === 'string' ? item.trim() : ''))
-    .filter((item) => item.length > 0);
-}
-
 function parseJson(value: string): unknown {
   try {
     return JSON.parse(value);
@@ -244,11 +237,7 @@ export class IntegrationCredentialStore {
         const candidate = parsed as Record<string, unknown>;
         const apiToken = readString(candidate.token) ?? readString(candidate.apiToken);
         if (!apiToken) return null;
-        return {
-          apiToken,
-          boardIds: [...new Set(readStringArray(candidate.boardIds))],
-          boardUrls: [...new Set(readStringArray(candidate.boardUrls))],
-        };
+        return { apiToken };
       }
       case 'trello': {
         const raw = await this.legacy.secrets.getSecret(LEGACY_SECRET_KEYS.trello);

@@ -1,8 +1,33 @@
 import type { Logger } from '@emdash/shared/logger';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ClientError } from '@mondaydotcomorg/api';
+import { GraphQLError } from 'graphql';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IntegrationHostContext } from '../../host';
-import { MONDAY_API_ERROR_MESSAGES } from './client';
+import { MONDAY_API_ERROR_MESSAGES } from './error';
 import { provider } from './index';
+
+const mondaySdk = vi.hoisted(() => ({
+  constructor: vi.fn(),
+  request: vi.fn(),
+}));
+
+vi.mock('@mondaydotcomorg/api', () => ({
+  ApiClient: class {
+    request = mondaySdk.request;
+
+    constructor(config: unknown) {
+      mondaySdk.constructor(config);
+    }
+  },
+  ClientError: class extends Error {
+    response: { status: number; errors?: Array<{ message?: string }> };
+
+    constructor(response: { status: number; errors?: Array<{ message?: string }> }) {
+      super(response.errors?.[0]?.message ?? '');
+      this.response = response;
+    }
+  },
+}));
 
 const logger: Logger = {
   level: 'error',
@@ -18,156 +43,75 @@ if (!auth) throw new Error('Monday auth behavior is not registered.');
 
 const host: IntegrationHostContext = { log: logger };
 
-const fetchMock = vi.fn();
-
 const ME_RESPONSE = {
-  data: { me: { id: '123', name: 'Snir', account: { name: 'My Team' } } },
+  me: { id: '123', name: 'Snir', account: { name: 'My Team' } },
 };
 
-function jsonResponse(body: unknown, ok = true, status = 200) {
-  return { ok, status, json: async () => body };
-}
-
-beforeEach(() => {
-  vi.stubGlobal('fetch', fetchMock);
-});
-
 afterEach(() => {
-  fetchMock.mockReset();
-  vi.unstubAllGlobals();
+  mondaySdk.constructor.mockReset();
+  mondaySdk.request.mockReset();
 });
 
 describe('monday integration verify', () => {
   it('validates the token against the Monday API and returns normalized credentials', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(ME_RESPONSE));
+    mondaySdk.request.mockResolvedValueOnce(ME_RESPONSE);
 
     const result = await auth.verify(host, {
       apiToken: 'valid-token',
-      boardUrls: '',
     });
 
     expect(result).toEqual({
       connected: true,
       displayName: 'My Team',
       displayDetail: 'Snir',
-      credentials: { apiToken: 'valid-token', boardIds: [], boardUrls: [] },
+      credentials: { apiToken: 'valid-token' },
     });
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.monday.com/v2',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({ Authorization: 'valid-token' }),
-      })
-    );
+    expect(mondaySdk.constructor).toHaveBeenCalledWith({ token: 'valid-token' });
+    expect(mondaySdk.request).toHaveBeenCalledWith('query { me { id name account { name } } }');
   });
 
-  it('parses and deduplicates board IDs from URLs', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(ME_RESPONSE));
-
-    const result = await auth.verify(host, {
-      apiToken: 'valid-token',
-      boardUrls:
-        'https://myteam.monday.com/boards/123456\nhttps://myteam.monday.com/boards/789012, https://myteam.monday.com/boards/123456',
-    });
-
-    expect(result).toEqual(
-      expect.objectContaining({
-        connected: true,
-        credentials: {
-          apiToken: 'valid-token',
-          boardIds: ['123456', '789012'],
-          boardUrls: [
-            'https://myteam.monday.com/boards/123456',
-            'https://myteam.monday.com/boards/789012',
-          ],
-        },
-      })
-    );
-  });
-
-  it('strips query parameters from board URLs', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(ME_RESPONSE));
-
-    const result = await auth.verify(host, {
-      apiToken: 'valid-token',
-      boardUrls: 'https://myteam.monday.com/boards/123456?workspaceId=987654',
-    });
-
-    expect(result).toEqual(
-      expect.objectContaining({
-        connected: true,
-        credentials: {
-          apiToken: 'valid-token',
-          boardIds: ['123456'],
-          boardUrls: ['https://myteam.monday.com/boards/123456'],
-        },
-      })
-    );
-  });
-
-  it('preserves previously resolved board scope when no board URL input is given', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(ME_RESPONSE));
+  it('ignores stale board scope fields from older credentials', async () => {
+    mondaySdk.request.mockResolvedValueOnce(ME_RESPONSE);
 
     const result = await auth.verify(host, {
       apiToken: 'valid-token',
       boardIds: ['123456'],
-      boardUrls: ['https://myteam.monday.com/boards/123456'],
+      boardUrls: 'https://myteam.monday.com/boards/123456',
     });
 
     expect(result).toEqual(
       expect.objectContaining({
         connected: true,
-        credentials: {
-          apiToken: 'valid-token',
-          boardIds: ['123456'],
-          boardUrls: ['https://myteam.monday.com/boards/123456'],
-        },
+        credentials: { apiToken: 'valid-token' },
       })
     );
   });
 
-  it('returns an error for an invalid board URL format', async () => {
-    const result = await auth.verify(host, {
-      apiToken: 'valid-token',
-      boardUrls: 'not-a-url',
-    });
-
-    expect(result).toEqual({
-      connected: false,
-      error: expect.stringContaining('Could not parse board ID'),
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it('returns an error for an empty token', async () => {
-    const result = await auth.verify(host, { apiToken: '  ', boardUrls: '' });
+    const result = await auth.verify(host, { apiToken: '  ' });
 
     expect(result).toEqual({
       connected: false,
       error: 'Monday.com API token cannot be empty.',
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mondaySdk.request).not.toHaveBeenCalled();
   });
 
   it('surfaces the API error message when validation fails', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ errors: [{ message: 'Not Authenticated' }] }, false, 401)
-    );
+    mondaySdk.request.mockRejectedValueOnce(clientError(401, 'Not Authenticated'));
 
     const result = await auth.verify(host, {
       apiToken: 'bad-token',
-      boardUrls: '',
     });
 
     expect(result).toEqual({ connected: false, error: 'Not Authenticated' });
   });
 
   it('returns a helpful authentication error when Monday rejects the token', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({}, false, 401));
+    mondaySdk.request.mockRejectedValueOnce(clientError(401));
 
     const result = await auth.verify(host, {
       apiToken: 'bad-token',
-      boardUrls: '',
     });
 
     expect(result).toEqual({
@@ -176,3 +120,10 @@ describe('monday integration verify', () => {
     });
   });
 });
+
+function clientError(status: number, message?: string): ClientError {
+  return new ClientError(
+    { status, errors: message ? [new GraphQLError(message)] : [] },
+    { query: '' }
+  );
+}

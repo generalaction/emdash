@@ -1,3 +1,4 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyMondayCredentials } from './client';
 import { icon } from './icon';
@@ -22,14 +23,8 @@ const plugin = defineIntegrationPlugin(
               required: true,
               placeholder: 'API token',
             },
-            {
-              id: 'boardUrls',
-              label: 'Board URLs',
-              required: false,
-              placeholder: 'Board URLs (optional, comma-separated)',
-            },
           ],
-          help: 'Generate a token from Monday.com Admin API settings. Optionally add board URLs to choose exactly which boards Emdash searches; otherwise it checks the first 20 accessible boards.',
+          help: 'Generate a token from Monday.com Admin API settings.',
         },
       ],
     },
@@ -39,17 +34,10 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
-    async verify(_host, credentials) {
-      try {
-        const result = await verifyMondayCredentials(credentials);
-        return { connected: true, ...result };
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Failed to validate Monday.com token. Please try again.';
-        return { connected: false, error: message };
-      }
+    async verify(_host, credentials): Promise<VerifyResult> {
+      const result = await verifyMondayCredentials(credentials);
+      if (!result.success) return { connected: false, error: result.error.message };
+      return { connected: true, ...result.data };
     },
   },
 });

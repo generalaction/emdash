@@ -157,7 +157,7 @@ describe('IntegrationCredentialStore', () => {
             'emdash-monday-credentials',
             JSON.stringify({ token: 'monday-token', boardIds: ['1', '1', '2'], boardUrls: [] })
           ),
-        expectedCredentials: { apiToken: 'monday-token', boardIds: ['1', '2'], boardUrls: [] },
+        expectedCredentials: { apiToken: 'monday-token' },
         legacyKeys: ['emdash-monday-credentials'],
       },
       {

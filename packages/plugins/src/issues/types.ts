@@ -1,5 +1,5 @@
 import type { Result } from '@emdash/shared';
-import { IntegrationError } from '../integrations/types';
+import type { IntegrationError } from '../integrations/types';
 
 /** Canonical, provider-neutral issue shape. Providers map their vocabulary
  *  at the plugin edge; non-universal concepts stay optional. */

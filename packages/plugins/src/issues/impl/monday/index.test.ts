@@ -1,7 +1,22 @@
 import type { Logger } from '@emdash/shared/logger';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as MondayApi from '@mondaydotcomorg/api';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import { provider } from './index';
+
+const mondaySdk = vi.hoisted(() => ({
+  request: vi.fn(),
+}));
+
+vi.mock('@mondaydotcomorg/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof MondayApi>();
+  return {
+    ...actual,
+    ApiClient: class {
+      request = mondaySdk.request;
+    },
+  };
+});
 
 const logger: Logger = {
   level: 'error',
@@ -16,7 +31,7 @@ const issues = provider.behavior.issues;
 if (!issues?.getIssue) throw new Error('Monday issues behavior is not registered.');
 const getIssue = issues.getIssue;
 
-const CREDENTIALS = { apiToken: 'tok', boardIds: ['111'], boardUrls: [] };
+const CREDENTIALS = { apiToken: 'tok' };
 
 function host(
   credentials: ConnectedIntegrationHostContext['credentials']
@@ -24,23 +39,13 @@ function host(
   return { log: logger, credentials };
 }
 
-const fetchMock = vi.fn();
-
-function graphqlResponse(data: unknown) {
-  return { ok: true, json: async () => ({ data }) };
-}
-
 function requestBody(callIndex = 0): { query: string; variables: Record<string, unknown> } {
-  return JSON.parse(fetchMock.mock.calls[callIndex][1].body as string);
+  const [query, variables] = mondaySdk.request.mock.calls[callIndex] ?? [];
+  return { query, variables };
 }
-
-beforeEach(() => {
-  vi.stubGlobal('fetch', fetchMock);
-});
 
 afterEach(() => {
-  fetchMock.mockReset();
-  vi.unstubAllGlobals();
+  mondaySdk.request.mockReset();
 });
 
 const ITEM = {
@@ -63,8 +68,8 @@ const BOARD = {
 
 describe('monday issues plugin', () => {
   describe('listIssues', () => {
-    it('returns items from configured boards mapped to issues', async () => {
-      fetchMock.mockResolvedValueOnce(graphqlResponse({ boards: [BOARD] }));
+    it('returns items from accessible boards mapped to issues', async () => {
+      mondaySdk.request.mockResolvedValueOnce({ boards: [BOARD] });
 
       const result = await issues.listIssues(host(CREDENTIALS), { limit: 50 });
 
@@ -78,17 +83,13 @@ describe('monday issues plugin', () => {
           }),
         ],
       });
-      expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.monday.com/v2',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({ Authorization: 'tok' }),
-        })
-      );
+      const body = requestBody();
+      expect(body.query).toContain('boards(limit: 20)');
+      expect(body.variables).not.toHaveProperty('boardIds');
     });
 
-    it('scopes the query to configured boards ordered by updated_at descending', async () => {
-      fetchMock.mockResolvedValueOnce(graphqlResponse({ boards: [BOARD] }));
+    it('orders items by updated_at descending', async () => {
+      mondaySdk.request.mockResolvedValueOnce({ boards: [BOARD] });
 
       await issues.listIssues(host(CREDENTIALS), { limit: 50 });
 
@@ -96,7 +97,6 @@ describe('monday issues plugin', () => {
       expect(body.query).toContain('query_params');
       expect(body.variables).toEqual(
         expect.objectContaining({
-          boardIds: ['111'],
           queryParams: {
             order_by: [{ column_id: '__last_updated__', direction: 'desc' }],
           },
@@ -104,18 +104,22 @@ describe('monday issues plugin', () => {
       );
     });
 
-    it('queries the first 20 accessible boards when no boards are configured', async () => {
-      fetchMock.mockResolvedValueOnce(graphqlResponse({ boards: [BOARD] }));
+    it('ignores stale board scope fields from older credentials', async () => {
+      mondaySdk.request.mockResolvedValueOnce({ boards: [BOARD] });
 
-      await issues.listIssues(host({ apiToken: 'tok' }), { limit: 50 });
+      const result = await issues.listIssues(
+        host({ apiToken: 'tok', boardIds: ['111'], boardUrls: [] }),
+        { limit: 50 }
+      );
 
+      expect(result).toEqual({ success: true, data: [expect.any(Object)] });
       const body = requestBody();
       expect(body.query).toContain('boards(limit: 20)');
       expect(body.variables).not.toHaveProperty('boardIds');
     });
 
     it('returns a generic error when the API query fails', async () => {
-      fetchMock.mockRejectedValueOnce(new Error('Rate limit exceeded'));
+      mondaySdk.request.mockRejectedValueOnce(new Error('Rate limit exceeded'));
 
       const result = await issues.listIssues(host(CREDENTIALS), { limit: 50 });
 
@@ -126,10 +130,13 @@ describe('monday issues plugin', () => {
     });
 
     it('throws when the host provides no API token', async () => {
-      await expect(issues.listIssues(host({}), { limit: 50 })).rejects.toThrow(
-        'Monday.com API token cannot be empty.'
-      );
-      expect(fetchMock).not.toHaveBeenCalled();
+      const result = await issues.listIssues(host({}), { limit: 50 });
+
+      expect(result).toEqual({
+        success: false,
+        error: { type: 'invalid_input', message: 'Monday.com API token cannot be empty.' },
+      });
+      expect(mondaySdk.request).not.toHaveBeenCalled();
     });
   });
 
@@ -141,14 +148,14 @@ describe('monday issues plugin', () => {
       });
 
       expect(result).toEqual({ success: true, data: [] });
-      expect(fetchMock).not.toHaveBeenCalled();
+      expect(mondaySdk.request).not.toHaveBeenCalled();
     });
 
     it('filters items by search term and orders by updated_at descending', async () => {
       const item = { ...ITEM, id: '202', name: 'Search feature' };
-      fetchMock.mockResolvedValueOnce(
-        graphqlResponse({ boards: [{ ...BOARD, items_page: { items: [item] } }] })
-      );
+      mondaySdk.request.mockResolvedValueOnce({
+        boards: [{ ...BOARD, items_page: { items: [item] } }],
+      });
 
       const result = await issues.searchIssues(host(CREDENTIALS), {
         searchTerm: 'search',
@@ -184,9 +191,7 @@ describe('monday issues plugin', () => {
         created_at: '2026-05-19T09:00:00Z',
         creator: { name: 'Snir' },
       };
-      fetchMock.mockResolvedValueOnce(
-        graphqlResponse({ items: [{ ...CONTEXT_ITEM, updates: [update] }] })
-      );
+      mondaySdk.request.mockResolvedValueOnce({ items: [{ ...CONTEXT_ITEM, updates: [update] }] });
 
       const result = await getIssue(host(CREDENTIALS), {
         identifier: ITEM.id,
@@ -210,11 +215,9 @@ describe('monday issues plugin', () => {
         ...CONTEXT_ITEM,
         column_values: [{ id: 'monday_doc_v2', type: 'direct_doc', text: '', value: docValue }],
       };
-      fetchMock
-        .mockResolvedValueOnce(graphqlResponse({ items: [item] }))
-        .mockResolvedValueOnce(
-          graphqlResponse({ export_markdown_from_doc: { markdown: 'Doc description content' } })
-        );
+      mondaySdk.request.mockResolvedValueOnce({ items: [item] }).mockResolvedValueOnce({
+        export_markdown_from_doc: { markdown: 'Doc description content' },
+      });
 
       const result = await getIssue(host(CREDENTIALS), {
         identifier: ITEM.id,
@@ -233,7 +236,7 @@ describe('monday issues plugin', () => {
     });
 
     it('returns a not-found error when the item does not exist', async () => {
-      fetchMock.mockResolvedValueOnce(graphqlResponse({ items: [] }));
+      mondaySdk.request.mockResolvedValueOnce({ items: [] });
 
       const result = await getIssue(host(CREDENTIALS), {
         identifier: '999',
