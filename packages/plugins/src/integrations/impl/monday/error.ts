@@ -1,4 +1,3 @@
-import { ClientError } from '@mondaydotcomorg/api';
 import type { IntegrationError } from '../../types';
 
 export const MONDAY_API_ERROR_MESSAGES = {
@@ -46,5 +45,7 @@ export function toMondayIntegrationError(
 }
 
 function getStatus(error: unknown): number | undefined {
-  return error instanceof ClientError && error.response.status ? error.response.status : undefined;
+  if (!(error instanceof Error) || !('response' in error)) return undefined;
+  const response = (error as { response?: { status?: unknown } }).response;
+  return typeof response?.status === 'number' ? response.status : undefined;
 }
