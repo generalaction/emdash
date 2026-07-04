@@ -570,9 +570,9 @@ importers:
       smol-toml:
         specifier: ^1.6.0
         version: 1.6.1
-      trello:
-        specifier: ^0.11.0
-        version: 0.11.0
+      trello.js:
+        specifier: ^2.1.4
+        version: 2.1.4
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -5593,9 +5593,6 @@ packages:
   es6-error@4.1.1:
     resolution: {integrity: sha512-Um/+FxMr9CISWh0bi5Zv0iOD+4cFh5qLeks1qhAopKVAJw3drgKbKySikp7wGhDL0HPeaja0P5ULZrxLkniUVg==}
 
-  es6-promise@3.0.2:
-    resolution: {integrity: sha512-CUD62/uqeE0L+EJeypOKuFfM56CFaH4vo+++J76bff0NkeQ2bBmWVCTNxL2hj9HeCYPkof6Gqea0BSeK17gBzA==}
-
   esbuild-register@3.6.0:
     resolution: {integrity: sha512-H2/S7Pm8a9CL1uhp9OvjwrBh5Pvx0H8qVOxNu8Wed9Y7qv56MPtq+GGM8RJpq6glYJn9Wspr8uw7l55uyinNeg==}
     peerDependencies:
@@ -6143,10 +6140,6 @@ packages:
   human-signals@2.1.0:
     resolution: {integrity: sha512-B4FFZ6q/T2jhhksgkbEW3HBvWIfDW85snkQgawt07S7J5QXTk6BkNV+0yAeZrM5QpMAdYlocGoljn0sJ/WQkFw==}
     engines: {node: '>=10.17.0'}
-
-  iconv-lite@0.2.11:
-    resolution: {integrity: sha512-KhmFWgaQZY83Cbhi+ADInoUQ8Etn6BG5fikM9syeOjQltvR45h7cRKJ/9uvQEuD61I3Uju77yYce0/LhKVClQw==}
-    engines: {node: '>=0.4.0'}
 
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
@@ -7584,9 +7577,6 @@ packages:
     resolution: {integrity: sha512-KTqnxsgGiQ6ZAzZCVlJH5eOjSnvlyEgx1m8bkRJfOhmGRqfo5KLvmAlACQkrjEtOQ4B7wF9TdSLIs9O90MX9xA==}
     engines: {node: '>=16.0.0'}
 
-  qs@1.2.0:
-    resolution: {integrity: sha512-XUf0O7rlGjbH+n7uqyT+xn362fmoPe4ehtHL6VK1nbSgQ7CqG0ZZLr1nU2EyXlRq++YphPdQ/5scjIWNMSPnhg==}
-
   qs@6.15.2:
     resolution: {integrity: sha512-Rzq0KEyX/w/tEybncDgdkZrJgVUsUMk3xjh3t5bv3S1HTAtg+uOYt72+ZfwiQwKdysThkTBdL/rTi6HDmX9Ddw==}
     engines: {node: '>=0.6'}
@@ -7815,10 +7805,6 @@ packages:
   responselike@2.0.1:
     resolution: {integrity: sha512-4gl03wn3hj1HP3yzgdI7d3lCkF95F21Pz4BPGvKHinyQzALR5CapwC8yIi0Rh58DEMQ/SguC03wFj2k0M/mHhw==}
 
-  restler@3.3.0:
-    resolution: {integrity: sha512-TrnPEY3DJgFJgPd5vJmHpOj0WlAzLcX2eIcAqc/EB/YlgPFz0aMD55GkQN16d3nX0ydlq93lthZWGKyBpVnFEg==}
-    engines: {node: '>= 0.10.x'}
-
   restore-cursor@3.1.0:
     resolution: {integrity: sha512-l+sSefzHpj5qimhFSE5a8nufZYAM3sBSVMAPtYkmC+4EH2anSGaEMXSD0izRQbu9nfyQ9y5JrVmp7E8oZrUjvA==}
     engines: {node: '>=8'}
@@ -7907,9 +7893,6 @@ packages:
 
   sanitize-filename@1.6.4:
     resolution: {integrity: sha512-9ZyI08PsvdQl2r/bBIGubpVdR3RR9sY6RDiWFPreA21C/EFlQhmgo20UZlNjZMMZNubusLhAQozkA0Od5J21Eg==}
-
-  sax@0.5.8:
-    resolution: {integrity: sha512-c0YL9VcSfcdH3F1Qij9qpYJFpKFKMXNOkLWFssBL3RuF7ZS8oZhllR2rWlCRjDTJsfq3R6wbSsaRU6o0rkEdNw==}
 
   sax@1.6.0:
     resolution: {integrity: sha512-6R3J5M4AcbtLUdZmRv2SygeVaM7IhrLXu9BmnOGmmACak8fiUtOsYNWUS4uK7upbmHIBbLBeFeI//477BKLBzA==}
@@ -8434,9 +8417,9 @@ packages:
     resolution: {integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==}
     hasBin: true
 
-  trello@0.11.0:
-    resolution: {integrity: sha512-WMjfSTA+ybGnd36ZoMX7Ia7wfpU9KP2lsafv9mjLwFcE1ECp8b9/rX3uW4ivNO7jVLnHRyQ1pHsirbMvK0Ix2Q==}
-    engines: {node: '>= 0.10.x'}
+  trello.js@2.1.4:
+    resolution: {integrity: sha512-IvoYX+I9wEkYP/lsha4JgDh4QrmuNWPlIaoPoOEuLBPgXVgRmgO6KtkoeQptvCRzFeSV/C5krhmhSFsnvlx9GQ==}
+    engines: {node: '>=22'}
 
   trim-lines@3.0.1:
     resolution: {integrity: sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg==}
@@ -9071,9 +9054,6 @@ packages:
     resolution: {integrity: sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==}
     engines: {node: '>=18'}
 
-  xml2js@0.4.0:
-    resolution: {integrity: sha512-Uo9irqHi4waSloqTJ37nHn/XzbYi8JL/TYzMb+pq8xkINNayVhPTGOh8XWhZTP2WD3dX8Ngm5bGc+7YDnIoYIw==}
-
   xmlbuilder@15.1.1:
     resolution: {integrity: sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==}
     engines: {node: '>=8.0'}
@@ -9098,9 +9078,6 @@ packages:
   yallist@5.0.0:
     resolution: {integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==}
     engines: {node: '>=18'}
-
-  yaml@0.2.3:
-    resolution: {integrity: sha512-LzdhmhritYCRww8GLH95Sk5A2c18ddRQMeooOUnqWkDUnBbmVfqgg2fXH2MxAHYHCVTHDK1EEbmgItQ8kOpM0Q==}
 
   yaml@2.9.0:
     resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
@@ -13807,8 +13784,6 @@ snapshots:
   es6-error@4.1.1:
     optional: true
 
-  es6-promise@3.0.2: {}
-
   esbuild-register@3.6.0(esbuild@0.19.12):
     dependencies:
       debug: 4.4.3
@@ -14574,8 +14549,6 @@ snapshots:
   human-id@4.2.0: {}
 
   human-signals@2.1.0: {}
-
-  iconv-lite@0.2.11: {}
 
   iconv-lite@0.6.3:
     dependencies:
@@ -16553,8 +16526,6 @@ snapshots:
 
   pvutils@1.1.5: {}
 
-  qs@1.2.0: {}
-
   qs@6.15.2:
     dependencies:
       side-channel: 1.1.1
@@ -16843,13 +16814,6 @@ snapshots:
     dependencies:
       lowercase-keys: 2.0.0
 
-  restler@3.3.0:
-    dependencies:
-      iconv-lite: 0.2.11
-      qs: 1.2.0
-      xml2js: 0.4.0
-      yaml: 0.2.3
-
   restore-cursor@3.1.0:
     dependencies:
       onetime: 5.1.2
@@ -16982,8 +16946,6 @@ snapshots:
   sanitize-filename@1.6.4:
     dependencies:
       truncate-utf8-bytes: 1.0.2
-
-  sax@0.5.8: {}
 
   sax@1.6.0: {}
 
@@ -17500,11 +17462,9 @@ snapshots:
 
   tree-kill@1.2.2: {}
 
-  trello@0.11.0:
+  trello.js@2.1.4:
     dependencies:
-      es6-promise: 3.0.2
-      object-assign: 4.1.1
-      restler: 3.3.0
+      zod: 4.4.3
 
   trim-lines@3.0.1: {}
 
@@ -18152,11 +18112,6 @@ snapshots:
 
   xml-name-validator@5.0.0: {}
 
-  xml2js@0.4.0:
-    dependencies:
-      sax: 0.5.8
-      xmlbuilder: 15.1.1
-
   xmlbuilder@15.1.1: {}
 
   xmlchars@2.2.0: {}
@@ -18170,8 +18125,6 @@ snapshots:
   yallist@4.0.0: {}
 
   yallist@5.0.0: {}
-
-  yaml@0.2.3: {}
 
   yaml@2.9.0: {}
 

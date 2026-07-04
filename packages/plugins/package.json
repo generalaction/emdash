@@ -50,7 +50,7 @@
     "featurebase-node": "^0.14.0",
     "jira.js": "^5.4.0",
     "smol-toml": "^1.6.0",
-    "trello": "^0.11.0",
+    "trello.js": "^2.1.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
