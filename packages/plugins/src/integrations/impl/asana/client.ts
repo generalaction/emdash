@@ -60,7 +60,6 @@ export async function verifyAsanaCredentials(
       displayDetail,
       credentials: {
         accessToken: credentials.data.accessToken,
-        ...(workspace?.gid ? { workspaceGid: workspace.gid } : {}),
       },
     });
   } catch (error) {

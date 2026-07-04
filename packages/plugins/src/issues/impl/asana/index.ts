@@ -22,10 +22,7 @@ const TASK_OPT_FIELDS =
 
 async function getAsanaWorkspace(
   client: AsanaClient,
-  workspaceGid: string | undefined
 ): Promise<Result<AsanaWorkspace, IntegrationError>> {
-  if (workspaceGid) return ok({ gid: workspaceGid });
-
   try {
     const response = (await client.users.getUser('me', {
       opt_fields: 'gid,name,workspaces.gid,workspaces.name',
@@ -52,7 +49,7 @@ export async function listIssues(
   if (!parsedCredentials.success) return err(parsedCredentials.error);
   const client = createAsanaClient(parsedCredentials.data);
 
-  const workspace = await getAsanaWorkspace(client, parsedCredentials.data.workspaceGid);
+  const workspace = await getAsanaWorkspace(client);
   if (!workspace.success) return err(workspace.error);
 
   try {
@@ -87,7 +84,7 @@ export async function searchIssues(
   if (!parsedCredentials.success) return err(parsedCredentials.error);
   const client = createAsanaClient(parsedCredentials.data);
 
-  const workspace = await getAsanaWorkspace(client, parsedCredentials.data.workspaceGid);
+  const workspace = await getAsanaWorkspace(client);
   if (!workspace.success) return err(workspace.error);
 
   try {

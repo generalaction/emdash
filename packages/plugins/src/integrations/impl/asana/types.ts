@@ -4,7 +4,6 @@ import { credentialString, optionalCredentialString } from '../../helpers/creden
 
 export const asanaCredentialsSchema = z.object({
   accessToken: credentialString('Access token is required'),
-  workspaceGid: optionalCredentialString(),
 });
 
 export type AsanaCredentials = z.infer<typeof asanaCredentialsSchema>;
