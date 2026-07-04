@@ -30,7 +30,6 @@ vi.mock('@main/lib/logger', () => {
   return { log };
 });
 
-import { mapPluginIssueError } from '../issues/plugin-issue-adapter';
 import { createPluginIssueProvider } from './plugin-issue-provider';
 
 function makePlugin(overrides: {
@@ -54,46 +53,6 @@ function makePlugin(overrides: {
   } as unknown as IssuesPluginProvider;
 }
 
-describe('mapPluginIssueError', () => {
-  it('maps auth_failed to auth_required', () => {
-    expect(mapPluginIssueError({ type: 'auth_failed', message: 'bad token' })).toEqual({
-      success: false,
-      error: 'bad token',
-      errorType: 'auth_required',
-    });
-  });
-
-  it('maps invalid_input to generic', () => {
-    expect(mapPluginIssueError({ type: 'invalid_input', message: 'nope' })).toEqual({
-      success: false,
-      error: 'nope',
-      errorType: 'generic',
-    });
-  });
-
-  it('passes through rate limit metadata', () => {
-    expect(
-      mapPluginIssueError({ type: 'rate_limited', message: 'slow down', resetAt: '2026-01-01' })
-    ).toEqual({
-      success: false,
-      error: 'slow down',
-      errorType: 'rate_limited',
-      resetAt: '2026-01-01',
-    });
-  });
-
-  it('passes through sso metadata', () => {
-    expect(
-      mapPluginIssueError({ type: 'sso_required', message: 'sso', ssoUrl: 'https://sso' })
-    ).toEqual({
-      success: false,
-      error: 'sso',
-      errorType: 'sso_required',
-      ssoUrl: 'https://sso',
-    });
-  });
-});
-
 describe('createPluginIssueProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -113,8 +72,7 @@ describe('createPluginIssueProvider', () => {
 
     await expect(provider.listIssues({})).resolves.toEqual({
       success: false,
-      error: 'linear is not connected.',
-      errorType: 'auth_required',
+      error: { type: 'auth_required', message: 'linear is not connected.' },
     });
   });
 
@@ -127,8 +85,7 @@ describe('createPluginIssueProvider', () => {
 
     await expect(provider.listIssues({})).resolves.toEqual({
       success: false,
-      error: 'Repository URL is required.',
-      errorType: 'generic',
+      error: { type: 'invalid_input', message: 'Repository URL is required.' },
     });
     expect(listIssues).not.toHaveBeenCalled();
   });
@@ -147,7 +104,7 @@ describe('createPluginIssueProvider', () => {
     );
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.issues[0]).toMatchObject({
+      expect(result.data[0]).toMatchObject({
         provider: 'linear',
         identifier: 'ENG-1',
         title: 'Fix it',
@@ -155,15 +112,14 @@ describe('createPluginIssueProvider', () => {
     }
   });
 
-  it('maps plugin errors on search', async () => {
+  it('passes plugin errors through verbatim on search', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'k' });
     const searchIssues = vi.fn(async () => err({ type: 'auth_failed' as const, message: '401' }));
     const provider = createPluginIssueProvider(makePlugin({ searchIssues }));
 
     await expect(provider.searchIssues({ searchTerm: 'bug' })).resolves.toEqual({
       success: false,
-      error: '401',
-      errorType: 'auth_required',
+      error: { type: 'auth_failed', message: '401' },
     });
   });
 
@@ -173,7 +129,7 @@ describe('createPluginIssueProvider', () => {
 
     await expect(provider.searchIssues({ searchTerm: '   ' })).resolves.toEqual({
       success: true,
-      issues: [],
+      data: [],
     });
     expect(searchIssues).not.toHaveBeenCalled();
     expect(mockGetCredentials).not.toHaveBeenCalled();

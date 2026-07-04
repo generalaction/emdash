@@ -1,7 +1,9 @@
 import type { IssuesPluginProvider } from '@emdash/plugins/issues';
+import { err, type Err, ok } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import type {
   IssueContextResult,
+  IssueListError,
   IssueListResult,
   IssueProviderType,
 } from '@shared/issue-providers';
@@ -15,17 +17,11 @@ import {
   clampIssueProviderLimit,
   DEFAULT_LIST_LIMIT,
   DEFAULT_SEARCH_LIMIT,
-  mapPluginIssueError,
-  mapPluginIssueErrorType,
   toIssueProviderCapabilities,
   toLinkedIssue,
 } from '../issues/plugin-issue-adapter';
 import { integrationConnectionService } from './integration-connection-service';
 import { integrationCredentialStore } from './integration-credential-store-instance';
-
-function missingRepositoryResult(): IssueListResult {
-  return { success: false, error: 'Repository URL is required.', errorType: 'generic' };
-}
 
 export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssueProvider {
   const provider = plugin.metadata.integrationId as IssueProviderType;
@@ -45,6 +41,14 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
     return value || undefined;
   }
 
+  function notConnectedError(): Err<IssueListError> {
+    return err({ type: 'auth_required', message: `${provider} is not connected.` });
+  }
+
+  function missingRepositoryError(): Err<IssueListError> {
+    return err({ type: 'invalid_input', message: 'Repository URL is required.' });
+  }
+
   return {
     type: provider,
     capabilities,
@@ -55,42 +59,30 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
 
     async listIssues(opts: IssueQueryOpts): Promise<IssueListResult> {
       const host = await getConnectedHost();
-      if (!host) {
-        return {
-          success: false,
-          error: `${provider} is not connected.`,
-          errorType: 'auth_required',
-        };
-      }
+      if (!host) return notConnectedError();
 
       if (capabilities.requiresRepositoryUrl && !repositoryUrl(opts)) {
-        return missingRepositoryResult();
+        return missingRepositoryError();
       }
 
       const result = await plugin.behavior.issues?.listIssues(host, {
         limit: clampIssueProviderLimit(opts.limit, DEFAULT_LIST_LIMIT),
         repositoryUrl: repositoryUrl(opts),
       });
-      if (!result) return { success: true, issues: [] };
-      if (!result.success) return mapPluginIssueError(result.error);
-      return { success: true, issues: result.data.map((issue) => toLinkedIssue(provider, issue)) };
+      if (!result) return ok([]);
+      if (!result.success) return err(result.error);
+      return ok(result.data.map((issue) => toLinkedIssue(provider, issue)));
     },
 
     async searchIssues(opts: IssueSearchOpts): Promise<IssueListResult> {
       const term = String(opts.searchTerm || '').trim();
-      if (!term) return { success: true, issues: [] };
+      if (!term) return ok([]);
 
       const host = await getConnectedHost();
-      if (!host) {
-        return {
-          success: false,
-          error: `${provider} is not connected.`,
-          errorType: 'auth_required',
-        };
-      }
+      if (!host) return notConnectedError();
 
       if (capabilities.requiresRepositoryUrl && !repositoryUrl(opts)) {
-        return missingRepositoryResult();
+        return missingRepositoryError();
       }
 
       const result = await plugin.behavior.issues?.searchIssues(host, {
@@ -98,39 +90,33 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
         searchTerm: term,
         repositoryUrl: repositoryUrl(opts),
       });
-      if (!result) return { success: true, issues: [] };
-      if (!result.success) return mapPluginIssueError(result.error);
-      return { success: true, issues: result.data.map((issue) => toLinkedIssue(provider, issue)) };
+      if (!result) return ok([]);
+      if (!result.success) return err(result.error);
+      return ok(result.data.map((issue) => toLinkedIssue(provider, issue)));
     },
 
     getIssueContext: plugin.behavior.issues?.getIssue
       ? async (opts: IssueContextOpts): Promise<IssueContextResult> => {
           const term = String(opts.identifier || '').trim();
-          if (!term) return { success: false, error: 'Issue identifier is required.' };
+          if (!term) {
+            return err({ type: 'invalid_input', message: 'Issue identifier is required.' });
+          }
 
           const host = await getConnectedHost();
-          if (!host) {
-            return {
-              success: false,
-              error: `${provider} is not connected.`,
-              errorType: 'auth_required',
-            };
-          }
+          if (!host) return notConnectedError();
 
           const result = await plugin.behavior.issues?.getIssue?.(host, {
             identifier: term,
             repositoryUrl: repositoryUrl(opts),
           });
-          if (!result)
-            return { success: false, error: `${provider} does not support issue context.` };
-          if (!result.success) {
-            return {
-              success: false,
-              error: result.error.message,
-              errorType: mapPluginIssueErrorType(result.error),
-            };
+          if (!result) {
+            return err({
+              type: 'generic',
+              message: `${provider} does not support issue context.`,
+            });
           }
-          return { success: true, issue: toLinkedIssue(provider, result.data) };
+          if (!result.success) return err(result.error);
+          return ok(toLinkedIssue(provider, result.data));
         }
       : undefined,
   };

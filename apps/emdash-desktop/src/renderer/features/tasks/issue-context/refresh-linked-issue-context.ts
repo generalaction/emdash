@@ -15,5 +15,5 @@ export async function refreshLinkedIssueContext(
     .catch(() => undefined);
   if (!result?.success) return issue;
 
-  return result.issue;
+  return result.data;
 }

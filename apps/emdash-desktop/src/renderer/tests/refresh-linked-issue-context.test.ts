@@ -43,7 +43,7 @@ describe('refreshLinkedIssueContext', () => {
       identifier: '#42',
       context: 'GitHub issue activity',
     });
-    mocks.getIssueContext.mockResolvedValue({ success: true, issue: refreshedIssue });
+    mocks.getIssueContext.mockResolvedValue({ success: true, data: refreshedIssue });
 
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(refreshedIssue);
     expect(mocks.getIssueContext).toHaveBeenCalledWith('github', {
@@ -55,7 +55,7 @@ describe('refreshLinkedIssueContext', () => {
   it('returns refreshed Linear issue context', async () => {
     const issue = makeIssue();
     const refreshedIssue = makeIssue({ context: 'Linear issue activity' });
-    mocks.getIssueContext.mockResolvedValue({ success: true, issue: refreshedIssue });
+    mocks.getIssueContext.mockResolvedValue({ success: true, data: refreshedIssue });
 
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(refreshedIssue);
     expect(mocks.getIssueContext).toHaveBeenCalledWith('linear', {
@@ -66,7 +66,10 @@ describe('refreshLinkedIssueContext', () => {
 
   it('falls back to the original issue when refresh fails', async () => {
     const issue = makeIssue();
-    mocks.getIssueContext.mockResolvedValue({ success: false, error: 'not found' });
+    mocks.getIssueContext.mockResolvedValue({
+      success: false,
+      error: { type: 'not_found_or_no_access', message: 'not found' },
+    });
 
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(issue);
   });

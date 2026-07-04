@@ -1,4 +1,4 @@
-import type { IssuesPluginProvider, IssueError } from '@emdash/plugins/issues';
+import type { IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, ok, type Result } from '@emdash/shared';
 import { match, P } from 'ts-pattern';
 import { GITHUB_PROVIDER_ID, toGitHubAccount } from '@main/core/github/accounts/github-accounts';
@@ -15,7 +15,6 @@ import {
 } from '@main/core/issues/plugin-issue-adapter';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { log } from '@main/lib/logger';
-import type { LinkedIssue } from '@shared/core/linked-issue';
 import {
   type IssueListError,
   type IssueListResult,
@@ -24,93 +23,6 @@ import {
 import { normalizeRepositoryHost } from '@shared/repository-ref';
 import type { RepositoryRef } from '@shared/repository-ref';
 import type { IssueProvider, IssueQueryOpts, IssueSearchOpts } from '../issues/issue-provider';
-
-function toIssueListResult(result: Result<LinkedIssue[], IssueListError>): IssueListResult {
-  if (result.success) return { success: true, issues: result.data };
-  return {
-    success: false,
-    error: result.error.message,
-    errorType: result.error.type,
-    ...issueListErrorMetadata(result.error),
-  };
-}
-
-type IssueListErrorMetadata = Omit<
-  Extract<IssueListResult, { success: false }>,
-  'success' | 'error' | 'errorType'
->;
-
-function issueListErrorMetadata(error: IssueListError): IssueListErrorMetadata {
-  return match(error)
-    .with(
-      P.union({ type: 'no_account_selected' }, { type: 'account_disabled' }, { type: 'generic' }),
-      () => ({})
-    )
-    .with({ type: 'account_not_found' }, (e) => ({
-      ...(e.host ? { host: e.host } : {}),
-      ...(e.accountId ? { accountId: e.accountId } : {}),
-    }))
-    .with({ type: 'account_host_mismatch' }, (e) => ({
-      host: e.host,
-      accountId: e.accountId,
-      accountHost: e.accountHost,
-    }))
-    .with({ type: 'token_missing' }, (e) => ({
-      host: e.host,
-      accountId: e.accountId,
-    }))
-    .with(
-      P.union(
-        { type: 'auth_required' },
-        { type: 'not_found_or_no_access' },
-        { type: 'forbidden' },
-        { type: 'host_unreachable' },
-        { type: 'unsupported_host' }
-      ),
-      (e) => ({ host: e.host })
-    )
-    .with({ type: 'sso_required' }, (e) => ({
-      host: e.host,
-      ...(e.ssoUrl ? { ssoUrl: e.ssoUrl } : {}),
-    }))
-    .with({ type: 'rate_limited' }, (e) => ({
-      host: e.host,
-      ...(e.resetAt ? { resetAt: e.resetAt } : {}),
-    }))
-    .exhaustive();
-}
-
-function mapPluginError(error: IssueError, repository: RepositoryRef): IssueListError {
-  if (error.type === 'auth_failed') {
-    return { type: 'auth_required', host: repository.host, message: error.message };
-  }
-  if (error.type === 'rate_limited') {
-    return {
-      type: 'rate_limited',
-      host: repository.host,
-      message: error.message,
-      ...(error.resetAt ? { resetAt: error.resetAt } : {}),
-    };
-  }
-  if (error.type === 'sso_required') {
-    return {
-      type: 'sso_required',
-      host: repository.host,
-      message: error.message,
-      ...(error.ssoUrl ? { ssoUrl: error.ssoUrl } : {}),
-    };
-  }
-  if (error.type === 'not_found_or_no_access') {
-    return { type: 'not_found_or_no_access', host: repository.host, message: error.message };
-  }
-  if (error.type === 'host_unreachable') {
-    return { type: 'host_unreachable', host: repository.host, message: error.message };
-  }
-  if (error.type === 'unsupported_host') {
-    return { type: 'unsupported_host', host: repository.host, message: error.message };
-  }
-  return { type: 'generic', message: error.message };
-}
 
 async function resolveIssueAuthContext(
   projectId: string | undefined
@@ -137,21 +49,22 @@ async function resolveRepository(opts: {
   const resolved = await githubRepositoryResolver.resolve(opts.repositoryUrl || opts.remote);
   if (resolved.success) return ok(resolved.data);
 
-  return match(resolved.error)
-    .with({ type: 'not_parseable' }, () =>
-      err({ type: 'generic' as const, message: 'Repository URL is required.' })
-    )
-    .with({ type: 'not_github' }, (e) =>
-      err({
-        type: 'unsupported_host' as const,
-        host: e.host,
-        message: 'This remote does not appear to be GitHub or GitHub Enterprise.',
-      })
-    )
-    .with(P.union({ type: 'host_unreachable' }, { type: 'host_error' }), (e) =>
-      err({ type: 'host_unreachable' as const, host: e.host, message: e.reason })
-    )
+  const error = match(resolved.error)
+    .returnType<IssueListError>()
+    .with({ type: 'not_parseable' }, () => ({
+      type: 'invalid_input',
+      message: 'Repository URL is required.',
+    }))
+    .with({ type: 'not_github' }, (e) => ({
+      type: 'unsupported_host',
+      message: `Remote host "${e.host}" does not appear to be GitHub or GitHub Enterprise.`,
+    }))
+    .with(P.union({ type: 'host_unreachable' }, { type: 'host_error' }), (e) => ({
+      type: 'host_unreachable',
+      message: e.reason,
+    }))
     .exhaustive();
+  return err(error);
 }
 
 async function resolveGitHubPluginCredentials(
@@ -236,13 +149,13 @@ export function createGitHubPluginIssueProvider(plugin: IssuesPluginProvider): I
     searchTerm?: string
   ): Promise<IssueListResult> {
     const repository = await resolveRepository(opts);
-    if (!repository.success) return toIssueListResult(repository);
+    if (!repository.success) return repository;
 
     const authContext = await resolveIssueAuthContext(opts.projectId);
-    if (!authContext.success) return toIssueListResult(err(authContext.error));
+    if (!authContext.success) return err(authContext.error);
 
     const credentials = await resolveGitHubPluginCredentials(repository.data, authContext.data);
-    if (!credentials.success) return toIssueListResult(err(credentials.error));
+    if (!credentials.success) return err(credentials.error);
 
     const host = { log: pluginLog, credentials: credentials.data };
     const behavior = plugin.behavior.issues;
@@ -258,14 +171,10 @@ export function createGitHubPluginIssueProvider(plugin: IssuesPluginProvider): I
             repositoryUrl: repository.data.repositoryUrl,
           });
 
-    if (!result) return { success: true, issues: [] };
-    if (!result.success)
-      return toIssueListResult(err(mapPluginError(result.error, repository.data)));
+    if (!result) return ok([]);
+    if (!result.success) return err(result.error);
 
-    return {
-      success: true,
-      issues: result.data.map((issue) => toLinkedIssue('github', issue)),
-    };
+    return ok(result.data.map((issue) => toLinkedIssue('github', issue)));
   }
 
   return {
@@ -284,8 +193,7 @@ export function createGitHubPluginIssueProvider(plugin: IssuesPluginProvider): I
     },
     listIssues: (opts) => invoke(opts, 'list'),
     searchIssues: (opts: IssueSearchOpts) => {
-      if (!String(opts.searchTerm || '').trim())
-        return Promise.resolve({ success: true, issues: [] });
+      if (!String(opts.searchTerm || '').trim()) return Promise.resolve(ok([]));
       return invoke(opts, 'search', opts.searchTerm);
     },
   };

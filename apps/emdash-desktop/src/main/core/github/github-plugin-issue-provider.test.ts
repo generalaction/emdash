@@ -106,7 +106,7 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
     const provider = createGitHubPluginIssueProvider(plugin);
 
     const result = await provider.listIssues({ repositoryUrl: repository.repositoryUrl });
-    expect(result).toMatchObject({ success: false, errorType: 'auth_required' });
+    expect(result).toMatchObject({ success: false, error: { type: 'auth_required' } });
   });
 
   it('reports a missing account by id', async () => {
@@ -118,8 +118,7 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
     const result = await provider.listIssues({ repositoryUrl: repository.repositoryUrl });
     expect(result).toMatchObject({
       success: false,
-      errorType: 'account_not_found',
-      accountId: 'github.com:42',
+      error: { type: 'account_not_found', accountId: 'github.com:42' },
     });
   });
 
@@ -134,9 +133,11 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
     const result = await provider.listIssues({ repositoryUrl: repository.repositoryUrl });
     expect(result).toMatchObject({
       success: false,
-      errorType: 'account_host_mismatch',
-      accountHost: 'ghe.example.com',
-      host: 'github.com',
+      error: {
+        type: 'account_host_mismatch',
+        accountHost: 'ghe.example.com',
+        host: 'github.com',
+      },
     });
   });
 
@@ -150,7 +151,7 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
     const provider = createGitHubPluginIssueProvider(plugin);
 
     const result = await provider.listIssues({ repositoryUrl: repository.repositoryUrl });
-    expect(result).toMatchObject({ success: false, errorType: 'token_missing' });
+    expect(result).toMatchObject({ success: false, error: { type: 'token_missing' } });
   });
 
   it('invokes the plugin with the resolved token and api base url', async () => {
@@ -185,8 +186,10 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
     const result = await provider.listIssues({ repositoryUrl: 'https://gitlab.com/a/b' });
     expect(result).toMatchObject({
       success: false,
-      errorType: 'unsupported_host',
-      host: 'gitlab.com',
+      error: {
+        type: 'unsupported_host',
+        message: expect.stringContaining('gitlab.com'),
+      },
     });
   });
 });

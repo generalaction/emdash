@@ -62,7 +62,7 @@ export function useIssues(
       initialLimit,
     ],
     queryFn: async () => {
-      if (!provider) return { success: true as const, issues: [] as LinkedIssue[] };
+      if (!provider) return { success: true as const, data: [] as LinkedIssue[] };
 
       const result = await rpc.issues.listIssues(provider, {
         limit: initialLimit,
@@ -94,7 +94,7 @@ export function useIssues(
       searchLimit,
     ],
     queryFn: async () => {
-      if (!provider) return { success: true as const, issues: [] as LinkedIssue[] };
+      if (!provider) return { success: true as const, data: [] as LinkedIssue[] };
 
       const result = await rpc.issues.searchIssues(provider, {
         limit: searchLimit,
@@ -112,15 +112,15 @@ export function useIssues(
   });
 
   const issues = useMemo<LinkedIssue[]>(() => {
-    if (isActiveSearch) return searchIssues?.success ? (searchIssues.issues ?? []) : [];
-    return initialIssues?.success ? (initialIssues.issues ?? []) : [];
+    if (isActiveSearch) return searchIssues?.success ? (searchIssues.data ?? []) : [];
+    return initialIssues?.success ? (initialIssues.data ?? []) : [];
   }, [initialIssues, isActiveSearch, searchIssues]);
 
   const activeResult = isActiveSearch ? searchIssues : initialIssues;
   const activeQueryError = isActiveSearch ? searchError : initialError;
   const error =
     activeResult && !activeResult.success
-      ? activeResult.error
+      ? activeResult.error.message
       : activeQueryError instanceof Error
         ? activeQueryError.message
         : null;
