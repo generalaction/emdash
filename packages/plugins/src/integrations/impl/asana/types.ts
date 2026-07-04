@@ -1,4 +1,4 @@
-import { TasksApi, UsersApi } from 'asana';
+import type { TasksApi, UsersApi } from 'asana';
 import z from 'zod';
 import { credentialString } from '../../helpers/credentials';
 

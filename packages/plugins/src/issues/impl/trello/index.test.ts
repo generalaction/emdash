@@ -148,6 +148,35 @@ describe('trello issues plugin', () => {
       expect(urls.some((url) => url.pathname.includes('/boards/closed-board/cards'))).toBe(false);
     });
 
+    it('queries only the 20 most recently active boards when more are available', async () => {
+      const boards = Array.from({ length: 25 }, (_, index) => ({
+        id: `board-${index}`,
+        name: `Board ${index}`,
+        closed: false,
+        // Ascending activity: board-24 is the most recent, board-0 through board-4 fall off.
+        dateLastActivity: `2026-05-${String(index + 1).padStart(2, '0')}T10:00:00.000Z`,
+      }));
+
+      const routes: Record<string, unknown> = {
+        '/1/members/me/boards': boards,
+        '/1/members/me/organizations': [],
+      };
+      for (const board of boards) {
+        routes[`/1/boards/${board.id}/cards/open`] = [];
+      }
+      routeFetch(routes);
+
+      const result = await issues.listIssues(host(CREDENTIALS), { limit: 50 });
+
+      expect(result).toEqual({ success: true, data: [] });
+
+      const cardRequests = requestedUrls().filter((url) => url.pathname.endsWith('/cards/open'));
+      expect(cardRequests).toHaveLength(20);
+      const queriedBoardIds = cardRequests.map((url) => url.pathname.split('/')[3]);
+      expect(queriedBoardIds).not.toContain('board-0');
+      expect(queriedBoardIds).toContain('board-24');
+    });
+
     it('sorts cards by last activity descending', async () => {
       const older = { ...CARD, shortLink: 'older123', dateLastActivity: '2026-05-01T10:00:00Z' };
       const newer = { ...CARD, shortLink: 'newer123', dateLastActivity: '2026-05-25T10:00:00Z' };

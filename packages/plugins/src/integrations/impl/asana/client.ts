@@ -8,7 +8,7 @@ import {
   type AsanaClient,
   type AsanaCredentials,
   asanaCredentialsSchema,
-  AsanaResponse,
+  type AsanaResponse,
   type AsanaUser,
   type AsanaVerifiedConnection,
 } from './types';

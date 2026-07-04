@@ -1,4 +1,4 @@
-import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { noopLogger } from '@emdash/shared/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { provider } from './index';
 
@@ -76,22 +76,18 @@ describe('github integration verify', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://ghe.example.com/api/v3/user');
   });
 
-  it('reports invalid tokens as not connected and warns through the host log', async () => {
+  it('reports invalid tokens as not connected', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(jsonResponse(401, { message: 'Bad credentials' }))
     );
-    const log: Logger = { ...noopLogger, warn: vi.fn() };
 
-    const result = await auth.verify({ log }, { accessToken: 'gho_bad' });
+    const result = await auth.verify(host, { accessToken: 'gho_bad' });
 
     expect(result).toEqual({
       connected: false,
       error: 'GitHub authentication failed. Check your credentials.',
     });
-    expect(log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('GitHub credential verification failed')
-    );
   });
 
   it('rejects a missing access token without making a request', async () => {

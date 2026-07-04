@@ -1,11 +1,12 @@
 import { err, ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as FeaturebaseClient from './client';
 import { verifyFeaturebaseCredentials } from './client';
 import { provider } from './index';
 
 vi.mock('./client', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./client')>();
+  const actual = await importOriginal<typeof FeaturebaseClient>();
   return {
     ...actual,
     verifyFeaturebaseCredentials: vi.fn(),
