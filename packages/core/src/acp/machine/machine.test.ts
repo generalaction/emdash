@@ -1,7 +1,7 @@
 import { isErr, isOk } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
-import type { AcpPermissionRequest } from './models/permissions';
-import type { SessionMachineState } from './session-machine';
+import type { AcpPermissionRequest } from '../models/permissions';
+import type { SessionMachineState } from './machine';
 import {
   activeTurnFromPhase,
   decide,
@@ -9,7 +9,7 @@ import {
   initialMachineState,
   phaseToLifecycle,
   SessionMachine,
-} from './session-machine';
+} from './machine';
 
 const CONV_ID = 'conv-test';
 const prompt = { id: 'prompt-1', text: 'hello', createdAt: 100, updatedAt: 100 };
@@ -69,7 +69,7 @@ describe('lifecycle control', () => {
     const s0 = initialMachineState(CONV_ID);
     const { state: s1 } = evolve(s0, { type: 'ReplayStarted' });
     expect(phaseToLifecycle(s1.phase)).toBe('replaying');
-    expect(activeTurnFromPhase(s1.phase)?.id).toBe('turn-conv-test-0');
+    expect(activeTurnFromPhase(s1.phase)?.id).toBe('conv-test:turn:0');
 
     const { state: s2 } = evolve(s1, { type: 'ReplayEnded', status: 'complete' });
     expect(phaseToLifecycle(s2.phase)).toBe('ready');
@@ -80,7 +80,7 @@ describe('lifecycle control', () => {
     const s0 = makeReady();
     const { state: s1, effects } = evolve(s0, { type: 'PromptStarted', prompt });
     expect(phaseToLifecycle(s1.phase)).toBe('working');
-    expect(activeTurnFromPhase(s1.phase)?.id).toBe('turn-conv-test-0');
+    expect(activeTurnFromPhase(s1.phase)?.id).toBe('conv-test:turn:0');
     expect(effects.some((e) => e.type === 'agentEvent' && e.phase === 'start')).toBe(true);
 
     const { state: s2 } = evolve(s1, {
@@ -125,7 +125,7 @@ describe('lifecycle control', () => {
   });
 });
 
-describe('permissions and metadata', () => {
+describe('permissions and config validation', () => {
   it('guards ResolvePermission against unknown ids', () => {
     const result = decide(makeWorking(), {
       type: 'ResolvePermission',
@@ -141,21 +141,37 @@ describe('permissions and metadata', () => {
     expect(isOk(result)).toBe(true);
   });
 
-  it('applies control-plane metadata changes', () => {
-    const { state } = evolve(makeReady(), {
-      type: 'MetaChanged',
-      configOptions: [
-        {
-          id: 'model',
-          name: 'Model',
-          category: 'model',
-          type: 'select',
-          currentValue: 'default',
-          options: [],
-        },
-      ],
-    });
-    expect(state.configOptions).toHaveLength(1);
+  it('validates modes and config options from caller-supplied context', () => {
+    expect(isOk(decide(makeReady(), { type: 'SetMode', modeId: 'default' }, { modeIds: ['default'] }))).toBe(
+      true
+    );
+    expect(
+      isOk(
+        decide(
+          makeReady(),
+          { type: 'SetConfigOption', configId: 'model', value: 'sonnet' },
+          { configOptionIds: ['model'] }
+        )
+      )
+    ).toBe(true);
+    expect(isErr(decide(makeReady(), { type: 'SetMode', modeId: 'missing' }))).toBe(true);
+  });
+
+  it('edits and reorders queued prompts', () => {
+    const queuedA = { id: 'a', text: 'a', createdAt: 100, updatedAt: 100 };
+    const queuedB = { id: 'b', text: 'b', createdAt: 100, updatedAt: 100 };
+    let state = evolve(makeReady(), { type: 'PromptQueued', prompt: queuedA }).state;
+    state = evolve(state, { type: 'PromptQueued', prompt: queuedB }).state;
+    state = evolve(state, {
+      type: 'QueuedPromptEdited',
+      id: 'a',
+      input: { text: 'edited' },
+      updatedAt: 200,
+    }).state;
+    state = evolve(state, { type: 'QueueReordered', ids: ['b', 'a'] }).state;
+
+    expect(state.queuedPrompts.map((entry) => entry.id)).toEqual(['b', 'a']);
+    expect(state.queuedPrompts[1]).toMatchObject({ text: 'edited', updatedAt: 200 });
   });
 });
 
@@ -170,6 +186,6 @@ describe('SessionMachine wrapper', () => {
     expect(isOk(result)).toBe(true);
     expect(machine.canSubmit).toBe(false);
     expect(machine.canCancel).toBe(true);
-    expect(machine.sessionState().activeTurnId).toBe('turn-conv-test-0');
+    expect(machine.sessionState().activeTurnId).toBe('conv-test:turn:0');
   });
 });

@@ -52,3 +52,16 @@ export const sessionStateSchema = z.object({
   canCancel: z.boolean(),
 });
 export type SessionState = z.infer<typeof sessionStateSchema>;
+
+export const sessionSummarySchema = z.object({
+  conversationId: z.string(),
+  providerId: z.string(),
+  lifecycle: sessionLifecycleSchema,
+  isGenerating: z.boolean(),
+  pendingPermissionCount: z.number().int(),
+  backgroundAgentCount: z.number().int(),
+  queuedPromptCount: z.number().int(),
+  title: z.string().nullable(),
+  updatedAt: z.number(),
+});
+export type SessionSummary = z.infer<typeof sessionSummarySchema>;

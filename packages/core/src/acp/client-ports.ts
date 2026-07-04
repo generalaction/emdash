@@ -55,7 +55,7 @@ export class TerminalPort {
 
   async terminalOutput(params: TerminalOutputRequest): Promise<TerminalOutputResponse> {
     const terminal = this.terminals.get(params.terminalId);
-    if (!terminal) throw new Error(`AcpSessionRuntime: terminal not found: ${params.terminalId}`);
+    if (!terminal) throw new Error(`AcpRuntime: terminal not found: ${params.terminalId}`);
     const snap = terminal.snapshot();
     return {
       output: snap.output,
@@ -68,14 +68,14 @@ export class TerminalPort {
     params: WaitForTerminalExitRequest
   ): Promise<WaitForTerminalExitResponse> {
     const terminal = this.terminals.get(params.terminalId);
-    if (!terminal) throw new Error(`AcpSessionRuntime: terminal not found: ${params.terminalId}`);
+    if (!terminal) throw new Error(`AcpRuntime: terminal not found: ${params.terminalId}`);
     const status = await terminal.waitForExit();
     return { exitCode: status.exitCode, signal: status.signal ?? undefined };
   }
 
   async killTerminal(params: KillTerminalRequest): Promise<KillTerminalResponse> {
     const terminal = this.terminals.get(params.terminalId);
-    if (!terminal) throw new Error(`AcpSessionRuntime: terminal not found: ${params.terminalId}`);
+    if (!terminal) throw new Error(`AcpRuntime: terminal not found: ${params.terminalId}`);
     terminal.kill();
     return {};
   }

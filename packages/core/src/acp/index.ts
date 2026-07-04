@@ -1,6 +1,15 @@
-export { createAcpAgentConnection } from './acp-agent-connection';
-export type { AcpAgentConnection } from './acp-agent-connection';
-export { AcpSessionRuntime } from './acp-session-runtime';
+export { createAcpAgentConnection } from './connection/acp-agent-connection';
+export type { AcpAgentConnection } from './connection/acp-agent-connection';
+export { AcpRuntime } from './runtime/runtime';
+export { SessionManager } from './runtime/session-manager';
+export type { AcpRuntimeDeps, AcpStartInput, ResolveAcpProvider } from './runtime/types';
+export { ConnectionPool } from './connection/pool';
+export { buildClientHandler } from './connection/client-handler';
+export { SessionCell } from './session/cell';
+export { PermissionBroker } from './session/permission-broker';
+export { SessionMachine, isPromptReady } from './machine/machine';
+export * from './state/live-models';
+export * from './api/contract';
 export { AgentTerminalManager } from './agent-terminal-manager';
 export type { AgentTerminalHooks as AgentTerminalListener } from './agent-terminal-manager';
 export type { AcpRuntimeError } from './errors';
@@ -13,13 +22,4 @@ export type {
   AcpTerminalProcess,
 } from './transport';
 export { readTextFile, writeTextFile } from './transport';
-export type {
-  AcpRuntimeListener,
-  AcpSessionRuntimeDeps,
-  AcpStartInput,
-  IAcpSessionRuntime,
-  ResolveAcpProvider,
-  SetSessionIdError,
-} from './runtime';
-export { SessionMachine, isPromptReady } from './session-machine';
 export * from './reducer/index';

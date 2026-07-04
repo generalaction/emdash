@@ -1,5 +1,5 @@
 /**
- * Tagged error union for AcpSessionRuntime public API failures.
+ * Tagged error union for AcpRuntime public API failures.
  */
 
 import type { BaseError, SerializedError } from '@emdash/shared';

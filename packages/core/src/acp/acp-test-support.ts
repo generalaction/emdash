@@ -1,5 +1,5 @@
 /**
- * Reusable test helpers for AcpSessionRuntime tests.
+ * Reusable test helpers for ACP unit tests.
  *
  * Not a test file itself (no `.test.` suffix) — Vitest will not collect it.
  * Import from `./acp-test-support` in test files that need it.
@@ -8,15 +8,9 @@
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { Client } from '@agentclientprotocol/sdk';
-import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
-import type { AgentState } from './models/agents';
-import type { SessionConfigState, SessionUsage } from './models/config';
-import type { PlanState } from './models/plan';
-import type { SessionState } from './models/session';
-import type { TranscriptTurn } from './models/turns';
-import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
+import type { AgentTerminalHooks } from './agent-terminal-manager';
 import type {
   AcpProcessHandle,
   AcpProcessHost,
@@ -26,23 +20,10 @@ import type {
 } from './transport';
 
 /**
- * Creates a recording AcpRuntimeListener.
+ * Creates recording terminal hooks.
  * `emitted(field)` returns all objects emitted via that method.
  */
 export function createRecordingListener() {
-  const snapshots: { conversationId: string; snapshot: SessionState }[] = [];
-  const transcripts: {
-    conversationId: string;
-    committed: TranscriptTurn[];
-    active: TranscriptTurn | null;
-    config: SessionConfigState;
-    usage: SessionUsage | null;
-    title: string | null;
-    agents: AgentState[];
-    plan: PlanState | null;
-  }[] = [];
-  const closed: { conversationId: string; taskId: string; exitCode: number | null }[] = [];
-  const agentEvents: { type: string; conversationId: string }[] = [];
   const terminalCreated: {
     conversationId: string;
     terminalId: string;
@@ -63,11 +44,7 @@ export function createRecordingListener() {
   }[] = [];
   const terminalReleased: { conversationId: string; terminalId: string }[] = [];
 
-  const listener: AcpRuntimeListener = {
-    onSnapshot: (e) => snapshots.push(e),
-    onTranscript: (e) => transcripts.push(e),
-    onClosed: (e) => closed.push(e),
-    onAgentEvent: (e) => agentEvents.push(e),
+  const listener: AgentTerminalHooks = {
     onTerminalCreated: (e) => terminalCreated.push(e),
     onTerminalOutput: (e) => terminalOutput.push(e),
     onTerminalExit: (e) => terminalExit.push(e),
@@ -76,19 +53,11 @@ export function createRecordingListener() {
 
   return {
     listener,
-    snapshots,
-    transcripts,
-    closed,
-    agentEvents,
     terminalCreated,
     terminalOutput,
     terminalExit,
     terminalReleased,
     clear() {
-      snapshots.length = 0;
-      transcripts.length = 0;
-      closed.length = 0;
-      agentEvents.length = 0;
       terminalCreated.length = 0;
       terminalOutput.length = 0;
       terminalExit.length = 0;
@@ -277,65 +246,4 @@ export class FakeAcpProcessHost implements AcpProcessHost {
   get allTerminalProcs(): FakeAcpTerminalProcess[] {
     return this.terminalProcs;
   }
-}
-
-export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}) {
-  const recording = createRecordingListener();
-  const agent = new FakeAcpAgent();
-  const fakeHost = new FakeAcpProcessHost();
-
-  const deps: AcpSessionRuntimeDeps = {
-    resolveAcp: () => ({
-      behavior: {
-        buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
-        connect: agent.behavior.connect,
-      },
-    }),
-    host: fakeHost,
-    persistSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
-    resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
-    listener: recording.listener,
-    logger: noopLogger,
-    ...depOverrides,
-  };
-
-  return {
-    deps,
-    fakeHost,
-    recording,
-    /** Snapshots emitted (shortcut). */
-    get snapshots() {
-      return recording.snapshots;
-    },
-    /** The last FakeAcpProcessHandle spawned by the harness. */
-    get lastChild(): FakeAcpProcessHandle {
-      return fakeHost.lastHandle;
-    },
-    get children(): FakeAcpProcessHandle[] {
-      return fakeHost.allHandles;
-    },
-    agent,
-    client(): Client {
-      if (!agent.capturedClient) {
-        throw new Error('capturedClient is null — has start() been called?');
-      }
-      return agent.capturedClient;
-    },
-  };
-}
-
-export function makeStartInput(
-  overrides: Partial<AcpStartInput> & { conversationId?: string } = {}
-): AcpStartInput {
-  return {
-    conversationId: overrides.conversationId ?? 'conv-1',
-    projectId: 'proj-1',
-    taskId: 'task-1',
-    providerId: 'claude',
-    workspaceId: 'ws-1',
-    cwd: '/tmp/workspace',
-    sessionId: null,
-    model: null,
-    ...overrides,
-  };
 }

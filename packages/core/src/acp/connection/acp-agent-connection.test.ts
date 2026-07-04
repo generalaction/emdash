@@ -1,8 +1,8 @@
 import { isErr, isOk } from '@emdash/shared';
-import { vi, describe, it, expect } from 'vitest';
-import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
+import { describe, expect, it, vi } from 'vitest';
+import type { IAcpBehavior } from '../../agents/plugins/capabilities/acp';
+import { FakeAcpAgent, FakeAcpProcessHost } from '../acp-test-support';
 import { createAcpAgentConnection } from './acp-agent-connection';
-import { FakeAcpAgent, FakeAcpProcessHost } from './acp-test-support';
 
 function makeBehavior(agent: FakeAcpAgent): IAcpBehavior {
   return {

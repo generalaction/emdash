@@ -1,13 +1,13 @@
 import type { Client, InitializeResponse, SessionUpdate } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
-import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
-import { type Logger, noopLogger } from '../lib';
-import type { InitializeFailedError, SpawnFailedError } from './errors';
-import { acpErr } from './errors';
-import { decodeSessionUpdate } from './reducer/decode';
-import type { NormalizedEvent } from './reducer/normalized-event';
-import type { AcpProcessHandle, AcpProcessHost } from './transport';
+import type { AcpAgentApi, IAcpBehavior } from '../../agents/plugins/capabilities/acp';
+import { type Logger, noopLogger } from '../../lib';
+import type { InitializeFailedError, SpawnFailedError } from '../errors';
+import { acpErr } from '../errors';
+import { decodeSessionUpdate } from '../reducer/decode';
+import type { NormalizedEvent } from '../reducer/normalized-event';
+import type { AcpProcessHandle, AcpProcessHost } from '../transport';
 
 /** Live connection to one spawned agent process. */
 export interface AcpAgentConnection {

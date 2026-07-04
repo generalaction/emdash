@@ -8,7 +8,7 @@ export type TerminalExit = z.infer<typeof terminalExitSchema>;
 
 /**
  * Serializable snapshot of a managed terminal's state.
- * Returned by IAcpSessionRuntime.getTerminals() so that a renderer reload
+ * Returned by AcpRuntime.getTerminals() so that a renderer reload
  * can hydrate the full terminal list from the main-process authority without
  * replaying any event stream.
  */
