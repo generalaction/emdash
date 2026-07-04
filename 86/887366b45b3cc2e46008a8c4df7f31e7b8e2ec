@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_b7e10501dc2874::t_7d8db96ccfed57 740
+packages/plugins/src/agents/impl/zero/index.ts
+  s_b7e10501dc2874::t_24f50f186daa81 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "86887366b45b3cc2e46008a8c4df7f31e7b8e2ec",
+  "prompts": {},
+  "sessions": {
+    "s_b7e10501dc2874": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2b97-14be-7866-a0d4-dfc1719eab0a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
