@@ -1,15 +1,44 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { err, ok } from '@main/lib/result';
-import { checkCliAvailability, errorFromExec, evidenceFromExec } from './common';
-import { runExecFile, type ExecFileFailure } from './exec';
-import type { LoopVerifier } from './types';
+import { safeMessage, sendPromptWithTimeout } from '../drivers/prompt-timeout';
+import { buildAgentBrowserVerificationPrompt, parseVerificationSentinel } from '../prompt-builder';
+import { checkCliAvailability } from './common';
+import { tail } from './exec';
+import type { LoopVerifier, VerifierError } from './types';
 
 const id = 'agent-browser' as const;
 const label = 'Agent Browser';
+const DEFAULT_AGENT_BROWSER_VERIFY_TIMEOUT_MS = 15 * 60 * 1000;
 
-function criterionText(criteria: { description: string }[]): string {
-  return criteria.map((criterion, idx) => `${idx + 1}. ${criterion.description}`).join('\n');
+function failure(input: {
+  kind: VerifierError['kind'];
+  message: string;
+  cwd: string;
+  command?: string;
+  durationMs?: number;
+  stdoutTail?: string;
+  stderrTail?: string;
+  exitCode?: number | null;
+  evidencePath?: string;
+}): VerifierError {
+  return {
+    kind: input.kind,
+    verifierId: id,
+    message: input.message,
+    cwd: input.cwd,
+    ...(input.command ? { command: input.command } : {}),
+    ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
+    ...(input.stdoutTail ? { stdoutTail: input.stdoutTail } : {}),
+    ...(input.stderrTail ? { stderrTail: input.stderrTail } : {}),
+    ...(input.exitCode !== undefined ? { exitCode: input.exitCode } : {}),
+    ...(input.evidencePath ? { evidencePath: input.evidencePath } : {}),
+  };
+}
+
+function promptSummary(finalText: string, evidenceDir: string): string {
+  const text = tail(finalText.trim(), 4_000);
+  return [text, `Screenshots/evidence: ${evidenceDir}`].filter(Boolean).join('\n\n');
 }
 
 export const agentBrowserVerifier: LoopVerifier = {
@@ -17,77 +46,138 @@ export const agentBrowserVerifier: LoopVerifier = {
   label,
 
   checkAvailability(cwd) {
-    return checkCliAvailability(id, 'agent-browser', ['--version'], cwd);
+    return checkCliAvailability(id, 'agent-browser', ['--help'], cwd);
   },
 
   async run(ctx) {
-    const agentBrowser = ctx.loop.config?.agentBrowser;
-    const targetUrl = agentBrowser?.targetUrl?.trim();
-    const cdpPort = agentBrowser?.cdpPort;
-    if (!targetUrl && !cdpPort) {
-      return err({
-        kind: 'invalid-config',
-        verifierId: id,
-        message: 'agent-browser requires loop.config.agentBrowser.targetUrl or cdpPort',
-        cwd: ctx.cwd,
-      });
-    }
-
     const criteria = ctx.criteria.filter((criterion) => criterion.verifier === id);
-    const criterion = criterionText(criteria);
-    if (!criterion) {
-      return err({
-        kind: 'invalid-config',
-        verifierId: id,
-        message: 'agent-browser has no phase criteria to verify',
-        cwd: ctx.cwd,
-      });
+    if (criteria.length === 0) {
+      return err(
+        failure({
+          kind: 'invalid-config',
+          message: 'agent-browser has no phase criteria to verify',
+          cwd: ctx.cwd,
+        })
+      );
     }
 
+    if (!ctx.sessionDriver) {
+      return err(
+        failure({
+          kind: 'invalid-config',
+          message: 'agent-browser verification requires a loop session driver',
+          cwd: ctx.cwd,
+        })
+      );
+    }
+
+    const startedAt = Date.now();
     const evidenceDir = join(ctx.cwd, '.emdash-loops-evidence', ctx.loop.id, ctx.phase.id);
     await mkdir(evidenceDir, { recursive: true });
-    const evidencePath = join(evidenceDir, `attempt-${ctx.phase.attempts}.json`);
-    const args = [
-      'verify',
-      '--criterion',
-      criterion,
-      '--output-dir',
-      evidenceDir,
-      ...(targetUrl ? ['--url', targetUrl] : []),
-      ...(cdpPort ? ['--cdp-port', String(cdpPort)] : []),
-    ];
+
+    const session = await ctx.sessionDriver.startVerificationSession({
+      loop: ctx.loop,
+      phase: ctx.phase,
+    });
+    if (!session.success) {
+      return err(
+        failure({
+          kind: 'command-failed',
+          message: safeMessage(session.error.message, 'Failed to start agent-browser verification'),
+          cwd: ctx.cwd,
+          durationMs: Date.now() - startedAt,
+          evidencePath: evidenceDir,
+        })
+      );
+    }
+
+    const command = `ACP verification: ${session.data.title}`;
+    await ctx.setActiveConversation?.(session.data.conversationId, ctx.sessionDriver);
 
     try {
-      const result = await runExecFile('agent-browser', args, {
+      const prompt = buildAgentBrowserVerificationPrompt({
+        loop: ctx.loop,
+        phase: ctx.phase,
+        criteria,
         cwd: ctx.cwd,
-        signal: ctx.signal,
-        timeoutMs: 5 * 60_000,
+        evidenceDir,
       });
-      await writeFile(
-        evidencePath,
-        `${JSON.stringify(
-          {
-            loopId: ctx.loop.id,
-            phaseId: ctx.phase.id,
-            targetUrl,
-            cdpPort,
-            criteria,
-            stdoutTail: result.stdoutTail,
-            stderrTail: result.stderrTail,
-            completedAt: new Date().toISOString(),
-          },
-          null,
-          2
-        )}\n`
-      );
-      return ok(
-        evidenceFromExec(id, label, result, 'agent-browser criteria passed.', evidencePath)
-      );
-    } catch (failure) {
-      return err({
-        ...errorFromExec(id, failure as ExecFileFailure, 'agent-browser verification failed'),
-        evidencePath,
+      const promptResult = await sendPromptWithTimeout({
+        driver: ctx.sessionDriver,
+        conversationId: session.data.conversationId,
+        prompt,
+        timeoutMs: ctx.promptTimeoutMs ?? DEFAULT_AGENT_BROWSER_VERIFY_TIMEOUT_MS,
+        failureMessage: 'Agent Browser verification prompt failed',
+        timeoutLabel: 'Agent Browser verification prompt',
       });
+
+      if (!promptResult.success) {
+        const message = safeMessage(
+          promptResult.error.message,
+          'Agent Browser verification prompt failed'
+        );
+        return err(
+          failure({
+            kind: message.includes('timed out') ? 'timed-out' : 'command-failed',
+            message,
+            cwd: ctx.cwd,
+            command,
+            durationMs: Date.now() - startedAt,
+            evidencePath: evidenceDir,
+          })
+        );
+      }
+
+      const finalText = promptResult.data.finalText;
+      const stdoutTail = tail(finalText);
+      const sentinel = parseVerificationSentinel(finalText);
+      if (!sentinel) {
+        return err(
+          failure({
+            kind: 'command-failed',
+            message: `Agent Browser verification response did not include <<<LOOP:VERIFY_PASSED>>> or <<<LOOP:VERIFY_FAILED ...>>>`,
+            cwd: ctx.cwd,
+            command,
+            durationMs: Date.now() - startedAt,
+            stdoutTail,
+            exitCode: 1,
+            evidencePath: evidenceDir,
+          })
+        );
+      }
+
+      if (sentinel.kind === 'failed') {
+        return err(
+          failure({
+            kind: 'command-failed',
+            message: sentinel.reason,
+            cwd: ctx.cwd,
+            command,
+            durationMs: Date.now() - startedAt,
+            stdoutTail,
+            exitCode: 1,
+            evidencePath: evidenceDir,
+          })
+        );
+      }
+
+      return ok({
+        verifierId: id,
+        label,
+        command,
+        cwd: ctx.cwd,
+        durationMs: Date.now() - startedAt,
+        stdoutTail,
+        stderrTail: '',
+        exitCode: 0,
+        summary: promptSummary(finalText, evidenceDir),
+        evidencePath: evidenceDir,
+      });
+    } finally {
+      await ctx.setActiveConversation?.(
+        ctx.phase.conversationId,
+        ctx.phase.conversationId ? ctx.sessionDriver : null
+      );
     }
   },
 };

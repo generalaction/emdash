@@ -5,6 +5,7 @@ import type {
   LoopSessionInfo,
   PromptResult,
   StartPhaseSessionContext,
+  StartVerificationSessionContext,
 } from './session-driver';
 
 function notImplemented(): Result<never, LoopSessionDriverError> {
@@ -19,6 +20,12 @@ export const ptyLoopSessionDriver: LoopSessionDriver = {
 
   async startPhaseSession(
     _ctx: StartPhaseSessionContext
+  ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
+    return notImplemented();
+  },
+
+  async startVerificationSession(
+    _ctx: StartVerificationSessionContext
   ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
     return notImplemented();
   },

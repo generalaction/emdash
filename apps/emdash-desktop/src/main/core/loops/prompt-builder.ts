@@ -5,6 +5,8 @@ export const PHASE_DONE_SENTINEL = '<<<LOOP:PHASE_DONE>>>';
 export const PHASE_FAILED_PREFIX = '<<<LOOP:PHASE_FAILED';
 export const REVIEW_APPROVED_SENTINEL = '<<<LOOP:REVIEW_APPROVED>>>';
 export const REVIEW_CHANGES_PREFIX = '<<<LOOP:REVIEW_CHANGES';
+export const VERIFY_PASSED_SENTINEL = '<<<LOOP:VERIFY_PASSED>>>';
+export const VERIFY_FAILED_PREFIX = '<<<LOOP:VERIFY_FAILED';
 
 export type PhaseSentinel =
   | { kind: 'done' }
@@ -18,6 +20,13 @@ export type ReviewSentinel =
   | {
       kind: 'changes';
       feedback: string;
+    };
+
+export type VerificationSentinel =
+  | { kind: 'passed' }
+  | {
+      kind: 'failed';
+      reason: string;
     };
 
 export type PhasePromptInput = {
@@ -38,6 +47,14 @@ export type ReviewPromptInput = {
   loop: Loop;
   phase: LoopPhase;
   diff: string;
+};
+
+export type AgentBrowserVerificationPromptInput = {
+  loop: Loop;
+  phase: LoopPhase;
+  criteria: LoopPhaseCriterion[];
+  cwd: string;
+  evidenceDir: string;
 };
 
 function criteriaLines(criteria: LoopPhaseCriterion[]): string {
@@ -84,6 +101,20 @@ function evidenceLines(evidence: VerifierEvidence[]): string {
         .join('\n')
     )
     .join('\n');
+}
+
+function numberedCriteriaLines(criteria: LoopPhaseCriterion[]): string {
+  if (criteria.length === 0) return 'No agent-browser criteria were provided.';
+  return criteria.map((criterion, index) => `${index + 1}. ${criterion.description}`).join('\n');
+}
+
+function targetLines(loop: Loop): string {
+  const targetUrl = loop.config?.agentBrowser?.targetUrl?.trim();
+  const cdpPort = loop.config?.agentBrowser?.cdpPort;
+  return [
+    `- Target URL: ${targetUrl || 'not configured'}`,
+    `- CDP port: ${cdpPort ? String(cdpPort) : 'not configured'}`,
+  ].join('\n');
 }
 
 export function buildPhasePrompt(input: PhasePromptInput): string {
@@ -162,6 +193,42 @@ End with exactly one sentinel:
 - <<<LOOP:REVIEW_CHANGES required changes>>>`;
 }
 
+export function buildAgentBrowserVerificationPrompt(
+  input: AgentBrowserVerificationPromptInput
+): string {
+  return `You are an Emdash Loop VERIFICATION agent.
+
+Loop: ${input.loop.name}
+Phase ${input.phase.idx + 1}: ${input.phase.name}
+
+You must NOT modify code, config, tests, or documentation. Your only job is to inspect the running UI and report whether the agent-browser criteria are actually satisfied.
+
+Agent Browser criteria to verify:
+${numberedCriteriaLines(input.criteria)}
+
+Target:
+${targetLines(input.loop)}
+- Worktree: ${input.cwd}
+- Screenshots/evidence directory: ${input.evidenceDir}
+
+Required workflow:
+1. Stay in the current worktree. If no target URL is configured, or if a configured target URL does not respond, start the project's dev server from this worktree in the background. Inspect package.json scripts and use the appropriate script, for example pnpm dev, then wait until it serves.
+2. Drive the UI with the real agent-browser CLI primitives. Use commands such as agent-browser open, agent-browser connect, agent-browser snapshot -i, agent-browser click, agent-browser fill, agent-browser read, and agent-browser screenshot.
+3. Verify EACH numbered criterion honestly against observed UI behavior. Do not infer success from code, logs, or intent alone.
+4. Save screenshots under ${input.evidenceDir}. Use descriptive filenames tied to the criteria when practical.
+5. Report the exact observed result for each criterion. If you cannot start or reach the UI, that is a verification failure with the exact command/error.
+
+Honesty rules:
+- Do not mark passed unless you actually drove the UI with agent-browser.
+- Do not mark passed for a criterion you did not observe.
+- Do not hide uncertainty. If behavior is ambiguous or blocked, fail with the observed reason.
+- Do not edit files except for screenshots/evidence inside ${input.evidenceDir}.
+
+End your final response with exactly one sentinel:
+- ${VERIFY_PASSED_SENTINEL}
+- <<<LOOP:VERIFY_FAILED criterion-numbers and exact observed reasons>>>`;
+}
+
 export function parsePhaseSentinel(text: string): PhaseSentinel | null {
   if (text.includes(PHASE_DONE_SENTINEL)) return { kind: 'done' };
 
@@ -183,5 +250,18 @@ export function parseReviewSentinel(text: string): ReviewSentinel | null {
   return {
     kind: 'changes',
     feedback: (match[1] ?? '').trim() || 'Reviewer requested changes',
+  };
+}
+
+export function parseVerificationSentinel(text: string): VerificationSentinel | null {
+  const matches = Array.from(text.matchAll(/<<<LOOP:VERIFY_(PASSED|FAILED)(?:\s+([\s\S]*?))?>>>/g));
+  const match = matches.at(-1);
+  if (!match) return null;
+
+  if (match[1] === 'PASSED') return { kind: 'passed' };
+
+  return {
+    kind: 'failed',
+    reason: (match[2] ?? '').trim() || 'Agent Browser verification failed',
   };
 }

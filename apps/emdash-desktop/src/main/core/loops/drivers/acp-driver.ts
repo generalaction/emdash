@@ -9,11 +9,13 @@ import { conversations } from '@main/db/schema';
 import { err, ok, type Result } from '@main/lib/result';
 import {
   phaseConversationTitle,
+  verificationConversationTitle,
   type LoopSessionDriver,
   type LoopSessionDriverError,
   type LoopSessionInfo,
   type PromptResult,
   type StartPhaseSessionContext,
+  type StartVerificationSessionContext,
 } from './session-driver';
 
 function isMeaningfulMessage(message: string): boolean {
@@ -96,6 +98,43 @@ async function hydrateConversationById(
   }
 }
 
+async function startConversation(
+  ctx: StartPhaseSessionContext | StartVerificationSessionContext,
+  title: string
+): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
+  let conversationId = '';
+
+  try {
+    const conversation = await createConversation({
+      id: randomUUID(),
+      projectId: ctx.loop.projectId,
+      taskId: ctx.loop.taskId,
+      provider: 'claude',
+      title,
+      isInitialConversation: false,
+      type: 'acp',
+    });
+    conversationId = conversation.id;
+    acpSessionManager.registerPermissionAutoApproval(conversationId);
+  } catch (error) {
+    return err({
+      kind: 'create-failed',
+      message: errorMessage(error, 'Failed to create conversation'),
+    });
+  }
+
+  try {
+    await hydrateConversation(ctx.loop.projectId, ctx.loop.taskId, conversationId);
+  } catch (error) {
+    return err({
+      kind: 'hydrate-failed',
+      message: errorMessage(error, 'Failed to hydrate ACP conversation'),
+    });
+  }
+
+  return ok({ conversationId, title });
+}
+
 export const acpLoopSessionDriver: LoopSessionDriver = {
   kind: 'acp',
 
@@ -103,37 +142,13 @@ export const acpLoopSessionDriver: LoopSessionDriver = {
     ctx: StartPhaseSessionContext
   ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
     const title = phaseConversationTitle(ctx.loop, ctx.phase, ctx.review);
-    let conversationId = '';
+    return startConversation(ctx, title);
+  },
 
-    try {
-      const conversation = await createConversation({
-        id: randomUUID(),
-        projectId: ctx.loop.projectId,
-        taskId: ctx.loop.taskId,
-        provider: 'claude',
-        title,
-        isInitialConversation: false,
-        type: 'acp',
-      });
-      conversationId = conversation.id;
-      acpSessionManager.registerPermissionAutoApproval(conversationId);
-    } catch (error) {
-      return err({
-        kind: 'create-failed',
-        message: errorMessage(error, 'Failed to create conversation'),
-      });
-    }
-
-    try {
-      await hydrateConversation(ctx.loop.projectId, ctx.loop.taskId, conversationId);
-    } catch (error) {
-      return err({
-        kind: 'hydrate-failed',
-        message: errorMessage(error, 'Failed to hydrate ACP conversation'),
-      });
-    }
-
-    return ok({ conversationId, title });
+  async startVerificationSession(
+    ctx: StartVerificationSessionContext
+  ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
+    return startConversation(ctx, verificationConversationTitle(ctx.loop, ctx.phase));
   },
 
   async sendPrompt(

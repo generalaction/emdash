@@ -1,5 +1,6 @@
 import type { Result } from '@main/lib/result';
 import type { Loop, LoopPhase, LoopPhaseCriterion, VerifierId } from '@shared/core/loops/loops';
+import type { LoopSessionDriver } from '../drivers/session-driver';
 
 export type BuiltInVerifierId = 'unit-tests' | VerifierId;
 
@@ -47,6 +48,12 @@ export type VerifierRunContext = {
   validationCommands: string[];
   criteria: LoopPhaseCriterion[];
   signal?: AbortSignal;
+  sessionDriver?: LoopSessionDriver;
+  promptTimeoutMs?: number;
+  setActiveConversation?(
+    conversationId: string | null,
+    driver: LoopSessionDriver | null
+  ): void | Promise<void>;
 };
 
 export type LoopVerifier = {

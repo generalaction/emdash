@@ -109,6 +109,39 @@ describe('acpLoopSessionDriver', () => {
     expect(hydrateConversationMock).toHaveBeenCalledWith('project-1', 'task-1', 'conv-loop');
   });
 
+  it('starts verification conversations with auto-approval and a verify title', async () => {
+    vi.mocked(createConversation).mockResolvedValueOnce({
+      id: 'conv-verify',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      providerId: 'claude',
+      title: 'loop-1-verify',
+      type: 'acp',
+      isInitialConversation: false,
+      lastInteractedAt: null,
+    });
+    hydrateConversationMock.mockResolvedValueOnce(undefined);
+
+    const context = makeLoopContext();
+    const result = await acpLoopSessionDriver.startVerificationSession({
+      loop: context.loop,
+      phase: context.phase,
+    });
+
+    expect(result.success).toBe(true);
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'loop-1-verify',
+        type: 'acp',
+        isInitialConversation: false,
+      })
+    );
+    expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith(
+      'conv-verify'
+    );
+    expect(hydrateConversationMock).toHaveBeenCalledWith('project-1', 'task-1', 'conv-verify');
+  });
+
   it('uses strict ACP prompt routing and never returns literal undefined as the error message', async () => {
     acpSessionManagerMock.prompt.mockResolvedValueOnce({
       success: false,

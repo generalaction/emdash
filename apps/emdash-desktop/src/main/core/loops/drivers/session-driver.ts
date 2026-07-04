@@ -16,6 +16,11 @@ export type StartPhaseSessionContext = {
   review: boolean;
 };
 
+export type StartVerificationSessionContext = {
+  loop: Loop;
+  phase: LoopPhase;
+};
+
 export type LoopSessionInfo = {
   conversationId: string;
   title: string;
@@ -30,6 +35,9 @@ export interface LoopSessionDriver {
   startPhaseSession(
     ctx: StartPhaseSessionContext
   ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>>;
+  startVerificationSession(
+    ctx: StartVerificationSessionContext
+  ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>>;
   sendPrompt(
     conversationId: string,
     text: string
@@ -39,4 +47,8 @@ export interface LoopSessionDriver {
 
 export function phaseConversationTitle(loop: Loop, phase: LoopPhase, review: boolean): string {
   return `${loop.slug}-${phase.idx + 1}${review ? '-review' : ''}`;
+}
+
+export function verificationConversationTitle(loop: Loop, phase: LoopPhase): string {
+  return `${loop.slug}-${phase.idx + 1}-verify`;
 }

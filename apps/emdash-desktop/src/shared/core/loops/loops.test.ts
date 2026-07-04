@@ -17,6 +17,10 @@ describe('loop versioned schemas', () => {
       reviewEnabled: true,
       validationCommands: ['pnpm run test'],
       planSource: 'docs/plans/acp-loops.md',
+      agentBrowser: {
+        targetUrl: 'http://localhost:5173',
+        cdpPort: 9222,
+      },
     });
 
     expect(result.status).toBe('ok');
@@ -27,6 +31,10 @@ describe('loop versioned schemas', () => {
         reviewEnabled: true,
         validationCommands: ['pnpm run test'],
         planSource: 'docs/plans/acp-loops.md',
+        agentBrowser: {
+          targetUrl: 'http://localhost:5173',
+          cdpPort: 9222,
+        },
       });
     }
   });

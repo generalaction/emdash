@@ -131,19 +131,26 @@ describe('PhaseRunner', () => {
     driver = {
       kind: 'acp',
       startPhaseSession: vi.fn(async () => ok({ conversationId: 'conv-1', title: 'loop-1' })),
+      startVerificationSession: vi.fn(async () =>
+        ok({ conversationId: 'conv-verify', title: 'loop-1-verify' })
+      ),
       sendPrompt: vi.fn(async () => ok({ finalText: `Done\n${PHASE_DONE_SENTINEL}` })),
       cancelPrompt: vi.fn(async () => ok(undefined)),
     };
   });
 
   it('passes a phase after done sentinel and green verifier gate', async () => {
+    const gh = passingVerifier('gh');
     const verifiers = new Map<BuiltInVerifierId, LoopVerifier>([
       ['unit-tests', passingVerifier('unit-tests')],
-      ['gh', passingVerifier('gh')],
+      ['gh', gh],
     ]);
     const memory = makeMemoryDeps(loop, verifiers);
 
-    const result = await new PhaseRunner(memory.deps).runPhase({
+    const result = await new PhaseRunner({
+      ...memory.deps,
+      verifierPromptTimeoutMs: 123,
+    }).runPhase({
       loop,
       phase: loop.phases[0]!,
       cwd: '/tmp/workspace',
@@ -158,6 +165,12 @@ describe('PhaseRunner', () => {
     const unitTestsOrder = vi.mocked(verifiers.get('unit-tests')!.run).mock.invocationCallOrder[0]!;
     const ghOrder = vi.mocked(verifiers.get('gh')!.run).mock.invocationCallOrder[0]!;
     expect(unitTestsOrder).toBeLessThan(ghOrder);
+    expect(gh.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionDriver: driver,
+        promptTimeoutMs: 123,
+      })
+    );
   });
 
   it('persists complete verifier evidence with a non-empty summary fallback', async () => {

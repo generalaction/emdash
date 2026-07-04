@@ -35,39 +35,18 @@ import {
   type LoopVerifierAvailability,
   type VerifierId,
 } from '@shared/core/loops/loops';
+import {
+  buildCreateLoopParams,
+  defaultVerifier,
+  makeCriterion,
+  makePhase,
+  moveItem,
+  type DraftAgentBrowserConfig,
+  type DraftCriterion,
+  type DraftPhase,
+  validationError,
+} from './create-loop-form-model';
 import { verifierLabel } from './loop-format';
-
-type DraftCriterion = {
-  id: string;
-  description: string;
-  verifier: VerifierId;
-};
-
-type DraftPhase = {
-  id: string;
-  name: string;
-  goal: string;
-  criteria: DraftCriterion[];
-};
-
-const defaultVerifier = VERIFIER_IDS[0];
-
-function makeCriterion(verifier: VerifierId = defaultVerifier): DraftCriterion {
-  return {
-    id: crypto.randomUUID(),
-    description: '',
-    verifier,
-  };
-}
-
-function makePhase(index: number, verifier: VerifierId = defaultVerifier): DraftPhase {
-  return {
-    id: crypto.randomUUID(),
-    name: `Phase ${index + 1}`,
-    goal: '',
-    criteria: [makeCriterion(verifier)],
-  };
-}
 
 function fallbackAvailability(): LoopVerifierAvailability[] {
   return VERIFIER_IDS.map((id) => ({
@@ -76,49 +55,6 @@ function fallbackAvailability(): LoopVerifierAvailability[] {
     available: false,
     reason: 'Checking availability',
   }));
-}
-
-function moveItem<T>(items: T[], from: number, to: number): T[] {
-  const next = [...items];
-  const [item] = next.splice(from, 1);
-  if (item) next.splice(to, 0, item);
-  return next;
-}
-
-function validationError(
-  name: string,
-  phases: DraftPhase[],
-  validationCommands: string[],
-  selectedVerifiers: Set<VerifierId>,
-  availability: LoopVerifierAvailability[]
-): string | null {
-  if (!name.trim()) return 'Loop name is required.';
-  if (selectedVerifiers.size === 0) return 'Select at least one verifier.';
-  const unavailable = availability.find(
-    (item) => selectedVerifiers.has(item.id) && !item.available
-  );
-  if (unavailable) {
-    return `${unavailable.label} is unavailable: ${unavailable.reason ?? 'Unavailable'}`;
-  }
-  if (validationCommands.every((command) => !command.trim())) {
-    return 'Add at least one validation command.';
-  }
-  if (phases.length === 0) return 'Add at least one phase.';
-
-  for (const phase of phases) {
-    if (!phase.name.trim()) return 'Every phase needs a name.';
-    if (!phase.goal.trim()) return 'Every phase needs a goal.';
-    const criteria = phase.criteria.filter((criterion) => criterion.description.trim());
-    if (criteria.length === 0) return 'Every phase needs at least one pass criterion.';
-    const missingVerifier = criteria.find(
-      (criterion) => !selectedVerifiers.has(criterion.verifier)
-    );
-    if (missingVerifier) {
-      return 'Each criterion verifier must be selected for the loop.';
-    }
-  }
-
-  return null;
 }
 
 export function CreateLoopModal({
@@ -134,6 +70,10 @@ export function CreateLoopModal({
   const [phases, setPhases] = useState<DraftPhase[]>(() => [makePhase(0)]);
   const [selectedVerifiers, setSelectedVerifiers] = useState<Set<VerifierId>>(() => new Set());
   const [validationCommands, setValidationCommands] = useState<string[]>(['pnpm run test']);
+  const [agentBrowser, setAgentBrowser] = useState<DraftAgentBrowserConfig>({
+    targetUrl: '',
+    cdpPort: '',
+  });
   const [reviewEnabled, setReviewEnabled] = useState(false);
   const [availability, setAvailability] =
     useState<LoopVerifierAvailability[]>(fallbackAvailability);
@@ -170,6 +110,7 @@ export function CreateLoopModal({
   );
 
   const selectedVerifierArray = useMemo(() => Array.from(selectedVerifiers), [selectedVerifiers]);
+  const agentBrowserSelected = selectedVerifiers.has('agent-browser');
 
   const firstSelectedOrAvailableVerifier = useCallback((): VerifierId => {
     return (
@@ -179,7 +120,14 @@ export function CreateLoopModal({
 
   const blockingError =
     availabilityError ??
-    validationError(name, phases, validationCommands, selectedVerifiers, availability);
+    validationError({
+      name,
+      phases,
+      validationCommands,
+      selectedVerifiers,
+      availability,
+      agentBrowser,
+    });
   const error = submitError ?? blockingError;
 
   const toggleVerifier = (verifierId: VerifierId, checked: boolean): void => {
@@ -242,13 +190,14 @@ export function CreateLoopModal({
   };
 
   const handleSubmit = async (): Promise<void> => {
-    const currentValidationError = validationError(
+    const currentValidationError = validationError({
       name,
       phases,
       validationCommands,
       selectedVerifiers,
-      availability
-    );
+      availability,
+      agentBrowser,
+    });
     if (currentValidationError || isSubmitting) {
       setSubmitError(currentValidationError);
       return;
@@ -256,25 +205,19 @@ export function CreateLoopModal({
 
     setIsSubmitting(true);
     setSubmitError(null);
-    const result = await loopsStore.createLoop({
-      projectId,
-      taskId,
-      name: name.trim(),
-      planSource: 'manual',
-      validationCommands: validationCommands.map((command) => command.trim()).filter(Boolean),
-      verifiers: selectedVerifierArray,
-      reviewEnabled,
-      phases: phases.map((phase, index) => ({
-        name: phase.name.trim() || `Phase ${index + 1}`,
-        goal: phase.goal.trim(),
-        criteria: phase.criteria
-          .filter((criterion) => criterion.description.trim())
-          .map((criterion) => ({
-            description: criterion.description.trim(),
-            verifier: criterion.verifier,
-          })),
-      })),
-    });
+    const result = await loopsStore.createLoop(
+      buildCreateLoopParams({
+        projectId,
+        taskId,
+        name,
+        planSource: 'manual',
+        validationCommands,
+        selectedVerifiers,
+        reviewEnabled,
+        phases,
+        agentBrowser,
+      })
+    );
     setIsSubmitting(false);
 
     if (result.success) {
@@ -336,6 +279,46 @@ export function CreateLoopModal({
               ))}
             </div>
           </Field>
+
+          {agentBrowserSelected ? (
+            <Field>
+              <div className="flex flex-col gap-0.5">
+                <FieldTitle>Agent Browser target</FieldTitle>
+                <FieldDescription>
+                  Optional target for the verification agent to open or attach to.
+                </FieldDescription>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-foreground-passive">Target URL</span>
+                  <Input
+                    value={agentBrowser.targetUrl}
+                    placeholder="http://localhost:5173"
+                    onChange={(event) =>
+                      setAgentBrowser((current) => ({
+                        ...current,
+                        targetUrl: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-foreground-passive">CDP port</span>
+                  <Input
+                    value={agentBrowser.cdpPort}
+                    inputMode="numeric"
+                    placeholder="9222"
+                    onChange={(event) =>
+                      setAgentBrowser((current) => ({
+                        ...current,
+                        cdpPort: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+            </Field>
+          ) : null}
 
           <Field>
             <div className="flex items-center justify-between gap-3">
