@@ -63,6 +63,11 @@ ACP callbacks, normalizes raw `SessionUpdate`s through the provider's enrich
 hook, and asks the `SessionManager` to route the event to a cell. The cell folds
 the event through the reducer and publishes changed slices through live models.
 
+`editCurrentPrompt` and `exportACPTranscript` are intentionally contract-only
+placeholders for now. Workspace-server stubs should keep typechecking against
+the contract, but core does not serve implementations until those workflows are
+designed.
+
 ## Models and Protocol Versioning
 
 The ACP API contract should reference the schemas in `packages/core/src/acp/models/`

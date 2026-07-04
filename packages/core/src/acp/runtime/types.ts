@@ -4,6 +4,7 @@ import type { IAcpBehavior } from '../../agents/plugins/capabilities/acp';
 import type { PromptAttachment } from '../models/attachments';
 import type { PromptInput } from '../models/prompt';
 import type { AcpProcessHost } from '../transport';
+import type { AttachmentStore } from './attachment-store';
 
 export interface AcpStartInput {
   conversationId: string;
@@ -42,6 +43,7 @@ export interface AcpRuntimeDeps {
     sessionId: string
   ) => Promise<Result<void, SetSessionIdError>>;
   resolveAttachment: ResolvePromptAttachment;
+  attachmentStore?: AttachmentStore;
   logger: Logger;
 }
 

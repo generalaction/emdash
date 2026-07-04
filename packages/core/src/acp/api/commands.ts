@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { attachmentRefSchema, promptAttachmentSchema } from '../models/attachments';
+import { attachmentMimeTypeSchema, attachmentRefSchema } from '../models/attachments';
 import { permissionDecisionSchema } from '../models/permissions';
 import { promptInputSchema, queuedPromptSchema } from '../models/prompt';
 
@@ -66,7 +66,10 @@ export const editCurrentPromptCommandSchema = sendPromptCommandSchema;
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
 
 export const uploadAttachmentCommandSchema = z.object({
-  attachment: promptAttachmentSchema,
+  data: z.instanceof(Uint8Array),
+  mimeType: attachmentMimeTypeSchema,
+  name: z.string().optional(),
+  originalPath: z.string().optional(),
 });
 export const uploadAttachmentResponseSchema = attachmentRefSchema;
 export const downloadAttachmentCommandSchema = z.object({ id: z.string() });

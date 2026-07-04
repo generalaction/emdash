@@ -8,9 +8,11 @@
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { Client } from '@agentclientprotocol/sdk';
+import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AgentTerminalHooks } from './agent-terminal-manager';
+import type { AcpRuntimeDeps, AcpStartInput } from './runtime/types';
 import type {
   AcpProcessHandle,
   AcpProcessHost,
@@ -246,4 +248,57 @@ export class FakeAcpProcessHost implements AcpProcessHost {
   get allTerminalProcs(): FakeAcpTerminalProcess[] {
     return this.terminalProcs;
   }
+}
+
+export function makeAcpHarness(depOverrides: Partial<AcpRuntimeDeps> = {}) {
+  const agent = new FakeAcpAgent();
+  const fakeHost = new FakeAcpProcessHost();
+
+  const deps: AcpRuntimeDeps = {
+    resolveAcp: () => ({
+      behavior: {
+        buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
+        connect: agent.behavior.connect,
+      },
+    }),
+    host: fakeHost,
+    persistSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+    resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
+    logger: noopLogger,
+    ...depOverrides,
+  };
+
+  return {
+    deps,
+    fakeHost,
+    get lastChild(): FakeAcpProcessHandle {
+      return fakeHost.lastHandle;
+    },
+    get children(): FakeAcpProcessHandle[] {
+      return fakeHost.allHandles;
+    },
+    agent,
+    client(): Client {
+      if (!agent.capturedClient) {
+        throw new Error('capturedClient is null — has startSession() been called?');
+      }
+      return agent.capturedClient;
+    },
+  };
+}
+
+export function makeStartInput(
+  overrides: Partial<AcpStartInput> & { conversationId?: string } = {}
+): AcpStartInput {
+  return {
+    conversationId: overrides.conversationId ?? 'conv-1',
+    projectId: 'proj-1',
+    taskId: 'task-1',
+    providerId: 'claude',
+    workspaceId: 'ws-1',
+    cwd: '/tmp/workspace',
+    sessionId: null,
+    model: null,
+    ...overrides,
+  };
 }

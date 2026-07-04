@@ -142,6 +142,44 @@ export class SessionCell {
     });
   }
 
+  queuePrompt(input: PromptInput): Result<void, AcpRuntimeError> {
+    const now = Date.now();
+    const result = this.dispatch({
+      type: 'QueuePrompt',
+      prompt: {
+        id: crypto.randomUUID(),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    if (!result.success) return result;
+    return ok();
+  }
+
+  editQueuedPrompt(id: string, input: PromptInput): Result<void, AcpRuntimeError> {
+    const result = this.dispatch({
+      type: 'EditQueuedPrompt',
+      id,
+      input,
+      updatedAt: Date.now(),
+    });
+    if (!result.success) return result;
+    return ok();
+  }
+
+  removeQueuedPrompt(id: string): Result<void, AcpRuntimeError> {
+    const result = this.dispatch({ type: 'RemoveQueuedPrompt', id });
+    if (!result.success) return result;
+    return ok();
+  }
+
+  reorderQueue(ids: readonly string[]): Result<void, AcpRuntimeError> {
+    const result = this.dispatch({ type: 'ReorderQueue', ids });
+    if (!result.success) return result;
+    return ok();
+  }
+
   async cancel(): Promise<Result<void, AcpRuntimeError>> {
     const dispatchResult = this.dispatch({ type: 'Cancel' });
     if (!dispatchResult.success) return dispatchResult;

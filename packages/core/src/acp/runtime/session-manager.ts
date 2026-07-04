@@ -16,6 +16,9 @@ import type { AgentTerminalManager } from '../agent-terminal-manager';
 import type { FsPort, TerminalPort } from '../client-ports';
 import type { AcpRuntimeError } from '../errors';
 import { acpErr } from '../errors';
+import type { AgentState } from '../models/agents';
+import type { SessionConfigState } from '../models/config';
+import type { PlanState } from '../models/plan';
 import type { SessionState, SessionSummary } from '../models/session';
 import type { TerminalState } from '../models/terminals';
 import type { TranscriptTurn } from '../models/turns';
@@ -26,7 +29,7 @@ import type { SessionCellCallbacks } from '../session/cell-deps';
 import {
   createSessionLiveModels,
   createSessionsListModel,
-  replaceLiveModelState,
+  publishLiveModelState,
   type SessionLiveModels,
   type SessionsListModel,
 } from '../state/live-models';
@@ -38,6 +41,13 @@ interface SessionRecord {
   processKey: string;
   cell: SessionCell;
   live: SessionLiveModels;
+  lastSynced: {
+    sessionState?: SessionState;
+    config?: SessionConfigState;
+    plan?: PlanState | null;
+    agents?: AgentState[];
+    activeTurn?: TranscriptTurn | null;
+  };
 }
 
 export interface HistoryPage {
@@ -157,6 +167,36 @@ export class SessionManager implements InboundRouter {
     const record = this.cells.get(input.conversationId);
     if (!record) return acpErr.conversationNotFound(input.conversationId);
     return record.cell.prompt(input.prompt);
+  }
+
+  queuePrompt(input: SendPromptInput): Result<{ queued: boolean }, AcpRuntimeError> {
+    const record = this.cells.get(input.conversationId);
+    if (!record) return acpErr.conversationNotFound(input.conversationId);
+    const result = record.cell.queuePrompt(input.prompt);
+    if (!result.success) return result;
+    return ok({ queued: true });
+  }
+
+  editQueuedPrompt(
+    conversationId: string,
+    id: string,
+    input: SendPromptInput['prompt']
+  ): Result<void, AcpRuntimeError> {
+    const record = this.cells.get(conversationId);
+    if (!record) return acpErr.conversationNotFound(conversationId);
+    return record.cell.editQueuedPrompt(id, input);
+  }
+
+  removeQueuedPrompt(conversationId: string, id: string): Result<void, AcpRuntimeError> {
+    const record = this.cells.get(conversationId);
+    if (!record) return acpErr.conversationNotFound(conversationId);
+    return record.cell.removeQueuedPrompt(id);
+  }
+
+  reorderQueue(conversationId: string, ids: readonly string[]): Result<void, AcpRuntimeError> {
+    const record = this.cells.get(conversationId);
+    if (!record) return acpErr.conversationNotFound(conversationId);
+    return record.cell.reorderQueue(ids);
   }
 
   async cancel(conversationId: string): Promise<Result<void, AcpRuntimeError>> {
@@ -299,8 +339,8 @@ export class SessionManager implements InboundRouter {
     for (const record of [...this.cells.values()]) {
       if (record.processKey !== processKey) continue;
       record.cell.processClosed(exitCode);
-      this.terminals.disposeConversation(record.input.conversationId);
       this.removeRecord(record.input.conversationId, false);
+      this.deleteSessionSummary(record.input.conversationId);
     }
     this.pool.forgetClosed(processKey);
   }
@@ -333,6 +373,13 @@ export class SessionManager implements InboundRouter {
       processKey: connection.key,
       cell,
       live: createSessionLiveModels(cell.sessionState),
+      lastSynced: {
+        sessionState: cell.sessionState,
+        config: cell.config,
+        plan: null,
+        agents: [],
+        activeTurn: null,
+      },
     });
     this.cells.set(input.conversationId, record);
     return record;
@@ -340,11 +387,25 @@ export class SessionManager implements InboundRouter {
 
   private syncRecord(record: SessionRecord): void {
     const state = record.cell.sessionState;
-    replaceLiveModelState(record.live.sessionState, state);
-    replaceLiveModelState(record.live.config, record.cell.config);
-    replaceLiveModelState(record.live.plan, record.cell.transcript.plan ?? null);
-    replaceLiveModelState(record.live.agents, [...record.cell.transcript.agents]);
-    replaceLiveModelState(record.live.activeTurn, record.cell.history().active);
+    publishLiveModelState(record.live.sessionState, state, record.lastSynced.sessionState);
+    record.lastSynced.sessionState = state;
+
+    const config = record.cell.config;
+    publishLiveModelState(record.live.config, config, record.lastSynced.config);
+    record.lastSynced.config = config;
+
+    const plan = record.cell.transcript.plan ?? null;
+    publishLiveModelState(record.live.plan, plan, record.lastSynced.plan);
+    record.lastSynced.plan = plan;
+
+    const agents = record.cell.transcript.agents;
+    const agentSnapshot = [...agents];
+    publishLiveModelState(record.live.agents, agentSnapshot, record.lastSynced.agents);
+    record.lastSynced.agents = agentSnapshot;
+
+    const activeTurn = record.cell.transcript.activeTurn;
+    publishLiveModelState(record.live.activeTurn, activeTurn, record.lastSynced.activeTurn);
+    record.lastSynced.activeTurn = activeTurn;
     this.upsertSessionSummary(record.input, record.cell, state);
   }
 
