@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createConversation } from '@main/core/conversations/createConversation';
+import type { Loop, LoopPhase } from '@shared/core/loops/loops';
 import { acpLoopSessionDriver } from './acp-driver';
 
 const acpSessionManagerMock = vi.hoisted(() => ({
+  registerPermissionAutoApproval: vi.fn(),
   prompt: vi.fn(),
   cancel: vi.fn(),
   getChatHistory: vi.fn(),
@@ -56,6 +59,56 @@ describe('acpLoopSessionDriver', () => {
     mockConversationLookup({ projectId: 'project-1', taskId: 'task-1' });
   });
 
+  function makeLoopContext(): { loop: Loop; phase: LoopPhase; review: boolean } {
+    const loop: Loop = {
+      id: 'loop-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      name: 'Loop',
+      slug: 'loop',
+      status: 'running',
+      currentPhaseIndex: 0,
+      config: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const phase: LoopPhase = {
+      id: 'phase-1',
+      loopId: loop.id,
+      idx: 0,
+      name: 'Phase',
+      goal: 'Do the work',
+      status: 'pending',
+      attempts: 0,
+      conversationId: null,
+      criteria: null,
+      lastError: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    return { loop, phase, review: false };
+  }
+
+  it('registers newly created loop ACP conversations for permission auto-approval', async () => {
+    vi.mocked(createConversation).mockResolvedValueOnce({
+      id: 'conv-loop',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      providerId: 'claude',
+      title: 'loop-1',
+      type: 'acp',
+      isInitialConversation: false,
+      lastInteractedAt: null,
+    });
+    hydrateConversationMock.mockResolvedValueOnce(undefined);
+
+    const result = await acpLoopSessionDriver.startPhaseSession(makeLoopContext());
+
+    expect(result.success).toBe(true);
+    expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-loop');
+    expect(hydrateConversationMock).toHaveBeenCalledWith('project-1', 'task-1', 'conv-loop');
+  });
+
   it('uses strict ACP prompt routing and never returns literal undefined as the error message', async () => {
     acpSessionManagerMock.prompt.mockResolvedValueOnce({
       success: false,
@@ -64,6 +117,7 @@ describe('acpLoopSessionDriver', () => {
 
     const result = await acpLoopSessionDriver.sendPrompt('conv-1', 'hello');
 
+    expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-1');
     expect(acpSessionManagerMock.prompt).toHaveBeenCalledWith('conv-1', 'hello', undefined, {
       requireRuntime: true,
     });
@@ -117,6 +171,7 @@ describe('acpLoopSessionDriver', () => {
     const result = await acpLoopSessionDriver.sendPrompt('conv-1', 'hello');
 
     expect(result.success).toBe(true);
+    expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-1');
     expect(hydrateConversationMock).toHaveBeenCalledWith('project-1', 'task-1', 'conv-1');
     expect(acpSessionManagerMock.prompt).toHaveBeenCalledTimes(2);
   });

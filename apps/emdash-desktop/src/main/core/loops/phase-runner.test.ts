@@ -160,6 +160,47 @@ describe('PhaseRunner', () => {
     expect(unitTestsOrder).toBeLessThan(ghOrder);
   });
 
+  it('persists complete verifier evidence with a non-empty summary fallback', async () => {
+    const gh = passingVerifier('gh');
+    vi.mocked(gh.run).mockResolvedValueOnce(
+      ok({
+        verifierId: 'gh',
+        label: 'GitHub checks',
+        command: 'gh pr checks',
+        cwd: '/tmp/workspace',
+        durationMs: 42,
+        stdoutTail: 'checks passed',
+        stderrTail: '',
+        exitCode: 0,
+        summary: '',
+      })
+    );
+    const verifiers = new Map<BuiltInVerifierId, LoopVerifier>([
+      ['unit-tests', passingVerifier('unit-tests')],
+      ['gh', gh],
+    ]);
+    const memory = makeMemoryDeps(loop, verifiers);
+
+    const result = await new PhaseRunner(memory.deps).runPhase({
+      loop,
+      phase: loop.phases[0]!,
+      cwd: '/tmp/workspace',
+      driver,
+      control: makeControl(),
+    });
+
+    expect(result.success).toBe(true);
+    const evidence = memory.current().phases[0]?.criteria?.criteria[0]?.evidence;
+    expect(evidence).toBeDefined();
+    const parsed = JSON.parse(evidence! as string) as Record<string, unknown>;
+    expect(parsed).toMatchObject({
+      summary: 'checks passed',
+      command: 'gh pr checks',
+      exitCode: 0,
+      durationMs: 42,
+    });
+  });
+
   it('retries verifier failures in the same conversation', async () => {
     const ghError: VerifierError = {
       kind: 'command-failed',

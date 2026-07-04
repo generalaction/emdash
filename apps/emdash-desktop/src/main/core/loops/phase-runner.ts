@@ -125,6 +125,14 @@ function safeMessage(value: unknown, fallback: string): string {
   return fallback;
 }
 
+function safeEvidenceSummary(evidence: VerifierEvidence): string {
+  return (
+    [evidence.summary, evidence.stdoutTail, evidence.stderrTail]
+      .map((value) => value.trim())
+      .find((value) => value.length > 0) ?? `${evidence.label} passed.`
+  );
+}
+
 function stopError(reason: 'pause' | 'cancel'): LoopRunError {
   return reason === 'pause'
     ? { kind: 'paused', message: 'Loop paused' }
@@ -133,7 +141,7 @@ function stopError(reason: 'pause' | 'cancel'): LoopRunError {
 
 function evidenceText(evidence: VerifierEvidence): string {
   return JSON.stringify({
-    summary: evidence.summary,
+    summary: safeEvidenceSummary(evidence),
     command: evidence.command,
     exitCode: evidence.exitCode,
     durationMs: evidence.durationMs,

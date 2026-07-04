@@ -100,4 +100,26 @@ describe('loop-format', () => {
       summary: 'raw verifier output',
     });
   });
+
+  it('renders a summary fallback from evidence output when stored summary is empty', () => {
+    expect(
+      parseVerifierEvidence(
+        JSON.stringify({
+          summary: '',
+          command: 'pnpm test',
+          exitCode: 0,
+          durationMs: 250,
+          stdoutTail: 'tests passed',
+        })
+      )
+    ).toEqual({
+      summary: 'tests passed',
+      command: 'pnpm test',
+      exitCode: 0,
+      durationMs: 250,
+      stdoutTail: 'tests passed',
+      stderrTail: undefined,
+      evidencePath: undefined,
+    });
+  });
 });

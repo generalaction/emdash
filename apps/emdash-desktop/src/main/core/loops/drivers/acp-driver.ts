@@ -116,6 +116,7 @@ export const acpLoopSessionDriver: LoopSessionDriver = {
         type: 'acp',
       });
       conversationId = conversation.id;
+      acpSessionManager.registerPermissionAutoApproval(conversationId);
     } catch (error) {
       return err({
         kind: 'create-failed',
@@ -139,6 +140,8 @@ export const acpLoopSessionDriver: LoopSessionDriver = {
     conversationId: string,
     text: string
   ): Promise<Result<PromptResult, LoopSessionDriverError>> {
+    acpSessionManager.registerPermissionAutoApproval(conversationId);
+
     let result = await acpSessionManager.prompt(conversationId, text, undefined, {
       requireRuntime: true,
     });

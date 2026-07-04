@@ -7,6 +7,14 @@ import type {
   VerifierEvidence,
 } from './types';
 
+function nonEmptySummary(result: ExecFileResult, summary: string, label: string): string {
+  return (
+    [summary, result.stdoutTail, result.stderrTail]
+      .map((value) => value.trim())
+      .find((value) => value.length > 0) ?? `${label} passed.`
+  );
+}
+
 export function evidenceFromExec(
   verifierId: BuiltInVerifierId,
   label: string,
@@ -23,7 +31,7 @@ export function evidenceFromExec(
     stdoutTail: result.stdoutTail,
     stderrTail: result.stderrTail,
     exitCode: result.exitCode,
-    summary,
+    summary: nonEmptySummary(result, summary, label),
     ...(evidencePath ? { evidencePath } : {}),
   };
 }

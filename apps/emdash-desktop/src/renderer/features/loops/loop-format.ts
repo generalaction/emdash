@@ -111,11 +111,17 @@ export function parseVerifierEvidence(evidence: string | undefined): ParsedVerif
       return { summary: evidence };
     }
     const record = parsed as Record<string, unknown>;
+    const stdoutTail = stringProperty(record, 'stdoutTail');
+    const stderrTail = stringProperty(record, 'stderrTail');
     return {
-      summary: stringProperty(record, 'summary') ?? stringProperty(record, 'message'),
+      summary:
+        stringProperty(record, 'summary') ??
+        stringProperty(record, 'message') ??
+        stdoutTail ??
+        stderrTail,
       command: stringProperty(record, 'command'),
-      stdoutTail: stringProperty(record, 'stdoutTail'),
-      stderrTail: stringProperty(record, 'stderrTail'),
+      stdoutTail,
+      stderrTail,
       evidencePath: stringProperty(record, 'evidencePath'),
       exitCode: numberProperty(record, 'exitCode'),
       durationMs: numberProperty(record, 'durationMs') ?? undefined,
