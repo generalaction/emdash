@@ -1,6 +1,6 @@
 import { TasksApi, UsersApi } from 'asana';
 import z from 'zod';
-import { credentialString, optionalCredentialString } from '../../helpers/credentials';
+import { credentialString } from '../../helpers/credentials';
 
 export const asanaCredentialsSchema = z.object({
   accessToken: credentialString('Access token is required'),

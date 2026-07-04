@@ -1,45 +1,21 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { toIntegrationError } from '../../../integrations/helpers/error';
 import type { IntegrationCredentials } from '../../../integrations/host';
 import { createAsanaClient, readAsanaCredentials } from '../../../integrations/impl/asana/client';
 import type {
-  AsanaClient,
   AsanaResponse,
   AsanaSearchTasksOpts,
   AsanaTask,
-  AsanaUser,
-  AsanaWorkspace,
   RawAsanaTask,
 } from '../../../integrations/impl/asana/types';
-import type { IntegrationError } from '../../../integrations/types';
 import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
 import type { IssueListResult } from '../../types';
 import { toAsanaTask, toIssueData } from './mapper';
+import { resolveAsanaWorkspace } from './workspace-resolver';
 
 const TASK_OPT_FIELDS =
   'name,notes,permalink_url,completed,modified_at,assignee.name,projects.name,memberships.section.name,memberships.project.name';
-
-async function getAsanaWorkspace(
-  client: AsanaClient,
-): Promise<Result<AsanaWorkspace, IntegrationError>> {
-  try {
-    const response = (await client.users.getUser('me', {
-      opt_fields: 'gid,name,workspaces.gid,workspaces.name',
-    })) as AsanaResponse<AsanaUser>;
-
-    const workspaceGid = response.data?.workspaces?.[0]?.gid;
-    if (!workspaceGid) {
-      return err({
-        type: 'generic',
-        message: 'No Asana workspace available for this account.',
-      });
-    }
-    return ok({ gid: workspaceGid });
-  } catch (error) {
-    return err(toIntegrationError(error, 'Asana'));
-  }
-}
 
 export async function listIssues(
   credentials: IntegrationCredentials,
@@ -49,7 +25,7 @@ export async function listIssues(
   if (!parsedCredentials.success) return err(parsedCredentials.error);
   const client = createAsanaClient(parsedCredentials.data);
 
-  const workspace = await getAsanaWorkspace(client);
+  const workspace = await resolveAsanaWorkspace(client);
   if (!workspace.success) return err(workspace.error);
 
   try {
@@ -84,7 +60,7 @@ export async function searchIssues(
   if (!parsedCredentials.success) return err(parsedCredentials.error);
   const client = createAsanaClient(parsedCredentials.data);
 
-  const workspace = await getAsanaWorkspace(client);
+  const workspace = await resolveAsanaWorkspace(client);
   if (!workspace.success) return err(workspace.error);
 
   try {
