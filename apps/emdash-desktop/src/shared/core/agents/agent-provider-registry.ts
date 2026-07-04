@@ -737,7 +737,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     id: 'zero',
     name: 'Zero',
     description:
-      'Terminal coding agent with local sessions, multi-provider model support, MCP, skills, hooks, and headless exec workflows.',
+      'Terminal coding agent with multi-provider model support, local-first configuration, and terminal-first coding workflows.',
     docUrl: 'https://zero.gitlawb.com/',
     installCommand: 'npm install -g @gitlawb/zero',
     commands: ['zero'],

@@ -7,7 +7,7 @@ export const plugin = definePlugin(
     id: 'zero',
     name: 'Zero',
     description:
-      'Terminal coding agent with local sessions, multi-provider model support, MCP, skills, hooks, and headless exec workflows.',
+      'Terminal coding agent with multi-provider model support, local-first configuration, and terminal-first coding workflows.',
     websiteUrl: 'https://zero.gitlawb.com/',
   },
   {
