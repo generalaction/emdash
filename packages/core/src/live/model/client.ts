@@ -1,6 +1,6 @@
 import type z from 'zod';
 import { applyPatches, type Patch } from './immer-setup';
-import type { LiveSnapshot, LiveUpdate } from './schema';
+import type { LiveSnapshot, LiveUpdate } from '../protocol';
 
 export class LiveModelClient<T> {
   private generation = -1;

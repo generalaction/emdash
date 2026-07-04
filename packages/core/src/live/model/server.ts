@@ -1,6 +1,6 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
 import { type Patch, produceWithPatches } from './immer-setup';
-import type { LiveSnapshot, LiveUpdate } from './schema';
+import type { LiveSnapshot, LiveUpdate } from '../protocol';
 
 /**
  * Transport-agnostic live model server.
@@ -79,53 +79,5 @@ export class LiveModelServer<T> {
 
   subscribe(cb: (update: LiveUpdate) => void): Unsubscribe {
     return this.emitter.subscribe(cb);
-  }
-}
-
-/**
- * Async-generator bridge that streams LiveUpdates from a LiveModelServer into
- * an oRPC eventIterator handler, handling abort cleanup automatically.
- *
- * Usage in a subscribe handler:
- * ```ts
- * subscribe: i.myModel.subscribe.handler(async function* ({ input, signal }) {
- *   const server = registry.get(input.sessionId);
- *   yield* streamLiveUpdates(server, signal);
- * })
- * ```
- */
-export async function* streamLiveUpdates(
-  server: LiveModelServer<unknown>,
-  signal?: AbortSignal
-): AsyncGenerator<LiveUpdate> {
-  const buffer: LiveUpdate[] = [];
-  let wakeup: (() => void) | null = null;
-
-  const unsub = server.subscribe((update) => {
-    buffer.push(update);
-    wakeup?.();
-  });
-
-  const onAbort = (): void => {
-    unsub();
-    wakeup?.();
-  };
-  signal?.addEventListener('abort', onAbort);
-
-  try {
-    while (!signal?.aborted) {
-      if (buffer.length === 0) {
-        await new Promise<void>((resolve) => {
-          wakeup = resolve;
-        });
-        wakeup = null;
-      }
-      while (buffer.length > 0) {
-        yield buffer.shift()!;
-      }
-    }
-  } finally {
-    unsub();
-    signal?.removeEventListener('abort', onAbort);
   }
 }

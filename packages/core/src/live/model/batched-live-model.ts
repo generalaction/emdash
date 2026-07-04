@@ -1,5 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
-import type { LiveSnapshot, LiveUpdate } from './schema';
+import type { LiveSnapshot, LiveUpdate } from '../protocol';
 import type { LiveModelServer } from './server';
 
 export type Mutator<T> = (draft: T) => void;

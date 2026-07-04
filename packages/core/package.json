@@ -61,9 +61,9 @@
       "types": "./dist/agents-plugins-helpers.d.mts",
       "default": "./dist/agents-plugins-helpers.mjs"
     },
-    "./live-model": {
-      "types": "./dist/live-model.d.mts",
-      "default": "./dist/live-model.mjs"
+    "./live": {
+      "types": "./dist/live.d.mts",
+      "default": "./dist/live.mjs"
     },
     "./workspace-server": {
       "types": "./dist/workspace-server.d.mts",
