@@ -1,22 +1,46 @@
-import { noopLogger } from '@emdash/shared/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { IntegrationHostContext } from '../../host';
 import { provider } from './index';
+
+const planeSdk = vi.hoisted(() => ({
+  constructor: vi.fn(),
+  projectsList: vi.fn(),
+  usersMe: vi.fn(),
+}));
+
+vi.mock('@makeplane/plane-node-sdk', () => ({
+  PlaneClient: class {
+    projects = { list: planeSdk.projectsList };
+    users = { me: planeSdk.usersMe };
+
+    constructor(config: unknown) {
+      planeSdk.constructor(config);
+    }
+  },
+}));
 
 const auth = provider.behavior.auth;
 if (!auth) throw new Error('Plane integration plugin has no auth behavior');
 
-const host = { log: noopLogger };
+const host: IntegrationHostContext = {
+  log: {
+    level: 'error',
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    child: () => host.log,
+  },
+};
 
 describe('plane integration verify', () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+    planeSdk.constructor.mockReset();
+    planeSdk.projectsList.mockReset();
+    planeSdk.usersMe.mockReset();
   });
 
   it('rejects invalid API base URLs before making any request', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-
     const result = await auth.verify(host, {
       apiBaseUrl: 'plane.example.com',
       workspaceSlug: 'my-team',
@@ -27,21 +51,12 @@ describe('plane integration verify', () => {
       connected: false,
       error: 'A valid Plane API base URL is required.',
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(planeSdk.constructor).not.toHaveBeenCalled();
   });
 
   it('validates and returns normalized self-hosted credentials', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ display_name: 'Ada Lovelace' }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ results: [] }),
-      });
-    vi.stubGlobal('fetch', fetchMock);
+    planeSdk.usersMe.mockResolvedValue({ display_name: 'Ada Lovelace' });
+    planeSdk.projectsList.mockResolvedValue({ results: [] });
 
     const result = await auth.verify(host, {
       apiBaseUrl: 'https://plane.example.com/',
@@ -60,24 +75,17 @@ describe('plane integration verify', () => {
       },
     });
 
-    const firstUrl = fetchMock.mock.calls[0]?.[0] as URL;
-    const firstOptions = fetchMock.mock.calls[0]?.[1] as { headers: Record<string, string> };
-    expect(firstUrl.toString()).toBe('https://plane.example.com/api/v1/users/me/');
-    expect(firstOptions.headers['X-API-Key']).toBe('plane_api_token');
+    expect(planeSdk.constructor).toHaveBeenCalledWith({
+      apiKey: 'plane_api_token',
+      baseUrl: 'https://plane.example.com',
+    });
+    expect(planeSdk.usersMe).toHaveBeenCalledWith();
+    expect(planeSdk.projectsList).toHaveBeenCalledWith('my-team', { limit: 1 });
   });
 
   it('falls back to the email for the display name', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ email: 'ada@example.com' }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [],
-      });
-    vi.stubGlobal('fetch', fetchMock);
+    planeSdk.usersMe.mockResolvedValue({ email: 'ada@example.com' });
+    planeSdk.projectsList.mockResolvedValue({ results: [] });
 
     const result = await auth.verify(host, {
       apiBaseUrl: 'https://api.plane.so',
@@ -95,15 +103,7 @@ describe('plane integration verify', () => {
   });
 
   it('maps authentication failures to a friendly error', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
-        json: async () => ({ error: 'Invalid API key' }),
-      })
-    );
+    planeSdk.usersMe.mockRejectedValue(httpError('Invalid API key', 401));
 
     const result = await auth.verify(host, {
       apiBaseUrl: 'https://api.plane.so',
@@ -113,7 +113,11 @@ describe('plane integration verify', () => {
 
     expect(result).toEqual({
       connected: false,
-      error: 'Plane authentication failed. Check your API key and permissions.',
+      error: 'Plane authentication failed. Check your credentials.',
     });
   });
 });
+
+function httpError(message: string, statusCode: number): Error & { statusCode: number } {
+  return Object.assign(new Error(message), { statusCode });
+}

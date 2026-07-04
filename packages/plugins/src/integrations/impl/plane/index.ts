@@ -1,6 +1,8 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
-import { PLANE_CLOUD_API_BASE_URL, toPlaneErrorMessage, verifyPlaneCredentials } from './client';
+import { verifyPlaneCredentials } from './client';
 import { icon } from './icon';
+import { PLANE_CLOUD_API_BASE_URL } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
@@ -46,16 +48,17 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
-    async verify(_host, credentials) {
-      try {
-        const result = await verifyPlaneCredentials(credentials);
-        return { connected: true, ...result };
-      } catch (error) {
+    async verify(_host, credentials): Promise<VerifyResult> {
+      const result = await verifyPlaneCredentials(credentials);
+      if (!result.success)
         return {
           connected: false,
-          error: toPlaneErrorMessage(error, 'Failed to validate Plane credentials.'),
+          error: result.error.message,
         };
-      }
+      return {
+        connected: true,
+        ...result.data,
+      };
     },
   },
 });
