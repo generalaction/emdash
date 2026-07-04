@@ -50,7 +50,8 @@
   },
   "dependencies": {
     "fast-redact": "^3.5.0",
-    "pino": "^9.14.0"
+    "pino": "^9.14.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.19.42",
