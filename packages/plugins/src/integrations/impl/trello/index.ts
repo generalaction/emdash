@@ -1,3 +1,4 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyTrelloCredentials } from './client';
 import { icon } from './icon';
@@ -28,14 +29,8 @@ const plugin = defineIntegrationPlugin(
               required: true,
               placeholder: 'API token',
             },
-            {
-              id: 'boardUrls',
-              label: 'Board URLs',
-              required: false,
-              placeholder: 'Board URLs (optional, comma-separated)',
-            },
           ],
-          help: 'Create a Power-Up at trello.com/power-ups/admin to get an API key, then generate a token from the API key page. Optionally add board URLs to choose exactly which boards Emdash searches; otherwise it checks the first 20 open boards.',
+          help: 'Create a Power-Up at trello.com/power-ups/admin to get an API key, then generate a token from the API key page.',
           helpUrl: 'https://trello.com/power-ups/admin',
         },
       ],
@@ -46,17 +41,17 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
-    async verify(_host, credentials) {
-      try {
-        const result = await verifyTrelloCredentials(credentials);
-        return { connected: true, ...result };
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Failed to validate Trello credentials. Please try again.';
-        return { connected: false, error: message };
-      }
+    async verify(_host, credentials): Promise<VerifyResult> {
+      const result = await verifyTrelloCredentials(credentials);
+      if (!result.success)
+        return {
+          connected: false,
+          error: result.error.message,
+        };
+      return {
+        connected: true,
+        ...result.data,
+      };
     },
   },
 });

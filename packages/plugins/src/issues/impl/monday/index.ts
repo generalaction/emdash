@@ -1,6 +1,7 @@
 import { err, ok } from '@emdash/shared';
 import { mondayQuery, readMondayCredentials } from '../../../integrations/impl/monday/client';
 import { clampIssueLimit, issueError, normalizeSearchTerm } from '../../helpers/provider-inputs';
+import { sortByUpdatedAtDesc } from '../../helpers/sort-by-updated-at-desc';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
 import type { IssueData, IssueDetail } from '../../types';
 
@@ -87,12 +88,6 @@ function formatContext(updates: MondayItemWithContext['updates']): string | unde
   return updates
     .map((u) => `**${u.creator.name}** (${u.created_at}):\n${u.text_body}`)
     .join('\n\n');
-}
-
-function sortByUpdatedAtDesc(issues: IssueData[]): IssueData[] {
-  return issues.sort(
-    (a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()
-  );
 }
 
 const plugin = defineIssuesPlugin({ integrationId: 'monday' }, { issues: {} }, {});

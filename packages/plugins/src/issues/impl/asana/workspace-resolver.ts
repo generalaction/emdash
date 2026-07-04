@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { toIntegrationError } from '../../../integrations/helpers/error';
+import { USER_OPT_FIELDS } from '../../../integrations/impl/asana/client';
 import type {
   AsanaClient,
   AsanaResponse,
@@ -13,7 +14,7 @@ export async function resolveAsanaWorkspace(
 ): Promise<Result<AsanaWorkspace, IntegrationError>> {
   try {
     const response = (await client.users.getUser('me', {
-      opt_fields: 'gid,name,workspaces.gid,workspaces.name',
+      opt_fields: USER_OPT_FIELDS,
     })) as AsanaResponse<AsanaUser>;
 
     const workspaceGid = response.data?.workspaces?.[0]?.gid;

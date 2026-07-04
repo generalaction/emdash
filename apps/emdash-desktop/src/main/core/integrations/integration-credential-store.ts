@@ -261,7 +261,6 @@ export class IntegrationCredentialStore {
         return {
           apiKey,
           apiToken,
-          boardIds: [...new Set(readStringArray(candidate.boardIds))],
         };
       }
       default:

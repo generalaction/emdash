@@ -16,7 +16,7 @@ const issues = provider.behavior.issues;
 if (!issues?.getIssue) throw new Error('Trello issues behavior is not registered.');
 const getIssue = issues.getIssue;
 
-const CREDENTIALS = { apiKey: 'key', apiToken: 'tok', boardIds: ['board-1'] };
+const CREDENTIALS = { apiKey: 'key', apiToken: 'tok' };
 
 function host(
   credentials: ConnectedIntegrationHostContext['credentials']
@@ -33,23 +33,34 @@ const CARD = {
   dateLastActivity: '2026-05-20T10:00:00.000Z',
 };
 
+const MEMBER_BOARD = { id: 'member-board', name: 'Sprint Board', closed: false };
+const ORG_BOARD = { id: 'org-board', name: 'Workspace Board', closed: false };
+const CLOSED_BOARD = { id: 'closed-board', name: 'Old Board', closed: true };
+const ORG = { id: 'org-1' };
+
 const fetchMock = vi.fn();
 
 function jsonResponse(body: unknown) {
-  return { ok: true, status: 200, json: async () => body };
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: () => 'application/json' },
+    json: async () => body,
+  };
 }
 
 /** Route responses by pathname since Trello calls can run concurrently. */
 function routeFetch(routes: Record<string, unknown>) {
-  fetchMock.mockImplementation(async (input: URL) => {
-    const body = routes[input.pathname];
-    if (body === undefined) throw new Error(`Unexpected request: ${input.pathname}`);
+  fetchMock.mockImplementation(async (input: string | URL) => {
+    const url = new URL(String(input));
+    const body = routes[url.pathname];
+    if (body === undefined) throw new Error(`Unexpected request: ${url.pathname}`);
     return jsonResponse(body);
   });
 }
 
 function requestedUrls(): URL[] {
-  return fetchMock.mock.calls.map((call) => call[0] as URL);
+  return fetchMock.mock.calls.map((call) => new URL(String(call[0])));
 }
 
 beforeEach(() => {
@@ -63,10 +74,24 @@ afterEach(() => {
 
 describe('trello issues plugin', () => {
   describe('listIssues', () => {
-    it('returns cards from configured boards mapped to issues', async () => {
+    it('returns cards from member and organization boards mapped to issues', async () => {
+      const memberCard = {
+        ...CARD,
+        shortLink: 'member123',
+        dateLastActivity: '2026-05-20T10:00:00.000Z',
+      };
+      const orgCard = {
+        ...CARD,
+        shortLink: 'org123',
+        dateLastActivity: '2026-05-21T10:00:00.000Z',
+      };
+
       routeFetch({
-        '/1/boards/board-1': { id: 'board-1', name: 'Sprint Board' },
-        '/1/boards/board-1/cards/open': [CARD],
+        '/1/members/me/boards': [MEMBER_BOARD],
+        '/1/members/me/organizations': [ORG],
+        '/1/organizations/org-1/boards': [ORG_BOARD, MEMBER_BOARD],
+        '/1/boards/member-board/cards/open': [memberCard],
+        '/1/boards/org-board/cards/open': [orgCard],
       });
 
       const result = await issues.listIssues(host(CREDENTIALS), { limit: 50 });
@@ -75,7 +100,14 @@ describe('trello issues plugin', () => {
         success: true,
         data: [
           expect.objectContaining({
-            identifier: CARD.shortLink,
+            identifier: 'org123',
+            title: CARD.name,
+            url: CARD.url,
+            description: CARD.desc,
+            project: 'Workspace Board',
+          }),
+          expect.objectContaining({
+            identifier: 'member123',
             title: CARD.name,
             url: CARD.url,
             description: CARD.desc,
@@ -85,27 +117,27 @@ describe('trello issues plugin', () => {
       });
 
       const cardsUrl = requestedUrls().find((url) =>
-        url.pathname.endsWith('/boards/board-1/cards/open')
+        url.pathname.endsWith('/boards/member-board/cards/open')
       );
       expect(cardsUrl).toBeDefined();
-      expect(cardsUrl!.searchParams.get('fields')).toContain('shortLink');
       expect(cardsUrl!.searchParams.get('key')).toBe('key');
       expect(cardsUrl!.searchParams.get('token')).toBe('tok');
+
+      const urls = requestedUrls();
+      const memberBoardCardRequests = urls.filter((url) =>
+        url.pathname.endsWith('/boards/member-board/cards/open')
+      );
+      expect(memberBoardCardRequests).toHaveLength(1);
     });
 
-    it('falls back to open member boards when no boards are configured', async () => {
+    it('filters closed member boards returned by Trello', async () => {
       routeFetch({
-        '/1/members/me/boards': [
-          { id: 'board-1', name: 'Sprint Board', closed: false },
-          { id: 'board-2', name: 'Old Board', closed: true },
-        ],
-        '/1/boards/board-1/cards/open': [CARD],
+        '/1/members/me/boards': [MEMBER_BOARD, CLOSED_BOARD],
+        '/1/members/me/organizations': [],
+        '/1/boards/member-board/cards/open': [CARD],
       });
 
-      const result = await issues.listIssues(
-        host({ apiKey: 'key', apiToken: 'tok', boardIds: [] }),
-        { limit: 50 }
-      );
+      const result = await issues.listIssues(host(CREDENTIALS), { limit: 50 });
 
       expect(result).toEqual({ success: true, data: [expect.any(Object)] });
 
@@ -113,15 +145,16 @@ describe('trello issues plugin', () => {
       const memberBoardsUrl = urls.find((url) => url.pathname.endsWith('/members/me/boards'));
       expect(memberBoardsUrl).toBeDefined();
       expect(memberBoardsUrl!.searchParams.get('filter')).toBe('open');
-      expect(urls.some((url) => url.pathname.includes('/boards/board-2/cards'))).toBe(false);
+      expect(urls.some((url) => url.pathname.includes('/boards/closed-board/cards'))).toBe(false);
     });
 
     it('sorts cards by last activity descending', async () => {
       const older = { ...CARD, shortLink: 'older123', dateLastActivity: '2026-05-01T10:00:00Z' };
       const newer = { ...CARD, shortLink: 'newer123', dateLastActivity: '2026-05-25T10:00:00Z' };
       routeFetch({
-        '/1/boards/board-1': { id: 'board-1', name: 'Sprint Board' },
-        '/1/boards/board-1/cards/open': [older, newer],
+        '/1/members/me/boards': [MEMBER_BOARD],
+        '/1/members/me/organizations': [],
+        '/1/boards/member-board/cards/open': [older, newer],
       });
 
       const result = await issues.listIssues(host(CREDENTIALS), { limit: 50 });
@@ -132,21 +165,24 @@ describe('trello issues plugin', () => {
       }
     });
 
-    it('returns a generic error when an API request fails', async () => {
+    it('returns a generic provider error when an API request fails', async () => {
       fetchMock.mockRejectedValue(new Error('Rate limit exceeded'));
 
       const result = await issues.listIssues(host(CREDENTIALS), { limit: 50 });
 
       expect(result).toEqual({
         success: false,
-        error: { type: 'generic', message: 'Rate limit exceeded' },
+        error: { type: 'generic', message: 'Trello request failed.' },
       });
     });
 
-    it('throws when the host provides no credentials', async () => {
-      await expect(issues.listIssues(host({}), { limit: 50 })).rejects.toThrow(
-        'Trello API key and token cannot be empty.'
-      );
+    it('returns an invalid input error when the host provides no credentials', async () => {
+      const result = await issues.listIssues(host({}), { limit: 50 });
+
+      expect(result).toEqual({
+        success: false,
+        error: { type: 'invalid_input', message: 'Trello API key and token cannot be empty.' },
+      });
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
@@ -162,13 +198,18 @@ describe('trello issues plugin', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('searches cards and scopes the search to configured boards', async () => {
-      routeFetch({ '/1/search': { cards: [{ ...CARD, board: { name: 'Sprint Board' } }] } });
+    it('searches cards and scopes the search to discovered boards', async () => {
+      routeFetch({
+        '/1/members/me/boards': [MEMBER_BOARD],
+        '/1/members/me/organizations': [ORG],
+        '/1/organizations/org-1/boards': [ORG_BOARD, MEMBER_BOARD],
+        '/1/search': { cards: [{ ...CARD, board: { name: 'Sprint Board' } }] },
+      });
 
-      const result = await issues.searchIssues(
-        host({ apiKey: 'key', apiToken: 'tok', boardIds: ['board-1', 'board-2'] }),
-        { searchTerm: 'login', limit: 20 }
-      );
+      const result = await issues.searchIssues(host(CREDENTIALS), {
+        searchTerm: 'login',
+        limit: 20,
+      });
 
       expect(result).toEqual({
         success: true,
@@ -181,22 +222,27 @@ describe('trello issues plugin', () => {
         ],
       });
 
-      const searchUrl = requestedUrls()[0];
-      expect(searchUrl.pathname).toBe('/1/search');
-      expect(searchUrl.searchParams.get('query')).toBe('login');
-      expect(searchUrl.searchParams.get('modelTypes')).toBe('cards');
-      expect(searchUrl.searchParams.get('idBoards')).toBe('board-1,board-2');
+      const searchUrl = requestedUrls().find((url) => url.pathname === '/1/search');
+      expect(searchUrl).toBeDefined();
+      expect(searchUrl!.pathname).toBe('/1/search');
+      expect(searchUrl!.searchParams.get('query')).toBe('login');
+      expect(searchUrl!.searchParams.get('modelTypes')).toBe('cards');
+      expect(searchUrl!.searchParams.get('idBoards')).toBe('member-board,org-board');
     });
 
-    it('omits the board scope when no boards are configured', async () => {
-      routeFetch({ '/1/search': { cards: [] } });
+    it('returns no search results when no boards are discovered', async () => {
+      routeFetch({
+        '/1/members/me/boards': [],
+        '/1/members/me/organizations': [],
+      });
 
-      await issues.searchIssues(host({ apiKey: 'key', apiToken: 'tok', boardIds: [] }), {
+      const result = await issues.searchIssues(host(CREDENTIALS), {
         searchTerm: 'login',
         limit: 20,
       });
 
-      expect(requestedUrls()[0].searchParams.has('idBoards')).toBe(false);
+      expect(result).toEqual({ success: true, data: [] });
+      expect(requestedUrls().some((url) => url.pathname === '/1/search')).toBe(false);
     });
   });
 

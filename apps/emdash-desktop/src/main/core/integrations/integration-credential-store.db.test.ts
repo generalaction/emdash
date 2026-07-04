@@ -167,7 +167,7 @@ describe('IntegrationCredentialStore', () => {
             'emdash-trello-credentials',
             JSON.stringify({ apiKey: 'trello-key', token: 'trello-token', boardIds: ['b1'] })
           ),
-        expectedCredentials: { apiKey: 'trello-key', apiToken: 'trello-token', boardIds: ['b1'] },
+        expectedCredentials: { apiKey: 'trello-key', apiToken: 'trello-token' },
         legacyKeys: ['emdash-trello-credentials'],
       },
     ];
