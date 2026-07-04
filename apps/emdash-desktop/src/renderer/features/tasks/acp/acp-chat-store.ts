@@ -478,7 +478,7 @@ export class AcpChatStore {
   }
 
   /** Resolve the front-of-queue permission request. */
-  resolvePermission(optionId: string | null): void {
+  resolvePermission(optionId: string): void {
     const request = this.permissionQueue[0];
     if (!request) return;
     void rpc.acp

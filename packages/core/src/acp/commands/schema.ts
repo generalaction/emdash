@@ -53,3 +53,6 @@ export const deleteAttachmentResponseSchema = result(z.object({}), z.object({}))
 
 export const editCurrentPromptSchema = promptInputSchema
 export const editCurrentPromptResponseSchema = result(z.object({}), z.object({}))
+
+export const exportACPTranscriptRequestSchema = z.object({})
+export const exportACPTranscriptResponseSchema = result(z.object({}), z.object({}))

@@ -73,7 +73,7 @@ export type Command =
   | { type: 'Prompt'; prompt: QueuedPrompt }
   | { type: 'Cancel' }
   | { type: 'RemoveQueuedPrompt'; id: string }
-  | { type: 'ResolvePermission'; requestId: string; optionId: string | null }
+  | { type: 'ResolvePermission'; requestId: string; optionId: string }
   | { type: 'SetMode'; modeId: string }
   | { type: 'SetConfigOption'; configId: string; value: string };
 

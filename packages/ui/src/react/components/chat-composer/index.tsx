@@ -256,7 +256,7 @@ export interface ChatComposerProps {
   /** Total number of queued permission requests. Drives the "1 of N" counter. */
   permissionQueueCount?: number;
   /** Called with the chosen optionId when the user resolves a permission request. */
-  onResolvePermission?: (optionId: string | null) => void;
+  onResolvePermission?: (optionId: string) => void;
   className?: string;
 }
 

@@ -59,7 +59,7 @@ export const acpContract = {
       z.object({
         conversationId: z.string(),
         requestId: z.string(),
-        optionId: z.string().nullable(),
+        optionId: z.string(),
       })
     )
     .output(acpResult),

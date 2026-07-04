@@ -121,7 +121,7 @@ export class AcpSessionManager {
   resolvePermission(
     conversationId: string,
     requestId: string,
-    optionId: string | null
+    optionId: string
   ): Result<void, AcpRuntimeError> {
     const rt = this.findRuntime(conversationId);
     if (!rt) return ok();

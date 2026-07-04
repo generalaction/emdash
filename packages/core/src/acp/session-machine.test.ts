@@ -27,6 +27,16 @@ function makeWorking(): SessionMachineState {
 
 const permRequest: AcpPermissionRequest = {
   requestId: 'req-1',
+  toolCall: {
+    kind: 'unknown-tool-call',
+    id: 'permission:req-1',
+    seq: 0,
+    toolCallId: 'req-1',
+    title: 'Permission request',
+    status: 'running',
+    toolKind: null,
+    name: 'Permission request',
+  },
   options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }],
 };
 
@@ -120,7 +130,7 @@ describe('permissions and metadata', () => {
     const result = decide(makeWorking(), {
       type: 'ResolvePermission',
       requestId: 'unknown',
-      optionId: null,
+      optionId: 'allow',
     });
     expect(isErr(result)).toBe(true);
   });

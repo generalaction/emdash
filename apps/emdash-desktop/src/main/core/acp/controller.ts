@@ -49,7 +49,7 @@ function getSessionState(conversationId: string): Promise<SessionState> {
 function resolvePermission(
   conversationId: string,
   requestId: string,
-  optionId: string | null
+  optionId: string
 ): Promise<Result<void, AcpRuntimeError>> {
   return Promise.resolve(acpSessionManager.resolvePermission(conversationId, requestId, optionId));
 }

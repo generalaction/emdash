@@ -12,20 +12,20 @@ export class PermissionBroker {
     });
   }
 
-  settle(requestId: string, optionId: string | null): boolean {
+  settle(requestId: string, optionId: string): boolean {
     const resolver = this.resolvers.get(requestId);
     if (!resolver) return false;
     this.resolvers.delete(requestId);
-    resolver(
-      optionId
-        ? { outcome: { outcome: 'selected', optionId } }
-        : { outcome: { outcome: 'cancelled' } }
-    );
+    resolver({ outcome: { outcome: 'selected', optionId } });
     return true;
   }
 
   cancel(requestId: string): boolean {
-    return this.settle(requestId, null);
+    const resolver = this.resolvers.get(requestId);
+    if (!resolver) return false;
+    this.resolvers.delete(requestId);
+    resolver({ outcome: { outcome: 'cancelled' } });
+    return true;
   }
 
   drain(requests: readonly AcpPermissionRequest[]): void {

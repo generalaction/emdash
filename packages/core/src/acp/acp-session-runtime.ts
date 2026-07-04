@@ -353,7 +353,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   resolvePermission(
     conversationId: string,
     requestId: string,
-    optionId: string | null
+    optionId: string
   ): Result<void, AcpRuntimeError> {
     const conv = this.resolveConv(conversationId);
     if (!conv) return acpErr.conversationNotFound(conversationId);
@@ -884,10 +884,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         }
 
         const requestId = crypto.randomUUID();
-        const toolCall = buildPermissionToolCall(conv, params.toolCall);
+        const toolCall = buildPermissionToolCall(conv, requestId, params.toolCall);
         const payload: AcpPermissionRequest = {
           requestId,
-          ...(toolCall !== undefined ? { toolCall } : {}),
+          toolCall,
           options: params.options.map((o) => ({
             optionId: o.optionId,
             name: o.name,
@@ -898,7 +898,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         this.deps.logger.debug('AcpSessionRuntime: requesting user permission', {
           conversationId,
           requestId,
-          title: payload.toolCall?.title ?? 'Unknown',
+          title: payload.toolCall.title,
         });
 
         this.applyEvent(conv, { type: 'PermissionRequested', request: payload });
@@ -1122,11 +1122,11 @@ function canAcceptTranscriptEvent(conv: AcpConversation): boolean {
 
 function buildPermissionToolCall(
   conv: AcpConversation,
+  requestId: string,
   rawToolCall: RequestPermissionRequest['toolCall'] | undefined
-): ToolCallItem | undefined {
-  if (!rawToolCall) return undefined;
+): ToolCallItem {
   const activeTurn = conv.transcript.activeTurn;
-  const toolCallId = rawToolCall.toolCallId;
+  const toolCallId = rawToolCall?.toolCallId ?? requestId;
   if (activeTurn) {
     const id = makeToolId(activeTurn.id, toolCallId);
     const existing = findToolCall(activeTurn.items, id, toolCallId);
@@ -1137,8 +1137,8 @@ function buildPermissionToolCall(
     id: activeTurn ? makeToolId(activeTurn.id, toolCallId) : `permission:${toolCallId}`,
     seq: 0,
     toolCallId,
-    title: rawToolCall.title ?? 'Unknown',
-    toolKind: rawToolCall.kind ?? null,
+    title: rawToolCall?.title ?? 'Permission request',
+    toolKind: rawToolCall?.kind ?? null,
     status: 'pending',
     parentToolCallId: undefined,
   });

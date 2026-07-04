@@ -148,7 +148,7 @@ export interface IAcpSessionRuntime {
   resolvePermission(
     conversationId: string,
     requestId: string,
-    optionId: string | null
+    optionId: string
   ): Result<void, AcpRuntimeError>;
   isRunning(conversationId: string): boolean;
   getChatHistory(conversationId: string): AcpChatHistory;
