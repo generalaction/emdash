@@ -10,6 +10,7 @@ function build(ctx: CommandContext) {
 
 describe('zero plugin', () => {
   it('registers install metadata and binary name', () => {
+    expect(zero).toBeDefined();
     expect(zero.metadata.websiteUrl).toBe('https://zero.gitlawb.com/');
     expect(zero.capabilities.hostDependency.binaryNames).toEqual(['zero']);
     expect(zero.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
