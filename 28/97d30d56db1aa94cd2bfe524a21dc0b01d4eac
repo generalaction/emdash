@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/components/UpdateCard.tsx
+  s_a4582f8bd5d3be::t_8616e1f12b7d70 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2897d30d56db1aa94cd2bfe524a21dc0b01d4eac",
+  "prompts": {},
+  "sessions": {
+    "s_a4582f8bd5d3be": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2ea5-1c67-7020-a934-545082365ca9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
