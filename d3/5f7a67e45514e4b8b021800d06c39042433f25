@@ -1,0 +1,19 @@
+packages/plugins/src/agents/impl/zero/index.test.ts
+  s_bff0b306e30493::t_009b972ef4878a 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d35f7a67e45514e4b8b021800d06c39042433f25",
+  "prompts": {},
+  "sessions": {
+    "s_bff0b306e30493": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f2cad-f7b8-738e-8c48-6efbbacf94fa",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
