@@ -12,7 +12,7 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   deps: {
-    neverBundle: ['pino', 'fast-redact'],
+    neverBundle: ['pino', 'fast-redact', 'zod'],
   },
   sourcemap: true,
   clean: true,
