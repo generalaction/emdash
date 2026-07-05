@@ -590,4 +590,40 @@ describe('PreviewServerService', () => {
       'preview:ssh:auto:project-1:workspace-1:connection-1:5173',
     ]);
   });
+
+  it('lists and stops previews across all projects and workspaces', async () => {
+    const context = createService();
+    const local = await context.service.registerDetectedTarget({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      transport: 'local',
+      source: { kind: 'terminal-output', terminalId: 'terminal-1' },
+      protocol: 'http:',
+      host: 'localhost',
+      port: 5173,
+      urlPath: '/',
+    });
+    const forwarded = await context.service.registerDetectedTarget({
+      projectId: 'project-2',
+      workspaceId: 'workspace-2',
+      connectionId: 'connection-1',
+      transport: 'ssh',
+      proxy: fakeProxy(),
+      source: { kind: 'terminal-output', terminalId: 'terminal-2' },
+      protocol: 'http:',
+      port: 5174,
+      urlPath: '/',
+    });
+
+    expect(context.service.listAll()).toEqual([local, forwarded]);
+
+    await context.service.stopAll();
+
+    expect(context.service.listAll()).toEqual([]);
+    expect(context.events).toContainEqual({ type: 'remove', id: local.id });
+    expect(context.events).toContainEqual({ type: 'remove', id: forwarded.id });
+    expect(context.closedTunnelIds).toEqual([
+      'preview:ssh:auto:project-2:workspace-2:connection-1:5174',
+    ]);
+  });
 });
