@@ -15,6 +15,7 @@ import {
   getTaskManagerStore,
   taskDisplayName,
 } from '@renderer/features/tasks/stores/task-selectors';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Badge } from '@renderer/lib/ui/badge';
@@ -28,6 +29,7 @@ import { previewServerUrl } from '@shared/core/preview-servers/types';
 export const PreviewServersSettingsCard = observer(function PreviewServersSettingsCard() {
   const [servers, setServers] = useState<PreviewServer[]>([]);
   const showConfirm = useShowModal('confirmActionModal');
+  const { toast } = useToast();
 
   useEffect(() => {
     let disposed = false;
@@ -73,7 +75,13 @@ export const PreviewServersSettingsCard = observer(function PreviewServersSettin
                 confirmLabel: 'Stop',
                 variant: 'destructive',
                 onSuccess: () => {
-                  void rpc.previewServers.stopAll();
+                  void rpc.previewServers.stopAll().catch((error: unknown) => {
+                    toast({
+                      title: 'Failed to stop preview servers',
+                      description: String(error),
+                      variant: 'destructive',
+                    });
+                  });
                 },
               });
             }}

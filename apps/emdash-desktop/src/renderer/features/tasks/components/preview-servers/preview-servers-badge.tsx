@@ -1,6 +1,8 @@
 import { ChevronDown, Globe, Loader2, Square } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
+import { useToast } from '@renderer/lib/hooks/use-toast';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +29,8 @@ export const PreviewServersBadge = observer(function PreviewServersBadge({
   servers: PreviewServer[];
 }) {
   const previews = usePreviewServers();
+  const showConfirm = useShowModal('confirmActionModal');
+  const { toast } = useToast();
   const summaryKind = previewServersSummaryStatusKind(servers);
   const isBusy = summaryKind === 'starting' || summaryKind === 'reconnecting';
 
@@ -79,7 +83,27 @@ export const PreviewServersBadge = observer(function PreviewServersBadge({
           </DropdownMenuSub>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={() => void previews.stopAll()}>
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={() => {
+            const count = servers.length;
+            showConfirm({
+              title: 'Stop workspace preview servers?',
+              description: `This will stop ${count === 1 ? 'the running preview server' : `all ${count} running preview servers`} in this workspace.`,
+              confirmLabel: 'Stop All',
+              variant: 'destructive',
+              onSuccess: () => {
+                void previews.stopAll().catch((error: unknown) => {
+                  toast({
+                    title: 'Failed to stop preview servers',
+                    description: String(error),
+                    variant: 'destructive',
+                  });
+                });
+              },
+            });
+          }}
+        >
           <Square className="size-3.5" />
           Stop All Servers
         </DropdownMenuItem>
