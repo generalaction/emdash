@@ -1,0 +1,41 @@
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_932a5f027360c2::t_963f54b59d76be 65,112,128-129,508
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-selection-context-popover.tsx
+  s_932a5f027360c2::t_cb540ac5d8b32e 1-48
+apps/emdash-desktop/src/renderer/features/tasks/conversations/add-context-popover.tsx
+  s_932a5f027360c2::t_6a22ffd61b7597 20
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-pty-content.tsx
+  s_932a5f027360c2::t_8e43d2c9960a8e 98-99
+  s_932a5f027360c2::t_b5f86f486caac2 2
+  s_932a5f027360c2::t_5c24f74780b0ee 14,28-29,44-45,53-56,101-108,153
+  s_932a5f027360c2::t_15acfcc48be71a 155-161
+  s_932a5f027360c2::t_8b4604b779d997 100
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-bar.tsx
+  s_932a5f027360c2::t_e9c12662ca2482 58-59
+apps/emdash-desktop/src/renderer/lib/pty/pty-pane.tsx
+  s_932a5f027360c2::t_91d53c8bc6ef89 41,140,182
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-panel.tsx
+  s_932a5f027360c2::t_2a74682d40cde2 7,19
+  s_932a5f027360c2::t_fa03febed08494 130-131,137,140
+  s_932a5f027360c2::t_c26abbc9bc7d99 186-187
+  s_932a5f027360c2::t_aea6cdeaf96efa 5
+  s_932a5f027360c2::t_af934cf448f667 71-82
+  s_932a5f027360c2::t_23253fe1d5ec1d 129,132-136,138-139,141-142
+  s_932a5f027360c2::t_53c182640fc1c7 30-33,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e4a53e9cfc9bbd485674878e097849d3b459039a",
+  "prompts": {},
+  "sessions": {
+    "s_932a5f027360c2": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f3300-de65-7ddc-bf67-3bd65a4b2dd8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
