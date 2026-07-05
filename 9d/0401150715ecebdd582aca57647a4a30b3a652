@@ -1,0 +1,78 @@
+apps/emdash-desktop/src/renderer/features/mcp/components/McpModal.tsx
+  s_2c6cf444fc5654::t_ef79c9e8a5a4d5 131,139,185,198,217
+  s_5aeb53a299828a::t_1f3717e76f26a0 47
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_e70f9ccbb7cebb::t_91c6c05c46d9eb 105,315-443
+  s_e70f9ccbb7cebb::t_356dc9ce1888f0 444-445
+apps/emdash-desktop/src/main/core/mcp/controller.ts
+  s_5aeb53a299828a::t_1f3717e76f26a0 77,79,82
+  s_0a4eeece3de2ea::t_61206c02176bb4 78,80-81,83-86
+apps/emdash-desktop/src/renderer/features/mcp/components/McpView.tsx
+  s_2c6cf444fc5654::t_ef79c9e8a5a4d5 14-15,28,45,48-51,143,146,153-154,156-157,159,161-167,175
+  s_5aeb53a299828a::t_1f3717e76f26a0 19,23-24,46-47,73,142,144-145,147-152,155,158,160,168-169
+  s_597713b2840cd8::t_3182fdff3cf758 5,170-174,176-177
+apps/emdash-desktop/src/renderer/features/mcp/components/useMcps.ts
+  s_5aeb53a299828a::t_1f3717e76f26a0 8,15,17,20,50-52,54-55,57-59,63,70,91,142,146-147
+  s_2c6cf444fc5654::t_ef79c9e8a5a4d5 6-7,9-11,49,53,56,60-62,64,68-69,71
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_5aeb53a299828a::t_1f3717e76f26a0 152
+apps/emdash-desktop/src/shared/core/mcp/types.ts
+  s_5aeb53a299828a::t_1f3717e76f26a0 37-38,47
+  s_0a4eeece3de2ea::t_61206c02176bb4 39,48
+  s_0a4eeece3de2ea::t_93a6d32e859c1d 49-50
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_0a4eeece3de2ea::t_61206c02176bb4 6-8,10-13,23-35,38-43,47-48,52,54-55,59,75-77,79-80,89,96,102-104,109-111,122,124-125,140-142,209-214,219-222,228-232,237
+  s_5aeb53a299828a::t_1f3717e76f26a0 9,21-22,36-37,44-46,49-51,53,56-58,60-74,78,81-88,90-95,97-101,105-108,112-121,123,126-139,215-217,223-227
+  s_0a4eeece3de2ea::t_52baa920c7bf9e 233-236
+  s_0a4eeece3de2ea::t_8f458a42f9d44d 238-240
+apps/emdash-desktop/src/main/core/mcp/utils/catalog.ts
+  s_0a4eeece3de2ea::t_61206c02176bb4 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9d0401150715ecebdd582aca57647a4a30b3a652",
+  "prompts": {},
+  "sessions": {
+    "s_0a4eeece3de2ea": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033kKojIo1HZbpE6Q7CPYR",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_2c6cf444fc5654": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033kKqN0P44xe6KpD7jRCW",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_597713b2840cd8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3360-415a-79b3-a051-4824eac02bfa",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_5aeb53a299828a": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033kLcbleMvXXgUkgNDXDC",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e70f9ccbb7cebb": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033kLhk3oVN4Z7d6UaxqtK",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
