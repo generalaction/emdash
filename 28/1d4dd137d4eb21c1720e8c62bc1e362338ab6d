@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-servers-badge.tsx
+  s_0bf4fb29dc69dd::t_832c972eafd85c 4-5,32-33,86-106
+apps/emdash-desktop/src/renderer/features/settings/components/PreviewServersSettingsCard.tsx
+  s_0bf4fb29dc69dd::t_5aab065c2bdcaf 18,32,78-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "281d4dd137d4eb21c1720e8c62bc1e362338ab6d",
+  "prompts": {},
+  "sessions": {
+    "s_0bf4fb29dc69dd": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f31dc-6183-78fb-92e5-b04b546953e6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
