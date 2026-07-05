@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -38,6 +38,8 @@ export const SHELL_ENV_CAPTURE_GUARD: Record<string, string> = {
 };
 
 const USER_BIN_DIRS = [path.join(os.homedir(), '.local', 'bin')];
+const SHELL_ENV_CAPTURE_TIMEOUT_MS = 5_000;
+const SHELL_ENV_CAPTURE_MAX_BUFFER = 1024 * 1024;
 
 function pathEntryExists(entry: string): boolean {
   try {
@@ -98,6 +100,79 @@ export function ensureWindowsNpmGlobalBinInPath(
   return prependWindowsPathEntry(env, npmPath) ? npmPath : null;
 }
 
+function stopShellEnvProbe(child: ReturnType<typeof spawn>): void {
+  const pid = child.pid;
+  if (pid && process.platform !== 'win32') {
+    try {
+      process.kill(-pid, 'SIGTERM');
+    } catch {
+      child.kill('SIGTERM');
+    }
+
+    const killTimer = setTimeout(() => {
+      try {
+        process.kill(-pid, 'SIGKILL');
+      } catch {
+        child.kill('SIGKILL');
+      }
+    }, 1_000);
+    killTimer.unref?.();
+    return;
+  }
+
+  child.kill('SIGTERM');
+}
+
+function captureLoginShellEnv(shell: string, baseEnv: NodeJS.ProcessEnv): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(shell, ['-ilc', 'env'], {
+      env: {
+        ...baseEnv,
+        ...SHELL_ENV_CAPTURE_GUARD,
+      },
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let settled = false;
+
+    const timeout = setTimeout(() => {
+      stopShellEnvProbe(child);
+      settle(
+        new Error(`login-shell env capture timed out after ${SHELL_ENV_CAPTURE_TIMEOUT_MS}ms`)
+      );
+    }, SHELL_ENV_CAPTURE_TIMEOUT_MS);
+    timeout.unref?.();
+
+    function settle(error: Error | null, value = '') {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (error) reject(error);
+      else resolve(value);
+    }
+
+    child.stdout.setEncoding('utf8');
+    child.stderr.resume();
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+      if (stdout.length > SHELL_ENV_CAPTURE_MAX_BUFFER) {
+        stopShellEnvProbe(child);
+        settle(new Error(`login-shell env capture exceeded ${SHELL_ENV_CAPTURE_MAX_BUFFER} bytes`));
+      }
+    });
+
+    child.once('error', (error) => {
+      settle(error);
+    });
+
+    child.once('close', () => {
+      settle(null, stdout);
+    });
+  });
+}
+
 /**
  * Spawns `$SHELL -ilc 'env'` with a 5 s timeout. On any error (timeout,
  * missing shell, restricted environment) the function logs a warning and
@@ -123,22 +198,7 @@ export async function resolveUserEnv(): Promise<void> {
     // the probe shell. Otherwise login-shell hooks that resolve a binary by
     // name through PATH (mise/starship/oh-my-zsh) can re-enter the AppImage
     // and fork-bomb the app on Linux. See #1679.
-    const shellEnvProbeOptions = {
-      encoding: 'utf8' as const,
-      timeout: 5_000,
-      maxBuffer: 1024 * 1024,
-      env: {
-        ...baseEnv,
-        ...SHELL_ENV_CAPTURE_GUARD,
-      },
-      detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
-    };
-    const result = spawnSync(shell, ['-ilc', 'env'], shellEnvProbeOptions);
-    if (result.error) {
-      throw result.error;
-    }
-    const raw = result.stdout;
+    const raw = await captureLoginShellEnv(shell, baseEnv);
     const shellEnv = parseEnvOutput(raw);
 
     for (const [key, value] of Object.entries(shellEnv)) {

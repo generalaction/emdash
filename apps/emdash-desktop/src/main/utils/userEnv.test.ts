@@ -1,12 +1,13 @@
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const spawnSyncMock = vi.fn();
+const spawnMock = vi.fn();
 
 vi.mock('node:child_process', () => ({
-  spawnSync: spawnSyncMock,
+  spawn: spawnMock,
 }));
 
 const { ensureUserBinDirsInPath, ensureWindowsNpmGlobalBinInPath, resolveUserEnv } =
@@ -14,14 +15,42 @@ const { ensureUserBinDirsInPath, ensureWindowsNpmGlobalBinInPath, resolveUserEnv
 
 const originalPath = process.env.PATH;
 
+type MockPipe = EventEmitter & {
+  resume: ReturnType<typeof vi.fn>;
+  setEncoding: ReturnType<typeof vi.fn>;
+};
+
+type MockChild = EventEmitter & {
+  stdout: MockPipe;
+  stderr: MockPipe;
+  kill: ReturnType<typeof vi.fn>;
+  pid: number;
+};
+
+function createMockPipe(): MockPipe {
+  const pipe = new EventEmitter() as MockPipe;
+  pipe.resume = vi.fn();
+  pipe.setEncoding = vi.fn();
+  return pipe;
+}
+
+function createMockChild(): MockChild {
+  const child = new EventEmitter() as MockChild;
+  child.stdout = createMockPipe();
+  child.stderr = createMockPipe();
+  child.kill = vi.fn();
+  child.pid = 12345;
+  return child;
+}
+
 function mockShellCapture(stdout: string): void {
-  spawnSyncMock.mockImplementationOnce(() => {
-    return {
-      error: undefined,
-      status: 0,
-      stderr: '',
-      stdout,
-    };
+  spawnMock.mockImplementationOnce(() => {
+    const child = createMockChild();
+    process.nextTick(() => {
+      child.stdout.emit('data', stdout);
+      child.emit('close', 0, null);
+    });
+    return child;
   });
 }
 
@@ -80,7 +109,7 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
   > = {};
 
   beforeEach(() => {
-    spawnSyncMock.mockReset();
+    spawnMock.mockReset();
     mockShellCapture('');
     for (const key of [...SCRUBBED_KEYS, ...PATH_LIKE_KEYS]) {
       savedEnv[key] = process.env[key];
@@ -95,7 +124,7 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
   });
 
   it('strips AppImage runtime vars and /tmp/.mount_* path entries from the probe shell env and final PATH', async () => {
-    spawnSyncMock.mockReset();
+    spawnMock.mockReset();
     mockShellCapture('PATH=/usr/local/bin:/usr/bin\n');
     process.env.APPIMAGE = '/home/user/emdash.AppImage';
     process.env.APPDIR = '/tmp/.mount_emdashTest';
@@ -109,8 +138,8 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
 
     await resolveUserEnv();
 
-    expect(spawnSyncMock).toHaveBeenCalledTimes(1);
-    const opts = spawnSyncMock.mock.calls[0]?.[2] as
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    const opts = spawnMock.mock.calls[0]?.[2] as
       | {
           detached?: boolean;
           env?: NodeJS.ProcessEnv;
@@ -131,5 +160,23 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
     // Helper hint vars must still be set so oh-my-zsh / tmux plugins stay quiet.
     expect(probeEnv.DISABLE_AUTO_UPDATE).toBe('true');
     expect(probeEnv.ZSH_TMUX_AUTOSTART).toBe('false');
+  });
+
+  it('times out a stuck login-shell env capture without blocking startup', async () => {
+    vi.useFakeTimers();
+    spawnMock.mockReset();
+    const child = createMockChild();
+    spawnMock.mockReturnValueOnce(child);
+    const killProcessGroup = vi.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = resolveUserEnv();
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(result).resolves.toBeUndefined();
+      expect(killProcessGroup).toHaveBeenCalledWith(-child.pid, 'SIGTERM');
+    } finally {
+      killProcessGroup.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });
