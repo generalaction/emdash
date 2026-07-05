@@ -1,0 +1,183 @@
+packages/plugins/src/agents/impl/antigravity/index.ts
+  s_34293dd48e6fe0::t_a9360274068267 88-92
+  s_34293dd48e6fe0::t_3f0ea54876913a 2
+  s_34293dd48e6fe0::t_cf1543b19a5009 108
+packages/plugins/src/agents/impl/mimocode/index.ts
+  s_34293dd48e6fe0::t_9030456981fdb1 4
+  s_34293dd48e6fe0::t_b9c811af7e3828 81
+  s_34293dd48e6fe0::t_e1faa8bf4d524f 53-57
+apps/emdash-desktop/src/main/core/agents/plugin-fs.ts
+  s_34293dd48e6fe0::t_602fd8778bd046 71-92
+packages/core/src/agents/plugins/helpers/skills.ts
+  s_34293dd48e6fe0::t_b0e7855cc9b0f7 2-191
+  s_34293dd48e6fe0::t_3f0ea54876913a 1
+apps/emdash-desktop/src/main/core/skills/http-client.ts
+  s_34293dd48e6fe0::t_0ba704afd39a91 1-73
+packages/plugins/src/agents/impl/hermes/index.ts
+  s_34293dd48e6fe0::t_3f0ea54876913a 2
+  s_34293dd48e6fe0::t_bf4bd0f4d1f5c1 67
+  s_34293dd48e6fe0::t_1d0d646a6be127 50-54
+apps/emdash-desktop/src/main/core/skills/skill-mirrors.test.ts
+  s_34293dd48e6fe0::t_77fdf892ca8c52 1-118
+apps/emdash-desktop/src/main/core/skills/SkillsService.test.ts
+  s_34293dd48e6fe0::t_6f425f22056475 5,7,9-10,18-19,27,34
+apps/emdash-desktop/src/main/core/skills/sources/openai-source.ts
+  s_34293dd48e6fe0::t_59bcf8c4dda98c 1-126
+apps/emdash-desktop/src/main/core/skills/sources/registry.ts
+  s_34293dd48e6fe0::t_8431157f8da5c2 1-21
+apps/emdash-desktop/src/main/core/skills/skillssh-installs-store.ts
+  s_34293dd48e6fe0::t_eecbdf0a6eb716 1-77
+packages/plugins/src/agents/impl/commandcode/index.ts
+  s_34293dd48e6fe0::t_bff0d7adca3fbb 40-44
+  s_34293dd48e6fe0::t_95c45de82e28e3 2-6
+  s_34293dd48e6fe0::t_7e93682e79d994 62
+packages/plugins/src/agents/impl/pi/index.ts
+  s_34293dd48e6fe0::t_501edce13066f8 4
+  s_34293dd48e6fe0::t_3e890c5df15874 43-47
+  s_34293dd48e6fe0::t_5aba9e6b85b5e5 63
+packages/plugins/src/agents/impl/devin/index.ts
+  s_34293dd48e6fe0::t_717a892d875972 57-61
+  s_34293dd48e6fe0::t_1da8a20f75d6b6 76
+  s_34293dd48e6fe0::t_3f0ea54876913a 2
+packages/core/src/agents/plugins/index.ts
+  s_34293dd48e6fe0::t_79505e98903011 14,28
+  s_34293dd48e6fe0::t_3e6ca8d0370b7c 84-89
+apps/emdash-desktop/src/main/core/skills/skills-paths.ts
+  s_34293dd48e6fe0::t_718609bac9f24c 1-21
+packages/core/src/agents/plugins/helpers/index.ts
+  s_34293dd48e6fe0::t_25e10512946ce2 11
+packages/plugins/src/agents/impl/qwen/index.ts
+  s_34293dd48e6fe0::t_3dcae91787855e 41-45
+  s_34293dd48e6fe0::t_380bb3ba74321a 4
+  s_34293dd48e6fe0::t_8fdf5935d33256 64
+packages/plugins/src/agents/impl/kimi/index.ts
+  s_34293dd48e6fe0::t_30d3992812fb06 97
+  s_34293dd48e6fe0::t_9b1f3b3e4a279d 80-84
+  s_34293dd48e6fe0::t_3f0ea54876913a 3
+packages/plugins/src/agents/impl/claude/index.ts
+  s_34293dd48e6fe0::t_207a66ed068d11 7
+  s_34293dd48e6fe0::t_2f05884e6f3b4d 166
+  s_34293dd48e6fe0::t_4cb8f1f9a80563 122-126
+packages/plugins/src/agents/impl/auggie/index.ts
+  s_34293dd48e6fe0::t_e471e14e412f3b 54
+  s_34293dd48e6fe0::t_0bf977da112758 32-36
+  s_34293dd48e6fe0::t_7b7fc8b957366e 2-6
+packages/plugins/src/agents/impl/autohand/index.ts
+  s_34293dd48e6fe0::t_b34737e6341794 2-6
+  s_34293dd48e6fe0::t_ee401e8e208484 29-33
+  s_34293dd48e6fe0::t_3ac231242d5e22 46
+apps/emdash-desktop/src/main/core/skills/sources/index.ts
+  s_34293dd48e6fe0::t_79325f031917cd 1-16
+packages/plugins/src/agents/impl/codex/index.ts
+  s_34293dd48e6fe0::t_edffddcca8c7d5 8
+  s_34293dd48e6fe0::t_a46f9a70a37c8b 130
+  s_34293dd48e6fe0::t_a0dfbfe5c592fc 87-91
+apps/emdash-desktop/src/main/core/agents/remote-plugin-fs.ts
+  s_34293dd48e6fe0::t_b42b143798d1b1 85-86
+  s_34293dd48e6fe0::t_3ef7fd9f761669 74-84,87-97
+packages/core/src/agents/plugins/helpers/skills.test.ts
+  s_34293dd48e6fe0::t_387f266437ff8e 1-57,62-188
+  s_34293dd48e6fe0::t_3f0ea54876913a 58-61
+apps/emdash-desktop/src/main/core/skills/sources/types.ts
+  s_34293dd48e6fe0::t_01d0625fb15644 1-13
+packages/core/src/agents/runtime/fs.ts
+  s_34293dd48e6fe0::t_568e6d1ac5ae0d 7-18
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_34293dd48e6fe0::t_06fa985798e5e5 4
+  s_34293dd48e6fe0::t_85fd39cf51cd14 49-53
+  s_34293dd48e6fe0::t_a8ea79539177a5 71
+packages/core/src/agents/plugins/capabilities/skills.ts
+  s_34293dd48e6fe0::t_deec655f13e3c6 1-56
+packages/plugins/src/agents/impl/qoder/index.ts
+  s_34293dd48e6fe0::t_fbd6be20cdb2ec 60-64
+  s_34293dd48e6fe0::t_90d7fa63715f5b 82
+  s_34293dd48e6fe0::t_2100a70dfc34cb 2-6
+packages/plugins/src/agents/impl/opencode/index.ts
+  s_34293dd48e6fe0::t_1294ff699d12af 77
+  s_34293dd48e6fe0::t_0d3a9ed45e4ea2 49-53
+  s_34293dd48e6fe0::t_f51913a155c74a 4
+packages/plugins/src/agents/impl/copilot/index.ts
+  s_34293dd48e6fe0::t_50b251c5785729 68
+  s_34293dd48e6fe0::t_e31347c53f87d7 5
+  s_34293dd48e6fe0::t_96ceb09dd62e14 45-49
+skills-refactor-plan.md
+  s_34293dd48e6fe0::t_7d3a784a37253c 2-6,34-41,43,45,51-58,61-64,66-68,122-124,127,132-145,148-152,167-169,173-174,177-189,194,200-201,203-205,207
+  s_34293dd48e6fe0::t_2cd8dedb6386e7 1,7-33,42,44,46-50,59-60,65,69-121,125-126,128-131,146-147,153-166,170-172,175-176,190-193,195-199,202,206
+packages/plugins/src/agents/impl/cline/index.ts
+  s_34293dd48e6fe0::t_7e18d146be0e02 29-33
+  s_34293dd48e6fe0::t_01ea3e8817c389 2-6
+  s_34293dd48e6fe0::t_8cf8fd27f4c85a 46
+packages/plugins/src/agents/impl/continue/index.ts
+  s_34293dd48e6fe0::t_8fc5f67eaaa14d 58-62
+  s_34293dd48e6fe0::t_c6334bb6bf3100 76
+  s_34293dd48e6fe0::t_3f0ea54876913a 2
+packages/plugins/src/agents/impl/mistral/index.ts
+  s_34293dd48e6fe0::t_76627fcb57bd26 58-62
+  s_34293dd48e6fe0::t_3f0ea54876913a 2
+  s_34293dd48e6fe0::t_fb9990c889b1f8 76
+packages/plugins/src/agents/impl/goose/index.ts
+  s_34293dd48e6fe0::t_1ef0b3981b26db 2
+  s_34293dd48e6fe0::t_59943363a73c8a 71-75
+  s_34293dd48e6fe0::t_b4cb435669eada 138
+packages/plugins/src/agents/impl/kiro/index.ts
+  s_34293dd48e6fe0::t_aa7a15262b16ad 57-61
+  s_34293dd48e6fe0::t_c17c08a3c65b1e 80
+  s_34293dd48e6fe0::t_3f0ea54876913a 2
+packages/plugins/src/agents/impl/amp/index.ts
+  s_34293dd48e6fe0::t_955d9a3a89f591 5
+  s_34293dd48e6fe0::t_340132b41e1790 95
+  s_34293dd48e6fe0::t_80bec6ac6c1ebc 70-74
+packages/plugins/src/agents/impl/droid/index.ts
+  s_34293dd48e6fe0::t_e8cb7a3295c7d9 95
+  s_34293dd48e6fe0::t_b2e849ffcbb18e 2-6
+  s_34293dd48e6fe0::t_cef217b7aebd0d 69-73
+apps/emdash-desktop/src/main/core/skills/sources/anthropic-source.ts
+  s_34293dd48e6fe0::t_ab472f859da55f 1-70
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_34293dd48e6fe0::t_8d9ac023fd9951 3,12-37,41,43-48,73,83-85,88-89,123,125-130,132-135,137,139-147,149-172,190,195-204,225,242,248-249,251,255-256,260,284,288-289,307-311,313-314,339-340,357,364,393-397,399-400,402,404,407-425,428-434,437-440,456,460,463-464,468,476,497,499,507,511
+packages/plugins/src/agents/impl/cursor/index.ts
+  s_34293dd48e6fe0::t_e760cb02967955 2-6
+  s_34293dd48e6fe0::t_aa6de04b06d0dd 64-68
+  s_34293dd48e6fe0::t_a44254e9a4ad8a 84
+packages/plugins/src/agents/impl/rovo/index.ts
+  s_34293dd48e6fe0::t_24ae0efa4e1abb 46-50
+  s_34293dd48e6fe0::t_9b5055925d8538 62
+  s_34293dd48e6fe0::t_3f0ea54876913a 2
+apps/emdash-desktop/src/main/core/skills/sources/skillssh-source.ts
+  s_34293dd48e6fe0::t_dddbaeb58a1ae7 1-2,4-146,150-288
+  s_34293dd48e6fe0::t_3f0ea54876913a 3,147-149
+apps/emdash-desktop/src/main/core/skills/sources/sources.test.ts
+  s_34293dd48e6fe0::t_3f0ea54876913a 49-51
+  s_34293dd48e6fe0::t_e52ba61d09ee8e 1-48,52-78
+packages/plugins/src/agents/impl/junie/index.ts
+  s_34293dd48e6fe0::t_fd25b92d27d686 65
+  s_34293dd48e6fe0::t_3f0ea54876913a 2
+  s_34293dd48e6fe0::t_fab02b4564e2a1 48-52
+apps/emdash-desktop/src/main/core/skills/skill-mirrors.ts
+  s_34293dd48e6fe0::t_7f0eb5ba1ec338 1-40,46-50,52-73,78-107
+  s_34293dd48e6fe0::t_bcbc519a548cbd 41-43,51
+  s_34293dd48e6fe0::t_3f0ea54876913a 44-45,74-77
+packages/plugins/src/agents/impl/gemini/index.ts
+  s_34293dd48e6fe0::t_fd85cdbd1b9be8 55
+  s_34293dd48e6fe0::t_c20cd354763135 4
+  s_34293dd48e6fe0::t_18b284aadf98f3 35-39
+apps/emdash-desktop/src/main/core/skills/skill-mirror-integration.test.ts
+  s_34293dd48e6fe0::t_df364c23767485 89-91
+  s_34293dd48e6fe0::t_ab0cf1352fdfa8 1-88,92-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "543dcc8aa536815c24dd952a477abb29734c2781",
+  "prompts": {},
+  "sessions": {
+    "s_34293dd48e6fe0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d115b4b4-05bd-4f65-94da-56f01a0f4ada",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
