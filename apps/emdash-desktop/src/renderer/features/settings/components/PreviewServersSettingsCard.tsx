@@ -16,6 +16,7 @@ import {
   taskDisplayName,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -26,6 +27,7 @@ import { previewServerUrl } from '@shared/core/preview-servers/types';
 
 export const PreviewServersSettingsCard = observer(function PreviewServersSettingsCard() {
   const [servers, setServers] = useState<PreviewServer[]>([]);
+  const showConfirm = useShowModal('confirmActionModal');
 
   useEffect(() => {
     let disposed = false;
@@ -63,7 +65,18 @@ export const PreviewServersSettingsCard = observer(function PreviewServersSettin
             type="button"
             variant="ghost"
             className="hover:bg-destructive/10 text-foreground-destructive hover:text-foreground-destructive"
-            onClick={() => void rpc.previewServers.stopAll()}
+            onClick={() => {
+              const count = servers.length;
+              showConfirm({
+                title: 'Stop preview servers',
+                description: `This will stop ${count === 1 ? 'the running preview server' : `all ${count} running preview servers`}.`,
+                confirmLabel: 'Stop',
+                variant: 'destructive',
+                onSuccess: () => {
+                  void rpc.previewServers.stopAll();
+                },
+              });
+            }}
           >
             <SquareIcon className="size-3 fill-current" />
             Stop all
