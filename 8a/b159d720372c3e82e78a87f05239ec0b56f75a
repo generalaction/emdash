@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/main/core/preview-servers/controller.ts
+  s_fc8ff6b1d7b32c::t_59e1f48380f232 9-10,19
+  s_fc8ff6b1d7b32c::t_1fac38eb5c4669 20
+apps/emdash-desktop/src/main/core/preview-servers/preview-server-service.ts
+  s_fc8ff6b1d7b32c::t_9ec7855df78a7e 377-381
+  s_fc8ff6b1d7b32c::t_c35f4f7ec9997d 185-188
+apps/emdash-desktop/src/main/core/preview-servers/preview-server-service.test.ts
+  s_fc8ff6b1d7b32c::t_2aa62fa24a5499 593-628
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8ab159d720372c3e82e78a87f05239ec0b56f75a",
+  "prompts": {},
+  "sessions": {
+    "s_fc8ff6b1d7b32c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0ab461da-7b96-4ae4-bf41-f575d6f0c54f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
