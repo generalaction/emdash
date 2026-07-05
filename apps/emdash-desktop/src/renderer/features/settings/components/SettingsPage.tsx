@@ -10,6 +10,7 @@ import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
+import { PreviewServersSettingsCard } from './PreviewServersSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import SidebarMetadataSettingsCard from './SidebarMetadataSettingsCard';
@@ -89,9 +90,10 @@ function ConnectionsSettingsPage() {
       <PageHeader
         sticky
         title="Connections"
-        description="Manage reusable SSH connections for remote projects."
+        description="Manage reusable SSH connections and running preview servers."
       />
       <SshConnectionsSettingsCard />
+      <PreviewServersSettingsCard />
     </div>
   );
 }
