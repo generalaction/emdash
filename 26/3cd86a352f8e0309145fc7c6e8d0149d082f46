@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/components/PreviewServersSettingsCard.tsx
+  s_d07fb6b7ec8eb3::t_a918a18f18e61c 19,30,68-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "263cd86a352f8e0309145fc7c6e8d0149d082f46",
+  "prompts": {},
+  "sessions": {
+    "s_d07fb6b7ec8eb3": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f31b7-0ac2-729d-89c3-93a8f8b3fe04",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
