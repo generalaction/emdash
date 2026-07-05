@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-store.ts
+  s_147f136aa0aa3e::t_09d53e52a6e25d 1,89-91,93-100
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-store.test.ts
+  s_147f136aa0aa3e::t_7979751d8194e5 217-227,233,235,247,256-269
+  s_147f136aa0aa3e::t_5b31d62e259644 11-15
+  s_63f2e28954e246::t_44b259ffa92dd9 270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2aee717590dbfe5c97f5466e9a8fb66513f7f163",
+  "prompts": {},
+  "sessions": {
+    "s_147f136aa0aa3e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f287b-a212-7411-8f45-fa8c9c9a3298",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_63f2e28954e246": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f284b-c8c4-73f1-9b84-df08fd88e383",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
