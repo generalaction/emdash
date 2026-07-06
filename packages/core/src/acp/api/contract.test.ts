@@ -2,6 +2,7 @@ import { isOk } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { makeAcpHarness, makeStartInput } from '../acp-test-support';
 import { sessionConfigStateSchema } from '../models/config';
+import { promptDraftSchema } from '../models/prompt';
 import { sessionStateSchema } from '../models/session';
 import { transcriptTurnSchema } from '../models/turns';
 import { AcpRuntime } from '../runtime/runtime';
@@ -21,5 +22,6 @@ describe('ACP API contract schemas', () => {
     expect(() =>
       transcriptTurnSchema.nullable().parse(live.activeTurn.snapshot().data)
     ).not.toThrow();
+    expect(() => promptDraftSchema.nullable().parse(live.draft.snapshot().data)).not.toThrow();
   });
 });

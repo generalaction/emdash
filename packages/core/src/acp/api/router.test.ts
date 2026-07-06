@@ -13,6 +13,10 @@ type Proc<I = unknown, O = unknown> = Client<Record<never, never>, I, O, unknown
 type TestAcpClient = {
   startSession: Proc<{ input: ReturnType<typeof makeStartInput> }>;
   sendPrompt: Proc<{ conversationId: string; prompt: { text: string } }>;
+  setPromptDraft: Proc<{
+    conversationId: string;
+    draft: { rev: number; input: { text: string } | null };
+  }>;
   exportACPTranscript: Proc<{ conversationId: string }, { success: boolean; data?: string }>;
   exportRawAcpLog: Proc<{ conversationId: string }, { success: boolean; data?: string }>;
   live: {
@@ -21,6 +25,12 @@ type TestAcpClient = {
     };
     activeTurn: {
       subscribe: Proc<{ conversationId: string }, AsyncIterator<{ delta: unknown }>>;
+    };
+    promptDraft: {
+      snapshot: Proc<
+        { conversationId: string },
+        { data: { text: string; rev: number; updatedAt: number } | null }
+      >;
     };
     terminals: {
       snapshot: Proc<
@@ -107,6 +117,25 @@ describe('createAcpRouter', () => {
     resolvePrompt({ stopReason: 'end_turn' });
     await prompt;
     await updates.return?.(undefined);
+  });
+
+  it('serves prompt drafts through the runtime contract', async () => {
+    const h = makeAcpHarness();
+    const runtime = new AcpRuntime(h.deps);
+    const client = makeClient(runtime);
+
+    await client.startSession({ input: makeStartInput({ conversationId: 'conv-draft-router' }) });
+    const saved = await client.setPromptDraft({
+      conversationId: 'conv-draft-router',
+      draft: { rev: 1, input: { text: 'draft text' } },
+    });
+    expect(saved).toEqual({ success: true, data: undefined });
+
+    const snapshot = await client.live.promptDraft.snapshot({
+      conversationId: 'conv-draft-router',
+    });
+    expect(snapshot.data).toMatchObject({ text: 'draft text', rev: 1 });
+    expect(snapshot.data?.updatedAt).toEqual(expect.any(Number));
   });
 
   it('exports parsed transcript and raw ACP log over a message port', async () => {

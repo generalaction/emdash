@@ -3,6 +3,7 @@ import { createLiveLogContract, createLiveModelContract } from '../../live';
 import { agentStateSchema } from '../models/agents';
 import { sessionConfigStateSchema } from '../models/config';
 import { planStateSchema } from '../models/plan';
+import { promptDraftSchema } from '../models/prompt';
 import { sessionStateSchema, sessionSummarySchema } from '../models/session';
 import { terminalStateSchema } from '../models/terminals';
 import { transcriptTurnSchema } from '../models/turns';
@@ -33,6 +34,11 @@ export const acpLiveContract = {
     unsubscribeInput: conversationInput,
   }),
   activeTurn: createLiveModelContract(transcriptTurnSchema.nullable(), {
+    snapshotInput: conversationInput,
+    subscribeInput: conversationInput,
+    unsubscribeInput: conversationInput,
+  }),
+  promptDraft: createLiveModelContract(promptDraftSchema.nullable(), {
     snapshotInput: conversationInput,
     subscribeInput: conversationInput,
     unsubscribeInput: conversationInput,

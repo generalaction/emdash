@@ -192,7 +192,7 @@ export const router = i.router({
     setModelOption: i.acp.setModelOption.handler(notImplemented),
     setModeOption: i.acp.setModeOption.handler(notImplemented),
     resolvePermission: i.acp.resolvePermission.handler(notImplemented),
-    editCurrentPrompt: i.acp.editCurrentPrompt.handler(notImplemented),
+    setPromptDraft: i.acp.setPromptDraft.handler(notImplemented),
     exportACPTranscript: i.acp.exportACPTranscript.handler(notImplemented),
     exportRawAcpLog: i.acp.exportRawAcpLog.handler(notImplemented),
     uploadAttachment: i.acp.uploadAttachment.handler(notImplemented),
@@ -229,6 +229,11 @@ export const router = i.router({
         snapshot: i.acp.live.activeTurn.snapshot.handler(notImplemented),
         subscribe: i.acp.live.activeTurn.subscribe.handler(notImplemented),
         unsubscribe: i.acp.live.activeTurn.unsubscribe.handler(notImplemented),
+      },
+      promptDraft: {
+        snapshot: i.acp.live.promptDraft.snapshot.handler(notImplemented),
+        subscribe: i.acp.live.promptDraft.subscribe.handler(notImplemented),
+        unsubscribe: i.acp.live.promptDraft.unsubscribe.handler(notImplemented),
       },
       terminals: {
         snapshot: i.acp.live.terminals.snapshot.handler(notImplemented),

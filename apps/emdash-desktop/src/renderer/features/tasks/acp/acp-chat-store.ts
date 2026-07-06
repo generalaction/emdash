@@ -1,6 +1,6 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
 import { connectSession, createChatState, pinTopMode } from '@emdash/chat-ui';
-import type { PromptInput, QueuedPrompt } from '@emdash/core/acp/client';
+import type { PromptDraft, PromptInput, QueuedPrompt } from '@emdash/core/acp/client';
 import type {
   CommandItem,
   ComposerEffortOption,
@@ -50,11 +50,15 @@ export class AcpChatStore {
   historyLoading = true;
   loadError: string | null = null;
   messageCount = 0;
+  draftText = '';
 
   private _view: ChatView | null = null;
   private _bootstrapped = false;
   private _unsubs: Array<() => void> = [];
   private _liveRevision = 0;
+  private _draftRev = 0;
+  private _pendingDraftRev: number | null = null;
+  private _draftTimer: number | null = null;
 
   constructor(
     readonly conversationId: string,
@@ -72,6 +76,7 @@ export class AcpChatStore {
       historyLoading: observable,
       loadError: observable,
       messageCount: observable,
+      draftText: observable,
       _liveRevision: observable,
       model: computed,
       modelOptions: computed,
@@ -94,6 +99,7 @@ export class AcpChatStore {
       deleteQueuedPrompt: action,
       reorderQueuedPrompts: action,
       sendQueuedPromptNow: action,
+      setDraftText: action,
       exportTranscript: action,
       retry: action,
     });
@@ -241,6 +247,14 @@ export class AcpChatStore {
       .catch((error: unknown) => this._toastError('Failed to send message', error));
   }
 
+  setDraftText(text: string): void {
+    if (text === this.draftText) return;
+    this.draftText = text;
+    this._draftRev += 1;
+    this._pendingDraftRev = this._draftRev;
+    this._scheduleDraftWrite(text, this._draftRev);
+  }
+
   stop(): void {
     void this.session
       ?.cancelTurn()
@@ -311,6 +325,10 @@ export class AcpChatStore {
 
   dispose(): void {
     unregisterConversationCommands(this.conversationId);
+    if (this._draftTimer !== null) {
+      window.clearTimeout(this._draftTimer);
+      this._draftTimer = null;
+    }
     this._unsubs.splice(0).forEach((unsub) => unsub());
     this.session?.dispose();
     this.chatState.dispose();
@@ -329,6 +347,7 @@ export class AcpChatStore {
         this.session = clientSession;
         this.chatState.transcript.history.seed(history.data.turns);
         this._subscribeLiveSession(clientSession);
+        this._applyDraftSnapshot(clientSession.draft.getSnapshot());
         this.historyLoading = false;
         this.loadError = null;
         this._syncMessageCount();
@@ -439,8 +458,56 @@ export class AcpChatStore {
           this._liveRevision += 1;
         })
       ),
-      session.activeTurn.subscribe(() => runInAction(() => this._syncMessageCount()))
+      session.activeTurn.subscribe(() => runInAction(() => this._syncMessageCount())),
+      session.draft.subscribe(() =>
+        runInAction(() => {
+          this._applyDraftSnapshot(session.draft.getSnapshot());
+        })
+      )
     );
+  }
+
+  private _scheduleDraftWrite(text: string, rev: number): void {
+    if (this._draftTimer !== null) window.clearTimeout(this._draftTimer);
+    this._draftTimer = window.setTimeout(() => {
+      this._draftTimer = null;
+      const draft = { rev, input: text.trim().length > 0 ? { text } : null };
+      void this.session
+        ?.setPromptDraft(draft)
+        .then((result) => {
+          if (!result.success) this._toastError('Failed to sync draft', result.error);
+          if (result.success && draft.input === null && this._pendingDraftRev === rev) {
+            runInAction(() => {
+              this._pendingDraftRev = null;
+            });
+          }
+        })
+        .catch((error: unknown) => this._toastError('Failed to sync draft', error));
+    }, 300);
+  }
+
+  private _applyDraftSnapshot(draft: PromptDraft | null | undefined): void {
+    if (draft === undefined) return;
+    if (draft === null) {
+      if (this._pendingDraftRev === null) {
+        this._draftRev += 1;
+        this.draftText = '';
+      }
+      return;
+    }
+
+    if (this._pendingDraftRev !== null) {
+      if (draft.rev >= this._pendingDraftRev) {
+        this._draftRev = Math.max(this._draftRev, draft.rev);
+        this._pendingDraftRev = null;
+      }
+      return;
+    }
+
+    if (draft.rev >= this._draftRev) {
+      this._draftRev = draft.rev;
+      this.draftText = draft.text;
+    }
   }
 
   private _bindTerminalOutputs(session: AcpLiveSession): () => void {

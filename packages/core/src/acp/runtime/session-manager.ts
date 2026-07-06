@@ -21,6 +21,7 @@ import { acpErr } from '../errors';
 import type { AgentState } from '../models/agents';
 import type { SessionConfigState } from '../models/config';
 import type { PlanState } from '../models/plan';
+import type { PromptDraft, PromptDraftUpdate } from '../models/prompt';
 import type { SessionState, SessionSummary } from '../models/session';
 import type { TerminalState } from '../models/terminals';
 import type { TranscriptTurn } from '../models/turns';
@@ -47,6 +48,7 @@ interface SessionRecord {
     plan?: PlanState | null;
     agents?: AgentState[];
     activeTurn?: TranscriptTurn | null;
+    draft?: PromptDraft | null;
   };
 }
 
@@ -205,6 +207,12 @@ export class SessionManager implements InboundRouter {
     const record = this.cells.get(conversationId);
     if (!record) return ok();
     return record.cell.cancel();
+  }
+
+  setPromptDraft(conversationId: string, draft: PromptDraftUpdate): Result<void, AcpRuntimeError> {
+    const record = this.cells.get(conversationId);
+    if (!record) return acpErr.conversationNotFound(conversationId);
+    return record.cell.setPromptDraft(draft);
   }
 
   stop(conversationId: string): Result<void, AcpRuntimeError> {
@@ -373,6 +381,7 @@ export class SessionManager implements InboundRouter {
     const callbacks: SessionCellCallbacks = {
       onSessionStateChanged: () => this.syncRecord(record),
       onTranscriptChanged: () => this.syncRecord(record),
+      onDraftChanged: () => this.syncRecord(record),
       onClosed: () => this.removeRecord(input.conversationId, true),
       onSendQueuedPrompt: () => this.syncRecord(record),
     };
@@ -398,6 +407,7 @@ export class SessionManager implements InboundRouter {
         plan: null,
         agents: [],
         activeTurn: null,
+        draft: null,
       },
     });
     this.cells.set(input.conversationId, record);
@@ -425,6 +435,11 @@ export class SessionManager implements InboundRouter {
     const activeTurn = record.cell.transcript.activeTurn;
     publishLiveModelState(record.live.activeTurn, activeTurn, record.lastSynced.activeTurn);
     record.lastSynced.activeTurn = activeTurn;
+
+    const draft = record.cell.promptDraft;
+    publishLiveModelState(record.live.draft, draft, record.lastSynced.draft);
+    record.lastSynced.draft = draft;
+
     this.upsertSessionSummary(record.input, record.cell, state);
   }
 

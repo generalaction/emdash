@@ -87,6 +87,12 @@ const ComposerForStore = observer(function ComposerForStore({
     editorApiRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    const editor = editorApiRef.current;
+    if (!editor || editor.getText() === store.draftText) return;
+    editor.setText(store.draftText);
+  }, [store, store.draftText]);
+
   const buildImages = useCallback(
     () =>
       attachments
@@ -108,6 +114,7 @@ const ComposerForStore = observer(function ComposerForStore({
       if (!value.trim() && images.length === 0) return;
       store.submitPrompt(value, images);
       setAttachments([]);
+      editorApiRef.current?.clear();
     },
     [store, buildImages]
   );
@@ -118,6 +125,7 @@ const ComposerForStore = observer(function ComposerForStore({
       if (!value.trim() && images.length === 0) return;
       store.submitPrompt(value, images);
       setAttachments([]);
+      editorApiRef.current?.clear();
     },
     [store, buildImages]
   );
@@ -251,6 +259,7 @@ const ComposerForStore = observer(function ComposerForStore({
         isWorking={a.isWorking}
         canSubmit={a.canSubmit}
         onSubmit={handleSubmit}
+        onInputChange={(text) => store.setDraftText(text)}
         onSubmitWhileWorking={handleSubmitWhileWorking}
         onStop={a.isWorking ? handleStop : undefined}
         permissionRequest={permissionRequest}

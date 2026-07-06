@@ -1,10 +1,12 @@
 import {
   planStateSchema,
+  promptDraftSchema,
   sessionConfigStateSchema,
   sessionStateSchema,
   terminalStateSchema,
   transcriptTurnSchema,
   type HistoryPage,
+  type PromptDraftUpdate,
   type PromptInput,
   type SessionState,
   type TerminalState,
@@ -24,6 +26,7 @@ export class AcpLiveSession {
   readonly config: LiveBinding<z.infer<typeof sessionConfigStateSchema>>;
   readonly plan: LiveBinding<z.infer<typeof planStateSchema> | null>;
   readonly activeTurn: LiveBinding<z.infer<typeof transcriptTurnSchema> | null>;
+  readonly draft: LiveBinding<z.infer<typeof promptDraftSchema> | null>;
   readonly terminals: LiveBinding<TerminalState[]>;
   private readonly terminalLogs = new Map<string, LiveLogBinding>();
   private disposed = false;
@@ -52,6 +55,11 @@ export class AcpLiveSession {
       snapshot: () => client.live.activeTurn.snapshot({ conversationId }),
       subscribe: () => client.live.activeTurn.subscribe({ conversationId }),
     });
+    this.draft = createLiveModelBinding({
+      schema: promptDraftSchema.nullable(),
+      snapshot: () => client.live.promptDraft.snapshot({ conversationId }),
+      subscribe: () => client.live.promptDraft.subscribe({ conversationId }),
+    });
     this.terminals = createLiveModelBinding({
       schema: z.array(terminalStateSchema),
       snapshot: () => client.live.terminals.snapshot({ conversationId }),
@@ -77,6 +85,7 @@ export class AcpLiveSession {
         session.config.start(),
         session.plan.start(),
         session.activeTurn.start(),
+        session.draft.start(),
         session.terminals.start(),
       ]),
       'Timed out connecting ACP live models'
@@ -138,6 +147,10 @@ export class AcpLiveSession {
     return this.client.cancelTurn({ conversationId: this.conversationId });
   }
 
+  setPromptDraft(draft: PromptDraftUpdate): Promise<Result<void, unknown>> {
+    return this.client.setPromptDraft({ conversationId: this.conversationId, draft });
+  }
+
   setModelOption(dimension: 'model' | 'effort', value: string): Promise<Result<void, unknown>> {
     return this.client.setModelOption({ conversationId: this.conversationId, dimension, value });
   }
@@ -173,6 +186,7 @@ export class AcpLiveSession {
     this.config.dispose();
     this.plan.dispose();
     this.activeTurn.dispose();
+    this.draft.dispose();
     this.terminals.dispose();
     for (const binding of this.terminalLogs.values()) {
       binding.dispose();

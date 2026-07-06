@@ -20,7 +20,7 @@ import {
 import type { SessionConfigState } from '../models/config';
 import type { AcpPermissionRequest } from '../models/permissions';
 import { SESSION_PLAN_ID } from '../models/plan';
-import type { PromptInput, QueuedPrompt } from '../models/prompt';
+import type { PromptDraft, PromptDraftUpdate, PromptInput, QueuedPrompt } from '../models/prompt';
 import type { SessionState, StopReason } from '../models/session';
 import type {
   ToolCallItem,
@@ -49,6 +49,10 @@ export class SessionCell {
   private _acpSessionId: string;
   private quiesceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastRunningAgentCount = 0;
+  private effectQueue: Effect[] = [];
+  private interpretingEffects = false;
+  private draft: PromptDraft | null = null;
+  private draftRev = 0;
 
   constructor(private readonly deps: SessionCellDeps) {
     this._acpSessionId = deps.acpSessionId;
@@ -77,6 +81,10 @@ export class SessionCell {
 
   get sessionState(): SessionState {
     return this.machine.sessionState();
+  }
+
+  get promptDraft(): PromptDraft | null {
+    return this.draft ? structuredClone(this.draft) : null;
   }
 
   get config(): SessionConfigState {
@@ -123,7 +131,9 @@ export class SessionCell {
   }
 
   endReplay(at = Date.now()): void {
+    const previousRunningAgentCount = this.lastRunningAgentCount;
     this.transcript.endReplay(at);
+    this.dispatchAgentsChangedIfNeeded(previousRunningAgentCount);
     this.applyEvent({ type: 'ReplayEnded', status: 'complete' });
     this.emitTranscriptChanged();
   }
@@ -174,12 +184,14 @@ export class SessionCell {
 
   async prompt(input: PromptInput): Promise<Result<SessionPromptResult, AcpRuntimeError>> {
     const now = Date.now();
-    return this.sendPromptInternal({
+    const result = await this.sendPromptInternal({
       id: crypto.randomUUID(),
       ...input,
       createdAt: now,
       updatedAt: now,
     });
+    if (result.success) this.clearDraft();
+    return result;
   }
 
   queuePrompt(input: PromptInput): Result<void, AcpRuntimeError> {
@@ -194,6 +206,24 @@ export class SessionCell {
       },
     });
     if (!result.success) return result;
+    this.clearDraft();
+    return ok();
+  }
+
+  setPromptDraft(update: PromptDraftUpdate): Result<void, AcpRuntimeError> {
+    if (update.rev <= this.draftRev) return ok();
+    this.draftRev = update.rev;
+
+    if (update.input === null) {
+      if (this.draft !== null) {
+        this.draft = null;
+        this.deps.callbacks?.onDraftChanged?.();
+      }
+      return ok();
+    }
+
+    this.draft = { ...update.input, rev: update.rev, updatedAt: Date.now() };
+    this.deps.callbacks?.onDraftChanged?.();
     return ok();
   }
 
@@ -310,7 +340,9 @@ export class SessionCell {
   }
 
   settleTurn(outcome: TranscriptTurnOutcome): void {
+    const previousRunningAgentCount = this.lastRunningAgentCount;
     this.transcript.settleTurn(outcome);
+    this.dispatchAgentsChangedIfNeeded(previousRunningAgentCount);
     this.emitTranscriptChanged();
     this.applyEvent({ type: 'TurnEnded', outcome: machineOutcome(outcome) });
   }
@@ -337,33 +369,52 @@ export class SessionCell {
   }
 
   private interpretEffects(effects: Effect[]): void {
+    this.effectQueue.push(...effects);
+    if (this.interpretingEffects) return;
+
+    this.interpretingEffects = true;
     let stateChanged = false;
-    for (const effect of effects) {
-      switch (effect.type) {
-        case 'state':
-        case 'permissionRequest':
-          stateChanged = true;
-          break;
-        case 'permissionResolved':
-          stateChanged = true;
-          if (effect.cancelled) this.permissions.cancel(effect.requestId);
-          break;
-        case 'closed':
-          this.deps.callbacks?.onClosed?.(effect.exitCode);
-          break;
-        case 'agentEvent':
-          this.deps.callbacks?.onAgentEvent?.(effect.phase);
-          break;
-        case 'sendPrompt':
-          this.deps.callbacks?.onSendQueuedPrompt?.(effect.prompt);
-          void this.sendPromptInternal(effect.prompt);
-          break;
-        case 'warn':
-          this.deps.logger.warn(`SessionCell: ${effect.message}`, {
-            conversationId: this.conversationId,
-          });
-          break;
+    try {
+      while (this.effectQueue.length > 0) {
+        const effect = this.effectQueue.shift()!;
+        switch (effect.type) {
+          case 'state':
+          case 'permissionRequest':
+            stateChanged = true;
+            break;
+          case 'permissionResolved':
+            stateChanged = true;
+            if (effect.cancelled) this.permissions.cancel(effect.requestId);
+            break;
+          case 'closed':
+            this.deps.callbacks?.onClosed?.(effect.exitCode);
+            break;
+          case 'agentEvent':
+            this.deps.callbacks?.onAgentEvent?.(effect.phase);
+            break;
+          case 'settleAgents':
+            this.settleRunningAgents(effect.scope, effect.status);
+            break;
+          case 'sendPrompt':
+            this.deps.callbacks?.onSendQueuedPrompt?.(effect.prompt);
+            void this.sendPromptInternal(effect.prompt).then((result) => {
+              if (!result.success) {
+                this.deps.logger.warn('SessionCell: failed to send queued prompt', {
+                  conversationId: this.conversationId,
+                  error: result.error,
+                });
+              }
+            });
+            break;
+          case 'warn':
+            this.deps.logger.warn(`SessionCell: ${effect.message}`, {
+              conversationId: this.conversationId,
+            });
+            break;
+        }
       }
+    } finally {
+      this.interpretingEffects = false;
     }
     if (stateChanged) this.deps.callbacks?.onSessionStateChanged?.();
   }
@@ -465,6 +516,29 @@ export class SessionCell {
     if (nextRunningAgentCount === previousRunningAgentCount) return;
     this.lastRunningAgentCount = nextRunningAgentCount;
     this.applyEvent({ type: 'AgentsChanged', runningCount: nextRunningAgentCount });
+  }
+
+  private settleRunningAgents(scope: 'turn' | 'all', status: 'completed' | 'failed'): void {
+    const runningAgents = this.transcript.agents.filter((agent) => {
+      if (agent.status !== 'running') return false;
+      return scope === 'all' || agent.background !== true;
+    });
+
+    for (const agent of runningAgents) {
+      this.push({
+        kind: 'subagent_update',
+        agentId: agent.agentId,
+        toolCallId: agent.toolCallId,
+        status,
+      });
+    }
+  }
+
+  private clearDraft(): void {
+    this.draftRev += 1;
+    if (this.draft === null) return;
+    this.draft = null;
+    this.deps.callbacks?.onDraftChanged?.();
   }
 
   private scheduleQuiesce(): void {

@@ -8,6 +8,25 @@ export const promptInputSchema = z.object({
 });
 export type PromptInput = z.infer<typeof promptInputSchema>;
 
+export const promptDraftInputSchema = promptInputSchema.extend({
+  /** Monotonic writer revision used by clients to suppress stale draft echoes. */
+  rev: z.number(),
+});
+export type PromptDraftInput = z.infer<typeof promptDraftInputSchema>;
+
+export const promptDraftSchema = promptDraftInputSchema.extend({
+  /** Epoch ms when the runtime last accepted this draft revision. */
+  updatedAt: z.number(),
+});
+export type PromptDraft = z.infer<typeof promptDraftSchema>;
+
+export const promptDraftUpdateSchema = z.object({
+  /** Monotonic writer revision used to ignore stale draft updates, including clears. */
+  rev: z.number(),
+  input: promptInputSchema.nullable(),
+});
+export type PromptDraftUpdate = z.infer<typeof promptDraftUpdateSchema>;
+
 export const queuedPromptSchema = promptInputSchema.extend({
   /** Runtime-generated id used for queue removal and stable UI keys. */
   id: z.string(),

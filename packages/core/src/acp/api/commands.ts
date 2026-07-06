@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { attachmentMimeTypeSchema, attachmentRefSchema } from '../models/attachments';
 import { permissionDecisionSchema } from '../models/permissions';
-import { promptInputSchema, queuedPromptSchema } from '../models/prompt';
+import { promptDraftUpdateSchema, promptInputSchema, queuedPromptSchema } from '../models/prompt';
 
 export const sessionConfigInputSchema = z.object({
   model: z.string().optional(),
@@ -62,7 +62,10 @@ export const setModeOptionCommandSchema = z.object({
 export const resolvePermissionCommandSchema = permissionDecisionSchema.extend({
   conversationId: z.string(),
 });
-export const editCurrentPromptCommandSchema = sendPromptCommandSchema;
+export const setPromptDraftCommandSchema = z.object({
+  conversationId: z.string(),
+  draft: promptDraftUpdateSchema,
+});
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
 export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
 

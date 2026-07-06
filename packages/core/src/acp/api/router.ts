@@ -44,7 +44,9 @@ export function createAcpRouter(runtime: AcpRuntime) {
     resolvePermission: i.resolvePermission.handler(({ input }) =>
       runtime.resolvePermission(input.conversationId, input.requestId, input.optionId)
     ),
-    editCurrentPrompt: i.editCurrentPrompt.handler(notImplemented),
+    setPromptDraft: i.setPromptDraft.handler(({ input }) =>
+      runtime.setPromptDraft(input.conversationId, input.draft)
+    ),
     exportACPTranscript: i.exportACPTranscript.handler(({ input }) =>
       runtime.exportParsedTranscript(input.conversationId)
     ),
@@ -152,6 +154,21 @@ export function createAcpRouter(runtime: AcpRuntime) {
         }),
         unsubscribe: i.live.activeTurn.unsubscribe.handler(() => undefined),
       },
+      promptDraft: {
+        snapshot: i.live.promptDraft.snapshot.handler(({ input }) => {
+          const { conversationId } = input as { conversationId: string };
+          const models = runtime.sessionLiveModels(conversationId);
+          if (!models) throw notFound(`Unknown conversation '${conversationId}'`);
+          return models.draft.snapshot();
+        }),
+        subscribe: i.live.promptDraft.subscribe.handler(({ input, signal }) => {
+          const { conversationId } = input as { conversationId: string };
+          const models = runtime.sessionLiveModels(conversationId);
+          if (!models) return emptyUpdates();
+          return streamLiveUpdates(models.draft, signal);
+        }),
+        unsubscribe: i.live.promptDraft.unsubscribe.handler(() => undefined),
+      },
       terminals: {
         snapshot: i.live.terminals.snapshot.handler(({ input }) => {
           const { conversationId } = input as { conversationId: string };
@@ -197,10 +214,6 @@ async function* emptyUpdates(): AsyncGenerator<never> {}
 
 function notFound(message: string): ORPCError<'NOT_FOUND', unknown> {
   return new ORPCError('NOT_FOUND', { message });
-}
-
-function notImplemented(): never {
-  throw new ORPCError('NOT_IMPLEMENTED', { message: 'This procedure is not yet implemented.' });
 }
 
 function toStartInput(input: {

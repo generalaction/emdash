@@ -2,6 +2,8 @@ import type {
   AgentState,
   HistoryPage,
   PlanState,
+  PromptDraft,
+  PromptDraftUpdate,
   PromptInput,
   ResumeResult,
   SessionConfigState,
@@ -54,6 +56,10 @@ export type AcpRuntimeRpcClient = {
     Result<void, AcpRuntimeError>
   >;
   cancelTurn: Proc<{ conversationId: string }, Result<void, AcpRuntimeError>>;
+  setPromptDraft: Proc<
+    { conversationId: string; draft: PromptDraftUpdate },
+    Result<void, AcpRuntimeError>
+  >;
   setModelOption: Proc<
     { conversationId: string; dimension: 'model' | 'effort'; value: string },
     Result<void, AcpRuntimeError>
@@ -76,6 +82,7 @@ export type AcpRuntimeRpcClient = {
     plan: LiveModelEndpoint<{ conversationId: string }, PlanState | null>;
     agents: LiveModelEndpoint<{ conversationId: string }, AgentState[]>;
     activeTurn: LiveModelEndpoint<{ conversationId: string }, TranscriptTurn | null>;
+    promptDraft: LiveModelEndpoint<{ conversationId: string }, PromptDraft | null>;
     terminals: LiveModelEndpoint<{ conversationId: string }, TerminalState[]>;
     terminalOutput: LiveLogEndpoint<{ terminalId: string }>;
   };

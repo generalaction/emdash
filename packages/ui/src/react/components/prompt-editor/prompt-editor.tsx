@@ -135,6 +135,17 @@ function makeSuggestionRender<T>(
   });
 }
 
+function plainTextDoc(text: string) {
+  const lines = text.length > 0 ? text.split(/\r?\n/) : [''];
+  return {
+    type: 'doc',
+    content: lines.map((line) => ({
+      type: 'paragraph',
+      ...(line.length > 0 ? { content: [{ type: 'text', text: line }] } : {}),
+    })),
+  };
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(function PromptEditor(
@@ -278,6 +289,9 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     getText() {
       if (!editor) return '';
       return serializeDoc(editor.state.doc);
+    },
+    setText(text) {
+      editor?.commands.setContent(plainTextDoc(text), { emitUpdate: true });
     },
     insertMention(item) {
       editor

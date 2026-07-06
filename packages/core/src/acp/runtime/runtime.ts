@@ -9,7 +9,7 @@ import { ConnectionPool } from '../connection/pool';
 import type { AcpRuntimeError } from '../errors';
 import { acpErr } from '../errors';
 import type { AttachmentMimeType, AttachmentRef } from '../models/attachments';
-import type { PromptInput } from '../models/prompt';
+import type { PromptDraftUpdate, PromptInput } from '../models/prompt';
 import type { SessionState } from '../models/session';
 import type { TerminalState } from '../models/terminals';
 import type { TranscriptTurn } from '../models/turns';
@@ -95,6 +95,10 @@ export class AcpRuntime {
 
   cancelTurn(conversationId: string): Promise<Result<void, AcpRuntimeError>> {
     return this.manager.cancel(conversationId);
+  }
+
+  setPromptDraft(conversationId: string, draft: PromptDraftUpdate): Result<void, AcpRuntimeError> {
+    return this.manager.setPromptDraft(conversationId, draft);
   }
 
   resolvePermission(

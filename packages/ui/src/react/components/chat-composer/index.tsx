@@ -198,6 +198,8 @@ export interface ChatComposerProps {
   onPermissionModeChange?: (modeId: string) => void;
 
   onSubmit: (text: string) => void;
+  /** Called whenever the editor serialized plain text changes. */
+  onInputChange?: (text: string) => void;
   /**
    * Called instead of onSubmit when the user attempts to send while the
    * session is actively working (isWorking === true). Lets the host queue,
@@ -527,6 +529,7 @@ export function ChatComposer({
   selectedPermissionMode,
   onPermissionModeChange,
   onSubmit,
+  onInputChange,
   onSubmitWhileWorking,
   onStop,
   onAttach,
@@ -762,6 +765,7 @@ export function ChatComposer({
               disabled ? 'Session closed' : !canSubmit ? 'Waiting for agent…' : 'Message…'
             }
             disabled={disabled}
+            onChange={onInputChange}
             onSubmit={handleSubmit}
             mentionProvider={mentionProvider}
             queryMentions={queryMentions}

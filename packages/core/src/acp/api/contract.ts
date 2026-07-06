@@ -8,7 +8,6 @@ import {
   deleteQueuedPromptCommandSchema,
   downloadAttachmentCommandSchema,
   downloadAttachmentResponseSchema,
-  editCurrentPromptCommandSchema,
   editQueuedPromptCommandSchema,
   exportAcpTranscriptCommandSchema,
   exportRawAcpLogCommandSchema,
@@ -17,6 +16,7 @@ import {
   resumeSessionCommandSchema,
   sendPromptCommandSchema,
   sendPromptResponseSchema,
+  setPromptDraftCommandSchema,
   setModeOptionCommandSchema,
   setModelOptionCommandSchema,
   startSessionCommandSchema,
@@ -52,7 +52,7 @@ export const acpContract = {
   setModelOption: oc.input(setModelOptionCommandSchema).output(voidResult),
   setModeOption: oc.input(setModeOptionCommandSchema).output(voidResult),
   resolvePermission: oc.input(resolvePermissionCommandSchema).output(voidResult),
-  editCurrentPrompt: oc.input(editCurrentPromptCommandSchema).output(voidResult),
+  setPromptDraft: oc.input(setPromptDraftCommandSchema).output(voidResult),
   exportACPTranscript: oc
     .input(exportAcpTranscriptCommandSchema)
     .output(resultSchema(z.string(), acpRuntimeErrorSchema)),
