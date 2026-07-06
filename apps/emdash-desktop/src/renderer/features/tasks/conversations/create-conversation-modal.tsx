@@ -4,6 +4,7 @@ import { getProjectSshConnectionId } from '@renderer/features/projects/stores/pr
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
 import { useAgents } from '@renderer/lib/stores/use-agents';
@@ -46,6 +47,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [useAcpOverride, setUseAcpOverride] = useState(false);
+  const chatUiEnabled = useFeatureFlag('chat-ui');
   useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents();
@@ -54,7 +56,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : null;
 
   const showAutoApproveToggle = providerId ? providerSupportsAutoApprove(providerId) : false;
-  const showAcpToggle = providerId ? providerSupportsAcp(providerId) : false;
+  const showAcpToggle = chatUiEnabled && providerId ? providerSupportsAcp(providerId) : false;
   const useAcp = showAcpToggle && useAcpOverride;
   const skipPermissions =
     showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);

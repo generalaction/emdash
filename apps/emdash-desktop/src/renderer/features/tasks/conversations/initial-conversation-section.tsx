@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -70,6 +71,7 @@ export function useInitialConversationState(
   const { resetPromptOnProjectChange = true } = options;
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
+  const chatUiEnabled = useFeatureFlag('chat-ui');
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
@@ -101,7 +103,7 @@ export function useInitialConversationState(
 
   const autoApproveSupported = providerId ? providerSupportsAutoApprove(providerId) : false;
   const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
-  const acpSupported = providerId ? providerSupportsAcp(providerId) : false;
+  const acpSupported = chatUiEnabled && providerId ? providerSupportsAcp(providerId) : false;
   const useChatUi = acpSupported && useChatUiOverride;
 
   return {
@@ -186,7 +188,9 @@ export function InitialConversationField({
   }, [issueContextKey]);
 
   const canToggleAutoApprove = state.provider ? providerSupportsAutoApprove(state.provider) : false;
-  const canToggleChatUi = state.provider ? providerSupportsAcp(state.provider) : false;
+  const chatUiEnabled = useFeatureFlag('chat-ui');
+  const canToggleChatUi =
+    chatUiEnabled && state.provider ? providerSupportsAcp(state.provider) : false;
 
   const handleToggleAutoApprove = () => {
     if (!state.provider) return;
