@@ -67,7 +67,28 @@ export const monoRunning = style({
 export const singleOpRow = style({
   display: 'flex',
   alignItems: 'center',
+  gap: '6px',
 });
+
+export const fileOpStatusIcon = style({
+  marginLeft: 'auto',
+  display: 'inline-flex',
+  flexShrink: 0,
+});
+
+export const fileOpPermissionIcon = style([
+  fileOpStatusIcon,
+  {
+    color: '#eab308',
+  },
+]);
+
+export const fileOpErrorIcon = style([
+  fileOpStatusIcon,
+  {
+    color: vars.fgError,
+  },
+]);
 
 export const chevronSm = recipe({
   base: {

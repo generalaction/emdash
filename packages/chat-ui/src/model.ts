@@ -63,6 +63,8 @@ export type ChatToolCall = {
   name: string;
   status: ToolStatus;
   awaitingPermission?: boolean;
+  /** Optional failure message shown in the error icon's native tooltip. */
+  error?: string;
   /** Short one-line synopsis shown alongside the tool name. */
   inputSummary?: string;
   /** Id of the parent tool call (for hierarchical rendering). */
@@ -113,6 +115,8 @@ export type ChatFileOpToolCall = {
   op: FileOpKind;
   status: ToolStatus;
   awaitingPermission?: boolean;
+  /** Optional failure message shown in the error icon's native tooltip. */
+  error?: string;
   /** Accumulating list of files touched. Replaced (not appended) on each update. */
   ops: FileOp[];
   /** Id of the parent tool call (for hierarchical rendering). */
@@ -135,6 +139,8 @@ export type ChatExecute = {
   outputText?: string;
   status: ToolStatus;
   awaitingPermission?: boolean;
+  /** Optional failure message shown in the error icon's native tooltip. */
+  error?: string;
   /** Start time (epoch ms) — used to derive the live timer and frozen duration. */
   startedAt: number;
   /** Frozen duration once status flips to 'done'. Absent when data is unavailable. */
@@ -165,6 +171,8 @@ export type ChatDiff = {
   newText: string;
   status: ToolStatus;
   awaitingPermission?: boolean;
+  /** Optional failure message shown in the error icon's native tooltip. */
+  error?: string;
   /** Id of the parent tool call (for hierarchical rendering). */
   parentId?: string;
 };
@@ -211,6 +219,8 @@ export type ChatResourceLink = {
   /** Pre-resolved addressing target. */
   target: ResourceTarget;
   status?: ToolStatus;
+  /** Optional failure message shown in the error icon's native tooltip. */
+  error?: string;
 };
 
 /** Lifecycle status of a single plan entry. Mirrors ACP `PlanEntryStatus`. */

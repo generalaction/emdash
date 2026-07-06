@@ -89,8 +89,9 @@ function childrenHeight(node: ItemNode, ctx: MeasureCtx, vars: ToolGroupVars): n
 function toolGroupUnitH(node: ItemNode, ctx: MeasureCtx, vars: ToolGroupVars): number {
   const hH = headerH(ctx);
   const isExpanded = ctx.expanded(node.item.id);
+  const isRunning = (node.item as ChatToolCall).status === 'running';
   const chH = childrenHeight(node, ctx, vars);
-  return hH + (isExpanded ? chH : Math.min(chH, vars.windowH));
+  return hH + (isExpanded ? chH : isRunning ? Math.min(chH, vars.windowH) : 0);
 }
 
 // ── ChildStack ────────────────────────────────────────────────────────────────
@@ -189,7 +190,7 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
       <Show
         when={isExpanded()}
         fallback={
-          <Show when={chH() > 0}>
+          <Show when={isActive() && chH() > 0}>
             <PreviewWindow
               height={previewH()}
               maxH={props.vars.windowH}
@@ -218,9 +219,10 @@ export const toolGroupUnitDef = defineUnit<ItemNode, ToolGroupVars>({
   estimate(node, ctx, vars): number {
     const hH = ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
     const isExpanded = ctx.expanded(node.item.id);
+    const isRunning = (node.item as ChatToolCall).status === 'running';
     // Approximate: 32px per child.
     const chH = node.children.length * ROW_H;
-    return hH + (isExpanded ? chH : Math.min(chH, vars.windowH));
+    return hH + (isExpanded ? chH : isRunning ? Math.min(chH, vars.windowH) : 0);
   },
 
   measure(node, ctx, vars): number {

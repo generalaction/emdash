@@ -2,8 +2,7 @@
  * ToolStateMatrix — stacks labelled rows for each tool status in a single
  * ChatHost, driven by a `build(status) => ChatItem` callback.
  *
- * Currently renders: Running, Done, Error.
- * Designed to accept Pending/Permission rows later as config-only additions.
+ * Currently renders: Running, Awaiting Permission, Done, Error.
  */
 
 import { DEFAULT_THEME } from '@core/theme';
@@ -19,13 +18,16 @@ export type MatrixStatus = ToolStatus;
 export type MatrixRow = {
   label: string;
   status: MatrixStatus;
+  awaitingPermission?: boolean;
+  error?: string;
 };
 
 /** Default rows displayed in the matrix. */
 const DEFAULT_MATRIX_ROWS: MatrixRow[] = [
   { label: 'Running', status: 'running' },
+  { label: 'Awaiting Permission', status: 'running', awaitingPermission: true },
   { label: 'Done', status: 'done' },
-  { label: 'Error', status: 'error' },
+  { label: 'Error', status: 'error', error: 'Command failed with exit code 1' },
 ];
 
 export type ToolStateMatrixProps = {
@@ -62,12 +64,17 @@ export function ToolStateMatrix(props: ToolStateMatrixProps) {
             ctx.dispose();
           });
           const item = props.build(row.status);
+          const matrixItem = {
+            ...item,
+            ...(row.awaitingPermission ? { awaitingPermission: true } : {}),
+            ...(row.error && !('error' in item && item.error) ? { error: row.error } : {}),
+          } as ChatItem;
           state.transcript.history.seed([
             {
-              id: `matrix-turn-${row.status}`,
+              id: `matrix-turn-${row.label.toLowerCase().replaceAll(' ', '-')}`,
               seq: 0,
               initiator: 'agent',
-              items: [{ ...item, seq: 0 } as TranscriptTurn['items'][number]],
+              items: [{ ...matrixItem, seq: 0 } as TranscriptTurn['items'][number]],
             },
           ]);
           return (

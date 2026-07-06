@@ -33,3 +33,15 @@ export const chevron = style({
 export const chevronExpanded = style({
   transform: 'rotate(90deg)',
 });
+
+export const collapseStatusError = style({
+  marginLeft: 'auto',
+  display: 'flex',
+  color: vars.fgError,
+});
+
+export const collapseStatusPermission = style({
+  marginLeft: 'auto',
+  display: 'flex',
+  color: '#eab308',
+});
