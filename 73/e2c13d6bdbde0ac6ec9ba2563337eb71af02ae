@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/shared/openInApps.ts
+  s_4600975789d79b::t_169b7f6201362f 280-281
+  s_4600975789d79b::t_939528030ff22a 279,284,290,294
+apps/emdash-desktop/src/shared/openInApps.test.ts
+  s_4600975789d79b::t_834ecb90f019fc 55,61-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "73e2c13d6bdbde0ac6ec9ba2563337eb71af02ae",
+  "prompts": {},
+  "sessions": {
+    "s_4600975789d79b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f989b37-8a97-464c-8762-a138a621dec2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
