@@ -44,6 +44,7 @@ const ICON_PATHS = {
   terminal: 'terminal.png',
   kaku: 'kaku.png',
   alacritty: 'alacritty.svg',
+  hyper: 'hyper.svg',
   warp: 'warp.png',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
@@ -268,6 +269,27 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['alacritty --working-directory {{path}}'],
         checkCommands: ['alacritty'],
+      },
+    },
+  },
+  hyper: {
+    id: 'hyper',
+    label: 'Hyper',
+    iconPath: ICON_PATHS.hyper,
+    platforms: {
+      darwin: {
+        openCommands: ['open -na "Hyper" --args {{path}}'],
+        checkCommands: ['hyper'],
+        bundleIds: ['co.zeit.hyper'],
+        appNames: ['Hyper'],
+      },
+      win32: {
+        openCommands: ['hyper {{path}}'],
+        checkCommands: ['hyper'],
+      },
+      linux: {
+        openCommands: ['hyper {{path}}'],
+        checkCommands: ['hyper'],
       },
     },
   },
