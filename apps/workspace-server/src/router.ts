@@ -215,6 +215,11 @@ export const router = i.router({
         subscribe: i.acp.live.sessionConfig.subscribe.handler(notImplemented),
         unsubscribe: i.acp.live.sessionConfig.unsubscribe.handler(notImplemented),
       },
+      sessionUsage: {
+        snapshot: i.acp.live.sessionUsage.snapshot.handler(notImplemented),
+        subscribe: i.acp.live.sessionUsage.subscribe.handler(notImplemented),
+        unsubscribe: i.acp.live.sessionUsage.unsubscribe.handler(notImplemented),
+      },
       plan: {
         snapshot: i.acp.live.plan.snapshot.handler(notImplemented),
         subscribe: i.acp.live.plan.subscribe.handler(notImplemented),

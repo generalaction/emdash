@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { AcpRuntime, createAcpRouter, serveAcpPort, type AcpRuntimeDeps } from '@emdash/core/acp';
+import { acpRouter, createAcpRuntime, type AcpRuntimeDeps } from '@emdash/core/acp';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
 import { ChildAcpProcessHost } from './child-process-host';
@@ -14,7 +14,7 @@ if (!parentPort) {
 const childHost = new ChildAcpProcessHost(parentPort);
 const logger = createParentLogger(parentPort);
 
-const runtime = new AcpRuntime({
+const acp = createAcpRuntime(acpRouter, {
   resolveAcp: (providerId) => {
     const plugin = pluginRegistry.get(providerId);
     if (!plugin || plugin.capabilities.acp.kind !== 'supported' || !plugin.behavior.acp) {
@@ -37,8 +37,6 @@ const runtime = new AcpRuntime({
   logger,
 } satisfies AcpRuntimeDeps);
 
-const router = createAcpRouter(runtime);
-
 parentPort.on('message', (event) => {
   const message = event.data;
   childHost.handleMessage(message);
@@ -51,12 +49,12 @@ parentPort.on('message', (event) => {
         logger.warn('ACP runtime child received client-port without a transferable port');
         return;
       }
-      serveAcpPort(router, port);
+      acp.servePort(port);
       port.start();
       break;
     }
     case 'shutdown':
-      runtime.killAllTerminals();
+      acp.runtime.killAllTerminals();
       process.exit(0);
       break;
   }

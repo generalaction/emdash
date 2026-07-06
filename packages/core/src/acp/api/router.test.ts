@@ -5,8 +5,7 @@ import type { Client } from '@orpc/client';
 import { RPCLink } from '@orpc/client/message-port';
 import { describe, expect, it, vi } from 'vitest';
 import { FakeAcpTerminalProcess, makeAcpHarness, makeStartInput } from '../acp-test-support';
-import { AcpRuntime } from '../runtime/runtime';
-import { createAcpRouter, serveAcpPort } from './router';
+import { acpRouter, createAcpRuntime } from './router';
 
 type Proc<I = unknown, O = unknown> = Client<Record<never, never>, I, O, unknown>;
 
@@ -45,19 +44,19 @@ type TestAcpClient = {
   };
 };
 
-function makeClient(runtime: AcpRuntime) {
+function makeClient(servePort: ReturnType<typeof createAcpRuntime>['servePort']) {
   const { port1, port2 } = new MessageChannel();
-  serveAcpPort(createAcpRouter(runtime), port1);
+  servePort(port1);
   port1.start();
   const link = new RPCLink({ port: port2 });
   return createORPCClient<TestAcpClient>(link);
 }
 
-describe('createAcpRouter', () => {
+describe('createAcpRuntime', () => {
   it('round-trips command calls over a message port', async () => {
     const h = makeAcpHarness();
-    const runtime = new AcpRuntime(h.deps);
-    const client = makeClient(runtime);
+    const { servePort } = createAcpRuntime(acpRouter, h.deps);
+    const client = makeClient(servePort);
 
     const started = await client.startSession({
       input: makeStartInput({ conversationId: 'conv-router' }),
@@ -79,8 +78,8 @@ describe('createAcpRouter', () => {
 
   it('streams live model patches over a message port', async () => {
     const h = makeAcpHarness();
-    const runtime = new AcpRuntime(h.deps);
-    const client = makeClient(runtime);
+    const { servePort } = createAcpRuntime(acpRouter, h.deps);
+    const client = makeClient(servePort);
 
     await client.startSession({ input: makeStartInput({ conversationId: 'conv-live-router' }) });
     const snapshot = await client.live.sessionState.snapshot({
@@ -121,8 +120,8 @@ describe('createAcpRouter', () => {
 
   it('serves prompt drafts through the runtime contract', async () => {
     const h = makeAcpHarness();
-    const runtime = new AcpRuntime(h.deps);
-    const client = makeClient(runtime);
+    const { servePort } = createAcpRuntime(acpRouter, h.deps);
+    const client = makeClient(servePort);
 
     await client.startSession({ input: makeStartInput({ conversationId: 'conv-draft-router' }) });
     const saved = await client.setPromptDraft({
@@ -140,8 +139,8 @@ describe('createAcpRouter', () => {
 
   it('exports parsed transcript and raw ACP log over a message port', async () => {
     const h = makeAcpHarness();
-    const runtime = new AcpRuntime(h.deps);
-    const client = makeClient(runtime);
+    const { servePort } = createAcpRuntime(acpRouter, h.deps);
+    const client = makeClient(servePort);
 
     await client.startSession({ input: makeStartInput({ conversationId: 'conv-export-router' }) });
     let resolvePrompt!: (value: { stopReason: 'end_turn' }) => void;
@@ -186,8 +185,8 @@ describe('createAcpRouter', () => {
 
   it('serves terminal metadata through LiveModel and output through LiveLog', async () => {
     const h = makeAcpHarness();
-    const runtime = new AcpRuntime(h.deps);
-    const client = makeClient(runtime);
+    const { servePort } = createAcpRuntime(acpRouter, h.deps);
+    const client = makeClient(servePort);
 
     await client.startSession({
       input: makeStartInput({ conversationId: 'conv-terminal-router' }),
