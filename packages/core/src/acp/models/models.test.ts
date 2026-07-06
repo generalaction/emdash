@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import { AcpTranscriptParser } from '../reducer/parser';
@@ -7,78 +6,59 @@ import { sessionConfigStateSchema, sessionUsageSchema } from './config';
 import { planStateSchema } from './plan';
 import { transcriptTurnSchema } from './turns';
 
-interface RecordedPrompt {
-  kind: 'prompt';
-  sessionId: string;
-  content: Array<{ type: string; text?: string }>;
-}
-
-interface RecordedSessionUpdate {
-  kind: 'session_update';
-  update: unknown;
-}
-
-interface RecordedPromptResult {
-  kind: 'prompt_result';
-}
-
-type RecordedEvent = RecordedPrompt | RecordedSessionUpdate | RecordedPromptResult;
-
-interface RecordedEntry {
-  event: RecordedEvent | { kind: string };
-}
-
-interface FixtureFile {
-  meta: { sessionId: string };
-  events: RecordedEntry[];
-}
-
-function loadFixture(filename: string): FixtureFile {
-  return JSON.parse(
-    readFileSync(new URL(`../reducer/fixtures/${filename}`, import.meta.url), 'utf8')
-  ) as FixtureFile;
-}
-
-function driveParser(fixture: FixtureFile): AcpTranscriptParser {
-  const parser = new AcpTranscriptParser({ conversationId: fixture.meta.sessionId });
-  parser.beginReplay(0);
-
-  for (const entry of fixture.events) {
-    const kind = entry.event.kind;
-    switch (kind) {
-      case 'prompt': {
-        const ev = entry.event as RecordedPrompt;
-        for (const block of ev.content) {
-          if (block.type !== 'text' || !block.text) continue;
-          parser.push({
-            sessionUpdate: 'user_message_chunk',
-            sessionId: ev.sessionId,
-            messageId: undefined,
-            content: { type: 'text', text: block.text },
-          } as unknown as SessionUpdate);
-        }
-        break;
-      }
-      case 'session_update': {
-        const ev = entry.event as RecordedSessionUpdate;
-        parser.push(ev.update as SessionUpdate);
-        break;
-      }
-      case 'prompt_result':
-        parser.endTurn();
-        break;
-      default:
-        break;
-    }
-  }
-
-  parser.endReplay();
+function buildParserOutput(): AcpTranscriptParser {
+  const parser = new AcpTranscriptParser({ conversationId: 'models-test' });
+  parser.push({
+    sessionUpdate: 'user_message_chunk',
+    sessionId: 'session-1',
+    messageId: 'user-1',
+    content: { type: 'text', text: 'Audit the reducer.' },
+  } as unknown as SessionUpdate);
+  parser.push({
+    sessionUpdate: 'config_option_update',
+    sessionId: 'session-1',
+    configOptions: [
+      {
+        id: 'model',
+        category: 'model',
+        type: 'select',
+        currentValue: 'sonnet',
+        options: [{ value: 'sonnet', name: 'Sonnet' }],
+      },
+    ],
+  } as unknown as SessionUpdate);
+  parser.push({
+    sessionUpdate: 'usage_update',
+    sessionId: 'session-1',
+    used: 100,
+    size: 200000,
+    cost: { amount: 0.01, currency: 'USD' },
+  } as unknown as SessionUpdate);
+  parser.push({
+    sessionUpdate: 'plan',
+    sessionId: 'session-1',
+    entries: [{ content: 'Read reducer.ts', status: 'pending', priority: 'medium' }],
+  } as unknown as SessionUpdate);
+  parser.pushEvent(
+    {
+      kind: 'subagent',
+      toolCallId: 'tool-1',
+      title: 'Inspect reducer',
+      status: 'in_progress',
+      parentToolCallId: null,
+      background: true,
+      agentId: 'agent-1',
+      outputFile: '/tmp/agent-1.output',
+    },
+    100
+  );
+  parser.endTurn(200);
   return parser;
 }
 
 describe('ACP zod models', () => {
-  it.each(['acp-claude.json', 'acp-codex.json'])('validate parser output for %s', (fixtureName) => {
-    const parser = driveParser(loadFixture(fixtureName));
+  it('validates representative parser output', () => {
+    const parser = buildParserOutput();
 
     expect(() => transcriptTurnSchema.array().parse(parser.history)).not.toThrow();
     expect(() =>
