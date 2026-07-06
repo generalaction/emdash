@@ -58,6 +58,7 @@ const ICON_PATHS = {
   pycharm: 'pycharm.svg',
   rubymine: 'rubymine.svg',
   rustrover: 'rustrover.svg',
+  rider: 'rider.svg',
   athas: 'athas.svg',
   kiro: 'kiro.png',
   antigravity: 'antigravity.png',
@@ -528,6 +529,27 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['idea {{path}}'],
         checkCommands: ['idea'],
+      },
+    },
+  },
+  rider: {
+    id: 'rider',
+    label: 'Rider',
+    iconPath: ICON_PATHS.rider,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "Rider" {{path}}', 'open -a "JetBrains Rider" {{path}}'],
+        bundleIds: ['com.jetbrains.rider'],
+        appNames: ['Rider', 'JetBrains Rider'],
+      },
+      win32: {
+        openCommands: ['rider64 {{path}}', 'rider {{path}}'],
+        checkCommands: ['rider64', 'rider'],
+      },
+      linux: {
+        openCommands: ['rider {{path}}', 'rider.sh {{path}}'],
+        checkCommands: ['rider', 'rider.sh'],
       },
     },
   },

@@ -1,5 +1,5 @@
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
-import { definePluginCapability } from '../../../lib/plugins/capability';
 
 export type ISessionsBehavior = {
   /** Return true when a stored provider session id looks valid and should be used for resume. */

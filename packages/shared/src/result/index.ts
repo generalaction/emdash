@@ -237,9 +237,9 @@ export function gen<T, E>(body: () => Generator<Err<E>, T, any>): Result<T, E> {
   return step.done ? ok(step.value) : step.value;
 }
 
-// oxlint-disable-next-line typescript/no-explicit-any
 export async function* unwrapGenAsync<T, E>(
   r: Result<T, E> | Promise<Result<T, E>>
+  // oxlint-disable-next-line typescript/no-explicit-any
 ): AsyncGenerator<Err<E>, T, any> {
   const awaited = await r;
   if (awaited.success) return awaited.data;
@@ -247,9 +247,8 @@ export async function* unwrapGenAsync<T, E>(
   throw new Error('unreachable');
 }
 
-// oxlint-disable-next-line typescript/no-explicit-any
 export async function genAsync<T, E>(
-  body: () => AsyncGenerator<Err<E>, T, any>
+  body: () => AsyncGenerator<Err<E>, T, any> // oxlint-disable-line typescript/no-explicit-any
 ): Promise<Result<T, E>> {
   const it = body();
   const step = await it.next();

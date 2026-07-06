@@ -37,6 +37,10 @@
       "types": "./dist/markdown.d.mts",
       "default": "./dist/markdown.mjs"
     },
+    "./plugins": {
+      "types": "./dist/plugins.d.mts",
+      "default": "./dist/plugins.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

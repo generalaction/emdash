@@ -1,11 +1,15 @@
-import type { GitHubAccount } from './github-account-registry';
+import type { GitHubAccount } from './github-accounts';
+
+type KvAccountBackfill = {
+  backfillFromKv(): Promise<GitHubAccount[]>;
+};
 
 type LegacyAccountBackfill = {
   backfillLegacyToken(): Promise<GitHubAccount | null>;
 };
 
 type CliAccountImporter = {
-  importAccounts(options?: { skipRemovedAccounts?: boolean }): Promise<GitHubAccount[]>;
+  importAccounts(): Promise<GitHubAccount[]>;
 };
 
 type WarningLogger = {
@@ -24,6 +28,7 @@ function errorMessage(error: unknown): string {
 export class GitHubAccountReconciliationService {
   constructor(
     private readonly deps: {
+      kvBackfill: KvAccountBackfill;
       legacyBackfill: LegacyAccountBackfill;
       cliImporter: CliAccountImporter;
       logger: WarningLogger;
@@ -31,6 +36,7 @@ export class GitHubAccountReconciliationService {
   ) {}
 
   async reconcileAtStartup(): Promise<GitHubAccountReconciliationResult> {
+    await this.backfillFromKv();
     const legacyAccount = await this.backfillLegacyToken();
     const cliAccounts = await this.importCliAccounts();
 
@@ -38,6 +44,16 @@ export class GitHubAccountReconciliationService {
       legacyAccountId: legacyAccount?.id ?? null,
       importedCliAccountIds: [...new Set(cliAccounts.map((account) => account.id))],
     };
+  }
+
+  private async backfillFromKv(): Promise<void> {
+    try {
+      await this.deps.kvBackfill.backfillFromKv();
+    } catch (error) {
+      this.deps.logger.warn('Failed to backfill GitHub accounts from KV storage', {
+        error: errorMessage(error),
+      });
+    }
   }
 
   private async backfillLegacyToken(): Promise<GitHubAccount | null> {
@@ -53,7 +69,7 @@ export class GitHubAccountReconciliationService {
 
   private async importCliAccounts(): Promise<GitHubAccount[]> {
     try {
-      return await this.deps.cliImporter.importAccounts({ skipRemovedAccounts: true });
+      return await this.deps.cliImporter.importAccounts();
     } catch (error) {
       this.deps.logger.warn('Failed to import GitHub CLI accounts during startup', {
         error: errorMessage(error),

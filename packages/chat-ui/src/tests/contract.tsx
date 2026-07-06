@@ -68,7 +68,7 @@ export function makeContractCtx(opts: {
  * "expanded".
  */
 export async function renderAndMeasureUnit<D>(
-  def: UnitDef<D, any>,
+  def: UnitDef<D, Record<string, number>>,
   data: D,
   ctx: ContractCtx
 ): Promise<{ computed: number; dom: number }> {

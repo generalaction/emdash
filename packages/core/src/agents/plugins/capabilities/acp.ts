@@ -17,9 +17,9 @@ import type {
   SetSessionModeRequest,
   SetSessionModeResponse,
 } from '@agentclientprotocol/sdk';
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
 import type { EnrichHook } from '../../../acp/reducer/normalized-event';
-import { definePluginCapability } from '../../../lib/plugins/capability';
 
 export type AcpSpawnContext = {
   /** Absolute path to the worktree / task directory. */
