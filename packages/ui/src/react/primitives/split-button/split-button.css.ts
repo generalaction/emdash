@@ -2,6 +2,7 @@ import { style } from '@vanilla-extract/css';
 
 export const splitButtonRoot = style({
   display: 'inline-flex',
+  flexShrink: 0,
   alignItems: 'stretch',
 });
 
@@ -15,6 +16,7 @@ export const splitButtonFace = style({
 
 /** Chevron face: left side rounded corners removed to butt against primary face. */
 export const splitButtonChevronFace = style({
+  flexShrink: 0,
   borderTopLeftRadius: 0,
   borderBottomLeftRadius: 0,
 });

@@ -1,6 +1,6 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, Check, GripVertical, ListChecks, Trash2, X } from 'lucide-react';
+import { ArrowUp, Check, GripVertical, Trash2, X } from 'lucide-react';
 import * as React from 'react';
 import * as styles from './queued-prompts-band.css';
 

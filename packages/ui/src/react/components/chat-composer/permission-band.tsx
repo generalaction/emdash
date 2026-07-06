@@ -106,6 +106,7 @@ export function PermissionBand({
         onAction={onResolve}
         size="sm"
         variant="secondary"
+        className={styles.bandAction}
       />
     </div>
   );

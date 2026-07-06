@@ -17,7 +17,7 @@ import type {
   MentionItem,
   CommandItem,
 } from '.';
-import type { ComposerPermissionRequest } from './permission-band';
+import { PermissionBand, type ComposerPermissionRequest } from './permission-band';
 import * as s from '@react/story-layout.css';
 import { sx } from '@styles/utilities/sprinkles.css';
 
@@ -206,6 +206,61 @@ const MOCK_PERMISSION_REQUESTS: ComposerPermissionRequest[] = [
     options: [
       { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
       { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
+    ],
+  },
+];
+
+const MOCK_PERMISSION_OVERFLOW_REQUESTS: ComposerPermissionRequest[] = [
+  {
+    requestId: 'overflow-shell-command',
+    title:
+      'Execute a Shell Command: pnpm --filter @emdash/emdash-desktop run test:migrations -- --reporter=verbose --runInBand --updateSnapshot=false',
+    options: [
+      {
+        optionId: 'allow-once-long',
+        name: 'Allow once for this exact command invocation',
+        kind: 'allow_once',
+      },
+      {
+        optionId: 'allow-session-long',
+        name: 'Allow matching pnpm migration validation commands for this session',
+        kind: 'allow_always',
+      },
+      {
+        optionId: 'reject-with-explanation-long',
+        name: 'Reject and ask the agent to explain why this command is necessary first',
+        kind: 'reject_once',
+      },
+    ],
+  },
+  {
+    requestId: 'overflow-deep-path',
+    title:
+      'Edit /Users/davidkonopka/Documents/repos/emdash/apps/emdash-desktop/src/renderer/features/tasks/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
+    options: [
+      { optionId: 'allow-edit-once', name: 'Allow this edit once', kind: 'allow_once' },
+      {
+        optionId: 'allow-worktree-edits',
+        name: 'Allow edits under this worktree path',
+        kind: 'allow_always',
+      },
+      { optionId: 'reject-edit', name: 'Reject', kind: 'reject_once' },
+    ],
+  },
+  {
+    requestId: 'overflow-many-options',
+    title: 'Run tool call with many available permission outcomes',
+    options: [
+      { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'allow-session', name: 'Allow for this session', kind: 'allow_always' },
+      { optionId: 'allow-workspace', name: 'Allow for this workspace', kind: 'allow_always' },
+      { optionId: 'redact-and-allow', name: 'Redact sensitive args and allow', kind: 'allow_once' },
+      { optionId: 'reject-once', name: 'Reject once', kind: 'reject_once' },
+      {
+        optionId: 'reject-session',
+        name: 'Reject matching requests this session',
+        kind: 'reject_always',
+      },
     ],
   },
 ];
@@ -490,6 +545,109 @@ function QueuedPromptsDemo() {
 
 export const WithQueuedPrompts: Story = {
   render: () => <QueuedPromptsDemo />,
+};
+
+function QueuedPromptsWithPermissionRequestsDemo() {
+  const [permissionQueue, setPermissionQueue] =
+    useState<ComposerPermissionRequest[]>(MOCK_PERMISSION_REQUESTS);
+  const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>(MOCK_QUEUED_PROMPTS);
+
+  return (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        isWorking
+        canSubmit
+        permissionRequest={permissionQueue[0] ?? null}
+        permissionQueueCount={permissionQueue.length}
+        onResolvePermission={() => setPermissionQueue((queue) => queue.slice(1))}
+        queuedPrompts={queuedPrompts}
+        onEditQueuedPrompt={(id, text) =>
+          setQueuedPrompts((prompts) =>
+            prompts.map((prompt) => (prompt.id === id ? { ...prompt, text } : prompt))
+          )
+        }
+        onDeleteQueuedPrompt={(id) =>
+          setQueuedPrompts((prompts) => prompts.filter((prompt) => prompt.id !== id))
+        }
+        onReorderQueuedPrompts={(ids) =>
+          setQueuedPrompts((prompts) =>
+            ids.flatMap((id) => {
+              const prompt = prompts.find((item) => item.id === id);
+              return prompt ? [prompt] : [];
+            })
+          )
+        }
+        onSendQueuedPromptNow={(id) => {
+          console.log('send queued prompt now:', id);
+          setQueuedPrompts((prompts) => prompts.filter((prompt) => prompt.id !== id));
+        }}
+        onSubmitWhileWorking={(text) => {
+          setQueuedPrompts((prompts) => [...prompts, { id: crypto.randomUUID(), text }]);
+        }}
+        onSubmit={() => {}}
+        onStop={() => {}}
+      />
+    </Box>
+  );
+}
+
+export const WithQueuedPromptsAndPermissionRequests: Story = {
+  render: () => <QueuedPromptsWithPermissionRequestsDemo />,
+};
+
+function PermissionBandOverflowStatesDemo() {
+  const [lastAction, setLastAction] = useState<string | null>(null);
+
+  return (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <div style={{ display: 'grid', gap: '1rem' }}>
+        {[
+          {
+            label: 'Narrow shell command',
+            width: 320,
+            widthLabel: '320px',
+            request: MOCK_PERMISSION_OVERFLOW_REQUESTS[0],
+          },
+          {
+            label: 'Medium deep path',
+            width: 480,
+            widthLabel: '480px',
+            request: MOCK_PERMISSION_OVERFLOW_REQUESTS[1],
+          },
+          {
+            label: 'Full width many options',
+            width: '100%',
+            widthLabel: '100%',
+            request: MOCK_PERMISSION_OVERFLOW_REQUESTS[2],
+          },
+        ].map(({ label, width, widthLabel, request }, index) => (
+          <div key={request.requestId} style={{ display: 'grid', gap: '0.375rem' }}>
+            <div className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))} style={{ width }}>
+              {label} · {widthLabel}
+            </div>
+            <div style={{ width, maxWidth: '100%' }}>
+              <PermissionBand
+                request={request}
+                queueCount={index === 0 ? 12 : index + 1}
+                onResolve={(optionId) => {
+                  console.log('permission overflow action:', request.requestId, optionId);
+                  setLastAction(`${request.requestId}: ${optionId}`);
+                }}
+              />
+            </div>
+          </div>
+        ))}
+
+        <div className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
+          Last action: {lastAction ?? 'none'}
+        </div>
+      </div>
+    </Box>
+  );
+}
+
+export const PermissionBandOverflowStates: Story = {
+  render: () => <PermissionBandOverflowStatesDemo />,
 };
 
 function ContextUsageDemo({ usage }: { usage: ContextUsage }) {
