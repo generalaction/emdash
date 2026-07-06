@@ -26,7 +26,11 @@ export function Tool(props: ToolProps) {
   return (
     <div class={toolRow} classList={{ [textShimmer]: isRunning() }}>
       <Show when={props.item.awaitingPermission}>
-        <span style={{ color: '#eab308' }} title="Awaiting permission" aria-label="Awaiting permission">
+        <span
+          style={{ color: '#eab308' }}
+          title="Awaiting permission"
+          aria-label="Awaiting permission"
+        >
           ✋
         </span>
       </Show>

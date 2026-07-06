@@ -1,10 +1,11 @@
-import type { ChatCommands, ChatView, MentionProvider } from '@emdash/chat-ui';
-import {
-  applyTurnEvent,
-  createChatContext,
-  createChatState,
-  generateMockTranscript,
+import type {
+  ChatCommands,
+  ChatItem,
+  ChatView,
+  MentionProvider,
+  TranscriptTurn,
 } from '@emdash/chat-ui';
+import { createChatContext, createChatState, generateMockTranscript } from '@emdash/chat-ui';
 import { ChatTranscript } from '@react/chat-ui';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
@@ -154,6 +155,16 @@ const SEED_ATTACHMENTS: ComposerAttachment[] = [
   { id: 'mock-img-2', name: 'diagram.png', kind: 'image', previewUrl: BLUE_1PX },
 ];
 
+function storyTurn(id: string, seq: number, item: ChatItem): TranscriptTurn {
+  return {
+    id,
+    seq,
+    initiator: item.kind === 'message' && item.role === 'user' ? 'user' : 'agent',
+    items: [{ ...item, seq: 0 } as TranscriptTurn['items'][number]],
+    outcome: { kind: 'done' },
+  };
+}
+
 // Create a shared ChatContext for all stories in this module.
 // In a real app this would be a singleton created once at app startup.
 const storyChatContext = createChatContext({ mentionProvider: chatMentionProvider });
@@ -188,7 +199,7 @@ function LiveChatPanel({
 
   // Seed initial items into the transcript directly (no need to wait for onReady).
   useEffect(() => {
-    const items = generateMockTranscript(40, 1);
+    const turns = generateMockTranscript(40, 1);
     const longUserText = [
       'Refactor the authentication module to use JWT tokens:',
       '',
@@ -205,8 +216,13 @@ function LiveChatPanel({
       'Preserve backward compatibility for existing sessions during the migration period.',
     ].join('\n');
     chatState.transcript.history.seed([
-      { kind: 'message', id: 'long-user-seed', role: 'user', text: longUserText },
-      {
+      storyTurn('seed-long-user-turn', 0, {
+        kind: 'message',
+        id: 'long-user-seed',
+        role: 'user',
+        text: longUserText,
+      }),
+      storyTurn('seed-img-user-turn', 1, {
         kind: 'message',
         id: 'seed-img-user',
         role: 'user',
@@ -215,8 +231,8 @@ function LiveChatPanel({
           { id: 'a1', name: 'screenshot.png', dataUrl: RED_1PX },
           { id: 'a2', name: 'diagram.png', dataUrl: BLUE_1PX },
         ],
-      },
-      ...items,
+      }),
+      ...turns.map((turn, index) => ({ ...turn, seq: index + 2 })),
     ]);
   }, [chatState]);
 
@@ -244,24 +260,44 @@ function LiveChatPanel({
         .filter((a) => a.kind === 'image')
         .map((a) => ({ id: a.id, name: a.name, dataUrl: a.previewUrl }));
       const userId = crypto.randomUUID();
-      const userEv = {
-        type: 'message_chunk' as const,
-        id: userId,
-        role: 'user' as const,
-        text,
-        attachments: atts.length > 0 ? atts : undefined,
-      };
-      api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), userEv), 'generating');
+      api.activeTurn.set(
+        {
+          id: `turn:${userId}`,
+          seq: Date.now(),
+          initiator: 'user',
+          items: [
+            {
+              kind: 'message',
+              id: userId,
+              seq: 0,
+              role: 'user',
+              text,
+              attachments: atts.length > 0 ? atts : undefined,
+            } as TranscriptTurn['items'][number],
+          ],
+        },
+        'generating'
+      );
       api.activeTurn.commit('done');
       setAttachments([]);
       const assistantId = crypto.randomUUID();
-      const assistantEv = {
-        type: 'message_chunk' as const,
-        id: assistantId,
-        role: 'assistant' as const,
-        text: text ? `Got it! You said: *${text}*` : 'Got it — received your image!',
-      };
-      api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), assistantEv), 'generating');
+      api.activeTurn.set(
+        {
+          id: `turn:${assistantId}`,
+          seq: Date.now() + 1,
+          initiator: 'agent',
+          items: [
+            {
+              kind: 'message',
+              id: assistantId,
+              seq: 0,
+              role: 'assistant',
+              text: text ? `Got it! You said: *${text}*` : 'Got it — received your image!',
+            },
+          ],
+        },
+        'generating'
+      );
       api.activeTurn.commit('done');
     },
     [attachments, chatState]

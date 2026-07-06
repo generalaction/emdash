@@ -1,6 +1,6 @@
-import type { ChatContext, ChatState, ChatView, TranscriptTurn } from '@emdash/chat-ui';
-import { createChatState, pinTopMode } from '@emdash/chat-ui';
-import type { AttachmentRef, PromptInput, QueuedPrompt } from '@emdash/core/acp/client';
+import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
+import { connectSession, createChatState, pinTopMode } from '@emdash/chat-ui';
+import type { PromptInput, QueuedPrompt } from '@emdash/core/acp/client';
 import type {
   CommandItem,
   ComposerEffortOption,
@@ -20,6 +20,7 @@ import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { conversationRegistry } from '../stores/conversation-registry';
+import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 
 export type AcpChatLifecycle =
   | 'idle'
@@ -227,22 +228,11 @@ export class AcpChatStore {
   submitPrompt(text: string, images?: AcpPromptImage[]): void {
     if (!this.affordances.isWorking) {
       const optimisticId = `optimistic:user:${Date.now()}`;
-      const optimistic: TranscriptTurn = {
-        id: `optimistic:turn:${Date.now()}`,
-        seq: Number.MAX_SAFE_INTEGER,
-        initiator: 'user',
-        items: [
-          {
-            kind: 'message',
-            id: optimisticId,
-            seq: 0,
-            role: 'user',
-            text,
-            attachments: images?.map(toAttachmentRef),
-          },
-        ],
-      };
-      this.chatState.transcript.activeTurn.set(optimistic);
+      this.chatState.session.setPendingPrompt({
+        id: optimisticId,
+        text,
+        attachments: images?.map(toPendingAttachment),
+      });
       this._syncMessageCount();
       const pinMode = pinTopMode(optimisticId);
       this._view?.setScrollMode(pinMode);
@@ -344,9 +334,7 @@ export class AcpChatStore {
         this.session?.dispose();
         this.session = clientSession;
         this.chatState.transcript.history.seed(history.data.turns);
-        this.chatState.transcript.activeTurn.set(clientSession.activeTurn.getSnapshot() ?? null);
         this._subscribeLiveSession(clientSession);
-        this._syncSessionState(clientSession);
         this.historyLoading = false;
         this.loadError = null;
         this._syncMessageCount();
@@ -440,27 +428,26 @@ export class AcpChatStore {
 
   private _subscribeLiveSession(session: AcpLiveSession): void {
     this._unsubs.splice(0).forEach((unsub) => unsub());
+    const disconnectChatSession = connectSession(this.chatState, session, {
+      onTurnCommitted: () => void this._refreshHistory(),
+    });
     this._unsubs.push(
+      disconnectChatSession,
+      this._bindTerminalOutputs(session),
       session.sessionState.subscribe(() =>
         runInAction(() => {
-          this._syncSessionState(session);
           this._syncMessageCount();
         })
       ),
       session.config.subscribe(() => runInAction(() => {})),
-      session.plan.subscribe(() =>
-        runInAction(() => {
-          this.chatState.session.plan.set(session.plan.getSnapshot() ?? null);
-        })
-      ),
-      session.activeTurn.subscribe(() => {
-        const turn = session.activeTurn.getSnapshot();
-        runInAction(() => {
-          this.chatState.transcript.activeTurn.set(turn ?? null);
-          if (!turn) void this._refreshHistory();
-          this._syncMessageCount();
-        });
-      })
+      session.plan.subscribe(() => runInAction(() => {})),
+      session.activeTurn.subscribe(() => runInAction(() => this._syncMessageCount()))
+    );
+  }
+
+  private _bindTerminalOutputs(session: AcpLiveSession): () => void {
+    return bindSessionTerminalOutputs(session, (terminalId, text) =>
+      this.chatState.session.setTerminalOutput(terminalId, text)
     );
   }
 
@@ -468,20 +455,21 @@ export class AcpChatStore {
     const history = await this.session?.getHistory(undefined, 100);
     if (!history?.success) return;
     runInAction(() => {
+      this.chatState.session.setPendingPrompt(null);
       this.chatState.transcript.history.seed(history.data.turns);
       this._syncMessageCount();
     });
   }
 
-  private _syncSessionState(session: AcpLiveSession): void {
-    const state = session.sessionState.getSnapshot();
-    this.chatState.session.permissions.set(state?.pendingPermissions ?? []);
-    this.chatState.session.plan.set(session.plan.getSnapshot() ?? null);
-  }
-
   private _syncMessageCount(): void {
     const state = this.chatState.transcript.state;
-    this.messageCount = state.committed.length + (state.activeTurn?.length ?? 0);
+    const committedCount = state.committedTurns.reduce(
+      (count, turn) => count + turn.items.length,
+      0
+    );
+    const activeCount = state.activeTurnSnapshot?.items.length ?? 0;
+    const pendingPromptCount = this.chatState.session.state.pendingPrompt ? 1 : 0;
+    this.messageCount = committedCount + activeCount + pendingPromptCount;
   }
 
   private _toastError(title: string, error: unknown): void {
@@ -493,11 +481,11 @@ export class AcpChatStore {
   }
 }
 
-function toAttachmentRef(img: AcpPromptImage): AttachmentRef {
+function toPendingAttachment(img: AcpPromptImage): ChatImageAttachment {
   return {
     id: crypto.randomUUID(),
     name: img.name ?? 'image',
-    mimeType: img.mimeType as AttachmentRef['mimeType'],
+    dataUrl: `data:${img.mimeType};base64,${img.data}`,
   };
 }
 

@@ -10,7 +10,7 @@ import { DEFAULT_THEME } from '@core/theme';
 import { For, onCleanup } from 'solid-js';
 import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
-import type { ChatItem, ToolStatus } from '@/model';
+import type { ChatItem, ToolStatus, TranscriptTurn } from '@/model';
 import { createChatState } from '@/state/chat-state';
 import { storyViewport } from './chat-host.css';
 
@@ -61,7 +61,15 @@ export function ToolStateMatrix(props: ToolStateMatrixProps) {
             state.dispose();
             ctx.dispose();
           });
-          state.transcript.history.seed([props.build(row.status)]);
+          const item = props.build(row.status);
+          state.transcript.history.seed([
+            {
+              id: `matrix-turn-${row.status}`,
+              seq: 0,
+              initiator: 'agent',
+              items: [{ ...item, seq: 0 } as TranscriptTurn['items'][number]],
+            },
+          ]);
           return (
             <div>
               <div

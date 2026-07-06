@@ -24,7 +24,13 @@ import {
 } from 'solid-js';
 import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
-import type { ChatCommands, ChatItem, CommandProvider, MentionProvider, TranscriptTurn } from '@/index';
+import type {
+  ChatCommands,
+  ChatItem,
+  CommandProvider,
+  MentionProvider,
+  TranscriptTurn,
+} from '@/index';
 import { createChatState } from '@/state/chat-state';
 import { storyViewport } from './chat-host.css';
 

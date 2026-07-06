@@ -18,7 +18,7 @@ import { createChatContext } from '@/chat-context';
 import { createChatView } from '@/chat-view';
 import type { ChatView } from '@/chat-view';
 import { generateMockTranscript } from '@/mock-transcript';
-import type { ChatItem } from '@/model';
+import type { TranscriptTurn } from '@/model';
 import { createChatState } from '@/state/chat-state';
 import type { FrameStats } from '@/stories/_harness/perf-instrument';
 
@@ -95,17 +95,27 @@ function CollapseAnimBench(props: { count: number; label: string }) {
   let viewRef: ChatView | null = null;
 
   const TOGGLE_ID = 'bench-think';
-  const baseItems = generateMockTranscript(props.count);
-  const items: ChatItem[] = [
+  const baseTurns = generateMockTranscript(props.count);
+  const turns: TranscriptTurn[] = [
     {
-      kind: 'thinking',
-      id: TOGGLE_ID,
-      text: 'This is the thinking block that will be toggled during the benchmark. It contains enough text to produce a meaningful height change that exercises the full tween path. The expand and collapse directions should both be measured.',
-      status: 'done',
-      durationMs: 2000,
-      startedAt: Date.now() - 2000,
+      id: 'bench-thinking-turn',
+      seq: 0,
+      initiator: 'agent',
+      items: [
+        {
+          kind: 'thinking',
+          id: TOGGLE_ID,
+          seq: 0,
+          segmentId: TOGGLE_ID,
+          text: 'This is the thinking block that will be toggled during the benchmark. It contains enough text to produce a meaningful height change that exercises the full tween path. The expand and collapse directions should both be measured.',
+          status: 'done',
+          durationMs: 2000,
+          startedAt: Date.now() - 2000,
+        },
+      ],
+      outcome: { kind: 'done' },
     },
-    ...baseItems,
+    ...baseTurns.map((turn, index) => ({ ...turn, seq: index + 1 })),
   ];
 
   onMount(() => {
@@ -114,7 +124,7 @@ function CollapseAnimBench(props: { count: number; label: string }) {
     const ctx = createChatContext({ theme: DEFAULT_THEME });
     const state = createChatState(ctx);
 
-    state.transcript.history.seed(items);
+    state.transcript.history.seed(turns);
 
     const view = createChatView({
       context: ctx,

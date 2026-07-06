@@ -39,10 +39,9 @@
  */
 
 import { resolveSeamGap } from '@core/spacing';
-import type { GroupChrome, Margin, RenderUnit, SegmentCtx } from '@core/units';
+import type { GroupChrome, ItemSegmenter, Margin, RenderUnit, SegmentCtx } from '@core/units';
 import { stampGroupRoles } from '@core/units';
-import type { ChatItem, ChatMessage, TranscriptTurn, TurnOutcomeItem, WorkingItem } from '@/model';
-import { orderedItems, orderedTurns } from './transcript';
+import type { ChatItem, ChatMessage, SyntheticItem, TranscriptTurn } from '@/model';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -60,8 +59,7 @@ function itemIsUser(item: ChatItem): boolean {
  * equals `item.id`, in the original transcript order.
  */
 export type ItemNode = {
-  // oxlint-disable-next-line typescript/no-explicit-any -- render-unit tree contains presentation payloads
-  item: any;
+  item: ChatItem;
   children: ItemNode[];
 };
 
@@ -117,12 +115,9 @@ export type NodeSegmenter = {
  * the parent's composite unit and skipped in the top-level iteration.
  */
 export function flattenTier(
-  turns: readonly (TranscriptTurn | ChatItem)[],
+  turns: readonly TranscriptTurn[],
   ctx: SegmentCtx,
-  segmenters: Record<
-    string,
-    { segment(item: ChatItem | WorkingItem | TurnOutcomeItem, ctx: SegmentCtx): RenderUnit[]; chrome?: GroupChrome }
-  >,
+  segmenters: Record<string, ItemSegmenter>,
   unitDefs?: Record<string, { margin?: Margin }>,
   prevKind?: string,
   _nodeSegmenters?: Record<string, NodeSegmenter>
@@ -135,7 +130,7 @@ export function flattenTier(
   // Track the kind of the last emitted unit for seam resolution.
   let lastKind = prevKind;
 
-  const processItem = (item: ChatItem | WorkingItem | TurnOutcomeItem): void => {
+  const processItem = (item: ChatItem | SyntheticItem): void => {
     const seg = segmenters[item.kind];
     if (!seg) return;
     const group = seg.segment(item, ctx);
@@ -163,9 +158,8 @@ export function flattenTier(
     out.push(...group);
   };
 
-  const normalizedTurns = normalizeTurnsForFlatten(turns);
-  for (const turn of orderedTurns(normalizedTurns)) {
-    const items = orderedItems(turn.items);
+  for (const turn of turns) {
+    const items = turn.items as readonly ChatItem[];
     for (const item of items) {
       processItem(item);
     }
@@ -180,18 +174,6 @@ export function flattenTier(
   }
 
   return out;
-}
-
-function normalizeTurnsForFlatten(turns: readonly (TranscriptTurn | ChatItem)[]): TranscriptTurn[] {
-  if (turns.every((turn) => 'items' in turn)) return turns as TranscriptTurn[];
-  return [
-    {
-      id: 'flatten-compat-turn',
-      seq: 0,
-      initiator: 'user',
-      items: turns as TranscriptTurn['items'],
-    },
-  ];
 }
 
 function shouldShowWorking(items: readonly ChatItem[]): boolean {
@@ -242,12 +224,12 @@ export function makeUnitsView(committed: RenderUnit[], active: RenderUnit[]): Un
  * TranscriptState) and a UnitsView for index lookup.
  */
 export function collectUserTurnUnits(
-  committed: readonly (TranscriptTurn | ChatItem)[],
+  committed: readonly TranscriptTurn[],
   units: UnitsView
 ): number[] {
   // Build a set of itemIds for committed user messages.
   const userItemIds = new Set<string>();
-  for (const turn of normalizeTurnsForFlatten(committed)) {
+  for (const turn of committed) {
     for (const item of turn.items) {
       if (itemIsUser(item)) userItemIds.add(item.id);
     }

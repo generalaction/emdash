@@ -4,11 +4,12 @@ import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import type { StackLayout } from '@core/compose';
 import { type Measured, type MeasureCtx, type RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
+import type { SegmentCtx } from '@core/units';
 import { defineUnit } from '@core/units';
 import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
-import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '@/model';
+import type { ChatPlan, PlanEntryPriority, PlanEntryStatus, ToolNode } from '@/model';
 import { PlanList } from './Plan';
 import { planVars, type PlanStyleVars } from './plan.css';
 
@@ -32,6 +33,19 @@ export type PlanVars = {
   /** Maximum height (px) of the collapsed preview window. */
   windowH: number;
 };
+
+export function planFromItem(
+  item: Extract<ToolNode, { kind: 'create-plan-tool-call' }>,
+  ctx: SegmentCtx
+): ChatPlan {
+  const plan = ctx.plan();
+  return {
+    kind: 'plan',
+    id: item.id,
+    entries: plan?.entries ?? [],
+    streaming: item.status === 'running',
+  };
+}
 
 // ── Layout type ───────────────────────────────────────────────────────────────
 

@@ -40,6 +40,10 @@ export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate):
 
   const parentPatch =
     typeof parentToolUseId === 'string' ? { parentToolCallId: parentToolUseId } : {};
+  const outputPatch =
+    update.outputText === undefined && rawOutputText(raw) !== undefined
+      ? { outputText: rawOutputText(raw)! }
+      : {};
 
   if (claudeToolName(raw) === 'Agent') {
     const asyncLaunch = parseAsyncLaunch(raw);
@@ -56,8 +60,8 @@ export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate):
     };
   }
 
-  if (!parentPatch.parentToolCallId) return update;
-  return { ...update, parentToolCallId: parentPatch.parentToolCallId };
+  if (!parentPatch.parentToolCallId && outputPatch.outputText === undefined) return update;
+  return { ...update, ...parentPatch, ...outputPatch };
 }
 
 type ClaudeMeta = {
@@ -136,6 +140,11 @@ function rawText(raw: SessionUpdate): string {
   collectText(content, parts);
   collectText((raw as { rawOutput?: unknown }).rawOutput, parts);
   return parts.join('\n');
+}
+
+function rawOutputText(raw: SessionUpdate): string | undefined {
+  const rawOutput = (raw as { rawOutput?: unknown }).rawOutput;
+  return typeof rawOutput === 'string' && rawOutput.length > 0 ? rawOutput : undefined;
 }
 
 function collectText(value: unknown, parts: string[]): void {

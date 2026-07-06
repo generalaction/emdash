@@ -75,6 +75,23 @@ function toolUpdateDone(toolCallId: string): SessionUpdate {
   } as unknown as SessionUpdate;
 }
 
+function toolUpdateWithTextOutput(
+  toolCallId: string,
+  text: string,
+  terminalId?: string
+): SessionUpdate {
+  return {
+    sessionUpdate: 'tool_call_update',
+    sessionId: 'sess-1',
+    toolCallId,
+    title: null,
+    kind: 'execute',
+    status: 'completed',
+    content: [{ type: 'content', content: { type: 'text', text } }],
+    ...(terminalId !== undefined ? { terminalId } : {}),
+  } as unknown as SessionUpdate;
+}
+
 function toolUpdateWithDiff(
   toolCallId: string,
   path: string,
@@ -342,6 +359,31 @@ describe('AcpTranscriptParser', () => {
     const items = p.activeTurn?.items ?? [];
     const tool = items.find((i) => i.kind === 'unknown-tool-call');
     expect(tool).toMatchObject({ status: 'done' });
+  });
+
+  it('tool_call_update content materializes execute outputText', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'run it'));
+    p.push(toolCallUpdate('exec-1', 'printf "hello"', 'execute'));
+    p.push(toolUpdateWithTextOutput('exec-1', '```console\nhello\n```'));
+
+    expect(p.activeTurn?.items.find((i) => i.kind === 'execute-tool-call')).toMatchObject({
+      command: 'printf "hello"',
+      outputText: 'hello',
+      status: 'done',
+    });
+  });
+
+  it('passes through standard terminalId on execute tool updates', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'run it'));
+    p.push(toolCallUpdate('exec-1', 'pnpm test', 'execute'));
+    p.push(toolUpdateWithTextOutput('exec-1', 'ok', 'term-1'));
+
+    expect(p.activeTurn?.items.find((i) => i.kind === 'execute-tool-call')).toMatchObject({
+      terminalId: 'term-1',
+      outputText: 'ok',
+    });
   });
 
   it('tool kinds can materialize richer tool rows', () => {

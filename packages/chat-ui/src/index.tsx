@@ -28,8 +28,18 @@ import './styles/global.css';
 export { createChatContext } from './chat-context';
 export type { ChatContext, ChatContextOptions } from './chat-context';
 
-export { createChatState, tailMode, pinTopMode } from './state/chat-state';
-export type { ChatState, ChatStateOptions, ScrollMode, HeightmapStore } from './state/chat-state';
+export { connectSession, createChatState, tailMode, pinTopMode } from './state/chat-state';
+export type {
+  ChatState,
+  ChatStateOptions,
+  ScrollMode,
+  HeightmapStore,
+  ChatSessionState,
+  ChatSessionSnapshot,
+  PendingPrompt,
+  ConnectSessionSource,
+  ConnectSessionOptions,
+} from './state/chat-state';
 
 export { createChatView } from './chat-view';
 export type { ChatView, ChatViewOptions } from './chat-view';
@@ -64,8 +74,7 @@ export type {
 
 // ── Transcript API ────────────────────────────────────────────────────────────
 
-export type { TurnStatus, TranscriptApi, ChatHistory, ActiveTurn } from './state/transcript';
-export { createTranscript } from './state/transcript';
+export type { TurnStatus, TranscriptApi, ChatHistory } from './state/transcript';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 

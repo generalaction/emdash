@@ -194,6 +194,7 @@ export const router = i.router({
     resolvePermission: i.acp.resolvePermission.handler(notImplemented),
     editCurrentPrompt: i.acp.editCurrentPrompt.handler(notImplemented),
     exportACPTranscript: i.acp.exportACPTranscript.handler(notImplemented),
+    exportRawAcpLog: i.acp.exportRawAcpLog.handler(notImplemented),
     uploadAttachment: i.acp.uploadAttachment.handler(notImplemented),
     downloadAttachment: i.acp.downloadAttachment.handler(notImplemented),
     deleteAttachment: i.acp.deleteAttachment.handler(notImplemented),

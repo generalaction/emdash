@@ -205,10 +205,16 @@ export const Streaming: Story = {
           {
             kind: 'call' as const,
             fn: (api) => {
+              const turn = api.activeTurn.get();
               api.activeTurn.set(
-                (api.activeTurn.get() ?? []).map((it: any) =>
-                  it.id === 'p1' ? { ...it, status: 'done' } : it
-                ),
+                turn
+                  ? {
+                      ...turn,
+                      items: turn.items.map((it) =>
+                        it.id === 'p1' ? { ...it, status: 'done' } : it
+                      ),
+                    }
+                  : null,
                 'generating'
               );
             },

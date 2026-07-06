@@ -33,7 +33,7 @@ import type { ChatContext } from './chat-context';
 import { ChatRoot } from './ChatRoot';
 import type { EngineControls } from './ChatRoot';
 import type { ChatCommands, ScrollToItemOptions } from './commands';
-import type { ChatItem } from './model';
+import type { TranscriptTurn } from './model';
 import type { ChatState, ScrollMode } from './state/chat-state';
 
 export type ChatViewOptions = {
@@ -106,7 +106,7 @@ export type ChatView = {
    * Prepend older history items without losing scroll position.
    * Pair with `onReachStart` for infinite-scroll pagination.
    */
-  loadOlder(items: ChatItem[]): void;
+  loadOlder(turns: TranscriptTurn[]): void;
   /**
    * Toggle the collapsed state of an item by id.
    * Primarily for perf benchmarks; prefer user-driven collapse in production.

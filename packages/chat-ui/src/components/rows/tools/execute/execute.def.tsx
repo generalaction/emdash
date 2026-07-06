@@ -4,9 +4,12 @@ import type { MeasureCtx, RenderCtx } from '@core/define';
 import { defineUnit } from '@core/units';
 import { Show, createMemo } from 'solid-js';
 import type { ChatExecute } from '@/model';
-import { ExecuteBody } from './Execute';
+import { ExecuteBody, type ExecuteDisplayLine } from './Execute';
+import { executeFromItem } from './execute.presenter';
 
 // ── Vars ──────────────────────────────────────────────────────────────────────
+
+export { executeFromItem } from './execute.presenter';
 
 export type ExecuteVars = {
   /** Fixed height (px) of the header row. */
@@ -37,8 +40,28 @@ function commandLines(command: string): string[] {
   return (command || '…').split('\n');
 }
 
+function outputLines(outputText: string | undefined): string[] {
+  if (!outputText) return [];
+  return outputText.replace(/\r\n/g, '\n').split('\n');
+}
+
+function executeLines(item: ChatExecute): ExecuteDisplayLine[] {
+  const command = commandLines(item.command).map(
+    (line, index): ExecuteDisplayLine => ({
+      kind: 'command',
+      text: `${index === 0 ? '$' : ' '} ${line}`,
+    })
+  );
+  const output = outputLines(item.outputText).map(
+    (line): ExecuteDisplayLine => ({ kind: 'output', text: line })
+  );
+  return output.length > 0
+    ? [...command, { kind: 'spacer', text: '' }, ...output]
+    : command;
+}
+
 function executeBodyH(
-  lines: string[],
+  lines: ExecuteDisplayLine[],
   codeLineH: number,
   isExpanded: boolean,
   vars: ExecuteVars
@@ -52,7 +75,7 @@ function executeBodyH(
 
 function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): number {
   const isExpanded = ctx.expanded(item.id);
-  const lines = commandLines(item.command);
+  const lines = executeLines(item);
   const { bodyH } = executeBodyH(lines, ctx.theme.fonts.code.lineHeight, isExpanded, vars);
   return vars.rowH + bodyH + chromeY(vars);
 }
@@ -64,7 +87,7 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
   // Inverted semantics: stored "collapsed" bool = "expanded".
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
 
-  const lines = createMemo(() => commandLines(props.data.command));
+  const lines = createMemo(() => executeLines(props.data));
   const codeLineH = createMemo(() => mCtx()?.theme.fonts.code.lineHeight ?? 0);
 
   const bodyGeometry = createMemo(() => {
@@ -113,7 +136,7 @@ export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
 
   estimate(item, _ctx, vars): number {
     // O(1) cheap estimate: use collapsedMaxLines cap (default state).
-    const lines = commandLines(item.command);
+    const lines = executeLines(item);
     // Approximate code line height — use a fixed fallback of 20px for estimate.
     const approxLineH = 20;
     const { bodyH } = executeBodyH(lines, approxLineH, false, vars);

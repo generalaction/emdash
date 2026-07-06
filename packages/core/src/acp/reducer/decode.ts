@@ -30,6 +30,51 @@ function extractDiffs(
   return diffs;
 }
 
+function collectTextPayload(value: unknown, parts: string[]): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    for (const item of value) collectTextPayload(item, parts);
+    return;
+  }
+
+  const raw = value as { type?: unknown; text?: unknown; content?: unknown };
+  if (raw.type === 'text' && typeof raw.text === 'string') {
+    parts.push(raw.text);
+    return;
+  }
+  collectTextPayload(raw.content, parts);
+}
+
+function stripSingleCodeFence(text: string): string {
+  const trimmed = text.trim();
+  const match = /^```[^\n]*\n([\s\S]*?)\n```$/.exec(trimmed);
+  return match ? match[1] : text;
+}
+
+function extractTextOutput(
+  content: ReadonlyArray<ToolCallContent> | null | undefined
+): string | undefined {
+  if (!content) return undefined;
+  const parts: string[] = [];
+  for (const block of content) {
+    const raw = block as { type?: unknown; content?: unknown; text?: unknown };
+    if (raw.type === 'content') {
+      collectTextPayload(raw.content, parts);
+    } else if (raw.type === 'text' && typeof raw.text === 'string') {
+      parts.push(raw.text);
+    }
+  }
+  const text = parts.join('\n');
+  return text ? stripSingleCodeFence(text) : undefined;
+}
+
+function extractTerminalId(update: SessionUpdate): string | undefined {
+  const raw = update as unknown as { terminalId?: unknown; terminal_id?: unknown };
+  if (typeof raw.terminalId === 'string') return raw.terminalId;
+  if (typeof raw.terminal_id === 'string') return raw.terminal_id;
+  return undefined;
+}
+
 /**
  * Decode a raw ACP SessionUpdate into a NormalizedEvent.
  * Stateless — does not depend on turn or session context.
@@ -66,6 +111,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
     }
 
     case 'tool_call': {
+      const terminalId = extractTerminalId(update);
       return {
         kind: 'tool_call',
         toolCallId: update.toolCallId,
@@ -74,10 +120,13 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
         status: (update.status as NormalizedToolStatus | undefined) ?? null,
         parentToolCallId: null,
         diffs: extractDiffs(update.content),
+        ...(terminalId !== undefined ? { terminalId } : {}),
       };
     }
 
     case 'tool_call_update': {
+      const outputText = extractTextOutput(update.content ?? undefined);
+      const terminalId = extractTerminalId(update);
       return {
         kind: 'tool_update',
         toolCallId: update.toolCallId,
@@ -86,6 +135,8 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
         status: (update.status as NormalizedToolStatus | undefined | null) ?? null,
         parentToolCallId: null,
         diffs: extractDiffs(update.content ?? undefined),
+        ...(outputText !== undefined ? { outputText } : {}),
+        ...(terminalId !== undefined ? { terminalId } : {}),
       };
     }
 

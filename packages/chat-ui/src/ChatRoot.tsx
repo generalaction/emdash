@@ -65,7 +65,6 @@ import { flattenTier, makeUnitsView, collectUserTurnUnits } from './state/flatte
 import type { UnitsView } from './state/flatten';
 import type { LayoutSnapshot, PinSnapshot } from './state/geometry';
 import { samePin, sameRange } from './state/geometry';
-import { getItem } from './state/transcript';
 import {
   canvas,
   composerSlotClass,
@@ -121,6 +120,17 @@ const USER_SCROLL_EPSILON = 0.5;
 // and let projectAnchor jump the thumb forward. Tunable.
 const SCROLL_SETTLE_MS = 120;
 
+function findLastUserMessageId(turns: readonly TranscriptTurn[]): string | null {
+  for (let turnIndex = turns.length - 1; turnIndex >= 0; turnIndex--) {
+    const turn = turns[turnIndex];
+    for (let itemIndex = turn.items.length - 1; itemIndex >= 0; itemIndex--) {
+      const item = turn.items[itemIndex];
+      if (item.kind === 'message' && item.role === 'user') return item.id;
+    }
+  }
+  return null;
+}
+
 // ── EngineControls ────────────────────────────────────────────────────────────
 
 /**
@@ -131,7 +141,7 @@ const SCROLL_SETTLE_MS = 120;
 export type EngineControls = {
   scrollToBottom(opts?: { behavior?: ScrollBehavior }): void;
   scrollToItem(id: string, opts?: ScrollToItemOptions): void;
-  loadOlder(items: ChatItem[]): void;
+  loadOlder(turns: TranscriptTurn[]): void;
   /** Toggle collapse for an item by id (for view.toggleCollapsed). */
   toggleCollapsed?(id: string): void;
   /**
@@ -352,8 +362,9 @@ export function ChatRoot(props: ChatRootProps) {
     caches: caches(),
     expanded: (_id: string) => false,
     active,
-    plan: () => state().session.plan.get(),
-    pendingToolCallIds: () => state().session.pendingToolCallIds.get(),
+    plan: () => state().session.state.plan,
+    pendingToolCallIds: () => state().session.state.pendingToolCallIds,
+    terminalOutputText: (terminalId: string) => state().session.state.terminalOutputText(terminalId),
   });
 
   let committedUnitsArr: ReturnType<typeof flattenTier> = [];
@@ -445,12 +456,50 @@ export function ChatRoot(props: ChatRootProps) {
   const activeUnits = createMemo(() => {
     committedUnitsVersion();
     const at = state().transcript.state.activeTurnSnapshot;
-    if (!at || at.items.length === 0) return [] as ReturnType<typeof flattenTier>;
+    const pendingPrompt = state().session.state.pendingPrompt;
+    if ((!at || at.items.length === 0) && !pendingPrompt)
+      return [] as ReturnType<typeof flattenTier>;
     const prevKind =
       committedUnitsArr.length > 0
         ? committedUnitsArr[committedUnitsArr.length - 1].kind
         : undefined;
-    return flattenTier([at], segmentCtx(true), SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
+    const activeTurn =
+      at ??
+      ({
+        id: `pending:${pendingPrompt!.id}:turn`,
+        seq: 0,
+        initiator: 'user',
+        items: [
+          {
+            kind: 'message',
+            id: pendingPrompt!.id,
+            seq: 0,
+            role: 'user',
+            text: pendingPrompt!.text,
+            attachments: pendingPrompt!.attachments,
+          } as TranscriptTurn['items'][number],
+        ],
+      } satisfies TranscriptTurn);
+    return flattenTier(
+      [activeTurn],
+      segmentCtx(true),
+      SEGMENTERS,
+      UNIT_REGISTRY,
+      prevKind,
+      NODE_SEGMENTERS
+    );
+  });
+
+  let pendingPromptCommittedTurns = state().transcript.state.committedTurns;
+  createEffect(() => {
+    const s = state();
+    const pendingPrompt = s.session.state.pendingPrompt;
+    const committedTurns = s.transcript.state.committedTurns;
+    const hasActiveTurn = s.transcript.state.activeTurnSnapshot !== null;
+    if (pendingPrompt && (hasActiveTurn || committedTurns !== pendingPromptCommittedTurns)) {
+      s.session.setPendingPrompt(null);
+    }
+    pendingPromptCommittedTurns = committedTurns;
   });
 
   const units = createMemo<UnitsView>(() => {
@@ -565,10 +614,10 @@ export function ChatRoot(props: ChatRootProps) {
     let targetId: string | null = null;
 
     // 1. Scan activeTurn backward for the latest user message.
-    const active = transcript.activeTurn;
+    const active = transcript.activeTurnSnapshot;
     if (active) {
-      for (let i = active.length - 1; i >= 0; i--) {
-        const item = active[i];
+      for (let i = active.items.length - 1; i >= 0; i--) {
+        const item = active.items[i];
         if (item && item.kind === 'message' && (item as ChatMessage).role === 'user') {
           targetId = item.id;
           break;
@@ -578,14 +627,7 @@ export function ChatRoot(props: ChatRootProps) {
 
     // 2. Fall back to the last committed user message.
     if (targetId === null) {
-      const committed = transcript.committed;
-      for (let i = committed.length - 1; i >= 0; i--) {
-        const item = committed[i];
-        if (item && item.kind === 'message' && (item as ChatMessage).role === 'user') {
-          targetId = item.id;
-          break;
-        }
-      }
+      targetId = findLastUserMessageId(transcript.committedTurns);
     }
 
     if (targetId === null) return -1;
@@ -1229,11 +1271,19 @@ export function ChatRoot(props: ChatRootProps) {
     }
   };
 
-  const doLoadOlder = (items: ChatItem[]) => {
+  const doLoadOlder = (turns: TranscriptTurn[]) => {
     const el = scrollEl;
-    if (!el || items.length === 0) return;
+    if (!el || turns.length === 0) return;
 
     const t = theme();
+    const prependedUnits = flattenTier(
+      turns,
+      segmentCtx(false),
+      SEGMENTERS,
+      UNIT_REGISTRY,
+      undefined,
+      NODE_SEGMENTERS
+    );
 
     const anchorUnitIdx = virt.findIndex(Math.max(0, el.scrollTop - padTop()));
     const anchorId = units().at(anchorUnitIdx)?.itemId;
@@ -1246,18 +1296,18 @@ export function ChatRoot(props: ChatRootProps) {
       expanded: () => false,
       caches: caches(),
     };
-    const count = items.length;
+    const count = prependedUnits.length;
     virt.prepend(count, (i) => {
-      const item = items[i];
-      if (!item) return userTopGap + 60;
-      const unitDef = UNIT_REGISTRY[item.kind];
+      const unit = prependedUnits[i];
+      if (!unit) return userTopGap + 60;
+      const unitDef = UNIT_REGISTRY[unit.kind];
       const contentH =
-        unitDef?.estimate?.(item, loadEstimateCtx, unitDef.vars ?? {}) ??
-        genericEstimate(item, loadEstimateCtx);
-      return userTopGap + contentH;
+        unitDef?.estimate?.(unit.data, loadEstimateCtx, unitDef.vars ?? {}) ??
+        genericEstimate(unit.data as unknown as ChatItem, loadEstimateCtx);
+      return unitReservedHeight(unit, contentH);
     });
 
-    state().transcript.history.prepend(items);
+    state().transcript.history.prepend(turns);
     refreshTotal();
 
     if (anchorId !== undefined) {
@@ -1463,18 +1513,15 @@ export function ChatRoot(props: ChatRootProps) {
 
   // ── Active-turn id set ────────────────────────────────────────────────────
   const activeTurnItemIds = createMemo(() => {
-    const active = state().transcript.state.activeTurn;
-    if (!active) return new Set<string>();
-    return new Set(active.map((i: ChatItem) => i.id));
+    const active = state().transcript.state.activeTurnSnapshot;
+    const ids = new Set(active?.items.map((i) => i.id) ?? []);
+    const pendingPrompt = state().session.state.pendingPrompt;
+    if (pendingPrompt) ids.add(pendingPrompt.id);
+    return ids;
   });
 
   const currentMessageId = createMemo<string | null>(() => {
-    const committed = state().transcript.state.committed;
-    for (let i = committed.length - 1; i >= 0; i--) {
-      const item = committed[i];
-      if (item.kind === 'message' && item.role === 'user') return item.id;
-    }
-    return null;
+    return findLastUserMessageId(state().transcript.state.committedTurns);
   });
 
   const turnStatus = () => state().transcript.state.turnStatus;
@@ -1566,14 +1613,13 @@ export function ChatRoot(props: ChatRootProps) {
                   {(ps) => {
                     // Resolve the ChatMessage reactively via itemId (stable) so
                     // a stale unit-index lookup can never hand a wrong item to
-                    // PinnedUserMessage. getItem searches committed-then-active
-                    // so optimistic / live active-turn user messages resolve too.
+                    // PinnedUserMessage. findItemById searches committed-then-active
+                    // so live active-turn user messages resolve too.
                     const pinnedItem = (): ChatMessage | undefined => {
                       const itemId = ps().itemId;
                       if (!itemId) return undefined;
                       const transcript = state().transcript;
-                      const idx = transcript.findIndexById(itemId);
-                      const item = idx >= 0 ? getItem(transcript.state, idx) : undefined;
+                      const item = transcript.findItemById(itemId);
                       return item && item.kind === 'message' && item.role === 'user'
                         ? (item as ChatMessage)
                         : undefined;

@@ -29,7 +29,7 @@
  */
 
 import type { Component } from 'solid-js';
-import type { ChatItem, PlanState } from '@/model';
+import type { ChatItem, PlanState, SyntheticItem } from '@/model';
 import type { ChatCaches } from './caches';
 import type { MeasureCtx, RenderCtx } from './define';
 import type { Margin } from './spacing';
@@ -98,6 +98,8 @@ export type GroupChrome = {
   insetX?: number;
 };
 
+export type SegmentItem = ChatItem | SyntheticItem;
+
 // ── SegmentCtx ────────────────────────────────────────────────────────────────
 
 /**
@@ -114,9 +116,10 @@ export type GroupChrome = {
 export type SegmentCtx = {
   caches: ChatCaches;
   expanded: (id: string) => boolean;
-  active?: boolean;
-  plan?: () => PlanState | null;
-  pendingToolCallIds?: () => Set<string>;
+  active: boolean;
+  plan: () => PlanState | null;
+  pendingToolCallIds: () => Set<string>;
+  terminalOutputText: (terminalId: string) => string | null;
 };
 
 // ── UnitDef ───────────────────────────────────────────────────────────────────
@@ -161,10 +164,10 @@ export type UnitDef<D, V extends Record<string, number> = {}> = {
  *             For single-unit composites (diff / plan / etc.), returns exactly
  *             one unit whose Render handles internal layout.
  */
-export type ItemSegmenter<T extends ChatItem> = {
-  kind: T['kind'];
+export type ItemSegmenter = {
+  kind: string;
   chrome?: GroupChrome;
-  segment(item: T, ctx: SegmentCtx): RenderUnit[];
+  segment(item: SegmentItem, ctx: SegmentCtx): RenderUnit[];
 };
 
 // ── Factories ─────────────────────────────────────────────────────────────────
@@ -177,7 +180,7 @@ export function defineUnit<D, V extends Record<string, number> = {}>(
 }
 
 /** Identity factory for ItemSegmenter — enables TypeScript inference. */
-export function defineSegmenter<T extends ChatItem>(seg: ItemSegmenter<T>): ItemSegmenter<T> {
+export function defineSegmenter(seg: ItemSegmenter): ItemSegmenter {
   return seg;
 }
 
@@ -195,7 +198,7 @@ export function defineSegmenter<T extends ChatItem>(seg: ItemSegmenter<T>): Item
  */
 export function unit<D>(
   kind: string,
-  item: ChatItem,
+  item: SegmentItem,
   data: D,
   opts: { key: string; gapBefore?: number }
 ): RenderUnit<D> {

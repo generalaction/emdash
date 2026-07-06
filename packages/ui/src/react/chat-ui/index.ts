@@ -132,6 +132,7 @@ export type {
 } from '@emdash/chat-ui';
 export type LoadOlderFn = (turns: TranscriptTurn[]) => void;
 export {
+  connectSession,
   createChatContext,
   createChatState,
   createChatView,

@@ -7,6 +7,7 @@ import type {
   FileOpKind,
   ResourceTarget,
   ToolStatus,
+  TranscriptTurn,
 } from './model';
 
 /** Tiny deterministic PRNG (mulberry32) so stories render identically each time. */
@@ -491,7 +492,7 @@ export function generateMockTranscript(
   count = 6000,
   seed = 1,
   opts: { richProse?: boolean; bodyPoolSize?: number } = {}
-): ChatItem[] {
+): TranscriptTurn[] {
   const rng = makeRng(seed);
   const items: ChatItem[] = [];
 
@@ -685,5 +686,11 @@ export function generateMockTranscript(
     }
   }
 
-  return items;
+  return items.map((item, index) => ({
+    id: `mock-turn-${index}`,
+    seq: index,
+    initiator: item.kind === 'message' && item.role === 'user' ? 'user' : 'agent',
+    items: [{ ...item, seq: 0 } as TranscriptTurn['items'][number]],
+    outcome: { kind: 'done' },
+  }));
 }

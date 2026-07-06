@@ -10,10 +10,10 @@
  */
 
 import type { TranscriptApi } from '@state/transcript';
-import type { ActiveTurnEvent } from '@state/turn-reducer';
-import { applyTurnEvent } from '@state/turn-reducer';
 import type { ChatItem, ChatRole, FileOp, FileOpKind, ToolStatus } from '@/model';
 import type { ScriptStep } from '@/stories/_harness/chat-host';
+import type { ActiveTurnEvent } from '@/stories/_harness/turn-reducer';
+import { applyTurnEvent } from '@/stories/_harness/turn-reducer';
 
 // ── driveEvent helper ─────────────────────────────────────────────────────────
 

@@ -35,6 +35,25 @@ function buildParserOutput(): AcpTranscriptParser {
     cost: { amount: 0.01, currency: 'USD' },
   } as unknown as SessionUpdate);
   parser.push({
+    sessionUpdate: 'tool_call',
+    sessionId: 'session-1',
+    toolCallId: 'execute-1',
+    title: 'echo ok',
+    kind: 'execute',
+    status: 'in_progress',
+    terminalId: 'term-1',
+    content: [],
+  } as unknown as SessionUpdate);
+  parser.push({
+    sessionUpdate: 'tool_call_update',
+    sessionId: 'session-1',
+    toolCallId: 'execute-1',
+    title: null,
+    kind: 'execute',
+    status: 'completed',
+    content: [{ type: 'content', content: { type: 'text', text: 'ok' } }],
+  } as unknown as SessionUpdate);
+  parser.push({
     sessionUpdate: 'plan',
     sessionId: 'session-1',
     entries: [{ content: 'Read reducer.ts', status: 'pending', priority: 'medium' }],

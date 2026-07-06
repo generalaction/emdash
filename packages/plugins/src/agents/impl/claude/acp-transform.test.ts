@@ -110,6 +110,29 @@ describe('enrichClaudeUpdate', () => {
     expect(result).toMatchObject({ kind: 'tool_update', parentToolCallId: 'parent-xyz' });
   });
 
+  it('uses rawOutput as Claude execute output fallback when standard content is absent', () => {
+    const update = makeToolUpdate();
+    const raw = {
+      ...makeRaw({ claudeCode: { toolName: 'Bash' } }),
+      rawOutput: 'hello from raw output',
+    } as unknown as SessionUpdate;
+
+    expect(enrichClaudeUpdate(update, raw)).toMatchObject({
+      kind: 'tool_update',
+      outputText: 'hello from raw output',
+    });
+  });
+
+  it('does not overwrite standard outputText with Claude rawOutput', () => {
+    const update = makeToolUpdate({ outputText: 'standard output' });
+    const raw = {
+      ...makeRaw({ claudeCode: { toolName: 'Bash' } }),
+      rawOutput: 'raw output',
+    } as unknown as SessionUpdate;
+
+    expect(enrichClaudeUpdate(update, raw)).toBe(update);
+  });
+
   it('preserves all other fields on tool_call when enriching', () => {
     const update = makeToolCall({ toolCallId: 'tc-99', title: 'Read file', toolKind: 'read' });
     const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-1' } });

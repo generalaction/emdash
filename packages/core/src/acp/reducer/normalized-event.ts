@@ -57,6 +57,8 @@ export type NormalizedEvent =
        */
       parentToolCallId: string | null;
       diffs: NormalizedDiff[];
+      outputText?: string;
+      terminalId?: string;
     }
   | {
       kind: 'subagent';
@@ -110,6 +112,8 @@ export type NormalizedEvent =
       status: NormalizedToolStatus | null;
       parentToolCallId: string | null;
       diffs: NormalizedDiff[];
+      outputText?: string;
+      terminalId?: string;
     }
   | {
       kind: 'plan';

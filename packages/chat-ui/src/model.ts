@@ -131,6 +131,8 @@ export type ChatExecute = {
   id: string;
   /** The shell command, e.g. "ls -a". Empty string until the command-bearing update arrives. */
   command: string;
+  /** Static tool output, or live terminal output when available. */
+  outputText?: string;
   status: ToolStatus;
   awaitingPermission?: boolean;
   /** Start time (epoch ms) — used to derive the live timer and frozen duration. */
@@ -255,6 +257,8 @@ export type TurnOutcomeItem = {
   outcome: TranscriptTurnOutcome;
 };
 
+export type SyntheticItem = WorkingItem | TurnOutcomeItem;
+
 export type ChatItem =
   | TranscriptItem
   | ChatMessage
@@ -264,6 +268,4 @@ export type ChatItem =
   | ChatExecute
   | ChatDiff
   | ChatResourceLink
-  | ChatPlan
-  | WorkingItem
-  | TurnOutcomeItem;
+  | ChatPlan;

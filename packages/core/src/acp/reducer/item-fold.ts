@@ -161,6 +161,8 @@ export function createToolCallItem(params: {
   status: NormalizedToolStatus | null;
   parentToolCallId: string | undefined;
   inputSummary?: string;
+  outputText?: string;
+  terminalId?: string;
 }): ToolCallItem {
   const base = baseToolFields(
     params.id,
@@ -192,7 +194,13 @@ export function createToolCallItem(params: {
     };
   }
   if (isExecuteKind(toolKind)) {
-    return { kind: 'execute-tool-call', ...base, command: title };
+    return {
+      kind: 'execute-tool-call',
+      ...base,
+      command: title,
+      ...(params.outputText !== undefined ? { outputText: params.outputText } : {}),
+      ...(params.terminalId !== undefined ? { terminalId: params.terminalId } : {}),
+    };
   }
   return { kind: 'unknown-tool-call', ...base, toolKind, name: title };
 }
@@ -200,7 +208,9 @@ export function createToolCallItem(params: {
 function updateToolCallItem(
   item: ToolCallItem,
   title: string | null,
-  status: NormalizedToolStatus | null
+  status: NormalizedToolStatus | null,
+  outputText?: string,
+  terminalId?: string
 ): ToolCallItem {
   const mapped = mapToolStatus(status ?? undefined);
   const nextTitle = title ?? item.title;
@@ -211,7 +221,12 @@ function updateToolCallItem(
   };
   switch (item.kind) {
     case 'execute-tool-call':
-      return { ...common, ...(title !== null ? { command: nextTitle } : {}) };
+      return {
+        ...common,
+        ...(title !== null ? { command: nextTitle } : {}),
+        ...(outputText !== undefined ? { outputText } : {}),
+        ...(terminalId !== undefined ? { terminalId } : {}),
+      };
     case 'read-tool-call':
       return {
         ...common,
@@ -669,6 +684,8 @@ export function foldItem(
         toolKind: event.toolKind,
         status: event.status,
         parentToolCallId,
+        ...(event.outputText !== undefined ? { outputText: event.outputText } : {}),
+        ...(event.terminalId !== undefined ? { terminalId: event.terminalId } : {}),
       });
       const next = upsertToolCallItem(base, tool);
       return normalizeToolStructure(next, turnId);
@@ -695,7 +712,13 @@ export function foldItem(
       let next: TranscriptItem[];
       if (idx >= 0) {
         const tool = base[idx] as ToolCallItem;
-        const updated = updateToolCallItem(tool, event.title, event.status);
+        const updated = updateToolCallItem(
+          tool,
+          event.title,
+          event.status,
+          event.outputText,
+          event.terminalId
+        );
         next = base.map((it, i) => (i === idx ? updated : it));
       } else if (hasFileOperationsForToolCall(base, event.toolCallId)) {
         next = base;
@@ -712,6 +735,8 @@ export function foldItem(
             toolKind: event.toolKind,
             status: event.status,
             parentToolCallId,
+            ...(event.outputText !== undefined ? { outputText: event.outputText } : {}),
+            ...(event.terminalId !== undefined ? { terminalId: event.terminalId } : {}),
           })
         );
       }

@@ -1,4 +1,4 @@
-import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import type { ListViewSection } from '../virtual-list';
 import { FilterSlice } from './capabilities/filter';
 import { PaginationSlice } from './capabilities/pagination';

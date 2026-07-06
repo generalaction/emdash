@@ -36,7 +36,12 @@ import { createMemo, createRoot, createSignal } from 'solid-js';
 import type { ChatContext } from '../chat-context';
 import { createParseCaches } from '../core/caches';
 import type { ParseCaches } from '../core/caches';
-import type { AcpPermissionRequest, PlanState } from '../model';
+import type {
+  AcpPermissionRequest,
+  ChatImageAttachment,
+  PlanState,
+  TranscriptTurn,
+} from '../model';
 import { createTranscript } from './transcript';
 import type { TranscriptApi } from './transcript';
 import { createViewState } from './view-state';
@@ -70,17 +75,42 @@ export type HeightmapStore = {
 };
 
 export type ChatSessionState = {
-  readonly permissions: {
-    get(): readonly AcpPermissionRequest[];
-    set(permissions: readonly AcpPermissionRequest[]): void;
-  };
-  readonly plan: {
-    get(): PlanState | null;
-    set(plan: PlanState | null): void;
-  };
-  readonly pendingToolCallIds: {
-    get(): Set<string>;
-  };
+  readonly state: ChatSessionSnapshot;
+  setPermissions(permissions: readonly AcpPermissionRequest[]): void;
+  setPlan(plan: PlanState | null): void;
+  setPendingPrompt(prompt: PendingPrompt | null): void;
+  setTerminalOutput(terminalId: string, text: string | null): void;
+  setTerminalOutputs(outputs: ReadonlyMap<string, string>): void;
+};
+
+export type ChatSessionSnapshot = {
+  readonly permissions: readonly AcpPermissionRequest[];
+  readonly plan: PlanState | null;
+  readonly pendingToolCallIds: Set<string>;
+  readonly pendingPrompt: PendingPrompt | null;
+  terminalOutputText(terminalId: string): string | null;
+};
+
+export type PendingPrompt = {
+  id: string;
+  text: string;
+  attachments?: ChatImageAttachment[];
+};
+
+type LiveReadable<T> = {
+  getSnapshot(): T | null | undefined;
+  subscribe(listener: () => void): () => void;
+};
+
+export type ConnectSessionSource = {
+  activeTurn: LiveReadable<TranscriptTurn | null>;
+  plan: LiveReadable<PlanState | null>;
+  sessionState: LiveReadable<{ pendingPermissions: readonly AcpPermissionRequest[] }>;
+  terminalOutputs?: LiveReadable<ReadonlyMap<string, string>>;
+};
+
+export type ConnectSessionOptions = {
+  onTurnCommitted?: () => void;
 };
 
 export type ChatState = {
@@ -231,6 +261,10 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
 function createSessionState(): ChatSessionState {
   const [permissions, setPermissions] = createSignal<readonly AcpPermissionRequest[]>([]);
   const [plan, setPlan] = createSignal<PlanState | null>(null);
+  const [pendingPrompt, setPendingPrompt] = createSignal<PendingPrompt | null>(null);
+  const [terminalOutputs, setTerminalOutputs] = createSignal<ReadonlyMap<string, string>>(
+    new Map()
+  );
   const pendingToolCallIds = createMemo(() => {
     const ids = new Set<string>();
     for (const request of permissions()) {
@@ -239,17 +273,84 @@ function createSessionState(): ChatSessionState {
     return ids;
   });
 
+  const state: ChatSessionSnapshot = {
+    get permissions() {
+      return permissions();
+    },
+    get plan() {
+      return plan();
+    },
+    get pendingToolCallIds() {
+      return pendingToolCallIds();
+    },
+    get pendingPrompt() {
+      return pendingPrompt();
+    },
+    terminalOutputText(terminalId) {
+      return terminalOutputs().get(terminalId) ?? null;
+    },
+  };
+
   return {
-    permissions: {
-      get: permissions,
-      set: (next) => setPermissions([...next]),
+    state,
+    setPermissions: (next) => setPermissions([...next]),
+    setPlan,
+    setPendingPrompt,
+    setTerminalOutput(terminalId, text) {
+      setTerminalOutputs((previous) => {
+        const next = new Map(previous);
+        if (text === null) {
+          next.delete(terminalId);
+        } else {
+          next.set(terminalId, text);
+        }
+        return next;
+      });
     },
-    plan: {
-      get: plan,
-      set: setPlan,
-    },
-    pendingToolCallIds: {
-      get: pendingToolCallIds,
-    },
+    setTerminalOutputs: (next) => setTerminalOutputs(new Map(next)),
+  };
+}
+
+export function connectSession(
+  state: ChatState,
+  source: ConnectSessionSource,
+  options: ConnectSessionOptions = {}
+): () => void {
+  let hadActiveTurn = source.activeTurn.getSnapshot() !== null;
+
+  const syncSessionState = (): void => {
+    const snapshot = source.sessionState.getSnapshot();
+    state.session.setPermissions(snapshot?.pendingPermissions ?? []);
+  };
+
+  const syncPlan = (): void => {
+    state.session.setPlan(source.plan.getSnapshot() ?? null);
+  };
+
+  const syncActiveTurn = (): void => {
+    const turn = source.activeTurn.getSnapshot() ?? null;
+    if (turn) state.session.setPendingPrompt(null);
+    state.transcript.activeTurn.set(turn);
+    if (!turn && hadActiveTurn) options.onTurnCommitted?.();
+    hadActiveTurn = turn !== null;
+  };
+  const syncTerminalOutputs = (): void => {
+    if (!source.terminalOutputs) return;
+    state.session.setTerminalOutputs(source.terminalOutputs.getSnapshot() ?? new Map());
+  };
+
+  syncSessionState();
+  syncPlan();
+  syncActiveTurn();
+  syncTerminalOutputs();
+
+  const unsubs = [
+    source.sessionState.subscribe(syncSessionState),
+    source.plan.subscribe(syncPlan),
+    source.activeTurn.subscribe(syncActiveTurn),
+    ...(source.terminalOutputs ? [source.terminalOutputs.subscribe(syncTerminalOutputs)] : []),
+  ];
+  return () => {
+    for (const unsub of unsubs) unsub();
   };
 }

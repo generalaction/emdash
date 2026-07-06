@@ -16,6 +16,7 @@ export interface BaseToolCallItem {
 export interface ExecuteToolCall extends BaseToolCallItem {
   kind: 'execute-tool-call';
   command?: string;
+  outputText?: string;
   terminalId?: string;
 }
 
@@ -126,6 +127,8 @@ export const baseToolCallItemSchema = z.object({
 export const executeToolCallSchema = baseToolCallItemSchema.extend({
   kind: z.literal('execute-tool-call'),
   command: z.string().optional(),
+  /** Text output reported by ACP tool_call_update content when no live terminal is attached. */
+  outputText: z.string().optional(),
   /** Managed terminal id when this execute call is backed by terminal state. */
   terminalId: z.string().optional(),
 });

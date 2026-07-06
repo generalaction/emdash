@@ -1,7 +1,7 @@
 import { ROW_H } from '@components/engine/row-metrics';
 import { defineUnit } from '@core/units';
-import { vars } from '@styles/theme.css';
 import type { TurnOutcomeItem } from '@/model';
+import { vars } from '@styles/theme.css';
 
 function outcomeLabel(item: TurnOutcomeItem): string {
   const reason = item.outcome.reason ? ` (${item.outcome.reason})` : '';

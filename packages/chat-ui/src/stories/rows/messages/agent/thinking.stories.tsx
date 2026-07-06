@@ -8,6 +8,7 @@
 
 import type { TranscriptApi } from '@state/transcript';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
+import type { ChatItem, TranscriptTurn } from '@/model';
 import type { ScriptStep } from '@/stories/_harness/chat-host';
 import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
 import {
@@ -24,6 +25,16 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj;
+
+function turn(item: ChatItem): TranscriptTurn {
+  return {
+    id: `${item.id}:turn`,
+    seq: 0,
+    initiator: 'agent',
+    items: [{ ...item, seq: 0 } as TranscriptTurn['items'][number]],
+    outcome: { kind: 'done' },
+  };
+}
 
 export const Generating: Story = {
   render: () => (
@@ -77,13 +88,13 @@ export const GeneratingExpanded: Story = {
         kind: 'call',
         fn: (api: TranscriptApi) => {
           api.history.seed([
-            {
+            turn({
               kind: 'thinking',
               id: 'th1',
               status: 'thinking',
               text: 'Let me analyze the codebase structure first to understand the authentication flow...\n\nLooking at the middleware chain, I can see that session tokens are validated in three different places which creates redundancy.\n\nI will suggest consolidating validation into a single auth middleware.',
               startedAt: Date.now() - 8000,
-            },
+            } as ChatItem),
           ]);
         },
       },
@@ -125,14 +136,14 @@ export const DoneExpanded: Story = {
         kind: 'call',
         fn: (api: TranscriptApi) => {
           api.history.seed([
-            {
+            turn({
               kind: 'thinking',
               id: 'th1',
               status: 'done',
               text: 'First I looked at the authentication flow.\n\nThe session store is created in middleware/session.ts and uses Redis as a backend. The JWT approach would eliminate the need for this entirely.\n\nI considered three approaches:\n1. Pure JWT stateless\n2. JWT + Redis blacklist for revocation\n3. Opaque tokens with introspection\n\nOption 2 gives us the best balance of scalability and revocability.',
               startedAt: Date.now() - 30000,
               durationMs: 28000,
-            },
+            } as ChatItem),
           ]);
         },
       },
@@ -190,7 +201,7 @@ export const ExpandedProse: Story = {
         kind: 'call',
         fn: (api: TranscriptApi) => {
           api.history.seed([
-            {
+            turn({
               kind: 'thinking',
               id: 'th-prose',
               status: 'done',
@@ -212,7 +223,7 @@ export const ExpandedProse: Story = {
               ].join('\n'),
               startedAt: Date.now() - 12000,
               durationMs: 11000,
-            },
+            } as ChatItem),
           ]);
         },
       },

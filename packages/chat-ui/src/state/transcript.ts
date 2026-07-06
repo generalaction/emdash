@@ -12,8 +12,6 @@ import type { ChatItem, TranscriptTurn } from '@/model';
 export type TurnStatus = 'generating' | 'cancelled' | 'done';
 
 export type TranscriptState = {
-  readonly committed: readonly ChatItem[];
-  readonly activeTurn: readonly ChatItem[] | null;
   readonly committedTurns: readonly TranscriptTurn[];
   readonly activeTurnSnapshot: TranscriptTurn | null;
   readonly turnStatus: TurnStatus;
@@ -28,18 +26,18 @@ export type ChatHistory = {
    * Replace the entire committed history and reset activeTurn.
    * Rebuilds the id map. Prefer for initial load / session replay.
    */
-  seed(turns: readonly (TranscriptTurn | ChatItem)[]): void;
+  seed(turns: readonly TranscriptTurn[]): void;
   /**
-   * Prepend older items before the current committed history (pagination).
+   * Prepend older turns before the current committed history (pagination).
    * Stable object references required — identity-keyed caches key by ref.
    * Rebuilds the id map (O(total)).
    */
-  prepend(turns: readonly (TranscriptTurn | ChatItem)[]): void;
+  prepend(turns: readonly TranscriptTurn[]): void;
   /**
-   * Append items after the current committed history (commit path / bulk add).
+   * Append turns after the current committed history (commit path / bulk add).
    * Patches the id map incrementally (O(new)).
    */
-  append(turns: readonly (TranscriptTurn | ChatItem)[]): void;
+  append(turns: readonly TranscriptTurn[]): void;
 };
 
 // ── ActiveTurn ─────────────────────────────────────────────────────────────────
@@ -48,10 +46,9 @@ export type ActiveTurn = {
   /**
    * The current desired snapshot — the full intended turn state, including any
    * text that may still be buffered in an overlying smoother. Callers that want
-   * to extend the turn (e.g. via applyTurnEvent) should read from here, not from
-   * state.activeTurn (which may hold a partial/delivered view).
+   * to extend the turn should read from here.
    */
-  get(): any;
+  get(): TranscriptTurn | null;
   /** The current turn lifecycle status. */
   status(): TurnStatus;
   /**
@@ -64,7 +61,7 @@ export type ActiveTurn = {
    * - Stable item `id` fields are required for reconcile to work correctly.
    * - The host is authoritative; chat-ui does not assume it is the sole writer.
    */
-  set(turn: TranscriptTurn | readonly ChatItem[] | null, _status?: TurnStatus): void;
+  set(turn: TranscriptTurn | null, _status?: TurnStatus): void;
   commit(status?: 'done' | 'cancelled'): void;
 };
 
@@ -77,95 +74,49 @@ export type TranscriptApi = {
   activeTurn: ActiveTurn;
   /** Reactive read facade — consumed by ChatRoot and helpers. */
   readonly state: TranscriptState;
-  /**
-   * Returns the absolute index (committed-first) of the item with the given id,
-   * or -1 if not found.
-   */
-  findIndexById(id: string): number;
+  /** Returns the transcript item with the given id, or undefined if not found. */
+  findItemById(id: string): ChatItem | undefined;
   /** Clear all state (e.g. at the start of a replay). */
   reset(): void;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-/** Total item count across both tiers. */
-export function itemCount(state: TranscriptState): number {
-  return committedItems(state).length + (state.activeTurn?.length ?? 0);
-}
-
-/** Get item at absolute index (committed first, then activeTurn). */
-export function getItem(state: TranscriptState, i: number): ChatItem | undefined {
-  const committed = committedItems(state);
-  const cl = committed.length;
-  if (i < cl) return committed[i];
-  return state.activeTurn?.[i - cl];
-}
-
-/**
- * Returns the absolute indices of all user-role message items in the committed
- * tier, in ascending order.
- */
-export function collectUserTurnIndices(state: TranscriptState): number[] {
-  const result: number[] = [];
-  const items = committedItems(state);
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    if (item.kind === 'message' && item.role === 'user') {
-      result.push(i);
-    }
-  }
-  return result;
-}
-
-/** All items as a readonly array (allocates — use getItem for reactive per-index access). */
-export function allItems(state: TranscriptState): readonly ChatItem[] {
-  const committed = committedItems(state);
-  if (!state.activeTurn || state.activeTurn.length === 0) return committed;
-  return [...committed, ...state.activeTurn];
-}
-
-export function committedItems(state: TranscriptState): readonly ChatItem[] {
-  return turnsToItems(state.committedTurns);
-}
-
-export function turnsToItems(turns: readonly TranscriptTurn[]): ChatItem[] {
-  const items: ChatItem[] = [];
-  for (const turn of turns) {
-    items.push(...orderedItems(turn.items));
-  }
-  return items;
-}
-
-export function orderedTurns(turns: readonly TranscriptTurn[]): TranscriptTurn[] {
-  return [...turns].sort((a, b) => a.seq - b.seq);
-}
-
-export function orderedItems(items: readonly ChatItem[]): ChatItem[] {
-  return [...items].sort((a, b) => ((a as { seq?: number }).seq ?? 0) - ((b as { seq?: number }).seq ?? 0));
-}
-
-function itemsToTurn(items: readonly ChatItem[], status?: 'done' | 'cancelled'): TranscriptTurn {
-  return {
-    id: `compat-turn:${items[0]?.id ?? 'empty'}`,
-    seq: Number.MAX_SAFE_INTEGER,
-    initiator: items.some((item) => item.kind === 'message' && item.role === 'user')
-      ? 'user'
-      : 'agent',
-    items: items as TranscriptTurn['items'],
-    outcome: status ? { kind: status } : undefined,
-  };
-}
-
-function normalizeTurns(input: readonly (TranscriptTurn | ChatItem)[]): TranscriptTurn[] {
-  if (input.every((item) => 'items' in item)) return orderedTurns(input as readonly TranscriptTurn[]);
-  return [itemsToTurn(input as readonly ChatItem[])];
-}
-
 function finalizeCompatItem(item: ChatItem): ChatItem {
-  if (item.kind === 'message') return { ...item, streaming: false } as ChatItem;
+  if (item.kind === 'message' && 'streaming' in item) {
+    return { ...item, streaming: false } as ChatItem;
+  }
   if ('status' in item && item.status === 'running') return { ...item, status: 'done' } as ChatItem;
   if (item.kind === 'plan') return { ...item, streaming: false } as ChatItem;
   return item;
+}
+
+function assertOrderedTurns(turns: readonly TranscriptTurn[], source: string): void {
+  if (!import.meta.env.DEV) return;
+  for (let i = 1; i < turns.length; i++) {
+    if (turns[i - 1].seq > turns[i].seq) {
+      console.error(
+        `[chat-ui] ${source} received out-of-order TranscriptTurn seq values: ` +
+          `${turns[i - 1].id} (${turns[i - 1].seq}) before ${turns[i].id} (${turns[i].seq}).`
+      );
+      return;
+    }
+  }
+}
+
+function assertOrderedItems(turn: TranscriptTurn): void {
+  if (!import.meta.env.DEV) return;
+  for (let i = 1; i < turn.items.length; i++) {
+    const prevSeq = (turn.items[i - 1] as { seq?: number }).seq ?? 0;
+    const nextSeq = (turn.items[i] as { seq?: number }).seq ?? 0;
+    if (prevSeq > nextSeq) {
+      console.error(
+        `[chat-ui] turn "${turn.id}" received out-of-order item seq values: ` +
+          `${turn.items[i - 1].id} (${prevSeq}) before ${turn.items[i].id} (${nextSeq}).`
+      );
+      return;
+    }
+  }
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -178,23 +129,18 @@ export function createTranscript(): TranscriptApi {
 
   // activeTurn + turnStatus mutate in place during streaming; fine-grained
   // store tracking is warranted here.
-  const [live, setLive] = createStore<{ activeTurn: TranscriptTurn | null; turnStatus: TurnStatus }>({
+  const [live, setLive] = createStore<{
+    activeTurn: TranscriptTurn | null;
+    turnStatus: TurnStatus;
+  }>({
     activeTurn: null,
     turnStatus: 'done',
   });
 
-  // Expose the TranscriptState shape via getters so existing reactive readers
-  // keep working. Tracking semantics are preserved: committed() is read in the
-  // getter so createMemo/createEffect that access state.committed will re-run
-  // on identity changes. live.activeTurn/live.turnStatus retain fine-grained
-  // reactivity.
+  // Expose the TranscriptState shape via getters. committed() is read in the
+  // getter so createMemo/createEffect readers re-run on identity changes.
+  // live.activeTurn/live.turnStatus retain fine-grained reactivity.
   const state: TranscriptState = {
-    get committed() {
-      return turnsToItems(committed());
-    },
-    get activeTurn() {
-      return live.activeTurn?.items ?? null;
-    },
     get committedTurns() {
       return committed();
     },
@@ -206,21 +152,23 @@ export function createTranscript(): TranscriptApi {
     },
   };
 
-  // item id → committed item index map; rebuilt on history mutations.
-  const idMap = new Map<string, number>();
+  // item id → committed item map; rebuilt on history mutations.
+  const itemMap = new Map<string, ChatItem>();
 
-  const rebuildIdMap = (turns: readonly TranscriptTurn[]): void => {
-    idMap.clear();
-    const items = turnsToItems(turns);
-    for (let i = 0; i < items.length; i++) {
-      if (import.meta.env.DEV && idMap.has(items[i].id)) {
-        console.error(
-          `[chat-ui] duplicate ChatItem id "${items[i].id}" at index ${i} — ` +
-            'item ids must be unique across the entire transcript. ' +
-            'This will corrupt id-keyed lookups (heightmap, scroll anchor, reconcile).'
-        );
+  const rebuildItemMap = (turns: readonly TranscriptTurn[]): void => {
+    itemMap.clear();
+    for (const turn of turns) {
+      assertOrderedItems(turn);
+      for (const item of turn.items) {
+        if (import.meta.env.DEV && itemMap.has(item.id)) {
+          console.error(
+            `[chat-ui] duplicate ChatItem id "${item.id}" in turn "${turn.id}" — ` +
+              'item ids must be unique across the entire transcript. ' +
+              'This will corrupt id-keyed lookups (heightmap, scroll anchor, reconcile).'
+          );
+        }
+        itemMap.set(item.id, item as ChatItem);
       }
-      idMap.set(items[i].id, i);
     }
   };
 
@@ -232,24 +180,32 @@ export function createTranscript(): TranscriptApi {
     },
 
     seed(turns) {
-      const ordered = normalizeTurns(turns);
+      assertOrderedTurns(turns, 'history.seed');
       batch(() => {
-        setCommitted(ordered);
+        setCommitted(turns);
         setLive({ activeTurn: null, turnStatus: 'done' });
       });
-      rebuildIdMap(ordered);
+      rebuildItemMap(turns);
     },
 
     prepend(turns) {
       if (turns.length === 0) return;
-      setCommitted((prev) => orderedTurns([...normalizeTurns(turns), ...prev]));
-      rebuildIdMap(committed());
+      setCommitted((prev) => {
+        const next = [...turns, ...prev];
+        assertOrderedTurns(next, 'history.prepend');
+        return next;
+      });
+      rebuildItemMap(committed());
     },
 
     append(turns) {
       if (turns.length === 0) return;
-      setCommitted((prev) => orderedTurns([...prev, ...normalizeTurns(turns)]));
-      rebuildIdMap(committed());
+      setCommitted((prev) => {
+        const next = [...prev, ...turns];
+        assertOrderedTurns(next, 'history.append');
+        return next;
+      });
+      rebuildItemMap(committed());
     },
   };
 
@@ -257,7 +213,7 @@ export function createTranscript(): TranscriptApi {
 
   const activeTurnApi: ActiveTurn = {
     get() {
-      return live.activeTurn?.items ?? null;
+      return live.activeTurn;
     },
 
     status() {
@@ -269,11 +225,9 @@ export function createTranscript(): TranscriptApi {
         if (turn === null) {
           setLive({ activeTurn: null, turnStatus: 'done' });
         } else {
-          const nextTurn = Array.isArray(turn)
-            ? itemsToTurn(turn as readonly ChatItem[], status as 'done' | 'cancelled')
-            : (turn as TranscriptTurn);
+          assertOrderedItems(turn);
           setLive('turnStatus', status ?? 'generating');
-          setLive('activeTurn', reconcile(nextTurn, { key: 'id' }));
+          setLive('activeTurn', reconcile(turn, { key: 'id' }));
         }
       });
     },
@@ -283,7 +237,9 @@ export function createTranscript(): TranscriptApi {
       if (!raw) return;
       const turn = {
         ...(unwrap(raw) as TranscriptTurn),
-        items: (unwrap(raw).items as ChatItem[]).map((item) => finalizeCompatItem(item)) as TranscriptTurn['items'],
+        items: (unwrap(raw).items as ChatItem[]).map((item) =>
+          finalizeCompatItem(item)
+        ) as TranscriptTurn['items'],
         outcome: { kind: status },
       } satisfies TranscriptTurn;
       batch(() => {
@@ -298,17 +254,16 @@ export function createTranscript(): TranscriptApi {
     activeTurn: activeTurnApi,
     state,
 
-    findIndexById(id) {
-      const ci = idMap.get(id);
-      if (ci !== undefined) return ci;
+    findItemById(id) {
+      const committedItem = itemMap.get(id);
+      if (committedItem) return committedItem;
       const at = live.activeTurn;
       if (at) {
-        const offset = turnsToItems(committed()).length;
-        for (let i = 0; i < at.items.length; i++) {
-          if (at.items[i].id === id) return offset + i;
+        for (const item of at.items) {
+          if (item.id === id) return item as ChatItem;
         }
       }
-      return -1;
+      return undefined;
     },
 
     reset() {
@@ -316,7 +271,7 @@ export function createTranscript(): TranscriptApi {
         setCommitted([]);
         setLive({ activeTurn: null, turnStatus: 'done' });
       });
-      idMap.clear();
+      itemMap.clear();
     },
   };
 }

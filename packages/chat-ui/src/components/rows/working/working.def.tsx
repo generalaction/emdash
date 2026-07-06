@@ -1,7 +1,7 @@
 import { ROW_H } from '@components/engine/row-metrics';
 import { defineUnit } from '@core/units';
-import { vars } from '@styles/theme.css';
 import type { WorkingItem } from '@/model';
+import { vars } from '@styles/theme.css';
 
 export const workingUnitDef = defineUnit<WorkingItem, { rowH: number }>({
   kind: 'working',
