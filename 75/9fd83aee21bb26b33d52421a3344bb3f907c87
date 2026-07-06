@@ -1,0 +1,36 @@
+apps/emdash-desktop/src/renderer/features/sidebar/left-sidebar.tsx
+  s_16aa05afc2b3c2::t_3b492052914ed6 1,5
+  s_16aa05afc2b3c2::t_58e6469c20011b 31-32,40-49,53-54
+apps/emdash-desktop/src/main/app/window.ts
+  s_16aa05afc2b3c2::t_fe959e9294577c 19-35
+  s_16aa05afc2b3c2::t_b60ee085f433ef 62-64
+apps/emdash-desktop/src/renderer/index.css
+  s_16aa05afc2b3c2::t_75c1a67b031722 917-922
+apps/emdash-desktop/src/renderer/features/settings/components/InterfaceSettingsCard.tsx
+  s_16aa05afc2b3c2::t_f7b6155109845a 1,8-9,21,44-65
+apps/emdash-desktop/src/main/index.ts
+  s_16aa05afc2b3c2::t_ec175ae3cd9d21 14
+  s_16aa05afc2b3c2::t_19b3df3b518b39 148
+apps/emdash-desktop/src/main/core/settings/controller.ts
+  s_16aa05afc2b3c2::t_3b806228c6797d 1,10-12
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_16aa05afc2b3c2::t_f00b3f8bec68e4 90-91
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_16aa05afc2b3c2::t_dc4ffd8e7043ce 62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "759fd83aee21bb26b33d52421a3344bb3f907c87",
+  "prompts": {},
+  "sessions": {
+    "s_16aa05afc2b3c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "39d058c1-5b25-4c7f-9701-b3ca51ef269f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
