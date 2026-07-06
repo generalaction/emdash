@@ -139,6 +139,7 @@ function findLastUserMessageId(turns: readonly TranscriptTurn[]): string | null 
  * it so callers never hold stale closures.
  */
 export type EngineControls = {
+  scrollToTop(opts?: { behavior?: ScrollBehavior }): void;
   scrollToBottom(opts?: { behavior?: ScrollBehavior }): void;
   scrollToItem(id: string, opts?: ScrollToItemOptions): void;
   loadOlder(turns: TranscriptTurn[]): void;
@@ -1175,6 +1176,22 @@ export function ChatRoot(props: ChatRootProps) {
   };
 
   // ── Scroll helpers ────────────────────────────────────────────────────────
+  const doScrollToTop = (opts?: { behavior?: ScrollBehavior }) => {
+    const el = scrollEl;
+    if (!el) return;
+    const firstUnit = units().at(0);
+    if (firstUnit) {
+      setAnchor({ kind: 'anchor', itemId: firstUnit.itemId, edge: 'top', offset: -padTop() });
+    }
+    if (opts?.behavior === 'smooth') {
+      smoothScrolling = true;
+      smoothScrollTarget = 0;
+      el.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      writeScrollTop(0);
+    }
+  };
+
   const doScrollToBottom = (opts?: { behavior?: ScrollBehavior }) => {
     const el = scrollEl;
     if (!el) return;
@@ -1347,6 +1364,7 @@ export function ChatRoot(props: ChatRootProps) {
 
     // Populate the controls holder so handle delegates resolve immediately.
     if (props.controls) {
+      props.controls.scrollToTop = doScrollToTop;
       props.controls.scrollToBottom = doScrollToBottom;
       props.controls.scrollToItem = doScrollToItem;
       props.controls.loadOlder = doLoadOlder;

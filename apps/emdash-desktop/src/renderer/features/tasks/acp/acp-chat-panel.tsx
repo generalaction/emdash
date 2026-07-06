@@ -27,6 +27,7 @@ import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import type { AcpChatStore } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
+import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -314,6 +315,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const activeTab = pane.resolvedTabs.find((t) => t.isActive && t.kind === 'acp-chat');
   const store = activeTab ? (activeTab.resource as AcpChatTabResource).store : null;
 
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<ChatView | null>(null);
   const [composerSlot, setComposerSlot] = useState<HTMLElement | null>(null);
   const [overlaySlot, setOverlaySlot] = useState<HTMLElement | null>(null);
@@ -353,6 +355,26 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
     }
   }, [conversationStore, conversationSeen]);
 
+  useEffect(() => {
+    if (!store) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const root = rootRef.current;
+      if (!root || !eventComposedPathContains(event, root)) return;
+
+      const commandId = chatViewCommandForShortcut(event);
+      if (!commandId) return;
+      if (!executeChatViewCommand(viewRef.current, commandId)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+    };
+  }, [store]);
+
   const handleViewerOpen = useCallback((src?: string, alt?: string) => {
     setViewer({ src, alt });
   }, []);
@@ -376,7 +398,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   if (!store) return null;
 
   return (
-    <div className="relative h-full overflow-hidden bg-background-secondary-1">
+    <div ref={rootRef} className="relative h-full overflow-hidden bg-background-secondary-1">
       <ChatTranscript
         context={store.chatContext}
         state={store.chatState}
@@ -458,3 +480,8 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
     </div>
   );
 });
+
+function eventComposedPathContains(event: Event, element: HTMLElement): boolean {
+  if (event.composedPath().includes(element)) return true;
+  return event.target instanceof Node && element.contains(event.target);
+}

@@ -42,6 +42,35 @@ describe('createChatView', () => {
     state.dispose();
     document.body.removeChild(host);
   });
+
+  it('scrolls to top and bottom through the view handle', async () => {
+    const ctx = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(ctx);
+    state.transcript.history.seed(generateMockTranscript(80, 10));
+
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:300px;';
+    document.body.appendChild(host);
+
+    const view = createChatView({ context: ctx, state, parent: host });
+    await nextPaint();
+
+    const scrollEl = host.querySelector('[data-chat-scroll]') as HTMLElement | null;
+    expect(scrollEl).not.toBeNull();
+
+    view.scrollToBottom();
+    await nextPaint();
+    expect(scrollEl!.scrollTop).toBeGreaterThan(0);
+
+    view.scrollToTop();
+    await nextPaint();
+    expect(scrollEl!.scrollTop).toBe(0);
+
+    view.dispose();
+    ctx.dispose();
+    state.dispose();
+    document.body.removeChild(host);
+  });
 });
 
 describe('ChatView.setModel', () => {

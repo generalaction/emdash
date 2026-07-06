@@ -142,6 +142,8 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
 export type {
   ChatView,
   ChatCommands,
+  ChatViewCommand,
+  ChatViewCommandId,
   ScrollToItemOptions,
   ChatHighlighter,
   HighlightResult,

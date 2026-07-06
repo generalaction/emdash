@@ -95,6 +95,8 @@ export type ChatView = {
   readonly contentOverlay: HTMLElement | null;
   /** Replace command callbacks without remounting. */
   setCommands(commands: ChatCommands): void;
+  /** Scroll to the top of the transcript. */
+  scrollToTop(opts?: { behavior?: ScrollBehavior }): void;
   /** Scroll to the bottom of the transcript. */
   scrollToBottom(opts?: { behavior?: ScrollBehavior }): void;
   /**
@@ -156,6 +158,7 @@ export function createChatView(opts: ChatViewOptions): ChatView {
   const [currentModel, setCurrentModel] = createSignal<ChatState>(opts.state);
 
   const controls: EngineControls = {
+    scrollToTop: () => {},
     scrollToBottom: () => {},
     scrollToItem: () => {},
     loadOlder: () => {},
@@ -184,6 +187,9 @@ export function createChatView(opts: ChatViewOptions): ChatView {
     },
     setCommands(c) {
       setCommandsSignal(c);
+    },
+    scrollToTop(o) {
+      controls.scrollToTop(o);
     },
     scrollToBottom(o) {
       controls.scrollToBottom(o);
