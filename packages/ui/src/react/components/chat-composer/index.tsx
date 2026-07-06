@@ -640,6 +640,15 @@ export function ChatComposer({
   const modelItems: ModelItem[] = modelOptions
     ? Object.entries(modelOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
+  const selectedAgentItem =
+    selectedAgent && agentOptions
+      ? (agentOptions.find((a) => a.id === selectedAgent) ?? null)
+      : null;
+  const selectedAgentTitle = selectedAgentItem
+    ? agentLocked
+      ? `${selectedAgentItem.name} — agents can't be switched after a conversation starts`
+      : selectedAgentItem.name
+    : undefined;
 
   // ── Effort items ─────────────────────────────────────────────────────────────
 
@@ -677,6 +686,11 @@ export function ChatComposer({
     !!onSendQueuedPromptNow;
   // The permission band takes priority over the notice band.
   const hasBand = canShowQueuedPrompts || !!(permissionRequest ?? notice);
+  const placeholder = disabled
+    ? 'Session closed'
+    : isWorking
+      ? 'Add a follow-up'
+      : 'Send a Message, tag @files or use /commands';
 
   return (
     <div className={cx(styles.composerRoot, className)}>
@@ -761,9 +775,7 @@ export function ChatComposer({
                 }
               }
             }}
-            placeholder={
-              disabled ? 'Session closed' : !canSubmit ? 'Waiting for agent…' : 'Message…'
-            }
+            placeholder={placeholder}
             disabled={disabled}
             onChange={onInputChange}
             onSubmit={handleSubmit}
@@ -778,7 +790,7 @@ export function ChatComposer({
         <div className={styles.toolbar}>
           {/* Left: agent + model selector */}
           <div className={styles.toolbarLeft}>
-            {agentOptions && agentOptions.length > 0 && (
+            {agentOptions && agentOptions.length > 0 && modelItems.length === 0 && (
               <ComposerAgentSelector
                 options={agentOptions}
                 selectedId={selectedAgent}
@@ -797,14 +809,33 @@ export function ChatComposer({
                 disabled={disabled}
                 searchPlaceholder="Search models…"
                 contentStyle={{ minWidth: '12.5rem' }}
+                triggerTitle={() => selectedAgentTitle}
                 renderTrigger={(selected) => (
                   <span
                     style={{
+                      display: 'inline-flex',
+                      minWidth: 0,
+                      alignItems: 'center',
+                      gap: '0.375rem',
                       color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
                       fontSize: 'var(--em-text-xs)',
                     }}
                   >
-                    {selected?.name ?? 'Model…'}
+                    {selectedAgentItem?.icon && (
+                      <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+                        {selectedAgentItem.icon}
+                      </span>
+                    )}
+                    <span
+                      style={{
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {selected?.name ?? 'Model…'}
+                    </span>
                   </span>
                 )}
                 renderItem={(item) => (
@@ -865,7 +896,7 @@ export function ChatComposer({
                 itemToLabel={(item) => item.name}
                 disabled={disabled}
                 searchPlaceholder="Search"
-                contentStyle={{ minWidth: '12.5rem' }}
+                contentStyle={{ minWidth: '18rem' }}
                 renderTrigger={(selected) => (
                   <span
                     style={{

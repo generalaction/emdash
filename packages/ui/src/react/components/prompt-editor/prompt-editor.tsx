@@ -344,6 +344,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
             ref={commandPopupRef}
             items={commandPopupItems}
             anchorRect={commandSuggestion.rect}
+            stacked
             onSelect={(popupItem) => {
               const original = commandSuggestion.items.find((c) => c.id === popupItem.id);
               if (original) commandSuggestion.onSelect(original);

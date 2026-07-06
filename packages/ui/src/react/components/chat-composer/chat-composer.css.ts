@@ -290,9 +290,52 @@ export const donutProgressWarn = style({ stroke: vars.surfaceWarningForeground }
 
 /** Cost row shown below the description in the popover when cost is available. */
 export const usageCostRow = style({
-  marginTop: '0.375rem',
+  marginTop: '0.625rem',
   fontSize: tokenVars.textXs,
   color: vars.foregroundMuted,
+});
+
+export const usagePopoverBody = style({
+  width: '16rem',
+  paddingLeft: '0.75rem',
+  paddingRight: '0.75rem',
+  paddingBottom: '0.75rem',
+});
+
+export const usageStatsRow = style({
+  display: 'flex',
+  alignItems: 'baseline',
+  justifyContent: 'space-between',
+  gap: '1rem',
+  fontSize: tokenVars.textXs,
+});
+
+export const usagePercent = style({
+  fontWeight: 500,
+  color: vars.foreground,
+});
+
+export const usageTokenCount = style({
+  color: vars.foregroundMuted,
+  whiteSpace: 'nowrap',
+});
+
+export const usageBarTrack = style({
+  marginTop: '0.5rem',
+  height: '0.375rem',
+  overflow: 'hidden',
+  borderRadius: '9999px',
+  backgroundColor: vars.border,
+});
+
+export const usageBarFill = style({
+  height: '100%',
+  borderRadius: '9999px',
+  backgroundColor: vars.foreground,
+});
+
+export const usageBarFillWarn = style({
+  backgroundColor: vars.surfaceWarningForeground,
 });
 
 export const barDotFilled = style({

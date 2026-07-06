@@ -45,13 +45,18 @@ interface ComboboxPopupProps {
   emptyLabel?: string;
   /** Optional header node rendered above the item list. */
   header?: React.ReactNode;
+  /** Render label and description as two stacked rows instead of a single row. */
+  stacked?: boolean;
   className?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopupProps>(
-  function ComboboxPopup({ items, anchorRect, onSelect, emptyLabel, header, className }, ref) {
+  function ComboboxPopup(
+    { items, anchorRect, onSelect, emptyLabel, header, stacked = false, className },
+    ref
+  ) {
     const [selectedIndex, setSelectedIndex] = React.useState(0);
     const listRef = React.useRef<HTMLUListElement>(null);
 
@@ -133,13 +138,25 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
                 onMouseEnter={() => setSelectedIndex(index)}
                 className={cx(
                   styles.popupItem,
+                  stacked && styles.popupItemStacked,
                   index === selectedIndex ? styles.popupItemHighlighted : styles.popupItemHover
                 )}
               >
                 {item.icon && <span className={styles.popupItemIcon}>{item.icon}</span>}
-                <span className={styles.popupItemLabel}>{item.label}</span>
-                {item.description && (
-                  <span className={styles.popupItemDescription}>{item.description}</span>
+                {stacked ? (
+                  <span className={styles.popupItemTextStack}>
+                    <span className={styles.popupItemLabel}>{item.label}</span>
+                    {item.description && (
+                      <span className={styles.popupItemDescription}>{item.description}</span>
+                    )}
+                  </span>
+                ) : (
+                  <>
+                    <span className={styles.popupItemLabel}>{item.label}</span>
+                    {item.description && (
+                      <span className={styles.popupItemDescription}>{item.description}</span>
+                    )}
+                  </>
                 )}
               </li>
             ))

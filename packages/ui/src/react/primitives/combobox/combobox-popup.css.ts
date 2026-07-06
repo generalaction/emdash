@@ -50,6 +50,19 @@ export const popupItem = style({
   outline: 'none',
 });
 
+export const popupItemStacked = style({
+  alignItems: 'flex-start',
+  paddingRight: '0.5rem',
+});
+
+export const popupItemTextStack = style({
+  display: 'flex',
+  minWidth: 0,
+  flex: '1 1 0%',
+  flexDirection: 'column',
+  gap: '0.125rem',
+});
+
 export const popupItemDefault = style({
   color: vars.foreground,
   textAlign: 'center',
@@ -76,12 +89,12 @@ export const popupItemIcon = style({
 globalStyle(`${popupItemIcon} svg`, { width: '1rem', height: '1rem' });
 
 export const popupItemLabel = style({
-  // basis 'auto' (not 0) so the label keeps its content width; a 0 basis
-  // collapsed the name to zero width whenever the description was long.
+  // Keep the primary label visible before allowing the description/path to take space.
   flexGrow: 1,
-  flexShrink: 1,
+  flexShrink: 0,
   flexBasis: 'auto',
   minWidth: 0,
+  maxWidth: '100%',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',

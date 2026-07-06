@@ -132,7 +132,10 @@ export class AcpChatStore {
     const options = this.session?.config.getSnapshot()?.modeOptions;
     if (!options) return null;
     return Object.fromEntries(
-      options.available.map((option) => [option.id, { name: option.name }])
+      options.available.map((option) => [
+        option.id,
+        { name: option.name, description: option.description },
+      ])
     );
   }
 

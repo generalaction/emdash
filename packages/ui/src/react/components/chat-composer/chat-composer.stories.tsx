@@ -12,6 +12,7 @@ import type {
   ComposerNoticeVariant,
   ComposerPermissionModeOption,
   ComposerQueuedPrompt,
+  ContextUsage,
   ContextMentionProvider,
   MentionItem,
   CommandItem,
@@ -223,6 +224,18 @@ const MOCK_QUEUED_PROMPTS: ComposerQueuedPrompt[] = [
     text: 'Summarize the implementation tradeoffs before editing files.',
   },
 ];
+
+const MOCK_CONTEXT_USAGE: ContextUsage = {
+  used: 100_000,
+  size: 200_000,
+  cost: { amount: 0.42, currency: 'USD' },
+};
+
+const MOCK_HIGH_CONTEXT_USAGE: ContextUsage = {
+  used: 185_000,
+  size: 200_000,
+  cost: { amount: 1.36, currency: 'USD' },
+};
 
 interface PlaygroundArgs {
   disabled: boolean;
@@ -477,6 +490,30 @@ function QueuedPromptsDemo() {
 
 export const WithQueuedPrompts: Story = {
   render: () => <QueuedPromptsDemo />,
+};
+
+function ContextUsageDemo({ usage }: { usage: ContextUsage }) {
+  const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
+
+  return (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        modelOptions={MOCK_MODELS}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+        contextUsage={usage}
+        onSubmit={() => {}}
+      />
+    </Box>
+  );
+}
+
+export const WithContextUsage: Story = {
+  render: () => <ContextUsageDemo usage={MOCK_CONTEXT_USAGE} />,
+};
+
+export const WithHighContextUsage: Story = {
+  render: () => <ContextUsageDemo usage={MOCK_HIGH_CONTEXT_USAGE} />,
 };
 
 // ── Effort selector story ─────────────────────────────────────────────────────
