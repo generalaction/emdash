@@ -3,6 +3,7 @@ import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
 export const band = style({
+  position: 'relative',
   display: 'flex',
   flexDirection: 'column',
   gap: '0.375rem',
@@ -16,6 +17,22 @@ export const band = style({
   backgroundColor: vars.surface,
   color: vars.foreground,
   fontSize: tokenVars.textXs,
+});
+
+export const bandConnectedBelow = style({
+  selectors: {
+    '&::after': {
+      content: '',
+      position: 'absolute',
+      left: '-1px',
+      right: '-1px',
+      bottom: `calc(-1 * ${tokenVars.radiusXl})`,
+      height: tokenVars.radiusXl,
+      borderLeft: `1px solid ${vars.border}`,
+      borderRight: `1px solid ${vars.border}`,
+      pointerEvents: 'none',
+    },
+  },
 });
 
 export const header = style({

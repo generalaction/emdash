@@ -701,6 +701,7 @@ export function ChatComposer({
           onDelete={onDeleteQueuedPrompt}
           onReorder={onReorderQueuedPrompts}
           onSendNow={onSendQueuedPromptNow}
+          connectToBandBelow={!!(permissionRequest && onResolvePermission)}
         />
       )}
 

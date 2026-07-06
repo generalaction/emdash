@@ -15,6 +15,7 @@ export interface QueuedPromptsBandProps {
   onDelete: (id: string) => void;
   onReorder: (ids: string[]) => void;
   onSendNow: (id: string) => void;
+  connectToBandBelow?: boolean;
   className?: string;
 }
 
@@ -24,6 +25,7 @@ export function QueuedPromptsBand({
   onDelete,
   onReorder,
   onSendNow,
+  connectToBandBelow = false,
   className,
 }: QueuedPromptsBandProps) {
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -105,7 +107,7 @@ export function QueuedPromptsBand({
   if (prompts.length === 0) return null;
 
   return (
-    <div className={cx(styles.band, className)}>
+    <div className={cx(styles.band, connectToBandBelow && styles.bandConnectedBelow, className)}>
       <div className={styles.header}>
         <span>
           <span className={styles.headerStrong}>Queued prompts</span> ({prompts.length})
