@@ -6,13 +6,15 @@ import type {
   ChatView,
 } from '@emdash/chat-ui';
 import { createChatState, pinTopMode } from '@emdash/chat-ui';
+import type { PromptInput, QueuedPrompt } from '@emdash/core/acp/client';
 import type {
   CommandItem,
   ComposerEffortOption,
   ComposerModelOption,
   ComposerPermissionModeOption,
+  ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
-import { action, computed, makeObservable, observable, runInAction, when } from 'mobx';
+import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
 import { AcpLiveSession } from '@renderer/lib/acp/acp-live-session';
@@ -92,15 +94,19 @@ export class AcpChatStore {
       effortOptions: computed,
       commands: computed,
       permissionQueue: computed,
+      queuedPrompts: computed,
       affordances: computed,
       isEmpty: computed,
       submitPrompt: action,
       stop: action,
-      cancelAndSubmit: action,
       setModel: action,
       setMode: action,
       setEffort: action,
       resolvePermission: action,
+      editQueuedPrompt: action,
+      deleteQueuedPrompt: action,
+      reorderQueuedPrompts: action,
+      sendQueuedPromptNow: action,
       retry: action,
     });
   }
@@ -172,6 +178,13 @@ export class AcpChatStore {
     }));
   }
 
+  get queuedPrompts(): ComposerQueuedPrompt[] {
+    return this._queuedPromptModels().map((prompt) => ({
+      id: prompt.id,
+      text: prompt.text,
+    }));
+  }
+
   get lastStopReason(): string | null {
     return this.session?.sessionState.getSnapshot()?.lastStopReason ?? null;
   }
@@ -217,19 +230,21 @@ export class AcpChatStore {
   }
 
   submitPrompt(text: string, images?: AcpPromptImage[]): void {
-    const optimisticId = `optimistic:user:${Date.now()}`;
-    const optimistic: ChatMessage = {
-      kind: 'message',
-      id: optimisticId,
-      role: 'user',
-      text,
-      attachments: images?.map(toChatImageAttachment),
-    };
-    this.chatState.transcript.activeTurn.set([optimistic], 'generating');
-    this._syncMessageCount();
-    const pinMode = pinTopMode(optimisticId);
-    this._view?.setScrollMode(pinMode);
-    this.chatState.scroll.set(pinMode);
+    if (!this.affordances.isWorking) {
+      const optimisticId = `optimistic:user:${Date.now()}`;
+      const optimistic: ChatMessage = {
+        kind: 'message',
+        id: optimisticId,
+        role: 'user',
+        text,
+        attachments: images?.map(toChatImageAttachment),
+      };
+      this.chatState.transcript.activeTurn.set([optimistic], 'generating');
+      this._syncMessageCount();
+      const pinMode = pinTopMode(optimisticId);
+      this._view?.setScrollMode(pinMode);
+      this.chatState.scroll.set(pinMode);
+    }
 
     void this.session
       ?.sendPrompt({ text })
@@ -248,18 +263,6 @@ export class AcpChatStore {
       .catch((error: unknown) => this._toastError('Failed to stop', error));
   }
 
-  cancelAndSubmit(text: string, images?: AcpPromptImage[]): void {
-    this.stop();
-    when(
-      () => this.affordances.canSubmit,
-      () => this.submitPrompt(text, images),
-      {
-        timeout: 10_000,
-        onError: () => toast({ title: 'Failed to send message', variant: 'destructive' }),
-      }
-    );
-  }
-
   setModel(model: string): void {
     void this.session?.setModelOption('model', model);
   }
@@ -276,6 +279,43 @@ export class AcpChatStore {
     const request = this.permissionQueue[0];
     if (!request) return;
     void this.session?.resolvePermission(request.requestId, optionId);
+  }
+
+  editQueuedPrompt(id: string, text: string): void {
+    const existing = this._queuedPromptModels().find((prompt) => prompt.id === id);
+    if (!existing) return;
+    const input: PromptInput = {
+      text,
+      attachments: existing.attachments,
+    };
+    void this.session
+      ?.editQueuedPrompt(id, input)
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to edit queued prompt', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to edit queued prompt', error));
+  }
+
+  deleteQueuedPrompt(id: string): void {
+    void this.session
+      ?.deleteQueuedPrompt(id)
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to delete queued prompt', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to delete queued prompt', error));
+  }
+
+  reorderQueuedPrompts(ids: string[]): void {
+    void this.session
+      ?.changeQueuePromptOrder(ids)
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to reorder queued prompts', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to reorder queued prompts', error));
+  }
+
+  sendQueuedPromptNow(id: string): void {
+    void this._sendQueuedPromptNow(id);
   }
 
   dispose(): void {
@@ -332,6 +372,28 @@ export class AcpChatStore {
       sessionId: conversation.sessionId ?? null,
       model: conversation.model ?? null,
     };
+  }
+
+  private _queuedPromptModels(): QueuedPrompt[] {
+    return this.session?.sessionState.getSnapshot()?.queuedPrompts ?? [];
+  }
+
+  private async _sendQueuedPromptNow(id: string): Promise<void> {
+    const current = this._queuedPromptModels();
+    if (!current.some((prompt) => prompt.id === id)) return;
+
+    const ids = [id, ...current.map((prompt) => prompt.id).filter((promptId) => promptId !== id)];
+    const reorderResult = await this.session?.changeQueuePromptOrder(ids);
+    if (!reorderResult?.success) {
+      this._toastError('Failed to send queued prompt', reorderResult?.error);
+      return;
+    }
+
+    if (!this.affordances.isWorking) return;
+    const cancelResult = await this.session?.cancelTurn();
+    if (!cancelResult?.success) {
+      this._toastError('Failed to send queued prompt', cancelResult?.error);
+    }
   }
 
   private _subscribeLiveSession(session: AcpLiveSession): void {

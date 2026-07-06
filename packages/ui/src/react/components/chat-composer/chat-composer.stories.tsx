@@ -11,6 +11,7 @@ import type {
   ComposerNotice,
   ComposerNoticeVariant,
   ComposerPermissionModeOption,
+  ComposerQueuedPrompt,
   ContextMentionProvider,
   MentionItem,
   CommandItem,
@@ -208,6 +209,21 @@ const MOCK_PERMISSION_REQUESTS: ComposerPermissionRequest[] = [
   },
 ];
 
+const MOCK_QUEUED_PROMPTS: ComposerQueuedPrompt[] = [
+  {
+    id: 'queued-1',
+    text: 'Add tests for prompt queue draining after a turn finishes.',
+  },
+  {
+    id: 'queued-2',
+    text: 'Refactor the queued prompt row actions into a reusable toolbar.',
+  },
+  {
+    id: 'queued-3',
+    text: 'Summarize the implementation tradeoffs before editing files.',
+  },
+];
+
 interface PlaygroundArgs {
   disabled: boolean;
   isWorking: boolean;
@@ -222,6 +238,7 @@ interface PlaygroundArgs {
   noticeMessage: string;
   showPermissionModeSelector: boolean;
   showPermissionRequest: boolean;
+  showQueuedPrompts: boolean;
 }
 
 function ComposerPlayground(args: PlaygroundArgs) {
@@ -239,6 +256,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
     noticeMessage,
     showPermissionModeSelector,
     showPermissionRequest,
+    showQueuedPrompts,
   } = args;
 
   const [selectedAgent, setSelectedAgent] = useState('claude');
@@ -246,6 +264,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
   const [dismissed, setDismissed] = useState(false);
   const [selectedPermissionMode, setSelectedPermissionMode] = useState('default');
   const [permissionQueue, setPermissionQueue] = useState<ComposerPermissionRequest[]>([]);
+  const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>([]);
 
   useEffect(() => {
     if (showNotice) setDismissed(false);
@@ -254,6 +273,10 @@ function ComposerPlayground(args: PlaygroundArgs) {
   useEffect(() => {
     setPermissionQueue(showPermissionRequest ? MOCK_PERMISSION_REQUESTS : []);
   }, [showPermissionRequest]);
+
+  useEffect(() => {
+    setQueuedPrompts(showQueuedPrompts ? MOCK_QUEUED_PROMPTS : []);
+  }, [showQueuedPrompts]);
 
   const noticeVisible = showNotice && !dismissed;
   const notice: ComposerNotice | null = noticeVisible
@@ -306,6 +329,27 @@ function ComposerPlayground(args: PlaygroundArgs) {
         permissionRequest={permissionQueue[0] ?? null}
         permissionQueueCount={permissionQueue.length}
         onResolvePermission={() => setPermissionQueue((q) => q.slice(1))}
+        queuedPrompts={queuedPrompts}
+        onEditQueuedPrompt={(id, text) =>
+          setQueuedPrompts((prompts) =>
+            prompts.map((prompt) => (prompt.id === id ? { ...prompt, text } : prompt))
+          )
+        }
+        onDeleteQueuedPrompt={(id) =>
+          setQueuedPrompts((prompts) => prompts.filter((prompt) => prompt.id !== id))
+        }
+        onReorderQueuedPrompts={(ids) =>
+          setQueuedPrompts((prompts) =>
+            ids.flatMap((id) => {
+              const prompt = prompts.find((item) => item.id === id);
+              return prompt ? [prompt] : [];
+            })
+          )
+        }
+        onSendQueuedPromptNow={(id) => {
+          console.log('send queued prompt now:', id);
+          setQueuedPrompts((prompts) => prompts.filter((prompt) => prompt.id !== id));
+        }}
       />
     </Box>
   );
@@ -361,6 +405,10 @@ const meta: Meta<PlaygroundArgs> = {
       description:
         'Seed a queue of mock permission requests. Resolve each with the SplitButton to advance to the next.',
     },
+    showQueuedPrompts: {
+      control: 'boolean',
+      description: 'Seed a queue of mock prompts. Edit, delete, reorder, or send one now.',
+    },
   },
   args: {
     disabled: false,
@@ -377,6 +425,7 @@ const meta: Meta<PlaygroundArgs> = {
       'The agent hit the maximum number of turn requests. Send a new message to continue.',
     showPermissionModeSelector: true,
     showPermissionRequest: false,
+    showQueuedPrompts: false,
   },
 };
 
@@ -386,6 +435,49 @@ type Story = StoryObj<PlaygroundArgs>;
 
 /** Full controls playground — flip any arg in the Controls panel. */
 export const Playground: Story = {};
+
+function QueuedPromptsDemo() {
+  const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>(MOCK_QUEUED_PROMPTS);
+
+  return (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        isWorking
+        canSubmit
+        queuedPrompts={queuedPrompts}
+        onEditQueuedPrompt={(id, text) =>
+          setQueuedPrompts((prompts) =>
+            prompts.map((prompt) => (prompt.id === id ? { ...prompt, text } : prompt))
+          )
+        }
+        onDeleteQueuedPrompt={(id) =>
+          setQueuedPrompts((prompts) => prompts.filter((prompt) => prompt.id !== id))
+        }
+        onReorderQueuedPrompts={(ids) =>
+          setQueuedPrompts((prompts) =>
+            ids.flatMap((id) => {
+              const prompt = prompts.find((item) => item.id === id);
+              return prompt ? [prompt] : [];
+            })
+          )
+        }
+        onSendQueuedPromptNow={(id) => {
+          console.log('send queued prompt now:', id);
+          setQueuedPrompts((prompts) => prompts.filter((prompt) => prompt.id !== id));
+        }}
+        onSubmitWhileWorking={(text) => {
+          setQueuedPrompts((prompts) => [...prompts, { id: crypto.randomUUID(), text }]);
+        }}
+        onSubmit={() => {}}
+        onStop={() => {}}
+      />
+    </Box>
+  );
+}
+
+export const WithQueuedPrompts: Story = {
+  render: () => <QueuedPromptsDemo />,
+};
 
 // ── Effort selector story ─────────────────────────────────────────────────────
 

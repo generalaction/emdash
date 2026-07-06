@@ -24,6 +24,8 @@ import { ContextUsageIndicator } from './context-usage-indicator';
 import type { ContextUsage } from './context-usage-indicator';
 import { PermissionBand } from './permission-band';
 import type { ComposerPermissionRequest } from './permission-band';
+import { QueuedPromptsBand } from './queued-prompts-band';
+import type { ComposerQueuedPrompt } from './queued-prompts-band';
 import * as styles from './chat-composer.css';
 import './composer-contract.css';
 
@@ -35,6 +37,7 @@ export type {
   PromptEditorRef,
 } from '../prompt-editor/types';
 export type { ContextUsage } from './context-usage-indicator';
+export type { ComposerQueuedPrompt } from './queued-prompts-band';
 
 export type ComposerNoticeVariant = 'error' | 'warning' | 'info';
 
@@ -197,8 +200,8 @@ export interface ChatComposerProps {
   onSubmit: (text: string) => void;
   /**
    * Called instead of onSubmit when the user attempts to send while the
-   * session is actively working (isWorking === true). Lets the host show a
-   * confirmation dialog before cancelling the active turn and sending.
+   * session is actively working (isWorking === true). Lets the host queue,
+   * confirm interruption, or otherwise resolve the conflict.
    * When absent, submit attempts while working are silently ignored.
    */
   onSubmitWhileWorking?: (text: string) => void;
@@ -257,6 +260,13 @@ export interface ChatComposerProps {
   permissionQueueCount?: number;
   /** Called with the chosen optionId when the user resolves a permission request. */
   onResolvePermission?: (optionId: string) => void;
+
+  /** Prompts accepted while the agent is busy and waiting to be sent. */
+  queuedPrompts?: ComposerQueuedPrompt[];
+  onEditQueuedPrompt?: (id: string, text: string) => void;
+  onDeleteQueuedPrompt?: (id: string) => void;
+  onReorderQueuedPrompts?: (ids: string[]) => void;
+  onSendQueuedPromptNow?: (id: string) => void;
   className?: string;
 }
 
@@ -534,6 +544,11 @@ export function ChatComposer({
   permissionRequest,
   permissionQueueCount = 1,
   onResolvePermission,
+  queuedPrompts = [],
+  onEditQueuedPrompt,
+  onDeleteQueuedPrompt,
+  onReorderQueuedPrompts,
+  onSendQueuedPromptNow,
   className,
 }: ChatComposerProps) {
   const editorRef = useRef<PromptEditorRef | null>(null);
@@ -651,11 +666,27 @@ export function ChatComposer({
     ? Object.entries(permissionModeOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
 
+  const canShowQueuedPrompts =
+    queuedPrompts.length > 0 &&
+    !!onEditQueuedPrompt &&
+    !!onDeleteQueuedPrompt &&
+    !!onReorderQueuedPrompts &&
+    !!onSendQueuedPromptNow;
   // The permission band takes priority over the notice band.
-  const hasBand = !!(permissionRequest ?? notice);
+  const hasBand = canShowQueuedPrompts || !!(permissionRequest ?? notice);
 
   return (
     <div className={cx(styles.composerRoot, className)}>
+      {canShowQueuedPrompts && (
+        <QueuedPromptsBand
+          prompts={queuedPrompts}
+          onEdit={onEditQueuedPrompt}
+          onDelete={onDeleteQueuedPrompt}
+          onReorder={onReorderQueuedPrompts}
+          onSendNow={onSendQueuedPromptNow}
+        />
+      )}
+
       {/* Permission band — shown when the agent is awaiting user approval. */}
       {permissionRequest && onResolvePermission && (
         <PermissionBand

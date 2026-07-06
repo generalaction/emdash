@@ -115,17 +115,8 @@ const ComposerForStore = observer(function ComposerForStore({
     (value: string) => {
       const images = buildImages();
       if (!value.trim() && images.length === 0) return;
-      showModal('confirmActionModal', {
-        title: 'Turn in progress',
-        description:
-          'An active turn is currently in progress. Do you want to send the message and cancel the active turn?',
-        confirmLabel: 'Cancel & Send',
-        variant: 'destructive',
-        onSuccess: () => {
-          store.cancelAndSubmit(value, images);
-          setAttachments([]);
-        },
-      });
+      store.submitPrompt(value, images);
+      setAttachments([]);
     },
     [store, buildImages]
   );
@@ -138,6 +129,25 @@ const ComposerForStore = observer(function ComposerForStore({
     (optionId: string | null) => {
       if (!optionId) return;
       store.resolvePermission(optionId);
+    },
+    [store]
+  );
+
+  const handleSendQueuedPromptNow = useCallback(
+    (id: string) => {
+      if (!store.affordances.isWorking) {
+        store.sendQueuedPromptNow(id);
+        return;
+      }
+      showModal('confirmActionModal', {
+        title: 'Turn in progress',
+        description: 'Send this queued prompt now and cancel the active turn?',
+        confirmLabel: 'Cancel & Send',
+        variant: 'destructive',
+        onSuccess: () => {
+          store.sendQueuedPromptNow(id);
+        },
+      });
     },
     [store]
   );
@@ -245,6 +255,11 @@ const ComposerForStore = observer(function ComposerForStore({
         permissionRequest={permissionRequest}
         permissionQueueCount={store.permissionQueue.length}
         onResolvePermission={handleResolvePermission}
+        queuedPrompts={store.queuedPrompts}
+        onEditQueuedPrompt={(id, text) => store.editQueuedPrompt(id, text)}
+        onDeleteQueuedPrompt={(id) => store.deleteQueuedPrompt(id)}
+        onReorderQueuedPrompts={(ids) => store.reorderQueuedPrompts(ids)}
+        onSendQueuedPromptNow={handleSendQueuedPromptNow}
         editorApiRef={editorApiRef}
         modelOptions={store.modelOptions}
         selectedModel={store.model ?? undefined}

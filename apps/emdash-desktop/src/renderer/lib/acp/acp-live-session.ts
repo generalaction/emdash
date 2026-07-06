@@ -118,6 +118,22 @@ export class AcpLiveSession {
     return this.client.sendPrompt({ conversationId: this.conversationId, prompt });
   }
 
+  queuePrompt(prompt: PromptInput): Promise<Result<{ queued: boolean }, unknown>> {
+    return this.client.queuePrompt({ conversationId: this.conversationId, prompt });
+  }
+
+  editQueuedPrompt(id: string, input: PromptInput): Promise<Result<void, unknown>> {
+    return this.client.editQueuedPrompt({ conversationId: this.conversationId, id, input });
+  }
+
+  deleteQueuedPrompt(id: string): Promise<Result<void, unknown>> {
+    return this.client.deleteQueuedPrompt({ conversationId: this.conversationId, id });
+  }
+
+  changeQueuePromptOrder(ids: string[]): Promise<Result<void, unknown>> {
+    return this.client.changeQueuePromptOrder({ conversationId: this.conversationId, ids });
+  }
+
   cancelTurn(): Promise<Result<void, unknown>> {
     return this.client.cancelTurn({ conversationId: this.conversationId });
   }

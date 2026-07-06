@@ -8,6 +8,7 @@ export type {
   ComposerPermissionModeOption,
   ComposerNotice,
   ComposerNoticeVariant,
+  ComposerQueuedPrompt,
   ContextUsage,
   MentionItem,
   MentionKind,
@@ -16,6 +17,11 @@ export type {
   ContextMentionProvider,
   PromptEditorRef,
 } from './chat-composer';
+export { QueuedPromptsBand } from './chat-composer/queued-prompts-band';
+export type {
+  QueuedPromptsBandProps,
+  ComposerQueuedPrompt as QueuedPromptsBandItem,
+} from './chat-composer/queued-prompts-band';
 export { PermissionBand } from './chat-composer/permission-band';
 export type {
   PermissionBandProps,
