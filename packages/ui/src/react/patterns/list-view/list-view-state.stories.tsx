@@ -8,13 +8,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { observer } from 'mobx-react-lite';
 import * as React from 'react';
-import * as s from '../../story-layout.css';
 import { SearchInput } from '../../primitives/search-input';
 import { byField } from './comparators';
 import { createListView } from './core/create-list-view';
 import { defineFilter, defineSort } from './core/define-helpers';
-import { createTextMatcher } from './matching';
 import { ListView } from './index';
+import { createTextMatcher } from './matching';
+import * as s from '../../story-layout.css';
 
 const meta: Meta = {
   title: 'Patterns/ListView/State (createListView)',
@@ -34,14 +34,62 @@ interface Agent {
 }
 
 const ALL_AGENTS: Agent[] = [
-  { id: '1', name: 'Claude Sonnet', description: "Anthropic's flagship coding agent", status: 'installed', category: 'recommended' },
-  { id: '2', name: 'OpenAI Codex', description: 'Code generation from OpenAI', status: 'installed', category: 'recommended' },
-  { id: '3', name: 'Gemini', description: "Google's AI coding assistant", status: 'not-installed', category: 'recommended' },
-  { id: '4', name: 'Aider', description: 'AI pair programmer in your terminal', status: 'not-installed', category: 'community' },
-  { id: '5', name: 'GitHub Copilot', description: 'AI coding suggestions from GitHub', status: 'installed', category: 'recommended' },
-  { id: '6', name: 'Mentat', description: 'Code-editing AI assistant', status: 'not-installed', category: 'community' },
-  { id: '7', name: 'Continue', description: 'Open-source coding assistant', status: 'not-installed', category: 'community' },
-  { id: '8', name: 'Cursor Agent', description: "Cursor's built-in agent mode", status: 'installed', category: 'community' },
+  {
+    id: '1',
+    name: 'Claude Sonnet',
+    description: "Anthropic's flagship coding agent",
+    status: 'installed',
+    category: 'recommended',
+  },
+  {
+    id: '2',
+    name: 'OpenAI Codex',
+    description: 'Code generation from OpenAI',
+    status: 'installed',
+    category: 'recommended',
+  },
+  {
+    id: '3',
+    name: 'Gemini',
+    description: "Google's AI coding assistant",
+    status: 'not-installed',
+    category: 'recommended',
+  },
+  {
+    id: '4',
+    name: 'Aider',
+    description: 'AI pair programmer in your terminal',
+    status: 'not-installed',
+    category: 'community',
+  },
+  {
+    id: '5',
+    name: 'GitHub Copilot',
+    description: 'AI coding suggestions from GitHub',
+    status: 'installed',
+    category: 'recommended',
+  },
+  {
+    id: '6',
+    name: 'Mentat',
+    description: 'Code-editing AI assistant',
+    status: 'not-installed',
+    category: 'community',
+  },
+  {
+    id: '7',
+    name: 'Continue',
+    description: 'Open-source coding assistant',
+    status: 'not-installed',
+    category: 'community',
+  },
+  {
+    id: '8',
+    name: 'Cursor Agent',
+    description: "Cursor's built-in agent mode",
+    status: 'installed',
+    category: 'community',
+  },
 ];
 
 // ── Shared row styles ─────────────────────────────────────────────────────────
@@ -76,19 +124,44 @@ function AgentRowBase({
               if (e.key === 'Enter') onRename?.(draft);
               if (e.key === 'Escape') onRename?.(agent.name);
             }}
-            style={{ fontSize: 'var(--em-text-sm)', width: '100%', background: 'none', border: '1px solid var(--em-border)', borderRadius: 4, padding: '0 4px' }}
+            style={{
+              fontSize: 'var(--em-text-sm)',
+              width: '100%',
+              background: 'none',
+              border: '1px solid var(--em-border)',
+              borderRadius: 4,
+              padding: '0 4px',
+            }}
           />
         ) : (
-          <div style={{ fontSize: 'var(--em-text-sm)', fontWeight: 500, color: 'var(--em-foreground)' }}>
+          <div
+            style={{
+              fontSize: 'var(--em-text-sm)',
+              fontWeight: 500,
+              color: 'var(--em-foreground)',
+            }}
+          >
             {agent.name}
           </div>
         )}
-        <div style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)', marginTop: 1 }}>
+        <div
+          style={{
+            fontSize: 'var(--em-text-xs)',
+            color: 'var(--em-foreground-muted)',
+            marginTop: 1,
+          }}
+        >
           {agent.description}
         </div>
       </div>
       {agent.status === 'installed' && (
-        <span style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-status-success)', flexShrink: 0 }}>
+        <span
+          style={{
+            fontSize: 'var(--em-text-xs)',
+            color: 'var(--em-status-success)',
+            flexShrink: 0,
+          }}
+        >
           Installed
         </span>
       )}
@@ -104,7 +177,13 @@ const searchView = createListView({
   search: { kind: 'sync', predicate: createTextMatcher((a) => [a.name, a.description]) },
 });
 
-const SearchRow = observer(function SearchRow({ agent, isLast }: { agent: Agent; isLast: boolean }) {
+const SearchRow = observer(function SearchRow({
+  agent,
+  isLast,
+}: {
+  agent: Agent;
+  isLast: boolean;
+}) {
   return <AgentRowBase agent={agent} isLast={isLast} />;
 });
 
@@ -124,8 +203,21 @@ function SearchDemo() {
       </ListView.Toolbar>
       <ListView.Body>
         <searchView.List
-          renderItem={(agent, i) => <SearchRow key={agent.id} agent={agent} isLast={i === visibleItems.length - 1} />}
-          emptySlot={<div style={{ padding: '2rem', textAlign: 'center', color: 'var(--em-foreground-muted)', fontSize: 'var(--em-text-sm)' }}>No agents match your search.</div>}
+          renderItem={(agent, i) => (
+            <SearchRow key={agent.id} agent={agent} isLast={i === visibleItems.length - 1} />
+          )}
+          emptySlot={
+            <div
+              style={{
+                padding: '2rem',
+                textAlign: 'center',
+                color: 'var(--em-foreground-muted)',
+                fontSize: 'var(--em-text-sm)',
+              }}
+            >
+              No agents match your search.
+            </div>
+          }
         />
       </ListView.Body>
     </ListView>
@@ -163,7 +255,13 @@ const filterSortView = createListView({
   }),
 });
 
-const FilterSortRow = observer(function FilterSortRow({ agent, isLast }: { agent: Agent; isLast: boolean }) {
+const FilterSortRow = observer(function FilterSortRow({
+  agent,
+  isLast,
+}: {
+  agent: Agent;
+  isLast: boolean;
+}) {
   return <AgentRowBase agent={agent} isLast={isLast} />;
 });
 
@@ -189,7 +287,8 @@ function FilterSortDemo() {
                 borderRadius: 4,
                 border: '1px solid var(--em-border)',
                 background: filter.model.status === s ? 'var(--em-accent-9)' : 'none',
-                color: filter.model.status === s ? 'var(--em-accent-contrast)' : 'var(--em-foreground)',
+                color:
+                  filter.model.status === s ? 'var(--em-accent-contrast)' : 'var(--em-foreground)',
                 cursor: 'pointer',
                 fontSize: 'var(--em-text-xs)',
               }}
@@ -208,7 +307,15 @@ function FilterSortDemo() {
           <button
             type="button"
             onClick={() => sort.toggleDir()}
-            style={{ fontSize: 'var(--em-text-xs)', cursor: 'pointer', background: 'none', border: '1px solid var(--em-border)', borderRadius: 4, padding: '2px 8px', color: 'var(--em-foreground)' }}
+            style={{
+              fontSize: 'var(--em-text-xs)',
+              cursor: 'pointer',
+              background: 'none',
+              border: '1px solid var(--em-border)',
+              borderRadius: 4,
+              padding: '2px 8px',
+              color: 'var(--em-foreground)',
+            }}
           >
             Name {sort.dir === 'asc' ? '↑' : '↓'}
           </button>
@@ -216,8 +323,21 @@ function FilterSortDemo() {
       </ListView.Toolbar>
       <ListView.Body>
         <filterSortView.List
-          renderItem={(agent, i) => <FilterSortRow key={agent.id} agent={agent} isLast={i === visibleItems.length - 1} />}
-          emptySlot={<div style={{ padding: '2rem', textAlign: 'center', color: 'var(--em-foreground-muted)', fontSize: 'var(--em-text-sm)' }}>No results.</div>}
+          renderItem={(agent, i) => (
+            <FilterSortRow key={agent.id} agent={agent} isLast={i === visibleItems.length - 1} />
+          )}
+          emptySlot={
+            <div
+              style={{
+                padding: '2rem',
+                textAlign: 'center',
+                color: 'var(--em-foreground-muted)',
+                fontSize: 'var(--em-text-sm)',
+              }}
+            >
+              No results.
+            </div>
+          }
         />
       </ListView.Body>
     </ListView>
@@ -244,7 +364,13 @@ const selectView = createListView({
   sections: { by: (a) => a.category, order: ['recommended', 'community'] },
 });
 
-const SelectRow = observer(function SelectRow({ agent, isLast }: { agent: Agent; isLast: boolean }) {
+const SelectRow = observer(function SelectRow({
+  agent,
+  isLast,
+}: {
+  agent: Agent;
+  isLast: boolean;
+}) {
   const sel = selectView.useSelection();
   return (
     <AgentRowBase
@@ -262,8 +388,26 @@ function SelectDemo() {
   return (
     <ListView>
       <ListView.Toolbar>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}>
-          <button type="button" onClick={sel.count === ALL_AGENTS.length ? sel.clear : sel.selectAll} style={{ cursor: 'pointer', background: 'none', border: 'none', color: 'var(--em-foreground-muted)', fontSize: 'var(--em-text-xs)' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontSize: 'var(--em-text-xs)',
+            color: 'var(--em-foreground-muted)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={sel.count === ALL_AGENTS.length ? sel.clear : sel.selectAll}
+            style={{
+              cursor: 'pointer',
+              background: 'none',
+              border: 'none',
+              color: 'var(--em-foreground-muted)',
+              fontSize: 'var(--em-text-xs)',
+            }}
+          >
             {sel.count === ALL_AGENTS.length ? 'Deselect all' : 'Select all'}
           </button>
           {sel.count > 0 && <span>{sel.count} selected</span>}
@@ -271,15 +415,41 @@ function SelectDemo() {
       </ListView.Toolbar>
       <ListView.Body>
         <selectView.List
-          renderItem={(agent, i) => <SelectRow key={agent.id} agent={agent} isLast={i === ALL_AGENTS.length - 1} />}
+          renderItem={(agent, i) => (
+            <SelectRow key={agent.id} agent={agent} isLast={i === ALL_AGENTS.length - 1} />
+          )}
           renderSection={(key, count) => <ListView.SectionHeader label={key} count={count} />}
         />
       </ListView.Body>
       {sel.count > 0 && (
         <ListView.Footer>
-          <div style={{ margin: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: 'var(--em-radius-md)', backgroundColor: 'var(--em-surface-overlay)', border: '1px solid var(--em-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'var(--em-text-sm)' }}>
+          <div
+            style={{
+              margin: '0.5rem',
+              padding: '0.5rem 0.75rem',
+              borderRadius: 'var(--em-radius-md)',
+              backgroundColor: 'var(--em-surface-overlay)',
+              border: '1px solid var(--em-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: 'var(--em-text-sm)',
+            }}
+          >
             <span style={{ color: 'var(--em-foreground)' }}>{sel.count} items selected</span>
-            <button type="button" onClick={sel.clear} style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Clear</button>
+            <button
+              type="button"
+              onClick={sel.clear}
+              style={{
+                fontSize: 'var(--em-text-xs)',
+                color: 'var(--em-foreground-muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Clear
+            </button>
           </div>
         </ListView.Footer>
       )}
@@ -290,7 +460,10 @@ function SelectDemo() {
 export const MultiSelectSections: Story = {
   name: 'Multi-select + Sections',
   render: () => (
-    <div className={s.w96} style={{ height: '32rem', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <div
+      className={s.w96}
+      style={{ height: '32rem', display: 'flex', flexDirection: 'column', position: 'relative' }}
+    >
       <selectView.Root>
         <SelectDemo />
       </selectView.Root>
@@ -312,7 +485,13 @@ const renameView = createListView({
   },
 });
 
-const RenameRow = observer(function RenameRow({ agent, isLast }: { agent: Agent; isLast: boolean }) {
+const RenameRow = observer(function RenameRow({
+  agent,
+  isLast,
+}: {
+  agent: Agent;
+  isLast: boolean;
+}) {
   const rename = renameView.useRename();
   return (
     <AgentRowBase
@@ -333,13 +512,17 @@ function RenameDemo() {
   return (
     <ListView>
       <ListView.Toolbar>
-        <p style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)', margin: 0 }}>
+        <p
+          style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)', margin: 0 }}
+        >
           Click a row to rename it.
         </p>
       </ListView.Toolbar>
       <ListView.Body>
         <renameView.List
-          renderItem={(agent, i) => <RenameRow key={agent.id} agent={agent} isLast={i === ALL_AGENTS.length - 1} />}
+          renderItem={(agent, i) => (
+            <RenameRow key={agent.id} agent={agent} isLast={i === ALL_AGENTS.length - 1} />
+          )}
         />
       </ListView.Body>
     </ListView>
@@ -383,7 +566,13 @@ const infiniteView = createListView({
   },
 });
 
-const InfiniteRow = observer(function InfiniteRow({ agent, isLast }: { agent: Agent; isLast: boolean }) {
+const InfiniteRow = observer(function InfiniteRow({
+  agent,
+  isLast,
+}: {
+  agent: Agent;
+  isLast: boolean;
+}) {
   return <AgentRowBase agent={agent} isLast={isLast} />;
 });
 
@@ -394,14 +583,29 @@ function InfiniteDemo() {
   return (
     <ListView>
       <ListView.Toolbar>
-        <p style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)', margin: 0 }}>
+        <p
+          style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)', margin: 0 }}
+        >
           {visibleItems.length} loaded — {pg.hasMore ? 'scroll to load more' : 'all loaded'}
         </p>
       </ListView.Toolbar>
       <ListView.Body>
         <infiniteView.List
-          renderItem={(agent, i) => <InfiniteRow key={agent.id} agent={agent} isLast={i === visibleItems.length - 1} />}
-          loadingSlot={<div style={{ padding: '2rem', textAlign: 'center', color: 'var(--em-foreground-muted)', fontSize: 'var(--em-text-sm)' }}>Loading…</div>}
+          renderItem={(agent, i) => (
+            <InfiniteRow key={agent.id} agent={agent} isLast={i === visibleItems.length - 1} />
+          )}
+          loadingSlot={
+            <div
+              style={{
+                padding: '2rem',
+                textAlign: 'center',
+                color: 'var(--em-foreground-muted)',
+                fontSize: 'var(--em-text-sm)',
+              }}
+            >
+              Loading…
+            </div>
+          }
         />
       </ListView.Body>
     </ListView>
@@ -431,7 +635,15 @@ function StaticDemo() {
   const search = staticView.useSearch();
 
   return (
-    <div style={{ border: '1px solid var(--em-border)', borderRadius: 'var(--em-radius-md)', width: 280, overflow: 'hidden', backgroundColor: 'var(--em-surface-base)' }}>
+    <div
+      style={{
+        border: '1px solid var(--em-border)',
+        borderRadius: 'var(--em-radius-md)',
+        width: 280,
+        overflow: 'hidden',
+        backgroundColor: 'var(--em-surface-base)',
+      }}
+    >
       <div style={{ padding: '0.5rem' }}>
         <SearchInput
           size="sm"
@@ -444,10 +656,22 @@ function StaticDemo() {
       <staticView.StaticList
         renderItem={(agent, i) => (
           <ListView.Row key={agent.id} interactive isLast={i === 4}>
-            <span style={{ fontSize: 'var(--em-text-sm)', color: 'var(--em-foreground)' }}>{agent.name}</span>
+            <span style={{ fontSize: 'var(--em-text-sm)', color: 'var(--em-foreground)' }}>
+              {agent.name}
+            </span>
           </ListView.Row>
         )}
-        emptySlot={<div style={{ padding: '0.5rem 1rem', fontSize: 'var(--em-text-sm)', color: 'var(--em-foreground-muted)' }}>No results.</div>}
+        emptySlot={
+          <div
+            style={{
+              padding: '0.5rem 1rem',
+              fontSize: 'var(--em-text-sm)',
+              color: 'var(--em-foreground-muted)',
+            }}
+          >
+            No results.
+          </div>
+        }
       />
     </div>
   );

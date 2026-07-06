@@ -70,7 +70,9 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
       (this as { sort?: SortSlice<T, string> }).sort = new SortSlice(spec.sort);
     }
     if (spec.pagination) {
-      (this as { pagination?: PaginationSlice<T> }).pagination = new PaginationSlice(spec.pagination);
+      (this as { pagination?: PaginationSlice<T> }).pagination = new PaginationSlice(
+        spec.pagination
+      );
     }
     if (spec.selection) {
       if (spec.selection.kind === 'external') {
@@ -78,7 +80,7 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
           spec.selection.store;
       } else {
         (this as { selectionSlice?: SelectionSlice }).selectionSlice = new SelectionSlice(
-          spec.selection.kind,
+          spec.selection.kind
         );
       }
     }
@@ -87,7 +89,7 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
         spec.rename,
         (id) => this.getItemById(id),
         () => this.orderedIds,
-        this.scroll,
+        this.scroll
       );
     }
 
@@ -195,7 +197,7 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
           this.pagination!.reset();
           void this.pagination!.loadMore();
         },
-        { fireImmediately: true },
+        { fireImmediately: true }
       );
       this.disposers.push(dispose);
     }
@@ -250,7 +252,7 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
               sortKey: this.sort?.key as string | undefined,
               sortDir: (this.sort?.dir ?? 'asc') as 'asc' | 'desc',
             },
-            controller.signal,
+            controller.signal
           );
           if (token !== this.pipelineToken) return;
           runInAction(() => {
@@ -266,7 +268,7 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
           });
         }
       },
-      { fireImmediately: true },
+      { fireImmediately: true }
     );
     this.disposers.push(dispose);
   }

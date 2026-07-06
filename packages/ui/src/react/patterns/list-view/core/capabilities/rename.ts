@@ -15,7 +15,7 @@ export class RenameSlice<T> {
     readonly spec: RenameSpec<T>,
     private readonly getItemById: (id: string) => T | undefined,
     private readonly getOrderedIds: () => string[],
-    private readonly scroll: ScrollSlice,
+    private readonly scroll: ScrollSlice
   ) {
     makeObservable(this, {
       editingId: observable,

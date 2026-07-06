@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { byField, chainComparators, compareDates, compareNumbers, compareStrings } from './comparators';
+import {
+  byField,
+  chainComparators,
+  compareDates,
+  compareNumbers,
+  compareStrings,
+} from './comparators';
 
 describe('compareStrings', () => {
   it('sorts alphabetically', () => {
@@ -75,7 +81,10 @@ describe('chainComparators', () => {
   ];
 
   it('applies comparators in order, breaking ties', () => {
-    const cmp = chainComparators<Item>(byField((i) => i.group), byField((i) => i.name));
+    const cmp = chainComparators<Item>(
+      byField((i) => i.group),
+      byField((i) => i.name)
+    );
     const sorted = [...items].sort(cmp);
     expect(sorted.map((i) => `${i.group}:${i.name}`)).toEqual([
       'A:Banana',

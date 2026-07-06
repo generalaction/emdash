@@ -1,5 +1,3 @@
-import { createORPCClient, type Client } from '@orpc/client';
-import { onMessagePortClose, RPCLink } from '@orpc/client/message-port';
 import type {
   AgentState,
   HistoryPage,
@@ -13,8 +11,10 @@ import type {
   TranscriptTurn,
   AcpRuntimeError,
 } from '@emdash/core/acp/client';
-import type { Result } from '@emdash/shared';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '@emdash/core/live';
+import type { Result } from '@emdash/shared';
+import { createORPCClient, type Client } from '@orpc/client';
+import { onMessagePortClose, RPCLink } from '@orpc/client/message-port';
 import { rpc } from '@renderer/lib/ipc';
 
 type Proc<I = unknown, O = unknown> = Client<Record<never, never>, I, O, unknown>;
@@ -31,24 +31,42 @@ type LiveLogEndpoint<I> = {
 
 export type AcpRuntimeRpcClient = {
   startSession: Proc<{ input: StartSessionInput }, Result<{ sessionId: string }, AcpRuntimeError>>;
-  resumeSession: Proc<{ input: StartSessionInput & { sessionId: string } }, Result<ResumeResult, AcpRuntimeError>>;
+  resumeSession: Proc<
+    { input: StartSessionInput & { sessionId: string } },
+    Result<ResumeResult, AcpRuntimeError>
+  >;
   stopSession: Proc<{ conversationId: string }, Result<void, AcpRuntimeError>>;
-  sendPrompt: Proc<{ conversationId: string; prompt: PromptInput }, Result<{ queued: boolean }, AcpRuntimeError>>;
-  queuePrompt: Proc<{ conversationId: string; prompt: PromptInput }, Result<{ queued: boolean }, AcpRuntimeError>>;
+  sendPrompt: Proc<
+    { conversationId: string; prompt: PromptInput },
+    Result<{ queued: boolean }, AcpRuntimeError>
+  >;
+  queuePrompt: Proc<
+    { conversationId: string; prompt: PromptInput },
+    Result<{ queued: boolean }, AcpRuntimeError>
+  >;
   editQueuedPrompt: Proc<
     { conversationId: string; id: string; input: PromptInput },
     Result<void, AcpRuntimeError>
   >;
   deleteQueuedPrompt: Proc<{ conversationId: string; id: string }, Result<void, AcpRuntimeError>>;
-  changeQueuePromptOrder: Proc<{ conversationId: string; ids: string[] }, Result<void, AcpRuntimeError>>;
+  changeQueuePromptOrder: Proc<
+    { conversationId: string; ids: string[] },
+    Result<void, AcpRuntimeError>
+  >;
   cancelTurn: Proc<{ conversationId: string }, Result<void, AcpRuntimeError>>;
   setModelOption: Proc<
     { conversationId: string; dimension: 'model' | 'effort'; value: string },
     Result<void, AcpRuntimeError>
   >;
   setModeOption: Proc<{ conversationId: string; value: string }, Result<void, AcpRuntimeError>>;
-  resolvePermission: Proc<{ conversationId: string; requestId: string; optionId: string }, Result<void, AcpRuntimeError>>;
-  getHistory: Proc<{ conversationId: string; before?: number; limit: number }, Result<HistoryPage, AcpRuntimeError>>;
+  resolvePermission: Proc<
+    { conversationId: string; requestId: string; optionId: string },
+    Result<void, AcpRuntimeError>
+  >;
+  getHistory: Proc<
+    { conversationId: string; before?: number; limit: number },
+    Result<HistoryPage, AcpRuntimeError>
+  >;
   live: {
     sessionStateList: LiveModelEndpoint<void | undefined, Record<string, SessionSummary>>;
     sessionState: LiveModelEndpoint<{ conversationId: string }, SessionState>;

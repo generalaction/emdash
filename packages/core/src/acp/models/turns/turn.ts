@@ -2,9 +2,7 @@ import { z } from 'zod';
 import { stopReasonSchema } from '../session';
 import { transcriptMessageSchema } from './messages';
 import { transcriptThinkingSchema } from './thinking';
-import {
-  toolNodeSchema,
-} from './tool-calls';
+import { toolNodeSchema } from './tool-calls';
 
 export const transcriptItemSchema = z.union([
   transcriptMessageSchema,

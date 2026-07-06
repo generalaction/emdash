@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-export const attachmentMimeTypeSchema = z.enum(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+export const attachmentMimeTypeSchema = z.enum([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+]);
 export type AttachmentMimeType = z.infer<typeof attachmentMimeTypeSchema>;
 
 export const attachmentRefSchema = z.object({

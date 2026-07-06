@@ -26,7 +26,7 @@ export const compareDates: Comparator<Date> = (a, b) => a.getTime() - b.getTime(
  */
 export function byField<T>(
   get: (item: T) => string | number | Date,
-  dir: 'asc' | 'desc' = 'asc',
+  dir: 'asc' | 'desc' = 'asc'
 ): Comparator<T> {
   return (a, b) => {
     const av = get(a);

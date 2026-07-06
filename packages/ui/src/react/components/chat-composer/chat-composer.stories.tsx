@@ -136,23 +136,52 @@ const mockMentionProvider: ContextMentionProvider = {
 // ── Mock / commands ───────────────────────────────────────────────────────────
 
 const MOCK_COMMANDS: CommandItem[] = [
-  { id: 'clear', name: 'clear', label: 'Clear conversation', description: 'Wipe the conversation history.', behavior: 'execute' },
-  { id: 'model', name: 'model', label: 'Switch model', description: 'Change the active model.', behavior: 'execute' },
-  { id: 'help', name: 'help', label: 'Help', description: 'Show available commands.', behavior: 'insert' },
-  { id: 'compact', name: 'compact', label: 'Compact', description: 'Summarize and compact the context.', behavior: 'execute' },
+  {
+    id: 'clear',
+    name: 'clear',
+    label: 'Clear conversation',
+    description: 'Wipe the conversation history.',
+    behavior: 'execute',
+  },
+  {
+    id: 'model',
+    name: 'model',
+    label: 'Switch model',
+    description: 'Change the active model.',
+    behavior: 'execute',
+  },
+  {
+    id: 'help',
+    name: 'help',
+    label: 'Help',
+    description: 'Show available commands.',
+    behavior: 'insert',
+  },
+  {
+    id: 'compact',
+    name: 'compact',
+    label: 'Compact',
+    description: 'Summarize and compact the context.',
+    behavior: 'execute',
+  },
 ];
 
 async function queryCommands(query: string): Promise<CommandItem[]> {
   await new Promise((r) => setTimeout(r, 60));
   const q = query.toLowerCase();
-  return q ? MOCK_COMMANDS.filter((c) => c.name.includes(q) || (c.label ?? '').toLowerCase().includes(q)) : MOCK_COMMANDS;
+  return q
+    ? MOCK_COMMANDS.filter((c) => c.name.includes(q) || (c.label ?? '').toLowerCase().includes(q))
+    : MOCK_COMMANDS;
 }
 
 // ── Mock permission modes (approveSettings) ───────────────────────────────────
 
 const MOCK_PERMISSION_MODES: Record<string, ComposerPermissionModeOption> = {
   default: { name: 'Default', description: 'Prompt for each sensitive action.' },
-  acceptEdits: { name: 'Accept edits', description: 'Auto-allow file edits, prompt for shell commands.' },
+  acceptEdits: {
+    name: 'Accept edits',
+    description: 'Auto-allow file edits, prompt for shell commands.',
+  },
   plan: { name: 'Plan only', description: 'Agent proposes changes but never writes files.' },
   bypass: { name: 'Bypass all', description: 'Auto-approve everything — use with caution.' },
 };

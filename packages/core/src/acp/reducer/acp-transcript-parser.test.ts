@@ -477,9 +477,10 @@ describe('AcpTranscriptParser', () => {
     } as unknown as SessionUpdate);
     p.push(toolUpdateDone('tc-multi'));
 
-    const fileOps = p.activeTurn?.items.filter(
-      (i) => i.kind === 'modify-file-tool-call' || i.kind === 'create-file-tool-call'
-    ) ?? [];
+    const fileOps =
+      p.activeTurn?.items.filter(
+        (i) => i.kind === 'modify-file-tool-call' || i.kind === 'create-file-tool-call'
+      ) ?? [];
     expect(fileOps).toHaveLength(2);
     expect(fileOps.every((item) => item.toolCallId === 'tc-multi')).toBe(true);
     expect(fileOps.every((item) => item.status === 'done')).toBe(true);
@@ -518,7 +519,12 @@ describe('AcpTranscriptParser', () => {
     expect(p.plan).toMatchObject({
       id: SESSION_PLAN_ID,
       entries: [
-        { id: `${SESSION_PLAN_ID}:entry:0`, content: 'Step 1', status: 'pending', priority: 'high' },
+        {
+          id: `${SESSION_PLAN_ID}:entry:0`,
+          content: 'Step 1',
+          status: 'pending',
+          priority: 'high',
+        },
       ],
     });
   });
@@ -528,10 +534,12 @@ describe('AcpTranscriptParser', () => {
     p.push(planUpdate([{ content: 'Agent step', status: 'in_progress', priority: 'medium' }]), 100);
 
     expect(p.activeTurn?.initiator).toBe('agent');
-    expect(p.activeTurn?.items.find((item) => item.kind === 'create-plan-tool-call')).toMatchObject({
-      status: 'running',
-      planId: SESSION_PLAN_ID,
-    });
+    expect(p.activeTurn?.items.find((item) => item.kind === 'create-plan-tool-call')).toMatchObject(
+      {
+        status: 'running',
+        planId: SESSION_PLAN_ID,
+      }
+    );
     expect(p.plan).toEqual({
       id: SESSION_PLAN_ID,
       entries: [
@@ -575,7 +583,9 @@ describe('AcpTranscriptParser', () => {
         outputFile: '/tmp/agent-1.output',
       },
     ]);
-    expect(p.history[0].items.find((item) => item.kind === 'spawn-subagent-tool-call')).toMatchObject({
+    expect(
+      p.history[0].items.find((item) => item.kind === 'spawn-subagent-tool-call')
+    ).toMatchObject({
       status: 'done',
       background: true,
       agentId: 'agent-1',

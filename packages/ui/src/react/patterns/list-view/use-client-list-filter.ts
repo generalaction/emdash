@@ -31,10 +31,7 @@ export interface ClientListFilterOptions<T> {
  * });
  * ```
  */
-export function useClientListFilter<T>(
-  items: T[],
-  opts: ClientListFilterOptions<T>,
-): T[] {
+export function useClientListFilter<T>(items: T[], opts: ClientListFilterOptions<T>): T[] {
   const { query, match, filter, sort } = opts;
   return useMemo(() => {
     let result = items;

@@ -10,12 +10,6 @@ import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
 import type { AcpRuntimeError } from '../errors';
 import { acpErr } from '../errors';
-import type { AcpPermissionRequest } from '../models/permissions';
-import { SESSION_PLAN_ID } from '../models/plan';
-import type { PromptInput, QueuedPrompt } from '../models/prompt';
-import type { SessionConfigState } from '../models/config';
-import type { SessionState, StopReason } from '../models/session';
-import type { ToolCallItem, ToolNode, TranscriptTurn, TranscriptTurnOutcome } from '../models/turns';
 import {
   type Command,
   type DomainEvent,
@@ -23,12 +17,23 @@ import {
   SessionMachine,
   type SessionMachineContext,
 } from '../machine/machine';
+import type { SessionConfigState } from '../models/config';
+import type { AcpPermissionRequest } from '../models/permissions';
+import { SESSION_PLAN_ID } from '../models/plan';
+import type { PromptInput, QueuedPrompt } from '../models/prompt';
+import type { SessionState, StopReason } from '../models/session';
+import type {
+  ToolCallItem,
+  ToolNode,
+  TranscriptTurn,
+  TranscriptTurnOutcome,
+} from '../models/turns';
 import { makeToolId } from '../reducer/ids';
 import { createToolCallItem } from '../reducer/item-fold';
 import type { NormalizedEvent } from '../reducer/normalized-event';
 import { AcpTranscriptParser } from '../reducer/parser';
-import { PermissionBroker } from './permission-broker';
 import type { SessionCellDeps, SessionPromptResult } from './cell-deps';
+import { PermissionBroker } from './permission-broker';
 
 export interface AcpChatHistory {
   committed: TranscriptTurn[];
@@ -231,7 +236,10 @@ export class SessionCell {
       });
     }
     try {
-      await this.deps.agent.setSessionMode({ sessionId: this.acpSessionId, modeId } satisfies SetSessionModeRequest);
+      await this.deps.agent.setSessionMode({
+        sessionId: this.acpSessionId,
+        modeId,
+      } satisfies SetSessionModeRequest);
       return ok();
     } catch (e) {
       return acpErr.setModeFailed(toSerializedError(e));
@@ -504,7 +512,9 @@ function findToolCall(
   return undefined;
 }
 
-function machineOutcome(outcome: TranscriptTurnOutcome): { kind: 'stopped'; stopReason: StopReason } | { kind: 'errored' } {
+function machineOutcome(
+  outcome: TranscriptTurnOutcome
+): { kind: 'stopped'; stopReason: StopReason } | { kind: 'errored' } {
   if (outcome.kind === 'error') return { kind: 'errored' };
   if (outcome.kind === 'cancelled') return { kind: 'stopped', stopReason: 'cancelled' };
   return { kind: 'stopped', stopReason: toStopReason(outcome.reason) };

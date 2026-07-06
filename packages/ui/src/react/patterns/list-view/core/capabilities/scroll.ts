@@ -26,7 +26,7 @@ export class ScrollSlice {
   toId(
     id: string,
     orderedIds: string[],
-    opts?: { align?: 'auto' | 'start' | 'center' | 'end' },
+    opts?: { align?: 'auto' | 'start' | 'center' | 'end' }
   ): void {
     const idx = orderedIds.indexOf(id);
     if (idx >= 0) this.handle?.scrollToIndex(idx, opts);

@@ -1,8 +1,8 @@
 import { MessageChannel } from 'node:worker_threads';
-import { createORPCClient } from '@orpc/client';
-import { RPCLink } from '@orpc/client/message-port';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import { createORPCClient } from '@orpc/client';
 import type { Client } from '@orpc/client';
+import { RPCLink } from '@orpc/client/message-port';
 import { describe, expect, it, vi } from 'vitest';
 import { FakeAcpTerminalProcess, makeAcpHarness, makeStartInput } from '../acp-test-support';
 import { AcpRuntime } from '../runtime/runtime';
@@ -21,7 +21,10 @@ type TestAcpClient = {
       subscribe: Proc<{ conversationId: string }, AsyncIterator<{ delta: unknown }>>;
     };
     terminals: {
-      snapshot: Proc<{ conversationId: string }, { data: Array<{ terminalId: string; command: string }> }>;
+      snapshot: Proc<
+        { conversationId: string },
+        { data: Array<{ terminalId: string; command: string }> }
+      >;
     };
     terminalOutput: {
       snapshot: Proc<{ terminalId: string }, { data: { text: string } }>;
@@ -109,7 +112,9 @@ describe('createAcpRouter', () => {
     const runtime = new AcpRuntime(h.deps);
     const client = makeClient(runtime);
 
-    await client.startSession({ input: makeStartInput({ conversationId: 'conv-terminal-router' }) });
+    await client.startSession({
+      input: makeStartInput({ conversationId: 'conv-terminal-router' }),
+    });
     const terminal = new FakeAcpTerminalProcess();
     h.fakeHost.nextTerminal = terminal;
     const created = await h.client().createTerminal!({

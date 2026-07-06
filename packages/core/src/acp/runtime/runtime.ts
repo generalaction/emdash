@@ -1,6 +1,9 @@
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
+import type { LiveLogServer } from '../../live/log';
+import type { LiveModelServer } from '../../live/model';
 import { AgentTerminalManager } from '../agent-terminal-manager';
+import type { ResumeResult } from '../api/queries';
 import { FsPort, TerminalPort } from '../client-ports';
 import { ConnectionPool } from '../connection/pool';
 import type { AcpRuntimeError } from '../errors';
@@ -13,11 +16,8 @@ import type { TranscriptTurn } from '../models/turns';
 import type { SessionLiveModels, SessionsListModel } from '../state/live-models';
 import type { StoredAttachment } from './attachment-store';
 import { SessionManager, type HistoryPage } from './session-manager';
-import type { AcpRuntimeDeps, AcpStartInput } from './types';
-import type { ResumeResult } from '../api/queries';
 import { TerminalLiveRegistry } from './terminal-live-registry';
-import type { LiveLogServer } from '../../live/log';
-import type { LiveModelServer } from '../../live/model';
+import type { AcpRuntimeDeps, AcpStartInput } from './types';
 
 export class AcpRuntime {
   readonly terminals: AgentTerminalManager;
@@ -67,7 +67,10 @@ export class AcpRuntime {
     return this.manager.prompt({ conversationId, prompt });
   }
 
-  queuePrompt(conversationId: string, prompt: PromptInput): Result<{ queued: boolean }, AcpRuntimeError> {
+  queuePrompt(
+    conversationId: string,
+    prompt: PromptInput
+  ): Result<{ queued: boolean }, AcpRuntimeError> {
     return this.manager.queuePrompt({ conversationId, prompt });
   }
 
@@ -114,11 +117,18 @@ export class AcpRuntime {
     return this.manager.setConfigOption(conversationId, dimension, value);
   }
 
-  getHistory(conversationId: string, before?: number, limit?: number): Result<HistoryPage, AcpRuntimeError> {
+  getHistory(
+    conversationId: string,
+    before?: number,
+    limit?: number
+  ): Result<HistoryPage, AcpRuntimeError> {
     return ok(this.manager.getHistory(conversationId, before, limit));
   }
 
-  getChatHistory(conversationId: string): { committed: TranscriptTurn[]; active: TranscriptTurn | null } {
+  getChatHistory(conversationId: string): {
+    committed: TranscriptTurn[];
+    active: TranscriptTurn | null;
+  } {
     return this.manager.getChatHistory(conversationId);
   }
 

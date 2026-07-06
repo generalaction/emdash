@@ -89,7 +89,7 @@ export type PaginationSpec<T> = {
   kind: 'infinite';
   loadMore: (
     cursor: string | null,
-    signal: AbortSignal,
+    signal: AbortSignal
   ) => Promise<{ items: T[]; nextCursor: string | null }>;
 };
 

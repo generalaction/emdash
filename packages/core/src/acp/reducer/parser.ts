@@ -35,10 +35,7 @@ import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type { AgentState } from '../models/agents';
 import type { SessionConfigState, SessionUsage } from '../models/config';
 import type { PlanState } from '../models/plan';
-import type {
-  TranscriptTurn,
-  TranscriptTurnOutcome,
-} from '../models/turns';
+import type { TranscriptTurn, TranscriptTurnOutcome } from '../models/turns';
 import type { EnrichHook, NormalizedEvent } from './normalized-event';
 import { initialState, reduce, type ParserState, type ReducerDeps } from './reducer';
 

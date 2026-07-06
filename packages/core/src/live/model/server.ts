@@ -1,6 +1,6 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
-import { type Patch, produceWithPatches } from './immer-setup';
 import type { LiveSnapshot, LiveUpdate } from '../protocol';
+import { type Patch, produceWithPatches } from './immer-setup';
 
 /**
  * Transport-agnostic live model server.

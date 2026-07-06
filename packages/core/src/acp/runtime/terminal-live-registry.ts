@@ -1,7 +1,7 @@
-import type { AgentTerminalHooks } from '../agent-terminal-manager';
-import type { TerminalState } from '../models/terminals';
 import { LiveLogServer } from '../../live/log';
 import { LiveModelServer } from '../../live/model';
+import type { AgentTerminalHooks } from '../agent-terminal-manager';
+import type { TerminalState } from '../models/terminals';
 
 type TerminalRecord = {
   conversationId: string;

@@ -70,7 +70,12 @@ export type { ClientListFilterOptions } from './use-client-list-filter';
 // ── Headless state factory (createListView) ───────────────────────────────────
 
 export { createListView } from './core/create-list-view';
-export type { ListViewApi, ListProps, StaticListProps, VirtualizationOptions } from './core/create-list-view';
+export type {
+  ListViewApi,
+  ListProps,
+  StaticListProps,
+  VirtualizationOptions,
+} from './core/create-list-view';
 
 export { ListViewStore } from './core/list-view-store';
 

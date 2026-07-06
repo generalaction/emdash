@@ -14,6 +14,8 @@ import { isErr, ok, toSerializedError } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { AgentTerminalManager } from '../agent-terminal-manager';
 import type { FsPort, TerminalPort } from '../client-ports';
+import { buildClientHandler, type InboundRouter } from '../connection/client-handler';
+import type { ConnectionPool, ConnectionPoolEntry } from '../connection/pool';
 import type { AcpRuntimeError } from '../errors';
 import { acpErr } from '../errors';
 import type { AgentState } from '../models/agents';
@@ -22,8 +24,7 @@ import type { PlanState } from '../models/plan';
 import type { SessionState, SessionSummary } from '../models/session';
 import type { TerminalState } from '../models/terminals';
 import type { TranscriptTurn } from '../models/turns';
-import { buildClientHandler, type InboundRouter } from '../connection/client-handler';
-import type { ConnectionPool, ConnectionPoolEntry } from '../connection/pool';
+import type { NormalizedEvent } from '../reducer/normalized-event';
 import { SessionCell, type AcpChatHistory } from '../session/cell';
 import type { SessionCellCallbacks } from '../session/cell-deps';
 import {
@@ -34,7 +35,6 @@ import {
   type SessionsListModel,
 } from '../state/live-models';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
-import type { NormalizedEvent } from '../reducer/normalized-event';
 
 interface SessionRecord {
   input: AcpStartInput;
@@ -144,7 +144,9 @@ export class SessionManager implements InboundRouter {
       }
 
       this.registerRoute(connection.key, record.cell.acpSessionId, input.conversationId);
-      void this.deps.persistSessionId(input.conversationId, record.cell.acpSessionId).catch(() => {});
+      void this.deps
+        .persistSessionId(input.conversationId, record.cell.acpSessionId)
+        .catch(() => {});
 
       if (input.model) {
         await record.cell.setConfigOption('model', input.model);
@@ -427,8 +429,7 @@ export class SessionManager implements InboundRouter {
       providerId: input.providerId,
       lifecycle: state.lifecycle,
       isGenerating: state.isGenerating,
-      pendingPermissionCount:
-        state.pendingPermissionCount ?? state.pendingPermissions?.length ?? 0,
+      pendingPermissionCount: state.pendingPermissionCount ?? state.pendingPermissions?.length ?? 0,
       backgroundAgentCount: state.backgroundAgentCount,
       queuedPromptCount: state.queuedPromptCount ?? state.queuedPrompts?.length ?? 0,
       title: cell?.transcript.title ?? null,
@@ -504,7 +505,10 @@ export class SessionManager implements InboundRouter {
     switch (update.sessionUpdate) {
       case 'current_mode_update':
         cell.applySessionMeta({
-          modes: { currentModeId: update.currentModeId, availableModes: cell.config.modeOptions?.available ?? [] },
+          modes: {
+            currentModeId: update.currentModeId,
+            availableModes: cell.config.modeOptions?.available ?? [],
+          },
         });
         break;
       case 'config_option_update':

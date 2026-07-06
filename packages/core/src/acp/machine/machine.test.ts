@@ -142,9 +142,9 @@ describe('permissions and config validation', () => {
   });
 
   it('validates modes and config options from caller-supplied context', () => {
-    expect(isOk(decide(makeReady(), { type: 'SetMode', modeId: 'default' }, { modeIds: ['default'] }))).toBe(
-      true
-    );
+    expect(
+      isOk(decide(makeReady(), { type: 'SetMode', modeId: 'default' }, { modeIds: ['default'] }))
+    ).toBe(true);
     expect(
       isOk(
         decide(

@@ -30,7 +30,7 @@ export function matchesQuery(haystack: string, query: string): boolean {
  */
 export function createTextMatcher<T>(
   getText: (item: T) => string | string[],
-  opts?: TextMatcherOptions,
+  opts?: TextMatcherOptions
 ): (item: T, query: string) => boolean {
   const mode = opts?.mode ?? 'includes';
   return (item: T, query: string): boolean => {

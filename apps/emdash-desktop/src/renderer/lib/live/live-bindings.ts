@@ -1,6 +1,6 @@
-import { useSyncExternalStore } from 'react';
 import { LiveLogClient, LiveModelClient } from '@emdash/core/live';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '@emdash/core/live';
+import { useSyncExternalStore } from 'react';
 import type { z } from 'zod';
 
 type Unsubscribe = () => void;
@@ -39,7 +39,11 @@ export function createLiveModelBinding<T>(options: {
     async start() {
       client.seed(await options.snapshot());
       iterator = await options.subscribe();
-      void pump(iterator, (update) => client.applyUpdate(update), () => disposed);
+      void pump(
+        iterator,
+        (update) => client.applyUpdate(update),
+        () => disposed
+      );
     },
     dispose() {
       disposed = true;
@@ -85,7 +89,11 @@ export function createLiveLogBinding(options: {
     async start() {
       client.seed(await options.snapshot());
       iterator = await options.subscribe();
-      void pump(iterator, (update) => client.applyUpdate(update), () => disposed);
+      void pump(
+        iterator,
+        (update) => client.applyUpdate(update),
+        () => disposed
+      );
     },
     dispose() {
       disposed = true;

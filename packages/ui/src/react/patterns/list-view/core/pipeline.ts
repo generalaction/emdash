@@ -15,7 +15,7 @@ export interface AsyncPipelineInputs<F extends FilterModel, K extends string> {
 export function groupItems<T>(
   items: T[],
   by: (item: T) => string,
-  order?: string[],
+  order?: string[]
 ): Array<{ key: string; items: T[] }> {
   const map = new Map<string, T[]>();
   for (const item of items) {
@@ -45,7 +45,10 @@ export function groupItems<T>(
 export function runSyncPipeline<T>(
   spec: ListViewSpec<T>,
   rawItems: T[],
-  inputs: Pick<AsyncPipelineInputs<FilterModel, string>, 'query' | 'filterModel' | 'sortKey' | 'sortDir'>,
+  inputs: Pick<
+    AsyncPipelineInputs<FilterModel, string>,
+    'query' | 'filterModel' | 'sortKey' | 'sortDir'
+  >
 ): T[] {
   let items = rawItems;
 
@@ -88,7 +91,7 @@ export async function runAsyncPipeline<T, F extends FilterModel, K extends strin
   spec: ListViewSpec<T>,
   rawItems: T[],
   inputs: AsyncPipelineInputs<F, K>,
-  signal: AbortSignal,
+  signal: AbortSignal
 ): Promise<T[]> {
   let items: T[] = rawItems;
 

@@ -31,4 +31,3 @@ export const planStateSchema = z.object({
   updatedAt: z.number(),
 });
 export type PlanState = z.infer<typeof planStateSchema>;
-

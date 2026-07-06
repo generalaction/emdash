@@ -1,8 +1,16 @@
 import { finalizeTurn } from '@emdash/chat-ui';
 import type { ChatImageAttachment, ChatItem, FileOpKind, ToolStatus } from '@emdash/chat-ui';
-import type { ToolCallItem, ToolNode, TranscriptItem, TranscriptTurn } from '@emdash/core/acp/client';
+import type {
+  ToolCallItem,
+  ToolNode,
+  TranscriptItem,
+  TranscriptTurn,
+} from '@emdash/core/acp/client';
 
-export function mapTranscriptTurn(turn: TranscriptTurn, options: { active?: boolean } = {}): ChatItem[] {
+export function mapTranscriptTurn(
+  turn: TranscriptTurn,
+  options: { active?: boolean } = {}
+): ChatItem[] {
   const items = turn.items.flatMap((item) => mapTranscriptItem(item, options.active ?? false));
   return options.active ? items : finalizeTurn(items);
 }

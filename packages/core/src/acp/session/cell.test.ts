@@ -101,7 +101,9 @@ describe('SessionCell permissions', () => {
     const permission = cell.requestPermission({
       sessionId: 'session-1',
       toolCall: { toolCallId: 'tool-2', title: 'Write a file', kind: 'edit' },
-      options: [{ optionId: 'reject', name: 'Reject', kind: 'reject_once' as PermissionOptionKind }],
+      options: [
+        { optionId: 'reject', name: 'Reject', kind: 'reject_once' as PermissionOptionKind },
+      ],
     });
 
     cell.dispose();

@@ -13,19 +13,26 @@ import type {
   ComposerPermissionModeOption,
 } from '@emdash/ui/react/components';
 import { action, computed, makeObservable, observable, runInAction, when } from 'mobx';
+import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
+import { AcpLiveSession } from '@renderer/lib/acp/acp-live-session';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
 } from '@renderer/lib/chat/advertised-command-provider';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
-import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
-import { AcpLiveSession } from '@renderer/lib/acp/acp-live-session';
 import { conversationRegistry } from '../stores/conversation-registry';
 import { mapTranscriptTurn, mapTranscriptTurns } from './acp-live-mapper';
 
-export type AcpChatLifecycle = 'idle' | 'starting' | 'replaying' | 'ready' | 'working' | 'cancelling' | 'closed';
+export type AcpChatLifecycle =
+  | 'idle'
+  | 'starting'
+  | 'replaying'
+  | 'ready'
+  | 'working'
+  | 'cancelling'
+  | 'closed';
 
 export interface AgentAffordances {
   isWorking: boolean;
@@ -67,7 +74,9 @@ export class AcpChatStore {
   ) {
     this.chatContext = getSharedChatContext();
     this.chatState = createChatState(this.chatContext, { uri: conversationId });
-    registerConversationCommands(conversationId, () => this.commands.map((command) => command.name));
+    registerConversationCommands(conversationId, () =>
+      this.commands.map((command) => command.name)
+    );
 
     makeObservable(this, {
       session: observable.ref,
@@ -122,7 +131,9 @@ export class AcpChatStore {
   get permissionModeOptions(): Record<string, ComposerPermissionModeOption> | null {
     const options = this.session?.config.getSnapshot()?.modeOptions;
     if (!options) return null;
-    return Object.fromEntries(options.available.map((option) => [option.id, { name: option.name }]));
+    return Object.fromEntries(
+      options.available.map((option) => [option.id, { name: option.name }])
+    );
   }
 
   get effort(): string | null {
@@ -220,15 +231,21 @@ export class AcpChatStore {
     this._view?.setScrollMode(pinMode);
     this.chatState.scroll.set(pinMode);
 
-    void this.session?.sendPrompt({ text }).then((result) => {
-      if (!result.success) this._toastError('Failed to send message', result.error);
-    }).catch((error: unknown) => this._toastError('Failed to send message', error));
+    void this.session
+      ?.sendPrompt({ text })
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to send message', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to send message', error));
   }
 
   stop(): void {
-    void this.session?.cancelTurn().then((result) => {
-      if (!result.success) this._toastError('Failed to stop', result.error);
-    }).catch((error: unknown) => this._toastError('Failed to stop', error));
+    void this.session
+      ?.cancelTurn()
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to stop', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to stop', error));
   }
 
   cancelAndSubmit(text: string, images?: AcpPromptImage[]): void {
@@ -294,7 +311,9 @@ export class AcpChatStore {
   }
 
   private _startInput() {
-    const conversation = conversationRegistry.get(this.taskId)?.conversations.get(this.conversationId)?.data;
+    const conversation = conversationRegistry
+      .get(this.taskId)
+      ?.conversations.get(this.conversationId)?.data;
     if (!conversation) throw new Error('Conversation not found');
 
     const task = asProvisioned(getTaskStore(this.projectId, this.taskId));

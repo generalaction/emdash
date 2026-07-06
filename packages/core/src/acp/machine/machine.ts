@@ -272,7 +272,10 @@ export function evolve(
           : { queuedPrompts: s.queuedPrompts, effects: [] as Effect[] };
       return {
         state: { ...s, agentTurnActive: ev.active, queuedPrompts },
-        effects: [...(wasActive !== ev.active ? ([{ type: 'state' }] as Effect[]) : []), ...queueEffects],
+        effects: [
+          ...(wasActive !== ev.active ? ([{ type: 'state' }] as Effect[]) : []),
+          ...queueEffects,
+        ],
       };
     }
 

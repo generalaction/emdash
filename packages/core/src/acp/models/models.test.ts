@@ -77,23 +77,18 @@ function driveParser(fixture: FixtureFile): AcpTranscriptParser {
 }
 
 describe('ACP zod models', () => {
-  it.each(['acp-claude.json', 'acp-codex.json'])(
-    'validate parser output for %s',
-    (fixtureName) => {
-      const parser = driveParser(loadFixture(fixtureName));
+  it.each(['acp-claude.json', 'acp-codex.json'])('validate parser output for %s', (fixtureName) => {
+    const parser = driveParser(loadFixture(fixtureName));
 
-      expect(() => transcriptTurnSchema.array().parse(parser.history)).not.toThrow();
-      expect(() =>
-        parser.activeTurn === null ? null : transcriptTurnSchema.parse(parser.activeTurn)
-      ).not.toThrow();
-      expect(() => sessionConfigStateSchema.parse(parser.config)).not.toThrow();
-      expect(() =>
-        parser.usage === null ? null : sessionUsageSchema.parse(parser.usage)
-      ).not.toThrow();
-      expect(() => agentStateSchema.array().parse(parser.agents)).not.toThrow();
-      expect(() =>
-        parser.plan === null ? null : planStateSchema.parse(parser.plan)
-      ).not.toThrow();
-    }
-  );
+    expect(() => transcriptTurnSchema.array().parse(parser.history)).not.toThrow();
+    expect(() =>
+      parser.activeTurn === null ? null : transcriptTurnSchema.parse(parser.activeTurn)
+    ).not.toThrow();
+    expect(() => sessionConfigStateSchema.parse(parser.config)).not.toThrow();
+    expect(() =>
+      parser.usage === null ? null : sessionUsageSchema.parse(parser.usage)
+    ).not.toThrow();
+    expect(() => agentStateSchema.array().parse(parser.agents)).not.toThrow();
+    expect(() => (parser.plan === null ? null : planStateSchema.parse(parser.plan))).not.toThrow();
+  });
 });

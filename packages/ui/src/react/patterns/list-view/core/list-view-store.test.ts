@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createTextMatcher } from '../matching';
 import { byField } from '../comparators';
+import { createTextMatcher } from '../matching';
 import { ListViewStore } from './list-view-store';
 import type { ListViewSpec } from './types';
 
@@ -141,7 +141,7 @@ describe('ListViewStore — selection', () => {
 describe('ListViewStore — async pipeline', () => {
   it('runs async search and populates items', async () => {
     const search = vi.fn(async (query: string) =>
-      AGENTS.filter((a) => a.name.toLowerCase().includes(query.toLowerCase())),
+      AGENTS.filter((a) => a.name.toLowerCase().includes(query.toLowerCase()))
     );
     const spec: ListViewSpec<Agent> = {
       ...baseSpec,

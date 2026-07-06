@@ -378,7 +378,9 @@ function assertTurnInvariants(turn: TranscriptTurn): void {
     const siblingSeqs = new Set<number>();
     for (const item of items) {
       if (item.seq < previousSeq) {
-        throw new Error('AcpTranscriptParser invariant failed: sibling items are not sorted by seq');
+        throw new Error(
+          'AcpTranscriptParser invariant failed: sibling items are not sorted by seq'
+        );
       }
       previousSeq = item.seq;
       if (siblingSeqs.has(item.seq)) {
@@ -416,7 +418,9 @@ function assertTranscriptInvariants(transcript: TranscriptSlice): void {
   let previousTurnSeq = -1;
   for (const turn of transcript.committed) {
     if (turn.seq <= previousTurnSeq) {
-      throw new Error('AcpTranscriptParser invariant failed: committed turns are not sorted by seq');
+      throw new Error(
+        'AcpTranscriptParser invariant failed: committed turns are not sorted by seq'
+      );
     }
     previousTurnSeq = turn.seq;
   }

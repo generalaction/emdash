@@ -157,22 +157,22 @@ export class LocalAcpProcessHost implements AcpProcessHost {
 export async function resolveLocalAcpSpawnContext(
   providerId: string
 ): Promise<{ cli: string; agentEnv: Record<string, string> }> {
-    const rawEnv = buildAgentEnv({ agentApiVars: true });
-    const filteredEnv = Object.fromEntries(
-      Object.entries(rawEnv).filter((e): e is [string, string] => e[1] !== undefined)
-    );
+  const rawEnv = buildAgentEnv({ agentApiVars: true });
+  const filteredEnv = Object.fromEntries(
+    Object.entries(rawEnv).filter((e): e is [string, string] => e[1] !== undefined)
+  );
 
-    const plugin = getPlugin(providerId);
-    const binaryName = plugin.capabilities.hostDependency.binaryNames[0] ?? providerId;
-    const cachedStatePath = localDependencyManager.get(providerId as never)?.path;
+  const plugin = getPlugin(providerId);
+  const binaryName = plugin.capabilities.hostDependency.binaryNames[0] ?? providerId;
+  const cachedStatePath = localDependencyManager.get(providerId as never)?.path;
 
-    const cli = await resolveAgentExecutable({
-      providerId,
-      binaryName,
-      ctx: new LocalExecutionContext(),
-      hostDependencyStore,
-      cachedStatePath,
-    });
+  const cli = await resolveAgentExecutable({
+    providerId,
+    binaryName,
+    ctx: new LocalExecutionContext(),
+    hostDependencyStore,
+    cachedStatePath,
+  });
 
-    return { cli, agentEnv: filteredEnv };
+  return { cli, agentEnv: filteredEnv };
 }

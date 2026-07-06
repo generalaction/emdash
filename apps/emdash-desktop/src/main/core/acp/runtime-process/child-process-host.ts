@@ -111,7 +111,9 @@ export class ChildAcpProcessHost implements AcpProcessHost {
     }
   }
 
-  resolveSpawnContext(providerId: string): Promise<{ cli: string; agentEnv: Record<string, string> }> {
+  resolveSpawnContext(
+    providerId: string
+  ): Promise<{ cli: string; agentEnv: Record<string, string> }> {
     const requestId = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       this.pending.set(requestId, { resolve, reject });

@@ -46,7 +46,9 @@ export class ConnectionPool {
     return `${providerId}:${workspaceId}`;
   }
 
-  async acquire(input: AcquireConnectionInput): Promise<Result<ConnectionPoolEntry, AcpRuntimeError>> {
+  async acquire(
+    input: AcquireConnectionInput
+  ): Promise<Result<ConnectionPoolEntry, AcpRuntimeError>> {
     const key = this.makeKey(input.providerId, input.workspaceId);
     const result = await this.processes.provision(key, () => this.provision(key, input));
     if (isErr(result)) return result;

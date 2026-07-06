@@ -1,5 +1,5 @@
-import * as React from 'react';
 import { observer } from 'mobx-react-lite';
+import * as React from 'react';
 import { ItemContextProvider, useItemCtx } from '../context/item-context';
 import { ListViewContextProvider, useListViewCtx } from '../context/list-view-context';
 import { SectionContextProvider, useSectionCtx } from '../context/section-context';
@@ -150,8 +150,9 @@ export type ListViewApi<T, S extends ListViewSpec<any>> = ListViewBase<T, S> &
  * });
  * ```
  */
-export function createListView<const S extends ListViewSpec<any>>( // eslint-disable-line @typescript-eslint/no-explicit-any
-  spec: S,
+export function createListView<const S extends ListViewSpec<any>>(
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  spec: S
 ): ListViewApi<GetItemType<S>, S> {
   type T = GetItemType<S>;
 
@@ -205,9 +206,9 @@ export function createListView<const S extends ListViewSpec<any>>( // eslint-dis
           };
           const header = spec.sections?.header
             ? spec.sections.header(section.key, section.items.length)
-            : section.header ?? (
+            : (section.header ?? (
                 <SectionHeader label={section.key} count={section.items.length} />
-              );
+              ));
           return (
             <SectionContextProvider value={sectionVal}>
               {renderSection ? renderSection(section.key, section.items.length) : header}
@@ -246,9 +247,7 @@ export function createListView<const S extends ListViewSpec<any>>( // eslint-dis
         loadingSlot={loadingSlot}
         emptySlot={emptySlot}
         errorSlot={store.status === 'error' ? (errorSlot ?? null) : undefined}
-        onEndReached={
-          store.pagination ? () => void store.pagination!.loadMore() : undefined
-        }
+        onEndReached={store.pagination ? () => void store.pagination!.loadMore() : undefined}
         isFetchingMore={store.pagination?.isFetchingMore}
         estimateSize={virtualization?.estimateSize}
         estimateHeaderSize={virtualization?.estimateHeaderSize}

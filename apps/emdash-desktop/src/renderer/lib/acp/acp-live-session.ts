@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import {
   agentStateSchema,
   planStateSchema,
@@ -12,9 +11,14 @@ import {
   type TerminalState,
 } from '@emdash/core/acp/client';
 import type { Result } from '@emdash/shared';
+import { z } from 'zod';
 import type { LiveLogBinding, LiveBinding } from '@renderer/lib/live/live-bindings';
 import { createLiveLogBinding, createLiveModelBinding } from '@renderer/lib/live/live-bindings';
-import { getAcpRuntimeClient, type AcpRuntimeRpcClient, type StartSessionInput } from './runtime-client';
+import {
+  getAcpRuntimeClient,
+  type AcpRuntimeRpcClient,
+  type StartSessionInput,
+} from './runtime-client';
 
 export class AcpLiveSession {
   readonly sessionState: LiveBinding<SessionState>;
@@ -92,7 +96,9 @@ export class AcpLiveSession {
     return this.client.startSession({ input });
   }
 
-  async resume(input: StartSessionInput & { sessionId: string }): Promise<Result<HistoryPage, unknown>> {
+  async resume(
+    input: StartSessionInput & { sessionId: string }
+  ): Promise<Result<HistoryPage, unknown>> {
     const result = await this.client.resumeSession({ input });
     if (!result.success) return result;
     return {
@@ -125,7 +131,11 @@ export class AcpLiveSession {
   }
 
   resolvePermission(requestId: string, optionId: string): Promise<Result<void, unknown>> {
-    return this.client.resolvePermission({ conversationId: this.conversationId, requestId, optionId });
+    return this.client.resolvePermission({
+      conversationId: this.conversationId,
+      requestId,
+      optionId,
+    });
   }
 
   async terminalOutput(terminalId: string): Promise<LiveLogBinding> {

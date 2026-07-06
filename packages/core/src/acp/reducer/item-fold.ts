@@ -13,6 +13,7 @@
  * replaced; unchanged items are returned by reference.
  */
 
+import { SESSION_PLAN_ID } from '../models/plan';
 import type {
   CreateFileToolCall,
   CreatePlanToolCall,
@@ -25,7 +26,6 @@ import type {
   ToolNode,
   ToolStatus,
 } from '../models/turns';
-import { SESSION_PLAN_ID } from '../models/plan';
 import {
   makeDiffId,
   makeMessageId,
@@ -185,7 +185,11 @@ export function createToolCallItem(params: {
     return { kind: 'web-fetch-tool-call', ...base, url: title };
   }
   if (isReadKind(toolKind, title)) {
-    return { kind: 'read-tool-call', ...base, ...(inferReadPath(title) ? { path: inferReadPath(title) } : {}) };
+    return {
+      kind: 'read-tool-call',
+      ...base,
+      ...(inferReadPath(title) ? { path: inferReadPath(title) } : {}),
+    };
   }
   if (isExecuteKind(toolKind)) {
     return { kind: 'execute-tool-call', ...base, command: title };
@@ -246,7 +250,9 @@ function upsertSpecialEvent(
   turnId: string
 ): TranscriptItem[] {
   const id = makeToolId(turnId, event.toolCallId);
-  const existing = items.find((item): item is ToolCallItem => isToolCallItem(item) && item.id === id);
+  const existing = items.find(
+    (item): item is ToolCallItem => isToolCallItem(item) && item.id === id
+  );
   const seq = existing?.seq ?? nextSeq(items);
   const parentToolCallId = event.parentToolCallId ?? undefined;
   const mapped = mapToolStatus(event.status) ?? 'running';
@@ -551,14 +557,12 @@ function buildTree(flatItems: TranscriptItem[], turnId: string): TranscriptItem[
     const rawChildren = childrenByParent.get(item.id);
     if (!rawChildren?.length) return stripChildren(item);
 
-    const children = wrapReadGroups(
-      rawChildren.map(attachChildren).sort(compareSeq)
-    ) as ToolNode[];
+    const children = wrapReadGroups(rawChildren.map(attachChildren).sort(compareSeq)) as ToolNode[];
     return { ...stripChildren(item), children };
   };
 
-  const attached = topLevel.map((item): TranscriptItem =>
-    isToolCallItem(item) ? attachChildren(item) : item
+  const attached = topLevel.map(
+    (item): TranscriptItem => (isToolCallItem(item) ? attachChildren(item) : item)
   );
 
   return wrapReadGroups(attached.sort(compareSeq)) as TranscriptItem[];
@@ -597,7 +601,10 @@ export function foldItem(
             ? { attachments: [...(msg.attachments ?? []), ...event.attachments] }
             : {}),
         };
-        return normalizeToolStructure(base.map((it, i) => (i === idx ? updated : it)), turnId);
+        return normalizeToolStructure(
+          base.map((it, i) => (i === idx ? updated : it)),
+          turnId
+        );
       }
       // New message.
       const newMsg: TranscriptMessage = {

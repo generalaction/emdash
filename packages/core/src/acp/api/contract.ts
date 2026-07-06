@@ -1,5 +1,5 @@
-import { oc } from '@orpc/contract';
 import { resultSchema } from '@emdash/shared';
+import { oc } from '@orpc/contract';
 import { z } from 'zod';
 import {
   cancelTurnCommandSchema,
@@ -33,7 +33,10 @@ const sendPromptResult = resultSchema(sendPromptResponseSchema, acpRuntimeErrorS
 const historyResult = resultSchema(historyPageSchema, acpRuntimeErrorSchema);
 const resumeResult = resultSchema(resumeResultSchema, acpRuntimeErrorSchema);
 const attachmentUploadResult = resultSchema(uploadAttachmentResponseSchema, acpRuntimeErrorSchema);
-const attachmentDownloadResult = resultSchema(downloadAttachmentResponseSchema, acpRuntimeErrorSchema);
+const attachmentDownloadResult = resultSchema(
+  downloadAttachmentResponseSchema,
+  acpRuntimeErrorSchema
+);
 
 export const acpContract = {
   startSession: oc.input(startSessionCommandSchema).output(startResult),

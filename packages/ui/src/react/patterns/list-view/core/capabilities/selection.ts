@@ -1,5 +1,5 @@
-import type * as React from 'react';
 import { action, makeObservable, observable, ObservableSet } from 'mobx';
+import type * as React from 'react';
 
 /**
  * SelectionSlice — built-in multi/single-select with shift-range support.
@@ -88,7 +88,11 @@ export class SelectionSlice {
    * Handles toggle with shift-range: if shift is held and an anchor exists,
    * selects the range from anchor → id.  Otherwise toggles the single id.
    */
-  toggleWithRange(id: string, orderedIds: string[], e?: React.MouseEvent | React.KeyboardEvent): void {
+  toggleWithRange(
+    id: string,
+    orderedIds: string[],
+    e?: React.MouseEvent | React.KeyboardEvent
+  ): void {
     const isShift = e && 'shiftKey' in e && e.shiftKey;
     if (isShift && this.anchor && this.mode === 'multi') {
       this.selectRange(this.anchor, id, orderedIds);

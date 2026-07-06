@@ -23,7 +23,11 @@ import type { NormalizedEvent } from '../reducer/normalized-event';
 import type { ConnectionPoolEntry } from './pool';
 
 export interface InboundRouter {
-  onSessionUpdate(connection: ConnectionPoolEntry, params: SessionNotification, event: NormalizedEvent): void;
+  onSessionUpdate(
+    connection: ConnectionPoolEntry,
+    params: SessionNotification,
+    event: NormalizedEvent
+  ): void;
   onPermissionRequest(
     connection: ConnectionPoolEntry,
     params: RequestPermissionRequest

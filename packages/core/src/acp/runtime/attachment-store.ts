@@ -6,7 +6,12 @@ export interface StoredAttachment {
 }
 
 export interface AttachmentStore {
-  put(input: { data: Uint8Array; name?: string; mimeType: string; originalPath?: string }): Promise<AttachmentRef>;
+  put(input: {
+    data: Uint8Array;
+    name?: string;
+    mimeType: string;
+    originalPath?: string;
+  }): Promise<AttachmentRef>;
   get(id: string): Promise<StoredAttachment | null>;
   delete(id: string): Promise<void>;
 }

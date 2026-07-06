@@ -1,4 +1,12 @@
-import type { FilterModel, FilterSpec, PaginationSpec, RenameSpec, SearchSpec, SelectionSpec, SortSpec } from './types';
+import type {
+  FilterModel,
+  FilterSpec,
+  PaginationSpec,
+  RenameSpec,
+  SearchSpec,
+  SelectionSpec,
+  SortSpec,
+} from './types';
 
 /**
  * Identity helper for search specs — preserves literal type inference when the
@@ -26,7 +34,7 @@ export const defineSearch = <T>(spec: SearchSpec<T>): SearchSpec<T> => spec;
  * ```
  */
 export const defineFilter = <T, const F extends FilterModel>(
-  spec: FilterSpec<T, F>,
+  spec: FilterSpec<T, F>
 ): FilterSpec<T, F> => spec;
 
 /**
@@ -42,9 +50,7 @@ export const defineFilter = <T, const F extends FilterModel>(
  * });
  * ```
  */
-export const defineSort = <T, const K extends string>(
-  spec: SortSpec<T, K>,
-): SortSpec<T, K> => spec;
+export const defineSort = <T, const K extends string>(spec: SortSpec<T, K>): SortSpec<T, K> => spec;
 
 /**
  * Identity helper for pagination specs.
