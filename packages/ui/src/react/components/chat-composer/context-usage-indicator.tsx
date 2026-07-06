@@ -69,17 +69,19 @@ export function ContextUsageIndicator({
 
   return (
     <Popover.Root>
-      <Popover.Trigger>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon
-          disabled={disabled}
-          aria-label={`Context window: ${pct}% used`}
-        >
-          <ContextDonut fraction={fraction} />
-        </Button>
-      </Popover.Trigger>
+      <Popover.Trigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            icon
+            disabled={disabled}
+            aria-label={`Context window: ${pct}% used`}
+          >
+            <ContextDonut fraction={fraction} />
+          </Button>
+        }
+      />
       <Popover.Content align="end" side="top">
         <Popover.Header>
           <Popover.Title>Context Usage</Popover.Title>

@@ -99,7 +99,6 @@ export const composerShell = recipe({
       '&:hover': { borderColor: vars.border1 },
       '&:focus-within': {
         borderColor: vars.border1,
-        boxShadow: `0 0 0 1px ${vars.border1}`,
       },
     },
   },

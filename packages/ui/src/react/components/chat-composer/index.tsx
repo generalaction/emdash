@@ -819,6 +819,7 @@ export function ChatComposer({
                       gap: '0.375rem',
                       color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
                       fontSize: 'var(--em-text-xs)',
+                      lineHeight: 1,
                     }}
                   >
                     {selectedAgentItem?.icon && (
@@ -832,6 +833,7 @@ export function ChatComposer({
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
+                        lineHeight: 1,
                       }}
                     >
                       {selected?.name ?? 'Model…'}
@@ -905,6 +907,7 @@ export function ChatComposer({
                       gap: '0.25rem',
                       color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
                       fontSize: 'var(--em-text-xs)',
+                      lineHeight: 1,
                     }}
                   >
                     <ShieldCheck style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
@@ -965,11 +968,12 @@ export function ChatComposer({
                 variant="primary"
                 tone="destructive"
                 size="sm"
+                icon
+                className={styles.sendButtonRound}
                 onClick={onStop}
                 aria-label="Stop generation"
               >
-                <Square style={{ width: '0.75rem', height: '0.75rem', fill: 'currentColor' }} />
-                Stop
+                <Square style={{ width: '0.625rem', height: '0.625rem', fill: 'currentColor' }} />
               </Button>
             ) : (
               <Button

@@ -24,7 +24,11 @@ export const trigger = style({
 });
 
 export const triggerLabel = style({
+  display: 'inline-flex',
+  minWidth: 0,
   flex: 1,
+  alignItems: 'center',
+  lineHeight: 1,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',

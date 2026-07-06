@@ -49,18 +49,6 @@ export interface SplitButtonProps {
   className?: string;
 }
 
-// ── Tone dot ──────────────────────────────────────────────────────────────────
-
-const TONE_DOT_CLASS: Record<SplitButtonOptionTone, string> = {
-  neutral: styles.toneDotNeutral,
-  accept: styles.toneDotAccept,
-  reject: styles.toneDotReject,
-};
-
-function ToneDot({ tone = 'neutral' }: { tone?: SplitButtonOptionTone }) {
-  return <span aria-hidden className={TONE_DOT_CLASS[tone]} />;
-}
-
 // ── SplitButton ───────────────────────────────────────────────────────────────
 
 export function SplitButton({
@@ -114,7 +102,6 @@ export function SplitButton({
         <DropdownMenu.Content align="end" sideOffset={4}>
           {options.map((option) => (
             <DropdownMenu.Item key={option.id} onClick={() => handleMenuSelect(option)}>
-              <ToneDot tone={option.tone} />
               {option.label}
             </DropdownMenu.Item>
           ))}
