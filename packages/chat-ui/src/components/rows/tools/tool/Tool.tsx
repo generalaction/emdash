@@ -11,7 +11,7 @@
  * This component only describes inner content.
  */
 
-import { IconError, IconHand } from '@components/primitives/icons';
+import { IconError, IconShieldAlert } from '@components/primitives/icons';
 import { Show } from 'solid-js';
 import type { ChatToolCall } from '@/model';
 import {
@@ -50,7 +50,7 @@ export function Tool(props: ToolProps) {
           title="Awaiting permission"
           aria-label="awaiting permission"
         >
-          <IconHand />
+          <IconShieldAlert />
         </span>
       </Show>
     </div>

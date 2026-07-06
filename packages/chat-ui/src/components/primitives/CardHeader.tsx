@@ -1,6 +1,6 @@
 import type { JSX } from 'solid-js';
 import { Show } from 'solid-js';
-import { IconError, IconHand } from './icons';
+import { IconError, IconShieldAlert } from './icons';
 import {
   cardChevronExpanded,
   cardErrorIcon,
@@ -82,7 +82,7 @@ export function CardHeader(props: CardHeaderProps) {
             title="Awaiting permission"
             aria-label="awaiting permission"
           >
-            <IconHand />
+            <IconShieldAlert />
           </span>
         </Show>
       </span>

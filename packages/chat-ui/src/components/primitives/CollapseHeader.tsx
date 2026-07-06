@@ -15,7 +15,7 @@
 
 import type { JSX } from 'solid-js';
 import { Show } from 'solid-js';
-import { IconError, IconHand } from './icons';
+import { IconError, IconShieldAlert } from './icons';
 import {
   chevron,
   chevronExpanded,
@@ -77,7 +77,7 @@ export function CollapseHeader(props: CollapseHeaderProps) {
           title="Awaiting permission"
           aria-label="awaiting permission"
         >
-          <IconHand />
+          <IconShieldAlert />
         </span>
       </Show>
     </div>

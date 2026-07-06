@@ -1,7 +1,7 @@
 import { useCaches } from '@components/contexts/CachesContext';
 import { useCommands } from '@components/contexts/CommandsContext';
 import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
-import { GenericFileIcon, IconError, IconHand } from '@components/primitives/icons';
+import { GenericFileIcon, IconError, IconShieldAlert } from '@components/primitives/icons';
 import { applyTokensToElement } from '@core/highlight/apply-tokens';
 import type { CodeToken } from '@core/highlight/highlighter';
 import { resolveFileIconClass } from '@lib/file-icons';
@@ -94,7 +94,7 @@ export function DiffHeader(props: DiffHeaderProps) {
           title="Awaiting permission"
           aria-label="awaiting permission"
         >
-          <IconHand />
+          <IconShieldAlert />
         </span>
       </Show>
     </div>

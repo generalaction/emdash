@@ -1,6 +1,6 @@
 import { useCommands } from '@components/contexts/CommandsContext';
 import { CollapseHeader } from '@components/primitives/CollapseHeader';
-import { IconError, IconHand } from '@components/primitives/icons';
+import { IconError, IconShieldAlert } from '@components/primitives/icons';
 import { basename } from '@lib/path';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect } from 'solid-js';
@@ -97,7 +97,7 @@ export function FileOpRow(props: FileOpRowProps) {
           title="Awaiting permission"
           aria-label="awaiting permission"
         >
-          <IconHand />
+          <IconShieldAlert />
         </span>
       </Show>
     </div>
