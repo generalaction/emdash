@@ -56,6 +56,12 @@ export type ChatCommands = {
   }) => void;
 
   /**
+   * Resolve an attachment id to a displayable data URL. Used for committed
+   * messages whose transcript stores attachment metadata but not bytes.
+   */
+  resolveAttachment?: (attachment: { id: string; name: string }) => Promise<string | null>;
+
+  /**
    * Called when the user clicks the stop button on the current user message
    * while the agent is generating.
    */

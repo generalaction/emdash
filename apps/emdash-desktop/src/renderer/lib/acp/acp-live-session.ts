@@ -6,6 +6,8 @@ import {
   sessionStateSchema,
   terminalStateSchema,
   transcriptTurnSchema,
+  type AttachmentMimeType,
+  type AttachmentRef,
   type HistoryPage,
   type PromptDraftUpdate,
   type PromptInput,
@@ -129,6 +131,25 @@ export class AcpLiveSession {
 
   exportRawAcpLog(): Promise<Result<string, unknown>> {
     return this.client.exportRawAcpLog({ conversationId: this.conversationId });
+  }
+
+  uploadAttachment(input: {
+    data?: Uint8Array;
+    mimeType: AttachmentMimeType;
+    name?: string;
+    originalPath?: string;
+  }): Promise<Result<AttachmentRef, unknown>> {
+    return this.client.uploadAttachment(input);
+  }
+
+  downloadAttachment(
+    id: string
+  ): Promise<Result<{ ref: AttachmentRef; data: Uint8Array }, unknown>> {
+    return this.client.downloadAttachment({ id });
+  }
+
+  deleteAttachment(id: string): Promise<Result<void, unknown>> {
+    return this.client.deleteAttachment({ id });
   }
 
   sendPrompt(prompt: PromptInput): Promise<Result<{ queued: boolean }, unknown>> {

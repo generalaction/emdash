@@ -13,6 +13,8 @@ import type {
   TerminalState,
   TranscriptTurn,
   AcpRuntimeError,
+  AttachmentMimeType,
+  AttachmentRef,
 } from '@emdash/core/acp/client';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '@emdash/core/live';
 import type { Result } from '@emdash/shared';
@@ -72,6 +74,20 @@ export type AcpRuntimeRpcClient = {
   >;
   exportACPTranscript: Proc<{ conversationId: string }, Result<string, AcpRuntimeError>>;
   exportRawAcpLog: Proc<{ conversationId: string }, Result<string, AcpRuntimeError>>;
+  uploadAttachment: Proc<
+    {
+      data?: Uint8Array;
+      mimeType: AttachmentMimeType;
+      name?: string;
+      originalPath?: string;
+    },
+    Result<AttachmentRef, AcpRuntimeError>
+  >;
+  downloadAttachment: Proc<
+    { id: string },
+    Result<{ ref: AttachmentRef; data: Uint8Array }, AcpRuntimeError>
+  >;
+  deleteAttachment: Proc<{ id: string }, Result<void, AcpRuntimeError>>;
   getHistory: Proc<
     { conversationId: string; before?: number; limit: number },
     Result<HistoryPage, AcpRuntimeError>

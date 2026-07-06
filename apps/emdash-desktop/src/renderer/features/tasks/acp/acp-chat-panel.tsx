@@ -1,3 +1,4 @@
+import type { AttachmentMimeType, AttachmentRef } from '@emdash/core/acp/client';
 import { ChatComposer, ImageViewerDialog } from '@emdash/ui/react/components';
 import type {
   ComposerAgentOption,
@@ -23,13 +24,17 @@ import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript'
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
+import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-image-paths';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
-import type { AcpChatStore } from './acp-chat-store';
+import { log } from '@renderer/utils/logger';
+import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const attachmentDataUrlCache = new Map<string, Promise<string | null>>();
 
 /** Map an AcpPermissionRequest to the ComposerPermissionRequest shape the UI expects. */
 function toComposerPermission(
@@ -47,21 +52,99 @@ function toComposerPermission(
   };
 }
 
-function readImageFile(file: File): Promise<ComposerAttachment> {
+const supportedAttachmentMimeTypes = new Set<AttachmentMimeType>([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+]);
+
+function toAttachmentMimeTypeValue(value: string): AttachmentMimeType | null {
+  const mimeType = value.toLowerCase();
+  return supportedAttachmentMimeTypes.has(mimeType as AttachmentMimeType)
+    ? (mimeType as AttachmentMimeType)
+    : null;
+}
+
+function toAttachmentMimeType(file: File): AttachmentMimeType | null {
+  return toAttachmentMimeTypeValue(file.type);
+}
+
+function readFileAsDataUrl(file: File): Promise<string | undefined> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onload = () =>
-      resolve({
-        id: crypto.randomUUID(),
-        name: file.name,
-        kind: 'image',
-        previewUrl: typeof reader.result === 'string' ? reader.result : undefined,
-        mimeType: file.type,
-      });
-    reader.onerror = () =>
-      resolve({ id: crypto.randomUUID(), name: file.name, kind: 'image', mimeType: file.type });
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : undefined);
+    reader.onerror = () => resolve(undefined);
     reader.readAsDataURL(file);
   });
+}
+
+async function uploadImageFile(
+  store: AcpChatStore,
+  file: File
+): Promise<ComposerAttachment | null> {
+  const mimeType = toAttachmentMimeType(file);
+  if (!mimeType) {
+    log.warn('Dropped image type is not supported for ACP attachments', {
+      name: file.name,
+      type: file.type,
+    });
+    return null;
+  }
+
+  const originalPath = window.electronAPI.getPathForFile(file).trim();
+  const canReference =
+    originalPath.length > 0 && !isUnstableDropPath(originalPath) && !isHeicLikeFile(file);
+  const previewUrl = await readFileAsDataUrl(file);
+  let ref: AttachmentRef | null;
+  try {
+    ref = canReference
+      ? await store.uploadAttachment({ originalPath, mimeType, name: file.name })
+      : await store.uploadAttachment({
+          data: new Uint8Array(await file.arrayBuffer()),
+          mimeType,
+          name: file.name,
+        });
+  } catch (error) {
+    log.warn('Failed to prepare ACP attachment upload', { name: file.name, error });
+    return null;
+  }
+
+  if (!ref) return null;
+  return {
+    id: ref.id,
+    name: ref.name,
+    kind: 'image',
+    previewUrl,
+    mimeType: ref.mimeType,
+  };
+}
+
+function resolveAttachmentDataUrl(store: AcpChatStore, id: string): Promise<string | null> {
+  if (!store.session) return Promise.resolve(null);
+  const cached = attachmentDataUrlCache.get(id);
+  if (cached) return cached;
+  const promise = store.session
+    .downloadAttachment(id)
+    .then((result) => {
+      if (!result.success) return null;
+      return `data:${result.data.ref.mimeType};base64,${bytesToBase64(result.data.data)}`;
+    })
+    .catch((error: unknown) => {
+      log.warn('Failed to resolve ACP attachment', { id, error });
+      return null;
+    });
+  attachmentDataUrlCache.set(id, promise);
+  return promise;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
 }
 
 // ── Composer for a single store ────────────────────────────────────────────────
@@ -93,16 +176,20 @@ const ComposerForStore = observer(function ComposerForStore({
     editor.setText(store.draftText);
   }, [store, store.draftText]);
 
-  const buildImages = useCallback(
-    () =>
+  const buildPromptAttachments = useCallback(
+    (): AcpPromptAttachment[] =>
       attachments
-        .filter((att) => att.kind === 'image' && att.previewUrl)
+        .filter((att) => att.kind === 'image' && toAttachmentMimeTypeValue(att.mimeType ?? ''))
         .map((att) => {
-          const url = att.previewUrl!;
+          const mimeType = toAttachmentMimeTypeValue(att.mimeType ?? '') ?? 'image/png';
           return {
-            data: url.slice(url.indexOf(',') + 1),
-            mimeType: att.mimeType ?? 'image/png',
-            name: att.name,
+            ref: {
+              type: 'attachment' as const,
+              id: att.id,
+              mimeType,
+              name: att.name,
+            },
+            previewUrl: att.previewUrl,
           };
         }),
     [attachments]
@@ -110,24 +197,24 @@ const ComposerForStore = observer(function ComposerForStore({
 
   const handleSubmit = useCallback(
     (value: string) => {
-      const images = buildImages();
-      if (!value.trim() && images.length === 0) return;
-      store.submitPrompt(value, images);
+      const promptAttachments = buildPromptAttachments();
+      if (!value.trim() && promptAttachments.length === 0) return;
+      store.submitPrompt(value, promptAttachments);
       setAttachments([]);
       editorApiRef.current?.clear();
     },
-    [store, buildImages]
+    [store, buildPromptAttachments]
   );
 
   const handleSubmitWhileWorking = useCallback(
     (value: string) => {
-      const images = buildImages();
-      if (!value.trim() && images.length === 0) return;
-      store.submitPrompt(value, images);
+      const promptAttachments = buildPromptAttachments();
+      if (!value.trim() && promptAttachments.length === 0) return;
+      store.submitPrompt(value, promptAttachments);
       setAttachments([]);
       editorApiRef.current?.clear();
     },
-    [store, buildImages]
+    [store, buildPromptAttachments]
   );
 
   const handleStop = useCallback(() => {
@@ -196,6 +283,30 @@ const ComposerForStore = observer(function ComposerForStore({
     }
   }, []);
 
+  const addImageFiles = useCallback(
+    async (files: File[]) => {
+      const next = await Promise.all(files.map((file) => uploadImageFile(store, file)));
+      const uploaded = next.filter((att): att is ComposerAttachment => att !== null);
+      if (uploaded.length > 0) {
+        setAttachments((prev) => [...prev, ...uploaded]);
+      }
+    },
+    [store]
+  );
+
+  const handleAttachmentsChange = useCallback(
+    (next: ComposerAttachment[]) => {
+      const nextIds = new Set(next.map((attachment) => attachment.id));
+      for (const attachment of attachments) {
+        if (attachment.kind === 'image' && !nextIds.has(attachment.id)) {
+          void store.deleteAttachment(attachment.id);
+        }
+      }
+      setAttachments(next);
+    },
+    [attachments, store]
+  );
+
   const handleFileInputChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(e.target.files ?? []);
@@ -204,13 +315,12 @@ const ComposerForStore = observer(function ComposerForStore({
 
       const images = files.filter((f) => f.type.startsWith('image/'));
       if (images.length > 0) {
-        const next = await Promise.all(images.map(readImageFile));
-        setAttachments((prev) => [...prev, ...next]);
+        await addImageFiles(images);
       }
 
       insertFileMentions(files);
     },
-    [insertFileMentions]
+    [addImageFiles, insertFileMentions]
   );
 
   const workspaceId = useObserver(
@@ -298,8 +408,9 @@ const ComposerForStore = observer(function ComposerForStore({
           store.commands.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
         }
         attachments={attachments}
-        onAttachmentsChange={setAttachments}
+        onAttachmentsChange={handleAttachmentsChange}
         onAttach={handleAttach}
+        onImageFilesDropped={(files) => void addImageFiles(files)}
         onFilesDropped={insertFileMentions}
         onViewImage={(att) => onViewerOpen(att.previewUrl, att.name)}
       />
@@ -390,7 +501,17 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   const transcriptCommands = useMemo<ChatCommands>(
     () => ({
-      onViewImage: (arg) => handleViewerOpen(arg.attachment.dataUrl, arg.attachment.name),
+      onViewImage: (arg) => {
+        if (arg.attachment.dataUrl || !store) {
+          handleViewerOpen(arg.attachment.dataUrl, arg.attachment.name);
+          return;
+        }
+        void resolveAttachmentDataUrl(store, arg.attachment.id).then((src) =>
+          handleViewerOpen(src ?? undefined, arg.attachment.name)
+        );
+      },
+      resolveAttachment: (attachment) =>
+        store ? resolveAttachmentDataUrl(store, attachment.id) : Promise.resolve(null),
       onOpenFile: (arg) => {
         if (!store) return;
         const open = arg.source === 'diff' ? openFileInAdjacentPane : openFileInTaskEditor;

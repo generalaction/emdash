@@ -213,12 +213,17 @@ export interface ChatComposerProps {
   contextUsage?: ContextUsage | null;
 
   /**
-   * Host-controlled attachment list. The composer creates image attachments
-   * itself (from drag-drop) and forwards them via `onAttachmentsChange`.
-   * The host is responsible for removing object URLs when clearing attachments.
+   * Host-controlled attachment list. By default the composer creates image
+   * attachments itself from drag-drop and forwards them via `onAttachmentsChange`.
+   * Hosts can override image handling with `onImageFilesDropped`.
    */
   attachments?: ComposerAttachment[];
   onAttachmentsChange?: (next: ComposerAttachment[]) => void;
+  /**
+   * Called with dropped image files before the default data-url attachment path.
+   * When supplied, the host owns uploading and adding preview attachments.
+   */
+  onImageFilesDropped?: (files: File[]) => void;
   /**
    * Called whenever files are dropped onto the composer.
    * The host should resolve real filesystem paths and insert non-image files
@@ -536,6 +541,7 @@ export function ChatComposer({
   contextUsage,
   attachments = [],
   onAttachmentsChange,
+  onImageFilesDropped,
   onFilesDropped,
   editorApiRef,
   mentionProvider,
@@ -613,7 +619,9 @@ export function ChatComposer({
     if (files.length === 0) return;
 
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
-    if (imageFiles.length > 0 && onAttachmentsChange) {
+    if (imageFiles.length > 0 && onImageFilesDropped) {
+      onImageFilesDropped(imageFiles);
+    } else if (imageFiles.length > 0 && onAttachmentsChange) {
       const base = attachments;
       void Promise.all(imageFiles.map(readImageAttachment)).then((newAttachments) => {
         onAttachmentsChange([...base, ...newAttachments]);

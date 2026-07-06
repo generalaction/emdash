@@ -101,6 +101,53 @@ describe('AcpRuntime session manager', () => {
     unsubscribe();
   });
 
+  it('keeps stored attachment ids in user transcript messages', async () => {
+    const resolveAttachment = vi.fn().mockResolvedValue({
+      data: 'base64-image',
+      mimeType: 'image/png',
+    });
+    const h = makeAcpHarness({ resolveAttachment });
+    const rt = new AcpRuntime(h.deps);
+    const started = await rt.startSession(makeStartInput({ conversationId: 'conv-attachment' }));
+    expect(isOk(started)).toBe(true);
+
+    const sent = await rt.sendPrompt('conv-attachment', {
+      text: 'look',
+      attachments: [
+        {
+          type: 'attachment',
+          id: 'attachment-1',
+          name: 'image.png',
+          mimeType: 'image/png',
+        },
+      ],
+    });
+
+    expect(isOk(sent)).toBe(true);
+    expect(resolveAttachment).toHaveBeenCalledWith({
+      type: 'attachment',
+      id: 'attachment-1',
+      name: 'image.png',
+      mimeType: 'image/png',
+    });
+    expect(h.agent.prompt).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      prompt: [
+        { type: 'image', data: 'base64-image', mimeType: 'image/png' },
+        { type: 'text', text: 'look' },
+      ],
+    });
+
+    const history = rt.getHistory('conv-attachment');
+    expect(isOk(history)).toBe(true);
+    if (!isOk(history)) return;
+    expect(history.data.turns[0].items[0]).toMatchObject({
+      kind: 'message',
+      text: 'look',
+      attachments: [{ id: 'attachment-1', name: 'image.png', mimeType: 'image/png' }],
+    });
+  });
+
   it('returns a resume result with replayed history', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);

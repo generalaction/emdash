@@ -16,11 +16,24 @@ export const attachmentRefSchema = z.object({
 });
 export type AttachmentRef = z.infer<typeof attachmentRefSchema>;
 
-export const promptAttachmentSchema = z.object({
+export const localFilePromptAttachmentSchema = z.object({
   type: z.literal('local-file'),
   /** Same-machine source path; AttachmentManager can reference instead of copying bytes. */
   originalPath: z.string(),
   mimeType: attachmentMimeTypeSchema,
   name: z.string().optional(),
 });
+
+export const attachmentPromptAttachmentSchema = z.object({
+  type: z.literal('attachment'),
+  /** Runtime-owned attachment id returned by uploadAttachment. */
+  id: z.string(),
+  mimeType: attachmentMimeTypeSchema,
+  name: z.string().optional(),
+});
+
+export const promptAttachmentSchema = z.discriminatedUnion('type', [
+  localFilePromptAttachmentSchema,
+  attachmentPromptAttachmentSchema,
+]);
 export type PromptAttachment = z.infer<typeof promptAttachmentSchema>;

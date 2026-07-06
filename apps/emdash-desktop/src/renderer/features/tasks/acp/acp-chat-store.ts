@@ -1,6 +1,13 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
 import { connectSession, createChatState, pinTopMode } from '@emdash/chat-ui';
-import type { PromptDraft, PromptInput, QueuedPrompt } from '@emdash/core/acp/client';
+import type {
+  AttachmentMimeType,
+  AttachmentRef,
+  PromptAttachment,
+  PromptDraft,
+  PromptInput,
+  QueuedPrompt,
+} from '@emdash/core/acp/client';
 import type {
   CommandItem,
   ComposerEffortOption,
@@ -30,10 +37,11 @@ export interface AgentAffordances {
   canCancel: boolean;
 }
 
-export type AcpPromptImage = {
-  data: string;
-  mimeType: string;
-  name?: string;
+type StoredPromptAttachment = Extract<PromptAttachment, { type: 'attachment' }>;
+
+export type AcpPromptAttachment = {
+  ref: StoredPromptAttachment;
+  previewUrl?: string;
 };
 
 type PermissionQueueItem = {
@@ -230,13 +238,46 @@ export class AcpChatStore {
     this._view = view;
   }
 
-  submitPrompt(text: string, images?: AcpPromptImage[]): void {
+  async uploadAttachment(input: {
+    data?: Uint8Array;
+    mimeType: AttachmentMimeType;
+    name?: string;
+    originalPath?: string;
+  }): Promise<AttachmentRef | null> {
+    try {
+      const result = await this.session?.uploadAttachment(input);
+      if (!result) {
+        this._toastError('Failed to upload attachment', new Error('ACP session is not connected'));
+        return null;
+      }
+      if (!result.success) {
+        this._toastError('Failed to upload attachment', result.error);
+        return null;
+      }
+      return result.data;
+    } catch (error) {
+      this._toastError('Failed to upload attachment', error);
+      return null;
+    }
+  }
+
+  async deleteAttachment(id: string): Promise<void> {
+    try {
+      const result = await this.session?.deleteAttachment(id);
+      if (result && !result.success) this._toastError('Failed to delete attachment', result.error);
+    } catch (error) {
+      this._toastError('Failed to delete attachment', error);
+    }
+  }
+
+  submitPrompt(text: string, attachments: AcpPromptAttachment[] = []): void {
+    const promptAttachments = attachments.map((attachment) => attachment.ref);
     if (!this.affordances.isWorking) {
       const optimisticId = `optimistic:user:${Date.now()}`;
       this.chatState.session.setPendingPrompt({
         id: optimisticId,
         text,
-        attachments: images?.map(toPendingAttachment),
+        attachments: attachments.map(toPendingAttachment),
       });
       this._syncMessageCount();
       const pinMode = pinTopMode(optimisticId);
@@ -245,7 +286,10 @@ export class AcpChatStore {
     }
 
     void this.session
-      ?.sendPrompt({ text })
+      ?.sendPrompt({
+        text,
+        ...(promptAttachments.length > 0 ? { attachments: promptAttachments } : {}),
+      })
       .then((result) => {
         if (!result.success) this._toastError('Failed to send message', result.error);
       })
@@ -560,11 +604,11 @@ export class AcpChatStore {
   }
 }
 
-function toPendingAttachment(img: AcpPromptImage): ChatImageAttachment {
+function toPendingAttachment(attachment: AcpPromptAttachment): ChatImageAttachment {
   return {
-    id: crypto.randomUUID(),
-    name: img.name ?? 'image',
-    dataUrl: `data:${img.mimeType};base64,${img.data}`,
+    id: attachment.ref.id,
+    name: attachment.ref.name ?? 'image',
+    dataUrl: attachment.previewUrl,
   };
 }
 

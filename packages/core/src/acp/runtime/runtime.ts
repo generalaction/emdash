@@ -161,7 +161,7 @@ export class AcpRuntime {
   }
 
   async uploadAttachment(input: {
-    data: Uint8Array;
+    data?: Uint8Array;
     mimeType: AttachmentMimeType;
     name?: string;
     originalPath?: string;

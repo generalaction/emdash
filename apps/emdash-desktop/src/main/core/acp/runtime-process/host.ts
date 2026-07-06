@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { MessageChannelMain, utilityProcess, type WebContents } from 'electron';
+import { MessageChannelMain, app, utilityProcess, type WebContents } from 'electron';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
 import { resolveLocalAcpSpawnContext } from '../transport/local-acp-process-host';
@@ -35,6 +35,10 @@ class AcpRuntimeProcessHost {
     const entry = resolveRuntimeEntry();
     log.info('ACP runtime utility process entry resolved', { entry });
     const child = utilityProcess.fork(entry, [], {
+      env: {
+        ...process.env,
+        EMDASH_ACP_ATTACHMENTS_DIR: join(app.getPath('userData'), 'acp-attachments'),
+      },
       stdio: 'pipe',
     });
     child.on('error', (error) => {

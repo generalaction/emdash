@@ -442,7 +442,7 @@ export class SessionCell {
       ...(prompt.attachments?.length
         ? {
             attachments: prompt.attachments.map((attachment, index) => ({
-              id: `${messageId}-image-${index}`,
+              id: attachment.type === 'attachment' ? attachment.id : `${messageId}-image-${index}`,
               name: attachment.name ?? `image-${index + 1}`,
               mimeType: attachment.mimeType,
             })),
