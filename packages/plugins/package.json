@@ -14,6 +14,14 @@
     "./agents": {
       "types": "./dist/agents.d.mts",
       "default": "./dist/agents.mjs"
+    },
+    "./integrations": {
+      "types": "./dist/integrations.d.mts",
+      "default": "./dist/integrations.mjs"
+    },
+    "./issues": {
+      "types": "./dist/issues.d.mts",
+      "default": "./dist/issues.mjs"
     }
   },
   "scripts": {
@@ -31,7 +39,19 @@
     "@agentclientprotocol/codex-acp": "^1.0.2",
     "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/core": "workspace:*",
+    "@emdash/shared": "workspace:*",
+    "@gitbeaker/rest": "^43.8.0",
+    "@linear/sdk": "^77.0.0",
+    "@llamaduck/forgejo-ts": "^14.0.3",
+    "@makeplane/plane-node-sdk": "^0.2.11",
+    "@mondaydotcomorg/api": "^14.0.0",
+    "@octokit/rest": "^22.0.1",
+    "@team-plain/graphql": "^1.0.1",
+    "asana": "^3.1.12",
+    "featurebase-node": "^0.14.0",
+    "jira.js": "^5.4.0",
     "smol-toml": "^1.6.0",
+    "trello.js": "^2.1.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {

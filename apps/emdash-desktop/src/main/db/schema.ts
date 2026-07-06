@@ -16,6 +16,7 @@ import {
 } from '@shared/core/automations/config';
 import { conversationConfig } from '@shared/core/conversations/conversation-config';
 import { linkedIssue } from '@shared/core/linked-issue';
+import { providerAccountMeta } from '@shared/core/provider-accounts/provider-account-meta';
 import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
 import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
 import { workspaceConfig } from '@shared/core/workspaces/workspace-config';
@@ -474,6 +475,29 @@ export const kv = sqliteTable(
   })
 );
 
+export const providerAccounts = sqliteTable(
+  'provider_accounts',
+  {
+    id: text('id').primaryKey(),
+    providerId: text('provider_id').notNull(),
+    accountId: text('account_id').notNull(),
+    credentialRef: text('credential_ref').notNull(),
+    isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+    meta: versionedJsonColumn(providerAccountMeta)('meta'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => ({
+    accountIdx: uniqueIndex('idx_provider_accounts_provider_account').on(
+      table.providerId,
+      table.accountId
+    ),
+    defaultIdx: uniqueIndex('idx_provider_accounts_default')
+      .on(table.providerId)
+      .where(sql`is_default = 1`),
+  })
+);
+
 export const appSecrets = sqliteTable(
   'app_secrets',
   {
@@ -502,5 +526,7 @@ export type KvRow = typeof kv.$inferSelect;
 export type KvInsert = typeof kv.$inferInsert;
 export type AppSecretRow = typeof appSecrets.$inferSelect;
 export type AppSecretInsert = typeof appSecrets.$inferInsert;
+export type ProviderAccountRow = typeof providerAccounts.$inferSelect;
+export type ProviderAccountInsert = typeof providerAccounts.$inferInsert;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type WorkspaceInsert = typeof workspaces.$inferInsert;

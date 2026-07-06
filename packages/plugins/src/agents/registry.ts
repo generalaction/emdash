@@ -1,5 +1,6 @@
 // The single plugin registry
-import { type CLIAgentPluginProvider, createPluginRegistry } from '@emdash/core/agents/plugins';
+import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
+import { createPluginRegistry } from '@emdash/shared/plugins';
 import { provider as amp } from './impl/amp';
 import { provider as antigravity } from './impl/antigravity';
 import { provider as auggie } from './impl/auggie';

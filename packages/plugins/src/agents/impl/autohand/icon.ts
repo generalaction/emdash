@@ -1,6 +1,6 @@
-import type { AgentIconAsset } from '@emdash/core/agents/plugins';
+import type { PluginIconAsset } from '@emdash/shared/plugins';
 
-export const icon: AgentIconAsset = {
+export const icon: PluginIconAsset = {
   kind: 'svg',
   alt: 'Autohand Code CLI',
   variants: [

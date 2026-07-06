@@ -1,4 +1,4 @@
-import { githubAccountRegistry } from '../accounts/github-account-registry-instance';
+import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { GitHubApiAuthService } from './github-api-auth-service';
 
-export const githubApiAuthService = new GitHubApiAuthService(githubAccountRegistry);
+export const githubApiAuthService = new GitHubApiAuthService(providerAccountRegistry);

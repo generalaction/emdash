@@ -18,9 +18,9 @@ import type {
   SetSessionModeRequest,
   SetSessionModeResponse,
 } from '@agentclientprotocol/sdk';
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
 import type { AgentUpdate } from '../../../acp/agent-update';
-import { definePluginCapability } from '../../../lib/plugins/capability';
 
 export type AcpSpawnContext = {
   /** Absolute path to the worktree / task directory. */

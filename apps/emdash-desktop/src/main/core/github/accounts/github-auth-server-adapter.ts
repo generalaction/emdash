@@ -2,10 +2,10 @@ import type {
   ProviderTokenDispatchResult,
   ProviderTokenPayload,
 } from '@main/core/account/provider-token-registry';
-import type { GitHubAccountRegistry } from './github-account-registry';
+import { upsertGitHubAccount, type GitHubAccountStore } from './github-accounts';
 
 export class GitHubAuthServerAdapter {
-  constructor(private readonly accountRegistry: GitHubAccountRegistry) {}
+  constructor(private readonly accountStore: Pick<GitHubAccountStore, 'upsertAccount'>) {}
 
   async storeOAuthToken(
     payload: ProviderTokenPayload
@@ -18,7 +18,7 @@ export class GitHubAuthServerAdapter {
       return;
     }
 
-    const result = await this.accountRegistry.upsertAccount({
+    const result = await upsertGitHubAccount(this.accountStore, {
       accessToken: payload.accessToken,
       credentialSource: 'emdash_oauth',
       providerAccount: {

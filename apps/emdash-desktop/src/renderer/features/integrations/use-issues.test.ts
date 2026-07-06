@@ -49,11 +49,14 @@ describe('useIssues', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    mocks.listIssues.mockResolvedValue({ success: true, issues: [] });
+    mocks.listIssues.mockResolvedValue({ success: true, data: [] });
     mocks.searchIssues.mockResolvedValue({
       success: false,
-      error:
-        'acme/repo on github.com was not found, or the selected GitHub account does not have access.',
+      error: {
+        type: 'not_found_or_no_access',
+        message:
+          'acme/repo on github.com was not found, or the selected GitHub account does not have access.',
+      },
     });
 
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');

@@ -53,7 +53,7 @@ describe('buildIssueContextText', () => {
       makeIssue({ description: 'Line one.\nLine two.\n\nLine three.' })
     );
 
-    expect(text).toContain('Provider: GitHub');
+    expect(text).toContain('Provider: Github');
     expect(text).toContain('Identifier: EMD-123');
     expect(text).toContain('Title: Fix task context injection behavior');
     expect(text).toContain('URL: https://example.com/issues/EMD-123');

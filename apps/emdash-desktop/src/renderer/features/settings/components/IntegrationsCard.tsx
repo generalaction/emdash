@@ -1,15 +1,13 @@
 import React, { useMemo, useState } from 'react';
+import { isIssueIntegration } from '@renderer/features/integrations/integration-display';
 import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
-import {
-  ISSUE_PROVIDER_META,
-  ISSUE_PROVIDER_ORDER,
-} from '@renderer/features/integrations/issue-provider-meta';
 import { sortGitHubAccountsByDefault } from '@renderer/features/projects/components/github-account-select-model';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import { TooltipProvider } from '@renderer/lib/ui/tooltip';
-import type { IssueProviderType } from '@shared/issue-providers';
+import type { AgentIconAsset } from '@shared/core/agents/agent-payload';
+import type { ConnectionStatus, IssueProviderType } from '@shared/issue-providers';
 import { IntegrationDetailSidebar } from './IntegrationDetailSidebar';
 import { IntegrationGridCard } from './IntegrationGridCard';
 
@@ -17,6 +15,7 @@ export type IntegrationItem = {
   id: IssueProviderType;
   name: string;
   description: string;
+  icon: AgentIconAsset;
   features: string[];
   isConfigured: boolean;
   isConfigurationKnown: boolean;
@@ -29,8 +28,14 @@ export type IntegrationItem = {
 };
 
 const IntegrationsCard: React.FC = () => {
-  const { connectionStatus, configuredConnections, isCheckingConfiguredConnections, providers } =
-    useIntegrationsContext();
+  const {
+    connectionStatus,
+    configuredConnections,
+    isCheckingConfiguredConnections,
+    disconnectIntegration,
+    integrations: integrationMetadata,
+    isIntegrationMutating,
+  } = useIntegrationsContext();
   const { data: githubAccounts = [] } = useGitHubAccounts();
   const sortedGithubAccounts = useMemo(
     () => sortGitHubAccountsByDefault(githubAccounts),
@@ -62,49 +67,58 @@ const IntegrationsCard: React.FC = () => {
     });
   };
 
-  const integrations: IntegrationItem[] = ISSUE_PROVIDER_ORDER.map((provider) => {
-    const meta = ISSUE_PROVIDER_META[provider];
-    const status = connectionStatus[provider];
-    const isConfigured = configuredConnections[provider] ?? false;
-    const isConfigurationKnown =
-      provider in configuredConnections || !isCheckingConfiguredConnections;
+  const integrations: IntegrationItem[] = integrationMetadata
+    .filter(isIssueIntegration)
+    .map((integration) => {
+      const provider = integration.id;
+      const status: ConnectionStatus = connectionStatus[provider] ?? {
+        connected: false,
+        capabilities: integration.capabilities,
+      };
+      const isConfigured = configuredConnections[provider] ?? false;
+      const isConfigurationKnown =
+        provider in configuredConnections || !isCheckingConfiguredConnections;
 
-    if (provider === 'github') {
+      if (provider === 'github') {
+        return {
+          id: provider,
+          name: integration.name,
+          description: integration.description,
+          icon: integration.icon,
+          features: integration.features,
+          isConfigured,
+          isConfigurationKnown,
+          isMutating: false,
+          connectionError: isConfigured ? status.error : undefined,
+          displayName: sortedGithubAccounts[0]?.login ?? status.displayName,
+          displayDetail: status.displayDetail,
+          onConnect: () => showConnectGitHub({}),
+        };
+      }
+
       return {
         id: provider,
-        name: meta.displayName,
-        description: meta.description,
-        features: meta.features,
+        name: integration.name,
+        description: integration.description,
+        icon: integration.icon,
+        features: integration.features,
         isConfigured,
         isConfigurationKnown,
-        isMutating: false,
+        isMutating: isIntegrationMutating(provider),
         connectionError: isConfigured ? status.error : undefined,
-        displayName: sortedGithubAccounts[0]?.login ?? status.displayName,
+        displayName: status.displayName,
         displayDetail: status.displayDetail,
-        onConnect: () => showConnectGitHub({}),
+        onConnect: () => showIntegrationSetup({ integration: provider }),
+        onDisconnect: () =>
+          confirmDisconnect({
+            name: integration.name,
+            credential: integration.disconnectCredentialLabel,
+            onDisconnect: () => {
+              void disconnectIntegration(provider);
+            },
+          }),
       };
-    }
-
-    return {
-      id: provider,
-      name: meta.displayName,
-      description: meta.description,
-      features: meta.features,
-      isConfigured,
-      isConfigurationKnown,
-      isMutating: providers[provider].isMutating,
-      connectionError: isConfigured ? status.error : undefined,
-      displayName: status.displayName,
-      displayDetail: status.displayDetail,
-      onConnect: () => showIntegrationSetup({ integration: provider }),
-      onDisconnect: () =>
-        confirmDisconnect({
-          name: meta.displayName,
-          credential: meta.disconnectCredentialLabel,
-          onDisconnect: providers[provider].disconnect,
-        }),
-    };
-  });
+    });
 
   const connectedIntegrations = integrations.filter((integration) => integration.isConfigured);
   const availableIntegrations = integrations.filter(

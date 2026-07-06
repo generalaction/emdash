@@ -1,3 +1,4 @@
+import { formatIntegrationId } from '@renderer/features/integrations/integration-display';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { formatCommentsForAgent } from '@shared/lineComments';
 import type { PromptLibraryPrompt } from '@shared/prompt-library';
@@ -32,25 +33,11 @@ export type ContextAction = IssueContextAction | DraftCommentsContextAction | Pr
 
 // ─── Text building ───────────────────────────────────────────────────────────
 
-const PROVIDER_LABELS: Record<LinkedIssue['provider'], string> = {
-  github: 'GitHub',
-  linear: 'Linear',
-  jira: 'Jira',
-  gitlab: 'GitLab',
-  plane: 'Plane',
-  plain: 'Plain',
-  forgejo: 'Forgejo',
-  featurebase: 'Featurebase',
-  asana: 'Asana',
-  monday: 'Monday.com',
-  trello: 'Trello',
-};
-
 export function buildIssueContextText(issue: LinkedIssue): string {
   const normalize = (s: string) => s.replace(/[\r\n]+/g, ' ').trim();
 
   const parts: string[] = [
-    `Provider: ${PROVIDER_LABELS[issue.provider]}`,
+    `Provider: ${formatIntegrationId(issue.provider)}`,
     `Identifier: ${issue.identifier}`,
     `Title: ${issue.title}`,
     `URL: ${issue.url}`,
