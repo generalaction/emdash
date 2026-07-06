@@ -14,6 +14,14 @@ vi.mock('@renderer/features/settings/app-settings-client', () => ({
   getAppSettingValueSnapshot,
 }));
 
+vi.mock('@renderer/features/tasks/acp/acp-chat-store', () => ({
+  AcpChatStore: class {},
+}));
+
+vi.mock('@renderer/features/tasks/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
 vi.mock('@renderer/lib/ipc', () => ({
   events: { on: () => () => {} },
   rpc: {

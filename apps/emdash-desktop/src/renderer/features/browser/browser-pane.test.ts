@@ -13,6 +13,17 @@ const browserRpc = vi.hoisted(() => ({
 
 vi.mock('@renderer/features/tasks/task-view-context', () => ({
   usePreviewServers: () => ({ urls: [] }),
+  useTaskViewContext: () => ({
+    projectId: 'project-1',
+    taskId: 'task-1',
+    workspaceId: 'workspace-1',
+  }),
+}));
+
+vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
+  getTaskStore: () => ({
+    browserAnnotations: { pendingCount: 0 },
+  }),
 }));
 
 vi.mock('@renderer/features/tabs/pane-context', () => ({
@@ -90,6 +101,7 @@ describe('BrowserPane', () => {
       getWebContentsId: () => 123,
       loadURL,
       setZoomFactor: vi.fn(),
+      executeJavaScript: vi.fn(),
     });
 
     await act(async () => webview.dispatchEvent(new dom.window.Event('dom-ready')));

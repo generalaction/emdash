@@ -24,8 +24,16 @@ vi.mock('@renderer/features/library/prompts/use-prompt-library', () => ({
   usePromptLibrary: () => ({ value: [] }),
 }));
 
+vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
+  useAppSettingsKey: () => ({ value: undefined }),
+}));
+
 vi.mock('@renderer/lib/components/agent-selector/agent-selector', () => ({
   AgentSelector: () => null,
+}));
+
+vi.mock('@renderer/lib/ui/shortcut', () => ({
+  Shortcut: () => null,
 }));
 
 vi.mock('../components/issue-selector/issue-selector', () => ({

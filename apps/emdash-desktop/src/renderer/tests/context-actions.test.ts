@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildBrowserAnnotationsContextAction,
   buildDraftCommentsContextAction,
   buildIssueContextText,
   buildLinkedIssueContextAction,
@@ -7,6 +8,7 @@ import {
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
 import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
+import type { BrowserAnnotation } from '@shared/browserAnnotations';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
 
@@ -41,6 +43,29 @@ function makeDraftComment(overrides: Partial<DraftComment> = {}): DraftComment {
     lineNumber: 10,
     lineContent: 'const x = 1;',
     content: 'This looks wrong.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function makeBrowserAnnotation(overrides: Partial<BrowserAnnotation> = {}): BrowserAnnotation {
+  return {
+    id: crypto.randomUUID(),
+    taskId: 'task-1',
+    browserId: 'browser-1',
+    kind: 'element',
+    status: 'pending',
+    comment: 'This button is hard to see.',
+    url: 'http://localhost:3000/settings',
+    title: 'Settings',
+    elementPath: 'body > main > button:nth-of-type(1)',
+    element: 'button',
+    cssClasses: 'primary',
+    nearbyText: 'Save changes',
+    x: 120,
+    y: 80,
+    boundingBox: { x: 100, y: 64, width: 180, height: 40 },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,
@@ -166,24 +191,53 @@ describe('buildDraftCommentsContextAction', () => {
   });
 });
 
+describe('buildBrowserAnnotationsContextAction', () => {
+  it('returns null when there are no pending annotations', () => {
+    expect(buildBrowserAnnotationsContextAction([])).toBeNull();
+    expect(
+      buildBrowserAnnotationsContextAction([makeBrowserAnnotation({ status: 'dismissed' })])
+    ).toBeNull();
+  });
+
+  it('builds an action with annotationCount and pageCount for pending annotations', () => {
+    const annotations = [
+      makeBrowserAnnotation({ url: 'http://localhost:3000/a' }),
+      makeBrowserAnnotation({ url: 'http://localhost:3000/a' }),
+      makeBrowserAnnotation({ url: 'http://localhost:3000/b' }),
+      makeBrowserAnnotation({ url: 'http://localhost:3000/c', status: 'dismissed' }),
+    ];
+    const action = buildBrowserAnnotationsContextAction(annotations);
+
+    expect(action).not.toBeNull();
+    expect(action?.id).toBe('browser-annotations');
+    expect(action?.kind).toBe('browser-annotations');
+    expect(action?.annotationCount).toBe(3);
+    expect(action?.pageCount).toBe(2);
+    expect(action?.annotations).toEqual(annotations.slice(0, 3));
+  });
+});
+
 describe('buildTaskContextActions', () => {
-  it('includes linked issue context, draft comments, then prompt library actions', () => {
+  it('includes linked issue context, draft comments, browser annotations, then prompts', () => {
     const comments = [makeDraftComment()];
-    const actions = buildTaskContextActions(makeIssue(), comments, [
+    const annotations = [makeBrowserAnnotation()];
+    const actions = buildTaskContextActions(makeIssue(), comments, annotations, [
       { id: 'review-prompt', title: 'Review prompt', prompt: 'Review this worktree.' },
       { id: 'custom', title: 'Perf review', prompt: 'Look for slow paths.' },
     ]);
 
-    expect(actions).toHaveLength(4);
+    expect(actions).toHaveLength(5);
     expect(actions[0]?.id).toBe('linked-issue:github:EMD-123');
     expect(actions[1]?.id).toBe('draft-comments');
-    expect(actions[2]?.id).toBe('prompt:review-prompt');
-    expect(actions[3]?.id).toBe('prompt:custom');
+    expect(actions[2]?.id).toBe('browser-annotations');
+    expect(actions[3]?.id).toBe('prompt:review-prompt');
+    expect(actions[4]?.id).toBe('prompt:custom');
   });
 
   it('omits the linked issue action when issue is undefined', () => {
     const actions = buildTaskContextActions(
       undefined,
+      [],
       [],
       [{ id: 'p', title: 'P', prompt: 'Do it.' }]
     );
@@ -192,7 +246,7 @@ describe('buildTaskContextActions', () => {
   });
 
   it('omits the draft-comments action when comments array is empty', () => {
-    const actions = buildTaskContextActions(makeIssue(), [], []);
+    const actions = buildTaskContextActions(makeIssue(), [], [], []);
     expect(actions).toHaveLength(1);
     expect(actions[0]?.kind).toBe('linked-issue');
   });

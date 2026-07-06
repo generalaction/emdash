@@ -1,5 +1,6 @@
 import { err, type Result } from '@emdash/shared';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
+import { BrowserAnnotationsStore } from '@renderer/features/browser/browser-annotations-store';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import { rpc } from '@renderer/lib/ipc';
@@ -53,6 +54,8 @@ export class TaskStore {
   viewModel: WorkspaceViewModel | null = null;
   /** Task-lifetime store for draft code-review comments. Null while unregistered. */
   draftComments: DraftCommentsStore | null = null;
+  /** Task-lifetime store for browser annotations. Null while unregistered. */
+  browserAnnotations: BrowserAnnotationsStore | null = null;
 
   get displayName(): string {
     return this.data.name;
@@ -93,6 +96,9 @@ export class TaskStore {
     if (!this.draftComments) {
       this.draftComments = new DraftCommentsStore(taskData.id);
     }
+    if (!this.browserAnnotations) {
+      this.browserAnnotations = new BrowserAnnotationsStore(taskData.id);
+    }
     if (!this.viewModel) {
       this.viewModel = new WorkspaceViewModel(this);
     }
@@ -131,7 +137,9 @@ export class TaskStore {
     this.provisionProgressMessage = null;
 
     // Create stable stores on first registration (when transitioning from unregistered).
-    if (!this.draftComments || !this.viewModel) this.ensureRegisteredStores();
+    if (!this.draftComments || !this.browserAnnotations || !this.viewModel) {
+      this.ensureRegisteredStores();
+    }
   }
 
   transitionToDryUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
@@ -173,6 +181,8 @@ export class TaskStore {
     }
     this.draftComments?.dispose();
     this.draftComments = null;
+    this.browserAnnotations?.dispose();
+    this.browserAnnotations = null;
   }
 
   get conversationStats(): Record<string, number> {

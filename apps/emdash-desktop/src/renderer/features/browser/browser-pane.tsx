@@ -2,12 +2,15 @@ import { ExternalLink, RotateCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
-import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
+import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import { usePreviewServers, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
+import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
 import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
+import { BrowserAnnotationOverlay } from './browser-annotation-overlay';
 import { browserControlsRegistry } from './browser-controls-registry';
 import {
   browserLoadErrorCode,
@@ -38,11 +41,14 @@ export const BrowserPane = observer(function BrowserPane({
 }) {
   const session = browserSessionStore.getSession(browserId);
   const { pane } = usePaneContext();
+  const { projectId, taskId } = useTaskViewContext();
   const previewServers = usePreviewServers();
+  const browserAnnotations = getTaskStore(projectId, taskId)?.browserAnnotations ?? null;
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
   const [adapter, setAdapter] = useState<BrowserWebviewAdapter | null>(null);
   const [webviewElement, setWebviewElement] = useState<BrowserWebviewElement | null>(null);
+  const [annotationMode, setAnnotationMode] = useState(false);
   const [webviewMount, setWebviewMount] = useState<{
     browserId: string;
     partition: string;
@@ -62,6 +68,9 @@ export const BrowserPane = observer(function BrowserPane({
   const canOpenLoadErrorExternal = useMemo(
     () => (loadError ? canOpenBrowserUrlExternally(loadErrorUrl) : false),
     [loadError, loadErrorUrl]
+  );
+  const canAnnotate = Boolean(
+    adapter && session && !session.isLoading && !showStartPage && !loadError
   );
 
   useEffect(() => {
@@ -136,6 +145,7 @@ export const BrowserPane = observer(function BrowserPane({
   const loadUrl = useCallback(
     (url: string) => {
       if (!sessionBrowserId) return;
+      setAnnotationMode(false);
       browserSessionStore.updateSession(sessionBrowserId, {
         currentUrl: url,
         faviconUrl: null,
@@ -210,6 +220,17 @@ export const BrowserPane = observer(function BrowserPane({
     [adapter, sessionBrowserId]
   );
 
+  const toggleAnnotationMode = useCallback(() => {
+    setAnnotationMode((value) => {
+      const enabled = !value;
+      captureTelemetry('browser_annotation_mode_toggled', {
+        enabled,
+        pending_count: browserAnnotations?.pendingCount ?? 0,
+      });
+      return enabled;
+    });
+  }, [browserAnnotations?.pendingCount]);
+
   // Must stay referentially stable: React re-invokes inline ref callbacks with
   // null + node on every render, which would wipe the adapter until the next
   // dom-ready and break everything adapter-backed (zoom, stop, force reload).
@@ -236,6 +257,12 @@ export const BrowserPane = observer(function BrowserPane({
       },
     });
   }, [sessionBrowserId, webviewElement]);
+
+  useEffect(() => {
+    if (!canAnnotate && annotationMode) {
+      setAnnotationMode(false);
+    }
+  }, [annotationMode, canAnnotate]);
 
   useEffect(() => {
     if (!sessionBrowserId) return;
@@ -265,11 +292,15 @@ export const BrowserPane = observer(function BrowserPane({
         onReload={reload}
         onForceReload={forceReload}
         onSetZoomFactor={setZoomFactor}
+        annotationMode={annotationMode}
+        annotationCount={browserAnnotations?.pendingCount ?? 0}
+        annotationDisabled={!canAnnotate}
+        onToggleAnnotationMode={toggleAnnotationMode}
         onFocusUrl={(focus) => {
           focusUrlRef.current = focus;
         }}
       />
-      <div className="emlight min-h-0 flex-1 bg-background">
+      <div className="emlight relative min-h-0 flex-1 bg-background">
         {loadError && loadErrorPresentation ? (
           <BrowserLoadErrorView
             url={loadErrorUrl}
@@ -282,12 +313,21 @@ export const BrowserPane = observer(function BrowserPane({
         ) : showStartPage ? (
           <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
-          <webview
-            key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}
-            ref={attachWebview}
-            {...webviewProps}
-            className="h-full w-full bg-background"
-          />
+          <>
+            <webview
+              key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}
+              ref={attachWebview}
+              {...webviewProps}
+              className="h-full w-full bg-background"
+            />
+            <BrowserAnnotationOverlay
+              active={annotationMode && canAnnotate}
+              adapter={adapter}
+              browserId={browserId}
+              store={browserAnnotations}
+              onClose={() => setAnnotationMode(false)}
+            />
+          </>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-foreground-muted">
             Preparing browser session
