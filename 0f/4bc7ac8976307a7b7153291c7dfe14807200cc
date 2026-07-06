@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/task-titlebar.tsx
+  s_53cb409c7ab86e::t_cd5a8817ab4d6c 33,36,39-44,117,145-166,180-203,212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f4bc7ac8976307a7b7153291c7dfe14807200cc",
+  "prompts": {},
+  "sessions": {
+    "s_53cb409c7ab86e": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033kPAg4k4iwtHWMtRoj2E",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
