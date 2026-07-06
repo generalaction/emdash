@@ -48,3 +48,48 @@ export const liveLogDeltaSchema = z.object({
 });
 
 export type LiveLogDelta = z.infer<typeof liveLogDeltaSchema>;
+
+export function liveJobStateSchema<
+  P extends z.ZodTypeAny,
+  R extends z.ZodTypeAny,
+  E extends z.ZodTypeAny,
+>(progress: P, result: R, error: E) {
+  return z.discriminatedUnion('status', [
+    z.object({
+      status: z.literal('running'),
+      startedAt: z.number().int().nonnegative(),
+      progress: z.array(progress),
+      progressCount: z.number().int().nonnegative(),
+    }),
+    z.object({
+      status: z.literal('succeeded'),
+      result,
+    }),
+    z.object({
+      status: z.literal('failed'),
+      error,
+    }),
+    z.object({
+      status: z.literal('cancelled'),
+    }),
+  ]);
+}
+
+export type LiveJobState<P, R, E> =
+  | {
+      status: 'running';
+      startedAt: number;
+      progress: P[];
+      progressCount: number;
+    }
+  | {
+      status: 'succeeded';
+      result: R;
+    }
+  | {
+      status: 'failed';
+      error: E;
+    }
+  | {
+      status: 'cancelled';
+    };

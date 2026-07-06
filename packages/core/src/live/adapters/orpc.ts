@@ -1,7 +1,12 @@
 import { eventIterator, oc } from '@orpc/contract';
 import { z } from 'zod';
 import type { LiveSource, LiveUpdate } from '../protocol';
-import { liveLogSnapshotDataSchema, liveSnapshotSchema, liveUpdateSchema } from '../protocol';
+import {
+  liveJobStateSchema,
+  liveLogSnapshotDataSchema,
+  liveSnapshotSchema,
+  liveUpdateSchema,
+} from '../protocol';
 
 /**
  * Creates a live-model contract for a host-global model (no key required).
@@ -45,6 +50,23 @@ export function createLiveLogContract({
     snapshot: oc.input(snapshotInput).output(liveSnapshotSchema(liveLogSnapshotDataSchema)),
     subscribe: oc.input(subscribeInput).output(eventIterator(liveUpdateSchema)),
     unsubscribe: oc.input(unsubscribeInput).output(z.void()),
+  };
+}
+
+export function createLiveJobContract<
+  I extends z.ZodTypeAny,
+  P extends z.ZodTypeAny,
+  R extends z.ZodTypeAny,
+  E extends z.ZodTypeAny,
+>({ input, progress, result, error }: { input: I; progress: P; result: R; error: E }) {
+  const jobInput = z.object({ jobId: z.string() });
+  const state = liveJobStateSchema(progress, result, error);
+  return {
+    start: oc.input(input).output(z.object({ jobId: z.string() })),
+    cancel: oc.input(jobInput).output(z.void()),
+    snapshot: oc.input(jobInput).output(liveSnapshotSchema(state)),
+    subscribe: oc.input(jobInput).output(eventIterator(liveUpdateSchema)),
+    unsubscribe: oc.input(jobInput).output(z.void()),
   };
 }
 
