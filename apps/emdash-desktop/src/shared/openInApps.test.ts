@@ -67,4 +67,31 @@ describe('OPEN_IN_APPS', () => {
     expect(OPEN_IN_APPS.athas.platforms.win32?.openCommands).toEqual(['athas "{{path_raw}}"']);
     expect(OPEN_IN_APPS.athas.platforms.linux?.openCommands).toEqual(['athas {{path}}']);
   });
+
+  it('registers Rider as an open-in JetBrains IDE option', () => {
+    expect(isValidOpenInAppId('rider')).toBe(true);
+    expect(OPEN_IN_APPS.rider).toMatchObject({
+      id: 'rider',
+      iconPath: 'rider.svg',
+      label: 'Rider',
+      hideIfUnavailable: true,
+    });
+  });
+
+  it('configures Rider launch commands for supported desktop platforms', () => {
+    expect(OPEN_IN_APPS.rider.platforms.darwin?.bundleIds).toContain('com.jetbrains.rider');
+    expect(OPEN_IN_APPS.rider.platforms.darwin?.appNames).toContain('JetBrains Rider');
+    expect(OPEN_IN_APPS.rider.platforms.darwin?.openCommands).toEqual([
+      'open -a "Rider" {{path}}',
+      'open -a "JetBrains Rider" {{path}}',
+    ]);
+    expect(OPEN_IN_APPS.rider.platforms.win32?.openCommands).toEqual([
+      'rider64 {{path}}',
+      'rider {{path}}',
+    ]);
+    expect(OPEN_IN_APPS.rider.platforms.linux?.openCommands).toEqual([
+      'rider {{path}}',
+      'rider.sh {{path}}',
+    ]);
+  });
 });
