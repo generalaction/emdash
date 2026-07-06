@@ -1,9 +1,9 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
 import { acpContract } from '../acp/api/contract';
+import { gitContract } from '../git/api/contract';
 import { depsContract } from './deps/contract';
 import { filesContract } from './files/contract';
-import { gitContract } from './git/contract';
 import { ptyAgentContract } from './pty-agent/contract';
 import { clientHelloSchema, serverHelloSchema } from './versions/schemas';
 

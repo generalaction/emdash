@@ -1,54 +1,58 @@
+import { resultSchema } from '@emdash/shared';
 import { eventIterator, oc } from '@orpc/contract';
 import { z } from 'zod';
 import { createLiveModelContract } from '../../live';
-import { result } from '../shared/schemas';
 import {
   addCheckoutOptionsSchema,
-  blameResultSchema,
-  checkoutInfoSchema,
-  checkoutStatusModelSchema,
-  cloneRepositoryErrorSchema,
-  commitErrorSchema,
-  commitFileSchema,
-  conflictVersionsSchema,
-  createBranchErrorSchema,
+  commitOptionsSchema,
   createBranchOptionsSchema,
-  deleteBranchErrorSchema,
-  diffTargetSchema,
-  ensureRepositoryErrorSchema,
   ensureRepositoryOptionsSchema,
-  fetchErrorSchema,
-  fetchPrForReviewErrorSchema,
   fetchPrForReviewOptionsSchema,
-  fileDiffSchema,
-  fileDiffStalenessEventSchema,
-  gitChangeSchema,
-  gitCommandErrorSchema,
-  gitHeadModelSchema,
   gitLogOptionsSchema,
-  gitLogResultSchema,
-  gitOutputResultSchema,
-  gitPathInspectionSchema,
-  gitRefsModelSchema,
-  gitRemotesModelSchema,
-  gitRepositoryInfoSchema,
-  gitStashesModelSchema,
-  gitVoidResultSchema,
-  imageReadResultSchema,
-  mergeErrorSchema,
   mergeOptionsSchema,
-  pushErrorSchema,
   pushOptionsSchema,
-  pullErrorSchema,
-  rebaseErrorSchema,
   rebaseOptionsSchema,
   resetModeSchema,
   stashPushOptionsSchema,
-  switchErrorSchema,
   switchOptionsSchema,
   tagOptionsSchema,
-  commitOptionsSchema,
-} from './schemas';
+} from './commands';
+import {
+  cloneRepositoryErrorSchema,
+  commitErrorSchema,
+  createBranchErrorSchema,
+  deleteBranchErrorSchema,
+  ensureRepositoryErrorSchema,
+  fetchErrorSchema,
+  fetchPrForReviewErrorSchema,
+  gitCommandErrorSchema,
+  gitOutputResultSchema,
+  gitVoidResultSchema,
+  mergeErrorSchema,
+  pullErrorSchema,
+  pushErrorSchema,
+  rebaseErrorSchema,
+  switchErrorSchema,
+} from './errors';
+import {
+  blameResultSchema,
+  checkoutInfoSchema,
+  commitFileSchema,
+  conflictVersionsSchema,
+  diffTargetSchema,
+  fileDiffSchema,
+  fileDiffStalenessEventSchema,
+  gitChangeSchema,
+  gitLogResultSchema,
+  gitPathInspectionSchema,
+  gitRepositoryInfoSchema,
+  imageReadResultSchema,
+} from './queries';
+import { checkoutStatusModelSchema } from '../checkout/models/status';
+import { gitHeadModelSchema } from '../checkout/models/head';
+import { gitRefsModelSchema } from '../repository/models/refs';
+import { gitRemotesModelSchema } from '../repository/models/remotes';
+import { gitStashesModelSchema } from '../repository/models/stashes';
 
 const repoKey = z.object({ repositoryRoot: z.string() });
 const checkoutKey = z.object({ checkoutPath: z.string() });
@@ -72,11 +76,11 @@ const runtimeContract = {
 
   ensureRepository: oc
     .input(z.object({ path: z.string(), options: ensureRepositoryOptionsSchema.optional() }))
-    .output(result(gitRepositoryInfoSchema, ensureRepositoryErrorSchema)),
+    .output(resultSchema(gitRepositoryInfoSchema, ensureRepositoryErrorSchema)),
 
   cloneRepository: oc
     .input(z.object({ repositoryUrl: z.string(), targetPath: z.string() }))
-    .output(result(gitRepositoryInfoSchema, cloneRepositoryErrorSchema)),
+    .output(resultSchema(gitRepositoryInfoSchema, cloneRepositoryErrorSchema)),
 };
 
 const repositoryContract = {
@@ -93,7 +97,7 @@ const repositoryContract = {
 
   addCheckout: oc
     .input(repoKey.extend({ options: addCheckoutOptionsSchema }))
-    .output(result(checkoutInfoSchema, gitCommandErrorSchema)),
+    .output(resultSchema(checkoutInfoSchema, gitCommandErrorSchema)),
 
   removeCheckout: oc
     .input(repoKey.extend({ checkoutPath: z.string(), force: z.boolean().optional() }))
@@ -103,11 +107,11 @@ const repositoryContract = {
 
   createBranch: oc
     .input(repoKey.extend({ options: createBranchOptionsSchema }))
-    .output(result(z.void(), createBranchErrorSchema)),
+    .output(resultSchema(z.void(), createBranchErrorSchema)),
 
   deleteBranch: oc
     .input(repoKey.extend({ branch: z.string(), force: z.boolean().optional() }))
-    .output(result(z.void(), deleteBranchErrorSchema)),
+    .output(resultSchema(z.void(), deleteBranchErrorSchema)),
 
   renameBranch: oc
     .input(repoKey.extend({ oldName: z.string(), newName: z.string() }))
@@ -129,7 +133,7 @@ const repositoryContract = {
 
   fetch: oc
     .input(repoKey.extend({ remote: z.string().optional() }))
-    .output(result(z.void(), fetchErrorSchema)),
+    .output(resultSchema(z.void(), fetchErrorSchema)),
 
   publishBranch: oc
     .input(repoKey.extend({ branchName: z.string(), remote: z.string().optional() }))
@@ -139,7 +143,7 @@ const repositoryContract = {
 
   fetchPrForReview: oc
     .input(repoKey.extend({ options: fetchPrForReviewOptionsSchema }))
-    .output(result(z.void(), fetchPrForReviewErrorSchema)),
+    .output(resultSchema(z.void(), fetchPrForReviewErrorSchema)),
 
   readBlobAtRef: oc
     .input(repoKey.extend({ ref: z.string(), filePath: z.string() }))
@@ -194,11 +198,11 @@ const checkoutContract = {
 
   commit: oc
     .input(checkoutKey.extend({ message: z.string(), options: commitOptionsSchema.optional() }))
-    .output(result(z.object({ hash: z.string() }), commitErrorSchema)),
+    .output(resultSchema(z.object({ hash: z.string() }), commitErrorSchema)),
 
   switch: oc
     .input(checkoutKey.extend({ options: switchOptionsSchema }))
-    .output(result(z.void(), switchErrorSchema)),
+    .output(resultSchema(z.void(), switchErrorSchema)),
 
   reset: oc
     .input(checkoutKey.extend({ ref: z.string(), mode: resetModeSchema.optional() }))
@@ -206,19 +210,19 @@ const checkoutContract = {
 
   merge: oc
     .input(checkoutKey.extend({ options: mergeOptionsSchema }))
-    .output(result(z.void(), mergeErrorSchema)),
+    .output(resultSchema(z.void(), mergeErrorSchema)),
 
   mergeContinue: oc
     .input(checkoutKey.extend({ message: z.string().optional() }))
-    .output(result(z.void(), mergeErrorSchema)),
+    .output(resultSchema(z.void(), mergeErrorSchema)),
 
   mergeAbort: oc.input(checkoutKey).output(gitVoidResultSchema),
 
   rebase: oc
     .input(checkoutKey.extend({ options: rebaseOptionsSchema }))
-    .output(result(z.void(), rebaseErrorSchema)),
+    .output(resultSchema(z.void(), rebaseErrorSchema)),
 
-  rebaseContinue: oc.input(checkoutKey).output(result(z.void(), rebaseErrorSchema)),
+  rebaseContinue: oc.input(checkoutKey).output(resultSchema(z.void(), rebaseErrorSchema)),
 
   rebaseAbort: oc.input(checkoutKey).output(gitVoidResultSchema),
 
@@ -226,19 +230,23 @@ const checkoutContract = {
 
   cherryPick: oc
     .input(checkoutKey.extend({ commits: z.array(z.string()), noCommit: z.boolean().optional() }))
-    .output(result(z.void(), mergeErrorSchema)),
+    .output(resultSchema(z.void(), mergeErrorSchema)),
 
   revertCommit: oc
     .input(checkoutKey.extend({ commit: z.string(), noCommit: z.boolean().optional() }))
-    .output(result(z.void(), mergeErrorSchema)),
+    .output(resultSchema(z.void(), mergeErrorSchema)),
 
   push: oc
     .input(checkoutKey.extend({ options: pushOptionsSchema.optional() }))
-    .output(result(z.object({ output: z.string() }), pushErrorSchema)),
+    .output(resultSchema(z.object({ output: z.string() }), pushErrorSchema)),
 
-  pull: oc.input(checkoutKey).output(result(z.object({ output: z.string() }), pullErrorSchema)),
+  pull: oc
+    .input(checkoutKey)
+    .output(resultSchema(z.object({ output: z.string() }), pullErrorSchema)),
 
-  sync: oc.input(checkoutKey).output(result(z.object({ output: z.string() }), pushErrorSchema)),
+  sync: oc
+    .input(checkoutKey)
+    .output(resultSchema(z.object({ output: z.string() }), pushErrorSchema)),
 
   stashPush: oc
     .input(checkoutKey.extend({ options: stashPushOptionsSchema.optional() }))
@@ -254,7 +262,7 @@ const checkoutContract = {
 
   getFileDiff: oc
     .input(checkoutKey.extend({ path: z.string(), base: diffTargetSchema.optional() }))
-    .output(result(fileDiffSchema, gitCommandErrorSchema)),
+    .output(resultSchema(fileDiffSchema, gitCommandErrorSchema)),
 
   /**
    * Subscribes to staleness events for a file diff.
@@ -271,7 +279,7 @@ const checkoutContract = {
 
   getConflictVersions: oc
     .input(checkoutKey.extend({ path: z.string() }))
-    .output(result(conflictVersionsSchema, gitCommandErrorSchema)),
+    .output(resultSchema(conflictVersionsSchema, gitCommandErrorSchema)),
 
   // -- Content / history reads --
 
@@ -303,7 +311,7 @@ const checkoutContract = {
 
   blame: oc
     .input(checkoutKey.extend({ path: z.string(), ref: z.string().optional() }))
-    .output(result(blameResultSchema, gitCommandErrorSchema)),
+    .output(resultSchema(blameResultSchema, gitCommandErrorSchema)),
 };
 
 // ---------------------------------------------------------------------------
