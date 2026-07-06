@@ -29,9 +29,8 @@ export async function verifyPlainCredentials(
 
   const client = createPlainClient(credentials.data);
   try {
-    const workspace = await client.query.myWorkspace();
+    await client.query.threads({ first: 1 });
     return ok({
-      displayName: workspace.name || workspace.publicName || undefined,
       credentials: credentials.data,
     });
   } catch (error) {

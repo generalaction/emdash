@@ -20,6 +20,5 @@ export type PlainSearchThread =
 export type PlainThread = ThreadModel | PlainSearchThread;
 
 export type PlainVerifiedConnection = {
-  displayName?: string;
   credentials: PlainCredentials;
 };

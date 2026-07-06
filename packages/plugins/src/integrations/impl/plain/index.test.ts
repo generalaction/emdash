@@ -7,7 +7,7 @@ import { provider } from './index';
 
 const plainSdk = vi.hoisted(() => ({
   constructor: vi.fn(),
-  myWorkspace: vi.fn(),
+  threads: vi.fn(),
 }));
 
 vi.mock('@team-plain/graphql', async (importOriginal) => {
@@ -15,7 +15,7 @@ vi.mock('@team-plain/graphql', async (importOriginal) => {
   return {
     ...actual,
     PlainClient: class {
-      query = { myWorkspace: plainSdk.myWorkspace };
+      query = { threads: plainSdk.threads };
 
       constructor(config: unknown) {
         plainSdk.constructor(config);
@@ -40,21 +40,21 @@ const host: IntegrationHostContext = { log: logger };
 
 afterEach(() => {
   plainSdk.constructor.mockReset();
-  plainSdk.myWorkspace.mockReset();
+  plainSdk.threads.mockReset();
 });
 
 describe('plain integration verify', () => {
-  it('validates the API key against the workspace and returns normalized credentials', async () => {
-    plainSdk.myWorkspace.mockResolvedValueOnce({ name: 'Acme Support', publicName: 'Acme' });
+  it('validates the API key against threads and returns normalized credentials', async () => {
+    plainSdk.threads.mockResolvedValueOnce({ nodes: [] });
 
     const result = await auth.verify(host, { apiKey: 'plain_api_key' });
 
     expect(result).toEqual({
       connected: true,
-      displayName: 'Acme Support',
       credentials: { apiKey: 'plain_api_key' },
     });
     expect(plainSdk.constructor).toHaveBeenCalledWith({ apiKey: 'plain_api_key' });
+    expect(plainSdk.threads).toHaveBeenCalledWith({ first: 1 });
   });
 
   it('returns an error for an empty API key', async () => {
@@ -68,7 +68,7 @@ describe('plain integration verify', () => {
   });
 
   it('surfaces the API error message when Plain rejects the key', async () => {
-    plainSdk.myWorkspace.mockRejectedValueOnce(
+    plainSdk.threads.mockRejectedValueOnce(
       new AuthenticationError('Authentication error: invalid API key')
     );
 
