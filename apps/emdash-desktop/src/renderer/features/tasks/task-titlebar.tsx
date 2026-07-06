@@ -30,10 +30,18 @@ import {
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@renderer/lib/ui/context-menu';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { Separator } from '@renderer/lib/ui/separator';
@@ -106,6 +114,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const taskPayload = getRegisteredTaskData(projectId, taskId);
   const workspace = useWorkspace();
   const taskView = useWorkspaceViewModel();
+  const showRename = useShowModal('renameTaskModal');
 
   const {
     hasUpstream,
@@ -133,6 +142,28 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   if (!taskStore || !taskPayload) return null;
 
   const isRemoteProject = projectStore?.data.type === 'ssh';
+  const branchName = workspace.gitWorktree.branchName;
+  const handleRename = () =>
+    showRename({
+      projectId,
+      taskId,
+      currentName: taskStore.data.name,
+    });
+  const handleCopyBranchName = async () => {
+    if (!branchName) return;
+
+    try {
+      await navigator.clipboard.writeText(branchName);
+      toast({ title: 'Branch name copied' });
+    } catch {
+      toast({
+        title: 'Copy failed',
+        description: 'The branch name could not be copied to the clipboard.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <Titlebar
       leftSlot={
@@ -146,20 +177,30 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
           </button>
           <span className="text-sm text-foreground-passive">/</span>
           <Popover>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="max-w-56 truncate">{taskDisplayName(taskStore)}</span>
-                      <ConnectionStatusDot state={workspace.connectionState} />
-                    </span>
-                    <ChevronDown className="size-3.5 shrink-0" />
-                  </PopoverTrigger>
-                }
-              />
-              <TooltipContent>Link to issue</TooltipContent>
-            </Tooltip>
+            <ContextMenu>
+              <ContextMenuTrigger>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="max-w-56 truncate">{taskDisplayName(taskStore)}</span>
+                          <ConnectionStatusDot state={workspace.connectionState} />
+                        </span>
+                        <ChevronDown className="size-3.5 shrink-0" />
+                      </PopoverTrigger>
+                    }
+                  />
+                  <TooltipContent>Link to issue</TooltipContent>
+                </Tooltip>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onClick={() => void handleCopyBranchName()} disabled={!branchName}>
+                  Copy
+                </ContextMenuItem>
+                <ContextMenuItem onClick={handleRename}>Rename</ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
             <PopoverContent align="start" className="flex w-96 flex-col gap-2 p-4">
               <div className="flex w-full flex-col gap-1">
                 <MicroLabel className="flex items-center text-foreground-passive">Task</MicroLabel>
@@ -168,7 +209,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <div className="flex flex-col gap-1 rounded-md border border-border p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
-                  <span>{workspace.gitWorktree.branchName}</span>
+                  <span>{branchName}</span>
                 </span>
                 <div className="flex w-full items-center gap-1">
                   {hasUpstream ? (
