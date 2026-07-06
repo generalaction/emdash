@@ -37,6 +37,7 @@ function makeManager(): {
 
 const npmDescriptor = {
   id: 'codex',
+  category: 'agent' as const,
   updates: {
     kind: 'supported' as const,
     releaseSource: { kind: 'npm' as const, package: '@openai/codex' },
@@ -128,6 +129,39 @@ describe('AgentUpdateService', () => {
     vi.unstubAllGlobals();
   });
 
+  it('ignores core dependency host state events', () => {
+    vi.mocked(getDependencyDescriptor).mockReturnValue({
+      id: 'git',
+      category: 'core',
+      updates: { kind: 'none' },
+    } as never);
+
+    const service = new AgentUpdateService();
+    const { manager, emitStatus } = makeManager();
+    service.attach(manager as unknown as HostDependencyManager, undefined);
+
+    emitStatus({
+      id: 'git' as DependencyId,
+      state: {
+        id: 'git' as DependencyId,
+        category: 'core',
+        status: 'available',
+        version: '2.45.0',
+        path: '/opt/homebrew/bin/git',
+        checkedAt: 1000,
+      },
+      hostDependency: {
+        hostId: 'local',
+        dependencyId: 'git' as DependencyId,
+        used: { kind: 'auto' as const },
+        installations: [],
+      },
+    });
+
+    expect(toAgentInstallationStatus).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalled();
+  });
+
   it('getUpdateInfo returns null/false before any fetch', () => {
     const service = new AgentUpdateService();
 
@@ -210,9 +244,10 @@ describe('AgentUpdateService', () => {
   it('enrichHostDependency: unknown+package-manager => updateAvailable=false', async () => {
     const pmDescriptor = {
       id: 'amp',
+      category: 'agent' as const,
       updates: {
         kind: 'supported' as const,
-        releaseSource: { kind: 'npm' as const, package: '@sourcegraph/amp' },
+        releaseSource: { kind: 'npm' as const, package: '@ampcode/cli' },
         update: { kind: 'package-manager' as const },
       },
       commandHooks: undefined,
@@ -222,7 +257,6 @@ describe('AgentUpdateService', () => {
     const service = new AgentUpdateService();
 
     // Manually prime the cache so we can call enrichHostDependency synchronously
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (service as any).latestVersionCache.set('amp', '2.0.0');
 
     const hostDep = {
@@ -254,6 +288,7 @@ describe('AgentUpdateService', () => {
   it('enrichHostDependency: unknown+cli => updateAvailable=true', async () => {
     const cliDescriptor = {
       id: 'claude',
+      category: 'agent' as const,
       updates: {
         kind: 'supported' as const,
         releaseSource: { kind: 'github' as const, repo: 'anthropics/claude-code' },
@@ -265,7 +300,6 @@ describe('AgentUpdateService', () => {
 
     const service = new AgentUpdateService();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (service as any).latestVersionCache.set('claude', '2.0.0');
 
     const hostDep = {

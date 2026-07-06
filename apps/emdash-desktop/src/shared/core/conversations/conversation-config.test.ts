@@ -1,30 +1,91 @@
 import { describe, expect, it } from 'vitest';
-import { conversationConfig, isDroidProviderSessionId } from './conversation-config';
+import { conversationConfig } from './conversation-config';
 
-describe('conversation-config', () => {
-  it('parses autoApprove and providerSessionId', () => {
+describe('conversation-config v1 schema', () => {
+  it('parses a v1 pty config', () => {
     const result = conversationConfig.safeParse({
+      version: '1',
+      type: 'pty',
       autoApprove: true,
-      providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
+      model: 'claude-sonnet-5',
     });
     expect(result.status).toBe('ok');
     if (result.status === 'ok') {
       expect(result.data).toEqual({
+        version: '1',
+        type: 'pty',
         autoApprove: true,
-        providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
+        model: 'claude-sonnet-5',
       });
+    }
+  });
+
+  it('parses a v1 acp config', () => {
+    const result = conversationConfig.safeParse({
+      version: '1',
+      type: 'acp',
+      model: 'claude-opus-4-8',
+    });
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') {
+      expect(result.data).toEqual({ version: '1', type: 'acp', model: 'claude-opus-4-8' });
+    }
+  });
+
+  it('upgrades a v0 legacy row (no version field) to v1 pty', () => {
+    const result = conversationConfig.safeParse({
+      autoApprove: true,
+      model: 'claude-sonnet-5',
+    });
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') {
+      expect(result.data).toEqual({
+        version: '1',
+        type: 'pty',
+        autoApprove: true,
+        model: 'claude-sonnet-5',
+      });
+    }
+  });
+
+  it('drops providerSessionId when upgrading v0 -> v1', () => {
+    const result = conversationConfig.safeParse({
+      autoApprove: false,
+      providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
+      model: 'claude',
+    });
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') {
+      expect((result.data as Record<string, unknown>).providerSessionId).toBeUndefined();
+      expect(result.data.type).toBe('pty');
+    }
+  });
+
+  it('round-trips a v1 pty config through serialize and parseJson', () => {
+    const config = conversationConfig.safeParse({ version: '1', type: 'pty', model: 'claude' });
+    expect(config.status).toBe('ok');
+    if (config.status === 'ok') {
+      const json = conversationConfig.serialize(config.data);
+      expect(conversationConfig.parseJson(json)).toEqual(config.data);
+    }
+  });
+
+  it('round-trips a v1 acp config through serialize and parseJson', () => {
+    const config = conversationConfig.safeParse({
+      version: '1',
+      type: 'acp',
+      initialPrompt: 'hello',
+    });
+    expect(config.status).toBe('ok');
+    if (config.status === 'ok') {
+      const json = conversationConfig.serialize(config.data);
+      expect(conversationConfig.parseJson(json)).toEqual(config.data);
     }
   });
 
   it('returns invalid for non-object input', () => {
     expect(conversationConfig.safeParse('not-json')).toMatchObject({ status: 'invalid' });
     expect(conversationConfig.safeParse(null)).toMatchObject({ status: 'invalid' });
-  });
-
-  it('round-trips through parseJson and serialize', () => {
-    const config = { autoApprove: false, providerSessionId: 'abc' };
-    const json = conversationConfig.serialize(config);
-    expect(conversationConfig.parseJson(json)).toEqual(config);
   });
 
   it('parseJson returns null for invalid JSON', () => {
@@ -35,9 +96,11 @@ describe('conversation-config', () => {
     expect(conversationConfig.parseJson(null)).toBeNull();
   });
 
-  it('validates Droid session ids as UUIDs', () => {
-    expect(isDroidProviderSessionId('31477a03-961a-4451-82d4-efded56947fc')).toBe(true);
-    expect(isDroidProviderSessionId('conv-1')).toBe(false);
-    expect(isDroidProviderSessionId('')).toBe(false);
+  it('parses and round-trips model field on v0 input (upgraded to v1)', () => {
+    const result = conversationConfig.safeParse({ model: 'claude-sonnet-5' });
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') {
+      expect(result.data.model).toBe('claude-sonnet-5');
+    }
   });
 });

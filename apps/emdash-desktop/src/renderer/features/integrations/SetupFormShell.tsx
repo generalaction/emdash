@@ -5,40 +5,45 @@ import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { DialogContentArea, DialogFooter } from '@renderer/lib/ui/dialog';
 import { useIntegrationsContext } from './integrations-provider';
-import type { ProviderInput, SetupIntegrationType } from './types';
+import type { IntegrationFormInput } from './types';
 
 export type SetupFormProps = {
   onSuccess: () => void;
   onClose: () => void;
 };
 
-type SetupFormShellProps<P extends SetupIntegrationType> = {
-  providerId: P;
-  getInput: () => ProviderInput[P];
+type SetupFormShellProps = {
+  providerId: string;
+  getInput: () => IntegrationFormInput;
   canSubmit: boolean;
   onSuccess: () => void;
   onClose: () => void;
   children: ReactNode;
 };
 
-export function SetupFormShell<P extends SetupIntegrationType>({
+export function SetupFormShell({
   providerId,
   getInput,
   canSubmit,
   onSuccess,
   onClose,
   children,
-}: SetupFormShellProps<P>) {
-  const { providers } = useIntegrationsContext();
+}: SetupFormShellProps) {
+  const { connectIntegration, isIntegrationMutating } = useIntegrationsContext();
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
-  const isMutating = providers[providerId].isMutating;
+  const isMutating = isIntegrationMutating(providerId);
 
   const handleSubmit = async () => {
     setError(null);
 
     try {
-      await providers[providerId].connect(getInput());
+      const result = await connectIntegration(providerId, getInput());
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+
       toast({
         title: 'Integration connected',
         description: 'Integration set up successfully.',
@@ -54,7 +59,7 @@ export function SetupFormShell<P extends SetupIntegrationType>({
       <DialogContentArea className="pt-1">
         {children}
         {error ? (
-          <p className="text-destructive text-xs" role="alert">
+          <p className="text-xs text-foreground-destructive" role="alert">
             {error}
           </p>
         ) : null}

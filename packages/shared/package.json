@@ -17,6 +17,30 @@
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     },
+    "./result": {
+      "types": "./dist/result.d.mts",
+      "default": "./dist/result.mjs"
+    },
+    "./logger": {
+      "types": "./dist/logger.d.mts",
+      "default": "./dist/logger.mjs"
+    },
+    "./logger/pino": {
+      "types": "./dist/logger-pino.d.mts",
+      "default": "./dist/logger-pino.mjs"
+    },
+    "./logger/transport": {
+      "types": "./dist/logger-transport.d.mts",
+      "default": "./dist/logger-transport.mjs"
+    },
+    "./markdown": {
+      "types": "./dist/markdown.d.mts",
+      "default": "./dist/markdown.mjs"
+    },
+    "./plugins": {
+      "types": "./dist/plugins.d.mts",
+      "default": "./dist/plugins.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -28,7 +52,11 @@
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
-  "dependencies": {},
+  "dependencies": {
+    "fast-redact": "^3.5.0",
+    "pino": "^9.14.0",
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
     "@types/node": "^20.19.42",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",

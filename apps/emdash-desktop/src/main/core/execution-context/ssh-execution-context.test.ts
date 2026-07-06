@@ -30,7 +30,21 @@ describe('buildSshCommand', () => {
     const command = buildSshCommand('/workspace/project', 'git', ['fetch', 'origin']);
 
     expect(command).toBe(
-      "'/bin/sh' -c 'cd '\\''/workspace/project'\\'' && GIT_ASKPASS='\\'''\\'' GIT_TERMINAL_PROMPT='\\''0'\\'' GCM_INTERACTIVE='\\''never'\\'' SSH_ASKPASS='\\'''\\'' git '\\''fetch'\\'' '\\''origin'\\'''"
+      "'/bin/sh' -c 'cd '\\''/workspace/project'\\'' && GIT_ASKPASS='\\'''\\'' GIT_TERMINAL_PROMPT='\\''0'\\'' GCM_INTERACTIVE='\\''never'\\'' SSH_ASKPASS='\\'''\\'' '\\''git'\\'' '\\''fetch'\\'' '\\''origin'\\'''"
+    );
+  });
+
+  it('uses the selected remote Git executable when provided', () => {
+    const command = buildSshCommand(
+      '/workspace/project',
+      'git',
+      ['status'],
+      undefined,
+      '/opt/homebrew/bin/git'
+    );
+
+    expect(command).toBe(
+      "'/bin/sh' -c 'cd '\\''/workspace/project'\\'' && GIT_ASKPASS='\\'''\\'' GIT_TERMINAL_PROMPT='\\''0'\\'' GCM_INTERACTIVE='\\''never'\\'' SSH_ASKPASS='\\'''\\'' '\\''/opt/homebrew/bin/git'\\'' '\\''status'\\'''"
     );
   });
 });

@@ -1,9 +1,9 @@
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import type { BoundExec } from '../exec';
-import type { IFileWatchService, WatchHandle } from '../fs';
-import { realpathOrResolve } from '../fs';
 import { LiveModel } from '../lib';
 import type { KeyedMutex } from '../lib';
+import type { IWatchService, WatchHandle } from '../watch';
+import { realpathOrResolve } from '../watch';
 import { CatFileBatch } from './cat-file-batch';
 import {
   classifyCreateBranchError,
@@ -52,7 +52,7 @@ export type GitRepositoryOptions = {
   objectStoreDir: string;
   exec: BoundExec;
   /** Injected file-watch service; disposed by the injector, not this class. */
-  watcher: IFileWatchService;
+  watcher: IWatchService;
   /** Serializes concurrent fetch operations on the same object store directory. */
   objectStoreMutex: KeyedMutex;
   onError?: GitOnError;
@@ -82,12 +82,14 @@ export class GitRepository implements IGitRepository {
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`refs ${this.gitCommonDir}`, error),
+      onUnexpectedError: (error) => this.onError(`refs ${this.gitCommonDir}`, error),
     });
     this.remotesModel = new LiveModel<GitRemotesModel>({
       compute: async () => ok(await this.computeRemotes()),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`remotes ${this.gitCommonDir}`, error),
+      onUnexpectedError: (error) => this.onError(`remotes ${this.gitCommonDir}`, error),
     });
 
     this.commonDirWatch = options.watcher.watch(
@@ -147,7 +149,7 @@ export class GitRepository implements IGitRepository {
     try {
       const { stdout } = await this.exec.exec(['remote', 'show', remote]);
       const match = /HEAD branch:\s*(\S+)/.exec(stdout);
-      if (match?.[1]) return match[1];
+      if (match?.[1] && match[1] !== '(unknown)') return match[1];
     } catch {}
 
     for (const candidate of ['main', 'master', 'develop', 'trunk']) {
@@ -359,8 +361,8 @@ export class GitRepository implements IGitRepository {
     }
   }
 
-  dispose(): void {
-    this.commonDirWatch.release();
+  async dispose(): Promise<void> {
+    await this.commonDirWatch.release();
     this.refsModel.dispose();
     this.remotesModel.dispose();
     this.worktrees.clear();

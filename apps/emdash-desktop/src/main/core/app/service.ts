@@ -1,5 +1,5 @@
 import { exec } from 'node:child_process';
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import type { IDisposable, IInitializable } from '@emdash/shared';
@@ -36,10 +36,13 @@ import {
   checkMacApp,
   checkMacAppByName,
   checkMacMdfindQuery,
+  checkWindowsVisualStudio,
   escapeAppleScriptString,
   execFileCommand,
   listInstalledFontsAll,
   resolveAppVersion,
+  resolveWindowsVsProductPath,
+  spawnDetachedCommand,
 } from './utils';
 
 const FONT_CACHE_TTL_MS = 5 * 60 * 1_000;
@@ -184,6 +187,9 @@ class AppService implements IInitializable, IDisposable {
         }
         if (!isAvailable && platformConfig?.mdfindQuery && platform === 'darwin') {
           isAvailable = await checkMacMdfindQuery(platformConfig.mdfindQuery);
+        }
+        if (!isAvailable && platformConfig?.winVswhere && platform === 'win32') {
+          isAvailable = await checkWindowsVisualStudio();
         }
         availability[openInApp.id] = isAvailable;
       } catch (error) {
@@ -522,6 +528,15 @@ class AppService implements IInitializable, IDisposable {
       return;
     }
 
+    if (platformConfig?.winVswhere && process.platform === 'win32') {
+      const productPath = await resolveWindowsVsProductPath();
+      if (productPath) {
+        await spawnDetachedCommand(productPath, [target]);
+        return;
+      }
+      // Fall through to the `devenv {{path}}` openCommands fallback (devenv on PATH).
+    }
+
     if (platformConfig?.openUrls) {
       for (const urlTemplate of platformConfig.openUrls) {
         const url = urlTemplate
@@ -589,6 +604,24 @@ class AppService implements IInitializable, IDisposable {
     });
     if (result.canceled) return undefined;
     return result.filePaths[0];
+  }
+
+  async saveTextFile(args: {
+    title: string;
+    defaultPath: string;
+    content: string;
+  }): Promise<string | undefined> {
+    const result = await dialog.showSaveDialog(getMainWindow()!, {
+      title: args.title,
+      defaultPath: args.defaultPath,
+      filters: [
+        { name: 'JSON', extensions: ['json'] },
+        { name: 'All files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePath) return undefined;
+    await writeFile(result.filePath, args.content, 'utf8');
+    return result.filePath;
   }
 
   async readAudioFileDataUrl(filePath: string): Promise<string> {

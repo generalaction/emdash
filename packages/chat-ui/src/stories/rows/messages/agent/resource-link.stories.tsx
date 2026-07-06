@@ -70,6 +70,26 @@ export const OpaqueUri: Story = {
   ),
 };
 
+/** Resource link that ended with an error — shows the circle-X icon after the path. */
+export const Error: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'resource-link',
+          id: 'rl-err',
+          name: 'model.ts',
+          title: 'model.ts',
+          uri: 'packages/chat-ui/src/model.ts',
+          target: { kind: 'workspace-file', path: 'packages/chat-ui/src/model.ts' },
+          status: 'error',
+        },
+      ]}
+      height={80}
+    />
+  ),
+};
+
 /** Multiple resource links in a sequence. */
 export const Multiple: Story = {
   render: () => (

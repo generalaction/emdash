@@ -1,5 +1,6 @@
 import { useCommands } from '@components/contexts/CommandsContext';
 import { CollapseHeader } from '@components/primitives/CollapseHeader';
+import { IconError } from '@components/primitives/icons';
 import { basename } from '@lib/path';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect } from 'solid-js';
@@ -7,6 +8,7 @@ import type { ChatFileOpToolCall, FileOpKind } from '@/model';
 import { chevronSm, fileOpHeader, fileRow, monoRunning, singleOpRow } from './file-op.css';
 import { fileOpCardVars } from './file-op.css';
 import { textShimmer } from '@styles/effects.css';
+import { vars } from '@styles/theme.css';
 
 // ── Verb map ──────────────────────────────────────────────────────────────────
 
@@ -54,7 +56,13 @@ export function FileOpRow(props: FileOpRowProps) {
       <Show
         when={props.item.ops[0]}
         fallback={
-          <span class={monoRunning} classList={{ [textShimmer]: props.item.status === 'running' }}>
+          <span
+            class={monoRunning}
+            classList={{
+              [textShimmer]: props.item.status === 'running' && !props.item.awaitingPermission,
+            }}
+          >
+            <Show when={props.item.awaitingPermission}>✋ </Show>
             {verb()}…
           </span>
         }
@@ -67,6 +75,14 @@ export function FileOpRow(props: FileOpRowProps) {
             onClick={() => openFile(op().path)}
           />
         )}
+      </Show>
+      <Show when={props.item.status === 'error'}>
+        <span
+          style={{ display: 'inline-flex', 'vertical-align': 'middle', color: vars.fgError }}
+          aria-label="error"
+        >
+          <IconError />
+        </span>
       </Show>
     </div>
   );
@@ -85,9 +101,11 @@ export function FileOpHeader(props: FileOpHeaderProps) {
     <CollapseHeader
       id={props.item.id}
       expanded={props.expanded}
-      active={props.item.status === 'running'}
+      active={props.item.status === 'running' && !props.item.awaitingPermission}
+      error={props.item.status === 'error'}
       height={props.rowH}
     >
+      <Show when={props.item.awaitingPermission}>✋ </Show>
       {VERB[props.item.op]} {props.item.ops.length} files
     </CollapseHeader>
   );

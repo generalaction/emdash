@@ -3,11 +3,32 @@
  * ScriptStep[] arrays for use with ScriptedChat.
  *
  * No Solid imports so this module can run in the Node Vitest project.
+ *
+ * All builders use `driveEvent(api, event)` internally, which calls
+ * `api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), event), 'generating')`.
+ * Turn-lifecycle termination uses `api.activeTurn.commit(status)`.
  */
 
 import type { TranscriptApi } from '@state/transcript';
 import type { ChatItem, ChatRole, FileOp, FileOpKind, ToolStatus } from '@/model';
 import type { ScriptStep } from '@/stories/_harness/chat-host';
+import type { ActiveTurnEvent } from '@/stories/_harness/turn-reducer';
+import { applyTurnEvent } from '@/stories/_harness/turn-reducer';
+
+// ── driveEvent helper ─────────────────────────────────────────────────────────
+
+/**
+ * Apply one ActiveTurnEvent to a transcript's activeTurn via applyTurnEvent.
+ *
+ * Reads the current desired snapshot from `api.activeTurn.get()`, folds in the
+ * event immutably, and pushes the result via `api.activeTurn.set`.  Used by all
+ * scenario step functions so they work with both the raw transcript and any
+ * wrapTranscript adapter (e.g. createStreamSmoother).
+ */
+function driveEvent(api: TranscriptApi, event: ActiveTurnEvent): void {
+  const current = api.activeTurn.get();
+  api.activeTurn.set(applyTurnEvent(current, event), 'generating');
+}
 
 // ── Chunk splitting ───────────────────────────────────────────────────────────
 
@@ -88,14 +109,14 @@ export function streamMessage(opts: {
   // Create the row synchronously so it exists before any setTimeout fires.
   steps.push({
     kind: 'call',
-    fn: (api: TranscriptApi) => api.dispatch({ type: 'message_chunk', id, role, text: '' }),
+    fn: (api: TranscriptApi) => driveEvent(api, { type: 'message_chunk', id, role, text: '' }),
   });
 
   for (const c of chunks) {
     steps.push({ kind: 'wait', ms: chunkMs });
     steps.push({
       kind: 'call',
-      fn: (api: TranscriptApi) => api.dispatch({ type: 'message_chunk', id, role, text: c }),
+      fn: (api: TranscriptApi) => driveEvent(api, { type: 'message_chunk', id, role, text: c }),
     });
   }
 
@@ -103,7 +124,7 @@ export function streamMessage(opts: {
     steps.push({ kind: 'wait', ms: chunkMs });
     steps.push({
       kind: 'call',
-      fn: (api: TranscriptApi) => api.dispatch({ type: 'turn_done' }),
+      fn: (api: TranscriptApi) => api.activeTurn.commit('done'),
     });
   }
 
@@ -138,14 +159,14 @@ export function streamThinking(opts: {
   steps.push({
     kind: 'call',
     fn: (api: TranscriptApi) =>
-      api.dispatch({ type: 'thinking_chunk', id, text: '', startedAt: Date.now() }),
+      driveEvent(api, { type: 'thinking_chunk', id, text: '', startedAt: Date.now() }),
   });
 
   for (const c of chunks) {
     steps.push({ kind: 'wait', ms: chunkMs });
     steps.push({
       kind: 'call',
-      fn: (api: TranscriptApi) => api.dispatch({ type: 'thinking_chunk', id, text: c }),
+      fn: (api: TranscriptApi) => driveEvent(api, { type: 'thinking_chunk', id, text: c }),
     });
   }
 
@@ -153,7 +174,7 @@ export function streamThinking(opts: {
   steps.push({
     kind: 'call',
     fn: (api: TranscriptApi) =>
-      api.dispatch({
+      driveEvent(api, {
         type: 'thinking_done',
         id,
         ...(durationMs !== undefined ? { durationMs } : {}),
@@ -181,8 +202,10 @@ export function streamFileOp(opts: {
   pathMs?: number;
   /** Final status dispatched after the last path (default: 'done'). */
   finalStatus?: ToolStatus;
+  /** Optional id of the parent tool call for hierarchical rendering. */
+  parentId?: string;
 }): ScriptStep[] {
-  const { id, op, paths, pathMs = 300, finalStatus = 'done' } = opts;
+  const { id, op, paths, pathMs = 300, finalStatus = 'done', parentId } = opts;
 
   if (paths.length === 0) return [];
 
@@ -192,7 +215,14 @@ export function streamFileOp(opts: {
   const firstOps: FileOp[] = [{ path: paths[0] }];
   result.push({
     kind: 'call',
-    fn: (api: TranscriptApi) => api.dispatch({ type: 'file_op_start', id, op, ops: firstOps }),
+    fn: (api: TranscriptApi) =>
+      driveEvent(api, {
+        type: 'file_op_start',
+        id,
+        op,
+        ops: firstOps,
+        ...(parentId !== undefined ? { parentId } : {}),
+      }),
   });
 
   // Reveal remaining paths one by one, each update includes all paths so far.
@@ -201,7 +231,8 @@ export function streamFileOp(opts: {
     result.push({ kind: 'wait', ms: pathMs });
     result.push({
       kind: 'call',
-      fn: (api: TranscriptApi) => api.dispatch({ type: 'file_op_update', id, ops: accumulatedOps }),
+      fn: (api: TranscriptApi) =>
+        driveEvent(api, { type: 'file_op_update', id, ops: accumulatedOps }),
     });
   }
 
@@ -209,7 +240,8 @@ export function streamFileOp(opts: {
   result.push({ kind: 'wait', ms: pathMs });
   result.push({
     kind: 'call',
-    fn: (api: TranscriptApi) => api.dispatch({ type: 'file_op_update', id, status: finalStatus }),
+    fn: (api: TranscriptApi) =>
+      driveEvent(api, { type: 'file_op_update', id, status: finalStatus }),
   });
 
   return result;
@@ -238,8 +270,19 @@ export function streamDiff(opts: {
   chunkMs?: number;
   /** Final status dispatched after the full content (default: 'done'). */
   finalStatus?: ToolStatus;
+  /** Optional id of the parent tool call for hierarchical rendering. */
+  parentId?: string;
 }): ScriptStep[] {
-  const { id, path, oldText, newText, headerMs = 700, chunkMs = 140, finalStatus = 'done' } = opts;
+  const {
+    id,
+    path,
+    oldText,
+    newText,
+    headerMs = 700,
+    chunkMs = 140,
+    finalStatus = 'done',
+    parentId,
+  } = opts;
 
   const result: ScriptStep[] = [];
 
@@ -247,7 +290,14 @@ export function streamDiff(opts: {
   result.push({
     kind: 'call',
     fn: (api: TranscriptApi) =>
-      api.dispatch({ type: 'diff_start', id, path, oldText, newText: '' }),
+      driveEvent(api, {
+        type: 'diff_start',
+        id,
+        path,
+        oldText,
+        newText: '',
+        ...(parentId !== undefined ? { parentId } : {}),
+      }),
   });
 
   // Stage B — reveal content line-by-line; each update carries the full snapshot.
@@ -259,7 +309,7 @@ export function streamDiff(opts: {
     result.push({ kind: 'wait', ms: i === 0 ? headerMs : chunkMs });
     result.push({
       kind: 'call',
-      fn: (api: TranscriptApi) => api.dispatch({ type: 'diff_update', id, newText: snapshot }),
+      fn: (api: TranscriptApi) => driveEvent(api, { type: 'diff_update', id, newText: snapshot }),
     });
   }
 
@@ -267,7 +317,7 @@ export function streamDiff(opts: {
   result.push({ kind: 'wait', ms: chunkMs });
   result.push({
     kind: 'call',
-    fn: (api: TranscriptApi) => api.dispatch({ type: 'diff_update', id, status: finalStatus }),
+    fn: (api: TranscriptApi) => driveEvent(api, { type: 'diff_update', id, status: finalStatus }),
   });
 
   return result;
@@ -290,16 +340,24 @@ export function streamTool(opts: {
   id: string;
   name: string;
   inputSummary?: string;
+  /** Optional id of the parent tool call for hierarchical rendering. */
+  parentId?: string;
   steps: ToolUpdateStep[];
 }): ScriptStep[] {
-  const { id, name, inputSummary, steps: updates } = opts;
+  const { id, name, inputSummary, parentId, steps: updates } = opts;
 
   const result: ScriptStep[] = [];
 
   result.push({
     kind: 'call',
     fn: (api: TranscriptApi) =>
-      api.dispatch({ type: 'tool_start', id, name, ...(inputSummary ? { inputSummary } : {}) }),
+      driveEvent(api, {
+        type: 'tool_start',
+        id,
+        name,
+        ...(inputSummary ? { inputSummary } : {}),
+        ...(parentId !== undefined ? { parentId } : {}),
+      }),
   });
 
   for (const u of updates) {
@@ -307,7 +365,7 @@ export function streamTool(opts: {
     result.push({
       kind: 'call',
       fn: (api: TranscriptApi) =>
-        api.dispatch({
+        driveEvent(api, {
           type: 'tool_update',
           id,
           ...(u.status !== undefined ? { status: u.status } : {}),
@@ -331,19 +389,28 @@ export function streamExecute(opts: {
   durationMs?: number;
   /** Final status (default: 'done'). */
   finalStatus?: ToolStatus;
+  /** Optional id of the parent tool call for hierarchical rendering. */
+  parentId?: string;
 }): ScriptStep[] {
-  const { id, command, durationMs = 800, finalStatus = 'done' } = opts;
+  const { id, command, durationMs = 800, finalStatus = 'done', parentId } = opts;
 
   return [
     {
       kind: 'call',
       fn: (api: TranscriptApi) =>
-        api.dispatch({ type: 'execute_start', id, command, startedAt: Date.now() }),
+        driveEvent(api, {
+          type: 'execute_start',
+          id,
+          command,
+          startedAt: Date.now(),
+          ...(parentId !== undefined ? { parentId } : {}),
+        }),
     },
     { kind: 'wait', ms: durationMs },
     {
       kind: 'call',
-      fn: (api: TranscriptApi) => api.dispatch({ type: 'execute_update', id, status: finalStatus }),
+      fn: (api: TranscriptApi) =>
+        driveEvent(api, { type: 'execute_update', id, status: finalStatus }),
     },
   ];
 }

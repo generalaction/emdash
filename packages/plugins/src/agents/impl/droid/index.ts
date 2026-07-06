@@ -3,6 +3,10 @@ import { buildStandardCommand, droidMcpAdapter } from '@emdash/core/agents/plugi
 import { buildDroidHookConfig } from './hooks';
 import { icon } from './icon';
 
+// Droid reports its own UUID-based session ids; only accept well-formed UUIDs for resume.
+const DROID_SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validateSessionId = (id: string) => DROID_SESSION_ID_PATTERN.test(id);
+
 export const plugin = definePlugin(
   {
     id: 'droid',
@@ -11,10 +15,13 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
   },
   {
+    autoApprove: {
+      kind: 'supported',
+    },
     hooks: {
       kind: 'config',
       scope: 'workspace',
-      supportedEvents: ['notification', 'stop', 'session'],
+      supportedEvents: ['notification', 'stop', 'session', 'start'],
     },
     hostDependency: {
       id: 'droid',
@@ -63,6 +70,10 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
+        // Interactive `droid` only exposes `--auto <level>`; `--skip-permissions-unsafe`
+        // is exclusive to `droid exec`. `high` grants the broadest autonomy the
+        // interactive TUI supports (edits, installs, git push, deploys).
+        autoApproveFlag: '--auto high',
         initialPromptFlag: '',
         resumeFlag: '--resume',
         sessionIdFlag: '--resume',
@@ -71,4 +82,5 @@ export const provider = registerPluginBehavior(plugin, {
   },
   hooks: buildDroidHookConfig(),
   mcp: droidMcpAdapter(),
+  sessions: { validateSessionId },
 });

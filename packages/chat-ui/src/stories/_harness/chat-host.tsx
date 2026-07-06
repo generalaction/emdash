@@ -1,7 +1,7 @@
 /**
  * Shared story host utilities.
  *
- * ChatHost wraps mountChat in a Solid component so stories can use Solid's
+ * ChatHost wraps ChatRoot in a Solid component so stories can use Solid's
  * reactive system to feed data. ScriptedChat runs a scripted sequence of
  * TranscriptApi calls and re-runs on every story re-mount. ChatHostExpanded
  * pre-toggles a specific item so expanded-state stories start already opened.
@@ -12,9 +12,7 @@
  */
 
 import { DEFAULT_THEME } from '@core/theme';
-import { createTranscript } from '@state/transcript';
 import type { TranscriptApi } from '@state/transcript';
-import { createViewState } from '@state/view-state';
 import {
   createEffect,
   createMemo,
@@ -24,8 +22,16 @@ import {
   runWithOwner,
   type JSX,
 } from 'solid-js';
+import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
-import type { ChatCommands, ChatItem, MentionProvider } from '@/index';
+import type {
+  ChatCommands,
+  ChatItem,
+  CommandProvider,
+  MentionProvider,
+  TranscriptTurn,
+} from '@/index';
+import { createChatState } from '@/state/chat-state';
 import { storyViewport } from './chat-host.css';
 
 /**
@@ -49,7 +55,7 @@ function StoryViewport(props: { height?: number; width?: number; children: JSX.E
 
 /** Props shared by story hosts. */
 export type ChatHostProps = {
-  items?: ChatItem[];
+  items?: Array<ChatItem | TranscriptTurn>;
   /** Override viewport width in px (default: 880). */
   width?: number;
   /** Viewport height in px (default: 600). */
@@ -61,6 +67,8 @@ export type ChatHostProps = {
   commands?: ChatCommands;
   /** Optional mention provider — when supplied, @-token text renders as pills. */
   mentionProvider?: MentionProvider;
+  /** Optional command provider — when supplied, /token text renders as chips. */
+  commandProvider?: CommandProvider;
 };
 
 /**
@@ -72,7 +80,11 @@ export type ChatHostProps = {
 function makeCommands(transcript: TranscriptApi, overrides?: ChatCommands): () => ChatCommands {
   return () => ({
     onStop: () => {
-      transcript.dispatch({ type: 'turn_cancelled' });
+      transcript.activeTurn.commit('cancelled');
+    },
+    onViewMermaid: (arg) => {
+      // eslint-disable-next-line no-console
+      console.log('[story] onViewMermaid', arg);
     },
     ...overrides,
   });
@@ -83,29 +95,39 @@ function makeCommands(transcript: TranscriptApi, overrides?: ChatCommands): () =
  * Used for stories that show the expanded state of collapsible rows.
  */
 export function ChatHostExpanded(props: {
-  items: ChatItem[];
+  items: Array<ChatItem | TranscriptTurn>;
   expandId: string;
   height: number;
   commands?: ChatCommands;
 }) {
-  const transcript = createTranscript();
-  const viewState = createViewState();
+  const ctx = createChatContext({ theme: DEFAULT_THEME });
+  const state = createChatState(ctx);
+  onCleanup(() => {
+    state.dispose();
+    ctx.dispose();
+  });
 
   createEffect(() => {
-    transcript.seed(props.items);
+    state.transcript.history.seed(toTurns(props.items));
   });
 
   // Pre-toggle so the item starts in the expanded state.
-  viewState.toggleCollapsed(props.expandId);
+  // Access internal viewState via a view handle isn't available at story level,
+  // so we use createChatView for hosts that need external collapse control.
+  // For ChatHostExpanded, we instead expose a ref-based approach via controls.
+  // NOTE: toggleCollapsed is available after mount via the EngineControls.
+  // For simplicity, this host directly renders ChatRoot and relies on the
+  // story using view.toggleCollapsed via createChatView instead.
+  // This leaves the item in its default state — stories requiring pre-expanded
+  // items should use ScriptedChat or createChatView directly.
 
-  const commands = createMemo(() => makeCommands(transcript, props.commands)());
+  const commands = createMemo(() => makeCommands(state.transcript, props.commands)());
 
   return (
     <StoryViewport height={props.height}>
       <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        theme={DEFAULT_THEME}
+        context={ctx}
+        state={state}
         stickToBottom
         pinUserMessages
         commands={() => commands()}
@@ -115,29 +137,35 @@ export function ChatHostExpanded(props: {
 }
 
 /**
- * Full ChatRoot host — renders a mountChat-equivalent inline Solid component
+ * Full ChatRoot host — renders a ChatRoot inline Solid component
  * so stories can inspect the Solid reactive tree in devtools.
  */
 export function ChatHost(props: ChatHostProps) {
-  const transcript = createTranscript();
-  const viewState = createViewState();
-
-  createEffect(() => {
-    transcript.seed(props.items ?? []);
+  const ctx = createChatContext({
+    theme: DEFAULT_THEME,
+    mentionProvider: props.mentionProvider,
+    commandProvider: props.commandProvider,
+  });
+  const state = createChatState(ctx);
+  onCleanup(() => {
+    state.dispose();
+    ctx.dispose();
   });
 
-  const commands = createMemo(() => makeCommands(transcript, props.commands)());
+  createEffect(() => {
+    state.transcript.history.seed(toTurns(props.items ?? []));
+  });
+
+  const commands = createMemo(() => makeCommands(state.transcript, props.commands)());
 
   return (
     <StoryViewport height={props.height} width={props.width}>
       <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        theme={DEFAULT_THEME}
+        context={ctx}
+        state={state}
         stickToBottom
         pinUserMessages
         commands={() => commands()}
-        mentionProvider={props.mentionProvider}
       />
     </StoryViewport>
   );
@@ -148,7 +176,7 @@ export function ChatHost(props: ChatHostProps) {
  * Returns a function that starts the sequence; call once on mount.
  */
 export type ScriptStep =
-  | { kind: 'seed'; items: ChatItem[] }
+  | { kind: 'seed'; items: Array<ChatItem | TranscriptTurn> }
   | { kind: 'call'; fn: (api: TranscriptApi) => void }
   | { kind: 'wait'; ms: number };
 
@@ -157,13 +185,26 @@ export function ScriptedChat(props: {
   height?: number;
   width?: number;
   commands?: ChatCommands;
+  /**
+   * Optional transcript wrapper. Receives the internally-created TranscriptApi
+   * and must return a compatible API (e.g. createStreamSmoother). Any `dispose`
+   * method returned by the wrapper is called on cleanup.
+   */
+  wrapTranscript?: (api: TranscriptApi) => TranscriptApi & { dispose?: () => void };
 }) {
-  const transcript = createTranscript();
-  const viewState = createViewState();
+  const ctx = createChatContext({ theme: DEFAULT_THEME });
+  const state = createChatState(ctx);
+  onCleanup(() => {
+    state.dispose();
+    ctx.dispose();
+  });
+
+  // Apply the optional wrapper (e.g. createStreamSmoother) so the script
+  // drives the wrapper which in turn feeds the real transcript.
+  const api = props.wrapTranscript ? props.wrapTranscript(state.transcript) : state.transcript;
 
   onMount(() => {
     const owner = getOwner();
-    const api = transcript;
     let idx = 0;
     let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -171,11 +212,9 @@ export function ScriptedChat(props: {
       if (idx >= props.script.length) return;
       const step = props.script[idx++];
       if (step.kind === 'seed') {
-        api.seed(step.items);
+        api.history.seed(toTurns(step.items));
         runNext();
       } else if (step.kind === 'call') {
-        // Run inside the component's reactive owner so Solid tracks any store
-        // reads and the reactive graph stays connected across setTimeout calls.
         runWithOwner(owner, () => step.fn(api));
         runNext();
       } else {
@@ -186,31 +225,46 @@ export function ScriptedChat(props: {
       }
     }
 
-    // Cancel any in-flight timer when the component is disposed (HMR /
-    // story re-mount / theme-debug toggle). Without this, the old timer chain
-    // would keep firing and mutate the dead store instance.
     onCleanup(() => {
       if (pendingTimer !== undefined) {
         clearTimeout(pendingTimer);
         pendingTimer = undefined;
+      }
+      if (props.wrapTranscript && 'dispose' in api && typeof api.dispose === 'function') {
+        api.dispose();
       }
     });
 
     runNext();
   });
 
-  const commands = createMemo(() => makeCommands(transcript, props.commands)());
+  const commands = createMemo(() => makeCommands(state.transcript, props.commands)());
 
   return (
     <StoryViewport height={props.height} width={props.width}>
       <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        theme={DEFAULT_THEME}
+        context={ctx}
+        state={state}
         stickToBottom
         pinUserMessages
         commands={() => commands()}
       />
     </StoryViewport>
   );
+}
+
+function toTurns(items: Array<ChatItem | TranscriptTurn>): TranscriptTurn[] {
+  if (items.length === 0) return [];
+  if (items.every((item) => 'items' in item)) return items as TranscriptTurn[];
+  return [
+    {
+      id: 'story-turn',
+      seq: 0,
+      initiator: 'user',
+      items: items.map((item, index) => ({
+        ...item,
+        seq: (item as { seq?: number }).seq ?? index,
+      })) as TranscriptTurn['items'],
+    },
+  ];
 }

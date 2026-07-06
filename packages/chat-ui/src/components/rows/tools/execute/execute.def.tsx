@@ -1,27 +1,148 @@
+import { ROW_H } from '@components/engine/row-metrics';
+import { CollapsibleCard } from '@components/primitives/CollapsibleCard';
+import type { MeasureCtx, RenderCtx } from '@core/define';
 import { defineUnit } from '@core/units';
-import { pxTokens } from '@styles/px-tokens';
-import { assignInlineVars } from '@vanilla-extract/dynamic';
+import { Show, createMemo } from 'solid-js';
 import type { ChatExecute } from '@/model';
-import { Execute } from './Execute';
-import { executeRoot, executeVars } from './execute.css';
+import { ExecuteBody, type ExecuteDisplayLine } from './Execute';
 
-export const executeUnitDef = defineUnit<ChatExecute, { rowH: number }>({
+// ── Vars ──────────────────────────────────────────────────────────────────────
+
+export { executeFromItem } from './execute.presenter';
+
+export type ExecuteVars = {
+  /** Fixed height (px) of the header row. */
+  rowH: number;
+  /** Border width (px) on each side of the card. */
+  border: number;
+  /** Max lines shown in the collapsed (preview) state. */
+  collapsedMaxLines: number;
+  /** Max lines shown / scrollable in the expanded state. */
+  expandedMaxLines: number;
+};
+
+const EXECUTE_VARS: ExecuteVars = {
+  rowH: ROW_H,
+  border: 1,
+  collapsedMaxLines: 3,
+  expandedMaxLines: 16,
+};
+
+// ── Geometry ──────────────────────────────────────────────────────────────────
+
+/** 3 borders: top card edge + header-separator + bottom card edge. */
+function chromeY(vars: ExecuteVars): number {
+  return 3 * vars.border;
+}
+
+function commandLines(command: string): string[] {
+  return (command || '…').split('\n');
+}
+
+function outputLines(outputText: string | undefined): string[] {
+  if (!outputText) return [];
+  return outputText.replace(/\r\n/g, '\n').split('\n');
+}
+
+function executeLines(item: ChatExecute): ExecuteDisplayLine[] {
+  const command = commandLines(item.command).map(
+    (line, index): ExecuteDisplayLine => ({
+      kind: 'command',
+      text: `${index === 0 ? '$' : ' '} ${line}`,
+    })
+  );
+  const output = outputLines(item.outputText).map(
+    (line): ExecuteDisplayLine => ({ kind: 'output', text: line })
+  );
+  return output.length > 0 ? [...command, { kind: 'spacer', text: '' }, ...output] : command;
+}
+
+function executeBodyH(
+  lines: ExecuteDisplayLine[],
+  codeLineH: number,
+  isExpanded: boolean,
+  vars: ExecuteVars
+): { bodyH: number; contentH: number } {
+  const contentH = lines.length * codeLineH;
+  const maxLines = isExpanded ? vars.expandedMaxLines : vars.collapsedMaxLines;
+  const cap = maxLines * codeLineH;
+  const bodyH = Math.min(contentH, cap);
+  return { bodyH, contentH };
+}
+
+function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): number {
+  const isExpanded = ctx.expanded(item.id);
+  const lines = executeLines(item);
+  const { bodyH } = executeBodyH(lines, ctx.theme.fonts.code.lineHeight, isExpanded, vars);
+  return vars.rowH + bodyH + chromeY(vars);
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: ExecuteVars }) {
+  const mCtx = () => props.ctx.measureCtx?.();
+  // Inverted semantics: stored "collapsed" bool = "expanded".
+  const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
+
+  const lines = createMemo(() => executeLines(props.data));
+  const codeLineH = createMemo(() => mCtx()?.theme.fonts.code.lineHeight ?? 0);
+
+  const bodyGeometry = createMemo(() => {
+    const lineH = codeLineH();
+    if (!lineH) return { bodyH: 0, contentH: 0 };
+    return executeBodyH(lines(), lineH, isExpanded(), props.vars);
+  });
+
+  const totalH = createMemo(() => {
+    const ctx = mCtx();
+    if (!ctx) return props.vars.rowH + chromeY(props.vars);
+    return executeUnitH(props.data, ctx, props.vars);
+  });
+
+  return (
+    <CollapsibleCard
+      id={props.data.id}
+      ctx={props.ctx}
+      height={totalH()}
+      headerH={props.vars.rowH}
+      expanded={isExpanded()}
+      active={props.data.status === 'running' && !props.data.awaitingPermission}
+      error={props.data.status === 'error'}
+      header={props.data.awaitingPermission ? '✋ Execute' : 'Execute'}
+    >
+      <Show when={codeLineH() > 0}>
+        <ExecuteBody
+          item={props.data}
+          lines={lines()}
+          bodyH={bodyGeometry().bodyH}
+          contentH={bodyGeometry().contentH}
+          codeLineH={codeLineH()}
+          expanded={isExpanded()}
+        />
+      </Show>
+    </CollapsibleCard>
+  );
+}
+
+// ── UnitDef ───────────────────────────────────────────────────────────────────
+
+export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
   kind: 'execute',
-  margin: { top: 2, bottom: 2 },
-  vars: { rowH: 28 },
+  margin: { top: 2, bottom: 6 },
+  vars: EXECUTE_VARS,
 
-  measure(_data, _ctx, vars): number {
-    return vars.rowH;
+  estimate(item, _ctx, vars): number {
+    // O(1) cheap estimate: use collapsedMaxLines cap (default state).
+    const lines = executeLines(item);
+    // Approximate code line height — use a fixed fallback of 20px for estimate.
+    const approxLineH = 20;
+    const { bodyH } = executeBodyH(lines, approxLineH, false, vars);
+    return vars.rowH + bodyH + chromeY(vars);
   },
 
-  Render(props) {
-    return (
-      <div
-        class={executeRoot}
-        style={assignInlineVars(executeVars, pxTokens({ rowH: props.vars.rowH }))}
-      >
-        <Execute item={props.data} />
-      </div>
-    );
+  measure(item, ctx, vars): number {
+    return executeUnitH(item, ctx, vars);
   },
+
+  Render: ExecuteUnitRender,
 });

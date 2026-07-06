@@ -10,11 +10,14 @@
   "files": [
     "dist",
     "src/theme",
-    "src/styles"
+    "src/styles",
+    "src/react/chat-ui/chat-theme.css"
   ],
   "type": "module",
   "sideEffects": [
-    "./dist/style.css"
+    "./dist/style.css",
+    "./src/react/chat-ui/chat-theme.css",
+    "./src/styles/base.css"
   ],
   "exports": {
     "./react": {
@@ -33,18 +36,23 @@
       "types": "./dist/src/react/patterns/index.d.ts",
       "default": "./dist/react/patterns.js"
     },
-    "./solid": {
-      "types": "./dist/src/solid/index.d.ts",
-      "default": "./dist/solid.js"
+    "./react/form": {
+      "types": "./dist/src/react/patterns/form/index.d.ts",
+      "default": "./dist/react/form.js"
     },
-    "./solid/components": {
-      "types": "./dist/src/solid/components/index.d.ts",
-      "default": "./dist/solid/components.js"
+    "./react/chat-ui": {
+      "types": "./dist/src/react/chat-ui/index.d.ts",
+      "default": "./dist/react/chat-ui.js"
     },
+    "./react/chat-ui/chat-theme.css": "./src/react/chat-ui/chat-theme.css",
     "./style.css": "./dist/style.css",
+    "./styles/utilities": {
+      "types": "./dist/src/styles/utilities/index.d.ts",
+      "default": "./dist/styles/utilities.js"
+    },
     "./styles/sprinkles": {
-      "types": "./dist/src/styles/sprinkles.css.d.ts",
-      "default": "./dist/styles/sprinkles.js"
+      "types": "./dist/src/styles/utilities/sprinkles.css.d.ts",
+      "default": "./dist/styles/utilities/sprinkles.js"
     },
     "./styles/recipes/control": {
       "types": "./dist/src/styles/recipes/control.d.ts",
@@ -54,36 +62,51 @@
       "types": "./dist/src/styles/recipes/input.d.ts",
       "default": "./dist/styles/recipes/input.js"
     },
+    "./styles/recipes/surface": {
+      "types": "./dist/src/styles/recipes/surface.css.d.ts",
+      "default": "./dist/styles/recipes/surface.js"
+    },
+    "./styles/recipes/card": {
+      "types": "./dist/src/styles/recipes/card.css.d.ts",
+      "default": "./dist/styles/recipes/card.js"
+    },
+    "./styles/recipes/box": {
+      "types": "./dist/src/styles/recipes/box.d.ts",
+      "default": "./dist/styles/recipes/box.js"
+    },
+    "./theme/theme.css": "./src/theme/__generated__/theme.css",
+    "./theme/semantic.css": "./src/theme/__generated__/semantic.css",
     "./styles/tokens.css": "./src/styles/tokens.css",
-    "./styles/theme.css": "./src/styles/theme.css",
+    "./styles/global": {
+      "types": "./dist/src/styles/global.css.d.ts",
+      "default": "./dist/styles/global.js"
+    },
     "./styles/base.css": "./src/styles/theme.base.css",
-    "./styles/semantic.css": "./src/styles/semantic.css",
-    "./styles/effects.css": "./src/styles/effects.css",
-    "./styles/overflow-fade.css": "./src/styles/overflow-fade.css",
+    "./styles/global-base.css": "./src/styles/base.css",
+    "./styles/effects.css": "./src/styles/effects/effects.css",
+    "./styles/overflow-fade.css": "./src/styles/effects/overflow-fade.css",
     "./styles/typography.css": "./src/styles/typography.css",
-    "./theme/tokens.js": "./src/theme/core/tokens.js",
-    "./theme/tokens.d.ts": "./src/theme/core/tokens.d.ts",
-    "./theme/shiki-themes": "./src/theme/themes/shiki-themes.ts",
-    "./theme/manifest": "./src/theme/core/theme-manifest.ts",
+    "./theme/shiki-themes": "./src/theme/__generated__/shiki-themes.gen.ts",
+    "./theme/manifest": "./src/theme/themes/registry.ts",
     "./package.json": "./package.json"
   },
   "scripts": {
     "dev": "vite build --config vite.lib.config.ts --watch",
     "build": "vite build --config vite.lib.config.ts",
     "test": "vitest run",
-    "theme:build": "tsx src/theme/core/build.ts && oxfmt src/styles/theme.css src/styles/semantic.css src/theme/core/tokens.js",
-    "theme:watch": "tsx --watch src/theme/core/build.ts",
-    "storybook:react": "storybook dev -p 6006 -c .storybook-react",
-    "storybook:solid": "storybook dev -p 6007 -c .storybook-solid",
-    "build-storybook:react": "storybook build -c .storybook-react",
-    "build-storybook:solid": "storybook build -c .storybook-solid",
+    "build:theme": "tsx src/theme/core/codegen/run.ts && oxfmt src/theme/__generated__/theme.css src/theme/__generated__/semantic.css",
+    "watch:theme": "tsx --watch src/theme/core/codegen/run.ts",
+    "storybook": "storybook dev -p 6006 -c .storybook",
+    "build:storybook": "storybook build -c .storybook",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/ui/src\"'",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.solid.json"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
+    "@emdash/chat-ui": "workspace:*",
+    "@emdash/shared": "workspace:*",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@tiptap/core": "^3.26.1",
     "@tiptap/extension-mention": "^3.26.1",
@@ -92,13 +115,13 @@
     "@tiptap/react": "^3.26.1",
     "@tiptap/starter-kit": "^3.26.1",
     "@tiptap/suggestion": "^3.26.1",
-    "clsx": "^2.1.1",
     "lucide-react": "^0.564.0"
   },
   "devDependencies": {
-    "@emdash/chat-ui": "workspace:*",
     "@storybook/addon-docs": "^10.4.6",
     "@storybook/react-vite": "^10.4.6",
+    "@tanstack/react-form": "^1.28.4",
+    "@tanstack/react-virtual": "^3.14.2",
     "@types/node": "^20.19.42",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -110,24 +133,26 @@
     "@vitejs/plugin-react": "^4.7.0",
     "colorjs.io": "^0.5.2",
     "devicon": "^2.17.0",
+    "mobx": "^6.16.1",
+    "mobx-react-lite": "^4.1.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.66.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "solid-js": "^1.9.13",
     "storybook": "^10.4.6",
-    "storybook-solidjs-vite": "10.4.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.2",
     "vite": "^7.1.11",
     "vite-plugin-dts": "5.0.2",
-    "vite-plugin-solid": "2.11.12",
     "vitest": "^4.1.0"
   },
   "peerDependencies": {
+    "@tanstack/react-form": "^1.28.4",
+    "@tanstack/react-virtual": "^3.14.2",
+    "mobx": "^6.15.0",
+    "mobx-react-lite": "^4.1.1",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "solid-js": "^1.9.13"
+    "react-dom": "^19.2.0"
   },
   "packageManager": "pnpm@10.28.2"
 }

@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useRef, useState } from 'react';
 import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
+import { activeDiffEntry } from '@renderer/features/tasks/diff-view/pane-selectors';
 import {
   useTaskViewContext,
   useWorkspaceId,
@@ -191,41 +192,49 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
     modifiedRef
   );
 
+  const _activeDiff = activeDiffEntry(taskView.activePane);
   const activePath =
-    taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    taskView.tabManager.activeDescriptor.diffGroup === 'git' &&
-    refsEqual(taskView.tabManager.activeDescriptor.originalRef, originalRef) &&
-    refsMatch(taskView.tabManager.activeDescriptor.modifiedRef, modifiedRef)
-      ? taskView.tabManager.activeDescriptor.path
+    _activeDiff?.diffGroup === 'git' &&
+    refsEqual(_activeDiff.originalRef, originalRef) &&
+    refsMatch(_activeDiff.modifiedRef, modifiedRef)
+      ? _activeDiff.path
       : undefined;
 
   const openPreview = (change: GitChange) => {
-    taskView.tabManager.openDiffPreview(
+    taskView.activePane.open(
+      'diff',
       {
-        path: change.path,
-        type: 'git',
-        group: 'git',
-        originalRef,
-        modifiedRef,
-        commitOriginalSha: originalSha,
-        commitModifiedSha: commit.hash,
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'git',
+          originalRef,
+          modifiedRef,
+          commitOriginalSha: originalSha,
+          commitModifiedSha: commit.hash,
+        },
+        status: change.status,
       },
-      change.status
+      { preview: true }
     );
   };
 
   const openDiff = (change: GitChange) => {
-    taskView.tabManager.openDiff(
+    taskView.activePane.open(
+      'diff',
       {
-        path: change.path,
-        type: 'git',
-        group: 'git',
-        originalRef,
-        modifiedRef,
-        commitOriginalSha: originalSha,
-        commitModifiedSha: commit.hash,
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'git',
+          originalRef,
+          modifiedRef,
+          commitOriginalSha: originalSha,
+          commitModifiedSha: commit.hash,
+        },
+        status: change.status,
       },
-      change.status
+      { preview: false }
     );
   };
 

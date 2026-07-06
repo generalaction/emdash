@@ -5,42 +5,9 @@ import {
   PlanPendingIcon,
 } from '@components/primitives/icons';
 import { Match, Switch, For } from 'solid-js';
-import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '@/model';
+import type { PlanEntryPriority, PlanEntryStatus } from '@/model';
 import type { PlanEntryLaid } from './plan.def';
-import { chevron, planHeader, textShimmer } from './plan.css';
 import { planVars } from './plan.css';
-
-// ── PlanHeader ────────────────────────────────────────────────────────────────
-
-export type PlanHeaderProps = {
-  item: ChatPlan;
-  expanded: boolean;
-  rowH: number;
-};
-
-export function PlanHeader(props: PlanHeaderProps) {
-  const total = () => props.item.entries.length;
-  const done = () => props.item.entries.filter((e) => e.status === 'completed').length;
-  const active = () =>
-    !!props.item.streaming || props.item.entries.some((e) => e.status === 'in_progress');
-
-  return (
-    <div
-      class={planHeader}
-      style={{ height: `${props.rowH}px` }}
-      role="button"
-      aria-expanded={props.expanded ? 'true' : 'false'}
-      data-collapse-id={props.item.id}
-    >
-      <span classList={{ [textShimmer]: active() }}>
-        Plan {done()} out of {total()} Tasks done
-      </span>
-      <span class={chevron({ expanded: props.expanded })} aria-hidden="true">
-        ›
-      </span>
-    </div>
-  );
-}
 
 // ── Status glyph helpers ──────────────────────────────────────────────────────
 

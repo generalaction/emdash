@@ -184,6 +184,25 @@ export const DIFF_CONTEXT = 1;
 export const DIFF_BORDER = 1;
 export const DIFF_FADE_H = 24;`;
 
+/** Diff that ended with an error — shows the circle-X icon in the header. */
+export const Error: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'diff',
+          id: 'diff-err:src/model.ts',
+          path: 'src/model.ts',
+          oldText: OLD_TS,
+          newText: NEW_TS,
+          status: 'error',
+        },
+      ]}
+      height={200}
+    />
+  ),
+};
+
 /** Permission request beneath a running diff row (write operation pending approval). */
 export const RequestingPermission: Story = {
   render: () => (

@@ -1,3 +1,4 @@
+import { LifecycleMap } from '@emdash/shared';
 import { ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
@@ -5,7 +6,6 @@ import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { HookCore, type Hookable } from '@main/lib/hookable';
-import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import type { TaskBootstrapStatus } from '@shared/core/tasks/tasks';
@@ -48,19 +48,38 @@ export type TaskManagerHooks = {
   }) => void | Promise<void>;
 };
 
-async function executeTeardown(
+/**
+ * Task-level teardown intent. Wider than {@link TeardownMode} because archive needs to
+ * reap the running agent like `terminate` while keeping the workspace like `detach`:
+ *
+ * - `detach`: leave tmux sessions and agent processes running so the task can be
+ *   remounted later (used on app/project shutdown when tmux is enabled).
+ * - `terminate`: reap tmux sessions + agent processes and destroy the workspace
+ *   (worktree removal, teardown script). Used by delete.
+ * - `archive`: reap tmux sessions + agent processes like `terminate`, but keep the
+ *   workspace/worktree (and the persisted `conversations.session_id`) so the task stays
+ *   restorable. Without this, archiving a tmux-backed task leaked its session and agent
+ *   process indefinitely (#2689).
+ */
+export type TaskTeardownMode = TeardownMode | 'archive';
+
+export async function executeTeardown(
   task: TaskProvider,
   workspaceId: string,
-  mode: TeardownMode
+  mode: TaskTeardownMode
 ): Promise<void> {
   if (mode === 'detach') {
+    // Keep the tmux sessions and agent processes alive for a later remount.
     await task.conversations.detachAll();
     await task.terminals.detachAll();
   } else {
+    // 'terminate' and 'archive' both reap the tmux sessions and agent processes.
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
   }
-  await workspaceRegistry.release(workspaceId, mode);
+  // Only 'terminate' destroys the workspace (worktree + teardown script). 'archive'
+  // keeps the worktree alive, same as 'detach', so Restore can resume the task.
+  await workspaceRegistry.teardown(workspaceId, mode === 'terminate' ? 'terminate' : 'detach');
 }
 
 async function cleanupDetachedSessions(
@@ -138,7 +157,7 @@ class TaskSessionManager {
 
   async teardownTask(
     taskId: string,
-    mode: TeardownMode = 'terminate'
+    mode: TaskTeardownMode = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
     const result = this._lifecycle.teardown(
       taskId,
@@ -169,7 +188,7 @@ class TaskSessionManager {
     const taskIds = Array.from(this._tasksByProject.get(projectId) ?? []);
     if (mode === 'detach') {
       // Detach sessions but leave workspaces alive; provider.cleanup() will call
-      // workspaceRegistry.releaseAllForProject to handle workspace teardown.
+      // workspaceRegistry.teardownAllForProject to handle workspace teardown.
       await Promise.all(
         taskIds.flatMap((id) => {
           const stored = this._lifecycle.get(id);

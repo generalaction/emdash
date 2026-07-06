@@ -1,14 +1,15 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import nodePath from 'node:path';
+import { contains, FilesRuntime, type IFileSystem } from '@emdash/core/files';
 import type { GitRemote } from '@emdash/core/git';
-import { ok } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { IFilesRuntime, RuntimePath } from '@main/core/runtime/types';
 import type { ProjectSettingsProvider } from '../settings/provider';
-import { LocalWorktreeHost } from './hosts/local-worktree-host';
-import type { WorktreeHost } from './hosts/worktree-host';
 import { WorktreeService } from './worktree-service';
 
 async function git(
@@ -43,18 +44,78 @@ function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider 
 
 const originRemote = (url = 'ssh://example.com/repo.git'): GitRemote => ({ name: 'origin', url });
 
+type FakeFilesRuntimeOptions = {
+  pathApi?: RuntimePath;
+  existsAbsolute?: (absPath: string) => Promise<boolean>;
+  mkdirAbsolute?: (absPath: string, options?: { recursive?: boolean }) => Promise<void>;
+  removeAbsolute?: (
+    absPath: string,
+    options?: { recursive?: boolean }
+  ) => Promise<Result<void, { message: string }>>;
+  realPathAbsolute?: (absPath: string) => Promise<string>;
+};
+
+function makeFakeFilesRuntime(options: FakeFilesRuntimeOptions = {}): IFilesRuntime {
+  const pathApi = options.pathApi ?? nativeMachinePath;
+  return {
+    path: pathApi,
+    openTree: vi.fn(),
+    watchChanges: vi.fn(),
+    fileSystem: vi.fn(() =>
+      ok({
+        exists: async (absPath: string) => ok(await (options.existsAbsolute?.(absPath) ?? false)),
+        mkdir: async (absPath: string, mkdirOptions?: { recursive?: boolean }) => {
+          await options.mkdirAbsolute?.(absPath, mkdirOptions);
+          return ok();
+        },
+        remove: async (absPath: string, removeOptions?: { recursive?: boolean }) => {
+          const result = (await options.removeAbsolute?.(absPath, removeOptions)) ?? ok();
+          return result.success
+            ? ok()
+            : err({
+                type: 'fs-error' as const,
+                path: absPath,
+                message: result.error.message,
+              });
+        },
+        realPath: async (absPath: string) =>
+          ok(await (options.realPathAbsolute?.(absPath) ?? absPath)),
+        stat: async () =>
+          err({
+            type: 'fs-error' as const,
+            path: '',
+            message: 'stat is not implemented by test fake',
+            code: 'ENOENT',
+          }),
+        glob: () =>
+          ok(
+            (async function* () {
+              // No preserved files in fake-runtime unit cases.
+            })()
+          ),
+      } as unknown as IFileSystem)
+    ),
+    dispose: vi.fn(),
+  } as unknown as IFilesRuntime;
+}
+
+const nativeMachinePath: RuntimePath = {
+  join: (...parts: string[]) => nodePath.join(...parts),
+  dirname: (value: string) => nodePath.dirname(value),
+  basename: (value: string) => nodePath.basename(value),
+  isAbsolute: (value: string) => nodePath.isAbsolute(value),
+  relative: (from: string, to: string) => nodePath.relative(from, to),
+  contains,
+};
+
 describe('WorktreeService', () => {
   let repoDir: string;
   let poolDir: string;
-  let host: WorktreeHost;
 
   beforeEach(async () => {
     repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-repo-'));
     poolDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-pool-'));
     await initRepo(repoDir);
-    host = await LocalWorktreeHost.create({
-      allowedRoots: [repoDir, poolDir],
-    });
   });
 
   afterEach(() => {
@@ -75,27 +136,36 @@ describe('WorktreeService', () => {
     return new WorktreeService({
       repoPath,
       ctx: new LocalExecutionContext({ root: repoPath }),
-      host,
+      files: Object.assign(new FilesRuntime(), { path: nativeMachinePath }),
       projectSettings: overrides.projectSettings ?? makeSettings(),
       resolveWorktreePoolPath: overrides.resolveWorktreePoolPath ?? (async () => worktreePoolPath),
     });
   }
 
-  it('uses the host path API for worktree paths', async () => {
-    const remoteHost: WorktreeHost = {
-      existsAbsolute: vi.fn().mockResolvedValue(false),
-      mkdirAbsolute: vi.fn().mockResolvedValue(undefined),
-      removeAbsolute: vi.fn().mockResolvedValue({ success: true }),
-      realPathAbsolute: vi.fn().mockResolvedValue('/remote/worktrees/project'),
-      globAbsolute: vi.fn().mockResolvedValue([]),
-      readFileAbsolute: vi.fn().mockResolvedValue(''),
-      copyFileAbsolute: vi.fn().mockResolvedValue(undefined),
-      statAbsolute: vi.fn().mockResolvedValue(null),
-      pathApi: {
-        join: (...segments: string[]) => `host:${path.posix.join(...segments)}`,
-        dirname: (input: string) => `host-dir:${path.posix.dirname(input.replace(/^host:/, ''))}`,
+  it('uses the runtime path API for worktree paths', async () => {
+    const stripHost = (value: string) => value.replace(/^host:/, '');
+    const remotePathApi: RuntimePath = {
+      join: (...segments: string[]) =>
+        `host:${path.posix.join(...segments.map((segment) => stripHost(segment)))}`,
+      dirname: (input: string) => `host:${path.posix.dirname(stripHost(input))}`,
+      basename: (input: string) => path.posix.basename(stripHost(input)),
+      isAbsolute: (input: string) => input.startsWith('host:/') || path.posix.isAbsolute(input),
+      relative: (from: string, to: string) => path.posix.relative(stripHost(from), stripHost(to)),
+      contains: (parent: string, child: string) => {
+        const rel = path.posix.relative(stripHost(parent), stripHost(child));
+        return (
+          rel === '' || (rel !== '..' && !rel.startsWith('../') && !path.posix.isAbsolute(rel))
+        );
       },
     };
+    const existsAbsolute = vi.fn().mockResolvedValue(false);
+    const mkdirAbsolute = vi.fn().mockResolvedValue(undefined);
+    const files = makeFakeFilesRuntime({
+      pathApi: remotePathApi,
+      existsAbsolute,
+      mkdirAbsolute,
+      realPathAbsolute: async (absPath) => absPath,
+    });
     const remoteCtx = {
       root: '/remote/repo',
       supportsLocalSpawn: false,
@@ -106,16 +176,14 @@ describe('WorktreeService', () => {
     const svc = new WorktreeService({
       repoPath: '/remote/repo',
       ctx: remoteCtx,
-      host: remoteHost,
+      files,
       projectSettings: makeSettings(),
       resolveWorktreePoolPath: async () => '/remote/worktrees/project',
     });
 
     await expect(svc.getWorktree('emdash/task-abc')).resolves.toBeUndefined();
 
-    expect(remoteHost.existsAbsolute).toHaveBeenCalledWith(
-      'host:/remote/worktrees/project/emdash/task-abc'
-    );
+    expect(existsAbsolute).toHaveBeenCalledWith('host:/remote/worktrees/project/emdash/task-abc');
 
     const checkoutResult = await svc.checkoutBranchWorktree(
       { type: 'local', branch: 'main' },
@@ -123,10 +191,9 @@ describe('WorktreeService', () => {
     );
 
     expect(checkoutResult.success).toBe(true);
-    expect(remoteHost.mkdirAbsolute).toHaveBeenCalledWith(
-      'host-dir:/remote/worktrees/project/emdash',
-      { recursive: true }
-    );
+    expect(mkdirAbsolute).toHaveBeenCalledWith('host:/remote/worktrees/project/emdash', {
+      recursive: true,
+    });
   });
 
   describe('checkoutBranchWorktree', () => {
@@ -153,28 +220,23 @@ describe('WorktreeService', () => {
         execStreaming: async () => {},
         dispose: () => {},
       };
-      const fakeHost: WorktreeHost = {
-        pathApi: path,
-        existsAbsolute: vi.fn(async (absPath: string) => absPath === targetPath),
-        mkdirAbsolute: vi.fn(async () => {}),
-        removeAbsolute: vi.fn(async () => ({ success: false, error: 'permission denied' })),
-        realPathAbsolute: vi.fn(async (absPath: string) => absPath),
-        globAbsolute: vi.fn(async () => []),
-        readFileAbsolute: vi.fn(async () => ''),
-        copyFileAbsolute: vi.fn(async () => {}),
-        statAbsolute: vi.fn(async () => null),
-      };
+      const removeAbsolute = vi.fn(async () => err({ message: 'permission denied' }));
+      const files = makeFakeFilesRuntime({
+        existsAbsolute: async (absPath) => absPath === targetPath,
+        removeAbsolute,
+        realPathAbsolute: async (absPath) => absPath,
+      });
       const svc = new WorktreeService({
         repoPath: repoDir,
         ctx,
-        host: fakeHost,
+        files,
         projectSettings: makeSettings(),
         resolveWorktreePoolPath: async () => poolDir,
       });
 
       await expect(svc.getWorktree(branchName)).resolves.toBeUndefined();
 
-      expect(fakeHost.removeAbsolute).toHaveBeenCalledWith(targetPath, { recursive: true });
+      expect(removeAbsolute).toHaveBeenCalledWith(targetPath, { recursive: true });
     });
 
     it('creates a worktree from an existing local source branch', async () => {
@@ -232,21 +294,15 @@ describe('WorktreeService', () => {
         execStreaming: async () => {},
         dispose: () => {},
       };
-      const fakeHost: WorktreeHost = {
-        pathApi: path,
-        existsAbsolute: vi.fn(async (absPath: string) => absPath === targetPath),
-        mkdirAbsolute: vi.fn(async () => {}),
-        removeAbsolute: vi.fn(async () => ({ success: false, error: 'permission denied' })),
-        realPathAbsolute: vi.fn(async (absPath: string) => absPath),
-        globAbsolute: vi.fn(async () => []),
-        readFileAbsolute: vi.fn(async () => ''),
-        copyFileAbsolute: vi.fn(async () => {}),
-        statAbsolute: vi.fn(async () => null),
-      };
+      const files = makeFakeFilesRuntime({
+        existsAbsolute: async (absPath) => absPath === targetPath,
+        removeAbsolute: async () => err({ message: 'permission denied' }),
+        realPathAbsolute: async (absPath) => absPath,
+      });
       const svc = new WorktreeService({
         repoPath: repoDir,
         ctx,
-        host: fakeHost,
+        files,
         projectSettings: makeSettings(),
         resolveWorktreePoolPath: async () => poolDir,
       });
@@ -260,8 +316,8 @@ describe('WorktreeService', () => {
       if (result.success) throw new Error('expected failure');
       expect(result.error.type).toBe('worktree-setup-failed');
       if (result.error.type !== 'worktree-setup-failed') throw new Error('expected setup failure');
-      expect(String(result.error.cause)).toContain('Failed to remove stale worktree directory');
-      expect(String(result.error.cause)).toContain('permission denied');
+      expect(result.error.cause?.message).toContain('Failed to remove stale worktree directory');
+      expect(result.error.cause?.message).toContain('permission denied');
     });
 
     it('uses the current resolved pool path when creating a worktree', async () => {
@@ -310,23 +366,17 @@ describe('WorktreeService', () => {
         execStreaming: async () => {},
         dispose: () => {},
       };
-      const fakeHost: WorktreeHost = {
-        pathApi: path,
-        existsAbsolute: vi.fn(async (absPath: string) => {
+      const files = makeFakeFilesRuntime({
+        existsAbsolute: async (absPath) => {
           return absPath === targetPath || absPath === path.join(targetPath, '.git');
-        }),
-        mkdirAbsolute: vi.fn(async () => {}),
-        removeAbsolute: vi.fn(async () => ({ success: true })),
-        realPathAbsolute: vi.fn(async (absPath: string) => absPath),
-        globAbsolute: vi.fn(async () => []),
-        readFileAbsolute: vi.fn(async () => ''),
-        copyFileAbsolute: vi.fn(async () => {}),
-        statAbsolute: vi.fn(async () => null),
-      };
+        },
+        removeAbsolute: async () => ok(),
+        realPathAbsolute: async (absPath) => absPath,
+      });
       const svc = new WorktreeService({
         repoPath: repoDir,
         ctx,
-        host: fakeHost,
+        files,
         projectSettings: makeSettings(),
         resolveWorktreePoolPath: async () => poolDir,
       });
@@ -422,6 +472,36 @@ describe('WorktreeService', () => {
       if (!result.success) throw new Error('expected success');
       expect(fs.readFileSync(path.join(result.data, '.env'), 'utf8')).toBe('SECRET=abc');
     });
+
+    it('skips preserve patterns that can escape the source repo or target worktree', async () => {
+      fs.writeFileSync(path.join(repoDir, '.env'), 'SECRET=abc');
+      const parentSecret = path.join(path.dirname(repoDir), 'preserve-secret.txt');
+      const absoluteSecret = path.join(os.tmpdir(), `preserve-secret-${Date.now()}.txt`);
+      fs.writeFileSync(parentSecret, 'parent-secret');
+      fs.writeFileSync(absoluteSecret, 'absolute-secret');
+      await git(['branch', 'task/safe-preserve'], { cwd: repoDir });
+      const svc = makeService({
+        projectSettings: makeSettings(['.env', '../preserve-secret.txt', absoluteSecret]),
+      });
+
+      try {
+        const result = await svc.checkoutBranchWorktree(
+          { type: 'local', branch: 'main' },
+          'task/safe-preserve'
+        );
+
+        expect(result.success).toBe(true);
+        if (!result.success) throw new Error('expected success');
+        expect(fs.readFileSync(path.join(result.data, '.env'), 'utf8')).toBe('SECRET=abc');
+        expect(fs.existsSync(path.join(path.dirname(result.data), 'preserve-secret.txt'))).toBe(
+          false
+        );
+        expect(fs.existsSync(path.join(result.data, path.basename(absoluteSecret)))).toBe(false);
+      } finally {
+        fs.rmSync(parentSecret, { force: true });
+        fs.rmSync(absoluteSecret, { force: true });
+      }
+    });
   });
 
   describe('removeWorktree', () => {
@@ -435,21 +515,15 @@ describe('WorktreeService', () => {
         execStreaming: async () => {},
         dispose: () => {},
       };
-      const fakeHost: WorktreeHost = {
-        pathApi: path,
-        existsAbsolute: vi.fn(async () => false),
-        mkdirAbsolute: vi.fn(async () => {}),
-        removeAbsolute: vi.fn(async () => ({ success: false, error: 'permission denied' })),
-        realPathAbsolute: vi.fn(async (absPath: string) => absPath),
-        globAbsolute: vi.fn(async () => []),
-        readFileAbsolute: vi.fn(async () => ''),
-        copyFileAbsolute: vi.fn(async () => {}),
-        statAbsolute: vi.fn(async () => null),
-      };
+      const files = makeFakeFilesRuntime({
+        existsAbsolute: async () => false,
+        removeAbsolute: async () => err({ message: 'permission denied' }),
+        realPathAbsolute: async (absPath) => absPath,
+      });
       const svc = new WorktreeService({
         repoPath: repoDir,
         ctx,
-        host: fakeHost,
+        files,
         projectSettings: makeSettings(),
         resolveWorktreePoolPath: async () => poolDir,
       });

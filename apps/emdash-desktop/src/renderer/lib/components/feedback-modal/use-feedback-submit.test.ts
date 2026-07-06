@@ -9,12 +9,14 @@ describe('buildFeedbackContent', () => {
       contactEmail: 'person@example.com',
       githubUser: { login: 'octocat', name: 'Octo Cat' },
       appVersion: '1.2.3',
+      platformDisplayName: 'macOS 15.5 (arm64)',
     });
 
     expect(content).toContain('Great app');
     expect(content).toContain('Contact: person@example.com');
     expect(content).toContain('GitHub: Octo Cat (@octocat)');
     expect(content).toContain('Emdash Version: 1.2.3');
+    expect(content).toContain('Platform: macOS 15.5 (arm64)');
   });
 
   it('notes diagnostic logs when user opts in', () => {

@@ -1,7 +1,6 @@
-import { err, ok, type Result } from '@emdash/shared';
-import type { IDisposable } from '@emdash/shared';
+import { LifecycleMap } from '@emdash/shared';
+import { err, ok, type IDisposable, type IReleasable, type Result } from '@emdash/shared';
 import { HookCore, type Hookable } from '@main/lib/hookable';
-import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { createProvider } from './create-project-provider';
@@ -31,7 +30,9 @@ function toTeardownError(e: unknown): ProviderLifecycleError {
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
-class ProjectSessionManager implements Hookable<ProjectSessionManagerHooks>, IDisposable {
+class ProjectSessionManager
+  implements Hookable<ProjectSessionManagerHooks>, IReleasable, IDisposable
+{
   private readonly _hooks = new HookCore<ProjectSessionManagerHooks>((name, e) =>
     log.error(`ProjectManager: ${String(name)} hook error`, e)
   );
@@ -57,7 +58,8 @@ class ProjectSessionManager implements Hookable<ProjectSessionManagerHooks>, IDi
           createProvider(project),
           project.type === 'ssh' ? SSH_PROVIDER_TIMEOUT_MS : LOCAL_PROVIDER_TIMEOUT_MS
         );
-        return ok(provider);
+        if (!provider.success) return err({ type: 'error', message: provider.error.message });
+        return ok(provider.data);
       } catch (e) {
         const initError = toInitError(e);
         log.error('ProjectManager: error during project initialization', {
@@ -100,6 +102,16 @@ class ProjectSessionManager implements Hookable<ProjectSessionManagerHooks>, IDi
         });
       }
     }
+  }
+
+  async release(): Promise<void> {
+    const providers = Array.from(this._lifecycle.values());
+    const results = await Promise.allSettled(providers.map((provider) => provider.release()));
+    const failures = results.filter((result) => result.status === 'rejected');
+    for (const failure of failures) {
+      log.error('ProjectManager: failed to release', failure.reason);
+    }
+    if (failures.length > 0) throw failures[0].reason;
   }
 }
 

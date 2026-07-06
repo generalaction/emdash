@@ -6,6 +6,11 @@ import { createVariableThemeContract } from '@styles/variable-theme-contract.css
 
 // ── Runtime geometry contract ─────────────────────────────────────────────────
 
+/**
+ * Contract for the file-op card vars. `height` is set on the root by the def;
+ * `padY` is set locally by FileOpList / FileOpPreviewBody where it is consumed
+ * via `padding-block`.
+ */
 export type FileOpStyleVars = {
   height: number;
   padY: number;
@@ -45,7 +50,7 @@ export const fileOpHeader = style({
   gap: '6px',
   cursor: 'pointer',
   color: vars.fgPassive,
-  fontSize: '0.875rem',
+  fontSize: vars.typeBodyFontSize,
   userSelect: 'none',
   selectors: {
     '&:hover': { color: vars.fgMuted },
@@ -54,7 +59,7 @@ export const fileOpHeader = style({
 
 export const monoRunning = style({
   fontFamily: 'monospace',
-  fontSize: '0.875rem',
+  fontSize: vars.typeBodyFontSize,
   color: vars.fgPassive,
 });
 

@@ -1,3 +1,4 @@
+import type { ChatMentionMeta, MentionProvider } from './core/markdown/mention-provider';
 import type {
   ChatItem,
   ChatPlanEntry,
@@ -6,6 +7,7 @@ import type {
   FileOpKind,
   ResourceTarget,
   ToolStatus,
+  TranscriptTurn,
 } from './model';
 
 /** Tiny deterministic PRNG (mulberry32) so stories render identically each time. */
@@ -222,6 +224,141 @@ function heavyBodyFor(rng: () => number, i: number): string {
   return `${words(rng, 8, 20)}.\n\n${LARGE_CODE_SAMPLE}\n\n${words(rng, 10, 30)}.`;
 }
 
+// ── Context mentions + inline code (rich prose) ────────────────────────────────
+
+/**
+ * Resolved metadata for the mock @-mention tokens used by `richBodyFor`. The
+ * keys are the raw tokens (text after '@'); a `mockMentionProvider` resolves
+ * them so the perf/stress stories render real context-mention pills.
+ */
+const MENTION_META: Record<string, ChatMentionMeta> = {
+  'ChatRoot.tsx': {
+    id: 'packages/chat-ui/src/ChatRoot.tsx',
+    label: 'ChatRoot.tsx',
+    name: 'ChatRoot.tsx',
+    kind: 'file',
+  },
+  'transcript.ts': {
+    id: 'packages/chat-ui/src/state/transcript.ts',
+    label: 'transcript.ts',
+    name: 'transcript.ts',
+    kind: 'file',
+  },
+  'caches.ts': {
+    id: 'packages/chat-ui/src/core/caches.ts',
+    label: 'caches.ts',
+    name: 'caches.ts',
+    kind: 'file',
+  },
+  'issue-42': { id: '42', label: 'issue-42', name: '#42', kind: 'issue' },
+  'issue-101': { id: '101', label: 'issue-101', name: '#101', kind: 'issue' },
+  layoutBlockStack: {
+    id: 'sym:layoutBlockStack',
+    label: 'layoutBlockStack',
+    name: 'layoutBlockStack',
+    kind: 'symbol',
+  },
+  parseBlocksStreaming: {
+    id: 'sym:parseBlocksStreaming',
+    label: 'parseBlocksStreaming',
+    name: 'parseBlocksStreaming',
+    kind: 'symbol',
+  },
+};
+
+const MENTION_TOKENS = Object.keys(MENTION_META);
+
+/**
+ * Synchronous mock mention resolver for the perf/stress stories. Pass to
+ * `<ChatRoot mentionProvider={mockMentionProvider} />` so the `@token` spans
+ * produced by `richBodyFor` render as context-mention pills.
+ */
+export const mockMentionProvider: MentionProvider = {
+  resolve(token: string): ChatMentionMeta | null {
+    return MENTION_META[token] ?? null;
+  },
+};
+
+/** Inline-code snippets sprinkled into rich paragraphs. */
+const INLINE_CODE = [
+  'blockMemo',
+  'parseBlocks()',
+  'virt.setSize',
+  'measureEpoch',
+  'createMemo',
+  'unwrap()',
+  'content-visibility',
+];
+
+/** Inline markdown links sprinkled into rich paragraphs. */
+const LINKS = [
+  '[the docs](https://emdash.dev/docs)',
+  '[issue tracker](https://github.com/emdash/emdash/issues)',
+  '[pretext](https://github.com/chenglou/pretext)',
+  '[the streaming RFC](https://emdash.dev/rfc/streaming)',
+  '[benchmark results](https://emdash.dev/perf)',
+];
+
+/**
+ * A lorem paragraph with an inline-code span, a context mention, and an inline
+ * link spliced in at pseudo-random positions, ending in a period. Exercises the
+ * mixed inline-run layout path (text + code chip + mention pill + link) under
+ * pretext measurement.
+ */
+function richParagraph(rng: () => number, min: number, max: number): string {
+  const toks = words(rng, min, max).split(' ');
+  toks.splice(Math.floor(rng() * (toks.length + 1)), 0, '`' + pick(rng, INLINE_CODE) + '`');
+  toks.splice(Math.floor(rng() * (toks.length + 1)), 0, '@' + pick(rng, MENTION_TOKENS));
+  toks.splice(Math.floor(rng() * (toks.length + 1)), 0, pick(rng, LINKS));
+  return toks.join(' ') + '.';
+}
+
+/**
+ * Full-spec markdown document used by the large stress stories (500k / 1M):
+ * every heading level (h1–h4), paragraphs with inline code + context mentions +
+ * links, unordered (with nesting) and ordered lists, a blockquote, a fenced code
+ * block, and a GFM table. Small/large code and table variants alternate by index
+ * so block heights vary. Bodies are interned into a fixed pool by
+ * `generateMockTranscript` so huge counts stay memory-bounded.
+ */
+function richBodyFor(rng: () => number, i: number): string {
+  const large = i % 2 === 0;
+  const parts: string[] = [
+    `# ${words(rng, 3, 6)}`,
+    '',
+    richParagraph(rng, 90, 160),
+    '',
+    `## ${words(rng, 3, 5)}`,
+    '',
+    richParagraph(rng, 70, 130),
+    '',
+    `- ${richParagraph(rng, 6, 14)}`,
+    `- ${richParagraph(rng, 6, 14)}`,
+    `  - ${richParagraph(rng, 5, 10)}`,
+    `  - ${richParagraph(rng, 5, 10)}`,
+    `- ${richParagraph(rng, 6, 14)}`,
+    '',
+    `### ${words(rng, 2, 4)}`,
+    '',
+    `1. ${richParagraph(rng, 6, 14)}`,
+    `2. ${richParagraph(rng, 6, 14)}`,
+    `3. ${richParagraph(rng, 6, 14)}`,
+    '',
+    `> ${richParagraph(rng, 20, 50)}`,
+    '',
+    `#### ${words(rng, 2, 4)}`,
+    '',
+    large ? LARGE_CODE_SAMPLE : CODE_SAMPLE,
+    '',
+    richParagraph(rng, 40, 90),
+    '',
+    large ? LARGE_TABLE_SAMPLE : TABLE_SAMPLE,
+    '',
+    richParagraph(rng, 70, 130),
+  ];
+  return parts.join('\n');
+}
+
 /** Thinking text — multi-paragraph reasoning block. */
 function thinkingText(rng: () => number): string {
   return [
@@ -351,11 +488,26 @@ const RESOURCE_LINK_NAMES = [
  *   14 plan (task list with mixed statuses and priorities)
  *   15 resource-link (workspace-file / external / opaque)
  */
-export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
+export function generateMockTranscript(
+  count = 6000,
+  seed = 1,
+  opts: { richProse?: boolean; bodyPoolSize?: number } = {}
+): TranscriptTurn[] {
   const rng = makeRng(seed);
   const items: ChatItem[] = [];
 
   const CYCLE = 16;
+
+  // For very large counts, intern a fixed pool of long heading/mention/inline-code
+  // rich bodies and share string references across assistant rows. This keeps a
+  // 1M-item transcript memory-bounded (1M unique multi-KB strings would OOM).
+  const richPool = opts.richProse
+    ? Array.from({ length: opts.bodyPoolSize ?? 640 }, (_, k) =>
+        richBodyFor(makeRng(seed + 1 + k), k)
+      )
+    : null;
+  const assistantBody = (idx: number, phase: number, fallback: () => string): string =>
+    richPool ? richPool[(idx + phase) % richPool.length] : fallback();
 
   for (let i = 0; i < count; i++) {
     const slot = i % CYCLE;
@@ -394,7 +546,7 @@ export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
         kind: 'message',
         id: `msg-${i}`,
         role: 'assistant' as ChatRole,
-        text: bodyFor(rng, i),
+        text: assistantBody(i, 0, () => bodyFor(rng, i)),
       });
     } else if (slot === 4) {
       // ── execute done (occasional error, ~20% no duration) ─────────────────
@@ -464,7 +616,7 @@ export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
         kind: 'message',
         id: `msg-${i}`,
         role: 'assistant' as ChatRole,
-        text: bodyFor(rng, i + 3),
+        text: assistantBody(i, 7, () => bodyFor(rng, i + 3)),
       });
     } else if (slot === 10) {
       // ── file-op delete or move ────────────────────────────────────────────
@@ -501,7 +653,7 @@ export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
         kind: 'message',
         id: `msg-${i}`,
         role: 'assistant' as ChatRole,
-        text: heavyBodyFor(rng, i),
+        text: assistantBody(i, 13, () => heavyBodyFor(rng, i)),
       });
     } else if (slot === 14) {
       // ── plan (task list with mixed statuses and priorities) ───────────────
@@ -534,5 +686,11 @@ export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
     }
   }
 
-  return items;
+  return items.map((item, index) => ({
+    id: `mock-turn-${index}`,
+    seq: index,
+    initiator: item.kind === 'message' && item.role === 'user' ? 'user' : 'agent',
+    items: [{ ...item, seq: 0 } as TranscriptTurn['items'][number]],
+    outcome: { kind: 'done' },
+  }));
 }

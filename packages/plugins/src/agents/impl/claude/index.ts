@@ -1,11 +1,22 @@
+import { createRequire } from 'node:module';
+import { Readable, Writable } from 'node:stream';
+import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   homebrewOption,
   passthroughMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
+import { enrichClaudeUpdate } from './acp-transform';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
+import { buildClaudeTrustBehavior } from './trust';
+
+const _require = createRequire(import.meta.url);
+
+function resolveClaudeAcpEntry(): string {
+  return _require.resolve('@agentclientprotocol/claude-agent-acp/dist/index.js');
+}
 
 export const plugin = definePlugin(
   {
@@ -16,8 +27,32 @@ export const plugin = definePlugin(
     websiteUrl: 'https://code.claude.com/docs/en/quickstart',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
+    },
+    models: {
+      kind: 'selectable',
+      modelOptions: {
+        'claude-fable-5': {
+          name: 'Claude Fable 5',
+          modelFeatures: { intelligence: 4, speed: 3 },
+        },
+        'claude-opus-4-8': {
+          name: 'Claude Opus 4.8',
+          modelFeatures: { intelligence: 5, speed: 2 },
+        },
+        'claude-sonnet-5': {
+          name: 'Claude Sonnet 5',
+          modelFeatures: { intelligence: 4, speed: 4 },
+        },
+        'claude-haiku-4-5': {
+          name: 'Claude Haiku 4.5',
+          modelFeatures: { intelligence: 3, speed: 5 },
+        },
+      },
     },
     hooks: {
       kind: 'config',
@@ -80,11 +115,35 @@ export const plugin = definePlugin(
     sessions: {
       kind: 'resumable',
     },
+    trust: {
+      kind: 'supported',
+    },
   },
   { icon }
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: {
+    buildSpawn: (ctx) => ({
+      // Run the adapter as plain Node inside the Electron binary.
+      command: process.execPath,
+      args: [resolveClaudeAcpEntry()],
+      env: {
+        ELECTRON_RUN_AS_NODE: '1',
+        // Point the adapter's Claude Agent SDK at the host-installed claude
+        // binary instead of the SDK's auto-downloaded native binary.
+        CLAUDE_CODE_EXECUTABLE: ctx.cli,
+      },
+    }),
+    connect: (io, toClient) => {
+      const stream = ndJsonStream(
+        Writable.toWeb(io.stdin) as WritableStream<Uint8Array>,
+        Readable.toWeb(io.stdout) as unknown as ReadableStream<Uint8Array>
+      );
+      return new ClientSideConnection((agent) => toClient(agent as never), stream);
+    },
+    enrich: enrichClaudeUpdate,
+  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
@@ -92,8 +151,10 @@ export const provider = registerPluginBehavior(plugin, {
         initialPromptFlag: '',
         resumeFlag: '--resume',
         sessionIdFlag: '--session-id',
+        modelFlag: '--model',
       }),
   },
   hooks: buildClaudeHookConfig(),
   mcp: passthroughMcpAdapter('.claude.json'),
+  trust: buildClaudeTrustBehavior(),
 });

@@ -55,6 +55,7 @@ export async function deleteTask(
 
   await db.delete(tasks).where(eq(tasks.id, taskId));
   void viewStateService.del(`task:${taskId}`);
+  void viewStateService.del(`task:${taskId}:tabs`);
   telemetryService.capture('task_deleted', { project_id: projectId, task_id: taskId });
 
   if (project && deleteWorktree && wsRow) {

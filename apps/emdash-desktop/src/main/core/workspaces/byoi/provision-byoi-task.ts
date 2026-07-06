@@ -83,7 +83,7 @@ export async function provisionBYOITask(
   const workspaceType: WorkspaceType = { kind: 'ssh', proxy, connectionId };
   const workspaceMachine: MachineRef = { kind: 'ssh', connectionId };
 
-  const workspace = await workspaceRegistry.acquire(
+  const acquired = await workspaceRegistry.acquire(
     workspaceId,
     projectId,
     createWorkspaceFactory(workspaceId, workspaceType, {
@@ -126,24 +126,27 @@ export async function provisionBYOITask(
     });
     const { taskProvider } = await buildTaskFromWorkspace(
       task,
-      workspace,
+      acquired.workspace,
       workspaceType,
       projectId,
       projectPath,
-      settings
+      settings,
+      undefined,
+      undefined,
+      acquired.sshFilesRuntime
     );
     log.debug(`${logPrefix}: provisionBYOITask DONE`, { taskId: task.id });
     provisionSucceeded = true;
     return {
       path: workDir,
-      workspaceId: workspace.id,
+      workspaceId: acquired.workspace.id,
       sshConnectionId: connectionId,
       taskProvider,
       workspaceProviderData: { ...wpConfig, remoteWorkspaceId: output.id },
     };
   } finally {
     if (!provisionSucceeded) {
-      await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
+      await workspaceRegistry.teardown(acquired.workspace.id, 'terminate').catch(() => {});
     }
   }
 }

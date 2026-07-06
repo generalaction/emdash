@@ -59,6 +59,19 @@ export type InlineBreak = { kind: 'break' };
 
 export type InlineRun = InlineText | InlineCode | InlineMention | InlineBreak;
 
+/**
+ * The text shown inside a rendered mention pill.
+ *
+ * Slash-command chips (`tone: 'command'`) keep their `/`-prefixed `label` so they
+ * read as commands and stay visually distinct from file/issue/symbol mentions
+ * (whose `name` is a bare basename). All other mentions prefer the short `name`,
+ * falling back to `label`.
+ */
+export function mentionDisplayText(mention: InlineMention): string {
+  if (mention.tone === 'command') return mention.label;
+  return mention.name ?? mention.label;
+}
+
 // ── Block types ───────────────────────────────────────────────────────────────
 
 /** Stable ID format: `${messageId}#${blockIndex}` */
@@ -112,4 +125,15 @@ export type RuleBlock = {
   id: BlockId;
 };
 
-export type Block = ProseBlock | CodeBlock | TableBlock | RuleBlock;
+/**
+ * A fenced Mermaid diagram (` ```mermaid `).
+ * Rendered as a clickable 21:9 SVG preview via beautiful-mermaid.
+ */
+export type MermaidBlock = {
+  kind: 'mermaid';
+  id: BlockId;
+  /** Raw Mermaid source text. */
+  source: string;
+};
+
+export type Block = ProseBlock | CodeBlock | TableBlock | RuleBlock | MermaidBlock;

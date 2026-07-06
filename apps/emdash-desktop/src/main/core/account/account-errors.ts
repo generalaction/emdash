@@ -1,3 +1,5 @@
+import type { SerializedError } from '@emdash/shared/result';
+
 export type AccountInitializeError = AccountSessionPersistenceError;
 
 export type AccountSessionReadError = AccountSessionPersistenceError;
@@ -30,7 +32,7 @@ export type AccountLinkStartError =
 export type AccountSessionPersistenceError = {
   type: 'session_persistence_failed';
   message: string;
-  cause?: unknown;
+  cause?: SerializedError;
 };
 
 export type AccountNotSignedInError = {
@@ -53,26 +55,26 @@ export type AccountAuthServerError = {
   type: 'auth_server_error';
   status?: number;
   message: string;
-  cause?: unknown;
+  cause?: SerializedError;
 };
 
 export type AccountInvalidAuthResponseError = {
   type: 'invalid_auth_response';
   message: string;
-  cause?: unknown;
+  cause?: SerializedError;
 };
 
 export type AccountOAuthError = {
   type: 'oauth_failed';
   message: string;
-  cause?: unknown;
+  cause?: SerializedError;
 };
 
 export type AccountProviderTokenPersistenceError = {
   type: 'provider_token_persistence_failed';
   provider?: string;
   message: string;
-  cause?: unknown;
+  cause?: SerializedError;
 };
 
 export const SESSION_EXPIRED_MESSAGE =

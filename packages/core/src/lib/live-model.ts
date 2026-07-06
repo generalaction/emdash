@@ -30,6 +30,8 @@ export type LiveModelOptions<T, E = unknown> = {
   isEqual?: (a: T, b: T) => boolean;
   /** Receives errors returned by background recomputes. */
   onError?: (error: E) => void;
+  /** Receives unexpected errors thrown by background recomputes. */
+  onUnexpectedError?: (error: unknown) => void;
 };
 
 /**
@@ -199,15 +201,18 @@ export class LiveModel<T, E = unknown> implements IDisposable {
   }
 
   private scheduleBackground(): void {
-    void this.schedule()
-      .then((result) => {
+    void this.schedule().then(
+      (result) => {
         if (!result.success) this.options.onError?.(result.error);
-      })
-      .catch((error) => {
-        queueMicrotask(() => {
-          throw error;
-        });
-      });
+      },
+      (error: unknown) => {
+        if (this.options.onUnexpectedError) {
+          this.options.onUnexpectedError(error);
+          return;
+        }
+        console.error('LiveModel background recompute threw unexpectedly', error);
+      }
+    );
   }
 
   private armRevalidate(): void {

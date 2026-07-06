@@ -43,7 +43,7 @@ export const Running: Story = {
           startedAt: Date.now() - 3000,
         },
       ]}
-      height={80}
+      height={120}
     />
   ),
 };
@@ -52,7 +52,7 @@ export const Running: Story = {
 export const RunningStreamed: Story = {
   render: () => (
     <ScriptedChat
-      height={120}
+      height={160}
       script={scenario(
         [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'Run the build' }])],
         streamExecute({ id: 'ex-stream', command: 'pnpm run build', durationMs: 1200 })
@@ -74,7 +74,7 @@ export const Done: Story = {
           durationMs: 5000,
         },
       ]}
-      height={80}
+      height={120}
     />
   ),
 };
@@ -92,7 +92,7 @@ export const DoneNoDuration: Story = {
           startedAt: 0,
         },
       ]}
-      height={80}
+      height={120}
     />
   ),
 };
@@ -110,7 +110,84 @@ export const Error: Story = {
           durationMs: 8000,
         },
       ]}
-      height={80}
+      height={120}
+    />
+  ),
+};
+
+/** Long single-line command — demos horizontal scroll inside the body. */
+export const LongCommand: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'execute',
+          id: 'ex5',
+          command: 'find . -type f -name "*.ts" | xargs grep -l "import.*from.*solid-js"',
+          status: 'done',
+          startedAt: Date.now() - 2000,
+          durationMs: 2000,
+        },
+      ]}
+      height={120}
+    />
+  ),
+};
+
+/**
+ * Multi-line command — exercises:
+ *  - Collapsed cap (3 lines with fade overlay).
+ *  - Click to expand (up to expandedMaxLines = 16, then scrollable).
+ *  - Bash syntax highlighting across multiple statements.
+ */
+export const MultiLineCommand: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'execute',
+          id: 'ex-multi',
+          command: [
+            'git fetch origin',
+            'git checkout -b feature/my-branch',
+            'pnpm install',
+            'pnpm run build --filter=@emdash/chat-ui',
+            'pnpm run typecheck',
+            'pnpm run lint',
+            'pnpm run test',
+            'echo "All checks passed"',
+          ].join('\n'),
+          status: 'done',
+          startedAt: Date.now() - 12000,
+          durationMs: 12000,
+        },
+      ]}
+      height={300}
+    />
+  ),
+};
+
+/**
+ * Many lines — exceeds expandedMaxLines (16). Expanding shows a scrollable area
+ * capped at 16 lines; the card height stays deterministic.
+ */
+export const ManyLines: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'execute',
+          id: 'ex-many',
+          command: Array.from(
+            { length: 24 },
+            (_, i) => `echo "Step ${i + 1}: processing item ${i + 1} of 24"`
+          ).join('\n'),
+          status: 'done',
+          startedAt: Date.now() - 5000,
+          durationMs: 5000,
+        },
+      ]}
+      height={500}
     />
   ),
 };
@@ -128,26 +205,7 @@ export const RequestingPermission: Story = {
           startedAt: Date.now() - 1200,
         },
       ]}
-      height={120}
-    />
-  ),
-};
-
-/** Long command — demos 150px truncation with full value on hover. */
-export const LongCommand: Story = {
-  render: () => (
-    <ChatHost
-      items={[
-        {
-          kind: 'execute',
-          id: 'ex5',
-          command: 'find . -type f -name "*.ts" | xargs grep -l "import.*from.*solid-js"',
-          status: 'done',
-          startedAt: Date.now() - 2000,
-          durationMs: 2000,
-        },
-      ]}
-      height={80}
+      height={160}
     />
   ),
 };

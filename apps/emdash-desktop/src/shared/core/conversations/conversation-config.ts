@@ -1,22 +1,52 @@
 import z from 'zod';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 
-const DROID_SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export function isDroidProviderSessionId(value: string): boolean {
-  return DROID_SESSION_ID_PATTERN.test(value);
-}
-
 const conversationConfigV0Schema = z.object({
   autoApprove: z.boolean().optional(),
-  /** Provider-native session id (e.g. Droid UUID) for resuming the correct chat. */
+  /** @deprecated Moved to conversations.session_id column; stripped on upgrade to v1. */
   providerSessionId: z.string().optional(),
-  /** Initial prompt to deliver on the first spawn; cleared from config after the session starts. */
   initialPrompt: z.string().optional(),
+  /** Model to pass to the agent CLI (e.g. 'claude-sonnet-5', 'o4-mini'). Empty string or absent = CLI default. */
+  model: z.string().optional(),
+});
+
+const ptyConfigV1 = z.object({
+  version: z.literal('1'),
+  type: z.literal('pty'),
+  autoApprove: z.boolean().optional(),
+  /** Initial prompt to deliver on first spawn (delivered once, gated on sessionId === null). */
+  initialPrompt: z.string().optional(),
+  /** Model to pass to the agent CLI. Empty string or absent = CLI default. */
+  model: z.string().optional(),
+});
+
+const acpConfigV1 = z.object({
+  version: z.literal('1'),
+  type: z.literal('acp'),
+  autoApprove: z.boolean().optional(),
+  /** Initial prompt to deliver on first spawn (delivered once, gated on sessionId === null). */
+  initialPrompt: z.string().optional(),
+  /** Model to pass to the agent CLI. Empty string or absent = CLI default. */
+  model: z.string().optional(),
 });
 
 export const conversationConfig = defineVersionedSchema()
   .unversioned(conversationConfigV0Schema)
+  .version(
+    '1',
+    z.discriminatedUnion('type', [ptyConfigV1, acpConfigV1]),
+    (v0) =>
+      ({
+        version: '1' as const,
+        type: 'pty' as const,
+        autoApprove: v0.autoApprove,
+        initialPrompt: v0.initialPrompt,
+        model: v0.model,
+        // providerSessionId is intentionally dropped; it now lives in conversations.session_id
+      }) satisfies z.infer<typeof ptyConfigV1>
+  )
   .build();
 
 export type ConversationConfig = typeof conversationConfig.Type;
+export type ConversationConfigPty = z.infer<typeof ptyConfigV1>;
+export type ConversationConfigAcp = z.infer<typeof acpConfigV1>;

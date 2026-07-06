@@ -1,5 +1,6 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
+import { match } from 'ts-pattern';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import {
   getProjectManagerStore,
@@ -45,60 +46,71 @@ import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 
 function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: boolean }): string {
-  switch (error.type) {
-    case 'project-not-found':
-      return 'Project not found.';
-    case 'initial-commit-required':
-      return 'Create an initial commit to enable branch-based tasks.';
-    case 'branch-create-failed': {
-      switch (error.error.type) {
+  return match(error)
+    .with({ type: 'project-not-found' }, () => 'Project not found.')
+    .with(
+      { type: 'initial-commit-required' },
+      () => 'Create an initial commit to enable branch-based tasks.'
+    )
+    .with({ type: 'branch-create-failed' }, (e) => {
+      switch (e.error.type) {
         case 'already_exists':
-          return `Branch "${error.error.branch}" already exists. Try a different task name.`;
+          return `Branch "${e.error.branch}" already exists. Try a different task name.`;
         case 'fetch_failed':
-          return `Could not update "${error.error.remote}/${error.error.branch}" before creating the task: ${formatFetchErrorDetail(error.error.error, opts)}`;
+          return `Could not update "${e.error.remote}/${e.error.branch}" before creating the task: ${formatFetchErrorDetail(e.error.error, opts)}`;
         case 'invalid_base':
-          return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
+          return `Source branch "${e.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
-          return `Branch "${error.error.branch}" is not a valid branch name.`;
+          return `Branch "${e.error.branch}" is not a valid branch name.`;
         default:
-          return `Could not create branch "${error.branch}": ${error.error.message}`;
+          return `Could not create branch "${e.branch}": ${e.error.message}`;
       }
-    }
-    case 'pr-fetch-failed':
-      return error.error.type === 'not_found'
-        ? `PR #${error.error.prNumber} was not found on remote "${error.remote}".`
-        : `Could not fetch the pull request branch: ${error.error.message}`;
-    case 'branch-not-found':
-      return `Branch "${error.branch}" was not found locally or on the remote. Make sure the PR branch exists.`;
-    case 'worktree-setup-failed':
-      return error.message
-        ? `Could not set up the worktree for branch "${error.branch}": ${error.message}`
-        : `Could not set up the worktree for branch "${error.branch}".`;
-    case 'provision-failed':
-      return error.message;
-    case 'provision-timeout':
-      return `Provisioning timed out after ${error.timeoutMs}ms.`;
-  }
+    })
+    .with({ type: 'pr-fetch-failed' }, (e) =>
+      e.error.type === 'not_found'
+        ? `PR #${e.error.prNumber} was not found on remote "${e.remote}".`
+        : `Could not fetch the pull request branch: ${e.error.message}`
+    )
+    .with(
+      { type: 'branch-not-found' },
+      (e) =>
+        `Branch "${e.branch}" was not found locally or on the remote. Make sure the PR branch exists.`
+    )
+    .with({ type: 'worktree-setup-failed' }, (e) =>
+      e.message
+        ? `Could not set up the worktree for branch "${e.branch}": ${e.message}`
+        : `Could not set up the worktree for branch "${e.branch}".`
+    )
+    .with({ type: 'provision-failed' }, (e) => e.message)
+    .with({ type: 'provision-timeout' }, (e) => `Provisioning timed out after ${e.timeoutMs}ms.`)
+    .exhaustive();
 }
 
 function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
-  switch (error.type) {
-    case 'no-intent':
-      return 'Workspace has no intent and no resolved path — cannot provision.';
-    case 'missing-workspace':
-      return 'This task does not have a workspace record and cannot be opened.';
-    case 'setup-failed':
-      return `Setup step '${error.stepKind}' failed (${error.stepErrorType})${error.message ? `: ${error.message}` : ''}.`;
-  }
+  return match(error)
+    .with(
+      { type: 'no-intent' },
+      () => 'Workspace has no intent and no resolved path — cannot provision.'
+    )
+    .with(
+      { type: 'missing-workspace' },
+      () => 'This task does not have a workspace record and cannot be opened.'
+    )
+    .with(
+      { type: 'setup-failed' },
+      (e) =>
+        `Setup step '${e.stepKind}' failed (${e.stepErrorType})${e.message ? `: ${e.message}` : ''}.`
+    )
+    .exhaustive();
 }
 
 function formatCreateTaskWarning(warning: CreateTaskWarning): string {
-  switch (warning.type) {
-    case 'branch-publish-failed': {
-      const detail = formatPushErrorDetail(warning.error);
-      return `Failed to publish branch "${warning.branch}" to "${warning.remote}": ${detail}`;
-    }
-  }
+  return match(warning)
+    .with({ type: 'branch-publish-failed' }, (w) => {
+      const detail = formatPushErrorDetail(w.error);
+      return `Failed to publish branch "${w.branch}" to "${w.remote}": ${detail}`;
+    })
+    .exhaustive();
 }
 
 export class TaskManagerStore {
@@ -341,7 +353,9 @@ export class TaskManagerStore {
           title: ic.title ?? '',
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
+          model: ic.model,
           isInitialConversation: true,
+          type: ic.type ?? 'pty',
         };
         const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [
           optimistic,
@@ -466,16 +480,13 @@ export class TaskManagerStore {
       if (current && isUnprovisioned(current)) {
         conversationRegistry.acquire(taskId, this.projectId);
         terminalRegistry.acquire(taskId, this.projectId);
-        current.ensureRegisteredStores();
-        if (savedSnapshot && current.viewModel) {
-          current.viewModel.restoreSnapshot(savedSnapshot);
-        }
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           result.data.path,
           result.data.workspaceId,
           this._repository,
-          result.data.sshConnectionId ?? undefined
+          result.data.sshConnectionId ?? undefined,
+          savedSnapshot
         );
         current.activate();
       }
@@ -496,16 +507,13 @@ export class TaskManagerStore {
       if (current && isUnprovisioned(current)) {
         conversationRegistry.acquire(taskId, this.projectId);
         terminalRegistry.acquire(taskId, this.projectId);
-        current.ensureRegisteredStores();
-        if (savedSnapshot && current.viewModel) {
-          current.viewModel.restoreSnapshot(savedSnapshot);
-        }
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           path,
           workspaceId,
           this._repository,
-          sshConnectionId
+          sshConnectionId,
+          savedSnapshot
         );
         current.activate();
       }

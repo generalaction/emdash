@@ -1,14 +1,15 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import { conversationTabKind, useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 import {
   useConversations,
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -22,7 +23,9 @@ import { MicroLabel } from '@renderer/lib/ui/label';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
+import { getAcpChatResourceManager } from '../acp/acp-chat-resource-manager';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
+import { ConversationAgentIcon } from './conversation-agent-icon';
 
 const ROW_HEIGHT = 32;
 
@@ -33,9 +36,8 @@ const ConversationRow = observer(function ConversationRow({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
-  const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
-  const { tabManager, tabGroupManager } = taskView;
+  const { projectId, taskId } = useTaskViewContext();
   const showConfirm = useShowModal('confirmActionModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
@@ -49,9 +51,11 @@ const ConversationRow = observer(function ConversationRow({
   }, []);
 
   const conversation = conversations.conversations.get(conversationId);
-  if (!conversation) return null;
 
-  const isActive = tabManager.activeConversationId === conversationId;
+  const tabKind = conversationTabKind(conversation?.data.type);
+  const { isActive, open: openConversation } = useTabSelection(tabKind, conversationId);
+
+  if (!conversation) return null;
   const displayTitle = formatConversationTitleForDisplay(
     conversation.data.providerId,
     conversation.data.title
@@ -74,8 +78,7 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   const handleDoubleClick = () => {
-    tabGroupManager.openConversation(conversationId);
-    handleRename();
+    openConversation({ conversationId }, { preview: false });
   };
 
   const handleDelete = () => {
@@ -90,18 +93,31 @@ const ConversationRow = observer(function ConversationRow({
     });
   };
 
+  const handleExport = (kind: 'parsed' | 'raw') => {
+    const store = getAcpChatResourceManager(taskId, projectId).get(conversationId);
+    if (!store) {
+      toast({
+        title: 'Failed to export transcript',
+        description: 'Open the chat before exporting it.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    store.exportTranscript(kind);
+  };
+
   return (
     <ContextMenu>
       <ContextMenuTrigger>
         <div
           role="button"
           tabIndex={0}
-          onClick={() => tabGroupManager.openConversationPreview(conversationId)}
+          onClick={() => openConversation({ conversationId }, { preview: true })}
           onDoubleClick={handleDoubleClick}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              tabGroupManager.openConversationPreview(conversationId);
+              openConversation({ conversationId }, { preview: true });
             }
           }}
           className={cn(
@@ -109,7 +125,12 @@ const ConversationRow = observer(function ConversationRow({
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
-          <AgentIcon id={conversation.data.providerId} size={16} className="size-4" />
+          <ConversationAgentIcon
+            providerId={conversation.data.providerId}
+            isAcp={conversation.data.type === 'acp'}
+            size={16}
+            className="size-4"
+          />
           {isEditing ? (
             <input
               ref={handleRenameInputRef}
@@ -149,6 +170,19 @@ const ConversationRow = observer(function ConversationRow({
           <Pencil className="size-4" />
           Rename
         </ContextMenuItem>
+        {conversation.data.type === 'acp' && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => handleExport('parsed')}>
+              <Download className="size-4" />
+              Export transcript
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => handleExport('raw')}>
+              <Download className="size-4" />
+              Export raw ACP log
+            </ContextMenuItem>
+          </>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onClick={handleDelete}>
           <Trash2 className="size-4" />
@@ -163,7 +197,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   const { projectId, taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
-  const { tabGroupManager } = taskView;
+  const { paneLayout } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
   const conversationIds = Array.from(conversations.conversations.values())
     .sort((a, b) => {
@@ -186,8 +220,12 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     showCreateConversationModal({
       projectId,
       taskId,
-      onSuccess: ({ conversationId }) => {
-        tabGroupManager.openConversation(conversationId);
+      onSuccess: ({ conversationId, type }) => {
+        if (type === 'acp') {
+          paneLayout.open('acp-chat', { conversationId }, { preview: false });
+        } else {
+          paneLayout.open('conversation', { conversationId }, { preview: false });
+        }
       },
     });
   };

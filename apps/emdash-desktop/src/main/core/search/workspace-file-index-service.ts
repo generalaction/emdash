@@ -1,239 +1,315 @@
-import { basename } from 'node:path';
-import { fsEvents } from '@main/core/fs/fs-events';
-import type { Workspace } from '@main/core/workspaces/workspace';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
-import { sqlite } from '@main/db/client';
+import {
+  type FileChange,
+  type FileChangeUpdate,
+  type FileEnumerationOptions,
+  type FileError,
+} from '@emdash/core/files';
+import type { Result } from '@emdash/shared';
 import { log } from '@main/lib/logger';
+import { collectWithBudget } from './collect-with-budget';
+import { createSearchIndexExclusion } from './search-index-exclusions';
+import {
+  WorkspaceFileIndexStore,
+  type FileHit,
+  type IWorkspaceFileIndexStore,
+} from './workspace-file-index-store';
 
 const STALE_DAYS = 14;
-const MAX_FILES = 50_000;
-const CRAWL_TIMEOUT_MS = 30_000;
-const REINDEX_DEBOUNCE_MS = 3_000;
+const DEFAULT_MAX_FILES = 50_000;
+const DEFAULT_REINDEX_TIMEOUT_MS = 30_000;
+const DEFAULT_REINDEX_DEBOUNCE_MS = 3_000;
 
-const CRAWL_IGNORED_DIRS = new Set([
-  'node_modules',
-  '.git',
-  '.svn',
-  '.hg',
-  'dist',
-  'build',
-  '.next',
-  '.nuxt',
-  'coverage',
-  '.cache',
-  '.parcel-cache',
-  '__pycache__',
-  '.pytest_cache',
-  'venv',
-  '.venv',
-  'target',
-  '.terraform',
-  '.serverless',
-  'worktrees',
-  '.emdash',
-  '.conductor',
-  '.cursor',
-  '.claude',
-  '.amp',
-  '.codex',
-  '.aider',
-  '.continue',
-  '.cody',
-  '.windsurf',
-]);
+export type WorkspaceFileEnumerator = (
+  rootPath: string,
+  options?: FileEnumerationOptions
+) => Result<AsyncIterable<string>, FileError>;
 
-type FileHit = { path: string; filename: string };
+export type WorkspaceFileIndexSource = {
+  rootPath: string;
+  enumerate: WorkspaceFileEnumerator;
+};
 
-class WorkspaceFileIndexService {
-  private crawling = new Set<string>();
+export type WorkspaceFileIndexServiceOptions = {
+  store?: IWorkspaceFileIndexStore;
+  maxFiles?: number;
+  reindexTimeoutMs?: number;
+  reindexDebounceMs?: number;
+  now?: () => number;
+};
+
+export class WorkspaceFileIndexService {
+  private readonly store: IWorkspaceFileIndexStore;
+  private reindexing = new Set<string>();
+  private pendingReindex = new Set<string>();
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private activeSources = new Map<string, WorkspaceFileIndexSource>();
 
-  initialize(): void {
-    this.evictStale();
-
-    fsEvents.on('watch:event', ({ workspaceId }) => {
-      this.scheduleReindex(workspaceId);
-    });
+  constructor(private readonly options: WorkspaceFileIndexServiceOptions = {}) {
+    this.store = options.store ?? new WorkspaceFileIndexStore();
   }
 
-  async onWorkspaceCreated(workspaceId: string, workspace: Workspace): Promise<void> {
-    const alreadyIndexed = sqlite
-      .prepare(`SELECT 1 FROM workspace_file_index_meta WHERE workspace_id = ?`)
-      .get(workspaceId);
+  initialize(): void {
+    this.store.evict(STALE_DAYS);
+  }
 
-    if (alreadyIndexed) {
-      this.touchMeta(workspaceId);
+  onWorkspaceFileChange(workspaceId: string, update: FileChangeUpdate): void {
+    if (update.kind === 'resync') {
+      this.scheduleReindex(workspaceId);
+      return;
+    }
+    if (update.changes.length === 0) return;
+
+    const meta = this.store.getMeta(workspaceId);
+    if (this.reindexing.has(workspaceId) || !meta) {
+      this.scheduleReindex(workspaceId);
+      return;
+    }
+    if (meta.status === 'stale') {
+      this.scheduleReindex(workspaceId);
+      return;
+    }
+    if (meta.status === 'truncated') return;
+
+    this.applyChanges(workspaceId, update.changes);
+  }
+
+  async onWorkspaceActivated(workspaceId: string, source: WorkspaceFileIndexSource): Promise<void> {
+    this.activeSources.set(workspaceId, source);
+    const meta = this.store.getMeta(workspaceId);
+
+    if (meta && meta.rootPath !== source.rootPath) {
+      this.store.deleteIndex(workspaceId);
+      await this.reindex(workspaceId);
       return;
     }
 
-    await this.crawl(workspaceId, workspace);
+    if (meta?.status === 'complete') {
+      this.store.refreshMetaTimestamp(workspaceId);
+      return;
+    }
+
+    await this.reindex(workspaceId);
   }
 
-  onWorkspaceDestroyed(_workspaceId: string): void {
-    // Intentionally a no-op: the index ages out 14 days after the last provision.
-    // Calling touchMeta here would reset the staleness clock on every destroy,
-    // preventing eviction of stale entries for frequently-cycled workspaces.
+  onWorkspaceDeactivated(workspaceId: string): void {
+    // Do not touch meta here: that would reset the staleness clock on every destroy
+    // and prevent eviction of stale entries for frequently-cycled workspaces.
+    this.activeSources.delete(workspaceId);
+    this.pendingReindex.delete(workspaceId);
+    this.clearDebounceTimer(workspaceId);
   }
 
   deleteIndex(workspaceId: string): void {
-    try {
-      sqlite.transaction(() => {
-        sqlite.prepare(`DELETE FROM workspace_file_index WHERE workspace_id = ?`).run(workspaceId);
-        sqlite
-          .prepare(`DELETE FROM workspace_file_index_meta WHERE workspace_id = ?`)
-          .run(workspaceId);
-      })();
-      log.info('WorkspaceFileIndexService: deleted index', { workspaceId });
-    } catch (e) {
-      log.warn('WorkspaceFileIndexService: deleteIndex failed', { workspaceId, error: String(e) });
-    }
+    this.store.deleteIndex(workspaceId);
+  }
+
+  searchFiles(workspaceId: string, query: string, limit = 20): FileHit[] {
+    return this.store.searchFiles(workspaceId, query, limit);
   }
 
   search(workspaceId: string, query: string): FileHit[] {
-    const terms = query
-      .trim()
-      .split(/[\s\-_/]+/)
-      .filter((t) => t.length >= 3);
+    return this.store.search(workspaceId, query);
+  }
 
-    if (terms.length === 0) return [];
+  private async reindex(workspaceId: string): Promise<void> {
+    if (this.reindexing.has(workspaceId)) {
+      this.pendingReindex.add(workspaceId);
+      return;
+    }
 
-    const ftsQuery = terms.map((t) => `"${t}"`).join(' AND ');
+    this.reindexing.add(workspaceId);
+
     try {
-      return sqlite
-        .prepare(
-          `SELECT path, filename
-           FROM workspace_file_index
-           WHERE workspace_file_index MATCH ?
-             AND workspace_id = ?
-           ORDER BY bm25(workspace_file_index, 1.0, 2.0)
-           LIMIT 20`
-        )
-        .all(ftsQuery, workspaceId) as FileHit[];
+      do {
+        this.pendingReindex.delete(workspaceId);
+        const source = this.activeSources.get(workspaceId);
+        if (!source) return;
+
+        const exclude = createSearchIndexExclusion(source.rootPath);
+        const enumeration = source.enumerate(source.rootPath, { exclude });
+        if (!enumeration.success) {
+          log.warn('WorkspaceFileIndexService: enumerate failed to start', {
+            workspaceId,
+            error: enumeration.error,
+          });
+          return;
+        }
+
+        const result = await collectWithBudget(filterExcluded(enumeration.data, exclude), {
+          maxFiles: this.maxFiles,
+          timeoutMs: this.reindexTimeoutMs,
+          now: this.options.now,
+        });
+        if (this.activeSources.get(workspaceId) !== source) return;
+
+        this.store.transaction(() => {
+          this.store.syncRows(workspaceId, result.paths);
+          this.store.recordMeta(workspaceId, {
+            rootPath: source.rootPath,
+            status: result.truncated ? 'truncated' : 'complete',
+            fileCount: result.paths.length,
+            truncateReason: result.truncateReason ?? null,
+          });
+        });
+
+        const logPayload = {
+          workspaceId,
+          count: result.paths.length,
+          truncated: result.truncated,
+          truncateReason: result.truncateReason,
+        };
+        if (result.truncated) {
+          log.warn('WorkspaceFileIndexService: indexed partial workspace', logPayload);
+        } else {
+          log.info('WorkspaceFileIndexService: indexed workspace', logPayload);
+        }
+      } while (this.pendingReindex.has(workspaceId));
     } catch (e) {
-      log.warn('WorkspaceFileIndexService: search failed', { workspaceId, error: String(e) });
-      return [];
+      log.warn('WorkspaceFileIndexService: reindex failed', { workspaceId, error: String(e) });
+    } finally {
+      this.reindexing.delete(workspaceId);
     }
   }
 
-  private async crawl(workspaceId: string, workspace: Workspace): Promise<void> {
-    if (this.crawling.has(workspaceId)) return;
-    this.crawling.add(workspaceId);
-
+  private applyChanges(workspaceId: string, changes: FileChange[]): void {
+    let needsReindex = false;
+    const rootPath = this.metaRootPath(workspaceId);
+    const exclude = createSearchIndexExclusion(rootPath);
     try {
-      const result = await workspace.fs.list('', {
-        recursive: true,
-        maxEntries: MAX_FILES,
-        timeBudgetMs: CRAWL_TIMEOUT_MS,
+      this.store.transaction(() => {
+        let indexedFileCount = this.store.countIndexedFiles(workspaceId);
+        let needsCountRefresh = false;
+        const creates: string[] = [];
+
+        for (const change of changes) {
+          if (exclude(change.path)) continue;
+
+          if (change.kind === 'delete') {
+            if (change.entryType === 'file') {
+              if (this.store.deletePath(workspaceId, change.path)) {
+                indexedFileCount = Math.max(0, indexedFileCount - 1);
+              }
+            } else {
+              this.store.deleteSubtree(workspaceId, change.path);
+              needsCountRefresh = true;
+            }
+            continue;
+          }
+
+          if (change.entryType === 'directory') {
+            needsReindex = true;
+            continue;
+          }
+
+          if (change.entryType === 'symlink') {
+            needsReindex = true;
+            continue;
+          }
+
+          if (change.kind === 'create') {
+            creates.push(change.path);
+          }
+        }
+
+        if (needsCountRefresh) {
+          indexedFileCount = this.store.countIndexedFiles(workspaceId);
+        }
+
+        for (const path of creates) {
+          if (indexedFileCount >= this.maxFiles) {
+            needsReindex = true;
+            continue;
+          }
+
+          const added = this.store.insertPath(workspaceId, path);
+          if (added) indexedFileCount += 1;
+        }
       });
 
-      const files = result.entries.filter(
-        (e) => e.type === 'file' && !e.path.split('/').some((seg) => CRAWL_IGNORED_DIRS.has(seg))
-      );
+      if (needsReindex) {
+        this.markStale(workspaceId);
+        this.scheduleReindex(workspaceId);
+        return;
+      }
 
-      sqlite.transaction(() => {
-        sqlite.prepare(`DELETE FROM workspace_file_index WHERE workspace_id = ?`).run(workspaceId);
-        const stmt = sqlite.prepare(
-          `INSERT INTO workspace_file_index(workspace_id, path, filename) VALUES (?, ?, ?)`
-        );
-        for (const f of files) {
-          stmt.run(workspaceId, f.path, basename(f.path));
-        }
-      })();
-
-      this.touchMeta(workspaceId);
-      log.info('WorkspaceFileIndexService: indexed workspace', {
-        workspaceId,
-        count: files.length,
-        truncated: result.truncated ?? false,
+      this.store.recordMeta(workspaceId, {
+        rootPath: this.metaRootPath(workspaceId),
+        status: 'complete',
+        fileCount: this.store.countIndexedFiles(workspaceId),
+        truncateReason: null,
       });
     } catch (e) {
-      log.warn('WorkspaceFileIndexService: crawl failed', { workspaceId, error: String(e) });
-    } finally {
-      this.crawling.delete(workspaceId);
+      log.warn('WorkspaceFileIndexService: incremental update failed', {
+        workspaceId,
+        error: String(e),
+      });
+      this.markStale(workspaceId);
+      this.scheduleReindex(workspaceId);
     }
   }
 
   private scheduleReindex(workspaceId: string): void {
-    const existing = this.debounceTimers.get(workspaceId);
-    if (existing) clearTimeout(existing);
+    if (!this.activeSources.has(workspaceId)) return;
+    this.clearDebounceTimer(workspaceId);
 
     this.debounceTimers.set(
       workspaceId,
       setTimeout(() => {
         this.debounceTimers.delete(workspaceId);
-        const ws = workspaceRegistry.get(workspaceId);
-        if (ws) void this.crawl(workspaceId, ws);
-      }, REINDEX_DEBOUNCE_MS)
+        void this.reindex(workspaceId);
+      }, this.reindexDebounceMs)
     );
   }
 
-  private touchMeta(workspaceId: string): void {
+  private clearDebounceTimer(workspaceId: string): void {
+    const timer = this.debounceTimers.get(workspaceId);
+    if (timer) clearTimeout(timer);
+    this.debounceTimers.delete(workspaceId);
+  }
+
+  private markStale(workspaceId: string): void {
     try {
-      sqlite
-        .prepare(
-          `INSERT OR REPLACE INTO workspace_file_index_meta (workspace_id, indexed_at)
-           VALUES (?, unixepoch())`
-        )
-        .run(workspaceId);
+      this.store.recordMeta(workspaceId, {
+        rootPath: this.metaRootPath(workspaceId),
+        status: 'stale',
+        fileCount: this.store.countIndexedFiles(workspaceId),
+        truncateReason: null,
+      });
     } catch (e) {
-      log.warn('WorkspaceFileIndexService: touchMeta failed', { workspaceId, error: String(e) });
+      log.warn('WorkspaceFileIndexService: markStale failed', { workspaceId, error: String(e) });
     }
   }
 
-  private evictStale(): void {
-    try {
-      const cutoff = Math.floor(Date.now() / 1000) - STALE_DAYS * 86400;
-      const stale = sqlite
-        .prepare(`SELECT workspace_id FROM workspace_file_index_meta WHERE indexed_at < ?`)
-        .all(cutoff) as Array<{ workspace_id: string }>;
+  private get maxFiles(): number {
+    return this.options.maxFiles ?? DEFAULT_MAX_FILES;
+  }
 
-      if (stale.length > 0) {
-        sqlite.transaction(() => {
-          const delIndex = sqlite.prepare(
-            `DELETE FROM workspace_file_index WHERE workspace_id = ?`
-          );
-          const delMeta = sqlite.prepare(
-            `DELETE FROM workspace_file_index_meta WHERE workspace_id = ?`
-          );
-          for (const row of stale) {
-            delIndex.run(row.workspace_id);
-            delMeta.run(row.workspace_id);
-          }
-        })();
-        log.info('WorkspaceFileIndexService: evicted stale indexes', { count: stale.length });
-      }
-    } catch (e) {
-      log.warn('WorkspaceFileIndexService: evictStale failed', { error: String(e) });
-    }
+  private get reindexTimeoutMs(): number {
+    return this.options.reindexTimeoutMs ?? DEFAULT_REINDEX_TIMEOUT_MS;
+  }
 
-    try {
-      const orphans = sqlite
-        .prepare(
-          `SELECT m.workspace_id
-           FROM workspace_file_index_meta m
-           LEFT JOIN workspaces w ON w.id = m.workspace_id
-           WHERE w.id IS NULL`
-        )
-        .all() as Array<{ workspace_id: string }>;
+  private get reindexDebounceMs(): number {
+    return this.options.reindexDebounceMs ?? DEFAULT_REINDEX_DEBOUNCE_MS;
+  }
 
-      if (orphans.length === 0) return;
-
-      sqlite.transaction(() => {
-        const delIndex = sqlite.prepare(`DELETE FROM workspace_file_index WHERE workspace_id = ?`);
-        const delMeta = sqlite.prepare(
-          `DELETE FROM workspace_file_index_meta WHERE workspace_id = ?`
-        );
-        for (const row of orphans) {
-          delIndex.run(row.workspace_id);
-          delMeta.run(row.workspace_id);
-        }
-      })();
-
-      log.info('WorkspaceFileIndexService: evicted orphan indexes', { count: orphans.length });
-    } catch (e) {
-      log.warn('WorkspaceFileIndexService: evictOrphans failed', { error: String(e) });
-    }
+  private metaRootPath(workspaceId: string): string {
+    return (
+      this.activeSources.get(workspaceId)?.rootPath ??
+      this.store.getMeta(workspaceId)?.rootPath ??
+      ''
+    );
   }
 }
 
-export const workspaceFileIndexService = new WorkspaceFileIndexService();
+async function* filterExcluded(
+  paths: AsyncIterable<string>,
+  exclude: (absPath: string) => boolean
+): AsyncIterable<string> {
+  for await (const path of paths) {
+    if (!exclude(path)) yield path;
+  }
+}
+
+export const workspaceFileIndexService = new WorkspaceFileIndexService({
+  store: new WorkspaceFileIndexStore(),
+});

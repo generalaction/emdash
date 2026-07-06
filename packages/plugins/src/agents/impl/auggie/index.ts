@@ -1,5 +1,6 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
+import { buildAuggieHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -11,6 +12,11 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.augmentcode.com/cli/overview',
   },
   {
+    hooks: {
+      kind: 'config',
+      scope: 'workspace',
+      supportedEvents: ['notification', 'stop', 'session', 'start'],
+    },
     hostDependency: npmDependency({ id: 'auggie', package: '@augmentcode/auggie' }),
     prompt: {
       kind: 'argv',
@@ -29,7 +35,11 @@ export const provider = registerPluginBehavior(plugin, {
       buildStandardCommand(ctx, {
         defaultArgs: ['--allow-indexing'],
         initialPromptFlag: '',
-        resumeFlag: '--continue',
+        resumeFlag: '--resume',
+        sessionIdFlag: '--resume',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '--continue',
       }),
   },
+  hooks: buildAuggieHookConfig(),
 });

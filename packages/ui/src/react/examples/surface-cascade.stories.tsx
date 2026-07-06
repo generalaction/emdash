@@ -1,21 +1,24 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AlertCircleIcon, AlertTriangleIcon, InfoIcon } from 'lucide-react';
-import React, { useState } from 'react';
-import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_STATUSES } from '../../theme/core/contract/roles';
-import type { SurfaceScopeName, SurfaceStatusName } from '../../theme/core/contract/roles';
-import { Button } from '../primitives/button';
-import { Callout } from '../primitives/callout';
-import { Input } from '../primitives/input';
+import { cx } from '@styles/utilities/cx';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../primitives/select';
-import { Surface } from '../primitives/surface';
+  SURFACE_LEVELS,
+  SURFACE_ROLES,
+  SURFACE_SCOPES,
+  SURFACE_STATUSES,
+} from '@theme/core/contract/roles';
+import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
+import { AlertCircleIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon } from 'lucide-react';
+import React, { useState } from 'react';
+import { Alert } from '../primitives/alert';
+import { Box } from '../primitives/box';
+import { Button } from '../primitives/button';
+import { Input } from '../primitives/input';
+import { Select } from '../primitives/select';
+import { Surface } from '../primitives/surface/surface';
 import { ThemeProvider } from '../primitives/theme-provider';
 import { Toggle } from '../primitives/toggle';
+import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Examples/Surface Cascade',
@@ -25,68 +28,87 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-// ── Swatch helpers ────────────────────────────────────────────────────────────
-
 /** Base / hover / selected swatches for a given direct-elevation CSS var prefix. */
 function ElevationSwatch({ level, label }: { level: string; label: string }) {
   const isEmphasis = level.includes('emphasis');
   return (
-    <div className="flex flex-col gap-1.5">
-      <p className="font-mono text-[10px] font-medium text-foreground">{label}</p>
-      <div
-        className="h-10 w-full rounded border border-border"
-        style={{ background: `var(--surface-${level})` }}
+    <Box display="flex" flexDirection="column" gap="1.5">
+      <p
+        className={cx(
+          sx({ fontFamily: 'mono', color: 'foreground', fontWeight: 'medium' }),
+          s.text10px
+        )}
+      >
+        {label}
+      </p>
+      <Box
+        className={s.h10}
+        width="full"
+        rounded="sm"
+        borderWidth="1"
+        borderStyle="solid"
+        borderColor="border"
+        style={{ background: `var(--em-surface-${level})` }}
         title={`--surface-${level}`}
       />
-      <div
-        className="h-6 w-full rounded"
-        style={{ background: `var(--surface-${level}-hover)` }}
+      <Box
+        className={s.h6}
+        width="full"
+        rounded="sm"
+        style={{ background: `var(--em-surface-${level}-hover)` }}
         title={`--surface-${level}-hover`}
       />
-      <div
-        className="h-6 w-full rounded"
+      <Box
+        className={s.h6}
+        width="full"
+        rounded="sm"
         style={{
-          background: `var(--surface-${level}-selected)`,
-          boxShadow: isEmphasis ? 'inset 0 0 0 1px var(--border-primary)' : undefined,
+          background: `var(--em-surface-${level}-selected)`,
+          boxShadow: isEmphasis ? 'inset 0 0 0 1px var(--em-border-primary)' : undefined,
         }}
         title={`--surface-${level}-selected`}
       />
-    </div>
+    </Box>
   );
 }
 
-// ── Components rendered on a surface card ─────────────────────────────────────
-
 function SurfaceCard({ level }: { level: SurfaceScopeName }) {
   return (
-    <Surface
-      level={level}
-      className="bg-surface flex flex-col gap-3 rounded-lg border border-border p-4"
+    <Box
+      surface={level}
+      display="flex"
+      flexDirection="column"
+      gap="3"
+      rounded="lg"
+      borderWidth="1"
+      borderStyle="solid"
+      borderColor="border"
+      padding="4"
     >
-      <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
+      <p className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundMuted' }))}>
+        .surface-{level}
+      </p>
       <Input placeholder="Search…" />
-      <div className="flex gap-2">
+      <Box display="flex" gap="2">
         <Button variant="ghost" size="base">
           Ghost
         </Button>
         <Button variant="primary" size="base">
           Primary
         </Button>
-      </div>
-      <Select>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Pick one…" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="a">Option A</SelectItem>
-          <SelectItem value="b">Option B</SelectItem>
-        </SelectContent>
-      </Select>
-    </Surface>
+      </Box>
+      <Select.Root>
+        <Select.Trigger className={cx(sx({ width: 'full' }))}>
+          <Select.Value placeholder="Pick one…" />
+        </Select.Trigger>
+        <Select.Content>
+          <Select.Item value="a">Option A</Select.Item>
+          <Select.Item value="b">Option B</Select.Item>
+        </Select.Content>
+      </Select.Root>
+    </Box>
   );
 }
-
-// ── Tabs helper ───────────────────────────────────────────────────────────────
 
 function SurfaceTabs({ level }: { level: SurfaceScopeName }) {
   const [active, setActive] = useState('first');
@@ -96,158 +118,228 @@ function SurfaceTabs({ level }: { level: SurfaceScopeName }) {
     { id: 'third', label: 'Third' },
   ];
   return (
-    <Surface level={level} className="flex flex-col gap-0 rounded-lg border border-border">
-      <div className="bg-surface flex items-center gap-1 border-b border-border px-1 pt-1">
+    <Surface
+      level={level}
+      className={cx(
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0',
+          rounded: 'lg',
+          borderWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+        })
+      )}
+    >
+      <Box
+        background="surface"
+        display="flex"
+        alignItems="center"
+        gap="1"
+        borderBottomWidth="1"
+        borderStyle="solid"
+        borderColor="border"
+        px="1"
+        paddingTop="1"
+      >
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             data-active={active === tab.id ? 'true' : undefined}
             onClick={() => setActive(tab.id)}
-            className="hover:bg-surface-hover data-[active=true]:bg-surface-selected inline-flex h-7 items-center gap-1.5 rounded-md border border-transparent px-2.5 text-sm text-foreground-muted transition-all hover:text-foreground data-[active=true]:text-foreground"
+            className={s.storyTabButton}
           >
             {tab.label}
           </button>
         ))}
-      </div>
-      <Surface emphasis className="bg-surface rounded-b-lg p-4">
-        <p className="text-sm text-foreground-muted">
-          Content for <strong className="text-foreground">{active}</strong> tab on{' '}
-          <code className="font-mono text-xs">.surface-{level}</code>
+      </Box>
+      <Box surface="emphasis" roundedBottom="lg" padding="4">
+        <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>
+          Content for <strong className={cx(sx({ color: 'foreground' }))}>{active}</strong> tab on{' '}
+          <code className={cx(sx({ fontFamily: 'mono', fontSize: 'xs' }))}>.surface-{level}</code>
         </p>
-      </Surface>
+      </Box>
     </Surface>
   );
 }
 
-// ── Button row on a surface ───────────────────────────────────────────────────
-
 function SurfaceButtons({ level }: { level: SurfaceScopeName }) {
   return (
-    <Surface level={level} className="flex flex-col gap-2 rounded-lg border border-border p-4">
-      <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
-      <div className="flex flex-wrap gap-2">
+    <Surface
+      level={level}
+      className={cx(
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2',
+          rounded: 'lg',
+          borderWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+          padding: '4',
+        })
+      )}
+    >
+      <p className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundMuted' }))}>
+        .surface-{level}
+      </p>
+      <Box display="flex" flexWrap="wrap" gap="2">
         <Button variant="ghost">Ghost</Button>
         <Button variant="ghost" tone="destructive">
           Destructive
         </Button>
+        <Button variant="ghost" tone="warning">
+          Warning
+        </Button>
+        <Button variant="ghost" tone="info">
+          Info
+        </Button>
+        <Button variant="ghost" tone="success">
+          Success
+        </Button>
+      </Box>
+      <Box display="flex" flexWrap="wrap" gap="2">
         <Button variant="primary">Primary</Button>
         <Button variant="primary" tone="destructive">
           Primary Destructive
         </Button>
-      </div>
+      </Box>
     </Surface>
   );
 }
 
-// ── Stories ───────────────────────────────────────────────────────────────────
-
 /** One swatch per elevation step (base / hover / selected). */
 export const Ladder: Story = {
   render: () => (
-    <div className="space-y-4 p-6">
-      <p className="text-sm text-foreground-muted">
+    <Box className={s.spaceY4} padding="6">
+      <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>
         Swatches: base → hover → selected for each elevation.
       </p>
-      <div className="grid grid-cols-5 gap-4">
+      <Box display="grid" className={s.cols5} gap="4">
         {SURFACE_LEVELS.map((level) => (
           <ElevationSwatch key={level} level={level} label={level} />
         ))}
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };
 
 /** Cascade proof: surface-emphasis card on each surface. */
 export const Cascade: Story = {
   render: () => (
-    <div className="grid grid-cols-3 gap-4 p-6">
+    <Box display="grid" className={s.cols3} gap="4" padding="6">
       {(['sunken', 'base', 'elevated'] as const).map((level) => (
-        <Surface
+        <Box
           key={level}
-          level={level}
-          className="bg-surface flex flex-col gap-3 rounded-xl p-4"
+          surface={level}
+          display="flex"
+          flexDirection="column"
+          gap="3"
+          rounded="xl"
+          padding="4"
         >
-          <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
-          <Surface emphasis className="bg-surface rounded-lg p-3">
-            <p className="text-xs text-foreground-muted">.surface-emphasis (card)</p>
-            <p className="mt-1 text-sm text-foreground">Card content adapts automatically.</p>
-          </Surface>
-        </Surface>
+          <p className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundMuted' }))}>
+            .surface-{level}
+          </p>
+          <Box surface="emphasis" rounded="lg" padding="3">
+            <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
+              .surface-emphasis (card)
+            </p>
+            <p className={cx(sx({ marginTop: '1', fontSize: 'sm', color: 'foreground' }))}>
+              Card content adapts automatically.
+            </p>
+          </Box>
+        </Box>
       ))}
-    </div>
+    </Box>
   ),
 };
 
 /** Components (Input, Button, Select) on every surface level. */
 export const ComponentsOnAllSurfaces: Story = {
   render: () => (
-    <div className="grid grid-cols-2 gap-4 p-6 lg:grid-cols-3">
+    <Box display="grid" gap="4" padding="6" className={cx(s.cols2, s.lgCols3)}>
       {SURFACE_LEVELS.map((level) => (
         <SurfaceCard key={level} level={level} />
       ))}
-    </div>
+    </Box>
   ),
 };
 
 /** Tab strips demonstrating hover and selected states on each surface. */
 export const Tabs: Story = {
   render: () => (
-    <div className="grid grid-cols-1 gap-4 p-6 lg:grid-cols-2">
+    <Box display="grid" gap="4" padding="6" className={cx(s.cols1, s.lgCols2)}>
       {SURFACE_LEVELS.map((level) => (
         <SurfaceTabs key={level} level={level} />
       ))}
-    </div>
+    </Box>
   ),
 };
 
 /** Buttons demonstrating hover, selected, and destructive across every surface. */
 export const Buttons: Story = {
   render: () => (
-    <div className="grid grid-cols-1 gap-4 p-6 lg:grid-cols-2">
+    <Box display="grid" gap="4" padding="6" className={cx(s.cols1, s.lgCols2)}>
       {SURFACE_LEVELS.map((level) => (
         <SurfaceButtons key={level} level={level} />
       ))}
-    </div>
+    </Box>
   ),
 };
-
-// ── Status surfaces ────────────────────────────────────────────────────────────
 
 const STATUS_ICON: Record<SurfaceStatusName, React.ReactNode> = {
   info: <InfoIcon />,
   warning: <AlertTriangleIcon />,
   destructive: <AlertCircleIcon />,
+  success: <CheckCircle2Icon />,
 };
 
 const STATUS_LABEL: Record<SurfaceStatusName, string> = {
   info: 'Info',
   warning: 'Warning',
   destructive: 'Destructive',
+  success: 'Success',
 };
 
 const STATUS_MESSAGE: Record<SurfaceStatusName, string> = {
   info: 'This is an informational message. Ghost controls inside adapt to the tinted surface.',
   warning: 'Something needs your attention. Controls inherit the tinted hover/selected states.',
   destructive: 'This action cannot be undone. All controls respond to the destructive surface.',
+  success: 'Operation completed successfully. Controls inherit the tinted hover/selected states.',
 };
 
 function StatusRoom({ status }: { status: SurfaceStatusName }) {
   const [pressed, setPressed] = useState(false);
   return (
-    <div className="flex flex-col gap-3">
-      <Callout status={status} icon={STATUS_ICON[status]}>
+    <Box display="flex" flexDirection="column" gap="3">
+      <Alert.Root status={status} icon={STATUS_ICON[status]}>
         <strong>{STATUS_LABEL[status]}:</strong> {STATUS_MESSAGE[status]}
-      </Callout>
-      <Surface
-        status={status}
-        className="bg-surface flex items-center gap-2 rounded-lg border p-3"
-        style={{ borderColor: `var(--surface-${status}-border)` }}
+      </Alert.Root>
+      <Box
+        surface={status}
+        display="flex"
+        alignItems="center"
+        gap="2"
+        rounded="lg"
+        borderWidth="1"
+        borderStyle="solid"
+        padding="3"
+        style={{ borderColor: `var(--em-surface-${status}-border)` }}
       >
-        <span className="flex-1 text-sm" style={{ color: `var(--surface-${status}-foreground)` }}>
+        <span
+          className={cx(sx({ flex: '1', fontSize: 'sm' }))}
+          style={{ color: `var(--em-surface-${status}-foreground)` }}
+        >
           Controls inside a status surface
         </span>
-        <Toggle pressed={pressed} onPressedChange={setPressed} className="shrink-0">
+        <Toggle
+          pressed={pressed}
+          onPressedChange={setPressed}
+          className={cx(sx({ flexShrink: 0 }))}
+        >
           {pressed ? 'Active' : 'Toggle'}
         </Toggle>
         <Button variant="ghost" tone="neutral">
@@ -256,8 +348,8 @@ function StatusRoom({ status }: { status: SurfaceStatusName }) {
         <Button variant="ghost" tone="destructive">
           Delete
         </Button>
-      </Surface>
-    </div>
+      </Box>
+    </Box>
   );
 }
 
@@ -268,130 +360,260 @@ function StatusRoom({ status }: { status: SurfaceStatusName }) {
  */
 export const StatusSurfaces: Story = {
   render: () => (
-    <div className="grid grid-cols-1 gap-6 p-6">
-      <div>
-        <p className="mb-1 text-sm font-semibold text-foreground">
+    <Box display="grid" className={s.cols1} gap="6" padding="6">
+      <Box>
+        <p
+          className={cx(
+            sx({ marginBottom: '1', fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' })
+          )}
+        >
           Status surfaces — tinted rooms using the cascade
         </p>
-        <p className="text-xs text-foreground-muted">
-          Each status box rebinds <code className="font-mono">--surface-hover</code> and{' '}
-          <code className="font-mono">--surface-selected</code> so any ghost Button / Toggle inside
-          already hovers/selects with the correct tint.
+        <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
+          Each status box rebinds{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>--surface-hover</code> and{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>--surface-selected</code> so any ghost
+          Button / Toggle inside already hovers/selects with the correct tint.
         </p>
-      </div>
+      </Box>
       {SURFACE_STATUSES.map((status) => (
         <StatusRoom key={status} status={status} />
       ))}
-      <div>
-        <p className="mb-3 text-sm font-medium text-foreground-muted">
+      <Box>
+        <p
+          className={cx(
+            sx({
+              marginBottom: '3',
+              fontSize: 'sm',
+              fontWeight: 'medium',
+              color: 'foregroundMuted',
+            })
+          )}
+        >
           Swatches — base / hover / selected per status
         </p>
-        <div className="grid grid-cols-3 gap-4">
+        <Box display="grid" className={s.cols3} gap="4">
           {SURFACE_STATUSES.map((status) => (
-            <div key={status} className="flex flex-col gap-1.5">
-              <p className="font-mono text-[10px] font-medium text-foreground">{status}</p>
-              <div
-                className="h-10 w-full rounded border"
+            <Box key={status} display="flex" flexDirection="column" gap="1.5">
+              <p
+                className={cx(
+                  sx({ fontFamily: 'mono', color: 'foreground', fontWeight: 'medium' }),
+                  s.text10px
+                )}
+              >
+                {status}
+              </p>
+              <Box
+                className={s.h10}
+                width="full"
+                rounded="sm"
+                borderWidth="1"
+                borderStyle="solid"
                 style={{
-                  background: `var(--surface-${status})`,
-                  borderColor: `var(--surface-${status}-border)`,
+                  background: `var(--em-surface-${status})`,
+                  borderColor: `var(--em-surface-${status}-border)`,
                 }}
                 title={`--surface-${status}`}
               />
-              <div
-                className="h-6 w-full rounded"
-                style={{ background: `var(--surface-${status}-hover)` }}
+              <Box
+                className={s.h6}
+                width="full"
+                rounded="sm"
+                style={{ background: `var(--em-surface-${status}-hover)` }}
                 title={`--surface-${status}-hover`}
               />
-              <div
-                className="h-6 w-full rounded"
-                style={{ background: `var(--surface-${status}-selected)` }}
+              <Box
+                className={s.h6}
+                width="full"
+                rounded="sm"
+                style={{ background: `var(--em-surface-${status}-selected)` }}
                 title={`--surface-${status}-selected`}
               />
-            </div>
+            </Box>
           ))}
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   ),
 };
 
-// ── Paper role ─────────────────────────────────────────────────────────────────
-
-/** Renders the paper role's swatch + a tab strip that uses paper as its canvas. */
 function PaperRoom() {
   return (
-    <div className="space-y-6 bg-background p-6">
-      <div>
-        <p className="text-sm font-semibold text-foreground">
+    <Box background="background" padding="6" className={s.spaceY6}>
+      <Box>
+        <p className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
           Paper — primary content / tab background
         </p>
-        <p className="mt-1 max-w-prose text-xs text-foreground-muted">
-          White-ish in light mode (matches <code className="font-mono">elevated</code>) and flat
-          with <code className="font-mono">base</code> in dark mode. Use it for the surface tabbed
-          content sits on. Cards/tabs on paper use <code className="font-mono">base-emphasis</code>.
+        <p
+          className={cx(
+            sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }),
+            s.maxWProse
+          )}
+        >
+          White-ish in light mode (matches{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>elevated</code>) and flat with{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>base</code> in dark mode. Use it for the
+          surface tabbed content sits on. Cards/tabs on paper use{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>base-emphasis</code>.
         </p>
-      </div>
+      </Box>
       <div style={{ display: 'grid', gridTemplateColumns: '12rem 1fr', gap: '1.5rem' }}>
-        <div className="flex flex-col gap-4">
+        <Box display="flex" flexDirection="column" gap="4">
           {SURFACE_ROLES.map((role) => (
             <ElevationSwatch key={role} level={role} label={role} />
           ))}
-        </div>
+        </Box>
         <SurfaceTabs level="paper" />
       </div>
-    </div>
+    </Box>
   );
 }
 
 /**
  * The `paper` surface role. Because it is white in light but base-gray in dark,
- * it is best understood side-by-side — the tab content reads as a white sheet in
- * light mode and disappears into the base canvas in dark mode.
+ * it is best understood side-by-side.
  */
 export const Paper: Story = {
   render: () => (
-    <div className="flex min-h-screen divide-x divide-border">
-      <ThemeProvider theme="light" className="flex-1">
+    <Box display="flex" className={s.minHScreen}>
+      <ThemeProvider theme="light" className={cx(sx({ flex: '1' }))}>
         <PaperRoom />
       </ThemeProvider>
-      <ThemeProvider theme="dark" className="flex-1">
+      <ThemeProvider theme="dark" className={cx(sx({ flex: '1' }))}>
         <PaperRoom />
       </ThemeProvider>
-    </div>
+    </Box>
+  ),
+};
+
+/**
+ * Status × Elevation matrix.
+ *
+ * Each cell renders a status room on a given elevation scope so you can
+ * visually verify that the generated per-level tints track the canvas lightness
+ * correctly. In dark mode each row should get progressively lighter left-to-right;
+ * in light mode they should get slightly darker. The x1.0 track_delta is the
+ * baseline — tune the shift multiplier in resolve.ts if rooms wash out.
+ */
+export const StatusLevelMatrix: Story = {
+  render: () => (
+    <Box display="flex" className={s.minHScreen}>
+      {(['light', 'dark'] as const).map((theme) => (
+        <ThemeProvider key={theme} theme={theme} className={cx(sx({ flex: '1', padding: '4' }))}>
+          <Box background="background" padding="4" className={s.spaceY4}>
+            <p
+              className={cx(
+                sx({
+                  fontSize: 'sm',
+                  fontWeight: 'semibold',
+                  color: 'foreground',
+                  marginBottom: '3',
+                })
+              )}
+            >
+              {theme} — status × elevation
+            </p>
+            {SURFACE_STATUSES.map((status) => (
+              <Box key={status} className={s.spaceY4}>
+                <p
+                  className={cx(
+                    sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundMuted' })
+                  )}
+                >
+                  {status}
+                </p>
+                <Box
+                  display="grid"
+                  gap="2"
+                  style={{
+                    gridTemplateColumns: `repeat(${SURFACE_SCOPES.length}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {SURFACE_SCOPES.map((scope) => {
+                    const tokenBase =
+                      scope === 'base' ? `--surface-${status}` : `--surface-${status}-${scope}`;
+                    return (
+                      <Box key={scope} display="flex" flexDirection="column" gap="1.5">
+                        <p className={cx(sx({ fontFamily: 'mono' }), s.text10px)}>{scope}</p>
+                        <Box
+                          className={s.h10}
+                          width="full"
+                          rounded="sm"
+                          borderWidth="1"
+                          borderStyle="solid"
+                          style={{
+                            background: `var(${tokenBase})`,
+                            borderColor: `var(${tokenBase}-border)`,
+                          }}
+                          title={tokenBase}
+                        />
+                        <Box
+                          className={s.h6}
+                          width="full"
+                          rounded="sm"
+                          style={{ background: `var(${tokenBase}-hover)` }}
+                          title={`${tokenBase}-hover`}
+                        />
+                        <Box
+                          className={s.h6}
+                          width="full"
+                          rounded="sm"
+                          style={{ background: `var(${tokenBase}-selected)` }}
+                          title={`${tokenBase}-selected`}
+                        />
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </ThemeProvider>
+      ))}
+    </Box>
   ),
 };
 
 /** Light and dark modes side-by-side. */
 export const BothModes: Story = {
   render: () => (
-    <div className="flex min-h-screen divide-x divide-border">
-      <ThemeProvider defaultTheme="light" className="flex-1 space-y-6 bg-background p-6">
-        <p className="text-sm font-medium text-foreground">Light mode</p>
-        <div className="grid grid-cols-3 gap-3">
+    <Box display="flex" className={cx(s.minHScreen, s.divideX, s.divideBorder)}>
+      <ThemeProvider
+        defaultTheme="light"
+        className={cx(sx({ flex: '1', background: 'background', padding: '6' }), s.spaceY6)}
+      >
+        <p className={cx(sx({ fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>
+          Light mode
+        </p>
+        <Box display="grid" className={s.cols3} gap="4">
           {SURFACE_LEVELS.map((level) => (
             <ElevationSwatch key={level} level={level} label={level} />
           ))}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+        </Box>
+        <Box display="grid" className={s.cols2} gap="3">
           {SURFACE_LEVELS.map((level) => (
             <SurfaceCard key={level} level={level} />
           ))}
-        </div>
+        </Box>
       </ThemeProvider>
-      <ThemeProvider defaultTheme="dark" className="flex-1 space-y-6 bg-background p-6">
-        <p className="text-sm font-medium text-foreground">Dark mode</p>
-        <div className="grid grid-cols-3 gap-3">
+      <ThemeProvider
+        defaultTheme="dark"
+        className={cx(sx({ flex: '1', background: 'background', padding: '6' }), s.spaceY6)}
+      >
+        <p className={cx(sx({ fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>
+          Dark mode
+        </p>
+        <Box display="grid" className={s.cols3} gap="4">
           {SURFACE_LEVELS.map((level) => (
             <ElevationSwatch key={level} level={level} label={level} />
           ))}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+        </Box>
+        <Box display="grid" className={s.cols2} gap="3">
           {SURFACE_LEVELS.map((level) => (
             <SurfaceCard key={level} level={level} />
           ))}
-        </div>
+        </Box>
       </ThemeProvider>
-    </div>
+    </Box>
   ),
 };

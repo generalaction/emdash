@@ -1,46 +1,57 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
+import { SCALE_NAMES, STEPS } from '@theme/core/contract/roles';
 import React, { useEffect, useRef, useState } from 'react';
-import { SCALE_NAMES, STEPS } from '../../theme/core/contract/roles';
+import { Box } from '../primitives/box';
 import { ThemeProvider } from '../primitives/theme-provider';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
+import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 type ScaleName = (typeof SCALE_NAMES)[number];
-
-// ── Swatch components ─────────────────────────────────────────────────────────
 
 function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
   const varName = `--${scale}-${step}`;
   const ref = useRef<HTMLDivElement>(null);
   const [resolved, setResolved] = useState('');
 
-  // Intentionally omit deps: re-read on every render so the value updates
-  // when the toolbar switches theme (no infinite loop — setState is skipped when
-  // the string is the same reference).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ref.current) {
       const val = getComputedStyle(ref.current).backgroundColor;
-      if (val !== resolved) setResolved(val);
+      setResolved((prev) => (val !== prev ? val : prev));
     }
-  });
+  }, []);
 
   const isStep9 = step === 9;
 
   return (
-    <div className="flex flex-col items-center gap-1" title={`${varName}\n${resolved}`}>
-      <div
-        ref={ref}
-        className="h-10 w-full rounded"
+    <Box
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      gap="1"
+      title={`${varName}\n${resolved}`}
+    >
+      <Box
+        ref={ref as React.Ref<HTMLElement>}
+        className={s.h10}
+        width="full"
+        rounded="sm"
         style={{
           background: `var(${varName})`,
           boxShadow: isStep9
-            ? '0 0 0 2px var(--background), 0 0 0 4px var(--border-primary)'
+            ? '0 0 0 2px var(--em-background), 0 0 0 4px var(--em-border-primary)'
             : undefined,
         }}
       />
-      <span className="font-mono text-[9px] leading-none text-foreground-passive">{step}</span>
-    </div>
+      <span
+        className={cx(
+          sx({ fontFamily: 'mono', lineHeight: 'none', color: 'foregroundPassive' }),
+          s.text9px
+        )}
+      >
+        {step}
+      </span>
+    </Box>
   );
 }
 
@@ -48,98 +59,123 @@ function ContrastSwatch({ scale }: { scale: ScaleName }) {
   const ref = useRef<HTMLDivElement>(null);
   const [resolved, setResolved] = useState('');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ref.current) {
       const val = getComputedStyle(ref.current).backgroundColor;
-      if (val !== resolved) setResolved(val);
+      setResolved((prev) => (val !== prev ? val : prev));
     }
-  });
+  }, []);
 
   return (
-    <div className="flex flex-col items-center gap-1" title={`--${scale}-contrast\n${resolved}`}>
-      <div
-        ref={ref}
-        className="h-10 w-full rounded"
+    <Box
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      gap="1"
+      title={`--${scale}-contrast\n${resolved}`}
+    >
+      <Box
+        ref={ref as React.Ref<HTMLElement>}
+        className={s.h10}
+        width="full"
+        rounded="sm"
         style={{
           background: `var(--${scale}-contrast)`,
-          outline: '1px solid var(--border)',
+          outline: '1px solid var(--em-border)',
         }}
       />
-      <span className="font-mono text-[9px] leading-none text-foreground-passive">ctrst</span>
-    </div>
+      <span
+        className={cx(
+          sx({ fontFamily: 'mono', lineHeight: 'none', color: 'foregroundPassive' }),
+          s.text9px
+        )}
+      >
+        ctrst
+      </span>
+    </Box>
   );
 }
-
-// ── Scale row ─────────────────────────────────────────────────────────────────
 
 function ScaleRow({ scale }: { scale: ScaleName }) {
   return (
-    <div className="flex items-start gap-2">
-      {/* Scale label */}
-      <div className="w-16 shrink-0 pt-3">
-        <span className="font-mono text-xs font-medium text-foreground">{scale}</span>
-      </div>
+    <Box display="flex" alignItems="flex-start" gap="2">
+      <Box paddingTop="3" flexShrink={0} className={s.w16}>
+        <span
+          className={cx(
+            sx({ fontFamily: 'mono', fontSize: 'xs', fontWeight: 'medium', color: 'foreground' })
+          )}
+        >
+          {scale}
+        </span>
+      </Box>
 
-      {/* 12 steps */}
-      <div className="grid flex-1 grid-cols-12 gap-1">
+      <Box display="grid" flex="1" className={cx(s.cols12)} gap="1">
         {STEPS.map((step) => (
           <StepSwatch key={step} scale={scale} step={step} />
         ))}
-      </div>
+      </Box>
 
-      {/* Contrast swatch */}
-      <div className="w-12 shrink-0">
+      <Box flexShrink={0} className={s.w12}>
         <ContrastSwatch scale={scale} />
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }
-
-// ── Header row ────────────────────────────────────────────────────────────────
 
 function HeaderRow() {
   return (
-    <div className="flex items-center gap-2">
-      <div className="w-16 shrink-0" />
-      <div className="grid flex-1 grid-cols-12 gap-1">
+    <Box display="flex" alignItems="center" gap="2">
+      <Box flexShrink={0} className={s.w16} />
+      <Box display="grid" flex="1" className={s.cols12} gap="1">
         {STEPS.map((step) => (
-          <div key={step} className="text-center font-mono text-[9px] text-foreground-passive">
+          <div
+            key={step}
+            className={cx(
+              sx({ textAlign: 'center', fontFamily: 'mono', color: 'foregroundPassive' }),
+              s.text9px
+            )}
+          >
             {step}
           </div>
         ))}
-      </div>
-      <div className="w-12 shrink-0 text-center font-mono text-[9px] text-foreground-passive">
+      </Box>
+      <Box
+        flexShrink={0}
+        className={cx(s.w12, s.text9px)}
+        style={{
+          textAlign: 'center',
+          fontFamily: 'var(--em-font-mono)',
+          color: 'var(--em-foreground-passive)',
+        }}
+      >
         C
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }
 
-// ── Full palette grid ─────────────────────────────────────────────────────────
-
 function PaletteGrid() {
   return (
-    <div className="flex flex-col gap-3 bg-background p-6">
-      <div className="mb-2">
-        <h2 className="text-sm font-semibold text-foreground">Color Palette</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
+    <Box display="flex" flexDirection="column" gap="3" background="background" padding="6">
+      <Box marginBottom="2">
+        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
+          Color Palette
+        </h2>
+        <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Generated from OKLCH hue seeds with APCA-targeted contrast. Step 9 (ringed) is the solid
           fill. &quot;C&quot; is the auto-selected contrast text color for use on step 9. Hover a
           swatch for the CSS variable name and computed value.
         </p>
-      </div>
+      </Box>
       <HeaderRow />
-      <div className="flex flex-col gap-2">
+      <Box display="flex" flexDirection="column" gap="2">
         {SCALE_NAMES.map((scale) => (
           <ScaleRow key={scale} scale={scale} />
         ))}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }
-
-// ── Storybook ─────────────────────────────────────────────────────────────────
 
 const meta: Meta = {
   title: 'Theme/Palette',
@@ -157,19 +193,39 @@ export const Palette: Story = {
 /** Light and dark palettes rendered side-by-side for visual parity check. */
 export const BothModes: Story = {
   render: () => (
-    <div className="flex min-h-screen">
-      <ThemeProvider defaultTheme="light" className="flex-1">
-        <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
+    <Box display="flex" className={s.minHScreen}>
+      <ThemeProvider defaultTheme="light" className={cx(sx({ flex: '1' }))}>
+        <Box
+          borderBottomWidth="1"
+          borderStyle="solid"
+          borderColor="border"
+          background="background"
+          px="6"
+          py="3"
+          fontSize="sm"
+          fontWeight="medium"
+          color="foreground"
+        >
           Light
-        </div>
+        </Box>
         <PaletteGrid />
       </ThemeProvider>
-      <ThemeProvider defaultTheme="dark" className="flex-1">
-        <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
+      <ThemeProvider defaultTheme="dark" className={cx(sx({ flex: '1' }))}>
+        <Box
+          borderBottomWidth="1"
+          borderStyle="solid"
+          borderColor="border"
+          background="background"
+          px="6"
+          py="3"
+          fontSize="sm"
+          fontWeight="medium"
+          color="foreground"
+        >
           Dark
-        </div>
+        </Box>
         <PaletteGrid />
       </ThemeProvider>
-    </div>
+    </Box>
   ),
 };

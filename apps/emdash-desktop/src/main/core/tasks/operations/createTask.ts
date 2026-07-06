@@ -91,19 +91,23 @@ export async function prepareCreateTask(
   let convInsert: ConvInsert | undefined;
   if (params.taskConfig.initialConversation) {
     const ic = params.taskConfig.initialConversation;
-    const configObj: ConversationConfig = {};
-    if (ic.autoApprove !== undefined) configObj.autoApprove = ic.autoApprove;
-    if (ic.initialPrompt?.trim()) configObj.initialPrompt = ic.initialPrompt.trim();
-    const config = Object.keys(configObj).length > 0 ? configObj : undefined;
+    const configObj: ConversationConfig = {
+      version: '1',
+      type: ic.type ?? 'pty',
+      ...(ic.autoApprove !== undefined && { autoApprove: ic.autoApprove }),
+      ...(ic.initialPrompt?.trim() && { initialPrompt: ic.initialPrompt.trim() }),
+      ...(ic.model && { model: ic.model }),
+    };
     convInsert = {
       id: ic.id,
       projectId: params.projectId,
       taskId: params.id,
       title: ic.title ?? '',
       provider: ic.provider,
-      config,
+      config: configObj,
       isInitialConversation: true,
       lastInteractedAt: new Date().toISOString(),
+      type: ic.type ?? null,
     };
   }
 

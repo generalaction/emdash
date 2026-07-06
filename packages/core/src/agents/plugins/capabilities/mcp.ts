@@ -1,5 +1,5 @@
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
-import { definePluginCapability } from '../../../lib/plugins/capability';
 import type { PluginFs } from '../../runtime/fs';
 
 export type McpTransport = 'stdio' | 'http';
@@ -19,6 +19,10 @@ export type McpServerRegistration = {
   url?: string;
   headers?: Record<string, string>;
   env?: Record<string, string>;
+  enabled?: boolean;
+  cwd?: string;
+  timeout?: number;
+  oauth?: Record<string, unknown> | false;
   [key: string]: unknown;
 };
 

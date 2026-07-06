@@ -67,8 +67,6 @@ async function buildOne(
   const settingsMeta = await providerOverrideSettings.getItemWithMeta(id);
   const descriptor = getDependencyDescriptor(id);
 
-  const defaultConfig = settingsMeta?.defaults ?? {};
-
   const rawHostDep = dependencyManager?.getHostDependency(id);
   const hostDep =
     rawHostDep && enrichHostDep ? enrichHostDep(id as DependencyId, rawHostDep) : rawHostDep;
@@ -87,11 +85,7 @@ async function buildOne(
     latestVersion,
     updateAvailable,
     command: usedInst?.pathEntry ?? state?.path ?? null,
-    settings: settingsMeta ?? {
-      value: defaultConfig,
-      defaults: defaultConfig,
-      overrides: {},
-    },
+    settings: settingsMeta,
     installOptions: descriptor ? resolveInstallOptions(descriptor, platform) : [],
     installations: hostDep?.installations ?? [],
     used,

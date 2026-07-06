@@ -15,17 +15,39 @@
  *   3. Register the UnitDef in UNIT_REGISTRY.
  */
 
-import { messageUnitDef } from '@components/rows/message/message.def';
-import { planUnitDef } from '@components/rows/plan/plan.def';
+import { messageFromItem, messageUnitDef } from '@components/rows/message/message.def';
+import { planFromItem, planUnitDef } from '@components/rows/plan/plan.def';
 import { resourceLinkUnitDef } from '@components/rows/resource-link/resource-link.def';
 import { thinkingUnitDef } from '@components/rows/thinking/thinking.def';
-import { diffUnitDef } from '@components/rows/tools/diff/diff.def';
-import { executeUnitDef } from '@components/rows/tools/execute/execute.def';
-import { fileOpUnitDef } from '@components/rows/tools/file-op/file-op.def';
-import { toolUnitDef } from '@components/rows/tools/tool/tool.def';
-import type { GroupChrome, ItemSegmenter, UnitDef } from '@core/units';
+import {
+  createFileDiffFromItem,
+  diffUnitDef,
+  modifyFileDiffFromItem,
+} from '@components/rows/tools/diff/diff.def';
+import { executeFromItem, executeUnitDef } from '@components/rows/tools/execute/execute.def';
+import {
+  deleteFileOpFromItem,
+  fileOpUnitDef,
+  readFileOpFromItem,
+} from '@components/rows/tools/file-op/file-op.def';
+import { toolGroupUnitDef } from '@components/rows/tools/tool-group/tool-group.def';
+import { toolFromItem, toolUnitDef } from '@components/rows/tools/tool/tool.def';
+import { turnOutcomeUnitDef } from '@components/rows/turn-outcome/turn-outcome.def';
+import { workingUnitDef } from '@components/rows/working/working.def';
+import type { GroupChrome, ItemSegmenter, SegmentCtx, SegmentItem, UnitDef } from '@core/units';
 import { unit } from '@core/units';
-import type { ChatItem, ChatMessage } from '@/model';
+import type { ItemNode } from '@state/flatten';
+import type {
+  ChatDiff,
+  ChatExecute,
+  ChatFileOpToolCall,
+  ChatItem,
+  ChatMessage,
+  ChatPlan,
+  ChatToolCall,
+  SyntheticItem,
+  ToolNode,
+} from '@/model';
 import { ROW_INSET_X } from './row-metrics';
 
 // ── Native single-unit segmenter for composites ───────────────────────────────
@@ -33,13 +55,18 @@ import { ROW_INSET_X } from './row-metrics';
 // Each composite item becomes exactly one RenderUnit with chrome.insetX so
 // the native UnitDef.measure receives the same effective width as Row.tsx used.
 
-// oxlint-disable-next-line typescript/no-explicit-any -- registry boundary
-function nativePassthrough(kind: ChatItem['kind'], chrome?: GroupChrome): ItemSegmenter<any> {
+type ToolPresentationData = ChatExecute | ChatFileOpToolCall | ChatDiff | ChatPlan | ChatToolCall;
+type RegistryUnitDef = UnitDef<unknown, Record<string, number>>;
+
+function nativePassthrough<T extends SegmentItem>(
+  kind: string,
+  toData: (item: T, ctx: SegmentCtx) => unknown,
+  chrome?: GroupChrome
+): ItemSegmenter {
   return {
     kind,
     chrome,
-    // oxlint-disable-next-line typescript/no-explicit-any -- data is ChatItem at runtime
-    segment: (item: ChatItem, _ctx: any) => [unit(item.kind, item, item, { key: 'self' })],
+    segment: (item, ctx) => [unit(kind, item, toData(item as T, ctx), { key: 'self' })],
   };
 }
 
@@ -60,17 +87,66 @@ const USER_CHROME: GroupChrome = { insetX: 0 };
  * single shared value — user messages get USER_CHROME (full width), all others
  * get COMPOSITE_CHROME (insetX=ROW_INSET_X).
  */
-const messageSegmenter: ItemSegmenter<ChatMessage> = {
+const messageSegmenter: ItemSegmenter = {
   kind: 'message',
   // No top-level chrome: we set u.chrome per-unit in segment() below so
   // flatten's chrome-copy pass (which only fires when seg.chrome is truthy)
   // cannot overwrite the per-role value we assigned.
-  segment: (item) => {
-    const u = unit('message', item, item, { key: 'self' });
-    u.chrome = item.role === 'user' ? USER_CHROME : COMPOSITE_CHROME;
+  segment: (item, ctx) => {
+    const data = messageFromItem(item as ChatMessage, ctx);
+    const u = unit('message', item, data, { key: 'self' });
+    u.chrome = data.role === 'user' ? USER_CHROME : COMPOSITE_CHROME;
     return [u];
   },
 };
+
+function toToolGroupNode(item: ToolNode, ctx: SegmentCtx): ItemNode {
+  const header = item.kind === 'tool-group' ? toolFromItem(item, ctx) : toUnitData(item, ctx);
+  const children =
+    item.kind === 'tool-group'
+      ? item.children.map((child: ToolNode) => toToolGroupNode(child, ctx))
+      : 'children' in item && item.children
+        ? item.children.map((child: ToolNode) => toToolGroupNode(child, ctx))
+        : [];
+  return { item: header, children };
+}
+
+function toUnitData(item: ToolNode, ctx: SegmentCtx): ToolPresentationData {
+  switch (item.kind) {
+    case 'execute-tool-call':
+      return executeFromItem(item, ctx);
+    case 'read-tool-call':
+      return readFileOpFromItem(item, ctx);
+    case 'create-file-tool-call':
+      return createFileDiffFromItem(item, ctx);
+    case 'modify-file-tool-call':
+      return modifyFileDiffFromItem(item, ctx);
+    case 'delete-file-tool-call':
+      return deleteFileOpFromItem(item, ctx);
+    case 'create-plan-tool-call':
+      return planFromItem(item, ctx);
+    case 'tool-group':
+      return toolFromItem(item, ctx);
+    default:
+      return toolFromItem(item, ctx);
+  }
+}
+
+function toolNodeSegment(kind: ToolNode['kind']): ItemSegmenter {
+  return {
+    kind,
+    chrome: COMPOSITE_CHROME,
+    segment(item, ctx) {
+      const tool = item as ToolNode;
+      const children = tool.kind === 'tool-group' ? tool.children : tool.children;
+      if (children && children.length > 0) {
+        return [unit('tool-group', tool, toToolGroupNode(tool, ctx), { key: 'self' })];
+      }
+      const data = toUnitData(tool, ctx);
+      return [unit(data.kind, tool, data, { key: 'self' })];
+    },
+  };
+}
 
 // ── SEGMENTERS ────────────────────────────────────────────────────────────────
 
@@ -82,16 +158,33 @@ const messageSegmenter: ItemSegmenter<ChatMessage> = {
  * (rowWidth - 2 * ROW_INSET_X). The chrome.insetX is applied visually by
  * UnitRow and subtracted from rowWidth before nativeMeasureCtx.
  */
-// oxlint-disable-next-line typescript/no-explicit-any -- registry boundary
-export const SEGMENTERS: Record<string, ItemSegmenter<any>> = {
+export const SEGMENTERS: Record<string, ItemSegmenter> = {
   message: messageSegmenter,
-  tool: nativePassthrough('tool', COMPOSITE_CHROME),
-  thinking: nativePassthrough('thinking', COMPOSITE_CHROME),
-  'file-op': nativePassthrough('file-op', COMPOSITE_CHROME),
-  execute: nativePassthrough('execute', COMPOSITE_CHROME),
-  diff: nativePassthrough('diff', COMPOSITE_CHROME),
-  'resource-link': nativePassthrough('resource-link', COMPOSITE_CHROME),
-  plan: nativePassthrough('plan', COMPOSITE_CHROME),
+  thinking: nativePassthrough<ChatItem>('thinking', (item) => item, COMPOSITE_CHROME),
+  tool: nativePassthrough<ChatItem>('tool', (item) => item, COMPOSITE_CHROME),
+  'file-op': nativePassthrough<ChatItem>('file-op', (item) => item, COMPOSITE_CHROME),
+  execute: nativePassthrough<ChatItem>('execute', (item) => item, COMPOSITE_CHROME),
+  diff: nativePassthrough<ChatItem>('diff', (item) => item, COMPOSITE_CHROME),
+  plan: nativePassthrough<ChatItem>('plan', (item) => item, COMPOSITE_CHROME),
+  'resource-link': nativePassthrough<ChatItem>('resource-link', (item) => item, COMPOSITE_CHROME),
+  'execute-tool-call': toolNodeSegment('execute-tool-call'),
+  'read-tool-call': toolNodeSegment('read-tool-call'),
+  'create-file-tool-call': toolNodeSegment('create-file-tool-call'),
+  'modify-file-tool-call': toolNodeSegment('modify-file-tool-call'),
+  'delete-file-tool-call': toolNodeSegment('delete-file-tool-call'),
+  'search-tool-call': toolNodeSegment('search-tool-call'),
+  'mcp-tool-call': toolNodeSegment('mcp-tool-call'),
+  'web-fetch-tool-call': toolNodeSegment('web-fetch-tool-call'),
+  'spawn-subagent-tool-call': toolNodeSegment('spawn-subagent-tool-call'),
+  'create-plan-tool-call': toolNodeSegment('create-plan-tool-call'),
+  'unknown-tool-call': toolNodeSegment('unknown-tool-call'),
+  'tool-group': toolNodeSegment('tool-group'),
+  working: nativePassthrough<SyntheticItem>('working', (item) => item, COMPOSITE_CHROME),
+  'turn-outcome': nativePassthrough<SyntheticItem>(
+    'turn-outcome',
+    (item) => item,
+    COMPOSITE_CHROME
+  ),
 };
 
 // ── UNIT_REGISTRY ─────────────────────────────────────────────────────────────
@@ -102,16 +195,19 @@ export const SEGMENTERS: Record<string, ItemSegmenter<any>> = {
  * message: single-unit def; measure/Render handle block layout internally.
  * Composite item unit defs also handle their own internal layout.
  */
-// oxlint-disable-next-line typescript/no-explicit-any -- registry boundary
-export const UNIT_REGISTRY: Record<string, UnitDef<any, any>> = {
+export const UNIT_REGISTRY: Record<string, RegistryUnitDef> = {
   // Message unit (single unit per message, renders block stack internally)
-  message: messageUnitDef,
+  message: messageUnitDef as unknown as RegistryUnitDef,
   // Composite item units (single-unit per ChatItem kind)
-  diff: diffUnitDef,
-  plan: planUnitDef,
-  thinking: thinkingUnitDef,
-  'file-op': fileOpUnitDef,
-  tool: toolUnitDef,
-  execute: executeUnitDef,
-  'resource-link': resourceLinkUnitDef,
+  diff: diffUnitDef as unknown as RegistryUnitDef,
+  plan: planUnitDef as unknown as RegistryUnitDef,
+  thinking: thinkingUnitDef as unknown as RegistryUnitDef,
+  'file-op': fileOpUnitDef as unknown as RegistryUnitDef,
+  tool: toolUnitDef as unknown as RegistryUnitDef,
+  execute: executeUnitDef as unknown as RegistryUnitDef,
+  'resource-link': resourceLinkUnitDef as unknown as RegistryUnitDef,
+  // Hierarchical composite: parent tool call with nested children
+  'tool-group': toolGroupUnitDef as unknown as RegistryUnitDef,
+  working: workingUnitDef as unknown as RegistryUnitDef,
+  'turn-outcome': turnOutcomeUnitDef as unknown as RegistryUnitDef,
 };

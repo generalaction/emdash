@@ -184,6 +184,45 @@ export const Running: Story = {
   ),
 };
 
+/** Single-file read that ended with an error — shows the circle-X icon inline. */
+export const ErrorSingle: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo-err-single',
+          op: 'read',
+          status: 'error',
+          ops: [{ path: 'packages/chat-ui/src/model.ts' }],
+        },
+      ]}
+      height={80}
+    />
+  ),
+};
+
+/** Multi-file edit that ended with an error — shows the circle-X icon in the header. */
+export const ErrorMulti: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo-err-multi',
+          op: 'edit',
+          status: 'error',
+          ops: [
+            { path: 'packages/chat-ui/src/model.ts' },
+            { path: 'packages/chat-ui/src/state/transcript.ts' },
+          ],
+        },
+      ]}
+      height={80}
+    />
+  ),
+};
+
 /** Permission request beneath a running file-read row. */
 export const RequestingPermission: Story = {
   render: () => (

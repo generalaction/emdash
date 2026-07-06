@@ -1,4 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { Result as ResultUtil } from '@emdash/shared/result';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import {
@@ -92,32 +93,33 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
   }
 
   async signIn(provider: string = 'github'): Promise<Result<SignInResult, AccountSignInError>> {
-    const raw = await this.oauthClient.signIn(provider);
-    if (!raw.success) return raw;
-
-    const exchange = parseSignInResponse(raw.data);
-    if (!exchange.success) return exchange;
-
-    const saved = await this.sessionStore.saveSignedInSession(
-      exchange.data.user,
-      exchange.data.sessionToken,
-      new Date().toISOString()
-    );
-    if (!saved.success) return saved;
-
-    const providerToken = await this.providerTokenDispatcher.dispatchOptional(
-      exchange.data.providerToken
-    );
-    if (!providerToken.success) return providerToken;
-
-    this._hooks.callHookBackground(
-      'accountChanged',
-      exchange.data.user.username,
-      exchange.data.user.userId,
-      exchange.data.user.email
-    );
-
-    return ok({ user: exchange.data.user });
+    return await ResultUtil.fromAsync(this.oauthClient.signIn(provider))
+      .andThen((raw) => parseSignInResponse(raw))
+      .andThen(
+        async (exchange) =>
+          await ResultUtil.fromAsync(
+            this.sessionStore.saveSignedInSession(
+              exchange.user,
+              exchange.sessionToken,
+              new Date().toISOString()
+            )
+          )
+            .andThen(
+              async () =>
+                await ResultUtil.fromAsync(
+                  this.providerTokenDispatcher.dispatchOptional(exchange.providerToken)
+                )
+            )
+            .tap(() =>
+              this._hooks.callHookBackground(
+                'accountChanged',
+                exchange.user.username,
+                exchange.user.userId,
+                exchange.user.email
+              )
+            )
+            .map(() => ({ user: exchange.user }))
+      );
   }
 
   async signOut(): Promise<Result<void, AccountSignOutError>> {

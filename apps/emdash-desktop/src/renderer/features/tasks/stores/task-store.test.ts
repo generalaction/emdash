@@ -118,6 +118,30 @@ describe('TaskStore frontend runtime lifecycle', () => {
     expect((store.data as Task).archivedAt).toBe('2026-01-02T00:00:00.000Z');
   });
 
+  it('registers the workspace before restoring the snapshot, and restores before initialize', () => {
+    const task = makeTask();
+    const store = createUnprovisionedTask(task);
+    const savedSnapshot = { sidebarTab: 'conversations' } as never;
+
+    const order: string[] = [];
+    mocks.workspaceAcquire.mockImplementation(() => order.push('acquire'));
+    const viewModel = mocks.viewModels[0];
+    viewModel.restoreSnapshot.mockImplementation(() => order.push('restore'));
+    viewModel.initialize.mockImplementation(() => order.push('initialize'));
+
+    store.transitionToProvisioned(
+      task,
+      '/tmp/workspace-1',
+      'workspace-1',
+      {} as never,
+      undefined,
+      savedSnapshot
+    );
+
+    expect(viewModel.restoreSnapshot).toHaveBeenCalledWith(savedSnapshot);
+    expect(order).toEqual(['acquire', 'restore', 'initialize']);
+  });
+
   it('recreates registered stores before reprovisioning a dry task', () => {
     const task = makeTask();
     const store = createUnprovisionedTask(task);

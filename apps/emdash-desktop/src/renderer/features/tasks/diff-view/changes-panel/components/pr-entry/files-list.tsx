@@ -1,6 +1,7 @@
 import type { GitChange } from '@emdash/core/git';
 import { observer } from 'mobx-react-lite';
 import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
+import { activeDiffEntry } from '@renderer/features/tasks/diff-view/pane-selectors';
 import {
   useTaskViewContext,
   useWorkspaceId,
@@ -25,44 +26,52 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
 
   const prefetchPrDiff = usePrefetchDiffModels(projectId, workspaceId, 'pr', baseRef, modifiedRef);
 
+  const _activeDiff = activeDiffEntry(taskView.activePane);
   const activePath =
-    taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    taskView.tabManager.activeDescriptor.diffGroup === 'pr' &&
-    taskView.tabManager.activeDescriptor.prNumber === prNumber &&
-    refsEqual(taskView.tabManager.activeDescriptor.originalRef, baseRef) &&
-    refsEqual(taskView.tabManager.activeDescriptor.modifiedRef ?? modifiedRef, modifiedRef)
-      ? taskView.tabManager.activeDescriptor.path
+    _activeDiff?.diffGroup === 'pr' &&
+    _activeDiff.prNumber === prNumber &&
+    refsEqual(_activeDiff.originalRef, baseRef) &&
+    refsEqual(_activeDiff.modifiedRef ?? modifiedRef, modifiedRef)
+      ? _activeDiff.path
       : undefined;
 
   const handleSelectChange = (change: GitChange) => {
-    taskView.tabManager.openDiffPreview(
+    taskView.activePane.open(
+      'diff',
       {
-        path: change.path,
-        type: 'git',
-        group: 'pr',
-        originalRef: baseRef,
-        modifiedRef,
-        prNumber,
-        prBaseOid: pr.baseRefOid,
-        prHeadOid: pr.headRefOid,
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'pr',
+          originalRef: baseRef,
+          modifiedRef,
+          prNumber,
+          prBaseOid: pr.baseRefOid,
+          prHeadOid: pr.headRefOid,
+        },
+        status: change.status,
       },
-      change.status
+      { preview: true }
     );
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
-    taskView.tabManager.openDiff(
+    taskView.activePane.open(
+      'diff',
       {
-        path: change.path,
-        type: 'git',
-        group: 'pr',
-        originalRef: baseRef,
-        modifiedRef,
-        prNumber,
-        prBaseOid: pr.baseRefOid,
-        prHeadOid: pr.headRefOid,
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'pr',
+          originalRef: baseRef,
+          modifiedRef,
+          prNumber,
+          prBaseOid: pr.baseRefOid,
+          prHeadOid: pr.headRefOid,
+        },
+        status: change.status,
       },
-      change.status
+      { preview: false }
     );
   };
 

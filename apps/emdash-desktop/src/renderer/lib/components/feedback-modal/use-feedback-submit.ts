@@ -4,7 +4,7 @@ import { log } from '@renderer/utils/logger';
 import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
 
 const DISCORD_WEBHOOK_URL =
-  'https://discord.com/api/webhooks/1473390363388416230/eRIo1UhylapH94KpqUUp5PDzkLhjBvcnjjyE_JezfHiAyfN3QEbRyEIJaSl8QQUz7Mak';
+  'https://discord.com/api/webhooks/1522337356185862194/pwsawgdkELfRDfT8y0dY463cfoAspkyRBVw6zjsS-oof2TJEqKm1igH6u1WFjL0PE0in';
 
 const DISCORD_MAX_FILES = 10;
 const DISCORD_MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
@@ -19,6 +19,7 @@ interface GithubUser {
 interface FeedbackSubmitOptions {
   githubUser?: GithubUser | null;
   appVersion?: string | null;
+  platformDisplayName?: string | null;
   onSuccess: () => void;
 }
 
@@ -27,6 +28,7 @@ interface BuildFeedbackContentOptions {
   contactEmail: string;
   githubUser?: GithubUser | null;
   appVersion?: string | null;
+  platformDisplayName?: string | null;
   includeDiagnosticLogs?: boolean;
 }
 
@@ -35,6 +37,7 @@ export function buildFeedbackContent({
   contactEmail,
   githubUser,
   appVersion,
+  platformDisplayName,
   includeDiagnosticLogs,
 }: BuildFeedbackContentOptions): string {
   const trimmedFeedback = feedback.trim();
@@ -64,6 +67,11 @@ export function buildFeedbackContent({
     metadataLines.push(`Emdash Version: ${trimmedAppVersion}`);
   }
 
+  const trimmedPlatformDisplayName = platformDisplayName?.trim();
+  if (trimmedPlatformDisplayName) {
+    metadataLines.push(`Platform: ${trimmedPlatformDisplayName}`);
+  }
+
   if (includeDiagnosticLogs) {
     metadataLines.push('Diagnostic Logs: attached by user opt-in');
   }
@@ -71,7 +79,12 @@ export function buildFeedbackContent({
   return [trimmedFeedback, metadataLines.join('\n')].filter(Boolean).join('\n\n');
 }
 
-export function useFeedbackSubmit({ githubUser, appVersion, onSuccess }: FeedbackSubmitOptions) {
+export function useFeedbackSubmit({
+  githubUser,
+  appVersion,
+  platformDisplayName,
+  onSuccess,
+}: FeedbackSubmitOptions) {
   const [feedbackDetails, setFeedbackDetails] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -148,6 +161,7 @@ export function useFeedbackSubmit({ githubUser, appVersion, onSuccess }: Feedbac
         contactEmail: trimmedContactEmail,
         githubUser,
         appVersion,
+        platformDisplayName,
         includeDiagnosticLogs: Boolean(diagnosticLog),
       });
 
@@ -186,7 +200,7 @@ export function useFeedbackSubmit({ githubUser, appVersion, onSuccess }: Feedbac
         setSubmitting(false);
       }
     },
-    [appVersion, contactEmail, feedbackDetails, githubUser, onSuccess, toast]
+    [appVersion, contactEmail, feedbackDetails, githubUser, onSuccess, platformDisplayName, toast]
   );
 
   return {

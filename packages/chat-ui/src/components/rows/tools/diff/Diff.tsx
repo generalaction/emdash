@@ -1,7 +1,7 @@
 import { useCaches } from '@components/contexts/CachesContext';
 import { useCommands } from '@components/contexts/CommandsContext';
 import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
-import { GenericFileIcon } from '@components/primitives/icons';
+import { GenericFileIcon, IconError } from '@components/primitives/icons';
 import { applyTokensToElement } from '@core/highlight/apply-tokens';
 import type { CodeToken } from '@core/highlight/highlighter';
 import { resolveFileIconClass } from '@lib/file-icons';
@@ -24,6 +24,7 @@ import {
   pdiffLine,
   textShimmer,
 } from './diff.css';
+import { vars } from '@styles/theme.css';
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ export type DiffHeaderProps = {
 export function DiffHeader(props: DiffHeaderProps) {
   const name = () => basename(props.item.path);
   const iconClass = () => resolveFileIconClass(name());
-  const running = () => props.item.status === 'running';
+  const running = () => props.item.status === 'running' && !props.item.awaitingPermission;
   // Stats are meaningless until a diff body exists; hide them while streaming
   // the header alone or when there are genuinely no changes.
   const showStats = () => props.hasBody && (props.adds > 0 || props.dels > 0);
@@ -69,6 +70,15 @@ export function DiffHeader(props: DiffHeaderProps) {
       ) : (
         <GenericFileIcon />
       )}
+      <Show when={props.item.awaitingPermission}>
+        <span
+          style={{ color: '#eab308' }}
+          title="Awaiting permission"
+          aria-label="Awaiting permission"
+        >
+          ✋
+        </span>
+      </Show>
       <span class={diffFileName} classList={{ [textShimmer]: running() }} title={props.item.path}>
         {name()}
       </span>
@@ -77,6 +87,11 @@ export function DiffHeader(props: DiffHeaderProps) {
         <span class={diffDelsCount}>−{props.dels}</span>
       </Show>
       <span class={diffSpacer} />
+      <Show when={props.item.status === 'error'}>
+        <span style={{ display: 'flex', color: vars.fgError }} aria-label="error">
+          <IconError />
+        </span>
+      </Show>
     </div>
   );
 }
@@ -96,6 +111,11 @@ export function DiffLines(props: DiffLinesProps) {
   createEffect(() => {
     const { previewRows, lang } = props.layout;
     if (!previewRows.length || !lang) return;
+
+    // Skip per-frame highlighting while the diff is still streaming in.
+    // The effect tracks `props.item.status` reactively so it re-runs once
+    // when status changes to 'done'/'error', running a single highlight then.
+    if (props.item.status === 'running') return;
 
     const oldCode = props.item.oldText ?? '';
     const newCode = props.item.newText;

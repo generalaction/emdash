@@ -14,7 +14,6 @@ const InterfaceSettingsCard: React.FC = () => {
     resetField,
   } = useAppSettingsKey('interface');
 
-  const confirmTabClose = interfaceSettings?.confirmTabClose ?? false;
   const hideContextBar = interfaceSettings?.hideContextBar ?? false;
 
   return (
@@ -34,25 +33,6 @@ const InterfaceSettingsCard: React.FC = () => {
               checked={hideContextBar}
               disabled={loading || saving}
               onCheckedChange={(checked) => update({ hideContextBar: checked })}
-            />
-          </>
-        }
-      />
-      <SettingRow
-        title="Confirm tab close"
-        description="Ask for confirmation before closing a tab."
-        control={
-          <>
-            <ResetToDefaultButton
-              visible={isFieldOverridden('confirmTabClose')}
-              defaultLabel="off"
-              onReset={() => resetField('confirmTabClose')}
-              disabled={loading || saving}
-            />
-            <Switch
-              checked={confirmTabClose}
-              disabled={loading || saving}
-              onCheckedChange={(checked) => update({ confirmTabClose: checked })}
             />
           </>
         }

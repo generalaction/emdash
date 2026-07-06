@@ -1,130 +1,40 @@
+// ── Single-component primitives (named exports) ───────────────────────────────
+export { Box } from './box';
 export { Button, type ButtonProps } from './button';
-export {
-  Toggle,
-  ToggleGroup,
-  ToggleGroupItem,
-  type ToggleProps,
-  type ToggleGroupProps,
-} from './toggle';
-export { Tabs, TabsList, TabsTab, TabsPanel, TabsIndicator, type TabsTabProps } from './tabs';
+export { Input, type InputProps } from './input';
+export { Textarea, type TextareaProps } from './textarea';
+export { Switch, type SwitchProps } from './switch';
+export { SearchInput, type SearchInputProps } from './search-input';
+export { ScrollContainer, type ScrollContainerProps } from './scroll-container';
+export { SeparatedList, type SeparatedListProps } from './separated-list';
+export { Surface, useSurfaceLevel, type SurfaceProps } from './surface/surface';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
-export { Field, FieldLabel, FieldDescription, FieldError } from './field';
-export {
-  ScrollFade,
-  type ScrollFadeAxis,
-  type ScrollFadeEdge,
-  type ScrollFadeProps,
-} from './scroll-fade';
 export { Text, type TextProps } from './typography/Text';
 export { Heading, type HeadingProps } from './typography/Heading';
 export { textVariants, type TextVariantProps } from './typography/typography.variants';
-export { Input, type InputProps } from './input';
-export { Textarea, type TextareaProps } from './textarea';
-export {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupText,
-  InputGroupInput,
-  InputGroupTextarea,
-} from './input-group';
-export {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectScrollDownButton,
-  SelectScrollUpButton,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from './select';
-export {
-  Popover,
-  PopoverClose,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from './popover';
-export {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogBody,
-  DialogFooter,
-  DialogHeader,
-  DialogOverlay,
-  DialogPortal,
-  DialogTitle,
-  DialogTrigger,
-  type DialogSize,
-} from './dialog';
-export {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetBody,
-  SheetFooter,
-  SheetHeader,
-  SheetPortal,
-  SheetTitle,
-  SheetTrigger,
-  type SheetSide,
-} from './sheet';
-export {
-  DropdownMenu,
-  DropdownMenuPortal,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuItem,
-  DropdownMenuCheckboxItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-} from './dropdown-menu';
-export {
-  Combobox,
-  ComboboxInput,
-  ComboboxContent,
-  ComboboxList,
-  ComboboxItem,
-  ComboboxGroup,
-  ComboboxLabel,
-  ComboboxCollection,
-  ComboboxEmpty,
-  ComboboxSeparator,
-  ComboboxChips,
-  ComboboxChip,
-  ComboboxChipsInput,
-  ComboboxTrigger,
-  ComboboxValue,
-  useComboboxAnchor,
-} from './combobox';
-export { Surface, useSurfaceLevel, type SurfaceProps } from './surface';
-export {
-  ThemeProvider,
-  useTheme,
-  usePortalThemeClass,
-  THEME_MANIFEST,
-  type ThemeId,
-  type ThemeProviderProps,
-} from './theme-provider';
-export { Callout, type CalloutProps } from './callout';
+
+// ── Toggle (standalone) + ToggleGroup namespace ───────────────────────────────
+export { Toggle, ToggleGroup, type ToggleProps, type ToggleGroupProps } from './toggle';
+
+// ── Multi-part namespace consts ───────────────────────────────────────────────
+export { Select } from './select';
+export { Dialog, type DialogSize } from './dialog';
+export { Sheet, type SheetSide } from './sheet';
+export { Popover } from './popover';
+export { DropdownMenu } from './dropdown-menu';
+export { Combobox, useComboboxAnchor } from './combobox/combobox';
+export { Tabs, type TabsTabProps } from './tabs/tabs';
+export { Collapsible, type CollapsibleTriggerProps } from './collapsible';
+export { InputGroup, type InputGroupAddonAlign } from './input-group';
+export { Alert, type AlertProps } from './alert';
+
+// ── Non-namespaced compound helpers (remain as named exports) ─────────────────
 export {
   ComboboxPopup,
   ComboboxPopupDismiss,
   type ComboboxPopupItem,
   type ComboboxPopupHandle,
-} from './combobox-popup';
+} from './combobox/combobox-popup';
 export {
   useHoverCard,
   HoverCard,
@@ -139,6 +49,18 @@ export {
   type SplitButtonOption,
   type SplitButtonOptionTone,
 } from './split-button';
+
+// ── Theme / provider ──────────────────────────────────────────────────────────
+export {
+  ThemeProvider,
+  useTheme,
+  usePortalThemeClass,
+  THEME_MANIFEST,
+  type ThemeId,
+  type ThemeProviderProps,
+} from './theme-provider';
+
+// ── Utility / recipe re-exports ───────────────────────────────────────────────
 export { resolveFileIconClass } from '../lib/file-icons';
-export { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
-export { inputVariants, type InputVariantProps } from '../../styles/recipes/input';
+export { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+export { inputVariants, type InputVariantProps } from '@styles/recipes/input';

@@ -13,8 +13,9 @@ export const plugin = definePlugin(
   {
     hostDependency: npmDependency({ id: 'freebuff', package: 'freebuff' }),
     prompt: {
-      kind: 'argv',
-      flag: '',
+      // The freebuff CLI takes no prompt positional/flag (its only positional is
+      // the `login` command); the initial prompt is typed into the interactive TUI.
+      kind: 'keystroke',
     },
     sessions: {
       kind: 'stateless',
@@ -25,9 +26,6 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
-    buildCommand: (ctx) =>
-      buildStandardCommand(ctx, {
-        initialPromptFlag: '',
-      }),
+    buildCommand: (ctx) => buildStandardCommand(ctx, {}),
   },
 });

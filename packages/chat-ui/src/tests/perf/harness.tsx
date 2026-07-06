@@ -24,12 +24,13 @@ import { UNIT_REGISTRY, SEGMENTERS } from '@components/engine/unit-registry';
 import { createChatCaches } from '@core/caches';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import { DEFAULT_THEME } from '@core/theme';
-import { createTranscript } from '@state/transcript';
-import { createViewState } from '@state/view-state';
 import { For, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
+import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
 import type { ChatItem } from '@/model';
+import type { TranscriptTurn } from '@/model';
+import { createChatState } from '@/state/chat-state';
 
 // ── Timing helpers ────────────────────────────────────────────────────────────
 
@@ -121,19 +122,19 @@ export function mountTranscript(
   host.style.position = 'relative';
   document.body.appendChild(host);
 
-  const transcript = createTranscript();
-  const viewState = createViewState();
-  transcript.seed(items);
+  const ctx = createChatContext({ theme: DEFAULT_THEME });
+  const state = createChatState(ctx);
+  state.transcript.history.seed([
+    {
+      id: 'perf-turn',
+      seq: 0,
+      initiator: 'agent',
+      items: items.map((item, seq) => ({ ...item, seq })) as TranscriptTurn['items'],
+    },
+  ]);
 
   const dispose = render(
-    () => (
-      <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        theme={DEFAULT_THEME}
-        stickToBottom={false}
-      />
-    ),
+    () => <ChatRoot context={ctx} state={state} stickToBottom={false} />,
     host
   );
 
@@ -141,6 +142,8 @@ export function mountTranscript(
     host,
     dispose: () => {
       dispose();
+      state.dispose();
+      ctx.dispose();
       host.remove();
     },
   };
@@ -156,7 +159,14 @@ export function mountTranscript(
 export function mountRows(items: ChatItem[]): Mounted {
   const width = 640;
   const caches = createChatCaches();
-  const segCtx = { caches, expanded: (_id: string) => false };
+  const segCtx = {
+    caches,
+    expanded: (_id: string) => false,
+    active: false,
+    plan: () => null,
+    pendingToolCallIds: () => new Set<string>(),
+    terminalOutputText: () => null,
+  };
   const measureCtx: MeasureCtx = {
     theme: DEFAULT_THEME,
     width,
@@ -177,8 +187,7 @@ export function mountRows(items: ChatItem[]): Mounted {
   // Segment each item into units using SEGMENTERS.
   const allUnits = items.flatMap((item) => {
     const segmenter = SEGMENTERS[item.kind];
-    // oxlint-disable-next-line typescript/no-explicit-any -- segmenter typed at its own boundary
-    return segmenter ? segmenter.segment(item as any, segCtx) : [];
+    return segmenter ? segmenter.segment(item, segCtx) : [];
   });
 
   const dispose = render(

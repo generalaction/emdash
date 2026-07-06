@@ -13,6 +13,18 @@ export async function deleteConversation(
   taskId: string,
   conversationId: string
 ): Promise<void> {
+  const [convRow] = await db
+    .select({ type: conversations.type })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.id, conversationId),
+        eq(conversations.projectId, projectId),
+        eq(conversations.taskId, taskId)
+      )
+    )
+    .limit(1);
+
   await db
     .delete(conversations)
     .where(
@@ -24,6 +36,15 @@ export async function deleteConversation(
     );
 
   conversationEvents._emit('conversation:deleted', conversationId);
+
+  if (convRow?.type === 'acp') {
+    telemetryService.capture('conversation_deleted', {
+      project_id: projectId,
+      task_id: taskId,
+      conversation_id: conversationId,
+    });
+    return;
+  }
 
   const task = resolveTask(projectId, taskId);
   if (task) {

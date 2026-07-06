@@ -36,6 +36,7 @@ describe('pluginRegistry', () => {
       expect(capabilities.hooks).toBeDefined();
       expect(capabilities.mcp).toBeDefined();
       expect(capabilities.plugins).toBeDefined();
+      expect(['supported', 'none']).toContain(capabilities.acp.kind);
       expect(['supported', 'none']).toContain(capabilities.autoApprove.kind);
       expect(['resumable', 'stateless']).toContain(capabilities.sessions.kind);
     }
@@ -141,5 +142,182 @@ describe('pluginRegistry', () => {
       args: ['--always-approve', 'Fix the bug'],
       env: {},
     });
+  });
+
+  it('uses current Grok docs, npm release source, Windows install, and model flag', () => {
+    const grok = pluginRegistry.get('grok')!;
+
+    expect(grok.metadata.websiteUrl).toBe('https://docs.x.ai/build/overview');
+    expect(grok.capabilities.hostDependency.installDocs).toBe('https://docs.x.ai/build/overview');
+    expect(
+      grok.capabilities.hostDependency.installCommands.macos?.map((opt) => opt.method)
+    ).toEqual(['curl', 'npm']);
+    expect(grok.capabilities.hostDependency.installCommands.macos?.[1]?.command).toBe(
+      'npm install -g @xai-official/grok@latest'
+    );
+    expect(
+      grok.capabilities.hostDependency.installCommands.windows?.map((opt) => opt.method)
+    ).toEqual(['powershell', 'npm']);
+    expect(grok.capabilities.hostDependency.updates).toMatchObject({
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@xai-official/grok' },
+      update: { kind: 'package-manager' },
+    });
+
+    const result = grok.behavior.prompt!.buildCommand({
+      cli: 'grok',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'my-model',
+    });
+
+    expect(result.args).toEqual(['--always-approve', '-m', 'my-model', 'Fix the bug']);
+  });
+
+  it('exposes Antigravity models and passes the selected model flag', () => {
+    const antigravity = pluginRegistry.get('antigravity')!;
+
+    expect(antigravity.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        'Gemini 3.5 Flash (Medium)': {
+          name: 'Gemini 3.5 Flash (Medium)',
+        },
+        'Claude Opus 4.6 (Thinking)': {
+          name: 'Claude Opus 4.6 (Thinking)',
+        },
+      },
+    });
+
+    const result = antigravity.behavior.prompt!.buildCommand({
+      cli: 'agy',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'Claude Opus 4.6 (Thinking)',
+    });
+
+    expect(result.args).toEqual([
+      '--conversation=conv-1',
+      '--dangerously-skip-permissions',
+      '--model',
+      'Claude Opus 4.6 (Thinking)',
+      '-i',
+      'Fix the bug',
+    ]);
+  });
+
+  it('uses the current Amp npm package for install and updates', () => {
+    const amp = pluginRegistry.get('amp')!;
+
+    expect(amp.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'npm install -g @ampcode/cli@latest'
+    );
+    expect(amp.capabilities.hostDependency.updates).toMatchObject({
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@ampcode/cli' },
+    });
+  });
+
+  it('exposes Amp modes as selectable models and passes them with -m', () => {
+    const amp = pluginRegistry.get('amp')!;
+
+    expect(amp.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        smart: { name: 'Smart' },
+        rush: { name: 'Rush' },
+        deep: { name: 'Deep' },
+      },
+    });
+
+    const result = amp.behavior.prompt!.buildCommand({
+      cli: 'amp',
+      autoApprove: true,
+      initialPrompt: '',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'deep',
+    });
+
+    expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'deep']);
+  });
+
+  it('resumes Pi with the stored session file instead of the latest session', () => {
+    const pi = pluginRegistry.get('pi')!;
+
+    expect(pi.capabilities.hooks.kind).toBe('plugin');
+    if (pi.capabilities.hooks.kind !== 'plugin') throw new Error('Pi hooks should be plugin hooks');
+    expect(pi.capabilities.hooks.supportedEvents).toContain('session');
+
+    const fresh = pi.behavior.prompt!.buildCommand({
+      cli: 'pi',
+      autoApprove: false,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+    expect(fresh.args).toEqual(['Fix the bug']);
+
+    const resumed = pi.behavior.prompt!.buildCommand({
+      cli: 'pi',
+      autoApprove: false,
+      sessionId: 'conv-1',
+      providerSessionId: '/Users/test/.pi/agent/sessions/project/session.jsonl',
+      isResuming: true,
+      model: '',
+    });
+    expect(resumed.args).toEqual([
+      '--session',
+      '/Users/test/.pi/agent/sessions/project/session.jsonl',
+    ]);
+  });
+
+  it('registers Qoder CLI install metadata and interactive command args', () => {
+    const qoder = pluginRegistry.get('qoder')!;
+
+    expect(qoder.metadata.websiteUrl).toBe('https://qoder.com/en/cli');
+    expect(qoder.capabilities.hostDependency.binaryNames).toEqual(['qodercli']);
+    expect(qoder.capabilities.hostDependency.installDocs).toBe('https://qoder.com/en/cli');
+    expect(
+      qoder.capabilities.hostDependency.installCommands.macos?.map((opt) => opt.method)
+    ).toEqual(['npm', 'curl']);
+    expect(qoder.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'npm install -g @qoder-ai/qodercli'
+    );
+    expect(
+      qoder.capabilities.hostDependency.installCommands.windows?.map((opt) => opt.method)
+    ).toEqual(['npm', 'powershell']);
+
+    const fresh = qoder.behavior.prompt!.buildCommand({
+      cli: 'qodercli',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+
+    expect(fresh).toEqual({
+      command: 'qodercli',
+      args: ['--yolo', 'Fix the bug'],
+      env: {},
+    });
+
+    const resumed = qoder.behavior.prompt!.buildCommand({
+      cli: 'qodercli',
+      autoApprove: true,
+      initialPrompt: '',
+      sessionId: 'conv-1',
+      providerSessionId: 'qoder-session-1',
+      isResuming: true,
+      model: '',
+    });
+
+    expect(resumed.args).toEqual(['-r', 'qoder-session-1', '--yolo']);
   });
 });

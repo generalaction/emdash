@@ -1,9 +1,10 @@
 import type { MeasureCtx, RenderCtx } from '@core/define';
+import type { SegmentCtx } from '@core/units';
 import { defineUnit } from '@core/units';
 import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
-import type { ChatDiff } from '@/model';
+import type { ChatDiff, ToolNode } from '@/model';
 import { DiffHeader, DiffLines } from './Diff';
 import { countChanges, selectPreview, type DiffRow } from './diff-lines';
 import { langFromPath } from './lang';
@@ -26,6 +27,36 @@ const DIFF_VARS: DiffVars = {
   context: 1,
   border: 1,
 };
+
+export function createFileDiffFromItem(
+  item: Extract<ToolNode, { kind: 'create-file-tool-call' }>,
+  ctx: SegmentCtx
+): ChatDiff {
+  return {
+    kind: 'diff',
+    id: item.id,
+    path: item.path,
+    oldText: null,
+    newText: item.content,
+    status: item.status,
+    awaitingPermission: ctx.pendingToolCallIds().has(item.toolCallId),
+  };
+}
+
+export function modifyFileDiffFromItem(
+  item: Extract<ToolNode, { kind: 'modify-file-tool-call' }>,
+  ctx: SegmentCtx
+): ChatDiff {
+  return {
+    kind: 'diff',
+    id: item.id,
+    path: item.path,
+    oldText: item.oldText,
+    newText: item.newText,
+    status: item.status,
+    awaitingPermission: ctx.pendingToolCallIds().has(item.toolCallId),
+  };
+}
 
 export type DiffLayout = {
   kind: 'diff';

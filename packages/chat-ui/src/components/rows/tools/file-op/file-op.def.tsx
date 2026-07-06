@@ -1,13 +1,13 @@
 import { ROW_H } from '@components/engine/row-metrics';
 import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import type { MeasureCtx, RenderCtx } from '@core/define';
+import type { SegmentCtx } from '@core/units';
 import { defineUnit } from '@core/units';
-import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
-import type { ChatFileOpToolCall } from '@/model';
+import type { ChatFileOpToolCall, ToolNode } from '@/model';
 import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
-import { fileOpCardVars, fileOpRoot, type FileOpStyleVars } from './file-op.css';
+import { fileOpCardVars, fileOpRoot } from './file-op.css';
 
 export type FileOpVars = {
   /** Measure-only: fixed row height for header and per-file lines. */
@@ -17,6 +17,34 @@ export type FileOpVars = {
   /** Measure-only: scrollable preview window height while running. */
   windowH: number;
 };
+
+export function readFileOpFromItem(
+  item: Extract<ToolNode, { kind: 'read-tool-call' }>,
+  ctx: SegmentCtx
+): ChatFileOpToolCall {
+  return {
+    kind: 'file-op',
+    id: item.id,
+    op: 'read',
+    status: item.status,
+    awaitingPermission: ctx.pendingToolCallIds().has(item.toolCallId),
+    ops: item.path || item.resource ? [{ path: item.path ?? item.resource! }] : [],
+  };
+}
+
+export function deleteFileOpFromItem(
+  item: Extract<ToolNode, { kind: 'delete-file-tool-call' }>,
+  ctx: SegmentCtx
+): ChatFileOpToolCall {
+  return {
+    kind: 'file-op',
+    id: item.id,
+    op: 'delete',
+    status: item.status,
+    awaitingPermission: ctx.pendingToolCallIds().has(item.toolCallId),
+    ops: [{ path: item.path }],
+  };
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,18 +69,13 @@ function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx; var
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
 
   const totalH = createMemo(() => {
-    const item = props.data;
-    const v = props.vars;
-    if (item.ops.length <= 1) return v.rowH;
-    if (isExpanded()) return v.rowH + item.ops.length * v.rowH + 2 * v.padY;
-    if (item.status === 'running') return v.rowH + v.windowH;
-    return v.rowH;
+    const ctx = props.ctx.measureCtx?.();
+    if (!ctx) return props.vars.rowH;
+    return measureFileOpH(props.data, ctx, props.vars);
   });
 
-  const styleVars = (): FileOpStyleVars => ({ height: totalH(), padY: props.vars.padY });
-
   return (
-    <div class={fileOpRoot} style={assignInlineVars(fileOpCardVars, pxTokens(styleVars()))}>
+    <div class={fileOpRoot} style={assignInlineVars({ [fileOpCardVars.height]: `${totalH()}px` })}>
       <Show
         when={props.data.ops.length > 1}
         fallback={<FileOpRow item={props.data} rowH={rowH()} lineH={rowH()} />}

@@ -71,10 +71,13 @@ export const CreateAutomationView = observer(function CreateAutomationView({
       return;
     }
     setCronError(null);
+    const useChatUi = formState.initialConversation.useChatUi;
     const conversationConfig: ConversationConfig = {
       prompt: prompt.trim(),
       provider,
       autoApprove: false,
+      model: formState.model ?? undefined,
+      type: useChatUi ? 'acp' : 'pty',
     };
     try {
       const trimmedName = name.trim();

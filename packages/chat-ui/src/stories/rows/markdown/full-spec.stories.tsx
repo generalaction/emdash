@@ -63,7 +63,7 @@ const SPEC = [
   'Mentions inline in a sentence: open @src/auth/jwt.ts, track @issue-42, and call @handleSubmit().',
   'Sentence-final mention to test trailing-dot fix: see @src/auth/jwt.ts.',
   '',
-  'Inline math: the area of a circle is $A = \\pi r^2$.',
+  'Inline math: area $A = \\pi r^2$, golden ratio $\\varphi = \\frac{1+\\sqrt{5}}{2}$, and sum $\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$ on one line.',
   '',
   '## Lists',
   '',

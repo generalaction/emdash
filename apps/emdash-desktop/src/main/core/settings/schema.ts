@@ -86,7 +86,6 @@ export const interfaceSettingsSchema = z.object({
   showLeftSidebarLineChanges: z.boolean(),
   showLeftSidebarPrStatus: z.boolean(),
   showLeftSidebarTimestamps: z.boolean(),
-  confirmTabClose: z.boolean(),
   hideContextBar: z.boolean(),
 });
 

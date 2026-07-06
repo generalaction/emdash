@@ -1,9 +1,10 @@
-import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
-import type { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
+import type { FileTabResource } from '@renderer/features/tasks/editor/stores/file-tab-resource';
 import {
   useTaskViewContext,
+  useWorkspace,
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
@@ -13,72 +14,69 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { Spinner } from '@renderer/lib/ui/spinner';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { resolveWorkspaceResourcePath } from './workspace-resource-path';
 
 interface MarkdownEditorRendererProps {
-  filePath: string;
+  tab: FileTabResource;
 }
 
 /**
  * Renders a markdown file as a formatted preview.
- * A floating "Edit source" button in the top-right corner toggles to Monaco source view.
+ * The source/preview toggle lives in the FileContent container above this component.
  */
 export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
-  filePath,
+  tab,
 }: MarkdownEditorRendererProps) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
-  const taskView = useWorkspaceViewModel();
-  const { editorView, tabManager } = taskView;
-  const tab = Array.from(tabManager.entries.values()).find(
-    (entry): entry is FileTabStore => entry.kind === 'file' && entry.path === filePath
-  );
-  const showExternalSpinner = useDelayedBoolean(!!(tab?.isExternal && tab.isLoading), 200);
-  const bufferUri = tab?.isExternal ? '' : buildMonacoModelPath(editorView.modelRootPath, filePath);
-  // Reading bufferVersions creates a MobX tracking dependency so this observer()
-  // component re-renders whenever the buffer content changes or is first populated.
+  const workspacePath = useWorkspace().path;
+  const { editorView } = useWorkspaceViewModel();
+  const { pane } = usePaneContext();
+  const showExternalSpinner = useDelayedBoolean(!!(tab.isExternal && tab.isLoading), 200);
+  const bufferUri = tab.isExternal ? '' : buildMonacoModelPath(editorView.modelRootPath, tab.path);
 
+  // Reading bufferVersions creates a MobX tracking dependency so this observer
+  // component re-renders whenever the buffer content changes or is first populated.
   const _version = bufferUri ? modelRegistry.bufferVersions.get(bufferUri) : undefined;
-  const content = tab?.isExternal ? tab.content : (modelRegistry.getValue(bufferUri) ?? '');
-  const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
+  const content = tab.isExternal ? tab.content : (modelRegistry.getValue(bufferUri) ?? '');
 
   const resolveImage = useCallback(
     async (src: string): Promise<string | null> => {
-      const imagePath = fileDir ? `${fileDir}/${src}` : src;
-      const result = await rpc.workspace.fs.readImage(projectId, workspaceId, imagePath);
-      return result.success ? (result.data?.dataUrl ?? null) : null;
+      const imagePath = resolveWorkspaceResourcePath({
+        workspacePath,
+        containingFilePath: tab.path,
+        resourcePath: src,
+      });
+      if (!imagePath) return null;
+      const result = await rpc.workspace.files.readImage(projectId, workspaceId, imagePath);
+      return result.success && result.data?.success ? result.data.dataUrl : null;
     },
-    [projectId, workspaceId, fileDir]
+    [projectId, workspaceId, workspacePath, tab.path]
+  );
+
+  const openWorkspaceLink = useCallback(
+    (href: string): boolean => {
+      const target = resolveWorkspaceResourcePath({
+        workspacePath,
+        containingFilePath: tab.path,
+        resourcePath: href,
+      });
+      if (!target) return false;
+      pane.open('file', { path: target }, { preview: false });
+      return true;
+    },
+    [workspacePath, tab.path, pane]
   );
 
   return (
     <div className="relative h-full overflow-y-auto bg-background-secondary-1">
-      {tab?.isExternal ? null : (
-        <ToggleGroup
-          value={['markdown']}
-          onValueChange={(value) => {
-            if (value.includes('markdown-source')) {
-              tabManager.updateRenderer(filePath, () => ({ kind: 'markdown-source' }));
-            }
-          }}
-          size="sm"
-          className="sticky top-3 z-10 float-right mr-3"
-        >
-          <ToggleGroupItem value="markdown" aria-label="Preview">
-            <Eye className="h-3.5 w-3.5" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="markdown-source" aria-label="Edit source">
-            <Pencil className="h-3.5 w-3.5" />
-          </ToggleGroupItem>
-        </ToggleGroup>
-      )}
-      {tab?.isExternal && tab.isLoading ? (
+      {tab.isExternal && tab.isLoading ? (
         showExternalSpinner ? (
           <div className="flex h-full items-center justify-center">
             <Spinner />
           </div>
         ) : null
-      ) : tab?.isExternal && tab.externalError ? (
+      ) : tab.isExternal && tab.externalError ? (
         <div className="text-destructive px-8 py-8 text-sm">
           Could not load file: {tab.externalError}
         </div>
@@ -87,7 +85,8 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
           content={content}
           variant="full"
           className="w-full max-w-3xl px-8 py-8"
-          resolveImage={tab?.isExternal ? undefined : resolveImage}
+          resolveImage={tab.isExternal ? undefined : resolveImage}
+          onOpenLink={tab.isExternal ? undefined : openWorkspaceLink}
         />
       )}
     </div>

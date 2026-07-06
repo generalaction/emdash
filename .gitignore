@@ -14,6 +14,7 @@ apps/*/dist/
 
 # Logs
 *.log
+.emdash-logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -93,6 +94,9 @@ apps/*/tooling/node-deps/node_modules/
 # Vitest / Browser testing
 .vitest-attachments/
 **/__screenshots__/
+
+# ACP fixture transcripts (generated locally via pnpm generate:acp-fixture)
+packages/plugins/src/agents/impl/*/fixtures/acp-transcript.json
 
 # Nx local cache and workspace data
 .nx/cache

@@ -2,14 +2,39 @@
  * Serialize a TipTap/ProseMirror document to plain text.
  *
  * Rules:
- *  - `mention` node   → `@${node.attrs.label ?? node.attrs.id}`
+ *  - `mention` node   → `@[name](target)` for file mentions (angle-bracket
+ *     dest for paths with spaces); `@label` for other kinds.
  *  - `slashCommand` node → `/${node.attrs.name ?? node.attrs.id}`
  *  - `hardBreak` node → `\n`
  *  - paragraph boundary → `\n` between paragraphs (but NOT trailing)
  *  - all other inline nodes / marks → plain text content
  */
 
+import { stringifyMention } from '@emdash/shared/markdown';
+import type { MentionKind } from '@emdash/shared/markdown';
 import type { Node } from '@tiptap/pm/model';
+
+/**
+ * Serialize a mention to its canonical text form.
+ *
+ * Delegates to the shared `stringifyMention` so the composer's output grammar
+ * and the transcript parser's input grammar cannot drift from each other.
+ *
+ * @param label - The full path / id stored in the `label` attr (= the target).
+ * @param kind  - Mention kind ('file' | 'issue' | 'symbol' | 'custom' | null).
+ * @param name  - Short display name (basename); used as the bracket label.
+ */
+export function serializeMentionLabel(
+  label: string,
+  kind: string | null,
+  name?: string | null
+): string {
+  return stringifyMention({
+    label: name ?? label,
+    target: label,
+    kind: kind as MentionKind | null,
+  });
+}
 
 /**
  * Serialize a single ProseMirror node to its plain-text representation.
@@ -19,7 +44,8 @@ import type { Node } from '@tiptap/pm/model';
 export function serializeNode(node: Node): string {
   if (node.type.name === 'mention') {
     const label = (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
-    return `@${label}`;
+    const name = node.attrs.name as string | null;
+    return serializeMentionLabel(label, node.attrs.kind as string | null, name);
   }
 
   if (node.type.name === 'slashCommand') {

@@ -13,6 +13,18 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./acp": {
+      "types": "./dist/acp.d.mts",
+      "default": "./dist/acp.mjs"
+    },
+    "./acp/client": {
+      "types": "./dist/acp-client.d.mts",
+      "default": "./dist/acp-client.mjs"
+    },
+    "./acp/transcript-parser": {
+      "types": "./dist/acp-transcript-parser.d.mts",
+      "default": "./dist/acp-transcript-parser.mjs"
+    },
     "./deps": {
       "types": "./dist/deps.d.mts",
       "default": "./dist/deps.mjs"
@@ -25,13 +37,13 @@
       "types": "./dist/exec.d.mts",
       "default": "./dist/exec.mjs"
     },
-    "./file-tree": {
-      "types": "./dist/file-tree.d.mts",
-      "default": "./dist/file-tree.mjs"
+    "./files": {
+      "types": "./dist/files.d.mts",
+      "default": "./dist/files.mjs"
     },
-    "./fs": {
-      "types": "./dist/fs.d.mts",
-      "default": "./dist/fs.mjs"
+    "./watch": {
+      "types": "./dist/watch.d.mts",
+      "default": "./dist/watch.mjs"
     },
     "./git": {
       "types": "./dist/git.d.mts",
@@ -49,6 +61,14 @@
       "types": "./dist/agents-plugins-helpers.d.mts",
       "default": "./dist/agents-plugins-helpers.mjs"
     },
+    "./live": {
+      "types": "./dist/live.d.mts",
+      "default": "./dist/live.mjs"
+    },
+    "./workspace-server": {
+      "types": "./dist/workspace-server.d.mts",
+      "default": "./dist/workspace-server.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -61,13 +81,19 @@
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/shared": "workspace:*",
+    "@orpc/contract": "^1.14.6",
+    "@orpc/server": "^1.14.6",
     "@parcel/watcher": "^2.5.6",
+    "glob": "^13.0.6",
+    "immer": "^10.1.1",
     "semver": "^7.8.4",
     "smol-toml": "^1.6.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@orpc/client": "^1.14.6",
     "@types/node": "^20.19.42",
     "@types/semver": "^7.7.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",

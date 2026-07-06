@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { joinMachinePath } from '@main/core/files/path-utils';
 import { log } from '@main/lib/logger';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
 import { createRPCController } from '@shared/lib/ipc/rpc';
+import { SSH_PROJECT_STATE_DIR_NAME } from '../settings/worktree-defaults';
 import { taskSessionManager } from '../tasks/task-session-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import {
@@ -26,7 +29,7 @@ export const ptyController = createRPCController({
     pty.write(data);
     if (data.includes('\r')) {
       const meta = ptySessionRegistry.getMetadata(sessionId);
-      if (meta?.providerId && !meta.isRemote) {
+      if (meta?.providerId) {
         const parsed = parsePtySessionId(sessionId);
         if (parsed) {
           conversationEvents._emit('conversation:input-submitted', {
@@ -153,13 +156,30 @@ export const ptyController = createRPCController({
 
       const workspaceId = taskSessionManager.getWorkspaceId(scopeId) ?? '';
       const workspace = workspaceRegistry.get(workspaceId);
-      if (!workspace?.fs.copyLocalFile) return err({ type: 'not_ssh' as const });
+      if (!workspace) return err({ type: 'not_ssh' as const });
+
+      // Upload into the git-ignored .emdash runtime dir, not the worktree root.
+      // Writing to the root left every attached image behind as an untracked file
+      // that dirtied `git status` and never got cleaned up (#2680).
+      const uploadDir = `${SSH_PROJECT_STATE_DIR_NAME}/uploads`;
+      const uploadDirPath = joinMachinePath(workspace.path, uploadDir);
+      const madeUploadDir = await workspace.fileSystem.mkdir(uploadDirPath, { recursive: true });
+      if (!madeUploadDir.success) {
+        return err({ type: 'upload_failed' as const, message: madeUploadDir.error.message });
+      }
 
       const remotePaths = await Promise.all(
         args.localPaths.map(async (localPath) => {
-          const remoteName = `${randomUUID()}-${basename(localPath)}`;
-          await workspace.fs.copyLocalFile!(localPath, remoteName);
-          return `${workspace.path}/${remoteName}`;
+          const remotePath = joinMachinePath(
+            uploadDirPath,
+            `${randomUUID()}-${basename(localPath)}`
+          );
+          const bytes = await readFile(localPath);
+          const written = await workspace.fileSystem.writeBytes(remotePath, bytes);
+          if (!written.success) {
+            throw new Error(written.error.message);
+          }
+          return remotePath;
         })
       );
       return ok({ remotePaths });

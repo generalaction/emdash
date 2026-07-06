@@ -9,9 +9,6 @@ export async function hydrateConversation(
   taskId: string,
   conversationId: string
 ): Promise<void> {
-  const task = resolveTask(projectId, taskId);
-  if (!task) throw new Error('Task not found');
-
   const [row] = await db
     .select()
     .from(conversations)
@@ -25,6 +22,16 @@ export async function hydrateConversation(
     .limit(1);
   if (!row) throw new Error('Conversation not found');
 
+  const conversation = mapConversationRowToConversation(row);
+
+  if (conversation.type === 'acp') {
+    return;
+  }
+
+  // PTY path.
+  const task = resolveTask(projectId, taskId);
+  if (!task) throw new Error('Task not found');
+
   const isFirstSpawn = row.sessionId === null;
 
   if (isFirstSpawn) {
@@ -35,13 +42,13 @@ export async function hydrateConversation(
       .where(eq(conversations.id, conversationId));
   }
 
-  const config = row.config ?? {};
+  const config = row.config;
   const isResuming = !isFirstSpawn;
 
   await task.conversations.startSession(
     mapConversationRowToConversation(row, isResuming),
     undefined,
     isResuming,
-    isFirstSpawn ? config.initialPrompt : undefined
+    isFirstSpawn ? config?.initialPrompt : undefined
   );
 }

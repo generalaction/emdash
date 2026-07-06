@@ -2,6 +2,7 @@ import type { GitChange } from '@emdash/core/git';
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
+import { activeDiffEntry } from '@renderer/features/tasks/diff-view/pane-selectors';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -33,11 +34,8 @@ export const StagedSection = observer(function StagedSection() {
   const changes = git.stagedFileChanges;
   const hasChanges = changes.length > 0;
 
-  const activePath =
-    taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    taskView.tabManager.activeDescriptor.diffGroup === 'staged'
-      ? taskView.tabManager.activeDescriptor.path
-      : undefined;
+  const _activeDiff = activeDiffEntry(taskView.activePane);
+  const activePath = _activeDiff?.diffGroup === 'staged' ? _activeDiff.path : undefined;
 
   const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'staged', HEAD_REF);
 
@@ -46,26 +44,34 @@ export const StagedSection = observer(function StagedSection() {
   if (!diffView || !changesView) return null;
 
   const handleSelectChange = (change: GitChange) => {
-    taskView.tabManager.openDiffPreview(
+    taskView.activePane.open(
+      'diff',
       {
-        path: change.path,
-        type: 'git',
-        group: 'staged',
-        originalRef: commitRef('HEAD'),
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'staged',
+          originalRef: commitRef('HEAD'),
+        },
+        status: change.status,
       },
-      change.status
+      { preview: true }
     );
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
-    taskView.tabManager.openDiff(
+    taskView.activePane.open(
+      'diff',
       {
-        path: change.path,
-        type: 'git',
-        group: 'staged',
-        originalRef: commitRef('HEAD'),
+        activeFile: {
+          path: change.path,
+          type: 'git',
+          group: 'staged',
+          originalRef: commitRef('HEAD'),
+        },
+        status: change.status,
       },
-      change.status
+      { preview: false }
     );
   };
 
@@ -138,6 +144,7 @@ export const StagedSection = observer(function StagedSection() {
           <ChangesListOrTree
             viewMode={viewMode}
             changes={changes}
+            rootPath={workspace.path}
             isSelected={(path) => changesView.stagedSelection.has(path)}
             onToggleSelect={(path) => changesView.toggleStagedItem(path)}
             activePath={activePath}

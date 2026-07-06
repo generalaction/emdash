@@ -8,6 +8,8 @@ import {
 import { AMP_PLUGIN_CONTENT } from './plugin-file';
 
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
+// Amp thread ids are prefixed with 'T-'; only accept those for resume.
+const validateSessionId = (id: string) => id.startsWith('T-');
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -25,17 +27,34 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'plugin',
       scope: 'workspace',
-      supportedEvents: ['start', 'stop'],
+      supportedEvents: ['start', 'stop', 'session'],
     },
     hostDependency: npmDependency({
       id: 'amp',
-      package: '@sourcegraph/amp',
+      package: '@ampcode/cli',
       versionSuffix: '@latest',
     }),
     mcp: {
       kind: 'supported',
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
+    },
+    models: {
+      kind: 'selectable',
+      modelOptions: {
+        smart: {
+          name: 'Smart',
+          modelFeatures: { intelligence: 4, speed: 4 },
+        },
+        rush: {
+          name: 'Rush',
+          modelFeatures: { intelligence: 3, speed: 5 },
+        },
+        deep: {
+          name: 'Deep',
+          modelFeatures: { intelligence: 5, speed: 3 },
+        },
+      },
     },
     plugins: {
       kind: 'file-drop',
@@ -45,7 +64,7 @@ export const plugin = definePlugin(
       kind: 'stdin-pipe',
     },
     sessions: {
-      kind: 'stateless',
+      kind: 'resumable',
     },
   },
   { icon }
@@ -58,8 +77,13 @@ export const provider = registerPluginBehavior(plugin, {
         autoApproveFlag: '--dangerously-allow-all',
         initialPromptViaStdinPipe: true,
         extraEnv: { PLUGINS: 'all' },
+        resumeFlag: 'threads continue',
+        sessionIdFlag: 'threads continue',
+        sessionIdOnResumeOnly: true,
+        modelFlag: '-m',
       }),
   },
   mcp: ampMcpAdapter(),
   plugins: createFileDropPlugin({ relativePath: AMP_PLUGIN_PATH, content: AMP_PLUGIN_CONTENT }),
+  sessions: { validateSessionId },
 });

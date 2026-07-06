@@ -1,10 +1,10 @@
 import { observer } from 'mobx-react-lite';
-import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
+import type { DiffTabResource } from '@renderer/features/tasks/diff-view/stores/diff-tab-resource';
 import { DiffFileRenderer } from './diff-file-renderer';
 import { DiffToolbar } from './diff-toolbar';
 
 interface DiffViewProps {
-  tab: DiffTabStore;
+  tab: DiffTabResource;
 }
 
 export const DiffView = observer(function DiffView({ tab }: DiffViewProps) {

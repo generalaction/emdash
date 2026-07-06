@@ -28,8 +28,10 @@ export const AGENT_PROVIDER_IDS = [
   'jules',
   'junie',
   'pi',
+  'qoder',
   'letta',
   'autohand',
+  'mimocode',
 ] as const;
 
 export type AgentProviderId = (typeof AGENT_PROVIDER_IDS)[number];
@@ -79,6 +81,8 @@ export type AgentProviderDefinition = {
   sessionIdFlag?: string;
   newConversationFlag?: string;
   sessionIdOnResumeOnly?: boolean;
+  /** When true, sessionIdFlag is injected on fresh and resumed sessions. */
+  sessionIdAlways?: boolean;
   /** Resume flag used when sessionIdOnResumeOnly is set but no provider session id is stored yet. */
   resumeWithoutSessionFlag?: string;
   defaultArgs?: string[];
@@ -92,6 +96,8 @@ export type AgentProviderDefinition = {
   invertInDark?: boolean;
   terminalOnly?: boolean;
   supportsHooks?: boolean;
+  /** When true, the provider supports the ACP (Agent Client Protocol) transport. */
+  acpCapable?: boolean;
 };
 
 export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
@@ -121,6 +127,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Codex',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'claude',
@@ -141,13 +148,14 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Claude Code',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'grok',
     name: 'Grok',
     description:
       "xAI's Grok CLI for terminal-first coding sessions with plans, subagents, and parallel work.",
-    docUrl: 'https://x.ai/cli',
+    docUrl: 'https://docs.x.ai/build/overview',
     installCommand: 'curl -fsSL https://x.ai/cli/install.sh | bash',
     commands: ['grok'],
     versionArgs: ['--version'],
@@ -247,11 +255,35 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['qwen'],
     versionArgs: ['--version'],
     cli: 'qwen',
-    autoApproveFlag: '--yolo',
+    autoApproveFlag: '--approval-mode=yolo',
     initialPromptFlag: '-i',
-    resumeFlag: '--continue',
+    resumeFlag: '--resume',
+    sessionIdFlag: '--resume',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '--continue',
     icon: 'qwen.svg',
     alt: 'Qwen Code CLI',
+    terminalOnly: true,
+    supportsHooks: true,
+  },
+  {
+    id: 'qoder',
+    name: 'Qoder CLI',
+    description:
+      'Qoder terminal agent for code review, implementation, debugging, and repository-aware automation.',
+    docUrl: 'https://qoder.com/en/cli',
+    installCommand: 'npm install -g @qoder-ai/qodercli',
+    commands: ['qodercli'],
+    versionArgs: ['--version'],
+    cli: 'qodercli',
+    autoApproveFlag: '--yolo',
+    initialPromptFlag: '',
+    resumeFlag: '-r',
+    sessionIdFlag: '-r',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '-c',
+    icon: 'qoder.svg',
+    alt: 'Qoder CLI',
     terminalOnly: true,
     supportsHooks: true,
   },
@@ -264,6 +296,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['droid'],
     versionArgs: ['--version'],
     cli: 'droid',
+    autoApproveFlag: '--auto high',
     initialPromptFlag: '',
     resumeFlag: '--resume',
     /** Value is unused; presence signals that the session ID is passed as an argument to resumeFlag. */
@@ -280,13 +313,16 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     description:
       'Amp Code CLI for agentic coding sessions against your repository from the terminal.',
     docUrl: 'https://ampcode.com/manual#install',
-    installCommand: 'npm install -g @sourcegraph/amp@latest',
+    installCommand: 'npm install -g @ampcode/cli@latest',
     commands: ['amp'],
     versionArgs: ['--version'],
     cli: 'amp',
     autoApproveFlag: '--dangerously-allow-all',
     initialPromptFlag: '',
     initialPromptViaStdinPipe: true,
+    resumeFlag: 'threads continue',
+    sessionIdFlag: 'threads continue',
+    sessionIdOnResumeOnly: true,
     icon: 'ampcode.svg',
     alt: 'Amp CLI',
     terminalOnly: true,
@@ -385,7 +421,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['crush'],
     versionArgs: ['--version'],
     cli: 'crush',
-    autoApproveFlag: '--yolo',
+    initialPromptFlag: '',
     icon: 'charm.png',
     alt: 'Charm CLI',
     terminalOnly: true,
@@ -401,7 +437,11 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'auggie',
     initialPromptFlag: '',
-    resumeFlag: '--continue',
+    resumeFlag: '--resume',
+    sessionIdFlag: '--resume',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '--continue',
+    supportsHooks: true,
     // otherwise user is prompted each time before prompt is passed
     defaultArgs: ['--allow-indexing'],
     icon: 'Auggie.svg',
@@ -423,9 +463,12 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     defaultArgs: ['run', '-s'],
     initialPromptFlag: '-t',
     resumeFlag: '--resume',
+    sessionIdFlag: '--session-id',
+    sessionIdOnResumeOnly: true,
     icon: 'goose.png',
     alt: 'Goose CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'kimi',
@@ -668,6 +711,27 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Autohand Code CLI',
     terminalOnly: true,
   },
+  {
+    id: 'mimocode',
+    name: 'MiMo Code',
+    description:
+      "Xiaomi's terminal-native coding agent with persistent cross-session memory and OpenAI-compatible provider support.",
+    docUrl: 'https://github.com/XiaomiMiMo/MiMo-Code',
+    installCommand: 'npm install -g @mimo-ai/cli',
+    commands: ['mimo'],
+    versionArgs: ['--version'],
+    cli: 'mimo',
+    autoApproveViaEnv: true,
+    initialPromptFlag: '--prompt',
+    resumeFlag: '--session',
+    sessionIdFlag: '--session',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '--continue',
+    icon: 'mimocode.svg',
+    alt: 'MiMo Code CLI',
+    terminalOnly: true,
+    supportsHooks: true,
+  },
 ];
 
 const PROVIDER_MAP = new Map<string, AgentProviderDefinition>(
@@ -689,11 +753,6 @@ export function getInstallCommandForProvider(id: AgentProviderId): string | null
  */
 export function isValidProviderId(value: unknown): value is AgentProviderId {
   return typeof value === 'string' && AGENT_PROVIDER_IDS.includes(value as AgentProviderId);
-}
-
-export function isValidProviderSessionId(providerId: string, providerSessionId: string): boolean {
-  if (providerId === 'opencode') return providerSessionId.startsWith('ses');
-  return true;
 }
 
 export function getDescriptionForProvider(id: AgentProviderId): string | null {

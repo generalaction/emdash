@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { IssueProviderType } from '@shared/issue-providers';
+import { isIssueIntegration } from './integration-display';
 import { useIntegrationsContext } from './integrations-provider';
-import { ISSUE_PROVIDER_ORDER } from './issue-provider-meta';
 import { isProviderUsable, type ProviderContext } from './provider-utils';
 
 export interface UseConnectedIssueProvidersResult {
@@ -14,11 +14,15 @@ export interface UseConnectedIssueProvidersResult {
 export function useConnectedIssueProviders(
   context: ProviderContext = {}
 ): UseConnectedIssueProvidersResult {
-  const { connectionStatus, isCheckingConnections } = useIntegrationsContext();
+  const { connectionStatus, integrations, isCheckingConnections } = useIntegrationsContext();
 
   const connectedProviders = useMemo(
-    () => ISSUE_PROVIDER_ORDER.filter((p) => isProviderUsable(connectionStatus[p], context)),
-    [connectionStatus, context]
+    () =>
+      integrations
+        .filter(isIssueIntegration)
+        .map((integration) => integration.id)
+        .filter((provider) => isProviderUsable(connectionStatus[provider], context)),
+    [connectionStatus, context, integrations]
   );
 
   const checkUsable = useMemo(

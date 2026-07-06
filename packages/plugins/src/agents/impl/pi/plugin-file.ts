@@ -3,7 +3,7 @@ export const PI_EXTENSION_CONTENT = `\
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 
 async function notifyEmdash(
-  eventType: 'stop' | 'error' | 'notification',
+  eventType: 'stop' | 'error' | 'notification' | 'session',
   body: Record<string, unknown> = {}
 ) {
   const port = process.env.EMDASH_HOOK_PORT;
@@ -36,6 +36,12 @@ function errorMessage(error: unknown): string {
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.on('session_start', async (_event, ctx) => {
+    const sessionFile = ctx.sessionManager.getSessionFile();
+    if (!sessionFile) return;
+    await notifyEmdash('session', { providerSessionId: sessionFile });
+  });
+
   pi.on('agent_end', async () => {
     await notifyEmdash('stop', { message: 'Task completed' });
   });

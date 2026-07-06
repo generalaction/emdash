@@ -1,4 +1,4 @@
-import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
+import { IntegrationIcon } from '@renderer/features/integrations/integration-icon';
 import {
   PrSelector,
   SelectedPrValue,
@@ -15,8 +15,6 @@ interface PrComboboxFieldProps {
   disabled?: boolean;
   className?: string;
 }
-
-const GitHubIcon = PROVIDER_ICON_COMPONENTS['github'];
 
 export function PrComboboxField({
   value,
@@ -52,7 +50,7 @@ export function PrComboboxField({
             {repoRef ? (
               <span className="flex h-8 items-center gap-1 text-foreground-passive">
                 Select a PR from
-                <GitHubIcon className="size-3.5 opacity-40" />
+                <IntegrationIcon provider="github" size={14} className="opacity-40" />
                 <span>{repoRef.nameWithOwner}</span>
               </span>
             ) : null}

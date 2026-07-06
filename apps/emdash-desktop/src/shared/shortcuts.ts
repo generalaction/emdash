@@ -210,6 +210,20 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Tab Navigation',
     conflictBehavior: 'allow',
   },
+  tabReopen: {
+    defaultHotkey: 'Mod+Shift+T',
+    label: 'Reopen Closed Tab',
+    description: 'Reopen the most recently closed tab',
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  },
+  tabRename: {
+    defaultHotkey: 'Mod+Shift+R',
+    label: 'Rename Tab',
+    description: 'Rename the active tab (when supported)',
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  },
   newConversation: {
     defaultHotkey: 'Mod+T',
     label: 'New Conversation',
@@ -223,7 +237,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Task View',
   },
   newTerminal: {
-    defaultHotkey: 'Mod+Shift+T',
+    defaultHotkey: 'Mod+Shift+`',
     label: 'New Terminal',
     description: 'Create a new terminal in the current task',
     category: 'Task View',

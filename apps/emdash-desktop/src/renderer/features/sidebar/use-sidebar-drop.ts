@@ -54,6 +54,14 @@ export function useSidebarDrop() {
               type: 'local',
               path: filePath,
             });
+            if (status.error) {
+              toast({
+                title: 'Cannot add project',
+                description: `Could not inspect ${basenameFromAnyPath(filePath)}: ${status.error.message}`,
+                variant: 'destructive',
+              });
+              return null;
+            }
             if (!status.isDirectory) {
               toast({
                 title: 'Cannot add project',

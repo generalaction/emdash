@@ -1,6 +1,8 @@
 import { resolve } from 'node:path';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { defineConfig } from 'vite';
+
+const root = resolve(__dirname, 'src');
 import dts from 'vite-plugin-dts';
 
 // @vitejs/plugin-react is intentionally omitted from the lib build.
@@ -8,6 +10,14 @@ import dts from 'vite-plugin-dts';
 // The plugin is only needed for Storybook (HMR / React Refresh).
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': root,
+      '@react': resolve(root, 'react'),
+      '@styles': resolve(root, 'styles'),
+      '@theme': resolve(root, 'theme'),
+    },
+  },
   plugins: [
     vanillaExtractPlugin(),
     dts({
@@ -23,23 +33,34 @@ export default defineConfig({
     lib: {
       entry: {
         react: resolve(__dirname, 'src/react/index.ts'),
+        'react/chat-ui': resolve(__dirname, 'src/react/chat-ui/index.ts'),
         'react/primitives': resolve(__dirname, 'src/react/primitives/index.ts'),
         'react/components': resolve(__dirname, 'src/react/components/index.ts'),
         'react/patterns': resolve(__dirname, 'src/react/patterns/index.ts'),
+        'react/form': resolve(__dirname, 'src/react/patterns/form/index.ts'),
         'styles/recipes/control': resolve(__dirname, 'src/styles/recipes/control.ts'),
         'styles/recipes/input': resolve(__dirname, 'src/styles/recipes/input.ts'),
+        'styles/recipes/surface': resolve(__dirname, 'src/styles/recipes/surface.css.ts'),
+        'styles/recipes/card': resolve(__dirname, 'src/styles/recipes/card.css.ts'),
+        'styles/recipes/box': resolve(__dirname, 'src/styles/recipes/box.ts'),
         // VE theme utilities — exports sx (Sprinkles) and vars (theme contract).
         // Importing this entry causes style.css to include the extracted VE atoms.
-        'styles/sprinkles': resolve(__dirname, 'src/styles/sprinkles.css.ts'),
+        'styles/utilities/sprinkles': resolve(__dirname, 'src/styles/utilities/sprinkles.css.ts'),
+        'styles/utilities': resolve(__dirname, 'src/styles/utilities/index.ts'),
       },
       formats: ['es'],
     },
     rollupOptions: {
       external: [
+        '@emdash/chat-ui',
+        '@tanstack/react-form',
+        '@tanstack/react-store',
+        '@tanstack/react-virtual',
+        'mobx',
+        'mobx-react-lite',
         'react',
         'react-dom',
         'react/jsx-runtime',
-        'clsx',
         '@base-ui/react',
         'lucide-react',
         '@tiptap/core',

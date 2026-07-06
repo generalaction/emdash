@@ -55,6 +55,19 @@ export interface AddSshConnModalProps extends BaseModalProps<{ connectionId: str
 type TestState = 'idle' | 'testing' | 'success' | 'error';
 const MANUAL_CONNECTION_VALUE = '__manual__';
 const EMPTY_SSH_CONFIG_HOSTS: SshConfigHost[] = [];
+const DUPLICATE_CONNECTION_NAME_ERROR =
+  'An SSH connection with this name already exists. Choose a different name.';
+
+function formatSshConnectionError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const withoutIpcPrefix = message.replace(/^Error invoking remote method 'ssh\.[^']+':\s*/, '');
+
+  if (/UNIQUE constraint failed: ssh_connections\.name/.test(withoutIpcPrefix)) {
+    return DUPLICATE_CONNECTION_NAME_ERROR;
+  }
+
+  return withoutIpcPrefix;
+}
 
 function FieldInfoTooltip({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -117,6 +130,12 @@ export function AddSshConnModal({
     initialConfig?.sshConfigAlias ?? ''
   );
 
+  const findDuplicateConnection = (name: string) =>
+    sshConnections.connections.find(
+      (connection) =>
+        connection.name === name && (!initialConfig || connection.id !== initialConfig.id)
+    );
+
   const form = useForm({
     defaultValues: {
       name: initialConfig?.name ?? '',
@@ -139,6 +158,12 @@ export function AddSshConnModal({
     onSubmit: async ({ value }) => {
       setIsSubmitting(true);
       try {
+        if (findDuplicateConnection(value.name)) {
+          setTestState('idle');
+          setTestResult(null);
+          return;
+        }
+
         const isAliasBacked = value.sshConfigAlias.trim().length > 0;
         const proxyJump = value.proxyJump.trim();
         const username = value.username || value.sshConfigAlias || value.host;
@@ -164,7 +189,7 @@ export function AddSshConnModal({
         onSuccess({ connectionId: saved.id });
       } catch (err) {
         setTestState('error');
-        setTestResult({ success: false, error: err instanceof Error ? err.message : String(err) });
+        setTestResult({ success: false, error: formatSshConnectionError(err) });
       } finally {
         setIsSubmitting(false);
       }
@@ -262,7 +287,7 @@ export function AddSshConnModal({
       setTestState(result.success ? 'success' : 'error');
     } catch (err) {
       setTestState('error');
-      setTestResult({ success: false, error: String(err) });
+      setTestResult({ success: false, error: formatSshConnectionError(err) });
     }
   };
 
@@ -306,16 +331,31 @@ export function AddSshConnModal({
                 Cancel
               </Button>
             )}
-            <ConfirmButton type="submit" form="add-ssh-conn-form" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <LoaderCircle className="size-4 animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                'Save'
-              )}
-            </ConfirmButton>
+            <form.Subscribe
+              selector={(state) => ({
+                canSubmit: state.canSubmit,
+                name: state.values.name,
+              })}
+            >
+              {({ canSubmit, name }) => {
+                return (
+                  <ConfirmButton
+                    type="submit"
+                    form="add-ssh-conn-form"
+                    disabled={isSubmitting || !canSubmit || !!findDuplicateConnection(name)}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <LoaderCircle className="size-4 animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      'Save'
+                    )}
+                  </ConfirmButton>
+                );
+              }}
+            </form.Subscribe>
           </div>
         </DialogFooter>
       }
@@ -333,7 +373,9 @@ export function AddSshConnModal({
               {/* Connection name */}
               <form.Field name="name">
                 {(field) => {
-                  const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                  const isDuplicate = !!findDuplicateConnection(field.state.value);
+                  const isInvalid =
+                    (field.state.meta.isTouched && !field.state.meta.isValid) || isDuplicate;
                   return (
                     <Field data-invalid={isInvalid}>
                       <FieldLabel htmlFor={field.name}>Connection Name</FieldLabel>
@@ -346,7 +388,10 @@ export function AddSshConnModal({
                         aria-invalid={isInvalid}
                         placeholder="My Server"
                       />
-                      {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                      {field.state.meta.isTouched && !field.state.meta.isValid && (
+                        <FieldError errors={field.state.meta.errors} />
+                      )}
+                      {isDuplicate && <FieldError>{DUPLICATE_CONNECTION_NAME_ERROR}</FieldError>}
                     </Field>
                   );
                 }}

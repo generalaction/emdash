@@ -1,4 +1,5 @@
 import './app/configure-app-identity';
+import './core/telemetry/automation-telemetry';
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
@@ -6,8 +7,10 @@ import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
+import { LIBSECRET_PASSWORD_STORE, shouldForceLibsecretBackend } from './app/linux-secret-storage';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
+import { registerQuitHandler } from './app/shutdown';
 import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
@@ -20,16 +23,13 @@ import { browserWebContentsRegistry } from './core/browser/browser-webcontents-r
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
-import { githubAccountRegistry } from './core/github/accounts/github-account-registry-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
-import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
+import { providerAccountRegistry } from './core/provider-accounts/provider-account-registry-instance';
+import { remoteTmuxReaperService } from './core/pty/remote-tmux-reaper-service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
-import {
-  reconcileResourceSampler,
-  stopResourceSampler,
-} from './core/resource-monitor/resource-sampler';
+import { reconcileResourceSampler } from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
 import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
@@ -43,6 +43,7 @@ import {
   registerRendererLogHandler,
 } from './lib/file-logger';
 import { log } from './lib/logger';
+import { withRpcLogging } from './lib/rpc-logging';
 import { telemetryService } from './lib/telemetry';
 import { rpcRouter } from './rpc';
 import { resolveUserEnv } from './utils/userEnv';
@@ -53,6 +54,13 @@ if (import.meta.env.DEV) {
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+  if (
+    shouldForceLibsecretBackend(process.env, {
+      passwordStoreSwitchPresent: app.commandLine.hasSwitch('password-store'),
+    })
+  ) {
+    app.commandLine.appendSwitch('password-store', LIBSECRET_PASSWORD_STORE);
+  }
 }
 
 registerAppScheme();
@@ -131,6 +139,7 @@ void app.whenReady().then(async () => {
 
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
+  remoteTmuxReaperService.initialize();
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
@@ -153,12 +162,12 @@ void app.whenReady().then(async () => {
       log.warn('Account session initialization threw unexpectedly:', e);
     });
 
-  const githubAuthServerAdapter = new GitHubAuthServerAdapter(githubAccountRegistry);
+  const githubAuthServerAdapter = new GitHubAuthServerAdapter(providerAccountRegistry);
   providerTokenRegistry.register('github', (payload) =>
     githubAuthServerAdapter.storeOAuthToken(payload)
   );
 
-  registerRPCRouter(rpcRouter, ipcMain);
+  registerRPCRouter(rpcRouter, app.isPackaged ? ipcMain : withRpcLogging(ipcMain));
 
   void reconcileResourceSampler();
 
@@ -188,18 +197,4 @@ void app.whenReady().then(async () => {
   }
 });
 
-app.on('before-quit', (event) => {
-  event.preventDefault();
-  telemetryService.capture('app_closed');
-  void telemetryService.dispose().finally(() => {
-    automationsService.stop();
-    agentHookService.dispose();
-    stopResourceSampler();
-    updateService.dispose();
-    prSyncScheduler.dispose();
-    void projectManager.dispose().catch((e) => {
-      log.error('Failed to shutdown project manager:', e);
-    });
-    app.exit(0);
-  });
-});
+registerQuitHandler();

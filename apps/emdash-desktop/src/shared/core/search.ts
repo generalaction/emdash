@@ -18,3 +18,14 @@ export interface CommandPaletteQuery {
     workspaceId?: string;
   };
 }
+
+export interface WorkspaceFileSearchQuery {
+  workspaceId: string;
+  query: string;
+  limit?: number;
+}
+
+export interface WorkspaceFileHit {
+  path: string;
+  filename: string;
+}

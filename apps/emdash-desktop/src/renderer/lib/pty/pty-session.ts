@@ -9,6 +9,8 @@ export type PtySessionOptions = {
   clearOnBackendStart?: boolean;
 };
 
+type PtySessionPrepareResult = void | false;
+
 export class PtySession {
   pty: FrontendPty | null = null;
   status: PtySessionStatus = 'disconnected';
@@ -20,7 +22,7 @@ export class PtySession {
 
   constructor(
     readonly sessionId: string,
-    private readonly prepare?: () => Promise<void>,
+    private readonly prepare?: () => Promise<PtySessionPrepareResult>,
     private readonly onOpenFile?: (filePath: string) => void,
     private readonly onOpenExternal?: (filePath: string) => void,
     options: PtySessionOptions = {}
@@ -47,7 +49,8 @@ export class PtySession {
 
     const version = this.version;
     this.connectPromise = (async () => {
-      await this.prepare?.();
+      const prepared = await this.prepare?.();
+      if (prepared === false) return;
       if (version !== this.version) return;
       if (this.pty) return;
       const pty = new FrontendPty(this.sessionId, undefined, this.onOpenFile, this.onOpenExternal);

@@ -10,7 +10,7 @@
  *   3. Hybrid     — some scales generated, some explicit (e.g. branded accent)
  */
 
-import { SCALE_NAMES } from './contract/roles.js';
+import { SCALE_NAMES } from './contract/roles';
 import type {
   HueScaleName,
   Polarity,
@@ -20,13 +20,14 @@ import type {
   Surfaces,
   SurfaceScopeName,
   SyntaxRole,
-} from './contract/roles.js';
-import { fillGaps } from './generate/fill-gaps.js';
-import { generateRamp, generateNeutralRamp } from './generate/ramp.js';
-import type { ScaleTweaks } from './generate/ramp.js';
-import { generateSurfaces } from './generate/surfaces.js';
-import { generateSyntaxTheme } from './generate/syntax.js';
-import type { SyntaxThemeInput } from './generate/syntax.js';
+} from './contract/roles';
+import { fillGaps } from './generate/fill-gaps';
+import { generateRamp, generateNeutralRamp } from './generate/ramp';
+import type { ScaleTweaks } from './generate/ramp';
+import { resolveCssVars } from './generate/resolve';
+import { generateSurfaces } from './generate/surfaces';
+import { generateSyntaxVars } from './generate/syntax';
+import type { SyntaxThemeInput } from './generate/syntax';
 
 // ── ThemeInput ────────────────────────────────────────────────────────────────
 
@@ -113,10 +114,12 @@ export interface ResolvedTheme {
   selector: string;
   scales: Scales;
   surfaces: Surfaces;
-  /** Fully resolved CSS custom property map. */
+  /**
+   * Fully resolved CSS custom property map. Includes palette vars
+   * (--neutral-1..12 etc.), surface vars, semantic vars, and syntax
+   * token vars (--syntax-<role>, --syntax-editor-*).
+   */
   cssVars: Record<string, string>;
-  /** Shiki/VSCode-format syntax theme for use with createHighlighterCoreSync. */
-  shikiTheme: object;
 }
 
 // ── Built-in hue defaults (OKLCH hue angles, Radix-derived) ───────────────────
@@ -210,15 +213,9 @@ export function defineTheme(input: ThemeInput): ResolvedTheme {
   // 3. Resolve CSS vars from the semantic template (done in resolve.ts, called here)
   const cssVars = resolveCssVars(scales, surfaces, polarity);
 
-  // 4. Generate syntax theme
+  // 4. Generate syntax token vars (--syntax-<role>, --syntax-editor-*)
   const syntaxInput: SyntaxThemeInput = input.syntax ?? { generate: true };
-  const shikiTheme = generateSyntaxTheme(scales, polarity, syntaxInput);
+  Object.assign(cssVars, generateSyntaxVars(scales, polarity, syntaxInput));
 
-  return { id, label, polarity, selector, scales, surfaces, cssVars, shikiTheme };
+  return { id, label, polarity, selector, scales, surfaces, cssVars };
 }
-
-// ── CSS var resolution (inlined here to keep the module self-contained) ───────
-// Full implementation lives in resolve.ts; this is a re-export boundary.
-// We import directly so defineTheme.ts stays the single entry point.
-
-import { resolveCssVars } from './resolve.js';

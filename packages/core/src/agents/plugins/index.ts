@@ -1,7 +1,7 @@
+import { createPluginFramework, iconAsset } from '@emdash/shared/plugins';
 import z from 'zod';
 import { hostDependencyCapability } from '../../host-dependencies/capability';
-import { createPluginFramework } from '../../lib/plugins/framework';
-import { iconAsset } from './assets/icon';
+import { acpCapability } from './capabilities/acp';
 import { autoApproveCapability } from './capabilities/auto-approve';
 import { effortCapability } from './capabilities/effort';
 import { hooksCapability } from './capabilities/hooks';
@@ -10,8 +10,10 @@ import { modelsCapability } from './capabilities/models';
 import { pluginsCapability } from './capabilities/plugins';
 import { promptCapability } from './capabilities/prompt';
 import { sessionsCapability } from './capabilities/sessions';
+import { trustCapability } from './capabilities/trust';
 
 export const PLUGIN_CAPABILITIES = {
+  acp: acpCapability,
   autoApprove: autoApproveCapability,
   effort: effortCapability,
   hooks: hooksCapability,
@@ -21,6 +23,7 @@ export const PLUGIN_CAPABILITIES = {
   plugins: pluginsCapability,
   prompt: promptCapability,
   sessions: sessionsCapability,
+  trust: trustCapability,
 } as const;
 
 export type Capabilities = typeof PLUGIN_CAPABILITIES;
@@ -50,7 +53,10 @@ export const { definePlugin, registerPluginBehavior } = createPluginFramework(
 export type CLIAgentPluginDefinition = ReturnType<typeof definePlugin>;
 export type CLIAgentPluginProvider = ReturnType<typeof registerPluginBehavior>;
 
-export type { AgentIconAsset, AgentIconVariant } from './assets/icon';
+export type {
+  PluginIconAsset as AgentIconAsset,
+  PluginIconVariant as AgentIconVariant,
+} from '@emdash/shared/plugins';
 
 // Convenience re-exports for impl packages
 export type { AgentCommand, CommandContext } from './capabilities/prompt';
@@ -62,11 +68,20 @@ export type {
 } from './capabilities/hooks-types';
 export type { PluginFs } from '../runtime/fs';
 // Capability behavior interfaces — needed for dts portability
+export type {
+  IAcpBehavior,
+  AcpSpawnContext,
+  AcpSpawnResult,
+  AcpProcessIo,
+  AcpAgentApi,
+  AcpClientFactory,
+} from './capabilities/acp';
 export type { IHostDependencyBehavior } from '../../host-dependencies/capability';
 export type { IHooksBehavior } from './capabilities/hooks';
 export type { IMcpBehavior, McpServerRegistration } from './capabilities/mcp';
 export type { IPlugins } from './capabilities/plugins';
 export type { ISessionsBehavior } from './capabilities/sessions';
+export type { ITrustBehavior, TrustContext } from './capabilities/trust';
 
 // Typed registry factory
-export { createPluginRegistry } from '../../lib/plugins/registry';
+export { createPluginRegistry } from '@emdash/shared/plugins';

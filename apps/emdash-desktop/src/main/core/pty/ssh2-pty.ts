@@ -17,6 +17,15 @@ export interface Ssh2SpawnOptions extends PtyDimensions {
 
 export class Ssh2PtySession implements Pty {
   readonly id: string;
+  /**
+   * Input deferred while the ssh2 channel's send buffer is full. Without this,
+   * `write()` ignored `channel.write()`'s return value and kept blasting the
+   * channel — a tmux mouse drag floods SGR reports faster than the remote can
+   * drain, freezing the panel and the remote tmux server. See issue #1994.
+   */
+  private readonly pendingWrites: string[] = [];
+  private draining = false;
+  private closed = false;
 
   constructor(
     id: string,
@@ -26,8 +35,30 @@ export class Ssh2PtySession implements Pty {
   }
 
   write(data: string): void {
-    this.channel.write(data);
+    if (this.closed) return;
+    if (this.draining) {
+      this.pendingWrites.push(data);
+      return;
+    }
+    // `write()` returning false means the buffer is over its high-water mark:
+    // the data is still queued by ssh2, but we must stop writing until `drain`.
+    if (!this.channel.write(data)) {
+      this.draining = true;
+      this.channel.once('drain', this.onDrain);
+    }
   }
+
+  private readonly onDrain = (): void => {
+    this.draining = false;
+    while (!this.closed && this.pendingWrites.length > 0) {
+      const chunk = this.pendingWrites.shift()!;
+      if (!this.channel.write(chunk)) {
+        this.draining = true;
+        this.channel.once('drain', this.onDrain);
+        return;
+      }
+    }
+  };
 
   resize(cols: number, rows: number): void {
     try {
@@ -42,6 +73,9 @@ export class Ssh2PtySession implements Pty {
   }
 
   kill(): void {
+    this.closed = true;
+    this.pendingWrites.length = 0;
+    this.channel.removeListener('drain', this.onDrain);
     try {
       this.channel.close();
     } catch {}

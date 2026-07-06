@@ -1,9 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import React from 'react';
+import { Box } from '../primitives/box';
 import { ThemeProvider } from '../primitives/theme-provider';
 import { Heading } from '../primitives/typography/Heading';
 import { Text } from '../primitives/typography/Text';
 import { textVariants, type TextVariantProps } from '../primitives/typography/typography.variants';
+import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Theme/Typography',
@@ -12,8 +16,6 @@ const meta: Meta = {
 
 export default meta;
 type Story = StoryObj;
-
-// ── Primitive scale tokens ────────────────────────────────────────────────────
 
 const SIZE_TOKENS = [
   { name: '--text-micro', size: '10px', lh: '1.2' },
@@ -36,63 +38,87 @@ const WEIGHT_TOKENS = [
 /** Primitive type size scale — each --text-* token. */
 export const TypeScale: Story = {
   render: () => (
-    <div className="flex flex-col gap-2 p-4">
-      <div className="mb-4">
-        <h2 className="text-sm font-semibold text-foreground">Type size scale</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
-          Primitive <code className="font-mono">--text-*</code> tokens. Semantic{' '}
-          <code className="font-mono">--type-&lt;role&gt;-font-size</code> values reference these.
+    <Box display="flex" flexDirection="column" gap="2" padding="4">
+      <Box marginBottom="4">
+        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
+          Type size scale
+        </h2>
+        <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
+          Primitive <code className={cx(sx({ fontFamily: 'mono' }))}>--text-*</code> tokens.
+          Semantic{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>--type-&lt;role&gt;-font-size</code>{' '}
+          values reference these.
         </p>
-      </div>
+      </Box>
       {SIZE_TOKENS.map(({ name, size, lh }) => (
-        <div key={name} className="flex items-baseline gap-4">
-          <div className="w-48 shrink-0 text-right">
-            <code className="font-mono text-xs text-foreground-passive">{name}</code>
-            <span className="ml-2 text-xs text-foreground-passive">
+        <Box key={name} display="flex" alignItems="baseline" gap="4">
+          <Box
+            display="flex"
+            flexDirection="column"
+            flexShrink={0}
+            className={s.w48}
+            style={{ textAlign: 'right' }}
+          >
+            <code
+              className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundPassive' }))}
+            >
+              {name}
+            </code>
+            <span className={cx(sx({ fontSize: 'xs', color: 'foregroundPassive' }))}>
               {size} / {lh}
             </span>
-          </div>
+          </Box>
           <span
             style={{ fontSize: `var(${name})`, lineHeight: `var(${name}--line-height, ${lh})` }}
-            className="text-foreground"
+            className={cx(sx({ color: 'foreground' }))}
           >
             The quick brown fox jumps over the lazy dog.
           </span>
-        </div>
+        </Box>
       ))}
-    </div>
+    </Box>
   ),
 };
 
 /** Font weight scale — each --font-weight-* token. */
 export const Weights: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 p-4">
-      <div className="mb-2">
-        <h2 className="text-sm font-semibold text-foreground">Font weight scale</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
-          Primitive <code className="font-mono">--font-weight-*</code> tokens.
+    <Box display="flex" flexDirection="column" gap="4" padding="4">
+      <Box marginBottom="2">
+        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
+          Font weight scale
+        </h2>
+        <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
+          Primitive <code className={cx(sx({ fontFamily: 'mono' }))}>--font-weight-*</code> tokens.
         </p>
-      </div>
+      </Box>
       {WEIGHT_TOKENS.map(({ name, value, label }) => (
-        <div key={name} className="flex items-baseline gap-4">
-          <div className="w-48 shrink-0 text-right">
-            <code className="font-mono text-xs text-foreground-passive">{name}</code>
-            <span className="ml-2 text-xs text-foreground-passive">{value}</span>
-          </div>
+        <Box key={name} display="flex" alignItems="baseline" gap="4">
+          <Box
+            display="flex"
+            flexDirection="column"
+            flexShrink={0}
+            className={s.w48}
+            style={{ textAlign: 'right' }}
+          >
+            <code
+              className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundPassive' }))}
+            >
+              {name}
+            </code>
+            <span className={cx(sx({ fontSize: 'xs', color: 'foregroundPassive' }))}>{value}</span>
+          </Box>
           <span
             style={{ fontWeight: `var(${name})`, fontSize: '14px' }}
-            className="text-foreground"
+            className={cx(sx({ color: 'foreground' }))}
           >
             {label}: The quick brown fox jumps over the lazy dog.
           </span>
-        </div>
+        </Box>
       ))}
-    </div>
+    </Box>
   ),
 };
-
-// ── All roles ─────────────────────────────────────────────────────────────────
 
 const ROLES: Array<{ label: string; variant: TextVariantProps['variant']; as?: string }> = [
   { label: 'h1 — 20px / 700', variant: 'h1', as: 'p' },
@@ -111,79 +137,101 @@ const ROLES: Array<{ label: string; variant: TextVariantProps['variant']; as?: s
 /** Every typography role applied to a sample sentence. */
 export const AllRoles: Story = {
   render: () => (
-    <div className="flex flex-col gap-4">
+    <Box display="flex" flexDirection="column" gap="4">
       {ROLES.map(({ label, variant }) => (
-        <div key={variant} className="flex items-baseline gap-4">
-          <span className="w-52 shrink-0 font-mono text-xs text-foreground-passive">{label}</span>
+        <Box key={variant} display="flex" alignItems="baseline" gap="4">
+          <span
+            className={cx(
+              sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundPassive', flexShrink: 0 }),
+              s.w52
+            )}
+          >
+            {label}
+          </span>
           <Text as="p" variant={variant} tone="default">
             The quick brown fox jumps over the lazy dog.
           </Text>
-        </div>
+        </Box>
       ))}
-    </div>
+    </Box>
   ),
 };
 
 /** Heading component: levels 1–3. */
 export const Headings: Story = {
   render: () => (
-    <div className="flex flex-col gap-3">
+    <Box display="flex" flexDirection="column" gap="3">
       <Heading level={1}>Heading level 1 — 20px / 700</Heading>
       <Heading level={2}>Heading level 2 — 17px / 700</Heading>
       <Heading level={3}>Heading level 3 — 14px / 600</Heading>
-    </div>
+    </Box>
   ),
 };
 
 /** Tone variants — default, muted, passive. */
 export const Tones: Story = {
   render: () => (
-    <div className="flex flex-col gap-2">
+    <Box display="flex" flexDirection="column" gap="2">
       {(['default', 'muted', 'passive'] as const).map((tone) => (
         <Text key={tone} as="p" variant="body" tone={tone}>
           tone="{tone}": The quick brown fox jumps over the lazy dog.
         </Text>
       ))}
-    </div>
+    </Box>
   ),
 };
 
-/** className extension — role + extra Tailwind classes. */
+/** className extension — role + extra utility classes. */
 export const ClassExtension: Story = {
   render: () => (
-    <div className="flex flex-col gap-2">
-      <Text as="p" variant="body" className="italic underline">
+    <Box display="flex" flexDirection="column" gap="2">
+      <Text
+        as="p"
+        variant="body"
+        className={cx(sx({ fontStyle: 'italic', textDecoration: 'underline' }))}
+      >
         className extension: italic + underline applied after role.
       </Text>
-      <Heading level={2} className="text-foreground-muted">
+      <Heading level={2} className={cx(sx({ color: 'foregroundMuted' }))}>
         Muted h2 via className
       </Heading>
-    </div>
+    </Box>
   ),
 };
 
 /** textVariants recipe used directly (no component wrapper). */
 export const RecipeDirectUse: Story = {
   render: () => (
-    <div className="flex flex-col gap-2">
+    <Box display="flex" flexDirection="column" gap="2">
       <p className={textVariants({ variant: 'h1', tone: 'default' })}>
         textVariants — h1 role, default tone
       </p>
       <p className={textVariants({ variant: 'body', tone: 'muted' })}>
         textVariants — body role, muted tone
       </p>
-    </div>
+    </Box>
   ),
 };
 
 /** All surfaces side-by-side to confirm readability. */
 export const AllSurfaces: Story = {
   render: () => (
-    <div className="grid grid-cols-5 gap-3">
-      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map((s) => (
-        <div key={s} className={`surface-${s} bg-surface rounded-lg p-4`}>
-          <p className="mb-1 font-mono text-xs text-foreground-passive">.surface-{s}</p>
-          <Heading level={2} className="mb-1">
+    <Box display="grid" className={s.cols5} gap="3">
+      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map((sv) => (
+        <Box key={sv} surface={sv} rounded="lg" padding="4">
+          <p
+            className={cx(
+              sx({
+                marginBottom: '1',
+                fontFamily: 'mono',
+                fontSize: 'xs',
+                color: 'foregroundPassive',
+              })
+            )}
+          >
+            .surface-{sv}
+          </p>
+          <Heading level={2} className={cx(sx({ marginBottom: '1' }))}>
             Heading
           </Heading>
           <Text as="p" variant="body" tone="default">
@@ -192,38 +240,44 @@ export const AllSurfaces: Story = {
           <Text as="p" variant="body" tone="muted">
             Muted body text.
           </Text>
-        </div>
+        </Box>
       ))}
-    </div>
+    </Box>
   ),
 };
 
 /** Light and dark modes side-by-side. */
 export const BothModes: Story = {
   render: () => (
-    <div className="flex min-h-screen divide-x divide-border">
-      <ThemeProvider defaultTheme="light" className="flex-1 bg-background p-8">
-        <Heading level={1} className="mb-2">
+    <Box display="flex" className={cx(s.minHScreen, s.divideX, s.divideBorder)}>
+      <ThemeProvider
+        defaultTheme="light"
+        className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}
+      >
+        <Heading level={1} className={cx(sx({ marginBottom: '2' }))}>
           Light mode
         </Heading>
-        <Text as="p" variant="body" tone="default" className="mb-1">
+        <Text as="p" variant="body" tone="default" className={cx(sx({ marginBottom: '1' }))}>
           Body text
         </Text>
         <Text as="p" variant="body" tone="muted">
           Muted body text
         </Text>
       </ThemeProvider>
-      <ThemeProvider defaultTheme="dark" className="flex-1 bg-background p-8">
-        <Heading level={1} className="mb-2">
+      <ThemeProvider
+        defaultTheme="dark"
+        className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}
+      >
+        <Heading level={1} className={cx(sx({ marginBottom: '2' }))}>
           Dark mode
         </Heading>
-        <Text as="p" variant="body" tone="default" className="mb-1">
+        <Text as="p" variant="body" tone="default" className={cx(sx({ marginBottom: '1' }))}>
           Body text
         </Text>
         <Text as="p" variant="body" tone="muted">
           Muted body text
         </Text>
       </ThemeProvider>
-    </div>
+    </Box>
   ),
 };

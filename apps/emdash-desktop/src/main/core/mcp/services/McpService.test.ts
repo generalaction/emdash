@@ -159,6 +159,30 @@ describe('McpService', () => {
       expect(result.installed[0].args).toEqual(['foo']);
     });
 
+    it('prefers runnable entries over metadata-only disabled stubs when merging', async () => {
+      mockProviders.push(fakeProvider('opencode', '.opencode.json'));
+      mockProviders.push(fakeProvider('cursor', '.cursor/mcp.json'));
+      await mockFs.write(
+        '.opencode.json',
+        JSON.stringify({
+          mcpServers: { shared: { enabled: false } },
+        })
+      );
+      await mockFs.write(
+        '.cursor/mcp.json',
+        JSON.stringify({
+          mcpServers: { shared: { command: 'npx' } },
+        })
+      );
+
+      const result = await service.loadAll();
+      expect(result.installed[0]).toMatchObject({
+        name: 'shared',
+        command: 'npx',
+        providers: ['opencode', 'cursor'],
+      });
+    });
+
     it('skips agents that throw on read', async () => {
       mockProviders.push(fakeProvider('claude', '.claude.json'));
       mockProviders.push(fakeProvider('cursor', '.cursor/mcp.json'));

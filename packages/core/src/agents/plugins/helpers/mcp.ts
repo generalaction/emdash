@@ -226,6 +226,37 @@ export function codexMcpAdapter(configPath = '.codex/config.toml') {
 }
 
 /**
+ * Grok adapter — TOML file with stdio and streamable HTTP servers.
+ * Config: ~/.grok/config.toml, key: mcp_servers.
+ *
+ * Unlike Codex, Grok keeps HTTP `headers` under their canonical key (it does not
+ * rename them to `http_headers`) and marks every server with `enabled = true` by
+ * default, matching the `grok mcp add` CLI behavior. Transport is inferred from the
+ * presence of `url` (HTTP) vs `command` (stdio); there is no `type`/`transport` field.
+ */
+export function grokMcpAdapter(configPath = '.grok/config.toml') {
+  return createMcpAdapter({
+    configPath,
+    format: 'toml',
+    serversKey: 'mcp_servers',
+    toNative(s) {
+      const { name: _name, transport: _transport, type: _type, ...entry } = s;
+      if (typeof entry.enabled !== 'boolean') entry.enabled = true;
+      return entry;
+    },
+    fromNative(name, raw) {
+      const entry = deepClone(raw) as Record<string, unknown>;
+      const isHttp = typeof entry.url === 'string' && typeof entry.command !== 'string';
+      if (isHttp) {
+        entry.transport = 'http';
+        entry.type = 'http';
+      }
+      return { name, ...entry } as McpServerRegistration;
+    },
+  });
+}
+
+/**
  * Gemini adapter — HTTP servers use httpUrl instead of url; Accept header is injected.
  * Config: ~/.gemini/settings.json, key: mcpServers, JSON.
  */
@@ -271,7 +302,7 @@ export function qwenMcpAdapter(configPath = '.qwen/settings.json') {
 }
 
 /**
- * OpenCode adapter — type:'remote'/httpUrl for HTTP; type:'local'/command[] for stdio.
+ * OpenCode adapter — type:'remote'/url for HTTP; type:'local'/command[] for stdio.
  * Write: ~/.config/opencode/opencode.json; legacy read: ~/.opencode/config.json.
  */
 export function opencodeMcpAdapter(
@@ -286,6 +317,7 @@ export function opencodeMcpAdapter(
     toNative(s) {
       const entry = deepClone(s) as Record<string, unknown>;
       delete entry.name;
+      const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : true;
       if (entry.type === 'http') {
         const url = (entry.url as string) ?? '';
         const baseHeaders = (entry.headers as Record<string, string>) ?? {};
@@ -295,23 +327,28 @@ export function opencodeMcpAdapter(
           type: 'remote',
           url,
           headers,
-          enabled: true,
+          enabled,
         };
         if (entry.env) result.env = entry.env;
+        if (entry.timeout !== undefined) result.timeout = entry.timeout;
+        if (entry.oauth !== undefined) result.oauth = entry.oauth;
         return result;
       }
       // stdio
       const cmdVec: string[] = [];
       if (typeof entry.command === 'string' && entry.command) cmdVec.push(entry.command as string);
       if (Array.isArray(entry.args)) cmdVec.push(...(entry.args as string[]));
-      const result: Record<string, unknown> = { type: 'local', command: cmdVec, enabled: true };
+      if (!cmdVec.length && enabled === false) return { enabled: false };
+      const result: Record<string, unknown> = { type: 'local', command: cmdVec, enabled };
       if (entry.env) result.environment = entry.env;
+      if (entry.cwd !== undefined) result.cwd = entry.cwd;
+      if (entry.timeout !== undefined) result.timeout = entry.timeout;
       return result;
     },
     fromNative(name, raw) {
       const entry = deepClone(raw) as Record<string, unknown>;
       if (entry.type === 'remote') {
-        const { type: _t, enabled: _e, ...rest } = entry;
+        const { type: _t, ...rest } = entry;
         const result = { ...rest, type: 'http' } as Record<string, unknown>;
         stripInjectedHeaders(result);
         return { name, ...result } as McpServerRegistration;
@@ -323,11 +360,28 @@ export function opencodeMcpAdapter(
         if (command) result.command = command;
         if (args.length) result.args = args;
         if (entry.environment) result.env = entry.environment;
+        else if (entry.env) result.env = entry.env;
+        if (typeof entry.enabled === 'boolean') result.enabled = entry.enabled;
+        if (typeof entry.cwd === 'string') result.cwd = entry.cwd;
+        if (typeof entry.timeout === 'number') result.timeout = entry.timeout;
         return { name, ...result } as McpServerRegistration;
       }
       return { name, ...entry } as McpServerRegistration;
     },
   });
+}
+
+/**
+ * MiMo Code adapter — OpenCode fork sharing the same MCP config schema
+ * (type:'remote'/url for HTTP; type:'local'/command[] for stdio).
+ * Write: ~/.config/mimocode/mimocode.json; read lower-priority config.json and
+ * project-local .mimocode/mimocode.json for existing installs.
+ */
+export function mimocodeMcpAdapter(
+  configPath = '.config/mimocode/mimocode.json',
+  legacyReadPaths = ['.config/mimocode/config.json', '.mimocode/mimocode.json']
+) {
+  return opencodeMcpAdapter(configPath, legacyReadPaths);
 }
 
 /**
@@ -361,11 +415,11 @@ export function copilotMcpAdapter(
 
 /**
  * Droid (Factory AI) adapter — passthrough, uses mcpServers JSON key.
- * Write: ~/.droid/settings.json; legacy read: ~/.factory/config.json.
+ * Write: ~/.factory/mcp.json; legacy read: old Droid/Factory config paths.
  */
 export function droidMcpAdapter(
-  configPath = '.droid/settings.json',
-  legacyReadPaths = ['.factory/config.json']
+  configPath = '.factory/mcp.json',
+  legacyReadPaths = ['.droid/settings.json', '.factory/config.json']
 ) {
   return passthroughMcpAdapter(configPath, legacyReadPaths);
 }
@@ -379,4 +433,27 @@ export function ampMcpAdapter(
   legacyReadPaths = ['.amp/config.json']
 ) {
   return passthroughMcpAdapter(configPath, legacyReadPaths);
+}
+
+/**
+ * Crush adapter — passthrough, uses the `mcp` JSON key.
+ * Write: ~/.config/crush/crush.json.
+ */
+export function crushMcpAdapter(configPath = '.config/crush/crush.json') {
+  return createMcpAdapter({
+    configPath,
+    format: 'json',
+    serversKey: 'mcp',
+    toNative(s) {
+      const { name: _n, transport: _transport, ...rest } = s;
+      const entry = rest as Record<string, unknown>;
+      if (!('type' in entry) && _transport) {
+        entry.type = _transport;
+      }
+      return entry;
+    },
+    fromNative(name, raw) {
+      return { name, ...raw } as McpServerRegistration;
+    },
+  });
 }

@@ -15,7 +15,7 @@ export function applyHistoryEntry(entry: HistoryEntry): void {
       projectId: entry.projectId,
       taskId: entry.taskId,
     });
-    getTaskView(entry.projectId, entry.taskId)?.tabManager.setActiveTab(entry.tabId);
+    getTaskView(entry.projectId, entry.taskId)?.activePane.setActiveTab(entry.tabId);
   }
 }
 

@@ -1,13 +1,10 @@
-import { appendFile, mkdir, readFile, rename, stat, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { redactAll, serializeLogValue, stringifyLogValue } from '@emdash/shared/logger';
+import { createFileTransport, trimToLineBoundary } from '@emdash/shared/logger/transport';
 import { app } from 'electron';
+import type pinoLib from 'pino';
 import { APP_SCHEME } from '@main/app/protocol';
-import {
-  serializeLogValue,
-  stringifyLogValue,
-  type Level,
-  type LogSinkEntry,
-} from '@shared/logger';
 
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
 const DIAGNOSTIC_LOG_BYTES = 500 * 1024;
@@ -17,55 +14,16 @@ const DIAGNOSTIC_ATTACHMENT_FILENAME = 'emdash-diagnostics.log';
 const RENDERER_LOG_PAYLOAD_LIMIT = 64 * 1024;
 const PROCESS_EXIT_FLUSH_TIMEOUT_MS = 1000;
 
-const SECRET_KEY_NAMES =
-  'authorization|api[_-]?key|token|password|passphrase|secret|access[_-]?token|refresh[_-]?token|client[_-]?secret';
-
-type RedactionReplacement = string | ((substring: string, ...args: string[]) => string);
-
-const SECRET_PATTERNS: Array<[RegExp, RedactionReplacement]> = [
-  // JSON-quoted key/value: handles both "key":"value" and escaped \"key\":\"value\"
-  [
-    new RegExp(`(\\\\?")(${SECRET_KEY_NAMES})(\\\\?")(\\s*:\\s*)\\\\?"[^"\\\\]*\\\\?"`, 'gi'),
-    (_match, openQuote: string, keyName: string, closeQuote: string, separator: string) =>
-      `${openQuote}${keyName}${closeQuote}${separator}${openQuote}[REDACTED]${openQuote}`,
-  ],
-  // Unquoted: key=value or key: bearer value
-  [
-    new RegExp(`\\b(${SECRET_KEY_NAMES})(\\s*[:=]\\s*)(?:bearer\\s+)?[^\\s,"'}]+`, 'gi'),
-    '$1$2[REDACTED]',
-  ],
-  // PEM blocks (private keys)
-  [/-----BEGIN[^-\n]{1,40}-----[\s\S]+?-----END[^-\n]{1,40}-----/g, '[REDACTED_PEM_BLOCK]'],
-  // Known token prefixes — order matters: vendor-specific before generic
-  [/\bgh[opsu]_[A-Za-z0-9]{36,255}\b/g, '[REDACTED_GITHUB_TOKEN]'],
-  [/\bglpat-[A-Za-z0-9_-]{20,}\b/g, '[REDACTED_GITLAB_TOKEN]'],
-  [/\bnpm_[A-Za-z0-9]{36,}\b/g, '[REDACTED_NPM_TOKEN]'],
-  [/\bAKIA[0-9A-Z]{16}\b/g, '[REDACTED_AWS_KEY]'],
-  [/\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{20,}\b/g, '[REDACTED_STRIPE_KEY]'],
-  [/\bsk-ant-[A-Za-z0-9_-]{20,}\b/g, '[REDACTED_ANTHROPIC_KEY]'],
-  [/\bsk-[A-Za-z0-9_-]{20,}\b/g, '[REDACTED_OPENAI_KEY]'],
-  [/\bxox[baprs]-[A-Za-z0-9-]{20,}\b/g, '[REDACTED_SLACK_TOKEN]'],
-  [/\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, '[REDACTED_JWT]'],
-];
-
-const PII_PATTERNS: Array<[RegExp, RedactionReplacement]> = [
-  // Any scheme://user:pass@ — covers postgres, mongodb, redis, mysql, amqp, https…
-  [/\b([a-z][a-z0-9+.-]*:\/\/)[^\s:/?#@]+:[^\s@/?#]+@/gi, '$1[REDACTED_CREDENTIALS]@'],
-  [/\b(git|hg|svn)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/g, '$1@[REDACTED_HOST]'],
-  [/\b(?:[A-F0-9]{2}:){5}[A-F0-9]{2}\b/gi, '[REDACTED_MAC]'],
-  [/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[REDACTED_EMAIL]'],
-  [/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, '[REDACTED_IP]'],
-  [/\b(?:[A-F0-9]{1,4}:){2,7}[A-F0-9]{1,4}\b/gi, '[REDACTED_IP]'],
-  [/\/Users\/[^\s/]+/gi, '/Users/[REDACTED_USER]'],
-  [/\/home\/[^\s/]+/g, '/home/[REDACTED_USER]'],
-  [/[A-Z]:\\Users\\[^\s\\]+/gi, (match) => `${match.slice(0, 9)}[REDACTED_USER]`],
-];
-
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 let logFilePath: string | undefined;
-let logDirReady = false;
-let pendingWrite: Promise<void> = Promise.resolve();
 
 export function initializeFileLogger() {
+  const override = process.env.EMDASH_LOG_FILE?.trim();
+  if (override) {
+    logFilePath = resolve(override);
+    return;
+  }
+
   const electronApp = app as Electron.App | undefined;
   if (!electronApp?.setAppLogsPath) return;
 
@@ -73,13 +31,40 @@ export function initializeFileLogger() {
   logFilePath = join(electronApp.getPath('logs'), LOG_FILE_NAME);
 }
 
-export function getLogFilePath() {
+export function getLogFilePath(): string | undefined {
   return logFilePath;
 }
 
-export async function getDiagnosticLogAttachment() {
+function resolveLogPath(): string | undefined {
   if (!logFilePath) initializeFileLogger();
-  const path = logFilePath;
+  return logFilePath;
+}
+
+/**
+ * Singleton file transport — shared between the pino destination and the
+ * renderer log intake so there is exactly one serialized write queue.
+ */
+const sharedTransport = createFileTransport({
+  path: resolveLogPath,
+  maxBytes: MAX_LOG_BYTES,
+  retainedFiles: RETAINED_LOG_FILES,
+  redact: redactAll,
+});
+
+/**
+ * Returns a pino-compatible DestinationStream backed by the shared transport.
+ * Called once at main-process logger construction.
+ */
+export function getLogFileDestination(): pinoLib.DestinationStream {
+  return sharedTransport.asDestination();
+}
+
+export function flushLogWrites(): Promise<void> {
+  return sharedTransport.flush();
+}
+
+export async function getDiagnosticLogAttachment() {
+  const path = resolveLogPath();
 
   const fallback = {
     filename: DIAGNOSTIC_ATTACHMENT_FILENAME,
@@ -91,7 +76,7 @@ export async function getDiagnosticLogAttachment() {
 
   const raw = await readFile(path, 'utf8').catch(() => '');
   const tail = trimToLineBoundary(raw, DIAGNOSTIC_LOG_BYTES);
-  const redacted = redactDiagnosticLog(tail);
+  const redacted = redactAll(tail);
 
   return {
     filename: DIAGNOSTIC_ATTACHMENT_FILENAME,
@@ -100,48 +85,14 @@ export async function getDiagnosticLogAttachment() {
   };
 }
 
-export function writeLogEntry(entry: LogSinkEntry) {
-  if (!logFilePath) initializeFileLogger();
-  const path = logFilePath;
-  if (!path) return;
-
-  const payload = JSON.stringify({
-    timestamp: new Date().toISOString(),
-    level: entry.level,
-    source: entry.source ?? 'main',
-    message: formatMessage(entry.input),
-    data: entry.input.map(serializeLogValue),
-  });
-  const line = `${redactDiagnosticLog(payload)}\n`;
-
-  pendingWrite = pendingWrite
-    .then(async () => {
-      if (!logDirReady) {
-        await mkdir(join(path, '..'), { recursive: true });
-        logDirReady = true;
-      }
-      await rotateIfNeeded(path, Buffer.byteLength(line));
-      await appendFile(path, line, 'utf8');
-    })
-    .catch((error) => {
-      console.error('Failed to write application log:', error);
-    });
-}
-
-export function flushLogWrites() {
-  return pendingWrite;
-}
-
-export function registerProcessErrorLogging(log: {
-  error: (message: string, details?: unknown) => void;
-}) {
+export function registerProcessErrorLogging(logger: { error(...input: unknown[]): void }) {
   process.on('uncaughtException', (error) => {
-    log.error('Uncaught exception', serializeLogValue(error));
+    logger.error('Uncaught exception', error);
     flushAndExit();
   });
 
   process.on('unhandledRejection', (reason) => {
-    log.error('Unhandled rejection', serializeLogValue(reason));
+    logger.error('Unhandled rejection', reason);
     flushAndExit();
   });
 }
@@ -160,8 +111,20 @@ export function registerRendererLogHandler(ipcMain: Electron.IpcMain) {
     if (!isWithinPayloadLimit(payload)) return;
     const parsed = parseRendererLog(payload);
     if (!parsed) return;
-    writeLogEntry(parsed);
+    writeRendererLogEntry(parsed);
   });
+}
+
+function writeRendererLogEntry(entry: { level: LogLevel; source: string; input: unknown[] }) {
+  const payload = JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: entry.level,
+    source: entry.source,
+    message: entry.input.map((v) => (typeof v === 'string' ? v : stringifyLogValue(v))).join(' '),
+    data: entry.input.map(serializeLogValue),
+  });
+
+  sharedTransport.write(payload);
 }
 
 function isTrustedRendererSender(frame: Electron.WebFrameMain | null): boolean {
@@ -170,7 +133,6 @@ function isTrustedRendererSender(frame: Electron.WebFrameMain | null): boolean {
     const url = frame.url;
     if (!url) return false;
     if (url.startsWith(`${APP_SCHEME}://`)) return true;
-    // Allow dev server during local development only
     if (process.env.NODE_ENV !== 'production' && url.startsWith('http://localhost:')) return true;
     return false;
   } catch {
@@ -186,35 +148,9 @@ function isWithinPayloadLimit(payload: unknown): boolean {
   }
 }
 
-async function rotateIfNeeded(path: string, incomingBytes: number) {
-  const current = await stat(path).catch(() => undefined);
-  if (!current || current.size + incomingBytes <= MAX_LOG_BYTES) return;
-
-  await unlink(`${path}.${RETAINED_LOG_FILES}`).catch(() => undefined);
-
-  for (let index = RETAINED_LOG_FILES - 1; index >= 1; index -= 1) {
-    await rename(`${path}.${index}`, `${path}.${index + 1}`).catch((error) => {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error('Log rotation rename failed:', error);
-      }
-    });
-  }
-
-  await rename(path, `${path}.1`).catch((error) => {
-    console.error('Log rotation rename failed:', error);
-  });
-}
-
-function trimToLineBoundary(value: string, maxBytes: number) {
-  const encoded = Buffer.from(value, 'utf8');
-  if (encoded.byteLength <= maxBytes) return value;
-  const sliced = encoded.slice(-maxBytes).toString('utf8');
-  const newline = sliced.indexOf('\n');
-  if (newline === -1 || newline === sliced.length - 1) return sliced;
-  return sliced.slice(newline + 1);
-}
-
-function parseRendererLog(payload: unknown): LogSinkEntry | undefined {
+function parseRendererLog(
+  payload: unknown
+): { level: LogLevel; source: string; input: unknown[] } | undefined {
   if (!payload || typeof payload !== 'object') return undefined;
   const record = payload as Record<string, unknown>;
   if (!isLevel(record.level)) return undefined;
@@ -222,35 +158,11 @@ function parseRendererLog(payload: unknown): LogSinkEntry | undefined {
   return { level: record.level, source: 'renderer', input };
 }
 
-function isLevel(value: unknown): value is Level {
+function isLevel(value: unknown): value is LogLevel {
   return value === 'debug' || value === 'info' || value === 'warn' || value === 'error';
 }
 
-function formatMessage(input: unknown[]) {
-  return input
-    .map((value) => {
-      if (typeof value === 'string') return value;
-      if (value instanceof Error) return value.message;
-      return stringifyLogValue(value);
-    })
-    .join(' ');
-}
-
-export function redactDiagnosticLog(value: string) {
-  return redactPii(redactSecrets(value));
-}
-
-function redactSecrets(value: string) {
-  return applyRedactions(value, SECRET_PATTERNS);
-}
-
-function redactPii(value: string) {
-  return applyRedactions(value, PII_PATTERNS);
-}
-
-function applyRedactions(value: string, patterns: Array<[RegExp, RedactionReplacement]>) {
-  return patterns.reduce(
-    (redacted, [pattern, replacement]) => redacted.replace(pattern, replacement as string),
-    value
-  );
+/** Exported for diagnostic attachment (used in the diagnostics controller). */
+export function redactDiagnosticLog(value: string): string {
+  return redactAll(value);
 }

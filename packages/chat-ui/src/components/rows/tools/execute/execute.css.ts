@@ -1,32 +1,39 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { vars } from '@styles/theme.css';
-import { createVariableThemeContract } from '@styles/variable-theme-contract.css';
 
-// ── Runtime geometry contract ─────────────────────────────────────────────────
+// ── Body ──────────────────────────────────────────────────────────────────────
 
-export type ExecuteStyleVars = { rowH: number };
-
-export const executeVars = createVariableThemeContract<ExecuteStyleVars>({ rowH: null });
-
-export const executeRoot = style({
-  height: executeVars.rowH,
-  display: 'flex',
-  alignItems: 'center',
+/** Wrapper: height + overflow set inline (depend on expanded state + bodyH). */
+export const executeBody = style({
+  position: 'relative',
 });
 
-/** Inline-code chip inside the execute row — mirrors .pf--inline-code from prose.css.ts. */
-export const pexecCmd = style({
-  fontSize: vars.typeInlineCodeFontSize,
-  fontWeight: vars.typeInlineCodeFontWeight,
-  fontFamily: vars.typeInlineCodeFontFamily,
-  paddingTop: vars.icPadY,
-  paddingBottom: vars.icPadY,
-  paddingLeft: vars.icPadX,
-  paddingRight: vars.icPadX,
-  display: 'inline-block',
-  maxWidth: '150px',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  verticalAlign: 'bottom',
+// ── Line ──────────────────────────────────────────────────────────────────────
+
+export const executeLine = style({
+  whiteSpace: 'pre',
+  fontSize: vars.typeCodeFontSize,
+  fontWeight: vars.typeCodeFontWeight,
+  fontFamily: vars.typeCodeFontFamily,
+  color: vars.fg,
+  paddingLeft: '12px',
+  paddingRight: '12px',
+  // line-height is set via inline style from theme.fonts.code.lineHeight
+  // so it cannot drift from the measured value via a CSS variable.
+});
+
+export const executeOutputLine = style({
+  color: vars.fgMuted,
+});
+
+export const executeSpacerLine = style({
+  userSelect: 'none',
+});
+
+globalStyle(`${executeLine} span`, {
+  color: 'var(--shiki-light)',
+});
+
+globalStyle(`.emdark ${executeLine} span`, {
+  color: 'var(--shiki-dark)',
 });

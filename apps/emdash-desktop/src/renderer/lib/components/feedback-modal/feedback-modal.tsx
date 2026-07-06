@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
@@ -59,6 +60,11 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
   const [includeDiagnosticLogs, setIncludeDiagnosticLogs] = useState(false);
   const { user: githubUser } = useGithubContext();
   const appVersion = appState.update.currentVersion;
+  const { data: platformDisplayName } = useQuery({
+    queryKey: ['app', 'platformDisplayName'],
+    queryFn: () => rpc.app.getPlatformDisplayName(),
+    staleTime: Infinity,
+  });
   const {
     attachments,
     isDraggingOver,
@@ -89,6 +95,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
   } = useFeedbackSubmit({
     githubUser,
     appVersion,
+    platformDisplayName,
     onSuccess: () => {
       resetAttachments();
       setIncludeDiagnosticLogs(false);

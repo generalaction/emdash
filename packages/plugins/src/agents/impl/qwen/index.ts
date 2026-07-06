@@ -21,8 +21,8 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'config',
-      scope: 'workspace',
-      supportedEvents: ['notification', 'stop'],
+      scope: 'global',
+      supportedEvents: ['notification', 'stop', 'session'],
     },
     hostDependency: npmDependency({ id: 'qwen', package: '@qwen-code/qwen-code' }),
     mcp: {
@@ -45,9 +45,12 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        autoApproveFlag: '--yolo',
+        autoApproveFlag: '--approval-mode=yolo',
         initialPromptFlag: '-i',
-        resumeFlag: '--continue',
+        resumeFlag: '--resume',
+        sessionIdFlag: '--resume',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '--continue',
       }),
   },
   hooks: buildQwenHookConfig(),

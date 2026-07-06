@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { FileWatchService } from '../fs';
+import { WatchService } from '../watch';
 import { GitRuntime, type GitRefsModel, type GitRepoUpdate } from './index';
 
 const execFileAsync = promisify(execFile);
@@ -63,7 +63,7 @@ async function eventually<T>(
 describe('GitRepository', () => {
   it('reads repository facts and emits updates after real git mutations', async () => {
     const { repo, remote } = await makeRepoWithRemote();
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher });
     const updates: GitRepoUpdate[] = [];
 
@@ -129,7 +129,7 @@ describe('GitRepository', () => {
       expect(updates.some((update) => update.kind === 'refs')).toBe(true);
       subscribed.unsubscribe();
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -138,7 +138,7 @@ describe('GitRepository', () => {
 
   it('emits refs updates for external git mutations under the common dir', async () => {
     const { repo } = await makeRepoWithRemote();
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher });
     const updates: GitRepoUpdate[] = [];
 
@@ -165,7 +165,7 @@ describe('GitRepository', () => {
           expect.objectContaining({ type: 'local', branch: 'external-change' }),
         ])
       );
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -192,7 +192,7 @@ describe('GitRepository', () => {
       expect(after.refs.sequence).toBeGreaterThan(before.refs.sequence);
       expect(afterOid).toMatch(/^[0-9a-f]{40}$/);
       expect(afterOid).not.toBe(beforeOid);
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -219,7 +219,7 @@ describe('GitRepository', () => {
       expect((await repository.getRefs()).branches).toEqual(
         expect.arrayContaining([expect.objectContaining({ type: 'local', branch: 'from-remote' })])
       );
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -251,7 +251,7 @@ describe('GitRepository', () => {
           }),
         ])
       );
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -278,7 +278,7 @@ describe('GitRepository', () => {
       expect((await lease.value.getRefs()).branches).toEqual(
         expect.arrayContaining([expect.objectContaining({ type: 'local', branch: 'pr-7' })])
       );
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
