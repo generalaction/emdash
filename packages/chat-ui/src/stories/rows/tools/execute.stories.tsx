@@ -106,6 +106,7 @@ export const Error: Story = {
           id: 'ex4',
           command: 'pnpm run test',
           status: 'error',
+          error: 'Test command failed with exit code 1',
           startedAt: Date.now() - 8000,
           durationMs: 8000,
         },

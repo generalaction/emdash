@@ -6,10 +6,17 @@
  */
 
 import { DEFAULT_THEME } from '@core/theme';
-import { For, onCleanup } from 'solid-js';
+import { For, type JSX, onCleanup } from 'solid-js';
 import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
-import type { ChatItem, ToolStatus, TranscriptTurn } from '@/model';
+import type {
+  AcpPermissionRequest,
+  ChatItem,
+  PlanState,
+  ToolNode,
+  ToolStatus,
+  TranscriptTurn,
+} from '@/model';
 import { createChatState } from '@/state/chat-state';
 import { storyViewport } from './chat-host.css';
 
@@ -44,6 +51,93 @@ export type ToolStateMatrixProps = {
   width?: number;
 };
 
+export type ToolNodeStateMatrixProps = {
+  /**
+   * Build a ToolNode for a given status. Use the status in the id/toolCallId so
+   * each row is independent in the virtualizer.
+   */
+  build: (status: MatrixStatus) => ToolNode;
+  rows?: MatrixRow[];
+  /** Optional plan snapshot used by create-plan-tool-call rows. */
+  plan?: (row: MatrixRow) => PlanState | null;
+  rowHeight?: number;
+  width?: number;
+};
+
+export type PlanMatrixRow = {
+  label: string;
+  item: ChatItem;
+};
+
+export type PlanStateMatrixProps = {
+  rows: PlanMatrixRow[];
+  rowHeight?: number;
+  width?: number;
+};
+
+function matrixTurnId(label: string): string {
+  return `matrix-turn-${label.toLowerCase().replaceAll(' ', '-')}`;
+}
+
+function MatrixRows(props: {
+  rows: readonly { label: string }[];
+  rowHeight: number;
+  width: number;
+  renderRow: (row: { label: string }) => JSX.Element;
+}) {
+  return (
+    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '12px' }}>
+      <For each={props.rows}>
+        {(row) => (
+          <div>
+            <div
+              style={{
+                'font-size': '11px',
+                'font-family': 'monospace',
+                color: '#888',
+                'margin-bottom': '4px',
+                'padding-left': '4px',
+              }}
+            >
+              {row.label}
+            </div>
+            <div
+              class={storyViewport}
+              style={{ width: `${props.width}px`, height: `${props.rowHeight}px` }}
+            >
+              {props.renderRow(row)}
+            </div>
+          </div>
+        )}
+      </For>
+    </div>
+  );
+}
+
+type ToolCallNode = Extract<ToolNode, { toolCallId: string }>;
+
+function firstToolCall(node: ToolNode): ToolCallNode | null {
+  if ('toolCallId' in node) return node;
+  for (const child of node.children) {
+    const match = firstToolCall(child);
+    if (match) return match;
+  }
+  return null;
+}
+
+function permissionFor(node: ToolNode): AcpPermissionRequest | null {
+  const toolCall = firstToolCall(node);
+  if (!toolCall) return null;
+  return {
+    requestId: `req-${toolCall.toolCallId}`,
+    toolCall,
+    options: [
+      { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
+    ],
+  };
+}
+
 /**
  * Renders one labeled ChatHost viewport per status row so all states are
  * visible side-by-side in the Storybook canvas.
@@ -54,49 +148,103 @@ export function ToolStateMatrix(props: ToolStateMatrixProps) {
   const width = props.width ?? 880;
 
   return (
-    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '12px' }}>
-      <For each={rows}>
-        {(row) => {
-          const ctx = createChatContext({ theme: DEFAULT_THEME });
-          const state = createChatState(ctx);
-          onCleanup(() => {
-            state.dispose();
-            ctx.dispose();
-          });
-          const item = props.build(row.status);
-          const matrixItem = {
-            ...item,
-            ...(row.awaitingPermission ? { awaitingPermission: true } : {}),
-            ...(row.error && !('error' in item && item.error) ? { error: row.error } : {}),
-          } as ChatItem;
-          state.transcript.history.seed([
-            {
-              id: `matrix-turn-${row.label.toLowerCase().replaceAll(' ', '-')}`,
-              seq: 0,
-              initiator: 'agent',
-              items: [{ ...matrixItem, seq: 0 } as TranscriptTurn['items'][number]],
-            },
-          ]);
-          return (
-            <div>
-              <div
-                style={{
-                  'font-size': '11px',
-                  'font-family': 'monospace',
-                  color: '#888',
-                  'margin-bottom': '4px',
-                  'padding-left': '4px',
-                }}
-              >
-                {row.label}
-              </div>
-              <div class={storyViewport} style={{ width: `${width}px`, height: `${rowHeight}px` }}>
-                <ChatRoot context={ctx} state={state} stickToBottom pinUserMessages />
-              </div>
-            </div>
-          );
-        }}
-      </For>
-    </div>
+    <MatrixRows
+      rows={rows}
+      rowHeight={rowHeight}
+      width={width}
+      renderRow={(row) => {
+        const matrixRow = row as MatrixRow;
+        const ctx = createChatContext({ theme: DEFAULT_THEME });
+        const state = createChatState(ctx);
+        onCleanup(() => {
+          state.dispose();
+          ctx.dispose();
+        });
+        const item = props.build(matrixRow.status);
+        const matrixItem = {
+          ...item,
+          ...(matrixRow.awaitingPermission ? { awaitingPermission: true } : {}),
+          ...(matrixRow.error && !('error' in item && item.error)
+            ? { error: matrixRow.error }
+            : {}),
+        } as ChatItem;
+        state.transcript.history.seed([
+          {
+            id: matrixTurnId(matrixRow.label),
+            seq: 0,
+            initiator: 'agent',
+            items: [{ ...matrixItem, seq: 0 } as TranscriptTurn['items'][number]],
+          },
+        ]);
+        return <ChatRoot context={ctx} state={state} stickToBottom pinUserMessages />;
+      }}
+    />
+  );
+}
+
+export function ToolNodeStateMatrix(props: ToolNodeStateMatrixProps) {
+  const rows = props.rows ?? DEFAULT_MATRIX_ROWS;
+  const rowHeight = props.rowHeight ?? 80;
+  const width = props.width ?? 880;
+
+  return (
+    <MatrixRows
+      rows={rows}
+      rowHeight={rowHeight}
+      width={width}
+      renderRow={(row) => {
+        const matrixRow = row as MatrixRow;
+        const ctx = createChatContext({ theme: DEFAULT_THEME });
+        const state = createChatState(ctx);
+        onCleanup(() => {
+          state.dispose();
+          ctx.dispose();
+        });
+        const item = props.build(matrixRow.status);
+        const permission = matrixRow.awaitingPermission ? permissionFor(item) : null;
+        state.session.setPermissions(permission ? [permission] : []);
+        state.session.setPlan(props.plan?.(matrixRow) ?? null);
+        state.transcript.history.seed([
+          {
+            id: matrixTurnId(matrixRow.label),
+            seq: 0,
+            initiator: 'agent',
+            items: [{ ...item, seq: 0 } as TranscriptTurn['items'][number]],
+          },
+        ]);
+        return <ChatRoot context={ctx} state={state} stickToBottom pinUserMessages />;
+      }}
+    />
+  );
+}
+
+export function PlanStateMatrix(props: PlanStateMatrixProps) {
+  const rowHeight = props.rowHeight ?? 120;
+  const width = props.width ?? 880;
+
+  return (
+    <MatrixRows
+      rows={props.rows}
+      rowHeight={rowHeight}
+      width={width}
+      renderRow={(row) => {
+        const planRow = row as PlanMatrixRow;
+        const ctx = createChatContext({ theme: DEFAULT_THEME });
+        const state = createChatState(ctx);
+        onCleanup(() => {
+          state.dispose();
+          ctx.dispose();
+        });
+        state.transcript.history.seed([
+          {
+            id: matrixTurnId(planRow.label),
+            seq: 0,
+            initiator: 'agent',
+            items: [{ ...planRow.item, seq: 0 } as TranscriptTurn['items'][number]],
+          },
+        ]);
+        return <ChatRoot context={ctx} state={state} stickToBottom pinUserMessages />;
+      }}
+    />
   );
 }
