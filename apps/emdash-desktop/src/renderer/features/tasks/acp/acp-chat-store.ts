@@ -1,46 +1,27 @@
-import type {
-  ChatContext,
-  ChatImageAttachment,
-  ChatItem,
-  ChatMessage,
-  ChatState,
-  ChatView,
-} from '@emdash/chat-ui';
-import { applyTurnEvent, createChatState, pinTopMode, tailMode } from '@emdash/chat-ui';
-import type { AgentUpdate, AcpPromptImage, AcpTurn, TerminalSnapshot } from '@emdash/core/acp';
-import {
-  SessionMachine,
-  toSessionSnapshot,
-  type SessionSnapshot,
-} from '@emdash/core/acp/session-machine';
+import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
+import { connectSession, createChatState, pinTopMode } from '@emdash/chat-ui';
+import type { PromptInput, QueuedPrompt } from '@emdash/core/acp/client';
 import type {
   CommandItem,
   ComposerEffortOption,
   ComposerModelOption,
+  ComposerPermissionModeOption,
+  ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
-import { action, computed, makeObservable, observable, runInAction, when } from 'mobx';
+import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
+import { AcpLiveSession } from '@renderer/lib/acp/acp-live-session';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
 } from '@renderer/lib/chat/advertised-command-provider';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { events, rpc } from '@renderer/lib/ipc';
-import {
-  acpSessionClosedChannel,
-  acpSessionStateChannel,
-  acpSessionUpdateChannel,
-  acpTerminalCreatedChannel,
-  acpTerminalExitChannel,
-  acpTerminalOutputChannel,
-  acpTerminalReleasedChannel,
-  acpTurnCommittedChannel,
-} from '@shared/core/acp/acpEvents';
-import { foldHistory, foldTurn, mapAgentUpdate } from './acp-update-mapper';
+import { rpc } from '@renderer/lib/ipc';
+import { conversationRegistry } from '../stores/conversation-registry';
+import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 
-export type AcpChatLifecycle = 'idle' | SessionSnapshot['lifecycle'];
-
-/** Which UI actions are currently available given the machine state. */
 export interface AgentAffordances {
   isWorking: boolean;
   isBusy: boolean;
@@ -49,70 +30,49 @@ export interface AgentAffordances {
   canCancel: boolean;
 }
 
-export class AcpChatStore {
-  readonly conversationId: string;
-  readonly projectId: string;
-  readonly taskId: string;
+export type AcpPromptImage = {
+  data: string;
+  mimeType: string;
+  name?: string;
+};
 
-  /** Global services (theme, caches, highlighter). Owned by this store. */
+type PermissionQueueItem = {
+  requestId: string;
+  title: string;
+  options: Array<{ optionId: string; name: string; kind: string }>;
+};
+
+export class AcpChatStore {
   readonly chatContext: ChatContext;
-  /** Per-conversation state (transcript + parse caches). Owned by this store. */
   readonly chatState: ChatState;
 
-  /** Current session snapshot from IPC, null until bootstrapped. */
-  snapshot: SessionSnapshot | null = null;
-
-  terminals: TerminalSnapshot[] = [];
-
-  /** True while the initial history fetch is in flight. Drives the "Loading chat..." overlay. */
+  session: AcpLiveSession | null = null;
   historyLoading = true;
-
-  /** Set when the load sequence (hydrate + fetch) fails. Drives the error overlay. Cleared on retry. */
   loadError: string | null = null;
-
-  /** Total item count across committed history and active turn. Drives the "No messages" empty state. */
   messageCount = 0;
 
-  /** Buffered active-turn updates, keyed by seq, until the initial state fetch completes. */
-  private _activeTurnUpdates = new Map<number, { seq: number; update: AgentUpdate }>();
-  /** The current active turn id (null when idle). */
-  private _activeTurnId: string | null = null;
-
-  /** The currently-active view handle. Bound by AcpChatPanel; used for declarative scroll. */
   private _view: ChatView | null = null;
-  /** Temp id of the optimistic user message; cleared when the server echo replaces it. */
-  private _optimisticUserId: string | null = null;
-
-  private readonly _machine: SessionMachine;
   private _bootstrapped = false;
-  private _subscribed = false;
+  private _unsubs: Array<() => void> = [];
+  private _liveRevision = 0;
 
-  private readonly _unsubs: Array<() => void> = [];
-
-  constructor(conversationId: string, projectId: string, taskId: string) {
-    this.conversationId = conversationId;
-    this.projectId = projectId;
-    this.taskId = taskId;
-
-    this._machine = new SessionMachine(conversationId);
-
-    // Use the process-long shared ChatContext (created once in main.tsx bootstrap).
-    // Per-conversation transcript state lives in ChatState, created here.
+  constructor(
+    readonly conversationId: string,
+    readonly projectId: string,
+    readonly taskId: string
+  ) {
     this.chatContext = getSharedChatContext();
     this.chatState = createChatState(this.chatContext, { uri: conversationId });
+    registerConversationCommands(conversationId, () =>
+      this.commands.map((command) => command.name)
+    );
 
-    // Register this conversation's advertised commands with the global command
-    // provider so slash-command chips render in the transcript.
-    registerConversationCommands(conversationId, () => this.commands.map((c) => c.name));
-
-    makeObservable(this, {
-      snapshot: observable.ref,
-      terminals: observable,
+    makeObservable<this, '_liveRevision'>(this, {
+      session: observable.ref,
       historyLoading: observable,
       loadError: observable,
       messageCount: observable,
-      affordances: computed,
-      lifecycle: computed,
+      _liveRevision: observable,
       model: computed,
       modelOptions: computed,
       permissionMode: computed,
@@ -120,629 +80,423 @@ export class AcpChatStore {
       effort: computed,
       effortOptions: computed,
       commands: computed,
-      isEmpty: computed,
       permissionQueue: computed,
-      lastStopReason: computed,
-      usage: computed,
-      applySnapshot: action,
+      queuedPrompts: computed,
+      affordances: computed,
+      isEmpty: computed,
       submitPrompt: action,
       stop: action,
-      cancelAndSubmit: action,
       setModel: action,
       setMode: action,
       setEffort: action,
       resolvePermission: action,
+      editQueuedPrompt: action,
+      deleteQueuedPrompt: action,
+      reorderQueuedPrompts: action,
+      sendQueuedPromptNow: action,
+      exportTranscript: action,
       retry: action,
     });
   }
 
-  // ── Derived state ──────────────────────────────────────────────────────────
-
-  /** Coarse lifecycle — 'idle' until the first snapshot arrives. */
-  get lifecycle(): AcpChatLifecycle {
-    return this.snapshot?.lifecycle ?? 'idle';
-  }
-
-  /**
-   * Currently selected model derived from configOptions (category === 'model').
-   * Null if the agent doesn't report a model config option.
-   */
   get model(): string | null {
-    return this._extractModel(this.snapshot?.configOptions ?? []);
+    this._trackLiveRevision();
+    return this.session?.config.getSnapshot()?.modelOptions?.selected ?? null;
   }
 
-  /**
-   * All available model options as a ComposerModelOption record keyed by model id.
-   * Null when the agent doesn't report any model config option (hides the selector).
-   */
   get modelOptions(): Record<string, ComposerModelOption> | null {
-    const opt = (this.snapshot?.configOptions ?? []).find(
-      (o) => o.category === 'model' && o.type === 'select'
+    this._trackLiveRevision();
+    const options = this.session?.config.getSnapshot()?.modelOptions;
+    if (!options) return null;
+    return Object.fromEntries(
+      options.available.map((option) => [
+        option.id,
+        { name: option.name, description: option.description },
+      ])
     );
-    if (!opt || !('options' in opt) || !Array.isArray(opt.options)) return null;
-    const result: Record<string, ComposerModelOption> = {};
-    for (const o of opt.options as Array<{
-      value: string;
-      name: string;
-      description?: string | null;
-    }>) {
-      result[o.value] = { name: o.name, description: o.description ?? undefined };
-    }
-    return result;
   }
 
-  /**
-   * Slash commands advertised by the agent via `available_commands_update`.
-   * Mapped to the composer's CommandItem shape with behavior='insert' so
-   * selecting a command inserts a /name pill that is sent as prompt text.
-   * Updates reactively as the agent sends new available_commands_update notifications.
-   */
+  get permissionMode(): string | null {
+    this._trackLiveRevision();
+    return this.session?.config.getSnapshot()?.modeOptions?.selected ?? null;
+  }
+
+  get permissionModeOptions(): Record<string, ComposerPermissionModeOption> | null {
+    this._trackLiveRevision();
+    const options = this.session?.config.getSnapshot()?.modeOptions;
+    if (!options) return null;
+    return Object.fromEntries(
+      options.available.map((option) => [option.id, { name: option.name }])
+    );
+  }
+
+  get effort(): string | null {
+    this._trackLiveRevision();
+    return this.session?.config.getSnapshot()?.efforts?.selected ?? null;
+  }
+
+  get effortOptions(): Record<string, ComposerEffortOption> | null {
+    this._trackLiveRevision();
+    const options = this.session?.config.getSnapshot()?.efforts;
+    if (!options) return null;
+    return Object.fromEntries(
+      options.available.map((option) => [
+        option.id,
+        { name: option.name, description: option.description },
+      ])
+    );
+  }
+
   get commands(): CommandItem[] {
-    return (this.snapshot?.availableCommands ?? []).map((c) => ({
-      id: c.name,
-      name: c.name,
-      description: c.description,
+    this._trackLiveRevision();
+    return (this.session?.config.getSnapshot()?.availableCommands ?? []).map((command) => ({
+      id: command.name,
+      name: command.name,
+      description: command.description,
       behavior: 'insert',
     }));
   }
 
-  /** True when history has loaded and there are no messages. Drives the "No messages" overlay. */
+  get permissionQueue(): PermissionQueueItem[] {
+    this._trackLiveRevision();
+    return (this.session?.sessionState.getSnapshot()?.pendingPermissions ?? []).map((request) => ({
+      requestId: request.requestId,
+      title: request.toolCall.title,
+      options: request.options.map((option) => ({
+        optionId: option.optionId,
+        name: option.name,
+        kind: option.kind,
+      })),
+    }));
+  }
+
+  get queuedPrompts(): ComposerQueuedPrompt[] {
+    this._trackLiveRevision();
+    return this._queuedPromptModels().map((prompt) => ({
+      id: prompt.id,
+      text: prompt.text,
+    }));
+  }
+
+  get usage(): {
+    contextUsed: number;
+    contextSize: number;
+    cost?: { amount: number; currency: string } | null;
+  } | null {
+    return null;
+  }
+
+  get affordances(): AgentAffordances {
+    this._trackLiveRevision();
+    const state = this.session?.sessionState.getSnapshot();
+    return {
+      isWorking: state?.isGenerating ?? false,
+      isBusy: state?.isGenerating ?? false,
+      hasPendingPermission: (state?.pendingPermissions.length ?? 0) > 0,
+      canSubmit: state?.canSubmit ?? false,
+      canCancel: state?.canCancel ?? false,
+    };
+  }
+
   get isEmpty(): boolean {
     return !this.historyLoading && this.messageCount === 0;
   }
 
-  /** FIFO queue of pending permission requests awaiting user resolution. */
-  get permissionQueue(): SessionSnapshot['pendingPermissions'] {
-    return this.snapshot?.pendingPermissions ?? [];
-  }
-
-  /** The stop reason from the last completed turn. Used for notice bands. */
-  get lastStopReason(): string | null {
-    return this.snapshot?.lastStopReason ?? null;
-  }
-
-  /** Latest context-window and cost figures; null until the first usage_update arrives. */
-  get usage(): SessionSnapshot['usage'] {
-    return this.snapshot?.usage ?? null;
-  }
-
-  /** Derived UI affordances — stable reference when snapshot inputs are unchanged. */
-  get affordances(): AgentAffordances {
-    // Reading `this.snapshot` registers MobX reactivity on the snapshot ref.
-    if (!this.snapshot) {
-      return {
-        isWorking: false,
-        isBusy: false,
-        hasPendingPermission: false,
-        canSubmit: false,
-        canCancel: false,
-      };
-    }
-    return {
-      isWorking: this._machine.isWorking,
-      isBusy: this._machine.isBusy,
-      hasPendingPermission: this._machine.hasPendingPermission,
-      canSubmit: this._machine.canSubmit,
-      canCancel: this._machine.canCancel,
-    };
-  }
-
-  // ── Public actions ──────────────────────────────────────────────────────────
-
-  /**
-   * Apply a session snapshot received from IPC (or from bootstrap).
-   * Updates both the machine mirror and the observable snapshot ref.
-   */
-  applySnapshot(s: SessionSnapshot): void {
-    this._machine.applySnapshot(s);
-    this.snapshot = s;
-    if (s.lifecycle === 'closed') {
-      this.chatState.transcript.activeTurn.commit('done');
-    }
-  }
-
-  // ── Public API ─────────────────────────────────────────────────────────────
-
-  /**
-   * Subscribe to ACP events and trigger hydrateConversation to start the
-   * session, then fetch initial history / state. Safe to call only once.
-   */
   bootstrap(): void {
     if (this._bootstrapped) return;
     this._bootstrapped = true;
-    this._runBootstrap();
+    void this._runBootstrap();
   }
 
-  /**
-   * Retry a failed load. No-ops if a load is already in flight or succeeded.
-   * Resets historyLoading and loadError, then re-runs the hydrate chain.
-   * Does not re-subscribe to events (already subscribed from bootstrap).
-   */
   retry(): void {
     if (this.historyLoading || !this.loadError) return;
     this.historyLoading = true;
     this.loadError = null;
-    this._runBootstrap();
+    void this._runBootstrap();
   }
 
-  private _runBootstrap(): void {
-    // Subscribe once — never re-subscribe on retry so we don't double-handle events.
-    if (!this._subscribed) {
-      this._subscribed = true;
-      this._subscribeEvents();
-    }
-
-    // Hydrate the conversation (starts the ACP session if not already running).
-    void rpc.conversations
-      .hydrateConversation(this.projectId, this.taskId, this.conversationId)
-      .then(() => this._fetchInitialState())
-      .catch((err: unknown) => {
-        console.error('[AcpChatStore] bootstrap error', err);
-        runInAction(() => {
-          this.historyLoading = false;
-          this.loadError = err instanceof Error ? err.message : 'Failed to load chat.';
-        });
-      });
-  }
-
-  /**
-   * Bind or unbind the active ChatView handle. Called by AcpChatPanel when the
-   * active store changes (bind on switch-to, unbind on switch-away). Only the
-   * currently-visible conversation holds a view handle so imperative scroll
-   * calls (scrollToItem on submit) target the right view.
-   */
   bindView(view: ChatView | null): void {
     this._view = view;
   }
 
-  /** Send a new user prompt to the ACP session. */
   submitPrompt(text: string, images?: AcpPromptImage[]): void {
-    // 1. Optimistic user message: insert immediately so the scroll can happen
-    //    before the IPC echo arrives. The server echo in _replayActiveUpdates
-    //    replaces this row and re-points the pinTop intent to the real id.
-    const optimisticId = `optimistic:user:${Date.now()}`;
-    this._optimisticUserId = optimisticId;
-    const optimistic: ChatMessage = {
-      kind: 'message',
-      id: optimisticId,
-      role: 'user',
-      text,
-      attachments: images?.map(toChatImageAttachment),
-    };
-    this.chatState.transcript.activeTurn.set([optimistic], 'generating');
-    runInAction(() => this._syncMessageCount());
-
-    // 2. Immediately pin the new user message to the top of the viewport.
-    //    activeTurnReserve() in ChatRoot ensures there is enough canvas space
-    //    for the scroll target to be reachable even before any agent reply.
-    const pinMode = pinTopMode(optimisticId);
-    this._view?.setScrollMode(pinMode);
-    // Persist intent in ChatState so it survives a tab-switch during the request.
-    this.chatState.scroll.set(pinMode);
-
-    void rpc.acp.prompt(this.conversationId, text, images).catch((err: unknown) => {
-      console.error('[AcpChatStore] prompt error', err);
-      toast({
-        title: 'Failed to send message',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
+    if (!this.affordances.isWorking) {
+      const optimisticId = `optimistic:user:${Date.now()}`;
+      this.chatState.session.setPendingPrompt({
+        id: optimisticId,
+        text,
+        attachments: images?.map(toPendingAttachment),
       });
-    });
+      this._syncMessageCount();
+      const pinMode = pinTopMode(optimisticId);
+      this._view?.setScrollMode(pinMode);
+      this.chatState.scroll.set(pinMode);
+    }
+
+    void this.session
+      ?.sendPrompt({ text })
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to send message', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to send message', error));
   }
 
-  /** Cancel the currently running turn. */
   stop(): void {
-    void rpc.acp.cancel(this.conversationId).catch((err: unknown) => {
-      console.error('[AcpChatStore] cancel error', err);
-      toast({
-        title: 'Failed to stop',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      });
-    });
+    void this.session
+      ?.cancelTurn()
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to stop', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to stop', error));
   }
 
-  /**
-   * Cancels the active turn, waits for the session to become ready, then
-   * submits `text` (with optional images). Used by the "Cancel & Send"
-   * confirmation flow when the user sends a new prompt while a turn is active.
-   */
-  cancelAndSubmit(text: string, images?: AcpPromptImage[]): void {
-    void rpc.acp.cancel(this.conversationId).catch((err: unknown) => {
-      console.error('[AcpChatStore] cancel error (cancelAndSubmit)', err);
-      toast({
-        title: 'Failed to stop',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      });
-    });
-
-    when(
-      () => this.affordances.canSubmit,
-      () => {
-        this.submitPrompt(text, images);
-      },
-      {
-        timeout: 10_000,
-        onError: () => {
-          toast({ title: 'Failed to send message', variant: 'destructive' });
-        },
-      }
-    );
+  setModel(model: string): void {
+    void this.session?.setModelOption('model', model);
   }
 
-  /**
-   * Currently active permission mode id, derived from the `mode` config option
-   * (category === 'mode'). Read from configOptions rather than `modes` because
-   * an explicit setSessionMode only emits a `config_option_update`, not a
-   * `current_mode_update`, so `modes.currentModeId` can be stale. Null when the
-   * agent doesn't report a mode config option.
-   */
-  get permissionMode(): string | null {
-    const opt = (this.snapshot?.configOptions ?? []).find(
-      (o) => o.category === 'mode' && o.type === 'select'
-    );
-    return opt && typeof opt.currentValue === 'string' ? opt.currentValue : null;
-  }
-
-  /**
-   * Available permission modes as a record keyed by mode id, derived from the
-   * `mode` config option's options. Null when the agent doesn't advertise a
-   * mode config option (hides the selector).
-   */
-  get permissionModeOptions(): Record<string, { name: string; description?: string }> | null {
-    const opt = (this.snapshot?.configOptions ?? []).find(
-      (o) => o.category === 'mode' && o.type === 'select'
-    );
-    if (!opt || !('options' in opt) || !Array.isArray(opt.options)) return null;
-    const result: Record<string, { name: string; description?: string }> = {};
-    for (const o of opt.options as Array<{
-      value: string;
-      name: string;
-      description?: string | null;
-    }>) {
-      result[o.value] = { name: o.name, description: o.description ?? undefined };
-    }
-    return result;
-  }
-
-  /**
-   * Currently selected effort/thought level derived from the `thought_level`
-   * config option. Null when the agent doesn't report a thought_level option.
-   */
-  get effort(): string | null {
-    const opt = (this.snapshot?.configOptions ?? []).find(
-      (o) => o.category === 'thought_level' && o.type === 'select'
-    );
-    return opt && typeof opt.currentValue === 'string' ? opt.currentValue : null;
-  }
-
-  /**
-   * Available effort options keyed by id. Null when the agent doesn't
-   * advertise a thought_level config option (hides the effort selector).
-   */
-  get effortOptions(): Record<string, ComposerEffortOption> | null {
-    const opt = (this.snapshot?.configOptions ?? []).find(
-      (o) => o.category === 'thought_level' && o.type === 'select'
-    );
-    if (!opt || !('options' in opt) || !Array.isArray(opt.options)) return null;
-    const result: Record<string, ComposerEffortOption> = {};
-    for (const o of opt.options as Array<{
-      value: string;
-      name: string;
-      description?: string | null;
-    }>) {
-      result[o.value] = { name: o.name, description: o.description ?? undefined };
-    }
-    return result;
-  }
-
-  /** Switch the active effort/thought level. */
-  setEffort(value: string): void {
-    const opt = (this.snapshot?.configOptions ?? []).find(
-      (o) => o.category === 'thought_level' && o.type === 'select'
-    );
-    const configId = opt?.id ?? 'thought_level';
-    void rpc.acp.setConfigOption(this.conversationId, configId, value).catch((err: unknown) => {
-      console.error('[AcpChatStore] setEffort error', err);
-      toast({
-        title: 'Failed to switch effort level',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      });
-    });
-  }
-
-  /** Switch the active model. */
-  setModel(modelId: string): void {
-    void rpc.acp.setModel(this.conversationId, modelId).catch((err: unknown) => {
-      console.error('[AcpChatStore] setModel error', err);
-      toast({
-        title: 'Failed to switch model',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      });
-    });
-  }
-
-  /** Switch the session permission mode. */
   setMode(modeId: string): void {
-    void rpc.acp.setMode(this.conversationId, modeId).catch((err: unknown) => {
-      console.error('[AcpChatStore] setMode error', err);
-      toast({
-        title: 'Failed to switch mode',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      });
-    });
+    void this.session?.setModeOption(modeId);
   }
 
-  /** Resolve the front-of-queue permission request. */
-  resolvePermission(optionId: string | null): void {
+  setEffort(effort: string): void {
+    void this.session?.setModelOption('effort', effort);
+  }
+
+  resolvePermission(optionId: string): void {
     const request = this.permissionQueue[0];
     if (!request) return;
-    void rpc.acp
-      .resolvePermission(this.conversationId, request.requestId, optionId)
-      .catch((err: unknown) => {
-        console.error('[AcpChatStore] resolvePermission error', err);
-        toast({
-          title: 'Failed to resolve permission',
-          description: err instanceof Error ? err.message : undefined,
-          variant: 'destructive',
-        });
-      });
+    void this.session?.resolvePermission(request.requestId, optionId);
   }
 
-  /** Clean up event subscriptions and dispose the per-conversation Solid state. */
+  editQueuedPrompt(id: string, text: string): void {
+    const existing = this._queuedPromptModels().find((prompt) => prompt.id === id);
+    if (!existing) return;
+    const input: PromptInput = {
+      text,
+      attachments: existing.attachments,
+    };
+    void this.session
+      ?.editQueuedPrompt(id, input)
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to edit queued prompt', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to edit queued prompt', error));
+  }
+
+  deleteQueuedPrompt(id: string): void {
+    void this.session
+      ?.deleteQueuedPrompt(id)
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to delete queued prompt', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to delete queued prompt', error));
+  }
+
+  reorderQueuedPrompts(ids: string[]): void {
+    void this.session
+      ?.changeQueuePromptOrder(ids)
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to reorder queued prompts', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to reorder queued prompts', error));
+  }
+
+  sendQueuedPromptNow(id: string): void {
+    void this._sendQueuedPromptNow(id);
+  }
+
+  exportTranscript(kind: 'parsed' | 'raw'): void {
+    void this._exportTranscript(kind);
+  }
+
   dispose(): void {
-    for (const unsub of this._unsubs) unsub();
-    this._unsubs.length = 0;
     unregisterConversationCommands(this.conversationId);
-    // chatState is per-conversation and must be disposed; chatContext is the
-    // shared app-wide singleton and must NOT be disposed here.
+    this._unsubs.splice(0).forEach((unsub) => unsub());
+    this.session?.dispose();
     this.chatState.dispose();
   }
 
-  // ── Private helpers ────────────────────────────────────────────────────────
-
-  private _subscribeEvents(): void {
-    this._unsubs.push(
-      events.on(acpSessionUpdateChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        this._handleSessionUpdate(e.seq, e.update);
-      }),
-
-      events.on(acpTurnCommittedChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        this._handleTurnCommitted(e.turn);
-      }),
-
-      events.on(acpSessionStateChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        runInAction(() => {
-          this.applySnapshot(e.snapshot);
-          this._activeTurnId = e.snapshot.activeTurnId;
-        });
-      }),
-
-      events.on(acpSessionClosedChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        runInAction(() => {
-          if (this.snapshot) {
-            this.applySnapshot({ ...this.snapshot, lifecycle: 'closed', activeTurnId: null });
-          }
-        });
-      }),
-
-      // ── Terminal events ──────────────────────────────────────────────────
-      events.on(acpTerminalCreatedChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        runInAction(() => {
-          this.terminals.push({
-            terminalId: e.terminalId,
-            command: e.command,
-            args: e.args,
-            cwd: e.cwd,
-            output: '',
-            truncated: false,
-            exitStatus: null,
-          });
-        });
-      }),
-
-      events.on(acpTerminalOutputChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        runInAction(() => {
-          const t = this.terminals.find((t) => t.terminalId === e.terminalId);
-          if (t) {
-            t.output += e.chunk;
-            t.truncated = e.truncated;
-          }
-        });
-      }),
-
-      events.on(acpTerminalExitChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        runInAction(() => {
-          const t = this.terminals.find((t) => t.terminalId === e.terminalId);
-          if (t) t.exitStatus = e.exitStatus;
-        });
-      }),
-
-      events.on(acpTerminalReleasedChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        runInAction(() => {
-          const idx = this.terminals.findIndex((t) => t.terminalId === e.terminalId);
-          if (idx >= 0) this.terminals.splice(idx, 1);
-        });
-      })
-    );
-  }
-
-  private async _fetchInitialState(): Promise<void> {
+  private async _runBootstrap(): Promise<void> {
     try {
-      const [history, state, terminals] = await Promise.all([
-        rpc.acp.getChatHistory(this.conversationId),
-        rpc.acp.getSessionState(this.conversationId),
-        rpc.acp.getTerminals(this.conversationId),
-      ]);
+      const input = this._startInput();
+      const clientSession = await AcpLiveSession.create(this.conversationId, input);
 
-      const historyItems = foldHistory(history);
+      const history = await clientSession.getHistory(undefined, 100);
+      if (!history.success) throw resultError(history.error);
 
       runInAction(() => {
-        this.applySnapshot(toSessionSnapshot(state));
-        this._activeTurnId = state.activeTurn?.id ?? null;
-        this.terminals = terminals;
-
-        // Seed in-flight active turn updates from the server state.
-        if (state.activeTurn) {
-          for (const entry of state.activeTurn.updates) {
-            if (!this._activeTurnUpdates.has(entry.seq)) {
-              this._activeTurnUpdates.set(entry.seq, entry);
-            }
-          }
-        }
-      });
-
-      // Seed history then replay any buffered active-turn updates.
-      // Each transcript method already batches its own signal writes internally.
-      this.chatState.transcript.history.seed(historyItems);
-      this._replayActiveUpdates();
-      runInAction(() => {
+        this.session?.dispose();
+        this.session = clientSession;
+        this.chatState.transcript.history.seed(history.data.turns);
+        this._subscribeLiveSession(clientSession);
         this.historyLoading = false;
         this.loadError = null;
         this._syncMessageCount();
       });
-    } catch (err) {
-      console.error('[AcpChatStore] _fetchInitialState error', err);
+    } catch (error) {
       runInAction(() => {
         this.historyLoading = false;
-        this.loadError = err instanceof Error ? err.message : 'Failed to load chat.';
+        this.loadError = error instanceof Error ? error.message : 'Failed to load chat.';
       });
     }
   }
 
-  /**
-   * Extracts the currently selected model from an array of config options.
-   * The model option is identified by `category === 'model'` and must be a
-   * select-type option (type === 'select') where currentValue is a string.
-   */
-  private _extractModel(
-    configOptions: ReadonlyArray<{
-      id: string;
-      category?: string | null;
-      type?: string;
-      currentValue?: string | boolean;
-    }>
-  ): string | null {
-    const modelOption = configOptions.find((o) => o.category === 'model' && o.type === 'select');
-    if (modelOption && typeof modelOption.currentValue === 'string') {
-      return modelOption.currentValue;
-    }
-    return null;
+  private _startInput() {
+    const conversation = conversationRegistry
+      .get(this.taskId)
+      ?.conversations.get(this.conversationId)?.data;
+    if (!conversation) throw new Error('Conversation not found');
+
+    const task = asProvisioned(getTaskStore(this.projectId, this.taskId));
+    if (!task?.workspaceId) throw new Error('No workspace found for task');
+
+    const workspace = workspaceRegistry.get(this.projectId, task.workspaceId);
+    if (!workspace) throw new Error('Workspace not found');
+
+    return {
+      conversationId: this.conversationId,
+      projectId: this.projectId,
+      taskId: this.taskId,
+      providerId: conversation.providerId,
+      workspaceId: task.workspaceId,
+      cwd: workspace.path,
+      sessionId: conversation.sessionId ?? null,
+      model: conversation.model ?? null,
+    };
   }
 
-  private _handleSessionUpdate(seq: number, update: AgentUpdate): void {
-    this._activeTurnUpdates.set(seq, { seq, update });
-    this._replayActiveUpdates();
+  private _queuedPromptModels(): QueuedPrompt[] {
+    return this.session?.sessionState.getSnapshot()?.queuedPrompts ?? [];
   }
 
-  private _replayActiveUpdates(): void {
-    if (this._activeTurnUpdates.size === 0) return;
+  private async _sendQueuedPromptNow(id: string): Promise<void> {
+    const current = this._queuedPromptModels();
+    if (!current.some((prompt) => prompt.id === id)) return;
 
-    const sorted = Array.from(this._activeTurnUpdates.values()).sort((a, b) => a.seq - b.seq);
-
-    // Use the known active turn id so that item ids produced here match those
-    // that foldTurn will produce when the turn commits, avoiding row churn on
-    // the stream→commit transition. Fall back to 'active' only in the brief
-    // window before the first session-state arrives.
-    const turnId = this._activeTurnId ?? 'active';
-
-    let items: ChatItem[] = [];
-    for (const { update } of sorted) {
-      const evts = mapAgentUpdate(update, turnId);
-      for (const evt of evts) {
-        items = applyTurnEvent(items, evt);
-      }
+    const ids = [id, ...current.map((prompt) => prompt.id).filter((promptId) => promptId !== id)];
+    const reorderResult = await this.session?.changeQueuePromptOrder(ids);
+    if (!reorderResult?.success) {
+      this._toastError('Failed to send queued prompt', reorderResult?.error);
+      return;
     }
 
-    this.chatState.transcript.activeTurn.set(items, 'generating');
-    // Re-point pinTop from the optimistic id to the real server id now that
-    // the echo has arrived. The row content is stable from here on.
-    if (this._optimisticUserId) {
-      const realId = this._lastUserMessageId();
-      if (realId) {
-        const pinMode = pinTopMode(realId);
-        this._view?.setScrollMode(pinMode);
-        this.chatState.scroll.set(pinMode);
-        this._optimisticUserId = null;
-      }
+    if (!this.affordances.isWorking) return;
+    const cancelResult = await this.session?.cancelTurn();
+    if (!cancelResult?.success) {
+      this._toastError('Failed to send queued prompt', cancelResult?.error);
     }
+  }
+
+  private async _exportTranscript(kind: 'parsed' | 'raw'): Promise<void> {
+    const session = this.session;
+    if (!session) {
+      this._toastError('Failed to export transcript', new Error('Chat is not loaded.'));
+      return;
+    }
+
+    try {
+      const result =
+        kind === 'raw' ? await session.exportRawAcpLog() : await session.exportTranscript();
+      if (!result.success) {
+        this._toastError('Failed to export transcript', result.error);
+        return;
+      }
+
+      const label = kind === 'raw' ? 'raw ACP log' : 'parsed transcript';
+      const suffix = kind === 'raw' ? 'acp-raw' : 'transcript';
+      const saved = await rpc.app.saveTextFile({
+        title: `Export ${label}`,
+        defaultPath: `${this.conversationId}-${suffix}.json`,
+        content: result.data,
+      });
+      if (!saved.success) {
+        this._toastError('Failed to save transcript', new Error(saved.error));
+        return;
+      }
+      if (!saved.path) return;
+      toast({ title: `Exported ${label}` });
+    } catch (error) {
+      this._toastError('Failed to export transcript', error);
+    }
+  }
+
+  private _subscribeLiveSession(session: AcpLiveSession): void {
+    this._unsubs.splice(0).forEach((unsub) => unsub());
+    const disconnectChatSession = connectSession(this.chatState, session, {
+      onTurnCommitted: () => void this._refreshHistory(),
+    });
+    this._unsubs.push(
+      disconnectChatSession,
+      this._bindTerminalOutputs(session),
+      session.sessionState.subscribe(() =>
+        runInAction(() => {
+          this._liveRevision += 1;
+          this._syncMessageCount();
+        })
+      ),
+      session.config.subscribe(() =>
+        runInAction(() => {
+          this._liveRevision += 1;
+        })
+      ),
+      session.activeTurn.subscribe(() => runInAction(() => this._syncMessageCount()))
+    );
+  }
+
+  private _bindTerminalOutputs(session: AcpLiveSession): () => void {
+    return bindSessionTerminalOutputs(session, (terminalId, text) =>
+      this.chatState.session.setTerminalOutput(terminalId, text)
+    );
+  }
+
+  private async _refreshHistory(): Promise<void> {
+    const history = await this.session?.getHistory(undefined, 100);
+    if (!history?.success) return;
     runInAction(() => {
+      this.chatState.session.setPendingPrompt(null);
+      this.chatState.transcript.history.seed(history.data.turns);
       this._syncMessageCount();
     });
   }
 
-  private _handleTurnCommitted(turn: AcpTurn): void {
-    const items = foldTurn(turn);
-    this._activeTurnUpdates.clear();
-
-    // Replace the activeTurn snapshot with the finalized version and commit.
-    this.chatState.transcript.activeTurn.set(items, 'generating');
-    this.chatState.transcript.activeTurn.commit('done');
-
-    // If a pinTop is still active (shouldn't normally happen; guard only),
-    // revert to tail now that the turn is done.
-    if (this._optimisticUserId) {
-      this._optimisticUserId = null;
-      const m = tailMode();
-      this._view?.setScrollMode(m);
-      this.chatState.scroll.set(m);
-    }
-    runInAction(() => {
-      this._activeTurnId = null;
-      this._syncMessageCount();
-    });
-  }
-
-  /** Sync messageCount from the transcript. Must be called inside runInAction. */
   private _syncMessageCount(): void {
     const state = this.chatState.transcript.state;
-    this.messageCount = state.committed.length + (state.activeTurn?.length ?? 0);
+    const committedCount = state.committedTurns.reduce(
+      (count, turn) => count + turn.items.length,
+      0
+    );
+    const activeCount = state.activeTurnSnapshot?.items.length ?? 0;
+    const pendingPromptCount = this.chatState.session.state.pendingPrompt ? 1 : 0;
+    this.messageCount = committedCount + activeCount + pendingPromptCount;
   }
 
-  /**
-   * Return the id of the last user-role message in the active turn, falling
-   * back to the last committed item if no active turn exists.
-   */
-  private _lastUserMessageId(): string | null {
-    const state = this.chatState.transcript.state;
-    const activeTurn = state.activeTurn;
-    const source: readonly ChatItem[] =
-      activeTurn && activeTurn.length > 0 ? activeTurn : state.committed;
+  private _toastError(title: string, error: unknown): void {
+    toast({
+      title,
+      description: error instanceof Error ? error.message : undefined,
+      variant: 'destructive',
+    });
+  }
 
-    for (let i = source.length - 1; i >= 0; i--) {
-      const item = source[i];
-      if (item && item.kind === 'message' && (item as { role?: string }).role === 'user') {
-        return item.id;
-      }
-    }
-    return null;
+  private _trackLiveRevision(): number {
+    return this._liveRevision;
   }
 }
 
-// ── Module helpers ─────────────────────────────────────────────────────────────
-
-/**
- * Map an AcpPromptImage (base64 data + mimeType) to the ChatImageAttachment
- * shape expected by @emdash/chat-ui's ChatMessage.attachments. The data URL is
- * formed from the mimeType and base64 payload so the transcript can render a
- * thumbnail inline without a round-trip to the main process.
- */
-function toChatImageAttachment(img: AcpPromptImage): ChatImageAttachment {
+function toPendingAttachment(img: AcpPromptImage): ChatImageAttachment {
   return {
-    id: img.name ?? `img-${Date.now()}`,
+    id: crypto.randomUUID(),
     name: img.name ?? 'image',
     dataUrl: `data:${img.mimeType};base64,${img.data}`,
   };
+}
+
+function resultError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  if (typeof error === 'object' && error !== null) {
+    const message = (error as { message?: unknown }).message;
+    const type = (error as { type?: unknown }).type;
+    return new Error(typeof message === 'string' ? message : String(type ?? 'Unknown error'));
+  }
+  return new Error(String(error));
 }

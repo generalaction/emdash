@@ -133,6 +133,8 @@
     "@vitejs/plugin-react": "^4.7.0",
     "colorjs.io": "^0.5.2",
     "devicon": "^2.17.0",
+    "mobx": "^6.16.1",
+    "mobx-react-lite": "^4.1.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.66.0",
     "react": "^19.2.0",
@@ -147,6 +149,8 @@
   "peerDependencies": {
     "@tanstack/react-form": "^1.28.4",
     "@tanstack/react-virtual": "^3.14.2",
+    "mobx": "^6.15.0",
+    "mobx-react-lite": "^4.1.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

@@ -115,17 +115,8 @@ const ComposerForStore = observer(function ComposerForStore({
     (value: string) => {
       const images = buildImages();
       if (!value.trim() && images.length === 0) return;
-      showModal('confirmActionModal', {
-        title: 'Turn in progress',
-        description:
-          'An active turn is currently in progress. Do you want to send the message and cancel the active turn?',
-        confirmLabel: 'Cancel & Send',
-        variant: 'destructive',
-        onSuccess: () => {
-          store.cancelAndSubmit(value, images);
-          setAttachments([]);
-        },
-      });
+      store.submitPrompt(value, images);
+      setAttachments([]);
     },
     [store, buildImages]
   );
@@ -136,7 +127,27 @@ const ComposerForStore = observer(function ComposerForStore({
 
   const handleResolvePermission = useCallback(
     (optionId: string | null) => {
+      if (!optionId) return;
       store.resolvePermission(optionId);
+    },
+    [store]
+  );
+
+  const handleSendQueuedPromptNow = useCallback(
+    (id: string) => {
+      if (!store.affordances.isWorking) {
+        store.sendQueuedPromptNow(id);
+        return;
+      }
+      showModal('confirmActionModal', {
+        title: 'Turn in progress',
+        description: 'Send this queued prompt now and cancel the active turn?',
+        confirmLabel: 'Cancel & Send',
+        variant: 'destructive',
+        onSuccess: () => {
+          store.sendQueuedPromptNow(id);
+        },
+      });
     },
     [store]
   );
@@ -244,6 +255,11 @@ const ComposerForStore = observer(function ComposerForStore({
         permissionRequest={permissionRequest}
         permissionQueueCount={store.permissionQueue.length}
         onResolvePermission={handleResolvePermission}
+        queuedPrompts={store.queuedPrompts}
+        onEditQueuedPrompt={(id, text) => store.editQueuedPrompt(id, text)}
+        onDeleteQueuedPrompt={(id) => store.deleteQueuedPrompt(id)}
+        onReorderQueuedPrompts={(ids) => store.reorderQueuedPrompts(ids)}
+        onSendQueuedPromptNow={handleSendQueuedPromptNow}
         editorApiRef={editorApiRef}
         modelOptions={store.modelOptions}
         selectedModel={store.model ?? undefined}
@@ -302,9 +318,9 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const [composerSlot, setComposerSlot] = useState<HTMLElement | null>(null);
   const [overlaySlot, setOverlaySlot] = useState<HTMLElement | null>(null);
   const [viewer, setViewer] = useState<{ src?: string; alt?: string } | null>(null);
-  // True while the latest user message is visible in the viewport. Defaults to
-  // true so the button does not flash on mount before the first frame fires.
-  const [activeUserVisible, setActiveUserVisible] = useState(true);
+  // True while the scroll viewport is at the tail. Defaults to true so the
+  // button does not flash on mount before the first frame fires.
+  const [atBottom, setAtBottom] = useState(true);
 
   const handleReady = useCallback((view: ChatView) => {
     viewRef.current = view;
@@ -370,7 +386,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         pinUserMessages
         onReady={handleReady}
         commands={transcriptCommands}
-        onActiveUserMessageVisibilityChange={setActiveUserVisible}
+        onAtBottomChange={setAtBottom}
         style={{ position: 'absolute', inset: 0 }}
       />
 
@@ -415,7 +431,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       )}
 
       {composerSlot &&
-        !activeUserVisible &&
+        !atBottom &&
         createPortal(
           <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center">
             <Button

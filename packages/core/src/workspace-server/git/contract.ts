@@ -1,6 +1,6 @@
 import { eventIterator, oc } from '@orpc/contract';
 import { z } from 'zod';
-import { createLiveModelContract } from '../../live-model';
+import { createLiveModelContract } from '../../live';
 import { result } from '../shared/schemas';
 import {
   addCheckoutOptionsSchema,

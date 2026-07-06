@@ -6,6 +6,7 @@ import type { MeasureCtx, Measured, RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
 import type { Block } from '@core/markdown/document';
 import { blockPlainText } from '@core/markdown/plain-text';
+import type { SegmentCtx } from '@core/units';
 import { defineUnit } from '@core/units';
 import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
@@ -21,6 +22,17 @@ import {
   messageText,
   srOnly,
 } from './message.css';
+
+export function messageFromItem(item: ChatMessage, ctx: SegmentCtx): ChatMessage {
+  return {
+    ...item,
+    streaming: ctx.active && item.role === 'assistant',
+    attachments: item.attachments?.map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+    })),
+  };
+}
 
 // ── Measure ───────────────────────────────────────────────────────────────────
 

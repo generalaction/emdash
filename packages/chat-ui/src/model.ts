@@ -1,11 +1,32 @@
-/**
- * Transport-agnostic data model for the chat UI.
- * No ACP, IPC, or RPC types bleed in here.
- */
+import type {
+  AcpPermissionRequest,
+  PlanEntryPriority,
+  PlanEntryStatus,
+  PlanState,
+  ToolNode,
+  ToolStatus,
+  TranscriptItem,
+  TranscriptMessage,
+  TranscriptThinking,
+  TranscriptTurn,
+  TranscriptTurnOutcome,
+} from '@emdash/core/acp/client';
+
+export type {
+  AcpPermissionRequest,
+  PlanEntryPriority,
+  PlanEntryStatus,
+  PlanState,
+  ToolNode,
+  ToolStatus,
+  TranscriptItem,
+  TranscriptMessage,
+  TranscriptThinking,
+  TranscriptTurn,
+  TranscriptTurnOutcome,
+};
 
 export type ChatRole = 'user' | 'assistant' | 'thought';
-
-export type ToolStatus = 'running' | 'done' | 'error';
 
 export type ThinkingStatus = 'thinking' | 'done';
 
@@ -26,6 +47,7 @@ export type ChatImageAttachment = {
 export type ChatMessage = {
   kind: 'message';
   id: string;
+  seq?: number;
   role: ChatRole;
   /** Markdown source text. */
   text: string;
@@ -40,6 +62,7 @@ export type ChatToolCall = {
   id: string;
   name: string;
   status: ToolStatus;
+  awaitingPermission?: boolean;
   /** Short one-line synopsis shown alongside the tool name. */
   inputSummary?: string;
   /** Id of the parent tool call (for hierarchical rendering). */
@@ -57,12 +80,11 @@ export type ChatToolCall = {
 export type ChatThinking = {
   kind: 'thinking';
   id: string;
+  seq?: number;
+  segmentId?: string;
   status: ThinkingStatus;
-  /** Accumulating reasoning output (plain text / markdown). */
   text: string;
-  /** Start time (epoch ms) — used to derive the live duration. */
   startedAt: number;
-  /** Frozen duration once status flips to 'done'. */
   durationMs?: number;
 };
 
@@ -90,6 +112,7 @@ export type ChatFileOpToolCall = {
   id: string;
   op: FileOpKind;
   status: ToolStatus;
+  awaitingPermission?: boolean;
   /** Accumulating list of files touched. Replaced (not appended) on each update. */
   ops: FileOp[];
   /** Id of the parent tool call (for hierarchical rendering). */
@@ -108,11 +131,15 @@ export type ChatExecute = {
   id: string;
   /** The shell command, e.g. "ls -a". Empty string until the command-bearing update arrives. */
   command: string;
+  /** Static tool output, or live terminal output when available. */
+  outputText?: string;
   status: ToolStatus;
+  awaitingPermission?: boolean;
   /** Start time (epoch ms) — used to derive the live timer and frozen duration. */
   startedAt: number;
   /** Frozen duration once status flips to 'done'. Absent when data is unavailable. */
   durationMs?: number;
+  terminalId?: string;
   /** Id of the parent tool call (for hierarchical rendering). */
   parentId?: string;
 };
@@ -137,6 +164,7 @@ export type ChatDiff = {
   oldText: string | null;
   newText: string;
   status: ToolStatus;
+  awaitingPermission?: boolean;
   /** Id of the parent tool call (for hierarchical rendering). */
   parentId?: string;
 };
@@ -186,11 +214,6 @@ export type ChatResourceLink = {
 };
 
 /** Lifecycle status of a single plan entry. Mirrors ACP `PlanEntryStatus`. */
-export type PlanEntryStatus = 'pending' | 'in_progress' | 'completed';
-
-/** Relative importance of a plan entry. Mirrors ACP `PlanEntryPriority`. */
-export type PlanEntryPriority = 'high' | 'medium' | 'low';
-
 /**
  * A single task entry within an agent execution plan.
  *
@@ -223,7 +246,21 @@ export type ChatPlan = {
   streaming?: boolean;
 };
 
+export type WorkingItem = {
+  kind: 'working';
+  id: string;
+};
+
+export type TurnOutcomeItem = {
+  kind: 'turn-outcome';
+  id: string;
+  outcome: TranscriptTurnOutcome;
+};
+
+export type SyntheticItem = WorkingItem | TurnOutcomeItem;
+
 export type ChatItem =
+  | TranscriptItem
   | ChatMessage
   | ChatToolCall
   | ChatThinking

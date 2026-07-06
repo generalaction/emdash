@@ -1,8 +1,8 @@
 /**
  * ToolGroup — collapsible composite unit for hierarchical tool calls.
  *
- * A parent tool call (one whose id is referenced by another item's `parentId`)
- * is rendered as a single collapsible composite row instead of a flat row.
+ * A tool-group node is rendered as a single collapsible composite row instead
+ * of a flat row for each child tool call.
  *
  * Layout:
  *   ┌─ CollapseHeader (parent tool name, shimmer while running) ─┐

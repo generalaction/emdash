@@ -24,7 +24,7 @@ import type {
   ChatState,
   ChatView,
   ChatViewOptions,
-  ChatItem,
+  TranscriptTurn,
 } from '@emdash/chat-ui';
 import { createChatView } from '@emdash/chat-ui';
 import { createElement, useEffect, useRef } from 'react';
@@ -128,9 +128,11 @@ export type {
   MentionProvider,
   ChatContext,
   ChatState,
+  TranscriptTurn,
 } from '@emdash/chat-ui';
-export type LoadOlderFn = (items: ChatItem[]) => void;
+export type LoadOlderFn = (turns: TranscriptTurn[]) => void;
 export {
+  connectSession,
   createChatContext,
   createChatState,
   createChatView,

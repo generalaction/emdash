@@ -1,0 +1,25 @@
+import { isOk } from '@emdash/shared';
+import { describe, expect, it } from 'vitest';
+import { makeAcpHarness, makeStartInput } from '../acp-test-support';
+import { sessionConfigStateSchema } from '../models/config';
+import { sessionStateSchema } from '../models/session';
+import { transcriptTurnSchema } from '../models/turns';
+import { AcpRuntime } from '../runtime/runtime';
+
+describe('ACP API contract schemas', () => {
+  it('parses runtime live model snapshots with the public schemas', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const started = await rt.startSession(makeStartInput({ conversationId: 'conv-contract' }));
+    expect(isOk(started)).toBe(true);
+
+    const live = rt.sessionLiveModels('conv-contract');
+    if (!live) throw new Error('expected live models');
+
+    expect(() => sessionStateSchema.parse(live.sessionState.snapshot().data)).not.toThrow();
+    expect(() => sessionConfigStateSchema.parse(live.config.snapshot().data)).not.toThrow();
+    expect(() =>
+      transcriptTurnSchema.nullable().parse(live.activeTurn.snapshot().data)
+    ).not.toThrow();
+  });
+});

@@ -49,7 +49,7 @@ import { ThemeContext } from './components/contexts/ThemeContext';
 import { TurnStateContext } from './components/contexts/TurnStateContext';
 import { createFrameScheduler } from './components/engine/frame-scheduler';
 import { createTweenRegistry } from './components/engine/tween-registry';
-import { NODE_SEGMENTERS, SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
+import { SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
 import { UnitRow } from './components/engine/UnitRow';
 import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
 import type { ChatCaches } from './core/caches';
@@ -59,13 +59,12 @@ import { genericEstimate } from './core/layout/generic-estimate';
 import { STICK_THRESHOLD_PX } from './core/stick-to-bottom';
 import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
-import type { ChatItem, ChatMessage } from './model';
+import type { ChatItem, ChatMessage, TranscriptTurn } from './model';
 import type { ChatState, ScrollMode } from './state/chat-state';
 import { flattenTier, makeUnitsView, collectUserTurnUnits } from './state/flatten';
 import type { UnitsView } from './state/flatten';
 import type { LayoutSnapshot, PinSnapshot } from './state/geometry';
 import { samePin, sameRange } from './state/geometry';
-import { getItem } from './state/transcript';
 import {
   canvas,
   composerSlotClass,
@@ -121,6 +120,17 @@ const USER_SCROLL_EPSILON = 0.5;
 // and let projectAnchor jump the thumb forward. Tunable.
 const SCROLL_SETTLE_MS = 120;
 
+function findLastUserMessageId(turns: readonly TranscriptTurn[]): string | null {
+  for (let turnIndex = turns.length - 1; turnIndex >= 0; turnIndex--) {
+    const turn = turns[turnIndex];
+    for (let itemIndex = turn.items.length - 1; itemIndex >= 0; itemIndex--) {
+      const item = turn.items[itemIndex];
+      if (item.kind === 'message' && item.role === 'user') return item.id;
+    }
+  }
+  return null;
+}
+
 // ── EngineControls ────────────────────────────────────────────────────────────
 
 /**
@@ -131,7 +141,7 @@ const SCROLL_SETTLE_MS = 120;
 export type EngineControls = {
   scrollToBottom(opts?: { behavior?: ScrollBehavior }): void;
   scrollToItem(id: string, opts?: ScrollToItemOptions): void;
-  loadOlder(items: ChatItem[]): void;
+  loadOlder(turns: TranscriptTurn[]): void;
   /** Toggle collapse for an item by id (for view.toggleCollapsed). */
   toggleCollapsed?(id: string): void;
   /**
@@ -348,10 +358,15 @@ export function ChatRoot(props: ChatRootProps) {
   const maxScrollTop = () => Math.max(0, contentH() - viewHeight());
 
   // ── Flat unit view (two-tier, incremental) ────────────────────────────────
-  const segmentCtx = createMemo(() => ({
+  const segmentCtx = (active = false) => ({
     caches: caches(),
     expanded: (_id: string) => false,
-  }));
+    active,
+    plan: () => state().session.state.plan,
+    pendingToolCallIds: () => state().session.state.pendingToolCallIds,
+    terminalOutputText: (terminalId: string) =>
+      state().session.state.terminalOutputText(terminalId),
+  });
 
   let committedUnitsArr: ReturnType<typeof flattenTier> = [];
   // O(1) lookup: itemId -> index of the FIRST unit for that item in the
@@ -359,7 +374,7 @@ export function ChatRoot(props: ChatRootProps) {
   // items are handled by a small scan in firstUnitIndexOf since activeTurn is
   // always short (≤ a handful of items per streaming turn).
   const committedIndexById = new Map<string, number>();
-  let lastCommitted: readonly ChatItem[] = [];
+  let lastCommitted: readonly TranscriptTurn[] = [];
   // Identity of the model this effect last built from. A change signals a
   // view.setModel swap and drives the snapshot + incremental-cache reset.
   let lastState: ChatState | undefined;
@@ -381,7 +396,7 @@ export function ChatRoot(props: ChatRootProps) {
   // rebuild from the incoming model — all within the same synchronous run.
   createEffect(() => {
     const s = state();
-    const next = s.transcript.state.committed;
+    const next = s.transcript.state.committedTurns;
 
     if (s !== lastState) {
       // Model swap: snapshot the outgoing model's heights while committedUnitsArr
@@ -395,7 +410,7 @@ export function ChatRoot(props: ChatRootProps) {
     }
 
     const prev = lastCommitted;
-    const ctx = segmentCtx();
+    const ctx = segmentCtx(false);
 
     if (
       next.length > prev.length &&
@@ -407,7 +422,7 @@ export function ChatRoot(props: ChatRootProps) {
         committedUnitsArr.length > 0
           ? committedUnitsArr[committedUnitsArr.length - 1].kind
           : undefined;
-      const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
+      const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind);
       const base = committedUnitsArr.length;
       for (let j = 0; j < newUnits.length; j++) {
         const u = newUnits[j];
@@ -418,14 +433,7 @@ export function ChatRoot(props: ChatRootProps) {
       committedUnitsArr = [...committedUnitsArr, ...newUnits];
     } else {
       // Full rebuild (seed, prepend, or non-append structural change).
-      committedUnitsArr = flattenTier(
-        next,
-        ctx,
-        SEGMENTERS,
-        UNIT_REGISTRY,
-        undefined,
-        NODE_SEGMENTERS
-      );
+      committedUnitsArr = flattenTier(next, ctx, SEGMENTERS, UNIT_REGISTRY);
       committedIndexById.clear();
       for (let i = 0; i < committedUnitsArr.length; i++) {
         const u = committedUnitsArr[i];
@@ -441,13 +449,44 @@ export function ChatRoot(props: ChatRootProps) {
 
   const activeUnits = createMemo(() => {
     committedUnitsVersion();
-    const at = state().transcript.state.activeTurn;
-    if (!at || at.length === 0) return [] as ReturnType<typeof flattenTier>;
+    const at = state().transcript.state.activeTurnSnapshot;
+    const pendingPrompt = state().session.state.pendingPrompt;
+    if ((!at || at.items.length === 0) && !pendingPrompt)
+      return [] as ReturnType<typeof flattenTier>;
     const prevKind =
       committedUnitsArr.length > 0
         ? committedUnitsArr[committedUnitsArr.length - 1].kind
         : undefined;
-    return flattenTier(at, segmentCtx(), SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
+    const activeTurn =
+      at ??
+      ({
+        id: `pending:${pendingPrompt!.id}:turn`,
+        seq: 0,
+        initiator: 'user',
+        items: [
+          {
+            kind: 'message',
+            id: pendingPrompt!.id,
+            seq: 0,
+            role: 'user',
+            text: pendingPrompt!.text,
+            attachments: pendingPrompt!.attachments,
+          } as TranscriptTurn['items'][number],
+        ],
+      } satisfies TranscriptTurn);
+    return flattenTier([activeTurn], segmentCtx(true), SEGMENTERS, UNIT_REGISTRY, prevKind);
+  });
+
+  let pendingPromptCommittedTurns = state().transcript.state.committedTurns;
+  createEffect(() => {
+    const s = state();
+    const pendingPrompt = s.session.state.pendingPrompt;
+    const committedTurns = s.transcript.state.committedTurns;
+    const hasActiveTurn = s.transcript.state.activeTurnSnapshot !== null;
+    if (pendingPrompt && (hasActiveTurn || committedTurns !== pendingPromptCommittedTurns)) {
+      s.session.setPendingPrompt(null);
+    }
+    pendingPromptCommittedTurns = committedTurns;
   });
 
   const units = createMemo<UnitsView>(() => {
@@ -543,7 +582,7 @@ export function ChatRoot(props: ChatRootProps) {
   const userTurns = createMemo(() => {
     committedUnitsVersion();
     return collectUserTurnUnits(
-      state().transcript.state.committed,
+      state().transcript.state.committedTurns,
       makeUnitsView(committedUnitsArr, NO_ACTIVE_UNITS)
     );
   });
@@ -562,10 +601,10 @@ export function ChatRoot(props: ChatRootProps) {
     let targetId: string | null = null;
 
     // 1. Scan activeTurn backward for the latest user message.
-    const active = transcript.activeTurn;
+    const active = transcript.activeTurnSnapshot;
     if (active) {
-      for (let i = active.length - 1; i >= 0; i--) {
-        const item = active[i];
+      for (let i = active.items.length - 1; i >= 0; i--) {
+        const item = active.items[i];
         if (item && item.kind === 'message' && (item as ChatMessage).role === 'user') {
           targetId = item.id;
           break;
@@ -575,14 +614,7 @@ export function ChatRoot(props: ChatRootProps) {
 
     // 2. Fall back to the last committed user message.
     if (targetId === null) {
-      const committed = transcript.committed;
-      for (let i = committed.length - 1; i >= 0; i--) {
-        const item = committed[i];
-        if (item && item.kind === 'message' && (item as ChatMessage).role === 'user') {
-          targetId = item.id;
-          break;
-        }
-      }
+      targetId = findLastUserMessageId(transcript.committedTurns);
     }
 
     if (targetId === null) return -1;
@@ -845,6 +877,7 @@ export function ChatRoot(props: ChatRootProps) {
   // `undefined` means "not yet emitted" — forces an emit on the first writePhase
   // and after every model swap.
   let lastActiveUserVisible: boolean | undefined;
+  let lastAtBottom: boolean | undefined;
 
   // Smooth-scroll suppression: when a smooth-scroll animation is in flight,
   // intermediate scrollTop updates are browser-driven and must not be treated
@@ -858,6 +891,12 @@ export function ChatRoot(props: ChatRootProps) {
   // after this timestamp — covering the whole gesture, not just one frame.
   // Initialised to 0 so the first write-phase call (no prior scroll) is settled.
   let lastUserScrollAt = 0;
+
+  const emitAtBottom = (value: boolean): void => {
+    if (value === lastAtBottom) return;
+    lastAtBottom = value;
+    props.onAtBottomChange?.(value);
+  };
 
   const readPhase = () => {
     const el = scrollEl;
@@ -898,7 +937,6 @@ export function ChatRoot(props: ChatRootProps) {
       if (nowAtBottom) {
         if (!prevAtBottom) {
           setAnchor({ kind: 'tail' });
-          props.onAtBottomChange?.(true);
         }
       } else {
         const pt = padTop();
@@ -912,10 +950,8 @@ export function ChatRoot(props: ChatRootProps) {
             offset: st - (virt.top(anchorUnitIdx) + pt),
           });
         }
-        if (prevAtBottom) {
-          props.onAtBottomChange?.(false);
-        }
       }
+      emitAtBottom(nowAtBottom);
     }
 
     if (st <= REACH_START_THRESHOLD_PX) {
@@ -1007,6 +1043,8 @@ export function ChatRoot(props: ChatRootProps) {
       pin: nextPin,
     };
     commit(next, nextVisible);
+
+    emitAtBottom(maxScrollTop() - shadowScrollTop <= STICK_THRESHOLD_PX);
 
     // Emit active-user-message visibility change when the state flips.
     if (props.onActiveUserMessageVisibilityChange) {
@@ -1220,11 +1258,12 @@ export function ChatRoot(props: ChatRootProps) {
     }
   };
 
-  const doLoadOlder = (items: ChatItem[]) => {
+  const doLoadOlder = (turns: TranscriptTurn[]) => {
     const el = scrollEl;
-    if (!el || items.length === 0) return;
+    if (!el || turns.length === 0) return;
 
     const t = theme();
+    const prependedUnits = flattenTier(turns, segmentCtx(false), SEGMENTERS, UNIT_REGISTRY);
 
     const anchorUnitIdx = virt.findIndex(Math.max(0, el.scrollTop - padTop()));
     const anchorId = units().at(anchorUnitIdx)?.itemId;
@@ -1237,18 +1276,18 @@ export function ChatRoot(props: ChatRootProps) {
       expanded: () => false,
       caches: caches(),
     };
-    const count = items.length;
+    const count = prependedUnits.length;
     virt.prepend(count, (i) => {
-      const item = items[i];
-      if (!item) return userTopGap + 60;
-      const unitDef = UNIT_REGISTRY[item.kind];
+      const unit = prependedUnits[i];
+      if (!unit) return userTopGap + 60;
+      const unitDef = UNIT_REGISTRY[unit.kind];
       const contentH =
-        unitDef?.estimate?.(item, loadEstimateCtx, unitDef.vars ?? {}) ??
-        genericEstimate(item, loadEstimateCtx);
-      return userTopGap + contentH;
+        unitDef?.estimate?.(unit.data, loadEstimateCtx, unitDef.vars ?? {}) ??
+        genericEstimate(unit.data as unknown as ChatItem, loadEstimateCtx);
+      return unitReservedHeight(unit, contentH);
     });
 
-    state().transcript.history.prepend(items);
+    state().transcript.history.prepend(turns);
     refreshTotal();
 
     if (anchorId !== undefined) {
@@ -1434,6 +1473,7 @@ export function ChatRoot(props: ChatRootProps) {
           // Reset visibility cache so the next writePhase re-emits for the new
           // conversation, even if the boolean value happens to be the same.
           lastActiveUserVisible = undefined;
+          lastAtBottom = undefined;
           // Load the incoming model's scroll intent and project it onto the DOM.
           attach(next);
           needsProject = true;
@@ -1453,18 +1493,15 @@ export function ChatRoot(props: ChatRootProps) {
 
   // ── Active-turn id set ────────────────────────────────────────────────────
   const activeTurnItemIds = createMemo(() => {
-    const active = state().transcript.state.activeTurn;
-    if (!active) return new Set<string>();
-    return new Set(active.map((i) => i.id));
+    const active = state().transcript.state.activeTurnSnapshot;
+    const ids = new Set(active?.items.map((i) => i.id) ?? []);
+    const pendingPrompt = state().session.state.pendingPrompt;
+    if (pendingPrompt) ids.add(pendingPrompt.id);
+    return ids;
   });
 
   const currentMessageId = createMemo<string | null>(() => {
-    const committed = state().transcript.state.committed;
-    for (let i = committed.length - 1; i >= 0; i--) {
-      const item = committed[i];
-      if (item.kind === 'message' && item.role === 'user') return item.id;
-    }
-    return null;
+    return findLastUserMessageId(state().transcript.state.committedTurns);
   });
 
   const turnStatus = () => state().transcript.state.turnStatus;
@@ -1556,14 +1593,13 @@ export function ChatRoot(props: ChatRootProps) {
                   {(ps) => {
                     // Resolve the ChatMessage reactively via itemId (stable) so
                     // a stale unit-index lookup can never hand a wrong item to
-                    // PinnedUserMessage. getItem searches committed-then-active
-                    // so optimistic / live active-turn user messages resolve too.
+                    // PinnedUserMessage. findItemById searches committed-then-active
+                    // so live active-turn user messages resolve too.
                     const pinnedItem = (): ChatMessage | undefined => {
                       const itemId = ps().itemId;
                       if (!itemId) return undefined;
                       const transcript = state().transcript;
-                      const idx = transcript.findIndexById(itemId);
-                      const item = idx >= 0 ? getItem(transcript.state, idx) : undefined;
+                      const item = transcript.findItemById(itemId);
                       return item && item.kind === 'message' && item.role === 'user'
                         ? (item as ChatMessage)
                         : undefined;

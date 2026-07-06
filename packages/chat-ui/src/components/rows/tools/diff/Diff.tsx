@@ -44,7 +44,7 @@ export type DiffHeaderProps = {
 export function DiffHeader(props: DiffHeaderProps) {
   const name = () => basename(props.item.path);
   const iconClass = () => resolveFileIconClass(name());
-  const running = () => props.item.status === 'running';
+  const running = () => props.item.status === 'running' && !props.item.awaitingPermission;
   // Stats are meaningless until a diff body exists; hide them while streaming
   // the header alone or when there are genuinely no changes.
   const showStats = () => props.hasBody && (props.adds > 0 || props.dels > 0);
@@ -70,6 +70,15 @@ export function DiffHeader(props: DiffHeaderProps) {
       ) : (
         <GenericFileIcon />
       )}
+      <Show when={props.item.awaitingPermission}>
+        <span
+          style={{ color: '#eab308' }}
+          title="Awaiting permission"
+          aria-label="Awaiting permission"
+        >
+          ✋
+        </span>
+      </Show>
       <span class={diffFileName} classList={{ [textShimmer]: running() }} title={props.item.path}>
         {name()}
       </span>

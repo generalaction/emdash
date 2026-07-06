@@ -2,11 +2,11 @@
  * Plan row examples — agent task list with mixed statuses and priorities.
  */
 
-import { applyTurnEvent } from '@state/turn-reducer';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import type { ChatPlanEntry } from '@/model';
 import { ChatHost, ChatHostExpanded, ScriptedChat } from '@/stories/_harness/chat-host';
 import type { ScriptStep } from '@/stories/_harness/chat-host';
+import { applyTurnEvent } from '@/stories/_harness/turn-reducer';
 
 const meta: Meta = {
   title: 'Examples/Plan',

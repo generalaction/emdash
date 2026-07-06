@@ -37,8 +37,8 @@ export interface PermissionBandProps {
   request: ComposerPermissionRequest;
   /** Total pending count including this one. Used to render "1 of N". */
   queueCount?: number;
-  /** Called with the chosen optionId, or null to cancel. */
-  onResolve: (optionId: string | null) => void;
+  /** Called with the chosen optionId. Rejection is represented by reject_* options. */
+  onResolve: (optionId: string) => void;
   className?: string;
 }
 

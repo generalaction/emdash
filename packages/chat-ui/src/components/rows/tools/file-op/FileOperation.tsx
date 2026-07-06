@@ -56,7 +56,13 @@ export function FileOpRow(props: FileOpRowProps) {
       <Show
         when={props.item.ops[0]}
         fallback={
-          <span class={monoRunning} classList={{ [textShimmer]: props.item.status === 'running' }}>
+          <span
+            class={monoRunning}
+            classList={{
+              [textShimmer]: props.item.status === 'running' && !props.item.awaitingPermission,
+            }}
+          >
+            <Show when={props.item.awaitingPermission}>✋ </Show>
             {verb()}…
           </span>
         }
@@ -95,10 +101,11 @@ export function FileOpHeader(props: FileOpHeaderProps) {
     <CollapseHeader
       id={props.item.id}
       expanded={props.expanded}
-      active={props.item.status === 'running'}
+      active={props.item.status === 'running' && !props.item.awaitingPermission}
       error={props.item.status === 'error'}
       height={props.rowH}
     >
+      <Show when={props.item.awaitingPermission}>✋ </Show>
       {VERB[props.item.op]} {props.item.ops.length} files
     </CollapseHeader>
   );

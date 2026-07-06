@@ -1,5 +1,5 @@
 /**
- * Reusable test helpers for AcpSessionRuntime tests.
+ * Reusable test helpers for ACP unit tests.
  *
  * Not a test file itself (no `.test.` suffix) — Vitest will not collect it.
  * Import from `./acp-test-support` in test files that need it.
@@ -11,8 +11,8 @@ import type { Client } from '@agentclientprotocol/sdk';
 import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
-import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
-import type { AcpTurn, SessionSnapshot } from './state';
+import type { AgentTerminalHooks } from './agent-terminal-manager';
+import type { AcpRuntimeDeps, AcpStartInput } from './runtime/types';
 import type {
   AcpProcessHandle,
   AcpProcessHost,
@@ -22,15 +22,10 @@ import type {
 } from './transport';
 
 /**
- * Creates a recording AcpRuntimeListener.
+ * Creates recording terminal hooks.
  * `emitted(field)` returns all objects emitted via that method.
  */
 export function createRecordingListener() {
-  const snapshots: { conversationId: string; snapshot: SessionSnapshot }[] = [];
-  const updates: { conversationId: string; turnId: string; seq: number }[] = [];
-  const turns: { conversationId: string; turn: AcpTurn }[] = [];
-  const closed: { conversationId: string; taskId: string; exitCode: number | null }[] = [];
-  const agentEvents: { type: string; conversationId: string }[] = [];
   const terminalCreated: {
     conversationId: string;
     terminalId: string;
@@ -51,12 +46,7 @@ export function createRecordingListener() {
   }[] = [];
   const terminalReleased: { conversationId: string; terminalId: string }[] = [];
 
-  const listener: AcpRuntimeListener = {
-    onSnapshot: (e) => snapshots.push(e),
-    onSessionUpdate: (e) => updates.push(e),
-    onTurnCommitted: (e) => turns.push(e),
-    onClosed: (e) => closed.push(e),
-    onAgentEvent: (e) => agentEvents.push(e),
+  const listener: AgentTerminalHooks = {
     onTerminalCreated: (e) => terminalCreated.push(e),
     onTerminalOutput: (e) => terminalOutput.push(e),
     onTerminalExit: (e) => terminalExit.push(e),
@@ -65,21 +55,11 @@ export function createRecordingListener() {
 
   return {
     listener,
-    snapshots,
-    updates,
-    turns,
-    closed,
-    agentEvents,
     terminalCreated,
     terminalOutput,
     terminalExit,
     terminalReleased,
     clear() {
-      snapshots.length = 0;
-      updates.length = 0;
-      turns.length = 0;
-      closed.length = 0;
-      agentEvents.length = 0;
       terminalCreated.length = 0;
       terminalOutput.length = 0;
       terminalExit.length = 0;
@@ -270,12 +250,11 @@ export class FakeAcpProcessHost implements AcpProcessHost {
   }
 }
 
-export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}) {
-  const recording = createRecordingListener();
+export function makeAcpHarness(depOverrides: Partial<AcpRuntimeDeps> = {}) {
   const agent = new FakeAcpAgent();
   const fakeHost = new FakeAcpProcessHost();
 
-  const deps: AcpSessionRuntimeDeps = {
+  const deps: AcpRuntimeDeps = {
     resolveAcp: () => ({
       behavior: {
         buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
@@ -284,7 +263,7 @@ export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}
     }),
     host: fakeHost,
     persistSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
-    listener: recording.listener,
+    resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
     logger: noopLogger,
     ...depOverrides,
   };
@@ -292,12 +271,6 @@ export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}
   return {
     deps,
     fakeHost,
-    recording,
-    /** Snapshots emitted (shortcut). */
-    get snapshots() {
-      return recording.snapshots;
-    },
-    /** The last FakeAcpProcessHandle spawned by the harness. */
     get lastChild(): FakeAcpProcessHandle {
       return fakeHost.lastHandle;
     },
@@ -307,7 +280,7 @@ export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}
     agent,
     client(): Client {
       if (!agent.capturedClient) {
-        throw new Error('capturedClient is null — has start() been called?');
+        throw new Error('capturedClient is null — has startSession() been called?');
       }
       return agent.capturedClient;
     },

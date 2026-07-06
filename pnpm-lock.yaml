@@ -53,6 +53,9 @@ importers:
       '@octokit/rest':
         specifier: ^22.0.1
         version: 22.0.1
+      '@orpc/client':
+        specifier: ^1.14.6
+        version: 1.14.6
       '@parcel/watcher':
         specifier: ^2.5.6
         version: 2.5.6
@@ -361,6 +364,9 @@ importers:
       '@chenglou/pretext':
         specifier: ^0.0.8
         version: 0.0.8
+      '@emdash/core':
+        specifier: workspace:*
+        version: link:../core
       '@emdash/shared':
         specifier: workspace:*
         version: link:../shared
@@ -488,6 +494,9 @@ importers:
       '@orpc/contract':
         specifier: ^1.14.6
         version: 1.14.6
+      '@orpc/server':
+        specifier: ^1.14.6
+        version: 1.14.6(ws@8.21.0)
       '@parcel/watcher':
         specifier: ^2.5.6
         version: 2.5.6
@@ -507,6 +516,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@orpc/client':
+        specifier: ^1.14.6
+        version: 1.14.6
       '@types/node':
         specifier: ^20.19.42
         version: 20.19.42
@@ -592,6 +604,9 @@ importers:
       tsdown:
         specifier: ^0.22.2
         version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(oxc-resolver@11.20.0)(tsx@4.22.4)(typescript@6.0.3)
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
       vitest:
         specifier: ^3.1.4
         version: 3.2.6(@types/debug@4.1.13)(@types/node@20.19.42)(jiti@2.7.0)(jsdom@29.1.1(@noble/hashes@2.2.0))(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -705,6 +720,12 @@ importers:
       devicon:
         specifier: ^2.17.0
         version: 2.17.0
+      mobx:
+        specifier: ^6.16.1
+        version: 6.16.1
+      mobx-react-lite:
+        specifier: ^4.1.1
+        version: 4.1.1(mobx@6.16.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       oxfmt:
         specifier: ^0.51.0
         version: 0.51.0

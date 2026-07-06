@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 // ---------------------------------------------------------------------------
 // Serializability primitives
 // ---------------------------------------------------------------------------
@@ -34,6 +36,17 @@ export type Result<T, E = string> = Ok<T> | Err<E>;
 
 export const ok = <T>(data: T = undefined as T): Ok<T> => ({ success: true, data });
 export const err = <E>(error: E): Err<E> => ({ success: false, error });
+
+/**
+ * Wraps a Result<T, E> on the wire as a discriminated union.
+ * Domain outcomes use this helper; transport-level failures should stay in
+ * the transport's error mechanism.
+ */
+export const resultSchema = <D extends z.ZodTypeAny, E extends z.ZodTypeAny>(data: D, error: E) =>
+  z.discriminatedUnion('success', [
+    z.object({ success: z.literal(true), data }),
+    z.object({ success: z.literal(false), error }),
+  ]);
 
 // ---------------------------------------------------------------------------
 // Tagged errors with a typed, serializable cause chain

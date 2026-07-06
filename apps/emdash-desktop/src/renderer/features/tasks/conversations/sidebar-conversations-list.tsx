@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
@@ -9,6 +9,7 @@ import {
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -22,6 +23,7 @@ import { MicroLabel } from '@renderer/lib/ui/label';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
+import { getAcpChatResourceManager } from '../acp/acp-chat-resource-manager';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
 import { ConversationAgentIcon } from './conversation-agent-icon';
 
@@ -35,6 +37,7 @@ const ConversationRow = observer(function ConversationRow({
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
   const conversations = useConversations();
+  const { projectId, taskId } = useTaskViewContext();
   const showConfirm = useShowModal('confirmActionModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
@@ -88,6 +91,19 @@ const ConversationRow = observer(function ConversationRow({
         void conversations.deleteConversation(conversationId);
       },
     });
+  };
+
+  const handleExport = (kind: 'parsed' | 'raw') => {
+    const store = getAcpChatResourceManager(taskId, projectId).get(conversationId);
+    if (!store) {
+      toast({
+        title: 'Failed to export transcript',
+        description: 'Open the chat before exporting it.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    store.exportTranscript(kind);
   };
 
   return (
@@ -154,6 +170,19 @@ const ConversationRow = observer(function ConversationRow({
           <Pencil className="size-4" />
           Rename
         </ContextMenuItem>
+        {conversation.data.type === 'acp' && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => handleExport('parsed')}>
+              <Download className="size-4" />
+              Export transcript
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => handleExport('raw')}>
+              <Download className="size-4" />
+              Export raw ACP log
+            </ContextMenuItem>
+          </>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onClick={handleDelete}>
           <Trash2 className="size-4" />

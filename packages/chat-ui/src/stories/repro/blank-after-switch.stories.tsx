@@ -25,7 +25,7 @@ import { createChatContext } from '@/chat-context';
 import type { ChatView } from '@/chat-view';
 import { createChatView } from '@/chat-view';
 import { generateMockTranscript, mockMentionProvider } from '@/mock-transcript';
-import type { ChatItem } from '@/model';
+import type { ChatMessage, TranscriptTurn } from '@/model';
 import { createChatState } from '@/state/chat-state';
 import { pinTopMode, tailMode } from '@/state/scroll-mode';
 import { storyViewport } from '@/stories/_harness/chat-host.css';
@@ -40,20 +40,22 @@ type Story = StoryObj;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-function makeTranscript(label: string, count: number): ChatItem[] {
-  const items = generateMockTranscript(count);
-  const first = items[0];
+function makeTranscript(label: string, count: number): TranscriptTurn[] {
+  const turns = generateMockTranscript(count);
+  const first = turns[0]?.items[0];
   if (first && first.kind === 'message' && first.role === 'user') {
-    (first as typeof first & { text: string }).text =
-      `[${label}] ${(first as typeof first & { text: string }).text}`;
+    (first as ChatMessage).text = `[${label}] ${(first as ChatMessage).text}`;
   }
-  return items;
+  return turns;
 }
 
-function lastUserId(items: ChatItem[]): string | undefined {
-  for (let i = items.length - 1; i >= 0; i--) {
-    const it = items[i];
-    if (it.kind === 'message' && it.role === 'user') return it.id;
+function lastUserId(turns: TranscriptTurn[]): string | undefined {
+  for (let turnIndex = turns.length - 1; turnIndex >= 0; turnIndex--) {
+    const turn = turns[turnIndex];
+    for (let itemIndex = turn.items.length - 1; itemIndex >= 0; itemIndex--) {
+      const it = turn.items[itemIndex];
+      if (it.kind === 'message' && it.role === 'user') return it.id;
+    }
   }
   return undefined;
 }
@@ -96,7 +98,20 @@ function Harness(props: HarnessProps) {
     states[i].scroll.set(props.intent === 'anchor' && uid ? pinTopMode(uid) : tailMode());
     if (props.keepStreaming) {
       states[i].transcript.activeTurn.set(
-        [{ kind: 'message', id: `live-${i}`, role: 'assistant', text: 'streaming response…' }],
+        {
+          id: `live-turn-${i}`,
+          seq: counts[i],
+          initiator: 'agent',
+          items: [
+            {
+              kind: 'message',
+              id: `live-${i}`,
+              seq: 0,
+              role: 'assistant',
+              text: 'streaming response…',
+            },
+          ],
+        },
         'generating'
       );
     }
@@ -185,8 +200,14 @@ function Harness(props: HarnessProps) {
   const sendMessage = () => {
     const idx = activeIdx();
     if (!seeded.has(idx)) seed(idx);
+    const id = `sent-${idx}-${sendCounter++}`;
     states[idx].transcript.history.append([
-      { kind: 'message', id: `sent-${idx}-${sendCounter++}`, role: 'user', text: 'manual message' },
+      {
+        id: `sent-turn-${id}`,
+        seq: fixtures[idx].length + sendCounter,
+        initiator: 'user',
+        items: [{ kind: 'message', id, seq: 0, role: 'user', text: 'manual message' }],
+      },
     ]);
   };
 

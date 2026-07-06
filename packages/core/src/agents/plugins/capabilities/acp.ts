@@ -12,7 +12,6 @@ import type {
   NewSessionResponse,
   PromptRequest,
   PromptResponse,
-  SessionUpdate,
   SetSessionConfigOptionRequest,
   SetSessionConfigOptionResponse,
   SetSessionModeRequest,
@@ -20,7 +19,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
-import type { AgentUpdate } from '../../../acp/agent-update';
+import type { EnrichHook } from '../../../acp/reducer/normalized-event';
 
 export type AcpSpawnContext = {
   /** Absolute path to the worktree / task directory. */
@@ -81,15 +80,15 @@ export interface IAcpBehavior {
   connect(io: AcpProcessIo, toClient: AcpClientFactory): AcpAgentApi;
 
   /**
-   * Optional enrichment hook run in the main process after the baseline
-   * `toAgentUpdate` conversion. Receives the already-decoded `AgentUpdate`
-   * and the original raw `SessionUpdate` so implementations can promote
-   * vendor-specific `_meta` fields (e.g. `_meta.claudeCode.parentToolUseId`)
-   * into first-class `AgentUpdate` fields such as `parentToolCallId`.
+   * Optional enrichment hook run in the main process after baseline ACP
+   * SessionUpdate decoding. Receives the already-decoded NormalizedEvent and
+   * the original raw SessionUpdate so implementations can promote vendor-specific
+   * `_meta` fields (e.g. `_meta.claudeCode.parentToolUseId`) into first-class
+   * normalized fields such as `parentToolCallId`.
    *
-   * Omit for standard-ACP passthrough — `toAgentUpdate` handles baseline decoding.
+   * Omit for standard-ACP passthrough — the core reducer handles baseline decoding.
    */
-  enrich?(update: AgentUpdate, raw: SessionUpdate): AgentUpdate;
+  enrich?: EnrichHook;
 }
 
 /**

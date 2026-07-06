@@ -56,6 +56,8 @@ export default defineConfig({
         '@tanstack/react-form',
         '@tanstack/react-store',
         '@tanstack/react-virtual',
+        'mobx',
+        'mobx-react-lite',
         'react',
         'react-dom',
         'react/jsx-runtime',

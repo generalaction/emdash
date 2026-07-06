@@ -24,7 +24,13 @@ import {
 } from 'solid-js';
 import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
-import type { ChatCommands, ChatItem, CommandProvider, MentionProvider } from '@/index';
+import type {
+  ChatCommands,
+  ChatItem,
+  CommandProvider,
+  MentionProvider,
+  TranscriptTurn,
+} from '@/index';
 import { createChatState } from '@/state/chat-state';
 import { storyViewport } from './chat-host.css';
 
@@ -49,7 +55,7 @@ function StoryViewport(props: { height?: number; width?: number; children: JSX.E
 
 /** Props shared by story hosts. */
 export type ChatHostProps = {
-  items?: ChatItem[];
+  items?: Array<ChatItem | TranscriptTurn>;
   /** Override viewport width in px (default: 880). */
   width?: number;
   /** Viewport height in px (default: 600). */
@@ -89,7 +95,7 @@ function makeCommands(transcript: TranscriptApi, overrides?: ChatCommands): () =
  * Used for stories that show the expanded state of collapsible rows.
  */
 export function ChatHostExpanded(props: {
-  items: ChatItem[];
+  items: Array<ChatItem | TranscriptTurn>;
   expandId: string;
   height: number;
   commands?: ChatCommands;
@@ -102,7 +108,7 @@ export function ChatHostExpanded(props: {
   });
 
   createEffect(() => {
-    state.transcript.history.seed(props.items);
+    state.transcript.history.seed(toTurns(props.items));
   });
 
   // Pre-toggle so the item starts in the expanded state.
@@ -147,7 +153,7 @@ export function ChatHost(props: ChatHostProps) {
   });
 
   createEffect(() => {
-    state.transcript.history.seed(props.items ?? []);
+    state.transcript.history.seed(toTurns(props.items ?? []));
   });
 
   const commands = createMemo(() => makeCommands(state.transcript, props.commands)());
@@ -170,7 +176,7 @@ export function ChatHost(props: ChatHostProps) {
  * Returns a function that starts the sequence; call once on mount.
  */
 export type ScriptStep =
-  | { kind: 'seed'; items: ChatItem[] }
+  | { kind: 'seed'; items: Array<ChatItem | TranscriptTurn> }
   | { kind: 'call'; fn: (api: TranscriptApi) => void }
   | { kind: 'wait'; ms: number };
 
@@ -206,7 +212,7 @@ export function ScriptedChat(props: {
       if (idx >= props.script.length) return;
       const step = props.script[idx++];
       if (step.kind === 'seed') {
-        api.history.seed(step.items);
+        api.history.seed(toTurns(step.items));
         runNext();
       } else if (step.kind === 'call') {
         runWithOwner(owner, () => step.fn(api));
@@ -245,4 +251,20 @@ export function ScriptedChat(props: {
       />
     </StoryViewport>
   );
+}
+
+function toTurns(items: Array<ChatItem | TranscriptTurn>): TranscriptTurn[] {
+  if (items.length === 0) return [];
+  if (items.every((item) => 'items' in item)) return items as TranscriptTurn[];
+  return [
+    {
+      id: 'story-turn',
+      seq: 0,
+      initiator: 'user',
+      items: items.map((item, index) => ({
+        ...item,
+        seq: (item as { seq?: number }).seq ?? index,
+      })) as TranscriptTurn['items'],
+    },
+  ];
 }

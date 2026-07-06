@@ -1,5 +1,5 @@
 import { ManagedAgentTerminal } from './managed-agent-terminal';
-import type { TerminalSnapshot } from './terminals';
+import type { TerminalState } from './models/terminals';
 import type { AcpProcessHost } from './transport';
 
 export interface AgentTerminalHooks {
@@ -108,10 +108,10 @@ export class AgentTerminalManager {
   }
 
   /** Snapshots of all live terminals for a conversation. */
-  listByConversation(conversationId: string): TerminalSnapshot[] {
+  listByConversation(conversationId: string): TerminalState[] {
     const ids = this.byConversation.get(conversationId);
     if (!ids) return [];
-    const out: TerminalSnapshot[] = [];
+    const out: TerminalState[] = [];
     for (const id of ids) {
       const entry = this.byId.get(id);
       if (entry) out.push(entry.terminal.snapshot());
@@ -120,8 +120,8 @@ export class AgentTerminalManager {
   }
 
   /** Snapshots of all live terminals across all conversations on this host. */
-  listAll(): TerminalSnapshot[] {
-    const out: TerminalSnapshot[] = [];
+  listAll(): TerminalState[] {
+    const out: TerminalState[] = [];
     for (const { terminal } of this.byId.values()) {
       out.push(terminal.snapshot());
     }

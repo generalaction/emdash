@@ -114,7 +114,20 @@ describe('ChatView.setModel', () => {
     // Stream into stateB after the swap — should not crash.
     expect(() => {
       stateB.transcript.activeTurn.set(
-        [{ kind: 'message', id: 'msg-1', role: 'assistant', text: 'Hello from model B' }],
+        {
+          id: 'active-turn-b',
+          seq: 99,
+          initiator: 'agent',
+          items: [
+            {
+              kind: 'message',
+              id: 'msg-1',
+              seq: 0,
+              role: 'assistant',
+              text: 'Hello from model B',
+            },
+          ],
+        },
         'generating'
       );
     }).not.toThrow();
