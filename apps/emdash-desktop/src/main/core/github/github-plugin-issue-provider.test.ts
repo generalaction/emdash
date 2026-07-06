@@ -109,20 +109,45 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
     expect(result).toMatchObject({ success: false, error: { type: 'auth_required' } });
   });
 
-  it('reports a missing account by id', async () => {
+  it('reports a missing pinned account by id', async () => {
     mockListAccounts.mockResolvedValue([]);
-    mockGetDefaultAccountId.mockResolvedValue('github.com:42');
+    mockAuthContext.mockResolvedValue({ success: true, data: { accountId: 'github.com:42' } });
     const { plugin } = makePlugin();
     const provider = createGitHubPluginIssueProvider(plugin);
 
-    const result = await provider.listIssues({ repositoryUrl: repository.repositoryUrl });
+    const result = await provider.listIssues({
+      projectId: 'project-1',
+      repositoryUrl: repository.repositoryUrl,
+    });
     expect(result).toMatchObject({
       success: false,
       error: { type: 'account_not_found', accountId: 'github.com:42' },
     });
   });
 
-  it('rejects accounts whose host does not match the repository', async () => {
+  it('rejects pinned accounts whose host does not match the repository', async () => {
+    mockListAccounts.mockResolvedValue([
+      providerAccountRow('ghe.example.com:7', 'ghe.example.com', 'octocat'),
+    ]);
+    mockAuthContext.mockResolvedValue({ success: true, data: { accountId: 'ghe.example.com:7' } });
+    const { plugin } = makePlugin();
+    const provider = createGitHubPluginIssueProvider(plugin);
+
+    const result = await provider.listIssues({
+      projectId: 'project-1',
+      repositoryUrl: repository.repositoryUrl,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'account_host_mismatch',
+        accountHost: 'ghe.example.com',
+        host: 'github.com',
+      },
+    });
+  });
+
+  it('requires auth when the default account is for another host', async () => {
     mockListAccounts.mockResolvedValue([
       providerAccountRow('ghe.example.com:7', 'ghe.example.com', 'octocat'),
     ]);
@@ -133,11 +158,7 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
     const result = await provider.listIssues({ repositoryUrl: repository.repositoryUrl });
     expect(result).toMatchObject({
       success: false,
-      error: {
-        type: 'account_host_mismatch',
-        accountHost: 'ghe.example.com',
-        host: 'github.com',
-      },
+      error: { type: 'auth_required', host: 'github.com' },
     });
   });
 
