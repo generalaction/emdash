@@ -11,6 +11,7 @@ export function executeFromItem(
     kind: 'execute',
     id: item.id,
     command: item.command ?? item.title,
+    ...(item.inputSummary !== undefined ? { inputSummary: item.inputSummary } : {}),
     ...(outputText !== undefined ? { outputText } : {}),
     status: item.status,
     awaitingPermission: ctx.pendingToolCallIds().has(item.toolCallId),

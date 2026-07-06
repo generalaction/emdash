@@ -23,7 +23,7 @@ export type ExecuteVars = {
 const EXECUTE_VARS: ExecuteVars = {
   rowH: ROW_H,
   border: 1,
-  collapsedMaxLines: 3,
+  collapsedMaxLines: 2,
   expandedMaxLines: 16,
 };
 
@@ -106,7 +106,7 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
       errorTitle={props.data.error}
       awaitingPermission={props.data.awaitingPermission}
       icon={<IconTerminal />}
-      header="Execute"
+      header={props.data.inputSummary || 'Execute'}
     >
       <Show when={codeLineH() > 0}>
         <ExecuteBody

@@ -152,6 +152,8 @@ export type ChatExecute = {
   id: string;
   /** The shell command, e.g. "ls -a". Empty string until the command-bearing update arrives. */
   command: string;
+  /** Optional provider-supplied purpose shown as the execute card title. */
+  inputSummary?: string;
   /** Static tool output, or live terminal output when available. */
   outputText?: string;
   status: ToolStatus;

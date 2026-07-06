@@ -58,4 +58,12 @@ describe('executeFromItem', () => {
       terminalId: 'term-1',
     });
   });
+
+  it('passes provider inputSummary through for the card header', () => {
+    expect(
+      executeFromItem(executeItem({ inputSummary: 'Installing Dependencies' }), ctx(null))
+    ).toMatchObject({
+      inputSummary: 'Installing Dependencies',
+    });
+  });
 });

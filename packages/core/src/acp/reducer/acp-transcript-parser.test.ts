@@ -374,6 +374,20 @@ describe('AcpTranscriptParser', () => {
     });
   });
 
+  it('preserves provider execute descriptions as inputSummary', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'install dependencies'));
+    p.push({
+      ...toolCallUpdate('exec-1', 'pnpm install', 'execute'),
+      description: 'Installing Dependencies',
+    } as unknown as SessionUpdate);
+
+    expect(p.activeTurn?.items.find((i) => i.kind === 'execute-tool-call')).toMatchObject({
+      command: 'pnpm install',
+      inputSummary: 'Installing Dependencies',
+    });
+  });
+
   it('passes through standard terminalId on execute tool updates', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'run it'));

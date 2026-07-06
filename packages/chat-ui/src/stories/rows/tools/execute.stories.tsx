@@ -48,6 +48,24 @@ export const Running: Story = {
   ),
 };
 
+export const DescriptionHeader: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'execute',
+          id: 'ex-description',
+          inputSummary: 'Installing Dependencies',
+          command: 'pnpm install',
+          status: 'running',
+          startedAt: Date.now() - 1800,
+        },
+      ]}
+      height={120}
+    />
+  ),
+};
+
 /** Streaming simulation: execute starts running then transitions to done. */
 export const RunningStreamed: Story = {
   render: () => (
