@@ -1,0 +1,1545 @@
+.gitignore
+  s_79df9400dc8a11::t_5ba53c6e8155e5 17,98-100
+AGENTS.md
+  s_79df9400dc8a11::t_f75d21b1a70833 1,3-6,10-14,21-29,33,36,39,41,45-46,48,54,68,75,81,87,91,94,97,100,103,109,112,119,128,136,139,143,146-154,158,161,166,173-174,178,183-185,194-195,198,216,220,222-231,238-256,260,269-279,281-283,289,295-296,298-299,302-313,317-321,326-336,338-340,352-357,359-372,376-382,385-386,389,391-393,399-402,404-408,422,430
+agents/README.md
+  s_79df9400dc8a11::t_9102566924ceab 15-16
+agents/architecture/acp-runtime.md
+  s_79df9400dc8a11::t_172e7053f3c8cc 1-83
+agents/architecture/workspace-server.md
+  s_79df9400dc8a11::t_56a33234c417c5 1-144
+agents/conventions/ui-styling.md
+  s_79df9400dc8a11::t_590bcfd0ef8239 1-220
+agents/integrations/providers.md
+  s_79df9400dc8a11::t_4c92d70782902a 5-6,9,11,36,41
+apps/emdash-desktop/drizzle/0016_concerned_carnage.sql
+  s_79df9400dc8a11::t_26a24f8bbd5c98 1
+apps/emdash-desktop/drizzle/0017_promote_session_id.sql
+  s_79df9400dc8a11::t_e8c8d6813af1d0 1-9
+apps/emdash-desktop/drizzle/0018_repair_workspaces_ssh_fk.sql
+  s_79df9400dc8a11::t_053b51d86daf9e 1-64
+apps/emdash-desktop/drizzle/0019_eager_meteorite.sql
+  s_79df9400dc8a11::t_73dcbd7f9aba36 1-13
+apps/emdash-desktop/drizzle/meta/0016_snapshot.json
+  s_79df9400dc8a11::t_96968d08528360 1-1810
+apps/emdash-desktop/drizzle/meta/0017_snapshot.json
+  s_79df9400dc8a11::t_178b0cf945903a 1-1810
+apps/emdash-desktop/drizzle/meta/0018_snapshot.json
+  s_79df9400dc8a11::t_42eac10dc3c355 1-1810
+apps/emdash-desktop/drizzle/meta/0019_snapshot.json
+  s_79df9400dc8a11::t_eb9687b6b0ff33 2-34,36-71,73-223,225-319,321-454,456-521,523-558,560-631,633-676,678-741,743-837,839-915,917-973,975-1082,1084-1133,1135-1191,1193-1391,1393-1493,1495-1656,1658-1750,1752-1876,1879-1883,1885-1886
+apps/emdash-desktop/drizzle/meta/_journal.json
+  s_79df9400dc8a11::t_284c7e78004b7f 116-143
+apps/emdash-desktop/electron.vite.config.ts
+  s_79df9400dc8a11::t_43fced73d3a2f4 10-17
+apps/emdash-desktop/package.json
+  s_79df9400dc8a11::t_bbcf2a07d7bd73 3,22-23,49,52-53,58-59,65,83
+apps/emdash-desktop/src/assets/images/mcp/amplitude.svg
+  s_79df9400dc8a11::t_272db45ad63f61 1-4
+apps/emdash-desktop/src/assets/images/mcp/asana.svg
+  s_79df9400dc8a11::t_5df53d2968517a 1-4
+apps/emdash-desktop/src/assets/images/mcp/atlassian.svg
+  s_79df9400dc8a11::t_43d864b63d2785 1-4
+apps/emdash-desktop/src/assets/images/mcp/aws_marketplace.svg
+  s_79df9400dc8a11::t_ff8ee840055d10 1-4
+apps/emdash-desktop/src/assets/images/mcp/axiom.svg
+  s_79df9400dc8a11::t_be6860aa08b69a 1-4
+apps/emdash-desktop/src/assets/images/mcp/azure.svg
+  s_79df9400dc8a11::t_38cee24c3b96ed 1-4
+apps/emdash-desktop/src/assets/images/mcp/bigquery.svg
+  s_79df9400dc8a11::t_c244eeeb96506a 1-4
+apps/emdash-desktop/src/assets/images/mcp/canva.svg
+  s_79df9400dc8a11::t_886f8f7a2851a1 1-4
+apps/emdash-desktop/src/assets/images/mcp/chrome_devtools.svg
+  s_79df9400dc8a11::t_633b418ab93693 1-4
+apps/emdash-desktop/src/assets/images/mcp/clerk.svg
+  s_79df9400dc8a11::t_777717e93c7ba0 1-4
+apps/emdash-desktop/src/assets/images/mcp/clickup.svg
+  s_79df9400dc8a11::t_2153efa7c4cd94 1-4
+apps/emdash-desktop/src/assets/images/mcp/cloudflare.svg
+  s_79df9400dc8a11::t_4cdad84cb44644 1-4
+apps/emdash-desktop/src/assets/images/mcp/cloudinary.svg
+  s_79df9400dc8a11::t_9262007be20817 1-4
+apps/emdash-desktop/src/assets/images/mcp/context7.svg
+  s_79df9400dc8a11::t_9a1770a47b78c4 1-6
+apps/emdash-desktop/src/assets/images/mcp/dev_manager.svg
+  s_79df9400dc8a11::t_696c8b2352ce7e 1-4
+apps/emdash-desktop/src/assets/images/mcp/devrev.svg
+  s_79df9400dc8a11::t_bba273236d7a03 1-4
+apps/emdash-desktop/src/assets/images/mcp/exa.svg
+  s_79df9400dc8a11::t_1a4f9b4f9ed9e1 1-4
+apps/emdash-desktop/src/assets/images/mcp/figma.svg
+  s_79df9400dc8a11::t_8c6ed9cf430a84 1-4
+apps/emdash-desktop/src/assets/images/mcp/graphite.svg
+  s_79df9400dc8a11::t_16ee4a13ff72ef 1-4
+apps/emdash-desktop/src/assets/images/mcp/graphos.svg
+  s_79df9400dc8a11::t_fdafe446d9ce3f 1-4
+apps/emdash-desktop/src/assets/images/mcp/honeycomb.svg
+  s_79df9400dc8a11::t_069ee18b18077c 1-7
+apps/emdash-desktop/src/assets/images/mcp/hugging_face.svg
+  s_79df9400dc8a11::t_bcf55104a7d1cf 1-4
+apps/emdash-desktop/src/assets/images/mcp/intercom.svg
+  s_79df9400dc8a11::t_2fdf4de3e8b35a 1-4
+apps/emdash-desktop/src/assets/images/mcp/linear.svg
+  s_79df9400dc8a11::t_a494463ed6d6d8 1-4
+apps/emdash-desktop/src/assets/images/mcp/magic_patterns.svg
+  s_79df9400dc8a11::t_dbb7127f158119 1-4
+apps/emdash-desktop/src/assets/images/mcp/make.svg
+  s_79df9400dc8a11::t_c16e99d0be482a 1-4
+apps/emdash-desktop/src/assets/images/mcp/mcp_default.svg
+  s_79df9400dc8a11::t_e96b74e720a081 1-6
+apps/emdash-desktop/src/assets/images/mcp/microsoft_learn.svg
+  s_79df9400dc8a11::t_38ac9016540683 1-4
+apps/emdash-desktop/src/assets/images/mcp/miro.svg
+  s_79df9400dc8a11::t_e16685c4b7b8f0 1-4
+apps/emdash-desktop/src/assets/images/mcp/monday.svg
+  s_79df9400dc8a11::t_1139e94c3016ee 1-4
+apps/emdash-desktop/src/assets/images/mcp/mongodb.svg
+  s_79df9400dc8a11::t_adf8507f9cce29 1-4
+apps/emdash-desktop/src/assets/images/mcp/motherduck.svg
+  s_79df9400dc8a11::t_2e907641b93fb4 1-4
+apps/emdash-desktop/src/assets/images/mcp/neon.svg
+  s_79df9400dc8a11::t_1d46c2a9b00d98 1,3
+apps/emdash-desktop/src/assets/images/mcp/netlify.svg
+  s_79df9400dc8a11::t_6173f6f66a6e0c 1-4
+apps/emdash-desktop/src/assets/images/mcp/notion.svg
+  s_79df9400dc8a11::t_139d37562dde16 1-4
+apps/emdash-desktop/src/assets/images/mcp/notra.svg
+  s_79df9400dc8a11::t_4cf49c07da3c7c 1-4
+apps/emdash-desktop/src/assets/images/mcp/openrouter.svg
+  s_79df9400dc8a11::t_0ea38590e172da 1-4
+apps/emdash-desktop/src/assets/images/mcp/parallel.svg
+  s_79df9400dc8a11::t_63884d03f8755a 1-11
+apps/emdash-desktop/src/assets/images/mcp/planetscale.svg
+  s_79df9400dc8a11::t_84229ca4379f8f 1-4
+apps/emdash-desktop/src/assets/images/mcp/playwright.svg
+  s_79df9400dc8a11::t_7d3c3002a70230 1-4
+apps/emdash-desktop/src/assets/images/mcp/posthog.svg
+  s_79df9400dc8a11::t_44b805c39daa6d 1-4
+apps/emdash-desktop/src/assets/images/mcp/prisma.svg
+  s_79df9400dc8a11::t_fe99884eb04272 1-4
+apps/emdash-desktop/src/assets/images/mcp/railway.svg
+  s_79df9400dc8a11::t_9c636ced6062fb 1-4
+apps/emdash-desktop/src/assets/images/mcp/resend.svg
+  s_79df9400dc8a11::t_0cf7f5490ba49d 1-4
+apps/emdash-desktop/src/assets/images/mcp/sanity.svg
+  s_79df9400dc8a11::t_c666b3644340a9 1-4
+apps/emdash-desktop/src/assets/images/mcp/sentry.svg
+  s_79df9400dc8a11::t_2e7aa844b6f3b8 1-4
+apps/emdash-desktop/src/assets/images/mcp/shopify.svg
+  s_79df9400dc8a11::t_7fc872c3b24547 1-4
+apps/emdash-desktop/src/assets/images/mcp/slack.svg
+  s_79df9400dc8a11::t_2c443bb078d64d 1-4
+apps/emdash-desktop/src/assets/images/mcp/stripe.svg
+  s_79df9400dc8a11::t_f80fc2a3fb12f3 1-4
+apps/emdash-desktop/src/assets/images/mcp/supabase.svg
+  s_79df9400dc8a11::t_235adfae787ee5 1-4
+apps/emdash-desktop/src/assets/images/mcp/vercel.svg
+  s_79df9400dc8a11::t_0d1b0985440974 1-4
+apps/emdash-desktop/src/assets/images/mcp/webflow.svg
+  s_79df9400dc8a11::t_6ced75cd930ca9 1-4
+apps/emdash-desktop/src/assets/images/mcp/wix.svg
+  s_79df9400dc8a11::t_42e74952baa642 1-4
+apps/emdash-desktop/src/assets/images/mcp/wordpress.svg
+  s_79df9400dc8a11::t_67c6ea66344cce 1-4
+apps/emdash-desktop/src/assets/images/mimocode.svg
+  s_79df9400dc8a11::t_ace3a0a127e102 1-5
+apps/emdash-desktop/src/assets/images/qoder.svg
+  s_79df9400dc8a11::t_01fa1792d3c637 1
+apps/emdash-desktop/src/assets/images/rider.svg
+  s_79df9400dc8a11::t_32786458581c29 1-23
+apps/emdash-desktop/src/assets/images/visual-studio.svg
+  s_79df9400dc8a11::t_8c57578567b8b3 1
+apps/emdash-desktop/src/main/app/linux-secret-storage.test.ts
+  s_79df9400dc8a11::t_5c542cf8b86f55 1-57
+apps/emdash-desktop/src/main/app/linux-secret-storage.ts
+  s_79df9400dc8a11::t_7267ccf8708997 1-30
+apps/emdash-desktop/src/main/app/shutdown.ts
+  s_79df9400dc8a11::t_4394e720246769 1-92
+apps/emdash-desktop/src/main/app/window.ts
+  s_79df9400dc8a11::t_d8ad12f656b59e 55-58
+apps/emdash-desktop/src/main/core/account/account-errors.ts
+  s_79df9400dc8a11::t_f4c33743e08a3a 1-2,35,58,64,70,77
+apps/emdash-desktop/src/main/core/account/services/account-auth-server-client.ts
+  s_79df9400dc8a11::t_f2d1beb977af49 1,46,73
+apps/emdash-desktop/src/main/core/account/services/account-oauth-client.ts
+  s_79df9400dc8a11::t_ae17614800a6d5 1,53
+apps/emdash-desktop/src/main/core/account/services/account-session-store.ts
+  s_79df9400dc8a11::t_b98faf070bd94b 1-2,71-78,96-107,168
+apps/emdash-desktop/src/main/core/account/services/credential-store.ts
+  s_79df9400dc8a11::t_6119cd4b5269e4 1,17,31,45
+apps/emdash-desktop/src/main/core/account/services/emdash-account-service.ts
+  s_79df9400dc8a11::t_3508e6116d367d 2,96-122
+apps/emdash-desktop/src/main/core/account/services/provider-token-dispatcher.ts
+  s_79df9400dc8a11::t_87ae51f6dafc83 1,35
+apps/emdash-desktop/src/main/core/acp/controller.ts
+  s_79df9400dc8a11::t_9d9d652659f23d 1,3,5-11,13-14
+apps/emdash-desktop/src/main/core/acp/runtime-process/child-process-host.ts
+  s_79df9400dc8a11::t_b626640051e595 1-172
+apps/emdash-desktop/src/main/core/acp/runtime-process/entry.ts
+  s_79df9400dc8a11::t_1f881b3b708dde 1-91
+apps/emdash-desktop/src/main/core/acp/runtime-process/host.ts
+  s_79df9400dc8a11::t_fa92086c2d4a5e 1-4,6-24,27-30,33-61,64-75,79,81-87,89-94,98-104,108-109,111,113,115-119,121-127,129
+apps/emdash-desktop/src/main/core/acp/runtime-process/protocol.ts
+  s_79df9400dc8a11::t_68fb1c90a1b423 1-54
+apps/emdash-desktop/src/main/core/acp/transport/acp-process-host-manager.ts
+  s_79df9400dc8a11::t_1cbce88cdcd6d0 1-37
+apps/emdash-desktop/src/main/core/acp/transport/legacy-ssh-acp-process-host.ts
+  s_79df9400dc8a11::t_ab838c20d8b7f3 1-21,24,27-28,30,32-60,62-70,74,77-90,92-93,96-98,100-101,104-110,112,114-116,119,121-130,133-135,138-144,148-251
+apps/emdash-desktop/src/main/core/acp/transport/local-acp-process-host.ts
+  s_79df9400dc8a11::t_e2dc55dc4e8301 1-178
+apps/emdash-desktop/src/main/core/acp/transport/transport.test.ts
+  s_79df9400dc8a11::t_2fc4dd60eb1a1f 1-236
+apps/emdash-desktop/src/main/core/acp/transport/types.ts
+  s_79df9400dc8a11::t_8a28008304b648 1-22
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.test.ts
+  s_79df9400dc8a11::t_3c7c55d5e77841 1-31
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_79df9400dc8a11::t_9a1e0a1b4ff706 5,52-56,61-71,79,141
+apps/emdash-desktop/src/main/core/agents/agent-payload-builder.ts
+  s_79df9400dc8a11::t_3663466e07b537 88
+apps/emdash-desktop/src/main/core/agents/controller.ts
+  s_79df9400dc8a11::t_03bbe5e394e277 102,104
+apps/emdash-desktop/src/main/core/agents/plugin-fs.test.ts
+  s_79df9400dc8a11::t_04601dd4cc5fdb 1-44
+apps/emdash-desktop/src/main/core/agents/plugin-fs.ts
+  s_79df9400dc8a11::t_ec0e54b765b28b 1,5,28-30,37-44
+apps/emdash-desktop/src/main/core/agents/remote-plugin-fs.ts
+  s_79df9400dc8a11::t_3427be3e2bd91a 1-83
+apps/emdash-desktop/src/main/core/agents/workspace-trust-target.ts
+  s_79df9400dc8a11::t_c7debd9f4f43b3 1-3,5-9,11-13,15-18,21-54,56-61,64-72,74-75,78-84
+apps/emdash-desktop/src/main/core/agents/workspace-trust.test.ts
+  s_79df9400dc8a11::t_bf912e6f6d667c 2-5,7-9,22-30,32-42,46,48-56,59-82,84,86-90,92,94-95,98,101-107,109,111-112,116-119,122-127,129,131-132,135,138-141,144-147,150-154,157-164,166,168-169,172,174-175,179-191,193,195-196,199-200,202-206,210-230,232-239,241,243-244,247-249,251-252,256
+apps/emdash-desktop/src/main/core/agents/workspace-trust.ts
+  s_79df9400dc8a11::t_72eee6518abcf9 1,5-30,32-33,35-52,56,62-70,74,76
+apps/emdash-desktop/src/main/core/app/controller.ts
+  s_79df9400dc8a11::t_3217636d15ef11 1-3,10-36,119-128,152
+apps/emdash-desktop/src/main/core/app/service.ts
+  s_79df9400dc8a11::t_c433376a79d14f 2,39,44-45,191-193,531-539,609-626
+apps/emdash-desktop/src/main/core/app/utils.ts
+  s_79df9400dc8a11::t_71f4d843d01430 1,48-65,204-228
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.ts
+  s_79df9400dc8a11::t_043f4b77a8e8b9 191,194
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_79df9400dc8a11::t_ceb64c79091885 332-370
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_79df9400dc8a11::t_7bd9eb8634e010 7,18,52-62,206-215,344-367
+apps/emdash-desktop/src/main/core/browser/controller.ts
+  s_79df9400dc8a11::t_17ef20141fdbd7 5-12,63-70,72-85
+apps/emdash-desktop/src/main/core/conversations/createConversation.ts
+  s_79df9400dc8a11::t_a5d3453d55c197 10,54-63,74-76,78,87-112
+apps/emdash-desktop/src/main/core/conversations/dehydrateConversation.ts
+  s_79df9400dc8a11::t_6a20c203cd21b9 1-3,11-26
+apps/emdash-desktop/src/main/core/conversations/deleteConversation.ts
+  s_79df9400dc8a11::t_a597ff6db74660 16-27,40-48
+apps/emdash-desktop/src/main/core/conversations/hydrateConversation.ts
+  s_79df9400dc8a11::t_940fae75e82e4e 25-34,45,52
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_79df9400dc8a11::t_fa688d07625f5b 5,39,41,207,219,476,489-513
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_79df9400dc8a11::t_0ddf53ed2c087e 5,8-11,118,120,122-123,146-153,158,160,162,211-212,259,269-270
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_79df9400dc8a11::t_898331150fb34e 2,13-15,49,60,70,80,120,122-123,129-131,151,153,197-202,345,354-356
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_79df9400dc8a11::t_0aa62e6f12e3e8 25,44,62,78-142,157,183,187,195,202-244
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_79df9400dc8a11::t_d9bea94c7accbc 3-10,12-19,26-28
+apps/emdash-desktop/src/main/core/conversations/set-session-id.ts
+  s_79df9400dc8a11::t_024568fee1086b 1,6-15,17-20,22-24,26,28-30,32
+apps/emdash-desktop/src/main/core/conversations/spill-large-prompt.test.ts
+  s_79df9400dc8a11::t_e71036261726d2 1-106
+apps/emdash-desktop/src/main/core/conversations/spill-large-prompt.ts
+  s_79df9400dc8a11::t_623240170ebfc6 1-92
+apps/emdash-desktop/src/main/core/conversations/utils.ts
+  s_79df9400dc8a11::t_96ff55f10a6631 4,10,17-19,25
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.test.ts
+  s_79df9400dc8a11::t_aed19513f93e17 40,132-164,247,250,291
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_79df9400dc8a11::t_b8dd748ab0e8ce 67,110-112,125
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.test.ts
+  s_79df9400dc8a11::t_5c1be0e45522ff 7,9,15,23-27,30-33,53,59-61,96-99,198-284,361-368
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.ts
+  s_79df9400dc8a11::t_28dafced3ce0ed 2-9,17,37-58,62-65,139
+apps/emdash-desktop/src/main/core/dependencies/registry.test.ts
+  s_79df9400dc8a11::t_b2906d845d4f38 1,42-47,49
+apps/emdash-desktop/src/main/core/dependencies/registry.ts
+  s_79df9400dc8a11::t_461938d745e845 2-6,71-74
+apps/emdash-desktop/src/main/core/execution-context/local-execution-context.ts
+  s_79df9400dc8a11::t_6b6ed84b7c6d02 4,37
+apps/emdash-desktop/src/main/core/execution-context/ssh-execution-context.test.ts
+  s_79df9400dc8a11::t_6753742b8d1bb0 33-47
+apps/emdash-desktop/src/main/core/execution-context/ssh-execution-context.ts
+  s_79df9400dc8a11::t_f66b649acf9d13 7,12,17,29-30,33,47,49,55,125,178-182
+apps/emdash-desktop/src/main/core/files/browse-directory.test.ts
+  s_79df9400dc8a11::t_12340048e2649f 1-189
+apps/emdash-desktop/src/main/core/files/browse-directory.ts
+  s_79df9400dc8a11::t_f003141c242d88 1-78
+apps/emdash-desktop/src/main/core/files/controller.ts
+  s_79df9400dc8a11::t_90dfbbdd229877 2,4-5
+apps/emdash-desktop/src/main/core/files/file-system/controller.ts
+  s_79df9400dc8a11::t_41425f929154a0 5-8,10-13,15-18,20,23-27,29-31,34-36,38,42-49,51-53,57-58,61,63,66-74,76-78,81-83,87-88,91,93,97-99,101-103,106,109-112,114-116,119-121,123,126-129,131-133,136-138,140,150-152,154
+apps/emdash-desktop/src/main/core/files/file-system/file-errors.ts
+  s_79df9400dc8a11::t_1c30b54eb37623 1-17
+apps/emdash-desktop/src/main/core/files/file-system/image-support.ts
+  s_79df9400dc8a11::t_455e696cee4842 1-58
+apps/emdash-desktop/src/main/core/files/file-system/local-imports.test.ts
+  s_79df9400dc8a11::t_277457d0628e00 1-94
+apps/emdash-desktop/src/main/core/files/file-system/local-imports.ts
+  s_79df9400dc8a11::t_197ba8d6bee40e 1-109
+apps/emdash-desktop/src/main/core/files/file-system/workspace-file-policy.ts
+  s_79df9400dc8a11::t_03f1f735cf0682 1-142
+apps/emdash-desktop/src/main/core/files/file-tree/controller.ts
+  s_79df9400dc8a11::t_3e19decd063be2 1-8,11-19,21-29,32-41,43-52
+apps/emdash-desktop/src/main/core/files/file-tree/projector.test.ts
+  s_79df9400dc8a11::t_fb6dc58e6ebc6b 1-26,29-38,41-48,50-51,54-55,58-63,66-72,75-77,80-82,85-86,89-91,93-94,96-99,102-103,106-220,222-224,226-228,230-242,244-246,248-250,252-254,256-258
+apps/emdash-desktop/src/main/core/files/file-tree/projector.ts
+  s_79df9400dc8a11::t_fc781dd2037a11 1-308
+apps/emdash-desktop/src/main/core/files/path-utils.ts
+  s_79df9400dc8a11::t_8f0d96a912e292 1-40
+apps/emdash-desktop/src/main/core/files/realpath-containment.ts
+  s_79df9400dc8a11::t_92fda026486f33 1-71
+apps/emdash-desktop/src/main/core/git/legacy/git-service.test.ts
+  s_79df9400dc8a11::t_52fc36f59ee8ab 2,48
+apps/emdash-desktop/src/main/core/git/legacy/git-service.ts
+  s_79df9400dc8a11::t_c6a825728e2f3b 4,33,134,284-288,376-378,383-390,439
+apps/emdash-desktop/src/main/core/git/repository/service.ts
+  s_79df9400dc8a11::t_4064c40941355a 12-13,77-79,83,94-103,114-116
+apps/emdash-desktop/src/main/core/github/accounts/github-account-backfill-instance.ts
+  s_79df9400dc8a11::t_7084a101edddc4 1,7
+apps/emdash-desktop/src/main/core/github/accounts/github-account-backfill.db.test.ts
+  s_79df9400dc8a11::t_716cc37031f800 1-2,5,31,36-37,40-44,55-60,66,80-82,90-91,101
+apps/emdash-desktop/src/main/core/github/accounts/github-account-backfill.ts
+  s_79df9400dc8a11::t_013b56daf5143a 2-6,36,48
+apps/emdash-desktop/src/main/core/github/accounts/github-account-reconciliation-instance.ts
+  s_79df9400dc8a11::t_6e0cfd7a680fea 5,8
+apps/emdash-desktop/src/main/core/github/accounts/github-account-reconciliation.test.ts
+  s_79df9400dc8a11::t_04f6d805ad7856 3,18-30,50,66,75,80,87,90,98-112
+apps/emdash-desktop/src/main/core/github/accounts/github-account-reconciliation.ts
+  s_79df9400dc8a11::t_d5e9d7e0e146d8 1-5,12,31,39,49-58,72
+apps/emdash-desktop/src/main/core/github/accounts/github-account-service-instance.ts
+  s_79df9400dc8a11::t_56405744b857e5 1,7
+apps/emdash-desktop/src/main/core/github/accounts/github-account-service.db.test.ts
+  s_79df9400dc8a11::t_263f6405e6fa94 1-2,4,7,12-13,17,25-28,31,48,74-86,91,100-102,119,124
+apps/emdash-desktop/src/main/core/github/accounts/github-account-service.ts
+  s_79df9400dc8a11::t_bef7a209224f36 2-7,10-12,19,26-27,29-31,45,47,51-52,54,60
+apps/emdash-desktop/src/main/core/github/accounts/github-accounts.db.test.ts
+  s_79df9400dc8a11::t_0f7f45a8661934 1,3,5-6,8-9,13,16-26,30-40,42-44,47-49,51-56,59-60,62-63,66-68,70-72,75-88,91,93-100,102-111
+apps/emdash-desktop/src/main/core/github/accounts/github-accounts.ts
+  s_79df9400dc8a11::t_0dabfb6ebd686a 1-4,8-9,20,43-57,59-80,82-97,99,103-105
+apps/emdash-desktop/src/main/core/github/accounts/github-auth-server-adapter.db.test.ts
+  s_79df9400dc8a11::t_d9c6ab670a1511 1-2,4,8,11-17,20,34,45-47,50-51,53,56-66,68,93-95
+apps/emdash-desktop/src/main/core/github/accounts/github-auth-server-adapter.ts
+  s_79df9400dc8a11::t_e080babbee63cc 5,8,21
+apps/emdash-desktop/src/main/core/github/accounts/github-cli-account-import-instance.ts
+  s_79df9400dc8a11::t_913de238173dd7 2,7
+apps/emdash-desktop/src/main/core/github/accounts/github-cli-account-import.db.test.ts
+  s_79df9400dc8a11::t_ce27948794e804 1-2,5,25,31-32,43-46,48-50,80-88,93-95,107,137-140,171,195-197,223-224,235,255
+apps/emdash-desktop/src/main/core/github/accounts/github-cli-account-import.ts
+  s_79df9400dc8a11::t_b3519f6e807ca6 4-8,51,56,71
+apps/emdash-desktop/src/main/core/github/accounts/github-kv-account-backfill-instance.ts
+  s_79df9400dc8a11::t_309d83e5211282 1,4-6,9,15-21
+apps/emdash-desktop/src/main/core/github/accounts/github-kv-account-backfill.db.test.ts
+  s_79df9400dc8a11::t_8360be0b205eee 1-162
+apps/emdash-desktop/src/main/core/github/accounts/github-kv-account-backfill.ts
+  s_79df9400dc8a11::t_d99b291226a625 1-81
+apps/emdash-desktop/src/main/core/github/controller.ts
+  s_79df9400dc8a11::t_dcc7af845509c5 1,20-21,28,31,72-73,76,78-79,85,88,90-91,95,98,100-101,106,109,111-112,115,118,122-123,126,128-137,140,142-143,145,152-171,187,189-190,192-197,202,204-205
+apps/emdash-desktop/src/main/core/github/github-plugin-issue-provider.test.ts
+  s_79df9400dc8a11::t_971d7bdb15e1f7 1-2,5-16,19-23,27-28,31-32,35-45,47-49,51-54,57-93,95,98-99,102-106,108-109,112-116,118-120,122-124,128-134,136,138,140,142-146,150-156,158-159,161,165-172,174-175,178-185,187-194,196,199-200,202,204-205,207-208,210-213
+apps/emdash-desktop/src/main/core/github/github-plugin-issue-provider.ts
+  s_79df9400dc8a11::t_ca695608add65d 1,3-18,22,25,34,37,52-67,70-80,83-85,88-89,94,98-100,102-106,108,111-134,136-156
+apps/emdash-desktop/src/main/core/github/services/github-api-auth-service-instance.ts
+  s_79df9400dc8a11::t_d5b2d291640368 1,4
+apps/emdash-desktop/src/main/core/github/services/github-api-auth-service.db.test.ts
+  s_79df9400dc8a11::t_cf1c286fa42076 2-4,8,11-17,32,102-103
+apps/emdash-desktop/src/main/core/github/services/github-api-auth-service.ts
+  s_79df9400dc8a11::t_1028f5b355e9bd 3-8,21-24,39,48-50,63
+apps/emdash-desktop/src/main/core/github/services/github-device-flow-service-instance.ts
+  s_79df9400dc8a11::t_4b1d8c29effdca 1-2,7,11-21,23,27
+apps/emdash-desktop/src/main/core/github/services/github-device-flow-service.db.test.ts
+  s_79df9400dc8a11::t_2ce095c3680cb5 1-2,4,16,20-21,26-29,32,36,47-49,55,59,66
+apps/emdash-desktop/src/main/core/github/services/github-device-flow-service.ts
+  s_79df9400dc8a11::t_29e630cd135acd 4-8,11-14,42,46,56-57,85
+apps/emdash-desktop/src/main/core/github/services/project-github-account-backfill-instance.ts
+  s_79df9400dc8a11::t_116e69b64eff0b 1,5
+apps/emdash-desktop/src/main/core/github/services/project-github-account-backfill.db.test.ts
+  s_79df9400dc8a11::t_5e43b2e103596d 1-2,4,40,43-49,52-67,69,81,88,92-93,107-110,123-129,133,136,140,147,150,155
+apps/emdash-desktop/src/main/core/github/services/project-github-account-backfill.ts
+  s_79df9400dc8a11::t_9ae2d71c48ea33 4-9,11,56-57,59-61
+apps/emdash-desktop/src/main/core/integrations/controller.ts
+  s_79df9400dc8a11::t_3b05db9ba28ed0 1,3-4,6-7,9-10,12-13
+apps/emdash-desktop/src/main/core/integrations/integration-connection-service.ts
+  s_79df9400dc8a11::t_dc8ace858d4033 1-2,5-22,24-25,28-42,45,47-48,51-62,64-66,70-72,74-82,86-88,93-94,100
+apps/emdash-desktop/src/main/core/integrations/integration-credential-store-instance.ts
+  s_79df9400dc8a11::t_d1ba74434d8535 1-3,5,7-9,11-23
+apps/emdash-desktop/src/main/core/integrations/integration-credential-store.db.test.ts
+  s_79df9400dc8a11::t_85d2a6b150169b 1-295
+apps/emdash-desktop/src/main/core/integrations/integration-credential-store.ts
+  s_79df9400dc8a11::t_1870bbec0a1e4c 1-67,70,72,74,78-112,114-117,119-126,128-132,134-135,137-140,142-143,145-147,151-160,162-167,171-249,251-252,255,260-288,294-303
+apps/emdash-desktop/src/main/core/integrations/integration-payload-builder.ts
+  s_79df9400dc8a11::t_a1915eb6582111 1-58
+apps/emdash-desktop/src/main/core/integrations/plugin-issue-provider.test.ts
+  s_79df9400dc8a11::t_78974fe717d2df 1-150
+apps/emdash-desktop/src/main/core/integrations/plugin-issue-provider.ts
+  s_79df9400dc8a11::t_c5671f0113b8f7 1-123
+apps/emdash-desktop/src/main/core/issues/controller.ts
+  s_79df9400dc8a11::t_436834e8803ff1 1,6-7,136-139,142,148-151,154,160-163,166,170
+apps/emdash-desktop/src/main/core/issues/plugin-issue-adapter.ts
+  s_79df9400dc8a11::t_2546e5662782d5 1,3,5-39
+apps/emdash-desktop/src/main/core/issues/registry.ts
+  s_79df9400dc8a11::t_3b2972877b681b 1-3,13-19
+apps/emdash-desktop/src/main/core/mcp/controller.ts
+  s_79df9400dc8a11::t_f37d76abf390a2 1,13-14
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_79df9400dc8a11::t_1fa771a23c3516 162-185
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_79df9400dc8a11::t_0fad91b98b628e 2,17-20
+apps/emdash-desktop/src/main/core/mcp/utils/registration.test.ts
+  s_79df9400dc8a11::t_1de1f4d513f40c 1-57
+apps/emdash-desktop/src/main/core/mcp/utils/registration.ts
+  s_79df9400dc8a11::t_a21f1ae04ecffe 27-33,50-53,63,65,68-74
+apps/emdash-desktop/src/main/core/project-setup/repository-setup.test.ts
+  s_79df9400dc8a11::t_abba154b3786b8 1,9,18,25,34,45-64,69-70,72,90-91,100,140-141,159,173-175,178,195,200-203,212-213
+apps/emdash-desktop/src/main/core/project-setup/repository-setup.ts
+  s_79df9400dc8a11::t_28ac491a02d95d 2,4,6,43-46,75-81,91,101-112,115,121,124-135,137-139
+apps/emdash-desktop/src/main/core/projects/create-project-provider.ts
+  s_79df9400dc8a11::t_1839df5ae7282c 1,3,9-13,18-19,25,32-37,40-42,48-58,61-65,68-71,86-87,95,97,101-102,106-108,112-115,119-123,127,129,137-142,144,152-154,168-169,181,183,187,196,200-203,213,235-236,239,245-247,254,257-286,295,297-298,301,309-311,314
+apps/emdash-desktop/src/main/core/projects/ensure-emdash-excluded.test.ts
+  s_79df9400dc8a11::t_63d20166d79e06 1-118
+apps/emdash-desktop/src/main/core/projects/ensure-emdash-excluded.ts
+  s_79df9400dc8a11::t_88eed69fa5cdfe 1-72
+apps/emdash-desktop/src/main/core/projects/operations/create-local-project.ts
+  s_79df9400dc8a11::t_bc0ac049f536e0 2-3,7,13,27-35,43-45,91-106,108-114,117
+apps/emdash-desktop/src/main/core/projects/operations/create-project-utils.ts
+  s_79df9400dc8a11::t_69d394b53a0341 65
+apps/emdash-desktop/src/main/core/projects/operations/create-ssh-project.ts
+  s_79df9400dc8a11::t_eedbbc4d022397 2,7,31-59,109-124,126-132,135
+apps/emdash-desktop/src/main/core/projects/operations/createProject.test.ts
+  s_79df9400dc8a11::t_b96aeb6e78a63a 4,6,23-24,52-69,79,106,196-230,349-426,460-461,508,568,588-604
+apps/emdash-desktop/src/main/core/projects/path-utils.ts
+  s_79df9400dc8a11::t_e97229316f84d2 2-19,22
+apps/emdash-desktop/src/main/core/projects/project-manager.ts
+  s_79df9400dc8a11::t_5a05e5032e6e03 1-2,33-35,61-62,106-115
+apps/emdash-desktop/src/main/core/projects/project-provider.ts
+  s_79df9400dc8a11::t_7c42e9376bedb2 1,9,16,18,48-52,63-80,84,91-92,100-102,112,120-124,136-156,181,185,187-205
+apps/emdash-desktop/src/main/core/projects/settings/effective-task-settings.test.ts
+  s_79df9400dc8a11::t_e42012a74ce243 1-2,13,15-23,27-28,30-35,41-42,45-46,64-67,75-91,98
+apps/emdash-desktop/src/main/core/projects/settings/effective-task-settings.ts
+  s_79df9400dc8a11::t_f63422692e6a84 1,13-14,16,20-25,30-44
+apps/emdash-desktop/src/main/core/projects/settings/legacy-project-settings-migration.ts
+  s_79df9400dc8a11::t_f46186044bd03c 1,25-26,53-54,63-81,97,122,151
+apps/emdash-desktop/src/main/core/projects/settings/preserve-pattern-safety.ts
+  s_79df9400dc8a11::t_f630b83023b5d4 1-34
+apps/emdash-desktop/src/main/core/projects/settings/project-settings-service.ts
+  s_79df9400dc8a11::t_a0992652a8ae34 148
+apps/emdash-desktop/src/main/core/projects/settings/project-settings.test.ts
+  s_79df9400dc8a11::t_b5f5815e51b213 5-6,24-79,147,162,177,198-199,210,239-240,249,271-272,279,286,309,318,335,349,382,421,454,472,488,501,516,531,539,541-542,568,570-571,592,606,608-609,631,645,647-648
+apps/emdash-desktop/src/main/core/projects/settings/providers/db-project-settings-provider.ts
+  s_79df9400dc8a11::t_9098c756275d81 1,40-41,67,69-82,94-97,160
+apps/emdash-desktop/src/main/core/projects/settings/providers/local-project-settings-provider.ts
+  s_79df9400dc8a11::t_2e822fff7e8180 4-5,28,31,46-58
+apps/emdash-desktop/src/main/core/projects/settings/providers/ssh-project-settings-provider.ts
+  s_79df9400dc8a11::t_dea78953143abd 2,23,25-31,36
+apps/emdash-desktop/src/main/core/projects/settings/sharing/codex-config-migration.ts
+  s_79df9400dc8a11::t_bbed3f6c7b5d06 1-2,15-23,86-87,96-102,104-116,131-134,140,143,149-150
+apps/emdash-desktop/src/main/core/projects/settings/sharing/conductor-config-migration.ts
+  s_79df9400dc8a11::t_4e3a745d3e6243 1-2,15-23,68-69,78-107,111-132,148-151,157,160,166-167
+apps/emdash-desktop/src/main/core/projects/settings/sharing/config-migration-utils.ts
+  s_79df9400dc8a11::t_e1e98b85de5a00 1-108
+apps/emdash-desktop/src/main/core/projects/settings/sharing/config-migration.test.ts
+  s_79df9400dc8a11::t_43d48658256937 1,14-15,17-22,24-25,27-43,45,47,50,55-69,90,114-117,147,158-161,186-194,199,219,240-243,267-274,279,301,303,331,363-366,394-401,406,425,427,462,489-492,516-523,528,547,549,571,594,607,614
+apps/emdash-desktop/src/main/core/projects/settings/sharing/config-migration.ts
+  s_79df9400dc8a11::t_d5893759495974 1-2,12-17,25-26,41-42,46,48-56,59,64,80-89,101
+apps/emdash-desktop/src/main/core/projects/settings/sharing/paseo-config-migration.ts
+  s_79df9400dc8a11::t_4b59a51dda3fbe 1-2,15-23,62,90-91,100-106,108-120,139-142,148,151,157-158
+apps/emdash-desktop/src/main/core/projects/settings/sharing/project-settings-override-state.ts
+  s_79df9400dc8a11::t_1ad27de70cc276 18-19,21-30
+apps/emdash-desktop/src/main/core/projects/settings/sharing/project-settings-target-resolver.ts
+  s_79df9400dc8a11::t_7f536afcec6207 1,21-22,34,58-59,65-66,80-81,88-89,96-98,109-110,152-160,165-168
+apps/emdash-desktop/src/main/core/projects/settings/sharing/share-project-settings-to-config.test.ts
+  s_79df9400dc8a11::t_e90aef720d9637 1-2,41-117,126-127,152,157,177,195,222,231-234,251,256,266-275,291,296-299,305-308,328,342,357,372-406,432-433,437,477-482,484,486,490,492-494,496,555-556,560,579-590,594
+apps/emdash-desktop/src/main/core/projects/settings/sharing/share-project-settings-to-config.ts
+  s_79df9400dc8a11::t_f3ba8fa70a654d 1,6,31-52,68-74
+apps/emdash-desktop/src/main/core/projects/settings/sharing/superset-config-migration.ts
+  s_79df9400dc8a11::t_f629aae471e40b 1-2,15-23,84-85,94-100,102-114,122,140-143,149,152,158-159
+apps/emdash-desktop/src/main/core/projects/settings/worktree-directory.test.ts
+  s_79df9400dc8a11::t_63354e7ee56e7f 2,154-155,169
+apps/emdash-desktop/src/main/core/projects/settings/worktree-directory.ts
+  s_79df9400dc8a11::t_e048a441ffac13 9-16,70,72-77,85
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.test.ts
+  s_79df9400dc8a11::t_f2755986670164 4-5,7,11,47-110,139,145-158,161-168,179,186,194-196,223-228,232,239,297-301,305,319-320,369-370,372-375,379,475-504,518-522,526
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.ts
+  s_79df9400dc8a11::t_d26b9f08cd74dd 1,3,5-11,15-19,23,26-29,35,41,49,62-63,84-88,92-101,103,107,123-139,141-145,224-225,235-236,243-244,258-259,277-278,287,307-310,314,333-334,362,365,371,376-379,416,441-445,448,450,459-461,464-465,468-472,474-507
+apps/emdash-desktop/src/main/core/provider-accounts/provider-account-registry-instance.ts
+  s_79df9400dc8a11::t_3bf8583411169d 1-5
+apps/emdash-desktop/src/main/core/provider-accounts/provider-account-registry.db.test.ts
+  s_79df9400dc8a11::t_e7e53050366ae3 1-3,5-6,8-10,12-13,16-17,20-25,28-37,41-46,49-54,57-62,65-67,70-71,74-80,83-84,87-92,95-96,99-105,107-110,114-123,126-128,130,133-135,137-138,141-143,145-148,151-152,154-157,160-166,168-169,172-173,175,177-179,182-186,188-189,191,193-194,196-200,202-204,207-209,211,214-224,226-230
+apps/emdash-desktop/src/main/core/provider-accounts/provider-account-registry.ts
+  s_79df9400dc8a11::t_d88754205a72ae 1-308
+apps/emdash-desktop/src/main/core/pty/controller.test.ts
+  s_79df9400dc8a11::t_d1be3c26e9602c 1-126
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_79df9400dc8a11::t_8fee3bec18980f 2,6,10,32,159-169,173-182
+apps/emdash-desktop/src/main/core/pty/local-pty.test.ts
+  s_79df9400dc8a11::t_71cd2ced464694 3,14,24,26,33-38,40-42,52,57-63,66-67,71-72,75,77,81-82,85-86,88,91-92,95-101,103-104,106-109
+apps/emdash-desktop/src/main/core/pty/local-pty.ts
+  s_79df9400dc8a11::t_b0e6c8335e473d 6,54-58,86-88,91-94,106
+apps/emdash-desktop/src/main/core/pty/posix-pty-terminator.test.ts
+  s_79df9400dc8a11::t_01a06f6cb1b709 1-196
+apps/emdash-desktop/src/main/core/pty/posix-pty-terminator.ts
+  s_79df9400dc8a11::t_885970b3ea5917 1-112
+apps/emdash-desktop/src/main/core/pty/process-tree.test.ts
+  s_79df9400dc8a11::t_841ac52f5d8a49 1-117
+apps/emdash-desktop/src/main/core/pty/process-tree.ts
+  s_79df9400dc8a11::t_0e9fcbedc57b1f 1-163
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_79df9400dc8a11::t_111c7517077ad4 130,137-142
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_79df9400dc8a11::t_83a4da1cd6b8dd 67,84-89
+apps/emdash-desktop/src/main/core/pty/remote-tmux-reaper-service.ts
+  s_79df9400dc8a11::t_6967dc7a83a821 1-3,5,7-22,26-29,31-39,41-42
+apps/emdash-desktop/src/main/core/pty/ssh2-pty.test.ts
+  s_79df9400dc8a11::t_7113fe248b542b 9-10,14,47-96
+apps/emdash-desktop/src/main/core/pty/ssh2-pty.ts
+  s_79df9400dc8a11::t_2b07f3b4a5d9b8 20-28,38-48,51-62,76-78
+apps/emdash-desktop/src/main/core/pty/tmux-reaper.test.ts
+  s_79df9400dc8a11::t_60b5a287b2f131 2-5,7-8,10-12,15-17,21-22,25-32,34-38,40-42,44-51,54-60,62,64-84,87-91,94,96-97,100-104,107,109-111,113-119
+apps/emdash-desktop/src/main/core/pty/tmux-reaper.ts
+  s_79df9400dc8a11::t_63317af52d61c8 1-106
+apps/emdash-desktop/src/main/core/pty/tmux-reconcile.test.ts
+  s_79df9400dc8a11::t_0137114c9d6a8b 1-114
+apps/emdash-desktop/src/main/core/pty/tmux-reconcile.ts
+  s_79df9400dc8a11::t_84a94ba7af02a5 1-59
+apps/emdash-desktop/src/main/core/pty/tmux-session-name.test.ts
+  s_79df9400dc8a11::t_a9de182d31b96c 2-7,25-45
+apps/emdash-desktop/src/main/core/pty/tmux-session-name.ts
+  s_79df9400dc8a11::t_512036d81df039 4,28-46
+apps/emdash-desktop/src/main/core/pull-requests/controller.ts
+  s_79df9400dc8a11::t_f375ba4808ec63 2,50-56,58-60,63-118
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-errors.ts
+  s_79df9400dc8a11::t_017b1254f1fdf3 1,54-72
+apps/emdash-desktop/src/main/core/pull-requests/project-pull-request-context.ts
+  s_79df9400dc8a11::t_dceca1de7068c8 2,59-81
+apps/emdash-desktop/src/main/core/repository/provider-repository-service.ts
+  s_79df9400dc8a11::t_6d65bb30ce2672 1-2,16-43
+apps/emdash-desktop/src/main/core/runtime/files-helpers.test.ts
+  s_79df9400dc8a11::t_cfc080c33a37af 1-73
+apps/emdash-desktop/src/main/core/runtime/files-helpers.ts
+  s_79df9400dc8a11::t_3d030483bbca6c 1-119
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-file-system.ts
+  s_79df9400dc8a11::t_cfb69ba09e53a0 1,3-38,41-46,48-51,55-60,62-67,70-72,74-81,83-87,89-94,96-104,106-108,110-118,120-122,126-128,131-133,135,137-143,145-149,153-158,161-171,173-177,180-182,186-191,193-196,200-205,208-212,214-229,231-233,235-245,247-248,250-259,263-267,270-280,283-293,296-301,303-314,316-326,329-338,341-343,345-352,355-358,360-368,370-376,379-384,386-388,390,392-401,403-406,408-417,419-429,431-435,437-443,446-464,466-474,476-477,479-485,487-495,497-498
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-file-tree.test.ts
+  s_79df9400dc8a11::t_ba43ba9ff12ced 1-195
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-files.test.ts
+  s_79df9400dc8a11::t_08edc37c77c9fd 1-187
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-files.ts
+  s_79df9400dc8a11::t_f23f69a448de48 1-944
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-git.test.ts
+  s_79df9400dc8a11::t_6bcbede1eba536 1-147
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-git.ts
+  s_79df9400dc8a11::t_b32e04c93ab8fb 50,56,87-89,95-98,160-163,200-204,222,234-235,257-258,263-264,323-325,344-351,358-360,366-380,388-390,436-437,442-443,473-476,507,510-511,515,519,523-524,528,541,559,577,596-599,605-608,612-615,618,630-631,647-664,684-687,694-709
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-ignored-paths.ts
+  s_79df9400dc8a11::t_0c380db396262f 1,3-4,8,14,44,46,48-53
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-legacy-fs-types.ts
+  s_79df9400dc8a11::t_ea1c210b335965 5,8-11,25-27,95-106,108
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-legacy-fs.test.ts
+  s_79df9400dc8a11::t_e853f4c3541c9b 1,3-4,7-18,55-140,172-260,287-315
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-legacy-fs.ts
+  s_79df9400dc8a11::t_c8c7b89f3657dc 6-7,18,23,35-43,64-111,113-118,120,191-199,201-203,205-209,212-217,219-230,232-245,247-251,253,255-273,275-304,611,613,632-633,639,776,782,790,815-820
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-paths.ts
+  s_79df9400dc8a11::t_467d5a1d43a0bd 1-40
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-remote-enumerate.ts
+  s_79df9400dc8a11::t_01ce1f6b3a90be 1-114
+apps/emdash-desktop/src/main/core/runtime/runtime-manager.ts
+  s_79df9400dc8a11::t_21778d5df0e23d 1-9,13-14,16,19,21-80,84-90,92,98-100,106,115-116,119-135,148,155-156,160
+apps/emdash-desktop/src/main/core/runtime/types.ts
+  s_79df9400dc8a11::t_7bd6339aac1f76 1-2,18-33,36
+apps/emdash-desktop/src/main/core/search/collect-with-budget.test.ts
+  s_79df9400dc8a11::t_d2bc9f2d1e1635 1-54
+apps/emdash-desktop/src/main/core/search/collect-with-budget.ts
+  s_79df9400dc8a11::t_84146538d0e595 1-40
+apps/emdash-desktop/src/main/core/search/controller.ts
+  s_79df9400dc8a11::t_4f40a055cae6f5 1,7-8
+apps/emdash-desktop/src/main/core/search/search-index-exclusions.test.ts
+  s_79df9400dc8a11::t_81bad016f5d5d5 1-23
+apps/emdash-desktop/src/main/core/search/search-index-exclusions.ts
+  s_79df9400dc8a11::t_8522e5a24db2fa 1-70
+apps/emdash-desktop/src/main/core/search/search-service.ts
+  s_79df9400dc8a11::t_ce86c5dd51c348 7-12,66-69
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.db.test.ts
+  s_79df9400dc8a11::t_7a54e9ee244226 1-248
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.test.ts
+  s_79df9400dc8a11::t_8199ed494a3b9c 1-341
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.ts
+  s_79df9400dc8a11::t_7c011fffb968e3 1-7,9-15,18-43,45-49,52-60,62-63,65-73,76-84,86-87,91,94-99,103-107,111-112,114-120,123-166,168-170,174-177,179-207,209-211,214-239,242-247,252-253,259-260,264-267,270,272-277,279,281,283-285,287-309,313-315
+apps/emdash-desktop/src/main/core/search/workspace-file-index-store.db.test.ts
+  s_79df9400dc8a11::t_3def995f1d9964 1-203
+apps/emdash-desktop/src/main/core/search/workspace-file-index-store.ts
+  s_79df9400dc8a11::t_eed3f2798a65b8 1-2,5-12,15-28,31-34,36-48,50-53,55-57,59,61-74,77,79-90,94-102,104-106,108-109,113-118,121-126,128-142,145-172,175-195,198-202,205-214,216,218-235,237,239-250,253-269,273-295,298,300-324,329-339
+apps/emdash-desktop/src/main/core/settings/override-settings.test.ts
+  s_79df9400dc8a11::t_ab01b9f3409838 1-79
+apps/emdash-desktop/src/main/core/settings/override-settings.ts
+  s_79df9400dc8a11::t_8e15834959a33b 76,78
+apps/emdash-desktop/src/main/core/settings/provider-settings-controller.ts
+  s_79df9400dc8a11::t_5a5ada9317096b 17
+apps/emdash-desktop/src/main/core/ssh/controller.db.test.ts
+  s_79df9400dc8a11::t_8d8dbab0579548 1-166
+apps/emdash-desktop/src/main/core/ssh/controller.ts
+  s_79df9400dc8a11::t_1c452dda05221b 2,84-98,195-196
+apps/emdash-desktop/src/main/core/tasks/operations/archiveTask.test.ts
+  s_79df9400dc8a11::t_92558a6f772702 46,68
+apps/emdash-desktop/src/main/core/tasks/operations/archiveTask.ts
+  s_79df9400dc8a11::t_9201debc429ced 21-24
+apps/emdash-desktop/src/main/core/tasks/operations/createTask.ts
+  s_79df9400dc8a11::t_6e513b39372166 94-100,107,110
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.test.ts
+  s_79df9400dc8a11::t_29cee6aec01b4f 8,43,66-74
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.ts
+  s_79df9400dc8a11::t_d64d7e7689a7e2 58
+apps/emdash-desktop/src/main/core/tasks/operations/getDeletePreflight.ts
+  s_79df9400dc8a11::t_4264a2b40b3626 69,72
+apps/emdash-desktop/src/main/core/tasks/provision-task-error.ts
+  s_79df9400dc8a11::t_0cdd5db3601cf5 1,38-48,63-65,69-81
+apps/emdash-desktop/src/main/core/tasks/session-targets.ts
+  s_79df9400dc8a11::t_b5402d48de44d7 30-51
+apps/emdash-desktop/src/main/core/tasks/task-builder.ts
+  s_79df9400dc8a11::t_54f8a884753ec1 3,53-54,72
+apps/emdash-desktop/src/main/core/tasks/task-session-manager.test.ts
+  s_79df9400dc8a11::t_5ffeff76c03d05 1-66
+apps/emdash-desktop/src/main/core/tasks/task-session-manager.ts
+  s_79df9400dc8a11::t_ccb1402950f19b 1,51-66,69,72,76,80-82,160,191
+apps/emdash-desktop/src/main/core/telemetry/automation-telemetry.ts
+  s_79df9400dc8a11::t_86c083ebe4b7c5 1-87
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.ts
+  s_79df9400dc8a11::t_8bc89a5da2a3ab 10-11,350,359-361
+apps/emdash-desktop/src/main/core/terminals/lifecycle-script-settings.ts
+  s_79df9400dc8a11::t_b69c216a5abfdb 1,7-10,18,21-22,24,27,42-47,49,52-53
+apps/emdash-desktop/src/main/core/terminals/prepareLifecycleScript.ts
+  s_79df9400dc8a11::t_e2d8d91b0c1fcc 1,3,13-14,19-21,28
+apps/emdash-desktop/src/main/core/terminals/runLifecycleScript.test.ts
+  s_79df9400dc8a11::t_1f58fed4573e94 39,41-44,56,63
+apps/emdash-desktop/src/main/core/terminals/runLifecycleScript.ts
+  s_79df9400dc8a11::t_28535141126165 1,3-6,18-19,24-26,44
+apps/emdash-desktop/src/main/core/utils/exec.test.ts
+  s_79df9400dc8a11::t_c86eddef03e021 1-82
+apps/emdash-desktop/src/main/core/utils/exec.ts
+  s_79df9400dc8a11::t_9cc8352288e446 2,4-38,40-41,54,57-75,78-81
+apps/emdash-desktop/src/main/core/view-state/view-state-service.ts
+  s_79df9400dc8a11::t_b02ae844ad3a0a 20,22-26
+apps/emdash-desktop/src/main/core/workspaces/byoi/provision-byoi-task.ts
+  s_79df9400dc8a11::t_b41bcc987d2ea0 86,129,133-136,142,149
+apps/emdash-desktop/src/main/core/workspaces/local-workspace-setup-executor.ts
+  s_79df9400dc8a11::t_20ea35b284aa68 1,16-19,33-34,39-40,45-49,72-73,75
+apps/emdash-desktop/src/main/core/workspaces/project-settings-controller.ts
+  s_79df9400dc8a11::t_0656cc1a3ede86 1,4,7,10,13-19
+apps/emdash-desktop/src/main/core/workspaces/recovery-strategy.ts
+  s_79df9400dc8a11::t_b8cbad83258f8b 25,45
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/copy-preserved-files.ts
+  s_79df9400dc8a11::t_85fd7b44a4e51f 1,4-9,14-18,21,23,42-44,47-48,51-55,58-92
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.test.ts
+  s_79df9400dc8a11::t_97a5688a77df6b 1-106
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.ts
+  s_79df9400dc8a11::t_fe8391327f44f0 5-27,42-49
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/step-context.ts
+  s_79df9400dc8a11::t_ab41eddd84f372 4,18-19,23-26
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.db.test.ts
+  s_79df9400dc8a11::t_d131ccdedb58a6 153,167,201
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.ts
+  s_79df9400dc8a11::t_eaf60fe451f29d 148,202,313,315,353,359-360,379
+apps/emdash-desktop/src/main/core/workspaces/workspace-factory.ts
+  s_79df9400dc8a11::t_accbcf5dad6a0a 6,10-11,28,77-89,105-106,151-161,166-169,175,178-181,189,192-198,208-234,290-291,294-295,330-366,375,403-406,416,466,478-479
+apps/emdash-desktop/src/main/core/workspaces/workspace-registry.test.ts
+  s_79df9400dc8a11::t_3b9cb5ef13e1e9 8,12,19-22,32,46-47,70-71,77,83,85,89-90,97,110,112,115,122,124,151,153,174,183,186,193,200-202,214,216,219,235,243,251,258,266,282,285,289,301,306-335
+apps/emdash-desktop/src/main/core/workspaces/workspace-registry.ts
+  s_79df9400dc8a11::t_de5253114625ed 1-2,14-20,24,29-30,35,41,45,50,53,58,60-61,66-72,74-76,86,92,106,127,131,134,142,150-156
+apps/emdash-desktop/src/main/core/workspaces/workspace.ts
+  s_79df9400dc8a11::t_69e00ffe48b5eb 1,3,12-15
+apps/emdash-desktop/src/main/db/initialize.ts
+  s_79df9400dc8a11::t_762c497567976e 94,114-121,148
+apps/emdash-desktop/src/main/db/legacy-port/controller.ts
+  s_79df9400dc8a11::t_736a842cbb84e2 14-15,43-44
+apps/emdash-desktop/src/main/db/legacy-port/importers/relational/relational.test.ts
+  s_79df9400dc8a11::t_a554143ccf93e3 103-104
+apps/emdash-desktop/src/main/db/legacy-port/legacy-source/path.test.ts
+  s_79df9400dc8a11::t_77aa35cfcc6fe8 2,4-9,12-19,21-23
+apps/emdash-desktop/src/main/db/legacy-port/legacy-source/path.ts
+  s_79df9400dc8a11::t_d1569d5f4b590a 2,5-19,24-35,37-39,46-53,55-57
+apps/emdash-desktop/src/main/db/legacy-port/service.ts
+  s_79df9400dc8a11::t_ac2ab493288a0a 25-27,139,158-159,174,226,244
+apps/emdash-desktop/src/main/db/schema.ts
+  s_79df9400dc8a11::t_b551be108aad81 19,392,478-500,529-530
+apps/emdash-desktop/src/main/db/tests/migrations/0016_acp_conversation_type.test.ts
+  s_79df9400dc8a11::t_081910b284cea6 1-37
+apps/emdash-desktop/src/main/db/tests/migrations/0018_workspaces_ssh_fk.test.ts
+  s_79df9400dc8a11::t_d33742d32c351d 1-54
+apps/emdash-desktop/src/main/db/tests/migrations/0019_provider_accounts.test.ts
+  s_79df9400dc8a11::t_f03f9ea6c4fe31 1-56
+apps/emdash-desktop/src/main/index.ts
+  s_79df9400dc8a11::t_138e87a0a8c372 2,10,13,29-30,32,46,57-63,142,165,170,200
+apps/emdash-desktop/src/main/lib/file-logger.ts
+  s_79df9400dc8a11::t_ffa52b94334c69 1-4,6,17,21-26,34,38,40-67,79,88,90,95,114,118-129,151-153,161,165-167
+apps/emdash-desktop/src/main/lib/logger.ts
+  s_79df9400dc8a11::t_af56f0bc71fb85 1-3,5,8-9,12-14
+apps/emdash-desktop/src/main/lib/rpc-logging.ts
+  s_79df9400dc8a11::t_90c833463be385 1-21
+apps/emdash-desktop/src/main/lib/telemetry.ts
+  s_79df9400dc8a11::t_6018e98f6b36d9 22-24,149-154,172-174,176
+apps/emdash-desktop/src/preload/index.ts
+  s_79df9400dc8a11::t_a27382c3619afd 3-6
+apps/emdash-desktop/src/renderer/app/app-menu-events.tsx
+  s_79df9400dc8a11::t_9021840d730398 78-82
+apps/emdash-desktop/src/renderer/features/automations/components/CreateAutomationView.tsx
+  s_79df9400dc8a11::t_6b5ea6ffb3a7e2 74,79-80
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_79df9400dc8a11::t_bf84b0fde3c835 89-93,101-113,141,207
+apps/emdash-desktop/src/renderer/features/automations/useAutomationSettingsAutoSave.ts
+  s_79df9400dc8a11::t_ae3c1bc3179242 28-34
+apps/emdash-desktop/src/renderer/features/browser/browser-load-error.test.ts
+  s_79df9400dc8a11::t_834b8f4b68fdff 1-75
+apps/emdash-desktop/src/renderer/features/browser/browser-load-error.ts
+  s_79df9400dc8a11::t_db3d1ac1220f03 1-159
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.test.ts
+  s_79df9400dc8a11::t_90113519b7d6fc 1-100
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_79df9400dc8a11::t_d38ca496d1c32a 1,4,6,8,12-17,22,40,56-65,119,121,124,273-282,300-386
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-entry.ts
+  s_79df9400dc8a11::t_1599034462ac19 1-26
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-item.tsx
+  s_79df9400dc8a11::t_1af889e3170267 3-9,11-14,16,22,24-28,31-42,46-47,49-52
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-provider.tsx
+  s_79df9400dc8a11::t_0b4791a30ff5f8 1-120
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-resource.ts
+  s_79df9400dc8a11::t_759f96e1c97098 1-70
+apps/emdash-desktop/src/renderer/features/command-palette/command-palette-modal.tsx
+  s_79df9400dc8a11::t_852d5d299bfafc 9,29,102,107,110-115,121,226-227,253-257,264-268,402
+apps/emdash-desktop/src/renderer/features/command-palette/palette-notifications-group.tsx
+  s_79df9400dc8a11::t_88279d44e82e0e 84-87
+apps/emdash-desktop/src/renderer/features/command-palette/resource-monitor-view.tsx
+  s_79df9400dc8a11::t_e66ae2aef92057 8,33,63-90,97-109,233-240
+apps/emdash-desktop/src/renderer/features/command-palette/search-utils.test.ts
+  s_79df9400dc8a11::t_208f135a080c69 1-23
+apps/emdash-desktop/src/renderer/features/command-palette/search-utils.ts
+  s_79df9400dc8a11::t_5b58067eb00132 1,20-32
+apps/emdash-desktop/src/renderer/features/integrations/SetupFormShell.tsx
+  s_79df9400dc8a11::t_6f78dcd73a654d 8,15-17,24,31-32,35,41-46,62
+apps/emdash-desktop/src/renderer/features/integrations/integration-display.ts
+  s_79df9400dc8a11::t_9985faf97fe8d8 2,10-14,16-29
+apps/emdash-desktop/src/renderer/features/integrations/integration-icon.tsx
+  s_79df9400dc8a11::t_35217615a9b7e2 1-18
+apps/emdash-desktop/src/renderer/features/integrations/integration-setup-modal.tsx
+  s_79df9400dc8a11::t_84fe4f6a567bc0 1-2,4-8,18-19,24,26-33,37-116
+apps/emdash-desktop/src/renderer/features/integrations/integrations-provider.test.ts
+  s_79df9400dc8a11::t_b0304c883f85b0 15-17,26-30,39-56,60,77,81,85-87,117,136-198
+apps/emdash-desktop/src/renderer/features/integrations/integrations-provider.tsx
+  s_79df9400dc8a11::t_41c8d4416e7bbd 2,4-5,8,10,12,14-15,18-21,24-29,34-46,49-58,79-112,114-149,154-155,160-162
+apps/emdash-desktop/src/renderer/features/integrations/types.ts
+  s_79df9400dc8a11::t_3216befb17007e 1,3
+apps/emdash-desktop/src/renderer/features/integrations/use-connected-issue-providers.ts
+  s_79df9400dc8a11::t_0a9a98a5947dff 3,17,20-25
+apps/emdash-desktop/src/renderer/features/integrations/use-issues.test.ts
+  s_79df9400dc8a11::t_dced4d925a1787 52,55-59
+apps/emdash-desktop/src/renderer/features/integrations/use-issues.ts
+  s_79df9400dc8a11::t_dc164ad18bfa85 10,65,80,97,115-116,123
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/add-project-modal.tsx
+  s_79df9400dc8a11::t_b420497989ecce 253,257,265,440
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/content.tsx
+  s_79df9400dc8a11::t_1a2636cecab987 21,27,59-66
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/remote-directory-selector.tsx
+  s_79df9400dc8a11::t_992a306920386a 17,86,90-91,126-130,132,147,149-156,238
+apps/emdash-desktop/src/renderer/features/projects/stores/git-repository-store.ts
+  s_79df9400dc8a11::t_a9166a7d6162db 10,43-44,59,73
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.test.ts
+  s_79df9400dc8a11::t_d7b2c431b78602 430-466
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.ts
+  s_79df9400dc8a11::t_4287edb6fec24c 607-609
+apps/emdash-desktop/src/renderer/features/projects/stores/project-settings-store.ts
+  s_79df9400dc8a11::t_fa49d4a4e0b89f 4,6,37,40-41
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_79df9400dc8a11::t_84c8ec2452c8af 1,26,35,50-51,94-128,347-411,416-465
+apps/emdash-desktop/src/renderer/features/settings/components/IntegrationDetailSidebar.tsx
+  s_79df9400dc8a11::t_80c7a75f506556 3-4,41,164,167
+apps/emdash-desktop/src/renderer/features/settings/components/IntegrationGridCard.tsx
+  s_79df9400dc8a11::t_292e9cc553a5f5 2,27
+apps/emdash-desktop/src/renderer/features/settings/components/IntegrationsCard.tsx
+  s_79df9400dc8a11::t_96f340c8f64c5b 2,9-10,18,31-38,70-97,101-104,107,109,111-119,121
+apps/emdash-desktop/src/renderer/features/sidebar/task-item.tsx
+  s_79df9400dc8a11::t_0a0bf7d3fe788b 105
+apps/emdash-desktop/src/renderer/features/sidebar/update-section.tsx
+  s_79df9400dc8a11::t_244560e77cec8e 16,19-23
+apps/emdash-desktop/src/renderer/features/sidebar/use-sidebar-drop.ts
+  s_79df9400dc8a11::t_1310da68a24e3e 57-64
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-host.ts
+  s_79df9400dc8a11::t_f528ce38455b13 1-57
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-provider-registry.ts
+  s_79df9400dc8a11::t_2d6f0a9c8c2b1f 1-132
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-provider.ts
+  s_79df9400dc8a11::t_7f554ae6ef9aa7 1-199
+apps/emdash-desktop/src/renderer/features/tabs/hooks/useTabShortcuts.ts
+  s_79df9400dc8a11::t_f654066260744a 3-6,11,18-20,52-58,72-73,109,113-129
+apps/emdash-desktop/src/renderer/features/tabs/pane-content.tsx
+  s_79df9400dc8a11::t_83ea5e11f056c7 3-5,8-27,29,31,33-45,48-49,51-52,57-85
+apps/emdash-desktop/src/renderer/features/tabs/pane-context.tsx
+  s_79df9400dc8a11::t_cb865ed6d56beb 2-4,6-10,13,16-17,19-20,22,27-29,34-36,38-44,46-48
+apps/emdash-desktop/src/renderer/features/tabs/pane-dimension-provider.tsx
+  s_79df9400dc8a11::t_1fe090c8f810c5 1-81
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-context.tsx
+  s_79df9400dc8a11::t_20e042acaaee83 1-27
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-store.test.ts
+  s_79df9400dc8a11::t_8413aeb5107354 1-248
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-store.ts
+  s_79df9400dc8a11::t_add84de7309251 2,4-12,16-18,22-23,25-28,30-32,35-51,53-54,57-60,62-65,67,69,74,76-77,79,83,86,89-93,97-98,101-102,108,111-112,115,120,123,126,133-134,136,141-142,146-153,155-163,167,170,172,176,179-180,187,193,196-198,208-253,256-262,265-272,275-277,283-284,286,293,298-301,304,306,314-333,335-336,341-342,346-354,356-368,370-378,381-395,397,400,404
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.test.ts
+  s_79df9400dc8a11::t_3950714f78a64a 18-22,36-47,52-103,106-110,120,127-128,133,157,159,176,178,188,190,199,201,203,205,219,221,233-235
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.ts
+  s_79df9400dc8a11::t_01451d8213a9ec 1,11-30,32-40,43-44,47-48,50-52,54,57,63,65-70,72-74,76-78,82-83,85-111,114-119,121-124,129-130,132,135-136,144-148,151-156,159-166,170-173,182-183,186-193,196-198,201-210,213-219,222-230,232-233,238-248,252-253,255-262,264-265,267,275-285,294-295,300-313,315-316,319-330,333-340,343-346,350-352,354-369,373,375-376,385,408,413-416,418-419,422-423,426-433,435-446,449-451,453-456,459-472,477,480-483,486-487,490-498,500-505,508,511-514,518-523,525-526,529,531-549,551,554-582,586-599,602-615,617,619-626,628,632-633,635-680
+apps/emdash-desktop/src/renderer/features/tabs/persistence.ts
+  s_79df9400dc8a11::t_a1e01264044db1 1-28
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar.tsx
+  s_79df9400dc8a11::t_ea051c5f6ff633 3,6-7,9,14,20,23-41,43
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/draggable-tab.tsx
+  s_79df9400dc8a11::t_60794207470e2f 32-33
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/generic-tab-item.tsx
+  s_79df9400dc8a11::t_38cfb15848672f 2-5,8,10-13,15-40,43-103,106-179,181-183,186-197
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-commands.ts
+  s_79df9400dc8a11::t_afeca54ca4fff8 1-22
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-context-menu.tsx
+  s_79df9400dc8a11::t_72002298249073 1,3-5,10,13-15,17-21,23,25-33,35-78,80-81,85,87-101
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-drag-preview.tsx
+  s_79df9400dc8a11::t_3287c44e7d819d 2,5-8,10-14
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-title.tsx
+  s_79df9400dc8a11::t_5880af74485b4c 3,20,28
+apps/emdash-desktop/src/renderer/features/tabs/tab-view-factory.tsx
+  s_79df9400dc8a11::t_8bd6f66268a0d7 1-97
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-panel.tsx
+  s_79df9400dc8a11::t_007a9d8e9c7547 1-460
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-registry.ts
+  s_79df9400dc8a11::t_cc27a4fd01379a 1-52
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-resource-manager.ts
+  s_79df9400dc8a11::t_c8d6b887c10c6a 1,3-64,66-70,72-81,83-88
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-store.test.ts
+  s_79df9400dc8a11::t_4f6c26523686f7 1-92
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-store.ts
+  s_79df9400dc8a11::t_ffcefd416c13f7 1-502
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-tab-entry.ts
+  s_79df9400dc8a11::t_8410f7e3b13065 1-27
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-tab-provider.tsx
+  s_79df9400dc8a11::t_f29c196af86b56 1-147
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-chat-tab-resource.ts
+  s_79df9400dc8a11::t_56148693f18eff 1-3,6,8-10,12-21,23-32,34-38
+apps/emdash-desktop/src/renderer/features/tasks/acp/acp-terminal-output-binding.ts
+  s_79df9400dc8a11::t_8327deedb7f87f 1-70
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_79df9400dc8a11::t_d7066df04e39ac 5-38,111-125,131-132,151-152,157,220-223,237,243,273-275,295
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_79df9400dc8a11::t_9693bbe21d709f 2,4,41-42,52,54-56,93-98,114-127,228,237,239-240,249,251-252,261,263-264,272,274-275,283,285-286,330-341,352,363,373
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.tsx
+  s_79df9400dc8a11::t_cede86f7abcef2 3,5-9,36,39,42-45,61,65,67,72,78,115,152-156,204,207,290-292,348,366-369,374
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-pill.tsx
+  s_79df9400dc8a11::t_f846c712f16ee7 92
+apps/emdash-desktop/src/renderer/features/tasks/conversations/add-context-popover.tsx
+  s_79df9400dc8a11::t_bd9639c1e528b3 48
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-actions.ts
+  s_79df9400dc8a11::t_29ec0b3fe5f6a2 1,40
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-bar.tsx
+  s_79df9400dc8a11::t_9f0c70cad9fc91 5,36,58
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-agent-icon.tsx
+  s_79df9400dc8a11::t_bd890d6e2a4bef 1-3,5-8,10-20,22-31
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-entry.ts
+  s_79df9400dc8a11::t_a91bca2da6c0c5 1-27
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-item.tsx
+  s_79df9400dc8a11::t_51e14c22c16037 1-68
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-provider.tsx
+  s_79df9400dc8a11::t_5fabd2eba03874 1-90
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-resource.ts
+  s_79df9400dc8a11::t_9caf7e0f2b39ec 1-5,7-20,22-42,44-54
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversations-panel.tsx
+  s_79df9400dc8a11::t_46996ced8d6c08 2,4,13,18-22,31,37,39-43,45,47,92-102,106-124,141,168,171-176
+apps/emdash-desktop/src/renderer/features/tasks/conversations/create-conversation-modal.tsx
+  s_79df9400dc8a11::t_2a945c64631784 7,10,19-25,27,29,37,48-50,53-57,59-60,69-78,85,93-94,97,112-113,128,132-156,169-176
+apps/emdash-desktop/src/renderer/features/tasks/conversations/default-conversation-seeder.ts
+  s_79df9400dc8a11::t_6fa1a2cfe25329 1-64
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.test.ts
+  s_79df9400dc8a11::t_f1a3ee6aafba15 1-130
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_79df9400dc8a11::t_2be69f6383b8fc 6-7,9-17,19-25,29,50-54,56-58,61-64,68-69,71,74,78-80,83,85,90-92,95-101,106-107,119-122,124-125,129-137,162-171,175,177-188,191-193,200-204,235-273,304-305,307,325-416
+apps/emdash-desktop/src/renderer/features/tasks/conversations/pane-selectors.ts
+  s_79df9400dc8a11::t_3cc58c22cdcb28 1-21
+apps/emdash-desktop/src/renderer/features/tasks/conversations/resolve-context-action-text.ts
+  s_79df9400dc8a11::t_9feaa8cd0a237a 15
+apps/emdash-desktop/src/renderer/features/tasks/conversations/sidebar-conversations-list.tsx
+  s_79df9400dc8a11::t_b2bdfcaca8faaf 2,6,12,26,28,40,55-58,81,96-108,115,120,128-133,173-185,200,223-228
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.test.ts
+  s_79df9400dc8a11::t_500821b0a5646a 19-24
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.ts
+  s_79df9400dc8a11::t_0e91e7c26dbe2a 22-23
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/create-task-modal.tsx
+  s_79df9400dc8a11::t_304007e93b73bd 164-168
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/issue-combobox-field.tsx
+  s_79df9400dc8a11::t_15236a04b11be8 1-2,23-27,36,42
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/issue-task-name.test.ts
+  s_79df9400dc8a11::t_dfb514046b93f5 32,41
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/issue-task-name.ts
+  s_79df9400dc8a11::t_ea66c36d0dee75 8
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/pr-combobox-field.tsx
+  s_79df9400dc8a11::t_4397ee9e99ede2 1,53
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-list-item.tsx
+  s_79df9400dc8a11::t_749624a7254d6d 9,13,20-25
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-tree-utils.test.ts
+  s_79df9400dc8a11::t_cb4ecc242a5680 1-21
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-tree-utils.ts
+  s_79df9400dc8a11::t_253ae0ba60230e 2-7,10,15-16,19-20,23-25,27,31,61-70
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/commits-list.tsx
+  s_79df9400dc8a11::t_365d216d3941cf 7,195,197-200,204-205,207-216,218,223-224,226-235,237
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/files-list.tsx
+  s_79df9400dc8a11::t_ec332f2dc86be9 4,29,31-35,39-40,42-52,54,59-60,62-72,74
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/virtualized-changes-list.tsx
+  s_79df9400dc8a11::t_44ee03020a8e89 9,23,52
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/virtualized-changes-tree.tsx
+  s_79df9400dc8a11::t_da753ebde41ff7 6,9,17,31,43,54
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/staged-section.tsx
+  s_79df9400dc8a11::t_c38b861d0d3a64 5,37-38,47-48,50-56,58,63-64,66-72,74,147
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/unstaged-section.tsx
+  s_79df9400dc8a11::t_cfff37384e8b7a 5,39-40,51-52,54-60,62,67-68,70-76,78,207
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/diff-tab-item.tsx
+  s_79df9400dc8a11::t_eebda762f87299 2-7,9-10,12,25,27-32,35-44,46-59,63-66,68-75
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/diff-tab-provider.tsx
+  s_79df9400dc8a11::t_868086a20abec2 1-121
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-file-renderer.tsx
+  s_79df9400dc8a11::t_480625b7e68bb1 8,25,243,267
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-toolbar.tsx
+  s_79df9400dc8a11::t_7d314615a979c0 3,9
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-view.tsx
+  s_79df9400dc8a11::t_609e8dce4297f5 2,7
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/image-diff-view.tsx
+  s_79df9400dc8a11::t_dbe6466e36796f 87
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/pane-selectors.ts
+  s_79df9400dc8a11::t_4282375e4667bc 1-15
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-manager.test.ts
+  s_79df9400dc8a11::t_50f70990ce0035 1-228
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-manager.ts
+  s_79df9400dc8a11::t_cd12b4f5e44742 6,9-14,16-23,25-29,31-42,44-58,62-69,71-72,74-133
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-resource.ts
+  s_79df9400dc8a11::t_3a59381517aa14 1-146
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-store.ts
+  s_79df9400dc8a11::t_87c4cacef20553 6-10
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-file-tree.tsx
+  s_79df9400dc8a11::t_ca95c18599737a 2-11,14,18-19,21,23-25,46,51,55-57,61-63,66,70-75,90,95,97-99,129-150,166-167,171-172,175-179,184,200,202-203,209-210,217,219-220,226,229,235-250,264-272,286,297-355,363,389,391,397-398,403,434,437,449-451,475,489-493,505,508-515,532,535,539
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-provider.tsx
+  s_79df9400dc8a11::t_793757822b1ccd 5,11,19-23,28,46,48-49,74,79-80,83,100,110,144,155,165,177,187-193,219-220,241,248,263
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-preview.tsx
+  s_79df9400dc8a11::t_b7f14b6aaa9aeb 1-10,13-22,24-26,28,30-42,44,48,50-54
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-renderer.tsx
+  s_79df9400dc8a11::t_b647f18569cdaa 2,4-8,11-13,15-16,18-24,29
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-toolbar.tsx
+  s_79df9400dc8a11::t_2cc0bb2b999c5a 1-43
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-types.tsx
+  s_79df9400dc8a11::t_6ade5ff54d8d2b 1-12,14,21-22,24-28,31-58,60-75
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-item.tsx
+  s_79df9400dc8a11::t_4c813e327c6534 3-7,11,25,27-31,33-36,38-40,45,48-72,76-77,79-86
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-provider.tsx
+  s_79df9400dc8a11::t_01913d9c41c1c0 1-145
+apps/emdash-desktop/src/renderer/features/tasks/editor/pane-selectors.ts
+  s_79df9400dc8a11::t_6c22ddf39eaac2 1-52
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/editor-view-store.ts
+  s_79df9400dc8a11::t_2f8112a5168189 1-2,9-11,14,16-18,20,33-39,42,44-45,53,56,58-66,68-72,74,77-80,82,84-88,120,123,153-156,184,189
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-model-manager.ts
+  s_79df9400dc8a11::t_a5cf88802a5730 1-246
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-tab-resource.ts
+  s_79df9400dc8a11::t_d735e1ebf81a4c 2-3,5-7,9-10,12-15,17-31,33-34,40-52,54-55,57,61-64,67-68,73-74,81-117,120-121
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/files-store.test.ts
+  s_79df9400dc8a11::t_0f107a088c7d81 1,3,6-8,10-13,20-24,33-40,43-70,74-76,81-86,90-92,96-97,99-103,105-115,120,123-129,131,133-145,147,149-153,155-186,188-203,206-210,213-234,236-246,248-261,265-305,308-311,313-340,344-360,363-364,366-376,380-402,404-405,407,409-426,428-429,431-440,444-460,463-464,466-498,501-506,508-514,518-524,527-531,533-535,537-544,546-560
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/files-store.ts
+  s_79df9400dc8a11::t_a193187a129e1b 1-2,4-6,9-11,13-22,24-26,28-37,39-42,45-70,74-75,77-83,86-89,91-93,96-98,102-103,107,111-112,116-120,123-124,127-130,133-143,146-149,151-159,162-163,165-190,193-196,200-204,206-207,209-211,213,216-217,219-226,228-251,253-254,256-273,275-288,290-291,293,296-321,323-337,339-351,353-359,361-364,366-370,372-375,377-378,381-386,388-392,394-408,412-417,419-420,423-428,431-439,441,444-453,455-461,463-468,470-474,477-487,489-497,499-501,504-508,512-518,520,523-529,531-534,536-543,545-550,552-555,557-559,561-568
+apps/emdash-desktop/src/renderer/features/tasks/file-tree/tree-utils.test.ts
+  s_79df9400dc8a11::t_762164d3efc3ce 2-12,28-34,39,51,85,97,111,125,143,162,177,189,202,207-345
+apps/emdash-desktop/src/renderer/features/tasks/file-tree/tree-utils.ts
+  s_79df9400dc8a11::t_aa3463fdbdfc15 1-43,46-48,51-59,62,78-97,99,101-102,107-129,131-133,137-198,201-210,217-220,227-254,256-257,259,261,264
+apps/emdash-desktop/src/renderer/features/tasks/issue-context/refresh-linked-issue-context.ts
+  s_79df9400dc8a11::t_0d28e4abee8352 8,18
+apps/emdash-desktop/src/renderer/features/tasks/main-panel.tsx
+  s_79df9400dc8a11::t_d407327466d37d 14-16,114-135
+apps/emdash-desktop/src/renderer/features/tasks/pane-empty-state.tsx
+  s_79df9400dc8a11::t_3438a6aa19fc8d 3,14,23-29
+apps/emdash-desktop/src/renderer/features/tasks/stores/conversation-session-manager.ts
+  s_79df9400dc8a11::t_3907378253b8dc 1-78
+apps/emdash-desktop/src/renderer/features/tasks/stores/lifecycle-scripts.test.ts
+  s_79df9400dc8a11::t_43d05854b3beda 1,3,104-105,114,117-120,131-132,155,159-170
+apps/emdash-desktop/src/renderer/features/tasks/stores/lifecycle-scripts.ts
+  s_79df9400dc8a11::t_2c1d0988140daa 12-13,43-44,48-50,118,121-122,189,191-192
+apps/emdash-desktop/src/renderer/features/tasks/stores/open-file-in-file-editor.ts
+  s_79df9400dc8a11::t_38e2b3339f85e1 9-29,38-44,49-89,96-100,112-116
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_79df9400dc8a11::t_b7691bab1b7180 3,49-56,58,60,62,64,66,68-86,90-104,108-113,356,358,488-489,515-516
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-selectors.ts
+  s_79df9400dc8a11::t_cc3715e8875f13 4,44
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.test.ts
+  s_79df9400dc8a11::t_29b9af4d96bb15 121-144
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.ts
+  s_79df9400dc8a11::t_bb19e8c5ac1a71 14,106-107,117
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-tab-context.ts
+  s_79df9400dc8a11::t_0ac7dfc5e7e1c2 1-22
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-tab-view-persistor.ts
+  s_79df9400dc8a11::t_ece49f7464c8a4 1-124
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-path.test.ts
+  s_79df9400dc8a11::t_e8731318765f6c 1-24
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-path.ts
+  s_79df9400dc8a11::t_275660454d3ea7 1-18
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.test.ts
+  s_79df9400dc8a11::t_96433aee90a4d8 3-4,12,18-57,69-71,80-87,170-175,226-227,232-234,408-412,416-417,424,426-430,460,467,483-487,491,497-501,516-520,526-534,550-554,558-563,570-571,587-589,631-633,636-637,655-664,666-668,671-674,690-694,697-698,700,703-705,709,728-732,736-741,747-748,756-845
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_79df9400dc8a11::t_14864acfe01a35 3,5-6,21-22,25,27,40,42,45-47,49-50,70-71,87,89-91,93-110,112,114-115,122-123,126-130,148,151-155,186-188,229-231,234-238,242,248,277-298,313,322,324,327-329,340-341,351,353,364,429,431-443
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace.ts
+  s_79df9400dc8a11::t_89a874ba7e1de9 6,11,26,56-59
+apps/emdash-desktop/src/renderer/features/tasks/tab-bar-actions.tsx
+  s_79df9400dc8a11::t_5281009839f863 5-9,22-23,27,33,52-58,83,91
+apps/emdash-desktop/src/renderer/features/tasks/task-tab-registry.tsx
+  s_79df9400dc8a11::t_8ff7b4a1e414b4 1-57
+apps/emdash-desktop/src/renderer/features/tasks/task-titlebar.tsx
+  s_79df9400dc8a11::t_24089089839506 419-421,435-436,438
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-panel.tsx
+  s_79df9400dc8a11::t_e10116bef4b37f 4,154
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-pty-content.tsx
+  s_79df9400dc8a11::t_598ed597c74469 3-7,86,102-139
+apps/emdash-desktop/src/renderer/features/tasks/utils.ts
+  s_79df9400dc8a11::t_836961b48b6223 2,49-52,54-68
+apps/emdash-desktop/src/renderer/features/tasks/view/task-main-column.tsx
+  s_79df9400dc8a11::t_f5c8e6d62531e6 10,12-15,17-19,39,58-90,94,107,113-123
+apps/emdash-desktop/src/renderer/index.css
+  s_79df9400dc8a11::t_3081588404233c 450-484,764-796,800-899
+apps/emdash-desktop/src/renderer/lib/acp/acp-live-session.ts
+  s_79df9400dc8a11::t_12eb7030c2c1bd 1-198
+apps/emdash-desktop/src/renderer/lib/acp/runtime-client.ts
+  s_79df9400dc8a11::t_909f1e48c8784d 1-149
+apps/emdash-desktop/src/renderer/lib/chat/advertised-command-provider.ts
+  s_79df9400dc8a11::t_824b82ba5ead7f 1-41
+apps/emdash-desktop/src/renderer/lib/chat/chat-transcript.tsx
+  s_79df9400dc8a11::t_853e9ebfcfe114 1-154
+apps/emdash-desktop/src/renderer/lib/chat/shared-chat-context.ts
+  s_79df9400dc8a11::t_ba16c3b0552561 1-31
+apps/emdash-desktop/src/renderer/lib/chat/workspace-file-mention-provider.ts
+  s_79df9400dc8a11::t_e0c03c74299ea0 1-26
+apps/emdash-desktop/src/renderer/lib/components/add-ssh-conn-modal.tsx
+  s_79df9400dc8a11::t_0c502e7da72178 58-70,133-138,161-166,192,290,334-358,376-378,391-394
+apps/emdash-desktop/src/renderer/lib/components/agent-icon.tsx
+  s_79df9400dc8a11::t_bf6ab0dc56310f 2,17
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-info-card.tsx
+  s_79df9400dc8a11::t_56305cfebc9b5d 4,9,16,31-36,39-44,70-85
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-install.ts
+  s_79df9400dc8a11::t_cce0a1f13c63dc 1,13-23,56-63
+apps/emdash-desktop/src/renderer/lib/components/feedback-modal/feedback-modal.tsx
+  s_79df9400dc8a11::t_fd19f9458968d9 1,63-67,98
+apps/emdash-desktop/src/renderer/lib/components/feedback-modal/use-feedback-submit.test.ts
+  s_79df9400dc8a11::t_20226895af7f62 12,19
+apps/emdash-desktop/src/renderer/lib/components/feedback-modal/use-feedback-submit.ts
+  s_79df9400dc8a11::t_0ce8e4a0e62b67 7,22,31,40,70-74,82-87,164,203
+apps/emdash-desktop/src/renderer/lib/components/nav-buttons.tsx
+  s_79df9400dc8a11::t_c0c7b9f29b56bc 18
+apps/emdash-desktop/src/renderer/lib/components/plugin-icon.tsx
+  s_79df9400dc8a11::t_094033f4f9461d 1-4,6-36,39-44
+apps/emdash-desktop/src/renderer/lib/drag-files.ts
+  s_79df9400dc8a11::t_7c9cbd133e99ea 28-29,46
+apps/emdash-desktop/src/renderer/lib/editor/csv-parser.test.ts
+  s_79df9400dc8a11::t_96c3f701894981 1-28
+apps/emdash-desktop/src/renderer/lib/editor/csv-parser.ts
+  s_79df9400dc8a11::t_c8e5d5372e7b09 1-60
+apps/emdash-desktop/src/renderer/lib/editor/csv-renderer.tsx
+  s_79df9400dc8a11::t_268344cdef87be 2-7,10-11,14-21,23-31,35-82,84-86,90,92-94
+apps/emdash-desktop/src/renderer/lib/editor/fileKind.test.ts
+  s_79df9400dc8a11::t_c63fd172c1b81d 1-11
+apps/emdash-desktop/src/renderer/lib/editor/fileKind.ts
+  s_79df9400dc8a11::t_1a32c6d3e73a35 63,72-77
+apps/emdash-desktop/src/renderer/lib/editor/html-renderer.tsx
+  s_79df9400dc8a11::t_d0a58560f57786 3,6,14,38-41,45-47,70,83,93-97,101,106,109,143-144,179-184,190,197-202,218-223,248-249,256,258-262,280,289-290
+apps/emdash-desktop/src/renderer/lib/editor/markdown-renderer.tsx
+  s_79df9400dc8a11::t_24cf0e0a648662 3-4,7,17,20,25,28,32-36,38-39,41,45-52,54-68,73,79,88-89
+apps/emdash-desktop/src/renderer/lib/editor/svg-renderer.tsx
+  s_79df9400dc8a11::t_c66bd3549be721 13-14,17,31
+apps/emdash-desktop/src/renderer/lib/editor/types.ts
+  s_79df9400dc8a11::t_cd14cea758c4d5 4
+apps/emdash-desktop/src/renderer/lib/editor/workspace-resource-path.test.ts
+  s_79df9400dc8a11::t_5fe391d0004bb9 1-101
+apps/emdash-desktop/src/renderer/lib/editor/workspace-resource-path.ts
+  s_79df9400dc8a11::t_6be3a45fc6e252 1-63
+apps/emdash-desktop/src/renderer/lib/ipc.ts
+  s_79df9400dc8a11::t_4598e2ce442d59 5-19,25,29
+apps/emdash-desktop/src/renderer/lib/layout/layout-provider.tsx
+  s_79df9400dc8a11::t_7606faff6167b1 27-30,33,41,48-51
+apps/emdash-desktop/src/renderer/lib/layout/workspace-layout.tsx
+  s_79df9400dc8a11::t_edee4f36b639a1 18
+apps/emdash-desktop/src/renderer/lib/live/live-bindings.ts
+  s_79df9400dc8a11::t_009ea97de43f7e 1-138
+apps/emdash-desktop/src/renderer/lib/monaco/invalidation-bridges.ts
+  s_79df9400dc8a11::t_df4f3510ccec21 1,3,9,12,14,16-17,30-39
+apps/emdash-desktop/src/renderer/lib/monaco/model-status-overlay.tsx
+  s_79df9400dc8a11::t_dcb152d30cd798 1-2,4-10,13-16,18
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-bootstrap.ts
+  s_79df9400dc8a11::t_34a624a5470231 1,3,7-42,44-46
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-model-registry.ts
+  s_79df9400dc8a11::t_27302a6815d71d 84-91,97-99,112,284-288,572-577,617-659,729-732,797,823,880,885
+apps/emdash-desktop/src/renderer/lib/monaco/sticky-diff-editor.tsx
+  s_79df9400dc8a11::t_abff881deea25b 5,46,48,95,115,139-140,143-149
+apps/emdash-desktop/src/renderer/lib/open-external-link.tsx
+  s_79df9400dc8a11::t_c570101f0a1484 23
+apps/emdash-desktop/src/renderer/lib/pty/pane-sizing-context.tsx
+  s_79df9400dc8a11::t_8b0efcb0885236 2,4-6,8-12,15-19,25-27,29,31-32,34-37,39-40,42-44,46,57-61,63-68,70-77,80-90,92
+apps/emdash-desktop/src/renderer/lib/pty/pty-dimensions.test.ts
+  s_79df9400dc8a11::t_dcaeffedd2d3bc 1-156
+apps/emdash-desktop/src/renderer/lib/pty/pty-dimensions.ts
+  s_79df9400dc8a11::t_48368230bc87cd 6,18-73,78-86,92-94,97-199
+apps/emdash-desktop/src/renderer/lib/pty/pty-pane.tsx
+  s_79df9400dc8a11::t_ffad5749c67edd 1-5,10,123,328,347-371
+apps/emdash-desktop/src/renderer/lib/pty/pty-session.test.ts
+  s_79df9400dc8a11::t_2bd5022efcec70 85-96
+apps/emdash-desktop/src/renderer/lib/pty/pty-session.ts
+  s_79df9400dc8a11::t_7b079125776e78 12-13,25,52-53
+apps/emdash-desktop/src/renderer/lib/pty/pty.ts
+  s_79df9400dc8a11::t_2be1a0d8dfe439 15-18,65-66,98-99,141-143,148-150,154,232,245-251
+apps/emdash-desktop/src/renderer/lib/pty/resize-scheduler.ts
+  s_79df9400dc8a11::t_a092ffb339873b 1-65
+apps/emdash-desktop/src/renderer/lib/pty/use-pty-pane-resize.ts
+  s_79df9400dc8a11::t_258838f1d8a587 1-253
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_79df9400dc8a11::t_16a4fffc5c5481 2-3,14,92,129-133,160-166,168-169,176-179,191-195,200,282-285,287-299,320-323,626-647,652-654
+apps/emdash-desktop/src/renderer/lib/stores/live/bind-mirror.ts
+  s_79df9400dc8a11::t_ec1e24d124854a 34-48,58,71,158
+apps/emdash-desktop/src/renderer/lib/stores/live/mirror-version.ts
+  s_79df9400dc8a11::t_723d3fe7e579ac 1-97
+apps/emdash-desktop/src/renderer/lib/stores/live/model-mirror.ts
+  s_79df9400dc8a11::t_1be8eba86368e8 3,7,19-22,24,28,40,44,48-49,52,54
+apps/emdash-desktop/src/renderer/lib/stores/resource-monitor-store.test.ts
+  s_79df9400dc8a11::t_42db469d461119 37-41,66-146,158
+apps/emdash-desktop/src/renderer/lib/stores/resource-monitor-store.ts
+  s_79df9400dc8a11::t_c33149a598fb44 8,13,19,63-67,72,75,81,83-86,89-94,103-105,114,120-121,125-128
+apps/emdash-desktop/src/renderer/lib/stores/view-state-cache.ts
+  s_79df9400dc8a11::t_c6d34fc17ec71a 35-39
+apps/emdash-desktop/src/renderer/lib/ui/markdown-renderer.tsx
+  s_79df9400dc8a11::t_58846b56b0d3e9 26,121-137,163-164,228,290,294,371,395,405,410-411
+apps/emdash-desktop/src/renderer/main.tsx
+  s_79df9400dc8a11::t_317cc20489e537 4-5,15,43-45
+apps/emdash-desktop/src/renderer/tests/browser/pane-resize.test.ts
+  s_79df9400dc8a11::t_360b4ffb513c80 1-567
+apps/emdash-desktop/src/renderer/tests/browser/terminal-dimensions.test.ts
+  s_79df9400dc8a11::t_9c97dc51263ed9 2,5,8-12,85-105,137-138,169,206-248
+apps/emdash-desktop/src/renderer/tests/context-actions.test.ts
+  s_79df9400dc8a11::t_19df6a1b806e01 56
+apps/emdash-desktop/src/renderer/tests/drag-files.test.ts
+  s_79df9400dc8a11::t_c9dc3633ed7493 32,49,63
+apps/emdash-desktop/src/renderer/tests/markdown-renderer.test.ts
+  s_79df9400dc8a11::t_f7e1ed840c7fc0 1-3,5,37-58,107-133
+apps/emdash-desktop/src/renderer/tests/refresh-linked-issue-context.test.ts
+  s_79df9400dc8a11::t_f100fce559cff4 32-33,35,39-54,58,69-72
+apps/emdash-desktop/src/renderer/utils/logger.ts
+  s_79df9400dc8a11::t_a5145c6e3be36c 1-6,8-27
+apps/emdash-desktop/src/renderer/utils/mcp-icon-data.ts
+  s_79df9400dc8a11::t_250011ae187fc7 18-56,58-63
+apps/emdash-desktop/src/renderer/utils/mcpIcons.tsx
+  s_79df9400dc8a11::t_ed09dcee09bae7 2,6-33,43-45,47-57,60-62,64-76,78-81,83,85-104,108
+apps/emdash-desktop/src/shared/browser.test.ts
+  s_79df9400dc8a11::t_5fb6406eeed7db 6,93-107
+apps/emdash-desktop/src/shared/browser.ts
+  s_79df9400dc8a11::t_fa614c8c78509a 74-82
+apps/emdash-desktop/src/shared/core/acp/acpPermissions.ts
+  s_79df9400dc8a11::t_597c4ccc56c963 2-3,5
+apps/emdash-desktop/src/shared/core/agents/agent-acp.ts
+  s_79df9400dc8a11::t_54a0c336c54b5b 1-9
+apps/emdash-desktop/src/shared/core/agents/agent-payload.ts
+  s_79df9400dc8a11::t_b4ad739a7c82ca 161-174,177
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.test.ts
+  s_79df9400dc8a11::t_ca5d0be13e71ff 10-29
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_79df9400dc8a11::t_2a49d9f2097a7d 31,34,84-85,99-100,130,151,158,258,260-263,269-289,299,316,323-325,424,440-444,466-467,471,714-734
+apps/emdash-desktop/src/shared/core/automations/config.ts
+  s_79df9400dc8a11::t_566bf06358e83c 22-25
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.test.ts
+  s_79df9400dc8a11::t_134b20edf2bac6 2,4-5,7-8,10-38,43-44,46,51-85,99-104
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.ts
+  s_79df9400dc8a11::t_21bbfcd7c449b1 6,9-30,35-47,51-52
+apps/emdash-desktop/src/shared/core/conversations/conversationEvents.ts
+  s_79df9400dc8a11::t_ea30cb1a3a80e8 9
+apps/emdash-desktop/src/shared/core/conversations/conversations.ts
+  s_79df9400dc8a11::t_0be49247746c48 6-7,17-26,30-31,46-47,51-52
+apps/emdash-desktop/src/shared/core/fs/file-tree-errors.ts
+  s_79df9400dc8a11::t_01b277a00d64b7 1-18
+apps/emdash-desktop/src/shared/core/fs/file-tree.ts
+  s_79df9400dc8a11::t_7eaf1e9ec4b2a7 1-3,5-14,16-23,25
+apps/emdash-desktop/src/shared/core/fs/fs.ts
+  s_79df9400dc8a11::t_7ca8d26ac74b51 1,7,11-37
+apps/emdash-desktop/src/shared/core/fs/fsEvents.ts
+  s_79df9400dc8a11::t_c317bd9d8d8762 1,4,7-32
+apps/emdash-desktop/src/shared/core/linked-issue.ts
+  s_79df9400dc8a11::t_dded092c0fd30b 25
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_79df9400dc8a11::t_61fc2b542f0d5a 204,249-258,498-580
+apps/emdash-desktop/src/shared/core/mcp/types.ts
+  s_79df9400dc8a11::t_2ef61eae97d58d 13-16
+apps/emdash-desktop/src/shared/core/project-settings/is-project-config-path.test.ts
+  s_79df9400dc8a11::t_e887af9a03cec3 1-23
+apps/emdash-desktop/src/shared/core/project-settings/project-settings.ts
+  s_79df9400dc8a11::t_15edc0fa7848b0 1,6-10,87-92
+apps/emdash-desktop/src/shared/core/provider-accounts/provider-account-meta.ts
+  s_79df9400dc8a11::t_8ee9366501e06a 1-50
+apps/emdash-desktop/src/shared/core/pull-requests/pull-requests.ts
+  s_79df9400dc8a11::t_06e84ea9bcbeee 1-2,197-237
+apps/emdash-desktop/src/shared/core/search.ts
+  s_79df9400dc8a11::t_a9320ea31c38f1 21-31
+apps/emdash-desktop/src/shared/core/tasks/task-config.ts
+  s_79df9400dc8a11::t_fd63b493216925 17-18
+apps/emdash-desktop/src/shared/core/terminals/terminals.ts
+  s_79df9400dc8a11::t_4fc75882f1be79 21-23,25
+apps/emdash-desktop/src/shared/events/appEvents.ts
+  s_79df9400dc8a11::t_701ffd6b754214 58
+apps/emdash-desktop/src/shared/issue-providers.ts
+  s_79df9400dc8a11::t_1e721ddf4ccb08 1-2,22,34,36-38,40
+apps/emdash-desktop/src/shared/lib/ipc/rpc.test.ts
+  s_79df9400dc8a11::t_7e56fe02a77cf4 32,38,113,115,140,193
+apps/emdash-desktop/src/shared/openInApps.test.ts
+  s_79df9400dc8a11::t_5b1077d4ed54c4 70-96
+apps/emdash-desktop/src/shared/openInApps.ts
+  s_79df9400dc8a11::t_8acbcfb2782025 15-18,61,65,535-555,689-703
+apps/emdash-desktop/src/shared/projects.ts
+  s_79df9400dc8a11::t_ee00ade473db56 6,58
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_79df9400dc8a11::t_d9e22381f3ee22 213-226,240
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_79df9400dc8a11::t_dfa51812f7cb45 2-5,29,66-82
+apps/emdash-desktop/src/shared/view-state.ts
+  s_79df9400dc8a11::t_78c24234efcb35 11
+apps/emdash-desktop/tooling/utils/provider-accounts.ts
+  s_79df9400dc8a11::t_563f317cc78eda 1-44
+apps/emdash-desktop/tsconfig.json
+  s_79df9400dc8a11::t_eec235a1f58b67 4,7
+apps/workspace-server/package.json
+  s_79df9400dc8a11::t_c74cda23962e3b 1-39
+apps/workspace-server/src/index.ts
+  s_79df9400dc8a11::t_f6e93226bc996e 1-18
+apps/workspace-server/src/router.test.ts
+  s_79df9400dc8a11::t_2c47242eb54c4a 1-82
+apps/workspace-server/src/router.ts
+  s_79df9400dc8a11::t_28ce9ffecfe97c 1-258
+apps/workspace-server/tsconfig.json
+  s_79df9400dc8a11::t_f0a06f3c68d251 2,6,9
+apps/workspace-server/tsdown.config.ts
+  s_79df9400dc8a11::t_de1194f4cb896e 1,4-12
+package.json
+  s_79df9400dc8a11::t_ab49b5b95b86df 35-50
+packages/chat-ui/API.md
+  s_79df9400dc8a11::t_adca0f4e58a4da 5-6,8,10-14,24,28-33,36-37,39-54,61,64-75,80-83,86-87,91-99,101-104,107-108,112,115-117,119-125,129-131,133-134,144,147,150-153,155,159-162,164,166-174,176,178,181,184-186,188,190,192-194,198,201,204-242,244,246,248,250-256,258,260,262,264,267-269,272-276,279-281,284-285,289,291,294-297,303,306-310,313-316,320,323,325-326,329-331,335,338,340-344,346-347,349,351,353-354,356-365,367,369,371-372
+packages/chat-ui/ARCHITECTURE.md
+  s_79df9400dc8a11::t_6121a0fef1ee99 40-52,56-65,75,80,94-125,142,146,429-431,585,785-789,793
+packages/chat-ui/package.json
+  s_79df9400dc8a11::t_bf00287200abb8 13,20,37-38,48-49,55-57
+packages/chat-ui/src/ChatRoot.tsx
+  s_79df9400dc8a11::t_ec07de61fd883f 2,4-11,13-28,37,43-44,50-51,55-56,59,62-67,70-72,78,88-90,92,94-95,100-101,110-133,137-139,144-166,172-173,175-177,179,189,195,201-203,207-208,215-222,225,229-230,232,234-236,238,240-242,244,250-266,282,284-289,291,293,299-304,308-312,314-315,321-324,330,332-355,357-495,499-510,512-529,539,543-546,548,550-557,565-567,571-574,576-587,590-613,615-639,653,656-657,659,661,663-668,670-677,695,697-698,700-705,715-767,770-774,776-793,795-864,866-899,901-924,928-954,956-966,969-999,1001-1177,1181-1182,1184-1186,1188,1199,1208,1233-1246,1248-1253,1255-1256,1261,1263,1266,1269,1277,1279,1281-1283,1285-1287,1290,1297,1304,1309-1342,1344,1353-1359,1361-1363,1367,1375-1379,1387-1390,1395,1399-1408,1423-1433,1445-1455,1458-1490,1494,1496-1500,1504,1507,1513,1530-1539,1543,1548,1550,1560-1568,1576,1579,1581,1592-1649,1651-1656
+packages/chat-ui/src/chat-context.ts
+  s_79df9400dc8a11::t_250b2d4f417ae8 1-129
+packages/chat-ui/src/chat-root.css.ts
+  s_79df9400dc8a11::t_8eb238e6bec5e4 12-21,41-51,59-71,91-94,106-153
+packages/chat-ui/src/chat-view.contract.test.tsx
+  s_79df9400dc8a11::t_9a106aaebf4a44 1-181
+packages/chat-ui/src/chat-view.tsx
+  s_79df9400dc8a11::t_1a9ab7a74fd0dd 1-244
+packages/chat-ui/src/commands.ts
+  s_79df9400dc8a11::t_a337ce0e748c96 1-75
+packages/chat-ui/src/components/contexts/CommandsContext.ts
+  s_79df9400dc8a11::t_f401400f634ed7 13
+packages/chat-ui/src/components/contexts/StreamContext.ts
+  s_79df9400dc8a11::t_6d5d8e09d8eebd 1-46
+packages/chat-ui/src/components/engine/UnitRow.tsx
+  s_79df9400dc8a11::t_4d102cf95ffdfc 20-31,33,44-52,54-55,67-71,82-83,120-125,154-157,170,173-243,246-291,294-308,328-343,349-353
+packages/chat-ui/src/components/engine/block-frame.css.ts
+  s_79df9400dc8a11::t_4c5ee3fee6078a 17-22
+packages/chat-ui/src/components/engine/block-frame.tsx
+  s_79df9400dc8a11::t_0b618b0295634d 86-89
+packages/chat-ui/src/components/engine/create-height-tween.test.ts
+  s_79df9400dc8a11::t_3197f2bb7e8e7b 1-357
+packages/chat-ui/src/components/engine/create-height-tween.ts
+  s_79df9400dc8a11::t_ff24911a91d377 1-166
+packages/chat-ui/src/components/engine/frame-scheduler.test.ts
+  s_79df9400dc8a11::t_855760543803f8 1-217
+packages/chat-ui/src/components/engine/frame-scheduler.ts
+  s_79df9400dc8a11::t_153111828c39b8 1-110
+packages/chat-ui/src/components/engine/tween-registry.test.ts
+  s_79df9400dc8a11::t_7b64634a30c389 1-314
+packages/chat-ui/src/components/engine/tween-registry.ts
+  s_79df9400dc8a11::t_f3f9b16ca1e91e 1-277
+packages/chat-ui/src/components/engine/unit-registry.ts
+  s_79df9400dc8a11::t_18ef60de7c9939 18-19,22-37,39-50,58-65,69,90,95-98,103-150,161,163-187,198,200,202-212
+packages/chat-ui/src/components/primitives/BlockStackView.tsx
+  s_79df9400dc8a11::t_20b58258fbd4fd 23-33
+packages/chat-ui/src/components/primitives/CollapseHeader.tsx
+  s_79df9400dc8a11::t_6ef7902bebd5a4 17-18,21,32-33,52-59
+packages/chat-ui/src/components/primitives/CollapsibleCard.tsx
+  s_79df9400dc8a11::t_310753681928d4 1-101
+packages/chat-ui/src/components/primitives/card-clip.ts
+  s_79df9400dc8a11::t_f592748ac60927 1-39
+packages/chat-ui/src/components/primitives/collapse-header.css.ts
+  s_79df9400dc8a11::t_42ce1ab0a9117a 21-25
+packages/chat-ui/src/components/primitives/collapsible-card.css.ts
+  s_79df9400dc8a11::t_1778d6b82e8b3f 1-60
+packages/chat-ui/src/components/primitives/icons.tsx
+  s_79df9400dc8a11::t_3a55bbd9c4cb02 104-105,214-223
+packages/chat-ui/src/components/rows/markdown/block-registry.ts
+  s_79df9400dc8a11::t_b277521c9302ac 4,15
+packages/chat-ui/src/components/rows/markdown/block-stack.ts
+  s_79df9400dc8a11::t_3f127df7c0b06e 4-12,19-20,25,91-101
+packages/chat-ui/src/components/rows/markdown/code/Code.tsx
+  s_79df9400dc8a11::t_d4bdcbb91d8267 20,27,38,42-54,60-64
+packages/chat-ui/src/components/rows/markdown/mermaid/Mermaid.tsx
+  s_79df9400dc8a11::t_48188ed8107c14 1-105
+packages/chat-ui/src/components/rows/markdown/mermaid/mermaid.css.ts
+  s_79df9400dc8a11::t_fdfafc36a3f05f 1-62
+packages/chat-ui/src/components/rows/markdown/mermaid/mermaid.def.tsx
+  s_79df9400dc8a11::t_2859399a0af779 1-34
+packages/chat-ui/src/components/rows/markdown/prose/Prose.tsx
+  s_79df9400dc8a11::t_fbc916679948ca 2,17,19,22,26,35,56-61,68-86,92-97,123,140-157,160-161,163,197,200-224,244-247,259,262-270,305-359,367-385
+packages/chat-ui/src/components/rows/markdown/prose/layout.test.ts
+  s_79df9400dc8a11::t_9ce269f3e20fc7 1-129
+packages/chat-ui/src/components/rows/markdown/prose/layout.ts
+  s_79df9400dc8a11::t_8945535e0c9b0a 100-101,153
+packages/chat-ui/src/components/rows/markdown/prose/prose.css.ts
+  s_79df9400dc8a11::t_aa97eefc4e56be 85-90,99-104,150,157-188,195-201
+packages/chat-ui/src/components/rows/message/UserMessageCard.tsx
+  s_79df9400dc8a11::t_fcdb372e2061d5 4,56,74,83-86,98-102
+packages/chat-ui/src/components/rows/message/message.def.tsx
+  s_79df9400dc8a11::t_753c0c2ac7616d 1,7,9,26-36,40-43,53,61,63,70-94,98,100,112-115,127-129,176,181
+packages/chat-ui/src/components/rows/plan/Plan.tsx
+  s_79df9400dc8a11::t_2daf9e011d9dda 8
+packages/chat-ui/src/components/rows/plan/plan.css.ts
+  s_79df9400dc8a11::t_7464ec3c1b0451 4-5
+packages/chat-ui/src/components/rows/plan/plan.def.tsx
+  s_79df9400dc8a11::t_915b6431e17228 2,7,12-14,37-49,124-127,129,138-165
+packages/chat-ui/src/components/rows/resource-link/ResourceLink.tsx
+  s_79df9400dc8a11::t_ac9f62edb48c02 18,30,105-112
+packages/chat-ui/src/components/rows/resource-link/resource-link.css.ts
+  s_79df9400dc8a11::t_b1509ac5a76de4 21
+packages/chat-ui/src/components/rows/thinking/thinking.css.ts
+  s_79df9400dc8a11::t_3f65392415e394 14-17
+packages/chat-ui/src/components/rows/thinking/thinking.def.tsx
+  s_79df9400dc8a11::t_46a1280722fe6f 19,119
+packages/chat-ui/src/components/rows/tools/diff/Diff.tsx
+  s_79df9400dc8a11::t_c584950f044808 4,27,47,73-81,90-94,115-119
+packages/chat-ui/src/components/rows/tools/diff/diff.css.ts
+  s_79df9400dc8a11::t_3d167ffab9acde 59,62-66,70
+packages/chat-ui/src/components/rows/tools/diff/diff.def.tsx
+  s_79df9400dc8a11::t_491a13f224666d 2,7,31-60
+packages/chat-ui/src/components/rows/tools/execute/Execute.tsx
+  s_79df9400dc8a11::t_52beeb4a73cc54 2,4,6-11,13-14,17-20,22-25,27-32,34-38,41-80,84-89,91-125
+packages/chat-ui/src/components/rows/tools/execute/execute.css.ts
+  s_79df9400dc8a11::t_44acc97eec33d3 1,4,6-23,25-31,33-34,37-38
+packages/chat-ui/src/components/rows/tools/execute/execute.def.test.ts
+  s_79df9400dc8a11::t_835a358a8306f4 1-61
+packages/chat-ui/src/components/rows/tools/execute/execute.def.tsx
+  s_79df9400dc8a11::t_89da4905cee3e4 1-3,5,7,9-129,131-132,134-140,143-144,146-147
+packages/chat-ui/src/components/rows/tools/execute/execute.presenter.ts
+  s_79df9400dc8a11::t_2a2f6eb3abc108 1-20
+packages/chat-ui/src/components/rows/tools/file-op/FileOperation.tsx
+  s_79df9400dc8a11::t_31698c699fea0e 3,11,59-65,79-86,104-105,108
+packages/chat-ui/src/components/rows/tools/file-op/file-op.css.ts
+  s_79df9400dc8a11::t_156ed040c6da19 9-13,53,62
+packages/chat-ui/src/components/rows/tools/file-op/file-op.def.tsx
+  s_79df9400dc8a11::t_34cbc48abc9a2f 4,8,10,21-48,72-74,78
+packages/chat-ui/src/components/rows/tools/tool-group/tool-group.css.ts
+  s_79df9400dc8a11::t_9f5c9843fb6718 1-22
+packages/chat-ui/src/components/rows/tools/tool-group/tool-group.def.tsx
+  s_79df9400dc8a11::t_c52045261db2a9 1-231
+packages/chat-ui/src/components/rows/tools/tool/Tool.tsx
+  s_79df9400dc8a11::t_b21e91c5e90e4a 14,17-18,25,27-37,41-48
+packages/chat-ui/src/components/rows/tools/tool/tool.css.ts
+  s_79df9400dc8a11::t_162a0c688f164f 4,15-16,19-32,34
+packages/chat-ui/src/components/rows/tools/tool/tool.def.tsx
+  s_79df9400dc8a11::t_a527f87a2392ac 2,6,10-47
+packages/chat-ui/src/components/rows/turn-outcome/turn-outcome.def.tsx
+  s_79df9400dc8a11::t_a759e10f8052d6 1-4,6-16,18,21-46
+packages/chat-ui/src/components/rows/working/working.def.tsx
+  s_79df9400dc8a11::t_2b4f41d97c7e9f 1-30
+packages/chat-ui/src/core/caches.test.ts
+  s_79df9400dc8a11::t_407f64730e5fcd 30-37,52-300
+packages/chat-ui/src/core/caches.ts
+  s_79df9400dc8a11::t_1f3136c548c902 37,43,48-131,171-174,176,192-207,212-261,264,266-271,275-276,285-287,329-354,356-359,361,364-383,385-456,458,463-478,485
+packages/chat-ui/src/core/config.ts
+  s_79df9400dc8a11::t_0155cc9bdb00f9 127-128,165,174,377
+packages/chat-ui/src/core/define.ts
+  s_79df9400dc8a11::t_62bc301627dd50 50,57-58,84-89,94
+packages/chat-ui/src/core/highlight/bundled-themes.ts
+  s_79df9400dc8a11::t_20833a43b3c4f2 4
+packages/chat-ui/src/core/layout/layout-types.ts
+  s_79df9400dc8a11::t_555033be3d478a 97-103,118-135
+packages/chat-ui/src/core/layout/measure.bench.ts
+  s_79df9400dc8a11::t_cbaf7fea3118db 18,24-26
+packages/chat-ui/src/core/markdown/command-provider.ts
+  s_79df9400dc8a11::t_77e79f542414b8 1-47
+apps/emdash-desktop/src/main/rpc.ts
+  s_79df9400dc8a11::t_0038bfca051bf4 3,11-13,17,42,55,57,76-77
+packages/chat-ui/src/core/markdown/document.ts
+  s_79df9400dc8a11::t_1ac203af2247a5 62-74,128-139
+packages/chat-ui/src/core/markdown/mdast-mention.ts
+  s_79df9400dc8a11::t_b5f6ac37a83733 1-28
+packages/chat-ui/src/core/markdown/mention-provider.ts
+  s_79df9400dc8a11::t_f86f6c8a1cf70e 9-13,52-58,61
+packages/chat-ui/src/core/markdown/parse.test.ts
+  s_79df9400dc8a11::t_f0f094b1dc534d 2,4-9,18,29-32,37,42-46,51-103,106,133,150,152,168,176-203
+packages/chat-ui/src/core/markdown/parse.ts
+  s_79df9400dc8a11::t_361e9948213c33 5-14,40-41,55,57-58,60-63,65-70,72,74-76,79-87,89-97,100,110-119,131-134,141-144,151-154,168,212,228,242,253,265,274-288,297-298,346-350,357-368,373-376,380-387,391
+packages/chat-ui/src/core/markdown/plain-text.ts
+  s_79df9400dc8a11::t_f4633d7c4c1704 24
+packages/chat-ui/src/core/markdown/remark-inline-mentions.ts
+  s_79df9400dc8a11::t_e6a9426b1ca2b7 1-177
+packages/chat-ui/src/core/measure/to-rich-items.ts
+  s_79df9400dc8a11::t_2336f54cb11eba 15-57,62-72,88
+packages/chat-ui/src/core/stick-to-bottom.ts
+  s_79df9400dc8a11::t_e26ea8b201b72d 6-7,13-17,26-42
+packages/chat-ui/src/core/units.ts
+  s_79df9400dc8a11::t_e07a681e78c112 26,32,101-102,119-122,167-168,170,183,201
+packages/chat-ui/src/index.tsx
+  s_79df9400dc8a11::t_b20609c3fcceb2 4-21,25-47,68-72,74-80,92-94,97-99,106,108,110,112,114,116,118,120-121
+packages/chat-ui/src/mock-transcript.ts
+  s_79df9400dc8a11::t_2b0cebfc06d4be 1,10,227-361,491-495,501-511,549,619,656,689-695
+packages/chat-ui/src/model.ts
+  s_79df9400dc8a11::t_9d1d1b2edc0360 1-13,15-27,29,50,65,68-69,83-84,115,118-119,134-135,137,142-144,167-169,249-261,263
+packages/chat-ui/src/state/chat-state.test.ts
+  s_79df9400dc8a11::t_2e413bd22f28a1 1-234
+packages/chat-ui/src/state/chat-state.ts
+  s_79df9400dc8a11::t_bd284b5fa95858 1-356
+packages/chat-ui/src/state/flatten.test.ts
+  s_79df9400dc8a11::t_28d0269776bd7f 2-6,9,11,14,18,29-30,33-34,37-45,49,51-55,57,70-74,77-79,81-94,96-101,103-104,106,109,111-116,119,121-122,125,127-130,134,137-138,141,143-144,147,149-150,154-155,157-161,164,166-174,178-179,181-187,190,192-197,204-205,208,210-216
+packages/chat-ui/src/state/flatten.ts
+  s_79df9400dc8a11::t_8eef31963a49a8 2,4-5,7-11,13-15,17,19-27,31-38,42,44,53,55-59,61,64,66-69,71-72,74-76,83-86,89-90,92,96-97,105-107,110,114-125,132-138,141-162,165-166,175-177,179-182,185-188,193,197-198
+packages/chat-ui/src/state/geometry.test.ts
+  s_79df9400dc8a11::t_f09e090dcbe9f0 1-86
+packages/chat-ui/src/state/geometry.ts
+  s_79df9400dc8a11::t_36c7ca1fa15ff9 1-54
+packages/chat-ui/src/state/scroll-mode.ts
+  s_79df9400dc8a11::t_4aaab483f48745 1-40
+packages/chat-ui/src/state/transcript.test.ts
+  s_79df9400dc8a11::t_b02f1c11a552bf 2-3,6-7,10-17,19-26,28-29,31,34,36-39,42,44-46,49,51,53,57-58,60-63,66,68-70,73,75-77,81-82,84-86,90-116,118-119,122,124-125,127,129,131-132,134-138,140
+packages/chat-ui/src/state/transcript.ts
+  s_79df9400dc8a11::t_750af63a1a7834 1-3,6,9,15-17,20,22-24,26-27,29,31-33,35,37-38,40-45,47-49,51,53-60,62-64,66,69-73,75-76,83-89,92-100,105-117,123-133,138-151,153-169,173,175-177,180-186,189-196,199-208,210,212-215,217-227,229-244,246-249,251-260,264-268
+packages/chat-ui/src/state/view-state.ts
+  s_79df9400dc8a11::t_c79f7aa3cb6a67 8-15,53-77
+packages/chat-ui/src/stories/_harness/chat-host.tsx
+  s_79df9400dc8a11::t_43070f15de4c3c 4,25,27-34,58,70-71,83-87,98,103-108,111,115-122,124,129-130,140,144-153,156,159,164-165,179,188-193,195-204,215,233-235,241,246-247,255-270
+packages/chat-ui/src/stories/_harness/state-matrix.tsx
+  s_79df9400dc8a11::t_f94bbaedcbb99d 10-11,13-14,58-72,87
+packages/chat-ui/src/stories/_harness/streaming/scenario.test.ts
+  s_79df9400dc8a11::t_24925c4f9ecdca 10,12,186,190-204,206-207,219-221,223-243,245-247
+packages/chat-ui/src/stories/_harness/streaming/scenario.ts
+  s_79df9400dc8a11::t_4550a82e485d75 6-9,15-31,112,119,127,162,169,177,205-206,208,218-225,234-235,243-244,273-274,276-285,293-300,312,320,343-344,347,354-360,368,392-393,395,401-407,412-413
+packages/chat-ui/src/stories/_harness/turn-reducer.ts
+  s_79df9400dc8a11::t_bb7aa50bbefc71 1-206
+packages/chat-ui/src/stories/examples/plan.stories.tsx
+  s_79df9400dc8a11::t_c887104cd945db 9,187-190,193-195,202-204,208-210,215
+packages/chat-ui/src/stories/perf/collapse-animation.stories.tsx
+  s_79df9400dc8a11::t_c3df5d1dee0b5f 1-225
+packages/chat-ui/src/stories/perf/transcript.stories.tsx
+  s_79df9400dc8a11::t_3ab38b68a95c88 15,17,19-20,31-40,43-45,98,117-126
+packages/chat-ui/src/stories/repro/blank-after-switch.stories.tsx
+  s_79df9400dc8a11::t_827d29e8e190f2 1-330
+packages/chat-ui/src/stories/repro/fast-switch.stories.tsx
+  s_79df9400dc8a11::t_080b2a32baf3d3 1-247
+packages/chat-ui/src/stories/repro/reserve-expand.stories.tsx
+  s_79df9400dc8a11::t_30a2173d51964b 1-155
+packages/chat-ui/src/stories/repro/tab-switching.stories.tsx
+  s_79df9400dc8a11::t_109417eb6cc3b1 1-775
+packages/chat-ui/src/stories/rows/collapse-animation.stories.tsx
+  s_79df9400dc8a11::t_9d03bc0231ed59 1-209
+packages/chat-ui/src/stories/rows/markdown/code-block.stories.tsx
+  s_79df9400dc8a11::t_41672bf21058a0 93-159
+packages/chat-ui/src/stories/rows/markdown/command-chip.stories.tsx
+  s_79df9400dc8a11::t_925fbe70c820ce 1-89
+packages/chat-ui/src/stories/rows/markdown/full-spec.stories.tsx
+  s_79df9400dc8a11::t_bb0b1c01b4e7be 66
+packages/chat-ui/src/stories/rows/markdown/headings.stories.tsx
+  s_79df9400dc8a11::t_4572231fbec195 51-116
+packages/chat-ui/src/stories/rows/markdown/mermaid.stories.tsx
+  s_79df9400dc8a11::t_7d870cf97a8809 1-146
+packages/chat-ui/src/stories/rows/messages/agent/resource-link.stories.tsx
+  s_79df9400dc8a11::t_bce717cbe7619e 73-92
+packages/chat-ui/src/stories/rows/messages/agent/streaming-text.stories.tsx
+  s_79df9400dc8a11::t_d6c7d25c973d92 1-209
+packages/chat-ui/src/stories/rows/messages/agent/thinking.stories.tsx
+  s_79df9400dc8a11::t_6e04e093d8a27c 11,29-38,90-91,97,138-139,146,203-204,226
+packages/chat-ui/src/stories/rows/messages/user-message.stories.tsx
+  s_79df9400dc8a11::t_1981ba57ce7477 8,95-103,108-110,112,114-116
+packages/chat-ui/src/stories/rows/tools/diff.stories.tsx
+  s_79df9400dc8a11::t_6770a900c9a00b 187-205
+packages/chat-ui/src/stories/rows/tools/execute.stories.tsx
+  s_79df9400dc8a11::t_2e24415b7fa08a 46,55,77,95,113,118-119,125-129,137-143,149-159,161-205,208
+packages/chat-ui/src/stories/rows/tools/file-operation.stories.tsx
+  s_79df9400dc8a11::t_208c3dda7f1379 187-225
+packages/chat-ui/src/stories/rows/tools/tool-group.stories.tsx
+  s_79df9400dc8a11::t_b94b88e270fe5a 1-246
+packages/chat-ui/src/styles/effects.css.ts
+  s_79df9400dc8a11::t_8f192af812d940 11,25-29,71-90
+packages/chat-ui/src/styles/theme.css.ts
+  s_79df9400dc8a11::t_9d26d066e93692 52,55-62,70,199-206,210,242-249,253
+packages/chat-ui/src/tests/contract.tsx
+  s_79df9400dc8a11::t_54f42937b0ad42 71
+packages/chat-ui/src/tests/perf/harness.tsx
+  s_79df9400dc8a11::t_b2af71a9054b15 29,32-33,125-134,137,145-146,162-169,190
+packages/chat-ui/vite.lib.config.ts
+  s_79df9400dc8a11::t_769deb08fbe618 34
+packages/core/package.json
+  s_79df9400dc8a11::t_71626f8b04ac87 16-27,40-42,44-46,64-71,84,86-87,89-90,96
+packages/core/src/acp/acp-test-support.ts
+  s_79df9400dc8a11::t_ccbd15778bc7ad 1-304
+packages/core/src/acp/agent-terminal-manager.test.ts
+  s_79df9400dc8a11::t_5813254030766d 1-221
+packages/core/src/acp/agent-terminal-manager.ts
+  s_79df9400dc8a11::t_b9b7420ce0cd5f 1-25,27-44,48-50,52-65,68-90,92-100,102,105-108,110-117,119-120,122-126,128,132-133,135-145,148-160,162,165-172,174-175
+packages/core/src/acp/api/commands.ts
+  s_79df9400dc8a11::t_b4635f16a7d5fb 1-83
+packages/core/src/acp/api/contract.test.ts
+  s_79df9400dc8a11::t_7b519f984d364b 1-25
+packages/core/src/acp/api/contract.ts
+  s_79df9400dc8a11::t_0e7d9a92e27825 1-69
+packages/core/src/acp/api/live.ts
+  s_79df9400dc8a11::t_2a79f094a8f2f0 1-50
+packages/core/src/acp/api/queries.ts
+  s_79df9400dc8a11::t_28956385c9e255 1-19
+packages/core/src/acp/api/router.test.ts
+  s_79df9400dc8a11::t_b1518346fb1070 1-53,55,57-60,63-66,68,70-73,75-77,79-91,93-100,103-109,112-127,129-137,139-155,158-161,163-172,175-176,178-180,182-188,190-191,193-194
+packages/core/src/acp/api/router.ts
+  s_79df9400dc8a11::t_aca47367c44073 1-229
+packages/core/src/acp/client-ports.ts
+  s_79df9400dc8a11::t_2bc1893852bcac 1-87
+packages/core/src/acp/client.ts
+  s_79df9400dc8a11::t_b0d3612982c984 1-6
+packages/core/src/acp/connection/acp-agent-connection.test.ts
+  s_79df9400dc8a11::t_ed551ff63a4ffc 1-124
+packages/core/src/acp/connection/acp-agent-connection.ts
+  s_79df9400dc8a11::t_0d62431ae03da5 1-107
+packages/core/src/acp/connection/client-handler.ts
+  s_79df9400dc8a11::t_6718fdbc62a664 1-96
+packages/core/src/acp/connection/pool.test.ts
+  s_79df9400dc8a11::t_60ef068712b2ce 1-78
+packages/core/src/acp/connection/pool.ts
+  s_79df9400dc8a11::t_582e6827c8a625 1-138
+packages/core/src/acp/errors.ts
+  s_79df9400dc8a11::t_680dcf553b119f 1-88
+packages/core/src/acp/index.ts
+  s_79df9400dc8a11::t_e3f7611c807b02 1-27
+packages/core/src/acp/machine/machine.test.ts
+  s_79df9400dc8a11::t_0cc81b09b34f7a 1-191
+packages/core/src/acp/machine/machine.ts
+  s_79df9400dc8a11::t_6534c4485d8c87 1-19,22-24,27-29,31-33,35-37,39,42-50,53-63,66-126,128-132,134-136,138-143,146-183,186-188,190-192,194-196,198-200,202-208,212-216,218-227,229,231-242,246-265,267-280,282,284-285,287-297,299-300,304-305,309-313,315-333,336,338-343,345-347,349-357,359-361,363-380,382-383,385-387,389-423,426-436,438,441-448,451-452,455
+packages/core/src/acp/managed-agent-terminal.ts
+  s_79df9400dc8a11::t_95c60ec44395d9 1-109
+packages/core/src/acp/models/agents.ts
+  s_79df9400dc8a11::t_0852a8d80315e8 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7f6d8b9563a9db6439168153d6a0784db0becb20",
+  "prompts": {},
+  "sessions": {
+    "s_79df9400dc8a11": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f38c6-c46b-7ff3-985b-59814ecbcdd6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
