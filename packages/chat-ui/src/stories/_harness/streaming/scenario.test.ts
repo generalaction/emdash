@@ -191,7 +191,6 @@ describe('streamDiff', () => {
         activeTurn: {
           get: () => null,
           set: (turn: TranscriptTurn | null) => sets.push(turn),
-          status: (): TurnStatus => 'done',
           commit: () => {},
         },
         history: { get: () => [], seed: () => {}, prepend: () => {}, append: () => {} },
@@ -228,7 +227,6 @@ describe('streamDiff', () => {
           currentTurn = turn;
           sets.push(turn);
         },
-        status: (): TurnStatus => 'done',
         commit: () => {},
       },
       history: { get: () => [], seed: () => {}, prepend: () => {}, append: () => {} },

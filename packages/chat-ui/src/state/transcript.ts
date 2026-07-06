@@ -49,8 +49,6 @@ export type ActiveTurn = {
    * to extend the turn should read from here.
    */
   get(): TranscriptTurn | null;
-  /** The current turn lifecycle status. */
-  status(): TurnStatus;
   /**
    * Replace the active turn with a full snapshot and set the status.
    *
@@ -214,10 +212,6 @@ export function createTranscript(): TranscriptApi {
   const activeTurnApi: ActiveTurn = {
     get() {
       return live.activeTurn;
-    },
-
-    status() {
-      return live.activeTurn ? 'generating' : 'done';
     },
 
     set(turn, status) {

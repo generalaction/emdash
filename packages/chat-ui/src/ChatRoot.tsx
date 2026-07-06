@@ -49,7 +49,7 @@ import { ThemeContext } from './components/contexts/ThemeContext';
 import { TurnStateContext } from './components/contexts/TurnStateContext';
 import { createFrameScheduler } from './components/engine/frame-scheduler';
 import { createTweenRegistry } from './components/engine/tween-registry';
-import { NODE_SEGMENTERS, SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
+import { SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
 import { UnitRow } from './components/engine/UnitRow';
 import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
 import type { ChatCaches } from './core/caches';
@@ -364,7 +364,8 @@ export function ChatRoot(props: ChatRootProps) {
     active,
     plan: () => state().session.state.plan,
     pendingToolCallIds: () => state().session.state.pendingToolCallIds,
-    terminalOutputText: (terminalId: string) => state().session.state.terminalOutputText(terminalId),
+    terminalOutputText: (terminalId: string) =>
+      state().session.state.terminalOutputText(terminalId),
   });
 
   let committedUnitsArr: ReturnType<typeof flattenTier> = [];
@@ -421,7 +422,7 @@ export function ChatRoot(props: ChatRootProps) {
         committedUnitsArr.length > 0
           ? committedUnitsArr[committedUnitsArr.length - 1].kind
           : undefined;
-      const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
+      const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind);
       const base = committedUnitsArr.length;
       for (let j = 0; j < newUnits.length; j++) {
         const u = newUnits[j];
@@ -432,14 +433,7 @@ export function ChatRoot(props: ChatRootProps) {
       committedUnitsArr = [...committedUnitsArr, ...newUnits];
     } else {
       // Full rebuild (seed, prepend, or non-append structural change).
-      committedUnitsArr = flattenTier(
-        next,
-        ctx,
-        SEGMENTERS,
-        UNIT_REGISTRY,
-        undefined,
-        NODE_SEGMENTERS
-      );
+      committedUnitsArr = flattenTier(next, ctx, SEGMENTERS, UNIT_REGISTRY);
       committedIndexById.clear();
       for (let i = 0; i < committedUnitsArr.length; i++) {
         const u = committedUnitsArr[i];
@@ -480,14 +474,7 @@ export function ChatRoot(props: ChatRootProps) {
           } as TranscriptTurn['items'][number],
         ],
       } satisfies TranscriptTurn);
-    return flattenTier(
-      [activeTurn],
-      segmentCtx(true),
-      SEGMENTERS,
-      UNIT_REGISTRY,
-      prevKind,
-      NODE_SEGMENTERS
-    );
+    return flattenTier([activeTurn], segmentCtx(true), SEGMENTERS, UNIT_REGISTRY, prevKind);
   });
 
   let pendingPromptCommittedTurns = state().transcript.state.committedTurns;
@@ -1276,14 +1263,7 @@ export function ChatRoot(props: ChatRootProps) {
     if (!el || turns.length === 0) return;
 
     const t = theme();
-    const prependedUnits = flattenTier(
-      turns,
-      segmentCtx(false),
-      SEGMENTERS,
-      UNIT_REGISTRY,
-      undefined,
-      NODE_SEGMENTERS
-    );
+    const prependedUnits = flattenTier(turns, segmentCtx(false), SEGMENTERS, UNIT_REGISTRY);
 
     const anchorUnitIdx = virt.findIndex(Math.max(0, el.scrollTop - padTop()));
     const anchorId = units().at(anchorUnitIdx)?.itemId;

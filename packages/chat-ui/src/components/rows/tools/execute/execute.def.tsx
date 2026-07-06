@@ -5,7 +5,6 @@ import { defineUnit } from '@core/units';
 import { Show, createMemo } from 'solid-js';
 import type { ChatExecute } from '@/model';
 import { ExecuteBody, type ExecuteDisplayLine } from './Execute';
-import { executeFromItem } from './execute.presenter';
 
 // ── Vars ──────────────────────────────────────────────────────────────────────
 
@@ -55,9 +54,7 @@ function executeLines(item: ChatExecute): ExecuteDisplayLine[] {
   const output = outputLines(item.outputText).map(
     (line): ExecuteDisplayLine => ({ kind: 'output', text: line })
   );
-  return output.length > 0
-    ? [...command, { kind: 'spacer', text: '' }, ...output]
-    : command;
+  return output.length > 0 ? [...command, { kind: 'spacer', text: '' }, ...output] : command;
 }
 
 function executeBodyH(

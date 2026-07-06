@@ -22,15 +22,6 @@ import { rpc } from '@renderer/lib/ipc';
 import { conversationRegistry } from '../stores/conversation-registry';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 
-export type AcpChatLifecycle =
-  | 'idle'
-  | 'starting'
-  | 'replaying'
-  | 'ready'
-  | 'working'
-  | 'cancelling'
-  | 'closed';
-
 export interface AgentAffordances {
   isWorking: boolean;
   isBusy: boolean;
@@ -63,6 +54,7 @@ export class AcpChatStore {
   private _view: ChatView | null = null;
   private _bootstrapped = false;
   private _unsubs: Array<() => void> = [];
+  private _liveRevision = 0;
 
   constructor(
     readonly conversationId: string,
@@ -75,12 +67,12 @@ export class AcpChatStore {
       this.commands.map((command) => command.name)
     );
 
-    makeObservable(this, {
+    makeObservable<this, '_liveRevision'>(this, {
       session: observable.ref,
       historyLoading: observable,
       loadError: observable,
       messageCount: observable,
-      lifecycle: computed,
+      _liveRevision: observable,
       model: computed,
       modelOptions: computed,
       permissionMode: computed,
@@ -107,15 +99,13 @@ export class AcpChatStore {
     });
   }
 
-  get lifecycle(): AcpChatLifecycle {
-    return this.session?.sessionState.getSnapshot()?.lifecycle ?? 'idle';
-  }
-
   get model(): string | null {
+    this._trackLiveRevision();
     return this.session?.config.getSnapshot()?.modelOptions?.selected ?? null;
   }
 
   get modelOptions(): Record<string, ComposerModelOption> | null {
+    this._trackLiveRevision();
     const options = this.session?.config.getSnapshot()?.modelOptions;
     if (!options) return null;
     return Object.fromEntries(
@@ -127,10 +117,12 @@ export class AcpChatStore {
   }
 
   get permissionMode(): string | null {
+    this._trackLiveRevision();
     return this.session?.config.getSnapshot()?.modeOptions?.selected ?? null;
   }
 
   get permissionModeOptions(): Record<string, ComposerPermissionModeOption> | null {
+    this._trackLiveRevision();
     const options = this.session?.config.getSnapshot()?.modeOptions;
     if (!options) return null;
     return Object.fromEntries(
@@ -139,10 +131,12 @@ export class AcpChatStore {
   }
 
   get effort(): string | null {
+    this._trackLiveRevision();
     return this.session?.config.getSnapshot()?.efforts?.selected ?? null;
   }
 
   get effortOptions(): Record<string, ComposerEffortOption> | null {
+    this._trackLiveRevision();
     const options = this.session?.config.getSnapshot()?.efforts;
     if (!options) return null;
     return Object.fromEntries(
@@ -154,6 +148,7 @@ export class AcpChatStore {
   }
 
   get commands(): CommandItem[] {
+    this._trackLiveRevision();
     return (this.session?.config.getSnapshot()?.availableCommands ?? []).map((command) => ({
       id: command.name,
       name: command.name,
@@ -163,6 +158,7 @@ export class AcpChatStore {
   }
 
   get permissionQueue(): PermissionQueueItem[] {
+    this._trackLiveRevision();
     return (this.session?.sessionState.getSnapshot()?.pendingPermissions ?? []).map((request) => ({
       requestId: request.requestId,
       title: request.toolCall.title,
@@ -175,14 +171,11 @@ export class AcpChatStore {
   }
 
   get queuedPrompts(): ComposerQueuedPrompt[] {
+    this._trackLiveRevision();
     return this._queuedPromptModels().map((prompt) => ({
       id: prompt.id,
       text: prompt.text,
     }));
-  }
-
-  get lastStopReason(): string | null {
-    return this.session?.sessionState.getSnapshot()?.lastStopReason ?? null;
   }
 
   get usage(): {
@@ -194,6 +187,7 @@ export class AcpChatStore {
   }
 
   get affordances(): AgentAffordances {
+    this._trackLiveRevision();
     const state = this.session?.sessionState.getSnapshot();
     return {
       isWorking: state?.isGenerating ?? false,
@@ -436,11 +430,15 @@ export class AcpChatStore {
       this._bindTerminalOutputs(session),
       session.sessionState.subscribe(() =>
         runInAction(() => {
+          this._liveRevision += 1;
           this._syncMessageCount();
         })
       ),
-      session.config.subscribe(() => runInAction(() => {})),
-      session.plan.subscribe(() => runInAction(() => {})),
+      session.config.subscribe(() =>
+        runInAction(() => {
+          this._liveRevision += 1;
+        })
+      ),
       session.activeTurn.subscribe(() => runInAction(() => this._syncMessageCount()))
     );
   }
@@ -478,6 +476,10 @@ export class AcpChatStore {
       description: error instanceof Error ? error.message : undefined,
       variant: 'destructive',
     });
+  }
+
+  private _trackLiveRevision(): number {
+    return this._liveRevision;
   }
 }
 

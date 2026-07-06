@@ -6,14 +6,8 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
-import {
-  scenario,
-  seedStep,
-  streamDiff,
-  streamExecute,
-  streamTool,
-} from '@/stories/_harness/streaming/scenario';
+import type { ToolNode, ToolStatus, TranscriptTurn } from '@/model';
+import { ChatHost, ScriptedChat, type ScriptStep } from '@/stories/_harness/chat-host';
 
 const meta: Meta = {
   title: 'Rows/Tools/ToolGroup',
@@ -23,6 +17,151 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj<typeof ChatHost>;
+
+function searchNode(id: string, seq: number, query: string, status: ToolStatus = 'done'): ToolNode {
+  return {
+    kind: 'search-tool-call',
+    id,
+    seq,
+    toolCallId: id,
+    title: 'Search',
+    status,
+    query,
+  };
+}
+
+function executeNode(
+  id: string,
+  seq: number,
+  command: string,
+  status: ToolStatus = 'done'
+): ToolNode {
+  return {
+    kind: 'execute-tool-call',
+    id,
+    seq,
+    toolCallId: id,
+    title: 'Execute',
+    status,
+    command,
+  };
+}
+
+function modifyFileNode(
+  id: string,
+  seq: number,
+  path: string,
+  oldText: string,
+  newText: string,
+  status: ToolStatus = 'done'
+): ToolNode {
+  return {
+    kind: 'modify-file-tool-call',
+    id,
+    seq,
+    toolCallId: id,
+    title: 'Edit',
+    status,
+    path,
+    oldText,
+    newText,
+  };
+}
+
+function toolGroupNode(
+  id: string,
+  seq: number,
+  label: string,
+  children: ToolNode[],
+  status: ToolStatus = 'done'
+): ToolNode {
+  return {
+    kind: 'tool-group',
+    id,
+    seq,
+    label,
+    groupKind: 'read-batch',
+    status,
+    children,
+  };
+}
+
+function turn(...items: TranscriptTurn['items']): TranscriptTurn {
+  return {
+    id: 'story-turn',
+    seq: 0,
+    initiator: 'user',
+    items,
+  };
+}
+
+function userMessage(id: string, text: string): TranscriptTurn['items'][number] {
+  return { kind: 'message', id, seq: 0, role: 'user', text };
+}
+
+function refactorGroup(status: ToolStatus = 'done'): ToolNode {
+  return toolGroupNode(
+    'p1',
+    1,
+    'refactor',
+    [
+      searchNode('c1', 0, 'auth token references'),
+      executeNode('c2', 1, 'npx tsc --noEmit'),
+      modifyFileNode(
+        'c3',
+        2,
+        'src/auth/token.ts',
+        'function verify(tok) {',
+        'export function verify(tok: string): boolean {'
+      ),
+    ],
+    status
+  );
+}
+
+function pipelineGroup(): ToolNode {
+  return toolGroupNode('root', 1, 'pipeline', [
+    toolGroupNode('sub', 0, 'compile', [
+      executeNode('leaf1', 0, 'tsc'),
+      modifyFileNode('leaf2', 1, 'dist/index.js', '', '"use strict";\nexports.main = main;'),
+    ]),
+    searchNode('leaf3', 1, 'lint warnings'),
+  ]);
+}
+
+function streamingGroup(childCount: number, status: ToolStatus = 'running'): ToolNode {
+  const children = [
+    searchNode('c1', 0, 'TypeScript strict-mode errors'),
+    executeNode('c2', 1, 'npx tsc --noEmit 2>&1 | head -20'),
+    modifyFileNode(
+      'c3',
+      2,
+      'src/auth/token.ts',
+      'function verify(tok) {\n  return tok !== null;\n}',
+      'export function verify(tok: string): boolean {\n  return tok.length > 0;\n}\n'
+    ),
+    searchNode('c4', 3, 'remaining lint warnings'),
+  ];
+  return toolGroupNode('p1', 1, 'analyse_and_fix', children.slice(0, childCount), status);
+}
+
+function setStreamingGroup(childCount: number, status?: ToolStatus): ScriptStep {
+  return {
+    kind: 'call',
+    fn: (api) => {
+      const current = api.activeTurn.get();
+      api.activeTurn.set(
+        {
+          id: current?.id ?? 'story-active-turn',
+          seq: current?.seq ?? 0,
+          initiator: 'agent',
+          items: [streamingGroup(childCount, status)] as TranscriptTurn['items'],
+        },
+        'generating'
+      );
+    },
+  };
+}
 
 // ── Committed (static) stories ────────────────────────────────────────────────
 
@@ -35,31 +174,7 @@ export const CommittedCollapsed: Story = {
   render: () => (
     <ChatHost
       height={300}
-      items={[
-        { kind: 'message', id: 'u1', role: 'user', text: 'Refactor the auth module' },
-        // Parent tool call
-        { kind: 'tool', id: 'p1', name: 'refactor', status: 'done' },
-        // Children — reference the parent via parentId
-        { kind: 'tool', id: 'c1', name: 'search', status: 'done', parentId: 'p1' },
-        {
-          kind: 'execute',
-          id: 'c2',
-          command: 'npx tsc --noEmit',
-          status: 'done',
-          startedAt: Date.now() - 1200,
-          durationMs: 1200,
-          parentId: 'p1',
-        },
-        {
-          kind: 'diff',
-          id: 'c3',
-          path: 'src/auth/token.ts',
-          oldText: 'function verify(tok) {',
-          newText: 'export function verify(tok: string): boolean {',
-          status: 'done',
-          parentId: 'p1',
-        },
-      ]}
+      items={[turn(userMessage('u1', 'Refactor the auth module'), refactorGroup())]}
     />
   ),
 };
@@ -74,29 +189,7 @@ export const CommittedExpanded: Story = {
   render: () => (
     <ChatHost
       height={400}
-      items={[
-        { kind: 'message', id: 'u1', role: 'user', text: 'Refactor the auth module' },
-        { kind: 'tool', id: 'p1', name: 'refactor', status: 'done' },
-        { kind: 'tool', id: 'c1', name: 'search', status: 'done', parentId: 'p1' },
-        {
-          kind: 'execute',
-          id: 'c2',
-          command: 'npx tsc --noEmit',
-          status: 'done',
-          startedAt: Date.now() - 1200,
-          durationMs: 1200,
-          parentId: 'p1',
-        },
-        {
-          kind: 'diff',
-          id: 'c3',
-          path: 'src/auth/token.ts',
-          oldText: 'function verify(tok) {',
-          newText: 'export function verify(tok: string): boolean {',
-          status: 'done',
-          parentId: 'p1',
-        },
-      ]}
+      items={[turn(userMessage('u1', 'Refactor the auth module'), refactorGroup())]}
     />
   ),
 };
@@ -109,34 +202,7 @@ export const MultiLevel: Story = {
   render: () => (
     <ChatHost
       height={400}
-      items={[
-        { kind: 'message', id: 'u1', role: 'user', text: 'Run the full pipeline' },
-        // Root parent
-        { kind: 'tool', id: 'root', name: 'pipeline', status: 'done' },
-        // Nested parent (child of root, parent of its own children)
-        { kind: 'tool', id: 'sub', name: 'compile', status: 'done', parentId: 'root' },
-        // Leaf children of the nested parent
-        {
-          kind: 'execute',
-          id: 'leaf1',
-          command: 'tsc',
-          status: 'done',
-          startedAt: Date.now() - 800,
-          durationMs: 800,
-          parentId: 'sub',
-        },
-        {
-          kind: 'diff',
-          id: 'leaf2',
-          path: 'dist/index.js',
-          oldText: null,
-          newText: '"use strict";\nexports.main = main;',
-          status: 'done',
-          parentId: 'sub',
-        },
-        // Another leaf directly under root (not part of the nested parent)
-        { kind: 'tool', id: 'leaf3', name: 'lint', status: 'done', parentId: 'root' },
-      ]}
+      items={[turn(userMessage('u1', 'Run the full pipeline'), pipelineGroup())]}
     />
   ),
 };
@@ -154,78 +220,27 @@ export const Streaming: Story = {
   render: () => (
     <ScriptedChat
       height={350}
-      script={scenario(
-        [
-          seedStep([
-            { kind: 'message', id: 'u1', role: 'user', text: 'Analyse and fix the repository' },
-          ]),
-        ],
-        // Parent starts running
-        streamTool({
-          id: 'p1',
-          name: 'analyse_and_fix',
-          steps: [],
-        }),
-        // Child 1: a search tool
-        streamTool({
-          id: 'c1',
-          name: 'search',
-          inputSummary: 'TypeScript strict-mode errors',
-          parentId: 'p1',
-          steps: [{ afterMs: 700, status: 'done' }],
-        }),
-        // Child 2: an execute step
-        streamExecute({
-          id: 'c2',
-          command: 'npx tsc --noEmit 2>&1 | head -20',
-          durationMs: 900,
-          parentId: 'p1',
-        }),
-        // Child 3: a diff
-        streamDiff({
-          id: 'c3',
-          path: 'src/auth/token.ts',
-          oldText: 'function verify(tok) {\n  return tok !== null;\n}',
-          newText: 'export function verify(tok: string): boolean {\n  return tok.length > 0;\n}\n',
-          headerMs: 400,
-          chunkMs: 100,
-          parentId: 'p1',
-          finalStatus: 'done',
-        }),
-        // Child 4: another search
-        streamTool({
-          id: 'c4',
-          name: 'search',
-          inputSummary: 'remaining lint warnings',
-          parentId: 'p1',
-          steps: [{ afterMs: 600, status: 'done' }],
-        }),
-        // Settle the parent and commit the turn
-        [
-          {
-            kind: 'call' as const,
-            fn: (api) => {
-              const turn = api.activeTurn.get();
-              api.activeTurn.set(
-                turn
-                  ? {
-                      ...turn,
-                      items: turn.items.map((it) =>
-                        it.id === 'p1' ? { ...it, status: 'done' } : it
-                      ),
-                    }
-                  : null,
-                'generating'
-              );
-            },
-          },
-          { kind: 'wait' as const, ms: 300 },
-          {
-            kind: 'call' as const,
-            fn: (api) => api.activeTurn.commit('done'),
-          },
-        ]
-      )}
+      script={[
+        {
+          kind: 'seed',
+          items: [turn(userMessage('u1', 'Analyse and fix the repository'))],
+        },
+        // Parent starts running, then children appear inside the same group.
+        setStreamingGroup(0),
+        { kind: 'wait', ms: 700 },
+        setStreamingGroup(1),
+        { kind: 'wait', ms: 900 },
+        setStreamingGroup(2),
+        { kind: 'wait', ms: 400 },
+        setStreamingGroup(3),
+        { kind: 'wait', ms: 600 },
+        setStreamingGroup(4, 'done'),
+        { kind: 'wait', ms: 300 },
+        {
+          kind: 'call',
+          fn: (api) => api.activeTurn.commit('done'),
+        },
+      ]}
     />
   ),
 };

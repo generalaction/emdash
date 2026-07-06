@@ -39,7 +39,7 @@
  */
 
 import { resolveSeamGap } from '@core/spacing';
-import type { GroupChrome, ItemSegmenter, Margin, RenderUnit, SegmentCtx } from '@core/units';
+import type { ItemSegmenter, Margin, RenderUnit, SegmentCtx } from '@core/units';
 import { stampGroupRoles } from '@core/units';
 import type { ChatItem, ChatMessage, SyntheticItem, TranscriptTurn } from '@/model';
 
@@ -52,54 +52,13 @@ function itemIsUser(item: ChatItem): boolean {
 
 // ── ItemNode ──────────────────────────────────────────────────────────────────
 
-/**
- * A node in the item forest built by `buildItemForest`.
- *
- * `item` is the raw `ChatItem`. `children` are nodes whose `item.parentId`
- * equals `item.id`, in the original transcript order.
- */
+/** A node in a nested tool-call render tree. */
 export type ItemNode = {
   item: ChatItem;
   children: ItemNode[];
 };
 
-/**
- * Build a flat items array into a forest.
- *
- * Returns a Map from item id → `ItemNode` and a Set of child item ids (items
- * that have a valid `parentId` pointing to another item in the same tier).
- * Orphan `parentId` references (pointing outside the tier) are ignored — the
- * orphaned item is treated as a root.
- */
-export function buildItemForest(items: readonly ChatItem[]): {
-  nodes: Map<string, ItemNode>;
-  childIds: Set<string>;
-} {
-  const nodes = new Map<string, ItemNode>();
-  const childIds = new Set<string>();
-
-  for (const item of items) {
-    nodes.set(item.id, { item, children: [] });
-  }
-
-  for (const item of items) {
-    const parentId = (item as { parentId?: string }).parentId;
-    if (parentId && nodes.has(parentId)) {
-      nodes.get(parentId)!.children.push(nodes.get(item.id)!);
-      childIds.add(item.id);
-    }
-  }
-
-  return { nodes, childIds };
-}
-
 // ── flattenTier ───────────────────────────────────────────────────────────────
-
-/** Node segmenter: called instead of `segment()` when the item has children. */
-export type NodeSegmenter = {
-  segmentNode(node: ItemNode, ctx: SegmentCtx): RenderUnit[];
-  chrome?: GroupChrome;
-};
 
 /**
  * Segment one tier (committed or activeTurn) into a flat RenderUnit[].
@@ -108,19 +67,13 @@ export type NodeSegmenter = {
  * It is used to resolve the gapBefore of the first unit in this tier against
  * the cross-tier boundary seam. Omit for the committed tier (it is always
  * first).
- *
- * `nodeSegmenters` is an optional map from `ChatItem.kind` to a `NodeSegmenter`
- * that is called *instead* of the regular `segment()` when an item has children
- * (i.e. other items reference it via `parentId`). Child items are consumed by
- * the parent's composite unit and skipped in the top-level iteration.
  */
 export function flattenTier(
   turns: readonly TranscriptTurn[],
   ctx: SegmentCtx,
   segmenters: Record<string, ItemSegmenter>,
   unitDefs?: Record<string, { margin?: Margin }>,
-  prevKind?: string,
-  _nodeSegmenters?: Record<string, NodeSegmenter>
+  prevKind?: string
 ): RenderUnit[] {
   const out: RenderUnit[] = [];
 

@@ -3,7 +3,7 @@ import type { ItemSegmenter, SegmentCtx, SegmentItem, UnitDef } from '@core/unit
 import { describe, expect, it } from 'vitest';
 import type { ChatItem, ChatMessage, TranscriptTurn } from '@/model';
 import { applyTurnEvent } from '@/stories/_harness/turn-reducer';
-import { buildItemForest, collectUserTurnUnits, flattenTier, makeUnitsView } from './flatten';
+import { collectUserTurnUnits, flattenTier, makeUnitsView } from './flatten';
 import { createTranscript } from './transcript';
 
 const MSG_MARGIN_TOP = 8;
@@ -214,36 +214,5 @@ describe('collectUserTurnUnits', () => {
     const view = flattenAll(tx);
     const indices = collectUserTurnUnits(tx.state.committedTurns, view);
     expect(indices).toEqual([0, 2]);
-  });
-});
-
-describe('buildItemForest', () => {
-  function mkTool(id: string, parentId?: string): ChatItem {
-    return parentId
-      ? ({ kind: 'tool', id, name: 'bash', status: 'done', parentId } as ChatItem)
-      : ({ kind: 'tool', id, name: 'bash', status: 'done' } as ChatItem);
-  }
-
-  it('flat list has all items as roots', () => {
-    const items = [mkTool('a'), mkTool('b'), mkTool('c')];
-    const { nodes, childIds } = buildItemForest(items);
-    expect(childIds.size).toBe(0);
-    for (const item of items) {
-      expect(nodes.get(item.id)?.children).toHaveLength(0);
-    }
-  });
-
-  it('links children to valid parents', () => {
-    const items = [mkTool('a'), mkTool('b', 'a'), mkTool('c', 'a')];
-    const { nodes, childIds } = buildItemForest(items);
-    expect(childIds).toEqual(new Set(['b', 'c']));
-    expect(nodes.get('a')?.children.map((node) => node.item.id)).toEqual(['b', 'c']);
-  });
-
-  it('treats orphan parent ids as roots', () => {
-    const items = [mkTool('a', 'missing')];
-    const { nodes, childIds } = buildItemForest(items);
-    expect(childIds.size).toBe(0);
-    expect(nodes.get('a')?.children).toHaveLength(0);
   });
 });

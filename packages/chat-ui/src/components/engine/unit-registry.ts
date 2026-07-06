@@ -36,7 +36,7 @@ import { turnOutcomeUnitDef } from '@components/rows/turn-outcome/turn-outcome.d
 import { workingUnitDef } from '@components/rows/working/working.def';
 import type { GroupChrome, ItemSegmenter, SegmentCtx, SegmentItem, UnitDef } from '@core/units';
 import { unit } from '@core/units';
-import type { ItemNode, NodeSegmenter } from '@state/flatten';
+import type { ItemNode } from '@state/flatten';
 import type {
   ChatDiff,
   ChatExecute,
@@ -185,43 +185,6 @@ export const SEGMENTERS: Record<string, ItemSegmenter> = {
     (item) => item,
     COMPOSITE_CHROME
   ),
-};
-
-// ── NODE_SEGMENTERS ───────────────────────────────────────────────────────────
-
-/**
- * Maps ChatItem.kind → NodeSegmenter for items that can be parents.
- *
- * When `flattenTier` discovers that an item has children (other items reference
- * its id via `parentId`), it calls the matching `NodeSegmenter.segmentNode`
- * instead of the regular `ItemSegmenter.segment`. The emitted unit carries the
- * full `ItemNode` (item + children tree) so the composite renderer can recurse.
- */
-export const NODE_SEGMENTERS: Record<string, NodeSegmenter> = {
-  tool: {
-    chrome: COMPOSITE_CHROME,
-    segmentNode(node: ItemNode, _ctx) {
-      return [unit('tool-group', node.item, node, { key: 'self' })];
-    },
-  },
-  execute: {
-    chrome: COMPOSITE_CHROME,
-    segmentNode(node: ItemNode, _ctx) {
-      return [unit('tool-group', node.item, node, { key: 'self' })];
-    },
-  },
-  'file-op': {
-    chrome: COMPOSITE_CHROME,
-    segmentNode(node: ItemNode, _ctx) {
-      return [unit('tool-group', node.item, node, { key: 'self' })];
-    },
-  },
-  diff: {
-    chrome: COMPOSITE_CHROME,
-    segmentNode(node: ItemNode, _ctx) {
-      return [unit('tool-group', node.item, node, { key: 'self' })];
-    },
-  },
 };
 
 // ── UNIT_REGISTRY ─────────────────────────────────────────────────────────────

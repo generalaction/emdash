@@ -1,5 +1,4 @@
 import {
-  agentStateSchema,
   planStateSchema,
   sessionConfigStateSchema,
   sessionStateSchema,
@@ -24,7 +23,6 @@ export class AcpLiveSession {
   readonly sessionState: LiveBinding<SessionState>;
   readonly config: LiveBinding<z.infer<typeof sessionConfigStateSchema>>;
   readonly plan: LiveBinding<z.infer<typeof planStateSchema> | null>;
-  readonly agents: LiveBinding<Array<z.infer<typeof agentStateSchema>>>;
   readonly activeTurn: LiveBinding<z.infer<typeof transcriptTurnSchema> | null>;
   readonly terminals: LiveBinding<TerminalState[]>;
   private readonly terminalLogs = new Map<string, LiveLogBinding>();
@@ -48,11 +46,6 @@ export class AcpLiveSession {
       schema: planStateSchema.nullable(),
       snapshot: () => client.live.plan.snapshot({ conversationId }),
       subscribe: () => client.live.plan.subscribe({ conversationId }),
-    });
-    this.agents = createLiveModelBinding({
-      schema: z.array(agentStateSchema),
-      snapshot: () => client.live.agents.snapshot({ conversationId }),
-      subscribe: () => client.live.agents.subscribe({ conversationId }),
     });
     this.activeTurn = createLiveModelBinding({
       schema: transcriptTurnSchema.nullable(),
@@ -83,7 +76,6 @@ export class AcpLiveSession {
         session.sessionState.start(),
         session.config.start(),
         session.plan.start(),
-        session.agents.start(),
         session.activeTurn.start(),
         session.terminals.start(),
       ]),
@@ -180,7 +172,6 @@ export class AcpLiveSession {
     this.sessionState.dispose();
     this.config.dispose();
     this.plan.dispose();
-    this.agents.dispose();
     this.activeTurn.dispose();
     this.terminals.dispose();
     for (const binding of this.terminalLogs.values()) {

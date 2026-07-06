@@ -52,9 +52,8 @@ describe('bindSessionTerminalOutputs', () => {
     const terminalOutput = vi.fn(async () => log);
     const outputs = new Map<string, string | null>();
 
-    const dispose = bindSessionTerminalOutputs(
-      { terminals, terminalOutput },
-      (terminalId, text) => outputs.set(terminalId, text)
+    const dispose = bindSessionTerminalOutputs({ terminals, terminalOutput }, (terminalId, text) =>
+      outputs.set(terminalId, text)
     );
     await flushPromises();
 
