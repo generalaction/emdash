@@ -19,15 +19,29 @@ import { messageUnitDef } from '@components/rows/message/message.def';
 import { planUnitDef } from '@components/rows/plan/plan.def';
 import { resourceLinkUnitDef } from '@components/rows/resource-link/resource-link.def';
 import { thinkingUnitDef } from '@components/rows/thinking/thinking.def';
+import { turnOutcomeUnitDef } from '@components/rows/turn-outcome/turn-outcome.def';
 import { diffUnitDef } from '@components/rows/tools/diff/diff.def';
 import { executeUnitDef } from '@components/rows/tools/execute/execute.def';
 import { fileOpUnitDef } from '@components/rows/tools/file-op/file-op.def';
 import { toolGroupUnitDef } from '@components/rows/tools/tool-group/tool-group.def';
 import { toolUnitDef } from '@components/rows/tools/tool/tool.def';
+import { workingUnitDef } from '@components/rows/working/working.def';
 import type { GroupChrome, ItemSegmenter, UnitDef } from '@core/units';
 import { unit } from '@core/units';
 import type { ItemNode, NodeSegmenter } from '@state/flatten';
-import type { ChatItem, ChatMessage } from '@/model';
+import type {
+  ChatDiff,
+  ChatExecute,
+  ChatFileOpToolCall,
+  ChatItem,
+  ChatMessage,
+  ChatPlan,
+  ChatToolCall,
+  PlanState,
+  ToolNode,
+  TurnOutcomeItem,
+  WorkingItem,
+} from '@/model';
 import { ROW_INSET_X } from './row-metrics';
 
 // ── Native single-unit segmenter for composites ───────────────────────────────
@@ -35,13 +49,15 @@ import { ROW_INSET_X } from './row-metrics';
 // Each composite item becomes exactly one RenderUnit with chrome.insetX so
 // the native UnitDef.measure receives the same effective width as Row.tsx used.
 
+type Segmentable = ChatItem | WorkingItem | TurnOutcomeItem;
+
 // oxlint-disable-next-line typescript/no-explicit-any -- registry boundary
-function nativePassthrough(kind: ChatItem['kind'], chrome?: GroupChrome): ItemSegmenter<any> {
+function nativePassthrough(kind: string, toData: (item: any, ctx: any) => unknown, chrome?: GroupChrome): ItemSegmenter<any> {
   return {
     kind,
     chrome,
     // oxlint-disable-next-line typescript/no-explicit-any -- data is ChatItem at runtime
-    segment: (item: ChatItem, _ctx: any) => [unit(item.kind, item, item, { key: 'self' })],
+    segment: (item: Segmentable, ctx: any) => [unit(kind, item as ChatItem, toData(item, ctx), { key: 'self' })],
   };
 }
 
@@ -62,17 +78,187 @@ const USER_CHROME: GroupChrome = { insetX: 0 };
  * single shared value — user messages get USER_CHROME (full width), all others
  * get COMPOSITE_CHROME (insetX=ROW_INSET_X).
  */
-const messageSegmenter: ItemSegmenter<ChatMessage> = {
+const messageSegmenter: ItemSegmenter<any> = {
   kind: 'message',
   // No top-level chrome: we set u.chrome per-unit in segment() below so
   // flatten's chrome-copy pass (which only fires when seg.chrome is truthy)
   // cannot overwrite the per-role value we assigned.
-  segment: (item) => {
-    const u = unit('message', item, item, { key: 'self' });
-    u.chrome = item.role === 'user' ? USER_CHROME : COMPOSITE_CHROME;
+  segment: (item, ctx) => {
+    const data = toMessageData(item, ctx.active === true);
+    const u = unit('message', item, data, { key: 'self' });
+    u.chrome = data.role === 'user' ? USER_CHROME : COMPOSITE_CHROME;
     return [u];
   },
 };
+
+function pending(ctx: { pendingToolCallIds?: () => Set<string> }, item: { toolCallId?: string }): boolean {
+  return !!item.toolCallId && (ctx.pendingToolCallIds?.().has(item.toolCallId) ?? false);
+}
+
+function toMessageData(item: ChatMessage, active: boolean): ChatMessage {
+  return {
+    ...item,
+    streaming: active && item.role === 'assistant',
+    attachments: item.attachments?.map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+    })),
+  };
+}
+
+function toGenericToolData(item: ToolNode, ctx: { pendingToolCallIds?: () => Set<string> }): ChatToolCall {
+  const base = 'toolCallId' in item ? item : null;
+  const name =
+    item.kind === 'search-tool-call'
+      ? 'Search'
+      : item.kind === 'mcp-tool-call'
+        ? 'MCP'
+        : item.kind === 'web-fetch-tool-call'
+          ? 'Fetch'
+          : item.kind === 'spawn-subagent-tool-call'
+            ? 'Subagent'
+            : item.kind === 'unknown-tool-call'
+              ? item.name
+              : 'Tool';
+  const inputSummary =
+    item.kind === 'search-tool-call'
+      ? `${item.query}${item.matchCount !== undefined ? ` (${item.matchCount} matches)` : ''}`
+      : item.kind === 'mcp-tool-call'
+        ? [item.server, item.tool].filter(Boolean).join('.')
+        : item.kind === 'web-fetch-tool-call'
+          ? item.pageTitle ?? item.url
+          : item.kind === 'spawn-subagent-tool-call'
+            ? `${item.name}${item.background ? ' (background)' : ''}`
+            : item.kind === 'unknown-tool-call'
+              ? item.toolKind ?? undefined
+              : base?.inputSummary;
+  return {
+    kind: 'tool',
+    id: item.id,
+    name,
+    status: 'status' in item ? item.status : 'done',
+    awaitingPermission: base ? pending(ctx, base) : false,
+    inputSummary,
+  };
+}
+
+function toExecuteData(item: Extract<ToolNode, { kind: 'execute-tool-call' }>, ctx: { pendingToolCallIds?: () => Set<string> }): ChatExecute {
+  return {
+    kind: 'execute',
+    id: item.id,
+    command: item.command ?? item.title,
+    status: item.status,
+    awaitingPermission: pending(ctx, item),
+    startedAt: 0,
+    terminalId: item.terminalId,
+  };
+}
+
+function toReadData(item: Extract<ToolNode, { kind: 'read-tool-call' }>, ctx: { pendingToolCallIds?: () => Set<string> }): ChatFileOpToolCall {
+  return {
+    kind: 'file-op',
+    id: item.id,
+    op: 'read',
+    status: item.status,
+    awaitingPermission: pending(ctx, item),
+    ops: item.path || item.resource ? [{ path: item.path ?? item.resource! }] : [],
+  };
+}
+
+function toDeleteData(item: Extract<ToolNode, { kind: 'delete-file-tool-call' }>, ctx: { pendingToolCallIds?: () => Set<string> }): ChatFileOpToolCall {
+  return {
+    kind: 'file-op',
+    id: item.id,
+    op: 'delete',
+    status: item.status,
+    awaitingPermission: pending(ctx, item),
+    ops: [{ path: item.path }],
+  };
+}
+
+function toCreateFileData(item: Extract<ToolNode, { kind: 'create-file-tool-call' }>, ctx: { pendingToolCallIds?: () => Set<string> }): ChatDiff {
+  return {
+    kind: 'diff',
+    id: item.id,
+    path: item.path,
+    oldText: null,
+    newText: item.content,
+    status: item.status,
+    awaitingPermission: pending(ctx, item),
+  };
+}
+
+function toModifyFileData(item: Extract<ToolNode, { kind: 'modify-file-tool-call' }>, ctx: { pendingToolCallIds?: () => Set<string> }): ChatDiff {
+  return {
+    kind: 'diff',
+    id: item.id,
+    path: item.path,
+    oldText: item.oldText,
+    newText: item.newText,
+    status: item.status,
+    awaitingPermission: pending(ctx, item),
+  };
+}
+
+function toPlanData(item: Extract<ToolNode, { kind: 'create-plan-tool-call' }>, ctx: { plan?: () => PlanState | null; pendingToolCallIds?: () => Set<string> }): ChatPlan {
+  const plan = ctx.plan?.();
+  return {
+    kind: 'plan',
+    id: item.id,
+    entries: plan?.entries ?? [],
+    streaming: item.status === 'running',
+  };
+}
+
+function toToolGroupNode(item: ToolNode, ctx: { pendingToolCallIds?: () => Set<string>; plan?: () => PlanState | null }): ItemNode {
+  const header =
+    item.kind === 'tool-group'
+      ? ({ kind: 'tool', id: item.id, name: item.label, status: item.status } satisfies ChatToolCall)
+      : toUnitData(item, ctx);
+  const children =
+    item.kind === 'tool-group'
+      ? item.children.map((child: ToolNode) => toToolGroupNode(child, ctx))
+      : 'children' in item && item.children
+        ? item.children.map((child: ToolNode) => toToolGroupNode(child, ctx))
+        : [];
+  return { item: header, children };
+}
+
+function toUnitData(item: ToolNode, ctx: { pendingToolCallIds?: () => Set<string>; plan?: () => PlanState | null }) {
+  switch (item.kind) {
+    case 'execute-tool-call':
+      return toExecuteData(item, ctx);
+    case 'read-tool-call':
+      return toReadData(item, ctx);
+    case 'create-file-tool-call':
+      return toCreateFileData(item, ctx);
+    case 'modify-file-tool-call':
+      return toModifyFileData(item, ctx);
+    case 'delete-file-tool-call':
+      return toDeleteData(item, ctx);
+    case 'create-plan-tool-call':
+      return toPlanData(item, ctx);
+    case 'tool-group':
+      return toGenericToolData(item, ctx);
+    default:
+      return toGenericToolData(item, ctx);
+  }
+}
+
+function toolNodeSegment(kind: ToolNode['kind']): ItemSegmenter<any> {
+  return {
+    kind,
+    chrome: COMPOSITE_CHROME,
+    segment(item: ToolNode, ctx) {
+      const children = item.kind === 'tool-group' ? item.children : item.children;
+      if (children && children.length > 0) {
+        return [unit('tool-group', item, toToolGroupNode(item, ctx), { key: 'self' })];
+      }
+      const data = toUnitData(item, ctx);
+      return [unit(data.kind, item, data, { key: 'self' })];
+    },
+  };
+}
 
 // ── SEGMENTERS ────────────────────────────────────────────────────────────────
 
@@ -87,13 +273,27 @@ const messageSegmenter: ItemSegmenter<ChatMessage> = {
 // oxlint-disable-next-line typescript/no-explicit-any -- registry boundary
 export const SEGMENTERS: Record<string, ItemSegmenter<any>> = {
   message: messageSegmenter,
-  tool: nativePassthrough('tool', COMPOSITE_CHROME),
-  thinking: nativePassthrough('thinking', COMPOSITE_CHROME),
-  'file-op': nativePassthrough('file-op', COMPOSITE_CHROME),
-  execute: nativePassthrough('execute', COMPOSITE_CHROME),
-  diff: nativePassthrough('diff', COMPOSITE_CHROME),
-  'resource-link': nativePassthrough('resource-link', COMPOSITE_CHROME),
-  plan: nativePassthrough('plan', COMPOSITE_CHROME),
+  thinking: nativePassthrough('thinking', (item) => item, COMPOSITE_CHROME),
+  tool: nativePassthrough('tool', (item) => item, COMPOSITE_CHROME),
+  'file-op': nativePassthrough('file-op', (item) => item, COMPOSITE_CHROME),
+  execute: nativePassthrough('execute', (item) => item, COMPOSITE_CHROME),
+  diff: nativePassthrough('diff', (item) => item, COMPOSITE_CHROME),
+  plan: nativePassthrough('plan', (item) => item, COMPOSITE_CHROME),
+  'resource-link': nativePassthrough('resource-link', (item) => item, COMPOSITE_CHROME),
+  'execute-tool-call': toolNodeSegment('execute-tool-call'),
+  'read-tool-call': toolNodeSegment('read-tool-call'),
+  'create-file-tool-call': toolNodeSegment('create-file-tool-call'),
+  'modify-file-tool-call': toolNodeSegment('modify-file-tool-call'),
+  'delete-file-tool-call': toolNodeSegment('delete-file-tool-call'),
+  'search-tool-call': toolNodeSegment('search-tool-call'),
+  'mcp-tool-call': toolNodeSegment('mcp-tool-call'),
+  'web-fetch-tool-call': toolNodeSegment('web-fetch-tool-call'),
+  'spawn-subagent-tool-call': toolNodeSegment('spawn-subagent-tool-call'),
+  'create-plan-tool-call': toolNodeSegment('create-plan-tool-call'),
+  'unknown-tool-call': toolNodeSegment('unknown-tool-call'),
+  'tool-group': toolNodeSegment('tool-group'),
+  working: nativePassthrough('working', (item) => item, COMPOSITE_CHROME),
+  'turn-outcome': nativePassthrough('turn-outcome', (item) => item, COMPOSITE_CHROME),
 };
 
 // ── NODE_SEGMENTERS ───────────────────────────────────────────────────────────
@@ -155,4 +355,6 @@ export const UNIT_REGISTRY: Record<string, UnitDef<any, any>> = {
   'resource-link': resourceLinkUnitDef,
   // Hierarchical composite: parent tool call with nested children
   'tool-group': toolGroupUnitDef,
+  working: workingUnitDef,
+  'turn-outcome': turnOutcomeUnitDef,
 };

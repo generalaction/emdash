@@ -195,7 +195,13 @@ describe('streamDiff', () => {
           commit: () => {},
         },
         history: { get: () => [], seed: () => {}, prepend: () => {}, append: () => {} },
-        state: { committed: [], activeTurn: null, turnStatus: 'done' as TurnStatus },
+        state: {
+          committed: [],
+          activeTurn: null,
+          committedTurns: [],
+          activeTurnSnapshot: null,
+          turnStatus: 'done' as TurnStatus,
+        },
         findIndexById: () => -1,
         reset: () => {},
       });

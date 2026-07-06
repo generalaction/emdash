@@ -22,8 +22,14 @@ export type ToolProps = {
 };
 
 export function Tool(props: ToolProps) {
+  const isRunning = () => props.item.status === 'running' && !props.item.awaitingPermission;
   return (
-    <div class={toolRow} classList={{ [textShimmer]: props.item.status === 'running' }}>
+    <div class={toolRow} classList={{ [textShimmer]: isRunning() }}>
+      <Show when={props.item.awaitingPermission}>
+        <span style={{ color: '#eab308' }} title="Awaiting permission" aria-label="Awaiting permission">
+          ✋
+        </span>
+      </Show>
       <span class={toolName}>{props.item.name}</span>
       <Show when={props.item.inputSummary}>
         <span class={toolSummary}>{props.item.inputSummary}</span>

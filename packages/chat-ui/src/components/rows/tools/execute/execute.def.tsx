@@ -86,9 +86,9 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
       height={totalH()}
       headerH={props.vars.rowH}
       expanded={isExpanded()}
-      active={props.data.status === 'running'}
+      active={props.data.status === 'running' && !props.data.awaitingPermission}
       error={props.data.status === 'error'}
-      header="Execute"
+      header={props.data.awaitingPermission ? '✋ Execute' : 'Execute'}
     >
       <Show when={codeLineH() > 0}>
         <ExecuteBody

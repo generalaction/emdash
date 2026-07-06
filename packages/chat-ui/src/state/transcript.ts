@@ -1,32 +1,6 @@
-/**
- * Solid transcript store — hybrid two-tier API.
- *
- * Two-tier model:
- *   history     — committed items in a plain createSignal (no proxy overhead).
- *                 Mutated only by seed/prepend/append (coarse-identity tracking).
- *   activeTurn  — in-progress streaming items in a fine-grained createStore.
- *                 activeTurn.set uses reconcile(key:'id') for in-place text growth.
- *
- * The public write surface is split into two namespaces:
- *
- *   history.seed(items)    — replace everything (session replay / initial load)
- *   history.prepend(items) — insert older items before committed (pagination)
- *   history.append(items)  — append items after committed (commit path)
- *
- *   activeTurn.set(items, status) — controlled: host pushes a full snapshot;
- *                                   reconcile diffs it in place, so text growth
- *                                   only patches the changed message node.
- *   activeTurn.commit(status)     — finalize turn → history.append → clear
- *
- * Pure helpers for building snapshots live in turn-reducer.ts:
- *   applyTurnEvent(turn, event) → new ChatItem[]
- *   finalizeTurn(turn)          → new ChatItem[]  (also called internally by commit)
- */
-
 import { batch, createSignal } from 'solid-js';
 import { createStore, reconcile, unwrap } from 'solid-js/store';
-import type { ChatItem } from '@/model';
-import { finalizeTurn } from './turn-reducer';
+import type { ChatItem, TranscriptTurn } from '@/model';
 
 /**
  * Global turn lifecycle status.
@@ -39,31 +13,33 @@ export type TurnStatus = 'generating' | 'cancelled' | 'done';
 
 export type TranscriptState = {
   readonly committed: readonly ChatItem[];
-  readonly activeTurn: ChatItem[] | null;
+  readonly activeTurn: readonly ChatItem[] | null;
+  readonly committedTurns: readonly TranscriptTurn[];
+  readonly activeTurnSnapshot: TranscriptTurn | null;
   readonly turnStatus: TurnStatus;
 };
 
 // ── ChatHistory ────────────────────────────────────────────────────────────────
 
 export type ChatHistory = {
-  /** All committed items. Reactive: reading inside a memo/effect tracks identity changes. */
-  get(): readonly ChatItem[];
+  /** All committed turns. Reactive: reading inside a memo/effect tracks identity changes. */
+  get(): readonly TranscriptTurn[];
   /**
    * Replace the entire committed history and reset activeTurn.
    * Rebuilds the id map. Prefer for initial load / session replay.
    */
-  seed(items: readonly ChatItem[]): void;
+  seed(turns: readonly (TranscriptTurn | ChatItem)[]): void;
   /**
    * Prepend older items before the current committed history (pagination).
    * Stable object references required — identity-keyed caches key by ref.
    * Rebuilds the id map (O(total)).
    */
-  prepend(items: readonly ChatItem[]): void;
+  prepend(turns: readonly (TranscriptTurn | ChatItem)[]): void;
   /**
    * Append items after the current committed history (commit path / bulk add).
    * Patches the id map incrementally (O(new)).
    */
-  append(items: readonly ChatItem[]): void;
+  append(turns: readonly (TranscriptTurn | ChatItem)[]): void;
 };
 
 // ── ActiveTurn ─────────────────────────────────────────────────────────────────
@@ -75,7 +51,7 @@ export type ActiveTurn = {
    * to extend the turn (e.g. via applyTurnEvent) should read from here, not from
    * state.activeTurn (which may hold a partial/delivered view).
    */
-  get(): readonly ChatItem[] | null;
+  get(): any;
   /** The current turn lifecycle status. */
   status(): TurnStatus;
   /**
@@ -88,15 +64,7 @@ export type ActiveTurn = {
    * - Stable item `id` fields are required for reconcile to work correctly.
    * - The host is authoritative; chat-ui does not assume it is the sole writer.
    */
-  set(items: readonly ChatItem[] | null, status: TurnStatus): void;
-  /**
-   * Finalize the active turn, move it to history, and clear.
-   *
-   * Internally calls finalizeTurn → history.append → set(null, status).
-   * Batched so all three signal writes happen in a single reactive flush.
-   *
-   * @param status - 'done' (default) or 'cancelled'
-   */
+  set(turn: TranscriptTurn | readonly ChatItem[] | null, _status?: TurnStatus): void;
   commit(status?: 'done' | 'cancelled'): void;
 };
 
@@ -122,13 +90,14 @@ export type TranscriptApi = {
 
 /** Total item count across both tiers. */
 export function itemCount(state: TranscriptState): number {
-  return state.committed.length + (state.activeTurn?.length ?? 0);
+  return committedItems(state).length + (state.activeTurn?.length ?? 0);
 }
 
 /** Get item at absolute index (committed first, then activeTurn). */
 export function getItem(state: TranscriptState, i: number): ChatItem | undefined {
-  const cl = state.committed.length;
-  if (i < cl) return state.committed[i];
+  const committed = committedItems(state);
+  const cl = committed.length;
+  if (i < cl) return committed[i];
   return state.activeTurn?.[i - cl];
 }
 
@@ -138,8 +107,9 @@ export function getItem(state: TranscriptState, i: number): ChatItem | undefined
  */
 export function collectUserTurnIndices(state: TranscriptState): number[] {
   const result: number[] = [];
-  for (let i = 0; i < state.committed.length; i++) {
-    const item = state.committed[i];
+  const items = committedItems(state);
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
     if (item.kind === 'message' && item.role === 'user') {
       result.push(i);
     }
@@ -149,8 +119,53 @@ export function collectUserTurnIndices(state: TranscriptState): number[] {
 
 /** All items as a readonly array (allocates — use getItem for reactive per-index access). */
 export function allItems(state: TranscriptState): readonly ChatItem[] {
-  if (!state.activeTurn || state.activeTurn.length === 0) return state.committed;
-  return [...state.committed, ...state.activeTurn];
+  const committed = committedItems(state);
+  if (!state.activeTurn || state.activeTurn.length === 0) return committed;
+  return [...committed, ...state.activeTurn];
+}
+
+export function committedItems(state: TranscriptState): readonly ChatItem[] {
+  return turnsToItems(state.committedTurns);
+}
+
+export function turnsToItems(turns: readonly TranscriptTurn[]): ChatItem[] {
+  const items: ChatItem[] = [];
+  for (const turn of turns) {
+    items.push(...orderedItems(turn.items));
+  }
+  return items;
+}
+
+export function orderedTurns(turns: readonly TranscriptTurn[]): TranscriptTurn[] {
+  return [...turns].sort((a, b) => a.seq - b.seq);
+}
+
+export function orderedItems(items: readonly ChatItem[]): ChatItem[] {
+  return [...items].sort((a, b) => ((a as { seq?: number }).seq ?? 0) - ((b as { seq?: number }).seq ?? 0));
+}
+
+function itemsToTurn(items: readonly ChatItem[], status?: 'done' | 'cancelled'): TranscriptTurn {
+  return {
+    id: `compat-turn:${items[0]?.id ?? 'empty'}`,
+    seq: Number.MAX_SAFE_INTEGER,
+    initiator: items.some((item) => item.kind === 'message' && item.role === 'user')
+      ? 'user'
+      : 'agent',
+    items: items as TranscriptTurn['items'],
+    outcome: status ? { kind: status } : undefined,
+  };
+}
+
+function normalizeTurns(input: readonly (TranscriptTurn | ChatItem)[]): TranscriptTurn[] {
+  if (input.every((item) => 'items' in item)) return orderedTurns(input as readonly TranscriptTurn[]);
+  return [itemsToTurn(input as readonly ChatItem[])];
+}
+
+function finalizeCompatItem(item: ChatItem): ChatItem {
+  if (item.kind === 'message') return { ...item, streaming: false } as ChatItem;
+  if ('status' in item && item.status === 'running') return { ...item, status: 'done' } as ChatItem;
+  if (item.kind === 'plan') return { ...item, streaming: false } as ChatItem;
+  return item;
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -159,11 +174,11 @@ export function createTranscript(): TranscriptApi {
   // Committed items are immutable after placement — only ever swapped as a whole
   // array identity (seed/prepend/append). A plain signal gives coarse tracking
   // with zero store-proxy overhead on the hot measure/render path.
-  const [committed, setCommitted] = createSignal<readonly ChatItem[]>([]);
+  const [committed, setCommitted] = createSignal<readonly TranscriptTurn[]>([]);
 
   // activeTurn + turnStatus mutate in place during streaming; fine-grained
   // store tracking is warranted here.
-  const [live, setLive] = createStore<{ activeTurn: ChatItem[] | null; turnStatus: TurnStatus }>({
+  const [live, setLive] = createStore<{ activeTurn: TranscriptTurn | null; turnStatus: TurnStatus }>({
     activeTurn: null,
     turnStatus: 'done',
   });
@@ -175,9 +190,15 @@ export function createTranscript(): TranscriptApi {
   // reactivity.
   const state: TranscriptState = {
     get committed() {
-      return committed();
+      return turnsToItems(committed());
     },
     get activeTurn() {
+      return live.activeTurn?.items ?? null;
+    },
+    get committedTurns() {
+      return committed();
+    },
+    get activeTurnSnapshot() {
       return live.activeTurn;
     },
     get turnStatus() {
@@ -185,11 +206,12 @@ export function createTranscript(): TranscriptApi {
     },
   };
 
-  // id → committed index map; rebuilt on seed/prepend, patched incrementally on append.
+  // item id → committed item index map; rebuilt on history mutations.
   const idMap = new Map<string, number>();
 
-  const rebuildIdMap = (items: readonly ChatItem[]): void => {
+  const rebuildIdMap = (turns: readonly TranscriptTurn[]): void => {
     idMap.clear();
+    const items = turnsToItems(turns);
     for (let i = 0; i < items.length; i++) {
       if (import.meta.env.DEV && idMap.has(items[i].id)) {
         console.error(
@@ -202,19 +224,6 @@ export function createTranscript(): TranscriptApi {
     }
   };
 
-  const patchIdMap = (items: readonly ChatItem[], offset: number): void => {
-    for (let i = 0; i < items.length; i++) {
-      if (import.meta.env.DEV && idMap.has(items[i].id)) {
-        console.error(
-          `[chat-ui] duplicate ChatItem id "${items[i].id}" at append offset ${offset + i} — ` +
-            'item ids must be unique across the entire transcript. ' +
-            'This will corrupt id-keyed lookups (heightmap, scroll anchor, reconcile).'
-        );
-      }
-      idMap.set(items[i].id, offset + i);
-    }
-  };
-
   // ── history ─────────────────────────────────────────────────────────────────
 
   const history: ChatHistory = {
@@ -222,25 +231,25 @@ export function createTranscript(): TranscriptApi {
       return committed();
     },
 
-    seed(items) {
+    seed(turns) {
+      const ordered = normalizeTurns(turns);
       batch(() => {
-        setCommitted([...items]);
+        setCommitted(ordered);
         setLive({ activeTurn: null, turnStatus: 'done' });
       });
-      rebuildIdMap(items);
+      rebuildIdMap(ordered);
     },
 
-    prepend(items) {
-      if (items.length === 0) return;
-      setCommitted((prev) => [...items, ...prev]);
+    prepend(turns) {
+      if (turns.length === 0) return;
+      setCommitted((prev) => orderedTurns([...normalizeTurns(turns), ...prev]));
       rebuildIdMap(committed());
     },
 
-    append(items) {
-      if (items.length === 0) return;
-      const offset = committed().length;
-      setCommitted((prev) => [...prev, ...items]);
-      patchIdMap(items, offset);
+    append(turns) {
+      if (turns.length === 0) return;
+      setCommitted((prev) => orderedTurns([...prev, ...normalizeTurns(turns)]));
+      rebuildIdMap(committed());
     },
   };
 
@@ -248,33 +257,37 @@ export function createTranscript(): TranscriptApi {
 
   const activeTurnApi: ActiveTurn = {
     get() {
-      return live.activeTurn;
+      return live.activeTurn?.items ?? null;
     },
 
     status() {
-      return live.turnStatus;
+      return live.activeTurn ? 'generating' : 'done';
     },
 
-    set(items, status) {
+    set(turn, status) {
       batch(() => {
-        setLive('turnStatus', status);
-        if (items === null) {
-          setLive('activeTurn', null);
+        if (turn === null) {
+          setLive({ activeTurn: null, turnStatus: 'done' });
         } else {
-          // reconcile(key:'id') diffs the new snapshot against the current store
-          // value: items with unchanged id+fields are left alone; changed fields
-          // (e.g. growing text) are patched in place.  Cost: O(activeTurn).
-          setLive('activeTurn', reconcile(items as ChatItem[], { key: 'id' }));
+          const nextTurn = Array.isArray(turn)
+            ? itemsToTurn(turn as readonly ChatItem[], status as 'done' | 'cancelled')
+            : (turn as TranscriptTurn);
+          setLive('turnStatus', status ?? 'generating');
+          setLive('activeTurn', reconcile(nextTurn, { key: 'id' }));
         }
       });
     },
 
     commit(status = 'done') {
-      // Unwrap store proxies → plain objects before finalizeTurn spreads them.
-      const raw: ChatItem[] = unwrap(live.activeTurn) ?? [];
-      const finalized = finalizeTurn(raw);
+      const raw = live.activeTurn;
+      if (!raw) return;
+      const turn = {
+        ...(unwrap(raw) as TranscriptTurn),
+        items: (unwrap(raw).items as ChatItem[]).map((item) => finalizeCompatItem(item)) as TranscriptTurn['items'],
+        outcome: { kind: status },
+      } satisfies TranscriptTurn;
       batch(() => {
-        history.append(finalized);
+        history.append([turn]);
         setLive({ activeTurn: null, turnStatus: status });
       });
     },
@@ -290,9 +303,9 @@ export function createTranscript(): TranscriptApi {
       if (ci !== undefined) return ci;
       const at = live.activeTurn;
       if (at) {
-        const offset = committed().length;
-        for (let i = 0; i < at.length; i++) {
-          if (at[i].id === id) return offset + i;
+        const offset = turnsToItems(committed()).length;
+        for (let i = 0; i < at.items.length; i++) {
+          if (at.items[i].id === id) return offset + i;
         }
       }
       return -1;

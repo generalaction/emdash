@@ -59,7 +59,7 @@ import { genericEstimate } from './core/layout/generic-estimate';
 import { STICK_THRESHOLD_PX } from './core/stick-to-bottom';
 import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
-import type { ChatItem, ChatMessage } from './model';
+import type { ChatItem, ChatMessage, TranscriptTurn } from './model';
 import type { ChatState, ScrollMode } from './state/chat-state';
 import { flattenTier, makeUnitsView, collectUserTurnUnits } from './state/flatten';
 import type { UnitsView } from './state/flatten';
@@ -348,10 +348,13 @@ export function ChatRoot(props: ChatRootProps) {
   const maxScrollTop = () => Math.max(0, contentH() - viewHeight());
 
   // ── Flat unit view (two-tier, incremental) ────────────────────────────────
-  const segmentCtx = createMemo(() => ({
+  const segmentCtx = (active = false) => ({
     caches: caches(),
     expanded: (_id: string) => false,
-  }));
+    active,
+    plan: () => state().session.plan.get(),
+    pendingToolCallIds: () => state().session.pendingToolCallIds.get(),
+  });
 
   let committedUnitsArr: ReturnType<typeof flattenTier> = [];
   // O(1) lookup: itemId -> index of the FIRST unit for that item in the
@@ -359,7 +362,7 @@ export function ChatRoot(props: ChatRootProps) {
   // items are handled by a small scan in firstUnitIndexOf since activeTurn is
   // always short (≤ a handful of items per streaming turn).
   const committedIndexById = new Map<string, number>();
-  let lastCommitted: readonly ChatItem[] = [];
+  let lastCommitted: readonly TranscriptTurn[] = [];
   // Identity of the model this effect last built from. A change signals a
   // view.setModel swap and drives the snapshot + incremental-cache reset.
   let lastState: ChatState | undefined;
@@ -381,7 +384,7 @@ export function ChatRoot(props: ChatRootProps) {
   // rebuild from the incoming model — all within the same synchronous run.
   createEffect(() => {
     const s = state();
-    const next = s.transcript.state.committed;
+    const next = s.transcript.state.committedTurns;
 
     if (s !== lastState) {
       // Model swap: snapshot the outgoing model's heights while committedUnitsArr
@@ -395,7 +398,7 @@ export function ChatRoot(props: ChatRootProps) {
     }
 
     const prev = lastCommitted;
-    const ctx = segmentCtx();
+    const ctx = segmentCtx(false);
 
     if (
       next.length > prev.length &&
@@ -441,13 +444,13 @@ export function ChatRoot(props: ChatRootProps) {
 
   const activeUnits = createMemo(() => {
     committedUnitsVersion();
-    const at = state().transcript.state.activeTurn;
-    if (!at || at.length === 0) return [] as ReturnType<typeof flattenTier>;
+    const at = state().transcript.state.activeTurnSnapshot;
+    if (!at || at.items.length === 0) return [] as ReturnType<typeof flattenTier>;
     const prevKind =
       committedUnitsArr.length > 0
         ? committedUnitsArr[committedUnitsArr.length - 1].kind
         : undefined;
-    return flattenTier(at, segmentCtx(), SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
+    return flattenTier([at], segmentCtx(true), SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
   });
 
   const units = createMemo<UnitsView>(() => {
@@ -543,7 +546,7 @@ export function ChatRoot(props: ChatRootProps) {
   const userTurns = createMemo(() => {
     committedUnitsVersion();
     return collectUserTurnUnits(
-      state().transcript.state.committed,
+      state().transcript.state.committedTurns,
       makeUnitsView(committedUnitsArr, NO_ACTIVE_UNITS)
     );
   });
@@ -845,6 +848,7 @@ export function ChatRoot(props: ChatRootProps) {
   // `undefined` means "not yet emitted" — forces an emit on the first writePhase
   // and after every model swap.
   let lastActiveUserVisible: boolean | undefined;
+  let lastAtBottom: boolean | undefined;
 
   // Smooth-scroll suppression: when a smooth-scroll animation is in flight,
   // intermediate scrollTop updates are browser-driven and must not be treated
@@ -858,6 +862,12 @@ export function ChatRoot(props: ChatRootProps) {
   // after this timestamp — covering the whole gesture, not just one frame.
   // Initialised to 0 so the first write-phase call (no prior scroll) is settled.
   let lastUserScrollAt = 0;
+
+  const emitAtBottom = (value: boolean): void => {
+    if (value === lastAtBottom) return;
+    lastAtBottom = value;
+    props.onAtBottomChange?.(value);
+  };
 
   const readPhase = () => {
     const el = scrollEl;
@@ -898,7 +908,6 @@ export function ChatRoot(props: ChatRootProps) {
       if (nowAtBottom) {
         if (!prevAtBottom) {
           setAnchor({ kind: 'tail' });
-          props.onAtBottomChange?.(true);
         }
       } else {
         const pt = padTop();
@@ -912,10 +921,8 @@ export function ChatRoot(props: ChatRootProps) {
             offset: st - (virt.top(anchorUnitIdx) + pt),
           });
         }
-        if (prevAtBottom) {
-          props.onAtBottomChange?.(false);
-        }
       }
+      emitAtBottom(nowAtBottom);
     }
 
     if (st <= REACH_START_THRESHOLD_PX) {
@@ -1007,6 +1014,8 @@ export function ChatRoot(props: ChatRootProps) {
       pin: nextPin,
     };
     commit(next, nextVisible);
+
+    emitAtBottom(maxScrollTop() - shadowScrollTop <= STICK_THRESHOLD_PX);
 
     // Emit active-user-message visibility change when the state flips.
     if (props.onActiveUserMessageVisibilityChange) {
@@ -1434,6 +1443,7 @@ export function ChatRoot(props: ChatRootProps) {
           // Reset visibility cache so the next writePhase re-emits for the new
           // conversation, even if the boolean value happens to be the same.
           lastActiveUserVisible = undefined;
+          lastAtBottom = undefined;
           // Load the incoming model's scroll intent and project it onto the DOM.
           attach(next);
           needsProject = true;
@@ -1455,7 +1465,7 @@ export function ChatRoot(props: ChatRootProps) {
   const activeTurnItemIds = createMemo(() => {
     const active = state().transcript.state.activeTurn;
     if (!active) return new Set<string>();
-    return new Set(active.map((i) => i.id));
+    return new Set(active.map((i: ChatItem) => i.id));
   });
 
   const currentMessageId = createMemo<string | null>(() => {

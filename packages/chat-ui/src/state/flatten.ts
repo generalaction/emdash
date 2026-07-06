@@ -41,7 +41,8 @@
 import { resolveSeamGap } from '@core/spacing';
 import type { GroupChrome, Margin, RenderUnit, SegmentCtx } from '@core/units';
 import { stampGroupRoles } from '@core/units';
-import type { ChatItem, ChatMessage } from '@/model';
+import type { ChatItem, ChatMessage, TranscriptTurn, TurnOutcomeItem, WorkingItem } from '@/model';
+import { orderedItems, orderedTurns } from './transcript';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,8 @@ function itemIsUser(item: ChatItem): boolean {
  * equals `item.id`, in the original transcript order.
  */
 export type ItemNode = {
-  item: ChatItem;
+  // oxlint-disable-next-line typescript/no-explicit-any -- render-unit tree contains presentation payloads
+  item: any;
   children: ItemNode[];
 };
 
@@ -115,15 +117,15 @@ export type NodeSegmenter = {
  * the parent's composite unit and skipped in the top-level iteration.
  */
 export function flattenTier(
-  items: readonly ChatItem[],
+  turns: readonly (TranscriptTurn | ChatItem)[],
   ctx: SegmentCtx,
   segmenters: Record<
     string,
-    { segment(item: ChatItem, ctx: SegmentCtx): RenderUnit[]; chrome?: GroupChrome }
+    { segment(item: ChatItem | WorkingItem | TurnOutcomeItem, ctx: SegmentCtx): RenderUnit[]; chrome?: GroupChrome }
   >,
   unitDefs?: Record<string, { margin?: Margin }>,
   prevKind?: string,
-  nodeSegmenters?: Record<string, NodeSegmenter>
+  _nodeSegmenters?: Record<string, NodeSegmenter>
 ): RenderUnit[] {
   const out: RenderUnit[] = [];
 
@@ -133,41 +135,14 @@ export function flattenTier(
   // Track the kind of the last emitted unit for seam resolution.
   let lastKind = prevKind;
 
-  // Build the forest when node segmenters are provided so that parent items
-  // are routed to the composite path and child items are skipped.
-  let childIds: Set<string> | undefined;
-  let nodes: Map<string, ItemNode> | undefined;
-  if (nodeSegmenters && items.length > 0) {
-    const forest = buildItemForest(items);
-    if (forest.childIds.size > 0) {
-      childIds = forest.childIds;
-      nodes = forest.nodes;
-    }
-  }
-
-  for (const item of items) {
-    // Skip items that are children of another item in this tier.
-    if (childIds?.has(item.id)) continue;
-
-    // Route parent items (those with children) to the node segmenter.
-    const node = nodes?.get(item.id);
-    const nodeSeg = node && node.children.length > 0 ? nodeSegmenters?.[item.kind] : undefined;
-
-    let group: RenderUnit[];
-    let chrome: GroupChrome | undefined;
-
-    if (nodeSeg) {
-      group = nodeSeg.segmentNode(node!, ctx);
-      chrome = nodeSeg.chrome;
-    } else {
-      const seg = segmenters[item.kind];
-      if (!seg) continue;
-      group = seg.segment(item, ctx);
-      chrome = seg.chrome;
-    }
+  const processItem = (item: ChatItem | WorkingItem | TurnOutcomeItem): void => {
+    const seg = segmenters[item.kind];
+    if (!seg) return;
+    const group = seg.segment(item, ctx);
+    const chrome = seg.chrome;
 
     stampGroupRoles(group);
-    if (group.length === 0) continue;
+    if (group.length === 0) return;
 
     // Copy chrome from the segmenter onto each unit (allows UnitRow to read it
     // without looking up the segmenter). The chrome value is stable (segmenter
@@ -186,9 +161,46 @@ export function flattenTier(
 
     lastKind = group[group.length - 1].kind;
     out.push(...group);
+  };
+
+  const normalizedTurns = normalizeTurnsForFlatten(turns);
+  for (const turn of orderedTurns(normalizedTurns)) {
+    const items = orderedItems(turn.items);
+    for (const item of items) {
+      processItem(item);
+    }
+
+    if (ctx.active && shouldShowWorking(items)) {
+      processItem({ kind: 'working', id: `${turn.id}:working` });
+    }
+
+    if (!ctx.active && turn.outcome && turn.outcome.kind !== 'done') {
+      processItem({ kind: 'turn-outcome', id: `${turn.id}:outcome`, outcome: turn.outcome });
+    }
   }
 
   return out;
+}
+
+function normalizeTurnsForFlatten(turns: readonly (TranscriptTurn | ChatItem)[]): TranscriptTurn[] {
+  if (turns.every((turn) => 'items' in turn)) return turns as TranscriptTurn[];
+  return [
+    {
+      id: 'flatten-compat-turn',
+      seq: 0,
+      initiator: 'user',
+      items: turns as TranscriptTurn['items'],
+    },
+  ];
+}
+
+function shouldShowWorking(items: readonly ChatItem[]): boolean {
+  return !items.some(
+    (item) =>
+      item.kind === 'thinking' ||
+      item.kind !== 'message' ||
+      (item.kind === 'message' && item.role === 'assistant')
+  );
 }
 
 // ── UnitsView ─────────────────────────────────────────────────────────────────
@@ -229,11 +241,16 @@ export function makeUnitsView(committed: RenderUnit[], active: RenderUnit[]): Un
  * Accepts the committed items array directly (no longer needs the full
  * TranscriptState) and a UnitsView for index lookup.
  */
-export function collectUserTurnUnits(committed: readonly ChatItem[], units: UnitsView): number[] {
+export function collectUserTurnUnits(
+  committed: readonly (TranscriptTurn | ChatItem)[],
+  units: UnitsView
+): number[] {
   // Build a set of itemIds for committed user messages.
   const userItemIds = new Set<string>();
-  for (const item of committed) {
-    if (itemIsUser(item)) userItemIds.add(item.id);
+  for (const turn of normalizeTurnsForFlatten(committed)) {
+    for (const item of turn.items) {
+      if (itemIsUser(item)) userItemIds.add(item.id);
+    }
   }
 
   if (userItemIds.size === 0) return [];

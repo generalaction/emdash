@@ -318,9 +318,9 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const [composerSlot, setComposerSlot] = useState<HTMLElement | null>(null);
   const [overlaySlot, setOverlaySlot] = useState<HTMLElement | null>(null);
   const [viewer, setViewer] = useState<{ src?: string; alt?: string } | null>(null);
-  // True while the latest user message is visible in the viewport. Defaults to
-  // true so the button does not flash on mount before the first frame fires.
-  const [activeUserVisible, setActiveUserVisible] = useState(true);
+  // True while the scroll viewport is at the tail. Defaults to true so the
+  // button does not flash on mount before the first frame fires.
+  const [atBottom, setAtBottom] = useState(true);
 
   const handleReady = useCallback((view: ChatView) => {
     viewRef.current = view;
@@ -386,7 +386,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         pinUserMessages
         onReady={handleReady}
         commands={transcriptCommands}
-        onActiveUserMessageVisibilityChange={setActiveUserVisible}
+        onAtBottomChange={setAtBottom}
         style={{ position: 'absolute', inset: 0 }}
       />
 
@@ -431,7 +431,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       )}
 
       {composerSlot &&
-        !activeUserVisible &&
+        !atBottom &&
         createPortal(
           <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center">
             <Button

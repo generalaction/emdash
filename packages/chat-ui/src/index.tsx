@@ -55,21 +55,17 @@ export type {
   FileOpKind,
   FileOp,
   ToolStatus,
+  TranscriptTurn,
+  TranscriptItem,
+  ToolNode,
+  AcpPermissionRequest,
+  PlanState,
 } from './model';
 
 // ── Transcript API ────────────────────────────────────────────────────────────
 
 export type { TurnStatus, TranscriptApi, ChatHistory, ActiveTurn } from './state/transcript';
 export { createTranscript } from './state/transcript';
-export type { ActiveTurnEvent } from './state/turn-reducer';
-export { applyTurnEvent, finalizeTurn } from './state/turn-reducer';
-export { createStreamSmoother } from './state/stream-smoother';
-export type {
-  StreamSmoother,
-  StreamSmootherOptions,
-  SmootherScheduler,
-  TranscriptEvent,
-} from './state/stream-smoother';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 

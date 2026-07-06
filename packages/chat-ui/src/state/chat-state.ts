@@ -32,10 +32,11 @@
  * conversationId in AcpChatPanel) — this assumption is intentional.
  */
 
-import { createRoot, createSignal } from 'solid-js';
+import { createMemo, createRoot, createSignal } from 'solid-js';
 import type { ChatContext } from '../chat-context';
 import { createParseCaches } from '../core/caches';
 import type { ParseCaches } from '../core/caches';
+import type { AcpPermissionRequest, PlanState } from '../model';
 import { createTranscript } from './transcript';
 import type { TranscriptApi } from './transcript';
 import { createViewState } from './view-state';
@@ -68,6 +69,20 @@ export type HeightmapStore = {
   lastWidth: number;
 };
 
+export type ChatSessionState = {
+  readonly permissions: {
+    get(): readonly AcpPermissionRequest[];
+    set(permissions: readonly AcpPermissionRequest[]): void;
+  };
+  readonly plan: {
+    get(): PlanState | null;
+    set(plan: PlanState | null): void;
+  };
+  readonly pendingToolCallIds: {
+    get(): Set<string>;
+  };
+};
+
 export type ChatState = {
   /** Reactive transcript (history + active turn + turn status). */
   readonly transcript: TranscriptApi;
@@ -87,6 +102,9 @@ export type ChatState = {
    * Lives here (not in ChatRoot) so it survives tab switches.
    */
   readonly viewState: ViewState;
+
+  /** Reactive session-level slices resolved by row renderers. */
+  readonly session: ChatSessionState;
 
   /**
    * The id of the single currently-expanded user message card, or null.
@@ -147,6 +165,7 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
   let transcript!: TranscriptApi;
   let parseCaches!: ParseCaches;
   let viewState!: ViewState;
+  let session!: ChatSessionState;
   let getExpandedUserId!: () => string | null;
   let setExpandedUserId!: (id: string | null) => void;
   let disposeRoot!: () => void;
@@ -157,6 +176,7 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
     parseCaches = createParseCaches(ctx.mentionProvider, ctx.commandProvider, opts?.uri);
     viewState = createViewState();
     [getExpandedUserId, setExpandedUserId] = createSignal<string | null>(null);
+    session = createSessionState();
   });
 
   // Scroll mode — plain mutable value; not reactive (ChatRoot reads it once on
@@ -189,6 +209,7 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
     parseCaches,
     uri: opts?.uri,
     viewState,
+    session,
     expandedUserId: {
       get: getExpandedUserId,
       set: setExpandedUserId,
@@ -203,6 +224,32 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
     dispose() {
       parseCaches.clearAll();
       disposeRoot();
+    },
+  };
+}
+
+function createSessionState(): ChatSessionState {
+  const [permissions, setPermissions] = createSignal<readonly AcpPermissionRequest[]>([]);
+  const [plan, setPlan] = createSignal<PlanState | null>(null);
+  const pendingToolCallIds = createMemo(() => {
+    const ids = new Set<string>();
+    for (const request of permissions()) {
+      ids.add(request.toolCall.toolCallId);
+    }
+    return ids;
+  });
+
+  return {
+    permissions: {
+      get: permissions,
+      set: (next) => setPermissions([...next]),
+    },
+    plan: {
+      get: plan,
+      set: setPlan,
+    },
+    pendingToolCallIds: {
+      get: pendingToolCallIds,
     },
   };
 }

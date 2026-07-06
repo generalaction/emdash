@@ -206,7 +206,7 @@ export const Streaming: Story = {
             kind: 'call' as const,
             fn: (api) => {
               api.activeTurn.set(
-                (api.activeTurn.get() ?? []).map((it) =>
+                (api.activeTurn.get() ?? []).map((it: any) =>
                   it.id === 'p1' ? { ...it, status: 'done' } : it
                 ),
                 'generating'

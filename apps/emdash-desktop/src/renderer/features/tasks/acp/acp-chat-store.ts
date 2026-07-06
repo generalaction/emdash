@@ -1,12 +1,11 @@
 import type {
   ChatContext,
-  ChatImageAttachment,
-  ChatMessage,
   ChatState,
   ChatView,
+  TranscriptTurn,
 } from '@emdash/chat-ui';
 import { createChatState, pinTopMode } from '@emdash/chat-ui';
-import type { PromptInput, QueuedPrompt } from '@emdash/core/acp/client';
+import type { AttachmentRef, PromptInput, QueuedPrompt } from '@emdash/core/acp/client';
 import type {
   CommandItem,
   ComposerEffortOption,
@@ -25,7 +24,6 @@ import {
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { conversationRegistry } from '../stores/conversation-registry';
-import { mapTranscriptTurn, mapTranscriptTurns } from './acp-live-mapper';
 
 export type AcpChatLifecycle =
   | 'idle'
@@ -232,14 +230,22 @@ export class AcpChatStore {
   submitPrompt(text: string, images?: AcpPromptImage[]): void {
     if (!this.affordances.isWorking) {
       const optimisticId = `optimistic:user:${Date.now()}`;
-      const optimistic: ChatMessage = {
-        kind: 'message',
-        id: optimisticId,
-        role: 'user',
-        text,
-        attachments: images?.map(toChatImageAttachment),
+      const optimistic: TranscriptTurn = {
+        id: `optimistic:turn:${Date.now()}`,
+        seq: Number.MAX_SAFE_INTEGER,
+        initiator: 'user',
+        items: [
+          {
+            kind: 'message',
+            id: optimisticId,
+            seq: 0,
+            role: 'user',
+            text,
+            attachments: images?.map(toAttachmentRef),
+          },
+        ],
       };
-      this.chatState.transcript.activeTurn.set([optimistic], 'generating');
+      this.chatState.transcript.activeTurn.set(optimistic);
       this._syncMessageCount();
       const pinMode = pinTopMode(optimisticId);
       this._view?.setScrollMode(pinMode);
@@ -336,8 +342,10 @@ export class AcpChatStore {
       runInAction(() => {
         this.session?.dispose();
         this.session = clientSession;
-        this.chatState.transcript.history.seed(mapTranscriptTurns(history.data.turns));
+        this.chatState.transcript.history.seed(history.data.turns);
+        this.chatState.transcript.activeTurn.set(clientSession.activeTurn.getSnapshot() ?? null);
         this._subscribeLiveSession(clientSession);
+        this._syncSessionState(clientSession);
         this.historyLoading = false;
         this.loadError = null;
         this._syncMessageCount();
@@ -399,15 +407,22 @@ export class AcpChatStore {
   private _subscribeLiveSession(session: AcpLiveSession): void {
     this._unsubs.splice(0).forEach((unsub) => unsub());
     this._unsubs.push(
-      session.sessionState.subscribe(() => runInAction(() => this._syncMessageCount())),
+      session.sessionState.subscribe(() =>
+        runInAction(() => {
+          this._syncSessionState(session);
+          this._syncMessageCount();
+        })
+      ),
       session.config.subscribe(() => runInAction(() => {})),
+      session.plan.subscribe(() =>
+        runInAction(() => {
+          this.chatState.session.plan.set(session.plan.getSnapshot() ?? null);
+        })
+      ),
       session.activeTurn.subscribe(() => {
         const turn = session.activeTurn.getSnapshot();
         runInAction(() => {
-          this.chatState.transcript.activeTurn.set(
-            turn ? mapTranscriptTurn(turn, { active: true }) : null,
-            turn ? 'generating' : 'done'
-          );
+          this.chatState.transcript.activeTurn.set(turn ?? null);
           if (!turn) void this._refreshHistory();
           this._syncMessageCount();
         });
@@ -419,9 +434,15 @@ export class AcpChatStore {
     const history = await this.session?.getHistory(undefined, 100);
     if (!history?.success) return;
     runInAction(() => {
-      this.chatState.transcript.history.seed(mapTranscriptTurns(history.data.turns));
+      this.chatState.transcript.history.seed(history.data.turns);
       this._syncMessageCount();
     });
+  }
+
+  private _syncSessionState(session: AcpLiveSession): void {
+    const state = session.sessionState.getSnapshot();
+    this.chatState.session.permissions.set(state?.pendingPermissions ?? []);
+    this.chatState.session.plan.set(session.plan.getSnapshot() ?? null);
   }
 
   private _syncMessageCount(): void {
@@ -438,11 +459,11 @@ export class AcpChatStore {
   }
 }
 
-function toChatImageAttachment(img: AcpPromptImage): ChatImageAttachment {
+function toAttachmentRef(img: AcpPromptImage): AttachmentRef {
   return {
     id: crypto.randomUUID(),
     name: img.name ?? 'image',
-    dataUrl: `data:${img.mimeType};base64,${img.data}`,
+    mimeType: img.mimeType as AttachmentRef['mimeType'],
   };
 }
 

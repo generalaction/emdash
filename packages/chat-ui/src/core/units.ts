@@ -29,7 +29,7 @@
  */
 
 import type { Component } from 'solid-js';
-import type { ChatItem } from '@/model';
+import type { ChatItem, PlanState } from '@/model';
 import type { ChatCaches } from './caches';
 import type { MeasureCtx, RenderCtx } from './define';
 import type { Margin } from './spacing';
@@ -114,6 +114,9 @@ export type GroupChrome = {
 export type SegmentCtx = {
   caches: ChatCaches;
   expanded: (id: string) => boolean;
+  active?: boolean;
+  plan?: () => PlanState | null;
+  pendingToolCallIds?: () => Set<string>;
 };
 
 // ── UnitDef ───────────────────────────────────────────────────────────────────
