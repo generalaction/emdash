@@ -7,7 +7,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import { TooltipProvider } from '@renderer/lib/ui/tooltip';
 import type { AgentIconAsset } from '@shared/core/agents/agent-payload';
-import type { IssueProviderType } from '@shared/issue-providers';
+import type { ConnectionStatus, IssueProviderType } from '@shared/issue-providers';
 import { IntegrationDetailSidebar } from './IntegrationDetailSidebar';
 import { IntegrationGridCard } from './IntegrationGridCard';
 
@@ -71,7 +71,7 @@ const IntegrationsCard: React.FC = () => {
     .filter(isIssueIntegration)
     .map((integration) => {
       const provider = integration.id;
-      const status = connectionStatus[provider] ?? {
+      const status: ConnectionStatus = connectionStatus[provider] ?? {
         connected: false,
         capabilities: integration.capabilities,
       };
@@ -113,7 +113,9 @@ const IntegrationsCard: React.FC = () => {
           confirmDisconnect({
             name: integration.name,
             credential: integration.disconnectCredentialLabel,
-            onDisconnect: () => disconnectIntegration(provider),
+            onDisconnect: () => {
+              void disconnectIntegration(provider);
+            },
           }),
       };
     });

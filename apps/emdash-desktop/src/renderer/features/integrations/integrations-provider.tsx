@@ -11,7 +11,8 @@ export type IntegrationMetadata = Awaited<ReturnType<typeof rpc.integrations.lis
 
 type ConnectionStatusByIntegration = Partial<Record<string, ConnectionStatus>>;
 
-type ConnectionMutationResult = { success?: boolean; error?: string } | null | undefined;
+type ConnectionMutationResult = { success: true } | { success: false; error: string };
+type RawConnectionMutationResult = { success: boolean; error?: string };
 
 type IntegrationsContextValue = {
   integrations: IntegrationMetadata[];
@@ -20,8 +21,11 @@ type IntegrationsContextValue = {
   configuredConnections: Partial<Record<string, boolean>>;
   isCheckingConfiguredConnections: boolean;
   isCheckingConnections: boolean;
-  connectIntegration: (integrationId: string, input: IntegrationFormInput) => Promise<void>;
-  disconnectIntegration: (integrationId: string) => Promise<void>;
+  connectIntegration: (
+    integrationId: string,
+    input: IntegrationFormInput
+  ) => Promise<ConnectionMutationResult>;
+  disconnectIntegration: (integrationId: string) => Promise<ConnectionMutationResult>;
   isIntegrationMutating: (integrationId: string) => boolean;
 };
 
@@ -89,15 +93,16 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
   const runConnectionMutation = useCallback(
     async (
       integrationId: string,
-      mutation: () => Promise<ConnectionMutationResult>,
+      mutation: () => Promise<RawConnectionMutationResult>,
       fallbackError: string
-    ) => {
+    ): Promise<ConnectionMutationResult> => {
       setIntegrationMutating(integrationId, true);
       try {
         const result = await mutation();
-        if (!result?.success) {
-          throw new Error(result?.error || fallbackError);
+        if (!result.success) {
+          return { success: false, error: result.error || fallbackError };
         }
+        return { success: true };
       } finally {
         setIntegrationMutating(integrationId, false);
         invalidateStatuses();
@@ -136,7 +141,10 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     [integrations, statusData]
   );
   const integrationById = useMemo(
-    () => Object.fromEntries(integrations.map((integration) => [integration.id, integration])),
+    () =>
+      Object.fromEntries(
+        integrations.map((integration: IntegrationMetadata) => [integration.id, integration])
+      ),
     [integrations]
   );
 

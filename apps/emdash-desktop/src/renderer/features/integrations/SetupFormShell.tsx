@@ -38,7 +38,12 @@ export function SetupFormShell({
     setError(null);
 
     try {
-      await connectIntegration(providerId, getInput());
+      const result = await connectIntegration(providerId, getInput());
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+
       toast({
         title: 'Integration connected',
         description: 'Integration set up successfully.',

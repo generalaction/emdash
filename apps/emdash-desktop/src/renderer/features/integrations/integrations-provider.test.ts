@@ -12,6 +12,8 @@ import { IntegrationsProvider, useIntegrationsContext } from './integrations-pro
 const mocks = vi.hoisted(() => ({
   checkAllConnections: vi.fn(),
   checkConfiguredConnections: vi.fn(),
+  connectIntegration: vi.fn(),
+  disconnectIntegration: vi.fn(),
   listIntegrations: vi.fn(),
 }));
 
@@ -23,8 +25,8 @@ vi.mock('@renderer/lib/ipc', () => ({
     },
     integrations: {
       list: mocks.listIntegrations,
-      connect: vi.fn(),
-      disconnect: vi.fn(),
+      connect: mocks.connectIntegration,
+      disconnect: mocks.disconnectIntegration,
     },
   },
 }));
@@ -34,8 +36,24 @@ type ProbeState = {
   linearIsMutating: boolean;
 };
 
-function Probe({ onRender }: { onRender: (state: ProbeState) => void }) {
-  const { isCheckingConnections, isIntegrationMutating } = useIntegrationsContext();
+type ProbeActions = {
+  connectIntegration: (
+    integrationId: string,
+    input: Record<string, string>
+  ) => Promise<{ success: boolean; error?: string }>;
+};
+
+function Probe({
+  onActions,
+  onRender,
+}: {
+  onActions?: (actions: ProbeActions) => void;
+  onRender: (state: ProbeState) => void;
+}) {
+  const { connectIntegration, isCheckingConnections, isIntegrationMutating } =
+    useIntegrationsContext();
+
+  onActions?.({ connectIntegration });
 
   onRender({
     isCheckingConnections,
@@ -56,12 +74,16 @@ describe('IntegrationsProvider', () => {
   let root: Root;
   let container: HTMLDivElement;
   let queryClient: QueryClient;
+  let actions: ProbeActions | null;
   let latest: ProbeState | null;
 
   beforeEach(() => {
+    actions = null;
     latest = null;
     mocks.checkAllConnections.mockReturnValue(new Promise(() => {}));
     mocks.checkConfiguredConnections.mockResolvedValue({});
+    mocks.connectIntegration.mockResolvedValue({ success: true });
+    mocks.disconnectIntegration.mockResolvedValue({ success: true });
     mocks.listIntegrations.mockResolvedValue([]);
 
     queryClient = new QueryClient({
@@ -109,6 +131,69 @@ describe('IntegrationsProvider', () => {
 
     expect(mocks.checkAllConnections).toHaveBeenCalled();
     expect(latest?.isCheckingConnections).toBe(true);
+    expect(latest?.linearIsMutating).toBe(false);
+  });
+
+  it('returns expected connection failures without throwing', async () => {
+    mocks.connectIntegration.mockResolvedValue({ success: false, error: 'Invalid token' });
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(
+            IntegrationsProvider,
+            null,
+            React.createElement(Probe, {
+              onActions: (probeActions) => (actions = probeActions),
+              onRender: (state) => (latest = state),
+            })
+          )
+        )
+      );
+    });
+
+    let result: Awaited<ReturnType<ProbeActions['connectIntegration']>> | undefined;
+    await act(async () => {
+      result = await actions?.connectIntegration('linear', { apiKey: 'bad-key' });
+    });
+
+    expect(result).toEqual({ success: false, error: 'Invalid token' });
+    expect(latest?.linearIsMutating).toBe(false);
+  });
+
+  it('propagates unexpected connection errors', async () => {
+    const unexpectedError = new Error('IPC failed');
+    mocks.connectIntegration.mockRejectedValue(unexpectedError);
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(
+            IntegrationsProvider,
+            null,
+            React.createElement(Probe, {
+              onActions: (probeActions) => (actions = probeActions),
+              onRender: (state) => (latest = state),
+            })
+          )
+        )
+      );
+    });
+
+    let thrown: unknown;
+    await act(async () => {
+      try {
+        await actions?.connectIntegration('linear', { apiKey: 'key' });
+      } catch (error) {
+        thrown = error;
+      }
+    });
+
+    expect(thrown).toBe(unexpectedError);
     expect(latest?.linearIsMutating).toBe(false);
   });
 });

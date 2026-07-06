@@ -39,7 +39,8 @@ export function IssueIdentifier({
   issue: Pick<LinkedIssue, 'identifier' | 'displayIdentifier'>;
   className?: string;
 }) {
-  const identifier = getIssueDisplayIdentifier(issue);
+  const identifier =
+    issue.displayIdentifier === null ? null : (issue.displayIdentifier ?? issue.identifier);
   if (!identifier) return null;
 
   return (
@@ -52,13 +53,6 @@ export function IssueIdentifier({
       {identifier}
     </span>
   );
-}
-
-export function getIssueDisplayIdentifier(
-  issue: Pick<LinkedIssue, 'identifier' | 'displayIdentifier'>
-): string | null {
-  if (issue.displayIdentifier === null) return null;
-  return issue.displayIdentifier ?? issue.identifier;
 }
 
 export function ProviderLogo({

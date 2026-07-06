@@ -45,11 +45,7 @@ import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { AutomationRunPill } from './components/automation-run-pill';
-import {
-  getIssueDisplayIdentifier,
-  IssueSelector,
-  ProviderLogo,
-} from './components/issue-selector/issue-selector';
+import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
 import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
 import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
@@ -420,7 +416,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
 });
 
 function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
-  const displayIdentifier = getIssueDisplayIdentifier(issue);
+  const displayIdentifier =
+    issue.displayIdentifier === null ? null : (issue.displayIdentifier ?? issue.identifier);
 
   return (
     <Tooltip>
