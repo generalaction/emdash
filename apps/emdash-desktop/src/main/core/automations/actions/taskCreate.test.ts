@@ -77,7 +77,7 @@ const automation: Automation = {
   triggerConfig: { expr: '0 9 * * *', tz: 'UTC' },
   conversationConfig: { prompt: 'Check things', provider: 'claude', autoApprove: false },
   taskConfig: {
-    version: '1' as const,
+    version: '2' as const,
     taskConfig: {
       version: '1',
       name: 'Stored task',
@@ -276,6 +276,27 @@ describe('executeTaskCreate', () => {
       expect.objectContaining({
         workspaceConfig: expect.objectContaining({
           git: expect.objectContaining({ branchName: 'jolly-tiger-runs-fast' }),
+        }),
+      })
+    );
+  });
+
+  it('uses the stored branch name override when present', async () => {
+    vi.mocked(generateRandom).mockReturnValue('jolly-tiger-runs-fast');
+
+    await executeTaskCreate(
+      {
+        ...automation,
+        taskConfig: { ...automation.taskConfig!, branchNameOverride: 'stored-task-branch' },
+      },
+      run,
+      noopStep
+    );
+
+    expect(prepareCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceConfig: expect.objectContaining({
+          git: expect.objectContaining({ branchName: 'stored-task-branch' }),
         }),
       })
     );

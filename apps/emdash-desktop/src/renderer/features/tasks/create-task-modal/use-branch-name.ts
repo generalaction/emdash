@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { normalizeTaskName } from '@renderer/utils/taskNames';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
 
 export type BranchNameState = {
   branchName: string;
+  customBranchNameSeed: string;
   setBranchName: (value: string) => void;
+  resetBranchName: () => void;
   isUserModified: boolean;
   branchAlreadyExists: boolean;
 };
@@ -16,8 +19,9 @@ export function useBranchName(opts: {
   linkedIssue?: LinkedIssue | null;
   projectId?: string;
   resetKey?: unknown;
+  initialBranchName?: string;
 }): BranchNameState {
-  const { taskName, linkedIssue, projectId, resetKey } = opts;
+  const { taskName, linkedIssue, projectId, resetKey, initialBranchName } = opts;
 
   const { value: project } = useAppSettingsKey('project');
   const branchPrefix = project?.branchPrefix ?? '';
@@ -39,8 +43,8 @@ export function useBranchName(opts: {
     [branchPrefix, appendRandomSuffix, suffix, linkedIssue]
   );
 
-  const [userValue, setUserValue] = useState<string | undefined>(undefined);
-  const [isUserModified, setIsUserModified] = useState(false);
+  const [userValue, setUserValue] = useState<string | undefined>(initialBranchName);
+  const [isUserModified, setIsUserModified] = useState(Boolean(initialBranchName));
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
   const [prevLinkedIssue, setPrevLinkedIssue] = useState(linkedIssue);
 
@@ -48,8 +52,8 @@ export function useBranchName(opts: {
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey);
     setPrevLinkedIssue(linkedIssue);
-    setUserValue(undefined);
-    setIsUserModified(false);
+    setUserValue(initialBranchName);
+    setIsUserModified(Boolean(initialBranchName));
   }
 
   // When the linked issue changes (user selects a different issue), clear user override.
@@ -60,10 +64,16 @@ export function useBranchName(opts: {
   }
 
   const branchName = userValue !== undefined ? userValue : derive(taskName);
+  const customBranchNameSeed = normalizeTaskName(taskName);
 
   const setBranchName = useCallback((value: string) => {
     setUserValue(value);
     setIsUserModified(true);
+  }, []);
+
+  const resetBranchName = useCallback(() => {
+    setUserValue(undefined);
+    setIsUserModified(false);
   }, []);
 
   // Pre-flight: check against the already-loaded local branch list in the repository store.
@@ -72,5 +82,12 @@ export function useBranchName(opts: {
     branchName.trim().length > 0 &&
     (repo?.localBranches.some((b) => b.branch === branchName) ?? false);
 
-  return { branchName, setBranchName, isUserModified, branchAlreadyExists };
+  return {
+    branchName,
+    customBranchNameSeed,
+    setBranchName,
+    resetBranchName,
+    isUserModified,
+    branchAlreadyExists,
+  };
 }

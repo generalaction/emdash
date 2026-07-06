@@ -18,6 +18,7 @@ import { resolveAutomationAgentAutoApprove } from '@shared/core/agents/agent-aut
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
+import type { StoredAutomationTaskConfig } from '@shared/core/automations/config';
 import type { CreateTaskParams } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import {
@@ -39,11 +40,17 @@ async function ensureProjectOpen(projectId: string) {
   return ok(project);
 }
 
-function scopeWorkspaceConfigToRun(config: WorkspaceConfig, taskName: string): WorkspaceConfig {
+function scopeWorkspaceConfigToRun(
+  config: WorkspaceConfig,
+  taskName: string,
+  branchNameOverride: StoredAutomationTaskConfig['branchNameOverride']
+): WorkspaceConfig {
+  const branchName = branchNameOverride?.trim() || taskName;
+
   const git = config.git;
-  if (git.kind === 'create-branch') return { ...config, git: { ...git, branchName: taskName } };
+  if (git.kind === 'create-branch') return { ...config, git: { ...git, branchName } };
   if (git.kind === 'pr-branch' && git.taskBranch)
-    return { ...config, git: { ...git, taskBranch: taskName } };
+    return { ...config, git: { ...git, taskBranch: branchName } };
   return config;
 }
 
@@ -82,7 +89,11 @@ export async function executeTaskCreate(
       onStepCompleted(failed);
       return err('no_workspace_config');
     }
-    const workspaceConfig = scopeWorkspaceConfigToRun(taskConfig.workspaceConfig, taskName);
+    const workspaceConfig = scopeWorkspaceConfigToRun(
+      taskConfig.workspaceConfig,
+      taskName,
+      taskConfig.branchNameOverride
+    );
 
     const provider = (automation.conversationConfig?.provider ||
       (await appSettingsService.get('defaultAgent')) ||

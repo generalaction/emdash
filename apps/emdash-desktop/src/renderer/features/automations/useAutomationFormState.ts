@@ -1,6 +1,7 @@
 import type { GitBranchRef } from '@emdash/core/git';
 import { useMemo, useState } from 'react';
 import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
+import { normalizeTaskName } from '@renderer/utils/taskNames';
 import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/core/automations/config';
@@ -29,6 +30,7 @@ function workspaceInitialFromConfig(
 ): WorkspaceConfigInitial & { fromBranch?: GitBranchRef; pushBranch?: boolean } {
   if (!config) return { mode: 'new-worktree', presetId: 'new-worktree' };
   const { git, workspace } = config.workspaceConfig;
+  const branchName = config.branchNameOverride;
 
   if (workspace.kind === 'byoi' || (workspace as { host?: string }).host === 'byoi') {
     return { mode: 'sandbox', presetId: 'sandbox' };
@@ -40,6 +42,7 @@ function workspaceInitialFromConfig(
       presetId: 'new-worktree',
       fromBranch: git.fromBranch,
       pushBranch: git.pushBranch,
+      branchName,
     };
   }
 
@@ -49,13 +52,14 @@ function workspaceInitialFromConfig(
         mode: 'existing',
         presetId: 'use-existing',
         selectedWorkspaceId: workspace.workspaceId,
+        branchName,
       };
     }
     // repo-root or unknown
-    return { mode: 'existing', presetId: 'repo-root' };
+    return { mode: 'existing', presetId: 'repo-root', branchName };
   }
 
-  return { mode: 'new-worktree', presetId: 'new-worktree' };
+  return { mode: 'new-worktree', presetId: 'new-worktree', branchName };
 }
 
 export type AutomationFormState = ReturnType<typeof useAutomationFormState>;
@@ -121,6 +125,7 @@ export function useAutomationFormState(
     generatedName: seedConfig?.taskConfig.name,
     resetKey: effectiveProjectId,
   });
+  const effectiveTaskName = taskName.effectiveTaskName || normalizeTaskName(name);
 
   const workspaceConfig = useWorkspaceConfig({
     projectId: effectiveProjectId,
@@ -129,7 +134,7 @@ export function useAutomationFormState(
     currentBranch,
     repositoryWorkspaceId,
     pr: null, // automations don't link PRs
-    taskName: taskName.effectiveTaskName || name,
+    taskName: effectiveTaskName,
     linkedIssue: null,
     createBranchAndWorktreeDefault: wsInitial.mode === 'new-worktree',
     resetKey: effectiveProjectId,
@@ -165,14 +170,19 @@ export function useAutomationFormState(
         : wsConfig;
 
     const result: StoredAutomationTaskConfig = {
-      version: '1',
+      version: '2',
       taskConfig: {
         version: '1',
-        name: taskName.effectiveTaskName?.trim() || name.trim(),
+        name: effectiveTaskName,
         linkedIssue: seedConfig?.taskConfig.linkedIssue,
         initialStatus: seedConfig?.taskConfig.initialStatus,
       },
       workspaceConfig: patchedConfig,
+      branchNameOverride:
+        workspaceConfig.branchNameState.isUserModified &&
+        workspaceConfig.branchNameState.branchName.trim()
+          ? workspaceConfig.branchNameState.branchName.trim()
+          : undefined,
     };
 
     // Strip MobX Proxy wrappers (e.g. fromBranch coming from getGitRepositoryStore)

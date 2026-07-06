@@ -37,8 +37,19 @@ const storedAutomationTaskConfigV1Schema = z.object({
   workspaceConfig: workspaceConfig.asNested(),
 });
 
+const storedAutomationTaskConfigV2Schema = z.object({
+  version: z.literal('2'),
+  taskConfig: taskConfig.asNested(),
+  workspaceConfig: workspaceConfig.asNested(),
+  branchNameOverride: z.string().optional(),
+});
+
 export const storedAutomationTaskConfig = defineVersionedSchema()
   .initial('1', storedAutomationTaskConfigV1Schema)
+  .version('2', storedAutomationTaskConfigV2Schema, (v1) => ({
+    ...v1,
+    version: '2' as const,
+  }))
   .build();
 
 export const storedAutomationTaskConfigSchema = storedAutomationTaskConfig.schema;
