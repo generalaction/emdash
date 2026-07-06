@@ -53,6 +53,8 @@ const TOOL_GROUP_VARS: ToolGroupVars = {
   childGap: 4,
 };
 
+const SUBAGENT_GROUP_BOTTOM_SPACER_H = 6;
+
 // ── Child dispatch table ──────────────────────────────────────────────────────
 //
 // Direct imports of leaf defs avoids a circular dependency on unit-registry.ts.
@@ -86,6 +88,14 @@ function isActiveItem(item: ChatItem): boolean {
   return (item as ChatToolCall).status === 'running';
 }
 
+function canShowCollapsedPreview(item: ChatItem): boolean {
+  return !isSubagentItem(item) && isActiveItem(item);
+}
+
+function subagentGroupBottomSpacerH(item: ChatItem): number {
+  return isSubagentItem(item) ? SUBAGENT_GROUP_BOTTOM_SPACER_H : 0;
+}
+
 /**
  * Recursively sum the measured heights of all children in `node`.
  * Gaps between consecutive children are included.
@@ -110,9 +120,13 @@ function childrenHeight(node: ItemNode, ctx: MeasureCtx, vars: ToolGroupVars): n
 function toolGroupUnitH(node: ItemNode, ctx: MeasureCtx, vars: ToolGroupVars): number {
   const hH = nodeHeaderH(node, ctx);
   const isExpanded = ctx.expanded(node.item.id);
-  const isRunning = isActiveItem(node.item);
+  const showPreview = canShowCollapsedPreview(node.item);
   const chH = childrenHeight(node, ctx, vars);
-  return hH + (isExpanded ? chH : isRunning ? Math.min(chH, vars.windowH) : 0);
+  return (
+    hH +
+    (isExpanded ? chH : showPreview ? Math.min(chH, vars.windowH) : 0) +
+    subagentGroupBottomSpacerH(node.item)
+  );
 }
 
 // ── ChildStack ────────────────────────────────────────────────────────────────
@@ -197,6 +211,7 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
     return item.kind;
   };
 
+  const showCollapsedPreview = () => canShowCollapsedPreview(props.data.item);
   const previewH = () => Math.min(chH(), props.vars.windowH);
   const childStack = () => (
     <Show
@@ -237,7 +252,7 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
       <Show
         when={isExpanded()}
         fallback={
-          <Show when={isActive() && chH() > 0}>
+          <Show when={showCollapsedPreview() && chH() > 0}>
             <PreviewWindow
               height={previewH()}
               maxH={props.vars.windowH}
@@ -251,6 +266,9 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
         }
       >
         {childStack()}
+      </Show>
+      <Show when={isSubagent()}>
+        <div style={{ height: `${SUBAGENT_GROUP_BOTTOM_SPACER_H}px` }} />
       </Show>
     </div>
   );
@@ -266,10 +284,14 @@ export const toolGroupUnitDef = defineUnit<ItemNode, ToolGroupVars>({
   estimate(node, ctx, vars): number {
     const hH = nodeHeaderH(node, ctx);
     const isExpanded = ctx.expanded(node.item.id);
-    const isRunning = isActiveItem(node.item);
+    const showPreview = canShowCollapsedPreview(node.item);
     // Approximate: 32px per child.
     const chH = node.children.length * ROW_H;
-    return hH + (isExpanded ? chH : isRunning ? Math.min(chH, vars.windowH) : 0);
+    return (
+      hH +
+      (isExpanded ? chH : showPreview ? Math.min(chH, vars.windowH) : 0) +
+      subagentGroupBottomSpacerH(node.item)
+    );
   },
 
   measure(node, ctx, vars): number {

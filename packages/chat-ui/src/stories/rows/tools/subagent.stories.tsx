@@ -97,6 +97,16 @@ function runningSubagentWithChildren(id: string): ToolNode {
   });
 }
 
+function spawningSubagentWithChildren(id: string): ToolNode {
+  return subagentNode('running', id, {
+    agentId: null,
+    children: [
+      searchNode(`${id}-search`, 1, 'failing CI shard logs', 'running'),
+      executeNode(`${id}-execute`, 2, 'pnpm test -- --runInBand'),
+    ],
+  });
+}
+
 function completedSubagentWithChildren(id: string): ToolNode {
   return subagentNode('done', id, {
     agentId: `agent-${id}`,
@@ -121,11 +131,20 @@ export const StateMatrix: Story = {
   ),
 };
 
-export const RunningCollapsedWithPreview: Story = {
+export const RunningCollapsedNoPreview: Story = {
   render: () => (
     <ChatHost
-      height={180}
+      height={120}
       items={[toolNodeTurn(runningSubagentWithChildren('subagent-running-collapsed'))]}
+    />
+  ),
+};
+
+export const SpawningCollapsedShimmer: Story = {
+  render: () => (
+    <ChatHost
+      height={120}
+      items={[toolNodeTurn(spawningSubagentWithChildren('subagent-spawning-collapsed'))]}
     />
   ),
 };

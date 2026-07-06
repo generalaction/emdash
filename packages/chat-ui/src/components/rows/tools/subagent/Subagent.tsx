@@ -13,6 +13,7 @@ import {
   subagentStatusRow,
   subagentStatusRowCollapsible,
 } from './subagent.css';
+import { textShimmer } from '@styles/effects.css';
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const SPINNER_INTERVAL_MS = 80;
@@ -63,7 +64,10 @@ export function SubagentHeader(props: {
     <div class={subagentHeader} style={{ height: `${props.height}px` }}>
       <div class={subagentNameRow}>
         <SubagentProgressIndicator phase={props.item.phase} />
-        <span class={subagentName} title={name()}>
+        <span
+          class={clsx(subagentName, props.item.status === 'running' && textShimmer)}
+          title={name()}
+        >
           {name()}
         </span>
       </div>
