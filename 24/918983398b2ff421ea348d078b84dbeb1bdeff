@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/commits-list.tsx
+  s_e4e398e8054f2e::t_0b0a423b25d357 3,142,162-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "24918983398b2ff421ea348d078b84dbeb1bdeff",
+  "prompts": {},
+  "sessions": {
+    "s_e4e398e8054f2e": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033koWvstgo1erBpFLh9cY",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
