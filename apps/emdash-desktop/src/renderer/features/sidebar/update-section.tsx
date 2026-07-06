@@ -13,11 +13,14 @@ export const UpdateSection = observer(function UpdateSection() {
       <Button
         variant="outline"
         size="xs"
-        onClick={() =>
+        onClick={() => {
           navigate('settings', {
             tab: 'general',
-          })
-        }
+          });
+          if (update.state.status === 'available') {
+            void update.download();
+          }
+        }}
       >
         Update
       </Button>
