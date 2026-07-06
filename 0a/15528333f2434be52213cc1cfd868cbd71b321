@@ -1,0 +1,56 @@
+apps/emdash-desktop/src/renderer/lib/pty/file-link-detection.ts
+  s_63f595e9ff54c4::t_702f4710c0a3d2 11-29,67,92-95
+  s_63f595e9ff54c4::t_ee3c8199421f3d 96-97
+apps/emdash-desktop/src/main/core/search/workspace-file-index-store.ts
+  s_bd61cc15b51ce3::t_2e40d2a9d4f54c 25,146-162
+  s_bd61cc15b51ce3::t_2130d919b5f324 163-164
+apps/emdash-desktop/src/main/core/search/controller.ts
+  s_bd61cc15b51ce3::t_2e40d2a9d4f54c 1-5,11-12
+apps/emdash-desktop/src/main/core/search/workspace-file-index-store.db.test.ts
+  s_bd61cc15b51ce3::t_2e40d2a9d4f54c 75-95
+apps/emdash-desktop/src/renderer/features/tasks/stores/open-file-in-file-editor.ts
+  s_bd61cc15b51ce3::t_2e40d2a9d4f54c 85-86
+apps/emdash-desktop/src/shared/core/search.ts
+  s_bd61cc15b51ce3::t_2e40d2a9d4f54c 28-32
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.ts
+  s_bd61cc15b51ce3::t_2e40d2a9d4f54c 106-109
+apps/emdash-desktop/src/main/core/search/search-service.ts
+  s_bd61cc15b51ce3::t_2e40d2a9d4f54c 70-73
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.test.ts
+  s_99d9e4f05c5e4f::t_0435154b3da4d3 22,34-36,39,266,329-331
+  s_99d9e4f05c5e4f::t_eb4a0dc13cf46a 332-333
+apps/emdash-desktop/src/renderer/tests/file-link-provider.test.ts
+  s_63f595e9ff54c4::t_702f4710c0a3d2 127-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a15528333f2434be52213cc1cfd868cbd71b321",
+  "prompts": {},
+  "sessions": {
+    "s_63f595e9ff54c4": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033krY0vxwQX2mAnME4slu",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_99d9e4f05c5e4f": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033kra19xwyMaCc0FBvzo3",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_bd61cc15b51ce3": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033krX4pgdGBPkZpBsOR6K",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
