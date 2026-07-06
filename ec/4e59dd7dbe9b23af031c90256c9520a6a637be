@@ -1,0 +1,48 @@
+apps/emdash-desktop/src/main/core/search/workspace-file-index-store.ts
+  s_ec236ab5c99b3a::t_afdde3a9abd84c 26,202-219
+  s_ec236ab5c99b3a::t_4cb529c4a6c2b5 220-221
+apps/emdash-desktop/src/renderer/tests/file-link-provider.test.ts
+  s_ec236ab5c99b3a::t_650b6cff971234 135-165
+apps/emdash-desktop/src/main/core/search/controller.ts
+  s_ec236ab5c99b3a::t_fe71d5baaf666b 1-5,13-14
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.test.ts
+  s_ec236ab5c99b3a::t_696bfe98e75c7e 22,34-36,39,266,329-331
+  s_99d9e4f05c5e4f::t_eb4a0dc13cf46a 332-333
+apps/emdash-desktop/src/main/core/search/workspace-file-index-store.db.test.ts
+  s_ec236ab5c99b3a::t_7aad84c1d9b6e6 75-89
+apps/emdash-desktop/src/renderer/features/tasks/stores/open-file-in-file-editor.ts
+  s_ec236ab5c99b3a::t_ba9668481e3970 85-86
+apps/emdash-desktop/src/shared/core/search.ts
+  s_ec236ab5c99b3a::t_e2435a2f3d7bf9 28-32
+apps/emdash-desktop/src/renderer/lib/pty/file-link-detection.ts
+  s_ec236ab5c99b3a::t_2bf2a84c4bb863 10-20,58,78-79
+  s_ec236ab5c99b3a::t_4553c2858f0b54 80-81
+apps/emdash-desktop/src/main/core/search/search-service.ts
+  s_ec236ab5c99b3a::t_9cbe72a8516408 70-73
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.ts
+  s_ec236ab5c99b3a::t_f2c1a04bf57b60 110-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ec4e59dd7dbe9b23af031c90256c9520a6a637be",
+  "prompts": {},
+  "sessions": {
+    "s_99d9e4f05c5e4f": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033kra19xwyMaCc0FBvzo3",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_ec236ab5c99b3a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f3845-b45c-7c16-889d-2355444c3ef9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
