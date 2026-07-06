@@ -45,7 +45,12 @@ export function createAcpRouter(runtime: AcpRuntime) {
       runtime.resolvePermission(input.conversationId, input.requestId, input.optionId)
     ),
     editCurrentPrompt: i.editCurrentPrompt.handler(notImplemented),
-    exportACPTranscript: i.exportACPTranscript.handler(notImplemented),
+    exportACPTranscript: i.exportACPTranscript.handler(({ input }) =>
+      runtime.exportParsedTranscript(input.conversationId)
+    ),
+    exportRawAcpLog: i.exportRawAcpLog.handler(({ input }) =>
+      runtime.exportRawAcpLog(input.conversationId)
+    ),
     uploadAttachment: i.uploadAttachment.handler(({ input }) => runtime.uploadAttachment(input)),
     downloadAttachment: i.downloadAttachment.handler(async ({ input }) => {
       const result = await runtime.downloadAttachment(input.id);

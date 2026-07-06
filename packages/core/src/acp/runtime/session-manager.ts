@@ -249,6 +249,18 @@ export class SessionManager implements InboundRouter {
     return this.cells.get(conversationId)?.cell.history() ?? { committed: [], active: null };
   }
 
+  exportParsedTranscript(conversationId: string): Result<string, AcpRuntimeError> {
+    const record = this.cells.get(conversationId);
+    if (!record) return acpErr.conversationNotFound(conversationId);
+    return ok(record.cell.exportParsedTranscript());
+  }
+
+  exportRawAcpLog(conversationId: string): Result<string, AcpRuntimeError> {
+    const record = this.cells.get(conversationId);
+    if (!record) return acpErr.conversationNotFound(conversationId);
+    return ok(record.cell.exportRawLog());
+  }
+
   getHistory(conversationId: string, before?: number, limit = 50): HistoryPage {
     const turns = this.getChatHistory(conversationId).committed;
     const filtered = before === undefined ? turns : turns.filter((turn) => turn.seq < before);
@@ -309,6 +321,11 @@ export class SessionManager implements InboundRouter {
       record.cell.setAcpSessionId(params.sessionId);
       this.registerRoute(connection.key, params.sessionId, conversationId);
     }
+    record.cell.recordRaw({
+      kind: 'session_update',
+      sessionId: params.sessionId,
+      update: params.update,
+    });
     this.applyRawMeta(record.cell, params.update);
     record.cell.push(event);
     this.syncRecord(record);

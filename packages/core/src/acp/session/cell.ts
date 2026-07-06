@@ -34,6 +34,7 @@ import type { NormalizedEvent } from '../reducer/normalized-event';
 import { AcpTranscriptParser } from '../reducer/parser';
 import type { SessionCellDeps, SessionPromptResult } from './cell-deps';
 import { PermissionBroker } from './permission-broker';
+import { RawAcpLog, type RawAcpEvent } from './raw-log';
 
 export interface AcpChatHistory {
   committed: TranscriptTurn[];
@@ -43,6 +44,7 @@ export interface AcpChatHistory {
 export class SessionCell {
   readonly machine: SessionMachine;
   readonly transcript: AcpTranscriptParser;
+  readonly rawLog: RawAcpLog;
   private readonly permissions = new PermissionBroker();
   private _acpSessionId: string;
   private quiesceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -52,6 +54,12 @@ export class SessionCell {
     this._acpSessionId = deps.acpSessionId;
     this.machine = new SessionMachine(deps.conversationId);
     this.transcript = new AcpTranscriptParser({ conversationId: deps.conversationId });
+    this.rawLog = new RawAcpLog({
+      conversationId: deps.conversationId,
+      providerId: deps.providerId,
+      acpSessionId: deps.acpSessionId,
+      createdAt: new Date().toISOString(),
+    });
   }
 
   get conversationId(): string {
@@ -64,6 +72,7 @@ export class SessionCell {
 
   setAcpSessionId(sessionId: string): void {
     this._acpSessionId = sessionId;
+    this.rawLog.setAcpSessionId(sessionId);
   }
 
   get sessionState(): SessionState {
@@ -79,6 +88,32 @@ export class SessionCell {
       committed: structuredClone([...this.transcript.history]),
       active: this.transcript.activeTurn ? structuredClone(this.transcript.activeTurn) : null,
     };
+  }
+
+  exportParsedTranscript(): string {
+    const history = this.history();
+    return JSON.stringify(
+      {
+        meta: {
+          conversationId: this.conversationId,
+          providerId: this.deps.providerId,
+          acpSessionId: this.acpSessionId,
+          exportedAt: new Date().toISOString(),
+        },
+        committed: history.committed,
+        active: history.active,
+      },
+      null,
+      2
+    );
+  }
+
+  recordRaw(event: RawAcpEvent): void {
+    this.rawLog.record(event);
+  }
+
+  exportRawLog(): string {
+    return this.rawLog.exportJson();
   }
 
   beginReplay(at = Date.now()): void {
@@ -207,6 +242,12 @@ export class SessionCell {
     }
     const dispatchResult = this.dispatch({ type: 'ResolvePermission', requestId, optionId });
     if (!dispatchResult.success) return dispatchResult;
+    this.rawLog.record({
+      kind: 'permission_resolved',
+      sessionId: this.acpSessionId,
+      requestId,
+      optionId,
+    });
     this.permissions.settle(requestId, optionId);
     return ok();
   }
@@ -222,6 +263,11 @@ export class SessionCell {
         kind: option.kind,
       })),
     };
+    this.rawLog.record({
+      kind: 'permission_request',
+      sessionId: params.sessionId,
+      request: params,
+    });
     this.applyEvent({ type: 'PermissionRequested', request });
     return this.permissions.request(request);
   }
@@ -354,7 +400,7 @@ export class SessionCell {
       const resolvedAttachments = await Promise.all(
         (prompt.attachments ?? []).map((attachment) => this.deps.resolveAttachment(attachment))
       );
-      const response = await this.deps.agent.prompt({
+      const promptRequest = {
         sessionId: this.acpSessionId,
         prompt: [
           ...resolvedAttachments.map((attachment) => ({
@@ -364,11 +410,27 @@ export class SessionCell {
           })),
           ...(prompt.text ? [{ type: 'text' as const, text: prompt.text }] : []),
         ],
+      };
+      this.rawLog.record({
+        kind: 'prompt',
+        sessionId: this.acpSessionId,
+        content: promptRequest.prompt,
+      });
+      const response = await this.deps.agent.prompt(promptRequest);
+      this.rawLog.record({
+        kind: 'prompt_result',
+        sessionId: this.acpSessionId,
+        stopReason: response.stopReason,
       });
       this.settleTurn(outcomeFromStopReason(response.stopReason));
       return ok({ queued: false });
     } catch (e) {
       const err = acpErr.promptFailed(toSerializedError(e));
+      this.rawLog.record({
+        kind: 'prompt_result',
+        sessionId: this.acpSessionId,
+        stopReason: null,
+      });
       this.settleTurn({ kind: 'error', reason: 'prompt_failed' });
       return err;
     }

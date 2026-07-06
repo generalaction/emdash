@@ -39,6 +39,10 @@ export class AcpChatResourceManager {
     return store;
   }
 
+  get(conversationId: string): AcpChatStore | undefined {
+    return this._entries.get(conversationId)?.store;
+  }
+
   release(conversationId: string): void {
     const entry = this._entries.get(conversationId);
     if (!entry) return;

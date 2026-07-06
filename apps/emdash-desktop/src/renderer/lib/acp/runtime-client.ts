@@ -63,6 +63,8 @@ export type AcpRuntimeRpcClient = {
     { conversationId: string; requestId: string; optionId: string },
     Result<void, AcpRuntimeError>
   >;
+  exportACPTranscript: Proc<{ conversationId: string }, Result<string, AcpRuntimeError>>;
+  exportRawAcpLog: Proc<{ conversationId: string }, Result<string, AcpRuntimeError>>;
   getHistory: Proc<
     { conversationId: string; before?: number; limit: number },
     Result<HistoryPage, AcpRuntimeError>

@@ -11,6 +11,7 @@ import {
   editCurrentPromptCommandSchema,
   editQueuedPromptCommandSchema,
   exportAcpTranscriptCommandSchema,
+  exportRawAcpLogCommandSchema,
   queuePromptCommandSchema,
   resolvePermissionCommandSchema,
   resumeSessionCommandSchema,
@@ -54,6 +55,9 @@ export const acpContract = {
   editCurrentPrompt: oc.input(editCurrentPromptCommandSchema).output(voidResult),
   exportACPTranscript: oc
     .input(exportAcpTranscriptCommandSchema)
+    .output(resultSchema(z.string(), acpRuntimeErrorSchema)),
+  exportRawAcpLog: oc
+    .input(exportRawAcpLogCommandSchema)
     .output(resultSchema(z.string(), acpRuntimeErrorSchema)),
   uploadAttachment: oc.input(uploadAttachmentCommandSchema).output(attachmentUploadResult),
   downloadAttachment: oc.input(downloadAttachmentCommandSchema).output(attachmentDownloadResult),

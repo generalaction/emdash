@@ -114,6 +114,14 @@ export class AcpLiveSession {
     return this.client.getHistory({ conversationId: this.conversationId, before, limit });
   }
 
+  exportTranscript(): Promise<Result<string, unknown>> {
+    return this.client.exportACPTranscript({ conversationId: this.conversationId });
+  }
+
+  exportRawAcpLog(): Promise<Result<string, unknown>> {
+    return this.client.exportRawAcpLog({ conversationId: this.conversationId });
+  }
+
   sendPrompt(prompt: PromptInput): Promise<Result<{ queued: boolean }, unknown>> {
     return this.client.sendPrompt({ conversationId: this.conversationId, prompt });
   }

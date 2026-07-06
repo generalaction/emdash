@@ -13,6 +13,8 @@ type Proc<I = unknown, O = unknown> = Client<Record<never, never>, I, O, unknown
 type TestAcpClient = {
   startSession: Proc<{ input: ReturnType<typeof makeStartInput> }>;
   sendPrompt: Proc<{ conversationId: string; prompt: { text: string } }>;
+  exportACPTranscript: Proc<{ conversationId: string }, { success: boolean; data?: string }>;
+  exportRawAcpLog: Proc<{ conversationId: string }, { success: boolean; data?: string }>;
   live: {
     sessionState: {
       snapshot: Proc<{ conversationId: string }, { data: { lifecycle: string } }>;
@@ -105,6 +107,52 @@ describe('createAcpRouter', () => {
     resolvePrompt({ stopReason: 'end_turn' });
     await prompt;
     await updates.return?.(undefined);
+  });
+
+  it('exports parsed transcript and raw ACP log over a message port', async () => {
+    const h = makeAcpHarness();
+    const runtime = new AcpRuntime(h.deps);
+    const client = makeClient(runtime);
+
+    await client.startSession({ input: makeStartInput({ conversationId: 'conv-export-router' }) });
+    let resolvePrompt!: (value: { stopReason: 'end_turn' }) => void;
+    h.agent.prompt = vi.fn(
+      () =>
+        new Promise<{ stopReason: 'end_turn' }>((resolve) => {
+          resolvePrompt = resolve;
+        })
+    );
+    const prompt = client.sendPrompt({
+      conversationId: 'conv-export-router',
+      prompt: { text: 'hello' },
+    });
+    await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalled());
+    await h.client().sessionUpdate({
+      sessionId: 'session-1',
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        sessionId: 'session-1',
+        messageId: 'msg-export',
+        content: { type: 'text', text: 'hi' },
+      } as SessionUpdate,
+    });
+    resolvePrompt({ stopReason: 'end_turn' });
+    await prompt;
+
+    const parsed = await client.exportACPTranscript({ conversationId: 'conv-export-router' });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toContain('hello');
+    expect(parsed.data).toContain('hi');
+
+    const raw = await client.exportRawAcpLog({ conversationId: 'conv-export-router' });
+    expect(raw.success).toBe(true);
+    const payload = JSON.parse(raw.data!);
+    expect(payload.events.map((entry: { event: { kind: string } }) => entry.event.kind)).toEqual([
+      'prompt',
+      'session_update',
+      'prompt_result',
+    ]);
+    expect(payload.events[1].event.update.content.text).toBe('hi');
   });
 
   it('serves terminal metadata through LiveModel and output through LiveLog', async () => {

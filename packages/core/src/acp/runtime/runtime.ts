@@ -132,6 +132,14 @@ export class AcpRuntime {
     return this.manager.getChatHistory(conversationId);
   }
 
+  exportParsedTranscript(conversationId: string): Result<string, AcpRuntimeError> {
+    return this.manager.exportParsedTranscript(conversationId);
+  }
+
+  exportRawAcpLog(conversationId: string): Result<string, AcpRuntimeError> {
+    return this.manager.exportRawAcpLog(conversationId);
+  }
+
   getSessionState(conversationId: string): SessionState {
     return this.manager.getSessionState(conversationId);
   }

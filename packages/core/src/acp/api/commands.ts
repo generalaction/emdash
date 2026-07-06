@@ -64,6 +64,7 @@ export const resolvePermissionCommandSchema = permissionDecisionSchema.extend({
 });
 export const editCurrentPromptCommandSchema = sendPromptCommandSchema;
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
+export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
 
 export const uploadAttachmentCommandSchema = z.object({
   data: z.instanceof(Uint8Array),

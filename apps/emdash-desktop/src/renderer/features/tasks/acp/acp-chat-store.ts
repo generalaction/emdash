@@ -1,9 +1,4 @@
-import type {
-  ChatContext,
-  ChatState,
-  ChatView,
-  TranscriptTurn,
-} from '@emdash/chat-ui';
+import type { ChatContext, ChatState, ChatView, TranscriptTurn } from '@emdash/chat-ui';
 import { createChatState, pinTopMode } from '@emdash/chat-ui';
 import type { AttachmentRef, PromptInput, QueuedPrompt } from '@emdash/core/acp/client';
 import type {
@@ -23,6 +18,7 @@ import {
 } from '@renderer/lib/chat/advertised-command-provider';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { toast } from '@renderer/lib/hooks/use-toast';
+import { rpc } from '@renderer/lib/ipc';
 import { conversationRegistry } from '../stores/conversation-registry';
 
 export type AcpChatLifecycle =
@@ -105,6 +101,7 @@ export class AcpChatStore {
       deleteQueuedPrompt: action,
       reorderQueuedPrompts: action,
       sendQueuedPromptNow: action,
+      exportTranscript: action,
       retry: action,
     });
   }
@@ -324,6 +321,10 @@ export class AcpChatStore {
     void this._sendQueuedPromptNow(id);
   }
 
+  exportTranscript(kind: 'parsed' | 'raw'): void {
+    void this._exportTranscript(kind);
+  }
+
   dispose(): void {
     unregisterConversationCommands(this.conversationId);
     this._unsubs.splice(0).forEach((unsub) => unsub());
@@ -401,6 +402,39 @@ export class AcpChatStore {
     const cancelResult = await this.session?.cancelTurn();
     if (!cancelResult?.success) {
       this._toastError('Failed to send queued prompt', cancelResult?.error);
+    }
+  }
+
+  private async _exportTranscript(kind: 'parsed' | 'raw'): Promise<void> {
+    const session = this.session;
+    if (!session) {
+      this._toastError('Failed to export transcript', new Error('Chat is not loaded.'));
+      return;
+    }
+
+    try {
+      const result =
+        kind === 'raw' ? await session.exportRawAcpLog() : await session.exportTranscript();
+      if (!result.success) {
+        this._toastError('Failed to export transcript', result.error);
+        return;
+      }
+
+      const label = kind === 'raw' ? 'raw ACP log' : 'parsed transcript';
+      const suffix = kind === 'raw' ? 'acp-raw' : 'transcript';
+      const saved = await rpc.app.saveTextFile({
+        title: `Export ${label}`,
+        defaultPath: `${this.conversationId}-${suffix}.json`,
+        content: result.data,
+      });
+      if (!saved.success) {
+        this._toastError('Failed to save transcript', new Error(saved.error));
+        return;
+      }
+      if (!saved.path) return;
+      toast({ title: `Exported ${label}` });
+    } catch (error) {
+      this._toastError('Failed to export transcript', error);
     }
   }
 
