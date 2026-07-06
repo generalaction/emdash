@@ -30,6 +30,7 @@ import {
   fileOpUnitDef,
   readFileOpFromItem,
 } from '@components/rows/tools/file-op/file-op.def';
+import { subagentFromItem, subagentUnitDef } from '@components/rows/tools/subagent/subagent.def';
 import { toolGroupUnitDef } from '@components/rows/tools/tool-group/tool-group.def';
 import { toolFromItem, toolUnitDef } from '@components/rows/tools/tool/tool.def';
 import { turnOutcomeUnitDef } from '@components/rows/turn-outcome/turn-outcome.def';
@@ -44,6 +45,7 @@ import type {
   ChatItem,
   ChatMessage,
   ChatPlan,
+  ChatSubagentToolCall,
   ChatToolCall,
   SyntheticItem,
   ToolNode,
@@ -55,7 +57,13 @@ import { ROW_INSET_X } from './row-metrics';
 // Each composite item becomes exactly one RenderUnit with chrome.insetX so
 // the native UnitDef.measure receives the same effective width as Row.tsx used.
 
-type ToolPresentationData = ChatExecute | ChatFileOpToolCall | ChatDiff | ChatPlan | ChatToolCall;
+type ToolPresentationData =
+  | ChatExecute
+  | ChatFileOpToolCall
+  | ChatDiff
+  | ChatPlan
+  | ChatSubagentToolCall
+  | ChatToolCall;
 type RegistryUnitDef = UnitDef<unknown, Record<string, number>>;
 
 function nativePassthrough<T extends SegmentItem>(
@@ -125,6 +133,8 @@ function toUnitData(item: ToolNode, ctx: SegmentCtx): ToolPresentationData {
       return deleteFileOpFromItem(item, ctx);
     case 'create-plan-tool-call':
       return planFromItem(item, ctx);
+    case 'spawn-subagent-tool-call':
+      return subagentFromItem(item, ctx);
     case 'tool-group':
       return toolFromItem(item, ctx);
     default:
@@ -166,6 +176,7 @@ export const SEGMENTERS: Record<string, ItemSegmenter> = {
   execute: nativePassthrough<ChatItem>('execute', (item) => item, COMPOSITE_CHROME),
   diff: nativePassthrough<ChatItem>('diff', (item) => item, COMPOSITE_CHROME),
   plan: nativePassthrough<ChatItem>('plan', (item) => item, COMPOSITE_CHROME),
+  subagent: nativePassthrough<ChatItem>('subagent', (item) => item, COMPOSITE_CHROME),
   'resource-link': nativePassthrough<ChatItem>('resource-link', (item) => item, COMPOSITE_CHROME),
   'execute-tool-call': toolNodeSegment('execute-tool-call'),
   'read-tool-call': toolNodeSegment('read-tool-call'),
@@ -203,6 +214,7 @@ export const UNIT_REGISTRY: Record<string, RegistryUnitDef> = {
   plan: planUnitDef as unknown as RegistryUnitDef,
   thinking: thinkingUnitDef as unknown as RegistryUnitDef,
   'file-op': fileOpUnitDef as unknown as RegistryUnitDef,
+  subagent: subagentUnitDef as unknown as RegistryUnitDef,
   tool: toolUnitDef as unknown as RegistryUnitDef,
   execute: executeUnitDef as unknown as RegistryUnitDef,
   'resource-link': resourceLinkUnitDef as unknown as RegistryUnitDef,

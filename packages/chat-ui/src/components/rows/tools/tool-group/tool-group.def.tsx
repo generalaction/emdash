@@ -5,7 +5,7 @@
  * of a flat row for each child tool call.
  *
  * Layout:
- *   ┌─ CollapseHeader (parent tool name, shimmer while running) ─┐
+ *   ┌─ CollapseHeader/SubagentHeader ─────────────────────────────┐
  *   │ PreviewWindow (collapsed) OR ChildStack (expanded)          │
  *   └─────────────────────────────────────────────────────────────┘
  *
@@ -20,6 +20,12 @@ import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import { diffUnitDef } from '@components/rows/tools/diff/diff.def';
 import { executeUnitDef } from '@components/rows/tools/execute/execute.def';
 import { fileOpUnitDef } from '@components/rows/tools/file-op/file-op.def';
+import { SubagentHeader } from '@components/rows/tools/subagent/Subagent';
+import {
+  subagentHeaderH,
+  subagentHeaderHFromLineHeight,
+  subagentUnitDef,
+} from '@components/rows/tools/subagent/subagent.def';
 import { toolUnitDef } from '@components/rows/tools/tool/tool.def';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import type { UnitDef } from '@core/units';
@@ -29,8 +35,9 @@ import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import type { JSX } from 'solid-js';
 import { For, Show, createMemo } from 'solid-js';
-import type { ChatItem, ChatToolCall } from '@/model';
+import type { ChatItem, ChatSubagentToolCall, ChatToolCall } from '@/model';
 import { toolGroupCardVars, toolGroupRoot } from './tool-group.css';
+import { subagentChildrenOffset } from '@components/rows/tools/subagent/subagent.css';
 
 // ── Vars ──────────────────────────────────────────────────────────────────────
 
@@ -54,6 +61,7 @@ const TOOL_GROUP_VARS: ToolGroupVars = {
 // oxlint-disable-next-line typescript/no-explicit-any -- registry boundary
 const CHILD_DEFS: Record<string, UnitDef<any, any>> = {
   tool: toolUnitDef,
+  subagent: subagentUnitDef,
   execute: executeUnitDef,
   diff: diffUnitDef,
   'file-op': fileOpUnitDef,
@@ -63,6 +71,19 @@ const CHILD_DEFS: Record<string, UnitDef<any, any>> = {
 
 function headerH(ctx: MeasureCtx): number {
   return ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
+}
+
+function isSubagentItem(item: ChatItem): item is ChatSubagentToolCall {
+  return item.kind === 'subagent';
+}
+
+function nodeHeaderH(node: ItemNode, ctx: MeasureCtx): number {
+  return isSubagentItem(node.item) ? subagentHeaderH(ctx) : headerH(ctx);
+}
+
+function isActiveItem(item: ChatItem): boolean {
+  if (isSubagentItem(item)) return item.phase === 'spawning' || item.phase === 'running';
+  return (item as ChatToolCall).status === 'running';
 }
 
 /**
@@ -87,9 +108,9 @@ function childrenHeight(node: ItemNode, ctx: MeasureCtx, vars: ToolGroupVars): n
 }
 
 function toolGroupUnitH(node: ItemNode, ctx: MeasureCtx, vars: ToolGroupVars): number {
-  const hH = headerH(ctx);
+  const hH = nodeHeaderH(node, ctx);
   const isExpanded = ctx.expanded(node.item.id);
-  const isRunning = (node.item as ChatToolCall).status === 'running';
+  const isRunning = isActiveItem(node.item);
   const chH = childrenHeight(node, ctx, vars);
   return hH + (isExpanded ? chH : isRunning ? Math.min(chH, vars.windowH) : 0);
 }
@@ -151,7 +172,11 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
   // Inverted semantics: stored "collapsed" = "expanded".
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.item.id);
 
-  const hH = () => theme().fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
+  const isSubagent = () => isSubagentItem(props.data.item);
+  const hH = () =>
+    isSubagent()
+      ? subagentHeaderHFromLineHeight(theme().fonts.body.lineHeight)
+      : theme().fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
 
   const chH = createMemo(() => {
     const ctx = mCtx();
@@ -165,7 +190,7 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
     return toolGroupUnitH(props.data, ctx, props.vars);
   });
 
-  const isActive = () => (props.data.item as ChatToolCall).status === 'running';
+  const isActive = () => isActiveItem(props.data.item);
   const label = () => {
     const item = props.data.item;
     if (item.kind === 'tool') return (item as ChatToolCall).name;
@@ -173,20 +198,42 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
   };
 
   const previewH = () => Math.min(chH(), props.vars.windowH);
+  const childStack = () => (
+    <Show
+      when={isSubagent()}
+      fallback={<ChildStack node={props.data} ctx={props.ctx} vars={props.vars} />}
+    >
+      <div class={subagentChildrenOffset}>
+        <ChildStack node={props.data} ctx={props.ctx} vars={props.vars} />
+      </div>
+    </Show>
+  );
 
   return (
     <div
       class={toolGroupRoot}
       style={assignInlineVars(toolGroupCardVars, pxTokens({ height: totalH() }))}
     >
-      <CollapseHeader
-        id={props.data.item.id}
-        expanded={isExpanded()}
-        active={isActive()}
-        height={hH()}
+      <Show
+        when={isSubagent()}
+        fallback={
+          <CollapseHeader
+            id={props.data.item.id}
+            expanded={isExpanded()}
+            active={isActive()}
+            height={hH()}
+          >
+            {label()}
+          </CollapseHeader>
+        }
       >
-        {label()}
-      </CollapseHeader>
+        <SubagentHeader
+          item={props.data.item as ChatSubagentToolCall}
+          expanded={isExpanded()}
+          height={hH()}
+          collapsible
+        />
+      </Show>
       <Show
         when={isExpanded()}
         fallback={
@@ -198,12 +245,12 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
               autoScrollBottom={isActive()}
               contentHeight={chH}
             >
-              <ChildStack node={props.data} ctx={props.ctx} vars={props.vars} />
+              {childStack()}
             </PreviewWindow>
           </Show>
         }
       >
-        <ChildStack node={props.data} ctx={props.ctx} vars={props.vars} />
+        {childStack()}
       </Show>
     </div>
   );
@@ -217,9 +264,9 @@ export const toolGroupUnitDef = defineUnit<ItemNode, ToolGroupVars>({
   vars: TOOL_GROUP_VARS,
 
   estimate(node, ctx, vars): number {
-    const hH = ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
+    const hH = nodeHeaderH(node, ctx);
     const isExpanded = ctx.expanded(node.item.id);
-    const isRunning = (node.item as ChatToolCall).status === 'running';
+    const isRunning = isActiveItem(node.item);
     // Approximate: 32px per child.
     const chH = node.children.length * ROW_H;
     return hH + (isExpanded ? chH : isRunning ? Math.min(chH, vars.windowH) : 0);

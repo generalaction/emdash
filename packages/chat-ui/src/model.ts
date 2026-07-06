@@ -71,6 +71,23 @@ export type ChatToolCall = {
   parentId?: string;
 };
 
+export type SubagentPhase = 'spawning' | 'running' | 'completed' | 'failed';
+
+export type ChatSubagentToolCall = {
+  kind: 'subagent';
+  id: string;
+  name: string;
+  status: ToolStatus;
+  phase: SubagentPhase;
+  agentId?: string;
+  background?: boolean;
+  awaitingPermission?: boolean;
+  /** Optional failure message shown in the failed state tooltip. */
+  error?: string;
+  /** Id of the parent tool call (for hierarchical rendering). */
+  parentId?: string;
+};
+
 /**
  * A thinking / reasoning row produced by the agent before it replies.
  *
@@ -273,6 +290,7 @@ export type ChatItem =
   | TranscriptItem
   | ChatMessage
   | ChatToolCall
+  | ChatSubagentToolCall
   | ChatThinking
   | ChatFileOpToolCall
   | ChatExecute

@@ -31,7 +31,13 @@ export function setToolNode(item: ToolNode): ScriptStep {
 
 export function streamToolNode(
   base: ToolNode,
-  updates: Array<{ afterMs: number; status?: ToolStatus; inputSummary?: string }>
+  updates: Array<{
+    afterMs: number;
+    status?: ToolStatus;
+    inputSummary?: string;
+    agentId?: string;
+    children?: ToolNode[];
+  }>
 ): ScriptStep[] {
   const steps: ScriptStep[] = [setToolNode(base)];
   let current = base;
@@ -43,6 +49,10 @@ export function streamToolNode(
       ...(update.inputSummary !== undefined && 'toolCallId' in current
         ? { inputSummary: update.inputSummary }
         : {}),
+      ...(update.agentId !== undefined && current.kind === 'spawn-subagent-tool-call'
+        ? { agentId: update.agentId }
+        : {}),
+      ...(update.children !== undefined ? { children: update.children } : {}),
     } as ToolNode;
     steps.push(setToolNode(current));
   }

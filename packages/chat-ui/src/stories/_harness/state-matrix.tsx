@@ -43,7 +43,7 @@ export type ToolStateMatrixProps = {
    * suffix derived from status (e.g. `\`${base}-${status}\``) so each row is
    * independent in the virtualizer.
    */
-  build: (status: MatrixStatus) => ChatItem;
+  build: (status: MatrixStatus, row: MatrixRow) => ChatItem;
   rows?: MatrixRow[];
   /** Height of each individual row viewport in px (default: 80). */
   rowHeight?: number;
@@ -56,7 +56,7 @@ export type ToolNodeStateMatrixProps = {
    * Build a ToolNode for a given status. Use the status in the id/toolCallId so
    * each row is independent in the virtualizer.
    */
-  build: (status: MatrixStatus) => ToolNode;
+  build: (status: MatrixStatus, row: MatrixRow) => ToolNode;
   rows?: MatrixRow[];
   /** Optional plan snapshot used by create-plan-tool-call rows. */
   plan?: (row: MatrixRow) => PlanState | null;
@@ -160,7 +160,7 @@ export function ToolStateMatrix(props: ToolStateMatrixProps) {
           state.dispose();
           ctx.dispose();
         });
-        const item = props.build(matrixRow.status);
+        const item = props.build(matrixRow.status, matrixRow);
         const matrixItem = {
           ...item,
           ...(matrixRow.awaitingPermission ? { awaitingPermission: true } : {}),
@@ -200,8 +200,14 @@ export function ToolNodeStateMatrix(props: ToolNodeStateMatrixProps) {
           state.dispose();
           ctx.dispose();
         });
-        const item = props.build(matrixRow.status);
-        const permission = matrixRow.awaitingPermission ? permissionFor(item) : null;
+        const item = props.build(matrixRow.status, matrixRow);
+        const matrixItem = {
+          ...item,
+          ...(matrixRow.error && !('error' in item && item.error)
+            ? { error: matrixRow.error }
+            : {}),
+        } as ToolNode;
+        const permission = matrixRow.awaitingPermission ? permissionFor(matrixItem) : null;
         state.session.setPermissions(permission ? [permission] : []);
         state.session.setPlan(props.plan?.(matrixRow) ?? null);
         state.transcript.history.seed([
@@ -209,7 +215,7 @@ export function ToolNodeStateMatrix(props: ToolNodeStateMatrixProps) {
             id: matrixTurnId(matrixRow.label),
             seq: 0,
             initiator: 'agent',
-            items: [{ ...item, seq: 0 } as TranscriptTurn['items'][number]],
+            items: [{ ...matrixItem, seq: 0 } as TranscriptTurn['items'][number]],
           },
         ]);
         return <ChatRoot context={ctx} state={state} stickToBottom pinUserMessages />;
