@@ -196,7 +196,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               </ContextMenuTrigger>
               <ContextMenuContent>
                 <ContextMenuItem onClick={() => void handleCopyBranchName()} disabled={!branchName}>
-                  Copy
+                  Copy branch name
                 </ContextMenuItem>
                 <ContextMenuItem onClick={handleRename}>Rename</ContextMenuItem>
               </ContextMenuContent>
