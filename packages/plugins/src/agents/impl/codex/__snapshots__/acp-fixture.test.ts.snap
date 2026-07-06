@@ -115,9 +115,66 @@ exports[`Codex ACP fixture parsing > config 1`] = `
       "source": "provider-command",
     },
   ],
-  "efforts": null,
-  "modeOptions": null,
-  "modelOptions": null,
+  "efforts": {
+    "available": [
+      {
+        "description": "Fast responses with lighter reasoning",
+        "id": "low",
+        "name": "low",
+      },
+      {
+        "description": "Balances speed and reasoning depth for everyday tasks",
+        "id": "medium",
+        "name": "medium",
+      },
+      {
+        "description": "Greater reasoning depth for complex problems",
+        "id": "high",
+        "name": "high",
+      },
+      {
+        "description": "Extra high reasoning depth for complex problems",
+        "id": "xhigh",
+        "name": "xhigh",
+      },
+    ],
+    "selected": "low",
+  },
+  "modeOptions": {
+    "available": [
+      {
+        "description": "Requires approval to edit files and run commands.",
+        "id": "read-only",
+        "name": "Read-only",
+      },
+      {
+        "description": "Read and edit files, and run commands.",
+        "id": "agent",
+        "name": "Agent",
+      },
+      {
+        "description": "Codex can edit files outside this workspace and run commands with network access. Exercise caution when using.",
+        "id": "agent-full-access",
+        "name": "Agent (full access)",
+      },
+    ],
+    "selected": "agent",
+  },
+  "modelOptions": {
+    "available": [
+      {
+        "description": "Frontier model for complex coding, research, and real-world work.",
+        "id": "gpt-5.5",
+        "name": "GPT-5.5",
+      },
+      {
+        "description": "Small, fast, and cost-efficient model for simpler coding tasks.",
+        "id": "gpt-5.4-mini",
+        "name": "GPT-5.4-Mini",
+      },
+    ],
+    "selected": "gpt-5.4-mini",
+  },
 }
 `;
 

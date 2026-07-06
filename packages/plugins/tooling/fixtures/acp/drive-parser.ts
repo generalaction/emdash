@@ -21,7 +21,24 @@ export interface RecordedPromptResult {
   stopReason: string | null | undefined;
 }
 
-export type RecordedEvent = RecordedPrompt | RecordedSessionUpdate | RecordedPromptResult;
+export interface RecordedConfigOptionSet {
+  kind: 'config_option_set';
+  sessionId: string;
+  responseConfigOptions: unknown;
+}
+
+export interface RecordedModeSet {
+  kind: 'mode_set';
+  sessionId: string;
+  modeId: string;
+}
+
+export type RecordedEvent =
+  | RecordedPrompt
+  | RecordedSessionUpdate
+  | RecordedPromptResult
+  | RecordedConfigOptionSet
+  | RecordedModeSet;
 
 export interface RecordedEntry {
   seq: number;
@@ -30,7 +47,11 @@ export interface RecordedEntry {
 }
 
 export interface FixtureFile {
-  meta: { sessionId: string; providerId: string };
+  meta: {
+    sessionId: string;
+    providerId: string;
+    initialConfigOptions?: unknown;
+  };
   events: RecordedEntry[];
 }
 
@@ -51,6 +72,14 @@ export function driveParser(
     conversationId: meta.sessionId,
     ...(options.enrich ? { enrich: options.enrich } : {}),
   });
+
+  if (Array.isArray(meta.initialConfigOptions)) {
+    parser.push({
+      sessionUpdate: 'config_option_update',
+      sessionId: meta.sessionId,
+      configOptions: meta.initialConfigOptions,
+    } as unknown as SessionUpdate);
+  }
 
   for (const entry of events) {
     const kind = (entry.event as { kind: string }).kind;
@@ -78,6 +107,26 @@ export function driveParser(
       case 'prompt_result':
         parser.endTurn();
         break;
+      case 'config_option_set': {
+        const ev = entry.event as RecordedConfigOptionSet;
+        if (Array.isArray(ev.responseConfigOptions)) {
+          parser.push({
+            sessionUpdate: 'config_option_update',
+            sessionId: ev.sessionId,
+            configOptions: ev.responseConfigOptions,
+          } as unknown as SessionUpdate);
+        }
+        break;
+      }
+      case 'mode_set': {
+        const ev = entry.event as RecordedModeSet;
+        parser.push({
+          sessionUpdate: 'current_mode_update',
+          sessionId: ev.sessionId,
+          currentModeId: ev.modeId,
+        } as unknown as SessionUpdate);
+        break;
+      }
       default:
         break;
     }
