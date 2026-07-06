@@ -2,7 +2,6 @@ import type { IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, ok, type Result } from '@emdash/shared';
 import { match, P } from 'ts-pattern';
 import { GITHUB_PROVIDER_ID, toGitHubAccount } from '@main/core/github/accounts/github-accounts';
-import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
 import { githubApiAuthService } from '@main/core/github/services/github-api-auth-service-instance';
 import { githubApiBaseUrlForHost } from '@main/core/github/services/github-api-base-url';
