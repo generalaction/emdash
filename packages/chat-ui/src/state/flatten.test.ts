@@ -67,13 +67,11 @@ function tool(id: string): ChatItem {
 }
 
 const segCtx = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   caches: {} as any,
   expanded: () => false,
 };
 
 // Minimal unit-def stubs — only the `margin` field is consulted by flatten.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type StubUnitDefs = Record<string, Pick<UnitDef<any>, 'margin'>>;
 
 const STUB_UNIT_DEFS: StubUnitDefs = {

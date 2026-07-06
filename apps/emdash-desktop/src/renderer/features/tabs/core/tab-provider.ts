@@ -88,7 +88,7 @@ export interface CommandEntry<T> {
    * Execute the command.
    * For rename commands, `args[0]` is the new name string provided by the inline editor.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   exec(resource: T, ...args: any[]): void;
   isAvailable?(resource: T): boolean;
   shortcut?: ShortcutSettingsKey | (() => string | undefined);
