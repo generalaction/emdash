@@ -1,0 +1,30 @@
+apps/emdash-desktop/src/renderer/lib/pty/file-link-detection.ts
+  s_3e43a4e534a4fa::t_6618a545bad67b 4-6,8
+  s_3e43a4e534a4fa::t_803e91861be76f 36
+apps/emdash-desktop/src/renderer/lib/pty/file-link-provider.ts
+  s_3e43a4e534a4fa::t_202c691f51d571 15,28-30,32-35,43,45,52,60
+  s_3e43a4e534a4fa::t_436e1fc07298b8 88-91,99
+apps/emdash-desktop/src/renderer/tests/file-link-provider.test.ts
+  s_3e43a4e534a4fa::t_3fee516e0911e9 208-242
+  s_3e43a4e534a4fa::t_56a08868ad8661 119
+  s_3e43a4e534a4fa::t_f84e1f9984ea05 97-118,120-138
+apps/emdash-desktop/src/renderer/features/tasks/stores/open-file-in-file-editor.ts
+  s_3e43a4e534a4fa::t_0f396db940e118 89
+  s_3e43a4e534a4fa::t_d5cc7a14e3d517 54,56-65,69-88,90-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d0a3e471362c831eb35265021cff4be1417d53df",
+  "prompts": {},
+  "sessions": {
+    "s_3e43a4e534a4fa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fc35576-8973-48ba-8199-1bbdadff4265",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
