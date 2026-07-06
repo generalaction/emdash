@@ -82,13 +82,8 @@ async function findWorkspaceFileByName(
   workspaceId: string,
   filename: string
 ): Promise<string | null> {
-  const hits = await rpc.search.searchWorkspaceFiles({ workspaceId, query: filename, limit: 50 });
-  const exact = hits.filter((h) => h.filename === filename);
-  if (exact.length === 0) return null;
-  exact.sort(
-    (a, b) => a.path.split('/').length - b.path.split('/').length || a.path.localeCompare(b.path)
-  );
-  return exact[0].path;
+  const hits = await rpc.search.findWorkspaceFilesByName({ workspaceId, filename });
+  return hits[0]?.path ?? null;
 }
 
 /**

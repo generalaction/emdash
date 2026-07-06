@@ -107,6 +107,10 @@ export class WorkspaceFileIndexService {
     return this.store.searchFiles(workspaceId, query, limit);
   }
 
+  findFilesByName(workspaceId: string, filename: string): FileHit[] {
+    return this.store.findFilesByName(workspaceId, filename);
+  }
+
   search(workspaceId: string, query: string): FileHit[] {
     return this.store.search(workspaceId, query);
   }

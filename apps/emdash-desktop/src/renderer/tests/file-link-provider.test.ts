@@ -132,6 +132,37 @@ describe('file link provider', () => {
     expect(findFileLinks(buffer, 1)).toEqual([]);
   });
 
+  it('ignores common framework names that look like bare filenames', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('Detected Node.js, React.jsx, Vue.js, and Express.js versions'),
+    ]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([]);
+  });
+
+  it('still detects pathful filenames that use common framework names', () => {
+    const buffer = makeBuffer([new MockBufferLine('open docs/Node.js and examples/React.jsx')]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([
+      {
+        range: {
+          start: { x: 6, y: 1 },
+          end: { x: 17, y: 1 },
+        },
+        text: 'docs/Node.js',
+        isExternal: false,
+      },
+      {
+        range: {
+          start: { x: 23, y: 1 },
+          end: { x: 40, y: 1 },
+        },
+        text: 'examples/React.jsx',
+        isExternal: false,
+      },
+    ]);
+  });
+
   it('keeps bare domains inside URLs delegated to the web links addon', () => {
     const buffer = makeBuffer([new MockBufferLine('deployed to https://emdash.sh just now')]);
 

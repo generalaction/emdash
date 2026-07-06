@@ -23,6 +23,7 @@ export interface IWorkspaceFileIndexStore {
   deleteSubtree(workspaceId: string, path: string): void;
   countIndexedFiles(workspaceId: string): number;
   searchFiles(workspaceId: string, query: string, limit: number): FileHit[];
+  findFilesByName(workspaceId: string, filename: string): FileHit[];
   search(workspaceId: string, query: string): FileHit[];
   deleteIndex(workspaceId: string): void;
   evict(staleDays: number): void;
@@ -196,6 +197,26 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
     }
 
     return this.searchFts(workspaceId, trimmed, limit, 'searchFiles (FTS)');
+  }
+
+  findFilesByName(workspaceId: string, filename: string): FileHit[] {
+    try {
+      return sqlite
+        .prepare(
+          `SELECT path, filename
+           FROM workspace_file_index
+           WHERE workspace_id = ?
+             AND filename = ?
+           ORDER BY length(path) - length(replace(path, '/', '')), path`
+        )
+        .all(workspaceId, filename) as FileHit[];
+    } catch (e) {
+      log.warn('WorkspaceFileIndexStore: findFilesByName failed', {
+        workspaceId,
+        error: String(e),
+      });
+      return [];
+    }
   }
 
   search(workspaceId: string, query: string): FileHit[] {

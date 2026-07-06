@@ -19,6 +19,7 @@ describe('WorkspaceFileIndexService', () => {
     const store = new FakeStore();
     store.searchResults = [{ path: '/repo/src/index.ts', filename: 'index.ts' }];
     store.searchFilesResults = [{ path: '/repo/src/app.ts', filename: 'app.ts' }];
+    store.findFilesByNameResults = [{ path: '/repo/README.md', filename: 'README.md' }];
     const service = await createService(store);
 
     service.initialize();
@@ -30,8 +31,12 @@ describe('WorkspaceFileIndexService', () => {
     expect(service.searchFiles('ws-1', 'ap', 5)).toEqual([
       { path: '/repo/src/app.ts', filename: 'app.ts' },
     ]);
+    expect(service.findFilesByName('ws-1', 'README.md')).toEqual([
+      { path: '/repo/README.md', filename: 'README.md' },
+    ]);
     expect(store.operations).toContain('search:index');
     expect(store.operations).toContain('searchFiles:ap:5');
+    expect(store.operations).toContain('findFilesByName:README.md');
   });
 
   it('refreshes complete metadata on activation without enumerating', async () => {
@@ -258,6 +263,7 @@ class FakeStore implements IWorkspaceFileIndexStore {
   evictedDays: number | undefined;
   searchResults: FileHit[] = [];
   searchFilesResults: FileHit[] = [];
+  findFilesByNameResults: FileHit[] = [];
 
   transaction<T>(fn: () => T): T {
     this.operations.push('transaction');
@@ -318,6 +324,11 @@ class FakeStore implements IWorkspaceFileIndexStore {
   searchFiles(_workspaceId: string, query: string, limit: number): FileHit[] {
     this.operations.push(`searchFiles:${query}:${limit}`);
     return this.searchFilesResults;
+  }
+
+  findFilesByName(_workspaceId: string, filename: string): FileHit[] {
+    this.operations.push(`findFilesByName:${filename}`);
+    return this.findFilesByNameResults;
   }
 
   deleteIndex(workspaceId: string): void {
