@@ -182,7 +182,7 @@ export const editorArea = style({
   paddingLeft: '0.75rem',
   paddingRight: '0.75rem',
   paddingTop: '0.75rem',
-  paddingBottom: '0.25rem',
+  paddingBottom: '0.5rem',
 });
 
 // ── Toolbar ───────────────────────────────────────────────────────────────────
@@ -213,8 +213,8 @@ export const agentTrigger = style({
   color: vars.foreground,
   outline: 'none',
   selectors: {
-    '&:hover': { backgroundColor: vars.surfaceHover },
-    '&[data-popup-open]': { backgroundColor: vars.surfaceHover },
+    '&:hover': { backgroundColor: vars.surfaceBaseSelected },
+    '&[data-popup-open]': { backgroundColor: vars.surfaceBaseSelected },
   },
 });
 

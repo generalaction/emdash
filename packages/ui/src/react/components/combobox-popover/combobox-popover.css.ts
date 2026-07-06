@@ -17,8 +17,8 @@ export const trigger = style({
   color: vars.foreground,
   outline: 'none',
   selectors: {
-    '&:hover': { backgroundColor: vars.surfaceHover },
-    '&[data-popup-open]': { backgroundColor: vars.surfaceHover },
+    '&:hover': { backgroundColor: vars.surfaceBaseSelected },
+    '&[data-popup-open]': { backgroundColor: vars.surfaceBaseSelected },
     '&[data-disabled], &:disabled': { cursor: 'not-allowed', opacity: 0.6 },
   },
 });
