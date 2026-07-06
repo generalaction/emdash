@@ -1,6 +1,7 @@
 import {
   planStateSchema,
   promptDraftSchema,
+  sessionUsageSchema,
   sessionConfigStateSchema,
   sessionStateSchema,
   terminalStateSchema,
@@ -24,6 +25,7 @@ import {
 export class AcpLiveSession {
   readonly sessionState: LiveBinding<SessionState>;
   readonly config: LiveBinding<z.infer<typeof sessionConfigStateSchema>>;
+  readonly usage: LiveBinding<z.infer<typeof sessionUsageSchema> | null>;
   readonly plan: LiveBinding<z.infer<typeof planStateSchema> | null>;
   readonly activeTurn: LiveBinding<z.infer<typeof transcriptTurnSchema> | null>;
   readonly draft: LiveBinding<z.infer<typeof promptDraftSchema> | null>;
@@ -44,6 +46,11 @@ export class AcpLiveSession {
       schema: sessionConfigStateSchema,
       snapshot: () => client.live.sessionConfig.snapshot({ conversationId }),
       subscribe: () => client.live.sessionConfig.subscribe({ conversationId }),
+    });
+    this.usage = createLiveModelBinding({
+      schema: sessionUsageSchema.nullable(),
+      snapshot: () => client.live.sessionUsage.snapshot({ conversationId }),
+      subscribe: () => client.live.sessionUsage.subscribe({ conversationId }),
     });
     this.plan = createLiveModelBinding({
       schema: planStateSchema.nullable(),
@@ -83,6 +90,7 @@ export class AcpLiveSession {
       Promise.all([
         session.sessionState.start(),
         session.config.start(),
+        session.usage.start(),
         session.plan.start(),
         session.activeTurn.start(),
         session.draft.start(),
@@ -184,6 +192,7 @@ export class AcpLiveSession {
     this.disposed = true;
     this.sessionState.dispose();
     this.config.dispose();
+    this.usage.dispose();
     this.plan.dispose();
     this.activeTurn.dispose();
     this.draft.dispose();

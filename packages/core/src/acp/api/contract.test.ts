@@ -1,7 +1,7 @@
 import { isOk } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { makeAcpHarness, makeStartInput } from '../acp-test-support';
-import { sessionConfigStateSchema } from '../models/config';
+import { sessionConfigStateSchema, sessionUsageSchema } from '../models/config';
 import { promptDraftSchema } from '../models/prompt';
 import { sessionStateSchema } from '../models/session';
 import { transcriptTurnSchema } from '../models/turns';
@@ -19,6 +19,7 @@ describe('ACP API contract schemas', () => {
 
     expect(() => sessionStateSchema.parse(live.sessionState.snapshot().data)).not.toThrow();
     expect(() => sessionConfigStateSchema.parse(live.config.snapshot().data)).not.toThrow();
+    expect(() => sessionUsageSchema.nullable().parse(live.usage.snapshot().data)).not.toThrow();
     expect(() =>
       transcriptTurnSchema.nullable().parse(live.activeTurn.snapshot().data)
     ).not.toThrow();

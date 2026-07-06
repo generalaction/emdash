@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { createLiveLogContract, createLiveModelContract } from '../../live';
 import { agentStateSchema } from '../models/agents';
-import { sessionConfigStateSchema } from '../models/config';
+import { sessionConfigStateSchema, sessionUsageSchema } from '../models/config';
 import { planStateSchema } from '../models/plan';
 import { promptDraftSchema } from '../models/prompt';
 import { sessionStateSchema, sessionSummarySchema } from '../models/session';
@@ -19,6 +19,11 @@ export const acpLiveContract = {
     unsubscribeInput: conversationInput,
   }),
   sessionConfig: createLiveModelContract(sessionConfigStateSchema, {
+    snapshotInput: conversationInput,
+    subscribeInput: conversationInput,
+    unsubscribeInput: conversationInput,
+  }),
+  sessionUsage: createLiveModelContract(sessionUsageSchema.nullable(), {
     snapshotInput: conversationInput,
     subscribeInput: conversationInput,
     unsubscribeInput: conversationInput,

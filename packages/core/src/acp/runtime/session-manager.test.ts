@@ -74,6 +74,33 @@ describe('AcpRuntime session manager', () => {
     await prompt;
   });
 
+  it('publishes usage updates through live models', async () => {
+    const { rt, client, sessionId } = await startHarness('conv-usage');
+    const live = rt.sessionLiveModels('conv-usage');
+    if (!live) throw new Error('expected live models');
+    const updates: unknown[] = [];
+    const unsubscribe = live.usage.subscribe((update) => updates.push(update));
+
+    await client.sessionUpdate({
+      sessionId,
+      update: {
+        sessionUpdate: 'usage_update',
+        sessionId,
+        used: 42_000,
+        size: 200_000,
+        cost: { amount: 0.25, currency: 'USD' },
+      } as SessionUpdate,
+    });
+
+    expect(live.usage.snapshot().data).toEqual({
+      contextUsed: 42_000,
+      contextSize: 200_000,
+      cost: { amount: 0.25, currency: 'USD' },
+    });
+    expect(updates.length).toBeGreaterThan(0);
+    unsubscribe();
+  });
+
   it('returns a resume result with replayed history', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);

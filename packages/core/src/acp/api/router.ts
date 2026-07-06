@@ -109,6 +109,21 @@ export function createAcpRouter(runtime: AcpRuntime) {
         }),
         unsubscribe: i.live.sessionConfig.unsubscribe.handler(() => undefined),
       },
+      sessionUsage: {
+        snapshot: i.live.sessionUsage.snapshot.handler(({ input }) => {
+          const { conversationId } = input as { conversationId: string };
+          const models = runtime.sessionLiveModels(conversationId);
+          if (!models) throw notFound(`Unknown conversation '${conversationId}'`);
+          return models.usage.snapshot();
+        }),
+        subscribe: i.live.sessionUsage.subscribe.handler(({ input, signal }) => {
+          const { conversationId } = input as { conversationId: string };
+          const models = runtime.sessionLiveModels(conversationId);
+          if (!models) return emptyUpdates();
+          return streamLiveUpdates(models.usage, signal);
+        }),
+        unsubscribe: i.live.sessionUsage.unsubscribe.handler(() => undefined),
+      },
       plan: {
         snapshot: i.live.plan.snapshot.handler(({ input }) => {
           const { conversationId } = input as { conversationId: string };

@@ -9,6 +9,7 @@ import type {
   SessionConfigState,
   SessionState,
   SessionSummary,
+  SessionUsage,
   TerminalState,
   TranscriptTurn,
   AcpRuntimeError,
@@ -79,6 +80,7 @@ export type AcpRuntimeRpcClient = {
     sessionStateList: LiveModelEndpoint<void | undefined, Record<string, SessionSummary>>;
     sessionState: LiveModelEndpoint<{ conversationId: string }, SessionState>;
     sessionConfig: LiveModelEndpoint<{ conversationId: string }, SessionConfigState>;
+    sessionUsage: LiveModelEndpoint<{ conversationId: string }, SessionUsage | null>;
     plan: LiveModelEndpoint<{ conversationId: string }, PlanState | null>;
     agents: LiveModelEndpoint<{ conversationId: string }, AgentState[]>;
     activeTurn: LiveModelEndpoint<{ conversationId: string }, TranscriptTurn | null>;

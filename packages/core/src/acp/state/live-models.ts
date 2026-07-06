@@ -1,6 +1,10 @@
 import { LiveModelServer } from '../../live/model';
 import type { AgentState } from '../models/agents';
-import { initialSessionConfigState, type SessionConfigState } from '../models/config';
+import {
+  initialSessionConfigState,
+  type SessionConfigState,
+  type SessionUsage,
+} from '../models/config';
 import type { PlanState } from '../models/plan';
 import type { PromptDraft } from '../models/prompt';
 import type { SessionState, SessionSummary } from '../models/session';
@@ -9,6 +13,7 @@ import type { TranscriptTurn } from '../models/turns';
 export interface SessionLiveModels {
   sessionState: LiveModelServer<SessionState>;
   config: LiveModelServer<SessionConfigState>;
+  usage: LiveModelServer<SessionUsage | null>;
   plan: LiveModelServer<PlanState | null>;
   agents: LiveModelServer<AgentState[]>;
   activeTurn: LiveModelServer<TranscriptTurn | null>;
@@ -21,6 +26,7 @@ export function createSessionLiveModels(initialState: SessionState): SessionLive
   return {
     sessionState: new LiveModelServer(initialState),
     config: new LiveModelServer(initialSessionConfigState),
+    usage: new LiveModelServer<SessionUsage | null>(null),
     plan: new LiveModelServer<PlanState | null>(null),
     agents: new LiveModelServer<AgentState[]>([]),
     activeTurn: new LiveModelServer<TranscriptTurn | null>(null),

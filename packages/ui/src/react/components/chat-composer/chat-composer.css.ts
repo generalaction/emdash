@@ -296,9 +296,6 @@ export const usageCostRow = style({
 
 export const usagePopoverBody = style({
   width: '16rem',
-  paddingLeft: '0.75rem',
-  paddingRight: '0.75rem',
-  paddingBottom: '0.75rem',
 });
 
 export const usageStatsRow = style({

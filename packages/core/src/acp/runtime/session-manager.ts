@@ -19,7 +19,7 @@ import type { ConnectionPool, ConnectionPoolEntry } from '../connection/pool';
 import type { AcpRuntimeError } from '../errors';
 import { acpErr } from '../errors';
 import type { AgentState } from '../models/agents';
-import type { SessionConfigState } from '../models/config';
+import type { SessionConfigState, SessionUsage } from '../models/config';
 import type { PlanState } from '../models/plan';
 import type { PromptDraft, PromptDraftUpdate } from '../models/prompt';
 import type { SessionState, SessionSummary } from '../models/session';
@@ -45,6 +45,7 @@ interface SessionRecord {
   lastSynced: {
     sessionState?: SessionState;
     config?: SessionConfigState;
+    usage?: SessionUsage | null;
     plan?: PlanState | null;
     agents?: AgentState[];
     activeTurn?: TranscriptTurn | null;
@@ -404,6 +405,7 @@ export class SessionManager implements InboundRouter {
       lastSynced: {
         sessionState: cell.sessionState,
         config: cell.config,
+        usage: cell.usage,
         plan: null,
         agents: [],
         activeTurn: null,
@@ -422,6 +424,10 @@ export class SessionManager implements InboundRouter {
     const config = record.cell.config;
     publishLiveModelState(record.live.config, config, record.lastSynced.config);
     record.lastSynced.config = config;
+
+    const usage = record.cell.usage;
+    publishLiveModelState(record.live.usage, usage, record.lastSynced.usage);
+    record.lastSynced.usage = usage;
 
     const plan = record.cell.transcript.plan ?? null;
     publishLiveModelState(record.live.plan, plan, record.lastSynced.plan);

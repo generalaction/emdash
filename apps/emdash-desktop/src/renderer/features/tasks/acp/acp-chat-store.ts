@@ -87,6 +87,7 @@ export class AcpChatStore {
       commands: computed,
       permissionQueue: computed,
       queuedPrompts: computed,
+      usage: computed,
       affordances: computed,
       isEmpty: computed,
       submitPrompt: action,
@@ -192,7 +193,8 @@ export class AcpChatStore {
     contextSize: number;
     cost?: { amount: number; currency: string } | null;
   } | null {
-    return null;
+    this._trackLiveRevision();
+    return this.session?.usage.getSnapshot() ?? null;
   }
 
   get affordances(): AgentAffordances {
@@ -457,6 +459,11 @@ export class AcpChatStore {
         })
       ),
       session.config.subscribe(() =>
+        runInAction(() => {
+          this._liveRevision += 1;
+        })
+      ),
+      session.usage.subscribe(() =>
         runInAction(() => {
           this._liveRevision += 1;
         })

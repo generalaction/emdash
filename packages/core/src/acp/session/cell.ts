@@ -17,7 +17,7 @@ import {
   SessionMachine,
   type SessionMachineContext,
 } from '../machine/machine';
-import type { SessionConfigState } from '../models/config';
+import type { SessionConfigState, SessionUsage } from '../models/config';
 import type { AcpPermissionRequest } from '../models/permissions';
 import { SESSION_PLAN_ID } from '../models/plan';
 import type { PromptDraft, PromptDraftUpdate, PromptInput, QueuedPrompt } from '../models/prompt';
@@ -89,6 +89,10 @@ export class SessionCell {
 
   get config(): SessionConfigState {
     return this.transcript.config;
+  }
+
+  get usage(): SessionUsage | null {
+    return this.transcript.usage;
   }
 
   history(): AcpChatHistory {
