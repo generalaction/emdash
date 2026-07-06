@@ -180,11 +180,12 @@ export function createAcpRouter(runtime: AcpRuntime) {
 export type AcpRouter = ReturnType<typeof createAcpRouter>;
 export type AcpMessagePort = Parameters<RPCHandler<Record<never, never>>['upgrade']>[0];
 
+/**
+ * Attaches the ACP router to a message port. The caller owns the port lifecycle
+ * and must start the port after serving it when required by the transport.
+ */
 export function serveAcpPort(router: AcpRouter, port: AcpMessagePort): void {
   new RPCHandler(router).upgrade(port);
-  // Electron MessagePortMain queues messages until start() is called (unlike
-  // Node ports, which auto-start when a 'message' listener is attached).
-  (port as { start?: () => void }).start?.();
 }
 
 async function* emptyUpdates(): AsyncGenerator<never> {}

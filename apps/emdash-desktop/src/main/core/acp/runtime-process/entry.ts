@@ -3,7 +3,7 @@ import { AcpRuntime, createAcpRouter, serveAcpPort, type AcpRuntimeDeps } from '
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
 import { ChildAcpProcessHost } from './child-process-host';
-import type { RuntimeMessagePort, UtilityParentPort } from './protocol';
+import type { UtilityParentPort } from './protocol';
 
 const parentPort = (process as NodeJS.Process & { parentPort?: UtilityParentPort }).parentPort;
 
@@ -39,18 +39,20 @@ const runtime = new AcpRuntime({
 
 const router = createAcpRouter(runtime);
 
-parentPort.on('message', (eventOrMessage: unknown, handle: unknown) => {
-  const { message, port } = normalizeParentMessage(eventOrMessage, handle);
+parentPort.on('message', (event) => {
+  const message = event.data;
   childHost.handleMessage(message);
 
   if (!isHostMessage(message)) return;
   switch (message.type) {
     case 'client-port': {
+      const [port] = event.ports;
       if (!port) {
         logger.warn('ACP runtime child received client-port without a transferable port');
         return;
       }
       serveAcpPort(router, port);
+      port.start();
       break;
     }
     case 'shutdown':
@@ -86,41 +88,4 @@ function isHostMessage(value: unknown): value is { type: 'client-port' | 'shutdo
     ((value as { type?: unknown }).type === 'client-port' ||
       (value as { type?: unknown }).type === 'shutdown')
   );
-}
-
-function normalizeParentMessage(
-  eventOrMessage: unknown,
-  handle: unknown
-): { message: unknown; port: RuntimeMessagePort | null } {
-  if (isMessageEventLike(eventOrMessage)) {
-    return {
-      message: eventOrMessage.data,
-      port: extractPort(eventOrMessage.data, handle, eventOrMessage.ports),
-    };
-  }
-  return {
-    message: eventOrMessage,
-    port: extractPort(eventOrMessage, handle),
-  };
-}
-
-function isMessageEventLike(value: unknown): value is { data: unknown; ports?: unknown[] } {
-  return typeof value === 'object' && value !== null && 'data' in value;
-}
-
-function extractPort(
-  message: unknown,
-  handle: unknown,
-  eventPorts: readonly unknown[] = []
-): RuntimeMessagePort | null {
-  if (handle) return handle as RuntimeMessagePort;
-  const [eventPort] = eventPorts;
-  if (eventPort) return eventPort as RuntimeMessagePort;
-  if (typeof message === 'object' && message !== null) {
-    const maybePort = (message as { port?: unknown; ports?: unknown[] }).port;
-    if (maybePort) return maybePort as RuntimeMessagePort;
-    const [first] = (message as { ports?: unknown[] }).ports ?? [];
-    if (first) return first as RuntimeMessagePort;
-  }
-  return null;
 }

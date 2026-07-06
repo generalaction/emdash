@@ -1,4 +1,4 @@
-import type { AcpMessagePort } from '@emdash/core/acp';
+import type { MessagePortMain } from 'electron';
 
 export type AcpRuntimeControlRequest =
   | {
@@ -43,9 +43,12 @@ export type AcpRuntimeHostMessage =
 
 export type AcpRuntimeChildMessage = AcpRuntimeControlRequest;
 
-export interface UtilityParentPort {
-  postMessage(message: unknown, transfer?: unknown[]): void;
-  on(event: 'message', cb: (message: unknown, handle?: unknown) => void): void;
+export interface UtilityParentPortMessageEvent {
+  data: unknown;
+  ports: MessagePortMain[];
 }
 
-export type RuntimeMessagePort = AcpMessagePort;
+export interface UtilityParentPort {
+  postMessage(message: unknown, transfer?: unknown[]): void;
+  on(event: 'message', cb: (event: UtilityParentPortMessageEvent) => void): void;
+}

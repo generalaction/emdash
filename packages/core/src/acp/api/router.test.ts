@@ -33,6 +33,7 @@ type TestAcpClient = {
 function makeClient(runtime: AcpRuntime) {
   const { port1, port2 } = new MessageChannel();
   serveAcpPort(createAcpRouter(runtime), port1);
+  port1.start();
   const link = new RPCLink({ port: port2 });
   return createORPCClient<TestAcpClient>(link);
 }
