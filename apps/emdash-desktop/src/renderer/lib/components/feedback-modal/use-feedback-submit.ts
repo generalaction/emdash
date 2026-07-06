@@ -1,82 +1,18 @@
 import { useCallback, useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
+import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
+import { buildFeedbackContent, type FeedbackGithubUser } from './build-feedback-content';
 import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
 
-const DISCORD_WEBHOOK_URL =
-  'https://discord.com/api/webhooks/1522337356185862194/pwsawgdkELfRDfT8y0dY463cfoAspkyRBVw6zjsS-oof2TJEqKm1igH6u1WFjL0PE0in';
-
-const DISCORD_MAX_FILES = 10;
-const DISCORD_MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
-
-interface GithubUser {
-  login?: string;
-  name?: string;
-  html_url?: string;
-  email?: string;
-}
+const FEEDBACK_MAX_FILES = 10;
+const FEEDBACK_MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
 
 interface FeedbackSubmitOptions {
-  githubUser?: GithubUser | null;
+  githubUser?: FeedbackGithubUser | null;
   appVersion?: string | null;
   platformDisplayName?: string | null;
   onSuccess: () => void;
-}
-
-interface BuildFeedbackContentOptions {
-  feedback: string;
-  contactEmail: string;
-  githubUser?: GithubUser | null;
-  appVersion?: string | null;
-  platformDisplayName?: string | null;
-  includeDiagnosticLogs?: boolean;
-}
-
-export function buildFeedbackContent({
-  feedback,
-  contactEmail,
-  githubUser,
-  appVersion,
-  platformDisplayName,
-  includeDiagnosticLogs,
-}: BuildFeedbackContentOptions): string {
-  const trimmedFeedback = feedback.trim();
-  const trimmedContact = contactEmail.trim();
-  const metadataLines: string[] = [];
-
-  if (trimmedContact) {
-    metadataLines.push(`Contact: ${trimmedContact}`);
-  }
-
-  const githubLogin = githubUser?.login?.trim();
-  const githubName = githubUser?.name?.trim();
-  if (githubLogin || githubName) {
-    const parts: string[] = [];
-    if (githubName && githubLogin) {
-      parts.push(`${githubName} (@${githubLogin})`);
-    } else if (githubName) {
-      parts.push(githubName);
-    } else if (githubLogin) {
-      parts.push(`@${githubLogin}`);
-    }
-    metadataLines.push(`GitHub: ${parts.join(' ')}`);
-  }
-
-  const trimmedAppVersion = appVersion?.trim();
-  if (trimmedAppVersion) {
-    metadataLines.push(`Emdash Version: ${trimmedAppVersion}`);
-  }
-
-  const trimmedPlatformDisplayName = platformDisplayName?.trim();
-  if (trimmedPlatformDisplayName) {
-    metadataLines.push(`Platform: ${trimmedPlatformDisplayName}`);
-  }
-
-  if (includeDiagnosticLogs) {
-    metadataLines.push('Diagnostic Logs: attached by user opt-in');
-  }
-
-  return [trimmedFeedback, metadataLines.join('\n')].filter(Boolean).join('\n\n');
 }
 
 export function useFeedbackSubmit({
@@ -141,16 +77,16 @@ export function useFeedbackSubmit({
 
       const files = diagnosticLog ? [...attachments, diagnosticLog] : attachments;
 
-      if (files.length > DISCORD_MAX_FILES) {
+      if (files.length > FEEDBACK_MAX_FILES) {
         setErrorMessage(
-          `Too many attachments (max ${DISCORD_MAX_FILES}). Remove some and try again.`
+          `Too many attachments (max ${FEEDBACK_MAX_FILES}). Remove some and try again.`
         );
         setSubmitting(false);
         return;
       }
 
       const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
-      if (totalBytes > DISCORD_MAX_PAYLOAD_BYTES) {
+      if (totalBytes > FEEDBACK_MAX_PAYLOAD_BYTES) {
         setErrorMessage('Attachments exceed the 8 MB total limit. Remove some and try again.');
         setSubmitting(false);
         return;
@@ -166,24 +102,17 @@ export function useFeedbackSubmit({
       });
 
       try {
-        let response: Response;
-        if (files.length > 0) {
-          const formData = new FormData();
-          formData.append('content', content);
-          files.forEach((file, index) => {
-            formData.append(`file${index}`, file);
-          });
-          response = await fetch(DISCORD_WEBHOOK_URL, { method: 'POST', body: formData });
-        } else {
-          response = await fetch(DISCORD_WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content }),
-          });
-        }
+        const payloadFiles = await Promise.all(
+          files.map(async (file) => ({
+            filename: file.name,
+            mimeType: file.type,
+            bytes: await file.arrayBuffer(),
+          }))
+        );
 
-        if (!response.ok) {
-          throw new Error(`Discord webhook returned ${response.status}`);
+        const result = await rpc.feedback.submit({ content, files: payloadFiles });
+        if (!result.success) {
+          throw new Error(result.error ?? 'Feedback submission failed');
         }
 
         onSuccess();

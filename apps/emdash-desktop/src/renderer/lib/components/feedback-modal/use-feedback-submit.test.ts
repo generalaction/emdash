@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { buildFeedbackContent } from './build-feedback-content';
 import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
-import { buildFeedbackContent } from './use-feedback-submit';
 
 describe('buildFeedbackContent', () => {
   it('includes feedback, metadata, and app version when provided', () => {

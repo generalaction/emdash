@@ -9,6 +9,7 @@ import { browserController } from './core/browser/controller';
 import { conversationController } from './core/conversations/controller';
 import { editorBufferController } from './core/editor/controller';
 import { featurebaseController } from './core/featurebase/controller';
+import { feedbackController } from './core/feedback/controller';
 import { machineFilesController } from './core/files/controller';
 import { workspaceFileSystemController } from './core/files/file-system/controller';
 import { fileTreeController } from './core/files/file-tree/controller';
@@ -61,6 +62,7 @@ export const rpcRouter = createRPCRouter({
   resourceMonitor: resourceMonitorController,
   asana: asanaController,
   featurebase: featurebaseController,
+  feedback: feedbackController,
   forgejo: forgejoController,
   files: machineFilesController,
   github: githubController,
