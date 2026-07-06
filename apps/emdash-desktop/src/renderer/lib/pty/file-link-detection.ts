@@ -1,8 +1,11 @@
 import type { ILink } from '@xterm/xterm';
 
 // Lookbehind on `:` keeps URLs (`https://...`) with WebLinksAddon.
+// Matches pathful references (`src/foo.ts`) and bare filenames (`Notes.md`).
+// Bare filenames require a stem of at least two characters so sentence
+// abbreviations like `e.g` or `i.e` never linkify.
 const FILE_PATH_PATTERN =
-  '(?<![\\w\\-./@:])(~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
+  '(?<![\\w\\-./@:])(?:(?:~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+|[\\w\\-@][\\w\\-.@]+)\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
 const URL_PROTOCOL_PATTERN = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
 const MAX_WRAPPED_LINE_LENGTH = 4096;
 
@@ -30,7 +33,7 @@ type LogicalLine = {
 
 export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): FileLinkMatch[] {
   const logicalLine = getWrappedLogicalLine(buffer, bufferLineNumber - 1);
-  if (!logicalLine || !logicalLine.text || logicalLine.text.indexOf('/') === -1) {
+  if (!logicalLine || !logicalLine.text || logicalLine.text.indexOf('.') === -1) {
     return [];
   }
 

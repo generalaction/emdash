@@ -94,7 +94,48 @@ describe('file link provider', () => {
       new MockBufferLine('  baz.ts'),
     ]);
 
-    expect(findFileLinks(buffer, 3)).toEqual([]);
+    // Only the bare filename on the last line — never the joined path.
+    expect(findFileLinks(buffer, 3)).toEqual([
+      {
+        range: {
+          start: { x: 3, y: 3 },
+          end: { x: 8, y: 3 },
+        },
+        text: 'baz.ts',
+        isExternal: false,
+      },
+    ]);
+  });
+
+  it('detects bare filenames without a directory segment', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('Search Qin Liu in UZH_Silicon_Valley_Attendees_LinkedIn.md'),
+    ]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([
+      {
+        range: {
+          start: { x: 19, y: 1 },
+          end: { x: 58, y: 1 },
+        },
+        text: 'UZH_Silicon_Valley_Attendees_LinkedIn.md',
+        isExternal: false,
+      },
+    ]);
+  });
+
+  it('ignores single-letter abbreviations like e.g. and i.e.', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('use a helper, e.g. one from utils, i.e. the shared one'),
+    ]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([]);
+  });
+
+  it('keeps bare domains inside URLs delegated to the web links addon', () => {
+    const buffer = makeBuffer([new MockBufferLine('deployed to https://emdash.sh just now')]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([]);
   });
 
   it('classifies absolute and home-relative paths as external', () => {
@@ -162,6 +203,41 @@ describe('file link provider', () => {
 
     tracker.update({ metaKey: false, ctrlKey: false });
     expect(decorations).toEqual({ pointerCursor: false, underline: false });
+  });
+
+  it('repaints the hovered link when the modifier toggles without mouse movement', () => {
+    const tracker = new ActivationModifierTracker(true);
+    const decorations = tracker.decorations();
+    let refreshes = 0;
+
+    tracker.hover(decorations, { metaKey: false, ctrlKey: false }, () => {
+      refreshes += 1;
+    });
+    expect(refreshes).toBe(0);
+
+    tracker.update({ metaKey: true, ctrlKey: false });
+    expect(refreshes).toBe(1);
+
+    tracker.update({ metaKey: false, ctrlKey: false });
+    expect(refreshes).toBe(2);
+
+    // No change in pressed state must not trigger redundant repaints.
+    tracker.update({ metaKey: false, ctrlKey: false });
+    expect(refreshes).toBe(2);
+  });
+
+  it('stops repainting once the pointer leaves the link', () => {
+    const tracker = new ActivationModifierTracker(true);
+    const decorations = tracker.decorations();
+    let refreshes = 0;
+
+    tracker.hover(decorations, { metaKey: false, ctrlKey: false }, () => {
+      refreshes += 1;
+    });
+    tracker.leave(decorations);
+
+    tracker.update({ metaKey: true, ctrlKey: false });
+    expect(refreshes).toBe(0);
   });
 
   it('only opens links when the activation modifier is pressed', () => {
