@@ -5,7 +5,6 @@
  * parsing so provider-specific Task metadata is materialized into subagent rows.
  */
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   agentStateSchema,
   planStateSchema,
@@ -13,6 +12,7 @@ import {
   sessionUsageSchema,
   transcriptTurnSchema,
 } from '@emdash/core/acp';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { driveParser, loadFixture } from '../../../../tooling/fixtures/acp/drive-parser';
 import { enrichClaudeUpdate } from './acp-transform';
 

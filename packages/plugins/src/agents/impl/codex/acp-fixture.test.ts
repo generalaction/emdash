@@ -5,7 +5,6 @@
  * enrichment hook, so this exercises the parser's baseline decoding.
  */
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   agentStateSchema,
   planStateSchema,
@@ -13,6 +12,7 @@ import {
   sessionUsageSchema,
   transcriptTurnSchema,
 } from '@emdash/core/acp';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { driveParser, loadFixture } from '../../../../tooling/fixtures/acp/drive-parser';
 
 const fixture = loadFixture(new URL('./fixtures/acp-transcript.json', import.meta.url));
