@@ -52,16 +52,17 @@ describe('OPEN_IN_APPS', () => {
       id: 'hyper',
       iconPath: 'hyper.svg',
       label: 'Hyper',
+      supportsRemote: true,
     });
   });
 
   it('configures Hyper launch commands for supported desktop platforms', () => {
     expect(OPEN_IN_APPS.hyper.platforms.darwin?.bundleIds).toContain('co.zeit.hyper');
-    expect(OPEN_IN_APPS.hyper.platforms.darwin?.openCommands).toEqual([
-      'open -na "Hyper" --args {{path}}',
-    ]);
-    expect(OPEN_IN_APPS.hyper.platforms.win32?.openCommands).toEqual(['hyper {{path}}']);
-    expect(OPEN_IN_APPS.hyper.platforms.linux?.openCommands).toEqual(['hyper {{path}}']);
+    // Hyper has no cwd flag, so a path argument would be silently ignored; launch
+    // plainly and rely on the exec cwd for best-effort directory on linux/win32.
+    expect(OPEN_IN_APPS.hyper.platforms.darwin?.openCommands).toEqual(['open -na "Hyper"']);
+    expect(OPEN_IN_APPS.hyper.platforms.win32?.openCommands).toEqual(['hyper']);
+    expect(OPEN_IN_APPS.hyper.platforms.linux?.openCommands).toEqual(['hyper']);
   });
 
   it('registers Athas as an open-in editor option', () => {

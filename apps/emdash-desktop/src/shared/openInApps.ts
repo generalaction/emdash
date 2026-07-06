@@ -276,19 +276,22 @@ const _OPEN_IN_APPS = {
     id: 'hyper',
     label: 'Hyper',
     iconPath: ICON_PATHS.hyper,
+    supportsRemote: true,
+    // Hyper has no cwd flag (vercel/hyper#1213); a path arg is ignored. Best-effort
+    // via exec cwd on linux/win32; macOS opens in Hyper's default dir.
     platforms: {
       darwin: {
-        openCommands: ['open -na "Hyper" --args {{path}}'],
+        openCommands: ['open -na "Hyper"'],
         checkCommands: ['hyper'],
         bundleIds: ['co.zeit.hyper'],
         appNames: ['Hyper'],
       },
       win32: {
-        openCommands: ['hyper {{path}}'],
+        openCommands: ['hyper'],
         checkCommands: ['hyper'],
       },
       linux: {
-        openCommands: ['hyper {{path}}'],
+        openCommands: ['hyper'],
         checkCommands: ['hyper'],
       },
     },
