@@ -1,12 +1,6 @@
 import { resultSchema } from '@emdash/shared';
 import { eventIterator, oc } from '@orpc/contract';
 import { z } from 'zod';
-import { createLiveModelContract } from '../../live';
-import { gitHeadModelSchema } from '../checkout/models/head';
-import { checkoutStatusModelSchema } from '../checkout/models/status';
-import { gitRefsModelSchema } from '../repository/models/refs';
-import { gitRemotesModelSchema } from '../repository/models/remotes';
-import { gitStashesModelSchema } from '../repository/models/stashes';
 import {
   addCheckoutOptionsSchema,
   commitOptionsSchema,
@@ -40,6 +34,7 @@ import {
   switchErrorSchema,
   syncErrorSchema,
 } from './errors';
+import { gitCheckoutInputSchema, gitLiveContract, gitRepositoryInputSchema } from './live';
 import {
   blameResultSchema,
   checkoutInfoSchema,
@@ -56,22 +51,8 @@ import {
   imageReadResultSchema,
 } from './queries';
 
-const repoKey = z.object({ repositoryRoot: z.string() });
-const checkoutKey = z.object({ checkoutPath: z.string() });
-
-const repoModel = <T extends z.ZodTypeAny>(data: T) =>
-  createLiveModelContract(data, {
-    snapshotInput: repoKey,
-    subscribeInput: repoKey,
-    unsubscribeInput: repoKey,
-  });
-
-const checkoutModel = <T extends z.ZodTypeAny>(data: T) =>
-  createLiveModelContract(data, {
-    snapshotInput: checkoutKey,
-    subscribeInput: checkoutKey,
-    unsubscribeInput: checkoutKey,
-  });
+const repoKey = gitRepositoryInputSchema;
+const checkoutKey = gitCheckoutInputSchema;
 
 const runtimeContract = {
   inspectPath: oc.input(z.object({ path: z.string() })).output(gitPathInspectionSchema),
@@ -86,14 +67,7 @@ const runtimeContract = {
 };
 
 const repositoryContract = {
-  /** Branches, tags — shared across all checkouts. */
-  refs: repoModel(gitRefsModelSchema),
-
-  /** Configured remotes for this repository. */
-  remotes: repoModel(gitRemotesModelSchema),
-
-  /** Stash list — owned by the repository, not a specific checkout. */
-  stashes: repoModel(gitStashesModelSchema),
+  ...gitLiveContract.repository,
 
   listCheckouts: oc.input(repoKey).output(z.array(checkoutInfoSchema)),
 
@@ -157,11 +131,7 @@ const repositoryContract = {
 };
 
 const checkoutContract = {
-  /** Normalized working-tree status (staged + unstaged, flat map by path). */
-  status: checkoutModel(checkoutStatusModelSchema),
-
-  /** Current HEAD position (branch / detached / unborn). */
-  head: checkoutModel(gitHeadModelSchema),
+  ...gitLiveContract.checkout,
 
   stage: oc.input(checkoutKey.extend({ paths: z.array(z.string()) })).output(gitVoidResultSchema),
 
