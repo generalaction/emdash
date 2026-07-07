@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/components/issue-status-indicator.tsx
+  s_1a815c30e2043c::t_786402ba9767f9 144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1a88f6c685ade1d521ef5d16645e002f1b37e5d8",
+  "prompts": {},
+  "sessions": {
+    "s_1a815c30e2043c": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lKkuS8ah9BN5fadzRpH",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
