@@ -1,3 +1,4 @@
+import type { Unsubscribe } from '@emdash/shared';
 import { eventIterator, oc } from '@orpc/contract';
 import { z } from 'zod';
 import type { LiveSource, LiveUpdate } from '../protocol';
@@ -8,20 +9,28 @@ import {
   liveUpdateSchema,
 } from '../protocol';
 
+const voidInput = z.void().optional();
+type VoidInput = typeof voidInput;
+
 /**
  * Creates a live-model contract for a host-global model (no key required).
  * Snapshot/subscribe/unsubscribe all accept no input unless input schemas are supplied.
  */
-export function createLiveModelContract<T extends z.ZodTypeAny>(
+export function createLiveModelContract<
+  T extends z.ZodTypeAny,
+  SnapIn extends z.ZodTypeAny = VoidInput,
+  SubIn extends z.ZodTypeAny = VoidInput,
+  UnsubIn extends z.ZodTypeAny = VoidInput,
+>(
   data: T,
   {
-    snapshotInput = z.void().optional(),
-    subscribeInput = z.void().optional(),
-    unsubscribeInput = z.void().optional(),
+    snapshotInput = voidInput as unknown as SnapIn,
+    subscribeInput = voidInput as unknown as SubIn,
+    unsubscribeInput = voidInput as unknown as UnsubIn,
   }: {
-    snapshotInput?: z.ZodTypeAny;
-    subscribeInput?: z.ZodTypeAny;
-    unsubscribeInput?: z.ZodTypeAny;
+    snapshotInput?: SnapIn;
+    subscribeInput?: SubIn;
+    unsubscribeInput?: UnsubIn;
   } = {}
 ) {
   return {
@@ -71,27 +80,28 @@ export function createLiveJobContract<
 }
 
 /**
- * Async-generator bridge that streams LiveUpdates from any live source into an
- * oRPC eventIterator handler, handling abort cleanup automatically.
+ * Bridges a callback-style subscription into an async generator suitable for
+ * oRPC eventIterator handlers. Events arriving while the consumer is slow are
+ * buffered; cleanup (unsubscribe) runs on abort, consumer return, and throw.
+ *
+ * Note: async generators are lazy — the subscription is established on the
+ * first `next()` pull, not when the generator is created.
  */
-export async function* streamLiveUpdates(
-  source: Pick<LiveSource, 'subscribe'>,
+export async function* streamEvents<T>(
+  subscribe: (cb: (event: T) => void) => Unsubscribe,
   signal?: AbortSignal
-): AsyncGenerator<LiveUpdate> {
-  const buffer: LiveUpdate[] = [];
+): AsyncGenerator<T> {
+  const buffer: T[] = [];
   let wakeup: (() => void) | null = null;
-
-  const unsub = source.subscribe((update) => {
-    buffer.push(update);
+  const unsub = subscribe((event) => {
+    buffer.push(event);
     wakeup?.();
   });
-
   const onAbort = (): void => {
     unsub();
     wakeup?.();
   };
   signal?.addEventListener('abort', onAbort);
-
   try {
     while (!signal?.aborted) {
       if (buffer.length === 0) {
@@ -108,4 +118,11 @@ export async function* streamLiveUpdates(
     unsub();
     signal?.removeEventListener('abort', onAbort);
   }
+}
+
+export function streamLiveUpdates(
+  source: Pick<LiveSource, 'subscribe'>,
+  signal?: AbortSignal
+): AsyncGenerator<LiveUpdate> {
+  return streamEvents((cb) => source.subscribe(cb), signal);
 }
