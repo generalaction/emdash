@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/renderer/features/tasks/task-config/initial-conversation-section.test.ts
+  s_131b35481b9818::t_b398bfa4b2ee54 6,194-218
+  s_131b35481b9818::t_2e8e8f105e2a0a 219
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.test.ts
+  s_29d85880118753::t_fa0fb3245a46f4 183
+apps/emdash-desktop/src/renderer/features/tasks/task-config/initial-conversation-section.tsx
+  s_131b35481b9818::t_b398bfa4b2ee54 186-190,196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a37b95140054237aa7bfbcbe7cf6caa9f1da87b0",
+  "prompts": {},
+  "sessions": {
+    "s_131b35481b9818": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQcliSBFDF2a20TNG1u",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_29d85880118753": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQg0WK2pdF97nMWGTYK",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
