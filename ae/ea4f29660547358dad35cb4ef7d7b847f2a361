@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/components/pr-badge.tsx
+  s_a69eb0570665c2::t_97785f332da1f6 27,32-33,38,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "aeea4f29660547358dad35cb4ef7d7b847f2a361",
+  "prompts": {},
+  "sessions": {
+    "s_a69eb0570665c2": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f3b1e-fbec-706f-a665-188895e337b8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
