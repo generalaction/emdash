@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/agents-page/CustomAgentSheet.tsx
+  s_5b5f85c526b14d::t_415934fd96e0bb 28-63,143-145,149-155,160-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1370666d14028aca45d352611df240dd121b76bc",
+  "prompts": {},
+  "sessions": {
+    "s_5b5f85c526b14d": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lVlERUFk6KkHEthoHsL",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
