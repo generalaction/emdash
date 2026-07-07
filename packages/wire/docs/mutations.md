@@ -103,13 +103,17 @@ This lets UI code safely read live client snapshots after `await settled`.
 
 See [../examples/mutations/client.ts](../examples/mutations/client.ts).
 
-## Contract Mutations
+## Group Contract Mutations
 
-The API layer integrates the same mechanism. A `mutation()` endpoint becomes a
-client method returning `{ result, settled }`:
+The API layer integrates the same mechanism through `liveModelGroup` member
+mutations. Each group mutation becomes a client method returning
+`{ result, settled }`:
 
 ```ts
-const added = await client.addNote({ sessionId: 'demo', text: 'Typed client mutation' });
+const session = client.session({ sessionId: 'demo' });
+await session.ready;
+
+const added = await session.addNote({ text: 'Typed client mutation' });
 await added.settled;
 ```
 
@@ -118,7 +122,7 @@ server, and uses its internal `LiveBindingRegistry` to settle the returned
 cursors. Callers can also provide a mutation id explicitly:
 
 ```ts
-await binding.bump({}, { mutationId: 'custom-mutation' });
+await session.addNote({ text: 'Optimistic title' }, { mutationId: 'custom-mutation' });
 ```
 
 Explicit ids are useful for optimistic previews, where the preview and server
@@ -126,13 +130,13 @@ mutation must share the same confirmation id.
 
 ## Idempotency and Retries
 
-The same `mutationId` is also the idempotency key for contract mutations. Server
+The same `mutationId` is also the idempotency key for group mutations. Server
 binding keeps a bounded in-memory cache of settled mutation results keyed by
 `mutationId`, and shares one in-flight execution for concurrent duplicates:
 
 ```ts
-await client.addNote(input, { mutationId: 'add-note-1' });
-await client.addNote(input, { mutationId: 'add-note-1' }); // returns cached result
+await session.addNote(input, { mutationId: 'add-note-1' });
+await session.addNote(input, { mutationId: 'add-note-1' }); // returns cached result
 ```
 
 This protects the common transport race where the server commits a mutation but
@@ -140,7 +144,7 @@ the client loses the response during a disconnect. The client retries
 `DISCONNECTED` mutation calls with the same `mutationId` by default:
 
 ```ts
-await client.addNote(input, {
+await session.addNote(input, {
   mutationId: 'add-note-1',
   retry: { maxRetries: 1 },
 });
@@ -153,5 +157,8 @@ The cache is intentionally process-local and temporary. It provides at-most-once
 behavior within one server process lifetime, not durable exactly-once semantics.
 If a mutation has durable side effects such as database writes, store the
 `mutationId` in that domain layer too, for example with a unique constraint.
+
+Use `procedure()` for API calls that do not need live model cursor settling.
+`mutation()` is only valid as a member of `liveModelGroup.mutations`.
 
 See [../examples/mutation-idempotency/client.ts](../examples/mutation-idempotency/client.ts).

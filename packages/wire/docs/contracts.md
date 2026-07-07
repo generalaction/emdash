@@ -10,12 +10,24 @@ procedure paths and live ref ids.
 
 ```ts
 export const notesApi = defineContract({
-  notes: liveModel({ key: sessionKeySchema, data: notesStateSchema }),
   activity: liveLog({ key: sessionKeySchema }),
-  addNote: mutation({
-    input: sessionKeySchema.extend({ text: z.string() }),
-    data: noteSchema,
-    error: z.string(),
+  session: liveModelGroup({
+    key: sessionKeySchema,
+    models: {
+      notes: liveModel({ data: notesStateSchema }),
+    },
+    mutations: {
+      addNote: mutation(
+        { input: z.object({ text: z.string() }), data: noteSchema, error: z.string() },
+        (ctx, input) => {
+          const note = { id: input.text.toLowerCase(), text: input.text };
+          ctx.produce('notes', (draft) => {
+            draft.notes.push(note);
+          });
+          return ok(note);
+        }
+      ),
+    },
   }),
   clearNotes: procedure({
     input: sessionKeySchema,
@@ -47,8 +59,8 @@ Live model endpoints expose `LiveModelServer` instances over a key. The endpoint
 id is assigned from the contract path:
 
 ```ts
-notes: liveModel({ key: sessionKeySchema, data: notesStateSchema });
-// notesApi.notes.id === 'notes'
+notes: liveModel({ data: notesStateSchema });
+// notesApi.session.models.notes.id === 'session.notes'
 ```
 
 ### `liveLog`
@@ -77,23 +89,6 @@ build: job({
 `bindContract()` binds the endpoint to `{ run, toError }`. The client gets
 `start(input)` and `attach(jobId)` helpers. See [Live jobs](./live-job.md) and
 [../examples/job-contract/client.ts](../examples/job-contract/client.ts).
-
-### Top-level `mutation`
-
-Top-level mutations are declared in the contract, but their handlers are bound
-on the server in `bindContract()`:
-
-```ts
-addNote: mutation({
-  input: sessionKeySchema.extend({ text: z.string() }),
-  data: noteSchema,
-  error: z.string(),
-});
-```
-
-Do not pass an inline handler to a top-level mutation. `defineContract()` rejects
-that because top-level mutation handlers need server-only access to registries
-and services.
 
 ### `liveModelGroup`
 
@@ -130,6 +125,10 @@ Group mutations must have inline handlers. The same handler runs on the server,
 and `OptimisticLiveModelGroup` may run it on the client to derive optimistic
 previews. Keep group handlers pure functions of `(member drafts, input)`: avoid
 I/O, time, random numbers, and server-only state in the handler body.
+
+`mutation()` is intentionally only valid inside `liveModelGroup.mutations`.
+Use `procedure()` for request/response calls that do not need live model cursor
+settling, and use `job()` for long-running work.
 
 See [../examples/group/client.ts](../examples/group/client.ts).
 

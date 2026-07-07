@@ -1,18 +1,15 @@
-import { err, ok, resultSchema, type Result, type Unsubscribe } from '@emdash/shared';
+import { err, ok, resultSchema, type Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import { LiveJobServer, type LiveJobContext } from '../live/job';
 import type { LiveModelServer } from '../live/model';
 import {
   GroupMutationContext,
-  liveMutation,
   MutationResultCache,
   type MutationResultCacheOptions,
   type LiveMutationResult,
   type LiveModelRegistry,
-  type MutationContext,
 } from '../live/mutations';
 import { stableStringify } from '../live/mutations';
-import type { LiveMutationInput } from '../live/mutations/handler';
 import type { LiveSource } from '../live/protocol';
 import { liveCursorEntrySchema } from '../live/protocol';
 import type { WireInstrumentation } from '../observability';
@@ -31,10 +28,7 @@ import type {
   JobError,
   LiveModelEndpointDef,
   LiveModelGroupDef,
-  MutationData,
   MutationDef,
-  MutationError,
-  MutationInput,
 } from './define';
 import { isEndpointDef } from './define';
 import { WireError } from './protocol';
@@ -65,13 +59,6 @@ type ProcedureImpl<Def extends EndpointDef> = (
   meta: CallMeta
 ) => Promise<EndpointOutput<Def>> | EndpointOutput<Def>;
 
-type MutationImpl<Def extends MutationDef> = (
-  ctx: MutationContext,
-  input: LiveMutationInput<MutationInput<Def>>
-) =>
-  | Promise<Result<MutationData<Def>, MutationError<Def>>>
-  | Result<MutationData<Def>, MutationError<Def>>;
-
 type LiveModelImpl<Def extends LiveModelEndpointDef> =
   | RegistryResolver
   | ((key: EndpointLiveModelKey<Def>) => LiveSource | null | undefined);
@@ -84,17 +71,15 @@ type GroupImpl = RegistryResolver | undefined;
 
 type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
   ? ProcedureImpl<Def>
-  : Def extends MutationDef
-    ? MutationImpl<Def>
-    : Def extends LiveModelEndpointDef
-      ? LiveModelImpl<Def>
-      : Def extends { kind: 'liveLog' }
-        ? LiveLogImpl<Def>
-        : Def extends { kind: 'group' }
-          ? GroupImpl
-          : Def extends JobEndpointDef
-            ? JobImpl<Def>
-            : never;
+  : Def extends LiveModelEndpointDef
+    ? LiveModelImpl<Def>
+    : Def extends { kind: 'liveLog' }
+      ? LiveLogImpl<Def>
+      : Def extends { kind: 'group' }
+        ? GroupImpl
+        : Def extends JobEndpointDef
+          ? JobImpl<Def>
+          : never;
 
 type JobImpl<Def extends JobEndpointDef> = {
   run(
@@ -164,26 +149,6 @@ export function bindContract<Defs extends ContractDefinitions>(
             const parsedInput = validate === 'none' ? input : def.input.parse(input);
             const output = await handler(parsedInput, meta);
             return validate === 'full' ? def.output.parse(output) : output;
-          });
-          break;
-        }
-        case 'mutation': {
-          if (!registry)
-            throw new WireError('MISSING_REGISTRY', `Mutation '${fullPath}' requires a registry`);
-          const handler = entryImpl as MutationImpl<MutationDef> | undefined;
-          if (!handler)
-            throw new WireError('MISSING_HANDLER', `Mutation '${fullPath}' requires a handler`);
-          const wrapped = liveMutation(registry, async (ctx, input) => handler(ctx, input));
-          procedureEntries.set(fullPath, async (input) => {
-            const parsedInput = parseMutationInput(def, input, validate);
-            const output = await runMutation(
-              mutationCache,
-              parsedInput.mutationId,
-              fullPath,
-              () => wrapped(parsedInput),
-              options.instrumentation
-            );
-            return validateMutationOutput(def, output, validate);
           });
           break;
         }
@@ -408,17 +373,6 @@ function isRegistryResolver(value: unknown): value is RegistryResolver {
   );
 }
 
-function parseMutationInput(
-  def: MutationDef,
-  input: unknown,
-  validate: ValidatePolicy
-): LiveMutationInput<unknown> & { mutationId: string } {
-  if (validate === 'none') return withMutationId(input);
-  const parsed = def.input.parse(input) as Record<string, unknown>;
-  const mutationId = readMutationId(input);
-  return { ...parsed, mutationId: mutationId ?? createFallbackMutationId() };
-}
-
 function parseGroupMutationInput(
   group: LiveModelGroupDef,
   def: MutationDef,
@@ -474,20 +428,6 @@ function resolveGroupInstance(registry: LiveModelRegistry, group: LiveModelGroup
     models[name] = server as LiveModelServer<unknown>;
   }
   return { group, key, models };
-}
-
-function readMutationId(input: unknown): string | undefined {
-  if (typeof input !== 'object' || input === null) return undefined;
-  const mutationId = (input as { mutationId?: unknown }).mutationId;
-  return typeof mutationId === 'string' ? mutationId : undefined;
-}
-
-function withMutationId(input: unknown): LiveMutationInput<unknown> & { mutationId: string } {
-  const mutationId = readMutationId(input) ?? createFallbackMutationId();
-  if (typeof input === 'object' && input !== null) {
-    return { ...(input as Record<string, unknown>), mutationId };
-  }
-  return { value: input, mutationId } as LiveMutationInput<unknown> & { mutationId: string };
 }
 
 function createFallbackMutationId(): string {

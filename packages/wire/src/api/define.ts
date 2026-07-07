@@ -56,7 +56,7 @@ export type MutationDef<
   input: InputSchema;
   data: DataSchema;
   error: ErrorSchema;
-  handler?: GroupMutationHandler<InputSchema, DataSchema, ErrorSchema>;
+  handler: GroupMutationHandler<InputSchema, DataSchema, ErrorSchema>;
 };
 
 export type GroupMutationHandler<
@@ -87,7 +87,6 @@ export type EndpointDef =
   | LiveModelEndpointDef
   | LiveLogEndpointDef
   | JobEndpointDef
-  | MutationDef
   | LiveModelGroupDef;
 
 export type ContractEntry = EndpointDef | Contract<ContractDefinitions>;
@@ -99,11 +98,7 @@ export type Contract<Defs extends ContractDefinitions> = Defs & {
 };
 
 export type EndpointInput<Def> =
-  Def extends ProcedureDef<infer Input, z.ZodTypeAny>
-    ? z.infer<Input>
-    : Def extends MutationDef<infer Input, z.ZodTypeAny, z.ZodTypeAny>
-      ? z.infer<Input>
-      : never;
+  Def extends ProcedureDef<infer Input, z.ZodTypeAny> ? z.infer<Input> : never;
 
 export type EndpointOutput<Def> =
   Def extends ProcedureDef<z.ZodTypeAny, infer Output> ? z.infer<Output> : never;
@@ -217,19 +212,10 @@ export function job<
 }
 
 /**
- * When used inside liveModelGroup(), handlers should be pure functions of
- * the member drafts and input. The optimistic group utility may run the same
+ * Defines a liveModelGroup member mutation. Handlers should be pure functions
+ * of the member drafts and input. The optimistic group utility may run the same
  * handler client-side to derive previews before the server confirms them.
  */
-export function mutation<
-  InputSchema extends z.ZodTypeAny,
-  DataSchema extends z.ZodTypeAny,
-  ErrorSchema extends z.ZodTypeAny,
->(def: {
-  input: InputSchema;
-  data: DataSchema;
-  error: ErrorSchema;
-}): MutationDef<InputSchema, DataSchema, ErrorSchema>;
 export function mutation<
   InputSchema extends z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny,
@@ -240,7 +226,7 @@ export function mutation<
 ): MutationDef<InputSchema, DataSchema, ErrorSchema>;
 export function mutation(
   def: { input: z.ZodTypeAny; data: z.ZodTypeAny; error: z.ZodTypeAny },
-  handler?: GroupMutationHandler<z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny>
+  handler: GroupMutationHandler<z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny>
 ): MutationDef {
   return { kind: 'mutation', ...def, handler };
 }
@@ -275,6 +261,11 @@ function finalizeContract(
 ): Contract<ContractDefinitions> {
   const finalized: ContractDefinitions = {};
   for (const [name, def] of Object.entries(definitions)) {
+    if (isMutationDef(def)) {
+      throw new Error(
+        `Mutation '${[...prefix, name].join('.')}' must be declared inside liveModelGroup().mutations`
+      );
+    }
     finalized[name] = isEndpointDef(def)
       ? finalizeEndpoint([...prefix, name], def)
       : finalizeContract(def, [...prefix, name]);
@@ -295,11 +286,6 @@ function finalizeEndpoint(path: string[], def: EndpointDef): EndpointDef {
       return { ...def, id };
     case 'job':
       return { ...def, id };
-    case 'mutation':
-      if (def.handler) {
-        throw new Error(`Top-level mutation '${id}' must bind its handler in bindContract()`);
-      }
-      return { ...def };
     case 'group':
       return finalizeGroupEndpoint(id, def);
     case 'procedure':
@@ -318,9 +304,6 @@ function finalizeGroupEndpoint(id: string, def: LiveModelGroupDef): LiveModelGro
   }
   const mutations: Record<string, MutationDef> = {};
   for (const [mutationName, memberMutation] of Object.entries(def.mutations)) {
-    if (!memberMutation.handler) {
-      throw new Error(`Group mutation '${id}.${mutationName}' requires an inline handler`);
-    }
     mutations[mutationName] = { ...memberMutation };
   }
   return {
@@ -331,6 +314,12 @@ function finalizeGroupEndpoint(id: string, def: LiveModelGroupDef): LiveModelGro
   };
 }
 
+function isMutationDef(value: unknown): value is MutationDef {
+  return (
+    typeof value === 'object' && value !== null && (value as { kind?: unknown }).kind === 'mutation'
+  );
+}
+
 export function isEndpointDef(value: ContractEntry): value is EndpointDef {
   if (typeof value !== 'object' || value === null) return false;
   const kind = (value as { kind?: unknown }).kind;
@@ -338,7 +327,6 @@ export function isEndpointDef(value: ContractEntry): value is EndpointDef {
     case 'liveModel':
     case 'liveLog':
     case 'job':
-    case 'mutation':
     case 'group':
     case 'procedure':
       return true;

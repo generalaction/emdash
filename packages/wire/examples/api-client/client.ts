@@ -9,22 +9,24 @@ async function main(): Promise<void> {
   const client = contractClient(notesApi, connect(pair.left));
   const session = { sessionId: 'demo' };
 
-  const notesBinding = client.notes(session, (state) => {
-    console.log('notes model:', state);
+  const sessionBinding = client.session(session, {
+    notes: (state) => {
+      console.log('notes model:', state);
+    },
   });
   const activityBinding = client.activity(session, {
     onReset: (snapshot) => console.log('activity reset:', JSON.stringify(snapshot)),
     onAppend: (chunk) => console.log('activity append:', chunk.trim()),
   });
 
-  await notesBinding.ready;
+  await sessionBinding.ready;
   await activityBinding.ready;
-  const added = await client.addNote({ ...session, text: 'Typed client mutation' });
+  const added = await sessionBinding.addNote({ text: 'Typed client mutation' });
   await added.settled;
   await client.clearNotes(session);
   await Promise.resolve();
 
-  await notesBinding.dispose();
+  await sessionBinding.dispose();
   await activityBinding.dispose();
 }
 

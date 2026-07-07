@@ -218,9 +218,8 @@ Group mutation handlers may run on both server and client. Keep them pure:
 - Avoid: network calls, filesystem access, time, randomness, and server-only
   stores in the inline handler.
 
-If a mutation needs server-only work, keep the server-only work outside the
-inline group handler or model that workflow as a top-level mutation without
-optimistic support.
+If a workflow needs server-only work, keep that work outside the inline group
+handler and model it as a `procedure()` or `job()` that updates domain state.
 
 See [../examples/optimistic-group/client.ts](../examples/optimistic-group/client.ts).
 

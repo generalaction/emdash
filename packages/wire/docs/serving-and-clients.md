@@ -10,30 +10,24 @@ server implementation.
 
 ```ts
 const registry = new LiveModelRegistry();
-const notes = new LiveModelServer<NotesState>({ notes: [] }, 1000);
+const instance = createGroupInstance(notesApi.session, { sessionId: 'demo' }, {
+  notes: { notes: [] },
+});
 const activity = new LiveLogServer({ generation: 2000 });
 
-registry.register(notesApi.notes, { sessionId: 'demo' }, notes);
+registry.registerGroup(notesApi.session, { sessionId: 'demo' }, instance);
 
 export const notesController = bindContract(notesApi, {
   registry,
   impl: {
-    notes: fromRegistry(),
+    session: fromRegistry(),
     activity: () => activity,
-    addNote: (ctx, input) => {
-      const note = { id: `note-${notes.snapshot().data.notes.length + 1}`, text: input.text };
-      ctx.produce(notesApi.notes, { sessionId: input.sessionId }, (draft) => {
-        draft.notes.push(note);
-      });
-      activity.append(`added ${note.id}\n`);
-      return ok(note);
-    },
     clearNotes: () => {
-      notes.produce((draft) => {
+      instance.models.notes.produce((draft) => {
         draft.notes = [];
       });
       activity.append('cleared notes\n');
-      return notes.snapshot().data;
+      return instance.models.notes.snapshot().data;
     },
   },
 });
@@ -42,10 +36,10 @@ export const notesController = bindContract(notesApi, {
 Implementation mapping by endpoint kind:
 
 - `procedure`: `(input, meta) => output | Promise<output>`.
-- top-level `mutation`: `(ctx, inputWithMutationId) => Result<data, error>`.
 - `liveModel`: `fromRegistry()` or `(key) => LiveSource`.
 - `liveLog`: `(key) => LiveSource`.
-- `liveModelGroup`: usually `fromRegistry()` after registering group instances.
+- `liveModelGroup`: usually `fromRegistry()` after registering group instances;
+  member mutations are declared inline on the group.
 
 `validate` controls Zod validation:
 
@@ -121,8 +115,10 @@ reopened.
 shape as the contract.
 
 ```ts
-const notesBinding = client.notes(session, (state, meta) => {
-  console.log('notes model:', state, meta.kind);
+const sessionBinding = client.session(session, {
+  notes: (state, meta) => {
+    console.log('notes model:', state, meta.kind);
+  },
 });
 
 const activityBinding = client.activity(session, {
@@ -130,14 +126,14 @@ const activityBinding = client.activity(session, {
   onAppend: (chunk) => console.log('activity append:', chunk.trim()),
 });
 
-await notesBinding.ready;
+await sessionBinding.ready;
 await activityBinding.ready;
 
-const added = await client.addNote({ ...session, text: 'Typed client mutation' });
+const added = await sessionBinding.addNote({ text: 'Typed client mutation' });
 await added.settled;
 await client.clearNotes(session);
 
-await notesBinding.dispose();
+await sessionBinding.dispose();
 await activityBinding.dispose();
 ```
 

@@ -48,8 +48,8 @@ Examples:
   server-side abort on disconnect.
 - `contract/` demonstrates the full API flow in one file: contract definition,
   bound controller, memory transport, and typed client.
-- `api-definition/` isolates flat contract definition with `defineContract`,
-  `procedure`, `mutation`, `liveModel`, and `liveLog`.
+- `api-definition/` isolates contract definition with `defineContract`,
+  `procedure`, `liveModel`, `liveLog`, and `liveModelGroup` member mutations.
 - `api-binding/` isolates controller construction with `bindContract()` and
   direct controller calls/snapshots.
 - `api-client/` isolates serving a bound controller over a memory transport and
@@ -60,8 +60,8 @@ Examples:
   procedure calls.
 - `job-contract/` demonstrates the contract-level `job()` endpoint with start,
   progress, cancellation, terminal result, and reattach.
-- `mutation-idempotency/` demonstrates mutationId-based server dedupe and
-  disconnect retry with the same mutation id.
+- `mutation-idempotency/` demonstrates mutationId-based server dedupe for
+  `liveModelGroup` member mutations.
 - `multi-window/` demonstrates one `Controller` served to multiple independent
   clients through `createWireSessionHub`.
 - `logging/` demonstrates `withLogging`, `loggingTransport`, instrumentation

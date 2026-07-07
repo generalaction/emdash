@@ -7,8 +7,8 @@ console.log(
   entries.filter(([, def]) => def.kind === 'procedure').map(([name]) => name)
 );
 console.log(
-  'mutations:',
-  entries.filter(([, def]) => def.kind === 'mutation').map(([name]) => name)
+  'groups:',
+  entries.filter(([, def]) => def.kind === 'group').map(([name]) => name)
 );
 console.log(
   'live models:',

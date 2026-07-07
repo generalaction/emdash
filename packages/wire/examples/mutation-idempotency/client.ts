@@ -2,102 +2,89 @@ import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
   LiveModelRegistry,
-  LiveModelServer,
   bindContract,
   connect,
   contractClient,
+  createGroupInstance,
   defineContract,
   fromRegistry,
   liveModel,
+  liveModelGroup,
   memoryTransportPair,
   mutation,
-  reconnectingTransport,
   serve,
-  type MemoryTransportPair,
 } from '../../src/index';
 
 const keySchema = z.object({ id: z.string() });
 
-const api = defineContract({
-  counter: liveModel({
-    key: keySchema,
-    data: z.object({ count: z.number() }),
-  }),
-  increment: mutation({
-    input: keySchema,
-    data: z.object({ count: z.number() }),
-    error: z.string(),
-  }),
-});
-
 async function main(): Promise<void> {
+  const api = createApi();
   const registry = new LiveModelRegistry();
   const key = { id: 'shared' };
-  const counter = new LiveModelServer({ count: 0 }, 1000);
-  registry.register(api.counter, key, counter);
+  const counter = createGroupInstance(api.counter, key, {
+    state: { count: 0 },
+  });
+  registry.registerGroup(api.counter, key, counter);
 
-  const gate = deferred<void>();
-  let currentPair: MemoryTransportPair | undefined;
-  let handlerCalls = 0;
   const controller = bindContract(api, {
     registry,
     impl: {
       counter: fromRegistry(),
-      increment: async (ctx, input) => {
-        handlerCalls += 1;
-        ctx.produce(api.counter, { id: input.id }, (draft) => {
-          draft.count += 1;
-        });
-        await gate.promise;
-        return ok(counter.snapshot().data);
-      },
     },
   });
+  const pair = memoryTransportPair();
+  serve(pair.right, controller);
+  const client = contractClient(api, connect(pair.left));
+  const binding = client.counter(key);
+  await binding.ready;
 
-  const transport = reconnectingTransport(
-    async () => {
-      currentPair = memoryTransportPair();
-      serve(currentPair.right, controller);
-      return currentPair.left;
-    },
-    { backoffMs: [0] }
+  const first = await binding.increment(
+    {},
+    {
+      mutationId: 'example-mutation',
+    }
   );
-  const client = contractClient(api, connect(transport));
+  const second = await binding.increment(
+    {},
+    {
+      mutationId: 'example-mutation',
+    }
+  );
 
-  const invocation = client.increment(key, {
-    mutationId: 'example-mutation',
-    retry: { maxRetries: 1 },
-  });
-  await waitFor(() => handlerCalls === 1 && currentPair !== undefined);
-  currentPair?.disconnect();
-  gate.resolve();
-
-  const result = await invocation;
-  console.log('mutation result:', result.result);
-  console.log('handler calls:', handlerCalls);
-  console.log('counter:', counter.snapshot().data);
+  console.log('first result:', first.result);
+  console.log('second result:', second.result);
+  console.log('counter:', counter.models.state.snapshot().data);
 }
 
-function deferred<T>(): {
-  promise: Promise<T>;
-  resolve(value: T): void;
-  reject(error: unknown): void;
-} {
-  let resolve!: (value: T) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
+function createApi() {
+  return defineContract({
+    counter: liveModelGroup({
+      key: keySchema,
+      models: {
+        state: liveModel({
+          data: z.object({ count: z.number() }),
+        }),
+      },
+      mutations: {
+        increment: mutation(
+          {
+            input: z.object({}),
+            data: z.object({ count: z.number() }),
+            error: z.string(),
+          },
+          (ctx) => {
+            let count = 0;
+            ctx.produce('state', (draft) => {
+              const state = draft as { count: number };
+              state.count += 1;
+              count = state.count;
+            });
+            return ok({ count });
+          }
+        ),
+      },
+    }),
   });
-  return { promise, resolve, reject };
-}
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for condition');
 }
 
 void main();

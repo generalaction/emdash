@@ -1,16 +1,15 @@
 import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
-  LiveLogServer,
   LiveModelRegistry,
-  LiveModelServer,
   bindContract,
   connect,
   contractClient,
+  createGroupInstance,
   defineContract,
   fromRegistry,
-  liveLog,
   liveModel,
+  liveModelGroup,
   memoryTransportPair,
   mutation,
   serve,
@@ -22,33 +21,43 @@ const stateSchema = z.object({ messages: z.array(z.string()) });
 type ChatState = z.infer<typeof stateSchema>;
 
 const chatContract = defineContract({
-  state: liveModel({ key: keySchema, data: stateSchema }),
-  output: liveLog({ key: keySchema }),
-  send: mutation({
-    input: keySchema.extend({ text: z.string() }),
-    data: stateSchema,
-    error: z.string(),
+  conversation: liveModelGroup({
+    key: keySchema,
+    models: {
+      state: liveModel({ data: stateSchema }),
+    },
+    mutations: {
+      send: mutation(
+        {
+          input: z.object({ text: z.string() }),
+          data: stateSchema,
+          error: z.string(),
+        },
+        (ctx, input) => {
+          let messages: string[] = [];
+          ctx.produce('state', (draft) => {
+            const state = draft as ChatState;
+            state.messages.push(input.text);
+            messages = [...state.messages];
+          });
+          return ok({ messages });
+        }
+      ),
+    },
   }),
 });
 
 const key = { conversationId: 'demo' };
 const registry = new LiveModelRegistry();
-const state = new LiveModelServer<ChatState>({ messages: [] }, 1000);
-const output = new LiveLogServer({ generation: 2000 });
-registry.register(chatContract.state, key, state);
+const instance = createGroupInstance(chatContract.conversation, key, {
+  state: { messages: [] } satisfies ChatState,
+});
+registry.registerGroup(chatContract.conversation, key, instance);
 
 const controller = bindContract(chatContract, {
   registry,
   impl: {
-    state: fromRegistry(),
-    output: () => output,
-    send: (ctx, input) => {
-      ctx.produce(chatContract.state, { conversationId: input.conversationId }, (draft) => {
-        draft.messages.push(input.text);
-      });
-      output.append(`sent: ${input.text}\n`);
-      return ok(state.snapshot().data);
-    },
+    conversation: fromRegistry(),
   },
 });
 
@@ -57,20 +66,16 @@ async function main(): Promise<void> {
   serve(pair.right, controller);
   const client = contractClient(chatContract, connect(pair.left));
 
-  const model = client.state(key, (value) => {
-    console.log('state:', value);
-  });
-  const log = client.output(key, {
-    onReset: (data) => console.log('log reset:', data.text),
-    onAppend: (chunk) => console.log('log append:', chunk.trim()),
+  const conversation = client.conversation(key, {
+    state: (value) => {
+      console.log('state:', value);
+    },
   });
 
-  await model.ready;
-  await log.ready;
-  const sent = await client.send({ ...key, text: 'hello wire' });
+  await conversation.ready;
+  const sent = await conversation.send({ text: 'hello wire' });
   await sent.settled;
-  await model.dispose();
-  await log.dispose();
+  await conversation.dispose();
 }
 
 void main();

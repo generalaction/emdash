@@ -72,24 +72,19 @@ type EndpointClient<Def> = Def extends { kind: 'procedure' }
   ? (input: EndpointInput<Def>, options?: ProcedureCallOptions) => Promise<EndpointOutput<Def>>
   : Def extends JobEndpointDef
     ? JobEndpointClient<Def>
-    : Def extends { kind: 'mutation' }
+    : Def extends LiveModelEndpointDef
       ? (
-          input: MutationInput<Def>,
-          options?: MutationCallOptions
-        ) => Promise<ContractMutationInvocation<MutationData<Def>, MutationError<Def>>>
-      : Def extends LiveModelEndpointDef
+          key: EndpointLiveModelKey<Def>,
+          onChange: (value: EndpointLiveModelData<Def>, meta: LiveChangeMeta) => void
+        ) => WiredLiveClient<LiveModelClient<EndpointLiveModelData<Def>>>
+      : Def extends { kind: 'liveLog' }
         ? (
-            key: EndpointLiveModelKey<Def>,
-            onChange: (value: EndpointLiveModelData<Def>, meta: LiveChangeMeta) => void
-          ) => WiredLiveClient<LiveModelClient<EndpointLiveModelData<Def>>>
-        : Def extends { kind: 'liveLog' }
-          ? (
-              key: LiveLogKey<Def>,
-              deps: Omit<LiveLogClientDeps, 'refetchSnapshot'>
-            ) => WiredLiveClient<LiveLogClient>
-          : Def extends { kind: 'group' }
-            ? (key: GroupKey<Def>, onChange?: GroupOnChange<Def>) => GroupBinding<Def>
-            : never;
+            key: LiveLogKey<Def>,
+            deps: Omit<LiveLogClientDeps, 'refetchSnapshot'>
+          ) => WiredLiveClient<LiveLogClient>
+        : Def extends { kind: 'group' }
+          ? (key: GroupKey<Def>, onChange?: GroupOnChange<Def>) => GroupBinding<Def>
+          : never;
 
 export type JobHandle<P, R, E> = {
   jobId: string;
@@ -192,10 +187,6 @@ function buildContractClient(
         break;
       case 'job':
         client[name] = createJobEndpointClient(connection, def, fullPath);
-        break;
-      case 'mutation':
-        client[name] = (input: unknown, options?: MutationCallOptions) =>
-          callMutation(connection, bindingRegistry, fullPath, input, options);
         break;
       case 'liveModel':
         client[name] = (key: unknown, onChange: (value: unknown, meta: LiveChangeMeta) => void) =>
