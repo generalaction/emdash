@@ -10,6 +10,11 @@ export function getIssueTaskName(
   }
 
   const branchName = issue.branchName?.trim();
+  if (!branchName && issue.provider === 'notion') {
+    const normalized = normalizeTaskName(issue.title, options);
+    return normalized || null;
+  }
+
   if (!branchName) {
     return null;
   }

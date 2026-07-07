@@ -6,6 +6,7 @@ import {
   getTaskGitWorktreeStore,
   getTaskManagerStore,
   taskAgentStatus,
+  taskDisplayName,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
@@ -56,6 +57,7 @@ export const TaskRow = observer(function TaskRow({
   const canPin = task.state !== 'unregistered';
   const agentAttention = taskAgentStatus(task);
   const currentPr = task.data.prs ? selectCurrentPr(task.data.prs) : undefined;
+  const displayName = taskDisplayName(task) ?? task.data.name;
   const branchName =
     getTaskGitWorktreeStore(task.data.projectId, task.data.id)?.branchName ?? undefined;
 
@@ -106,7 +108,7 @@ export const TaskRow = observer(function TaskRow({
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="min-w-0 truncate text-left text-sm">{task.data.name}</span>
+            <span className="min-w-0 truncate text-left text-sm">{displayName}</span>
             <TaskGitDiffStats task={task} className="shrink-0 text-xs" />
             {currentPr && <PrBadge pr={currentPr} />}
           </div>

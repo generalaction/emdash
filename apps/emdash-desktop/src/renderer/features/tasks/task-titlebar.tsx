@@ -72,6 +72,11 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   const taskStore = getTaskStore(projectId, taskId);
   const projectName = projectDisplayName(getProjectStore(projectId));
   const name = taskDisplayName(taskStore);
+  const taskLabel = name
+    ? name.includes(taskId)
+      ? name
+      : `${name} · ${taskId}`
+    : taskId;
   const { navigate } = useNavigate();
 
   return (
@@ -87,7 +92,9 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
               {projectName}
             </button>
             <span className="text-sm text-foreground-passive">/</span>
-            {name}
+            <span className="max-w-96 truncate" title={taskLabel}>
+              {taskLabel}
+            </span>
           </span>
         </div>
       }

@@ -142,10 +142,31 @@ export function getTerminalsForTask(taskId: string) {
   return terminalRegistry.get(taskId);
 }
 
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
+
 /** Returns the display name from any task store variant. */
 export function taskDisplayName(store: TaskStore | undefined): string | undefined {
   if (!store) return undefined;
-  return store.data.name;
+
+  const name = store.data.name;
+  const linkedIssue = 'linkedIssue' in store.data ? store.data.linkedIssue : undefined;
+  if (!linkedIssue) return name;
+
+  const issueTitle = linkedIssue.title.trim();
+  if (!issueTitle) return name;
+
+  const issueIdentifier = linkedIssue.displayIdentifier ?? linkedIssue.identifier;
+  const nameIsIdentifier =
+    name === store.data.id ||
+    name === linkedIssue.identifier ||
+    name === issueIdentifier ||
+    isUuidLike(name);
+
+  return nameIsIdentifier ? `${issueTitle} · ${name}` : name;
 }
 
 /** Returns the error message for error states. */

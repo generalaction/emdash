@@ -7,6 +7,7 @@ import {
   getTaskManagerStore,
   getTaskStore,
   getWorkspaceForTask,
+  taskDisplayName,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import {
@@ -47,6 +48,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const taskManager = getTaskManagerStore(projectId);
 
   const taskName = task.data.name;
+  const displayName = taskDisplayName(task) ?? taskName;
 
   const handleProvision = () => {
     if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
@@ -110,7 +112,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         onClick={openTask}
       >
         <SidebarMenuAction
-          aria-label={`Open task ${taskName || 'task'}`}
+          aria-label={`Open task ${displayName || 'task'}`}
           className="gap-1 overflow-hidden"
         >
           <span
@@ -119,7 +121,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
               task.isBootstrapping && 'text-foreground/40'
             )}
           >
-            {taskName}
+            {displayName}
           </span>
         </SidebarMenuAction>
         <div className="ml-2 flex shrink-0 items-center justify-end gap-1.5">
