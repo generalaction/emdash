@@ -1,10 +1,5 @@
 import { ChatComposer } from '@emdash/ui/react/components';
-import type {
-  CommandItem,
-  ContextMentionProvider,
-  MentionItem,
-  PromptEditorRef,
-} from '@emdash/ui/react/components';
+import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react/components';
 import {
   useCallback,
   useEffect,
@@ -16,34 +11,20 @@ import {
 } from 'react';
 import { useEffectiveProvider } from '@renderer/features/conversations/use-effective-provider';
 import { IntegrationIcon } from '@renderer/features/integrations/integration-icon';
-import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
-import {
-  asMounted,
-  getProjectSshConnectionId,
-  getProjectStore,
-  getProjectViewStore,
-} from '@renderer/features/projects/stores/project-selectors';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
-import { rpc } from '@renderer/lib/ipc';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Field } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
-import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
 import { providerSupportsAcp } from '@shared/core/agents/agent-acp';
 import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import {
-  buildIssueMentionContextBlock,
-  extractIssueMentionTargets,
-  issueMentionToken,
-  parseIssueMentionToken,
-} from '@shared/core/issues/issue-context';
+import { extractIssueMentionTargets, issueMentionToken } from '@shared/core/issues/issue-context';
 import type { LinkedIssue } from '@shared/core/linked-issue';
-import type { IssueProviderType } from '@shared/issue-providers';
 import { buildIssueContextText } from '../context-bar/context-actions';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
 import { usePromptFileDrop } from '../create-task-modal/use-prompt-file-drop';
@@ -163,27 +144,13 @@ function useModelOptions(
   return models?.kind === 'selectable' ? models.modelOptions : null;
 }
 
-const ISSUE_SEARCH_MIN_LENGTH = 2;
-const ISSUE_SEARCH_LIMIT = 20;
 const SLASH_PROMPTS_SECTION = 'Prompts';
 
 function promptPreview(text: string): string {
   return text.split(/\r?\n/, 1)[0] ?? '';
 }
 
-function issueMatchesQuery(issue: LinkedIssue, query: string): boolean {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return true;
-  return [issue.identifier, issue.displayIdentifier, issue.title]
-    .filter((value): value is string => !!value)
-    .some((value) => value.toLowerCase().includes(normalized));
-}
-
-function toIssueMentionItem(issue: LinkedIssue): MentionItem {
-  return toLinkedIssueMentionItem(issue, true);
-}
-
-function toLinkedIssueMentionItem(issue: LinkedIssue, pending = false): MentionItem {
+function toLinkedIssueMentionItem(issue: LinkedIssue): MentionItem {
   const token = issueMentionToken(issue.provider, issue.identifier);
   return {
     id: token,
@@ -192,7 +159,6 @@ function toLinkedIssueMentionItem(issue: LinkedIssue, pending = false): MentionI
     kind: 'issue',
     description: issue.title,
     icon: <IntegrationIcon provider={issue.provider} size={13} />,
-    pending,
   };
 }
 
@@ -215,11 +181,11 @@ export function InitialConversationField({
   linkedIssue,
   includeIssueContextByDefault,
   onPromptBlur,
+  placeholder,
   textareaClassName,
   showAutoApproveToggle = true,
 }: InitialConversationFieldProps) {
   const editorApiRef = useRef<PromptEditorRef | null>(null);
-  const issueByTokenRef = useRef(new Map<string, LinkedIssue>());
   const syncingEditorTextRef = useRef(false);
   const { value: promptLibrary } = usePromptLibrary();
   const modelOptions = useModelOptions(state.provider);
@@ -277,159 +243,16 @@ export function InitialConversationField({
     }
   }, [linkedIssueMention, state.issueContext, state.prompt]);
 
-  const issueProviderContext = useMemo<{
-    projectPath?: string;
-    repositoryUrl?: string;
-    selectedIssueProvider?: IssueProviderType | null;
-  }>(() => {
-    if (!state.projectId) return {};
-    const mounted = asMounted(getProjectStore(state.projectId));
-    return {
-      projectPath: mounted?.data.path,
-      repositoryUrl:
-        mounted?.gitRepository.issueRepositoryUrl ??
-        mounted?.gitRepository.canonicalRepositoryUrl ??
-        undefined,
-      selectedIssueProvider: getProjectViewStore(state.projectId)?.selectedIssueProvider ?? null,
-    };
-  }, [state.projectId]);
-  const { connectedProviders, isProviderUsable } = useConnectedIssueProviders(issueProviderContext);
-  const issueProvider = useMemo(() => {
-    const selected = issueProviderContext.selectedIssueProvider;
-    if (selected && isProviderUsable(selected)) return selected;
-    return connectedProviders[0] ?? null;
-  }, [connectedProviders, isProviderUsable, issueProviderContext.selectedIssueProvider]);
-
-  const mentionProvider = useMemo<ContextMentionProvider>(
-    () => ({
-      async search(query: string): Promise<MentionItem[]> {
-        const normalized = query.trim().toLowerCase();
-        const promptItems: MentionItem[] = promptLibrary
-          .filter((prompt) => {
-            if (!normalized) return true;
-            return [prompt.title, prompt.prompt].some((value) =>
-              value.toLowerCase().includes(normalized)
-            );
-          })
-          .map((prompt) => ({
-            id: `prompt:${prompt.id}`,
-            label: prompt.title,
-            name: prompt.title,
-            kind: 'custom',
-            description: promptPreview(prompt.prompt),
-            insertText: prompt.prompt,
-          }));
-
-        if (!state.useChatUi) return promptItems;
-
-        const pinnedIssue =
-          linkedIssue && issueMatchesQuery(linkedIssue, query)
-            ? toIssueMentionItem(linkedIssue)
-            : null;
-        if (pinnedIssue && linkedIssue) {
-          issueByTokenRef.current.set(pinnedIssue.id, linkedIssue);
-        }
-
-        const issueSearch =
-          issueProvider && query.trim().length >= ISSUE_SEARCH_MIN_LENGTH
-            ? rpc.issues
-                .searchIssues(issueProvider, {
-                  limit: ISSUE_SEARCH_LIMIT,
-                  searchTerm: query.trim(),
-                  projectId: state.projectId,
-                  projectPath: issueProviderContext.projectPath,
-                  repositoryUrl: issueProviderContext.repositoryUrl ?? undefined,
-                })
-                .catch((error: unknown) => {
-                  log.warn('Failed to search issue mentions', { provider: issueProvider, error });
-                  return null;
-                })
-            : Promise.resolve(null);
-        const issueResult = await issueSearch;
-
-        const issueItems: MentionItem[] = [];
-        const seenIssueIds = new Set<string>();
-        if (pinnedIssue) {
-          issueItems.push(pinnedIssue);
-          seenIssueIds.add(pinnedIssue.id);
-        }
-        if (issueResult?.success) {
-          for (const issue of issueResult.data) {
-            const item = toIssueMentionItem(issue);
-            if (seenIssueIds.has(item.id)) continue;
-            seenIssueIds.add(item.id);
-            issueByTokenRef.current.set(item.id, issue);
-            issueItems.push(item);
-          }
-        } else if (issueResult && !issueResult.success) {
-          log.warn('Failed to search issue mentions', {
-            provider: issueProvider,
-            error: issueResult.error,
-          });
-        }
-
-        return [...issueItems, ...promptItems];
-      },
-    }),
-    [
-      issueProvider,
-      issueProviderContext.projectPath,
-      issueProviderContext.repositoryUrl,
-      linkedIssue,
-      promptLibrary,
-      state.projectId,
-      state.useChatUi,
-    ]
-  );
-
-  const handleMentionInsert = useCallback(
-    (item: MentionItem) => {
-      if (item.kind !== 'issue') return;
-      const target = parseIssueMentionToken(item.id);
-      if (!target) return;
-
-      const fallbackIssue = issueByTokenRef.current.get(target.token);
-      if (fallbackIssue) {
-        state.setIssueMentionContext(
-          target.token,
-          buildIssueMentionContextBlock(target, fallbackIssue)
-        );
+  const renderMentionIcon = useCallback<RenderMentionIcon>(
+    ({ id, kind }) => {
+      if (kind !== 'issue') return null;
+      if (!linkedIssue || id !== issueMentionToken(linkedIssue.provider, linkedIssue.identifier)) {
+        return null;
       }
-
-      void rpc.issues
-        .getIssueContext(target.provider, {
-          identifier: target.identifier,
-          projectId: state.projectId,
-        })
-        .then((result) => {
-          if (result.success) {
-            state.setIssueMentionContext(
-              target.token,
-              buildIssueMentionContextBlock(target, result.data)
-            );
-          } else {
-            log.warn('Failed to resolve issue mention context', {
-              token: target.token,
-              error: result.error,
-            });
-          }
-        })
-        .catch((error: unknown) => {
-          log.warn('Failed to resolve issue mention context', { token: target.token, error });
-        })
-        .finally(() => {
-          editorApiRef.current?.setMentionPending(target.token, false);
-        });
+      return <IntegrationIcon provider={linkedIssue.provider} size={12} />;
     },
-    [state]
+    [linkedIssue]
   );
-
-  const renderMentionIcon = useCallback<RenderMentionIcon>(({ id, kind }) => {
-    if (kind !== 'issue') return null;
-    const target = parseIssueMentionToken(id);
-    if (!target) return null;
-    return <IntegrationIcon provider={target.provider} size={12} />;
-  }, []);
 
   const querySlashItems = useCallback(
     async (query: string): Promise<CommandItem[]> => {
@@ -512,11 +335,12 @@ export function InitialConversationField({
         <ChatComposer
           canSubmit={false}
           showSubmitButton={false}
+          placeholder={
+            placeholder ?? 'Describe what the agent should do, or use / to select a prompt...'
+          }
           onSubmit={() => {}}
           onInputChange={handleComposerInputChange}
-          onMentionInsert={handleMentionInsert}
           editorApiRef={editorApiRef}
-          mentionProvider={mentionProvider}
           renderMentionIcon={renderMentionIcon}
           queryCommands={querySlashItems}
           modelOptions={modelOptions}

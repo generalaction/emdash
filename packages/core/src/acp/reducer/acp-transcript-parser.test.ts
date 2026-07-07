@@ -883,7 +883,7 @@ describe('AcpTranscriptParser – session slices', () => {
           ],
         },
         {
-          id: 'effort',
+          id: 'reasoning_effort',
           category: 'thought_level',
           type: 'select',
           currentValue: 'high',
@@ -907,14 +907,17 @@ describe('AcpTranscriptParser – session slices', () => {
 
     const { modelOptions, efforts, modeOptions } = p.config;
 
+    expect(modelOptions?.configId).toBe('model');
     expect(modelOptions?.selected).toBe('opus');
     expect(modelOptions?.available).toHaveLength(2);
     expect(modelOptions?.available[0]).toEqual({ id: 'opus', name: 'Opus' });
 
+    expect(efforts?.configId).toBe('reasoning_effort');
     expect(efforts?.selected).toBe('high');
     expect(efforts?.available).toHaveLength(2);
     expect(efforts?.available[1]).toEqual({ id: 'high', name: 'High' });
 
+    expect(modeOptions?.configId).toBe('mode');
     expect(modeOptions?.selected).toBe('default');
     expect(modeOptions?.available).toHaveLength(2);
     expect(modeOptions?.available[0]).toEqual({ id: 'default', name: 'Default' });

@@ -179,6 +179,8 @@ export interface ChatComposerProps {
   canSubmit?: boolean;
   /** Hide the submit/stop control for draft-only composer surfaces. */
   showSubmitButton?: boolean;
+  /** Override the idle editor placeholder. Disabled/working placeholders still take precedence. */
+  placeholder?: string;
 
   agentOptions?: ComposerAgentOption[] | null;
   selectedAgent?: string;
@@ -529,6 +531,7 @@ export function ChatComposer({
   isWorking = false,
   canSubmit = true,
   showSubmitButton = true,
+  placeholder,
   agentOptions,
   selectedAgent,
   onAgentChange,
@@ -705,11 +708,11 @@ export function ChatComposer({
     !!onSendQueuedPromptNow;
   // The permission band takes priority over the notice band.
   const hasBand = canShowQueuedPrompts || !!(permissionRequest ?? notice);
-  const placeholder = disabled
+  const resolvedPlaceholder = disabled
     ? 'Session closed'
     : isWorking
       ? 'Add a follow-up'
-      : 'Send a Message, tag @files or use /commands';
+      : (placeholder ?? 'Send a Message, tag @files or use /commands');
 
   return (
     <div className={cx(styles.composerRoot, className)}>
@@ -795,7 +798,7 @@ export function ChatComposer({
                 }
               }
             }}
-            placeholder={placeholder}
+            placeholder={resolvedPlaceholder}
             disabled={disabled}
             onChange={onInputChange}
             onSubmit={canSubmit ? handleSubmit : undefined}

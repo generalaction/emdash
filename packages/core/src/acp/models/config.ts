@@ -45,6 +45,8 @@ export const sessionConfigStateSchema = z.object({
   /** Model selector state; null when the provider has not exposed model configuration. */
   modelOptions: z
     .object({
+      /** Provider-owned ACP config option id used when sending config updates. */
+      configId: z.string(),
       selected: z.string().nullable(),
       available: z.array(modelOptionSchema),
     })
@@ -52,6 +54,8 @@ export const sessionConfigStateSchema = z.object({
   /** Reasoning/effort selector state; null when unsupported by the provider. */
   efforts: z
     .object({
+      /** Provider-owned ACP config option id used when sending config updates. */
+      configId: z.string(),
       selected: z.string().nullable(),
       available: z.array(effortOptionSchema),
     })
@@ -59,6 +63,8 @@ export const sessionConfigStateSchema = z.object({
   /** Permission/mode selector state; null when unsupported by the provider. */
   modeOptions: z
     .object({
+      /** Provider-owned ACP config option id used when sending config updates. */
+      configId: z.string(),
       selected: z.string().nullable(),
       available: z.array(modeOptionSchema),
     })

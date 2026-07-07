@@ -217,8 +217,8 @@ describe('permissions and config validation', () => {
       isOk(
         decide(
           makeReady(),
-          { type: 'SetConfigOption', configId: 'model', value: 'sonnet' },
-          { configOptionIds: ['model'] }
+          { type: 'SetConfigOption', configId: 'reasoning_effort', value: 'high' },
+          { configOptionIds: ['reasoning_effort'] }
         )
       )
     ).toBe(true);
