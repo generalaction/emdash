@@ -94,7 +94,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
           data-autofocus={autoFocus || undefined}
           disabled={disabled}
           className={cn(
-            'flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-transparent px-2.5 py-1 text-sm outline-none',
+            'flex h-9 w-full min-w-0 items-center gap-2 rounded-lg border border-border bg-transparent px-2.5 py-1 text-sm outline-none',
             disabled && 'cursor-not-allowed opacity-60',
             className
           )}

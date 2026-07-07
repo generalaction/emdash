@@ -177,6 +177,8 @@ export interface ChatComposerProps {
   isWorking?: boolean;
   /** False while the session is still starting up. Blocks Send/Enter but keeps the editor typeable. */
   canSubmit?: boolean;
+  /** Hide the submit/stop control for draft-only composer surfaces. */
+  showSubmitButton?: boolean;
 
   agentOptions?: ComposerAgentOption[] | null;
   selectedAgent?: string;
@@ -202,6 +204,8 @@ export interface ChatComposerProps {
   onSubmit: (text: string) => void;
   /** Called whenever the editor serialized plain text changes. */
   onInputChange?: (text: string) => void;
+  /** Called after a mention node is inserted. Raw insertText entries do not trigger this. */
+  onMentionInsert?: (item: MentionItem) => void;
   /**
    * Called instead of onSubmit when the user attempts to send while the
    * session is actively working (isWorking === true). Lets the host queue,
@@ -524,6 +528,7 @@ export function ChatComposer({
   disabled = false,
   isWorking = false,
   canSubmit = true,
+  showSubmitButton = true,
   agentOptions,
   selectedAgent,
   onAgentChange,
@@ -539,6 +544,7 @@ export function ChatComposer({
   onPermissionModeChange,
   onSubmit,
   onInputChange,
+  onMentionInsert,
   onSubmitWhileWorking,
   onStop,
   onAttach,
@@ -792,7 +798,8 @@ export function ChatComposer({
             placeholder={placeholder}
             disabled={disabled}
             onChange={onInputChange}
-            onSubmit={handleSubmit}
+            onSubmit={canSubmit ? handleSubmit : undefined}
+            onMentionInsert={onMentionInsert}
             mentionProvider={mentionProvider}
             renderMentionIcon={renderMentionIcon}
             queryMentions={queryMentions}
@@ -978,31 +985,33 @@ export function ChatComposer({
               </Button>
             )}
 
-            {isWorking ? (
-              <Button
-                variant="primary"
-                tone="destructive"
-                size="sm"
-                icon
-                className={styles.sendButtonRound}
-                onClick={onStop}
-                aria-label="Stop generation"
-              >
-                <Square style={{ width: '0.625rem', height: '0.625rem', fill: 'currentColor' }} />
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                size="sm"
-                icon
-                className={styles.sendButtonRound}
-                onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
-                disabled={disabled || !canSubmit}
-                aria-label="Send message"
-              >
-                <ArrowUp />
-              </Button>
-            )}
+            {showSubmitButton ? (
+              isWorking ? (
+                <Button
+                  variant="primary"
+                  tone="destructive"
+                  size="sm"
+                  icon
+                  className={styles.sendButtonRound}
+                  onClick={onStop}
+                  aria-label="Stop generation"
+                >
+                  <Square style={{ width: '0.625rem', height: '0.625rem', fill: 'currentColor' }} />
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon
+                  className={styles.sendButtonRound}
+                  onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
+                  disabled={disabled || !canSubmit}
+                  aria-label="Send message"
+                >
+                  <ArrowUp />
+                </Button>
+              )
+            ) : null}
           </div>
         </div>
       </div>

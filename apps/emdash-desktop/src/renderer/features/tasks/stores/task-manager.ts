@@ -354,13 +354,14 @@ export class TaskManagerStore {
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
           model: ic.model,
+          initialQueue: ic.initialQueue,
           isInitialConversation: true,
           type: ic.type ?? 'pty',
         };
         const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [
           optimistic,
         ]);
-        if (ic.initialPrompt?.trim()) {
+        if (ic.initialPrompt?.trim() || ic.initialQueue?.some((prompt) => prompt.text.trim())) {
           void conversationManager.markConversationWorking(ic.id);
         }
       } else {

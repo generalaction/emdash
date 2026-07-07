@@ -1,8 +1,10 @@
-import { formatIntegrationId } from '@renderer/features/integrations/integration-display';
+import { buildIssueContextText } from '@shared/core/issues/issue-context';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { formatCommentsForAgent } from '@shared/lineComments';
 import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import type { DraftComment } from '../diff-view/stores/draft-comments-store';
+
+export { buildIssueContextText } from '@shared/core/issues/issue-context';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -32,30 +34,6 @@ export interface PromptContextAction {
 export type ContextAction = IssueContextAction | DraftCommentsContextAction | PromptContextAction;
 
 // ─── Text building ───────────────────────────────────────────────────────────
-
-export function buildIssueContextText(issue: LinkedIssue): string {
-  const normalize = (s: string) => s.replace(/[\r\n]+/g, ' ').trim();
-
-  const parts: string[] = [
-    `Provider: ${formatIntegrationId(issue.provider)}`,
-    `Identifier: ${issue.identifier}`,
-    `Title: ${issue.title}`,
-    `URL: ${issue.url}`,
-  ];
-
-  if (issue.description) parts.push(`Description: ${normalize(issue.description)}`);
-  if (issue.status) parts.push(`Status: ${issue.status}`);
-  if (issue.assignees?.length) parts.push(`Assignees: ${issue.assignees.join(', ')}`);
-  if (issue.project) parts.push(`Project: ${issue.project}`);
-
-  let text = parts.join('. ');
-
-  if (issue.context) {
-    text += `\nContext:\n${issue.context}`;
-  }
-
-  return text;
-}
 
 export function buildContextActionText(action: ContextAction): string {
   switch (action.kind) {

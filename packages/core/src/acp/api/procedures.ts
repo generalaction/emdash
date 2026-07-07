@@ -139,6 +139,6 @@ function toStartInput(input: StartSessionInput): AcpStartInput {
     cwd: input.cwd,
     sessionId: input.sessionId ?? null,
     model: input.model ?? input.sessionConfig?.model ?? null,
-    initialPrompt: input.initialPrompt,
+    initialQueue: input.initialQueue,
   };
 }

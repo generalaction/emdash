@@ -149,6 +149,22 @@ function plainTextDoc(text: string) {
   };
 }
 
+function mentionInsertContent(item: MentionItem) {
+  return [
+    {
+      type: 'mention',
+      attrs: {
+        id: item.id,
+        label: item.label,
+        name: item.name ?? null,
+        kind: item.kind,
+        pending: item.pending ?? false,
+      },
+    },
+    { type: 'text', text: ' ' },
+  ];
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(function PromptEditor(
@@ -157,6 +173,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     disabled = false,
     onChange,
     onSubmit,
+    onMentionInsert,
     mentionProvider,
     renderMentionIcon,
     queryMentions,
@@ -169,6 +186,8 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   // Stable refs so callbacks inside TipTap extensions always see current values.
   const onSubmitRef = useRef(onSubmit);
   onSubmitRef.current = onSubmit;
+  const onMentionInsertRef = useRef(onMentionInsert);
+  onMentionInsertRef.current = onMentionInsert;
   const onCommandRef = useRef(onCommand);
   onCommandRef.current = onCommand;
   const mentionProviderRef = useRef(mentionProvider);
@@ -198,8 +217,9 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     if (!ed) return;
     const text = serializeDoc(ed.state.doc);
     if (!text.trim()) return;
+    if (!onSubmitRef.current) return;
     ed.commands.clearContent(true);
-    onSubmitRef.current?.(text);
+    onSubmitRef.current(text);
   }, []);
 
   const mentionExtension = buildMentionExtension(
@@ -213,23 +233,23 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
       render: makeSuggestionRender<MentionItem>(setMentionSuggestion, mentionPopupRef),
       command({ editor, range, props }) {
         const item = props as unknown as MentionItem;
+        if (item.insertText !== undefined) {
+          editor
+            .chain()
+            .focus()
+            .deleteRange(range)
+            .insertContentAt(range.from, item.insertText)
+            .insertContent(' ')
+            .run();
+          return;
+        }
         editor
           .chain()
           .focus()
           .deleteRange(range)
-          .insertContentAt(range.from, [
-            {
-              type: 'mention',
-              attrs: {
-                id: item.id,
-                label: item.label,
-                name: item.name ?? null,
-                kind: item.kind,
-              },
-            },
-            { type: 'text', text: ' ' },
-          ])
+          .insertContentAt(range.from, mentionInsertContent(item))
           .run();
+        onMentionInsertRef.current?.(item);
       },
     },
     {
@@ -305,17 +325,52 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
       editor?.commands.setContent(plainTextDoc(text), { emitUpdate: true });
     },
     insertMention(item) {
-      editor
-        ?.chain()
-        .focus()
-        .insertContent([
-          {
-            type: 'mention',
-            attrs: { id: item.id, label: item.label, name: item.name ?? null, kind: item.kind },
-          },
-          { type: 'text', text: ' ' },
-        ])
-        .run();
+      if (item.insertText !== undefined) {
+        editor?.chain().focus().insertContent(item.insertText).insertContent(' ').run();
+        return;
+      }
+      editor?.chain().focus().insertContent(mentionInsertContent(item)).run();
+      onMentionInsertRef.current?.(item);
+    },
+    prependMention(item) {
+      if (!editor || item.insertText !== undefined) return;
+      const tr = editor.state.tr;
+      const ranges: Array<{ from: number; to: number }> = [];
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name !== 'mention' || node.attrs.id !== item.id) return;
+        ranges.push({ from: pos, to: pos + node.nodeSize });
+      });
+      for (const range of [...ranges].reverse()) {
+        tr.delete(range.from, range.to);
+      }
+      if (ranges.length > 0) editor.view.dispatch(tr);
+      editor.commands.insertContentAt(1, mentionInsertContent(item));
+    },
+    removeMention(id) {
+      if (!editor) return;
+      const tr = editor.state.tr;
+      const ranges: Array<{ from: number; to: number }> = [];
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name !== 'mention' || node.attrs.id !== id) return;
+        ranges.push({ from: pos, to: pos + node.nodeSize });
+      });
+      if (ranges.length === 0) return;
+      for (const range of [...ranges].reverse()) {
+        tr.delete(range.from, range.to);
+      }
+      editor.view.dispatch(tr);
+    },
+    setMentionPending(id, pending) {
+      if (!editor) return;
+      let changed = false;
+      const tr = editor.state.tr;
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name !== 'mention' || node.attrs.id !== id) return;
+        if (node.attrs.pending === pending) return;
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, pending });
+        changed = true;
+      });
+      if (changed) editor.view.dispatch(tr);
     },
   }));
 

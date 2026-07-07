@@ -5,7 +5,8 @@ import { buildInitialConversation } from './build-create-task-params';
 
 function makeInitialConversationState(
   provider: AgentProviderId,
-  autoApprove: boolean
+  autoApprove: boolean,
+  overrides: Partial<InitialConversationState> = {}
 ): InitialConversationState {
   return {
     provider,
@@ -22,6 +23,9 @@ function makeInitialConversationState(
     setModel: () => {},
     useChatUi: false,
     setUseChatUi: () => {},
+    issueMentionContexts: {},
+    setIssueMentionContext: () => {},
+    ...overrides,
   };
 }
 
@@ -36,5 +40,27 @@ describe('buildInitialConversation', () => {
     expect(buildInitialConversation(makeInitialConversationState('jules', true))).toEqual(
       expect.objectContaining({ provider: 'jules', autoApprove: false })
     );
+  });
+
+  it('builds an ACP initial queue from prompt and stashed mention contexts', () => {
+    const conversation = buildInitialConversation(
+      makeInitialConversationState('claude', false, {
+        useChatUi: true,
+        prompt: 'Check (issue:github:123)',
+        issueContext: 'Pinned issue context',
+        issueMentionContexts: {
+          'issue:github:123': 'Mention issue context',
+        },
+      })
+    );
+
+    expect(conversation?.type).toBe('acp');
+    expect(conversation?.initialPrompt).toBeUndefined();
+    expect(conversation?.initialQueue).toEqual([
+      {
+        text: 'Check (issue:github:123)',
+        hiddenContext: 'Pinned issue context\n\nMention issue context',
+      },
+    ]);
   });
 });

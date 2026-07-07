@@ -84,6 +84,28 @@ describe('lifecycle control', () => {
     expect(activeTurnFromPhase(s2.phase)).toBeNull();
   });
 
+  it('drains one queued prompt when a fresh session becomes ready', () => {
+    const queued = { id: 'prompt-2', text: 'queued', createdAt: 200, updatedAt: 200 };
+    const s0 = evolve(initialMachineState(CONV_ID), { type: 'PromptQueued', prompt: queued }).state;
+    const { state, effects } = evolve(s0, { type: 'SessionReady' });
+
+    expect(state.queuedPrompts).toHaveLength(0);
+    expect(effects).toContainEqual({ type: 'sendPrompt', prompt: queued });
+  });
+
+  it('drains one queued prompt when replay completes', () => {
+    const queued = { id: 'prompt-2', text: 'queued', createdAt: 200, updatedAt: 200 };
+    const replaying = evolve(initialMachineState(CONV_ID), { type: 'ReplayStarted' }).state;
+    const queuedState = evolve(replaying, { type: 'PromptQueued', prompt: queued }).state;
+    const { state, effects } = evolve(queuedState, {
+      type: 'ReplayEnded',
+      status: 'complete',
+    });
+
+    expect(state.queuedPrompts).toHaveLength(0);
+    expect(effects).toContainEqual({ type: 'sendPrompt', prompt: queued });
+  });
+
   it('ready -> working -> ready and preserves stop reason', () => {
     const s0 = makeReady();
     const { state: s1, effects } = evolve(s0, { type: 'PromptStarted', prompt });

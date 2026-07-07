@@ -177,7 +177,10 @@ export class ConversationManagerStore implements IDisposable {
     const conversation = await rpc.conversations.createConversation(params);
     runInAction(() => {
       this.addConversation(conversation);
-      if (params.initialPrompt?.trim()) {
+      if (
+        params.initialPrompt?.trim() ||
+        params.initialQueue?.some((prompt) => prompt.text.trim())
+      ) {
         this.conversations.get(conversation.id)?.setWorking();
       }
     });

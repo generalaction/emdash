@@ -14,10 +14,31 @@ import {
 const mocks = vi.hoisted(() => ({
   getProjectSshConnectionId: vi.fn(),
   setProviderOverride: vi.fn(),
+  chatUiFeature: true,
+}));
+
+vi.mock('@emdash/ui/react/components', () => ({
+  ChatComposer: () => null,
 }));
 
 vi.mock('@renderer/features/projects/stores/project-selectors', () => ({
   getProjectSshConnectionId: mocks.getProjectSshConnectionId,
+  asMounted: vi.fn(() => undefined),
+  getProjectStore: vi.fn(() => undefined),
+  getProjectViewStore: vi.fn(() => undefined),
+}));
+
+vi.mock('@renderer/features/integrations/integration-icon', () => ({
+  IntegrationIcon: () => null,
+}));
+
+vi.mock('@renderer/features/integrations/use-connected-issue-providers', () => ({
+  useConnectedIssueProviders: () => ({
+    connectedProviders: [],
+    hasAnyIssueIntegration: false,
+    isProviderUsable: () => false,
+    isCheckingConnections: false,
+  }),
 }));
 
 vi.mock('@renderer/features/library/prompts/use-prompt-library', () => ({
@@ -42,6 +63,23 @@ vi.mock('../context-bar/add-context-popover', () => ({
 
 vi.mock('@renderer/lib/stores/use-agents', () => ({
   useAgents: () => ({ data: [] }),
+}));
+
+vi.mock('@renderer/lib/hooks/useFeatureFlag', () => ({
+  useFeatureFlag: () => mocks.chatUiFeature,
+}));
+
+vi.mock('@renderer/lib/ipc', () => ({
+  rpc: {
+    issues: {
+      searchIssues: vi.fn(),
+      getIssueContext: vi.fn(),
+    },
+  },
+}));
+
+vi.mock('@renderer/utils/logger', () => ({
+  log: { warn: vi.fn() },
 }));
 
 vi.mock('@renderer/features/conversations/use-effective-provider', () => ({
@@ -76,12 +114,16 @@ describe('useInitialConversationState', () => {
     latestState = undefined;
     mocks.getProjectSshConnectionId.mockReturnValue(undefined);
 
-    dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
+    dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
+      url: 'http://localhost',
+    });
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     vi.stubGlobal('window', dom.window);
     vi.stubGlobal('document', dom.window.document);
     vi.stubGlobal('HTMLElement', dom.window.HTMLElement);
     vi.stubGlobal('Event', dom.window.Event);
+    vi.stubGlobal('localStorage', dom.window.localStorage);
+    dom.window.localStorage.clear();
 
     container = dom.window.document.getElementById('root') as HTMLDivElement;
     root = createRoot(container);
@@ -126,5 +168,25 @@ describe('useInitialConversationState', () => {
     await renderProbe('project-2', { resetPromptOnProjectChange: false });
 
     expect(latestState?.prompt).toBe('Keep this automation prompt');
+  });
+
+  it('defaults chat UI on when the provider supports ACP', async () => {
+    await renderProbe('project-1');
+
+    expect(latestState?.useChatUi).toBe(true);
+  });
+
+  it('persists when chat UI is disabled', async () => {
+    await renderProbe('project-1');
+
+    await act(async () => {
+      latestState?.setUseChatUi(false);
+    });
+
+    expect(dom.window.localStorage.getItem('initial-conversation:chat-ui-enabled')).toBe('false');
+
+    await renderProbe('project-2');
+
+    expect(latestState?.useChatUi).toBe(false);
   });
 });

@@ -428,6 +428,11 @@ export class AcpChatStore {
     const workspace = workspaceRegistry.get(this.projectId, task.workspaceId);
     if (!workspace) throw new Error('Workspace not found');
 
+    const initialQueue =
+      conversation.sessionId === undefined && conversation.initialQueue?.length
+        ? conversation.initialQueue
+        : undefined;
+
     return {
       conversationId: this.conversationId,
       projectId: this.projectId,
@@ -437,6 +442,7 @@ export class AcpChatStore {
       cwd: workspace.path,
       sessionId: conversation.sessionId ?? null,
       model: conversation.model ?? null,
+      ...(initialQueue && { initialQueue }),
     };
   }
 

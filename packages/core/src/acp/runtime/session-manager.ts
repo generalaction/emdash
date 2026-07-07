@@ -121,6 +121,11 @@ export class SessionManager implements InboundRouter {
             modes: response.modes,
             configOptions: response.configOptions,
           });
+          if (input.model) {
+            await record.cell.setConfigOption('model', input.model);
+          }
+          const queueResult = this.queueInitialPrompts(record);
+          if (!queueResult.success) return queueResult;
           record.cell.endReplay();
           loaded = true;
         } catch {
@@ -140,23 +145,22 @@ export class SessionManager implements InboundRouter {
       if (!record) {
         const response = await connection.agent.newSession(this.buildNewSessionRequest(input.cwd));
         record = this.createRecord(input, connection, response.sessionId);
-        record.cell.applySessionReady({
+        record.cell.applySessionMeta({
           modes: response.modes,
           configOptions: response.configOptions,
         });
+        if (input.model) {
+          await record.cell.setConfigOption('model', input.model);
+        }
+        const queueResult = this.queueInitialPrompts(record);
+        if (!queueResult.success) return queueResult;
+        record.cell.applySessionReady();
       }
 
       this.registerRoute(connection.key, record.cell.acpSessionId, input.conversationId);
       void this.deps
         .persistSessionId(input.conversationId, record.cell.acpSessionId)
         .catch(() => {});
-
-      if (input.model) {
-        await record.cell.setConfigOption('model', input.model);
-      }
-      if (input.initialPrompt?.trim()) {
-        await record.cell.prompt({ text: input.initialPrompt });
-      }
 
       this.syncRecord(record);
       return ok({ sessionId: record.cell.acpSessionId });
@@ -414,6 +418,14 @@ export class SessionManager implements InboundRouter {
     });
     this.cells.set(input.conversationId, record);
     return record;
+  }
+
+  private queueInitialPrompts(record: SessionRecord): Result<void, AcpRuntimeError> {
+    for (const prompt of record.input.initialQueue ?? []) {
+      const result = record.cell.queuePrompt(prompt);
+      if (!result.success) return result;
+    }
+    return ok();
   }
 
   private syncRecord(record: SessionRecord): void {

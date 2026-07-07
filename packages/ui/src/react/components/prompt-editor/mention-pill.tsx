@@ -62,14 +62,16 @@ export function MentionPill({
   const rawName = (node.attrs.name as string | null) ?? null;
   const name = rawName ?? (basename(label) || label);
   const kind = ((node.attrs.kind as string | null) ?? 'custom') as MentionKind;
+  const pending = node.attrs.pending === true;
 
   return (
     <NodeViewWrapper as="span" className={cx('mention-pill-wrapper', styles.pillWrapper)}>
       <span
         contentEditable={false}
-        className={styles.pill}
+        className={cx(styles.pill, pending && styles.pillPending)}
         data-mention-id={node.attrs.id as string}
         data-mention-kind={kind}
+        data-mention-pending={pending || undefined}
       >
         {/* Icon area — relative so the ✕ overlay is positioned inside it */}
         <span className={styles.pillIconArea}>

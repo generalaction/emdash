@@ -32,6 +32,10 @@ export interface MentionItem {
   icon?: ReactNode;
   /** Optional secondary description shown in the popup row. */
   description?: string;
+  /** When provided, selecting this item inserts raw text instead of a mention node. */
+  insertText?: string;
+  /** Host-controlled resolving state for mention pills. Not included in plain-text serialization. */
+  pending?: boolean;
 }
 
 export type RenderMentionIcon = (attrs: {
@@ -89,6 +93,12 @@ export interface PromptEditorRef {
   setText(text: string): void;
   /** Imperatively insert a mention node at the current cursor position. */
   insertMention(item: MentionItem): void;
+  /** Ensure a mention node exists at the start of the editor, replacing duplicates. */
+  prependMention(item: MentionItem): void;
+  /** Remove all mention nodes with the given id. */
+  removeMention(id: string): void;
+  /** Update the pending state for mention nodes with the given id. */
+  setMentionPending(id: string, pending: boolean): void;
 }
 
 export interface PromptEditorProps {
@@ -100,6 +110,8 @@ export interface PromptEditorProps {
   onChange?: (text: string) => void;
   /** Called when the user submits (Enter with no open suggestion). */
   onSubmit?: (text: string) => void;
+  /** Called after a mention node is inserted. Raw insertText entries do not trigger this. */
+  onMentionInsert?: (item: MentionItem) => void;
   /**
    * Preferred: typed provider for @ mention suggestions.
    * When both `mentionProvider` and `queryMentions` are provided,

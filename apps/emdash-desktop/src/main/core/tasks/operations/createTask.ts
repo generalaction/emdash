@@ -91,13 +91,24 @@ export async function prepareCreateTask(
   let convInsert: ConvInsert | undefined;
   if (params.taskConfig.initialConversation) {
     const ic = params.taskConfig.initialConversation;
-    const configObj: ConversationConfig = {
-      version: '1',
-      type: ic.type ?? 'pty',
-      ...(ic.autoApprove !== undefined && { autoApprove: ic.autoApprove }),
-      ...(ic.initialPrompt?.trim() && { initialPrompt: ic.initialPrompt.trim() }),
-      ...(ic.model && { model: ic.model }),
-    };
+    const conversationType = ic.type ?? 'pty';
+    const initialQueue = ic.initialQueue?.filter((prompt) => prompt.text.trim());
+    const configObj: ConversationConfig =
+      conversationType === 'acp'
+        ? {
+            version: '1',
+            type: 'acp',
+            ...(ic.autoApprove !== undefined && { autoApprove: ic.autoApprove }),
+            ...(initialQueue?.length && { initialQueue }),
+            ...(ic.model && { model: ic.model }),
+          }
+        : {
+            version: '1',
+            type: 'pty',
+            ...(ic.autoApprove !== undefined && { autoApprove: ic.autoApprove }),
+            ...(ic.initialPrompt?.trim() && { initialPrompt: ic.initialPrompt.trim() }),
+            ...(ic.model && { model: ic.model }),
+          };
     convInsert = {
       id: ic.id,
       projectId: params.projectId,
@@ -107,7 +118,7 @@ export async function prepareCreateTask(
       config: configObj,
       isInitialConversation: true,
       lastInteractedAt: new Date().toISOString(),
-      type: ic.type ?? null,
+      type: conversationType,
     };
   }
 

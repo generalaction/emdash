@@ -1,41 +1,54 @@
-import { CheckCheckIcon, PlusIcon, X } from 'lucide-react';
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { ChatComposer } from '@emdash/ui/react/components';
+import type {
+  CommandItem,
+  ContextMentionProvider,
+  MentionItem,
+  PromptEditorRef,
+} from '@emdash/ui/react/components';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { useEffectiveProvider } from '@renderer/features/conversations/use-effective-provider';
+import { IntegrationIcon } from '@renderer/features/integrations/integration-icon';
+import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
-import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
+import {
+  asMounted,
+  getProjectSshConnectionId,
+  getProjectStore,
+  getProjectViewStore,
+} from '@renderer/features/projects/stores/project-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
+import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
+import { rpc } from '@renderer/lib/ipc';
 import { useAgents } from '@renderer/lib/stores/use-agents';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
-import {
-  Dialog,
-  DialogContent,
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@renderer/lib/ui/dialog';
 import { Field } from '@renderer/lib/ui/field';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@renderer/lib/ui/select';
-import { Textarea } from '@renderer/lib/ui/textarea';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { Switch } from '@renderer/lib/ui/switch';
+import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
 import { providerSupportsAcp } from '@shared/core/agents/agent-acp';
 import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import {
+  buildIssueMentionContextBlock,
+  extractIssueMentionTargets,
+  issueMentionToken,
+  parseIssueMentionToken,
+} from '@shared/core/issues/issue-context';
 import type { LinkedIssue } from '@shared/core/linked-issue';
-import { ProviderLogo } from '../components/issue-selector/issue-selector';
-import { AddContextPopover } from '../context-bar/add-context-popover';
-import { buildIssueContextText, buildTaskContextActions } from '../context-bar/context-actions';
+import type { IssueProviderType } from '@shared/issue-providers';
+import { buildIssueContextText } from '../context-bar/context-actions';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
 import { usePromptFileDrop } from '../create-task-modal/use-prompt-file-drop';
+
+type RenderMentionIcon = NonNullable<Parameters<typeof ChatComposer>[0]['renderMentionIcon']>;
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;
@@ -56,6 +69,8 @@ export type InitialConversationState = {
   /** Whether to start this conversation as an ACP chat UI conversation. */
   useChatUi: boolean;
   setUseChatUi: (v: boolean) => void;
+  issueMentionContexts: Record<string, string>;
+  setIssueMentionContext: (token: string, context: string | null) => void;
 };
 
 interface InitialConversationStateOptions {
@@ -71,13 +86,17 @@ export function useInitialConversationState(
   const { resetPromptOnProjectChange = true } = options;
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
-  const chatUiEnabled = useFeatureFlag('chat-ui');
+  const chatUiFeatureEnabled = useFeatureFlag('chat-ui');
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
   const [model, setModel] = useState<string | null>(null);
-  const [useChatUiOverride, setUseChatUiOverride] = useState(false);
+  const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
+  const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
+    'initial-conversation:chat-ui-enabled',
+    true
+  );
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
   const [prevProviderId, setPrevProviderId] = useState(providerId);
@@ -94,17 +113,16 @@ export function useInitialConversationState(
     setAutoApproveOverride(null);
     setIssueContextEditorOpen(false);
     setModel(null);
-    setUseChatUiOverride(false);
+    setIssueMentionContexts({});
   } else if (providerChanged) {
     setPrevProviderId(providerId);
     setModel(null);
-    setUseChatUiOverride(false);
   }
 
   const autoApproveSupported = providerId ? providerSupportsAutoApprove(providerId) : false;
   const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
-  const acpSupported = chatUiEnabled && providerId ? providerSupportsAcp(providerId) : false;
-  const useChatUi = acpSupported && useChatUiOverride;
+  const acpSupported = chatUiFeatureEnabled && providerId ? providerSupportsAcp(providerId) : false;
+  const useChatUi = acpSupported && useChatUiPreference;
 
   return {
     provider: providerId,
@@ -122,7 +140,17 @@ export function useInitialConversationState(
     setModel,
     connectionId,
     useChatUi,
-    setUseChatUi: setUseChatUiOverride,
+    setUseChatUi: setUseChatUiPreference,
+    issueMentionContexts,
+    setIssueMentionContext: (token, context) =>
+      setIssueMentionContexts((current) => {
+        if (context === null) {
+          const next = { ...current };
+          delete next[token];
+          return next;
+        }
+        return { ...current, [token]: context };
+      }),
   };
 }
 
@@ -133,6 +161,43 @@ function useModelOptions(
   if (!providerId) return null;
   const models = agents?.find((a) => a.id === providerId)?.capabilities.models;
   return models?.kind === 'selectable' ? models.modelOptions : null;
+}
+
+const ISSUE_SEARCH_MIN_LENGTH = 2;
+const ISSUE_SEARCH_LIMIT = 20;
+const SLASH_PROMPTS_SECTION = 'Prompts';
+
+function promptPreview(text: string): string {
+  return text.split(/\r?\n/, 1)[0] ?? '';
+}
+
+function issueMatchesQuery(issue: LinkedIssue, query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return [issue.identifier, issue.displayIdentifier, issue.title]
+    .filter((value): value is string => !!value)
+    .some((value) => value.toLowerCase().includes(normalized));
+}
+
+function toIssueMentionItem(issue: LinkedIssue): MentionItem {
+  return toLinkedIssueMentionItem(issue, true);
+}
+
+function toLinkedIssueMentionItem(issue: LinkedIssue, pending = false): MentionItem {
+  const token = issueMentionToken(issue.provider, issue.identifier);
+  return {
+    id: token,
+    label: token,
+    name: issue.displayIdentifier ?? issue.identifier,
+    kind: 'issue',
+    description: issue.title,
+    icon: <IntegrationIcon provider={issue.provider} size={13} />,
+    pending,
+  };
+}
+
+function promptHasIssueMention(text: string, token: string): boolean {
+  return extractIssueMentionTargets(text).some((target) => target.token === token);
 }
 
 interface InitialConversationFieldProps {
@@ -150,25 +215,18 @@ export function InitialConversationField({
   linkedIssue,
   includeIssueContextByDefault,
   onPromptBlur,
-  placeholder,
   textareaClassName,
   showAutoApproveToggle = true,
 }: InitialConversationFieldProps) {
+  const editorApiRef = useRef<PromptEditorRef | null>(null);
+  const issueByTokenRef = useRef(new Map<string, LinkedIssue>());
+  const syncingEditorTextRef = useRef(false);
   const { value: promptLibrary } = usePromptLibrary();
-  const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, [], promptLibrary),
-    [linkedIssue, promptLibrary]
-  );
   const modelOptions = useModelOptions(state.provider);
   const defaultIssueContext = useMemo(
     () => (linkedIssue ? buildIssueContextText(linkedIssue) : null),
     [linkedIssue]
   );
-  const issueContextKey =
-    state.issueContext && linkedIssue
-      ? `${linkedIssue.provider}:${linkedIssue.identifier}:${state.issueContext}`
-      : null;
-  const [visibleIssueContextKey, setVisibleIssueContextKey] = useState<string | null>(null);
 
   // Auto-inject issue context whenever the linked issue changes.
   useEffect(() => {
@@ -176,35 +234,10 @@ export function InitialConversationField({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [defaultIssueContext, includeIssueContextByDefault]);
 
-  // Let the issue combobox finish its close animation before mounting the editable context pill.
-  useEffect(() => {
-    if (!issueContextKey) {
-      setVisibleIssueContextKey(null);
-      return;
-    }
-
-    const timeout = window.setTimeout(() => setVisibleIssueContextKey(issueContextKey), 150);
-    return () => window.clearTimeout(timeout);
-  }, [issueContextKey]);
-
   const canToggleAutoApprove = state.provider ? providerSupportsAutoApprove(state.provider) : false;
-  const chatUiEnabled = useFeatureFlag('chat-ui');
+  const chatUiFeatureEnabled = useFeatureFlag('chat-ui');
   const canToggleChatUi =
-    chatUiEnabled && state.provider ? providerSupportsAcp(state.provider) : false;
-
-  const handleToggleAutoApprove = () => {
-    if (!state.provider) return;
-    state.setAutoApprove(!state.autoApprove);
-  };
-
-  const handleToggleChatUi = () => {
-    if (!state.provider) return;
-    state.setUseChatUi(!state.useChatUi);
-  };
-
-  const handleActionClick = async (text: string) => {
-    state.setPrompt((current) => appendInitialConversationText(current, text));
-  };
+    chatUiFeatureEnabled && state.provider ? providerSupportsAcp(state.provider) : false;
 
   const { isDragOver, dropHandlers } = usePromptFileDrop({
     // Local paths would not exist on the remote host of an SSH project.
@@ -214,203 +247,289 @@ export function InitialConversationField({
       state.setPrompt((current) => appendInitialConversationText(current, text)),
   });
 
+  useEffect(() => {
+    const editor = editorApiRef.current;
+    if (!editor || editor.getText() === state.prompt) return;
+    syncingEditorTextRef.current = true;
+    try {
+      editor.setText(state.prompt);
+    } finally {
+      syncingEditorTextRef.current = false;
+    }
+  }, [state.prompt]);
+
+  const linkedIssueMention = useMemo(
+    () => (linkedIssue ? toLinkedIssueMentionItem(linkedIssue) : null),
+    [linkedIssue]
+  );
+
+  useEffect(() => {
+    const editor = editorApiRef.current;
+    if (!editor || !linkedIssueMention) return;
+
+    if (!state.issueContext) {
+      editor.removeMention(linkedIssueMention.id);
+      return;
+    }
+
+    if (!promptHasIssueMention(editor.getText(), linkedIssueMention.id)) {
+      editor.prependMention(linkedIssueMention);
+    }
+  }, [linkedIssueMention, state.issueContext, state.prompt]);
+
+  const issueProviderContext = useMemo<{
+    projectPath?: string;
+    repositoryUrl?: string;
+    selectedIssueProvider?: IssueProviderType | null;
+  }>(() => {
+    if (!state.projectId) return {};
+    const mounted = asMounted(getProjectStore(state.projectId));
+    return {
+      projectPath: mounted?.data.path,
+      repositoryUrl:
+        mounted?.gitRepository.issueRepositoryUrl ??
+        mounted?.gitRepository.canonicalRepositoryUrl ??
+        undefined,
+      selectedIssueProvider: getProjectViewStore(state.projectId)?.selectedIssueProvider ?? null,
+    };
+  }, [state.projectId]);
+  const { connectedProviders, isProviderUsable } = useConnectedIssueProviders(issueProviderContext);
+  const issueProvider = useMemo(() => {
+    const selected = issueProviderContext.selectedIssueProvider;
+    if (selected && isProviderUsable(selected)) return selected;
+    return connectedProviders[0] ?? null;
+  }, [connectedProviders, isProviderUsable, issueProviderContext.selectedIssueProvider]);
+
+  const mentionProvider = useMemo<ContextMentionProvider>(
+    () => ({
+      async search(query: string): Promise<MentionItem[]> {
+        const normalized = query.trim().toLowerCase();
+        const promptItems: MentionItem[] = promptLibrary
+          .filter((prompt) => {
+            if (!normalized) return true;
+            return [prompt.title, prompt.prompt].some((value) =>
+              value.toLowerCase().includes(normalized)
+            );
+          })
+          .map((prompt) => ({
+            id: `prompt:${prompt.id}`,
+            label: prompt.title,
+            name: prompt.title,
+            kind: 'custom',
+            description: promptPreview(prompt.prompt),
+            insertText: prompt.prompt,
+          }));
+
+        if (!state.useChatUi) return promptItems;
+
+        const pinnedIssue =
+          linkedIssue && issueMatchesQuery(linkedIssue, query)
+            ? toIssueMentionItem(linkedIssue)
+            : null;
+        if (pinnedIssue && linkedIssue) {
+          issueByTokenRef.current.set(pinnedIssue.id, linkedIssue);
+        }
+
+        const issueSearch =
+          issueProvider && query.trim().length >= ISSUE_SEARCH_MIN_LENGTH
+            ? rpc.issues
+                .searchIssues(issueProvider, {
+                  limit: ISSUE_SEARCH_LIMIT,
+                  searchTerm: query.trim(),
+                  projectId: state.projectId,
+                  projectPath: issueProviderContext.projectPath,
+                  repositoryUrl: issueProviderContext.repositoryUrl ?? undefined,
+                })
+                .catch((error: unknown) => {
+                  log.warn('Failed to search issue mentions', { provider: issueProvider, error });
+                  return null;
+                })
+            : Promise.resolve(null);
+        const issueResult = await issueSearch;
+
+        const issueItems: MentionItem[] = [];
+        const seenIssueIds = new Set<string>();
+        if (pinnedIssue) {
+          issueItems.push(pinnedIssue);
+          seenIssueIds.add(pinnedIssue.id);
+        }
+        if (issueResult?.success) {
+          for (const issue of issueResult.data) {
+            const item = toIssueMentionItem(issue);
+            if (seenIssueIds.has(item.id)) continue;
+            seenIssueIds.add(item.id);
+            issueByTokenRef.current.set(item.id, issue);
+            issueItems.push(item);
+          }
+        } else if (issueResult && !issueResult.success) {
+          log.warn('Failed to search issue mentions', {
+            provider: issueProvider,
+            error: issueResult.error,
+          });
+        }
+
+        return [...issueItems, ...promptItems];
+      },
+    }),
+    [
+      issueProvider,
+      issueProviderContext.projectPath,
+      issueProviderContext.repositoryUrl,
+      linkedIssue,
+      promptLibrary,
+      state.projectId,
+      state.useChatUi,
+    ]
+  );
+
+  const handleMentionInsert = useCallback(
+    (item: MentionItem) => {
+      if (item.kind !== 'issue') return;
+      const target = parseIssueMentionToken(item.id);
+      if (!target) return;
+
+      const fallbackIssue = issueByTokenRef.current.get(target.token);
+      if (fallbackIssue) {
+        state.setIssueMentionContext(
+          target.token,
+          buildIssueMentionContextBlock(target, fallbackIssue)
+        );
+      }
+
+      void rpc.issues
+        .getIssueContext(target.provider, {
+          identifier: target.identifier,
+          projectId: state.projectId,
+        })
+        .then((result) => {
+          if (result.success) {
+            state.setIssueMentionContext(
+              target.token,
+              buildIssueMentionContextBlock(target, result.data)
+            );
+          } else {
+            log.warn('Failed to resolve issue mention context', {
+              token: target.token,
+              error: result.error,
+            });
+          }
+        })
+        .catch((error: unknown) => {
+          log.warn('Failed to resolve issue mention context', { token: target.token, error });
+        })
+        .finally(() => {
+          editorApiRef.current?.setMentionPending(target.token, false);
+        });
+    },
+    [state]
+  );
+
+  const renderMentionIcon = useCallback<RenderMentionIcon>(({ id, kind }) => {
+    if (kind !== 'issue') return null;
+    const target = parseIssueMentionToken(id);
+    if (!target) return null;
+    return <IntegrationIcon provider={target.provider} size={12} />;
+  }, []);
+
+  const querySlashItems = useCallback(
+    async (query: string): Promise<CommandItem[]> => {
+      const normalized = query.trim().toLowerCase();
+      return promptLibrary
+        .filter((prompt) => {
+          if (!normalized) return true;
+          return [prompt.title, prompt.prompt].some((value) =>
+            value.toLowerCase().includes(normalized)
+          );
+        })
+        .map((prompt) => ({
+          id: `prompt:${prompt.id}`,
+          name: prompt.title,
+          label: prompt.title,
+          description: promptPreview(prompt.prompt),
+          behavior: 'insert-text' as const,
+          insertText: prompt.prompt,
+          section: SLASH_PROMPTS_SECTION,
+        }));
+    },
+    [promptLibrary]
+  );
+
+  const permissionModeOptions =
+    showAutoApproveToggle && canToggleAutoApprove && !state.useChatUi
+      ? {
+          ask: { name: 'Ask' },
+          bypass: {
+            name: 'Bypass Permissions',
+            description: 'Let the agent approve supported actions automatically.',
+          },
+        }
+      : null;
+
+  const handleComposerInputChange = useCallback(
+    (text: string) => {
+      state.setPrompt(text);
+      if (syncingEditorTextRef.current || !linkedIssueMention || !state.issueContext) return;
+
+      if (!promptHasIssueMention(text, linkedIssueMention.id)) {
+        state.setIssueContext(null);
+      }
+    },
+    [linkedIssueMention, state]
+  );
+
   return (
     <Field>
       <div
         className={cn(
-          'flex flex-col rounded-lg border border-border transition-colors',
+          'flex flex-col gap-2 transition-colors',
           isDragOver && 'bg-accent/10 ring-2 ring-accent/50 ring-inset'
         )}
+        onBlur={onPromptBlur}
         {...dropHandlers}
       >
-        <div className="flex w-full items-center justify-between gap-2 px-2 pt-1">
+        <div className="flex w-full">
           <AgentSelector
             value={state.provider}
             onChange={(provider) => state.setProvider(provider)}
             connectionId={state.connectionId}
-            className="h-6! w-fit! rounded-none border-0 p-0! text-sm!"
             contentClassName="w-64"
           />
-          <div className="flex items-center gap-2">
-            {canToggleChatUi ? (
-              <Tooltip>
-                <TooltipTrigger>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={handleToggleChatUi}
-                    disabled={!state.provider}
-                    data-active={state.useChatUi || undefined}
-                    className="transition-colors data-active:bg-background-2 data-active:text-foreground"
-                  >
-                    Chat UI
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Use chat UI (ACP)</TooltipContent>
-              </Tooltip>
-            ) : null}
-            {modelOptions ? (
-              <Select
-                value={state.model ?? ''}
-                onValueChange={(val) => state.setModel(val || null)}
-              >
-                <SelectTrigger className="h-6 gap-1 border-0 px-1 py-0 text-xs shadow-none focus:ring-0">
-                  <SelectValue placeholder="Default model">
-                    {state.model
-                      ? (modelOptions[state.model]?.name ?? state.model)
-                      : 'Default model'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="min-w-40">
-                  <SelectItem value="">Default model</SelectItem>
-                  {Object.entries(modelOptions).map(([id, opt]) => (
-                    <SelectItem key={id} value={id}>
-                      {opt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-            <AddContextPopover
-              actions={contextActions}
-              disabled={contextActions.length === 0}
-              onApplyAction={handleActionClick}
-              renderTrigger={({ disabled: isDisabled }) => (
-                <Button variant="ghost" size="icon-xs" disabled={isDisabled}>
-                  <PlusIcon className="size-4" />
-                </Button>
-              )}
-            />
-            {showAutoApproveToggle && canToggleAutoApprove ? (
-              <Tooltip>
-                <TooltipTrigger>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={handleToggleAutoApprove}
-                    disabled={!state.provider}
-                    data-active={state.autoApprove || undefined}
-                    className="transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive"
-                  >
-                    <CheckCheckIcon className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Auto approve</TooltipContent>
-              </Tooltip>
-            ) : null}
-          </div>
         </div>
 
-        {/* Issue context pill — click to edit in a modal */}
-        {state.issueContext && linkedIssue && visibleIssueContextKey === issueContextKey && (
-          <div className="px-2 py-1">
-            <IssueContextEditButton state={state} linkedIssue={linkedIssue} />
+        {canToggleChatUi ? (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border-1 bg-background-1 px-3 py-2">
+            <div className="min-w-0">
+              <div className="text-xs text-foreground">Use Chat UI (Beta)</div>
+            </div>
+            <Switch
+              checked={state.useChatUi}
+              onCheckedChange={state.setUseChatUi}
+              disabled={!state.provider}
+            />
           </div>
-        )}
+        ) : null}
 
-        <Textarea
-          placeholder={placeholder ?? 'Add an optional initial message...'}
-          value={state.prompt}
-          onChange={(e) => state.setPrompt(e.target.value)}
-          onBlur={onPromptBlur}
-          className={cn(
-            'max-h-64 min-h-8 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0',
-            textareaClassName
-          )}
+        <ChatComposer
+          canSubmit={false}
+          showSubmitButton={false}
+          onSubmit={() => {}}
+          onInputChange={handleComposerInputChange}
+          onMentionInsert={handleMentionInsert}
+          editorApiRef={editorApiRef}
+          mentionProvider={mentionProvider}
+          renderMentionIcon={renderMentionIcon}
+          queryCommands={querySlashItems}
+          modelOptions={modelOptions}
+          selectedModel={state.model ?? undefined}
+          onModelChange={(modelId) => state.setModel(modelId || null)}
+          permissionModeOptions={permissionModeOptions}
+          selectedPermissionMode={
+            permissionModeOptions ? (state.autoApprove ? 'bypass' : 'ask') : undefined
+          }
+          onPermissionModeChange={(modeId) => state.setAutoApprove(modeId === 'bypass')}
+          className={textareaClassName}
         />
       </div>
     </Field>
-  );
-}
-
-function IssueContextEditButton({
-  state,
-  linkedIssue,
-}: {
-  state: InitialConversationState;
-  linkedIssue: LinkedIssue;
-}) {
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState('');
-
-  // Seed the draft from the current issue context whenever the dialog opens.
-  useEffect(() => {
-    if (open) setDraft(state.issueContext ?? '');
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [open]);
-
-  const defaultContext = useMemo(() => buildIssueContextText(linkedIssue), [linkedIssue]);
-  const hasChanges = draft !== defaultContext;
-  const handleReset = () => setDraft(defaultContext);
-  const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
-    state.setIssueContextEditorOpen(nextOpen);
-  };
-  const handleSave = () => {
-    state.setIssueContext(draft.trim() || null);
-    handleOpenChange(false);
-  };
-
-  return (
-    <>
-      <div
-        className={cn(
-          'group relative flex items-center gap-1.5 rounded bg-background-2 py-0.5 pr-6 pl-2 text-xs text-foreground-muted',
-          'hover:bg-background-3'
-        )}
-      >
-        <button
-          type="button"
-          onClick={() => handleOpenChange(true)}
-          className={cn('flex flex-1 items-center gap-1.5 cursor-pointer min-w-0 py-0.5')}
-        >
-          <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
-          <span className="font-mono">{linkedIssue.identifier}</span>
-          {linkedIssue.title && (
-            <span className="max-w-48 truncate text-foreground-passive">{linkedIssue.title}</span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            state.setIssueContextEditorOpen(false);
-            state.setIssueContext(null);
-          }}
-          className={cn(
-            'absolute right-1 flex items-center justify-center rounded p-0.5',
-            'text-foreground-passive opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100'
-          )}
-        >
-          <X className="size-3" />
-        </button>
-      </div>
-      {open ? (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Edit issue context</DialogTitle>
-            </DialogHeader>
-            <DialogContentArea>
-              <Textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Edit the issue context sent to the agent..."
-                className="max-h-[60dvh] min-h-48 resize-none font-mono text-xs"
-              />
-            </DialogContentArea>
-            <DialogFooter>
-              {hasChanges ? (
-                <Button variant="ghost" size="sm" onClick={handleReset}>
-                  Reset to default
-                </Button>
-              ) : null}
-              <ConfirmButton size="sm" onClick={handleSave}>
-                Save
-              </ConfirmButton>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      ) : null}
-    </>
   );
 }

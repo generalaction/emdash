@@ -191,16 +191,27 @@ export function evolve(
       };
     }
 
-    case 'ReplayEnded':
+    case 'ReplayEnded': {
       if (s.phase.kind !== 'replaying') return warn(s, `ReplayEnded in phase '${s.phase.kind}'`);
+      const { queuedPrompts, effects: queueEffects } = dequeuePromptEffects(s.queuedPrompts);
       return {
-        state: { ...s, phase: { kind: 'ready' } },
-        effects: [{ type: 'state' }, { type: 'settleAgents', scope: 'turn', status: 'completed' }],
+        state: { ...s, phase: { kind: 'ready' }, queuedPrompts },
+        effects: [
+          { type: 'state' },
+          { type: 'settleAgents', scope: 'turn', status: 'completed' },
+          ...queueEffects,
+        ],
       };
+    }
 
-    case 'SessionReady':
+    case 'SessionReady': {
       if (s.phase.kind !== 'starting') return warn(s, `SessionReady in phase '${s.phase.kind}'`);
-      return { state: { ...s, phase: { kind: 'ready' } }, effects: [{ type: 'state' }] };
+      const { queuedPrompts, effects: queueEffects } = dequeuePromptEffects(s.queuedPrompts);
+      return {
+        state: { ...s, phase: { kind: 'ready' }, queuedPrompts },
+        effects: [{ type: 'state' }, ...queueEffects],
+      };
+    }
 
     case 'SessionLoaded':
       if (s.phase.kind !== 'replaying') return warn(s, `SessionLoaded in phase '${s.phase.kind}'`);

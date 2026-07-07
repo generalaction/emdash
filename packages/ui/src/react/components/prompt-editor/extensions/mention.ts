@@ -1,7 +1,7 @@
 /**
  * @ mention extension.
  *
- * Produces atomic inline `mention` nodes with attrs { id, label, name, kind }.
+ * Produces atomic inline `mention` nodes with attrs { id, label, name, kind, pending }.
  *  - `id`    – stable identifier (e.g. file path).
  *  - `label` – full-path text serialized as `@label` in clipboard/plain text.
  *  - `name`  – short display name shown inside the pill (basename by default).
@@ -41,6 +41,7 @@ export function buildMentionExtension(
         label: { default: null },
         name: { default: null },
         kind: { default: 'custom' },
+        pending: { default: false },
       };
     },
     addNodeView() {
