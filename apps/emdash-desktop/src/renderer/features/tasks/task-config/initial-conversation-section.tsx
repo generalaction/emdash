@@ -42,7 +42,7 @@ import {
   issueMentionToken,
   parseIssueMentionToken,
 } from '@shared/core/issues/issue-context';
-import type { LinkedIssue } from '@shared/core/linked-issue';
+import { linkedIssueMentionName, type LinkedIssue } from '@shared/core/linked-issue';
 import type { IssueProviderType } from '@shared/issue-providers';
 import { buildIssueContextText } from '../context-bar/context-actions';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
@@ -188,7 +188,7 @@ function toLinkedIssueMentionItem(issue: LinkedIssue, pending = false): MentionI
   return {
     id: token,
     label: token,
-    name: issue.displayIdentifier ?? issue.identifier,
+    name: linkedIssueMentionName(issue),
     kind: 'issue',
     description: issue.title,
     icon: <IntegrationIcon provider={issue.provider} size={13} />,
