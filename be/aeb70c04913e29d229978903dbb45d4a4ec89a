@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/generation/controller.ts
+  s_3aac974dd4e39f::t_55381fc1508840 154-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "beaeb70c04913e29d229978903dbb45d4a4ec89a",
+  "prompts": {},
+  "sessions": {
+    "s_3aac974dd4e39f": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lV14cUAqK8ZFNKNJsX0",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
