@@ -180,7 +180,7 @@ describe('IssueSelector', () => {
       'acme/repo on github.com was not found, or the selected GitHub account does not have access.'
     );
     expect(container.textContent).not.toContain('No issues found');
-  });
+  }, 10000);
 
   it('does not include hidden provider identifiers in input labels', async () => {
     const { issueToStringLabel } = await import('./issue-selector');

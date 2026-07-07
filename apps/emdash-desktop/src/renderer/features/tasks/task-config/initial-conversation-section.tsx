@@ -183,12 +183,17 @@ function toIssueMentionItem(issue: LinkedIssue): MentionItem {
   return toLinkedIssueMentionItem(issue, true);
 }
 
+export function issueMentionName(issue: LinkedIssue): string {
+  if (issue.displayIdentifier === null) return issue.title;
+  return issue.displayIdentifier ?? issue.identifier;
+}
+
 function toLinkedIssueMentionItem(issue: LinkedIssue, pending = false): MentionItem {
   const token = issueMentionToken(issue.provider, issue.identifier);
   return {
     id: token,
     label: token,
-    name: issue.displayIdentifier ?? issue.identifier,
+    name: issueMentionName(issue),
     kind: 'issue',
     description: issue.title,
     icon: <IntegrationIcon provider={issue.provider} size={13} />,
