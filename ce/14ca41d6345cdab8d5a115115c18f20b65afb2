@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/components/IntegrationsCard.tsx
+  s_c7d23f9618d2e6::t_7351232f7be565 2,10,15,44,70-97,107,109,111-119,121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ce14ca41d6345cdab8d5a115115c18f20b65afb2",
+  "prompts": {},
+  "sessions": {
+    "s_c7d23f9618d2e6": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQxtJL5pNd7T1dr8xeA",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
