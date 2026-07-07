@@ -41,10 +41,10 @@ vi.mock('@renderer/lib/ui/panel-tabs', async () => {
 function StatefulContent({ label }: { label: string }) {
   const [value, setValue] = useState('initial');
 
-  return (
-    <button type="button" data-testid={label} onClick={() => setValue('edited')}>
-      {value}
-    </button>
+  return React.createElement(
+    'button',
+    { type: 'button', 'data-testid': label, onClick: () => setValue('edited') },
+    value
   );
 }
 
@@ -76,21 +76,21 @@ describe('TaskConfigPanel', () => {
   it('preserves tab content state when switching tabs', async () => {
     await act(async () => {
       root.render(
-        <TaskConfigPanel
-          preserveTabContent
-          tabs={[
+        React.createElement(TaskConfigPanel, {
+          preserveTabContent: true,
+          tabs: [
             {
               value: 'conversation',
               label: 'Initial Conversation',
-              content: <StatefulContent label="conversation" />,
+              content: React.createElement(StatefulContent, { label: 'conversation' }),
             },
             {
               value: 'workspace',
               label: 'Workspace Settings',
-              content: <div>Workspace</div>,
+              content: React.createElement('div', null, 'Workspace'),
             },
-          ]}
-        />
+          ],
+        })
       );
     });
 
@@ -115,5 +115,44 @@ describe('TaskConfigPanel', () => {
     });
 
     expect(container.querySelector('[data-testid="conversation"]')?.textContent).toBe('edited');
+  });
+
+  it('mounts inactive preserved tabs only after they are visited', async () => {
+    const workspaceMount = vi.fn();
+
+    function WorkspaceContent() {
+      workspaceMount();
+      return React.createElement('div', null, 'Workspace');
+    }
+
+    await act(async () => {
+      root.render(
+        React.createElement(TaskConfigPanel, {
+          preserveTabContent: true,
+          tabs: [
+            {
+              value: 'conversation',
+              label: 'Initial Conversation',
+              content: React.createElement(StatefulContent, { label: 'conversation' }),
+            },
+            {
+              value: 'workspace',
+              label: 'Workspace Settings',
+              content: React.createElement(WorkspaceContent),
+            },
+          ],
+        })
+      );
+    });
+
+    expect(workspaceMount).not.toHaveBeenCalled();
+
+    await act(async () => {
+      container
+        .querySelector('button:nth-of-type(2)')
+        ?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(workspaceMount).toHaveBeenCalledTimes(1);
   });
 });
