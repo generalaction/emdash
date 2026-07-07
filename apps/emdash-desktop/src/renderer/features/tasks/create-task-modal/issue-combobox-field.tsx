@@ -64,6 +64,7 @@ export function IssueComboboxField({
       projectId={projectId}
       repositoryUrl={repositoryUrl}
       projectPath={projectPath}
+      excludeLinkedIssues
       disabled={disabled}
       renderSelectedValue={(issue) => (
         <div

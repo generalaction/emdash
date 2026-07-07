@@ -132,6 +132,7 @@ export interface IssueSelectorProps {
   projectPath?: string;
   /** Skip "already linked" indicator for this task — useful when re-selecting the same task's issue. */
   excludeTaskId?: string;
+  excludeLinkedIssues?: boolean;
   disabled?: boolean;
   renderSelectedValue?: (issue: LinkedIssue) => ReactNode;
   renderPlaceholder?: (ctx: IssueSelectorTriggerContext) => ReactNode;
@@ -144,6 +145,7 @@ export const IssueSelector = observer(function IssueSelector({
   value,
   onValueChange,
   excludeTaskId,
+  excludeLinkedIssues = false,
   disabled,
   renderSelectedValue,
   renderPlaceholder,
@@ -169,6 +171,12 @@ export const IssueSelector = observer(function IssueSelector({
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const providerSelectOpenRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const visibleIssues = useMemo(
+    () =>
+      getVisibleIssues(issues, linkedIssueMap, { excludeLinkedIssues }),
+    [excludeLinkedIssues, issues, linkedIssueMap]
+  );
 
   const handleSelectIssueProvider = useCallback(
     (provider: LinkedIssue['provider']) => {
@@ -246,11 +254,9 @@ export const IssueSelector = observer(function IssueSelector({
       {hasAnyIntegration ? (
         <Combobox
           autoHighlight
-          items={issues}
+          items={visibleIssues}
           filter={null}
-          itemToStringLabel={(issue: LinkedIssue | null) =>
-            issue ? `${issue.identifier} ${issue.title}` : ''
-          }
+          itemToStringLabel={issueToStringLabel}
           value={value}
           onValueChange={(next: LinkedIssue | null) => onValueChange(next)}
           onInputValueChange={(val: string, { reason }: { reason: string }) => {
@@ -320,6 +326,21 @@ export const IssueSelector = observer(function IssueSelector({
     </div>
   );
 });
+
+export function issueToStringLabel(issue: LinkedIssue | null): string {
+  if (!issue) return '';
+  const identifier = issue.displayIdentifier === null ? null : issue.displayIdentifier;
+  return identifier ? `${identifier} ${issue.title}` : issue.title;
+}
+
+export function getVisibleIssues(
+  issues: LinkedIssue[],
+  linkedIssueMap: Map<string, LinkedIssueInfo>,
+  opts: { excludeLinkedIssues: boolean }
+): LinkedIssue[] {
+  if (!opts.excludeLinkedIssues) return issues;
+  return issues.filter((issue) => !issue.url || !linkedIssueMap.has(issue.url));
+}
 
 export function SelectedIssueValue({ issue }: { issue: LinkedIssue }) {
   return (
