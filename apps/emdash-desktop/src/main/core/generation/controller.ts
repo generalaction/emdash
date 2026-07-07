@@ -11,7 +11,6 @@ import { appSettingsService } from '../settings/settings-service';
 const execFileAsync = promisify(execFile);
 const MAX_CONTEXT_CHARS = 60_000;
 const GIT_CONTEXT_OUTPUT_LIMIT = MAX_CONTEXT_CHARS * 2;
-const GENERATION_TIMEOUT_MS = 120_000;
 
 type GenerationError = {
   type:
@@ -144,7 +143,6 @@ async function runJsonGeneration<T>(input: {
       cwd: input.cwd,
       sessionId: null,
       model: settings.model.trim() || null,
-      initialQueue: [{ text: input.prompt }],
       ephemeral: true,
     },
   });
@@ -153,8 +151,13 @@ async function runJsonGeneration<T>(input: {
   }
 
   try {
-    const settled = await waitForAcpIdle(conversationId);
-    if (!settled.success) return settled;
+    const prompted = await acpRuntimeProcedures.sendPrompt({
+      conversationId,
+      prompt: { text: input.prompt },
+    });
+    if (!prompted.success) {
+      return err({ type: 'acp_failed', message: prompted.error.message ?? prompted.error.type });
+    }
     const history = await acpRuntimeProcedures.getHistory({ conversationId, limit: 10 });
     if (!history.success) {
       return err({ type: 'acp_failed', message: history.error.message ?? history.error.type });
@@ -177,26 +180,6 @@ function findLastAssistantMessage(turns: Array<{ items: unknown[] }>): string | 
     }
   }
   return null;
-}
-
-async function waitForAcpIdle(conversationId: string): Promise<Result<void, GenerationError>> {
-  const deadline = Date.now() + GENERATION_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const state = await acpRuntimeProcedures.getSessionState({ conversationId });
-    if (state.lifecycle === 'closed') {
-      return err({ type: 'acp_failed', message: 'The ACP session closed before responding.' });
-    }
-    if (
-      state.lifecycle === 'ready' &&
-      !state.isGenerating &&
-      state.activeTurnId === null &&
-      state.queuedPrompts.length === 0
-    ) {
-      return ok();
-    }
-    await new Promise((resolve) => setTimeout(resolve, 750));
-  }
-  return err({ type: 'timeout', message: 'Timed out waiting for the generator.' });
 }
 
 async function buildCommitContext(cwd: string, includeUnstaged: boolean): Promise<string> {
