@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/renderer/features/settings/agents-page/AgentsSettingsPage.tsx
+  s_34f748b2ef7e25::t_d21db7b88bf0d7 59
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_8d06b41584921f::t_5211c88578d794 8,64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "10785af456373d29d62f1534073acaddca96bcd7",
+  "prompts": {},
+  "sessions": {
+    "s_34f748b2ef7e25": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lUHEPSDYmKdVs2dtRLP",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_8d06b41584921f": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lUGzC2duCRHmtEi2dv8",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
