@@ -2,6 +2,7 @@ export type ExecOptions = {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   maxBuffer?: number;
+  onStderr?: (chunk: string) => void;
   signal?: AbortSignal;
   timeoutMs?: number;
 };

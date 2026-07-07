@@ -113,6 +113,7 @@ class ProcessBoundExec implements BoundExec {
       });
 
       child.stderr?.on('data', (chunk: string) => {
+        options.onStderr?.(chunk);
         stderrBytes += Buffer.byteLength(chunk);
         if (stderrBytes > maxBuffer) {
           child.kill();
