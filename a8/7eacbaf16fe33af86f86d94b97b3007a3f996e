@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-row.tsx
+  s_688ce9b06280cc::t_1cb4d27e028766 109
+apps/emdash-desktop/src/renderer/features/sidebar/task-item.tsx
+  s_688ce9b06280cc::t_b0814e3bf647ab 113,122
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.tsx
+  s_688ce9b06280cc::t_998a2322056737 249,251-253
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-selectors.ts
+  s_688ce9b06280cc::t_ecdd9b06dcc8d7 148
+apps/emdash-desktop/src/renderer/features/tasks/task-config/initial-conversation-section.tsx
+  s_688ce9b06280cc::t_f37525539447f1 191
+apps/emdash-desktop/src/renderer/features/tasks/task-titlebar.tsx
+  s_688ce9b06280cc::t_5b74ca5bc63c9a 90
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_688ce9b06280cc::t_7d1c20fbff3277 134-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a87eacbaf16fe33af86f86d94b97b3007a3f996e",
+  "prompts": {},
+  "sessions": {
+    "s_688ce9b06280cc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3d51-5fd4-7cf2-8d8a-09fe7623bcc6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
