@@ -20,6 +20,7 @@ import type {
   PushError,
   RebaseError,
   SwitchError,
+  SyncError,
 } from '../api/errors';
 import type {
   Commit,
@@ -91,7 +92,7 @@ export interface IGitCheckout extends IDisposable {
   // -- Sync --
   push(options?: PushOptions): Promise<Result<{ output: string }, PushError>>;
   pull(): Promise<Result<{ output: string }, PullError>>;
-  sync(): Promise<Result<{ output: string }, PushError>>;
+  sync(): Promise<Result<{ output: string }, SyncError>>;
 
   // -- Stash (mutations run here; the stashes model lives on the repository) --
   stashPush(options?: StashPushOptions): Promise<Result<void, GitCommandError>>;
@@ -100,11 +101,7 @@ export interface IGitCheckout extends IDisposable {
 
   // -- Diff / conflict reads --
   getFileDiff(path: string, base?: DiffTarget): Promise<Result<FileDiff, GitCommandError>>;
-  subscribeFileDiff(
-    path: string,
-    base: DiffTarget | undefined,
-    cb: (event: FileDiffStalenessEvent) => void
-  ): Unsubscribe;
+  subscribeFileDiff(path: string, cb: (event: FileDiffStalenessEvent) => void): Unsubscribe;
   getChangedFiles(base: DiffTarget): Promise<GitChange[]>;
   getConflictVersions(path: string): Promise<Result<ConflictVersions, GitCommandError>>;
 

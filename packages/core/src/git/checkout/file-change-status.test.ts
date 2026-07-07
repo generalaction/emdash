@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapGitChangeStatus } from './diff-parser';
+import { mapGitChangeStatus } from './status';
 
 describe('diff parser', () => {
   it('maps git status codes', () => {

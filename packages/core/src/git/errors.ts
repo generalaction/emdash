@@ -297,3 +297,12 @@ export function isNotRepositoryInspectionError(error: unknown): boolean {
     message.includes('must be run in a work tree')
   );
 }
+
+export function isUnbornHeadError(error: unknown): boolean {
+  const message = gitErrorMessage(error).toLowerCase();
+  return (
+    message.includes("ambiguous argument 'head'") ||
+    message.includes('unknown revision') ||
+    message.includes('does not have any commits yet')
+  );
+}

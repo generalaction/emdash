@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_STATUS_FILES, StatusParser } from './status-parser';
+import { MAX_STATUS_FILES, StatusParser } from './status';
 
 describe('StatusParser', () => {
   const headOid = '1111111111111111111111111111111111111111';

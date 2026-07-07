@@ -69,6 +69,9 @@ export const pullErrorSchema = z.union([
 ]);
 export type PullError = z.infer<typeof pullErrorSchema>;
 
+export const syncErrorSchema = z.union([pullErrorSchema, pushErrorSchema]);
+export type SyncError = z.infer<typeof syncErrorSchema>;
+
 // createBranchError nests fetchError recursively
 export const createBranchErrorSchema = z.union([
   z.object({ type: z.literal('already_exists'), branch: z.string(), message: z.string() }),

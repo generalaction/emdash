@@ -140,11 +140,13 @@ describe('GitCheckout', () => {
         statusUpdates += 1;
       });
 
+      const trackedPath = path.join(repo, 'tracked.txt');
+
       // Working-tree edit arrives via the watcher.
-      await writeFile(path.join(repo, 'tracked.txt'), 'after\n', 'utf8');
+      await writeFile(trackedPath, 'after\n', 'utf8');
       await eventually(() => {
         const model = checkout.status.snapshot().data;
-        return model.kind === 'ok' && model.entries['tracked.txt']?.worktree === 'modified'
+        return model.kind === 'ok' && model.entries[trackedPath]?.worktree === 'modified'
           ? true
           : undefined;
       });
@@ -154,7 +156,7 @@ describe('GitCheckout', () => {
       const stageResult = await checkout.stage(['tracked.txt']);
       expect(stageResult.success).toBe(true);
       const staged = okStatus(checkout.status.snapshot().data);
-      expect(staged.entries['tracked.txt']).toMatchObject({
+      expect(staged.entries[trackedPath]).toMatchObject({
         index: 'modified',
         worktree: 'unmodified',
       });
@@ -191,7 +193,7 @@ describe('GitCheckout', () => {
       await writeFile(path.join(repo, 'fresh.txt'), 'hello\n', 'utf8');
       await checkout.refresh();
       const model = okStatus(checkout.status.snapshot().data);
-      expect(model.entries['fresh.txt']).toMatchObject({
+      expect(model.entries[path.join(repo, 'fresh.txt')]).toMatchObject({
         index: 'untracked',
         worktree: 'untracked',
         isConflicted: false,
@@ -210,7 +212,7 @@ describe('GitCheckout', () => {
       expect(diffResult.success).toBe(true);
       if (!diffResult.success) throw new Error('diff failed');
       expect(diffResult.data).toMatchObject({
-        path: 'tracked.txt',
+        path: path.join(repo, 'tracked.txt'),
         binary: false,
         additions: 1,
         deletions: 1,
@@ -239,15 +241,16 @@ describe('GitCheckout', () => {
       const header = diffResult.data.hunks[0]?.header;
       expect(header).toBeDefined();
 
+      const trackedPath = path.join(repo, 'tracked.txt');
       const stageResult = await checkout.stageHunk('tracked.txt', header!);
       expect(stageResult.success).toBe(true);
       let model = okStatus(checkout.status.snapshot().data);
-      expect(model.entries['tracked.txt']?.index).toBe('modified');
+      expect(model.entries[trackedPath]?.index).toBe('modified');
 
       const unstageResult = await checkout.unstageHunk('tracked.txt', header!);
       expect(unstageResult.success).toBe(true);
       model = okStatus(checkout.status.snapshot().data);
-      expect(model.entries['tracked.txt']).toMatchObject({
+      expect(model.entries[trackedPath]).toMatchObject({
         index: 'unmodified',
         worktree: 'modified',
       });
@@ -303,7 +306,7 @@ describe('GitCheckout', () => {
     const { repo, checkout, cleanup } = await makeCheckout();
     try {
       const events: string[] = [];
-      const unsubscribe = checkout.subscribeFileDiff('tracked.txt', undefined, (event) =>
+      const unsubscribe = checkout.subscribeFileDiff('tracked.txt', (event) =>
         events.push(event.reason)
       );
       await writeFile(path.join(repo, 'tracked.txt'), 'changed\n', 'utf8');

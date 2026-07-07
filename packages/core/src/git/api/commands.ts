@@ -26,11 +26,8 @@ export type FetchPrForReviewOptions = z.infer<typeof fetchPrForReviewOptionsSche
 
 // GitLogOptions.base/head are restricted to GitObjectRef (branch|commit|tag only)
 export const gitLogOptionsSchema = z.object({
-  maxCount: z.number().int().optional(),
   limit: z.number().int().optional(),
   skip: z.number().int().optional(),
-  knownAheadCount: z.number().int().optional(),
-  preferredRemote: z.string().optional(),
   base: gitObjectRefSchema.optional(),
   head: gitObjectRefSchema.optional(),
 });

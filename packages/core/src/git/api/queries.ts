@@ -11,20 +11,27 @@ export const gitChangeStatusSchema = z.enum([
 ]);
 export type GitChangeStatus = z.infer<typeof gitChangeStatusSchema>;
 
-export const gitChangeSchema = z.object({
+/**
+ * Path convention: all paths returned by the git domain are absolute.
+ * Path inputs accept absolute paths (checkout-relative paths are tolerated
+ * and normalized internally before reaching git).
+ */
+export const fileChangeSchema = z.object({
   path: z.string(),
   status: gitChangeStatusSchema,
   additions: z.number().int(),
   deletions: z.number().int(),
   indexOid: z.string().optional(),
 });
+export type FileChange = z.infer<typeof fileChangeSchema>;
+
+export const gitChangeSchema = fileChangeSchema;
 export type GitChange = z.infer<typeof gitChangeSchema>;
 
 export const checkoutInfoSchema = z.object({
   checkoutPath: z.string(),
   isMain: z.boolean(),
   head: gitHeadModelSchema,
-  branch: z.string().optional(),
   locked: z.boolean().optional(),
   prunable: z.boolean().optional(),
 });
@@ -42,17 +49,11 @@ export const commitSchema = z.object({
 });
 export type Commit = z.infer<typeof commitSchema>;
 
-export const commitFileSchema = z.object({
-  path: z.string(),
-  status: gitChangeStatusSchema,
-  additions: z.number().int(),
-  deletions: z.number().int(),
-});
+export const commitFileSchema = fileChangeSchema;
 export type CommitFile = z.infer<typeof commitFileSchema>;
 
 export const gitLogResultSchema = z.object({
   commits: z.array(commitSchema),
-  aheadCount: z.number().int(),
 });
 export type GitLogResult = z.infer<typeof gitLogResultSchema>;
 
@@ -62,7 +63,7 @@ export const diffLineSchema = z.object({
   oldLineNo: z.number().int().optional(),
   newLineNo: z.number().int().optional(),
 });
-export type FileDiff = z.infer<typeof fileDiffSchema>;
+export type DiffLine = z.infer<typeof diffLineSchema>;
 
 export const diffHunkSchema = z.object({
   header: z.string(),
@@ -83,7 +84,7 @@ export const fileDiffSchema = z.object({
   deletions: z.number().int(),
   hunks: z.array(diffHunkSchema),
 });
-export type DiffLine = z.infer<typeof diffLineSchema>;
+export type FileDiff = z.infer<typeof fileDiffSchema>;
 
 /** Returned by subscribeFileDiff — signals the diff is stale and should be re-fetched. */
 export const fileDiffStalenessEventSchema = z.object({

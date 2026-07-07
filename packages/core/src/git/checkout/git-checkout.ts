@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
-import { ExecError, type BoundExec } from '../../exec';
+import type { BoundExec } from '../../exec';
 import { RefreshScheduler } from '../../lib/refresh-scheduler';
 import { LiveModelServer, reconcileDraft } from '../../live/model';
 import type { WatchHandle } from '../../watch';
@@ -24,10 +24,9 @@ import type {
   PushError,
   RebaseError,
   SwitchError,
+  SyncError,
 } from '../api/errors';
 import {
-  toRangeString,
-  toRefString,
   type BlameResult,
   type Commit,
   type CommitFile,
@@ -46,33 +45,34 @@ import {
   classifyPushError,
   classifyRebaseError,
   classifySwitchError,
+  gitErrorMessage,
+  isUnbornHeadError,
   toGitCommandError,
 } from '../errors';
-import { parseBlamePorcelain } from '../parsers/blame-parser';
-import { mapGitChangeStatus } from '../parsers/diff-parser';
-import { parseUnifiedFileDiff } from '../parsers/unified-diff-parser';
 import { classifyGitWatchEvents } from '../watch/classifier';
-import { computeHeadModel, computeStatusModel } from './compute';
+import { blame as readBlame } from './blame';
+import {
+  extractHunkPatch,
+  getChangedFiles as readChangedFiles,
+  getUntrackedFileDiff,
+  parseUnifiedFileDiff,
+  resolveDiffTarget,
+} from './diff';
+import { computeHeadModel } from './head';
+import { getImageBlob } from './images';
+import {
+  getCommit as readCommit,
+  getCommitFiles as readCommitFiles,
+  getLog as readLog,
+} from './log';
 import type { GitHeadModel } from './models/head';
 import type { CheckoutStatusModel } from './models/status';
+import { computeStatusModel } from './status';
 import type { CheckoutRepository, GitCheckoutOptions, IGitCheckout } from './types';
 
 const WATCH_DEBOUNCE_MS = 100;
 const REVALIDATE_INTERVAL_MS = 5 * 60_000;
-const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
-const LFS_POINTER_PREFIX = Buffer.from('version https://git-lfs.github.com/spec/');
-const IMAGE_MIME_BY_EXT: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  bmp: 'image/bmp',
-  ico: 'image/x-icon',
-  svg: 'image/svg+xml',
-};
 
-type Numstat = Map<string, { additions: number; deletions: number }>;
 type StalenessCallback = (event: FileDiffStalenessEvent) => void;
 
 /**
@@ -99,7 +99,7 @@ export class GitCheckout implements IGitCheckout {
 
   static async create(options: GitCheckoutOptions): Promise<GitCheckout> {
     const [status, head] = await Promise.all([
-      computeStatusModel(options.exec, options.gitDir),
+      computeStatusModel(options.exec, options.gitDir, options.checkoutPath),
       computeHeadModel(options.exec).catch(
         (): GitHeadModel => ({ kind: 'unborn', name: 'unknown' })
       ),
@@ -125,7 +125,7 @@ export class GitCheckout implements IGitCheckout {
 
     this.statusRefresh = new RefreshScheduler({
       refresh: async () => {
-        const fresh = await computeStatusModel(this.exec, this.gitDir);
+        const fresh = await computeStatusModel(this.exec, this.gitDir, this.checkoutPath);
         this.status.produce((draft) => reconcileDraft(draft, fresh) as never);
       },
       debounceMs: WATCH_DEBOUNCE_MS,
@@ -217,7 +217,14 @@ export class GitCheckout implements IGitCheckout {
 
   async unstageAll(): Promise<Result<void, GitCommandError>> {
     return this.statusMutation(async () => {
-      await this.exec.exec(['reset', 'HEAD']).catch(() => {});
+      try {
+        await this.exec.exec(['reset', 'HEAD']);
+      } catch (error) {
+        if (!isUnbornHeadError(error)) throw error;
+        await this.exec.exec(['rm', '-r', '--cached', '--', '.']).catch((rmError) => {
+          if (!gitErrorMessage(rmError).includes('did not match any files')) throw rmError;
+        });
+      }
     });
   }
 
@@ -245,7 +252,11 @@ export class GitCheckout implements IGitCheckout {
 
   async revertAll(): Promise<Result<void, GitCommandError>> {
     return this.statusMutation(async () => {
-      await this.exec.exec(['reset', '--hard', 'HEAD']).catch(() => {});
+      try {
+        await this.exec.exec(['reset', '--hard', 'HEAD']);
+      } catch (error) {
+        if (!isUnbornHeadError(error)) throw error;
+      }
       await this.exec.exec(['clean', '-fd']);
     });
   }
@@ -440,15 +451,9 @@ export class GitCheckout implements IGitCheckout {
     }
   }
 
-  async sync(): Promise<Result<{ output: string }, PushError>> {
+  async sync(): Promise<Result<{ output: string }, SyncError>> {
     const pullResult = await this.pull();
-    if (!pullResult.success) {
-      const pullError = pullResult.error;
-      if (pullError.type === 'auth_failed' || pullError.type === 'network_error') {
-        return err(pullError);
-      }
-      return err({ type: 'git_error', message: pullError.message ?? 'pull failed' });
-    }
+    if (!pullResult.success) return pullResult;
     const pushResult = await this.push();
     if (!pushResult.success) return pushResult;
     const output = [pullResult.data.output, pushResult.data.output].filter(Boolean).join('\n');
@@ -499,6 +504,7 @@ export class GitCheckout implements IGitCheckout {
     base: DiffTarget = { kind: 'head' }
   ): Promise<Result<FileDiff, GitCommandError>> {
     const relativePath = this.toRelativePath(filePath);
+    const absolutePath = this.toAbsolutePath(filePath);
     const resolved = resolveDiffTarget(base);
     try {
       const args = resolved.cached
@@ -506,20 +512,16 @@ export class GitCheckout implements IGitCheckout {
         : ['diff', '--no-color', resolved.ref, '--', relativePath];
       const { stdout } = await this.exec.exec(args);
       if (stdout.trim().length > 0 || resolved.cached) {
-        return ok(parseUnifiedFileDiff(stdout, relativePath));
+        return ok(parseUnifiedFileDiff(stdout, absolutePath));
       }
-      const untrackedDiff = await this.getUntrackedFileDiff(relativePath);
-      return ok(untrackedDiff ?? parseUnifiedFileDiff(stdout, relativePath));
+      const untrackedDiff = await getUntrackedFileDiff(this.exec, relativePath, absolutePath);
+      return ok(untrackedDiff ?? parseUnifiedFileDiff(stdout, absolutePath));
     } catch (error) {
       return err(toGitCommandError(error));
     }
   }
 
-  subscribeFileDiff(
-    filePath: string,
-    _base: DiffTarget | undefined,
-    cb: (event: FileDiffStalenessEvent) => void
-  ): Unsubscribe {
+  subscribeFileDiff(filePath: string, cb: (event: FileDiffStalenessEvent) => void): Unsubscribe {
     const relativePath = this.toRelativePath(filePath);
     let callbacks = this.diffSubscriptions.get(relativePath);
     if (!callbacks) {
@@ -536,35 +538,7 @@ export class GitCheckout implements IGitCheckout {
   }
 
   async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
-    const resolved = resolveDiffTarget(base);
-    const diffArgs = resolved.cached
-      ? ['diff', '--numstat', '--cached']
-      : ['diff', '--numstat', resolved.ref];
-    const nameArgs = resolved.cached
-      ? ['diff', '--name-status', '--cached']
-      : ['diff', '--name-status', resolved.ref];
-
-    const [numstatResult, nameStatusResult] = await Promise.all([
-      this.exec.exec(diffArgs).catch(() => ({ stdout: '' })),
-      this.exec.exec(nameArgs).catch(() => ({ stdout: '' })),
-    ]);
-    const numstat = parseNumstat(numstatResult.stdout);
-    const changes: GitChange[] = [];
-
-    for (const line of nameStatusResult.stdout.trim().split('\n').filter(Boolean)) {
-      const [code = '', ...parts] = line.split('\t');
-      const filePath = parts[parts.length - 1]?.trim();
-      if (!filePath) continue;
-      const stat = numstat.get(filePath);
-      changes.push({
-        path: this.toAbsolutePath(filePath),
-        status: mapGitChangeStatus(code),
-        additions: stat?.additions ?? 0,
-        deletions: stat?.deletions ?? 0,
-      });
-    }
-
-    return changes;
+    return readChangedFiles(this.exec, base, (filePath) => this.toAbsolutePath(filePath));
   }
 
   async getConflictVersions(filePath: string): Promise<Result<ConflictVersions, GitCommandError>> {
@@ -603,89 +577,28 @@ export class GitCheckout implements IGitCheckout {
 
   async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
     const relativePath = this.toRelativePath(filePath);
-    return this.getImageBlob(relativePath, `${ref}:${relativePath}`);
+    return getImageBlob(this.exec, relativePath, `${ref}:${relativePath}`);
   }
 
   async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
     const relativePath = this.toRelativePath(filePath);
-    return this.getImageBlob(relativePath, `:${relativePath}`);
+    return getImageBlob(this.exec, relativePath, `:${relativePath}`);
   }
 
   async getLog(options: GitLogOptions = {}): Promise<GitLogResult> {
-    const maxCount =
-      typeof options.maxCount === 'number'
-        ? Math.max(1, Math.floor(options.maxCount))
-        : typeof options.limit === 'number'
-          ? Math.max(1, Math.floor(options.limit))
-          : 50;
-    const skip = typeof options.skip === 'number' ? Math.max(0, Math.floor(options.skip)) : 0;
-    const head = options.head ? toRefString(options.head) : 'HEAD';
-    const range = options.base ? `${toRefString(options.base)}..${head}` : head;
-    const aheadCount = await this.getAheadCount(options, head);
-    const { stdout } = await this.exec.exec([
-      'log',
-      `--max-count=${maxCount}`,
-      `--skip=${skip}`,
-      '--decorate=full',
-      `--format=${LOG_FORMAT}`,
-      range,
-      '--',
-    ]);
-    const remoteReachable = await this.getRemoteReachableCommits();
-    const commits = parseLogRecords(stdout, remoteReachable);
-    return { commits, aheadCount };
+    return readLog(this.exec, options);
   }
 
   async getCommit(hash: string): Promise<Commit | null> {
-    try {
-      const { stdout } = await this.exec.exec([
-        'log',
-        '--max-count=1',
-        '--decorate=full',
-        `--format=${LOG_FORMAT}`,
-        hash,
-        '--',
-      ]);
-      const remoteReachable = await this.getRemoteReachableCommits();
-      return parseLogRecords(stdout, remoteReachable)[0] ?? null;
-    } catch {
-      return null;
-    }
+    return readCommit(this.exec, hash);
   }
 
   async getCommitFiles(hash: string): Promise<CommitFile[]> {
-    const [numstatRes, nameStatusRes] = await Promise.all([
-      this.exec.exec(['diff-tree', '--root', '--no-commit-id', '--numstat', '-r', hash]),
-      this.exec.exec(['diff-tree', '--root', '--no-commit-id', '--name-status', '-r', hash]),
-    ]);
-    const numstat = parseNumstat(numstatRes.stdout);
-    const statusByPath = new Map<string, ReturnType<typeof mapGitChangeStatus>>();
-    for (const line of nameStatusRes.stdout.trim().split('\n').filter(Boolean)) {
-      const [code = '', ...parts] = line.split('\t');
-      const filePath = parts[parts.length - 1];
-      if (filePath) statusByPath.set(filePath, mapGitChangeStatus(code));
-    }
-    return [...numstat.entries()].map(([filePath, stat]) => ({
-      path: this.toAbsolutePath(filePath),
-      status: statusByPath.get(filePath) ?? 'modified',
-      additions: stat.additions,
-      deletions: stat.deletions,
-    }));
+    return readCommitFiles(this.exec, hash, (filePath) => this.toAbsolutePath(filePath));
   }
 
   async blame(filePath: string, ref?: string): Promise<Result<BlameResult, GitCommandError>> {
-    try {
-      const { stdout } = await this.exec.exec([
-        'blame',
-        '--porcelain',
-        ...(ref ? [ref] : []),
-        '--',
-        this.toRelativePath(filePath),
-      ]);
-      return ok(parseBlamePorcelain(stdout));
-    } catch (error) {
-      return err(toGitCommandError(error));
-    }
+    return readBlame(this.exec, this.toRelativePath(filePath), ref);
   }
 
   // -- Internals --------------------------------------------------------------------
@@ -772,23 +685,6 @@ export class GitCheckout implements IGitCheckout {
     }
   }
 
-  private async getUntrackedFileDiff(relativePath: string): Promise<FileDiff | null> {
-    const isTracked = await this.exec
-      .exec(['ls-files', '--error-unmatch', '--', relativePath])
-      .then(() => true)
-      .catch(() => false);
-    if (isTracked) return null;
-    try {
-      await this.exec.exec(['diff', '--no-color', '--no-index', '--', '/dev/null', relativePath]);
-      return null;
-    } catch (error) {
-      if (error instanceof ExecError && error.exitCode === 1) {
-        return parseUnifiedFileDiff(error.stdout, relativePath);
-      }
-      throw error;
-    }
-  }
-
   private async getConflictedPaths(): Promise<string[] | undefined> {
     try {
       const { stdout } = await this.exec.exec(['diff', '--name-only', '--diff-filter=U']);
@@ -820,86 +716,6 @@ export class GitCheckout implements IGitCheckout {
     }
   }
 
-  private async getImageBlob(filePath: string, spec: string): Promise<ImageReadResult> {
-    const mimeType = imageMimeForPath(filePath);
-    if (!mimeType) return { kind: 'unavailable', reason: 'unsupported' };
-
-    let buffer: Buffer;
-    try {
-      const result = await this.exec.execBuffer(['cat-file', '--filters', spec], {
-        maxBuffer: MAX_IMAGE_BLOB_BYTES,
-      });
-      buffer = result.stdout;
-    } catch (error) {
-      if (error instanceof ExecError && error.stderr.includes('maxBuffer')) {
-        return { kind: 'unavailable', reason: 'too-large' };
-      }
-      const exitCode = error instanceof ExecError ? error.exitCode : null;
-      return exitCode === 128 ? { kind: 'missing' } : { kind: 'unavailable', reason: 'git-error' };
-    }
-
-    if (buffer.length === 0) {
-      return { kind: 'unavailable', reason: 'git-error' };
-    }
-    if (looksLikeLfsPointer(buffer)) {
-      return { kind: 'unavailable', reason: 'lfs-pointer' };
-    }
-    return {
-      kind: 'image',
-      image: {
-        dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
-        mimeType,
-        size: buffer.length,
-      },
-    };
-  }
-
-  private async getAheadCount(options: GitLogOptions, head: string): Promise<number> {
-    if (typeof options.knownAheadCount === 'number') return Math.max(0, options.knownAheadCount);
-    if (options.base) {
-      try {
-        const { stdout } = await this.exec.exec([
-          'rev-list',
-          '--count',
-          `${toRefString(options.base)}..${head}`,
-        ]);
-        return Number.parseInt(stdout.trim(), 10) || 0;
-      } catch {
-        return 0;
-      }
-    }
-
-    try {
-      const { stdout } = await this.exec.exec(['rev-list', '--count', '@{upstream}..HEAD']);
-      return Number.parseInt(stdout.trim(), 10) || 0;
-    } catch {}
-
-    const remote = options.preferredRemote?.trim() || 'origin';
-    try {
-      const { stdout: branchOut } = await this.exec.exec(['rev-parse', '--abbrev-ref', 'HEAD']);
-      const branch = branchOut.trim();
-      if (!branch || branch === 'HEAD') return 0;
-      const { stdout } = await this.exec.exec(['rev-list', '--count', `${remote}/${branch}..HEAD`]);
-      return Number.parseInt(stdout.trim(), 10) || 0;
-    } catch {
-      return 0;
-    }
-  }
-
-  private async getRemoteReachableCommits(): Promise<Set<string>> {
-    try {
-      const { stdout } = await this.exec.exec(['rev-list', '--remotes', '--max-count=10000']);
-      return new Set(
-        stdout
-          .split('\n')
-          .map((line) => line.trim())
-          .filter(Boolean)
-      );
-    } catch {
-      return new Set();
-    }
-  }
-
   private notifyDiffStaleness(reason: FileDiffStalenessEvent['reason']): void {
     for (const relativePath of this.diffSubscriptions.keys()) {
       this.emitDiffStaleness(relativePath, reason);
@@ -909,8 +725,9 @@ export class GitCheckout implements IGitCheckout {
   private emitDiffStaleness(relativePath: string, reason: FileDiffStalenessEvent['reason']): void {
     const callbacks = this.diffSubscriptions.get(relativePath);
     if (!callbacks) return;
+    const absolutePath = this.toAbsolutePath(relativePath);
     for (const cb of callbacks) {
-      cb({ path: relativePath, reason });
+      cb({ path: absolutePath, reason });
     }
   }
 
@@ -928,108 +745,4 @@ export class GitCheckout implements IGitCheckout {
   private toRelativePaths(paths: string[]): string[] {
     return paths.map((filePath) => this.toRelativePath(filePath));
   }
-}
-
-const FIELD_SEP = '\x1f';
-const RECORD_SEP = '\x1e';
-const LOG_FORMAT = `%H${FIELD_SEP}%P${FIELD_SEP}%s${FIELD_SEP}%b${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${RECORD_SEP}`;
-
-function parseLogRecords(stdout: string, remoteReachable: Set<string>): Commit[] {
-  return stdout
-    .split(RECORD_SEP)
-    .map((record) => record.replace(/^\n/, '').trimEnd())
-    .filter(Boolean)
-    .map((record) => {
-      const [
-        hash = '',
-        parents = '',
-        subject = '',
-        body = '',
-        author = '',
-        date = '',
-        decorations = '',
-      ] = record.split(FIELD_SEP);
-      return {
-        hash,
-        parents: parents ? parents.split(' ').filter(Boolean) : [],
-        subject,
-        body: body.trim(),
-        author,
-        date,
-        isPushed: remoteReachable.has(hash),
-        tags: parseDecoratedTags(decorations),
-      };
-    });
-}
-
-function parseDecoratedTags(decorations: string): string[] {
-  return decorations
-    .split(',')
-    .map((decoration) => decoration.trim())
-    .filter((decoration) => decoration.startsWith('tag: '))
-    .map((decoration) => decoration.slice('tag: '.length).replace(/^refs\/tags\//, ''))
-    .filter(Boolean);
-}
-
-function parseNumstat(stdout: string): Numstat {
-  const map: Numstat = new Map();
-  for (const line of stdout.trim().split('\n').filter(Boolean)) {
-    const [addStr, delStr, ...pathParts] = line.split('\t');
-    const filePath = pathParts.join('\t');
-    if (!filePath) continue;
-    const current = map.get(filePath) ?? { additions: 0, deletions: 0 };
-    current.additions += addStr === '-' ? 0 : Number.parseInt(addStr ?? '0', 10) || 0;
-    current.deletions += delStr === '-' ? 0 : Number.parseInt(delStr ?? '0', 10) || 0;
-    map.set(filePath, current);
-  }
-  return map;
-}
-
-function resolveDiffTarget(base: DiffTarget): { cached: boolean; ref: string } {
-  if ('base' in base) return { cached: false, ref: toRangeString(base) };
-  if (base.kind === 'staged') return { cached: true, ref: '--cached' };
-  if (base.kind === 'head') return { cached: false, ref: 'HEAD' };
-  return { cached: false, ref: toRefString(base) };
-}
-
-function extractHunkPatch(diffText: string, hunkHeader: string): string | null {
-  const lines = diffText.split('\n');
-  const firstHunkIndex = lines.findIndex((line) => line.startsWith('@@'));
-  if (firstHunkIndex === -1) return null;
-
-  const headerLines = lines.slice(0, firstHunkIndex);
-  let start = -1;
-  for (let i = firstHunkIndex; i < lines.length; i += 1) {
-    const line = lines[i]!;
-    if (line.startsWith('@@') && (line === hunkHeader || line.startsWith(hunkHeader))) {
-      start = i;
-      break;
-    }
-  }
-  if (start === -1) return null;
-
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i += 1) {
-    const line = lines[i]!;
-    if (line.startsWith('@@') || line.startsWith('diff --git')) {
-      end = i;
-      break;
-    }
-  }
-
-  const patchLines = [...headerLines, ...lines.slice(start, end)];
-  while (patchLines.length > 0 && patchLines[patchLines.length - 1] === '') {
-    patchLines.pop();
-  }
-  return `${patchLines.join('\n')}\n`;
-}
-
-function imageMimeForPath(filePath: string): string | null {
-  const ext = filePath.split('.').pop()?.toLowerCase();
-  return ext ? (IMAGE_MIME_BY_EXT[ext] ?? null) : null;
-}
-
-function looksLikeLfsPointer(buffer: Buffer): boolean {
-  if (buffer.length > 1024) return false;
-  return buffer.subarray(0, LFS_POINTER_PREFIX.length).equals(LFS_POINTER_PREFIX);
 }

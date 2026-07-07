@@ -1,4 +1,8 @@
+import { err, ok, type Result } from '@emdash/shared';
+import type { BoundExec } from '../../exec';
+import type { GitCommandError } from '../api/errors';
 import type { BlameHunk, BlameResult } from '../api/queries';
+import { toGitCommandError } from '../errors';
 
 const GROUP_HEADER_RE = /^([0-9a-f]{40}) (\d+) (\d+)(?: (\d+))?$/;
 
@@ -8,6 +12,25 @@ type CommitMeta = {
   date: string;
   summary: string;
 };
+
+export async function blame(
+  exec: BoundExec,
+  filePath: string,
+  ref?: string
+): Promise<Result<BlameResult, GitCommandError>> {
+  try {
+    const { stdout } = await exec.exec([
+      'blame',
+      '--porcelain',
+      ...(ref ? [ref] : []),
+      '--',
+      filePath,
+    ]);
+    return ok(parseBlamePorcelain(stdout));
+  } catch (error) {
+    return err(toGitCommandError(error));
+  }
+}
 
 /**
  * Parses `git blame --porcelain` output. Porcelain emits full commit metadata
@@ -43,7 +66,6 @@ export function parseBlamePorcelain(output: string): BlameResult {
       const oid = header[1]!;
       const finalLine = Number.parseInt(header[3]!, 10);
       const numLines = header[4] !== undefined ? Number.parseInt(header[4], 10) : undefined;
-      // A trailing group-size field marks the start of a new group.
       if (numLines !== undefined) {
         flush();
         currentOid = oid;

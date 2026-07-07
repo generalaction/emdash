@@ -38,6 +38,7 @@ import {
   pushErrorSchema,
   rebaseErrorSchema,
   switchErrorSchema,
+  syncErrorSchema,
 } from './errors';
 import {
   blameResultSchema,
@@ -247,7 +248,7 @@ const checkoutContract = {
 
   sync: oc
     .input(checkoutKey)
-    .output(resultSchema(z.object({ output: z.string() }), pushErrorSchema)),
+    .output(resultSchema(z.object({ output: z.string() }), syncErrorSchema)),
 
   stashPush: oc
     .input(checkoutKey.extend({ options: stashPushOptionsSchema.optional() }))
@@ -271,7 +272,7 @@ const checkoutContract = {
    * Callers re-fetch via getFileDiff on each event.
    */
   subscribeFileDiff: oc
-    .input(checkoutKey.extend({ path: z.string(), base: diffTargetSchema.optional() }))
+    .input(checkoutKey.extend({ path: z.string() }))
     .output(eventIterator(fileDiffStalenessEventSchema)),
 
   getChangedFiles: oc

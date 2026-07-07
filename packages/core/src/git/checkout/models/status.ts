@@ -22,7 +22,6 @@ export const fileGitStatusSchema = z.object({
   path: z.string(),
   index: gitStatusCodeSchema,
   worktree: gitStatusCodeSchema,
-  /** Original path, set for renames and copies. */
   origPath: z.string().optional(),
   isConflicted: z.boolean(),
 });
@@ -48,8 +47,8 @@ export type CheckoutStatusSummary = z.infer<typeof checkoutStatusSummarySchema>;
 
 /**
  * Normalized checkout status model.
- * `entries` is a flat map keyed by path — each file appears once regardless of
- * whether it is staged, unstaged, both, or conflicted.
+ * `entries` is a flat map keyed by absolute path — each file appears once
+ * regardless of whether it is staged, unstaged, both, or conflicted.
  */
 export const checkoutStatusModelSchema = z.discriminatedUnion('kind', [
   z.object({
