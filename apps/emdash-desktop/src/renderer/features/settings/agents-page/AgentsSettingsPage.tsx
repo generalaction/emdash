@@ -6,7 +6,6 @@ import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-ins
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import { GenerationSettingsCard } from '../components/GenerationSettingsCard';
 import { CliAgentsList, type AgentFilter } from './CliAgentsList';
 
 export function AgentsSettingsPage() {
@@ -57,8 +56,7 @@ export function AgentsSettingsPage() {
           </div>
         </div>
       </PageHeader>
-      <div className="flex flex-col gap-8 pb-10">
-        <GenerationSettingsCard />
+      <div className="flex flex-col gap-3">
         <CliAgentsList searchQuery={searchQuery} filter={filter} onFilterChange={setFilter} />
       </div>
     </>
