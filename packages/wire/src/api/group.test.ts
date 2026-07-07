@@ -88,6 +88,19 @@ describe('liveModelGroup', () => {
     await conversation.dispose();
   });
 
+  it('dedupes duplicate group mutation ids', async () => {
+    const { client, key } = setup();
+    const conversation = client.conversation(key);
+    await conversation.ready;
+
+    await conversation.setTitle({ title: 'Once' }, { mutationId: 'same-group-mutation' });
+    await conversation.setTitle({ title: 'Twice' }, { mutationId: 'same-group-mutation' });
+
+    expect(conversation.state.client.getSnapshot()).toEqual({ title: 'Once' });
+    expect(conversation.usage.client.getSnapshot()).toEqual({ tokens: 4 });
+    await conversation.dispose();
+  });
+
   it('requires a registry for groups', () => {
     expect(() => bindContract(contract, { impl: { conversation: fromRegistry() } })).toThrow(
       /requires a registry/

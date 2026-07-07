@@ -44,6 +44,8 @@ server-side request deduplication and client-side optimistic group previews.
   multi-model updates.
 - [Contracts](./contracts.md): `defineContract()`, endpoint kinds, nested
   composition, and live model groups.
+- [Cancellation](./cancellation.md): procedure `AbortSignal`s, cancel messages,
+  disconnect aborts, and relay propagation.
 - [Serving and clients](./serving-and-clients.md): `bindContract()`,
   `serve()`, `connect()`, `contractClient()`, and transports.
 - [Utils](./utils.md): `deduplicateRequests()` and `OptimisticLiveModelGroup`.

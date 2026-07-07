@@ -1,9 +1,12 @@
 import { err, ok, resultSchema, type Result, type Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
+import { LiveJobServer, type LiveJobContext } from '../live/job';
 import type { LiveModelServer } from '../live/model';
 import {
   GroupMutationContext,
   liveMutation,
+  MutationResultCache,
+  type MutationResultCacheOptions,
   type LiveMutationResult,
   type LiveModelRegistry,
   type MutationContext,
@@ -20,6 +23,11 @@ import type {
   EndpointOutput,
   EndpointLiveModelKey,
   LiveLogKey,
+  JobEndpointDef,
+  JobInput,
+  JobProgress,
+  JobResult,
+  JobError,
   LiveModelEndpointDef,
   LiveModelGroupDef,
   MutationData,
@@ -83,7 +91,17 @@ type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
         ? LiveLogImpl<Def>
         : Def extends { kind: 'group' }
           ? GroupImpl
-          : never;
+          : Def extends JobEndpointDef
+            ? JobImpl<Def>
+            : never;
+
+type JobImpl<Def extends JobEndpointDef> = {
+  run(
+    input: JobInput<Def>,
+    ctx: LiveJobContext<JobProgress<Def>>
+  ): Promise<JobResult<Def>> | JobResult<Def>;
+  toError(error: unknown): JobError<Def>;
+};
 
 export type ContractImpl<Defs extends ContractDefinitions> = {
   [Name in keyof Defs]?: Defs[Name] extends EndpointDef
@@ -98,17 +116,23 @@ type LiveEntry = {
   resolve(key: unknown): LiveSource | null | undefined;
 };
 
+const jobKeySchema = z.object({ jobId: z.string() });
+
 export function bindContract<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
   options: {
     registry?: LiveModelRegistry;
     impl: ContractImpl<Defs>;
     validate?: ValidatePolicy;
+    mutationDedupe?: MutationResultCacheOptions | false;
   }
 ): Controller {
   const validate = options.validate ?? 'none';
   const liveEntries = new Map<string, LiveEntry>();
   const procedureEntries = new Map<string, (input: unknown, meta: CallMeta) => Promise<unknown>>();
+  const jobServers: Array<{ dispose(): void }> = [];
+  const mutationCache =
+    options.mutationDedupe === false ? undefined : new MutationResultCache(options.mutationDedupe);
   const registry = options.registry;
 
   collectContractEntries(contract, options.impl as Record<string, unknown>, []);
@@ -150,7 +174,9 @@ export function bindContract<Defs extends ContractDefinitions>(
           const wrapped = liveMutation(registry, async (ctx, input) => handler(ctx, input));
           procedureEntries.set(fullPath, async (input) => {
             const parsedInput = parseMutationInput(def, input, validate);
-            const output = await wrapped(parsedInput);
+            const output = await runMutation(mutationCache, parsedInput.mutationId, () =>
+              wrapped(parsedInput)
+            );
             return validateMutationOutput(def, output, validate);
           });
           break;
@@ -171,6 +197,28 @@ export function bindContract<Defs extends ContractDefinitions>(
           liveEntries.set(def.id, {
             keySchema: def.keySchema,
             resolve: impl as (key: unknown) => LiveSource | null,
+          });
+          break;
+        }
+        case 'job': {
+          const impl = entryImpl as JobImpl<JobEndpointDef> | undefined;
+          if (!impl) {
+            throw new WireError('MISSING_HANDLER', `Job '${fullPath}' requires a handler`);
+          }
+          const server = createJobServer(def, impl, validate);
+          jobServers.push(server);
+          procedureEntries.set(`${fullPath}.start`, async (input) => {
+            const parsedInput = validate === 'none' ? input : def.input.parse(input);
+            return server.start(parsedInput);
+          });
+          procedureEntries.set(`${fullPath}.cancel`, async (input) => {
+            const parsed = z.object({ jobId: z.string() }).parse(input);
+            server.cancel(parsed.jobId);
+            return undefined;
+          });
+          liveEntries.set(def.id, {
+            keySchema: jobKeySchema,
+            resolve: (key) => server.job((key as { jobId: string }).jobId),
           });
           break;
         }
@@ -196,13 +244,15 @@ export function bindContract<Defs extends ContractDefinitions>(
                 instance,
                 envelope.mutationId
               );
-              const result = await mutationDef.handler!(ctx, {
-                ...envelope.input,
-                mutationId: envelope.mutationId,
+              const output = await runMutation(mutationCache, envelope.mutationId, async () => {
+                const result = await mutationDef.handler!(ctx, {
+                  ...envelope.input,
+                  mutationId: envelope.mutationId,
+                });
+                return result.success
+                  ? ok({ data: result.data, cursors: ctx.cursors() })
+                  : err(result.error);
               });
-              const output = result.success
-                ? ok({ data: result.data, cursors: ctx.cursors() })
-                : err(result.error);
               return validateMutationOutput(mutationDef, output, validate);
             });
           }
@@ -227,6 +277,10 @@ export function bindContract<Defs extends ContractDefinitions>(
     },
     liveRefIds() {
       return [...liveEntries.keys()];
+    },
+    dispose() {
+      mutationCache?.clear();
+      for (const server of jobServers) server.dispose();
     },
   };
 }
@@ -313,6 +367,27 @@ function createModelResolver(
   return (key) => registry.resolve(ref, key as never);
 }
 
+function createJobServer(
+  def: JobEndpointDef,
+  impl: JobImpl<JobEndpointDef>,
+  validate: ValidatePolicy
+): LiveJobServer<unknown, unknown, unknown, unknown> {
+  return new LiveJobServer<unknown, unknown, unknown, unknown>(
+    async (input, ctx) => {
+      const result = await impl.run(input, {
+        signal: ctx.signal,
+        progress: (progress) =>
+          ctx.progress(validate === 'full' ? def.progress.parse(progress) : progress),
+      });
+      return validate === 'full' ? def.result.parse(result) : result;
+    },
+    (error) => {
+      const mapped = impl.toError(error);
+      return validate === 'full' ? def.error.parse(mapped) : mapped;
+    }
+  );
+}
+
 function isRegistryResolver(value: unknown): value is RegistryResolver {
   return (
     typeof value === 'object' &&
@@ -325,11 +400,11 @@ function parseMutationInput(
   def: MutationDef,
   input: unknown,
   validate: ValidatePolicy
-): LiveMutationInput<unknown> {
-  if (validate === 'none') return input as LiveMutationInput<unknown>;
+): LiveMutationInput<unknown> & { mutationId: string } {
+  if (validate === 'none') return withMutationId(input);
   const parsed = def.input.parse(input) as Record<string, unknown>;
   const mutationId = readMutationId(input);
-  return mutationId ? { ...parsed, mutationId } : parsed;
+  return { ...parsed, mutationId: mutationId ?? createFallbackMutationId() };
 }
 
 function parseGroupMutationInput(
@@ -361,6 +436,14 @@ function validateMutationOutput(
   ).parse(output) as LiveMutationResult<unknown, unknown>;
 }
 
+function runMutation<D, E>(
+  cache: MutationResultCache | undefined,
+  mutationId: string,
+  execute: () => Promise<LiveMutationResult<D, E>>
+): Promise<LiveMutationResult<D, E>> {
+  return cache ? cache.run(mutationId, execute) : execute();
+}
+
 function resolveGroupInstance(registry: LiveModelRegistry, group: LiveModelGroupDef, key: unknown) {
   const firstModel = Object.values(group.models)[0];
   if (!firstModel) return null;
@@ -379,6 +462,14 @@ function readMutationId(input: unknown): string | undefined {
   if (typeof input !== 'object' || input === null) return undefined;
   const mutationId = (input as { mutationId?: unknown }).mutationId;
   return typeof mutationId === 'string' ? mutationId : undefined;
+}
+
+function withMutationId(input: unknown): LiveMutationInput<unknown> & { mutationId: string } {
+  const mutationId = readMutationId(input) ?? createFallbackMutationId();
+  if (typeof input === 'object' && input !== null) {
+    return { ...(input as Record<string, unknown>), mutationId };
+  }
+  return { value: input, mutationId } as LiveMutationInput<unknown> & { mutationId: string };
 }
 
 function createFallbackMutationId(): string {

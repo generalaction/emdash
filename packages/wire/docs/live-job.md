@@ -93,6 +93,56 @@ if (error instanceof LiveJobCancelledError) {
 
 See [../examples/live-job/client.ts](../examples/live-job/client.ts).
 
+## Contract Endpoint
+
+The API contract layer can expose a job directly:
+
+```ts
+const api = defineContract({
+  build: job({
+    input: z.object({ target: z.string() }),
+    progress: z.object({ step: z.string() }),
+    result: z.object({ artifact: z.string() }),
+    error: z.object({ message: z.string() }),
+  }),
+});
+```
+
+On the server, bind the endpoint with `{ run, toError }`:
+
+```ts
+const controller = bindContract(api, {
+  impl: {
+    build: {
+      run: async (input, ctx) => {
+        ctx.progress({ step: 'compile' });
+        return { artifact: `${input.target}.zip` };
+      },
+      toError: (error) => ({
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    },
+  },
+});
+```
+
+The typed client exposes a small job endpoint client:
+
+```ts
+const handle = await client.build.start({ target: 'desktop' });
+handle.onProgress((progress) => console.log(progress.step));
+console.log(await handle.result);
+
+const reattached = await client.build.attach(handle.jobId);
+await reattached.ready;
+```
+
+`JobHandle` exposes `jobId`, `client`, `ready`, `result`, `onProgress(cb)`,
+`cancel()`, and `dispose()`. Terminal job state is retained by `LiveJobServer`
+for a short window, so another window can reattach by `jobId` after completion.
+
+See [../examples/job-contract/client.ts](../examples/job-contract/client.ts).
+
 ## Retention and Cleanup
 
 `LiveJobServer` retains terminal job state for a short window after completion

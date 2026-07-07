@@ -34,3 +34,9 @@ export {
   type LiveModelRef,
 } from './model-ref';
 export { LiveBindingRegistry, LiveModelRegistry, stableStringify } from './registry';
+export {
+  DEFAULT_MUTATION_RESULT_CACHE_MAX_ENTRIES,
+  DEFAULT_MUTATION_RESULT_CACHE_TTL_MS,
+  MutationResultCache,
+  type MutationResultCacheOptions,
+} from './result-cache';

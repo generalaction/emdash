@@ -31,7 +31,8 @@ See [../examples/api-definition/contract.ts](../examples/api-definition/contract
 ### `procedure`
 
 Procedures are request/response calls. They do not settle live model updates
-automatically.
+automatically. Procedure clients accept an optional `{ signal }` call option for
+cooperative cancellation; see [Cancellation](./cancellation.md).
 
 ```ts
 clearNotes: procedure({
@@ -58,6 +59,24 @@ Live log endpoints expose `LiveLogServer` instances:
 activity: liveLog({ key: sessionKeySchema });
 // notesApi.activity.id === 'activity'
 ```
+
+### `job`
+
+Jobs model long-running work with progress, cancellation, terminal state, and
+reattach. A job endpoint is declared once:
+
+```ts
+build: job({
+  input: z.object({ target: z.string() }),
+  progress: z.object({ step: z.string() }),
+  result: z.object({ artifact: z.string() }),
+  error: z.object({ message: z.string() }),
+});
+```
+
+`bindContract()` binds the endpoint to `{ run, toError }`. The client gets
+`start(input)` and `attach(jobId)` helpers. See [Live jobs](./live-job.md) and
+[../examples/job-contract/client.ts](../examples/job-contract/client.ts).
 
 ### Top-level `mutation`
 

@@ -1,15 +1,18 @@
 import type { z } from 'zod';
+import { LiveJobClient } from '../live/job';
 import { LiveLogClient, type LiveLogClientDeps } from '../live/log';
 import { LiveModelClient, type LiveChangeMeta } from '../live/model';
 import { createMutationId, LiveBindingRegistry, type LiveMutationResult } from '../live/mutations';
+import { liveJobStateSchema } from '../live/protocol';
 import type {
   LiveLogSnapshotData,
+  LiveJobState,
   LiveSnapshot,
   LiveUpdate,
   LiveCursorEntry,
 } from '../live/protocol';
 import { encodeTopic } from './bind';
-import type { Connection } from './connect';
+import type { CallOptions, Connection } from './connect';
 import type {
   Contract,
   ContractDefinitions,
@@ -21,6 +24,11 @@ import type {
   GroupKey,
   GroupModels,
   GroupMutations,
+  JobEndpointDef,
+  JobError,
+  JobInput,
+  JobProgress,
+  JobResult,
   LiveLogKey,
   LiveModelEndpointDef,
   MutationData,
@@ -28,6 +36,7 @@ import type {
   MutationInput,
 } from './define';
 import { isEndpointDef } from './define';
+import { WireError } from './protocol';
 
 export type WiredLiveClient<TClient> = {
   client: TClient;
@@ -42,28 +51,53 @@ export type ContractMutationInvocation<D, E> = {
 
 export type MutationCallOptions = {
   mutationId?: string;
+  retry?:
+    | false
+    | {
+        maxRetries?: number;
+        delayMs?: number;
+      };
 };
 
+export type ProcedureCallOptions = Pick<CallOptions, 'signal'>;
+
 type EndpointClient<Def> = Def extends { kind: 'procedure' }
-  ? (input: EndpointInput<Def>) => Promise<EndpointOutput<Def>>
-  : Def extends { kind: 'mutation' }
-    ? (
-        input: MutationInput<Def>,
-        options?: MutationCallOptions
-      ) => Promise<ContractMutationInvocation<MutationData<Def>, MutationError<Def>>>
-    : Def extends LiveModelEndpointDef
+  ? (input: EndpointInput<Def>, options?: ProcedureCallOptions) => Promise<EndpointOutput<Def>>
+  : Def extends JobEndpointDef
+    ? JobEndpointClient<Def>
+    : Def extends { kind: 'mutation' }
       ? (
-          key: EndpointLiveModelKey<Def>,
-          onChange: (value: EndpointLiveModelData<Def>, meta: LiveChangeMeta) => void
-        ) => WiredLiveClient<LiveModelClient<EndpointLiveModelData<Def>>>
-      : Def extends { kind: 'liveLog' }
+          input: MutationInput<Def>,
+          options?: MutationCallOptions
+        ) => Promise<ContractMutationInvocation<MutationData<Def>, MutationError<Def>>>
+      : Def extends LiveModelEndpointDef
         ? (
-            key: LiveLogKey<Def>,
-            deps: Omit<LiveLogClientDeps, 'refetchSnapshot'>
-          ) => WiredLiveClient<LiveLogClient>
-        : Def extends { kind: 'group' }
-          ? (key: GroupKey<Def>, onChange?: GroupOnChange<Def>) => GroupBinding<Def>
-          : never;
+            key: EndpointLiveModelKey<Def>,
+            onChange: (value: EndpointLiveModelData<Def>, meta: LiveChangeMeta) => void
+          ) => WiredLiveClient<LiveModelClient<EndpointLiveModelData<Def>>>
+        : Def extends { kind: 'liveLog' }
+          ? (
+              key: LiveLogKey<Def>,
+              deps: Omit<LiveLogClientDeps, 'refetchSnapshot'>
+            ) => WiredLiveClient<LiveLogClient>
+          : Def extends { kind: 'group' }
+            ? (key: GroupKey<Def>, onChange?: GroupOnChange<Def>) => GroupBinding<Def>
+            : never;
+
+export type JobHandle<P, R, E> = {
+  jobId: string;
+  client: LiveJobClient<P, R, E>;
+  ready: Promise<void>;
+  result: Promise<R>;
+  onProgress(cb: (progress: P) => void): () => void;
+  cancel(): Promise<void>;
+  dispose(): Promise<void>;
+};
+
+type JobEndpointClient<Def extends JobEndpointDef> = {
+  start(input: JobInput<Def>): Promise<JobHandle<JobProgress<Def>, JobResult<Def>, JobError<Def>>>;
+  attach(jobId: string): Promise<JobHandle<JobProgress<Def>, JobResult<Def>, JobError<Def>>>;
+};
 
 type ContractEntryClient<Def> = Def extends EndpointDef
   ? EndpointClient<Def>
@@ -138,7 +172,11 @@ function buildContractClient(
 
     switch (def.kind) {
       case 'procedure':
-        client[name] = (input: unknown) => connection.call(fullPath, input);
+        client[name] = (input: unknown, options?: ProcedureCallOptions) =>
+          connection.call(fullPath, input, options);
+        break;
+      case 'job':
+        client[name] = createJobEndpointClient(connection, def, fullPath);
         break;
       case 'mutation':
         client[name] = (input: unknown, options?: MutationCallOptions) =>
@@ -211,6 +249,69 @@ function bindLog(
   };
 }
 
+function createJobEndpointClient(
+  connection: Connection,
+  def: JobEndpointDef,
+  path: string
+): JobEndpointClient<JobEndpointDef> {
+  return {
+    async start(input) {
+      const started = (await connection.call(`${path}.start`, input)) as { jobId: string };
+      return bindJobHandle(connection, def, path, started.jobId);
+    },
+    attach(jobId) {
+      return bindJobHandle(connection, def, path, jobId);
+    },
+  };
+}
+
+async function bindJobHandle(
+  connection: Connection,
+  def: JobEndpointDef,
+  path: string,
+  jobId: string
+): Promise<JobHandle<unknown, unknown, unknown>> {
+  const topic = encodeTopic(def.id, { jobId });
+  const stateSchema = liveJobStateSchema(def.progress, def.result, def.error) as z.ZodType<
+    LiveJobState<unknown, unknown, unknown>
+  >;
+  const job = new LiveJobClient<unknown, unknown, unknown>(stateSchema, {
+    refetchSnapshot: () =>
+      connection.snapshot(topic) as Promise<LiveSnapshot<LiveJobState<unknown, unknown, unknown>>>,
+  });
+  const ready = connection
+    .snapshot(topic)
+    .then((snapshot) =>
+      job.seed(snapshot as LiveSnapshot<LiveJobState<unknown, unknown, unknown>>)
+    );
+  const detach = connection.attach(topic, (update: LiveUpdate) => job.applyUpdate(update));
+  let disposed = false;
+
+  const dispose = async (): Promise<void> => {
+    if (disposed) return;
+    disposed = true;
+    (await detach)();
+    job.dispose();
+  };
+
+  void job.result.then(
+    () => dispose(),
+    () => dispose()
+  );
+
+  return {
+    jobId,
+    client: job,
+    ready,
+    result: job.result,
+    onProgress: (cb) => job.onProgress(cb),
+    async cancel() {
+      await connection.call(`${path}.cancel`, { jobId });
+    },
+    dispose,
+  };
+}
+
 function bindGroup(
   connection: Connection,
   bindingRegistry: LiveBindingRegistry,
@@ -260,9 +361,12 @@ async function callMutation<D, E>(
   options: MutationCallOptions = {}
 ): Promise<ContractMutationInvocation<D, E>> {
   const mutationId = options.mutationId ?? createMutationId();
-  const result = (await connection.call(
+  const result = (await callMutationWithRetry(
+    connection,
     path,
-    addMutationId(input, mutationId)
+    input,
+    mutationId,
+    options
   )) as LiveMutationResult<D, E>;
   return {
     result,
@@ -270,6 +374,44 @@ async function callMutation<D, E>(
       ? settleCursors(bindingRegistry, mutationId, result.data.cursors)
       : Promise.resolve(),
   };
+}
+
+async function callMutationWithRetry(
+  connection: Connection,
+  path: string,
+  input: unknown,
+  mutationId: string,
+  options: MutationCallOptions
+): Promise<unknown> {
+  const retry = normalizeRetry(options.retry);
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await connection.call(path, addMutationId(input, mutationId));
+    } catch (error) {
+      if (!shouldRetryMutation(error, attempt, retry.maxRetries)) throw error;
+      await delay(retry.delayMs);
+    }
+  }
+}
+
+function normalizeRetry(retry: MutationCallOptions['retry']): {
+  maxRetries: number;
+  delayMs: number;
+} {
+  if (retry === false) return { maxRetries: 0, delayMs: 0 };
+  return {
+    maxRetries: retry?.maxRetries ?? 2,
+    delayMs: retry?.delayMs ?? 0,
+  };
+}
+
+function shouldRetryMutation(error: unknown, attempt: number, maxRetries: number): boolean {
+  return error instanceof WireError && error.code === 'DISCONNECTED' && attempt < maxRetries;
+}
+
+function delay(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function addMutationId(input: unknown, mutationId: string): unknown {

@@ -5,7 +5,7 @@ import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { bindContract, encodeTopic } from './bind';
 import { connect } from './connect';
 import { defineContract, liveModel, procedure } from './define';
-import { WireError } from './protocol';
+import { WireError, WIRE_CANCELLED_CODE } from './protocol';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
@@ -104,6 +104,114 @@ describe('wire serve/connect', () => {
       });
     }).not.toThrow();
   });
+
+  it('cancels an in-flight call with a caller signal', async () => {
+    let aborted = false;
+    let started = false;
+    const pair = memoryTransportPair();
+    const slowContract = defineContract({
+      slow: procedure({ input: z.void().optional(), output: z.string() }),
+    });
+    const controller = bindContract(slowContract, {
+      impl: {
+        slow: (_input, meta) =>
+          new Promise<string>((resolve, reject) => {
+            started = true;
+            if (meta.signal?.aborted) {
+              aborted = true;
+              reject(new Error('aborted'));
+              return;
+            }
+            meta.signal?.addEventListener('abort', () => {
+              aborted = true;
+              reject(new Error('aborted'));
+            });
+            setTimeout(() => resolve('late'), 10);
+          }),
+      },
+    });
+    serve(pair.right, controller);
+    const connection = connect(pair.left);
+    const abort = new AbortController();
+
+    const result = connection.call('slow', undefined, { signal: abort.signal });
+    await waitFor(() => started);
+    abort.abort();
+
+    await expect(result).rejects.toMatchObject({ code: WIRE_CANCELLED_CODE });
+    await waitFor(() => aborted);
+  });
+
+  it('rejects pre-aborted calls without posting', async () => {
+    const { connection } = setup();
+    const abort = new AbortController();
+    abort.abort();
+
+    await expect(
+      connection.call('greet', { name: 'wire' }, { signal: abort.signal })
+    ).rejects.toMatchObject({
+      code: WIRE_CANCELLED_CODE,
+    });
+  });
+
+  it('aborts in-flight calls when the transport disconnects', async () => {
+    let aborted = false;
+    let started = false;
+    const pair = memoryTransportPair();
+    const slowContract = defineContract({
+      slow: procedure({ input: z.void().optional(), output: z.string() }),
+    });
+    const controller = bindContract(slowContract, {
+      impl: {
+        slow: (_input, meta) =>
+          new Promise<string>((resolve, reject) => {
+            started = true;
+            if (meta.signal?.aborted) {
+              aborted = true;
+              reject(new Error('aborted'));
+              return;
+            }
+            meta.signal?.addEventListener('abort', () => {
+              aborted = true;
+              reject(new Error('aborted'));
+            });
+            setTimeout(() => resolve('late'), 10);
+          }),
+      },
+    });
+    serve(pair.right, controller);
+    const connection = connect(pair.left);
+
+    const result = connection.call('slow', undefined);
+    await waitFor(() => started);
+    pair.disconnect();
+
+    await expect(result).rejects.toMatchObject({ code: 'DISCONNECTED' });
+    await waitFor(() => aborted);
+  });
+
+  it('ignores a late result after local cancellation', async () => {
+    const gate = deferred<string>();
+    const pair = memoryTransportPair();
+    const slowContract = defineContract({
+      slow: procedure({ input: z.void().optional(), output: z.string() }),
+    });
+    const controller = bindContract(slowContract, {
+      impl: {
+        slow: () => gate.promise,
+      },
+    });
+    serve(pair.right, controller);
+    const connection = connect(pair.left);
+    const abort = new AbortController();
+
+    const result = connection.call('slow', undefined, { signal: abort.signal });
+    abort.abort();
+
+    await expect(result).rejects.toMatchObject({ code: WIRE_CANCELLED_CODE });
+    gate.resolve('late');
+    await Promise.resolve();
+  });
 });
 
 async function waitFor(predicate: () => boolean): Promise<void> {
@@ -112,4 +220,18 @@ async function waitFor(predicate: () => boolean): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   throw new Error('Timed out waiting for condition');
+}
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+  reject(error: unknown): void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
 }

@@ -1,14 +1,25 @@
 import type { Unsubscribe } from '@emdash/shared';
 import type { LiveSnapshot, LiveUpdate } from '../live/protocol';
-import { PROTOCOL_VERSION, WireError, type WireMessage, type WireTransport } from './protocol';
+import {
+  PROTOCOL_VERSION,
+  WireError,
+  WIRE_CANCELLED_CODE,
+  type WireMessage,
+  type WireTransport,
+} from './protocol';
+
+export type CallOptions = {
+  signal?: AbortSignal;
+};
 
 type PendingCall = {
   resolve(value: unknown): void;
   reject(error: Error): void;
+  cleanup(): void;
 };
 
 export type Connection = {
-  call(path: string, input: unknown): Promise<unknown>;
+  call(path: string, input: unknown, options?: CallOptions): Promise<unknown>;
   snapshot(topic: string): Promise<LiveSnapshot<unknown>>;
   attach(topic: string, push: (update: LiveUpdate) => void): Promise<Unsubscribe>;
   onDisconnect(cb: () => void): Unsubscribe;
@@ -25,6 +36,7 @@ export function connect(transport: WireTransport): Connection {
       const pendingCall = pending.get(message.id);
       if (!pendingCall) return;
       pending.delete(message.id);
+      pendingCall.cleanup();
       if (message.ok) {
         pendingCall.resolve(message.value);
       } else {
@@ -40,6 +52,7 @@ export function connect(transport: WireTransport): Connection {
 
   transport.onDisconnect(() => {
     for (const pendingCall of pending.values()) {
+      pendingCall.cleanup();
       pendingCall.reject(new WireError('DISCONNECTED', 'Wire transport disconnected'));
     }
     pending.clear();
@@ -50,13 +63,37 @@ export function connect(transport: WireTransport): Connection {
     }
   });
 
-  function request(message: WireMessage & { id: string }): Promise<unknown> {
+  function request(
+    message: WireMessage & { id: string },
+    options: CallOptions = {}
+  ): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      pending.set(message.id, { resolve, reject });
+      if (options.signal?.aborted) {
+        reject(new WireError(WIRE_CANCELLED_CODE, 'Wire call cancelled'));
+        return;
+      }
+
+      const onAbort = (): void => {
+        const pendingCall = pending.get(message.id);
+        if (!pendingCall) return;
+        pending.delete(message.id);
+        pendingCall.cleanup();
+        try {
+          transport.post({ kind: 'cancel', id: message.id });
+        } catch {
+          // The peer may already be gone; the local call is still cancelled.
+        }
+        reject(new WireError(WIRE_CANCELLED_CODE, 'Wire call cancelled'));
+      };
+      const cleanup = (): void => options.signal?.removeEventListener('abort', onAbort);
+      options.signal?.addEventListener('abort', onAbort, { once: true });
+
+      pending.set(message.id, { resolve, reject, cleanup });
       try {
         transport.post(message);
       } catch (error) {
         pending.delete(message.id);
+        cleanup();
         reject(
           new WireError(
             'DISCONNECTED',
@@ -68,8 +105,8 @@ export function connect(transport: WireTransport): Connection {
   }
 
   return {
-    call(path, input) {
-      return request({ kind: 'call', id: createRequestId(), path, input });
+    call(path, input, options) {
+      return request({ kind: 'call', id: createRequestId(), path, input }, options);
     },
     snapshot(topic) {
       return request({ kind: 'snapshot', id: createRequestId(), topic }) as Promise<

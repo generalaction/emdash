@@ -123,3 +123,35 @@ await binding.bump({}, { mutationId: 'custom-mutation' });
 
 Explicit ids are useful for optimistic previews, where the preview and server
 mutation must share the same confirmation id.
+
+## Idempotency and Retries
+
+The same `mutationId` is also the idempotency key for contract mutations. Server
+binding keeps a bounded in-memory cache of settled mutation results keyed by
+`mutationId`, and shares one in-flight execution for concurrent duplicates:
+
+```ts
+await client.addNote(input, { mutationId: 'add-note-1' });
+await client.addNote(input, { mutationId: 'add-note-1' }); // returns cached result
+```
+
+This protects the common transport race where the server commits a mutation but
+the client loses the response during a disconnect. The client retries
+`DISCONNECTED` mutation calls with the same `mutationId` by default:
+
+```ts
+await client.addNote(input, {
+  mutationId: 'add-note-1',
+  retry: { maxRetries: 1 },
+});
+```
+
+Set `retry: false` to disable retries for a specific call. Retries never happen
+for `CANCELLED` errors.
+
+The cache is intentionally process-local and temporary. It provides at-most-once
+behavior within one server process lifetime, not durable exactly-once semantics.
+If a mutation has durable side effects such as database writes, store the
+`mutationId` in that domain layer too, for example with a unique constraint.
+
+See [../examples/mutation-idempotency/client.ts](../examples/mutation-idempotency/client.ts).

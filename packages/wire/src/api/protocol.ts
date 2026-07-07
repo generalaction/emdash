@@ -2,6 +2,7 @@ import type { Unsubscribe } from '@emdash/shared';
 import type { LiveUpdate } from '../live/protocol';
 
 export const PROTOCOL_VERSION = 1;
+export const WIRE_CANCELLED_CODE = 'CANCELLED';
 
 export type WireHelloMessage = {
   kind: 'hello';
@@ -32,6 +33,11 @@ export type WireDetachMessage = {
   topic: string;
 };
 
+export type WireCancelMessage = {
+  kind: 'cancel';
+  id: string;
+};
+
 export type WireResultMessage =
   | {
       kind: 'result';
@@ -59,6 +65,7 @@ export type WireMessage =
   | WireSnapshotMessage
   | WireAttachMessage
   | WireDetachMessage
+  | WireCancelMessage
   | WireResultMessage
   | WireUpdateMessage;
 
@@ -106,6 +113,8 @@ export function isWireMessage(value: unknown): value is WireMessage {
       return typeof message.id === 'string' && typeof message.topic === 'string';
     case 'detach':
       return typeof message.topic === 'string';
+    case 'cancel':
+      return typeof message.id === 'string';
     case 'result':
       return typeof message.id === 'string' && typeof message.ok === 'boolean';
     case 'update':

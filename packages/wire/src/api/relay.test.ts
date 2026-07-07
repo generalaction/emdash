@@ -4,6 +4,7 @@ import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { mergeControllers, type Controller } from './bind';
 import { connect } from './connect';
 import { defineContract, liveModel, procedure } from './define';
+import { WIRE_CANCELLED_CODE } from './protocol';
 import { relayController } from './relay';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
@@ -80,6 +81,40 @@ describe('relayController', () => {
     const merged = mergeControllers({ static: staticController, dynamic: relay });
     expect(merged.resolveLive('anything')).not.toBeNull();
     expect(merged.liveRefIds()).toBe('dynamic');
+  });
+
+  it('propagates cancellation to upstream calls', async () => {
+    let aborted = false;
+    let started = false;
+    const upstreamPair = memoryTransportPair();
+    const controller: Controller = {
+      call: async (_path, _input, meta = {}) =>
+        new Promise<string>((resolve, reject) => {
+          started = true;
+          if (meta.signal?.aborted) {
+            aborted = true;
+            reject(new Error('aborted'));
+            return;
+          }
+          meta.signal?.addEventListener('abort', () => {
+            aborted = true;
+            reject(new Error('aborted'));
+          });
+          setTimeout(() => resolve('late'), 10);
+        }),
+      resolveLive: () => null,
+      liveRefIds: () => [],
+    };
+    serve(upstreamPair.right, controller);
+    const relay = relayController(connect(upstreamPair.left));
+    const abort = new AbortController();
+
+    const result = relay.call('slow', undefined, { signal: abort.signal });
+    await waitFor(() => started);
+    abort.abort();
+
+    await expect(result).rejects.toMatchObject({ code: WIRE_CANCELLED_CODE });
+    await waitFor(() => aborted);
   });
 });
 

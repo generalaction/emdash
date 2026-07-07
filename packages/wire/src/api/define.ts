@@ -32,6 +32,21 @@ export type LiveLogEndpointDef<
   keySchema: KeySchema;
 };
 
+export type JobEndpointDef<
+  Id extends string = string,
+  InputSchema extends z.ZodTypeAny = z.ZodTypeAny,
+  ProgressSchema extends z.ZodTypeAny = z.ZodTypeAny,
+  ResultSchema extends z.ZodTypeAny = z.ZodTypeAny,
+  ErrorSchema extends z.ZodTypeAny = z.ZodTypeAny,
+> = {
+  kind: 'job';
+  id: Id;
+  input: InputSchema;
+  progress: ProgressSchema;
+  result: ResultSchema;
+  error: ErrorSchema;
+};
+
 export type MutationDef<
   InputSchema extends z.ZodTypeAny = z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny = z.ZodTypeAny,
@@ -71,6 +86,7 @@ export type EndpointDef =
   | ProcedureDef
   | LiveModelEndpointDef
   | LiveLogEndpointDef
+  | JobEndpointDef
   | MutationDef
   | LiveModelGroupDef;
 
@@ -109,6 +125,26 @@ export type EndpointLiveModelData<Def> =
 
 export type LiveLogKey<Def> =
   Def extends LiveLogEndpointDef<string, infer Key> ? z.infer<Key> : never;
+
+export type JobInput<Def> =
+  Def extends JobEndpointDef<string, infer Input, z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny>
+    ? z.infer<Input>
+    : never;
+
+export type JobProgress<Def> =
+  Def extends JobEndpointDef<string, z.ZodTypeAny, infer Progress, z.ZodTypeAny, z.ZodTypeAny>
+    ? z.infer<Progress>
+    : never;
+
+export type JobResult<Def> =
+  Def extends JobEndpointDef<string, z.ZodTypeAny, z.ZodTypeAny, infer Result, z.ZodTypeAny>
+    ? z.infer<Result>
+    : never;
+
+export type JobError<Def> =
+  Def extends JobEndpointDef<string, z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny, infer Error>
+    ? z.infer<Error>
+    : never;
 
 export type GroupKey<Def> =
   Def extends LiveModelGroupDef<
@@ -164,6 +200,20 @@ export function liveLog<KeySchema extends z.ZodTypeAny>(def: {
   key: KeySchema;
 }): LiveLogEndpointDef<string, KeySchema> {
   return { kind: 'liveLog', id: '', keySchema: def.key };
+}
+
+export function job<
+  InputSchema extends z.ZodTypeAny,
+  ProgressSchema extends z.ZodTypeAny,
+  ResultSchema extends z.ZodTypeAny,
+  ErrorSchema extends z.ZodTypeAny,
+>(def: {
+  input: InputSchema;
+  progress: ProgressSchema;
+  result: ResultSchema;
+  error: ErrorSchema;
+}): JobEndpointDef<string, InputSchema, ProgressSchema, ResultSchema, ErrorSchema> {
+  return { kind: 'job', id: '', ...def };
 }
 
 /**
@@ -243,6 +293,8 @@ function finalizeEndpoint(path: string[], def: EndpointDef): EndpointDef {
       return { ...def, id };
     case 'liveLog':
       return { ...def, id };
+    case 'job':
+      return { ...def, id };
     case 'mutation':
       if (def.handler) {
         throw new Error(`Top-level mutation '${id}' must bind its handler in bindContract()`);
@@ -285,6 +337,7 @@ export function isEndpointDef(value: ContractEntry): value is EndpointDef {
   switch (kind) {
     case 'liveModel':
     case 'liveLog':
+    case 'job':
     case 'mutation':
     case 'group':
     case 'procedure':

@@ -5,8 +5,8 @@ import type { Connection } from './connect';
 
 export function relayController(upstream: Connection): Controller {
   return {
-    call(path, input) {
-      return upstream.call(path, input);
+    call(path, input, meta = {}) {
+      return upstream.call(path, input, { signal: meta.signal });
     },
     resolveLive(topic): LiveSource {
       return {
