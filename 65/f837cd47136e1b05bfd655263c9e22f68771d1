@@ -1,0 +1,47 @@
+apps/emdash-desktop/src/main/core/integrations/integration-payload-builder.test.ts
+  s_5b51ba5b6f5669::t_7b1001817129e2 1-17
+apps/emdash-desktop/src/shared/core/linked-issue.ts
+  s_883d7bd4943474::t_e54dc62e9910c9 20
+packages/plugins/src/issues/impl/notion/mapper.ts
+  s_883d7bd4943474::t_e54dc62e9910c9 1-88
+packages/plugins/src/issues/registry.ts
+  s_883d7bd4943474::t_e54dc62e9910c9 9,40
+packages/plugins/src/issues/impl/notion/context.ts
+  s_883d7bd4943474::t_e54dc62e9910c9 1-60
+  s_baceec646c7ab0::t_073ad37d5fd099 61-63
+packages/plugins/src/issues/impl/notion/index.ts
+  s_883d7bd4943474::t_e54dc62e9910c9 1-100
+  s_baceec646c7ab0::t_12b2d0723c13f2 101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "65f837cd47136e1b05bfd655263c9e22f68771d1",
+  "prompts": {},
+  "sessions": {
+    "s_5b51ba5b6f5669": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lKSAtUdZvriAK3sSGzd",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_883d7bd4943474": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lKIiE9ihoBERC1LjFBV",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_baceec646c7ab0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3c3a-8b0d-7470-819e-ff3ea2f626f3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
