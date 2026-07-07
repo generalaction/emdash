@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/renderer/features/integrations/integration-setup-modal.tsx
+  s_f96aed26f9f665::t_e6082a03bb42e0 95-106
+packages/plugins/src/integrations/impl/notion/index.ts
+  s_284920ada2be96::t_44ed6673b80644 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bb5c683e5e357eb407e80e020570f00504203507",
+  "prompts": {},
+  "sessions": {
+    "s_284920ada2be96": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lRx8Bu4iQm4MuTDFvGE",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f96aed26f9f665": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lRwPfetpN3vqmpxhSQ3",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
