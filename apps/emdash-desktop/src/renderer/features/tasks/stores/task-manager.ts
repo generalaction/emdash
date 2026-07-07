@@ -1,6 +1,7 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
+import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import {
   getProjectManagerStore,
@@ -32,7 +33,6 @@ import type {
 } from '@shared/core/tasks/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { formatFetchErrorDetail, formatPushErrorDetail } from '../utils';
-import { conversationRegistry } from './conversation-registry';
 import {
   createUnprovisionedTask,
   createUnregisteredTask,
@@ -318,15 +318,6 @@ export class TaskManagerStore {
   }
 
   async createTask(params: CreateTaskParams) {
-    const clearOptimisticInitialConversationWorking = () => {
-      const { initialConversation } = params.taskConfig;
-      if (!initialConversation?.initialPrompt?.trim()) return;
-      conversationRegistry
-        .acquire(params.id, this.projectId)
-        .conversations.get(initialConversation.id)
-        ?.clearWorking();
-    };
-
     runInAction(() => {
       const { taskConfig } = params;
       this.tasks.set(
@@ -354,15 +345,11 @@ export class TaskManagerStore {
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
           model: ic.model,
+          initialQueue: ic.initialQueue,
           isInitialConversation: true,
           type: ic.type ?? 'pty',
         };
-        const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [
-          optimistic,
-        ]);
-        if (ic.initialPrompt?.trim()) {
-          void conversationManager.markConversationWorking(ic.id);
-        }
+        conversationRegistry.acquire(params.id, this.projectId, [optimistic]);
       } else {
         conversationRegistry.acquire(params.id, this.projectId, []);
       }
@@ -373,7 +360,6 @@ export class TaskManagerStore {
       .createTask(JSON.parse(JSON.stringify(toJS(params))) as typeof params)
       .catch((e: unknown) => {
         const message = e instanceof Error ? e.message : String(e);
-        clearOptimisticInitialConversationWorking();
         runInAction(() => {
           const current = this.tasks.get(params.id);
           if (current && isUnregistered(current)) {
@@ -388,7 +374,6 @@ export class TaskManagerStore {
       const message = formatCreateTaskError(result.error, {
         isSshProject: getProjectSshConnectionId(this.projectId) !== undefined,
       });
-      clearOptimisticInitialConversationWorking();
       runInAction(() => {
         const current = this.tasks.get(params.id);
         if (current && isUnregistered(current)) {

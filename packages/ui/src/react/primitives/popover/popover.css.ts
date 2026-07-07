@@ -52,7 +52,7 @@ export const popoverHeader = style({
 });
 
 export const popoverTitle = style({
-  fontWeight: 500,
+  fontWeight: 400,
 });
 
 export const popoverDescription = style({

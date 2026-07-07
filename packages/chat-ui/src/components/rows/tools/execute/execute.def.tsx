@@ -1,12 +1,11 @@
 import { ROW_H } from '@components/engine/row-metrics';
 import { CollapsibleCard } from '@components/primitives/CollapsibleCard';
+import { IconTerminal } from '@components/primitives/icons';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import { defineUnit } from '@core/units';
 import { Show, createMemo } from 'solid-js';
 import type { ChatExecute } from '@/model';
 import { ExecuteBody, type ExecuteDisplayLine } from './Execute';
-
-// ── Vars ──────────────────────────────────────────────────────────────────────
 
 export { executeFromItem } from './execute.presenter';
 
@@ -24,11 +23,9 @@ export type ExecuteVars = {
 const EXECUTE_VARS: ExecuteVars = {
   rowH: ROW_H,
   border: 1,
-  collapsedMaxLines: 3,
+  collapsedMaxLines: 2,
   expandedMaxLines: 16,
 };
-
-// ── Geometry ──────────────────────────────────────────────────────────────────
 
 /** 3 borders: top card edge + header-separator + bottom card edge. */
 function chromeY(vars: ExecuteVars): number {
@@ -77,8 +74,6 @@ function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): nu
   return vars.rowH + bodyH + chromeY(vars);
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
-
 function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: ExecuteVars }) {
   const mCtx = () => props.ctx.measureCtx?.();
   // Inverted semantics: stored "collapsed" bool = "expanded".
@@ -108,7 +103,10 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
       expanded={isExpanded()}
       active={props.data.status === 'running' && !props.data.awaitingPermission}
       error={props.data.status === 'error'}
-      header={props.data.awaitingPermission ? '✋ Execute' : 'Execute'}
+      errorTitle={props.data.error}
+      awaitingPermission={props.data.awaitingPermission}
+      icon={<IconTerminal />}
+      header={props.data.inputSummary || 'Execute'}
     >
       <Show when={codeLineH() > 0}>
         <ExecuteBody
@@ -123,8 +121,6 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
     </CollapsibleCard>
   );
 }
-
-// ── UnitDef ───────────────────────────────────────────────────────────────────
 
 export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
   kind: 'execute',

@@ -75,6 +75,18 @@ function extractTerminalId(update: SessionUpdate): string | undefined {
   return undefined;
 }
 
+function extractInputSummary(update: SessionUpdate): string | undefined {
+  const raw = update as unknown as {
+    inputSummary?: unknown;
+    input_summary?: unknown;
+    description?: unknown;
+  };
+  if (typeof raw.inputSummary === 'string') return raw.inputSummary;
+  if (typeof raw.input_summary === 'string') return raw.input_summary;
+  if (typeof raw.description === 'string') return raw.description;
+  return undefined;
+}
+
 /**
  * Decode a raw ACP SessionUpdate into a NormalizedEvent.
  * Stateless — does not depend on turn or session context.
@@ -112,6 +124,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
 
     case 'tool_call': {
       const terminalId = extractTerminalId(update);
+      const inputSummary = extractInputSummary(update);
       return {
         kind: 'tool_call',
         toolCallId: update.toolCallId,
@@ -120,6 +133,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
         status: (update.status as NormalizedToolStatus | undefined) ?? null,
         parentToolCallId: null,
         diffs: extractDiffs(update.content),
+        ...(inputSummary !== undefined ? { inputSummary } : {}),
         ...(terminalId !== undefined ? { terminalId } : {}),
       };
     }

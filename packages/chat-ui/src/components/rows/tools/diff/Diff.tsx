@@ -1,7 +1,7 @@
 import { useCaches } from '@components/contexts/CachesContext';
 import { useCommands } from '@components/contexts/CommandsContext';
 import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
-import { GenericFileIcon, IconError } from '@components/primitives/icons';
+import { GenericFileIcon, IconError, IconShieldAlert } from '@components/primitives/icons';
 import { applyTokensToElement } from '@core/highlight/apply-tokens';
 import type { CodeToken } from '@core/highlight/highlighter';
 import { resolveFileIconClass } from '@lib/file-icons';
@@ -15,16 +15,17 @@ import {
   diffBodyCard,
   diffCardVars,
   diffDelsCount,
+  diffErrorIcon,
   diffFileName,
   diffHeader,
   diffLineContent,
+  diffPermissionIcon,
   diffRowClasses,
   diffSpacer,
   pdiffBody,
   pdiffLine,
   textShimmer,
 } from './diff.css';
-import { vars } from '@styles/theme.css';
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 
@@ -70,15 +71,6 @@ export function DiffHeader(props: DiffHeaderProps) {
       ) : (
         <GenericFileIcon />
       )}
-      <Show when={props.item.awaitingPermission}>
-        <span
-          style={{ color: '#eab308' }}
-          title="Awaiting permission"
-          aria-label="Awaiting permission"
-        >
-          ✋
-        </span>
-      </Show>
       <span class={diffFileName} classList={{ [textShimmer]: running() }} title={props.item.path}>
         {name()}
       </span>
@@ -87,9 +79,22 @@ export function DiffHeader(props: DiffHeaderProps) {
         <span class={diffDelsCount}>−{props.dels}</span>
       </Show>
       <span class={diffSpacer} />
-      <Show when={props.item.status === 'error'}>
-        <span style={{ display: 'flex', color: vars.fgError }} aria-label="error">
-          <IconError />
+      <Show
+        when={props.item.awaitingPermission}
+        fallback={
+          <Show when={props.item.status === 'error'}>
+            <span class={diffErrorIcon} title={props.item.error ?? 'Failed'} aria-label="error">
+              <IconError />
+            </span>
+          </Show>
+        }
+      >
+        <span
+          class={diffPermissionIcon}
+          title="Awaiting permission"
+          aria-label="awaiting permission"
+        >
+          <IconShieldAlert />
         </span>
       </Show>
     </div>

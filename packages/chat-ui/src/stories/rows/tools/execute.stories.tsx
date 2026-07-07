@@ -48,6 +48,24 @@ export const Running: Story = {
   ),
 };
 
+export const DescriptionHeader: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'execute',
+          id: 'ex-description',
+          inputSummary: 'Installing Dependencies',
+          command: 'pnpm install',
+          status: 'running',
+          startedAt: Date.now() - 1800,
+        },
+      ]}
+      height={120}
+    />
+  ),
+};
+
 /** Streaming simulation: execute starts running then transitions to done. */
 export const RunningStreamed: Story = {
   render: () => (
@@ -106,6 +124,7 @@ export const Error: Story = {
           id: 'ex4',
           command: 'pnpm run test',
           status: 'error',
+          error: 'Test command failed with exit code 1',
           startedAt: Date.now() - 8000,
           durationMs: 8000,
         },

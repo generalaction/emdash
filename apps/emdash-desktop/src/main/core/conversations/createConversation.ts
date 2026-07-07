@@ -53,13 +53,23 @@ export async function createConversation(
 
   const conversationType = params.type ?? 'pty';
 
-  const configObj: ConversationConfig = {
-    version: '1',
-    type: conversationType,
-    ...(params.autoApprove !== undefined && { autoApprove: params.autoApprove }),
-    ...(params.model && { model: params.model }),
-    ...(params.initialPrompt && { initialPrompt: params.initialPrompt }),
-  };
+  const initialQueue = params.initialQueue?.filter((prompt) => prompt.text.trim());
+  const configObj: ConversationConfig =
+    conversationType === 'acp'
+      ? {
+          version: '1',
+          type: 'acp',
+          ...(params.autoApprove !== undefined && { autoApprove: params.autoApprove }),
+          ...(params.model && { model: params.model }),
+          ...(initialQueue?.length && { initialQueue }),
+        }
+      : {
+          version: '1',
+          type: 'pty',
+          ...(params.autoApprove !== undefined && { autoApprove: params.autoApprove }),
+          ...(params.model && { model: params.model }),
+          ...(params.initialPrompt && { initialPrompt: params.initialPrompt }),
+        };
   const config = configObj;
 
   const [row] = await database

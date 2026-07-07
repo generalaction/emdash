@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { MessageChannelMain, utilityProcess, type WebContents } from 'electron';
+import type { Unsubscribe, WireTransport } from '@emdash/core/wire';
+import { app, utilityProcess } from 'electron';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
 import { resolveLocalAcpSpawnContext } from '../transport/local-acp-process-host';
@@ -14,14 +15,24 @@ type RuntimeChild = ReturnType<typeof utilityProcess.fork>;
 
 class AcpRuntimeProcessHost {
   private child: RuntimeChild | null = null;
+  private readonly messageListeners = new Set<(message: unknown) => void>();
+  private readonly disconnectListeners = new Set<() => void>();
+  private readonly startedListeners = new Set<() => void>();
 
-  requestRuntimePort(webContents: WebContents): string {
-    const requestId = crypto.randomUUID();
-    const { port1, port2 } = new MessageChannelMain();
-    const child = this.ensureStarted();
-    child.postMessage({ type: 'client-port' } satisfies AcpRuntimeHostMessage, [port1]);
-    webContents.postMessage('acp:runtime-port', { requestId }, [port2]);
-    return requestId;
+  transport(): WireTransport {
+    return {
+      post: (message) => {
+        this.ensureStarted().postMessage(message);
+      },
+      onMessage: (cb): Unsubscribe => {
+        this.messageListeners.add(cb);
+        return () => this.messageListeners.delete(cb);
+      },
+      onDisconnect: (cb): Unsubscribe => {
+        this.disconnectListeners.add(cb);
+        return () => this.disconnectListeners.delete(cb);
+      },
+    };
   }
 
   shutdown(): void {
@@ -30,26 +41,40 @@ class AcpRuntimeProcessHost {
     child?.postMessage({ type: 'shutdown' } satisfies AcpRuntimeHostMessage);
   }
 
+  onStarted(cb: () => void): Unsubscribe {
+    this.startedListeners.add(cb);
+    if (this.child) queueMicrotask(cb);
+    return () => this.startedListeners.delete(cb);
+  }
+
   private ensureStarted(): RuntimeChild {
     if (this.child) return this.child;
     const entry = resolveRuntimeEntry();
     log.info('ACP runtime utility process entry resolved', { entry });
     const child = utilityProcess.fork(entry, [], {
+      env: {
+        ...process.env,
+        EMDASH_ACP_ATTACHMENTS_DIR: join(app.getPath('userData'), 'acp-attachments'),
+      },
       stdio: 'pipe',
     });
     child.on('error', (error) => {
       if (this.child === child) this.child = null;
       log.error('ACP runtime utility process failed', { error });
+      this.notifyDisconnected();
     });
     child.on('message', (message) => {
       void this.handleMessage(message);
+      this.notifyMessage(message);
     });
     child.on('exit', (code) => {
       if (this.child === child) this.child = null;
       log.warn('ACP runtime utility process exited', { code });
+      this.notifyDisconnected();
     });
     child.on('spawn', () => {
       log.info('ACP runtime utility process started');
+      this.notifyStarted();
     });
     child.stdout?.on('data', (chunk) => {
       log.debug('ACP runtime stdout', { chunk: String(chunk) });
@@ -107,6 +132,18 @@ class AcpRuntimeProcessHost {
 
   private post(message: AcpRuntimeControlResponse): void {
     this.child?.postMessage(message);
+  }
+
+  private notifyMessage(message: unknown): void {
+    for (const listener of this.messageListeners) listener(message);
+  }
+
+  private notifyDisconnected(): void {
+    for (const listener of this.disconnectListeners) listener();
+  }
+
+  private notifyStarted(): void {
+    for (const listener of this.startedListeners) listener();
   }
 }
 

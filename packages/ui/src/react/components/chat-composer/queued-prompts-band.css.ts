@@ -3,6 +3,7 @@ import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
 export const band = style({
+  position: 'relative',
   display: 'flex',
   flexDirection: 'column',
   gap: '0.375rem',
@@ -16,6 +17,22 @@ export const band = style({
   backgroundColor: vars.surface,
   color: vars.foreground,
   fontSize: tokenVars.textXs,
+});
+
+export const bandConnectedBelow = style({
+  selectors: {
+    '&::after': {
+      content: '',
+      position: 'absolute',
+      left: '-1px',
+      right: '-1px',
+      bottom: `calc(-1 * ${tokenVars.radiusXl})`,
+      height: tokenVars.radiusXl,
+      borderLeft: `1px solid ${vars.border}`,
+      borderRight: `1px solid ${vars.border}`,
+      pointerEvents: 'none',
+    },
+  },
 });
 
 export const header = style({
@@ -35,7 +52,7 @@ export const headerIcon = style({
 });
 
 export const headerStrong = style({
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foreground,
 });
 
@@ -47,32 +64,109 @@ export const list = style({
 
 export const row = style({
   display: 'grid',
-  gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+  position: 'relative',
+  gridTemplateColumns: 'auto minmax(0, 1fr)',
   alignItems: 'center',
   gap: '0.5rem',
   minHeight: '1.875rem',
   borderRadius: tokenVars.radiusMd,
   paddingLeft: '0.25rem',
   paddingRight: '0.25rem',
+  outline: 'none',
+  cursor: 'text',
   selectors: {
     '&:hover': { backgroundColor: vars.surfaceHover },
     '&:focus-within': { backgroundColor: vars.surfaceHover },
+    '&:focus-visible': {
+      boxShadow: `0 0 0 1px ${vars.border1}`,
+    },
+    '&[data-dragging]': {
+      opacity: 0.56,
+    },
+    '&[data-drag-over]': {
+      backgroundColor: vars.surfaceSelected,
+    },
   },
 });
 
-export const index = style({
-  width: '1.25rem',
+export const indexSlot = style({
+  position: 'relative',
+  width: '1rem',
+  height: '1rem',
+  flexShrink: 0,
+});
+
+export const indexNumber = style({
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   color: vars.foregroundMuted,
-  textAlign: 'right',
   fontVariantNumeric: 'tabular-nums',
+  transition: 'opacity 120ms',
+  selectors: {
+    [`${row}:hover &`]: { opacity: 0 },
+    [`${row}:focus-within &`]: { opacity: 0 },
+    [`${row}[data-dragging] &`]: { opacity: 0 },
+  },
+});
+
+export const dragHandle = style({
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 0,
+  borderRadius: tokenVars.radiusSm,
+  backgroundColor: 'transparent',
+  padding: 0,
+  color: vars.foregroundMuted,
+  cursor: 'grab',
+  opacity: 0,
+  outline: 'none',
+  transition: 'opacity 120ms, color 120ms, background-color 120ms',
+  selectors: {
+    [`${row}:hover &`]: { opacity: 1 },
+    [`${row}:focus-within &`]: { opacity: 1 },
+    [`${row}[data-dragging] &`]: { opacity: 1, cursor: 'grabbing' },
+    '&:hover': {
+      backgroundColor: vars.surfaceSelected,
+      color: vars.foreground,
+    },
+    '&:focus-visible': {
+      opacity: 1,
+      boxShadow: `0 0 0 1px ${vars.border1}`,
+    },
+  },
+});
+
+export const dragHandleIcon = style({
+  width: '0.875rem',
+  height: '0.875rem',
 });
 
 export const promptText = style({
   minWidth: 0,
+  border: 0,
+  backgroundColor: 'transparent',
+  padding: 0,
+  color: 'inherit',
+  font: 'inherit',
+  textAlign: 'left',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   lineHeight: 1.375,
+  outline: 'none',
+  cursor: 'text',
+  selectors: {
+    '&:focus-visible': {
+      textDecoration: 'underline',
+      textUnderlineOffset: '2px',
+    },
+  },
 });
 
 export const emptyText = style({
@@ -81,14 +175,21 @@ export const emptyText = style({
 });
 
 export const actions = style({
+  position: 'absolute',
+  right: '0.125rem',
+  top: '50%',
+  transform: 'translateY(-50%)',
   display: 'flex',
   alignItems: 'center',
   gap: '0.125rem',
-  opacity: 0.72,
-  transition: 'opacity 150ms',
+  paddingLeft: '0.75rem',
+  backgroundColor: vars.surfaceHover,
+  opacity: 0,
+  pointerEvents: 'none',
+  transition: 'opacity 120ms',
   selectors: {
-    [`${row}:hover &`]: { opacity: 1 },
-    [`${row}:focus-within &`]: { opacity: 1 },
+    [`${row}:hover &`]: { opacity: 1, pointerEvents: 'auto' },
+    [`${row}:focus-within &`]: { opacity: 1, pointerEvents: 'auto' },
   },
 });
 

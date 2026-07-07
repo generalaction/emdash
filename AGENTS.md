@@ -245,7 +245,7 @@ services under `src/main/core/pty/` and `src/main/core/terminals/`. Structured c
 conversations use ACP: provider plugins in `packages/plugins/` expose ACP behavior,
 `packages/core/src/acp/` owns protocol/session state and terminal management,
 `src/main/core/acp/` adapts that runtime to Electron RPC/events and local/SSH process
-hosts, and `src/renderer/features/tasks/acp/` maps updates into `@emdash/chat-ui`.
+hosts, and `src/renderer/features/conversations/acp/` maps updates into `@emdash/chat-ui`.
 
 Major main-process domains live under `src/main/core/`: account, ACP, agents,
 agent hooks, app, automations, browser, conversations, dependencies, editor,

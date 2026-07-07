@@ -105,7 +105,8 @@ export function PermissionBand({
         onSelectedChange={setSelectedId}
         onAction={onResolve}
         size="sm"
-        variant="primary"
+        variant="secondary"
+        className={styles.bandAction}
       />
     </div>
   );

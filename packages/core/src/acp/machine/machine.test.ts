@@ -62,6 +62,14 @@ describe('decide Prompt', () => {
     if (!isOk(result)) return;
     expect(result.data).toEqual([{ type: 'PromptQueued', prompt }]);
   });
+
+  it('queues while background agents are running', () => {
+    const state = evolve(makeReady(), { type: 'AgentsChanged', runningCount: 1 }).state;
+    const result = decide(state, { type: 'Prompt', prompt });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.data).toEqual([{ type: 'PromptQueued', prompt }]);
+  });
 });
 
 describe('lifecycle control', () => {
@@ -74,6 +82,28 @@ describe('lifecycle control', () => {
     const { state: s2 } = evolve(s1, { type: 'ReplayEnded', status: 'complete' });
     expect(phaseToLifecycle(s2.phase)).toBe('ready');
     expect(activeTurnFromPhase(s2.phase)).toBeNull();
+  });
+
+  it('drains one queued prompt when a fresh session becomes ready', () => {
+    const queued = { id: 'prompt-2', text: 'queued', createdAt: 200, updatedAt: 200 };
+    const s0 = evolve(initialMachineState(CONV_ID), { type: 'PromptQueued', prompt: queued }).state;
+    const { state, effects } = evolve(s0, { type: 'SessionReady' });
+
+    expect(state.queuedPrompts).toHaveLength(0);
+    expect(effects).toContainEqual({ type: 'sendPrompt', prompt: queued });
+  });
+
+  it('drains one queued prompt when replay completes', () => {
+    const queued = { id: 'prompt-2', text: 'queued', createdAt: 200, updatedAt: 200 };
+    const replaying = evolve(initialMachineState(CONV_ID), { type: 'ReplayStarted' }).state;
+    const queuedState = evolve(replaying, { type: 'PromptQueued', prompt: queued }).state;
+    const { state, effects } = evolve(queuedState, {
+      type: 'ReplayEnded',
+      status: 'complete',
+    });
+
+    expect(state.queuedPrompts).toHaveLength(0);
+    expect(effects).toContainEqual({ type: 'sendPrompt', prompt: queued });
   });
 
   it('ready -> working -> ready and preserves stop reason', () => {
@@ -103,6 +133,29 @@ describe('lifecycle control', () => {
     expect(effects).toContainEqual({ type: 'sendPrompt', prompt: queued });
   });
 
+  it('keeps queued prompts waiting when a turn ends while background agents run', () => {
+    const queued = { id: 'prompt-2', text: 'queued', createdAt: 200, updatedAt: 200 };
+    let state = evolve(makeWorking(), { type: 'PromptQueued', prompt: queued }).state;
+    state = evolve(state, { type: 'AgentsChanged', runningCount: 1 }).state;
+    const result = evolve(state, {
+      type: 'TurnEnded',
+      outcome: { kind: 'stopped', stopReason: 'end_turn' },
+    });
+
+    expect(result.state.queuedPrompts).toEqual([queued]);
+    expect(result.effects).not.toContainEqual({ type: 'sendPrompt', prompt: queued });
+  });
+
+  it('drains one queued prompt when background agents stop', () => {
+    const queued = { id: 'prompt-2', text: 'queued', createdAt: 200, updatedAt: 200 };
+    let state = evolve(makeReady(), { type: 'AgentsChanged', runningCount: 1 }).state;
+    state = evolve(state, { type: 'PromptQueued', prompt: queued }).state;
+    const result = evolve(state, { type: 'AgentsChanged', runningCount: 0 });
+
+    expect(result.state.queuedPrompts).toHaveLength(0);
+    expect(result.effects).toContainEqual({ type: 'sendPrompt', prompt: queued });
+  });
+
   it('tracks agent activity and background agent counts', () => {
     const active = evolve(makeReady(), { type: 'AgentActivity', active: true }).state;
     expect(active.agentTurnActive).toBe(true);
@@ -121,6 +174,21 @@ describe('lifecycle control', () => {
       type: 'permissionResolved',
       requestId: 'req-1',
       cancelled: true,
+    });
+  });
+
+  it('cancel is valid while only background agents are running', () => {
+    const state = evolve(makeReady(), { type: 'AgentsChanged', runningCount: 1 }).state;
+    const decision = decide(state, { type: 'Cancel' });
+    expect(isOk(decision)).toBe(true);
+    if (!isOk(decision)) return;
+    expect(decision.data).toEqual([{ type: 'CancellationRequested' }]);
+
+    const result = evolve(state, { type: 'CancellationRequested' });
+    expect(result.effects).toContainEqual({
+      type: 'settleAgents',
+      scope: 'all',
+      status: 'failed',
     });
   });
 });

@@ -121,6 +121,8 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
 export type {
   ChatView,
   ChatCommands,
+  ChatViewCommand,
+  ChatViewCommandId,
   ScrollToItemOptions,
   ChatHighlighter,
   HighlightResult,
@@ -132,6 +134,7 @@ export type {
 } from '@emdash/chat-ui';
 export type LoadOlderFn = (turns: TranscriptTurn[]) => void;
 export {
+  CHAT_VIEW_COMMANDS,
   connectSession,
   createChatContext,
   createChatState,

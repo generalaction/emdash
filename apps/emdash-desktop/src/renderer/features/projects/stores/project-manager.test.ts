@@ -62,6 +62,18 @@ vi.mock('@renderer/lib/stores/view-state-cache', () => ({
   },
 }));
 
+vi.mock('@renderer/features/conversations/acp/acp-chat-store', () => ({
+  AcpChatStore: class {
+    conversationId = '';
+    dispose() {}
+    bootstrap() {}
+  },
+}));
+
+vi.mock('@renderer/features/conversations/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
 vi.mock('@renderer/utils/telemetryClient', () => ({
   captureTelemetry: vi.fn(),
 }));

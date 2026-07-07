@@ -37,6 +37,11 @@ export interface ChatMentionMeta {
    * built-in kind SVG is used.
    */
   iconClass?: string;
+  /**
+   * Optional image URL for the pill icon. Hosts use this for provider-specific
+   * assets that are not available as CSS classes.
+   */
+  iconUrl?: string;
 }
 
 /**

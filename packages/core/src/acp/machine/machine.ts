@@ -100,6 +100,7 @@ export type Effect =
   | { type: 'permissionResolved'; requestId: string; cancelled: boolean }
   | { type: 'closed'; exitCode: number | null }
   | { type: 'agentEvent'; phase: 'start' | 'stop' | 'error' }
+  | { type: 'settleAgents'; scope: 'turn' | 'all'; status: 'completed' | 'failed' }
   | { type: 'sendPrompt'; prompt: QueuedPrompt }
   | { type: 'warn'; message: string };
 
@@ -110,7 +111,12 @@ export function decide(
 ): Result<DomainEvent[], AcpRuntimeError> {
   switch (cmd.type) {
     case 'Prompt':
-      if (s.phase.kind === 'working' || s.phase.kind === 'cancelling' || s.agentTurnActive) {
+      if (
+        s.phase.kind === 'working' ||
+        s.phase.kind === 'cancelling' ||
+        s.agentTurnActive ||
+        s.backgroundAgentCount > 0
+      ) {
         return ok([{ type: 'PromptQueued', prompt: cmd.prompt }]);
       }
       if (!isPromptReady(phaseToLifecycle(s.phase))) {
@@ -122,7 +128,9 @@ export function decide(
       return ok([{ type: 'PromptQueued', prompt: cmd.prompt }]);
 
     case 'Cancel':
-      if (s.phase.kind !== 'working' && !s.agentTurnActive) return ok([]);
+      if (s.phase.kind !== 'working' && !s.agentTurnActive && s.backgroundAgentCount === 0) {
+        return ok([]);
+      }
       return ok([{ type: 'CancellationRequested' }]);
 
     case 'EditQueuedPrompt':
@@ -183,13 +191,27 @@ export function evolve(
       };
     }
 
-    case 'ReplayEnded':
+    case 'ReplayEnded': {
       if (s.phase.kind !== 'replaying') return warn(s, `ReplayEnded in phase '${s.phase.kind}'`);
-      return { state: { ...s, phase: { kind: 'ready' } }, effects: [{ type: 'state' }] };
+      const { queuedPrompts, effects: queueEffects } = dequeuePromptEffects(s.queuedPrompts);
+      return {
+        state: { ...s, phase: { kind: 'ready' }, queuedPrompts },
+        effects: [
+          { type: 'state' },
+          { type: 'settleAgents', scope: 'turn', status: 'completed' },
+          ...queueEffects,
+        ],
+      };
+    }
 
-    case 'SessionReady':
+    case 'SessionReady': {
       if (s.phase.kind !== 'starting') return warn(s, `SessionReady in phase '${s.phase.kind}'`);
-      return { state: { ...s, phase: { kind: 'ready' } }, effects: [{ type: 'state' }] };
+      const { queuedPrompts, effects: queueEffects } = dequeuePromptEffects(s.queuedPrompts);
+      return {
+        state: { ...s, phase: { kind: 'ready' }, queuedPrompts },
+        effects: [{ type: 'state' }, ...queueEffects],
+      };
+    }
 
     case 'SessionLoaded':
       if (s.phase.kind !== 'replaying') return warn(s, `SessionLoaded in phase '${s.phase.kind}'`);
@@ -247,7 +269,10 @@ export function evolve(
       const active = activeTurnFromPhase(s.phase);
       if (!active) return warn(s, `TurnEnded with no active turn (phase: '${s.phase.kind}')`);
       const stopReason = ev.outcome.kind === 'stopped' ? ev.outcome.stopReason : null;
-      const { queuedPrompts, effects: queueEffects } = dequeuePromptEffects(s.queuedPrompts);
+      const { queuedPrompts, effects: queueEffects } =
+        s.backgroundAgentCount === 0
+          ? dequeuePromptEffects(s.queuedPrompts)
+          : { queuedPrompts: s.queuedPrompts, effects: [] as Effect[] };
       return {
         state: {
           ...s,
@@ -259,6 +284,10 @@ export function evolve(
         effects: [
           { type: 'state' },
           { type: 'agentEvent', phase: ev.outcome.kind === 'errored' ? 'error' : 'stop' },
+          { type: 'settleAgents', scope: 'turn', status: 'completed' },
+          ...(ev.outcome.kind === 'errored' || stopReason === 'cancelled'
+            ? ([{ type: 'settleAgents', scope: 'all', status: 'failed' }] as Effect[])
+            : []),
           ...queueEffects,
         ],
       };
@@ -267,7 +296,7 @@ export function evolve(
     case 'AgentActivity': {
       const wasActive = s.agentTurnActive;
       const { queuedPrompts, effects: queueEffects } =
-        !ev.active && s.phase.kind === 'ready'
+        !ev.active && s.phase.kind === 'ready' && s.backgroundAgentCount === 0
           ? dequeuePromptEffects(s.queuedPrompts)
           : { queuedPrompts: s.queuedPrompts, effects: [] as Effect[] };
       return {
@@ -279,14 +308,19 @@ export function evolve(
       };
     }
 
-    case 'AgentsChanged':
+    case 'AgentsChanged': {
+      const { queuedPrompts, effects: queueEffects } =
+        ev.runningCount === 0 && s.phase.kind === 'ready'
+          ? dequeuePromptEffects(s.queuedPrompts)
+          : { queuedPrompts: s.queuedPrompts, effects: [] as Effect[] };
       return {
-        state: { ...s, backgroundAgentCount: ev.runningCount },
-        effects: [{ type: 'state' }],
+        state: { ...s, backgroundAgentCount: ev.runningCount, queuedPrompts },
+        effects: [{ type: 'state' }, ...queueEffects],
       };
+    }
 
     case 'CancellationRequested': {
-      if (s.phase.kind !== 'working' && !s.agentTurnActive) {
+      if (s.phase.kind !== 'working' && !s.agentTurnActive && s.backgroundAgentCount === 0) {
         return warn(s, `CancellationRequested in phase '${s.phase.kind}'`);
       }
       const drainEffects: Effect[] = s.pendingPermissions.map((p) => ({
@@ -297,7 +331,11 @@ export function evolve(
       if (s.phase.kind !== 'working') {
         return {
           state: { ...s, agentTurnActive: false, pendingPermissions: [] },
-          effects: [...drainEffects, { type: 'state' }],
+          effects: [
+            ...drainEffects,
+            { type: 'settleAgents', scope: 'all', status: 'failed' },
+            { type: 'state' },
+          ],
         };
       }
       return {
@@ -329,7 +367,12 @@ export function evolve(
       }));
       return {
         state: { ...s, phase: { kind: 'closed', exitCode: ev.exitCode }, pendingPermissions: [] },
-        effects: [...drainEffects, { type: 'state' }, { type: 'closed', exitCode: ev.exitCode }],
+        effects: [
+          ...drainEffects,
+          { type: 'settleAgents', scope: 'all', status: 'failed' },
+          { type: 'state' },
+          { type: 'closed', exitCode: ev.exitCode },
+        ],
       };
     }
   }
@@ -375,7 +418,7 @@ export function projectSessionState(s: SessionMachineState): SessionState {
     backgroundAgentCount: s.backgroundAgentCount,
     isGenerating,
     canSubmit: isPromptReady(lifecycle),
-    canCancel: s.phase.kind === 'working' || s.agentTurnActive,
+    canCancel: s.phase.kind === 'working' || s.agentTurnActive || s.backgroundAgentCount > 0,
   };
 }
 
@@ -417,7 +460,11 @@ export class SessionMachine {
     return isPromptReady(this.lifecycle);
   }
   get canCancel(): boolean {
-    return this._state.phase.kind === 'working' || this._state.agentTurnActive;
+    return (
+      this._state.phase.kind === 'working' ||
+      this._state.agentTurnActive ||
+      this._state.backgroundAgentCount > 0
+    );
   }
   get isGenerating(): boolean {
     return this.isWorking || this._state.agentTurnActive || this._state.backgroundAgentCount > 0;

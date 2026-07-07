@@ -1,4 +1,4 @@
-import type { AttachmentRef } from '../models/attachments';
+import type { AttachmentMimeType, AttachmentRef } from '../models/attachments';
 
 export interface StoredAttachment {
   ref: AttachmentRef;
@@ -7,9 +7,9 @@ export interface StoredAttachment {
 
 export interface AttachmentStore {
   put(input: {
-    data: Uint8Array;
+    data?: Uint8Array;
     name?: string;
-    mimeType: string;
+    mimeType: AttachmentMimeType;
     originalPath?: string;
   }): Promise<AttachmentRef>;
   get(id: string): Promise<StoredAttachment | null>;

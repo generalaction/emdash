@@ -3,6 +3,11 @@ import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-sc
 import { linkedIssue } from '../linked-issue';
 import { taskLifecycleStatuses } from './tasks';
 
+const initialQueuePromptSchema = z.object({
+  text: z.string(),
+  hiddenContext: z.string().optional(),
+});
+
 const v1Schema = z.object({
   version: z.literal('1'),
   name: z.string(),
@@ -14,6 +19,7 @@ const v1Schema = z.object({
       title: z.string().optional(),
       autoApprove: z.boolean().optional(),
       initialPrompt: z.string().optional(),
+      initialQueue: z.array(initialQueuePromptSchema).optional(),
       model: z.string().optional(),
       type: z.enum(['pty', 'acp']).optional(),
     })

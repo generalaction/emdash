@@ -68,6 +68,7 @@ export function remarkInlineMentions() {
           name: meta?.name ?? label,
           mentionKind: meta?.kind ?? 'file',
           iconClass: meta?.iconClass,
+          iconUrl: meta?.iconUrl,
         };
 
         // Replace the link node with the mention node.
@@ -125,6 +126,7 @@ function splitTextNode(
           name: meta.name,
           mentionKind: meta.kind,
           iconClass: meta.iconClass,
+          iconUrl: meta.iconUrl,
         },
       });
     }

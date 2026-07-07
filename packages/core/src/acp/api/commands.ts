@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { attachmentMimeTypeSchema, attachmentRefSchema } from '../models/attachments';
 import { permissionDecisionSchema } from '../models/permissions';
-import { promptInputSchema, queuedPromptSchema } from '../models/prompt';
+import { promptDraftUpdateSchema, promptInputSchema, queuedPromptSchema } from '../models/prompt';
 
 export const sessionConfigInputSchema = z.object({
   model: z.string().optional(),
@@ -19,7 +19,7 @@ export const acpStartInputSchema = z.object({
   cwd: z.string(),
   sessionId: z.string().nullable().optional(),
   model: z.string().nullable().optional(),
-  initialPrompt: z.string().optional(),
+  initialQueue: z.array(promptInputSchema).optional(),
   sessionConfig: sessionConfigInputSchema.optional(),
 });
 export type AcpStartInputWire = z.infer<typeof acpStartInputSchema>;
@@ -62,16 +62,28 @@ export const setModeOptionCommandSchema = z.object({
 export const resolvePermissionCommandSchema = permissionDecisionSchema.extend({
   conversationId: z.string(),
 });
-export const editCurrentPromptCommandSchema = sendPromptCommandSchema;
+export const setPromptDraftCommandSchema = z.object({
+  conversationId: z.string(),
+  draft: promptDraftUpdateSchema,
+});
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
 export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
 
-export const uploadAttachmentCommandSchema = z.object({
-  data: z.instanceof(Uint8Array),
-  mimeType: attachmentMimeTypeSchema,
-  name: z.string().optional(),
-  originalPath: z.string().optional(),
-});
+export const uploadAttachmentCommandSchema = z
+  .object({
+    data: z.instanceof(Uint8Array).optional(),
+    mimeType: attachmentMimeTypeSchema,
+    name: z.string().optional(),
+    originalPath: z.string().optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input.data || input.originalPath) return;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Either data or originalPath must be provided.',
+      path: ['data'],
+    });
+  });
 export const uploadAttachmentResponseSchema = attachmentRefSchema;
 export const downloadAttachmentCommandSchema = z.object({ id: z.string() });
 export const downloadAttachmentResponseSchema = z.object({

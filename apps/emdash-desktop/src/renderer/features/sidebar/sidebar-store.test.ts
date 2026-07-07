@@ -14,6 +14,18 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
   appState: {},
 }));
 
+vi.mock('@renderer/features/conversations/acp/acp-chat-store', () => ({
+  AcpChatStore: class {
+    conversationId = '';
+    dispose() {}
+    bootstrap() {}
+  },
+}));
+
+vi.mock('@renderer/features/conversations/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
 function projectManager(projects: { id: string; createdAt: string }[]): SidebarProjectManager {
   return {
     projects: new Map(projects.map((p) => [p.id, { ...p, mountedProject: null }])),

@@ -1,15 +1,10 @@
-import { getMainWindow } from '@main/app/window';
-import { createRPCController } from '@shared/lib/ipc/rpc';
+import type { AcpProcedures } from '@emdash/core/acp';
+import { portWire } from '@emdash/core/wire';
+import { typedProcedures } from '@emdash/core/wire';
+import { exposeWire } from '@main/lib/wire/expose-wire';
 import { acpRuntimeProcessHost } from './runtime-process/host';
 
-function requestRuntimePort(): string {
-  const win = getMainWindow();
-  if (!win || win.isDestroyed()) {
-    throw new Error('Main window is not available');
-  }
-  return acpRuntimeProcessHost.requestRuntimePort(win.webContents);
-}
+export const acpWire = portWire(acpRuntimeProcessHost.transport());
 
-export const acpController = createRPCController({
-  requestRuntimePort,
-});
+export const acpRuntimeProcedures = typedProcedures<AcpProcedures>(acpWire.procedures);
+export const acpController = exposeWire('acp', acpWire);

@@ -54,9 +54,14 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH:
   onCleanup(() => clearInterval(timer));
 
   const label = () => {
-    if (props.item.status === 'thinking') return `Thinking ${elapsed()}s`;
-    if (props.item.durationMs !== undefined)
+    if (props.item.status === 'thinking') {
+      if (elapsed() < 1) return 'Thinking';
+      return `Thinking ${elapsed()}s`;
+    }
+    if (props.item.durationMs !== undefined) {
+      if (props.item.durationMs < 1000) return 'Thought briefly';
       return `Thought for ${Math.floor(props.item.durationMs / 1000)}s`;
+    }
     return 'Thought';
   };
 

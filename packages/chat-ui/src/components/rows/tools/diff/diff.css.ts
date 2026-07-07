@@ -70,6 +70,22 @@ export const diffDelsCount = style({
   fontSize: vars.typeBodyFontSize,
 });
 export const diffSpacer = style({ flex: '1 1 0%' });
+export const diffStatusIcon = style({
+  display: 'flex',
+  flexShrink: 0,
+});
+export const diffPermissionIcon = style([
+  diffStatusIcon,
+  {
+    color: '#eab308',
+  },
+]);
+export const diffErrorIcon = style([
+  diffStatusIcon,
+  {
+    color: vars.fgError,
+  },
+]);
 
 // ── DiffLines body ────────────────────────────────────────────────────────────
 

@@ -1,9 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
-ipcRenderer.on('acp:runtime-port', (event, data) => {
-  window.postMessage({ type: 'acp:runtime-port', ...(data as object) }, '*', event.ports);
-});
-
 // Expose protected methods that allow the renderer process to use
 contextBridge.exposeInMainWorld('electronAPI', {
   // Generic invoke for the typed RPC client (createRPCClient)

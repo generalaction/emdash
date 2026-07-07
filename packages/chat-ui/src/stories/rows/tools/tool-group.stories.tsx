@@ -1,13 +1,14 @@
 /**
  * ToolGroup stories — hierarchical tool calls rendered as collapsible composite rows.
  *
- * Each parent tool call wraps its children in a CollapseHeader + PreviewWindow
- * (collapsed) or a full ChildStack (expanded). No visual inset between levels.
+ * Running collapsed groups show a child preview. Settled collapsed groups are
+ * header-only until expanded. No visual inset between levels.
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import type { ToolNode, ToolStatus, TranscriptTurn } from '@/model';
 import { ChatHost, ScriptedChat, type ScriptStep } from '@/stories/_harness/chat-host';
+import { ToolNodeStateMatrix } from '@/stories/_harness/state-matrix';
 
 const meta: Meta = {
   title: 'Rows/Tools/ToolGroup',
@@ -165,10 +166,13 @@ function setStreamingGroup(childCount: number, status?: ToolStatus): ScriptStep 
 
 // ── Committed (static) stories ────────────────────────────────────────────────
 
+export const StateMatrix: Story = {
+  render: () => <ToolNodeStateMatrix rowHeight={220} build={(status) => refactorGroup(status)} />,
+};
+
 /**
- * A single-level hierarchy: one parent tool call (running) with three children
- * (tool, execute, diff). The parent is collapsed — the preview window shows the
- * children scrolled to the bottom. Click the header to expand.
+ * A single-level hierarchy: one completed parent tool call with three children.
+ * Settled groups start collapsed as a header-only summary. Click the header to expand.
  */
 export const CommittedCollapsed: Story = {
   render: () => (
@@ -183,7 +187,7 @@ export const CommittedCollapsed: Story = {
  * Same hierarchy in the expanded state.
  * Seeded with the same items as CommittedCollapsed but the parent id is in the
  * initial `viewState` (collapsed = expanded due to inverted semantics).
- * Since stories can't pre-set viewState, click the `refactor` header to expand.
+ * Click the `refactor` header to expand.
  */
 export const CommittedExpanded: Story = {
   render: () => (

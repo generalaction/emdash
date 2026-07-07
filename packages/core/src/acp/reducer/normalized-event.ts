@@ -57,6 +57,7 @@ export type NormalizedEvent =
        */
       parentToolCallId: string | null;
       diffs: NormalizedDiff[];
+      inputSummary?: string;
       outputText?: string;
       terminalId?: string;
     }

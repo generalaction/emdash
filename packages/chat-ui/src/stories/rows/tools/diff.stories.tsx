@@ -196,6 +196,7 @@ export const Error: Story = {
           oldText: OLD_TS,
           newText: NEW_TS,
           status: 'error',
+          error: 'Patch failed because the old text no longer matched',
         },
       ]}
       height={200}

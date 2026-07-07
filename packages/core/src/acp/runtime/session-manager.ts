@@ -19,8 +19,9 @@ import type { ConnectionPool, ConnectionPoolEntry } from '../connection/pool';
 import type { AcpRuntimeError } from '../errors';
 import { acpErr } from '../errors';
 import type { AgentState } from '../models/agents';
-import type { SessionConfigState } from '../models/config';
+import type { SessionConfigState, SessionUsage } from '../models/config';
 import type { PlanState } from '../models/plan';
+import type { PromptDraft, PromptDraftUpdate } from '../models/prompt';
 import type { SessionState, SessionSummary } from '../models/session';
 import type { TerminalState } from '../models/terminals';
 import type { TranscriptTurn } from '../models/turns';
@@ -44,9 +45,11 @@ interface SessionRecord {
   lastSynced: {
     sessionState?: SessionState;
     config?: SessionConfigState;
+    usage?: SessionUsage | null;
     plan?: PlanState | null;
     agents?: AgentState[];
     activeTurn?: TranscriptTurn | null;
+    draft?: PromptDraft | null;
   };
 }
 
@@ -118,6 +121,11 @@ export class SessionManager implements InboundRouter {
             modes: response.modes,
             configOptions: response.configOptions,
           });
+          if (input.model) {
+            await record.cell.setConfigOption('model', input.model);
+          }
+          const queueResult = this.queueInitialPrompts(record);
+          if (!queueResult.success) return queueResult;
           record.cell.endReplay();
           loaded = true;
         } catch {
@@ -137,23 +145,22 @@ export class SessionManager implements InboundRouter {
       if (!record) {
         const response = await connection.agent.newSession(this.buildNewSessionRequest(input.cwd));
         record = this.createRecord(input, connection, response.sessionId);
-        record.cell.applySessionReady({
+        record.cell.applySessionMeta({
           modes: response.modes,
           configOptions: response.configOptions,
         });
+        if (input.model) {
+          await record.cell.setConfigOption('model', input.model);
+        }
+        const queueResult = this.queueInitialPrompts(record);
+        if (!queueResult.success) return queueResult;
+        record.cell.applySessionReady();
       }
 
       this.registerRoute(connection.key, record.cell.acpSessionId, input.conversationId);
       void this.deps
         .persistSessionId(input.conversationId, record.cell.acpSessionId)
         .catch(() => {});
-
-      if (input.model) {
-        await record.cell.setConfigOption('model', input.model);
-      }
-      if (input.initialPrompt?.trim()) {
-        await record.cell.prompt({ text: input.initialPrompt });
-      }
 
       this.syncRecord(record);
       return ok({ sessionId: record.cell.acpSessionId });
@@ -205,6 +212,12 @@ export class SessionManager implements InboundRouter {
     const record = this.cells.get(conversationId);
     if (!record) return ok();
     return record.cell.cancel();
+  }
+
+  setPromptDraft(conversationId: string, draft: PromptDraftUpdate): Result<void, AcpRuntimeError> {
+    const record = this.cells.get(conversationId);
+    if (!record) return acpErr.conversationNotFound(conversationId);
+    return record.cell.setPromptDraft(draft);
   }
 
   stop(conversationId: string): Result<void, AcpRuntimeError> {
@@ -373,6 +386,7 @@ export class SessionManager implements InboundRouter {
     const callbacks: SessionCellCallbacks = {
       onSessionStateChanged: () => this.syncRecord(record),
       onTranscriptChanged: () => this.syncRecord(record),
+      onDraftChanged: () => this.syncRecord(record),
       onClosed: () => this.removeRecord(input.conversationId, true),
       onSendQueuedPrompt: () => this.syncRecord(record),
     };
@@ -395,13 +409,23 @@ export class SessionManager implements InboundRouter {
       lastSynced: {
         sessionState: cell.sessionState,
         config: cell.config,
+        usage: cell.usage,
         plan: null,
         agents: [],
         activeTurn: null,
+        draft: null,
       },
     });
     this.cells.set(input.conversationId, record);
     return record;
+  }
+
+  private queueInitialPrompts(record: SessionRecord): Result<void, AcpRuntimeError> {
+    for (const prompt of record.input.initialQueue ?? []) {
+      const result = record.cell.queuePrompt(prompt);
+      if (!result.success) return result;
+    }
+    return ok();
   }
 
   private syncRecord(record: SessionRecord): void {
@@ -412,6 +436,10 @@ export class SessionManager implements InboundRouter {
     const config = record.cell.config;
     publishLiveModelState(record.live.config, config, record.lastSynced.config);
     record.lastSynced.config = config;
+
+    const usage = record.cell.usage;
+    publishLiveModelState(record.live.usage, usage, record.lastSynced.usage);
+    record.lastSynced.usage = usage;
 
     const plan = record.cell.transcript.plan ?? null;
     publishLiveModelState(record.live.plan, plan, record.lastSynced.plan);
@@ -425,6 +453,11 @@ export class SessionManager implements InboundRouter {
     const activeTurn = record.cell.transcript.activeTurn;
     publishLiveModelState(record.live.activeTurn, activeTurn, record.lastSynced.activeTurn);
     record.lastSynced.activeTurn = activeTurn;
+
+    const draft = record.cell.promptDraft;
+    publishLiveModelState(record.live.draft, draft, record.lastSynced.draft);
+    record.lastSynced.draft = draft;
+
     this.upsertSessionSummary(record.input, record.cell, state);
   }
 
@@ -443,9 +476,12 @@ export class SessionManager implements InboundRouter {
   ): void {
     const summary: SessionSummary = {
       conversationId: input.conversationId,
+      projectId: input.projectId,
+      taskId: input.taskId,
       providerId: input.providerId,
       lifecycle: state.lifecycle,
       isGenerating: state.isGenerating,
+      lastStopReason: cell?.sessionState.lastStopReason ?? null,
       pendingPermissionCount: state.pendingPermissionCount ?? state.pendingPermissions?.length ?? 0,
       backgroundAgentCount: state.backgroundAgentCount,
       queuedPromptCount: state.queuedPromptCount ?? state.queuedPrompts?.length ?? 0,

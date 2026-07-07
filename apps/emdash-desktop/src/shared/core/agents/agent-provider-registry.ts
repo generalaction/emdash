@@ -371,6 +371,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'OpenCode CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'hermes',

@@ -43,6 +43,21 @@ describe('SessionCell prompts', () => {
     expect(history.committed[0].outcome).toEqual({ kind: 'done', reason: 'end_turn' });
   });
 
+  it('stores prompt drafts by monotonic revision and clears them after submit', async () => {
+    const { cell, agent } = makeCell();
+    agent.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+
+    expect(isOk(cell.setPromptDraft({ rev: 1, input: { text: 'old' } }))).toBe(true);
+    expect(isOk(cell.setPromptDraft({ rev: 1, input: { text: 'stale' } }))).toBe(true);
+    expect(cell.promptDraft).toMatchObject({ text: 'old', rev: 1 });
+
+    expect(isOk(cell.setPromptDraft({ rev: 2, input: { text: 'new' } }))).toBe(true);
+    expect(cell.promptDraft).toMatchObject({ text: 'new', rev: 2 });
+
+    await cell.prompt({ text: 'send' });
+    expect(cell.promptDraft).toBeNull();
+  });
+
   it('queues while working and drains after the active turn settles', async () => {
     const { cell, agent } = makeCell();
     let resolveFirst!: (value: { stopReason: 'end_turn' }) => void;
@@ -67,6 +82,38 @@ describe('SessionCell prompts', () => {
 
     expect(agent.prompt).toHaveBeenCalledTimes(2);
     expect(cell.sessionState.queuedPrompts).toHaveLength(0);
+  });
+
+  it('keeps prompts queued while background agents run and drains after cancel settles them', async () => {
+    const { cell, agent } = makeCell();
+    agent.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+
+    cell.push({
+      kind: 'subagent',
+      toolCallId: 'tool-1',
+      agentId: 'agent-1',
+      title: 'Background agent',
+      status: 'in_progress',
+      parentToolCallId: null,
+      background: true,
+    });
+    expect(cell.sessionState.backgroundAgentCount).toBe(1);
+
+    const queued = await cell.prompt({ text: 'queued' });
+    expect(queued).toEqual({ success: true, data: { queued: true } });
+    expect(agent.prompt).not.toHaveBeenCalled();
+
+    await cell.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(agent.cancel).toHaveBeenCalledWith({ sessionId: 'session-1' });
+    expect(cell.transcript.agents).toMatchObject([{ agentId: 'agent-1', status: 'failed' }]);
+    expect(cell.sessionState.backgroundAgentCount).toBe(0);
+    expect(cell.sessionState.queuedPrompts).toHaveLength(0);
+    expect(agent.prompt).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      prompt: [{ type: 'text', text: 'queued' }],
+    });
   });
 });
 

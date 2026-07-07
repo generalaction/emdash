@@ -15,10 +15,15 @@
 
 import type { JSX } from 'solid-js';
 import { Show } from 'solid-js';
-import { IconError } from './icons';
-import { chevron, chevronExpanded, collapseHeader } from './collapse-header.css';
+import { IconError, IconShieldAlert } from './icons';
+import {
+  chevron,
+  chevronExpanded,
+  collapseHeader,
+  collapseStatusError,
+  collapseStatusPermission,
+} from './collapse-header.css';
 import { textShimmer } from '@styles/effects.css';
-import { vars } from '@styles/theme.css';
 
 export type CollapseHeaderProps = {
   /** The item id wired to data-collapse-id for ChatRoot delegation. */
@@ -31,6 +36,10 @@ export type CollapseHeaderProps = {
   active?: boolean;
   /** When true, renders the error icon pinned to the far right. */
   error?: boolean;
+  /** Native tooltip shown when hovering the error icon. */
+  errorTitle?: string;
+  /** When true, renders the awaiting-permission icon pinned to the far right. */
+  awaitingPermission?: boolean;
   /** Explicit pixel height for the header row. */
   height: number;
   children: JSX.Element;
@@ -49,12 +58,26 @@ export function CollapseHeader(props: CollapseHeaderProps) {
       <span class={chevron} classList={{ [chevronExpanded]: props.expanded }} aria-hidden="true">
         ›
       </span>
-      <Show when={props.error}>
+      <Show
+        when={props.awaitingPermission}
+        fallback={
+          <Show when={props.error}>
+            <span
+              class={collapseStatusError}
+              title={props.errorTitle ?? 'Failed'}
+              aria-label="error"
+            >
+              <IconError />
+            </span>
+          </Show>
+        }
+      >
         <span
-          style={{ 'margin-left': 'auto', display: 'flex', color: vars.fgError }}
-          aria-label="error"
+          class={collapseStatusPermission}
+          title="Awaiting permission"
+          aria-label="awaiting permission"
         >
-          <IconError />
+          <IconShieldAlert />
         </span>
       </Show>
     </div>

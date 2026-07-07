@@ -11,11 +11,17 @@
  * This component only describes inner content.
  */
 
-import { IconError } from '@components/primitives/icons';
+import { IconError, IconShieldAlert } from '@components/primitives/icons';
 import { Show } from 'solid-js';
 import type { ChatToolCall } from '@/model';
-import { textShimmer, toolName, toolRow, toolSummary } from './tool.css';
-import { vars } from '@styles/theme.css';
+import {
+  textShimmer,
+  toolErrorIcon,
+  toolName,
+  toolPermissionIcon,
+  toolRow,
+  toolSummary,
+} from './tool.css';
 
 export type ToolProps = {
   item: ChatToolCall;
@@ -25,25 +31,26 @@ export function Tool(props: ToolProps) {
   const isRunning = () => props.item.status === 'running' && !props.item.awaitingPermission;
   return (
     <div class={toolRow} classList={{ [textShimmer]: isRunning() }}>
-      <Show when={props.item.awaitingPermission}>
-        <span
-          style={{ color: '#eab308' }}
-          title="Awaiting permission"
-          aria-label="Awaiting permission"
-        >
-          ✋
-        </span>
-      </Show>
       <span class={toolName}>{props.item.name}</span>
       <Show when={props.item.inputSummary}>
         <span class={toolSummary}>{props.item.inputSummary}</span>
       </Show>
-      <Show when={props.item.status === 'error'}>
+      <Show
+        when={props.item.awaitingPermission}
+        fallback={
+          <Show when={props.item.status === 'error'}>
+            <span class={toolErrorIcon} title={props.item.error ?? 'Failed'} aria-label="error">
+              <IconError />
+            </span>
+          </Show>
+        }
+      >
         <span
-          style={{ display: 'inline-flex', 'vertical-align': 'middle', color: vars.fgError }}
-          aria-label="error"
+          class={toolPermissionIcon}
+          title="Awaiting permission"
+          aria-label="awaiting permission"
         >
-          <IconError />
+          <IconShieldAlert />
         </span>
       </Show>
     </div>

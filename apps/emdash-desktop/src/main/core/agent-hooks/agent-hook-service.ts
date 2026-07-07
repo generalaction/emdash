@@ -96,6 +96,37 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
     this._hooks.callHookBackground('agent:event', event, appFocused);
   }
 
+  async resetToIdle(params: {
+    conversationId: string;
+    taskId: string;
+    projectId?: string;
+  }): Promise<void> {
+    const [row] = await db
+      .select({ agentStatus: conversations.agentStatus, projectId: conversations.projectId })
+      .from(conversations)
+      .where(eq(conversations.id, params.conversationId))
+      .limit(1);
+
+    if (!row || (row.agentStatus !== 'working' && row.agentStatus !== 'awaiting-input')) return;
+
+    const projectId = params.projectId ?? row.projectId;
+    await db
+      .update(conversations)
+      .set({ agentStatus: 'idle', agentStatusSeen: 1 })
+      .where(eq(conversations.id, params.conversationId));
+    this.observedStatuses.set(params.conversationId, 'idle');
+
+    events.emit(conversationAgentStatusChangedChannel, {
+      conversationId: params.conversationId,
+      taskId: params.taskId,
+      projectId,
+      status: 'idle',
+      seen: true,
+      appFocused: isAppFocused(),
+      soundEvent: undefined,
+    });
+  }
+
   async initialize(): Promise<void> {
     await this.server.start(async (raw) => {
       let parsed;
@@ -212,29 +243,7 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
     events.on(agentSessionExitedChannel, ({ conversationId, taskId }) => {
       void (async () => {
         try {
-          const [row] = await db
-            .select({ agentStatus: conversations.agentStatus, projectId: conversations.projectId })
-            .from(conversations)
-            .where(eq(conversations.id, conversationId))
-            .limit(1);
-
-          if (!row || row.agentStatus !== 'working') return;
-
-          await db
-            .update(conversations)
-            .set({ agentStatus: 'idle', agentStatusSeen: 1 })
-            .where(eq(conversations.id, conversationId));
-          this.observedStatuses.set(conversationId, 'idle');
-
-          events.emit(conversationAgentStatusChangedChannel, {
-            conversationId,
-            taskId,
-            projectId: row.projectId,
-            status: 'idle',
-            seen: true,
-            appFocused: isAppFocused(),
-            soundEvent: undefined,
-          });
+          await this.resetToIdle({ conversationId, taskId });
         } catch (error) {
           log.warn('AgentHookService: failed to reset stuck working status on exit', {
             conversationId,
