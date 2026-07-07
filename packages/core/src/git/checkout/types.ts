@@ -22,6 +22,7 @@ import type {
   SwitchError,
   SyncError,
 } from '../api/errors';
+import type { GitSyncProgress } from '../api/jobs';
 import type {
   Commit,
   ConflictVersions,
@@ -35,6 +36,7 @@ import type {
   BlameResult,
 } from '../api/queries';
 import type { IGitRepository } from '../repository/types';
+import type { GitOpContext } from '../transfer-progress';
 import type { GitHeadModel } from './models/head';
 import type { CheckoutStatusModel } from './models/status';
 
@@ -90,9 +92,12 @@ export interface IGitCheckout extends IDisposable {
   revertCommit(commit: string, noCommit?: boolean): Promise<Result<void, MergeError>>;
 
   // -- Sync --
-  push(options?: PushOptions): Promise<Result<{ output: string }, PushError>>;
-  pull(): Promise<Result<{ output: string }, PullError>>;
-  sync(): Promise<Result<{ output: string }, SyncError>>;
+  push(
+    options?: PushOptions,
+    context?: GitOpContext
+  ): Promise<Result<{ output: string }, PushError>>;
+  pull(context?: GitOpContext): Promise<Result<{ output: string }, PullError>>;
+  sync(context?: GitOpContext<GitSyncProgress>): Promise<Result<{ output: string }, SyncError>>;
 
   // -- Stash (mutations run here; the stashes model lives on the repository) --
   stashPush(options?: StashPushOptions): Promise<Result<void, GitCommandError>>;

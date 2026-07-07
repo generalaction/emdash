@@ -27,6 +27,7 @@ import {
   classifyPushError,
   toGitCommandError,
 } from '../errors';
+import { execGitWithProgress, throwIfGitOpAborted, type GitOpContext } from '../transfer-progress';
 import { classifyGitWatchEvents } from '../watch/classifier';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';
@@ -325,34 +326,41 @@ export class GitRepository implements IGitRepository {
     return this.remotesMutation(() => this.exec.exec(['remote', 'remove', name]));
   }
 
-  async fetch(remote?: string): Promise<Result<void, FetchError>> {
+  async fetch(remote?: string, context: GitOpContext = {}): Promise<Result<void, FetchError>> {
     try {
+      throwIfGitOpAborted(context.signal);
       const key = realpathOrResolve(this.objectStoreDir);
       await this.objectStoreMutex.runExclusive(key, async () => {
-        await this.exec.exec(['fetch', ...(remote ? [remote] : [])]);
+        throwIfGitOpAborted(context.signal);
+        await execGitWithProgress(
+          this.exec,
+          ['fetch', '--progress', ...(remote ? [remote] : [])],
+          context
+        );
       });
       await this.refsRefresh.refreshNow();
       return ok(undefined);
     } catch (error) {
+      if (context.signal?.aborted) throw error;
       return err(classifyFetchError(error, remote));
     }
   }
 
   async publishBranch(
     branchName: string,
-    remote = 'origin'
+    remote = 'origin',
+    context: GitOpContext = {}
   ): Promise<Result<{ output: string }, PushError>> {
     try {
-      const { stdout, stderr } = await this.exec.exec([
-        'push',
-        '--set-upstream',
-        remote,
-        '--',
-        branchName,
-      ]);
+      const { stdout, stderr } = await execGitWithProgress(
+        this.exec,
+        ['push', '--progress', '--set-upstream', remote, '--', branchName],
+        context
+      );
       await this.refsRefresh.refreshNow();
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
+      if (context.signal?.aborted) throw error;
       return err(classifyPushError(error));
     }
   }
@@ -385,59 +393,92 @@ export class GitRepository implements IGitRepository {
   }
 
   async fetchPrForReview(
-    options: FetchPrForReviewOptions
+    options: FetchPrForReviewOptions,
+    context: GitOpContext = {}
   ): Promise<Result<void, FetchPrForReviewError>> {
     try {
       if (options.isFork) {
         const forkRemote = remoteNameForRepositoryUrl(options.headRepositoryUrl);
-        const remotes = await this.exec.exec(['remote']).catch(() => ({ stdout: '' }));
+        const remotes = await this.exec
+          .exec(['remote'], { signal: context.signal })
+          .catch((error) => {
+            if (context.signal?.aborted) throw error;
+            return { stdout: '' };
+          });
         const names = remotes.stdout
           .split('\n')
           .map((line) => line.trim())
           .filter(Boolean);
         if (names.includes(forkRemote)) {
-          await this.exec.exec(['remote', 'set-url', forkRemote, options.headRepositoryUrl]);
+          await this.exec.exec(['remote', 'set-url', forkRemote, options.headRepositoryUrl], {
+            signal: context.signal,
+          });
         } else {
-          await this.exec.exec(['remote', 'add', forkRemote, options.headRepositoryUrl]);
+          await this.exec.exec(['remote', 'add', forkRemote, options.headRepositoryUrl], {
+            signal: context.signal,
+          });
         }
-        await this.exec.exec([
-          'fetch',
-          forkRemote,
-          '--force',
-          '--',
-          `${options.headRefName}:refs/heads/${options.localBranch}`,
-        ]);
-        await this.exec
-          .exec([
-            'branch',
-            `--set-upstream-to=${forkRemote}/${options.headRefName}`,
+        await execGitWithProgress(
+          this.exec,
+          [
+            'fetch',
+            '--progress',
+            forkRemote,
+            '--force',
             '--',
-            options.localBranch,
-          ])
-          .catch(() => ({ stdout: '', stderr: '' }));
+            `${options.headRefName}:refs/heads/${options.localBranch}`,
+          ],
+          context
+        );
+        await this.exec
+          .exec(
+            [
+              'branch',
+              `--set-upstream-to=${forkRemote}/${options.headRefName}`,
+              '--',
+              options.localBranch,
+            ],
+            { signal: context.signal }
+          )
+          .catch((error) => {
+            if (context.signal?.aborted) throw error;
+            return { stdout: '', stderr: '' };
+          });
         await Promise.all([this.refsRefresh.refreshNow(), this.remotesRefresh.refreshNow()]);
         return ok(undefined);
       }
 
       const remote = options.configuredRemote ?? 'origin';
-      await this.exec.exec([
-        'fetch',
-        remote,
-        '--force',
-        '--',
-        `refs/pull/${options.prNumber}/head:refs/heads/${options.localBranch}`,
-      ]);
-      await this.exec
-        .exec([
-          'branch',
-          `--set-upstream-to=${remote}/${options.headRefName}`,
+      await execGitWithProgress(
+        this.exec,
+        [
+          'fetch',
+          '--progress',
+          remote,
+          '--force',
           '--',
-          options.localBranch,
-        ])
-        .catch(() => ({ stdout: '', stderr: '' }));
+          `refs/pull/${options.prNumber}/head:refs/heads/${options.localBranch}`,
+        ],
+        context
+      );
+      await this.exec
+        .exec(
+          [
+            'branch',
+            `--set-upstream-to=${remote}/${options.headRefName}`,
+            '--',
+            options.localBranch,
+          ],
+          { signal: context.signal }
+        )
+        .catch((error) => {
+          if (context.signal?.aborted) throw error;
+          return { stdout: '', stderr: '' };
+        });
       await this.refsRefresh.refreshNow();
       return ok(undefined);
     } catch (error) {
+      if (context.signal?.aborted) throw error;
       return err(classifyFetchPrForReviewError(error, options.prNumber));
     }
   }

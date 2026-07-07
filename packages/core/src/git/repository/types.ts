@@ -18,6 +18,7 @@ import type {
   PushError,
 } from '../api/errors';
 import type { CheckoutInfo } from '../api/queries';
+import type { GitOpContext } from '../transfer-progress';
 import type { WorktreeWatchEffects } from '../watch/classifier';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';
@@ -71,13 +72,17 @@ export interface IGitRepository extends IDisposable {
   // -- Remotes and network --
   addRemote(name: string, url: string): Promise<Result<void, GitCommandError>>;
   removeRemote(name: string): Promise<Result<void, GitCommandError>>;
-  fetch(remote?: string): Promise<Result<void, FetchError>>;
+  fetch(remote?: string, context?: GitOpContext): Promise<Result<void, FetchError>>;
   publishBranch(
     branchName: string,
-    remote?: string
+    remote?: string,
+    context?: GitOpContext
   ): Promise<Result<{ output: string }, PushError>>;
   getDefaultBranch(remote?: string): Promise<string>;
-  fetchPrForReview(options: FetchPrForReviewOptions): Promise<Result<void, FetchPrForReviewError>>;
+  fetchPrForReview(
+    options: FetchPrForReviewOptions,
+    context?: GitOpContext
+  ): Promise<Result<void, FetchPrForReviewError>>;
 
   // -- Stashes --
   stashDrop(stashIndex: number): Promise<Result<void, GitCommandError>>;

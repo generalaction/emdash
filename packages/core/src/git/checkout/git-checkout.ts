@@ -26,6 +26,7 @@ import type {
   SwitchError,
   SyncError,
 } from '../api/errors';
+import type { GitSyncProgress } from '../api/jobs';
 import {
   type BlameResult,
   type Commit,
@@ -49,6 +50,12 @@ import {
   isUnbornHeadError,
   toGitCommandError,
 } from '../errors';
+import {
+  execGitWithProgress,
+  syncStepProgress,
+  throwIfGitOpAborted,
+  type GitOpContext,
+} from '../transfer-progress';
 import { classifyGitWatchEvents } from '../watch/classifier';
 import type { GitHeadModel } from './models/head';
 import type { CheckoutStatusModel } from './models/status';
@@ -422,39 +429,63 @@ export class GitCheckout implements IGitCheckout {
 
   // -- Sync --------------------------------------------------------------------
 
-  async push(options: PushOptions = {}): Promise<Result<{ output: string }, PushError>> {
+  async push(
+    options: PushOptions = {},
+    context: GitOpContext = {}
+  ): Promise<Result<{ output: string }, PushError>> {
     try {
-      const { stdout, stderr } = await this.exec.exec([
-        'push',
-        ...(options.force ? ['--force-with-lease'] : []),
-        ...(options.setUpstream
-          ? ['--set-upstream', options.remote ?? 'origin', 'HEAD']
-          : options.remote
-            ? [options.remote]
-            : []),
-      ]);
+      const { stdout, stderr } = await execGitWithProgress(
+        this.exec,
+        [
+          'push',
+          '--progress',
+          ...(options.force ? ['--force-with-lease'] : []),
+          ...(options.setUpstream
+            ? ['--set-upstream', options.remote ?? 'origin', 'HEAD']
+            : options.remote
+              ? [options.remote]
+              : []),
+        ],
+        context
+      );
       await this.refreshAfterHistoryChange();
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
+      if (context.signal?.aborted) throw error;
       return err(classifyPushError(error));
     }
   }
 
-  async pull(): Promise<Result<{ output: string }, PullError>> {
+  async pull(context: GitOpContext = {}): Promise<Result<{ output: string }, PullError>> {
     try {
-      const { stdout, stderr } = await this.exec.exec(['pull']);
+      const { stdout, stderr } = await execGitWithProgress(
+        this.exec,
+        ['pull', '--progress'],
+        context
+      );
       await this.refreshAfterHistoryChange();
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
+      if (context.signal?.aborted) throw error;
       await this.refreshAfterHistoryChange();
       return err(classifyPullError(error, await this.getConflictedPaths()));
     }
   }
 
-  async sync(): Promise<Result<{ output: string }, SyncError>> {
-    const pullResult = await this.pull();
+  async sync(
+    context: GitOpContext<GitSyncProgress> = {}
+  ): Promise<Result<{ output: string }, SyncError>> {
+    throwIfGitOpAborted(context.signal);
+    const pullResult = await this.pull({
+      signal: context.signal,
+      onProgress: syncStepProgress('pull', context.onProgress),
+    });
     if (!pullResult.success) return pullResult;
-    const pushResult = await this.push();
+    throwIfGitOpAborted(context.signal);
+    const pushResult = await this.push(undefined, {
+      signal: context.signal,
+      onProgress: syncStepProgress('push', context.onProgress),
+    });
     if (!pushResult.success) return pushResult;
     const output = [pullResult.data.output, pushResult.data.output].filter(Boolean).join('\n');
     return ok({ output });

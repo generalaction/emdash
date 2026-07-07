@@ -15,6 +15,7 @@ import {
 } from './errors';
 import { createGitExec } from './git-env';
 import { GitRepository } from './repository/git-repository';
+import { execGitWithProgress, type GitOpContext } from './transfer-progress';
 import type { CheckoutLease, GitOnError, IGitRuntime, RepoLease } from './types';
 
 type CheckoutResource = {
@@ -125,15 +126,19 @@ export class GitRuntime implements IGitRuntime {
 
   async cloneRepository(
     repositoryUrl: string,
-    targetPath: string
+    targetPath: string,
+    context: GitOpContext = {}
   ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>> {
     this.assertOpen();
     const resolvedTargetPath = path.resolve(targetPath);
     try {
-      await this.exec
-        .withCwd(path.dirname(resolvedTargetPath))
-        .exec(['clone', repositoryUrl, resolvedTargetPath]);
+      await execGitWithProgress(
+        this.exec.withCwd(path.dirname(resolvedTargetPath)),
+        ['clone', '--progress', repositoryUrl, resolvedTargetPath],
+        context
+      );
     } catch (error) {
+      if (context.signal?.aborted) throw error;
       return err(classifyCloneRepositoryError(error, resolvedTargetPath));
     }
 

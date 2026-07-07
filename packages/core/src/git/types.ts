@@ -4,6 +4,7 @@ import type { CloneRepositoryError, EnsureRepositoryError } from './api/errors';
 import type { GitPathInspection, GitRepositoryInfo } from './api/queries';
 import type { IGitCheckout } from './checkout/types';
 import type { IGitRepository } from './repository/types';
+import type { GitOpContext } from './transfer-progress';
 
 export type GitOnError = (context: string, error: unknown) => void;
 
@@ -18,7 +19,8 @@ export interface IGitRuntime {
   ): Promise<Result<GitRepositoryInfo, EnsureRepositoryError>>;
   cloneRepository(
     repositoryUrl: string,
-    targetPath: string
+    targetPath: string,
+    context?: GitOpContext
   ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>>;
   openRepository(pathInsideRepo: string): Promise<RepoLease>;
   openCheckout(checkoutPath: string): Promise<CheckoutLease>;
