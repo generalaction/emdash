@@ -1,4 +1,4 @@
-import type { StorageScanError } from '@emdash/core/storage';
+import type { FileUsageError } from '@emdash/core/files';
 import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 
 export type StoragePathState =
@@ -28,7 +28,7 @@ export type TaskStorageUsage = {
   isActive: boolean;
   canDelete: boolean;
   reclaimableBytes: number;
-  errors: StorageScanError[];
+  errors: FileUsageError[];
 };
 
 export type ProjectStorageUsage = {

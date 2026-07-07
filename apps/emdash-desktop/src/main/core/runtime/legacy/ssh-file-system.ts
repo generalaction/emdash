@@ -5,6 +5,7 @@ import {
   type FileGlob,
   type FileGlobOptions,
   type FileStat,
+  type FileUsage,
   type IFileSystem,
   type ReadBytesResult,
   type ReadFileOptions,
@@ -121,6 +122,17 @@ export class LegacySshFileSystem implements IFileSystem {
     } catch (error) {
       return err(toFileError(error, absPath));
     }
+  }
+
+  async measureUsage(absPath: string): Promise<Result<FileUsage, FileError>> {
+    // Recursive usage measurement over SFTP is not implemented; no current
+    // feature measures remote paths. Callers get a typed error, not a throw.
+    return err({
+      type: 'fs-error',
+      path: absPath,
+      message: 'measureUsage is not supported for SSH workspaces',
+      code: 'UNSUPPORTED',
+    });
   }
 
   async exists(absPath: string): Promise<Result<boolean, FileError>> {

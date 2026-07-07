@@ -9,15 +9,16 @@ const mocks = vi.hoisted(() => ({
   deleteIndex: vi.fn(),
   deleteWhere: vi.fn(),
   delViewState: vi.fn(),
-  execFile: vi.fn(),
+  createBoundExec: vi.fn(),
+  gitExec: vi.fn(),
   getProject: vi.fn(),
   getProjectById: vi.fn(),
   selectLimit: vi.fn(),
   teardownTask: vi.fn(),
 }));
 
-vi.mock('node:child_process', () => ({
-  execFile: mocks.execFile,
+vi.mock('@emdash/core/exec', () => ({
+  createBoundExec: mocks.createBoundExec,
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -73,10 +74,8 @@ describe('deleteTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.deleteWhere.mockResolvedValue(undefined);
-    mocks.execFile.mockImplementation((_cmd, _args, _options, callback) => {
-      callback(null, '', '');
-      return {};
-    });
+    mocks.gitExec.mockResolvedValue({ stdout: '', stderr: '' });
+    mocks.createBoundExec.mockReturnValue({ exec: mocks.gitExec });
     mocks.getProject.mockReturnValue(undefined);
     mocks.getProjectById.mockResolvedValue(undefined);
   });
@@ -143,12 +142,10 @@ describe('deleteTask', () => {
       await deleteTask('project-1', 'task-1');
 
       await expect(access(worktreePath)).rejects.toThrow();
-      expect(mocks.execFile).toHaveBeenCalledWith(
-        'git',
-        ['-C', projectPath, 'worktree', 'prune'],
-        { timeout: 5_000 },
-        expect.any(Function)
+      expect(mocks.createBoundExec).toHaveBeenCalledWith(
+        expect.objectContaining({ cwd: projectPath })
       );
+      expect(mocks.gitExec).toHaveBeenCalledWith(['worktree', 'prune'], { timeoutMs: 5_000 });
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

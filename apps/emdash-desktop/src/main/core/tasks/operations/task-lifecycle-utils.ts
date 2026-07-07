@@ -1,9 +1,11 @@
-import { execFile } from 'node:child_process';
-import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { promisify } from 'node:util';
+import { createBoundExec } from '@emdash/core/exec';
+import { FileSystem, isFileNotFoundError } from '@emdash/core/files';
+import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, ne } from 'drizzle-orm';
+import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
+import { getGitExecutable } from '@main/core/utils/exec';
 import { resolveWorkspaceKind } from '@main/core/workspaces/resolve-workspace-kind';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
@@ -13,7 +15,9 @@ import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspaceKind, WorkspaceType } from '@shared/core/workspaces/workspaces';
 import type { ProjectProvider } from '../../projects/project-provider';
 
-const execFileAsync = promisify(execFile);
+// Local-only helpers by contract (`isLocalWorkspace` guards below), so the
+// local core FileSystem is used directly rather than a per-machine runtime.
+const localFileSystem = new FileSystem();
 
 export type LocalWorkspaceCleanupTarget = {
   id?: string;
@@ -24,12 +28,8 @@ export type LocalWorkspaceCleanupTarget = {
 };
 
 export async function pathExists(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
+  const exists = await localFileSystem.exists(filePath);
+  return exists.success && exists.data;
 }
 
 export function isLocalWorkspace(workspace: LocalWorkspaceCleanupTarget): boolean {
@@ -67,7 +67,12 @@ async function workspaceHasRemainingTasks(
 
 async function pruneGitWorktrees(projectPath: string): Promise<void> {
   try {
-    await execFileAsync('git', ['-C', projectPath, 'worktree', 'prune'], { timeout: 5_000 });
+    const gitExec = createBoundExec({
+      file: getGitExecutable(),
+      cwd: projectPath,
+      env: { ...process.env, ...NON_INTERACTIVE_GIT_ENV },
+    });
+    await gitExec.exec(['worktree', 'prune'], { timeoutMs: 5_000 });
   } catch (error) {
     log.warn('git worktree prune failed after task worktree cleanup', {
       projectPath,
@@ -76,44 +81,66 @@ async function pruneGitWorktrees(projectPath: string): Promise<void> {
   }
 }
 
+export type OwnedWorktreeCleanupError =
+  | { type: 'project-root-refused'; path: string; message: string }
+  | { type: 'removal-failed'; path: string; message: string };
+
+/**
+ * Removes the recorded worktree directory of a local workspace. Fallback for
+ * task deletion when the project provider is unavailable or its git-based
+ * removal did not apply.
+ *
+ * Returns `ok(true)` when the directory was removed, `ok(false)` when the
+ * workspace is not an owned local worktree (nothing to do).
+ */
 export async function removeOwnedLocalWorktreeDirectory(
   workspace: LocalWorkspaceCleanupTarget,
   projectPath: string
-): Promise<boolean> {
-  if (!workspace.path || !isLocalWorkspace(workspace)) return false;
+): Promise<Result<boolean, OwnedWorktreeCleanupError>> {
+  if (!workspace.path || !isLocalWorkspace(workspace)) return ok(false);
 
   const workspacePath = path.resolve(workspace.path);
   const projectRootPath = path.resolve(projectPath);
   if (workspacePath === projectRootPath) {
     if (workspace.kind === 'worktree') {
-      throw new Error(`Refusing to remove project root path "${workspace.path}"`);
+      return err({
+        type: 'project-root-refused',
+        path: workspace.path,
+        message: `Refusing to remove project root path "${workspace.path}"`,
+      });
     }
-    return false;
+    return ok(false);
   }
 
-  if (!isWorktreeWorkspace(workspace)) return false;
+  if (!isWorktreeWorkspace(workspace)) return ok(false);
 
-  await fs.rm(workspacePath, {
-    recursive: true,
-    force: true,
-    maxRetries: 3,
-    retryDelay: 100,
-  });
+  const removal = await localFileSystem.remove(workspacePath, { recursive: true });
+  if (!removal.success && !isFileNotFoundError(removal.error)) {
+    return err({
+      type: 'removal-failed',
+      path: workspace.path,
+      message: removal.error.message,
+    });
+  }
 
   if (await pathExists(workspacePath)) {
-    throw new Error(`Failed to remove worktree directory "${workspace.path}"`);
+    return err({
+      type: 'removal-failed',
+      path: workspace.path,
+      message: `Failed to remove worktree directory "${workspace.path}"`,
+    });
   }
 
   await pruneGitWorktrees(projectPath);
-  return true;
+  return ok(true);
 }
 
 export async function removeOwnedLocalWorktreeDirectoryIfUnused(
   workspace: LocalWorkspaceCleanupTarget & { id: string },
   projectPath: string,
   excludeArchived: boolean
-): Promise<boolean> {
-  if (await workspaceHasRemainingTasks(workspace.id, excludeArchived)) return false;
+): Promise<Result<boolean, OwnedWorktreeCleanupError>> {
+  if (await workspaceHasRemainingTasks(workspace.id, excludeArchived)) return ok(false);
   return removeOwnedLocalWorktreeDirectory(workspace, projectPath);
 }
 

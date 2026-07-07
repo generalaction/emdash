@@ -53,10 +53,6 @@
       "types": "./dist/lib.d.mts",
       "default": "./dist/lib.mjs"
     },
-    "./storage": {
-      "types": "./dist/storage.d.mts",
-      "default": "./dist/storage.mjs"
-    },
     "./agents/plugins": {
       "types": "./dist/agents-plugins.d.mts",
       "default": "./dist/agents-plugins.mjs"

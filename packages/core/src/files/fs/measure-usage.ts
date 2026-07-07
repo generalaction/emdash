@@ -1,7 +1,7 @@
 import type { Stats } from 'node:fs';
 import { lstat, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import type { PathStorageUsage } from './types';
+import type { FileUsage, FileUsageError } from './types';
 
 type EntryUsage = {
   apparentBytes: number;
@@ -13,7 +13,7 @@ type EntryUsage = {
 
 type ScanState = {
   entries: EntryUsage[];
-  errors: PathStorageUsage['errors'];
+  errors: FileUsageError[];
 };
 
 function errorMessage(error: unknown): string {
@@ -30,38 +30,22 @@ function inodeKey(stats: Stats): string | null {
   return `${stats.dev}:${stats.ino}`;
 }
 
-function createEmptyUsage(
-  targetPath: string,
-  exists: boolean,
-  isDirectory: boolean,
-  errors: PathStorageUsage['errors']
-): PathStorageUsage {
-  return {
-    path: targetPath,
-    exists,
-    isDirectory,
-    apparentBytes: 0,
-    reclaimableBytes: 0,
-    errors,
-  };
-}
-
 function aggregateEntries(entries: EntryUsage[]): {
   apparentBytes: number;
-  reclaimableBytes: number;
+  diskBytes: number;
+  exclusiveDiskBytes: number;
 } {
   let apparentBytes = 0;
-  let reclaimableBytes = 0;
-  const linked = new Map<
-    string,
-    { count: number; linkCount: number; diskBytes: number; apparentBytes: number }
-  >();
+  let totalDiskBytes = 0;
+  let exclusiveDiskBytes = 0;
+  const linked = new Map<string, { count: number; linkCount: number; diskBytes: number }>();
 
   for (const entry of entries) {
     apparentBytes += entry.apparentBytes;
 
     if (entry.isDirectory || !entry.inodeKey || entry.linkCount <= 1) {
-      reclaimableBytes += entry.diskBytes;
+      totalDiskBytes += entry.diskBytes;
+      exclusiveDiskBytes += entry.diskBytes;
       continue;
     }
 
@@ -73,18 +57,18 @@ function aggregateEntries(entries: EntryUsage[]): {
         count: 1,
         linkCount: entry.linkCount,
         diskBytes: entry.diskBytes,
-        apparentBytes: entry.apparentBytes,
       });
     }
   }
 
   for (const group of linked.values()) {
+    totalDiskBytes += group.diskBytes;
     if (group.linkCount <= group.count) {
-      reclaimableBytes += group.diskBytes;
+      exclusiveDiskBytes += group.diskBytes;
     }
   }
 
-  return { apparentBytes, reclaimableBytes };
+  return { apparentBytes, diskBytes: totalDiskBytes, exclusiveDiskBytes };
 }
 
 async function scanPath(state: ScanState, currentPath: string): Promise<void> {
@@ -92,11 +76,7 @@ async function scanPath(state: ScanState, currentPath: string): Promise<void> {
   try {
     stats = await lstat(currentPath);
   } catch (error) {
-    state.errors.push({
-      type: 'stat-failed',
-      path: currentPath,
-      message: errorMessage(error),
-    });
+    state.errors.push({ path: currentPath, message: errorMessage(error) });
     return;
   }
 
@@ -115,11 +95,7 @@ async function scanPath(state: ScanState, currentPath: string): Promise<void> {
   try {
     children = await readdir(currentPath, { withFileTypes: true });
   } catch (error) {
-    state.errors.push({
-      type: 'read-failed',
-      path: currentPath,
-      message: errorMessage(error),
-    });
+    state.errors.push({ path: currentPath, message: errorMessage(error) });
     return;
   }
 
@@ -128,36 +104,36 @@ async function scanPath(state: ScanState, currentPath: string): Promise<void> {
   }
 }
 
-export async function measureTaskStorage(targetPath: string): Promise<PathStorageUsage> {
-  let rootStats: Stats;
-  try {
-    rootStats = await lstat(targetPath);
-  } catch (error) {
-    return createEmptyUsage(targetPath, false, false, [
-      { type: 'not-found', path: targetPath, message: errorMessage(error) },
-    ]);
-  }
+/**
+ * Measures apparent and on-disk usage of a path. Missing or unreadable
+ * subtrees are recorded as partial errors; only a failure to stat the root
+ * itself should be treated as fatal (the caller converts that throw).
+ * @throws the root `lstat` error when `targetPath` itself is inaccessible.
+ */
+export async function measureUsage(targetPath: string): Promise<FileUsage> {
+  const rootStats = await lstat(targetPath);
 
   if (!rootStats.isDirectory()) {
-    return createEmptyUsage(targetPath, true, false, [
-      { type: 'not-directory', path: targetPath, message: 'Path is not a directory.' },
-    ]);
+    return {
+      path: targetPath,
+      type: 'file',
+      apparentBytes: rootStats.size,
+      diskBytes: diskBytes(rootStats),
+      exclusiveDiskBytes: rootStats.nlink > 1 ? 0 : diskBytes(rootStats),
+      errors: [],
+    };
   }
 
-  const state: ScanState = {
-    entries: [],
-    errors: [],
-  };
-
+  const state: ScanState = { entries: [], errors: [] };
   await scanPath(state, targetPath);
 
   const total = aggregateEntries(state.entries);
   return {
     path: targetPath,
-    exists: true,
-    isDirectory: true,
+    type: 'directory',
     apparentBytes: total.apparentBytes,
-    reclaimableBytes: total.reclaimableBytes,
+    diskBytes: total.diskBytes,
+    exclusiveDiskBytes: total.exclusiveDiskBytes,
     errors: state.errors,
   };
 }

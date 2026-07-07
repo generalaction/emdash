@@ -75,19 +75,21 @@ export async function deleteTask(
     if (!worktreeRemoved) {
       const projectRow = await getProjectById(projectId);
       if (projectRow?.type === 'local') {
-        worktreeRemoved = await removeOwnedLocalWorktreeDirectoryIfUnused(
+        const removal = await removeOwnedLocalWorktreeDirectoryIfUnused(
           wsRow,
           projectRow.path,
           false
-        ).catch((e) => {
+        );
+        if (removal.success) {
+          worktreeRemoved = removal.data;
+        } else {
           log.warn('deleteTask: owned worktree directory cleanup failed', {
             taskId,
             workspaceId: wsRow.id,
             path: wsRow.path,
-            error: String(e),
+            error: removal.error,
           });
-          return false;
-        });
+        }
       }
     }
 

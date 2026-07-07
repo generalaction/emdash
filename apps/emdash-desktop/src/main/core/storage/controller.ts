@@ -1,5 +1,6 @@
 import { createRPCController } from '@shared/lib/ipc/rpc';
-import { deleteStorageTasks, listTaskStorageUsage } from './storage-service';
+import { deleteStorageTasks } from './operations/delete-storage-tasks';
+import { listTaskStorageUsage } from './operations/list-task-storage-usage';
 
 export const storageController = createRPCController({
   async listTaskStorageUsage(projectId?: string) {
