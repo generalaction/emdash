@@ -24,12 +24,14 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
         return (
           <div
             className={cn(
-              'flex h-5 max-w-52 items-center gap-2 rounded-md bg-background-2 px-1.5 leading-none',
+              'flex h-5 max-w-52 items-center gap-1.5 rounded-md bg-background-2 px-1.5 leading-none',
               className
             )}
           >
             <StatusIcon className="size-3" pr={pr} disableTooltip />
-            <PrNumberBadge number={getPrNumber(pr) ?? 0} className="text-[10px] leading-none" />
+            <span className="shrink-0 text-xs leading-none text-foreground-muted">
+              #{getPrNumber(pr) ?? 0}
+            </span>
             <span className="truncate text-xs leading-none text-foreground-muted">{pr.title}</span>
           </div>
         );
