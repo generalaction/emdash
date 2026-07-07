@@ -8,10 +8,28 @@ export const splitButtonRoot = style({
 
 /** Primary face: right side rounded corners removed to butt against chevron. */
 export const splitButtonFace = style({
+  minWidth: 0,
+  maxWidth: 'min(16rem, 40vw)',
+  overflow: 'hidden',
   borderTopRightRadius: 0,
   borderBottomRightRadius: 0,
   paddingRight: '0.5rem',
   paddingLeft: '0.75rem',
+});
+
+export const splitButtonLabel = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
+export const splitButtonMenuLabel = style({
+  minWidth: 0,
+  maxWidth: 'min(28rem, 70vw)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 });
 
 /** Chevron face: left side rounded corners removed to butt against primary face. */

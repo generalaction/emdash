@@ -79,11 +79,12 @@ export function SplitButton({
         tone={tone}
         disabled={disabled}
         className={styles.splitButtonFace}
+        title={selectedOption?.label}
         onClick={() => {
           if (selectedOption) onAction(selectedOption.id);
         }}
       >
-        {selectedOption?.label ?? ''}
+        <span className={styles.splitButtonLabel}>{selectedOption?.label ?? ''}</span>
       </Button>
 
       {/* Chevron trigger — opens the option menu */}
@@ -101,8 +102,12 @@ export function SplitButton({
         </DropdownMenu.Trigger>
         <DropdownMenu.Content align="end" sideOffset={4}>
           {options.map((option) => (
-            <DropdownMenu.Item key={option.id} onClick={() => handleMenuSelect(option)}>
-              {option.label}
+            <DropdownMenu.Item
+              key={option.id}
+              title={option.label}
+              onClick={() => handleMenuSelect(option)}
+            >
+              <span className={styles.splitButtonMenuLabel}>{option.label}</span>
             </DropdownMenu.Item>
           ))}
         </DropdownMenu.Content>
