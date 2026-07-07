@@ -43,7 +43,7 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
-import type { LinkedIssue } from '@shared/core/linked-issue';
+import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@shared/core/linked-issue';
 import { AutomationRunPill } from './components/automation-run-pill';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
 import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
@@ -416,8 +416,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
 });
 
 function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
-  const displayIdentifier =
-    issue.displayIdentifier === null ? null : (issue.displayIdentifier ?? issue.identifier);
+  const displayIdentifier = linkedIssueDisplayIdentifier(issue);
 
   return (
     <Tooltip>

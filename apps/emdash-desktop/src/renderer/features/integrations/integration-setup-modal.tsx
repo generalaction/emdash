@@ -92,21 +92,18 @@ function IntegrationSetupForm({
           </div>
         ))}
         {method.help || method.helpUrl ? (
-          <div>
-            {method.help ? (
-              <p className="text-xs text-foreground-muted">
-                {method.help}
-                {method.helpUrl ? (
-                  <Button
-                    variant="link"
-                    size="xs"
-                    className="h-auto"
-                    onClick={() => window.open(method.helpUrl, '_blank', 'noopener,noreferrer')}
-                  >
-                    <ExternalLink className="ml-1 h-3 w-3" />
-                  </Button>
-                ) : null}
-              </p>
+          <div className="flex items-start justify-between gap-2">
+            {method.help ? <p className="text-xs text-foreground-muted">{method.help}</p> : null}
+            {method.helpUrl ? (
+              <Button
+                variant="link"
+                size="icon-xs"
+                className="mt-0.5 size-4 shrink-0 p-0"
+                aria-label={`Open ${metadata.name} setup guide`}
+                onClick={() => window.open(method.helpUrl, '_blank', 'noopener,noreferrer')}
+              >
+                <ExternalLink className="h-3 w-3" />
+              </Button>
             ) : null}
           </div>
         ) : null}

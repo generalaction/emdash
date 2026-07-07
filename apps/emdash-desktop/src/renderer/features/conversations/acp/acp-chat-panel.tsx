@@ -47,7 +47,7 @@ import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-i
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { log } from '@renderer/utils/logger';
-import type { LinkedIssue } from '@shared/core/linked-issue';
+import { linkedIssueMentionName, type LinkedIssue } from '@shared/core/linked-issue';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
@@ -78,7 +78,7 @@ function toIssueMentionItem(issue: LinkedIssue): MentionItem {
   return {
     id: token,
     label: token,
-    name: issue.displayIdentifier ?? issue.identifier,
+    name: linkedIssueMentionName(issue),
     kind: 'issue',
     description: issue.title,
     icon: <IntegrationIcon provider={issue.provider} size={13} />,
