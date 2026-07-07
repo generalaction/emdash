@@ -16,6 +16,8 @@ type MutationWaiter = {
   timer: ReturnType<typeof setTimeout> | undefined;
 };
 
+export type LiveChangeMeta = { kind: 'seed' } | { kind: 'update'; mutationIds: string[] };
+
 export class LiveModelClient<T> {
   private generation = -1;
   private sequence = -1;
@@ -27,7 +29,7 @@ export class LiveModelClient<T> {
   constructor(
     private readonly schema: z.ZodType<T>,
     private readonly refetchSnapshot: () => Promise<LiveSnapshot<T>>,
-    private readonly onChange: (value: T) => void
+    private readonly onChange: (value: T, meta: LiveChangeMeta) => void
   ) {}
 
   get cursor(): LiveCursor | undefined {
@@ -53,7 +55,7 @@ export class LiveModelClient<T> {
     this.value = next;
     this.generation = snapshot.generation;
     this.sequence = snapshot.sequence;
-    this.onChange(next);
+    this.onChange(next, { kind: 'seed' });
     this.flushCursorWaiters();
     this.flushAllMutationWaiters();
   }
@@ -102,7 +104,7 @@ export class LiveModelClient<T> {
 
     this.value = next;
     this.sequence = update.sequence;
-    this.onChange(this.value);
+    this.onChange(this.value, { kind: 'update', mutationIds: update.mutationIds ?? [] });
     this.flushCursorWaiters();
     this.flushMutationWaiters(update.mutationIds ?? []);
   }

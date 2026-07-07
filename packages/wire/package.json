@@ -25,6 +25,14 @@
       "types": "./dist/api.d.mts",
       "default": "./dist/api.mjs"
     },
+    "./util": {
+      "types": "./dist/util.d.mts",
+      "default": "./dist/util.mjs"
+    },
+    "./util/optimistic": {
+      "types": "./dist/optimistic.d.mts",
+      "default": "./dist/optimistic.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -40,6 +48,10 @@
     "example:api-definition": "tsx examples/api-definition/inspect.ts",
     "example:api-binding": "tsx examples/api-binding/controller.ts",
     "example:api-client": "tsx examples/api-client/client.ts",
+    "example:group": "tsx examples/group/client.ts",
+    "example:dedupe": "tsx examples/dedupe/server.ts",
+    "example:multi-window": "tsx examples/multi-window/client.ts",
+    "example:optimistic-group": "tsx examples/optimistic-group/client.ts",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/wire\"'",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
@@ -53,8 +65,12 @@
   "devDependencies": {
     "@types/node": "^20.19.42",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
+    "mobx": "^6.16.1",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
     "vitest": "^4.1.0"
+  },
+  "peerDependencies": {
+    "mobx": "^6.16.1"
   }
 }

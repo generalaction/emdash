@@ -1,12 +1,14 @@
+import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveLogServer } from '../live/log';
 import { LiveModelServer } from '../live/model';
-import { liveModelRef } from '../live/mutations';
-import { bind } from './bind';
+import { createGroupInstance, LiveModelRegistry } from '../live/mutations';
+import { bindContract } from './bind';
+import { fromRegistry } from './bind';
 import { contractClient } from './client';
 import { connect } from './connect';
-import { defineContract, liveLogRef, procedure } from './define';
+import { defineContract, liveLog, liveModel, liveModelGroup, mutation, procedure } from './define';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
@@ -14,15 +16,9 @@ const stateSchema = z.object({ count: z.number() });
 const keySchema = z.object({ id: z.string() });
 
 const contract = defineContract({
-  procedures: {
-    increment: procedure({ input: keySchema, output: stateSchema }),
-  },
-  models: {
-    state: liveModelRef('client.state', keySchema, stateSchema),
-  },
-  logs: {
-    output: liveLogRef('client.output', keySchema),
-  },
+  increment: procedure({ input: keySchema, output: stateSchema }),
+  state: liveModel({ key: keySchema, data: stateSchema }),
+  output: liveLog({ key: keySchema }),
 });
 
 describe('contractClient', () => {
@@ -30,8 +26,8 @@ describe('contractClient', () => {
     const pair = memoryTransportPair();
     const model = new LiveModelServer({ count: 0 }, 1000);
     const log = new LiveLogServer({ generation: 2000 });
-    const controller = bind(contract, {
-      procedures: {
+    const controller = bindContract(contract, {
+      impl: {
         increment: () => {
           model.produce((draft) => {
             draft.count += 1;
@@ -39,21 +35,18 @@ describe('contractClient', () => {
           log.append('incremented\n');
           return model.snapshot().data;
         },
-      },
-      live: {
-        models: { state: () => model },
-        logs: { output: () => log },
+        state: () => model,
+        output: () => log,
       },
     });
     serve(pair.right, controller);
     const client = contractClient(contract, connect(pair.left));
 
     const seenStates: Array<{ count: number }> = [];
-    const modelBinding = client.model('state', { id: 'task' }, (value) => seenStates.push(value));
+    const modelBinding = client.state({ id: 'task' }, (value) => seenStates.push(value));
     const appended: string[] = [];
     const resets: string[] = [];
-    const logBinding = client.log(
-      'output',
+    const logBinding = client.output(
       { id: 'task' },
       {
         onAppend: (chunk) => appended.push(chunk),
@@ -72,6 +65,79 @@ describe('contractClient', () => {
 
     await modelBinding.dispose();
     await logBinding.dispose();
+  });
+
+  it('builds nested clients using object keys as call paths', async () => {
+    const nested = defineContract({ child: contract });
+    const pair = memoryTransportPair();
+    const model = new LiveModelServer({ count: 0 }, 1000);
+    const log = new LiveLogServer({ generation: 2000 });
+    const controller = bindContract(nested, {
+      impl: {
+        child: {
+          increment: () => {
+            model.produce((draft) => {
+              draft.count += 1;
+            });
+            log.append('incremented\n');
+            return model.snapshot().data;
+          },
+          state: () => model,
+          output: () => log,
+        },
+      },
+    });
+    serve(pair.right, controller);
+    const client = contractClient(nested, connect(pair.left));
+
+    const binding = client.child.state({ id: 'task' }, () => {});
+    await binding.ready;
+    await expect(client.child.increment({ id: 'task' })).resolves.toEqual({ count: 1 });
+    await waitFor(() => binding.client.getSnapshot()?.count === 1);
+    await binding.dispose();
+  });
+
+  it('uses caller-supplied mutation IDs for group mutations', async () => {
+    const groupContract = defineContract({
+      conversation: liveModelGroup({
+        key: keySchema,
+        models: {
+          state: liveModel({ data: stateSchema }),
+        },
+        mutations: {
+          bump: mutation({ input: z.object({}), data: z.void(), error: z.string() }, (ctx) => {
+            ctx.produce('state', (draft) => {
+              (draft as { count: number }).count += 1;
+            });
+            return ok(undefined);
+          }),
+        },
+      }),
+    });
+    const key = { id: 'task' };
+    const registry = new LiveModelRegistry();
+    const instance = createGroupInstance(groupContract.conversation, key, {
+      state: { count: 0 },
+    });
+    const updates: unknown[] = [];
+    instance.models.state.subscribe((update) => updates.push(update));
+    registry.registerGroup(groupContract.conversation, key, instance);
+
+    const pair = memoryTransportPair();
+    const controller = bindContract(groupContract, {
+      registry,
+      impl: { conversation: fromRegistry() },
+    });
+    serve(pair.right, controller);
+    const client = contractClient(groupContract, connect(pair.left));
+    const binding = client.conversation(key, { state: () => {} });
+
+    await binding.ready;
+    const invocation = await binding.bump({}, { mutationId: 'custom-mutation' });
+    await invocation.settled;
+
+    expect(updates).toMatchObject([{ mutationIds: ['custom-mutation'] }]);
+    await binding.dispose();
   });
 });
 

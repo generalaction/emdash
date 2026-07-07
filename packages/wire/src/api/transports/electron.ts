@@ -1,0 +1,126 @@
+import type { Unsubscribe } from '@emdash/shared';
+import type { Controller } from '../bind';
+import { createWireSessionHub } from '../sessions';
+import { portTransport, type PortLike } from './port';
+
+export type MessagePortMainLike = PortLike & {
+  start?(): void;
+  close?(): void;
+};
+
+export type WebContentsLike = {
+  id: number;
+  postMessage(channel: string, message: unknown, transfer?: unknown[]): void;
+};
+
+export type IpcMainInvokeEventLike = {
+  sender: WebContentsLike;
+};
+
+export type IpcMainLike = {
+  handle(channel: string, listener: (event: IpcMainInvokeEventLike) => unknown): void;
+  removeHandler?(channel: string): void;
+};
+
+export type IpcRendererLike = {
+  invoke(channel: string): Promise<unknown> | unknown;
+  once(channel: string, listener: (event: { ports?: unknown[] }, value: unknown) => void): void;
+  off?(channel: string, listener: (event: { ports?: unknown[] }, value: unknown) => void): void;
+};
+
+export type WindowLike = {
+  postMessage(message: unknown, targetOrigin: string, transfer?: unknown[]): void;
+  addEventListener(
+    event: string,
+    listener: (event: { data?: unknown; ports?: unknown[] }) => void
+  ): void;
+  removeEventListener?(
+    event: string,
+    listener: (event: { data?: unknown; ports?: unknown[] }) => void
+  ): void;
+};
+
+export type MessageChannelFactory = () => {
+  port1: MessagePortMainLike;
+  port2: unknown;
+};
+
+export type ExposeWireOptions = {
+  channel?: string;
+};
+
+export function exposeWireToWindows(
+  deps: { ipcMain: IpcMainLike; createMessageChannel: MessageChannelFactory },
+  controller: Controller,
+  options: ExposeWireOptions = {}
+): Unsubscribe {
+  const channel = options.channel ?? 'wire';
+  const connectChannel = `${channel}:connect`;
+  const portChannel = `${channel}:port`;
+  const hub = createWireSessionHub(controller);
+  const ports = new Map<number, MessagePortMainLike>();
+
+  deps.ipcMain.handle(connectChannel, (event) => {
+    const { port1, port2 } = deps.createMessageChannel();
+    ports.get(event.sender.id)?.close?.();
+    ports.set(event.sender.id, port1);
+    hub.open(event.sender.id, portTransport(port1));
+    port1.start?.();
+    event.sender.postMessage(portChannel, null, [port2]);
+    return undefined;
+  });
+
+  return () => {
+    deps.ipcMain.removeHandler?.(connectChannel);
+    hub.dispose();
+    for (const port of ports.values()) port.close?.();
+    ports.clear();
+  };
+}
+
+export async function requestWirePort(
+  deps: { ipcRenderer: IpcRendererLike; window: WindowLike },
+  options: ExposeWireOptions = {}
+): Promise<void> {
+  const channel = options.channel ?? 'wire';
+  const portChannel = `${channel}:port`;
+  const connectChannel = `${channel}:connect`;
+  await new Promise<void>((resolve, reject) => {
+    const listener = (event: { ports?: unknown[] }, value: unknown): void => {
+      try {
+        const port = event.ports?.[0] ?? value;
+        deps.window.postMessage({ kind: portChannel }, '*', [port]);
+        resolve();
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+    deps.ipcRenderer.once(portChannel, listener);
+    Promise.resolve(deps.ipcRenderer.invoke(connectChannel)).catch((error: unknown) => {
+      deps.ipcRenderer.off?.(portChannel, listener);
+      reject(error instanceof Error ? error : new Error(String(error)));
+    });
+  });
+}
+
+export function awaitWirePort(
+  windowLike: WindowLike,
+  options: ExposeWireOptions = {}
+): Promise<unknown> {
+  const channel = options.channel ?? 'wire';
+  const portChannel = `${channel}:port`;
+  return new Promise((resolve) => {
+    const listener = (event: { data?: unknown; ports?: unknown[] }): void => {
+      if (!isWirePortMessage(event.data, portChannel)) return;
+      windowLike.removeEventListener?.('message', listener);
+      resolve(event.ports?.[0]);
+    };
+    windowLike.addEventListener('message', listener);
+  });
+}
+
+function isWirePortMessage(value: unknown, channel: string): value is { kind: string } {
+  return (
+    typeof value === 'object' && value !== null && (value as { kind?: unknown }).kind === channel
+  );
+}

@@ -16,6 +16,10 @@ pnpm --filter @emdash/wire run example:contract
 pnpm --filter @emdash/wire run example:api-definition
 pnpm --filter @emdash/wire run example:api-binding
 pnpm --filter @emdash/wire run example:api-client
+pnpm --filter @emdash/wire run example:group
+pnpm --filter @emdash/wire run example:dedupe
+pnpm --filter @emdash/wire run example:multi-window
+pnpm --filter @emdash/wire run example:optimistic-group
 ```
 
 Examples:
@@ -33,9 +37,17 @@ Examples:
   multiple model instances.
 - `contract/` demonstrates the full API flow in one file: contract definition,
   bound controller, memory transport, and typed client.
-- `api-definition/` isolates contract definition with `defineContract`,
-  `procedure`, `liveModelRef`, and `liveLogRef`.
-- `api-binding/` isolates controller construction with `bind()` and direct
-  controller calls/snapshots.
+- `api-definition/` isolates flat contract definition with `defineContract`,
+  `procedure`, `mutation`, `liveModel`, and `liveLog`.
+- `api-binding/` isolates controller construction with `bindContract()` and
+  direct controller calls/snapshots.
 - `api-client/` isolates serving a bound controller over a memory transport and
   creating a typed `contractClient`.
+- `group/` demonstrates `liveModelGroup`, group instance registration, typed
+  group client binding, and mutation settling across multiple member models.
+- `dedupe/` demonstrates server-side `deduplicateRequests()` for in-flight
+  procedure calls.
+- `multi-window/` demonstrates one `Controller` served to multiple independent
+  clients through `createWireSessionHub`.
+- `optimistic-group/` demonstrates `OptimisticLiveModelGroup` deriving previews
+  from inline group mutation handlers and rolling back rejected mutations.

@@ -1,51 +1,54 @@
+import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
-  bind,
+  LiveLogServer,
+  LiveModelRegistry,
+  LiveModelServer,
+  bindContract,
   connect,
   contractClient,
   defineContract,
-  liveLogRef,
-  liveModelRef,
-  LiveLogServer,
-  LiveModelServer,
+  fromRegistry,
+  liveLog,
+  liveModel,
   memoryTransportPair,
-  procedure,
+  mutation,
   serve,
 } from '../../src/index';
 
 const keySchema = z.object({ conversationId: z.string() });
 const stateSchema = z.object({ messages: z.array(z.string()) });
 
-const chatContract = defineContract({
-  procedures: {
-    send: procedure({ input: keySchema.extend({ text: z.string() }), output: stateSchema }),
-  },
-  models: {
-    state: liveModelRef('example.chat.state', keySchema, stateSchema),
-  },
-  logs: {
-    output: liveLogRef('example.chat.output', keySchema),
-  },
-});
-
 type ChatState = z.infer<typeof stateSchema>;
 
+const chatContract = defineContract({
+  state: liveModel({ key: keySchema, data: stateSchema }),
+  output: liveLog({ key: keySchema }),
+  send: mutation({
+    input: keySchema.extend({ text: z.string() }),
+    data: stateSchema,
+    error: z.string(),
+  }),
+});
+
+const key = { conversationId: 'demo' };
+const registry = new LiveModelRegistry();
 const state = new LiveModelServer<ChatState>({ messages: [] }, 1000);
 const output = new LiveLogServer({ generation: 2000 });
+registry.register(chatContract.state, key, state);
 
-const controller = bind(chatContract, {
-  procedures: {
-    send: ({ text }) => {
-      state.produce((draft) => {
-        draft.messages.push(text);
+const controller = bindContract(chatContract, {
+  registry,
+  impl: {
+    state: fromRegistry(),
+    output: () => output,
+    send: (ctx, input) => {
+      ctx.produce(chatContract.state, { conversationId: input.conversationId }, (draft) => {
+        draft.messages.push(input.text);
       });
-      output.append(`sent: ${text}\n`);
-      return state.snapshot().data;
+      output.append(`sent: ${input.text}\n`);
+      return ok(state.snapshot().data);
     },
-  },
-  live: {
-    models: { state: () => state },
-    logs: { output: () => output },
   },
 });
 
@@ -54,22 +57,18 @@ async function main(): Promise<void> {
   serve(pair.right, controller);
   const client = contractClient(chatContract, connect(pair.left));
 
-  const model = client.model('state', { conversationId: 'demo' }, (value) => {
+  const model = client.state(key, (value) => {
     console.log('state:', value);
   });
-  const log = client.log(
-    'output',
-    { conversationId: 'demo' },
-    {
-      onReset: (data) => console.log('log reset:', data.text),
-      onAppend: (chunk) => console.log('log append:', chunk.trim()),
-    }
-  );
+  const log = client.output(key, {
+    onReset: (data) => console.log('log reset:', data.text),
+    onAppend: (chunk) => console.log('log append:', chunk.trim()),
+  });
 
   await model.ready;
   await log.ready;
-  await client.send({ conversationId: 'demo', text: 'hello wire' });
-  await Promise.resolve();
+  const sent = await client.send({ ...key, text: 'hello wire' });
+  await sent.settled;
   await model.dispose();
   await log.dispose();
 }

@@ -48,7 +48,7 @@ export const liveUpdateSchema = z.object({
 export type LiveUpdate = z.infer<typeof liveUpdateSchema>;
 
 export interface LiveSource {
-  snapshot(): LiveSnapshot<unknown>;
+  snapshot(): LiveSnapshot<unknown> | Promise<LiveSnapshot<unknown>>;
   subscribe(cb: (update: LiveUpdate) => void): Unsubscribe;
 }
 

@@ -1,5 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
 import type { LiveModelClient, LiveModelServer } from '../model';
+import type { LiveModelGroupInstance } from './group';
 import type { LiveModelData, LiveModelKey, LiveModelRef } from './model-ref';
 
 type ServerEntry = {
@@ -52,6 +53,22 @@ export class LiveModelRegistry {
       ]);
     }
     return matches;
+  }
+
+  registerGroup<Group extends { models: Record<string, LiveModelRef> }>(
+    group: Group,
+    key: unknown,
+    instance: LiveModelGroupInstance
+  ): Unsubscribe {
+    const unsubscribes: Unsubscribe[] = [];
+    for (const [name, ref] of Object.entries(group.models)) {
+      const server = instance.models[name];
+      if (!server) continue;
+      unsubscribes.push(this.register(ref, key as never, server as LiveModelServer<never>));
+    }
+    return () => {
+      for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
+    };
   }
 }
 

@@ -3,5 +3,7 @@ export * from './client';
 export * from './connect';
 export * from './define';
 export * from './protocol';
+export * from './relay';
 export * from './serve';
+export * from './sessions';
 export * from './transports';

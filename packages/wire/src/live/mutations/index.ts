@@ -21,6 +21,13 @@ export {
   type LiveMutationSuccess,
 } from './handler';
 export {
+  createGroupInstance,
+  GroupMutationContext,
+  type GroupInitialState,
+  type GroupModelServers,
+  type LiveModelGroupInstance,
+} from './group';
+export {
   liveModelRef,
   type LiveModelData,
   type LiveModelKey,

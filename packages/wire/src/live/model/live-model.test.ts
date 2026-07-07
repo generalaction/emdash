@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { LiveModelClient } from './client';
+import { LiveModelClient, type LiveChangeMeta } from './client';
 import { LiveModelServer } from './server';
 
 const stateSchema = z.object({
@@ -16,7 +16,7 @@ function makeState(overrides: Partial<State> = {}): State {
 
 function setup(initial: State = makeState(), generation = 1000) {
   const server = new LiveModelServer<State>(initial, generation);
-  const onChange = vi.fn<(value: State) => void>();
+  const onChange = vi.fn<(value: State, meta: LiveChangeMeta) => void>();
   const refetchSnapshot = vi.fn(async () => server.snapshot());
   const client = new LiveModelClient<State>(stateSchema, refetchSnapshot, onChange);
   client.seed(server.snapshot());
@@ -60,6 +60,23 @@ describe('LiveModelServer and LiveModelClient', () => {
     );
 
     expect(updates).toMatchObject([{ mutationIds: ['m1'] }]);
+  });
+
+  it('passes seed and update metadata to onChange', () => {
+    const { server, onChange } = setup();
+    expect(onChange).toHaveBeenLastCalledWith(makeState(), { kind: 'seed' });
+
+    server.produce(
+      (draft) => {
+        draft.count = 2;
+      },
+      { mutationIds: ['m1'] }
+    );
+
+    expect(onChange).toHaveBeenLastCalledWith(makeState({ count: 2 }), {
+      kind: 'update',
+      mutationIds: ['m1'],
+    });
   });
 
   it('waits for cursors to catch up', async () => {

@@ -1,18 +1,33 @@
-import { LiveLogServer, LiveModelServer, bind, encodeTopic } from '../../src/index';
+import { ok } from '@emdash/shared';
+import {
+  LiveLogServer,
+  LiveModelRegistry,
+  LiveModelServer,
+  bindContract,
+  encodeTopic,
+  fromRegistry,
+} from '../../src/index';
 import { notesApi, type NotesState } from '../api-definition/contract';
 
+const session = { sessionId: 'demo' };
+const registry = new LiveModelRegistry();
 const notes = new LiveModelServer<NotesState>({ notes: [] }, 1000);
 const activity = new LiveLogServer({ generation: 2000 });
 
-export const notesController = bind(notesApi, {
-  procedures: {
-    addNote: ({ text }) => {
-      const note = { id: `note-${notes.snapshot().data.notes.length + 1}`, text };
-      notes.produce((draft) => {
+registry.register(notesApi.notes, session, notes);
+
+export const notesController = bindContract(notesApi, {
+  registry,
+  impl: {
+    notes: fromRegistry(),
+    activity: () => activity,
+    addNote: (ctx, input) => {
+      const note = { id: `note-${notes.snapshot().data.notes.length + 1}`, text: input.text };
+      ctx.produce(notesApi.notes, { sessionId: input.sessionId }, (draft) => {
         draft.notes.push(note);
       });
       activity.append(`added ${note.id}\n`);
-      return note;
+      return ok(note);
     },
     clearNotes: () => {
       notes.produce((draft) => {
@@ -22,23 +37,17 @@ export const notesController = bind(notesApi, {
       return notes.snapshot().data;
     },
   },
-  live: {
-    models: {
-      notes: () => notes,
-    },
-    logs: {
-      activity: () => activity,
-    },
-  },
 });
 
 async function main(): Promise<void> {
-  const session = { sessionId: 'demo' };
-  const note = await notesController.call('addNote', { ...session, text: 'Bound controller call' });
-  const topic = encodeTopic(notesApi.models.notes.id, session);
-  const snapshot = notesController.resolveLive(topic)?.snapshot();
+  const note = await notesController.call('addNote', {
+    ...session,
+    text: 'Bound controller call',
+  });
+  const topic = encodeTopic(notesApi.notes.id, session);
+  const snapshot = await notesController.resolveLive(topic)?.snapshot();
 
-  console.log('procedure result:', note);
+  console.log('mutation result:', note);
   console.log('model snapshot:', snapshot?.data);
 }
 
