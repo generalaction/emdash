@@ -1,8 +1,10 @@
 export { GitRuntime, type GitRuntimeOptions } from './git-runtime';
 export { classifyCloneRepositoryError, gitErrorMessage, toGitCommandError } from './errors';
 export { computeBaseRef } from './base-ref';
-export { createGitRouter, serveGitPort } from './api/router';
-export type { GitMessagePort, GitRouter, GitRouterHandle } from './api/router';
+export { gitRouter, serveGitPort } from './api/router';
+export type { GitMessagePort, GitRouter } from './api/router';
+export type { GitApiContext } from './api/middlewares';
+export { GitResourceCache } from './api/resources';
 export { MAX_STATUS_FILES, StatusParser, TooManyFilesChangedError } from './checkout/ops/status';
 export type { FileStatus } from './checkout/ops/status';
 export type { CheckoutLease, GitOnError, IGitRuntime, RepoLease } from './types';

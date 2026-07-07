@@ -12,7 +12,7 @@ import type { CheckoutStatusModel } from '../checkout/models/status';
 import { GitRuntime } from '../git-runtime';
 import type { GitRefsModel } from '../repository/models/refs';
 import type { GitLogOptions } from './commands';
-import { createGitRouter, serveGitPort } from './router';
+import { serveGitPort } from './router';
 
 const execFileAsync = promisify(execFile);
 
@@ -64,23 +64,34 @@ function createNoopWatcher(onRelease?: () => void): IWatchService {
 
 function makeClient(runtime: GitRuntime) {
   const { port1, port2 } = new MessageChannel();
-  const handle = createGitRouter(runtime);
-  serveGitPort(handle.router, port1);
+  serveGitPort(runtime, port1);
   port1.start();
   const link = new RPCLink({ port: port2 });
   const client = createORPCClient<TestGitClient>(link);
   return {
     client,
-    handle,
+    serverPort: port1,
     close: async () => {
-      await handle.dispose();
       port1.close();
       port2.close();
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
     },
   };
 }
 
-describe('createGitRouter', () => {
+async function waitFor(condition: () => boolean, message: string): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  while (!condition()) {
+    if (Date.now() >= deadline) throw new Error(message);
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 10);
+    });
+  }
+}
+
+describe('gitRouter', () => {
   it('serves live snapshots and streams checkout status updates', async () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
@@ -138,7 +149,7 @@ describe('createGitRouter', () => {
     }
   });
 
-  it('releases retained repository and checkout leases on dispose', async () => {
+  it('releases retained repository and checkout leases when the server port closes', async () => {
     const repo = await makeRepo();
     let releaseCount = 0;
     const runtime = new GitRuntime({
@@ -146,16 +157,71 @@ describe('createGitRouter', () => {
         releaseCount += 1;
       }),
     });
-    const { client, close } = makeClient(runtime);
+    const { client, close, serverPort } = makeClient(runtime);
 
     try {
       await client.repository.refs.snapshot({ repositoryRoot: repo });
       await client.checkout.status.snapshot({ checkoutPath: repo });
 
-      await close();
+      serverPort.close();
 
-      expect(releaseCount).toBe(2);
+      await waitFor(
+        () => releaseCount === 2,
+        `Expected server port close to release 2 retained leases, got ${releaseCount}`
+      );
     } finally {
+      await close();
+      await runtime.dispose();
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('evicts failed checkout opens so a later request retries the same key', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-git-router-non-repo-'));
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const { client, close } = makeClient(runtime);
+
+    try {
+      await expect(client.checkout.status.snapshot({ checkoutPath: directory })).rejects.toThrow();
+
+      await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
+      await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+        cwd: directory,
+      });
+      await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: directory });
+
+      const status = await client.checkout.status.snapshot({ checkoutPath: directory });
+
+      expect(status.data.kind).toBe('ok');
+    } finally {
+      await close();
+      await runtime.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('coalesces concurrent checkout requests for the same key within one session', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const originalOpenCheckout: GitRuntime['openCheckout'] = runtime.openCheckout.bind(runtime);
+    let openCount = 0;
+    runtime.openCheckout = async (checkoutPath) => {
+      openCount += 1;
+      return originalOpenCheckout(checkoutPath);
+    };
+    const { client, close } = makeClient(runtime);
+
+    try {
+      const [first, second] = await Promise.all([
+        client.checkout.status.snapshot({ checkoutPath: repo }),
+        client.checkout.status.snapshot({ checkoutPath: repo }),
+      ]);
+
+      expect(first.data.kind).toBe('ok');
+      expect(second.data.kind).toBe('ok');
+      expect(openCount).toBe(1);
+    } finally {
+      await close();
       await runtime.dispose();
       await rm(repo, { recursive: true, force: true });
     }
