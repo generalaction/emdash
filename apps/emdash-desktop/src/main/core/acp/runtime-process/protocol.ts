@@ -1,5 +1,3 @@
-import type { MessagePortMain } from 'electron';
-
 export type AcpRuntimeControlRequest =
   | {
       type: 'resolve-spawn-context';
@@ -34,9 +32,6 @@ export type AcpRuntimeControlResponse =
 
 export type AcpRuntimeHostMessage =
   | {
-      type: 'client-port';
-    }
-  | {
       type: 'shutdown';
     }
   | AcpRuntimeControlResponse;
@@ -45,7 +40,6 @@ export type AcpRuntimeChildMessage = AcpRuntimeControlRequest;
 
 export interface UtilityParentPortMessageEvent {
   data: unknown;
-  ports: MessagePortMain[];
 }
 
 export interface UtilityParentPort {

@@ -20,6 +20,8 @@ import type { LiveLogBinding, LiveBinding } from '@renderer/lib/live/live-bindin
 import { createLiveLogBinding, createLiveModelBinding } from '@renderer/lib/live/live-bindings';
 import {
   getAcpRuntimeClient,
+  getAcpRuntimeLive,
+  type AcpRuntimeLiveClient,
   type AcpRuntimeRpcClient,
   type StartSessionInput,
 } from './runtime-client';
@@ -37,47 +39,49 @@ export class AcpLiveSession {
 
   private constructor(
     readonly conversationId: string,
-    private readonly client: AcpRuntimeRpcClient
+    private readonly client: AcpRuntimeRpcClient,
+    private readonly live: AcpRuntimeLiveClient
   ) {
     this.sessionState = createLiveModelBinding({
       schema: sessionStateSchema,
-      snapshot: () => client.live.sessionState.snapshot({ conversationId }),
-      subscribe: () => client.live.sessionState.subscribe({ conversationId }),
+      snapshot: () => live.sessionState.snapshot({ conversationId }),
+      attach: (push) => live.sessionState.attach({ conversationId }, push),
     });
     this.config = createLiveModelBinding({
       schema: sessionConfigStateSchema,
-      snapshot: () => client.live.sessionConfig.snapshot({ conversationId }),
-      subscribe: () => client.live.sessionConfig.subscribe({ conversationId }),
+      snapshot: () => live.sessionConfig.snapshot({ conversationId }),
+      attach: (push) => live.sessionConfig.attach({ conversationId }, push),
     });
     this.usage = createLiveModelBinding({
       schema: sessionUsageSchema.nullable(),
-      snapshot: () => client.live.sessionUsage.snapshot({ conversationId }),
-      subscribe: () => client.live.sessionUsage.subscribe({ conversationId }),
+      snapshot: () => live.sessionUsage.snapshot({ conversationId }),
+      attach: (push) => live.sessionUsage.attach({ conversationId }, push),
     });
     this.plan = createLiveModelBinding({
       schema: planStateSchema.nullable(),
-      snapshot: () => client.live.plan.snapshot({ conversationId }),
-      subscribe: () => client.live.plan.subscribe({ conversationId }),
+      snapshot: () => live.plan.snapshot({ conversationId }),
+      attach: (push) => live.plan.attach({ conversationId }, push),
     });
     this.activeTurn = createLiveModelBinding({
       schema: transcriptTurnSchema.nullable(),
-      snapshot: () => client.live.activeTurn.snapshot({ conversationId }),
-      subscribe: () => client.live.activeTurn.subscribe({ conversationId }),
+      snapshot: () => live.activeTurn.snapshot({ conversationId }),
+      attach: (push) => live.activeTurn.attach({ conversationId }, push),
     });
     this.draft = createLiveModelBinding({
       schema: promptDraftSchema.nullable(),
-      snapshot: () => client.live.promptDraft.snapshot({ conversationId }),
-      subscribe: () => client.live.promptDraft.subscribe({ conversationId }),
+      snapshot: () => live.promptDraft.snapshot({ conversationId }),
+      attach: (push) => live.promptDraft.attach({ conversationId }, push),
     });
     this.terminals = createLiveModelBinding({
       schema: z.array(terminalStateSchema),
-      snapshot: () => client.live.terminals.snapshot({ conversationId }),
-      subscribe: () => client.live.terminals.subscribe({ conversationId }),
+      snapshot: () => live.terminals.snapshot({ conversationId }),
+      attach: (push) => live.terminals.attach({ conversationId }, push),
     });
   }
 
   static async create(conversationId: string, input?: StartSessionInput): Promise<AcpLiveSession> {
     const client = await getAcpRuntimeClient();
+    const live = getAcpRuntimeLive();
     if (input) {
       const result = await withTimeout(
         client.startSession({ input }),
@@ -87,7 +91,7 @@ export class AcpLiveSession {
         throw new Error(result.error.message ?? result.error.type);
       }
     }
-    const session = new AcpLiveSession(conversationId, client);
+    const session = new AcpLiveSession(conversationId, client, live);
     await withTimeout(
       Promise.all([
         session.sessionState.start(),
@@ -200,8 +204,8 @@ export class AcpLiveSession {
     const existing = this.terminalLogs.get(terminalId);
     if (existing) return existing;
     const binding = createLiveLogBinding({
-      snapshot: () => this.client.live.terminalOutput.snapshot({ terminalId }),
-      subscribe: () => this.client.live.terminalOutput.subscribe({ terminalId }),
+      snapshot: () => this.live.terminalOutput.snapshot({ terminalId }),
+      attach: (push) => this.live.terminalOutput.attach({ terminalId }, push),
     });
     this.terminalLogs.set(terminalId, binding);
     await binding.start();

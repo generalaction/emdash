@@ -1,9 +1,8 @@
 import { LiveLogClient, LiveModelClient } from '@emdash/core/live';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '@emdash/core/live';
+import type { Unsubscribe } from '@emdash/shared';
 import { useSyncExternalStore } from 'react';
 import type { z } from 'zod';
-
-type Unsubscribe = () => void;
 
 export interface LiveBinding<T> {
   start(): Promise<void>;
@@ -19,10 +18,10 @@ export interface LiveLogBinding extends LiveBinding<LiveLogSnapshotData> {
 export function createLiveModelBinding<T>(options: {
   schema: z.ZodType<T>;
   snapshot: () => Promise<LiveSnapshot<T>>;
-  subscribe: () => Promise<AsyncIterator<LiveUpdate>>;
+  attach: (push: (update: LiveUpdate) => void) => Promise<Unsubscribe>;
 }): LiveBinding<T> {
   const listeners = new Set<() => void>();
-  let iterator: AsyncIterator<LiveUpdate> | null = null;
+  let detach: Unsubscribe | null = null;
   let disposed = false;
   let value: T | undefined;
 
@@ -37,17 +36,30 @@ export function createLiveModelBinding<T>(options: {
 
   return {
     async start() {
+      let seeded = false;
+      const buffer: LiveUpdate[] = [];
+      detach = await options.attach((update) => {
+        if (seeded) {
+          client.applyUpdate(update);
+        } else {
+          buffer.push(update);
+        }
+      });
+      if (disposed) {
+        detach();
+        detach = null;
+        return;
+      }
       client.seed(await options.snapshot());
-      iterator = await options.subscribe();
-      void pump(
-        iterator,
-        (update) => client.applyUpdate(update),
-        () => disposed
-      );
+      seeded = true;
+      for (const update of buffer) {
+        client.applyUpdate(update);
+      }
     },
     dispose() {
       disposed = true;
-      iterator?.return?.(undefined).catch(() => {});
+      detach?.();
+      detach = null;
       listeners.clear();
     },
     getSnapshot() {
@@ -62,10 +74,10 @@ export function createLiveModelBinding<T>(options: {
 
 export function createLiveLogBinding(options: {
   snapshot: () => Promise<LiveSnapshot<LiveLogSnapshotData>>;
-  subscribe: () => Promise<AsyncIterator<LiveUpdate>>;
+  attach: (push: (update: LiveUpdate) => void) => Promise<Unsubscribe>;
 }): LiveLogBinding {
   const listeners = new Set<() => void>();
-  let iterator: AsyncIterator<LiveUpdate> | null = null;
+  let detach: Unsubscribe | null = null;
   let disposed = false;
   let value: LiveLogSnapshotData | undefined;
 
@@ -87,17 +99,30 @@ export function createLiveLogBinding(options: {
 
   return {
     async start() {
+      let seeded = false;
+      const buffer: LiveUpdate[] = [];
+      detach = await options.attach((update) => {
+        if (seeded) {
+          client.applyUpdate(update);
+        } else {
+          buffer.push(update);
+        }
+      });
+      if (disposed) {
+        detach();
+        detach = null;
+        return;
+      }
       client.seed(await options.snapshot());
-      iterator = await options.subscribe();
-      void pump(
-        iterator,
-        (update) => client.applyUpdate(update),
-        () => disposed
-      );
+      seeded = true;
+      for (const update of buffer) {
+        client.applyUpdate(update);
+      }
     },
     dispose() {
       disposed = true;
-      iterator?.return?.(undefined).catch(() => {});
+      detach?.();
+      detach = null;
       listeners.clear();
     },
     getSnapshot() {
@@ -119,20 +144,4 @@ export function useLiveModel<T>(binding: LiveBinding<T>): T | undefined {
 
 export function useLiveLog(binding: LiveLogBinding): LiveLogSnapshotData | undefined {
   return useSyncExternalStore(binding.subscribe, binding.getSnapshot, binding.getSnapshot);
-}
-
-async function pump(
-  iterator: AsyncIterator<LiveUpdate>,
-  onUpdate: (update: LiveUpdate) => void,
-  isDisposed: () => boolean
-): Promise<void> {
-  try {
-    while (!isDisposed()) {
-      const next = await iterator.next();
-      if (next.done) return;
-      onUpdate(next.value);
-    }
-  } catch {
-    // The owning connection handles reconnect by replacing the binding.
-  }
 }

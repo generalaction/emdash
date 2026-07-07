@@ -65,6 +65,10 @@
       "types": "./dist/live.d.mts",
       "default": "./dist/live.mjs"
     },
+    "./wire": {
+      "types": "./dist/wire.d.mts",
+      "default": "./dist/wire.mjs"
+    },
     "./workspace-server": {
       "types": "./dist/workspace-server.d.mts",
       "default": "./dist/workspace-server.mjs"
@@ -93,7 +97,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@orpc/client": "^1.14.6",
     "@types/node": "^20.19.42",
     "@types/semver": "^7.7.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",

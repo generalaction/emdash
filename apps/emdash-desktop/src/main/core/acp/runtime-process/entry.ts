@@ -1,5 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import { acpRouter, createAcpRuntime, type AcpRuntimeDeps } from '@emdash/core/acp';
+import {
+  AcpRuntime,
+  createAcpLiveResolver,
+  createAcpProcedures,
+  type AcpRuntimeDeps,
+} from '@emdash/core/acp';
+import { localWire, serveWire } from '@emdash/core/wire';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
 import { ChildAcpProcessHost } from './child-process-host';
@@ -22,7 +28,7 @@ if (!attachmentsDir) {
 
 const attachmentStore = new LocalAttachmentStore(attachmentsDir);
 
-const acp = createAcpRuntime(acpRouter, {
+const runtime = new AcpRuntime({
   resolveAcp: (providerId) => {
     const plugin = pluginRegistry.get(providerId);
     if (!plugin || plugin.capabilities.acp.kind !== 'supported' || !plugin.behavior.acp) {
@@ -56,24 +62,16 @@ const acp = createAcpRuntime(acpRouter, {
   logger,
 } satisfies AcpRuntimeDeps);
 
+serveWire(parentPort, localWire(createAcpProcedures(runtime), createAcpLiveResolver(runtime)));
+
 parentPort.on('message', (event) => {
   const message = event.data;
   childHost.handleMessage(message);
 
   if (!isHostMessage(message)) return;
   switch (message.type) {
-    case 'client-port': {
-      const [port] = event.ports;
-      if (!port) {
-        logger.warn('ACP runtime child received client-port without a transferable port');
-        return;
-      }
-      acp.servePort(port);
-      port.start();
-      break;
-    }
     case 'shutdown':
-      acp.runtime.killAllTerminals();
+      runtime.killAllTerminals();
       process.exit(0);
       break;
   }
@@ -98,11 +96,8 @@ function createParentLogger(port: UtilityParentPort, bindings: LogFields = {}): 
   };
 }
 
-function isHostMessage(value: unknown): value is { type: 'client-port' | 'shutdown' } {
+function isHostMessage(value: unknown): value is { type: 'shutdown' } {
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    ((value as { type?: unknown }).type === 'client-port' ||
-      (value as { type?: unknown }).type === 'shutdown')
+    typeof value === 'object' && value !== null && (value as { type?: unknown }).type === 'shutdown'
   );
 }
