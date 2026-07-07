@@ -1,21 +1,63 @@
 export { GitRuntime, type GitRuntimeOptions } from './git-runtime';
 export { classifyCloneRepositoryError, gitErrorMessage, toGitCommandError } from './errors';
 export { computeBaseRef } from './utils';
+export type { CheckoutLease, GitOnError, IGitRuntime, RepoLease } from './types';
+export type { IGitRepository } from './repository/types';
+export type { IGitCheckout } from './checkout/types';
 export type {
   CloneRepositoryError,
   CommitError,
   CreateBranchError,
   DeleteBranchError,
+  EnsureRepositoryError,
   FetchError,
   FetchPrForReviewError,
   GitCommandError,
+  MergeError,
   PullError,
   PushError,
-} from './errors';
-export type { ImageBlob, ImageReadResult, ImageUnavailableReason } from './models/diff';
-export type { GitHeadModel } from './models/head';
-export type { Commit, CommitFile, GitLogResult } from './models/log';
-export type { DiffMode, DiffTarget, GitObjectRef, MergeBaseRange } from './models/diff-target';
+  RebaseError,
+  SwitchError,
+} from './api/errors';
+export type {
+  BlameHunk,
+  BlameResult,
+  CheckoutInfo,
+  Commit,
+  CommitFile,
+  ConflictVersions,
+  DiffHunk,
+  DiffLine,
+  DiffMode,
+  DiffTarget,
+  FileDiff,
+  FileDiffStalenessEvent,
+  GitChange,
+  GitChangeStatus,
+  GitLogResult,
+  GitObjectRef,
+  GitPathInspection,
+  GitRepositoryInfo,
+  ImageBlob,
+  ImageReadResult,
+  ImageUnavailableReason,
+  MergeBaseRange,
+} from './api/queries';
+export type {
+  AddCheckoutOptions,
+  CommitOptions,
+  CreateBranchOptions,
+  EnsureRepositoryOptions,
+  FetchPrForReviewOptions,
+  GitLogOptions,
+  MergeOptions,
+  PushOptions,
+  RebaseOptions,
+  ResetMode,
+  StashPushOptions,
+  SwitchOptions,
+  TagOptions,
+} from './api/commands';
 export type {
   GitBranch,
   GitBranchRef,
@@ -23,47 +65,17 @@ export type {
   GitRefsModel,
   GitRemote,
   GitRemoteBranchRef,
-  GitRemotesModel,
+  GitTag,
   LocalBranch,
   RemoteBranch,
-} from './models/refs';
+} from './repository/models/refs';
+export type { GitRemotesModel } from './repository/models/remotes';
+export type { GitStash, GitStashesModel } from './repository/models/stashes';
+export type { GitHeadModel } from './checkout/models/head';
 export type {
-  GitChange,
-  GitChangeStatus,
-  GitStatusData,
-  GitStatusError,
-  GitStatusFingerprint,
-  GitStatusModel,
-  GitStatusUntrackedMode,
-} from './models/status';
-export type {
-  CreateBranchOptions,
-  FetchPrForReviewOptions,
-  EnsureRepositoryError,
-  EnsureRepositoryOptions,
-  GitLogOptions,
-  GitModelByKind,
-  GitModelKind,
-  GitPathInspection,
-  GitModelUpdate,
-  GitRepositoryInfo,
-  GitRepoModelKind,
-  GitRepoSnapshot,
-  GitRepoUpdate,
-  GitSequences,
-  GitWorktreeModelKind,
-  GitWorktreeSnapshot,
-  GitWorktreeUpdate,
-  IGitRepository,
-  IGitRuntime,
-  IGitWorktree,
-  RepoLease,
-  SubscribedSnapshot,
-  WorktreeLease,
-} from './types';
-export {
-  MAX_STATUS_FILES,
-  StatusParser,
-  TooManyFilesChangedError,
-  type FileStatus,
-} from './parsers/status-parser';
+  CheckoutOperation,
+  CheckoutStatusModel,
+  CheckoutStatusSummary,
+  FileGitStatus,
+  GitStatusCode,
+} from './checkout/models/status';

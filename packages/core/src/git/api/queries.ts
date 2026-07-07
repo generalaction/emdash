@@ -177,3 +177,20 @@ export const gitPathInspectionSchema = z.union([
   z.object({ kind: z.literal('inspect-failed'), path: z.string(), message: z.string() }),
 ]);
 export type GitPathInspection = z.infer<typeof gitPathInspectionSchema>;
+
+export function toRefString(ref: GitObjectRef): string {
+  switch (ref.kind) {
+    case 'branch':
+      return ref.branch.type === 'remote'
+        ? `${ref.branch.remote.name}/${ref.branch.branch}`
+        : ref.branch.branch;
+    case 'commit':
+      return ref.sha;
+    case 'tag':
+      return ref.name;
+  }
+}
+
+export function toRangeString(range: MergeBaseRange): string {
+  return `${toRefString(range.base)}...${toRefString(range.head)}`;
+}

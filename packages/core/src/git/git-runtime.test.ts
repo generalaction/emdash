@@ -217,13 +217,18 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime({ watcher });
     try {
       const repoLease = await runtime.openRepository(repo);
-      const worktreeLease = await runtime.openWorktree(linked);
+      const checkoutLease = await runtime.openCheckout(linked);
       const commonDir = await realpath(path.join(repo, '.git'));
 
       expect(repoLease.value.gitCommonDir).toBe(commonDir);
-      expect(worktreeLease.value.repository).toBe(repoLease.value);
+      expect(checkoutLease.value.checkoutPath).toBe(await realpath(linked));
 
-      await worktreeLease.release();
+      // The checkout's repository lease resolves to the same shared instance.
+      const linkedRepoLease = await runtime.openRepository(linked);
+      expect(linkedRepoLease.value).toBe(repoLease.value);
+      await linkedRepoLease.release();
+
+      await checkoutLease.release();
       await repoLease.release();
     } finally {
       await runtime.dispose();
@@ -266,19 +271,24 @@ describe('GitRuntime', () => {
     expect(disposed).toBe(true);
   });
 
-  it('resolves git identity once when opening a cold worktree', async () => {
+  it('resolves git identity once when opening a cold checkout', async () => {
     const repo = await makeRepo();
     const { executable, logPath } = await makeRecordingGitExecutable();
     const runtime = new GitRuntime({ executable, watcher: createNoopWatcher() });
 
     try {
-      const lease = await runtime.openWorktree(repo);
+      const lease = await runtime.openCheckout(repo);
       await lease.release();
     } finally {
       await runtime.dispose();
     }
 
     const calls = (await readFile(logPath, 'utf8')).trim().split('\n').filter(Boolean);
-    expect(calls.filter((call) => call.startsWith('rev-parse '))).toHaveLength(4);
+    // Identity resolution (toplevel + 3 path lookups) runs once, shared by the
+    // repository and checkout constructions.
+    expect(calls.filter((call) => call.startsWith('rev-parse --show-toplevel'))).toHaveLength(1);
+    expect(
+      calls.filter((call) => call.startsWith('rev-parse --path-format=absolute'))
+    ).toHaveLength(3);
   });
 });

@@ -3,28 +3,22 @@ import { err, ok, type Lease, type Result } from '@emdash/shared';
 import type { BoundExec } from '../exec';
 import { KeyedMutex, ResourceMap } from '../lib';
 import { WatchService, realpathOrResolve, type IWatchService } from '../watch';
+import type { EnsureRepositoryOptions } from './api/commands';
+import type { CloneRepositoryError, EnsureRepositoryError } from './api/errors';
+import type { GitPathInspection, GitRepositoryInfo } from './api/queries';
+import { GitCheckout } from './checkout/git-checkout';
 import {
   classifyCloneRepositoryError,
   gitErrorMessage,
   isNotRepositoryInspectionError,
 } from './errors';
-import type { CloneRepositoryError } from './errors';
 import { createGitExec } from './git-env';
-import { GitRepository, type GitOnError } from './git-repository';
-import { GitWorktree } from './git-worktree';
-import type {
-  EnsureRepositoryError,
-  EnsureRepositoryOptions,
-  GitPathInspection,
-  GitRepositoryInfo,
-  IGitRuntime,
-  RepoLease,
-  WorktreeLease,
-} from './types';
+import { GitRepository } from './repository/git-repository';
+import type { CheckoutLease, GitOnError, IGitRuntime, RepoLease } from './types';
 import { computeBaseRef } from './utils';
 
-type WorktreeResource = {
-  worktree: GitWorktree;
+type CheckoutResource = {
+  checkout: GitCheckout;
   repositoryLease: Lease<GitRepository>;
 };
 
@@ -49,7 +43,7 @@ export type GitRuntimeOptions = {
 
 export class GitRuntime implements IGitRuntime {
   private readonly repositories: ResourceMap<GitRepository>;
-  private readonly worktrees: ResourceMap<WorktreeResource>;
+  private readonly checkouts: ResourceMap<CheckoutResource>;
   private readonly mutex: KeyedMutex;
   private readonly exec: BoundExec;
   private readonly watcher: IWatchService;
@@ -79,9 +73,9 @@ export class GitRuntime implements IGitRuntime {
         void this.disposeIfIdle();
       },
     });
-    this.worktrees = new ResourceMap<WorktreeResource>({
+    this.checkouts = new ResourceMap<CheckoutResource>({
       teardown: async (_key, resource) => {
-        await resource.worktree.dispose();
+        await resource.checkout.dispose();
         await resource.repositoryLease.release();
       },
       onError: this.onError,
@@ -164,62 +158,49 @@ export class GitRuntime implements IGitRuntime {
     return this.acquireRepository(identity);
   }
 
-  async openWorktree(worktreePath: string): Promise<WorktreeLease> {
+  async openCheckout(checkoutPath: string): Promise<CheckoutLease> {
     this.assertOpen();
-    const identity = await this.resolveIdentity(worktreePath);
-    const lease = await this.worktrees.acquire(identity.topLevel, async () => {
+    const identity = await this.resolveIdentity(checkoutPath);
+    const lease = await this.checkouts.acquire(identity.topLevel, async () => {
       const repositoryLease = await this.acquireRepository(identity);
       try {
-        const worktree = new GitWorktree({
-          worktree: identity.topLevel,
+        const checkout = await GitCheckout.create({
+          checkoutPath: identity.topLevel,
           gitDir: identity.gitDir,
           repository: repositoryLease.value,
           exec: this.exec.withCwd(identity.topLevel),
           watcher: this.watcher,
           onError: this.onError,
         });
-        try {
-          await worktree.ready();
-        } catch (error) {
-          await worktree.dispose();
-          throw error;
-        }
-        return { worktree, repositoryLease };
+        return { checkout, repositoryLease };
       } catch (error) {
         await repositoryLease.release();
         throw error;
       }
     });
-    return { value: lease.value.worktree, release: lease.release };
+    return { value: lease.value.checkout, release: lease.release };
   }
 
   async dispose(): Promise<void> {
     this.disposeRequested = true;
     const repositoriesDisposed = this.repositories.dispose();
-    const worktreesDisposed = this.worktrees.dispose();
-    await worktreesDisposed;
+    const checkoutsDisposed = this.checkouts.dispose();
+    await checkoutsDisposed;
     await repositoriesDisposed;
     await this.disposeIfIdle();
   }
 
   private async acquireRepository(identity: GitIdentity): Promise<Lease<GitRepository>> {
-    return this.repositories.acquire(identity.gitCommonDir, async () => {
-      const repository = new GitRepository({
+    return this.repositories.acquire(identity.gitCommonDir, () =>
+      GitRepository.create({
         gitCommonDir: identity.gitCommonDir,
         objectStoreDir: identity.objectStoreDir,
         exec: this.exec.withCwd(identity.topLevel),
         watcher: this.watcher,
         objectStoreMutex: this.mutex,
         onError: this.onError,
-      });
-      try {
-        await repository.ready();
-      } catch (error) {
-        await repository.dispose();
-        throw error;
-      }
-      return repository;
-    });
+      })
+    );
   }
 
   private async resolveIdentity(pathInsideRepo: string): Promise<GitIdentity> {
@@ -305,7 +286,7 @@ export class GitRuntime implements IGitRuntime {
 
   private async disposeIfIdle(): Promise<void> {
     if (!this.disposeRequested) return;
-    if (!this.worktrees.idle || !this.repositories.idle) return;
+    if (!this.checkouts.idle || !this.repositories.idle) return;
     if (this.ownsWatcher) await this.watcher.dispose();
   }
 }

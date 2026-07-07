@@ -1,4 +1,4 @@
-import type { GitChangeStatus } from '../models/status';
+import type { GitChangeStatus } from '../api/queries';
 
 export function mapGitChangeStatus(code: string): GitChangeStatus {
   if (code.includes('U') || code === 'AA' || code === 'DD') return 'conflicted';

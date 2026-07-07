@@ -1,63 +1,18 @@
 import { ExecError } from '../exec';
-
-export type GitCommandError = {
-  type: 'git_error';
-  message: string;
-  stderr?: string;
-};
-
-export type CloneRepositoryError =
-  | { type: 'target_exists'; path: string; message: string }
-  | { type: 'auth_failed'; message: string }
-  | { type: 'remote_not_found'; message: string }
-  | GitCommandError;
-
-export type FetchError =
-  | { type: 'no_remote'; message?: string }
-  | { type: 'remote_not_found'; remote?: string; message: string }
-  | { type: 'auth_failed'; message: string }
-  | { type: 'network_error'; message: string }
-  | GitCommandError;
-
-export type CommitError =
-  | { type: 'nothing_to_commit'; message: string }
-  | { type: 'empty_message'; message: string }
-  | { type: 'hook_failed'; message: string }
-  | GitCommandError;
-
-export type PushError =
-  | { type: 'no_remote'; message?: string }
-  | { type: 'no_upstream'; message: string }
-  | { type: 'rejected'; message: string }
-  | { type: 'auth_failed'; message: string }
-  | { type: 'network_error'; message: string }
-  | { type: 'hook_rejected'; message: string }
-  | GitCommandError;
-
-export type PullError =
-  | { type: 'conflict'; message: string; conflictedFiles?: string[] }
-  | { type: 'no_upstream'; message: string }
-  | { type: 'diverged'; message: string }
-  | { type: 'auth_failed'; message: string }
-  | { type: 'network_error'; message: string }
-  | GitCommandError;
-
-export type CreateBranchError =
-  | { type: 'already_exists'; branch: string; message: string }
-  | { type: 'invalid_name'; branch: string; message: string }
-  | { type: 'invalid_base'; branch: string; from: string; message: string }
-  | { type: 'fetch_failed'; remote: string; branch: string; error: FetchError }
-  | GitCommandError;
-
-export type FetchPrForReviewError =
-  | { type: 'not_found'; prNumber: number; message: string }
-  | GitCommandError;
-
-export type DeleteBranchError =
-  | { type: 'not_found'; branch: string; message: string }
-  | { type: 'not_merged'; branch: string; message: string }
-  | { type: 'is_current'; branch: string; message: string }
-  | GitCommandError;
+import type {
+  CloneRepositoryError,
+  CommitError,
+  CreateBranchError,
+  DeleteBranchError,
+  FetchError,
+  FetchPrForReviewError,
+  GitCommandError,
+  MergeError,
+  PullError,
+  PushError,
+  RebaseError,
+  SwitchError,
+} from './api/errors';
 
 function errorStringProperty(error: unknown, property: 'stdout' | 'stderr' | 'message'): string {
   if (!error || typeof error !== 'object' || !(property in error)) return '';
@@ -207,10 +162,12 @@ export function classifyPushError(error: unknown): PushError {
   return commandError;
 }
 
-export function classifyPullError(error: unknown): PullError {
+export function classifyPullError(error: unknown, conflictedFiles?: string[]): PullError {
   const commandError = toGitCommandError(error);
   const message = commandError.message.toLowerCase();
-  if (message.includes('conflict')) return { type: 'conflict', message: commandError.message };
+  if (message.includes('conflict')) {
+    return { type: 'conflict', message: commandError.message, conflictedFiles };
+  }
   if (
     message.includes('there is no tracking information') ||
     message.includes('no tracking information') ||
@@ -259,6 +216,56 @@ export function classifyCreateBranchError(
   }
   if (stderr.includes('not a valid branch name')) {
     return { type: 'invalid_name', branch, message: commandError.message };
+  }
+  return commandError;
+}
+
+export function classifyMergeError(error: unknown, conflictedFiles?: string[]): MergeError {
+  const commandError = toGitCommandError(error);
+  const message = commandError.message.toLowerCase();
+  if (message.includes('conflict')) {
+    return { type: 'conflict', message: commandError.message, conflictedFiles };
+  }
+  if (message.includes('already up to date') || message.includes('already up-to-date')) {
+    return { type: 'already_up_to_date', message: commandError.message };
+  }
+  return commandError;
+}
+
+export function classifyRebaseError(error: unknown, conflictedFiles?: string[]): RebaseError {
+  const commandError = toGitCommandError(error);
+  const message = commandError.message.toLowerCase();
+  if (message.includes('conflict') || message.includes('could not apply')) {
+    return { type: 'conflict', message: commandError.message, conflictedFiles };
+  }
+  if (
+    message.includes('nothing to rebase') ||
+    message.includes('no rebase in progress') ||
+    message.includes('is up to date')
+  ) {
+    return { type: 'nothing_to_rebase', message: commandError.message };
+  }
+  return commandError;
+}
+
+export function classifySwitchError(error: unknown, ref: string): SwitchError {
+  const commandError = toGitCommandError(error);
+  const message = commandError.message.toLowerCase();
+  if (
+    message.includes('would be overwritten') ||
+    message.includes('local changes') ||
+    message.includes('commit your changes or stash them')
+  ) {
+    return { type: 'local_changes', message: commandError.message };
+  }
+  if (
+    message.includes('invalid reference') ||
+    message.includes('did not match any') ||
+    message.includes('unknown revision') ||
+    message.includes('pathspec') ||
+    message.includes('not a valid object name')
+  ) {
+    return { type: 'not_found', ref, message: commandError.message };
   }
   return commandError;
 }
