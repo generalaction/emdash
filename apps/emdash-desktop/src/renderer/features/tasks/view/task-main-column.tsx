@@ -100,6 +100,7 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
     <DndContext
       sensors={sensors}
       collisionDetection={pointerWithin}
+      autoScroll={false}
       onDragStart={({ active }) => setActiveDragId(active.id as string)}
       onDragEnd={(event) => {
         setActiveDragId(null);
