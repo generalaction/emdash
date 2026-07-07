@@ -17,6 +17,7 @@ const v0Schema = z.object({
     'featurebase',
     'asana',
     'monday',
+    'notion',
     'trello',
   ]),
   url: z.string(),
