@@ -1,8 +1,8 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { BoundExec } from '../../exec';
-import type { GitCommandError } from '../api/errors';
-import type { BlameHunk, BlameResult } from '../api/queries';
-import { toGitCommandError } from '../errors';
+import type { BoundExec } from '../../../exec';
+import type { GitCommandError } from '../../api/errors';
+import type { BlameHunk, BlameResult } from '../../api/queries';
+import { toGitCommandError } from '../../errors';
 
 const GROUP_HEADER_RE = /^([0-9a-f]{40}) (\d+) (\d+)(?: (\d+))?$/;
 

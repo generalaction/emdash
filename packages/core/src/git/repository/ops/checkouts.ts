@@ -1,5 +1,5 @@
-import type { CheckoutInfo } from '../api/queries';
-import type { GitHeadModel } from '../checkout/models/head';
+import type { CheckoutInfo } from '../../api/queries';
+import type { GitHeadModel } from '../../checkout/models/head';
 
 const UNBORN_OID = /^0+$/;
 

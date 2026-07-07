@@ -50,24 +50,24 @@ import {
   toGitCommandError,
 } from '../errors';
 import { classifyGitWatchEvents } from '../watch/classifier';
-import { blame as readBlame } from './blame';
+import { blame as readBlame } from './ops/blame';
 import {
   extractHunkPatch,
   getChangedFiles as readChangedFiles,
   getUntrackedFileDiff,
   parseUnifiedFileDiff,
   resolveDiffTarget,
-} from './diff';
-import { computeHeadModel } from './head';
-import { getImageBlob } from './images';
+} from './ops/diff';
+import { computeHeadModel } from './ops/head';
+import { getImageBlob } from './ops/images';
 import {
   getCommit as readCommit,
   getCommitFiles as readCommitFiles,
   getLog as readLog,
-} from './log';
+} from './ops/log';
 import type { GitHeadModel } from './models/head';
 import type { CheckoutStatusModel } from './models/status';
-import { computeStatusModel } from './status';
+import { computeStatusModel } from './ops/status';
 import type { CheckoutRepository, GitCheckoutOptions, IGitCheckout } from './types';
 
 const WATCH_DEBOUNCE_MS = 100;

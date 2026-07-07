@@ -1,6 +1,6 @@
-import type { BoundExec } from '../../exec';
-import type { GitRemote } from './models/refs';
-import type { GitRemotesModel } from './models/remotes';
+import type { BoundExec } from '../../../exec';
+import type { GitRemote } from '../models/refs';
+import type { GitRemotesModel } from '../models/remotes';
 
 export async function computeRemotesModel(exec: BoundExec): Promise<GitRemotesModel> {
   const { stdout } = await exec.exec(['remote', '-v']);

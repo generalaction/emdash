@@ -28,14 +28,14 @@ import {
   toGitCommandError,
 } from '../errors';
 import { classifyGitWatchEvents } from '../watch/classifier';
-import { CatFileBatch } from './cat-file-batch';
-import { parseWorktreeList } from './checkouts';
+import { CatFileBatch } from './ops/cat-file-batch';
+import { parseWorktreeList } from './ops/checkouts';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';
 import type { GitStashesModel } from './models/stashes';
-import { computeRefsModel } from './refs';
-import { computeRemotesModel, remoteNameForRepositoryUrl } from './remotes';
-import { computeStashesModel } from './stashes';
+import { computeRefsModel } from './ops/refs';
+import { computeRemotesModel, remoteNameForRepositoryUrl } from './ops/remotes';
+import { computeStashesModel } from './ops/stashes';
 import type { CheckoutWatchRegistration, GitRepositoryOptions, IGitRepository } from './types';
 
 const WATCH_DEBOUNCE_MS = 100;

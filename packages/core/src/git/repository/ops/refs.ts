@@ -1,5 +1,5 @@
-import type { BoundExec } from '../../exec';
-import type { GitBranch, GitRefsModel, GitRemote, GitTag } from './models/refs';
+import type { BoundExec } from '../../../exec';
+import type { GitBranch, GitRefsModel, GitRemote, GitTag } from '../models/refs';
 
 const FIELD_SEPARATOR = '\u0000';
 

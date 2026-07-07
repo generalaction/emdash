@@ -1,5 +1,5 @@
-import type { BoundExec } from '../../exec';
-import type { GitHeadModel } from './models/head';
+import type { BoundExec } from '../../../exec';
+import type { GitHeadModel } from '../models/head';
 
 /** Throws when the path is not a git repository; callers keep the previous model. */
 export async function computeHeadModel(exec: BoundExec): Promise<GitHeadModel> {

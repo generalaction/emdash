@@ -1,6 +1,6 @@
-import { ExecError, type BoundExec } from '../../exec';
-import type { DiffHunk, DiffLine, DiffTarget, FileDiff, GitChange } from '../api/queries';
-import { toRangeString, toRefString } from '../api/queries';
+import { ExecError, type BoundExec } from '../../../exec';
+import type { DiffHunk, DiffLine, DiffTarget, FileDiff, GitChange } from '../../api/queries';
+import { toRangeString, toRefString } from '../../api/queries';
 import { parseNumstat } from './log';
 import { mapGitChangeStatus } from './status';
 

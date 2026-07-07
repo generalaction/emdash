@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { IDisposable } from '@emdash/shared';
-import type { BoundExec } from '../../exec';
+import type { BoundExec } from '../../../exec';
 
 const REQUEST_TIMEOUT_MS = 5_000;
 

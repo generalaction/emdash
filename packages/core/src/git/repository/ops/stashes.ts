@@ -1,5 +1,5 @@
-import type { BoundExec } from '../../exec';
-import type { GitStash, GitStashesModel } from './models/stashes';
+import type { BoundExec } from '../../../exec';
+import type { GitStash, GitStashesModel } from '../models/stashes';
 
 const FIELD_SEPARATOR = '\u0000';
 

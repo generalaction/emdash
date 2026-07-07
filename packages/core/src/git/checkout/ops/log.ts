@@ -1,7 +1,7 @@
-import type { BoundExec } from '../../exec';
-import type { GitLogOptions } from '../api/commands';
-import type { Commit, CommitFile, GitLogResult } from '../api/queries';
-import { toRefString } from '../api/queries';
+import type { BoundExec } from '../../../exec';
+import type { GitLogOptions } from '../../api/commands';
+import type { Commit, CommitFile, GitLogResult } from '../../api/queries';
+import { toRefString } from '../../api/queries';
 import { mapGitChangeStatus } from './status';
 
 export type Numstat = Map<string, { additions: number; deletions: number }>;
