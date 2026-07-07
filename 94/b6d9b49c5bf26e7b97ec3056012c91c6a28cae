@@ -1,0 +1,29 @@
+packages/plugins/src/integrations/impl/notion/icon.ts
+  s_7d3fddbe904614::t_c94c552069510f 3-5,12
+apps/emdash-desktop/src/assets/images/mcp/notion.svg
+  s_baceec646c7ab0::t_2cbbbf69886f0c 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "94b6d9b49c5bf26e7b97ec3056012c91c6a28cae",
+  "prompts": {},
+  "sessions": {
+    "s_7d3fddbe904614": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lIfNVn3YKhz6pGaHvKV",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_baceec646c7ab0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3c3a-8b0d-7470-819e-ff3ea2f626f3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
