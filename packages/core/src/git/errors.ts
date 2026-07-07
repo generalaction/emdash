@@ -51,6 +51,9 @@ export function classifyCloneRepositoryError(
   ) {
     return { type: 'target_exists', path: targetPath, message: commandError.message };
   }
+  if (isAuthRequiredMessage(message)) {
+    return { type: 'auth_required', message: commandError.message };
+  }
   if (message.includes('authentication') || message.includes('permission denied')) {
     return { type: 'auth_failed', message: commandError.message };
   }
@@ -72,6 +75,9 @@ export function classifyFetchError(error: unknown, remote: string | undefined): 
     message.includes('no remote configured')
   ) {
     return { type: 'no_remote', message: commandError.message };
+  }
+  if (isAuthRequiredMessage(message)) {
+    return { type: 'auth_required', message: commandError.message };
   }
   if (message.includes('authentication') || message.includes('permission denied')) {
     return { type: 'auth_failed', message: commandError.message };
@@ -103,6 +109,9 @@ export function classifyFetchPrForReviewError(
 ): FetchPrForReviewError {
   const commandError = toGitCommandError(error);
   const message = commandError.message.toLowerCase();
+  if (isAuthRequiredMessage(message)) {
+    return { type: 'auth_required', message: commandError.message };
+  }
   if (
     message.includes('not found') ||
     message.includes("couldn't find remote ref") ||
@@ -144,6 +153,9 @@ export function classifyPushError(error: unknown): PushError {
   if (message.includes('rejected') || message.includes('non-fast-forward')) {
     return { type: 'rejected', message: commandError.message };
   }
+  if (isAuthRequiredMessage(message)) {
+    return { type: 'auth_required', message: commandError.message };
+  }
   if (message.includes('authentication') || message.includes('permission denied')) {
     return { type: 'auth_failed', message: commandError.message };
   }
@@ -182,6 +194,9 @@ export function classifyPullError(error: unknown, conflictedFiles?: string[]): P
   ) {
     return { type: 'diverged', message: commandError.message };
   }
+  if (isAuthRequiredMessage(message)) {
+    return { type: 'auth_required', message: commandError.message };
+  }
   if (message.includes('authentication') || message.includes('permission denied')) {
     return { type: 'auth_failed', message: commandError.message };
   }
@@ -195,6 +210,18 @@ export function classifyPullError(error: unknown, conflictedFiles?: string[]): P
     return { type: 'network_error', message: commandError.message };
   }
   return commandError;
+}
+
+function isAuthRequiredMessage(message: string): boolean {
+  return (
+    message.includes('could not read username') ||
+    message.includes('authentication failed') ||
+    message.includes('permission denied (publickey') ||
+    message.includes('terminal prompts disabled') ||
+    message.includes('the requested url returned error: 401') ||
+    message.includes('the requested url returned error: 403') ||
+    /\bhttp\s+(401|403)\b/.test(message)
+  );
 }
 
 export function classifyCreateBranchError(

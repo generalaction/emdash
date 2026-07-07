@@ -10,4 +10,11 @@ describe('gitEnv', () => {
       GIT_TERMINAL_PROMPT: '0',
     });
   });
+
+  it('defaults SSH to batch mode without overriding caller configuration', () => {
+    expect(gitEnv({ GIT_SSH_COMMAND: undefined }).GIT_SSH_COMMAND).toBe('ssh -o BatchMode=yes');
+    expect(gitEnv({ GIT_SSH_COMMAND: 'ssh -F custom-config' }).GIT_SSH_COMMAND).toBe(
+      'ssh -F custom-config'
+    );
+  });
 });

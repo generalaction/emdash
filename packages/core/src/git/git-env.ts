@@ -12,9 +12,12 @@ export type CreateGitExecOptions = {
  * never merges `process.env`.
  */
 export function gitEnv(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return {
+  const env = {
     ...process.env,
     ...extra,
+  };
+  return {
+    ...env,
     LC_ALL: 'C',
     LANG: 'C',
     LANGUAGE: 'C',
@@ -22,6 +25,7 @@ export function gitEnv(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     GCM_INTERACTIVE: 'never',
     GIT_ASKPASS: '',
     SSH_ASKPASS: '',
+    ...(env.GIT_SSH_COMMAND ? {} : { GIT_SSH_COMMAND: 'ssh -o BatchMode=yes' }),
   };
 }
 

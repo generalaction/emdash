@@ -10,6 +10,7 @@ export type GitCommandError = z.infer<typeof gitCommandErrorSchema>;
 
 export const cloneRepositoryErrorSchema = z.union([
   z.object({ type: z.literal('target_exists'), path: z.string(), message: z.string() }),
+  z.object({ type: z.literal('auth_required'), message: z.string() }),
   z.object({ type: z.literal('auth_failed'), message: z.string() }),
   z.object({ type: z.literal('remote_not_found'), message: z.string() }),
   gitCommandErrorSchema,
@@ -30,6 +31,7 @@ export const fetchErrorSchema = z.union([
     remote: z.string().optional(),
     message: z.string(),
   }),
+  z.object({ type: z.literal('auth_required'), message: z.string() }),
   z.object({ type: z.literal('auth_failed'), message: z.string() }),
   z.object({ type: z.literal('network_error'), message: z.string() }),
   gitCommandErrorSchema,
@@ -48,6 +50,7 @@ export const pushErrorSchema = z.union([
   z.object({ type: z.literal('no_remote'), message: z.string().optional() }),
   z.object({ type: z.literal('no_upstream'), message: z.string() }),
   z.object({ type: z.literal('rejected'), message: z.string() }),
+  z.object({ type: z.literal('auth_required'), message: z.string() }),
   z.object({ type: z.literal('auth_failed'), message: z.string() }),
   z.object({ type: z.literal('network_error'), message: z.string() }),
   z.object({ type: z.literal('hook_rejected'), message: z.string() }),
@@ -63,6 +66,7 @@ export const pullErrorSchema = z.union([
   }),
   z.object({ type: z.literal('no_upstream'), message: z.string() }),
   z.object({ type: z.literal('diverged'), message: z.string() }),
+  z.object({ type: z.literal('auth_required'), message: z.string() }),
   z.object({ type: z.literal('auth_failed'), message: z.string() }),
   z.object({ type: z.literal('network_error'), message: z.string() }),
   gitCommandErrorSchema,
@@ -94,6 +98,7 @@ export type CreateBranchError = z.infer<typeof createBranchErrorSchema>;
 
 export const fetchPrForReviewErrorSchema = z.union([
   z.object({ type: z.literal('not_found'), prNumber: z.number().int(), message: z.string() }),
+  z.object({ type: z.literal('auth_required'), message: z.string() }),
   gitCommandErrorSchema,
 ]);
 export type FetchPrForReviewError = z.infer<typeof fetchPrForReviewErrorSchema>;
