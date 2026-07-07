@@ -58,6 +58,11 @@ export const themeSchema = z
 
 export const defaultAgentSchema = z.optional(z.enum(AGENT_PROVIDER_IDS)).default(DEFAULT_AGENT_ID);
 
+export const generationSettingsSchema = z.object({
+  provider: z.enum(AGENT_PROVIDER_IDS),
+  model: z.string(),
+});
+
 export const keyboardSettingsSchema = z
   .optional(
     z.object(
@@ -137,6 +142,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   defaultAgent: defaultAgentSchema,
+  generation: generationSettingsSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
@@ -154,6 +160,7 @@ export const appSettingsSchema = z.object({
   project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   defaultAgent: defaultAgentSchema,
+  generation: generationSettingsSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,

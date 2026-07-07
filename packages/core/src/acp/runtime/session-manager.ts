@@ -75,13 +75,15 @@ export class SessionManager implements InboundRouter {
     const existing = this.cells.get(input.conversationId);
     if (existing) return ok({ sessionId: existing.cell.acpSessionId });
 
-    this.upsertSessionSummary(input, null, {
-      lifecycle: 'starting',
-      isGenerating: false,
-      pendingPermissionCount: 0,
-      backgroundAgentCount: 0,
-      queuedPromptCount: 0,
-    });
+    if (!input.ephemeral) {
+      this.upsertSessionSummary(input, null, {
+        lifecycle: 'starting',
+        isGenerating: false,
+        pendingPermissionCount: 0,
+        backgroundAgentCount: 0,
+        queuedPromptCount: 0,
+      });
+    }
 
     const binding = this.deps.resolveAcp(input.providerId);
     if (!binding) {
@@ -158,9 +160,11 @@ export class SessionManager implements InboundRouter {
       }
 
       this.registerRoute(connection.key, record.cell.acpSessionId, input.conversationId);
-      void this.deps
-        .persistSessionId(input.conversationId, record.cell.acpSessionId)
-        .catch(() => {});
+      if (!input.ephemeral) {
+        void this.deps
+          .persistSessionId(input.conversationId, record.cell.acpSessionId)
+          .catch(() => {});
+      }
 
       this.syncRecord(record);
       return ok({ sessionId: record.cell.acpSessionId });
@@ -474,6 +478,7 @@ export class SessionManager implements InboundRouter {
       queuedPromptCount?: number;
     }
   ): void {
+    if (input.ephemeral) return;
     const summary: SessionSummary = {
       conversationId: input.conversationId,
       projectId: input.projectId,

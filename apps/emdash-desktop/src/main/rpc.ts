@@ -10,6 +10,7 @@ import { editorBufferController } from './core/editor/controller';
 import { machineFilesController } from './core/files/controller';
 import { workspaceFileSystemController } from './core/files/file-system/controller';
 import { fileTreeController } from './core/files/file-tree/controller';
+import { generationController } from './core/generation/controller';
 import { gitRepositoryController } from './core/git/repository/controller';
 import { gitWorktreeController } from './core/git/worktree/controller';
 import { githubController } from './core/github/controller';
@@ -51,6 +52,7 @@ export const rpcRouter = createRPCRouter({
   pty: ptyController,
   resourceMonitor: resourceMonitorController,
   files: machineFilesController,
+  generation: generationController,
   github: githubController,
   integrations: integrationsController,
   issues: issueController,
