@@ -1,0 +1,41 @@
+apps/emdash-desktop/src/main/core/generation/controller.ts
+  s_2348dbfb686dbe::t_2939441cd72871 172-175,185,187-188
+  s_6405f9ef82881e::t_81715d59ea22fc 2,11,190-192,205-206,209-212,214-218,221,224,226,229-230,233-240,242-244,246-256
+  s_347703490b79f5::t_796e35af85f635 38,74,186,189,203-204,213,222-223
+  s_347703490b79f5::t_a60fb03697b1e9 202
+  s_6405f9ef82881e::t_8c74552158a91c 257-258
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/create-pr-modal.tsx
+  s_2348dbfb686dbe::t_2939441cd72871 145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4218fe2dfa6d85eb75ffab7716f7baedd1c3f8ce",
+  "prompts": {},
+  "sessions": {
+    "s_2348dbfb686dbe": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lV4UllmjZhRbKmuzQIc",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_347703490b79f5": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lVLJ6IxUNqzvRiLA5Dm",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_6405f9ef82881e": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lVIwKLJ6oTdlmmyROqK",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
