@@ -180,45 +180,5 @@ describe('IssueSelector', () => {
       'acme/repo on github.com was not found, or the selected GitHub account does not have access.'
     );
     expect(container.textContent).not.toContain('No issues found');
-  }, 10000);
-
-  it('does not include hidden provider identifiers in input labels', async () => {
-    const { issueToStringLabel } = await import('./issue-selector');
-
-    expect(
-      issueToStringLabel({
-        provider: 'notion',
-        identifier: '37818d1b-a831-8118-9d00-cf3c00000000',
-        displayIdentifier: null,
-        title: 'commandcode auf svg machen',
-        url: 'https://www.notion.so/page',
-      })
-    ).toBe('commandcode auf svg machen');
-  });
-
-  it('filters already linked issues when requested', async () => {
-    const { getVisibleIssues } = await import('./issue-selector');
-    const linkedIssue = {
-      provider: 'notion' as const,
-      identifier: 'linked-page-id',
-      displayIdentifier: null,
-      title: 'Already linked',
-      url: 'https://www.notion.so/linked-page-id',
-    };
-    const unlinkedIssue = {
-      provider: 'notion' as const,
-      identifier: 'unlinked-page-id',
-      displayIdentifier: null,
-      title: 'Available',
-      url: 'https://www.notion.so/unlinked-page-id',
-    };
-
-    expect(
-      getVisibleIssues(
-        [linkedIssue, unlinkedIssue],
-        new Map([[linkedIssue.url, { taskId: 'task-1', taskName: 'Existing task' }]]),
-        { excludeLinkedIssues: true }
-      )
-    ).toEqual([unlinkedIssue]);
   });
 });

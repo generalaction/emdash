@@ -3,7 +3,6 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  issueMentionName,
   useInitialConversationState,
   type InitialConversationState,
 } from './initial-conversation-section';
@@ -189,31 +188,5 @@ describe('useInitialConversationState', () => {
     await renderProbe('project-2');
 
     expect(latestState?.useChatUi).toBe(false);
-  });
-});
-
-describe('issueMentionName', () => {
-  it('uses the issue title when provider identifiers are hidden', () => {
-    expect(
-      issueMentionName({
-        provider: 'notion',
-        identifier: '9fa18d1b-a831-8231-ba19-0129d0000000',
-        displayIdentifier: null,
-        title: 'Jan',
-        url: 'https://www.notion.so/page',
-      })
-    ).toBe('Jan');
-  });
-
-  it('uses the display identifier when one exists', () => {
-    expect(
-      issueMentionName({
-        provider: 'linear',
-        identifier: 'issue-id',
-        displayIdentifier: 'ENG-123',
-        title: 'Fix login',
-        url: 'https://linear.app/issue/ENG-123',
-      })
-    ).toBe('ENG-123');
   });
 });

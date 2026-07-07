@@ -53,10 +53,6 @@ export class IntegrationConnectionService {
     }
   }
 
-  async isConfigured(integrationId: string): Promise<boolean> {
-    return integrationCredentialStore.isConfigured(integrationId);
-  }
-
   async checkConnection(
     integrationId: string,
     capabilities: ConnectionStatus['capabilities'],

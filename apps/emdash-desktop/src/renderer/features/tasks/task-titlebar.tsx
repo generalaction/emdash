@@ -72,7 +72,6 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   const taskStore = getTaskStore(projectId, taskId);
   const projectName = projectDisplayName(getProjectStore(projectId));
   const name = taskDisplayName(taskStore);
-  const taskLabel = pendingTaskLabel(name, taskId);
   const { navigate } = useNavigate();
 
   return (
@@ -88,21 +87,13 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
               {projectName}
             </button>
             <span className="text-sm text-foreground-passive">/</span>
-            <span className="max-w-96 truncate" title={taskLabel}>
-              {taskLabel}
-            </span>
+            {name}
           </span>
         </div>
       }
     />
   );
 });
-
-function pendingTaskLabel(name: string | undefined, taskId: string): string {
-  if (!name) return taskId;
-  if (name === taskId || name.endsWith(` · ${taskId}`)) return name;
-  return `${name} · ${taskId}`;
-}
 
 const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   projectId,

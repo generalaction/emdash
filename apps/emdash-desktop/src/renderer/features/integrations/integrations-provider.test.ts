@@ -21,9 +21,9 @@ vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     issues: {
       checkAllConnections: mocks.checkAllConnections,
+      checkConfiguredConnections: mocks.checkConfiguredConnections,
     },
     integrations: {
-      checkConfiguredConnections: mocks.checkConfiguredConnections,
       list: mocks.listIntegrations,
       connect: mocks.connectIntegration,
       disconnect: mocks.disconnectIntegration,

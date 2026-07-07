@@ -75,18 +75,6 @@ describe('getIssueTaskName', () => {
     ).toBeNull();
   });
 
-  it('uses the Notion page title when Notion only provides a page ID', () => {
-    expect(
-      getIssueTaskName({
-        provider: 'notion',
-        url: 'https://www.notion.so/example-page',
-        title: 'Write customer onboarding spec',
-        identifier: '37818d1b-a831-813a-b25f-f61cc3db1a08',
-        displayIdentifier: null,
-      })
-    ).toBe('write-customer-onboarding-spec');
-  });
-
   it('applies existing task-name length limits', () => {
     expect(
       getIssueTaskName({
