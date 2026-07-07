@@ -49,7 +49,8 @@ function selectOptions(opt: SessionConfigOption): RawOption[] {
  *   'thought_level' → efforts        (Claude effort / Codex reasoning effort)
  *   'mode'          → modeOptions    (permission mode)
  *
- * `selected` is taken from `currentValue`; `available` is the full options list.
+ * `configId` preserves the provider-owned ACP config option id, `selected` is taken from
+ * `currentValue`, and `available` is the full options list.
  * Returns partial — only groups present in `options` are set; others stay null.
  * The runtime merges this partial into the existing SessionConfigState.
  */
@@ -68,18 +69,21 @@ export function deriveConfigGroups(
     switch (opt.category) {
       case 'model':
         modelOptions = {
+          configId: opt.id,
           selected: rawSelected,
           available: rawOptions.map(toModelChoice),
         };
         break;
       case 'thought_level':
         efforts = {
+          configId: opt.id,
           selected: rawSelected,
           available: rawOptions.map(toEffortOption),
         };
         break;
       case 'mode':
         modeOptions = {
+          configId: opt.id,
           selected: rawSelected,
           available: rawOptions.map(toModeOption),
         };

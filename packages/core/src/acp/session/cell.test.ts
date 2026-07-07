@@ -159,6 +159,124 @@ describe('SessionCell permissions', () => {
   });
 });
 
+describe('SessionCell config options', () => {
+  it('sets mode through the provider config option and seeds the response', async () => {
+    const { cell, agent } = makeCell();
+    cell.applySessionMeta({
+      configOptions: [
+        {
+          id: 'mode',
+          name: 'Mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'agent',
+          options: [
+            { value: 'agent', name: 'Agent' },
+            { value: 'agent-full-access', name: 'Agent (full access)' },
+          ],
+        },
+      ],
+    });
+    agent.setSessionConfigOption = vi.fn().mockResolvedValue({
+      configOptions: [
+        {
+          id: 'mode',
+          name: 'Mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'agent-full-access',
+          options: [
+            { value: 'agent', name: 'Agent' },
+            { value: 'agent-full-access', name: 'Agent (full access)' },
+          ],
+        },
+      ],
+    });
+
+    const result = await cell.setMode('agent-full-access');
+
+    expect(isOk(result)).toBe(true);
+    expect(agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      configId: 'mode',
+      value: 'agent-full-access',
+    });
+    expect(agent.setSessionMode).not.toHaveBeenCalled();
+    expect(cell.config.modeOptions?.selected).toBe('agent-full-access');
+  });
+
+  it('falls back to setSessionMode when config updates are unavailable', async () => {
+    const { cell, agent } = makeCell();
+    cell.applySessionMeta({
+      configOptions: [
+        {
+          id: 'mode',
+          name: 'Mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'agent',
+          options: [
+            { value: 'agent', name: 'Agent' },
+            { value: 'read-only', name: 'Read-only' },
+          ],
+        },
+      ],
+    });
+    agent.setSessionConfigOption = undefined as unknown as typeof agent.setSessionConfigOption;
+
+    const result = await cell.setMode('read-only');
+
+    expect(isOk(result)).toBe(true);
+    expect(agent.setSessionMode).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      modeId: 'read-only',
+    });
+  });
+
+  it('resolves effort dimension to the provider config option id', async () => {
+    const { cell, agent } = makeCell();
+    cell.applySessionMeta({
+      configOptions: [
+        {
+          id: 'reasoning_effort',
+          name: 'Reasoning effort',
+          category: 'thought_level',
+          type: 'select',
+          currentValue: 'medium',
+          options: [
+            { value: 'medium', name: 'Medium' },
+            { value: 'high', name: 'High' },
+          ],
+        },
+      ],
+    });
+    agent.setSessionConfigOption = vi.fn().mockResolvedValue({
+      configOptions: [
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          type: 'select',
+          currentValue: 'high',
+          options: [
+            { value: 'medium', name: 'Medium' },
+            { value: 'high', name: 'High' },
+          ],
+        },
+      ],
+    });
+
+    const result = await cell.setConfigOption('effort', 'high');
+
+    expect(isOk(result)).toBe(true);
+    expect(agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      configId: 'reasoning_effort',
+      value: 'high',
+    });
+    expect(cell.config.efforts?.selected).toBe('high');
+  });
+});
+
 describe('SessionCell idle turns and queue commands', () => {
   it('settles idle agent turns after quiesce', async () => {
     vi.useFakeTimers();

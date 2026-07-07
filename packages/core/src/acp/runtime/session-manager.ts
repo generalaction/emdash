@@ -122,7 +122,14 @@ export class SessionManager implements InboundRouter {
             configOptions: response.configOptions,
           });
           if (input.model) {
-            await record.cell.setConfigOption('model', input.model);
+            const modelResult = await record.cell.setConfigOption('model', input.model);
+            if (!modelResult.success) {
+              this.deps.logger.warn('SessionManager: failed to apply initial model', {
+                conversationId: input.conversationId,
+                providerId: input.providerId,
+                error: modelResult.error,
+              });
+            }
           }
           const queueResult = this.queueInitialPrompts(record);
           if (!queueResult.success) return queueResult;
@@ -150,7 +157,14 @@ export class SessionManager implements InboundRouter {
           configOptions: response.configOptions,
         });
         if (input.model) {
-          await record.cell.setConfigOption('model', input.model);
+          const modelResult = await record.cell.setConfigOption('model', input.model);
+          if (!modelResult.success) {
+            this.deps.logger.warn('SessionManager: failed to apply initial model', {
+              conversationId: input.conversationId,
+              providerId: input.providerId,
+              error: modelResult.error,
+            });
+          }
         }
         const queueResult = this.queueInitialPrompts(record);
         if (!queueResult.success) return queueResult;
@@ -246,12 +260,12 @@ export class SessionManager implements InboundRouter {
 
   async setConfigOption(
     conversationId: string,
-    configId: string,
+    dimension: 'model' | 'effort',
     value: string
   ): Promise<Result<void, AcpRuntimeError>> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
-    return record.cell.setConfigOption(configId, value);
+    return record.cell.setConfigOption(dimension, value);
   }
 
   isRunning(conversationId: string): boolean {

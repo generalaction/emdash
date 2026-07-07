@@ -41,6 +41,8 @@ export interface AcpChatHistory {
   active: TranscriptTurn | null;
 }
 
+type ConfigDimension = 'model' | 'effort';
+
 export class SessionCell {
   readonly machine: SessionMachine;
   readonly transcript: AcpTranscriptParser;
@@ -309,6 +311,20 @@ export class SessionCell {
   async setMode(modeId: string): Promise<Result<void, AcpRuntimeError>> {
     const result = this.dispatch({ type: 'SetMode', modeId });
     if (!result.success) return result;
+    const configId = this.transcript.config.modeOptions?.configId ?? null;
+    if (configId && this.deps.agent.setSessionConfigOption) {
+      try {
+        const response = await this.deps.agent.setSessionConfigOption({
+          sessionId: this.acpSessionId,
+          configId,
+          value: modeId,
+        } satisfies SetSessionConfigOptionRequest);
+        this.seedTranscriptMeta({ configOptions: response.configOptions });
+        return ok();
+      } catch (e) {
+        return acpErr.setModeFailed(toSerializedError(e));
+      }
+    }
     if (!this.deps.agent.setSessionMode) {
       return acpErr.setModeFailed({
         name: 'Error',
@@ -326,7 +342,17 @@ export class SessionCell {
     }
   }
 
-  async setConfigOption(configId: string, value: string): Promise<Result<void, AcpRuntimeError>> {
+  async setConfigOption(
+    dimension: ConfigDimension,
+    value: string
+  ): Promise<Result<void, AcpRuntimeError>> {
+    const configId = this.configIdForDimension(dimension);
+    if (!configId) {
+      return acpErr.setConfigFailed({
+        name: 'Error',
+        message: `Agent connection does not expose ${dimension} configuration`,
+      });
+    }
     const result = this.dispatch({ type: 'SetConfigOption', configId, value });
     if (!result.success) return result;
     if (!this.deps.agent.setSessionConfigOption) return ok();
@@ -567,10 +593,21 @@ export class SessionCell {
     return {
       modeIds: this.transcript.config.modeOptions?.available.map((mode) => mode.id) ?? [],
       configOptionIds: [
-        ...(this.transcript.config.modelOptions ? ['model'] : []),
-        ...(this.transcript.config.efforts ? ['effort'] : []),
+        ...(this.transcript.config.modelOptions
+          ? [this.transcript.config.modelOptions.configId]
+          : []),
+        ...(this.transcript.config.efforts ? [this.transcript.config.efforts.configId] : []),
       ],
     };
+  }
+
+  private configIdForDimension(dimension: ConfigDimension): string | null {
+    switch (dimension) {
+      case 'model':
+        return this.transcript.config.modelOptions?.configId ?? null;
+      case 'effort':
+        return this.transcript.config.efforts?.configId ?? null;
+    }
   }
 
   private isTranscriptEvent(event: NormalizedEvent): boolean {

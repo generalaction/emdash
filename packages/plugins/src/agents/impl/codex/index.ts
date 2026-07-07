@@ -35,17 +35,13 @@ export const plugin = definePlugin(
     models: {
       kind: 'selectable',
       modelOptions: {
-        'codex-mini-latest': {
-          name: 'Codex Mini',
-          modelFeatures: { intelligence: 3, speed: 5 },
+        'gpt-5.5': {
+          name: 'GPT-5.5',
+          modelFeatures: { intelligence: 5, speed: 3 },
         },
-        'o4-mini': {
-          name: 'o4-mini',
+        'gpt-5.4-mini': {
+          name: 'GPT-5.4-Mini',
           modelFeatures: { intelligence: 4, speed: 4 },
-        },
-        o3: {
-          name: 'o3',
-          modelFeatures: { intelligence: 5, speed: 2 },
         },
       },
     },

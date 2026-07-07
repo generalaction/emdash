@@ -321,15 +321,30 @@ export class AcpChatStore {
   }
 
   setModel(model: string): void {
-    void this.session?.setModelOption('model', model);
+    void this.session
+      ?.setModelOption('model', model)
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to change model', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to change model', error));
   }
 
   setMode(modeId: string): void {
-    void this.session?.setModeOption(modeId);
+    void this.session
+      ?.setModeOption(modeId)
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to change session mode', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to change session mode', error));
   }
 
   setEffort(effort: string): void {
-    void this.session?.setModelOption('effort', effort);
+    void this.session
+      ?.setModelOption('effort', effort)
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to change effort', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to change effort', error));
   }
 
   resolvePermission(optionId: string): void {
