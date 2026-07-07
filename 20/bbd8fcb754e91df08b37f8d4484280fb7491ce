@@ -1,0 +1,34 @@
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.tsx
+  s_261ce07f6384a6::t_14e712d470a6fc 177,334-342
+  s_8e2379b11d65de::t_4542eb7f82ff35 135,148,175-176,178-180,257,259,330-333,343
+  s_8e2379b11d65de::t_79e049a131b916 344
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/issue-combobox-field.tsx
+  s_8e2379b11d65de::t_4542eb7f82ff35 67
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.test.ts
+  s_261ce07f6384a6::t_14e712d470a6fc 198-223
+  s_8e2379b11d65de::t_4542eb7f82ff35 184-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "20bbd8fcb754e91df08b37f8d4484280fb7491ce",
+  "prompts": {},
+  "sessions": {
+    "s_261ce07f6384a6": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQQhTxtH8Iurop4Dhg3",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_8e2379b11d65de": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQQ3d8PcW6PIPblFhEM",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
