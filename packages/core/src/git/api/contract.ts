@@ -2,6 +2,11 @@ import { resultSchema } from '@emdash/shared';
 import { eventIterator, oc } from '@orpc/contract';
 import { z } from 'zod';
 import { createLiveModelContract } from '../../live';
+import { gitHeadModelSchema } from '../checkout/models/head';
+import { checkoutStatusModelSchema } from '../checkout/models/status';
+import { gitRefsModelSchema } from '../repository/models/refs';
+import { gitRemotesModelSchema } from '../repository/models/remotes';
+import { gitStashesModelSchema } from '../repository/models/stashes';
 import {
   addCheckoutOptionsSchema,
   commitOptionsSchema,
@@ -38,6 +43,7 @@ import {
   blameResultSchema,
   checkoutInfoSchema,
   commitFileSchema,
+  commitSchema,
   conflictVersionsSchema,
   diffTargetSchema,
   fileDiffSchema,
@@ -48,11 +54,6 @@ import {
   gitRepositoryInfoSchema,
   imageReadResultSchema,
 } from './queries';
-import { checkoutStatusModelSchema } from '../checkout/models/status';
-import { gitHeadModelSchema } from '../checkout/models/head';
-import { gitRefsModelSchema } from '../repository/models/refs';
-import { gitRemotesModelSchema } from '../repository/models/remotes';
-import { gitStashesModelSchema } from '../repository/models/stashes';
 
 const repoKey = z.object({ repositoryRoot: z.string() });
 const checkoutKey = z.object({ checkoutPath: z.string() });
@@ -303,7 +304,7 @@ const checkoutContract = {
     .input(checkoutKey.extend({ options: gitLogOptionsSchema.optional() }))
     .output(gitLogResultSchema),
 
-  getCommit: oc.input(checkoutKey.extend({ hash: z.string() })).output(commitFileSchema.nullable()),
+  getCommit: oc.input(checkoutKey.extend({ hash: z.string() })).output(commitSchema.nullable()),
 
   getCommitFiles: oc
     .input(checkoutKey.extend({ hash: z.string() }))

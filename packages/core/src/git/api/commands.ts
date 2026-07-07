@@ -1,10 +1,10 @@
 import { z } from 'zod';
-
 import { gitObjectRefSchema } from './queries';
 
 export const ensureRepositoryOptionsSchema = z.object({
   initIfMissing: z.boolean().optional(),
 });
+export type EnsureRepositoryOptions = z.infer<typeof ensureRepositoryOptionsSchema>;
 
 export const createBranchOptionsSchema = z.object({
   name: z.string(),
@@ -12,6 +12,7 @@ export const createBranchOptionsSchema = z.object({
   syncWithRemote: z.boolean().optional(),
   remote: z.string().optional(),
 });
+export type CreateBranchOptions = z.infer<typeof createBranchOptionsSchema>;
 
 export const fetchPrForReviewOptionsSchema = z.object({
   prNumber: z.number().int(),
@@ -21,6 +22,7 @@ export const fetchPrForReviewOptionsSchema = z.object({
   isFork: z.boolean(),
   configuredRemote: z.string().optional(),
 });
+export type FetchPrForReviewOptions = z.infer<typeof fetchPrForReviewOptionsSchema>;
 
 // GitLogOptions.base/head are restricted to GitObjectRef (branch|commit|tag only)
 export const gitLogOptionsSchema = z.object({
@@ -32,6 +34,7 @@ export const gitLogOptionsSchema = z.object({
   base: gitObjectRefSchema.optional(),
   head: gitObjectRefSchema.optional(),
 });
+export type GitLogOptions = z.infer<typeof gitLogOptionsSchema>;
 
 export const commitOptionsSchema = z.object({
   amend: z.boolean().optional(),
@@ -39,8 +42,10 @@ export const commitOptionsSchema = z.object({
   noVerify: z.boolean().optional(),
   allowEmpty: z.boolean().optional(),
 });
+export type CommitOptions = z.infer<typeof commitOptionsSchema>;
 
 export const resetModeSchema = z.enum(['soft', 'mixed', 'hard']);
+export type ResetMode = z.infer<typeof resetModeSchema>;
 
 export const switchOptionsSchema = z.object({
   /** Ref to switch to (branch name, tag, or commit SHA). */
@@ -50,6 +55,7 @@ export const switchOptionsSchema = z.object({
   /** Force switch even when local changes exist (discard). */
   force: z.boolean().optional(),
 });
+export type SwitchOptions = z.infer<typeof switchOptionsSchema>;
 
 export const mergeOptionsSchema = z.object({
   branch: z.string(),
@@ -58,6 +64,7 @@ export const mergeOptionsSchema = z.object({
   squash: z.boolean().optional(),
   message: z.string().optional(),
 });
+export type MergeOptions = z.infer<typeof mergeOptionsSchema>;
 
 export const rebaseOptionsSchema = z.object({
   /** Branch / ref to rebase onto. */
@@ -65,12 +72,14 @@ export const rebaseOptionsSchema = z.object({
   /** Interactive (implies passing --interactive to git, not modelled further here). */
   interactive: z.boolean().optional(),
 });
+export type RebaseOptions = z.infer<typeof rebaseOptionsSchema>;
 
 export const pushOptionsSchema = z.object({
   remote: z.string().optional(),
   force: z.boolean().optional(),
   setUpstream: z.boolean().optional(),
 });
+export type PushOptions = z.infer<typeof pushOptionsSchema>;
 
 export const stashPushOptionsSchema = z.object({
   message: z.string().optional(),
@@ -78,6 +87,7 @@ export const stashPushOptionsSchema = z.object({
   keepIndex: z.boolean().optional(),
   paths: z.array(z.string()).optional(),
 });
+export type StashPushOptions = z.infer<typeof stashPushOptionsSchema>;
 
 export const addCheckoutOptionsSchema = z.object({
   /** Destination path for the new worktree. */
@@ -88,6 +98,7 @@ export const addCheckoutOptionsSchema = z.object({
   newBranch: z.string().optional(),
   force: z.boolean().optional(),
 });
+export type AddCheckoutOptions = z.infer<typeof addCheckoutOptionsSchema>;
 
 export const tagOptionsSchema = z.object({
   name: z.string(),
@@ -95,3 +106,4 @@ export const tagOptionsSchema = z.object({
   message: z.string().optional(),
   force: z.boolean().optional(),
 });
+export type TagOptions = z.infer<typeof tagOptionsSchema>;

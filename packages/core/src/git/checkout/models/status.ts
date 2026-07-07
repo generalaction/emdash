@@ -12,6 +12,7 @@ export const gitStatusCodeSchema = z.enum([
   'ignored',
   'unmerged',
 ]);
+export type GitStatusCode = z.infer<typeof gitStatusCodeSchema>;
 
 /**
  * Per-side status code from git porcelain v2 (XY format).
@@ -25,6 +26,7 @@ export const fileGitStatusSchema = z.object({
   origPath: z.string().optional(),
   isConflicted: z.boolean(),
 });
+export type FileGitStatus = z.infer<typeof fileGitStatusSchema>;
 
 export const checkoutOperationSchema = z.enum([
   'none',
@@ -34,6 +36,7 @@ export const checkoutOperationSchema = z.enum([
   'revert',
   'bisect',
 ]);
+export type CheckoutOperation = z.infer<typeof checkoutOperationSchema>;
 
 export const checkoutStatusSummarySchema = z.object({
   staged: z.number().int().nonnegative(),
@@ -41,6 +44,7 @@ export const checkoutStatusSummarySchema = z.object({
   conflicted: z.number().int().nonnegative(),
   untracked: z.number().int().nonnegative(),
 });
+export type CheckoutStatusSummary = z.infer<typeof checkoutStatusSummarySchema>;
 
 /**
  * Normalized checkout status model.
@@ -57,3 +61,5 @@ export const checkoutStatusModelSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('too-many-files') }),
   z.object({ kind: z.literal('error'), message: z.string() }),
 ]);
+
+export type CheckoutStatusModel = z.infer<typeof checkoutStatusModelSchema>;
