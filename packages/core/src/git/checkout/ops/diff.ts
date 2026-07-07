@@ -133,7 +133,7 @@ export async function getUntrackedFileDiff(
     .catch(() => false);
   if (isTracked) return null;
   try {
-    const nullDevice = process.platform === 'win32' ? 'NUL' : '/dev/null'
+    const nullDevice = process.platform === 'win32' ? 'NUL' : '/dev/null';
     await exec.exec(['diff', '--no-color', '--no-index', '--', nullDevice, relativePath]);
     return null;
   } catch (error) {

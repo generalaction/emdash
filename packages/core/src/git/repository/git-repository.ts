@@ -28,11 +28,11 @@ import {
   toGitCommandError,
 } from '../errors';
 import { classifyGitWatchEvents } from '../watch/classifier';
-import { CatFileBatch } from './ops/cat-file-batch';
-import { parseWorktreeList } from './ops/checkouts';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';
 import type { GitStashesModel } from './models/stashes';
+import { CatFileBatch } from './ops/cat-file-batch';
+import { parseWorktreeList } from './ops/checkouts';
 import { computeRefsModel } from './ops/refs';
 import { computeRemotesModel, remoteNameForRepositoryUrl } from './ops/remotes';
 import { computeStashesModel } from './ops/stashes';

@@ -50,6 +50,8 @@ import {
   toGitCommandError,
 } from '../errors';
 import { classifyGitWatchEvents } from '../watch/classifier';
+import type { GitHeadModel } from './models/head';
+import type { CheckoutStatusModel } from './models/status';
 import { blame as readBlame } from './ops/blame';
 import {
   extractHunkPatch,
@@ -65,8 +67,6 @@ import {
   getCommitFiles as readCommitFiles,
   getLog as readLog,
 } from './ops/log';
-import type { GitHeadModel } from './models/head';
-import type { CheckoutStatusModel } from './models/status';
 import { computeStatusModel } from './ops/status';
 import type { CheckoutRepository, GitCheckoutOptions, IGitCheckout } from './types';
 
