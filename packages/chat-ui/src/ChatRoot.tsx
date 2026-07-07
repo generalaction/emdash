@@ -67,10 +67,17 @@ import type { LayoutSnapshot, PinSnapshot } from './state/geometry';
 import { samePin, sameRange } from './state/geometry';
 import {
   canvas,
+  composerSlotAnimatingClass,
+  composerSlotCenteredClass,
   composerSlotClass,
+  composerSlotInnerBottomClass,
+  composerSlotInnerCenteredClass,
   composerSlotInnerClass,
   contentOverlaySlotClass,
   defaultContentClass,
+  heroSlotClass,
+  heroSlotHiddenClass,
+  heroSlotVisibleClass,
   outerClip,
   pinnedOverlay,
   scrollContainer,
@@ -120,6 +127,18 @@ const USER_SCROLL_EPSILON = 0.5;
 // and let projectAnchor jump the thumb forward. Tunable.
 const SCROLL_SETTLE_MS = 120;
 
+export type ComposerPlacement = 'bottom' | 'center';
+
+export type ComposerPlacementOptions = {
+  animate?: boolean;
+};
+
+function resolveComposerPlacement(
+  value: ComposerPlacement | (() => ComposerPlacement) | undefined
+): ComposerPlacement {
+  return value === undefined ? 'bottom' : typeof value === 'function' ? value() : value;
+}
+
 function findLastUserMessageId(turns: readonly TranscriptTurn[]): string | null {
   for (let turnIndex = turns.length - 1; turnIndex >= 0; turnIndex--) {
     const turn = turns[turnIndex];
@@ -151,6 +170,11 @@ export type EngineControls = {
    */
   composerSlot?: HTMLElement | null;
   /**
+   * Reference to the hero slot element rendered above the composer in centered
+   * placement. Hosts can portal empty-state copy into this element.
+   */
+  heroSlot?: HTMLElement | null;
+  /**
    * Reference to the content overlay slot element. Set after mount when
    * `contentOverlay` is true. The host portals overlay content into it.
    */
@@ -160,6 +184,8 @@ export type EngineControls = {
    * Wired by onMount; safe to call from outside the Solid reactive context.
    */
   setScrollMode?(mode: ScrollMode): void;
+  /** Move the library-owned composer slot between supported placements. */
+  setComposerPlacement?(placement: ComposerPlacement, opts?: ComposerPlacementOptions): void;
   /**
    * Called once at the end of ChatRoot's onMount, after all controls and
    * composerSlot are wired. Used by createChatView to fire onViewMounted.
@@ -238,6 +264,11 @@ export type ChatRootProps = {
    */
   composer?: 'slot' | 'none';
   /**
+   * Initial or reactive composer placement when `composer === 'slot'`.
+   * Defaults to `'bottom'`.
+   */
+  composerPlacement?: ComposerPlacement | (() => ComposerPlacement);
+  /**
    * When true, render an absolutely-positioned overlay slot above the
    * transcript/scroll but below the composer (z-index 15). Hosts portal
    * loading/empty/disabled states into `controls.contentOverlay`.
@@ -277,6 +308,12 @@ export function ChatRoot(props: ChatRootProps) {
   const theme = () => resolved;
   const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
   const commands = () => props.commands?.() ?? {};
+  const [composerPlacement, setComposerPlacementSignal] = createSignal<ComposerPlacement>(
+    resolveComposerPlacement(props.composerPlacement)
+  );
+  const [composerAnimating, setComposerAnimating] = createSignal(false);
+  const effectiveComposerPlacement = () =>
+    props.composer === 'slot' ? composerPlacement() : 'bottom';
 
   const padTop = () => {
     const v = props.padTop;
@@ -309,6 +346,8 @@ export function ChatRoot(props: ChatRootProps) {
   // Zero-height probe that carries contentClass; the width ResizeObserver
   // targets this so it only fires on genuine layout-width changes.
   let widthProbeEl: HTMLDivElement | undefined;
+  let composerSlotLayerEl: HTMLDivElement | undefined;
+  let heroSlotEl: HTMLElement | undefined;
   let composerSlotEl: HTMLElement | undefined;
   let contentOverlaySlotEl: HTMLElement | undefined;
   const virt = new Virtualizer();
@@ -320,9 +359,83 @@ export function ChatRoot(props: ChatRootProps) {
   const [viewHeight, setViewHeight] = createSignal(600);
   const [containerWidth, setContainerWidth] = createSignal(0);
 
+  const updateSlotPadBottom = () => {
+    if (props.composer !== 'slot' || effectiveComposerPlacement() === 'center') {
+      setSlotPadBottom(0);
+      return;
+    }
+    setSlotPadBottom(composerSlotEl?.getBoundingClientRect().height ?? 0);
+  };
+
+  const setComposerPlacement = (
+    placement: ComposerPlacement,
+    opts: ComposerPlacementOptions = {}
+  ) => {
+    if (props.composer !== 'slot') {
+      setComposerPlacementSignal(placement);
+      setSlotPadBottom(0);
+      return;
+    }
+
+    const current = untrack(composerPlacement);
+    if (current === placement) {
+      updateSlotPadBottom();
+      return;
+    }
+
+    const first = composerSlotEl?.getBoundingClientRect();
+    setComposerPlacementSignal(placement);
+    updateSlotPadBottom();
+
+    if (!opts.animate || !composerSlotLayerEl || !composerSlotEl || !first) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+    const last = composerSlotEl.getBoundingClientRect();
+    const dx = first.left - last.left;
+    const dy = first.top - last.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+
+    const layer = composerSlotLayerEl;
+    setComposerAnimating(false);
+    layer.style.transition = 'none';
+    layer.style.transform = `translate(${dx}px, ${dy}px)`;
+    // Force layout so the inverted transform is committed before animating home.
+    void layer.offsetHeight;
+    layer.style.transition = '';
+    setComposerAnimating(true);
+
+    let done = false;
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      layer.removeEventListener('transitionend', cleanup);
+      layer.style.transform = '';
+      setComposerAnimating(false);
+    };
+
+    layer.addEventListener('transitionend', cleanup);
+    window.setTimeout(cleanup, 560);
+    requestAnimationFrame(() => {
+      layer.style.transform = '';
+    });
+  };
+
   // measureEpoch comes from ChatContext so all views share one epoch signal.
   // When fonts load, ChatContext bumps it and all views re-measure.
   const measureEpoch = props.context.measureEpoch;
+
+  createEffect(() => {
+    if (typeof props.composerPlacement !== 'function') return;
+    const next = props.composerPlacement();
+    if (next !== composerPlacement()) {
+      setComposerPlacement(next, { animate: false });
+    }
+  });
+
+  createEffect(() => {
+    effectiveComposerPlacement();
+    updateSlotPadBottom();
+  });
 
   const refreshTotal = () => {
     setTotalHeight(virt.total());
@@ -1370,7 +1483,9 @@ export function ChatRoot(props: ChatRootProps) {
       props.controls.loadOlder = doLoadOlder;
       props.controls.toggleCollapsed = (id) => viewState().toggleCollapsed(id);
       props.controls.composerSlot = composerSlotEl ?? null;
+      props.controls.heroSlot = heroSlotEl ?? null;
       props.controls.contentOverlay = contentOverlaySlotEl ?? null;
+      props.controls.setComposerPlacement = setComposerPlacement;
       // Declarative scroll intent: host sets intent; ChatRoot projects it.
       props.controls.setScrollMode = (m: ScrollMode) => {
         setAnchor(m);
@@ -1418,7 +1533,7 @@ export function ChatRoot(props: ChatRootProps) {
     if (props.composer === 'slot' && composerSlotEl) {
       const roSlot = new ResizeObserver((entries) => {
         const h = entries[0]?.contentRect.height ?? 0;
-        setSlotPadBottom(h);
+        setSlotPadBottom(effectiveComposerPlacement() === 'center' ? 0 : h);
       });
       roSlot.observe(composerSlotEl);
       onCleanup(() => roSlot.disconnect());
@@ -1664,12 +1779,23 @@ export function ChatRoot(props: ChatRootProps) {
                     centered div is what the host portals its React composer
                     into, and what the ResizeObserver measures for padBottom. */}
                 <Show when={props.composer === 'slot'}>
-                  <div class={composerSlotClass}>
+                  <div
+                    ref={(el) => {
+                      composerSlotLayerEl = el;
+                    }}
+                    class={`${effectiveComposerPlacement() === 'center' ? composerSlotCenteredClass : composerSlotClass}${composerAnimating() ? ` ${composerSlotAnimatingClass}` : ''}`}
+                  >
+                    <div
+                      ref={(el) => {
+                        heroSlotEl = el;
+                      }}
+                      class={`${heroSlotClass} ${effectiveComposerPlacement() === 'center' ? heroSlotVisibleClass : heroSlotHiddenClass}`}
+                    />
                     <div
                       ref={(el) => {
                         composerSlotEl = el;
                       }}
-                      class={composerSlotInnerClass}
+                      class={`${composerSlotInnerClass} ${effectiveComposerPlacement() === 'center' ? composerSlotInnerCenteredClass : composerSlotInnerBottomClass}`}
                     />
                   </div>
                 </Show>

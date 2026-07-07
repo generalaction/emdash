@@ -628,8 +628,11 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<ChatView | null>(null);
   const [composerSlot, setComposerSlot] = useState<HTMLElement | null>(null);
+  const [heroSlot, setHeroSlot] = useState<HTMLElement | null>(null);
   const [overlaySlot, setOverlaySlot] = useState<HTMLElement | null>(null);
   const [viewer, setViewer] = useState<{ src?: string; alt?: string } | null>(null);
+  const placementConversationRef = useRef<string | null>(null);
+  const placementWasEmptyRef = useRef<boolean | null>(null);
   // True while the scroll viewport is at the tail. Defaults to true so the
   // button does not flash on mount before the first frame fires.
   const [atBottom, setAtBottom] = useState(true);
@@ -637,8 +640,24 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const handleReady = useCallback((view: ChatView) => {
     viewRef.current = view;
     setComposerSlot(view.composerSlot);
+    setHeroSlot(view.heroSlot);
     setOverlaySlot(view.contentOverlay);
   }, []);
+
+  const isConversationEmpty = useObserver(() => store?.isEmpty ?? false);
+  const activeConversationId = store?.conversationId ?? null;
+
+  useEffect(() => {
+    if (!store || !viewRef.current) return;
+    const sameConversation = placementConversationRef.current === store.conversationId;
+    const wasEmpty = placementWasEmptyRef.current === true;
+    const placement = isConversationEmpty ? 'center' : 'bottom';
+    viewRef.current.setComposerPlacement(placement, {
+      animate: sameConversation && wasEmpty && !isConversationEmpty,
+    });
+    placementConversationRef.current = store.conversationId;
+    placementWasEmptyRef.current = isConversationEmpty;
+  }, [store, activeConversationId, isConversationEmpty, composerSlot]);
 
   // Bind/unbind the view handle to the active store so the store can call
   // scrollToItem on submit. Only the active store holds the handle.
@@ -734,12 +753,16 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   if (!store) return null;
 
+  const showComposer = !store.historyLoading;
+  const showHero = showComposer && store.isEmpty;
+
   return (
     <div ref={rootRef} className="relative h-full overflow-hidden bg-background-secondary-1">
       <ChatTranscript
         context={store.chatContext}
         state={store.chatState}
         composer="slot"
+        composerPlacement={store.isEmpty ? 'center' : 'bottom'}
         contentOverlay
         stickToBottom
         pinUserMessages
@@ -749,14 +772,13 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         style={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* Loading / error / empty state overlay portaled into the library-owned slot.
+      {/* Loading / error overlay portaled into the library-owned slot.
           The slot sits at z-index 15 (above pinned, below composer at 20) so
           the composer remains visible and interactive in all states.
           During loading/error: opaque background covers the transcript area.
-          During empty: transparent so the content below shows through.
-          Precedence: error > loading > empty. */}
+          Precedence: error > loading. */}
       {overlaySlot &&
-        (store.loadError !== null || store.historyLoading || store.isEmpty) &&
+        (store.loadError !== null || store.historyLoading) &&
         createPortal(
           <div
             className={`absolute inset-0 flex items-center justify-center text-sm text-foreground-muted ${
@@ -771,16 +793,23 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
                   Retry
                 </Button>
               </div>
-            ) : store.historyLoading ? (
-              'Loading chat...'
             ) : (
-              'No messages'
+              'Loading chat...'
             )}
           </div>,
           overlaySlot
         )}
 
-      {composerSlot && (
+      {showHero &&
+        heroSlot &&
+        createPortal(
+          <div className="px-4 text-center">
+            <h1 className="text-2xl tracking-tight text-foreground">What are we building today?</h1>
+          </div>,
+          heroSlot
+        )}
+
+      {showComposer && composerSlot && (
         <ComposerForStore
           key={store.conversationId}
           store={store}
@@ -789,7 +818,8 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         />
       )}
 
-      {composerSlot &&
+      {showComposer &&
+        composerSlot &&
         !atBottom &&
         createPortal(
           <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center">

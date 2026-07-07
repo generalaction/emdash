@@ -42,7 +42,12 @@ export type {
 } from './state/chat-state';
 
 export { createChatView } from './chat-view';
-export type { ChatView, ChatViewOptions } from './chat-view';
+export type {
+  ChatView,
+  ChatViewOptions,
+  ComposerPlacement,
+  ComposerPlacementOptions,
+} from './chat-view';
 
 // ── Data types ────────────────────────────────────────────────────────────────
 
