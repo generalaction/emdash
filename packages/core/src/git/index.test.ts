@@ -6,6 +6,7 @@ describe('@emdash/core/git public exports', () => {
     const exported = git as Record<string, unknown>;
 
     expect(exported.GitRuntime).toBeTypeOf('function');
+    expect(exported.createGitRouter).toBeTypeOf('function');
     expect(exported.GitRepository).toBeUndefined();
     expect(exported.GitCheckout).toBeUndefined();
   });
