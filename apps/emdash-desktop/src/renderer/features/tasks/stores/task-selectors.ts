@@ -142,10 +142,11 @@ export function getTerminalsForTask(taskId: string) {
   return terminalRegistry.get(taskId);
 }
 
+const UUID_LIKE_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function isUuidLike(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value
-  );
+  return UUID_LIKE_PATTERN.test(value);
 }
 
 /** Returns the display name from any task store variant. */

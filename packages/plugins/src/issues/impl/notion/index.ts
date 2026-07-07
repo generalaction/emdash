@@ -1,5 +1,5 @@
 import { err, ok } from '@emdash/shared';
-import { isFullPage } from '@notionhq/client';
+import { isFullPage, type PageObjectResponse } from '@notionhq/client';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import {
   createNotionClient,
@@ -35,11 +35,7 @@ export async function listIssues(
       page_size: limit,
     });
     return ok(
-      response.results
-        .filter(isFullPage)
-        .filter(isDatabasePage)
-        .filter(hasMeaningfulTitle)
-        .map(toIssueData)
+      toIssueListItems(response.results.filter(isFullPage).filter(isDatabasePage))
     );
   } catch (error) {
     host.log.warn('Notion listIssues failed', { error });
@@ -67,7 +63,7 @@ export async function searchIssues(
       sort: { timestamp: 'last_edited_time', direction: 'descending' },
       page_size: limit,
     });
-    return ok(response.results.filter(isFullPage).filter(hasMeaningfulTitle).map(toIssueData));
+    return ok(toIssueListItems(response.results.filter(isFullPage)));
   } catch (error) {
     host.log.warn('Notion searchIssues failed', { error });
     return err(toNotionIntegrationError(error, 'Unable to search Notion pages.'));
@@ -105,3 +101,7 @@ const plugin = defineIssuesPlugin({ integrationId: 'notion' }, { issues: {} }, {
 export const provider = registerIssuesPluginBehavior(plugin, {
   issues: { listIssues, searchIssues, getIssue },
 });
+
+function toIssueListItems(pages: PageObjectResponse[]) {
+  return pages.filter(hasMeaningfulTitle).map(toIssueData);
+}

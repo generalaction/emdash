@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { provider } from './index';
 
 const notionSdk = vi.hoisted(() => ({
-  constructor: vi.fn(),
   search: vi.fn(),
 }));
 
@@ -14,10 +13,6 @@ vi.mock('@notionhq/client', async (importOriginal) => {
   return {
     ...actual,
     Client: class {
-      constructor(config: unknown) {
-        notionSdk.constructor(config);
-      }
-
       search = notionSdk.search;
     },
   };
