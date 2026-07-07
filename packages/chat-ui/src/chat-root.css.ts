@@ -88,10 +88,15 @@ export const pinnedOverlay = style({
   top: 0,
   zIndex: 10,
   willChange: 'transform',
-  // Match the scroll container gutter so the pinned card aligns with the
-  // scrolled rows instead of jumping 16px when a user message pins.
-  paddingLeft: CONTENT_GUTTER,
-  paddingRight: CONTENT_GUTTER,
+});
+
+/**
+ * Pinned overlay column. ChatRoot positions this from the width probe's actual
+ * rect so it shares the scroll container's content geometry, including any
+ * scrollbar gutter reserved by the browser.
+ */
+export const pinnedOverlayColumn = style({
+  position: 'relative',
 });
 
 /**

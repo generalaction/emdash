@@ -80,6 +80,7 @@ import {
   heroSlotVisibleClass,
   outerClip,
   pinnedOverlay,
+  pinnedOverlayColumn,
   scrollContainer,
   unitRowWrapper,
   widthProbeClass,
@@ -358,6 +359,16 @@ export function ChatRoot(props: ChatRootProps) {
   const [scrollVelocity, setScrollVelocity] = createSignal(0);
   const [viewHeight, setViewHeight] = createSignal(600);
   const [containerWidth, setContainerWidth] = createSignal(0);
+  const [contentColumnLeft, setContentColumnLeft] = createSignal(0);
+
+  const updateContentColumnGeometry = () => {
+    if (!widthProbeEl || !outerEl) return;
+    const probeRect = widthProbeEl.getBoundingClientRect();
+    const outerRect = outerEl.getBoundingClientRect();
+    if (probeRect.width <= 0) return;
+    setContainerWidth(probeRect.width);
+    setContentColumnLeft(probeRect.left - outerRect.left);
+  };
 
   const updateSlotPadBottom = () => {
     if (props.composer !== 'slot' || effectiveComposerPlacement() === 'center') {
@@ -1517,15 +1528,16 @@ export function ChatRoot(props: ChatRootProps) {
     roHeight.observe(el);
     onCleanup(() => roHeight.disconnect());
 
-    // Target the zero-height width probe (carries contentClass / max-width cap)
-    // instead of canvasEl so this observer only fires on genuine layout-width
-    // changes and not on the canvas height mutations from streaming/tween updates.
+    // Target geometry ancestors instead of canvasEl so this observer only fires
+    // on genuine column geometry changes and not on canvas height mutations from
+    // streaming/tween updates. Observing outer/scroll catches a centered max-width
+    // column moving horizontally even when the probe's own width is unchanged.
     if (widthProbeEl) {
-      const roWidth = new ResizeObserver((entries) => {
-        const w = entries[0]?.contentRect.width;
-        if (w && w > 0) setContainerWidth(w);
-      });
+      const roWidth = new ResizeObserver(() => updateContentColumnGeometry());
       roWidth.observe(widthProbeEl);
+      roWidth.observe(el);
+      if (outerEl) roWidth.observe(outerEl);
+      updateContentColumnGeometry();
       onCleanup(() => roWidth.disconnect());
     }
 
@@ -1667,6 +1679,7 @@ export function ChatRoot(props: ChatRootProps) {
                     ref={(el) => {
                       widthProbeEl = el;
                     }}
+                    data-chat-width-probe
                     aria-hidden="true"
                     class={`${widthProbeClass} ${contentClass()}`}
                   />
@@ -1745,11 +1758,18 @@ export function ChatRoot(props: ChatRootProps) {
                             aria-hidden="true"
                             style={{ transform: `translateY(${ps().overlayTop}px)` }}
                           >
-                            {/* Inner centered column carries the max-width cap so
-                                the pinned card matches the inline rows' width. The
-                                gutter padding lives on the outer overlay (above),
-                                mirroring the composer slot's two-level structure. */}
-                            <div class={contentClass()}>
+                            {/* Position from the scroll-container width probe so
+                                classic scrollbar gutters cannot offset the pinned
+                                copy from the inline transcript row underneath. */}
+                            <div
+                              class={`${pinnedOverlayColumn} ${contentClass()}`}
+                              style={{
+                                'margin-left': `${contentColumnLeft()}px`,
+                                'margin-right': '0px',
+                                width: `${containerWidth()}px`,
+                                'max-width': 'none',
+                              }}
+                            >
                               <PinnedUserMessage
                                 item={item()}
                                 rowWidth={containerWidth()}
