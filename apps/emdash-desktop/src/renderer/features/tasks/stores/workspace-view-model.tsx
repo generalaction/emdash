@@ -27,7 +27,14 @@ import { terminalRegistry } from './terminal-registry';
 import { resolveWorkspacePath } from './workspace-path';
 import { workspaceRegistry } from './workspace-registry';
 
-export type RendererKind = 'monaco' | 'markdown' | 'diff' | 'agents' | 'browser' | 'other-file';
+export type RendererKind =
+  | 'monaco'
+  | 'markdown'
+  | 'diff'
+  | 'agents'
+  | 'browser'
+  | 'terminal'
+  | 'other-file';
 
 export class WorkspaceViewModel implements ILifecycle {
   sidebarTab: SidebarTab;
@@ -95,6 +102,7 @@ export class WorkspaceViewModel implements ILifecycle {
         return workspaceRegistry.get(projectId, workspaceId)?.path;
       },
       modelRootPath: `workspace:${workspaceId}`,
+      getRemoteConnectionId: () => this._workspace?.sshConnectionId,
     };
     this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx, {
       onActiveTabChange: (tabId) => {
@@ -148,6 +156,7 @@ export class WorkspaceViewModel implements ILifecycle {
     const desc = this.activePane.activeEntry;
     if (desc?.kind === 'diff') return 'diff';
     if (desc?.kind === 'browser') return 'browser';
+    if (desc?.kind === 'terminal') return 'terminal';
     const resource = this.activePane.activeResourceOfKind<FileTabResource>('file');
     if (!resource) return 'agents';
     if (resource.contentType === 'markdown' && resource.viewMode === 'preview') return 'markdown';
@@ -347,7 +356,7 @@ export class WorkspaceViewModel implements ILifecycle {
   // Actions
   // -------------------------------------------------------------------------
 
-  activateLastTabOfKind(kind: 'conversation' | 'file' | 'diff' | 'browser'): void {
+  activateLastTabOfKind(kind: 'conversation' | 'file' | 'diff' | 'browser' | 'terminal'): void {
     const tabId = [...this.activePane.tabOrder]
       .reverse()
       .find((id) => this.activePane.entries.get(id)?.kind === kind);
@@ -359,7 +368,9 @@ export class WorkspaceViewModel implements ILifecycle {
           ? 'editor'
           : kind === 'diff'
             ? 'diff'
-            : 'browser';
+            : kind === 'browser'
+              ? 'browser'
+              : 'terminal';
     focusTracker.transition({ mainPanel: panelView }, 'panel_switch');
     this.activePane.setActiveTab(tabId);
   }

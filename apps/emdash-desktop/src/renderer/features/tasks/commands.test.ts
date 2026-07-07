@@ -318,6 +318,7 @@ describe('createTaskCommandProvider', () => {
 
     expect(taskView.openNewTerminal).toHaveBeenCalledTimes(1);
     expect(taskView.openNewTerminal).toHaveBeenCalledWith();
+    expect(taskView.paneLayout.open).not.toHaveBeenCalled();
     expect(taskView.setTerminalDrawerOpen).not.toHaveBeenCalled();
   });
 

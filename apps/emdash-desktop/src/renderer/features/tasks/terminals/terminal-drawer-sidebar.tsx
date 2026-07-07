@@ -1,3 +1,4 @@
+import { useDraggable } from '@dnd-kit/core';
 import { ChevronDown, Pause, Play, Plus, Settings, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -21,6 +22,7 @@ import type {
   TerminalShellAvailability,
   TerminalShellId,
 } from '@shared/core/terminals/terminal-settings';
+import { TERMINAL_DRAWER_DRAG_TYPE, type TerminalDrawerDragData } from './terminal-drag';
 import { scriptIcon } from './terminal-tabs';
 
 interface TerminalDrawerSidebarProps {
@@ -120,6 +122,12 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
             icon={<Terminal className="size-3" />}
             label={terminal.data.name}
             isActive={activeTerminalId === terminal.data.id}
+            dragId={`terminal-drawer-${terminal.data.id}`}
+            dragData={{
+              type: TERMINAL_DRAWER_DRAG_TYPE,
+              terminalId: terminal.data.id,
+              label: terminal.data.name,
+            }}
             onSelect={() => onSelectTerminal(terminal.data.id)}
             onRename={(name) => onRenameTerminal(terminal.data.id, name)}
             onHover={onHoverTerminal ? () => onHoverTerminal(terminal.data.id) : undefined}
@@ -128,6 +136,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                 <TooltipTrigger>
                   <button
                     className="ml-1 flex size-5 shrink-0 items-center justify-center rounded text-foreground-muted opacity-0 group-hover:opacity-100 hover:bg-background hover:text-foreground"
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
                       onRemoveTerminal(terminal.data.id);
@@ -217,6 +226,8 @@ interface SidebarRowProps {
   onRename?: (name: string) => void;
   onHover?: () => void;
   action?: ReactNode;
+  dragId?: string;
+  dragData?: TerminalDrawerDragData;
 }
 
 function SidebarRow({
@@ -227,8 +238,20 @@ function SidebarRow({
   onRename,
   onHover,
   action,
+  dragId,
+  dragData,
 }: SidebarRowProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    isDragging,
+  } = useDraggable({
+    id: dragId ?? `terminal-sidebar-row-${label}`,
+    data: dragData,
+    disabled: !dragData,
+  });
 
   if (isEditing && onRename) {
     return (
@@ -253,9 +276,12 @@ function SidebarRow({
 
   return (
     <div
+      ref={setDragRef}
       className={cn(
         'group flex items-center justify-between px-3 py-1.5 cursor-pointer hover:bg-background-2 rounded-md',
-        isActive && 'bg-background-2 text-foreground'
+        dragData && 'cursor-grab active:cursor-grabbing',
+        isActive && 'bg-background-2 text-foreground',
+        isDragging && 'opacity-50'
       )}
       onClick={onSelect}
       onMouseEnter={onHover}
@@ -264,6 +290,8 @@ function SidebarRow({
         e.stopPropagation();
         setIsEditing(true);
       }}
+      {...attributes}
+      {...listeners}
     >
       <span
         className={cn(

@@ -18,7 +18,7 @@ export type FocusView =
   | 'skills'
   | 'mcp'
   | 'automations';
-export type FocusMainPanel = 'agents' | 'editor' | 'diff' | 'browser';
+export type FocusMainPanel = 'agents' | 'editor' | 'diff' | 'browser' | 'terminal';
 export type FocusedRegion = 'main' | 'bottom';
 
 export type FocusTrigger = 'navigation' | 'panel_switch' | 'region_switch';

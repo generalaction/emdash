@@ -49,7 +49,14 @@ export const PaneContent = observer(function PaneContent({
   const activeKind = pane.resolvedTabs.find((t) => t.isActive)?.kind ?? null;
 
   if (!hasAnyTab) {
-    return emptyState ?? null;
+    return (
+      <div ref={setContentRef} className="relative h-full">
+        {isOverContent && (
+          <div className="pointer-events-none absolute inset-0 z-20 bg-foreground/10" />
+        )}
+        {emptyState}
+      </div>
+    );
   }
 
   return (
