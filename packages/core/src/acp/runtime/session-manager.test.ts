@@ -148,6 +148,38 @@ describe('AcpRuntime session manager', () => {
     });
   });
 
+  it('sends hidden prompt context to the agent without adding it to the transcript', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const started = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-hidden-context' })
+    );
+    expect(isOk(started)).toBe(true);
+
+    const sent = await rt.sendPrompt('conv-hidden-context', {
+      text: 'Fix @[ENG-123](issue:linear:ENG-123)',
+      hiddenContext: '<issue_context identifier="ENG-123">Context body</issue_context>',
+    });
+
+    expect(isOk(sent)).toBe(true);
+    expect(h.agent.prompt).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      prompt: [
+        { type: 'text', text: 'Fix @[ENG-123](issue:linear:ENG-123)' },
+        { type: 'text', text: '<issue_context identifier="ENG-123">Context body</issue_context>' },
+      ],
+    });
+
+    const history = rt.getHistory('conv-hidden-context');
+    expect(isOk(history)).toBe(true);
+    if (!isOk(history)) return;
+    expect(history.data.turns[0].items[0]).toMatchObject({
+      kind: 'message',
+      text: 'Fix @[ENG-123](issue:linear:ENG-123)',
+    });
+    expect(JSON.stringify(history.data.turns[0].items[0])).not.toContain('Context body');
+  });
+
   it('returns a resume result with replayed history', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);

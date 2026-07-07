@@ -271,7 +271,11 @@ export class AcpChatStore {
     }
   }
 
-  submitPrompt(text: string, attachments: AcpPromptAttachment[] = []): void {
+  submitPrompt(
+    text: string,
+    attachments: AcpPromptAttachment[] = [],
+    hiddenContext?: string
+  ): void {
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     if (!this.affordances.isWorking) {
       const optimisticId = `optimistic:user:${Date.now()}`;
@@ -289,6 +293,7 @@ export class AcpChatStore {
     void this.session
       ?.sendPrompt({
         text,
+        ...(hiddenContext ? { hiddenContext } : {}),
         ...(promptAttachments.length > 0 ? { attachments: promptAttachments } : {}),
       })
       .then((result) => {
@@ -337,6 +342,7 @@ export class AcpChatStore {
     if (!existing) return;
     const input: PromptInput = {
       text,
+      hiddenContext: existing.hiddenContext,
       attachments: existing.attachments,
     };
     void this.session

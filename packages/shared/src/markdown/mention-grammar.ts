@@ -45,10 +45,10 @@ const NEEDS_ANGLE = /[\s()]/;
  * Produce the canonical text form of a mention for use as the serialized
  * submit/clipboard text.
  *
- * - File mentions with a target: `@[label](target)`. When the target contains
- *   spaces or parentheses (forbidden in bare CommonMark destinations), it is
- *   wrapped in angle brackets: `@[label](<path with spaces>)`. remark parses
- *   both forms to the same link node, recovering the target verbatim.
+ * - File and issue mentions with a target: `@[label](target)`. When the target
+ *   contains spaces or parentheses (forbidden in bare CommonMark destinations),
+ *   it is wrapped in angle brackets: `@[label](<path with spaces>)`. remark
+ *   parses both forms to the same link node, recovering the target verbatim.
  * - Everything else: `@${target ?? label}` (bare form).
  */
 export function stringifyMention(m: {
@@ -56,7 +56,7 @@ export function stringifyMention(m: {
   target?: string;
   kind: MentionKind | null;
 }): string {
-  if (m.kind === 'file' && m.target) {
+  if ((m.kind === 'file' || m.kind === 'issue') && m.target) {
     const dest = NEEDS_ANGLE.test(m.target) ? `<${m.target}>` : m.target;
     return `@[${m.label}](${dest})`;
   }

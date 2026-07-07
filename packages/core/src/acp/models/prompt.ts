@@ -4,6 +4,7 @@ export type { PromptAttachment } from './attachments';
 
 export const promptInputSchema = z.object({
   text: z.string(),
+  hiddenContext: z.string().optional(),
   attachments: z.array(promptAttachmentSchema).optional(),
 });
 export type PromptInput = z.infer<typeof promptInputSchema>;

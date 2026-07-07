@@ -15,7 +15,7 @@ import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { AtSign, Braces, CircleDot, File, X } from 'lucide-react';
 import React from 'react';
 import { basename, fileIconClass } from './mention-pill-helpers';
-import type { MentionKind } from './types';
+import type { MentionKind, RenderMentionIcon } from './types';
 import * as styles from './mention-pill.css';
 
 // ── Kind → fallback lucide icon ───────────────────────────────────────────────
@@ -29,7 +29,20 @@ const KIND_ICONS: Record<MentionKind, React.ReactNode> = {
   custom: <AtSign style={ICON_SIZE_SM} />,
 };
 
-function PillIcon({ kind, label }: { kind: MentionKind; label: string }) {
+function PillIcon({
+  id,
+  kind,
+  label,
+  renderMentionIcon,
+}: {
+  id: string;
+  kind: MentionKind;
+  label: string;
+  renderMentionIcon?: RenderMentionIcon;
+}) {
+  const hostIcon = renderMentionIcon?.({ id, label, kind });
+  if (hostIcon) return hostIcon;
+
   if (kind === 'file') {
     const cls = fileIconClass(label);
     if (cls) return <i className={cls} style={{ fontSize: '12px', lineHeight: 1 }} />;
@@ -39,7 +52,12 @@ function PillIcon({ kind, label }: { kind: MentionKind; label: string }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function MentionPill({ node, deleteNode }: NodeViewProps) {
+export function MentionPill({
+  node,
+  deleteNode,
+  renderMentionIcon,
+}: NodeViewProps & { renderMentionIcon?: RenderMentionIcon }) {
+  const id = (node.attrs.id as string | null) ?? '';
   const label = (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
   const rawName = (node.attrs.name as string | null) ?? null;
   const name = rawName ?? (basename(label) || label);
@@ -55,7 +73,7 @@ export function MentionPill({ node, deleteNode }: NodeViewProps) {
       >
         {/* Icon area — relative so the ✕ overlay is positioned inside it */}
         <span className={styles.pillIconArea}>
-          <PillIcon kind={kind} label={label} />
+          <PillIcon id={id} kind={kind} label={label} renderMentionIcon={renderMentionIcon} />
           {/* Hover-x: overlaid over the icon on pill-hover */}
           <button
             type="button"

@@ -8,10 +8,7 @@ import { AT_BARE_PATTERN, SLASH_PATTERN, stringifyMention } from './mention-gram
 // ── stringifyMention ─────────────────────────────────────────────────────────
 
 describe('stringifyMention', () => {
-  it('emits bare @label for non-file kinds', () => {
-    expect(stringifyMention({ label: 'issue-42', target: 'issue-42', kind: 'issue' })).toBe(
-      '@issue-42'
-    );
+  it('emits bare @label for non-file and non-issue kinds', () => {
     expect(
       stringifyMention({ label: 'handleSubmit', target: 'handleSubmit', kind: 'symbol' })
     ).toBe('@handleSubmit');
@@ -27,6 +24,12 @@ describe('stringifyMention', () => {
     expect(stringifyMention({ label: 'jwt.ts', target: 'src/auth/jwt.ts', kind: 'file' })).toBe(
       '@[jwt.ts](src/auth/jwt.ts)'
     );
+  });
+
+  it('emits @[label](target) bracket form for an issue with target', () => {
+    expect(
+      stringifyMention({ label: 'ENG-123', target: 'issue:linear:ENG-123', kind: 'issue' })
+    ).toBe('@[ENG-123](issue:linear:ENG-123)');
   });
 
   it('emits same label and target when label == target (no name override)', () => {

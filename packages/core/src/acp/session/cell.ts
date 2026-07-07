@@ -464,6 +464,7 @@ export class SessionCell {
             mimeType: attachment.mimeType,
           })),
           ...(prompt.text ? [{ type: 'text' as const, text: prompt.text }] : []),
+          ...(prompt.hiddenContext ? [{ type: 'text' as const, text: prompt.hiddenContext }] : []),
         ],
       };
       this.rawLog.record({

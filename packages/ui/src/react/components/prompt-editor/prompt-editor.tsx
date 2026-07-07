@@ -155,6 +155,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     onChange,
     onSubmit,
     mentionProvider,
+    renderMentionIcon,
     queryMentions,
     queryCommands,
     onCommand,
@@ -169,6 +170,8 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   onCommandRef.current = onCommand;
   const mentionProviderRef = useRef(mentionProvider);
   mentionProviderRef.current = mentionProvider;
+  const renderMentionIconRef = useRef(renderMentionIcon);
+  renderMentionIconRef.current = renderMentionIcon;
   const queryMentionsRef = useRef(queryMentions);
   queryMentionsRef.current = queryMentions;
   const queryCommandsRef = useRef(queryCommands);
@@ -196,35 +199,40 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     onSubmitRef.current?.(text);
   }, []);
 
-  const mentionExtension = buildMentionExtension({
-    items: async ({ query }: { query: string }) => {
-      // Prefer mentionProvider over the legacy queryMentions callback.
-      const provider = mentionProviderRef.current;
-      if (provider) return provider.search(query);
-      return (await queryMentionsRef.current?.(query)) ?? [];
-    },
-    render: makeSuggestionRender<MentionItem>(setMentionSuggestion, mentionPopupRef),
-    command({ editor, range, props }) {
-      const item = props as unknown as MentionItem;
-      editor
-        .chain()
-        .focus()
-        .deleteRange(range)
-        .insertContentAt(range.from, [
-          {
-            type: 'mention',
-            attrs: {
-              id: item.id,
-              label: item.label,
-              name: item.name ?? null,
-              kind: item.kind,
+  const mentionExtension = buildMentionExtension(
+    {
+      items: async ({ query }: { query: string }) => {
+        // Prefer mentionProvider over the legacy queryMentions callback.
+        const provider = mentionProviderRef.current;
+        if (provider) return provider.search(query);
+        return (await queryMentionsRef.current?.(query)) ?? [];
+      },
+      render: makeSuggestionRender<MentionItem>(setMentionSuggestion, mentionPopupRef),
+      command({ editor, range, props }) {
+        const item = props as unknown as MentionItem;
+        editor
+          .chain()
+          .focus()
+          .deleteRange(range)
+          .insertContentAt(range.from, [
+            {
+              type: 'mention',
+              attrs: {
+                id: item.id,
+                label: item.label,
+                name: item.name ?? null,
+                kind: item.kind,
+              },
             },
-          },
-          { type: 'text', text: ' ' },
-        ])
-        .run();
+            { type: 'text', text: ' ' },
+          ])
+          .run();
+      },
     },
-  });
+    {
+      renderMentionIcon: (attrs) => renderMentionIconRef.current?.(attrs) ?? null,
+    }
+  );
 
   const slashExtension = buildSlashCommandExtension(
     {

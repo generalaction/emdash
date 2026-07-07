@@ -13,6 +13,13 @@ import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
+import { IntegrationIcon } from '@renderer/features/integrations/integration-icon';
+import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
+import {
+  asMounted,
+  getProjectStore,
+  getProjectViewStore,
+} from '@renderer/features/projects/stores/project-selectors';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 // TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
 import {
@@ -20,7 +27,15 @@ import {
   openFileInTaskEditor,
 } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 // TODO(conversations-extraction): Pass task state into ACP chat instead of importing task stores.
-import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  asProvisioned,
+  getRegisteredTaskData,
+  getTaskStore,
+} from '@renderer/features/tasks/stores/task-selectors';
+import {
+  issueMentionToken,
+  parseIssueMentionToken,
+} from '@renderer/lib/chat/chat-mention-provider';
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
@@ -30,13 +45,37 @@ import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-i
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { log } from '@renderer/utils/logger';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
+import { buildIssueMentionHiddenContext } from './issue-mention-context';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const attachmentDataUrlCache = new Map<string, Promise<string | null>>();
+const ISSUE_SEARCH_MIN_LENGTH = 2;
+const ISSUE_SEARCH_LIMIT = 20;
+
+function toIssueMentionItem(issue: LinkedIssue): MentionItem {
+  const token = issueMentionToken(issue.provider, issue.identifier);
+  return {
+    id: token,
+    label: token,
+    name: issue.displayIdentifier ?? issue.identifier,
+    kind: 'issue',
+    description: issue.title,
+    icon: <IntegrationIcon provider={issue.provider} size={13} />,
+  };
+}
+
+function issueMatchesQuery(issue: LinkedIssue, query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return [issue.identifier, issue.displayIdentifier, issue.title]
+    .filter((value): value is string => !!value)
+    .some((value) => value.toLowerCase().includes(normalized));
+}
 
 /** Map an AcpPermissionRequest to the ComposerPermissionRequest shape the UI expects. */
 function toComposerPermission(
@@ -197,26 +236,47 @@ const ComposerForStore = observer(function ComposerForStore({
     [attachments]
   );
 
+  const buildHiddenIssueContext = useCallback(
+    (value: string) =>
+      buildIssueMentionHiddenContext(value, async (target) => {
+        const result = await rpc.issues.getIssueContext(target.provider, {
+          identifier: target.identifier,
+          projectId: store.projectId,
+        });
+        if (!result.success) {
+          log.warn('Failed to resolve issue mention context', {
+            token: target.token,
+            error: result.error,
+          });
+          return null;
+        }
+        return result.data;
+      }),
+    [store.projectId]
+  );
+
   const handleSubmit = useCallback(
-    (value: string) => {
+    async (value: string) => {
       const promptAttachments = buildPromptAttachments();
       if (!value.trim() && promptAttachments.length === 0) return;
-      store.submitPrompt(value, promptAttachments);
       setAttachments([]);
       editorApiRef.current?.clear();
+      const hiddenContext = await buildHiddenIssueContext(value);
+      store.submitPrompt(value, promptAttachments, hiddenContext);
     },
-    [store, buildPromptAttachments]
+    [store, buildPromptAttachments, buildHiddenIssueContext]
   );
 
   const handleSubmitWhileWorking = useCallback(
-    (value: string) => {
+    async (value: string) => {
       const promptAttachments = buildPromptAttachments();
       if (!value.trim() && promptAttachments.length === 0) return;
-      store.submitPrompt(value, promptAttachments);
       setAttachments([]);
       editorApiRef.current?.clear();
+      const hiddenContext = await buildHiddenIssueContext(value);
+      store.submitPrompt(value, promptAttachments, hiddenContext);
     },
-    [store, buildPromptAttachments]
+    [store, buildPromptAttachments, buildHiddenIssueContext]
   );
 
   const handleStop = useCallback(() => {
@@ -328,23 +388,99 @@ const ComposerForStore = observer(function ComposerForStore({
   const workspaceId = useObserver(
     () => asProvisioned(getTaskStore(store.projectId, store.taskId))?.workspaceId
   );
+  const linkedIssue = useObserver(
+    () => getRegisteredTaskData(store.projectId, store.taskId)?.linkedIssue
+  );
+  const issueProviderContext = useObserver(() => {
+    const mounted = asMounted(getProjectStore(store.projectId));
+    return {
+      projectPath: mounted?.data.path,
+      repositoryUrl:
+        mounted?.gitRepository.issueRepositoryUrl ??
+        mounted?.gitRepository.canonicalRepositoryUrl ??
+        undefined,
+      selectedIssueProvider: getProjectViewStore(store.projectId)?.selectedIssueProvider ?? null,
+    };
+  });
+  const { connectedProviders, isProviderUsable } = useConnectedIssueProviders(issueProviderContext);
+  const issueProvider = useMemo(() => {
+    const selected = issueProviderContext.selectedIssueProvider;
+    if (selected && isProviderUsable(selected)) return selected;
+    return connectedProviders[0] ?? null;
+  }, [connectedProviders, isProviderUsable, issueProviderContext.selectedIssueProvider]);
 
   const mentionProvider = useMemo<ContextMentionProvider | undefined>(() => {
-    if (!workspaceId) return undefined;
+    if (!workspaceId && !linkedIssue && !issueProvider) return undefined;
     const wsId = workspaceId;
     return {
       async search(query: string): Promise<MentionItem[]> {
-        const files = await rpc.search.searchWorkspaceFiles({ workspaceId: wsId, query });
-        return files.map((f) => ({
+        const pinnedIssue =
+          linkedIssue && issueMatchesQuery(linkedIssue, query)
+            ? toIssueMentionItem(linkedIssue)
+            : null;
+        const issueSearch =
+          issueProvider && query.trim().length >= ISSUE_SEARCH_MIN_LENGTH
+            ? rpc.issues
+                .searchIssues(issueProvider, {
+                  limit: ISSUE_SEARCH_LIMIT,
+                  searchTerm: query.trim(),
+                  projectId: store.projectId,
+                  projectPath: issueProviderContext.projectPath,
+                  repositoryUrl: issueProviderContext.repositoryUrl ?? undefined,
+                })
+                .catch((error: unknown) => {
+                  log.warn('Failed to search issue mentions', { provider: issueProvider, error });
+                  return null;
+                })
+            : Promise.resolve(null);
+
+        const [files, issueResult] = await Promise.all([
+          wsId
+            ? rpc.search.searchWorkspaceFiles({ workspaceId: wsId, query })
+            : Promise.resolve([]),
+          issueSearch,
+        ]);
+
+        const pinnedIssueItems: MentionItem[] = [];
+        const searchedIssueItems: MentionItem[] = [];
+        const seenIssueIds = new Set<string>();
+        if (pinnedIssue) {
+          pinnedIssueItems.push(pinnedIssue);
+          seenIssueIds.add(pinnedIssue.id);
+        }
+        if (issueResult?.success) {
+          for (const issue of issueResult.data) {
+            const item = toIssueMentionItem(issue);
+            if (seenIssueIds.has(item.id)) continue;
+            seenIssueIds.add(item.id);
+            searchedIssueItems.push(item);
+          }
+        } else if (issueResult && !issueResult.success) {
+          log.warn('Failed to search issue mentions', {
+            provider: issueProvider,
+            error: issueResult.error,
+          });
+        }
+
+        const fileItems = files.map((f) => ({
           id: f.path,
           label: f.path,
           name: f.filename,
           kind: 'file' as const,
           description: f.path,
         }));
+
+        return [...pinnedIssueItems, ...fileItems, ...searchedIssueItems];
       },
     };
-  }, [workspaceId]);
+  }, [
+    workspaceId,
+    linkedIssue,
+    issueProvider,
+    store.projectId,
+    issueProviderContext.projectPath,
+    issueProviderContext.repositoryUrl,
+  ]);
 
   const { data: agents } = useAgents();
   const agentOptions = useMemo<ComposerAgentOption[]>(
@@ -360,6 +496,12 @@ const ComposerForStore = observer(function ComposerForStore({
   const providerId =
     conversationRegistry.get(store.taskId)?.conversations.get(store.conversationId)?.data
       .providerId ?? null;
+  const renderMentionIcon = useCallback(({ id, kind }: { id: string; kind: string }) => {
+    if (kind !== 'issue') return null;
+    const target = parseIssueMentionToken(id);
+    if (!target) return null;
+    return <IntegrationIcon provider={target.provider} size={12} />;
+  }, []);
 
   const a = store.affordances;
   const permissionRequest = toComposerPermission(store.permissionQueue[0]);
@@ -406,6 +548,7 @@ const ComposerForStore = observer(function ComposerForStore({
             : null
         }
         mentionProvider={mentionProvider}
+        renderMentionIcon={renderMentionIcon}
         queryCommands={async (query) =>
           store.commands.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
         }
@@ -520,8 +663,25 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         void open(store.projectId, store.taskId, arg.path);
       },
       onClickMention: (arg: Parameters<NonNullable<ChatCommands['onClickMention']>>[0]) => {
-        if (arg.kind !== 'file' || !store) return;
-        void openFileInTaskEditor(store.projectId, store.taskId, arg.id);
+        if (!store) return;
+        if (arg.kind === 'file') {
+          void openFileInTaskEditor(store.projectId, store.taskId, arg.id);
+          return;
+        }
+        if (arg.kind === 'issue') {
+          const target = parseIssueMentionToken(arg.id);
+          if (!target) return;
+          void rpc.issues
+            .getIssueContext(target.provider, {
+              identifier: target.identifier,
+              projectId: store.projectId,
+            })
+            .then((result) => {
+              if (result.success && result.data.url) {
+                void rpc.app.openExternal(result.data.url);
+              }
+            });
+        }
       },
     }),
     [store, handleViewerOpen]

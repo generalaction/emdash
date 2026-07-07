@@ -19,6 +19,7 @@ import type {
   ContextMentionProvider,
   MentionItem,
   PromptEditorRef,
+  RenderMentionIcon,
 } from '../prompt-editor/types';
 import { ContextUsageIndicator } from './context-usage-indicator';
 import type { ContextUsage } from './context-usage-indicator';
@@ -35,6 +36,7 @@ export type {
   CommandBehavior,
   ContextMentionProvider,
   PromptEditorRef,
+  RenderMentionIcon,
 } from '../prompt-editor/types';
 export type { ContextUsage } from './context-usage-indicator';
 export type { ComposerQueuedPrompt } from './queued-prompts-band';
@@ -249,6 +251,8 @@ export interface ChatComposerProps {
    * `mentionProvider` takes precedence.
    */
   mentionProvider?: ContextMentionProvider;
+  /** Optional host renderer for inline mention pill icons. */
+  renderMentionIcon?: RenderMentionIcon;
   /** Legacy: async callback returning @ mention suggestions for the given query. */
   queryMentions?: (query: string) => Promise<MentionItem[]>;
   /** Async callback returning / command suggestions for the given query. */
@@ -545,6 +549,7 @@ export function ChatComposer({
   onFilesDropped,
   editorApiRef,
   mentionProvider,
+  renderMentionIcon,
   queryMentions,
   queryCommands,
   onCommand,
@@ -789,6 +794,7 @@ export function ChatComposer({
             onChange={onInputChange}
             onSubmit={handleSubmit}
             mentionProvider={mentionProvider}
+            renderMentionIcon={renderMentionIcon}
             queryMentions={queryMentions}
             queryCommands={queryCommands}
             onCommand={onCommand}

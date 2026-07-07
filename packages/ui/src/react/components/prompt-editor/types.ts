@@ -34,6 +34,12 @@ export interface MentionItem {
   description?: string;
 }
 
+export type RenderMentionIcon = (attrs: {
+  id: string;
+  label: string;
+  kind: MentionKind;
+}) => ReactNode | null;
+
 // ── Context mention provider ──────────────────────────────────────────────────
 
 /**
@@ -92,6 +98,11 @@ export interface PromptEditorProps {
    * `mentionProvider` takes precedence.
    */
   mentionProvider?: ContextMentionProvider;
+  /**
+   * Optional host renderer for mention pill icons. Used when the host owns
+   * provider-specific assets that this package cannot import directly.
+   */
+  renderMentionIcon?: RenderMentionIcon;
   /**
    * Legacy: async callback that returns @ mention suggestions.
    * Kept for back-compat; prefer `mentionProvider` for new integrations.

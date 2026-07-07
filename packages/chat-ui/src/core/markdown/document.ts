@@ -48,6 +48,8 @@ export type InlineMention = {
   mentionKind?: 'file' | 'issue' | 'symbol' | 'custom';
   /** Optional host icon CSS class (e.g. a devicon class) rendered as `<i>`. */
   iconClass?: string;
+  /** Optional host icon image URL rendered as `<img>`. */
+  iconUrl?: string;
 };
 
 /**
