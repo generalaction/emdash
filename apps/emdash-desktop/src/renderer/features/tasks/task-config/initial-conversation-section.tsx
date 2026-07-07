@@ -335,7 +335,9 @@ export function InitialConversationField({
         <ChatComposer
           canSubmit={false}
           showSubmitButton={false}
-          placeholder={placeholder ?? 'Describe what the agent should do, or use / to select a prompt...'}
+          placeholder={
+            placeholder ?? 'Describe what the agent should do, or use / to select a prompt...'
+          }
           onSubmit={() => {}}
           onInputChange={handleComposerInputChange}
           editorApiRef={editorApiRef}
