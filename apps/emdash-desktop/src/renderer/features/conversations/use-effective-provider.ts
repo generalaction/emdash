@@ -9,19 +9,21 @@ import { resolveConversationProviderSelection } from './provider-selection';
 
 export type EffectiveProvider = {
   providerId: AgentProviderId | null;
+  defaultProviderId: AgentProviderId;
   setProviderOverride: (id: AgentProviderId | null) => void;
   createDisabled: boolean;
 };
 
 export function useEffectiveProvider(
   connectionId?: string,
-  initialOverride?: AgentProviderId
+  initialOverride?: AgentProviderId,
+  defaultAgentSettingKey: 'defaultAgent' | 'defaultAutomationAgent' = 'defaultAgent'
 ): EffectiveProvider {
   const [providerOverride, setProviderOverride] = useState<AgentProviderId | null>(
     initialOverride ?? null
   );
 
-  const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
+  const { value: defaultAgentValue } = useAppSettingsKey(defaultAgentSettingKey);
   const defaultProviderId: AgentProviderId = isValidProviderId(defaultAgentValue)
     ? defaultAgentValue
     : 'claude';
@@ -42,5 +44,5 @@ export function useEffectiveProvider(
     availabilityKnown,
   });
 
-  return { providerId, setProviderOverride, createDisabled };
+  return { providerId, defaultProviderId, setProviderOverride, createDisabled };
 }

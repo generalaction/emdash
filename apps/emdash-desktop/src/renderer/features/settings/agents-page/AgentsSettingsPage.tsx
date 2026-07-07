@@ -6,6 +6,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { CliAgentsList, type AgentFilter } from './CliAgentsList';
+import { DefaultAgentSelector } from './DefaultAgentSelector';
 
 export function AgentsSettingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,7 +24,6 @@ export function AgentsSettingsPage() {
   return (
     <>
       <PageHeader sticky title="Agents" description="Manage agents and model configurations.">
-        {/* <DefaultAgentSelector /> */}
         <div className="flex items-center justify-between gap-2">
           <ToggleGroup
             multiple={false}
@@ -56,6 +56,7 @@ export function AgentsSettingsPage() {
         </div>
       </PageHeader>
       <div className="flex flex-col gap-3">
+        <DefaultAgentSelector />
         <CliAgentsList searchQuery={searchQuery} filter={filter} onFilterChange={setFilter} />
       </div>
     </>

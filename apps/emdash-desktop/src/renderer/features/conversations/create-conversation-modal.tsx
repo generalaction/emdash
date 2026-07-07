@@ -1,7 +1,8 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 // TODO(conversations-extraction): Pass task settings into the modal instead of importing task hooks.
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
@@ -40,7 +41,8 @@ export const CreateConversationModal = observer(function CreateConversationModal
   taskId: string;
 }) {
   const connectionId = getProjectSshConnectionId(projectId);
-  const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
+  const { providerId, defaultProviderId, setProviderOverride, createDisabled } =
+    useEffectiveProvider(connectionId);
   const conversationMgr = conversationRegistry.get(taskId);
   const taskSettings = useTaskSettings();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,13 +50,21 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [useAcpOverride, setUseAcpOverride] = useState(false);
+  const [modelTouched, setModelTouched] = useState(false);
   const chatUiEnabled = useFeatureFlag('chat-ui');
   useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents();
+  const { value: defaultModelValue } = useAppSettingsKey('defaultModel');
   const modelsCapability = agents?.find((a) => a.id === providerId)?.capabilities.models;
   const modelOptions =
     modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : null;
+  const defaultModel =
+    providerId === defaultProviderId &&
+    typeof defaultModelValue === 'string' &&
+    modelOptions?.[defaultModelValue]
+      ? defaultModelValue
+      : null;
 
   const showAutoApproveToggle = providerId ? providerSupportsAutoApprove(providerId) : false;
   const showAcpToggle = chatUiEnabled && providerId ? providerSupportsAcp(providerId) : false;
@@ -73,9 +83,14 @@ export const CreateConversationModal = observer(function CreateConversationModal
       setProviderOverride(next);
       setSelectedModel(null);
       setUseAcpOverride(false);
+      setModelTouched(false);
     },
     [setProviderOverride]
   );
+
+  useEffect(() => {
+    if (!modelTouched) setSelectedModel(defaultModel);
+  }, [defaultModel, modelTouched]);
 
   const handleCreateConversation = useCallback(async () => {
     if (createDisabled || isSubmitting || !conversationMgr || !providerId) return;
@@ -135,7 +150,10 @@ export const CreateConversationModal = observer(function CreateConversationModal
               <FieldLabel>Model</FieldLabel>
               <Select
                 value={selectedModel ?? ''}
-                onValueChange={(val) => setSelectedModel(val || null)}
+                onValueChange={(val) => {
+                  setModelTouched(true);
+                  setSelectedModel(val || null);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Default model">

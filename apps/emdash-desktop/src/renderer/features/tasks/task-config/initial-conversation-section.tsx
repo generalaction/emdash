@@ -13,6 +13,7 @@ import { useEffectiveProvider } from '@renderer/features/conversations/use-effec
 import { IntegrationIcon } from '@renderer/features/integrations/integration-icon';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
@@ -56,6 +57,9 @@ export type InitialConversationState = {
 
 interface InitialConversationStateOptions {
   resetPromptOnProjectChange?: boolean;
+  defaultAgentSettingKey?: 'defaultAgent' | 'defaultAutomationAgent';
+  defaultModelSettingKey?: 'defaultModel' | 'defaultAutomationModel';
+  applyDefaultModel?: boolean;
 }
 
 export function useInitialConversationState(
@@ -64,20 +68,39 @@ export function useInitialConversationState(
   autoApproveByDefault = false,
   options: InitialConversationStateOptions = {}
 ): InitialConversationState {
-  const { resetPromptOnProjectChange = true } = options;
+  const {
+    resetPromptOnProjectChange = true,
+    defaultAgentSettingKey = 'defaultAgent',
+    defaultModelSettingKey = 'defaultModel',
+    applyDefaultModel = true,
+  } = options;
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
-  const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
+  const { providerId, defaultProviderId, setProviderOverride } = useEffectiveProvider(
+    connectionId,
+    initialProvider,
+    defaultAgentSettingKey
+  );
+  const { value: defaultModelValue } = useAppSettingsKey(defaultModelSettingKey);
   const chatUiFeatureEnabled = useFeatureFlag('chat-ui');
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
   const [model, setModel] = useState<string | null>(null);
+  const [modelTouched, setModelTouched] = useState(false);
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
   const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
     'initial-conversation:chat-ui-enabled',
     true
   );
+  const modelOptions = useModelOptions(providerId);
+  const defaultModel =
+    applyDefaultModel &&
+    providerId === defaultProviderId &&
+    typeof defaultModelValue === 'string' &&
+    modelOptions?.[defaultModelValue]
+      ? defaultModelValue
+      : null;
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
   const [prevProviderId, setPrevProviderId] = useState(providerId);
@@ -94,16 +117,27 @@ export function useInitialConversationState(
     setAutoApproveOverride(null);
     setIssueContextEditorOpen(false);
     setModel(null);
+    setModelTouched(false);
     setIssueMentionContexts({});
   } else if (providerChanged) {
     setPrevProviderId(providerId);
     setModel(null);
+    setModelTouched(false);
   }
+
+  useEffect(() => {
+    if (!applyDefaultModel) return;
+    if (!modelTouched) setModel(defaultModel);
+  }, [applyDefaultModel, defaultModel, modelTouched]);
 
   const autoApproveSupported = providerId ? providerSupportsAutoApprove(providerId) : false;
   const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
   const acpSupported = chatUiFeatureEnabled && providerId ? providerSupportsAcp(providerId) : false;
   const useChatUi = acpSupported && useChatUiPreference;
+  const setSelectedModel = (nextModel: string | null) => {
+    setModelTouched(true);
+    setModel(nextModel);
+  };
 
   return {
     provider: providerId,
@@ -118,7 +152,7 @@ export function useInitialConversationState(
     issueContextEditorOpen,
     setIssueContextEditorOpen,
     model,
-    setModel,
+    setModel: setSelectedModel,
     connectionId,
     useChatUi,
     setUseChatUi: setUseChatUiPreference,

@@ -18,6 +18,13 @@ const mocks = vi.hoisted(() => ({
   getProjectSshConnectionId: vi.fn(),
   setProviderOverride: vi.fn(),
   chatUiFeature: true,
+  defaultModelValue: null as string | null,
+  agents: [] as Array<{
+    id: string;
+    capabilities: {
+      models?: { kind: 'selectable'; modelOptions: Record<string, { name: string }> };
+    };
+  }>,
   editorText: '',
   editorApi: {
     focus: vi.fn(),
@@ -88,7 +95,11 @@ vi.mock('../context-bar/add-context-popover', () => ({
 }));
 
 vi.mock('@renderer/lib/stores/use-agents', () => ({
-  useAgents: () => ({ data: [] }),
+  useAgents: () => ({ data: mocks.agents }),
+}));
+
+vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
+  useAppSettingsKey: () => ({ value: mocks.defaultModelValue }),
 }));
 
 vi.mock('@renderer/lib/hooks/useFeatureFlag', () => ({
@@ -111,6 +122,7 @@ vi.mock('@renderer/utils/logger', () => ({
 vi.mock('@renderer/features/conversations/use-effective-provider', () => ({
   useEffectiveProvider: () => ({
     providerId: 'claude',
+    defaultProviderId: 'claude',
     setProviderOverride: mocks.setProviderOverride,
     createDisabled: false,
   }),
@@ -128,6 +140,25 @@ function Probe({
   options?: InitialConversationOptions;
 }) {
   latestState = useInitialConversationState(projectId, undefined, false, options);
+  return null;
+}
+
+function SeedModelProbe({
+  projectId,
+  options,
+  model,
+}: {
+  projectId: string;
+  options?: InitialConversationOptions;
+  model: string;
+}) {
+  const [seeded, setSeeded] = React.useState(false);
+  const state = useInitialConversationState(projectId, undefined, false, options);
+  latestState = state;
+  if (!seeded) {
+    setSeeded(true);
+    state.setModel(model);
+  }
   return null;
 }
 
@@ -166,6 +197,8 @@ describe('useInitialConversationState', () => {
     mocks.editorText = '';
     mocks.lastChatComposerProps = null;
     mocks.getProjectSshConnectionId.mockReturnValue(undefined);
+    mocks.defaultModelValue = null;
+    mocks.agents = [];
 
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
       url: 'http://localhost',
@@ -195,6 +228,17 @@ describe('useInitialConversationState', () => {
     });
   }
 
+  async function renderSeedModelProbe(
+    projectId: string,
+    model: string,
+    options?: InitialConversationOptions
+  ) {
+    await act(async () => {
+      root.render(React.createElement(SeedModelProbe, { projectId, model, options }));
+    });
+    await act(async () => {});
+  }
+
   async function setPrompt(prompt: string) {
     await act(async () => {
       latestState?.setPrompt(prompt);
@@ -221,6 +265,66 @@ describe('useInitialConversationState', () => {
     await renderProbe('project-2', { resetPromptOnProjectChange: false });
 
     expect(latestState?.prompt).toBe('Keep this automation prompt');
+  });
+
+  it('applies the configured default model when default model application is enabled', async () => {
+    mocks.defaultModelValue = 'claude-sonnet';
+    mocks.agents = [
+      {
+        id: 'claude',
+        capabilities: {
+          models: {
+            kind: 'selectable',
+            modelOptions: { 'claude-sonnet': { name: 'Claude Sonnet' } },
+          },
+        },
+      },
+    ];
+
+    await renderProbe('project-1');
+
+    expect(latestState?.model).toBe('claude-sonnet');
+  });
+
+  it('does not apply the configured default model when default model application is disabled', async () => {
+    mocks.defaultModelValue = 'claude-sonnet';
+    mocks.agents = [
+      {
+        id: 'claude',
+        capabilities: {
+          models: {
+            kind: 'selectable',
+            modelOptions: { 'claude-sonnet': { name: 'Claude Sonnet' } },
+          },
+        },
+      },
+    ];
+
+    await renderProbe('project-1', { applyDefaultModel: false });
+
+    expect(latestState?.model).toBeNull();
+  });
+
+  it('preserves a seeded model when default model application is disabled', async () => {
+    mocks.defaultModelValue = 'claude-sonnet';
+    mocks.agents = [
+      {
+        id: 'claude',
+        capabilities: {
+          models: {
+            kind: 'selectable',
+            modelOptions: {
+              'claude-haiku': { name: 'Claude Haiku' },
+              'claude-sonnet': { name: 'Claude Sonnet' },
+            },
+          },
+        },
+      },
+    ];
+
+    await renderSeedModelProbe('project-1', 'claude-haiku', { applyDefaultModel: false });
+
+    expect(latestState?.model).toBe('claude-haiku');
   });
 
   it('defaults chat UI on when the provider supports ACP', async () => {
@@ -254,6 +358,8 @@ describe('InitialConversationField', () => {
     mocks.editorText = '';
     mocks.lastChatComposerProps = null;
     mocks.getProjectSshConnectionId.mockReturnValue(undefined);
+    mocks.defaultModelValue = null;
+    mocks.agents = [];
 
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
       url: 'http://localhost',

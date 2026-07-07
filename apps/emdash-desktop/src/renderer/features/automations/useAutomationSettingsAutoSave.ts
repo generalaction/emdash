@@ -16,6 +16,7 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     effectiveProjectId,
     prompt,
     provider,
+    model,
     triggerConfig,
     cronTz,
     canSave,
@@ -23,13 +24,14 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     name,
     workspaceConfig,
   } = formState;
+  const useChatUi = formState.initialConversation.useChatUi;
 
   function buildConversationConfig(): ConversationConfig {
-    const useChatUi = formState.initialConversation.useChatUi;
     return {
       prompt: prompt.trim(),
       provider,
       autoApprove: false,
+      model: model ?? undefined,
       type: useChatUi ? 'acp' : 'pty',
     };
   }
@@ -70,9 +72,9 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
       return;
     }
     if (canSave) savePatch();
-    // We intentionally only track provider here; other fields use action-at-change-site.
+    // We intentionally only track provider/model/type here; other fields use action-at-change-site.
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [provider]);
+  }, [provider, model, useChatUi]);
 
   // Workspace config changes (preset, branch name, sandbox toggle, etc.) are not
   // interceptable at the setter level because they go through useWorkspaceConfig

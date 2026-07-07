@@ -5,7 +5,6 @@ import { createConversation } from '@main/core/conversations/createConversation'
 import { issueController } from '@main/core/issues/controller';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
-import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import {
@@ -130,9 +129,18 @@ export async function executeTaskCreate(
     }
     const workspaceConfig = scopeWorkspaceConfigToRun(taskConfig.workspaceConfig, taskName);
 
-    const provider = (automation.conversationConfig?.provider ||
-      (await appSettingsService.get('defaultAgent')) ||
-      DEFAULT_AGENT_ID) as AgentProviderId;
+    // appSettingsService.get() resolves unset keys to registry defaults, so the automation
+    // agent default is never empty and needs no further fallback here.
+    const configuredProvider = automation.conversationConfig?.provider || null;
+    const provider = (configuredProvider ||
+      (await appSettingsService.get('defaultAutomationAgent'))) as AgentProviderId;
+    // Automation model defaults are intentionally independent from task/conversation defaults.
+    // They only apply when the automation has no explicit provider, so later default changes do
+    // not alter automations that were already configured with a specific agent.
+    const defaultAutomationModel = configuredProvider
+      ? null
+      : await appSettingsService.get('defaultAutomationModel');
+    const model = automation.conversationConfig?.model || defaultAutomationModel || undefined;
     const conversationType = automation.conversationConfig?.type ?? 'pty';
     const initialQueue =
       conversationType === 'acp'
@@ -239,7 +247,7 @@ export async function executeTaskCreate(
           provider,
           automation.conversationConfig?.autoApprove
         ),
-        model: automation.conversationConfig?.model || undefined,
+        model,
         ...(conversationType === 'acp' ? { initialQueue } : { initialPrompt: prompt }),
         isInitialConversation: true,
         type: conversationType,
@@ -254,7 +262,7 @@ export async function executeTaskCreate(
             workspaceId: provision.data.workspaceId,
             cwd: provision.data.path,
             sessionId: null,
-            model: automation.conversationConfig?.model || null,
+            model: model ?? null,
             initialQueue,
           },
         });

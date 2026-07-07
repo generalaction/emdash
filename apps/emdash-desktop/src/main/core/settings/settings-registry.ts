@@ -47,6 +47,9 @@ export const SETTINGS_DEFAULTS = {
   },
   theme: null,
   defaultAgent: DEFAULT_AGENT_ID,
+  defaultModel: null,
+  defaultAutomationAgent: DEFAULT_AGENT_ID,
+  defaultAutomationModel: null,
   keyboard: {},
   openIn: {
     default: 'terminal' as const,
