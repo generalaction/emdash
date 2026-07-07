@@ -1,0 +1,48 @@
+packages/plugins/src/issues/impl/notion/index.ts
+  s_edc7bdba6d21dc::t_e9b77b0abb7b3e 19,37-43,70
+packages/plugins/src/issues/impl/notion/mapper.ts
+  s_b629977204892e::t_1923ff26a01386 5,21-28,31-32
+packages/plugins/src/issues/impl/notion/index.test.ts
+  s_0387ae3d294f28::t_f499d4b063b6d7 81
+  s_77cdab676e9f17::t_9850e9d8bec7d2 1-80,82-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d0cd2f1e5264a510a472c6a57e7e6df28047d583",
+  "prompts": {},
+  "sessions": {
+    "s_0387ae3d294f28": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQ8zOgaVHr5ESRkch8k",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_77cdab676e9f17": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQ7Rl4PssjdwNbYGIEa",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_b629977204892e": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQ6TliPCfGUYcfT90Mx",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_edc7bdba6d21dc": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQ79OJBIujrsHPNocJw",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
