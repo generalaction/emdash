@@ -185,7 +185,6 @@ describe('GitRepository', () => {
           checkoutPath: repo,
           isMain: true,
           head: expect.objectContaining({ kind: 'branch', name: 'main' }),
-          branch: 'main',
         }),
       ]);
 
@@ -193,7 +192,10 @@ describe('GitRepository', () => {
       const added = await repository.addCheckout({ path: linkedPath, newBranch: 'linked' });
       expect(added.success).toBe(true);
       if (!added.success) throw new Error('addCheckout failed');
-      expect(added.data).toMatchObject({ isMain: false, branch: 'linked' });
+      expect(added.data).toMatchObject({
+        isMain: false,
+        head: expect.objectContaining({ kind: 'branch', name: 'linked' }),
+      });
       expect(repository.refs.snapshot().data.branches).toContainEqual(
         expect.objectContaining({ type: 'local', branch: 'linked' })
       );

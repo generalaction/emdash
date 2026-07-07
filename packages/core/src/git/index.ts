@@ -1,6 +1,8 @@
 export { GitRuntime, type GitRuntimeOptions } from './git-runtime';
 export { classifyCloneRepositoryError, gitErrorMessage, toGitCommandError } from './errors';
-export { computeBaseRef } from './utils';
+export { computeBaseRef } from './base-ref';
+export { MAX_STATUS_FILES, StatusParser, TooManyFilesChangedError } from './checkout/status';
+export type { FileStatus } from './checkout/status';
 export type { CheckoutLease, GitOnError, IGitRuntime, RepoLease } from './types';
 export type { IGitRepository } from './repository/types';
 export type { IGitCheckout } from './checkout/types';
@@ -18,6 +20,7 @@ export type {
   PushError,
   RebaseError,
   SwitchError,
+  SyncError,
 } from './api/errors';
 export type {
   BlameHunk,
@@ -30,6 +33,7 @@ export type {
   DiffLine,
   DiffMode,
   DiffTarget,
+  FileChange,
   FileDiff,
   FileDiffStalenessEvent,
   GitChange,

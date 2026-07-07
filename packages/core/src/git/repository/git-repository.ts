@@ -19,8 +19,6 @@ import type {
   PushError,
 } from '../api/errors';
 import type { CheckoutInfo } from '../api/queries';
-import { CatFileBatch } from '../cat-file-batch';
-import type { GitHeadModel } from '../checkout/models/head';
 import {
   classifyCreateBranchError,
   classifyDeleteBranchError,
@@ -30,15 +28,18 @@ import {
   toGitCommandError,
 } from '../errors';
 import { classifyGitWatchEvents } from '../watch/classifier';
-import { computeRefsModel, computeRemotesModel, computeStashesModel } from './compute';
+import { CatFileBatch } from './cat-file-batch';
+import { parseWorktreeList } from './checkouts';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';
 import type { GitStashesModel } from './models/stashes';
+import { computeRefsModel } from './refs';
+import { computeRemotesModel, remoteNameForRepositoryUrl } from './remotes';
+import { computeStashesModel } from './stashes';
 import type { CheckoutWatchRegistration, GitRepositoryOptions, IGitRepository } from './types';
 
 const WATCH_DEBOUNCE_MS = 100;
 const REVALIDATE_INTERVAL_MS = 5 * 60_000;
-const UNBORN_OID = /^0+$/;
 
 /**
  * A repository (shared `.git` directory), in workspace-server contract shape.
@@ -515,61 +516,4 @@ export class GitRepository implements IGitRepository {
       await this.exec.exec(['config', `branch.${branchName}.base`, baseRef]);
     } catch {}
   }
-}
-
-function remoteNameForRepositoryUrl(url: string): string {
-  const withoutSuffix = url.replace(/\.git$/, '');
-  const tail = withoutSuffix.split(/[/:]/).filter(Boolean).slice(-2).join('-');
-  return `fork-${tail || 'remote'}`.replace(/[^A-Za-z0-9._-]/g, '-');
-}
-
-function parseWorktreeList(stdout: string): CheckoutInfo[] {
-  const checkouts: CheckoutInfo[] = [];
-  let current: Partial<{
-    path: string;
-    oid: string;
-    branch: string;
-    detached: boolean;
-    locked: boolean;
-    prunable: boolean;
-  }> = {};
-
-  const flush = () => {
-    if (!current.path) return;
-    checkouts.push({
-      checkoutPath: current.path,
-      isMain: checkouts.length === 0,
-      head: toHeadModel(current),
-      ...(current.branch !== undefined ? { branch: current.branch } : {}),
-      ...(current.locked ? { locked: true } : {}),
-      ...(current.prunable ? { prunable: true } : {}),
-    });
-    current = {};
-  };
-
-  for (const line of stdout.split('\n')) {
-    if (line === '') {
-      flush();
-      continue;
-    }
-    if (line.startsWith('worktree ')) current.path = line.slice('worktree '.length);
-    else if (line.startsWith('HEAD ')) current.oid = line.slice('HEAD '.length);
-    else if (line.startsWith('branch ')) {
-      current.branch = line.slice('branch '.length).replace(/^refs\/heads\//, '');
-    } else if (line === 'detached') current.detached = true;
-    else if (line === 'locked' || line.startsWith('locked ')) current.locked = true;
-    else if (line === 'prunable' || line.startsWith('prunable ')) current.prunable = true;
-  }
-  flush();
-
-  return checkouts;
-}
-
-function toHeadModel(entry: { oid?: string; branch?: string; detached?: boolean }): GitHeadModel {
-  const oid = entry.oid ?? '';
-  if (entry.branch && (!oid || UNBORN_OID.test(oid))) {
-    return { kind: 'unborn', name: entry.branch };
-  }
-  if (entry.branch) return { kind: 'branch', name: entry.branch, oid };
-  return { kind: 'detached', shortHash: oid.slice(0, 7), oid };
 }

@@ -6,6 +6,7 @@ import { WatchService, realpathOrResolve, type IWatchService } from '../watch';
 import type { EnsureRepositoryOptions } from './api/commands';
 import type { CloneRepositoryError, EnsureRepositoryError } from './api/errors';
 import type { GitPathInspection, GitRepositoryInfo } from './api/queries';
+import { computeBaseRef } from './base-ref';
 import { GitCheckout } from './checkout/git-checkout';
 import {
   classifyCloneRepositoryError,
@@ -15,7 +16,6 @@ import {
 import { createGitExec } from './git-env';
 import { GitRepository } from './repository/git-repository';
 import type { CheckoutLease, GitOnError, IGitRuntime, RepoLease } from './types';
-import { computeBaseRef } from './utils';
 
 type CheckoutResource = {
   checkout: GitCheckout;
@@ -30,10 +30,6 @@ type GitIdentity = {
 };
 
 export type GitRuntimeOptions = {
-  /**
-   * File-watch service to use. Injected services are disposed by the injector;
-   * when omitted, the runtime creates and disposes its own service.
-   */
   watcher?: IWatchService;
   executable?: string;
   env?: NodeJS.ProcessEnv;
