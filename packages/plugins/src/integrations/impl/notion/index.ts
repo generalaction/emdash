@@ -24,7 +24,7 @@ const plugin = defineIntegrationPlugin(
               placeholder: 'ntn_…',
             },
           ],
-          help: 'Create a Notion internal integration token or personal access token, then share the pages you want Emdash to access with that connection.',
+          help: 'Create a Notion internal integration token or personal access token, then share each page or database you want Emdash to access with that integration.',
           helpUrl: 'https://developers.notion.com/guides/get-started/authorization',
         },
       ],
