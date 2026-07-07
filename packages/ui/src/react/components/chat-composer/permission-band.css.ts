@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
@@ -48,4 +48,25 @@ export const bandCounter = style({
 
 export const bandAction = style({
   flexShrink: 0,
+});
+
+globalStyle(`${bandAction} button`, {
+  backgroundColor: vars.surfaceElevated,
+  color: vars.foreground,
+  borderColor: `color-mix(in srgb, ${vars.foreground} 12%, transparent)`,
+});
+
+globalStyle(`${bandAction} button:hover`, {
+  backgroundColor: vars.surfaceElevatedHover,
+  color: vars.foreground,
+});
+
+globalStyle(`${bandAction} button[aria-expanded="true"]`, {
+  backgroundColor: vars.surfaceElevatedSelected,
+  color: vars.foreground,
+});
+
+globalStyle(`${bandAction} button[data-popup-open]`, {
+  backgroundColor: vars.surfaceElevatedSelected,
+  color: vars.foreground,
 });
