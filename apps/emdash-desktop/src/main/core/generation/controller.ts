@@ -1,6 +1,5 @@
-import { execFile, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { promisify } from 'node:util';
+import type { GitChange, GitObjectRef, IGitWorktree } from '@emdash/core/git';
 import { err, ok, type Result } from '@emdash/shared';
 import { providerSupportsAcp } from '@shared/core/agents/agent-acp';
 import { createRPCController } from '@shared/lib/ipc/rpc';
@@ -8,9 +7,8 @@ import { acpRuntimeProcedures } from '../acp/controller';
 import { resolveWorkspace } from '../projects/utils';
 import { appSettingsService } from '../settings/settings-service';
 
-const execFileAsync = promisify(execFile);
 const MAX_CONTEXT_CHARS = 60_000;
-const GIT_CONTEXT_OUTPUT_LIMIT = MAX_CONTEXT_CHARS * 2;
+const MAX_FILES_IN_CONTEXT = 30;
 
 type GenerationError = {
   type:
@@ -37,7 +35,7 @@ export const generationController = createRPCController({
     if (!workspace) return err({ type: 'not_found', message: 'Workspace not found.' });
 
     const contextResult = await buildContext(() =>
-      buildCommitContext(workspace.path, input.includeUnstaged)
+      buildCommitContext(workspace.gitWorktree, input.includeUnstaged)
     );
     if (!contextResult.success) return contextResult;
     const context = contextResult.data;
@@ -73,7 +71,7 @@ ${context}`,
     if (!workspace) return err({ type: 'not_found', message: 'Workspace not found.' });
 
     const contextResult = await buildContext(() =>
-      buildPullRequestContext(workspace.path, input.baseRef, input.branchName)
+      buildPullRequestContext(workspace.gitWorktree, input.baseRef, input.branchName)
     );
     if (!contextResult.success) return contextResult;
     const context = contextResult.data;
@@ -171,8 +169,10 @@ async function runJsonGeneration<T>(input: {
 }
 
 function findLastAssistantMessage(turns: Array<{ items: unknown[] }>): string | null {
-  for (const turn of [...turns].reverse()) {
-    for (const item of [...turn.items].reverse()) {
+  for (let turnIndex = turns.length - 1; turnIndex >= 0; turnIndex--) {
+    const turn = turns[turnIndex];
+    for (let itemIndex = turn.items.length - 1; itemIndex >= 0; itemIndex--) {
+      const item = turn.items[itemIndex];
       if (typeof item !== 'object' || item === null) continue;
       if (!('text' in item) || !('role' in item)) continue;
       if (item.role !== 'assistant' || typeof item.text !== 'string') continue;
@@ -182,103 +182,80 @@ function findLastAssistantMessage(turns: Array<{ items: unknown[] }>): string | 
   return null;
 }
 
-async function buildCommitContext(cwd: string, includeUnstaged: boolean): Promise<string> {
-  const args = includeUnstaged
-    ? ['diff', '--stat', '--patch', '--find-renames', 'HEAD']
-    : ['diff', '--stat', '--patch', '--find-renames', '--cached'];
-  const diff = await gitContext(cwd, args);
-  const untracked = includeUnstaged ? await untrackedContext(cwd) : '';
-  return truncateContext([diff, untracked].filter(Boolean).join('\n\n'));
+async function buildCommitContext(
+  gitWorktree: IGitWorktree,
+  includeUnstaged: boolean
+): Promise<string> {
+  const status = await gitWorktree.getStatus();
+  if (status.kind !== 'ok') return '';
+  const changes = includeUnstaged ? mergeChanges(status.staged, status.unstaged) : status.staged;
+  return truncateContext(buildChangesContext(changes));
 }
 
 async function buildPullRequestContext(
-  cwd: string,
+  gitWorktree: IGitWorktree,
   base: string,
   branchName: string
 ): Promise<string> {
-  const baseRef = await resolveBaseRef(cwd, base);
+  const baseRef = refToObject(base);
   const [log, diff] = await Promise.all([
-    git(cwd, ['log', '--oneline', '--decorate', `${baseRef}..HEAD`]),
-    gitContext(cwd, ['diff', '--stat', '--patch', '--find-renames', `${baseRef}...HEAD`]),
+    gitWorktree.getLog({ base: baseRef, maxCount: 50 }),
+    gitWorktree.getChangedFiles({
+      base: baseRef,
+      head: { kind: 'branch', branch: { type: 'local', branch: branchName } },
+    }),
   ]);
-  if (!log.trim() && !diff.trim()) return '';
-  return truncateContext(`Commits on ${branchName}:\n${log}\n\nDiff:\n${diff}`);
-}
 
-async function resolveBaseRef(cwd: string, base: string): Promise<string> {
-  const candidates = [base, `origin/${base}`];
-  for (const candidate of candidates) {
-    try {
-      await git(cwd, ['rev-parse', '--verify', candidate]);
-      return candidate;
-    } catch {}
-  }
-  return base;
-}
-
-async function untrackedContext(cwd: string): Promise<string> {
-  const files = (await git(cwd, ['ls-files', '--others', '--exclude-standard']))
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 20);
-  if (files.length === 0) return '';
-  const patches = await Promise.all(
-    files.map(async (file) => {
-      const content = await gitContext(
-        cwd,
-        ['diff', '--no-index', '--', '/dev/null', file],
-        [0, 1]
-      );
-      return content;
-    })
+  const commits = log.commits
+    .map((commit) => `- ${commit.hash.slice(0, 8)} ${commit.subject}`)
+    .join('\n');
+  const changes = buildChangesContext(diff);
+  if (!commits.trim() && !changes.trim()) return '';
+  return truncateContext(
+    [`Commits on ${branchName}:`, commits || '(none)', '', 'Changes:', changes]
+      .filter(Boolean)
+      .join('\n')
   );
-  return `Untracked files:\n${patches.join('\n')}`;
 }
 
-async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('git', args, {
-    cwd,
-  });
-  return stdout;
+function buildChangesContext(changes: GitChange[]): string {
+  const entries = changes.slice(0, MAX_FILES_IN_CONTEXT).map(formatChange);
+  const remaining = changes.length - entries.length;
+  return [...entries, remaining > 0 ? `\n[${remaining} additional changed file(s) omitted]` : '']
+    .filter(Boolean)
+    .join('\n\n');
 }
 
-async function gitContext(
-  cwd: string,
-  args: string[],
-  successExitCodes: number[] = [0]
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const child = spawn('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    let truncated = false;
+function formatChange(change: GitChange): string {
+  return `- ${change.status} ${change.path} (+${change.additions}/-${change.deletions})`;
+}
 
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      if (stdout.length < GIT_CONTEXT_OUTPUT_LIMIT) {
-        stdout += chunk.slice(0, GIT_CONTEXT_OUTPUT_LIMIT - stdout.length);
-      }
-      if (stdout.length >= GIT_CONTEXT_OUTPUT_LIMIT && !truncated) {
-        truncated = true;
-        child.kill('SIGTERM');
-      }
+function mergeChanges(...groups: GitChange[][]): GitChange[] {
+  const merged = new Map<string, GitChange>();
+  for (const change of groups.flat()) {
+    const existing = merged.get(change.path);
+    merged.set(change.path, {
+      ...change,
+      additions: (existing?.additions ?? 0) + change.additions,
+      deletions: (existing?.deletions ?? 0) + change.deletions,
     });
+  }
+  return [...merged.values()];
+}
 
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk: string) => {
-      stderr += chunk;
-    });
-
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (truncated || successExitCodes.includes(code ?? 0)) {
-        resolve(truncated ? `${stdout}\n\n[Git output truncated]` : stdout);
-        return;
-      }
-      reject(new Error(stderr.trim() || `git ${args.join(' ')} failed with code ${code}`));
-    });
-  });
+function refToObject(ref: string): GitObjectRef {
+  const slash = ref.indexOf('/');
+  if (slash > 0) {
+    return {
+      kind: 'branch',
+      branch: {
+        type: 'remote',
+        remote: { name: ref.slice(0, slash), url: '' },
+        branch: ref.slice(slash + 1),
+      },
+    };
+  }
+  return { kind: 'branch', branch: { type: 'local', branch: ref } };
 }
 
 function truncateContext(value: string): string {

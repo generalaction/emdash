@@ -142,7 +142,7 @@ export const CreatePrModal = observer(function CreatePrModal({
       if (generationToken !== generationTokenRef.current) return;
       setError(error instanceof Error ? error.message : String(error));
     } finally {
-      setIsGenerating(false);
+      if (generationToken === generationTokenRef.current) setIsGenerating(false);
     }
   };
 
