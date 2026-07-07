@@ -1,8 +1,11 @@
+import type { ChatComposerProps, PromptEditorRef } from '@emdash/ui/react/components';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import {
+  InitialConversationField,
   useInitialConversationState,
   type InitialConversationState,
 } from './initial-conversation-section';
@@ -15,10 +18,33 @@ const mocks = vi.hoisted(() => ({
   getProjectSshConnectionId: vi.fn(),
   setProviderOverride: vi.fn(),
   chatUiFeature: true,
+  editorText: '',
+  editorApi: {
+    focus: vi.fn(),
+    clear: vi.fn(),
+    getText: vi.fn(() => mocks.editorText),
+    setText: vi.fn((text: string) => {
+      mocks.editorText = text;
+    }),
+    insertMention: vi.fn(),
+    prependMention: vi.fn(),
+    removeMention: vi.fn(),
+    setMentionPending: vi.fn(),
+  },
+  lastChatComposerProps: null as unknown,
 }));
 
 vi.mock('@emdash/ui/react/components', () => ({
-  ChatComposer: () => null,
+  ChatComposer: (props: unknown) => {
+    mocks.lastChatComposerProps = props;
+    const { editorApiRef } = props as { editorApiRef?: React.Ref<PromptEditorRef> };
+    if (typeof editorApiRef === 'function') {
+      editorApiRef(mocks.editorApi as unknown as PromptEditorRef);
+    } else if (editorApiRef) {
+      editorApiRef.current = mocks.editorApi as unknown as PromptEditorRef;
+    }
+    return null;
+  },
 }));
 
 vi.mock('@renderer/features/projects/stores/project-selectors', () => ({
@@ -105,6 +131,31 @@ function Probe({
   return null;
 }
 
+function FieldProbe({
+  linkedIssue,
+  includeIssueContextByDefault = false,
+  placeholder,
+}: {
+  linkedIssue?: LinkedIssue;
+  includeIssueContextByDefault?: boolean;
+  placeholder?: string;
+}) {
+  const state = useInitialConversationState('project-1');
+  return React.createElement(InitialConversationField, {
+    state,
+    linkedIssue,
+    includeIssueContextByDefault,
+    placeholder,
+  });
+}
+
+function chatComposerProps(): ChatComposerProps {
+  if (!mocks.lastChatComposerProps) {
+    throw new Error('ChatComposer was not rendered');
+  }
+  return mocks.lastChatComposerProps as ChatComposerProps;
+}
+
 describe('useInitialConversationState', () => {
   let dom: JSDOM;
   let root: Root;
@@ -112,6 +163,8 @@ describe('useInitialConversationState', () => {
 
   beforeEach(() => {
     latestState = undefined;
+    mocks.editorText = '';
+    mocks.lastChatComposerProps = null;
     mocks.getProjectSshConnectionId.mockReturnValue(undefined);
 
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -188,5 +241,87 @@ describe('useInitialConversationState', () => {
     await renderProbe('project-2');
 
     expect(latestState?.useChatUi).toBe(false);
+  });
+});
+
+describe('InitialConversationField', () => {
+  let dom: JSDOM;
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    latestState = undefined;
+    mocks.editorText = '';
+    mocks.lastChatComposerProps = null;
+    mocks.getProjectSshConnectionId.mockReturnValue(undefined);
+
+    dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
+      url: 'http://localhost',
+    });
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    vi.stubGlobal('window', dom.window);
+    vi.stubGlobal('document', dom.window.document);
+    vi.stubGlobal('HTMLElement', dom.window.HTMLElement);
+    vi.stubGlobal('Event', dom.window.Event);
+    vi.stubGlobal('localStorage', dom.window.localStorage);
+    dom.window.localStorage.clear();
+
+    container = dom.window.document.getElementById('root') as HTMLDivElement;
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    dom.window.close();
+  });
+
+  async function renderField(props: React.ComponentProps<typeof FieldProbe> = {}) {
+    await act(async () => {
+      root.render(React.createElement(FieldProbe, props));
+    });
+    await act(async () => {});
+  }
+
+  it('disables @ mention search while preserving slash commands and placeholder override', async () => {
+    await renderField();
+
+    const props = chatComposerProps();
+    expect(props.mentionProvider).toBeUndefined();
+    expect(props.onMentionInsert).toBeUndefined();
+    expect(props.queryMentions).toBeUndefined();
+    expect(props.queryCommands).toEqual(expect.any(Function));
+    expect(props.placeholder).not.toContain('@');
+  });
+
+  it('forwards automation placeholder text without enabling @ mentions', async () => {
+    await renderField({ placeholder: 'Add a prompt to the automation...' });
+
+    const props = chatComposerProps();
+    expect(props.placeholder).toBe('Add a prompt to the automation...');
+    expect(props.mentionProvider).toBeUndefined();
+  });
+
+  it('preserves the selected linked issue pill', async () => {
+    const linkedIssue: LinkedIssue = {
+      provider: 'linear',
+      identifier: 'ENG-123',
+      displayIdentifier: 'ENG-123',
+      title: 'Fix flaky tests',
+      url: 'https://linear.app/emdash/issue/ENG-123/fix-flaky-tests',
+    };
+
+    await renderField({ linkedIssue, includeIssueContextByDefault: true });
+
+    expect(mocks.editorApi.prependMention).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'issue:linear:ENG-123',
+        label: 'issue:linear:ENG-123',
+        name: 'ENG-123',
+        kind: 'issue',
+        description: 'Fix flaky tests',
+      })
+    );
   });
 });
