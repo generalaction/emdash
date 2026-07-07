@@ -2,6 +2,7 @@ import type { PageObjectResponse, RichTextItemResponse } from '@notionhq/client'
 import type { IssueData } from '../../types';
 
 type NotionPageProperty = PageObjectResponse['properties'][string];
+const UNTITLED_NOTION_PAGE = 'Untitled Notion page';
 
 export function toIssueData(page: PageObjectResponse): IssueData {
   return {
@@ -17,10 +18,18 @@ export function toIssueData(page: PageObjectResponse): IssueData {
   };
 }
 
+export function hasMeaningfulTitle(page: PageObjectResponse): boolean {
+  return pageTitle(page) !== UNTITLED_NOTION_PAGE;
+}
+
+export function isDatabasePage(page: PageObjectResponse): boolean {
+  return page.parent.type === 'database_id' || page.parent.type === 'data_source_id';
+}
+
 function pageTitle(page: PageObjectResponse): string {
   const title = Object.values(page.properties).find((property) => property.type === 'title');
-  if (!title || title.type !== 'title') return 'Untitled Notion page';
-  return richTextPlainText(title.title) || 'Untitled Notion page';
+  if (!title || title.type !== 'title') return UNTITLED_NOTION_PAGE;
+  return richTextPlainText(title.title) || UNTITLED_NOTION_PAGE;
 }
 
 function firstRichTextProperty(page: PageObjectResponse): string | undefined {

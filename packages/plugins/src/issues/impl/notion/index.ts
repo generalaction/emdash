@@ -16,7 +16,7 @@ import type {
   IssueSearchOpts,
 } from '../../types';
 import { formatNotionContext } from './context';
-import { toIssueData } from './mapper';
+import { hasMeaningfulTitle, isDatabasePage, toIssueData } from './mapper';
 
 export async function listIssues(
   host: ConnectedIntegrationHostContext,
@@ -34,7 +34,13 @@ export async function listIssues(
       sort: { timestamp: 'last_edited_time', direction: 'descending' },
       page_size: limit,
     });
-    return ok(response.results.filter(isFullPage).map(toIssueData));
+    return ok(
+      response.results
+        .filter(isFullPage)
+        .filter(isDatabasePage)
+        .filter(hasMeaningfulTitle)
+        .map(toIssueData)
+    );
   } catch (error) {
     host.log.warn('Notion listIssues failed', { error });
     return err(toNotionIntegrationError(error, 'Unable to fetch Notion pages.'));
@@ -61,7 +67,7 @@ export async function searchIssues(
       sort: { timestamp: 'last_edited_time', direction: 'descending' },
       page_size: limit,
     });
-    return ok(response.results.filter(isFullPage).map(toIssueData));
+    return ok(response.results.filter(isFullPage).filter(hasMeaningfulTitle).map(toIssueData));
   } catch (error) {
     host.log.warn('Notion searchIssues failed', { error });
     return err(toNotionIntegrationError(error, 'Unable to search Notion pages.'));
