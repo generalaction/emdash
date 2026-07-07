@@ -27,6 +27,7 @@ pnpm --filter @emdash/wire run example:dedupe
 pnpm --filter @emdash/wire run example:job-contract
 pnpm --filter @emdash/wire run example:mutation-idempotency
 pnpm --filter @emdash/wire run example:multi-window
+pnpm --filter @emdash/wire run example:logging
 pnpm --filter @emdash/wire run example:optimistic-group
 ```
 
@@ -63,5 +64,7 @@ Examples:
   disconnect retry with the same mutation id.
 - `multi-window/` demonstrates one `Controller` served to multiple independent
   clients through `createWireSessionHub`.
+- `logging/` demonstrates `withLogging`, `loggingTransport`, instrumentation
+  hooks, redacted debug payload logging, and live-client resync diagnostics.
 - `optimistic-group/` demonstrates `OptimisticLiveModelGroup` deriving previews
   from inline group mutation handlers and rolling back rejected mutations.

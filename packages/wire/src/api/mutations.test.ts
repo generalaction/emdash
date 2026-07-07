@@ -2,6 +2,7 @@ import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveModelRegistry, LiveModelServer } from '../live';
+import type { WireInstrumentation } from '../observability';
 import { bindContract, fromRegistry } from './bind';
 import { contractClient } from './client';
 import { connect } from './connect';
@@ -22,7 +23,7 @@ const contract = defineContract({
   }),
 });
 
-function setup() {
+function setup(instrumentation?: WireInstrumentation) {
   const registry = new LiveModelRegistry();
   const left = new LiveModelServer({ count: 0 }, 1000);
   const right = new LiveModelServer({ count: 10 }, 2000);
@@ -33,6 +34,7 @@ function setup() {
   let handlerCalls = 0;
   const controller = bindContract(contract, {
     registry,
+    instrumentation,
     impl: {
       left: fromRegistry(),
       right: fromRegistry(),
@@ -92,7 +94,10 @@ describe('contract mutations', () => {
   });
 
   it('dedupes duplicate top-level mutation ids', async () => {
-    const { client, key, left, calls } = setup();
+    const dedupes: unknown[] = [];
+    const { client, key, left, calls } = setup({
+      mutationDeduped: (event) => dedupes.push(event),
+    });
 
     const first = await client.bump({ ...key, touchRight: false }, { mutationId: 'same' });
     const second = await client.bump({ ...key, touchRight: false }, { mutationId: 'same' });
@@ -100,6 +105,7 @@ describe('contract mutations', () => {
     expect(first.result).toEqual(second.result);
     expect(left.snapshot().data).toEqual({ count: 1 });
     expect(calls()).toBe(1);
+    expect(dedupes).toEqual([{ mutationId: 'same', path: 'bump' }]);
   });
 
   it('retries disconnected mutations with the same mutation id', async () => {

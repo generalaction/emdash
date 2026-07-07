@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { BatchedLiveModel, type FlushScheduler } from './batched-live-model';
 import { LiveModelServer } from './server';
@@ -80,8 +80,14 @@ describe('BatchedLiveModel', () => {
   });
 
   it('drops a throwing batch and allows later mutations', () => {
-    const { server, batched, trigger } = setup(makeTree({ count: 3 }));
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const server = new LiveModelServer<Tree>(makeTree({ count: 3 }), 1000);
+    const { schedule, trigger } = makeSyncScheduler();
+    const dropped: unknown[] = [];
+    const batched = new BatchedLiveModel<Tree>(server, schedule, {
+      instrumentation: {
+        batchDropped: (event) => dropped.push(event),
+      },
+    });
 
     batched.enqueue(() => {
       throw new Error('boom');
@@ -93,6 +99,6 @@ describe('BatchedLiveModel', () => {
     trigger();
 
     expect(server.snapshot().data.count).toBe(4);
-    warnSpy.mockRestore();
+    expect(dropped).toHaveLength(1);
   });
 });

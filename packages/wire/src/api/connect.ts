@@ -1,5 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
 import type { LiveSnapshot, LiveUpdate } from '../live/protocol';
+import type { WireInstrumentation } from '../observability';
 import {
   PROTOCOL_VERSION,
   WireError,
@@ -10,6 +11,10 @@ import {
 
 export type CallOptions = {
   signal?: AbortSignal;
+};
+
+export type ConnectOptions = {
+  instrumentation?: WireInstrumentation;
 };
 
 type PendingCall = {
@@ -26,10 +31,13 @@ export type Connection = {
   hello(): Promise<void>;
 };
 
-export function connect(transport: WireTransport): Connection {
+export function connect(transport: WireTransport, options: ConnectOptions = {}): Connection {
   const pending = new Map<string, PendingCall>();
   const attachments = new Map<string, Set<(update: LiveUpdate) => void>>();
   const disconnectListeners = new Set<() => void>();
+  const instrumentation = options.instrumentation;
+
+  instrumentation?.transport?.({ event: 'connect' });
 
   transport.onMessage((message) => {
     if (message.kind === 'result') {
@@ -51,6 +59,7 @@ export function connect(transport: WireTransport): Connection {
   });
 
   transport.onDisconnect(() => {
+    instrumentation?.transport?.({ event: 'disconnect' });
     for (const pendingCall of pending.values()) {
       pendingCall.cleanup();
       pendingCall.reject(new WireError('DISCONNECTED', 'Wire transport disconnected'));
@@ -67,8 +76,29 @@ export function connect(transport: WireTransport): Connection {
     message: WireMessage & { id: string },
     options: CallOptions = {}
   ): Promise<unknown> {
+    const callStart = message.kind === 'call' ? performanceNow() : undefined;
+    if (message.kind === 'call') {
+      instrumentation?.callStart?.({
+        callId: message.id,
+        path: message.path,
+        input: message.input,
+        side: 'client',
+      });
+    }
     return new Promise((resolve, reject) => {
       if (options.signal?.aborted) {
+        if (message.kind === 'call') {
+          instrumentation?.cancel?.({ callId: message.id, side: 'client' });
+          instrumentation?.callEnd?.({
+            callId: message.id,
+            path: message.path,
+            side: 'client',
+            durationMs: 0,
+            ok: false,
+            errorCode: WIRE_CANCELLED_CODE,
+            errorMessage: 'Wire call cancelled',
+          });
+        }
         reject(new WireError(WIRE_CANCELLED_CODE, 'Wire call cancelled'));
         return;
       }
@@ -82,6 +112,18 @@ export function connect(transport: WireTransport): Connection {
           transport.post({ kind: 'cancel', id: message.id });
         } catch {
           // The peer may already be gone; the local call is still cancelled.
+        }
+        if (message.kind === 'call') {
+          instrumentation?.cancel?.({ callId: message.id, side: 'client' });
+          instrumentation?.callEnd?.({
+            callId: message.id,
+            path: message.path,
+            side: 'client',
+            durationMs: performanceNow() - (callStart ?? performanceNow()),
+            ok: false,
+            errorCode: WIRE_CANCELLED_CODE,
+            errorMessage: 'Wire call cancelled',
+          });
         }
         reject(new WireError(WIRE_CANCELLED_CODE, 'Wire call cancelled'));
       };
@@ -106,7 +148,34 @@ export function connect(transport: WireTransport): Connection {
 
   return {
     call(path, input, options) {
-      return request({ kind: 'call', id: createRequestId(), path, input }, options);
+      const id = createRequestId();
+      const start = performanceNow();
+      return request({ kind: 'call', id, path, input }, options).then(
+        (value) => {
+          instrumentation?.callEnd?.({
+            callId: id,
+            path,
+            side: 'client',
+            durationMs: performanceNow() - start,
+            ok: true,
+            result: value,
+          });
+          return value;
+        },
+        (error: unknown) => {
+          if (error instanceof WireError && error.code === WIRE_CANCELLED_CODE) throw error;
+          instrumentation?.callEnd?.({
+            callId: id,
+            path,
+            side: 'client',
+            durationMs: performanceNow() - start,
+            ok: false,
+            errorCode: error instanceof WireError ? error.code : 'ERROR',
+            errorMessage: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        }
+      );
     },
     snapshot(topic) {
       return request({ kind: 'snapshot', id: createRequestId(), topic }) as Promise<
@@ -168,6 +237,10 @@ export function connect(transport: WireTransport): Connection {
       });
     },
   };
+}
+
+function performanceNow(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
 function createRequestId(): string {

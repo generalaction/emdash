@@ -15,6 +15,7 @@ import { stableStringify } from '../live/mutations';
 import type { LiveMutationInput } from '../live/mutations/handler';
 import type { LiveSource } from '../live/protocol';
 import { liveCursorEntrySchema } from '../live/protocol';
+import type { WireInstrumentation } from '../observability';
 import type {
   Contract,
   ContractDefinitions,
@@ -125,6 +126,7 @@ export function bindContract<Defs extends ContractDefinitions>(
     impl: ContractImpl<Defs>;
     validate?: ValidatePolicy;
     mutationDedupe?: MutationResultCacheOptions | false;
+    instrumentation?: WireInstrumentation;
   }
 ): Controller {
   const validate = options.validate ?? 'none';
@@ -174,8 +176,12 @@ export function bindContract<Defs extends ContractDefinitions>(
           const wrapped = liveMutation(registry, async (ctx, input) => handler(ctx, input));
           procedureEntries.set(fullPath, async (input) => {
             const parsedInput = parseMutationInput(def, input, validate);
-            const output = await runMutation(mutationCache, parsedInput.mutationId, () =>
-              wrapped(parsedInput)
+            const output = await runMutation(
+              mutationCache,
+              parsedInput.mutationId,
+              fullPath,
+              () => wrapped(parsedInput),
+              options.instrumentation
             );
             return validateMutationOutput(def, output, validate);
           });
@@ -244,15 +250,21 @@ export function bindContract<Defs extends ContractDefinitions>(
                 instance,
                 envelope.mutationId
               );
-              const output = await runMutation(mutationCache, envelope.mutationId, async () => {
-                const result = await mutationDef.handler!(ctx, {
-                  ...envelope.input,
-                  mutationId: envelope.mutationId,
-                });
-                return result.success
-                  ? ok({ data: result.data, cursors: ctx.cursors() })
-                  : err(result.error);
-              });
+              const output = await runMutation(
+                mutationCache,
+                envelope.mutationId,
+                `${fullPath}.${mutationName}`,
+                async () => {
+                  const result = await mutationDef.handler!(ctx, {
+                    ...envelope.input,
+                    mutationId: envelope.mutationId,
+                  });
+                  return result.success
+                    ? ok({ data: result.data, cursors: ctx.cursors() })
+                    : err(result.error);
+                },
+                options.instrumentation
+              );
               return validateMutationOutput(mutationDef, output, validate);
             });
           }
@@ -439,9 +451,15 @@ function validateMutationOutput(
 function runMutation<D, E>(
   cache: MutationResultCache | undefined,
   mutationId: string,
-  execute: () => Promise<LiveMutationResult<D, E>>
+  path: string,
+  execute: () => Promise<LiveMutationResult<D, E>>,
+  instrumentation: WireInstrumentation | undefined
 ): Promise<LiveMutationResult<D, E>> {
-  return cache ? cache.run(mutationId, execute) : execute();
+  return cache
+    ? cache.run(mutationId, execute, {
+        onDedupe: () => instrumentation?.mutationDeduped?.({ mutationId, path }),
+      })
+    : execute();
 }
 
 function resolveGroupInstance(registry: LiveModelRegistry, group: LiveModelGroupDef, key: unknown) {

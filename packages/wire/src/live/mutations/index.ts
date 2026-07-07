@@ -38,5 +38,7 @@ export {
   DEFAULT_MUTATION_RESULT_CACHE_MAX_ENTRIES,
   DEFAULT_MUTATION_RESULT_CACHE_TTL_MS,
   MutationResultCache,
+  type MutationResultCacheDedupeSource,
   type MutationResultCacheOptions,
+  type MutationResultCacheRunOptions,
 } from './result-cache';

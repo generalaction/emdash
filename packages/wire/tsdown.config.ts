@@ -5,6 +5,7 @@ export default defineConfig({
     index: 'src/index.ts',
     live: 'src/live/index.ts',
     api: 'src/api/index.ts',
+    observability: 'src/observability/index.ts',
     util: 'src/util/index.ts',
     optimistic: 'src/util/optimistic/index.ts',
     process: 'src/process/index.ts',

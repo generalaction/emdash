@@ -25,6 +25,14 @@
       "types": "./dist/logger.d.mts",
       "default": "./dist/logger.mjs"
     },
+    "./logger/context": {
+      "types": "./dist/logger-context.d.mts",
+      "default": "./dist/logger-context.mjs"
+    },
+    "./logger/context-node": {
+      "types": "./dist/logger-context-node.d.mts",
+      "default": "./dist/logger-context-node.mjs"
+    },
     "./logger/pino": {
       "types": "./dist/logger-pino.d.mts",
       "default": "./dist/logger-pino.mjs"

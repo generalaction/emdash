@@ -1,4 +1,6 @@
+import { log as ambientLog, type Logger } from '@emdash/shared/logger';
 import type z from 'zod';
+import type { WireInstrumentation, WireResyncReason } from '../../observability';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
 import { applyPatches, type Patch } from './immer-setup';
 
@@ -18,6 +20,12 @@ type MutationWaiter = {
 
 export type LiveChangeMeta = { kind: 'seed' } | { kind: 'update'; mutationIds: string[] };
 
+export type LiveModelClientOptions = {
+  instrumentation?: WireInstrumentation;
+  logger?: Logger;
+  topic?: string;
+};
+
 export class LiveModelClient<T> {
   private generation = -1;
   private sequence = -1;
@@ -29,7 +37,8 @@ export class LiveModelClient<T> {
   constructor(
     private readonly schema: z.ZodType<T>,
     private readonly refetchSnapshot: () => Promise<LiveSnapshot<T>>,
-    private readonly onChange: (value: T, meta: LiveChangeMeta) => void
+    private readonly onChange: (value: T, meta: LiveChangeMeta) => void,
+    private readonly options: LiveModelClientOptions = {}
   ) {}
 
   get cursor(): LiveCursor | undefined {
@@ -62,13 +71,13 @@ export class LiveModelClient<T> {
 
   applyUpdate(update: LiveUpdate): void {
     if (this.value === undefined) {
-      console.log('[LiveModelClient] applyUpdate called before seed, resyncing');
+      this.reportResync('sequence-gap', { reason: 'update-before-seed' });
       void this.resync();
       return;
     }
 
     if (update.generation !== this.generation) {
-      console.log('[LiveModelClient] generation mismatch — resyncing', {
+      this.reportResync('generation', {
         local: this.generation,
         incoming: update.generation,
       });
@@ -77,7 +86,7 @@ export class LiveModelClient<T> {
     }
 
     if (update.baseSequence !== this.sequence) {
-      console.log('[LiveModelClient] sequence gap — resyncing', {
+      this.reportResync('sequence-gap', {
         expected: this.sequence,
         got: update.baseSequence,
       });
@@ -92,7 +101,7 @@ export class LiveModelClient<T> {
       // avoid recomputing on unchanged branches.
       next = applyPatches(this.value as object, update.delta as Patch[]) as T;
     } catch (err) {
-      console.log('[LiveModelClient] applyPatches threw — resyncing', err);
+      this.reportResync('patch-failed', { error: err });
       void this.resync();
       return;
     }
@@ -163,7 +172,7 @@ export class LiveModelClient<T> {
     if (readNodeEnv() === 'production') return true;
     const r = this.schema.safeParse(next);
     if (!r.success) {
-      console.warn('[LiveModelClient] patched result failed validation — resyncing', r.error);
+      this.reportResync('validation', { error: r.error });
       return false;
     }
     return true;
@@ -177,6 +186,12 @@ export class LiveModelClient<T> {
     } finally {
       this.resyncing = false;
     }
+  }
+
+  private reportResync(reason: WireResyncReason, details: Record<string, unknown> = {}): void {
+    const event = { topic: this.options.topic, reason, details };
+    this.options.instrumentation?.resync?.(event);
+    (this.options.logger ?? ambientLog).warn('wire live model resyncing', event);
   }
 
   private cursorSatisfies(target: LiveCursor): boolean {

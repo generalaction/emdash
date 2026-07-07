@@ -1,10 +1,17 @@
 import type { Unsubscribe } from '@emdash/shared';
+import { log as ambientLog, type Logger } from '@emdash/shared/logger';
+import type { WireInstrumentation } from '../../observability';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
 import type { LiveModelProduceOptions, LiveModelServer } from './server';
 
 export type Mutator<T> = (draft: T) => void;
 
 export type FlushScheduler = (flush: () => void) => void;
+
+export type BatchedLiveModelOptions = {
+  instrumentation?: WireInstrumentation;
+  logger?: Logger;
+};
 
 type PendingMutation<T> = {
   mutator: Mutator<T>;
@@ -43,7 +50,8 @@ export class BatchedLiveModel<T> {
 
   constructor(
     private readonly model: LiveModelServer<T>,
-    private readonly schedule: FlushScheduler = microtaskScheduler
+    private readonly schedule: FlushScheduler = microtaskScheduler,
+    private readonly options: BatchedLiveModelOptions = {}
   ) {}
 
   /**
@@ -80,7 +88,8 @@ export class BatchedLiveModel<T> {
         { mutationIds: uniqueMutationIds(pending) }
       );
     } catch (err) {
-      console.warn('[BatchedLiveModel] mutation batch threw — batch dropped', err);
+      this.options.instrumentation?.batchDropped?.({ error: err });
+      (this.options.logger ?? ambientLog).warn('wire live model batch dropped', { error: err });
       return undefined;
     }
   }

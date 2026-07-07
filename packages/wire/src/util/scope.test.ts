@@ -1,5 +1,36 @@
+import type { LogFields, LogLevel, Logger } from '@emdash/shared/logger';
 import { describe, expect, it, vi } from 'vitest';
-import { createScope } from './scope';
+import { createScope, describeScope } from './scope';
+
+type LogCall = {
+  level: LogLevel;
+  message: string;
+  fields?: LogFields;
+};
+
+function createStubLogger(
+  bindings: LogFields = {},
+  calls: LogCall[] = []
+): {
+  logger: Logger;
+  calls: LogCall[];
+} {
+  const logger: Logger = {
+    level: 'debug',
+    debug: (message, fields) => calls.push({ level: 'debug', message, fields: merge(fields) }),
+    info: (message, fields) => calls.push({ level: 'info', message, fields: merge(fields) }),
+    warn: (message, fields) => calls.push({ level: 'warn', message, fields: merge(fields) }),
+    error: (message, fields) => calls.push({ level: 'error', message, fields: merge(fields) }),
+    child: (childBindings) => createStubLogger({ ...bindings, ...childBindings }, calls).logger,
+  };
+
+  function merge(fields: LogFields | undefined): LogFields | undefined {
+    const merged = { ...bindings, ...fields };
+    return Object.keys(merged).length > 0 ? merged : undefined;
+  }
+
+  return { logger, calls };
+}
 
 describe('createScope', () => {
   it('runs own cleanups in LIFO order', async () => {
@@ -61,7 +92,10 @@ describe('createScope', () => {
     await scope.dispose();
 
     expect(events).toEqual(['third', 'first']);
-    expect(onCleanupError).toHaveBeenCalledWith(error, { label: 'root' });
+    expect(onCleanupError).toHaveBeenCalledWith(
+      error,
+      expect.objectContaining({ label: 'root', labelPath: 'root' })
+    );
   });
 
   it('is idempotent and awaits async cleanups', async () => {
@@ -105,5 +139,35 @@ describe('createScope', () => {
     await parent.dispose();
 
     expect(childCleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('attaches inherited loggers to child scopes', () => {
+    const { logger, calls } = createStubLogger({ component: 'test' });
+    const scope = createScope({ label: 'root', logger });
+    const child = scope.child('child');
+
+    child.log.info('hello');
+
+    expect(calls).toEqual([
+      {
+        level: 'info',
+        message: 'hello',
+        fields: { component: 'test', scope: 'root/child' },
+      },
+    ]);
+  });
+
+  it('describes the active scope tree', async () => {
+    const parent = createScope({ label: 'parent' });
+    const child = parent.child('child');
+    parent.child('other');
+    await child.dispose();
+
+    expect(describeScope(parent)).toMatchObject({
+      label: 'parent',
+      labelPath: 'parent',
+      disposed: false,
+      children: [{ label: 'other', labelPath: 'parent/other', disposed: false }],
+    });
   });
 });

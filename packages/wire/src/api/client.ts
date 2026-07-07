@@ -11,6 +11,7 @@ import type {
   LiveUpdate,
   LiveCursorEntry,
 } from '../live/protocol';
+import type { WireInstrumentation } from '../observability';
 import { encodeTopic } from './bind';
 import type { CallOptions, Connection } from './connect';
 import type {
@@ -60,6 +61,12 @@ export type MutationCallOptions = {
 };
 
 export type ProcedureCallOptions = Pick<CallOptions, 'signal'>;
+
+export type ContractClientOptions = {
+  pathPrefix?: string;
+  bindingRegistry?: LiveBindingRegistry;
+  instrumentation?: WireInstrumentation;
+};
 
 type EndpointClient<Def> = Def extends { kind: 'procedure' }
   ? (input: EndpointInput<Def>, options?: ProcedureCallOptions) => Promise<EndpointOutput<Def>>
@@ -142,7 +149,7 @@ export type ContractClient<Defs extends ContractDefinitions> = {
 export function contractClient<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
   connection: Connection,
-  options: { pathPrefix?: string; bindingRegistry?: LiveBindingRegistry } = {}
+  options: ContractClientOptions = {}
 ): ContractClient<Defs> {
   const bindingRegistry = options.bindingRegistry ?? new LiveBindingRegistry();
   const pathPrefix = options.pathPrefix ? [options.pathPrefix] : [];
@@ -151,7 +158,8 @@ export function contractClient<Defs extends ContractDefinitions>(
     contract,
     pathPrefix,
     connection,
-    bindingRegistry
+    bindingRegistry,
+    options.instrumentation
   ) as ContractClient<Defs>;
 }
 
@@ -159,14 +167,21 @@ function buildContractClient(
   contract: ContractDefinitions,
   pathPrefix: string[],
   connection: Connection,
-  bindingRegistry: LiveBindingRegistry
+  bindingRegistry: LiveBindingRegistry,
+  instrumentation: WireInstrumentation | undefined
 ): Record<string, unknown> {
   const client: Record<string, unknown> = {};
 
   for (const [name, def] of Object.entries(contract)) {
     const fullPath = [...pathPrefix, name].join('.');
     if (!isEndpointDef(def)) {
-      client[name] = buildContractClient(def, [...pathPrefix, name], connection, bindingRegistry);
+      client[name] = buildContractClient(
+        def,
+        [...pathPrefix, name],
+        connection,
+        bindingRegistry,
+        instrumentation
+      );
       continue;
     }
 
@@ -184,17 +199,17 @@ function buildContractClient(
         break;
       case 'liveModel':
         client[name] = (key: unknown, onChange: (value: unknown, meta: LiveChangeMeta) => void) =>
-          bindModel(connection, bindingRegistry, def, key, onChange);
+          bindModel(connection, bindingRegistry, def, key, onChange, instrumentation);
         break;
       case 'liveLog':
         client[name] = (key: unknown, deps: Omit<LiveLogClientDeps, 'refetchSnapshot'>) =>
-          bindLog(connection, def.id, key, deps);
+          bindLog(connection, def.id, key, deps, instrumentation);
         break;
       case 'group':
         client[name] = (
           key: unknown,
           onChange: Record<string, (value: unknown, meta: LiveChangeMeta) => void> = {}
-        ) => bindGroup(connection, bindingRegistry, fullPath, def, key, onChange);
+        ) => bindGroup(connection, bindingRegistry, fullPath, def, key, onChange, instrumentation);
         break;
     }
   }
@@ -207,11 +222,15 @@ function bindModel(
   bindingRegistry: LiveBindingRegistry,
   ref: LiveModelEndpointDef,
   key: unknown,
-  onChange: (value: unknown, meta: LiveChangeMeta) => void
+  onChange: (value: unknown, meta: LiveChangeMeta) => void,
+  instrumentation: WireInstrumentation | undefined
 ): WiredLiveClient<LiveModelClient<unknown>> {
   const topic = encodeTopic(ref.id, key);
   const fetchSnapshot = () => connection.snapshot(topic) as Promise<LiveSnapshot<unknown>>;
-  const model = new LiveModelClient(ref.dataSchema as z.ZodType<unknown>, fetchSnapshot, onChange);
+  const model = new LiveModelClient(ref.dataSchema as z.ZodType<unknown>, fetchSnapshot, onChange, {
+    instrumentation,
+    topic,
+  });
   const unregister = bindingRegistry.register(ref, key, model);
   const ready = fetchSnapshot().then((snapshot) => model.seed(snapshot));
   const detach = connection.attach(topic, (update) => model.applyUpdate(update));
@@ -229,12 +248,15 @@ function bindLog(
   connection: Connection,
   refId: string,
   key: unknown,
-  deps: Omit<LiveLogClientDeps, 'refetchSnapshot'>
+  deps: Omit<LiveLogClientDeps, 'refetchSnapshot'>,
+  instrumentation: WireInstrumentation | undefined
 ): WiredLiveClient<LiveLogClient> {
   const topic = encodeTopic(refId, key);
   const log = new LiveLogClient({
     ...deps,
     refetchSnapshot: () => connection.snapshot(topic) as Promise<LiveSnapshot<LiveLogSnapshotData>>,
+    instrumentation,
+    topic,
   });
   const ready = connection
     .snapshot(topic)
@@ -321,7 +343,8 @@ function bindGroup(
     mutations: Record<string, { kind: 'mutation' }>;
   },
   key: unknown,
-  onChange: Record<string, (value: unknown, meta: LiveChangeMeta) => void>
+  onChange: Record<string, (value: unknown, meta: LiveChangeMeta) => void>,
+  instrumentation: WireInstrumentation | undefined
 ): GroupBinding<never> {
   const binding: Record<string, unknown> = {};
   const disposables: Array<() => Promise<void>> = [];
@@ -333,7 +356,8 @@ function bindGroup(
       bindingRegistry,
       model,
       key,
-      onChange[name] ?? (() => {})
+      onChange[name] ?? (() => {}),
+      instrumentation
     );
     binding[name] = modelBinding;
     ready.push(modelBinding.ready);

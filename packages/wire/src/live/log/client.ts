@@ -1,9 +1,14 @@
+import { log as ambientLog, type Logger } from '@emdash/shared/logger';
+import type { WireInstrumentation, WireResyncReason } from '../../observability';
 import type { LiveLogDelta, LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../protocol';
 
 export type LiveLogClientDeps = {
   refetchSnapshot: () => Promise<LiveSnapshot<LiveLogSnapshotData>>;
   onReset: (data: LiveLogSnapshotData) => void;
   onAppend: (chunk: string) => void;
+  instrumentation?: WireInstrumentation;
+  logger?: Logger;
+  topic?: string;
 };
 
 export class LiveLogClient {
@@ -31,13 +36,13 @@ export class LiveLogClient {
 
   applyUpdate(update: LiveUpdate): void {
     if (!this.value) {
-      console.log('[LiveLogClient] applyUpdate called before seed, resyncing');
+      this.reportResync('sequence-gap', { reason: 'update-before-seed' });
       void this.resync();
       return;
     }
 
     if (update.generation !== this.generation) {
-      console.log('[LiveLogClient] generation mismatch - resyncing', {
+      this.reportResync('generation', {
         local: this.generation,
         incoming: update.generation,
       });
@@ -46,7 +51,7 @@ export class LiveLogClient {
     }
 
     if (update.baseSequence !== this.sequence) {
-      console.log('[LiveLogClient] sequence gap - resyncing', {
+      this.reportResync('sequence-gap', {
         expected: this.sequence,
         got: update.baseSequence,
       });
@@ -55,7 +60,7 @@ export class LiveLogClient {
     }
 
     if (!isLiveLogDelta(update.delta)) {
-      console.log('[LiveLogClient] invalid delta - resyncing');
+      this.reportResync('patch-failed', { reason: 'invalid-delta' });
       void this.resync();
       return;
     }
@@ -76,6 +81,12 @@ export class LiveLogClient {
     } finally {
       this.resyncing = false;
     }
+  }
+
+  private reportResync(reason: WireResyncReason, details: Record<string, unknown> = {}): void {
+    const event = { topic: this.deps.topic, reason, details };
+    this.deps.instrumentation?.resync?.(event);
+    (this.deps.logger ?? ambientLog).warn('wire live log resyncing', event);
   }
 }
 

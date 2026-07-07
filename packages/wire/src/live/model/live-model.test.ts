@@ -103,6 +103,32 @@ describe('LiveModelServer and LiveModelClient', () => {
     expect(client.cursor?.generation).toBeGreaterThan(1000);
   });
 
+  it('emits instrumentation when a generation mismatch causes resync', async () => {
+    const server = new LiveModelServer<State>(makeState(), 1000);
+    const resyncs: unknown[] = [];
+    const client = new LiveModelClient<State>(stateSchema, async () => server.snapshot(), vi.fn(), {
+      topic: 'state|demo',
+      instrumentation: {
+        resync: (event) => resyncs.push(event),
+      },
+    });
+    client.seed(server.snapshot());
+    server.subscribe((update) => client.applyUpdate(update));
+
+    server.reseed(makeState({ count: 10 }));
+    server.produce((draft) => {
+      draft.count = 11;
+    });
+    await waitFor(() => resyncs.length > 0);
+
+    expect(resyncs).toMatchObject([
+      {
+        topic: 'state|demo',
+        reason: 'generation',
+      },
+    ]);
+  });
+
   it('waits for tagged mutations', async () => {
     const { server, client } = setup();
     const wait = client.waitForMutation('m1');
@@ -129,3 +155,13 @@ describe('LiveModelServer and LiveModelClient', () => {
     }
   });
 });
+
+async function waitFor(predicate: () => boolean, timeoutMs = 1000): Promise<void> {
+  const startedAt = Date.now();
+  while (!predicate()) {
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error('Timed out waiting for condition');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+}

@@ -32,6 +32,8 @@ Semantics:
 - Child scopes dispose before the parent's own cleanups.
 - Cleanup errors are reported through `onCleanupError` and do not stop later
   cleanups.
+- Each scope has a structured `scope.log`; children inherit the logger with a
+  `scope` binding for their label path.
 - `dispose()` is idempotent.
 - `add()` on an already disposed scope runs the cleanup immediately.
 
@@ -52,6 +54,7 @@ Use child scopes to model ownership:
 const runtimeScope = createScope({ label: 'runtime' });
 const sessionScope = runtimeScope.child('session:one');
 
+sessionScope.log.info('session attached');
 sessionScope.add(() => stopSession());
 runtimeScope.add(() => stopRuntime());
 
@@ -59,6 +62,8 @@ await runtimeScope.dispose();
 ```
 
 Disposing `runtimeScope` disposes `sessionScope` first, then `stopRuntime()`.
+Use `describeScope(runtimeScope)` when debugging retained resources; it returns
+the current label tree without exposing cleanup internals.
 
 ## ManagedSource
 

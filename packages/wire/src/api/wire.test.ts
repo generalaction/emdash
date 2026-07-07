@@ -130,7 +130,13 @@ describe('wire serve/connect', () => {
           }),
       },
     });
-    serve(pair.right, controller);
+    const serverEvents: unknown[] = [];
+    serve(pair.right, controller, {
+      instrumentation: {
+        cancel: (event) => serverEvents.push({ kind: 'cancel', event }),
+        callEnd: (event) => serverEvents.push({ kind: 'callEnd', event }),
+      },
+    });
     const connection = connect(pair.left);
     const abort = new AbortController();
 
@@ -140,6 +146,18 @@ describe('wire serve/connect', () => {
 
     await expect(result).rejects.toMatchObject({ code: WIRE_CANCELLED_CODE });
     await waitFor(() => aborted);
+    expect(serverEvents).toContainEqual({
+      kind: 'cancel',
+      event: expect.objectContaining({ callId: expect.any(String), side: 'server' }),
+    });
+    expect(serverEvents).toContainEqual({
+      kind: 'callEnd',
+      event: expect.objectContaining({
+        ok: false,
+        errorCode: WIRE_CANCELLED_CODE,
+        side: 'server',
+      }),
+    });
   });
 
   it('rejects pre-aborted calls without posting', async () => {

@@ -6,8 +6,10 @@ export {
 } from './managed-source';
 export {
   createScope,
+  describeScope,
   type CreateScopeOptions,
   type Scope,
   type ScopeCleanup,
   type ScopeCleanupErrorContext,
+  type ScopeDescription,
 } from './scope';

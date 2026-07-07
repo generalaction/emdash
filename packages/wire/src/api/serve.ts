@@ -1,4 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
+import { getCurrentLogger, runWithLogger, type Logger } from '@emdash/shared/logger';
+import type { WireInstrumentation } from '../observability';
 import type { Controller } from './bind';
 import {
   PROTOCOL_VERSION,
@@ -9,9 +11,19 @@ import {
   type WireTransport,
 } from './protocol';
 
-export function serve(transport: WireTransport, controller: Controller): Unsubscribe {
+export type ServeOptions = {
+  instrumentation?: WireInstrumentation;
+  logger?: Logger;
+};
+
+export function serve(
+  transport: WireTransport,
+  controller: Controller,
+  options: ServeOptions = {}
+): Unsubscribe {
   const attached = new Map<string, Unsubscribe>();
   const calls = new Map<string, AbortController>();
+  const instrumentation = options.instrumentation;
 
   function post(message: WireMessage): void {
     try {
@@ -32,9 +44,20 @@ export function serve(transport: WireTransport, controller: Controller): Unsubsc
       );
   }
 
-  function replyCall(id: string, work: (signal: AbortSignal) => Promise<unknown> | unknown): void {
+  function replyCall(
+    id: string,
+    work: (signal: AbortSignal) => Promise<unknown> | unknown,
+    onEnd?: (event: {
+      durationMs: number;
+      ok: boolean;
+      value?: unknown;
+      errorCode?: string;
+      errorMessage?: string;
+    }) => void
+  ): void {
     const abort = new AbortController();
     calls.set(id, abort);
+    const start = performanceNow();
     let result: Promise<unknown>;
     try {
       result = Promise.resolve(work(abort.signal));
@@ -43,17 +66,74 @@ export function serve(transport: WireTransport, controller: Controller): Unsubsc
     }
     result
       .then(
-        (value) => post({ kind: 'result', id, ok: true, value }),
+        (value) => {
+          onEnd?.({ durationMs: performanceNow() - start, ok: true, value });
+          post({ kind: 'result', id, ok: true, value });
+        },
         (error: unknown) => {
           const serialized = abort.signal.aborted
             ? { code: WIRE_CANCELLED_CODE, message: 'Wire call cancelled' }
             : serializeWireError(error);
+          onEnd?.({
+            durationMs: performanceNow() - start,
+            ok: false,
+            errorCode: serialized.code,
+            errorMessage: serialized.message,
+          });
           post({ kind: 'result', id, ok: false, ...serialized });
         }
       )
       .finally(() => {
         calls.delete(id);
       });
+  }
+
+  function replyControllerCall(id: string, path: string, input: unknown): void {
+    instrumentation?.callStart?.({ callId: id, path, input, side: 'server' });
+    const logger = options.logger ?? getCurrentLogger();
+    replyCall(
+      id,
+      (signal) =>
+        runWithLogger(logger.child({ wireCallId: id, wirePath: path }), () =>
+          controller.call(path, input, { signal })
+        ),
+      (event) =>
+        instrumentation?.callEnd?.({
+          callId: id,
+          path,
+          side: 'server',
+          durationMs: event.durationMs,
+          ok: event.ok,
+          result: event.value,
+          errorCode: event.errorCode,
+          errorMessage: event.errorMessage,
+        })
+    );
+  }
+
+  function replySnapshot(id: string, topic: string): void {
+    const start = performanceNow();
+    reply(id, async () => {
+      try {
+        const snapshot = await requireLiveSource(controller, topic).snapshot();
+        instrumentation?.snapshot?.({
+          requestId: id,
+          topic,
+          durationMs: performanceNow() - start,
+          ok: true,
+        });
+        return snapshot;
+      } catch (error) {
+        instrumentation?.snapshot?.({
+          requestId: id,
+          topic,
+          durationMs: performanceNow() - start,
+          ok: false,
+          errorCode: error instanceof WireError ? error.code : 'ERROR',
+        });
+        throw error;
+      }
+    });
   }
 
   function detachAll(): void {
@@ -72,10 +152,10 @@ export function serve(transport: WireTransport, controller: Controller): Unsubsc
         post({ kind: 'hello', protocol: PROTOCOL_VERSION });
         break;
       case 'call':
-        replyCall(message.id, (signal) => controller.call(message.path, message.input, { signal }));
+        replyControllerCall(message.id, message.path, message.input);
         break;
       case 'snapshot':
-        reply(message.id, () => requireLiveSource(controller, message.topic).snapshot());
+        replySnapshot(message.id, message.topic);
         break;
       case 'attach':
         reply(message.id, () => {
@@ -85,14 +165,23 @@ export function serve(transport: WireTransport, controller: Controller): Unsubsc
             message.topic,
             source.subscribe((update) => post({ kind: 'update', topic: message.topic, update }))
           );
+          instrumentation?.topicAttach?.({
+            topic: message.topic,
+            attachmentCount: attached.size,
+          });
           return undefined;
         });
         break;
       case 'detach':
         attached.get(message.topic)?.();
         attached.delete(message.topic);
+        instrumentation?.topicDetach?.({
+          topic: message.topic,
+          attachmentCount: attached.size,
+        });
         break;
       case 'cancel':
+        instrumentation?.cancel?.({ callId: message.id, side: 'server' });
         calls.get(message.id)?.abort();
         break;
       case 'result':
@@ -113,6 +202,10 @@ export function serve(transport: WireTransport, controller: Controller): Unsubsc
     abortAll();
     detachAll();
   };
+}
+
+function performanceNow(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
 function requireLiveSource(controller: Controller, topic: string) {

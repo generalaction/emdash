@@ -57,7 +57,7 @@ See [../examples/api-binding/controller.ts](../examples/api-binding/controller.t
 
 ## Serving
 
-`serve(transport, controller)` listens for wire protocol messages:
+`serve(transport, controller, options)` listens for wire protocol messages:
 
 - `call` invokes `controller.call(path, input, meta)`.
 - `snapshot` calls `LiveSource.snapshot()`.
@@ -72,14 +72,30 @@ serve(pair.right, notesController);
 `serve()` returns an unsubscribe. Call it when the transport or server session
 goes away.
 
+Pass `{ logger, instrumentation }` to attach per-call logger context and emit
+typed observability events. For request logging, wrap the controller with
+`withLogging()`. For protocol firehose debugging, wrap the transport with
+`loggingTransport()`:
+
+```ts
+serve(
+  loggingTransport(pair.right, logger.child({ side: 'server' }), { payloads: true }),
+  withLogging(notesController, logger, { level: 'debug', payloads: true }),
+  { logger, instrumentation: loggerInstrumentation(logger) }
+);
+```
+
 ## Connecting
 
-`connect(transport)` creates a low-level `Connection`:
+`connect(transport, options)` creates a low-level `Connection`:
 
 ```ts
 const connection = connect(pair.left);
 await connection.hello();
 ```
+
+Pass `{ instrumentation }` to emit client-side call, cancellation, and transport
+events.
 
 Most callers use it immediately with `contractClient()`:
 
@@ -101,7 +117,7 @@ reopened.
 
 ## Typed Client
 
-`contractClient(contract, connection)` returns a client with the same nested
+`contractClient(contract, connection, options)` returns a client with the same nested
 shape as the contract.
 
 ```ts
@@ -124,6 +140,9 @@ await client.clearNotes(session);
 await notesBinding.dispose();
 await activityBinding.dispose();
 ```
+
+Pass `{ instrumentation }` so live model and live log clients report resyncs
+through the same hook surface.
 
 Live model and live log accessors return `WiredLiveClient`:
 

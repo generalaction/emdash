@@ -14,6 +14,12 @@ type CacheEntry<D, E> = {
   expiresAt: number;
 };
 
+export type MutationResultCacheDedupeSource = 'settled' | 'inFlight';
+
+export type MutationResultCacheRunOptions = {
+  onDedupe?: (source: MutationResultCacheDedupeSource) => void;
+};
+
 export class MutationResultCache {
   private readonly ttlMs: number;
   private readonly maxEntries: number;
@@ -29,13 +35,20 @@ export class MutationResultCache {
 
   run<D, E>(
     mutationId: string,
-    execute: () => Promise<LiveMutationResult<D, E>>
+    execute: () => Promise<LiveMutationResult<D, E>>,
+    options: MutationResultCacheRunOptions = {}
   ): Promise<LiveMutationResult<D, E>> {
     const cached = this.get<D, E>(mutationId);
-    if (cached) return Promise.resolve(cached);
+    if (cached) {
+      options.onDedupe?.('settled');
+      return Promise.resolve(cached);
+    }
 
     const inFlight = this.inFlight.get(mutationId) as Promise<LiveMutationResult<D, E>> | undefined;
-    if (inFlight) return inFlight;
+    if (inFlight) {
+      options.onDedupe?.('inFlight');
+      return inFlight;
+    }
 
     const pending = execute()
       .then((result) => {

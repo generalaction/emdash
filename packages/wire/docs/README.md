@@ -54,6 +54,8 @@ process-like runtimes into wire transports.
   composition, and live model groups.
 - [Cancellation](./cancellation.md): procedure `AbortSignal`s, cancel messages,
   disconnect aborts, and relay propagation.
+- [Observability](./observability.md): ambient logger context, instrumentation
+  hooks, controller logging, transport debug logging, and scope loggers.
 - [Serving and clients](./serving-and-clients.md): `bindContract()`,
   `serve()`, `connect()`, `contractClient()`, and transports.
 - [Utils](./utils.md): `deduplicateRequests()` and `OptimisticLiveModelGroup`.
@@ -78,6 +80,8 @@ Use narrower subpath exports at app boundaries:
 
 - `@emdash/wire/live`: live primitives and mutation registries.
 - `@emdash/wire/api`: contract definition, binding, client creation, and transports.
+- `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
+  controller logging middleware.
 - `@emdash/wire/util`: dependency-free utilities: `Scope`, `ManagedSource`,
   and `deduplicateRequests`.
 - `@emdash/wire/util/optimistic`: MobX-backed optimistic group utilities.
