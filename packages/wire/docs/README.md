@@ -4,18 +4,13 @@
 live model subscriptions, live logs, jobs, mutations, and a small set of utilities
 that sit at the API boundary.
 
-The package has three layers:
+The package has four layers:
 
 ```mermaid
 flowchart TB
-  subgraph utils [Utils]
-    dedupe[deduplicateRequests - server]
+  subgraph runtime [Runtime utilities]
     scope[Scope and ManagedSource]
-    optimistic[OptimisticLiveModelGroup - client, MobX]
-  end
-  subgraph process [Process]
     processHost[ProcessHost supervision]
-    processTransport[processTransport]
   end
   subgraph api [API layer]
     contracts[defineContract endpoint kinds]
@@ -29,40 +24,50 @@ flowchart TB
     job[LiveJob]
     mutations[Mutations and registries]
   end
-  utils --> api --> live
-  process --> api
+  subgraph observability [Observability]
+    instrumentation[Instrumentation and logging]
+  end
+  runtime --> api --> live
+  observability --> api
+  observability --> live
+  processHost --> api
 ```
 
 The live layer owns the stateful primitives: `LiveModelServer` and
 `LiveModelClient`, `LiveLogServer` and `LiveLogClient`, `LiveJobServer` and
 `LiveJobClient`, plus mutation registries and settling. The API layer turns those
 primitives into a contract with typed procedure calls and live topic bindings.
-The utility layer adds focused behavior around the API boundary, such as
-scoped disposal, demand-driven resources, server-side request deduplication, and
-client-side optimistic group previews. The process layer adapts supervised
-process-like runtimes into wire transports.
+The runtime layer owns lifecycle utilities and process supervision. Observability
+hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
 
 ## Pages
 
-- [Live models and protocol](./live-model.md): snapshots, updates, cursors,
-  `LiveModelServer`, `LiveModelClient`, and `BatchedLiveModel`.
-- [Live logs](./live-log.md): retained terminal-style logs and client callbacks.
-- [Live jobs](./live-job.md): progress, cancellation, terminal state, and results.
-- [Mutations](./mutations.md): mutation ids, registries, cursor settling, and
-  multi-model updates.
-- [Contracts](./contracts.md): `defineContract()`, endpoint kinds, nested
-  composition, and live model groups.
-- [Cancellation](./cancellation.md): procedure `AbortSignal`s, cancel messages,
-  disconnect aborts, and relay propagation.
+- API:
+  - [Contracts](./api/contracts.md): `defineContract()`, endpoint kinds, nested
+    composition, and live model groups.
+  - [Serving and clients](./api/serving.md): `bindContract()`, `serve()`,
+    `connect()`, `contractClient()`, cancellation, relays, session hubs, and
+    server-side call helpers.
+  - [Transports](./api/transports.md): memory, ports, Electron, streams,
+    reconnecting, process, and logging transports.
+- Live:
+  - [Live models and protocol](./live/live-model.md): snapshots, updates,
+    cursors, `LiveModelServer`, `LiveModelClient`, and `BatchedLiveModel`.
+  - [Live logs](./live/live-log.md): retained terminal-style logs and client
+    callbacks.
+  - [Live jobs](./live/live-job.md): progress, cancellation, terminal state,
+    retention, and contract job handles.
+  - [Mutations](./live/mutations.md): mutation ids, registries, cursor settling,
+    idempotency cache, and retry behavior.
+  - [Optimistic live model groups](./live/optimistic-group.md): MobX-backed
+    optimistic previews for `liveModelGroup`.
+- Runtime:
+  - [Lifecycle utilities](./runtime/lifecycle.md): `Scope`, scope loggers,
+    `describeScope()`, and `ManagedSource`.
+  - [ProcessHost](./runtime/process-host.md): supervised child/utility processes
+    and process-backed wire transports.
 - [Observability](./observability.md): ambient logger context, instrumentation
   hooks, controller logging, transport debug logging, and scope loggers.
-- [Serving and clients](./serving-and-clients.md): `bindContract()`,
-  `serve()`, `connect()`, `contractClient()`, and transports.
-- [Utils](./utils.md): `deduplicateRequests()` and `OptimisticLiveModelGroup`.
-- [Scope and ManagedSource](./scope-managed-source.md): cleanup trees and
-  demand-driven retained resources.
-- [ProcessHost](./process-host.md): supervised child/utility processes and
-  process-backed wire transports.
 
 Runnable examples live under [../examples](../examples). Most snippets in these
 docs are shortened versions of those files.

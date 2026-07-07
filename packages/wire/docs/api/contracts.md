@@ -1,12 +1,12 @@
-# Contracts
+# API Contracts
 
-Contracts describe the API surface once, then server binding and client creation
-derive their types from that definition.
+Contracts describe the API surface once. Server binding and client creation
+derive their types from the same object.
 
 ## Defining a Contract
 
 Use `defineContract({ ... })`. Object keys are significant: they determine
-procedure paths and live ref ids.
+procedure paths and live ref ids after nested contracts are mounted.
 
 ```ts
 export const notesApi = defineContract({
@@ -36,27 +36,32 @@ export const notesApi = defineContract({
 });
 ```
 
-See [../examples/api-definition/contract.ts](../examples/api-definition/contract.ts).
+See [../../examples/api-definition/contract.ts](../../examples/api-definition/contract.ts).
 
 ## Endpoint Kinds
 
 ### `procedure`
 
-Procedures are request/response calls. They do not settle live model updates
-automatically. Procedure clients accept an optional `{ signal }` call option for
-cooperative cancellation; see [Cancellation](./cancellation.md).
+`procedure({ input, output })` defines a request/response call. Procedure clients
+accept an optional `{ signal }` call option for cooperative cancellation; see
+[serving](./serving.md#cancellation).
 
-```ts
-clearNotes: procedure({
-  input: sessionKeySchema,
-  output: notesStateSchema,
-});
-```
+### `mutation`
+
+`mutation({ input, data, error }, handler?)` defines a live-model mutation shape.
+Top-level mutation endpoints are bound through `bindContract()` implementations.
+Group mutations usually provide the inline handler in the contract because
+`OptimisticLiveModelGroup` can run the same pure handler on the client.
+
+`mutation()` is for operations that must settle live model cursors. Use
+`procedure()` for calls that do not update live models and `job()` for
+long-running work.
 
 ### `liveModel`
 
-Live model endpoints expose `LiveModelServer` instances over a key. The endpoint
-id is assigned from the contract path:
+`liveModel({ key, data })` declares a keyed live model endpoint. If `key` is
+omitted, the endpoint uses an optional void key. The endpoint id is assigned from
+the contract path:
 
 ```ts
 notes: liveModel({ data: notesStateSchema });
@@ -65,17 +70,14 @@ notes: liveModel({ data: notesStateSchema });
 
 ### `liveLog`
 
-Live log endpoints expose `LiveLogServer` instances:
-
-```ts
-activity: liveLog({ key: sessionKeySchema });
-// notesApi.activity.id === 'activity'
-```
+`liveLog({ key })` declares a keyed text log endpoint. It is served by a
+`LiveLogServer` resolver and bound on the client with `onReset`/`onAppend`
+callbacks.
 
 ### `job`
 
-Jobs model long-running work with progress, cancellation, terminal state, and
-reattach. A job endpoint is declared once:
+`job({ input, progress, result, error })` models long-running work with progress,
+cancellation, terminal state, and reattach:
 
 ```ts
 build: job({
@@ -86,14 +88,13 @@ build: job({
 });
 ```
 
-`bindContract()` binds the endpoint to `{ run, toError }`. The client gets
-`start(input)` and `attach(jobId)` helpers. See [Live jobs](./live-job.md) and
-[../examples/job-contract/client.ts](../examples/job-contract/client.ts).
+`bindContract()` binds the endpoint to `{ run, toError }`. The typed client gets
+`start(input)` and `attach(jobId)` helpers. See [live jobs](../live/live-job.md).
 
 ### `liveModelGroup`
 
-Groups aggregate related live models and the mutations that may touch them. A
-single key addresses every member:
+`liveModelGroup({ key, models, mutations })` aggregates related live models and
+the mutations that may touch them. A single key addresses every member:
 
 ```ts
 const api = defineContract({
@@ -121,20 +122,12 @@ const api = defineContract({
 });
 ```
 
-Group mutations must have inline handlers. The same handler runs on the server,
-and `OptimisticLiveModelGroup` may run it on the client to derive optimistic
-previews. Keep group handlers pure functions of `(member drafts, input)`: avoid
-I/O, time, random numbers, and server-only state in the handler body.
-
-`mutation()` is intentionally only valid inside `liveModelGroup.mutations`.
-Use `procedure()` for request/response calls that do not need live model cursor
-settling, and use `job()` for long-running work.
-
-See [../examples/group/client.ts](../examples/group/client.ts).
+Group mutation handlers should be pure functions of the member drafts and input:
+avoid I/O, time, randomness, and server-only state in the inline handler body.
 
 ## Nested Composition
 
-Contracts can contain contracts:
+Contracts can contain other contracts:
 
 ```ts
 const ptyAgent = defineContract({
@@ -142,9 +135,7 @@ const ptyAgent = defineContract({
   output: liveLog({ key: sessionKeySchema }),
 });
 
-const api = defineContract({
-  ptyAgent,
-});
+const api = defineContract({ ptyAgent });
 ```
 
 The final mount path determines ids and procedure paths:
@@ -160,7 +151,8 @@ workspace API without an extra namespace argument.
 
 ## Group Instances
 
-On the server, create and register a group instance:
+On the server, create and register a group instance when a keyed resource is
+created:
 
 ```ts
 const registry = new LiveModelRegistry();
@@ -181,4 +173,5 @@ const controller = bindContract(api, {
 });
 ```
 
-The group binding exposes each member model plus each mutation method.
+The client group binding exposes each member model, each mutation method,
+`ready`, and `dispose()`. See [serving](./serving.md#typed-clients).

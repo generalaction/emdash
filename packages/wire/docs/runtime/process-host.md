@@ -7,8 +7,8 @@ It is split into two layers:
 
 - The process core is environment-agnostic: types, restart supervision,
   `utilityProcessHost()`, and `processTransport()`.
-- The Node implementation lives in `@emdash/wire/process/node` because it imports
-  `node:child_process`.
+- The Node implementation lives in `@emdash/wire/process/node` because it
+  imports `node:child_process`.
 
 The same core can later host other process-like boundaries, such as WebWorkers,
 by adapting them to the `ChildHandle` shape.
@@ -21,11 +21,13 @@ type ProcessSpec = {
   args?: string[];
   env?: Record<string, string | undefined>;
   cwd?: string;
-  supervision?: { restart: 'never' } | {
-    restart: 'on-failure';
-    backoffMs?: number[];
-    maxRestarts?: number;
-  };
+  supervision?:
+    | { restart: 'never' }
+    | {
+        restart: 'on-failure';
+        backoffMs?: number[];
+        maxRestarts?: number;
+      };
   gracefulShutdown?: { message?: unknown; graceMs: number };
 };
 ```
@@ -44,6 +46,10 @@ await runtime.dispose();
 
 The handle stays valid across supervised restarts. Internally, `send()` and
 subscriptions retarget the current child.
+
+Use `listen(emitter, event, cb)` when adapting event-emitter-like process APIs.
+It accepts emitters with `on()` plus either `off()` or `removeListener()`, and
+returns an `Unsubscribe`.
 
 ## Node Child Processes
 
@@ -135,6 +141,4 @@ await host.spawn({
 On dispose, the host sends the message, waits up to `graceMs`, then hard-kills if
 the child is still running.
 
-## Example
-
-See [../examples/process/client.ts](../examples/process/client.ts).
+See [../../examples/process/client.ts](../../examples/process/client.ts).

@@ -54,8 +54,16 @@ Hooks currently cover:
 - scope cleanup errors.
 - transport connect/disconnect events.
 
-`loggerInstrumentation(logger, { payloads: true })` includes redacted,
-truncated payload summaries at debug level.
+Helpers:
+
+- `noopInstrumentation`: empty hooks object.
+- `mergeInstrumentation(...parts)`: fan out events to several hook sets.
+- `loggerInstrumentation(logger, options?)`: map hooks to structured log lines.
+- `summarizePayload(value, options?)`: prepare, redact, stringify, and truncate a
+  payload summary for debug logs.
+
+`loggerInstrumentation(logger, { payloads: true })` includes redacted, truncated
+payload summaries at debug level.
 
 ## Server Logging Middleware
 
@@ -74,6 +82,8 @@ This logs the endpoint path, duration, outcome, and optional redacted input and
 result payloads. It composes with `bindContract()` and `mergeControllers()`
 because it preserves the `Controller` shape.
 
+Serving and client options are documented in [API serving](./api/serving.md).
+
 ## Protocol Debug Logging
 
 Use `loggingTransport()` when you need a full wire-message firehose:
@@ -91,6 +101,8 @@ This logs every sent and received protocol message: `hello`, `call`, `result`,
 `snapshot`, `attach`, `detach`, `update`, and `cancel`. Payload logging should be
 used for local debugging because even redacted summaries can be noisy.
 
+Transport construction is documented in [API transports](./api/transports.md).
+
 ## Scope Logging
 
 `createScope({ logger, label })` attaches a logger to the scope tree. Children
@@ -106,6 +118,8 @@ sessionScope.log.info('session started');
 Cleanup errors are reported through the scope logger by default. Use
 `describeScope(scope)` for a lightweight label tree when debugging retained
 resources.
+
+Scope lifecycle behavior is documented in [runtime lifecycle](./runtime/lifecycle.md).
 
 ## Example
 

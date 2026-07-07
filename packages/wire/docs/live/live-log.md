@@ -6,25 +6,21 @@ need to attach late and still see recent context.
 
 ## Server
 
-`LiveLogServer` stores a bounded text buffer. `append()` emits chunks to
-subscribers and updates the retained snapshot. `reset()` starts a new generation
-and replaces the retained text.
+`LiveLogServer` stores a bounded text buffer. `append(chunk)` emits
+`{ chunk }` deltas to subscribers and updates the retained snapshot:
 
 ```ts
 const server = new LiveLogServer({ generation: 3000, maxBufferBytes: 12 });
-
-export async function fetchSnapshot(): Promise<LiveSnapshot<LiveLogSnapshotData>> {
-  return server.snapshot();
-}
-
-export function attach(push: (update: LiveUpdate) => void): Unsubscribe {
-  return server.subscribe(push);
-}
 
 export function appendLine(line: string): void {
   server.append(`${line}\n`);
 }
 ```
+
+Options:
+
+- `generation`: optional fixed generation, useful in tests.
+- `maxBufferBytes`: retained buffer size. The default is 1 MiB.
 
 Snapshots contain `LiveLogSnapshotData`:
 
@@ -38,9 +34,11 @@ type LiveLogSnapshotData = {
 
 `baseOffset` is the byte offset of `text` in the logical full log. When the
 server drops old bytes because `maxBufferBytes` was exceeded, `truncated` is
-true.
+`true`. The server keeps at least the newest chunk even if it exceeds the byte
+limit.
 
-See [../examples/live-log/server.ts](../examples/live-log/server.ts).
+`reseed()` starts a new generation, clears retained text, resets `baseOffset` to
+`0`, and resets sequence to `0`.
 
 ## Client
 
@@ -49,24 +47,23 @@ See [../examples/live-log/server.ts](../examples/live-log/server.ts).
 ```ts
 const client = new LiveLogClient({
   refetchSnapshot: fetchSnapshot,
-  onReset: (data) => console.log('log reset:', data),
-  onAppend: (chunk) => console.log('log append:', JSON.stringify(chunk)),
+  onReset: (data) => console.log('log reset:', data.text),
+  onAppend: (chunk) => console.log('log append:', chunk),
+  topic,
+  instrumentation,
+  logger,
 });
 
 client.seed(await fetchSnapshot());
 const detach = attach((update) => client.applyUpdate(update));
-
-appendLine('first line');
-appendLine('second line');
-
-console.log('retained log snapshot:', client.getSnapshot());
-detach();
 ```
 
-Use `onReset` to replace the rendered text and `onAppend` to append incremental
+Use `onReset` to replace rendered text and `onAppend` to append incremental
 chunks. `getSnapshot()` returns the retained tail the client has applied so far.
 
-See [../examples/live-log/client.ts](../examples/live-log/client.ts).
+The client resyncs on update-before-seed, generation mismatch, sequence gap, or
+invalid log delta. Resync events use the same `resync` instrumentation hook as
+live models.
 
 ## API Layer Usage
 
@@ -93,3 +90,5 @@ await binding.dispose();
 ```
 
 The API layer handles topic encoding, snapshots, attachment, and detachment.
+
+See [../../examples/live-log/client.ts](../../examples/live-log/client.ts).
