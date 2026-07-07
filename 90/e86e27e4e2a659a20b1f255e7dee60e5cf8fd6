@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/issues/registry.ts
+  s_df9b6a6844f3f2::t_3121784132740f 4,7,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "90e86e27e4e2a659a20b1f255e7dee60e5cf8fd6",
+  "prompts": {},
+  "sessions": {
+    "s_df9b6a6844f3f2": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQvlL3Vk9JGDtXa0yCt",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
