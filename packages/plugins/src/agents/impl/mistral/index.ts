@@ -20,6 +20,26 @@ export const plugin = definePlugin(
       scope: 'workspace',
       supportedEvents: ['notification', 'stop'],
     },
+    models: {
+      kind: 'selectable',
+      modelOptions: {
+        'mistral-medium-3.5': {
+          name: 'Mistral Medium 3.5',
+          description: 'Default hosted Mistral Vibe model with high thinking and image support.',
+          modelFeatures: { intelligence: 5, speed: 4 },
+        },
+        'devstral-small': {
+          name: 'Devstral Small',
+          description: 'Lower-cost hosted Devstral model for faster coding tasks.',
+          modelFeatures: { intelligence: 3, speed: 5 },
+        },
+        local: {
+          name: 'Local Devstral',
+          description: 'Local llama.cpp Devstral model configured by Mistral Vibe.',
+          modelFeatures: { intelligence: 3, speed: 3 },
+        },
+      },
+    },
     hostDependency: {
       id: 'mistral',
       binaryNames: ['vibe'],
@@ -66,6 +86,7 @@ export const provider = registerPluginBehavior(plugin, {
       buildStandardCommand(ctx, {
         autoApproveFlag: '--agent auto-approve',
         initialPromptFlag: '',
+        extraEnv: ctx.model ? { VIBE_ACTIVE_MODEL: ctx.model } : undefined,
       }),
   },
 });

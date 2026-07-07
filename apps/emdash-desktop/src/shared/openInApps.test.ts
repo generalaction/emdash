@@ -46,6 +46,25 @@ describe('OPEN_IN_APPS', () => {
     );
   });
 
+  it('registers Hyper as an open-in terminal option', () => {
+    expect(isValidOpenInAppId('hyper')).toBe(true);
+    expect(OPEN_IN_APPS.hyper).toMatchObject({
+      id: 'hyper',
+      iconPath: 'hyper.svg',
+      label: 'Hyper',
+      supportsRemote: true,
+    });
+  });
+
+  it('configures Hyper launch commands for supported desktop platforms', () => {
+    expect(OPEN_IN_APPS.hyper.platforms.darwin?.bundleIds).toContain('co.zeit.hyper');
+    // Hyper has no cwd flag, so a path argument would be silently ignored; launch
+    // plainly and rely on the exec cwd for best-effort directory on linux/win32.
+    expect(OPEN_IN_APPS.hyper.platforms.darwin?.openCommands).toEqual(['open -na "Hyper"']);
+    expect(OPEN_IN_APPS.hyper.platforms.win32?.openCommands).toEqual(['hyper']);
+    expect(OPEN_IN_APPS.hyper.platforms.linux?.openCommands).toEqual(['hyper']);
+  });
+
   it('registers Athas as an open-in editor option', () => {
     expect(isValidOpenInAppId('athas')).toBe(true);
     expect(OPEN_IN_APPS.athas).toMatchObject({

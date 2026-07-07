@@ -82,7 +82,7 @@ export const TabContextMenu = observer(function TabContextMenu({
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger>{children}</ContextMenuTrigger>
+      <ContextMenuTrigger className="flex h-full">{children}</ContextMenuTrigger>
       <ContextMenuContent finalFocus={false}>
         {visibleEngine.map((cmd) => (
           <ContextMenuItem key={cmd.id} onClick={() => void cmd.run()}>
