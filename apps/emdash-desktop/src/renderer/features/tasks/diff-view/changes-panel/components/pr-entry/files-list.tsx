@@ -4,6 +4,7 @@ import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/change
 import { activeDiffEntry } from '@renderer/features/tasks/diff-view/pane-selectors';
 import {
   useTaskViewContext,
+  useWorkspace,
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
@@ -15,6 +16,7 @@ import { ChangesListOrTree } from '../changes-list-or-tree';
 export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullRequest }) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
+  const workspace = useWorkspace();
   const taskView = useWorkspaceViewModel();
   const prStore = taskView.prStore!;
   const { mode: viewMode } = useChangesViewMode('pr');
@@ -80,6 +82,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
       viewMode={viewMode}
       className="py-3"
       changes={prFiles}
+      rootPath={workspace.path}
       activePath={activePath}
       onSelectChange={handleSelectChange}
       onDoubleClickChange={handleDoubleClickChange}
