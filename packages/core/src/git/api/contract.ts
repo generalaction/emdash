@@ -1,15 +1,14 @@
 import { resultSchema } from '@emdash/shared';
 import { eventIterator, oc } from '@orpc/contract';
 import { z } from 'zod';
+import { createLiveJobContract } from '../../live/adapters/orpc';
 import {
   addCheckoutOptionsSchema,
   commitOptionsSchema,
   createBranchOptionsSchema,
   ensureRepositoryOptionsSchema,
-  fetchPrForReviewOptionsSchema,
   gitLogOptionsSchema,
   mergeOptionsSchema,
-  pushOptionsSchema,
   rebaseOptionsSchema,
   resetModeSchema,
   stashPushOptionsSchema,
@@ -25,7 +24,6 @@ import {
   fetchErrorSchema,
   fetchPrForReviewErrorSchema,
   gitCommandErrorSchema,
-  gitOutputResultSchema,
   gitVoidResultSchema,
   mergeErrorSchema,
   pullErrorSchema,
@@ -34,6 +32,17 @@ import {
   switchErrorSchema,
   syncErrorSchema,
 } from './errors';
+import {
+  cloneRepositoryJobInputSchema,
+  fetchJobInputSchema,
+  fetchPrForReviewJobInputSchema,
+  publishBranchJobInputSchema,
+  pullJobInputSchema,
+  pushJobInputSchema,
+  syncJobInputSchema,
+  syncProgressSchema,
+  transferProgressSchema,
+} from './jobs';
 import { gitCheckoutInputSchema, gitLiveContract, gitRepositoryInputSchema } from './live';
 import {
   blameResultSchema,
@@ -61,9 +70,12 @@ const runtimeContract = {
     .input(z.object({ path: z.string(), options: ensureRepositoryOptionsSchema.optional() }))
     .output(resultSchema(gitRepositoryInfoSchema, ensureRepositoryErrorSchema)),
 
-  cloneRepository: oc
-    .input(z.object({ repositoryUrl: z.string(), targetPath: z.string() }))
-    .output(resultSchema(gitRepositoryInfoSchema, cloneRepositoryErrorSchema)),
+  cloneRepository: createLiveJobContract({
+    input: cloneRepositoryJobInputSchema,
+    progress: transferProgressSchema,
+    result: gitRepositoryInfoSchema,
+    error: cloneRepositoryErrorSchema,
+  }),
 };
 
 const repositoryContract = {
@@ -107,19 +119,28 @@ const repositoryContract = {
 
   removeRemote: oc.input(repoKey.extend({ name: z.string() })).output(gitVoidResultSchema),
 
-  fetch: oc
-    .input(repoKey.extend({ remote: z.string().optional() }))
-    .output(resultSchema(z.void(), fetchErrorSchema)),
+  fetch: createLiveJobContract({
+    input: fetchJobInputSchema,
+    progress: transferProgressSchema,
+    result: z.void(),
+    error: fetchErrorSchema,
+  }),
 
-  publishBranch: oc
-    .input(repoKey.extend({ branchName: z.string(), remote: z.string().optional() }))
-    .output(gitOutputResultSchema),
+  publishBranch: createLiveJobContract({
+    input: publishBranchJobInputSchema,
+    progress: transferProgressSchema,
+    result: z.object({ output: z.string() }),
+    error: pushErrorSchema,
+  }),
 
   getDefaultBranch: oc.input(repoKey.extend({ remote: z.string().optional() })).output(z.string()),
 
-  fetchPrForReview: oc
-    .input(repoKey.extend({ options: fetchPrForReviewOptionsSchema }))
-    .output(resultSchema(z.void(), fetchPrForReviewErrorSchema)),
+  fetchPrForReview: createLiveJobContract({
+    input: fetchPrForReviewJobInputSchema,
+    progress: transferProgressSchema,
+    result: z.void(),
+    error: fetchPrForReviewErrorSchema,
+  }),
 
   readBlobAtRef: oc
     .input(repoKey.extend({ ref: z.string(), filePath: z.string() }))
@@ -208,17 +229,26 @@ const checkoutContract = {
     .input(checkoutKey.extend({ commit: z.string(), noCommit: z.boolean().optional() }))
     .output(resultSchema(z.void(), mergeErrorSchema)),
 
-  push: oc
-    .input(checkoutKey.extend({ options: pushOptionsSchema.optional() }))
-    .output(resultSchema(z.object({ output: z.string() }), pushErrorSchema)),
+  push: createLiveJobContract({
+    input: pushJobInputSchema,
+    progress: transferProgressSchema,
+    result: z.object({ output: z.string() }),
+    error: pushErrorSchema,
+  }),
 
-  pull: oc
-    .input(checkoutKey)
-    .output(resultSchema(z.object({ output: z.string() }), pullErrorSchema)),
+  pull: createLiveJobContract({
+    input: pullJobInputSchema,
+    progress: transferProgressSchema,
+    result: z.object({ output: z.string() }),
+    error: pullErrorSchema,
+  }),
 
-  sync: oc
-    .input(checkoutKey)
-    .output(resultSchema(z.object({ output: z.string() }), syncErrorSchema)),
+  sync: createLiveJobContract({
+    input: syncJobInputSchema,
+    progress: syncProgressSchema,
+    result: z.object({ output: z.string() }),
+    error: syncErrorSchema,
+  }),
 
   stashPush: oc
     .input(checkoutKey.extend({ options: stashPushOptionsSchema.optional() }))

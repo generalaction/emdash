@@ -1,8 +1,9 @@
 import type { Lease } from '@emdash/shared';
 import type { IGitCheckout } from '../checkout/types';
+import { createGitSessionJobs } from '../jobs';
 import type { IGitRepository } from '../repository/types';
 import type { CheckoutLease, IGitRuntime, RepoLease } from '../types';
-import { GitApiContext } from './middlewares';
+import type { GitApiContext } from './middlewares';
 
 export type GitSession = {
   context: GitApiContext;
@@ -11,9 +12,13 @@ export type GitSession = {
 
 export function createGitSession(runtime: IGitRuntime): GitSession {
   const resources = new GitSessionResources(runtime);
+  const jobs = createGitSessionJobs(runtime, resources);
   return {
-    context: { runtime, resources },
-    dispose: () => resources.dispose(),
+    context: { runtime, jobs, resources },
+    dispose: async () => {
+      jobs.dispose();
+      await resources.dispose();
+    },
   };
 }
 

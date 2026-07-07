@@ -1,8 +1,13 @@
+import { onMessagePortClose } from '@orpc/client/message-port';
+import { ORPCError } from '@orpc/server';
 import { RPCHandler } from '@orpc/server/message-port';
 import { streamEvents, streamLiveUpdates } from '../../live/adapters/orpc';
+import type { LiveModelServer } from '../../live/model';
+import type { LiveJobState } from '../../live/protocol';
+import type { LiveJobServer } from '../../live/job';
 import type { IGitRuntime } from '../types';
 import { i, withCheckout, withRepository, type GitApiContext } from './middlewares';
-import { createGitSession, GitSession } from './session';
+import { createGitSession, type GitSession } from './session';
 
 export const gitRouter = i.router({
   inspectPath: i.inspectPath.handler(({ context, input }) =>
@@ -11,9 +16,21 @@ export const gitRouter = i.router({
   ensureRepository: i.ensureRepository.handler(({ context, input }) =>
     context.runtime.ensureRepository(input.path, input.options)
   ),
-  cloneRepository: i.cloneRepository.handler(({ context, input }) =>
-    context.runtime.cloneRepository(input.repositoryUrl, input.targetPath)
-  ),
+  cloneRepository: {
+    start: i.cloneRepository.start.handler(({ context, input }) =>
+      context.jobs.cloneRepository.start(input)
+    ),
+    cancel: i.cloneRepository.cancel.handler(({ context, input }) =>
+      context.jobs.cloneRepository.cancel(input.jobId)
+    ),
+    snapshot: i.cloneRepository.snapshot.handler(({ context, input }) =>
+      jobOrThrow(context.jobs.cloneRepository, input.jobId).snapshot()
+    ),
+    subscribe: i.cloneRepository.subscribe.handler(({ context, input, signal }) =>
+      streamLiveUpdates(jobOrThrow(context.jobs.cloneRepository, input.jobId), signal)
+    ),
+    unsubscribe: i.cloneRepository.unsubscribe.handler(() => undefined),
+  },
   repository: {
     refs: {
       snapshot: i.repository.refs.snapshot
@@ -85,20 +102,54 @@ export const gitRouter = i.router({
     removeRemote: i.repository.removeRemote
       .use(withRepository)
       .handler(({ context, input }) => context.repository.removeRemote(input.name)),
-    fetch: i.repository.fetch
-      .use(withRepository)
-      .handler(({ context, input }) => context.repository.fetch(input.remote)),
-    publishBranch: i.repository.publishBranch
-      .use(withRepository)
-      .handler(({ context, input }) =>
-        context.repository.publishBranch(input.branchName, input.remote)
+    fetch: {
+      start: i.repository.fetch.start.handler(({ context, input }) =>
+        context.jobs.fetch.start(input)
       ),
+      cancel: i.repository.fetch.cancel.handler(({ context, input }) =>
+        context.jobs.fetch.cancel(input.jobId)
+      ),
+      snapshot: i.repository.fetch.snapshot.handler(({ context, input }) =>
+        jobOrThrow(context.jobs.fetch, input.jobId).snapshot()
+      ),
+      subscribe: i.repository.fetch.subscribe.handler(({ context, input, signal }) =>
+        streamLiveUpdates(jobOrThrow(context.jobs.fetch, input.jobId), signal)
+      ),
+      unsubscribe: i.repository.fetch.unsubscribe.handler(() => undefined),
+    },
+    publishBranch: {
+      start: i.repository.publishBranch.start.handler(({ context, input }) =>
+        context.jobs.publishBranch.start(input)
+      ),
+      cancel: i.repository.publishBranch.cancel.handler(({ context, input }) =>
+        context.jobs.publishBranch.cancel(input.jobId)
+      ),
+      snapshot: i.repository.publishBranch.snapshot.handler(({ context, input }) =>
+        jobOrThrow(context.jobs.publishBranch, input.jobId).snapshot()
+      ),
+      subscribe: i.repository.publishBranch.subscribe.handler(({ context, input, signal }) =>
+        streamLiveUpdates(jobOrThrow(context.jobs.publishBranch, input.jobId), signal)
+      ),
+      unsubscribe: i.repository.publishBranch.unsubscribe.handler(() => undefined),
+    },
     getDefaultBranch: i.repository.getDefaultBranch
       .use(withRepository)
       .handler(({ context, input }) => context.repository.getDefaultBranch(input.remote)),
-    fetchPrForReview: i.repository.fetchPrForReview
-      .use(withRepository)
-      .handler(({ context, input }) => context.repository.fetchPrForReview(input.options)),
+    fetchPrForReview: {
+      start: i.repository.fetchPrForReview.start.handler(({ context, input }) =>
+        context.jobs.fetchPrForReview.start(input)
+      ),
+      cancel: i.repository.fetchPrForReview.cancel.handler(({ context, input }) =>
+        context.jobs.fetchPrForReview.cancel(input.jobId)
+      ),
+      snapshot: i.repository.fetchPrForReview.snapshot.handler(({ context, input }) =>
+        jobOrThrow(context.jobs.fetchPrForReview, input.jobId).snapshot()
+      ),
+      subscribe: i.repository.fetchPrForReview.subscribe.handler(({ context, input, signal }) =>
+        streamLiveUpdates(jobOrThrow(context.jobs.fetchPrForReview, input.jobId), signal)
+      ),
+      unsubscribe: i.repository.fetchPrForReview.unsubscribe.handler(() => undefined),
+    },
     readBlobAtRef: i.repository.readBlobAtRef
       .use(withRepository)
       .handler(({ context, input }) => context.repository.readBlobAtRef(input.ref, input.filePath)),
@@ -194,11 +245,45 @@ export const gitRouter = i.router({
     revertCommit: i.checkout.revertCommit
       .use(withCheckout)
       .handler(({ context, input }) => context.checkout.revertCommit(input.commit, input.noCommit)),
-    push: i.checkout.push
-      .use(withCheckout)
-      .handler(({ context, input }) => context.checkout.push(input.options)),
-    pull: i.checkout.pull.use(withCheckout).handler(({ context }) => context.checkout.pull()),
-    sync: i.checkout.sync.use(withCheckout).handler(({ context }) => context.checkout.sync()),
+    push: {
+      start: i.checkout.push.start.handler(({ context, input }) => context.jobs.push.start(input)),
+      cancel: i.checkout.push.cancel.handler(({ context, input }) =>
+        context.jobs.push.cancel(input.jobId)
+      ),
+      snapshot: i.checkout.push.snapshot.handler(({ context, input }) =>
+        jobOrThrow(context.jobs.push, input.jobId).snapshot()
+      ),
+      subscribe: i.checkout.push.subscribe.handler(({ context, input, signal }) =>
+        streamLiveUpdates(jobOrThrow(context.jobs.push, input.jobId), signal)
+      ),
+      unsubscribe: i.checkout.push.unsubscribe.handler(() => undefined),
+    },
+    pull: {
+      start: i.checkout.pull.start.handler(({ context, input }) => context.jobs.pull.start(input)),
+      cancel: i.checkout.pull.cancel.handler(({ context, input }) =>
+        context.jobs.pull.cancel(input.jobId)
+      ),
+      snapshot: i.checkout.pull.snapshot.handler(({ context, input }) =>
+        jobOrThrow(context.jobs.pull, input.jobId).snapshot()
+      ),
+      subscribe: i.checkout.pull.subscribe.handler(({ context, input, signal }) =>
+        streamLiveUpdates(jobOrThrow(context.jobs.pull, input.jobId), signal)
+      ),
+      unsubscribe: i.checkout.pull.unsubscribe.handler(() => undefined),
+    },
+    sync: {
+      start: i.checkout.sync.start.handler(({ context, input }) => context.jobs.sync.start(input)),
+      cancel: i.checkout.sync.cancel.handler(({ context, input }) =>
+        context.jobs.sync.cancel(input.jobId)
+      ),
+      snapshot: i.checkout.sync.snapshot.handler(({ context, input }) =>
+        jobOrThrow(context.jobs.sync, input.jobId).snapshot()
+      ),
+      subscribe: i.checkout.sync.subscribe.handler(({ context, input, signal }) =>
+        streamLiveUpdates(jobOrThrow(context.jobs.sync, input.jobId), signal)
+      ),
+      unsubscribe: i.checkout.sync.unsubscribe.handler(() => undefined),
+    },
     stashPush: i.checkout.stashPush
       .use(withCheckout)
       .handler(({ context, input }) => context.checkout.stashPush(input.options)),
@@ -255,5 +340,15 @@ export type GitMessagePort = Parameters<RPCHandler<GitApiContext>['upgrade']>[0]
 export function serveGitPort(runtime: IGitRuntime, port: GitMessagePort): GitSession {
   const session = createGitSession(runtime);
   new RPCHandler(gitRouter).upgrade(port, { context: session.context });
+  onMessagePortClose(port, () => void session.dispose());
   return session;
+}
+
+function jobOrThrow<I, P, R, E>(
+  server: LiveJobServer<I, P, R, E>,
+  jobId: string
+): LiveModelServer<LiveJobState<P, R, E>> {
+  const job = server.job(jobId);
+  if (!job) throw new ORPCError('NOT_FOUND', { message: `Unknown git job '${jobId}'` });
+  return job;
 }

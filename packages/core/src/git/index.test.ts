@@ -8,7 +8,7 @@ describe('@emdash/core/git public exports', () => {
     expect(exported.GitRuntime).toBeTypeOf('function');
     expect(exported.gitRouter).toBeTypeOf('object');
     expect(exported.serveGitPort).toBeTypeOf('function');
-    expect(exported.GitResourceCache).toBeTypeOf('function');
+    expect(exported.createGitSessionJobs).toBeTypeOf('function');
     expect(exported.GitRepository).toBeUndefined();
     expect(exported.GitCheckout).toBeUndefined();
   });

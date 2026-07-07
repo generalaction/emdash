@@ -1,9 +1,23 @@
 export { GitRuntime, type GitRuntimeOptions } from './git-runtime';
+export { createGitSessionJobs } from './jobs';
+export type { GitResourceAccessor, GitSessionJobs } from './jobs';
 export { classifyCloneRepositoryError, gitErrorMessage, toGitCommandError } from './errors';
 export { computeBaseRef } from './base-ref';
 export { gitRouter, serveGitPort } from './api/router';
 export type { GitMessagePort, GitRouter } from './api/router';
 export type { GitApiContext } from './api/middlewares';
+export type { GitOpContext } from './transfer-progress';
+export type {
+  CloneRepositoryJobInput,
+  FetchJobInput,
+  FetchPrForReviewJobInput,
+  GitSyncProgress,
+  GitTransferProgress,
+  PublishBranchJobInput,
+  PullJobInput,
+  PushJobInput,
+  SyncJobInput,
+} from './api/jobs';
 export { MAX_STATUS_FILES, StatusParser, TooManyFilesChangedError } from './checkout/ops/status';
 export type { FileStatus } from './checkout/ops/status';
 export type { CheckoutLease, GitOnError, IGitRuntime, RepoLease } from './types';

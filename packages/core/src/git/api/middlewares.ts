@@ -1,5 +1,6 @@
 import { implement } from '@orpc/server';
 import type { IGitCheckout } from '../checkout/types';
+import type { GitSessionJobs } from '../jobs';
 import type { IGitRepository } from '../repository/types';
 import type { IGitRuntime } from '../types';
 import { gitContract } from './contract';
@@ -7,6 +8,7 @@ import type { GitSessionResources } from './session';
 
 export type GitApiContext = {
   runtime: IGitRuntime;
+  jobs: GitSessionJobs;
   resources: GitSessionResources;
 };
 

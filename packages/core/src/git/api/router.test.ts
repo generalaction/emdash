@@ -4,14 +4,19 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { MessageChannel } from 'node:worker_threads';
+import type { Result } from '@emdash/shared';
 import { createORPCClient, type Client } from '@orpc/client';
 import { RPCLink } from '@orpc/client/message-port';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { IWatchService } from '../../watch';
 import type { CheckoutStatusModel } from '../checkout/models/status';
+import type { IGitCheckout } from '../checkout/types';
 import { GitRuntime } from '../git-runtime';
 import type { GitRefsModel } from '../repository/models/refs';
+import type { IGitRuntime } from '../types';
 import type { GitLogOptions } from './commands';
+import type { PullError, PushError } from './errors';
+import type { GitTransferProgress, PullJobInput, PushJobInput } from './jobs';
 import { serveGitPort } from './router';
 
 const execFileAsync = promisify(execFile);
@@ -19,6 +24,18 @@ const execFileAsync = promisify(execFile);
 type Proc<I = unknown, O = unknown> = Client<Record<never, never>, I, O, unknown>;
 type LiveSnapshot<T> = { data: T; sequence: number; generation: number; timestamp: number };
 type LiveUpdate = { delta: unknown };
+type LiveJobState<P, R, E> =
+  | { status: 'running'; startedAt: number; progress: P[]; progressCount: number }
+  | { status: 'succeeded'; result: R }
+  | { status: 'failed'; error: E }
+  | { status: 'cancelled' };
+type JobClient<I, P, R, E> = {
+  start: Proc<I, { jobId: string }>;
+  cancel: Proc<{ jobId: string }, void>;
+  snapshot: Proc<{ jobId: string }, LiveSnapshot<LiveJobState<P, R, E>>>;
+  subscribe: Proc<{ jobId: string }, AsyncIterator<LiveUpdate>>;
+  unsubscribe: Proc<{ jobId: string }, void>;
+};
 
 type TestGitClient = {
   repository: {
@@ -32,6 +49,8 @@ type TestGitClient = {
       subscribe: Proc<{ checkoutPath: string }, AsyncIterator<LiveUpdate>>;
     };
     stage: Proc<{ checkoutPath: string; paths: string[] }, { success: boolean }>;
+    push: JobClient<PushJobInput, GitTransferProgress, { output: string }, PushError>;
+    pull: JobClient<PullJobInput, GitTransferProgress, { output: string }, PullError>;
     getLog: Proc<
       { checkoutPath: string; options?: GitLogOptions },
       { commits: Array<{ subject: string }> }
@@ -50,6 +69,15 @@ async function makeRepo(): Promise<string> {
   return await realpath(repo);
 }
 
+function fakeRuntimeWithCheckout(checkout: Partial<IGitCheckout>) {
+  return {
+    openCheckout: vi.fn(async () => ({
+      value: checkout as IGitCheckout,
+      release: vi.fn(async () => {}),
+    })),
+  } as unknown as IGitRuntime;
+}
+
 function createNoopWatcher(onRelease?: () => void): IWatchService {
   return {
     watch: () => ({
@@ -62,9 +90,9 @@ function createNoopWatcher(onRelease?: () => void): IWatchService {
   };
 }
 
-function makeClient(runtime: GitRuntime) {
+function makeClient(runtime: IGitRuntime) {
   const { port1, port2 } = new MessageChannel();
-  serveGitPort(runtime, port1);
+  const session = serveGitPort(runtime, port1);
   port1.start();
   const link = new RPCLink({ port: port2 });
   const client = createORPCClient<TestGitClient>(link);
@@ -74,11 +102,20 @@ function makeClient(runtime: GitRuntime) {
     close: async () => {
       port1.close();
       port2.close();
+      await session.dispose();
       await new Promise<void>((resolve) => {
         setImmediate(resolve);
       });
     },
   };
+}
+
+async function makeRepoWithRemote(): Promise<{ repo: string; remote: string }> {
+  const repo = await makeRepo();
+  const remote = await mkdtemp(path.join(tmpdir(), 'emdash-git-router-remote-'));
+  await execFileAsync('git', ['init', '--bare'], { cwd: remote });
+  await execFileAsync('git', ['remote', 'add', 'origin', remote], { cwd: repo });
+  return { repo, remote };
 }
 
 async function waitFor(condition: () => boolean, message: string): Promise<void> {
@@ -88,6 +125,26 @@ async function waitFor(condition: () => boolean, message: string): Promise<void>
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 10);
     });
+  }
+}
+
+async function waitForTerminalJob<I, P, R, E>(
+  job: JobClient<I, P, R, E>,
+  jobId: string
+): Promise<Exclude<LiveJobState<P, R, E>, { status: 'running' }>> {
+  const updates = await job.subscribe({ jobId });
+  try {
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline) {
+      const snapshot = await job.snapshot({ jobId });
+      if (snapshot.data.status !== 'running') return snapshot.data;
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 10);
+      });
+    }
+    throw new Error(`Timed out waiting for job ${jobId}`);
+  } finally {
+    await updates.return?.(undefined);
   }
 }
 
@@ -224,6 +281,60 @@ describe('gitRouter', () => {
       await close();
       await runtime.dispose();
       await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('runs checkout push as a job and exposes the terminal result', async () => {
+    const { repo, remote } = await makeRepoWithRemote();
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const { client, close } = makeClient(runtime);
+
+    try {
+      const { jobId } = await client.checkout.push.start({
+        checkoutPath: repo,
+        options: { remote: 'origin', setUpstream: true },
+      });
+      const terminal = await waitForTerminalJob(client.checkout.push, jobId);
+
+      expect(terminal).toMatchObject({
+        status: 'succeeded',
+        result: { output: expect.any(String) },
+      });
+      await expect(
+        execFileAsync('git', ['--git-dir', remote, 'rev-parse', 'refs/heads/main'])
+      ).resolves.toMatchObject({ stdout: expect.stringMatching(/[a-f0-9]{40}/) });
+    } finally {
+      await close();
+      await runtime.dispose();
+      await rm(repo, { recursive: true, force: true });
+      await rm(remote, { recursive: true, force: true });
+    }
+  });
+
+  it('cancels checkout jobs through the router', async () => {
+    const checkout = {
+      pull: vi.fn(
+        (_context?: unknown): Promise<Result<{ output: string }, PullError>> =>
+          new Promise((_resolve, reject) => {
+            const signal = (_context as { signal?: AbortSignal } | undefined)?.signal;
+            signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+          })
+      ),
+    };
+    const runtime = fakeRuntimeWithCheckout(checkout);
+    const { client, close } = makeClient(runtime);
+
+    try {
+      const { jobId } = await client.checkout.pull.start({ checkoutPath: '/repo' });
+      await vi.waitFor(() => expect(checkout.pull).toHaveBeenCalled());
+
+      await client.checkout.pull.cancel({ jobId });
+
+      await expect(waitForTerminalJob(client.checkout.pull, jobId)).resolves.toEqual({
+        status: 'cancelled',
+      });
+    } finally {
+      await close();
     }
   });
 });
