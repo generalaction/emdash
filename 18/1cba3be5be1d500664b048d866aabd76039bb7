@@ -1,0 +1,33 @@
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-selectors.ts
+  s_808a1ea478134b::t_4221449b30fa75 147,149
+  s_f9e6cac3d1f144::t_2626436616802b 145-146
+apps/emdash-desktop/src/renderer/features/tasks/task-titlebar.tsx
+  s_808a1ea478134b::t_4221449b30fa75 75,101-105
+  s_808a1ea478134b::t_ac6dc20f4addf2 106
+packages/plugins/src/issues/impl/notion/index.ts
+  s_808a1ea478134b::t_4221449b30fa75 2,38,66,104-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "181cba3be5be1d500664b048d866aabd76039bb7",
+  "prompts": {},
+  "sessions": {
+    "s_808a1ea478134b": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQEV7nBFTMYxc9C9iiW",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f9e6cac3d1f144": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lQFjUhCEJqC8JG46h6Q",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
