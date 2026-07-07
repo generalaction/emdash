@@ -4,6 +4,11 @@ These examples show the transport-agnostic primitives in `@emdash/wire`.
 Each example splits the authoritative server-side primitive from the client-side
 binding so the boundary looks like a real transport without adding an adapter.
 
+## Documentation
+
+For conceptual docs that explain how the examples fit together, see
+[../docs/README.md](../docs/README.md).
+
 Run them from the repository root:
 
 ```bash
