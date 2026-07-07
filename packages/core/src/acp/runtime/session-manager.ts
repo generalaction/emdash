@@ -476,9 +476,12 @@ export class SessionManager implements InboundRouter {
   ): void {
     const summary: SessionSummary = {
       conversationId: input.conversationId,
+      projectId: input.projectId,
+      taskId: input.taskId,
       providerId: input.providerId,
       lifecycle: state.lifecycle,
       isGenerating: state.isGenerating,
+      lastStopReason: cell?.sessionState.lastStopReason ?? null,
       pendingPermissionCount: state.pendingPermissionCount ?? state.pendingPermissions?.length ?? 0,
       backgroundAgentCount: state.backgroundAgentCount,
       queuedPromptCount: state.queuedPromptCount ?? state.queuedPrompts?.length ?? 0,

@@ -14,12 +14,14 @@ import { registerQuitHandler } from './app/shutdown';
 import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
+import { acpAgentStatusBridge } from './core/acp/agent-status-bridge';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
 import { cleanupLegacyBrowserPartitions } from './core/browser/browser-partition-cleanup';
 import { setBrowserCorsRelaxationSettings } from './core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from './core/browser/browser-webcontents-registry';
+import { resetStaleAcpAgentStatuses } from './core/conversations/reset-stale-acp-agent-statuses';
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
@@ -105,6 +107,7 @@ void app.whenReady().then(async () => {
 
   try {
     await initializeDatabase();
+    await resetStaleAcpAgentStatuses();
     searchService.initialize();
     workspaceFileIndexService.initialize();
     void editorBufferService.pruneStale();
@@ -150,6 +153,7 @@ void app.whenReady().then(async () => {
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
+  acpAgentStatusBridge.initialize();
 
   emdashAccountService
     .initialize()

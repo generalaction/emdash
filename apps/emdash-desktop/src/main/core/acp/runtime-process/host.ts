@@ -17,6 +17,7 @@ class AcpRuntimeProcessHost {
   private child: RuntimeChild | null = null;
   private readonly messageListeners = new Set<(message: unknown) => void>();
   private readonly disconnectListeners = new Set<() => void>();
+  private readonly startedListeners = new Set<() => void>();
 
   transport(): WireTransport {
     return {
@@ -38,6 +39,12 @@ class AcpRuntimeProcessHost {
     const child = this.child;
     this.child = null;
     child?.postMessage({ type: 'shutdown' } satisfies AcpRuntimeHostMessage);
+  }
+
+  onStarted(cb: () => void): Unsubscribe {
+    this.startedListeners.add(cb);
+    if (this.child) queueMicrotask(cb);
+    return () => this.startedListeners.delete(cb);
   }
 
   private ensureStarted(): RuntimeChild {
@@ -67,6 +74,7 @@ class AcpRuntimeProcessHost {
     });
     child.on('spawn', () => {
       log.info('ACP runtime utility process started');
+      this.notifyStarted();
     });
     child.stdout?.on('data', (chunk) => {
       log.debug('ACP runtime stdout', { chunk: String(chunk) });
@@ -132,6 +140,10 @@ class AcpRuntimeProcessHost {
 
   private notifyDisconnected(): void {
     for (const listener of this.disconnectListeners) listener();
+  }
+
+  private notifyStarted(): void {
+    for (const listener of this.startedListeners) listener();
   }
 }
 

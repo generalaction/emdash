@@ -753,7 +753,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   if (!store) return null;
 
-  const showComposer = !store.historyLoading;
+  const showComposer = !store.historyLoading && store.loadError === null;
   const showHero = showComposer && store.isEmpty;
 
   return (
@@ -773,9 +773,8 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       />
 
       {/* Loading / error overlay portaled into the library-owned slot.
-          The slot sits at z-index 15 (above pinned, below composer at 20) so
-          the composer remains visible and interactive in all states.
-          During loading/error: opaque background covers the transcript area.
+          The slot sits at z-index 15 (above pinned, below composer at 20).
+          Hide the composer in error state so the overlay owns the whole content area.
           Precedence: error > loading. */}
       {overlaySlot &&
         (store.loadError !== null || store.historyLoading) &&
@@ -787,9 +786,10 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
             aria-live="polite"
           >
             {store.loadError !== null ? (
-              <div className="flex flex-col items-center gap-3 px-6 text-center">
-                <span>Failed to load chat.</span>
-                <Button variant="outline" size="sm" onClick={() => store.retry()}>
+              <div className="flex max-w-md flex-col items-center gap-2 px-6 text-center">
+                <span className="text-foreground">Failed to load chat.</span>
+                <span className="text-xs text-foreground-muted">{store.loadError}</span>
+                <Button variant="outline" size="sm" className="mt-1" onClick={() => store.retry()}>
                   Retry
                 </Button>
               </div>

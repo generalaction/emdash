@@ -55,9 +55,12 @@ export type SessionState = z.infer<typeof sessionStateSchema>;
 
 export const sessionSummarySchema = z.object({
   conversationId: z.string(),
+  projectId: z.string(),
+  taskId: z.string(),
   providerId: z.string(),
   lifecycle: sessionLifecycleSchema,
   isGenerating: z.boolean(),
+  lastStopReason: stopReasonSchema.nullable(),
   pendingPermissionCount: z.number().int(),
   backgroundAgentCount: z.number().int(),
   queuedPromptCount: z.number().int(),

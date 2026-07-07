@@ -5,7 +5,6 @@ import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { Resource } from '@renderer/lib/stores/resource';
-import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
 import {
   agentSessionExitedChannel,
@@ -177,32 +176,8 @@ export class ConversationManagerStore implements IDisposable {
     const conversation = await rpc.conversations.createConversation(params);
     runInAction(() => {
       this.addConversation(conversation);
-      if (
-        params.initialPrompt?.trim() ||
-        params.initialQueue?.some((prompt) => prompt.text.trim())
-      ) {
-        this.conversations.get(conversation.id)?.setWorking();
-      }
     });
     return conversation;
-  }
-
-  async markConversationWorking(conversationId: string): Promise<void> {
-    if (!this.list.data) {
-      await this.list.load();
-    }
-
-    runInAction(() => {
-      const store = this.conversations.get(conversationId);
-      if (!store) {
-        log.warn(`ConversationManagerStore: conversation ${conversationId} not found after load`, {
-          projectId: this.projectId,
-          taskId: this.taskId,
-        });
-        return;
-      }
-      store.setWorking();
-    });
   }
 
   async hydrateConversation(conversationId: string): Promise<void> {

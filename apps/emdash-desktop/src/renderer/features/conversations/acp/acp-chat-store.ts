@@ -15,7 +15,7 @@ import type {
   ComposerPermissionModeOption,
   ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
-import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { action, computed, makeObservable, observable, runInAction, toJS } from 'mobx';
 // TODO(conversations-extraction): Inject task/workspace lookups instead of importing task stores.
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
@@ -27,6 +27,7 @@ import {
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
+import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from '../stores/conversation-registry';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 
@@ -409,6 +410,12 @@ export class AcpChatStore {
         this._syncMessageCount();
       });
     } catch (error) {
+      log.error('ACP chat bootstrap failed', {
+        conversationId: this.conversationId,
+        projectId: this.projectId,
+        taskId: this.taskId,
+        error,
+      });
       runInAction(() => {
         this.historyLoading = false;
         this.loadError = error instanceof Error ? error.message : 'Failed to load chat.';
@@ -430,7 +437,7 @@ export class AcpChatStore {
 
     const initialQueue =
       conversation.sessionId === undefined && conversation.initialQueue?.length
-        ? conversation.initialQueue
+        ? toJS(conversation.initialQueue)
         : undefined;
 
     return {
