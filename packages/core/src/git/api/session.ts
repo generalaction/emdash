@@ -2,8 +2,22 @@ import type { Lease } from '@emdash/shared';
 import type { IGitCheckout } from '../checkout/types';
 import type { IGitRepository } from '../repository/types';
 import type { CheckoutLease, IGitRuntime, RepoLease } from '../types';
+import { GitApiContext } from './middlewares';
 
-export class GitResourceCache {
+export type GitSession = {
+  context: GitApiContext;
+  dispose: () => Promise<void>;
+};
+
+export function createGitSession(runtime: IGitRuntime): GitSession {
+  const resources = new GitSessionResources(runtime);
+  return {
+    context: { runtime, resources },
+    dispose: () => resources.dispose(),
+  };
+}
+
+export class GitSessionResources {
   private readonly repositories = new Map<string, Promise<RepoLease>>();
   private readonly checkouts = new Map<string, Promise<CheckoutLease>>();
   private disposed = false;

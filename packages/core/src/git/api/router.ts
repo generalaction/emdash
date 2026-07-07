@@ -2,7 +2,7 @@ import { RPCHandler } from '@orpc/server/message-port';
 import { streamEvents, streamLiveUpdates } from '../../live/adapters/orpc';
 import type { IGitRuntime } from '../types';
 import { i, withCheckout, withRepository, type GitApiContext } from './middlewares';
-import { GitResourceCache } from './resources';
+import { createGitSession, GitSession } from './session';
 
 export const gitRouter = i.router({
   inspectPath: i.inspectPath.handler(({ context, input }) =>
@@ -252,58 +252,8 @@ export const gitRouter = i.router({
 export type GitRouter = typeof gitRouter;
 export type GitMessagePort = Parameters<RPCHandler<GitApiContext>['upgrade']>[0];
 
-export type GitSession = {
-  context: GitApiContext;
-  dispose: () => Promise<void>;
-};
-
-export function createGitSession(runtime: IGitRuntime): GitSession {
-  const resources = new GitResourceCache(runtime);
-  return {
-    context: { runtime, resources },
-    dispose: () => resources.dispose(),
-  };
-}
-
 export function serveGitPort(runtime: IGitRuntime, port: GitMessagePort): GitSession {
   const session = createGitSession(runtime);
   new RPCHandler(gitRouter).upgrade(port, { context: session.context });
-  onPortClose(port, () => void session.dispose());
   return session;
-}
-
-type CloseEventPort = {
-  addEventListener(event: 'close', listener: () => void): void;
-};
-
-type DisconnectPort = {
-  onDisconnect: {
-    addListener(listener: () => void): void;
-  };
-};
-
-type EventEmitterPort = {
-  on(event: 'close', listener: () => void): void;
-};
-
-function onPortClose(port: GitMessagePort, listener: () => void): void {
-  if (hasCloseEvent(port)) {
-    port.addEventListener('close', listener);
-  } else if (hasDisconnectEvent(port)) {
-    port.onDisconnect.addListener(listener);
-  } else if (hasEventEmitterClose(port)) {
-    port.on('close', listener);
-  }
-}
-
-function hasCloseEvent(port: GitMessagePort): port is GitMessagePort & CloseEventPort {
-  return 'addEventListener' in port;
-}
-
-function hasDisconnectEvent(port: GitMessagePort): port is GitMessagePort & DisconnectPort {
-  return 'onDisconnect' in port;
-}
-
-function hasEventEmitterClose(port: GitMessagePort): port is GitMessagePort & EventEmitterPort {
-  return 'on' in port;
 }

@@ -3,11 +3,11 @@ import type { IGitCheckout } from '../checkout/types';
 import type { IGitRepository } from '../repository/types';
 import type { IGitRuntime } from '../types';
 import { gitContract } from './contract';
-import type { GitResourceCache } from './resources';
+import type { GitSessionResources } from './session';
 
 export type GitApiContext = {
   runtime: IGitRuntime;
-  resources: GitResourceCache;
+  resources: GitSessionResources;
 };
 
 export const i = implement(gitContract).$context<GitApiContext>();
