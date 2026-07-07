@@ -1,10 +1,12 @@
 import { RefreshCw } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import { CLISpinner } from '@renderer/lib/components/cliSpinner';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { GenerationSettingsCard } from '../components/GenerationSettingsCard';
 import { CliAgentsList, type AgentFilter } from './CliAgentsList';
 
 export function AgentsSettingsPage() {
@@ -50,12 +52,13 @@ export function AgentsSettingsPage() {
               disabled={refreshing}
               aria-label="Refresh agent detection"
             >
-              <RefreshCw className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? <CLISpinner variant="2" /> : <RefreshCw />}
             </Button>
           </div>
         </div>
       </PageHeader>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-8 pb-10">
+        <GenerationSettingsCard />
         <CliAgentsList searchQuery={searchQuery} filter={filter} onFilterChange={setFilter} />
       </div>
     </>

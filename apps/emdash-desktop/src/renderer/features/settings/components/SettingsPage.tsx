@@ -5,7 +5,6 @@ import { rpc } from '@renderer/lib/ipc';
 import { AgentsSettingsPage } from '../agents-page/AgentsSettingsPage';
 import { AccountTab } from './AccountTab';
 import { BrowserSettingsCard } from './BrowserSettingsCard';
-import { GenerationSettingsCard } from './GenerationSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
@@ -61,7 +60,6 @@ function GeneralSettingsPage() {
       <PreserveTaskNameCapitalizationRow />
       <IncludeIssueContextByDefaultRow />
       <EnableTmuxRow />
-      <GenerationSettingsCard />
       <NotificationSettingsCard />
     </div>
   );

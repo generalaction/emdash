@@ -84,8 +84,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     if (hasAnyIssueIntegration) return 'issue';
     if (hasPrSupport) return 'pr';
     return null;
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, []); // computed once on mount
+  }, [hasAnyIssueIntegration, hasPrSupport, initialStrategy]);
 
   const resolvedInitialPR = initialStrategy === 'from-pull-request' ? initialPR : undefined;
   const state = useCreateTaskState(

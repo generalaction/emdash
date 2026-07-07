@@ -28,13 +28,20 @@ export function useCreateTaskState(
   const [linkedIssue, setLinkedIssueRaw] = useState<LinkedIssue | null>(null);
   const [linkedPR, setLinkedPRRaw] = useState<PullRequest | null>(initialPR ?? null);
   const [prevProjectId, setPrevProjectId] = useState(projectId);
+  const [prevInitialLinkedType, setPrevInitialLinkedType] = useState(initialLinkedType);
 
   // Reset linked state when project changes.
   if (projectId !== prevProjectId) {
     setPrevProjectId(projectId);
-    setLinkedTypeRaw(null);
+    setLinkedTypeRaw(initialPR ? 'pr' : initialLinkedType);
     setLinkedIssueRaw(null);
     setLinkedPRRaw(null);
+    setPrevInitialLinkedType(initialLinkedType);
+  } else if (initialLinkedType !== prevInitialLinkedType) {
+    setPrevInitialLinkedType(initialLinkedType);
+    if (linkedType === null && initialLinkedType !== null) {
+      setLinkedTypeRaw(initialLinkedType);
+    }
   }
 
   // Stable random key for the "plain task" name generation — one per modal session.
