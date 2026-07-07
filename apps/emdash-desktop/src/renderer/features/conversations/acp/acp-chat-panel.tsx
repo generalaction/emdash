@@ -505,7 +505,7 @@ const ComposerForStore = observer(function ComposerForStore({
       (agents ?? []).map((a) => ({
         id: a.id,
         name: a.name,
-        icon: <AgentIcon id={a.id} size={16} className="rounded-sm" />,
+        icon: <AgentIcon id={a.id} size={14} className="rounded-sm" />,
       })),
     [agents]
   );

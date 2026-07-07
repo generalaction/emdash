@@ -441,7 +441,7 @@ function ComposerAgentSelector({
         aria-label={triggerLabel}
         title={triggerLabel}
       >
-        {selected?.icon ?? <span style={{ width: '1rem', height: '1rem' }} />}
+        {selected?.icon ?? <span style={{ width: '0.875rem', height: '0.875rem' }} />}
       </Button>
     );
   }
