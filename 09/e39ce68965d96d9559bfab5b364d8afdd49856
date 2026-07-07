@@ -1,0 +1,19 @@
+apps/emdash-desktop/package.json
+  s_327dcde2a9f61d::t_8ce9b106c7df90 22-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "09e39ce68965d96d9559bfab5b364d8afdd49856",
+  "prompts": {},
+  "sessions": {
+    "s_327dcde2a9f61d": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lShE10mJR6h1SGOg31a",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
