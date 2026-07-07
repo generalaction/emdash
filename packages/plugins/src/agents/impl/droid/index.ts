@@ -61,6 +61,7 @@ export const plugin = definePlugin(
     },
     sessions: {
       kind: 'resumable',
+      requiresProviderSessionId: true,
     },
   },
   { icon }

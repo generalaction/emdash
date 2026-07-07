@@ -17,11 +17,12 @@ export default defineConfig({
     live: 'src/live/index.ts',
     wire: 'src/wire/index.ts',
     'workspace-server': 'src/workspace-server/index.ts',
+    'pty-conversations': 'src/pty-conversations/index.ts',
   },
   format: ['esm'],
   dts: true,
   deps: {
-    neverBundle: ['zod', '@parcel/watcher', 'react', 'smol-toml', 'semver'],
+    neverBundle: ['zod', '@parcel/watcher', 'react', 'smol-toml', 'semver', 'node-pty'],
   },
   sourcemap: true,
   clean: true,

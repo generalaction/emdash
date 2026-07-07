@@ -10,5 +10,7 @@ export const sessionsCapability = definePluginCapability<ISessionsBehavior>()(
   'sessions',
   z.object({
     kind: z.enum(['resumable', 'stateless']),
+    /** True for providers that can only resume when a provider-native session id is known. */
+    requiresProviderSessionId: z.boolean().optional(),
   })
 );

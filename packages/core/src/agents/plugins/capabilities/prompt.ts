@@ -42,6 +42,7 @@ export const promptCapability = definePluginCapability<Prompt>()(
       kind: z.literal('keystroke'),
       submitSequence: z.string().optional(),
       submitDelayMs: z.number().optional(),
+      bracketedPaste: z.enum(['multiline', 'never']).default('multiline'),
     }),
     z.object({
       kind: z.literal('stdin-pipe'),

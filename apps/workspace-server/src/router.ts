@@ -256,9 +256,14 @@ export const router = i.router({
   ptyAgent: {
     startSession: i.ptyAgent.startSession.handler(notImplemented),
     stopSession: i.ptyAgent.stopSession.handler(notImplemented),
+    disposeSession: i.ptyAgent.disposeSession.handler(notImplemented),
     sendInput: i.ptyAgent.sendInput.handler(notImplemented),
     resize: i.ptyAgent.resize.handler(notImplemented),
-    subscribeOutput: i.ptyAgent.subscribeOutput.handler(notImplemented),
+    subscribeOutput: {
+      snapshot: i.ptyAgent.subscribeOutput.snapshot.handler(notImplemented),
+      subscribe: i.ptyAgent.subscribeOutput.subscribe.handler(notImplemented),
+      unsubscribe: i.ptyAgent.subscribeOutput.unsubscribe.handler(notImplemented),
+    },
     sessions: {
       snapshot: i.ptyAgent.sessions.snapshot.handler(notImplemented),
       subscribe: i.ptyAgent.sessions.subscribe.handler(notImplemented),

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { result } from '../shared/schemas';
+import { result } from '../../workspace-server/shared/schemas';
 
 export const ptyAgentStartInputSchema = z.object({
   /** Logical session key — used as the PTY registry key and emitted on events. */
@@ -22,32 +22,10 @@ export const ptyAgentStartInputSchema = z.object({
 
 export type PtyAgentStartInput = z.infer<typeof ptyAgentStartInputSchema>;
 
-export const ptyOutputEventSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('chunk'),
-    data: z.string(),
-    /** Monotonic byte offset of the first byte of this chunk in the full output log. */
-    offset: z.number().int(),
-  }),
-  z.object({
-    kind: z.literal('reset'),
-    /** Full retained ring-buffer content, delivered when the requested offset is stale. */
-    data: z.string(),
-    offset: z.number().int(),
-  }),
-  z.object({
-    kind: z.literal('exit'),
-    exitCode: z.number().int().nullable(),
-    signal: z.union([z.number().int(), z.string()]).optional(),
-  }),
-]);
-
-export type PtyOutputEvent = z.infer<typeof ptyOutputEventSchema>;
-
 export const ptySessionStateSchema = z.object({
   conversationId: z.string(),
   providerId: z.string().optional(),
-  status: z.enum(['starting', 'running', 'exited']),
+  status: z.enum(['starting', 'running', 'restarting', 'exited']),
   pid: z.number().int().optional(),
   cols: z.number().int(),
   rows: z.number().int(),
@@ -73,7 +51,6 @@ export const ptyAgentErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('unknown-provider'), providerId: z.string() }),
   /** Provider plugin has no PTY prompt capability. */
   z.object({ type: z.literal('no-command'), providerId: z.string() }),
-  z.object({ type: z.literal('already-running'), conversationId: z.string() }),
   z.object({ type: z.literal('not-found'), conversationId: z.string() }),
   z.object({ type: z.literal('resume-unsupported'), providerId: z.string() }),
   z.object({ type: z.literal('spawn-failed'), message: z.string() }),
@@ -83,6 +60,6 @@ export type PtyAgentError = z.infer<typeof ptyAgentErrorSchema>;
 
 export const ptyVoidResultSchema = result(z.void(), ptyAgentErrorSchema);
 export const ptyStartedResultSchema = result(
-  z.object({ sessionId: z.string() }),
+  z.object({ sessionId: z.string(), alreadyRunning: z.boolean().optional() }),
   ptyAgentErrorSchema
 );

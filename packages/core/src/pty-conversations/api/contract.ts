@@ -1,9 +1,8 @@
-import { eventIterator, oc } from '@orpc/contract';
+import { oc } from '@orpc/contract';
 import { z } from 'zod';
-import { createLiveModelContract } from '../../live';
+import { createLiveLogContract, createLiveModelContract } from '../../live';
 import {
   ptyAgentStartInputSchema,
-  ptyOutputEventSchema,
   ptySessionListSchema,
   ptyStartedResultSchema,
   ptyVoidResultSchema,
@@ -24,8 +23,14 @@ export const ptyAgentContract = {
 
   /**
    * Terminates the process and clears desired state (no respawn).
+   * Output and exited session state are retained until disposeSession.
    */
   stopSession: oc.input(conv).output(ptyVoidResultSchema),
+
+  /**
+   * Removes the retained session entry and output log.
+   */
+  disposeSession: oc.input(conv).output(ptyVoidResultSchema),
 
   /**
    * Writes raw bytes into the PTY stdin (mirrors rpc.pty.sendInput).
@@ -41,13 +46,13 @@ export const ptyAgentContract = {
 
   /**
    * Streams PTY output for a session.
-   * The optional `offset` requests replay starting from that byte position in
-   * the ring buffer; the server emits a `reset` event if the offset is stale.
-   * Terminates with an `exit` event when the process exits.
+   * Exit state is published through the global `sessions` live model.
    */
-  subscribeOutput: oc
-    .input(conv.extend({ offset: z.number().int().optional() }))
-    .output(eventIterator(ptyOutputEventSchema)),
+  subscribeOutput: createLiveLogContract({
+    snapshotInput: conv,
+    subscribeInput: conv,
+    unsubscribeInput: conv,
+  }),
 
   /**
    * Reactive global session list (keyed by conversationId).

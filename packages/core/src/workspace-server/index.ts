@@ -8,5 +8,5 @@ export * from './files/schemas';
 export * from './files/contract';
 export * from './deps/schemas';
 export * from './deps/contract';
-export * from './pty-agent/schemas';
-export * from './pty-agent/contract';
+export * from '../pty-conversations/api/schemas';
+export * from '../pty-conversations/api/contract';
