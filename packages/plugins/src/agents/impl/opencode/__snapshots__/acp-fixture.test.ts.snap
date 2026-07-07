@@ -50,6 +50,7 @@ exports[`OpenCode ACP fixture parsing > config 1`] = `
         "name": "Max",
       },
     ],
+    "configId": "effort",
     "selected": "low",
   },
   "modeOptions": {
@@ -65,6 +66,7 @@ exports[`OpenCode ACP fixture parsing > config 1`] = `
         "name": "plan",
       },
     ],
+    "configId": "mode",
     "selected": "plan",
   },
   "modelOptions": {
@@ -150,6 +152,7 @@ exports[`OpenCode ACP fixture parsing > config 1`] = `
         "name": "OpenCode Zen/DeepSeek V4 Flash Free",
       },
     ],
+    "configId": "model",
     "selected": "anthropic/claude-sonnet-4-6",
   },
 }

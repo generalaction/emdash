@@ -208,6 +208,7 @@ SKIP only when another provider is being worked on (overrides all triggers): Ope
         "name": "Max",
       },
     ],
+    "configId": "effort",
     "selected": "default",
   },
   "modeOptions": {
@@ -243,6 +244,7 @@ SKIP only when another provider is being worked on (overrides all triggers): Ope
         "name": "Bypass Permissions",
       },
     ],
+    "configId": "mode",
     "selected": "acceptEdits",
   },
   "modelOptions": {
@@ -273,6 +275,7 @@ SKIP only when another provider is being worked on (overrides all triggers): Ope
         "name": "Haiku",
       },
     ],
+    "configId": "model",
     "selected": "default",
   },
 }
@@ -416,6 +419,26 @@ Let me search for it using grep.",
           "command": "grep -rn "toAgentUpdate" /private/tmp/emdash-acp-fixture-1783037827823 --include="*.ts" --include="*.tsx" | head -20",
           "id": "677167db-64b7-4193-8470-302e96b223a6:turn:2:tool:toolu_015T1fvNzvcrkCDuAoEEMf1p",
           "kind": "execute-tool-call",
+          "outputText": "/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/agents/plugins/capabilities/acp.ts:85:   * \`toAgentUpdate\` conversion. Receives the already-decoded \`AgentUpdate\`
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/agents/plugins/capabilities/acp.ts:90:   * Omit for standard-ACP passthrough — \`toAgentUpdate\` handles baseline decoding.
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.test.ts:902:  it('baseline toAgentUpdate runs even without a provider enrich', async () => {
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-agent-connection.ts:7:import { toAgentUpdate } from './agent-update';
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-agent-connection.ts:79:    const base = toAgentUpdate(raw);
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts:5: * process by \`toAgentUpdate\` before being stored in \`AcpTurn.updates\` or emitted
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts:122:export function toAgentUpdate(update: SessionUpdate): AgentUpdate {
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/index.ts:45:export { toAgentUpdate } from './agent-update';
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.ts:58:   * Composed of the baseline \`toAgentUpdate\` plus the optional provider \`enrich\` hook.
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:3:import { toAgentUpdate } from './agent-update';
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:30:describe('toAgentUpdate', () => {
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:34:    const result = toAgentUpdate(agentText('hello', 'msg-1'));
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:44:    const result = toAgentUpdate(userText('world', 'msg-2'));
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:54:    const result = toAgentUpdate(agentText('hi'));
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:63:    expect(toAgentUpdate(update)).toStrictEqual({ kind: 'ignored' });
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:71:    expect(toAgentUpdate(update)).toStrictEqual({ kind: 'ignored' });
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:77:    const result = toAgentUpdate(agentThought('pondering'));
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:90:    expect(toAgentUpdate(update)).toStrictEqual({ kind: 'ignored' });
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:103:    expect(toAgentUpdate(update)).toStrictEqual({
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:122:    const result = toAgentUpdate(update);",
           "seq": 2,
           "status": "done",
           "title": "grep -rn "toAgentUpdate" /private/tmp/emdash-acp-fixture-1783037827823 --include="*.ts" --include="*.tsx" | head -20",
@@ -593,6 +616,7 @@ The two load-bearing spots are the union definition and \`toAgentUpdate\` (both 
           "command": "git rev-parse --abbrev-ref HEAD",
           "id": "677167db-64b7-4193-8470-302e96b223a6:turn:5:tool:toolu_01JaFQWcogSDXZDV2gdCtAPX",
           "kind": "execute-tool-call",
+          "outputText": "HEAD",
           "seq": 1,
           "status": "done",
           "title": "git rev-parse --abbrev-ref HEAD",
@@ -623,6 +647,11 @@ The two load-bearing spots are the union definition and \`toAgentUpdate\` (both 
           "command": "ls packages",
           "id": "677167db-64b7-4193-8470-302e96b223a6:turn:6:tool:toolu_01LD1XT6tVwgeJpJJpmz44o7",
           "kind": "execute-tool-call",
+          "outputText": "chat-ui
+core
+plugins
+shared
+ui",
           "seq": 1,
           "status": "done",
           "title": "ls packages",
@@ -729,6 +758,9 @@ generated by fixture script
           "command": "mv .acp-fixture-scratch/NOTES.md .acp-fixture-scratch/NOTES2.md && rm .acp-fixture-scratch/NOTES2.md && ls -la .acp-fixture-scratch",
           "id": "677167db-64b7-4193-8470-302e96b223a6:turn:9:tool:toolu_01LB5oK2J3sbz7XV51uMA5Ub",
           "kind": "execute-tool-call",
+          "outputText": "total 0
+drwxr-xr-x@  2 davidkonopka  wheel   64 Jul  2 17:18 .
+drwxr-xr-x@ 29 davidkonopka  wheel  928 Jul  2 17:18 ..",
           "seq": 1,
           "status": "done",
           "title": "mv .acp-fixture-scratch/NOTES.md .acp-fixture-scratch/NOTES2.md && rm .acp-fixture-scratch/NOTES2.md && ls -la .acp-fixture-scratch",
@@ -791,6 +823,12 @@ generated by fixture script
           "command": "grep -rl "stopReason" /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp",
           "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11:tool:toolu_01AY8xD2Y4FtSd1YEV7FdL91",
           "kind": "execute-tool-call",
+          "outputText": "/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/state.ts
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-test-support.ts
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.test.ts
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/session-machine.test.ts
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.ts
+/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/session-machine.ts",
           "parentToolCallId": "toolu_01N3Y7C4y7eLVpC11EJGC4oA",
           "seq": 1,
           "status": "done",
@@ -884,6 +922,197 @@ Separately — the background subagent finished its \`stopReason\` file search; 
           "command": "for f in state.ts acp-test-support.ts acp-session-runtime.test.ts session-machine.test.ts acp-session-runtime.ts session-machine.ts; do echo "===== $f ====="; head -30 /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/$f; echo; done",
           "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11:tool:toolu_01HiEJYjpi7zXdZACwyuVM4Q",
           "kind": "execute-tool-call",
+          "outputText": "===== state.ts =====
+/**
+ * Shared turn model for ACP conversation history.
+ *
+ * AcpSessionRuntime is the single authority on turn state: it owns history
+ * (committed turns) and the at-most-one active turn, committing turns via
+ * prompt() stopReason.  The renderer queries this data on mount rather than
+ * reconstructing it from a replay event stream.
+ */
+import type {
+  AvailableCommand,
+  SessionConfigOption,
+  SessionModeState,
+  StopReason,
+} from '@agentclientprotocol/sdk';
+import type { AgentUpdate } from './agent-update';
+import type { AcpPermissionRequest } from './permissions';
+
+/**
+ * Provider-neutral snapshot of ACP usage_update data.
+ * Tracks context-window consumption and cumulative session cost.
+ */
+export interface SessionUsage {
+  /** Total context window size in tokens. */
+  contextSize: number;
+  /** Tokens currently in context. */
+  contextUsed: number;
+  /** Cumulative session cost, if the agent reports it. */
+  cost: { amount: number; currency: string } | null;
+}
+
+
+===== acp-test-support.ts =====
+/**
+ * Reusable test helpers for AcpSessionRuntime tests.
+ *
+ * Not a test file itself (no \`.test.\` suffix) — Vitest will not collect it.
+ * Import from \`./acp-test-support\` in test files that need it.
+ */
+
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import type { Client } from '@agentclientprotocol/sdk';
+import { noopLogger } from '@emdash/shared/logger';
+import { vi } from 'vitest';
+import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
+import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
+import type { AcpTurn, SessionSnapshot } from './state';
+import type {
+  AcpProcessHandle,
+  AcpProcessHost,
+  AcpFs,
+  AcpTerminalExit,
+  AcpTerminalProcess,
+} from './transport';
+
+/**
+ * Creates a recording AcpRuntimeListener.
+ * \`emitted(field)\` returns all objects emitted via that method.
+ */
+export function createRecordingListener() {
+  const snapshots: { conversationId: string; snapshot: SessionSnapshot }[] = [];
+  const updates: { conversationId: string; turnId: string; seq: number }[] = [];
+
+===== acp-session-runtime.test.ts =====
+import type { PermissionOptionKind, SessionUpdate } from '@agentclientprotocol/sdk';
+import { describe, expect, it, vi } from 'vitest';
+import { AcpSessionRuntime } from './acp-session-runtime';
+import {
+  FakeAcpProcessHandle,
+  FakeAcpTerminalProcess,
+  makeAcpHarness,
+  makeStartInput,
+} from './acp-test-support';
+import type { AgentUpdate } from './agent-update';
+
+// ---------------------------------------------------------------------------
+// Pooling
+// ---------------------------------------------------------------------------
+
+describe('AcpSessionRuntime – pooling', () => {
+  it('two conversations in the same workspace share one child process', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpSessionRuntime(h.deps);
+
+    h.agent.newSession
+      .mockResolvedValueOnce({ sessionId: 'session-a' })
+      .mockResolvedValueOnce({ sessionId: 'session-b' });
+
+    await rt.start(makeStartInput({ conversationId: 'conv-a', workspaceId: 'ws-1' }));
+    await rt.start(makeStartInput({ conversationId: 'conv-b', workspaceId: 'ws-1' }));
+
+    expect(h.children).toHaveLength(1);
+    expect(h.agent.newSession).toHaveBeenCalledTimes(2);
+  });
+
+===== session-machine.test.ts =====
+import { isErr, isOk } from '@emdash/shared';
+import { describe, expect, it } from 'vitest';
+import type { AgentUpdate } from './agent-update';
+import type { AcpPermissionRequest } from './permissions';
+import type { SessionMachineState } from './session-machine';
+import {
+  decide,
+  evolve,
+  initialMachineState,
+  activeTurnFromPhase,
+  phaseToLifecycle,
+  SessionMachine,
+} from './session-machine';
+
+const CONV_ID = 'conv-test';
+
+function makeReady(): SessionMachineState {
+  const s0 = initialMachineState(CONV_ID);
+  const { state } = evolve(s0, { type: 'SessionReady' });
+  return state;
+}
+
+function makeWorking(): SessionMachineState {
+  const ready = makeReady();
+  const userUpdate: AgentUpdate = { kind: 'message', role: 'user', messageId: null, text: 'hello' };
+  const events = decide(ready, { type: 'Prompt', userUpdate });
+  if (!isOk(events)) throw new Error('decide Prompt failed');
+  let s = ready;
+  for (const ev of events.data) {
+    ({ state: s } = evolve(s, ev));
+
+===== acp-session-runtime.ts =====
+import type {
+  Client,
+  CreateTerminalRequest,
+  CreateTerminalResponse,
+  KillTerminalRequest,
+  KillTerminalResponse,
+  LoadSessionRequest,
+  NewSessionRequest,
+  ReadTextFileRequest,
+  ReadTextFileResponse,
+  ReleaseTerminalRequest,
+  ReleaseTerminalResponse,
+  RequestPermissionRequest,
+  RequestPermissionResponse,
+  SessionNotification,
+  SessionUpdate,
+  SetSessionConfigOptionRequest,
+  SetSessionModeRequest,
+  TerminalOutputRequest,
+  TerminalOutputResponse,
+  WaitForTerminalExitRequest,
+  WaitForTerminalExitResponse,
+  WriteTextFileRequest,
+  WriteTextFileResponse,
+} from '@agentclientprotocol/sdk';
+import type { Result } from '@emdash/shared';
+import { isErr, LifecycleMap, ok, toSerializedError } from '@emdash/shared';
+import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
+import { createAcpAgentConnection } from './acp-agent-connection';
+import { AgentTerminalManager } from './agent-terminal-manager';
+
+===== session-machine.ts =====
+/**
+ * Pure ACP session state machine.
+ *
+ * Separates inputs into two distinct kinds:
+ *
+ * - Commands — intents from the public API that MAY be rejected by validation.
+ *   They produce zero or more DomainEvents on success, or an AcpRuntimeError on
+ *   failure. No state changes occur on rejection.
+ *
+ * - DomainEvents — facts from the agent process, ACP notifications, or our own
+ *   orchestration that are ALWAYS folded into state. An out-of-place event
+ *   yields only a diagnostic \`warn\` Effect, never an error.
+ *
+ * The two pure functions \`decide\` and \`evolve\` contain no I/O. The runtime
+ * feeds commands through \`decide\` to get events, then feeds events through
+ * \`evolve\` to get the next state and the list of Effects to perform.
+ *
+ * State machine transitions:
+ *
+ *   starting → replaying (E: ReplayStarted — only when loadSession capable)
+ *   starting → ready     (E: SessionReady — newSession path)
+ *   replaying → ready    (E: ReplayEnded)
+ *   ready → working      (C: Prompt → E: PromptStarted)
+ *   working → ready      (E: TurnEnded)
+ *   working → cancelling (C: Cancel → E: CancellationRequested)
+ *   cancelling → ready   (E: TurnEnded)
+ *   {ready,working,cancelling} → closed (E: ProcessClosed)
+ */
+
+import type {",
           "parentToolCallId": "toolu_01N3Y7C4y7eLVpC11EJGC4oA",
           "seq": 3,
           "status": "done",
