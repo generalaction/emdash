@@ -1,0 +1,58 @@
+packages/plugins/src/agents/registry.ts
+  s_d1ffc297efb800::t_51492f01bdd8cc 17,55
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_76fe2b7bd0c693::t_14f6a6b90cef03 132
+agents/integrations/providers.md
+  s_e1f533ceecbf9b::t_42659407a7f74a 9,11
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_d1ffc297efb800::t_51492f01bdd8cc 16,394-407
+  s_79df9400dc8a11::t_76d6f8cc92e461 408-409
+packages/plugins/src/agents/impl/deepcode/index.ts
+  s_d1ffc297efb800::t_51492f01bdd8cc 1-35
+packages/plugins/src/agents/impl/deepcode/icon.ts
+  s_d1ffc297efb800::t_51492f01bdd8cc 1-17
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_76fe2b7bd0c693::t_adaa75f5671dae 41
+apps/emdash-desktop/src/assets/images/deepcode.svg
+  s_d1ffc297efb800::t_51492f01bdd8cc 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1e3f080f5cb159d72250abbf28bc7d702b923bf8",
+  "prompts": {},
+  "sessions": {
+    "s_76fe2b7bd0c693": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d238237-4c24-4f47-a225-87b81545f501",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_79df9400dc8a11": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f38c6-c46b-7ff3-985b-59814ecbcdd6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_d1ffc297efb800": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033kvW7rlisYfT8cWA4Wng",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e1f533ceecbf9b": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033kvidw32jUNLKPg3wQuj",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
