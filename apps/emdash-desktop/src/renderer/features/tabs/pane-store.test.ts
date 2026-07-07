@@ -59,7 +59,7 @@ vi.mock('@renderer/features/tasks/editor/file-tab-item', () => ({
   FileTabBarItem: () => null,
   FileTabBarItemDragPreview: () => null,
 }));
-vi.mock('@renderer/features/tasks/conversations/conversation-tab-item', () => ({
+vi.mock('@renderer/features/conversations/conversation-tab-item', () => ({
   ConversationTabBarItem: () => null,
   ConversationTabBarItemDragPreview: () => null,
 }));
@@ -68,21 +68,21 @@ vi.mock('@renderer/features/tasks/diff-view/diff-tab-item', () => ({
   DiffTabBarItemDragPreview: () => null,
   diffGroupSuffix: (group: string) => `(${group})`,
 }));
-vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () => ({
+vi.mock('@renderer/features/conversations/conversation-title-utils', () => ({
   formatConversationTitleForDisplay: (_providerId: unknown, title: unknown) =>
     (title as string) ?? 'Conversation',
 }));
 
 // ACP imports chat-ui which calls document.createElement at module load time.
 // Stub out the entire chat-store chain to avoid the DOM dependency in node tests.
-vi.mock('@renderer/features/tasks/acp/acp-chat-store', () => ({
+vi.mock('@renderer/features/conversations/acp/acp-chat-store', () => ({
   AcpChatStore: class {
     conversationId = '';
     dispose() {}
     bootstrap() {}
   },
 }));
-vi.mock('@renderer/features/tasks/acp/acp-chat-panel', () => ({
+vi.mock('@renderer/features/conversations/acp/acp-chat-panel', () => ({
   AcpChatPanel: () => null,
 }));
 

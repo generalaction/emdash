@@ -2,8 +2,8 @@ import { ArrowUp, LoaderCircle } from 'lucide-react';
 import {
   type ContextAction,
   type PromptContextAction,
-} from '@renderer/features/tasks/conversations/context-actions';
-import { PromptActionsMenu } from '@renderer/features/tasks/conversations/prompt-actions-menu';
+} from '@renderer/features/tasks/context-bar/context-actions';
+import { PromptActionsMenu } from '@renderer/features/tasks/context-bar/prompt-actions-menu';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';

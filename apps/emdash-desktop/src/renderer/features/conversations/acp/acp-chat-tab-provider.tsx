@@ -8,16 +8,16 @@ import type {
   ResolvedTab,
 } from '@renderer/features/tabs/core/tab-provider';
 import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
+import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
 import {
   GenericTabDragPreview,
   GenericTabItem,
 } from '@renderer/features/tabs/tab-bar/generic-tab-item';
+import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
-import { AgentStatusIndicator } from '../components/agent-status-indicator';
-import { ConversationAgentIcon } from '../conversations/conversation-agent-icon';
-import { formatConversationTitleForDisplay } from '../conversations/conversation-title-utils';
+import { ConversationAgentIcon } from '../conversation-agent-icon';
+import { formatConversationTitleForDisplay } from '../conversation-title-utils';
 import { conversationRegistry } from '../stores/conversation-registry';
-import type { TaskTabContext } from '../stores/task-tab-context';
 import { AcpChatPanel } from './acp-chat-panel';
 import { getAcpChatResourceManager } from './acp-chat-resource-manager';
 import { AcpChatTabResource } from './acp-chat-tab-resource';

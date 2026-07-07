@@ -5,7 +5,7 @@ import {
   buildLinkedIssueContextAction,
   buildPromptLibraryContextActions,
   buildTaskContextActions,
-} from '@renderer/features/tasks/conversations/context-actions';
+} from '@renderer/features/tasks/context-bar/context-actions';
 import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';

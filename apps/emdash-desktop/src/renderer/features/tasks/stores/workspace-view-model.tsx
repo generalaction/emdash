@@ -1,5 +1,7 @@
 import type { ILifecycle } from '@emdash/shared';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
+import { DefaultConversationSeeder } from '@renderer/features/conversations/default-conversation-seeder';
+import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
 import { getDiffTabManager } from '@renderer/features/tasks/diff-view/stores/diff-tab-manager';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
@@ -18,11 +20,9 @@ import type {
   TaskViewSnapshot,
   TerminalDrawerActiveItem,
 } from '@shared/view-state';
-import { DefaultConversationSeeder } from '../conversations/default-conversation-seeder';
 import { taskTabView } from '../task-tab-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
-import type { TaskTabContext } from './task-tab-context';
 import { terminalRegistry } from './terminal-registry';
 import { resolveWorkspacePath } from './workspace-path';
 import { workspaceRegistry } from './workspace-registry';

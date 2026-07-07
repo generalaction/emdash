@@ -1,6 +1,6 @@
 import { reaction, runInAction } from 'mobx';
 import type { PaneLayoutStore } from '@renderer/features/tabs/pane-layout-store';
-import { conversationRegistry } from '../stores/conversation-registry';
+import { conversationRegistry } from './stores/conversation-registry';
 
 /**
  * Seeds the one automatic default conversation tab for a fresh task.

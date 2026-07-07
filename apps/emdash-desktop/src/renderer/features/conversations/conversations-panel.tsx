@@ -2,6 +2,9 @@ import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
+// TODO(conversations-extraction): Pass task context actions into the panel as composition.
+import { ContextBar } from '@renderer/features/tasks/context-bar/context-bar';
+// TODO(conversations-extraction): Pass task scope into conversations instead of importing task hooks.
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
 import {
   useConversations,
@@ -14,7 +17,6 @@ import { PaneSizingContextProvider } from '@renderer/lib/pty/pane-sizing-context
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
-import { ContextBar } from './context-bar';
 import type { ConversationTabResource } from './conversation-tab-resource';
 import {
   activeConversationResource,

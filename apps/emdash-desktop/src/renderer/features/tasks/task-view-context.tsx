@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { createContext, useContext, type ReactNode } from 'react';
+import type { ConversationManagerStore } from '@renderer/features/conversations/conversation-manager';
 import { ProjectViewWrapper } from '@renderer/features/projects/components/project-view-wrapper';
-import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import type { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
 import {
   getConversationsForTask,

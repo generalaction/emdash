@@ -20,8 +20,8 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
-import { AddContextPopover } from './add-context-popover';
-import { buildTaskContextActions, type ContextAction } from './context-actions';
+import { AddContextPopover } from '../context-bar/add-context-popover';
+import { buildTaskContextActions, type ContextAction } from '../context-bar/context-actions';
 
 interface ContextBarProps {
   conversationId: string | undefined;

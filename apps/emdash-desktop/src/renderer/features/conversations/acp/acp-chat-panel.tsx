@@ -12,12 +12,14 @@ import { ArrowDown } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
-import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
+// TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
 import {
   openFileInAdjacentPane,
   openFileInTaskEditor,
 } from '@renderer/features/tasks/stores/open-file-in-file-editor';
+// TODO(conversations-extraction): Pass task state into ACP chat instead of importing task stores.
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';

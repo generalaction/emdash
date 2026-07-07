@@ -8,6 +8,10 @@ vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     app: { readUserFile: vi.fn() },
     browser: { unregisterSession: vi.fn() },
+    ssh: {
+      getConnections: vi.fn(async () => []),
+      getHealthStates: vi.fn(async () => ({})),
+    },
   },
 }));
 
@@ -33,7 +37,7 @@ vi.mock('@renderer/features/tasks/editor/file-tab-item', () => ({
   FileTabBarItem: () => null,
   FileTabBarItemDragPreview: () => null,
 }));
-vi.mock('@renderer/features/tasks/conversations/conversation-tab-item', () => ({
+vi.mock('@renderer/features/conversations/conversation-tab-item', () => ({
   ConversationTabBarItem: () => null,
   ConversationTabBarItemDragPreview: () => null,
 }));
@@ -42,18 +46,18 @@ vi.mock('@renderer/features/tasks/diff-view/diff-tab-item', () => ({
   DiffTabBarItemDragPreview: () => null,
   diffGroupSuffix: (group: string) => `(${group})`,
 }));
-vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () => ({
+vi.mock('@renderer/features/conversations/conversation-title-utils', () => ({
   formatConversationTitleForDisplay: (_providerId: unknown, title: unknown) =>
     (title as string) ?? 'Conversation',
 }));
-vi.mock('@renderer/features/tasks/acp/acp-chat-store', () => ({
+vi.mock('@renderer/features/conversations/acp/acp-chat-store', () => ({
   AcpChatStore: class {
     conversationId = '';
     dispose() {}
     bootstrap() {}
   },
 }));
-vi.mock('@renderer/features/tasks/acp/acp-chat-panel', () => ({
+vi.mock('@renderer/features/conversations/acp/acp-chat-panel', () => ({
   AcpChatPanel: () => null,
 }));
 vi.mock('@renderer/utils/logger', () => ({

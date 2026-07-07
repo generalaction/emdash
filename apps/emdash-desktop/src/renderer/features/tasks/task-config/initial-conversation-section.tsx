@@ -1,5 +1,6 @@
 import { CheckCheckIcon, PlusIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffectiveProvider } from '@renderer/features/conversations/use-effective-provider';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
@@ -31,11 +32,10 @@ import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-appr
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
+import { AddContextPopover } from '../context-bar/add-context-popover';
+import { buildIssueContextText, buildTaskContextActions } from '../context-bar/context-actions';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
 import { usePromptFileDrop } from '../create-task-modal/use-prompt-file-drop';
-import { AddContextPopover } from './add-context-popover';
-import { buildIssueContextText, buildTaskContextActions } from './context-actions';
-import { useEffectiveProvider } from './use-effective-provider';
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;

@@ -15,7 +15,7 @@ import {
 import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
-import { buildContextActionText, type ContextAction } from './context-actions';
+import { buildContextActionText, type ContextAction } from '../context-bar/context-actions';
 
 const ADD_CONTEXT_HOTKEY: Hotkey = 'Mod+Shift+A';
 type AddContextPopoverSide = 'top' | 'bottom';

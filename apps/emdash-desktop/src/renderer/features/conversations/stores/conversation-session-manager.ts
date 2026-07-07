@@ -1,5 +1,5 @@
 import { log } from '@renderer/utils/logger';
-import type { ConversationStore } from '../conversations/conversation-manager';
+import type { ConversationStore } from '../conversation-manager';
 import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
 import { conversationRegistry } from './conversation-registry';
 

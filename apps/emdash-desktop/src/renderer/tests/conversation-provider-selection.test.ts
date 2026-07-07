@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveConversationProviderSelection } from '@renderer/features/tasks/conversations/provider-selection';
+import { resolveConversationProviderSelection } from '@renderer/features/conversations/provider-selection';
 
 describe('resolveConversationProviderSelection', () => {
   it('keeps default provider while availability is unknown', () => {

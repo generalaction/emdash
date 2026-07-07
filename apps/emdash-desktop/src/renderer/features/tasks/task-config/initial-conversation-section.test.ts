@@ -36,7 +36,7 @@ vi.mock('../create-task-modal/use-prompt-file-drop', () => ({
   usePromptFileDrop: () => ({ isDragOver: false, dropHandlers: {} }),
 }));
 
-vi.mock('./add-context-popover', () => ({
+vi.mock('../context-bar/add-context-popover', () => ({
   AddContextPopover: () => null,
 }));
 
@@ -44,7 +44,7 @@ vi.mock('@renderer/lib/stores/use-agents', () => ({
   useAgents: () => ({ data: [] }),
 }));
 
-vi.mock('./use-effective-provider', () => ({
+vi.mock('@renderer/features/conversations/use-effective-provider', () => ({
   useEffectiveProvider: () => ({
     providerId: 'claude',
     setProviderOverride: mocks.setProviderOverride,

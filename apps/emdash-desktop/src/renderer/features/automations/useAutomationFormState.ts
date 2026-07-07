@@ -10,13 +10,13 @@ import {
   firstMountedProjectId,
   getProjectStore,
 } from '../projects/stores/project-selectors';
-import { useInitialConversationState } from '../tasks/conversations/initial-conversation-section';
 import { useProjectGitContext } from '../tasks/create-task-modal/use-project-git-context';
 import { useTaskName } from '../tasks/create-task-modal/use-task-name';
 import {
   useWorkspaceConfig,
   type WorkspaceConfigInitial,
 } from '../tasks/create-task-modal/use-workspace-config';
+import { useInitialConversationState } from '../tasks/task-config/initial-conversation-section';
 import type { BuiltinAutomationTemplate } from './automation-template';
 
 const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);

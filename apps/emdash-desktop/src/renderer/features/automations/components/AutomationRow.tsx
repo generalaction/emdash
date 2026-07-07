@@ -17,8 +17,8 @@ import {
   getProjectStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
-import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { getTaskStore, taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
+import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';

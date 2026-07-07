@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { InitialConversationState } from '@renderer/features/tasks/task-config/initial-conversation-section';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import type { InitialConversationState } from '../conversations/initial-conversation-section';
 import { buildInitialConversation } from './build-create-task-params';
 
 function makeInitialConversationState(

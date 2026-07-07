@@ -6,11 +6,11 @@ import type {
   TabViewContext,
 } from '@renderer/features/tabs/core/tab-provider';
 import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
-import { getConversationSessionManager } from '../stores/conversation-session-manager';
-import type { TaskTabContext } from '../stores/task-tab-context';
+import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
 import { ConversationTabBarItem, ConversationTabBarItemDragPreview } from './conversation-tab-item';
 import { ConversationTabResource } from './conversation-tab-resource';
 import { ConversationsPanel } from './conversations-panel';
+import { getConversationSessionManager } from './stores/conversation-session-manager';
 
 export interface ConversationState {
   conversationId: string;

@@ -1,5 +1,6 @@
 import type { IDisposable } from '@emdash/shared';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+// TODO(conversations-extraction): Inject file-link handlers instead of importing task editor plumbing.
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';

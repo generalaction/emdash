@@ -5,8 +5,8 @@ import {
   GenericTabItem,
 } from '@renderer/features/tabs/tab-bar/generic-tab-item';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
-import { AgentStatusIndicator } from '../components/agent-status-indicator';
 import type { ConversationTabResource } from './conversation-tab-resource';
 import { formatConversationTitleForDisplay } from './conversation-title-utils';
 

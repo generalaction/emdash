@@ -8,6 +8,7 @@ import {
 } from '@renderer/features/projects/stores/project-selectors';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { ConversationField } from '@renderer/features/tasks/task-config/conversation-field';
+import { useInitialConversationState } from '@renderer/features/tasks/task-config/initial-conversation-section';
 import { TaskConfigPanel } from '@renderer/features/tasks/task-config/task-config-panel';
 import { TaskStateProvider } from '@renderer/features/tasks/task-config/task-state-context';
 import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
@@ -23,7 +24,6 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
-import { useInitialConversationState } from '../conversations/initial-conversation-section';
 import { LinkedEntitySection } from './linked-entity-section';
 import { TaskNameField } from './task-name-field';
 import { useCreateTaskCallback } from './use-create-task-callback';

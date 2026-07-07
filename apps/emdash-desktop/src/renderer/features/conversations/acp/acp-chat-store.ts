@@ -16,6 +16,7 @@ import type {
   ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+// TODO(conversations-extraction): Inject task/workspace lookups instead of importing task stores.
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
 import { AcpLiveSession } from '@renderer/lib/acp/acp-live-session';

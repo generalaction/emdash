@@ -1,8 +1,8 @@
 import { reaction } from 'mobx';
 import type { TabHandle, TabResource } from '@renderer/features/tabs/core/tab-provider';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import { conversationRegistry } from '../stores/conversation-registry';
 import type { ConversationStore } from './conversation-manager';
+import { conversationRegistry } from './stores/conversation-registry';
 
 /**
  * Domain resource for a single open conversation tab.

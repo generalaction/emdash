@@ -2,13 +2,17 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
-import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { conversationTabKind, useTabSelection } from '@renderer/features/tasks/task-tab-registry';
+import { conversationTabKind } from '@renderer/features/conversations/conversation-tab-kind';
+import { formatConversationTitleForDisplay } from '@renderer/features/conversations/conversation-title-utils';
+// TODO(conversations-extraction): Expose tab selection through a conversation scope instead of the task tab view.
+import { useTabSelection } from '@renderer/features/tasks/task-tab-registry';
+// TODO(conversations-extraction): Pass task scope into the sidebar instead of importing task hooks.
 import {
   useConversations,
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -23,8 +27,7 @@ import { MicroLabel } from '@renderer/lib/ui/label';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
-import { getAcpChatResourceManager } from '../acp/acp-chat-resource-manager';
-import { AgentStatusIndicator } from '../components/agent-status-indicator';
+import { getAcpChatResourceManager } from './acp/acp-chat-resource-manager';
 import { ConversationAgentIcon } from './conversation-agent-icon';
 
 const ROW_HEIGHT = 32;

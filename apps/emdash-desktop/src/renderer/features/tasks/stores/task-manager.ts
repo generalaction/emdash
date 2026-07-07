@@ -1,6 +1,7 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
+import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import {
   getProjectManagerStore,
@@ -32,7 +33,6 @@ import type {
 } from '@shared/core/tasks/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { formatFetchErrorDetail, formatPushErrorDetail } from '../utils';
-import { conversationRegistry } from './conversation-registry';
 import {
   createUnprovisionedTask,
   createUnregisteredTask,

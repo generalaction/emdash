@@ -2,7 +2,7 @@ import { ArrowUp, ChevronDown, ChevronUp, FileSearch } from 'lucide-react';
 import { useState, type CSSProperties } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import type { ContextAction, PromptContextAction } from './context-actions';
+import type { ContextAction, PromptContextAction } from '../context-bar/context-actions';
 
 const EXPAND_TEXT_LENGTH = 140;
 

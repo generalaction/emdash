@@ -4,7 +4,7 @@ import {
   buildContextActionText,
   buildLinkedIssueContextAction,
   type ContextAction,
-} from './context-actions';
+} from '../context-bar/context-actions';
 
 export async function resolveContextActionText(args: {
   action: ContextAction;

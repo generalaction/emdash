@@ -1,4 +1,4 @@
-import { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
+import { ConversationManagerStore } from '@renderer/features/conversations/conversation-manager';
 import type { Conversation } from '@shared/core/conversations/conversations';
 
 export class ConversationRegistry {

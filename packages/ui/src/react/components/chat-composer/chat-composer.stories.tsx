@@ -236,7 +236,7 @@ const MOCK_PERMISSION_OVERFLOW_REQUESTS: ComposerPermissionRequest[] = [
   {
     requestId: 'overflow-deep-path',
     title:
-      'Edit /Users/davidkonopka/Documents/repos/emdash/apps/emdash-desktop/src/renderer/features/tasks/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
+      'Edit /Users/davidkonopka/Documents/repos/emdash/apps/emdash-desktop/src/renderer/features/conversations/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
     options: [
       { optionId: 'allow-edit-once', name: 'Allow this edit once', kind: 'allow_once' },
       {
