@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { provider } from './index';
 
 const notionSdk = vi.hoisted(() => ({
+  blocksChildrenList: vi.fn(),
+  pagesRetrieve: vi.fn(),
   search: vi.fn(),
 }));
 
@@ -13,6 +15,8 @@ vi.mock('@notionhq/client', async (importOriginal) => {
   return {
     ...actual,
     Client: class {
+      blocks = { children: { list: notionSdk.blocksChildrenList } };
+      pages = { retrieve: notionSdk.pagesRetrieve };
       search = notionSdk.search;
     },
   };
@@ -20,6 +24,8 @@ vi.mock('@notionhq/client', async (importOriginal) => {
 
 const issues = provider.behavior.issues;
 if (!issues) throw new Error('Notion issues behavior is not registered');
+if (!issues.getIssue) throw new Error('Notion getIssue behavior is not registered');
+const getIssue = issues.getIssue;
 
 const host = { log: noopLogger, credentials: { apiToken: 'ntn_valid' } };
 
@@ -76,6 +82,34 @@ function notionPage(
   } as unknown as PageObjectResponse;
 }
 
+function richText(text: string) {
+  return [
+    {
+      type: 'text',
+      plain_text: text,
+      href: null,
+      annotations: {
+        bold: false,
+        italic: false,
+        strikethrough: false,
+        underline: false,
+        code: false,
+        color: 'default',
+      },
+      text: { content: text, link: null },
+    },
+  ];
+}
+
+function paragraphBlock(id: string, text: string) {
+  return {
+    object: 'block',
+    id,
+    type: 'paragraph',
+    paragraph: { rich_text: richText(text), color: 'default' },
+  };
+}
+
 describe('notion issues plugin', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -100,7 +134,43 @@ describe('notion issues plugin', () => {
     expect(notionSdk.search).toHaveBeenCalledWith({
       filter: { property: 'object', value: 'page' },
       sort: { timestamp: 'last_edited_time', direction: 'descending' },
-      page_size: 50,
+      page_size: 100,
+    });
+    expect(result).toEqual({
+      success: true,
+      data: [expect.objectContaining({ identifier: 'task-page', title: 'Implement onboarding' })],
+    });
+  });
+
+  it('continues listing until enough database pages survive filtering', async () => {
+    notionSdk.search
+      .mockResolvedValueOnce({
+        object: 'list',
+        results: [
+          notionPage('plain-page', 'Team notes', 'page_id'),
+          notionPage('untitled-page', ''),
+        ],
+        next_cursor: 'next-page',
+        has_more: true,
+        type: 'page_or_database',
+        page_or_database: {},
+      })
+      .mockResolvedValueOnce({
+        object: 'list',
+        results: [notionPage('task-page', 'Implement onboarding', 'database_id')],
+        next_cursor: null,
+        has_more: false,
+        type: 'page_or_database',
+        page_or_database: {},
+      });
+
+    const result = await issues.listIssues(host, { limit: 1 });
+
+    expect(notionSdk.search).toHaveBeenNthCalledWith(2, {
+      filter: { property: 'object', value: 'page' },
+      sort: { timestamp: 'last_edited_time', direction: 'descending' },
+      page_size: 100,
+      start_cursor: 'next-page',
     });
     expect(result).toEqual({
       success: true,
@@ -129,6 +199,68 @@ describe('notion issues plugin', () => {
     expect(result).toEqual({
       success: true,
       data: [expect.objectContaining({ identifier: 'plain-page', title: 'Team notes' })],
+    });
+  });
+
+  it('reads every block page when getting issue context', async () => {
+    notionSdk.pagesRetrieve.mockResolvedValueOnce(notionPage('task-page', 'Implement onboarding'));
+    notionSdk.blocksChildrenList
+      .mockResolvedValueOnce({
+        object: 'list',
+        results: [paragraphBlock('block-1', 'First requirement')],
+        next_cursor: 'next-blocks',
+        has_more: true,
+        type: 'block',
+        block: {},
+      })
+      .mockResolvedValueOnce({
+        object: 'list',
+        results: [paragraphBlock('block-2', 'Later requirement')],
+        next_cursor: null,
+        has_more: false,
+        type: 'block',
+        block: {},
+      });
+
+    const result = await getIssue(host, { identifier: 'task-page' });
+
+    expect(notionSdk.blocksChildrenList).toHaveBeenNthCalledWith(1, {
+      block_id: 'task-page',
+      page_size: 100,
+    });
+    expect(notionSdk.blocksChildrenList).toHaveBeenNthCalledWith(2, {
+      block_id: 'task-page',
+      page_size: 100,
+      start_cursor: 'next-blocks',
+    });
+    expect(result).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        identifier: 'task-page',
+        context: 'First requirement\nLater requirement',
+      }),
+    });
+  });
+
+  it('skips partial blocks while formatting issue context', async () => {
+    notionSdk.pagesRetrieve.mockResolvedValueOnce(notionPage('task-page', 'Implement onboarding'));
+    notionSdk.blocksChildrenList.mockResolvedValueOnce({
+      object: 'list',
+      results: [
+        { object: 'block', id: 'partial-paragraph', type: 'paragraph' },
+        paragraphBlock('block-1', 'Accessible requirement'),
+      ],
+      next_cursor: null,
+      has_more: false,
+      type: 'block',
+      block: {},
+    });
+
+    const result = await getIssue(host, { identifier: 'task-page' });
+
+    expect(result).toEqual({
+      success: true,
+      data: expect.objectContaining({ context: 'Accessible requirement' }),
     });
   });
 });

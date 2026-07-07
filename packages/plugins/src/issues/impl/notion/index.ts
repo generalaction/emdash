@@ -1,5 +1,10 @@
 import { err, ok } from '@emdash/shared';
-import { isFullPage, type PageObjectResponse } from '@notionhq/client';
+import {
+  isFullPage,
+  type BlockObjectResponse,
+  type PageObjectResponse,
+  type PartialBlockObjectResponse,
+} from '@notionhq/client';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import {
   createNotionClient,
@@ -18,6 +23,8 @@ import type {
 import { formatNotionContext } from './context';
 import { hasMeaningfulTitle, isDatabasePage, toIssueData } from './mapper';
 
+const NOTION_PAGE_SIZE = 100;
+
 export async function listIssues(
   host: ConnectedIntegrationHostContext,
   opts: IssueQueryOpts
@@ -29,14 +36,21 @@ export async function listIssues(
   const limit = clampIssueLimit(opts.limit, 50, 100);
 
   try {
-    const response = await client.search({
-      filter: { property: 'object', value: 'page' },
-      sort: { timestamp: 'last_edited_time', direction: 'descending' },
-      page_size: limit,
-    });
-    return ok(
-      toIssueListItems(response.results.filter(isFullPage).filter(isDatabasePage))
-    );
+    const pages: PageObjectResponse[] = [];
+    let startCursor: string | null | undefined;
+
+    do {
+      const response = await client.search({
+        filter: { property: 'object', value: 'page' },
+        sort: { timestamp: 'last_edited_time', direction: 'descending' },
+        page_size: NOTION_PAGE_SIZE,
+        ...(startCursor ? { start_cursor: startCursor } : {}),
+      });
+      pages.push(...response.results.filter(isFullPage).filter(isDatabasePage));
+      startCursor = response.has_more ? response.next_cursor : null;
+    } while (startCursor && pages.filter(hasMeaningfulTitle).length < limit);
+
+    return ok(toIssueListItems(pages).slice(0, limit));
   } catch (error) {
     host.log.warn('Notion listIssues failed', { error });
     return err(toNotionIntegrationError(error, 'Unable to fetch Notion pages.'));
@@ -88,8 +102,20 @@ export async function getIssue(
       });
     }
 
-    const blocks = await client.blocks.children.list({ block_id: page.id, page_size: 50 });
-    return ok({ ...toIssueData(page), context: formatNotionContext(blocks.results) });
+    const blocks: Array<BlockObjectResponse | PartialBlockObjectResponse> = [];
+    let startCursor: string | null | undefined;
+
+    do {
+      const response = await client.blocks.children.list({
+        block_id: page.id,
+        page_size: NOTION_PAGE_SIZE,
+        ...(startCursor ? { start_cursor: startCursor } : {}),
+      });
+      blocks.push(...response.results);
+      startCursor = response.has_more ? response.next_cursor : null;
+    } while (startCursor);
+
+    return ok({ ...toIssueData(page), context: formatNotionContext(blocks) });
   } catch (error) {
     host.log.warn('Notion getIssue failed', { error });
     return err(toNotionIntegrationError(error, 'Unable to fetch Notion page context.'));

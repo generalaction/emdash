@@ -15,32 +15,60 @@ function blockToMarkdown(
 
   switch (block.type) {
     case 'paragraph':
-      return richTextPlainText(block.paragraph.rich_text);
+      return richTextPlainText('paragraph' in block ? block.paragraph?.rich_text : undefined);
     case 'heading_1':
-      return heading('#', richTextPlainText(block.heading_1.rich_text));
+      return heading(
+        '#',
+        richTextPlainText('heading_1' in block ? block.heading_1?.rich_text : undefined)
+      );
     case 'heading_2':
-      return heading('##', richTextPlainText(block.heading_2.rich_text));
+      return heading(
+        '##',
+        richTextPlainText('heading_2' in block ? block.heading_2?.rich_text : undefined)
+      );
     case 'heading_3':
-      return heading('###', richTextPlainText(block.heading_3.rich_text));
+      return heading(
+        '###',
+        richTextPlainText('heading_3' in block ? block.heading_3?.rich_text : undefined)
+      );
     case 'heading_4':
-      return heading('####', richTextPlainText(block.heading_4.rich_text));
+      return heading(
+        '####',
+        richTextPlainText('heading_4' in block ? block.heading_4?.rich_text : undefined)
+      );
     case 'bulleted_list_item':
-      return listItem('-', richTextPlainText(block.bulleted_list_item.rich_text));
-    case 'numbered_list_item':
-      return listItem('1.', richTextPlainText(block.numbered_list_item.rich_text));
-    case 'to_do':
       return listItem(
-        `[${block.to_do.checked ? 'x' : ' '}]`,
-        richTextPlainText(block.to_do.rich_text)
+        '-',
+        richTextPlainText(
+          'bulleted_list_item' in block ? block.bulleted_list_item?.rich_text : undefined
+        )
+      );
+    case 'numbered_list_item':
+      return listItem(
+        '1.',
+        richTextPlainText(
+          'numbered_list_item' in block ? block.numbered_list_item?.rich_text : undefined
+        )
+      );
+    case 'to_do':
+      if (!('to_do' in block)) return undefined;
+      return listItem(
+        `[${block.to_do?.checked ? 'x' : ' '}]`,
+        richTextPlainText(block.to_do?.rich_text)
       );
     case 'quote':
-      return quote(richTextPlainText(block.quote.rich_text));
+      return quote(richTextPlainText('quote' in block ? block.quote?.rich_text : undefined));
     case 'code':
-      return codeBlock(block.code.language, richTextPlainText(block.code.rich_text));
+      if (!('code' in block)) return undefined;
+      return codeBlock(block.code?.language ?? '', richTextPlainText(block.code?.rich_text));
     case 'child_page':
-      return `Child page: ${block.child_page.title}`;
+      return 'child_page' in block && block.child_page?.title
+        ? `Child page: ${block.child_page.title}`
+        : undefined;
     case 'child_database':
-      return `Child database: ${block.child_database.title}`;
+      return 'child_database' in block && block.child_database?.title
+        ? `Child database: ${block.child_database.title}`
+        : undefined;
     default:
       return undefined;
   }
