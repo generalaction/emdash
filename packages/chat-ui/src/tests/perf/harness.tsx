@@ -29,6 +29,7 @@ import { render } from 'solid-js/web';
 import { createChatContext } from '@/chat-context';
 import { ChatRoot } from '@/ChatRoot';
 import type { ChatItem } from '@/model';
+import type { TranscriptTurn } from '@/model';
 import { createChatState } from '@/state/chat-state';
 
 // ── Timing helpers ────────────────────────────────────────────────────────────
@@ -123,7 +124,14 @@ export function mountTranscript(
 
   const ctx = createChatContext({ theme: DEFAULT_THEME });
   const state = createChatState(ctx);
-  state.transcript.history.seed(items);
+  state.transcript.history.seed([
+    {
+      id: 'perf-turn',
+      seq: 0,
+      initiator: 'agent',
+      items: items.map((item, seq) => ({ ...item, seq })) as TranscriptTurn['items'],
+    },
+  ]);
 
   const dispose = render(
     () => <ChatRoot context={ctx} state={state} stickToBottom={false} />,
@@ -151,7 +159,14 @@ export function mountTranscript(
 export function mountRows(items: ChatItem[]): Mounted {
   const width = 640;
   const caches = createChatCaches();
-  const segCtx = { caches, expanded: (_id: string) => false };
+  const segCtx = {
+    caches,
+    expanded: (_id: string) => false,
+    active: false,
+    plan: () => null,
+    pendingToolCallIds: () => new Set<string>(),
+    terminalOutputText: () => null,
+  };
   const measureCtx: MeasureCtx = {
     theme: DEFAULT_THEME,
     width,
@@ -172,8 +187,7 @@ export function mountRows(items: ChatItem[]): Mounted {
   // Segment each item into units using SEGMENTERS.
   const allUnits = items.flatMap((item) => {
     const segmenter = SEGMENTERS[item.kind];
-    // oxlint-disable-next-line typescript/no-explicit-any -- segmenter typed at its own boundary
-    return segmenter ? segmenter.segment(item as any, segCtx) : [];
+    return segmenter ? segmenter.segment(item, segCtx) : [];
   });
 
   const dispose = render(

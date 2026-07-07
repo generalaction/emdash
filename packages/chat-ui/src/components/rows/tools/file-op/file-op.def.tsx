@@ -1,10 +1,11 @@
 import { ROW_H } from '@components/engine/row-metrics';
 import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import type { MeasureCtx, RenderCtx } from '@core/define';
+import type { SegmentCtx } from '@core/units';
 import { defineUnit } from '@core/units';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
-import type { ChatFileOpToolCall } from '@/model';
+import type { ChatFileOpToolCall, ToolNode } from '@/model';
 import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
 import { fileOpCardVars, fileOpRoot } from './file-op.css';
 
@@ -16,6 +17,34 @@ export type FileOpVars = {
   /** Measure-only: scrollable preview window height while running. */
   windowH: number;
 };
+
+export function readFileOpFromItem(
+  item: Extract<ToolNode, { kind: 'read-tool-call' }>,
+  ctx: SegmentCtx
+): ChatFileOpToolCall {
+  return {
+    kind: 'file-op',
+    id: item.id,
+    op: 'read',
+    status: item.status,
+    awaitingPermission: ctx.pendingToolCallIds().has(item.toolCallId),
+    ops: item.path || item.resource ? [{ path: item.path ?? item.resource! }] : [],
+  };
+}
+
+export function deleteFileOpFromItem(
+  item: Extract<ToolNode, { kind: 'delete-file-tool-call' }>,
+  ctx: SegmentCtx
+): ChatFileOpToolCall {
+  return {
+    kind: 'file-op',
+    id: item.id,
+    op: 'delete',
+    status: item.status,
+    awaitingPermission: ctx.pendingToolCallIds().has(item.toolCallId),
+    ops: [{ path: item.path }],
+  };
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

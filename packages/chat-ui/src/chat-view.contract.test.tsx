@@ -42,6 +42,35 @@ describe('createChatView', () => {
     state.dispose();
     document.body.removeChild(host);
   });
+
+  it('scrolls to top and bottom through the view handle', async () => {
+    const ctx = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(ctx);
+    state.transcript.history.seed(generateMockTranscript(80, 10));
+
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:300px;';
+    document.body.appendChild(host);
+
+    const view = createChatView({ context: ctx, state, parent: host });
+    await nextPaint();
+
+    const scrollEl = host.querySelector('[data-chat-scroll]') as HTMLElement | null;
+    expect(scrollEl).not.toBeNull();
+
+    view.scrollToBottom();
+    await nextPaint();
+    expect(scrollEl!.scrollTop).toBeGreaterThan(0);
+
+    view.scrollToTop();
+    await nextPaint();
+    expect(scrollEl!.scrollTop).toBe(0);
+
+    view.dispose();
+    ctx.dispose();
+    state.dispose();
+    document.body.removeChild(host);
+  });
 });
 
 describe('ChatView.setModel', () => {
@@ -114,7 +143,20 @@ describe('ChatView.setModel', () => {
     // Stream into stateB after the swap — should not crash.
     expect(() => {
       stateB.transcript.activeTurn.set(
-        [{ kind: 'message', id: 'msg-1', role: 'assistant', text: 'Hello from model B' }],
+        {
+          id: 'active-turn-b',
+          seq: 99,
+          initiator: 'agent',
+          items: [
+            {
+              kind: 'message',
+              id: 'msg-1',
+              seq: 0,
+              role: 'assistant',
+              text: 'Hello from model B',
+            },
+          ],
+        },
         'generating'
       );
     }).not.toThrow();

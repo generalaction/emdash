@@ -7,11 +7,7 @@ import type { IssueProviderType } from '@shared/issue-providers';
 const INITIAL_FETCH_LIMIT = 50;
 const SEARCH_LIMIT = 20;
 const SEARCH_DEBOUNCE_MS = 300;
-
-const SEARCH_MIN_LENGTH_BY_PROVIDER: Partial<Record<IssueProviderType, number>> = {
-  plane: 2,
-  plain: 2,
-};
+const SEARCH_MIN_LENGTH = 2;
 
 export interface UseIssuesResult {
   issues: LinkedIssue[];
@@ -29,11 +25,6 @@ interface UseIssuesOptions {
   enabled?: boolean;
   initialLimit?: number;
   searchLimit?: number;
-}
-
-function getSearchMinLength(provider: IssueProviderType | null): number {
-  if (!provider) return 1;
-  return SEARCH_MIN_LENGTH_BY_PROVIDER[provider] ?? 1;
 }
 
 export function useIssues(
@@ -71,7 +62,7 @@ export function useIssues(
       initialLimit,
     ],
     queryFn: async () => {
-      if (!provider) return { success: true as const, issues: [] as LinkedIssue[] };
+      if (!provider) return { success: true as const, data: [] as LinkedIssue[] };
 
       const result = await rpc.issues.listIssues(provider, {
         limit: initialLimit,
@@ -86,8 +77,7 @@ export function useIssues(
     enabled: isReady,
   });
 
-  const minSearchLength = getSearchMinLength(provider);
-  const isActiveSearch = debouncedTerm.trim().length >= minSearchLength;
+  const isActiveSearch = debouncedTerm.trim().length >= SEARCH_MIN_LENGTH;
 
   const {
     data: searchIssues,
@@ -104,7 +94,7 @@ export function useIssues(
       searchLimit,
     ],
     queryFn: async () => {
-      if (!provider) return { success: true as const, issues: [] as LinkedIssue[] };
+      if (!provider) return { success: true as const, data: [] as LinkedIssue[] };
 
       const result = await rpc.issues.searchIssues(provider, {
         limit: searchLimit,
@@ -122,15 +112,15 @@ export function useIssues(
   });
 
   const issues = useMemo<LinkedIssue[]>(() => {
-    if (isActiveSearch) return searchIssues?.success ? (searchIssues.issues ?? []) : [];
-    return initialIssues?.success ? (initialIssues.issues ?? []) : [];
+    if (isActiveSearch) return searchIssues?.success ? (searchIssues.data ?? []) : [];
+    return initialIssues?.success ? (initialIssues.data ?? []) : [];
   }, [initialIssues, isActiveSearch, searchIssues]);
 
   const activeResult = isActiveSearch ? searchIssues : initialIssues;
   const activeQueryError = isActiveSearch ? searchError : initialError;
   const error =
     activeResult && !activeResult.success
-      ? activeResult.error
+      ? activeResult.error.message
       : activeQueryError instanceof Error
         ? activeQueryError.message
         : null;

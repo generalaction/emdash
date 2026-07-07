@@ -22,6 +22,7 @@ const v0Schema = z.object({
   url: z.string(),
   title: z.string(),
   identifier: z.string(),
+  displayIdentifier: z.string().nullable().optional(),
   description: z.string().optional(),
   context: z.string().optional(),
   branchName: z.string().optional(),

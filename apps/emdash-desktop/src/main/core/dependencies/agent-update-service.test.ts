@@ -257,7 +257,6 @@ describe('AgentUpdateService', () => {
     const service = new AgentUpdateService();
 
     // Manually prime the cache so we can call enrichHostDependency synchronously
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (service as any).latestVersionCache.set('amp', '2.0.0');
 
     const hostDep = {
@@ -301,7 +300,6 @@ describe('AgentUpdateService', () => {
 
     const service = new AgentUpdateService();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (service as any).latestVersionCache.set('claude', '2.0.0');
 
     const hostDep = {

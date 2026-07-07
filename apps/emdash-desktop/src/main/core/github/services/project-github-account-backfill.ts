@@ -1,9 +1,14 @@
 import type { Result } from '@emdash/shared';
 import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
 import { normalizeRepositoryHost, parseRepositoryRef } from '@shared/repository-ref';
-import type { GitHubAccount, GitHubAccountRegistry } from '../accounts/github-account-registry';
+import {
+  GITHUB_PROVIDER_ID,
+  toGitHubAccount,
+  type GitHubAccount,
+  type GitHubAccountStore,
+} from '../accounts/github-accounts';
 
-type AccountLookup = Pick<GitHubAccountRegistry, 'getDefaultAccountId' | 'listAccounts'>;
+type AccountLookup = Pick<GitHubAccountStore, 'getDefaultAccountId' | 'listAccounts'>;
 
 type ProjectSettingsForBackfill = {
   get(): Promise<ProjectSettings>;
@@ -48,12 +53,12 @@ export class ProjectGitHubAccountBackfillService {
   private async selectAccountIdForHost(host: string): Promise<string | null> {
     const normalizedHost = normalizeRepositoryHost(host);
     const [accounts, defaultAccountId] = await Promise.all([
-      this.accountLookup.listAccounts(),
-      this.accountLookup.getDefaultAccountId(),
+      this.accountLookup.listAccounts(GITHUB_PROVIDER_ID),
+      this.accountLookup.getDefaultAccountId(GITHUB_PROVIDER_ID),
     ]);
-    const hostAccounts = accounts.filter(
-      (account) => normalizeRepositoryHost(account.host) === normalizedHost
-    );
+    const hostAccounts = accounts
+      .map(toGitHubAccount)
+      .filter((account) => normalizeRepositoryHost(account.host) === normalizedHost);
     if (hostAccounts.length === 0) return null;
 
     const defaultAccount = hostAccounts.find((account) => account.id === defaultAccountId);

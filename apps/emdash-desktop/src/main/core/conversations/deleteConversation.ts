@@ -1,5 +1,4 @@
 import { and, eq } from 'drizzle-orm';
-import { acpSessionManager } from '@main/core/acp/production-acp-session-manager';
 import { projectManager } from '@main/core/projects/project-manager';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { db } from '@main/db/client';
@@ -14,7 +13,6 @@ export async function deleteConversation(
   taskId: string,
   conversationId: string
 ): Promise<void> {
-  // Best-effort stop the ACP session before deletion, if applicable.
   const [convRow] = await db
     .select({ type: conversations.type })
     .from(conversations)
@@ -26,14 +24,6 @@ export async function deleteConversation(
       )
     )
     .limit(1);
-
-  if (convRow?.type === 'acp') {
-    try {
-      acpSessionManager.stop(conversationId);
-    } catch {
-      // Best-effort; deletion proceeds regardless.
-    }
-  }
 
   await db
     .delete(conversations)

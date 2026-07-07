@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
+import { acpRuntimeProcedures } from '@main/core/acp/controller';
 import { createConversation } from '@main/core/conversations/createConversation';
+import { issueController } from '@main/core/issues/controller';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
@@ -18,6 +20,12 @@ import { resolveAutomationAgentAutoApprove } from '@shared/core/agents/agent-aut
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
+import type { InitialQueuePrompt } from '@shared/core/conversations/conversations';
+import {
+  buildIssueMentionContextBlock,
+  buildIssueMentionHiddenContext,
+  issueMentionToken,
+} from '@shared/core/issues/issue-context';
 import type { CreateTaskParams } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import {
@@ -45,6 +53,44 @@ function scopeWorkspaceConfigToRun(config: WorkspaceConfig, taskName: string): W
   if (git.kind === 'pr-branch' && git.taskBranch)
     return { ...config, git: { ...git, taskBranch: taskName } };
   return config;
+}
+
+async function buildAutomationInitialQueue(
+  automation: Automation,
+  projectId: string,
+  prompt: string
+): Promise<InitialQueuePrompt[]> {
+  const hiddenContextParts: string[] = [];
+  const linkedIssue = automation.taskConfig?.taskConfig.linkedIssue;
+  if (linkedIssue) {
+    hiddenContextParts.push(
+      buildIssueMentionContextBlock(
+        {
+          token: issueMentionToken(linkedIssue.provider, linkedIssue.identifier),
+          provider: linkedIssue.provider,
+          identifier: linkedIssue.identifier,
+        },
+        linkedIssue
+      )
+    );
+  }
+
+  const mentionContext = await buildIssueMentionHiddenContext(prompt, async (target) => {
+    const result = await issueController.getIssueContext(target.provider, {
+      identifier: target.identifier,
+      projectId,
+    });
+    return result.success ? result.data : null;
+  });
+  if (mentionContext) hiddenContextParts.push(mentionContext);
+
+  const hiddenContext = hiddenContextParts.join('\n\n').trim();
+  return [
+    {
+      text: prompt,
+      ...(hiddenContext && { hiddenContext }),
+    },
+  ];
 }
 
 export async function executeTaskCreate(
@@ -87,6 +133,11 @@ export async function executeTaskCreate(
     const provider = (automation.conversationConfig?.provider ||
       (await appSettingsService.get('defaultAgent')) ||
       DEFAULT_AGENT_ID) as AgentProviderId;
+    const conversationType = automation.conversationConfig?.type ?? 'pty';
+    const initialQueue =
+      conversationType === 'acp'
+        ? await buildAutomationInitialQueue(automation, projectId, prompt)
+        : undefined;
 
     const createTaskParams: CreateTaskParams = {
       id: taskId,
@@ -189,10 +240,28 @@ export async function executeTaskCreate(
           automation.conversationConfig?.autoApprove
         ),
         model: automation.conversationConfig?.model || undefined,
-        initialPrompt: prompt,
+        ...(conversationType === 'acp' ? { initialQueue } : { initialPrompt: prompt }),
         isInitialConversation: true,
-        type: automation.conversationConfig?.type ?? 'pty',
+        type: conversationType,
       });
+      if (conversationType === 'acp') {
+        const startResult = await acpRuntimeProcedures.startSession({
+          input: {
+            conversationId,
+            projectId,
+            taskId,
+            providerId: provider,
+            workspaceId: provision.data.workspaceId,
+            cwd: provision.data.path,
+            sessionId: null,
+            model: automation.conversationConfig?.model || null,
+            initialQueue,
+          },
+        });
+        if (!startResult.success) {
+          throw new Error(startResult.error.message ?? startResult.error.type);
+        }
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       const failed = await markRunFailed(run.id, {

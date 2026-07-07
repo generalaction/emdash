@@ -1,15 +1,15 @@
 import { makeObservable, observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ConversationStore } from '@renderer/features/conversations/conversation-manager';
+import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
+import { releaseConversationSessionManager } from '@renderer/features/conversations/stores/conversation-session-manager';
 import { rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { Terminal } from '@shared/core/terminals/terminals';
 import type { TaskViewSnapshot } from '@shared/view-state';
-import { ConversationStore } from '../conversations/conversation-manager';
 import type { TerminalManagerStore, TerminalStore } from '../terminals/terminal-manager';
-import { conversationRegistry } from './conversation-registry';
-import { releaseConversationSessionManager } from './conversation-session-manager';
 import type { TaskStore } from './task-store';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
@@ -23,7 +23,7 @@ vi.mock('@renderer/features/tasks/editor/file-tab-item', () => ({
   FileTabBarItem: () => null,
   FileTabBarItemDragPreview: () => null,
 }));
-vi.mock('@renderer/features/tasks/conversations/conversation-tab-item', () => ({
+vi.mock('@renderer/features/conversations/conversation-tab-item', () => ({
   ConversationTabBarItem: () => null,
   ConversationTabBarItemDragPreview: () => null,
 }));
@@ -32,21 +32,21 @@ vi.mock('@renderer/features/tasks/diff-view/diff-tab-item', () => ({
   DiffTabBarItemDragPreview: () => null,
   diffGroupSuffix: (group: string) => `(${group})`,
 }));
-vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () => ({
+vi.mock('@renderer/features/conversations/conversation-title-utils', () => ({
   formatConversationTitleForDisplay: (_providerId: unknown, title: unknown) =>
     (title as string) ?? 'Conversation',
 }));
 
 // ACP imports chat-ui which calls document.createElement at module load time.
 // Stub out the entire chat-store chain to avoid the DOM dependency in node tests.
-vi.mock('@renderer/features/tasks/acp/acp-chat-store', () => ({
+vi.mock('@renderer/features/conversations/acp/acp-chat-store', () => ({
   AcpChatStore: class {
     conversationId = '';
     dispose() {}
     bootstrap() {}
   },
 }));
-vi.mock('@renderer/features/tasks/acp/acp-chat-panel', () => ({
+vi.mock('@renderer/features/conversations/acp/acp-chat-panel', () => ({
   AcpChatPanel: () => null,
 }));
 

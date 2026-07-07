@@ -2,10 +2,10 @@
  * User message row stories.
  */
 
-import { applyTurnEvent } from '@state/turn-reducer';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
 import { scenario, seedStep } from '@/stories/_harness/streaming/scenario';
+import { applyTurnEvent } from '@/stories/_harness/turn-reducer';
 
 const meta: Meta = {
   title: 'Rows/Messages/User',

@@ -16,7 +16,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
     <div className="flex items-center gap-2">
       Version
       {update.currentVersion && (
-        <Badge variant="outline" className="h-5 px-2 font-mono text-xs">
+        <Badge variant="outline" className="h-5 px-2 font-mono text-xs leading-none">
           v{update.currentVersion}
         </Badge>
       )}

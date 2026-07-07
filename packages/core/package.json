@@ -17,9 +17,13 @@
       "types": "./dist/acp.d.mts",
       "default": "./dist/acp.mjs"
     },
-    "./acp/session-machine": {
-      "types": "./dist/acp-session-machine.d.mts",
-      "default": "./dist/acp-session-machine.mjs"
+    "./acp/client": {
+      "types": "./dist/acp-client.d.mts",
+      "default": "./dist/acp-client.mjs"
+    },
+    "./acp/transcript-parser": {
+      "types": "./dist/acp-transcript-parser.d.mts",
+      "default": "./dist/acp-transcript-parser.mjs"
     },
     "./deps": {
       "types": "./dist/deps.d.mts",
@@ -57,6 +61,18 @@
       "types": "./dist/agents-plugins-helpers.d.mts",
       "default": "./dist/agents-plugins-helpers.mjs"
     },
+    "./live": {
+      "types": "./dist/live.d.mts",
+      "default": "./dist/live.mjs"
+    },
+    "./wire": {
+      "types": "./dist/wire.d.mts",
+      "default": "./dist/wire.mjs"
+    },
+    "./workspace-server": {
+      "types": "./dist/workspace-server.d.mts",
+      "default": "./dist/workspace-server.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -71,8 +87,11 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/shared": "workspace:*",
+    "@orpc/contract": "^1.14.6",
+    "@orpc/server": "^1.14.6",
     "@parcel/watcher": "^2.5.6",
     "glob": "^13.0.6",
+    "immer": "^10.1.1",
     "semver": "^7.8.4",
     "smol-toml": "^1.6.0",
     "zod": "^4.4.3"

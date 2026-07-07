@@ -98,6 +98,44 @@ export const controlVariants = recipe({
           '&[data-active="true"]': { backgroundColor: vars.primaryButtonBackgroundHover },
         },
       },
+      secondary: {
+        backgroundColor: vars.surfaceBaseEmphasis,
+        color: vars.foregroundMuted,
+        selectors: {
+          '&:hover': {
+            backgroundColor: vars.surfaceBaseEmphasisHover,
+            color: vars.foregroundMuted,
+          },
+          '&[aria-expanded="true"]': {
+            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            color: vars.foregroundMuted,
+          },
+          '&[aria-pressed="true"]': {
+            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            color: vars.foregroundMuted,
+          },
+          '&[aria-selected="true"]': {
+            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            color: vars.foregroundMuted,
+          },
+          '&[data-pressed]': {
+            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            color: vars.foregroundMuted,
+          },
+          '&[data-selected]': {
+            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            color: vars.foregroundMuted,
+          },
+          '&[data-popup-open]': {
+            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            color: vars.foregroundMuted,
+          },
+          '&[data-active="true"]': {
+            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            color: vars.foregroundMuted,
+          },
+        },
+      },
     },
 
     tone: {

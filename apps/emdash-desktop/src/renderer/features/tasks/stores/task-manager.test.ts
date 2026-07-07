@@ -68,6 +68,7 @@ vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
 vi.mock('@renderer/lib/stores/view-state-cache', () => ({
   viewStateCache: {
     get: mocks.viewStateGet,
+    set: vi.fn(),
   },
 }));
 
@@ -109,7 +110,7 @@ vi.mock('./workspace-registry', () => ({
   },
 }));
 
-vi.mock('./conversation-registry', () => ({
+vi.mock('@renderer/features/conversations/stores/conversation-registry', () => ({
   conversationRegistry: {
     acquire: mocks.conversationAcquire,
     get: vi.fn(),

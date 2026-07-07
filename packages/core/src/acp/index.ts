@@ -1,22 +1,23 @@
-export { createAcpAgentConnection } from './acp-agent-connection';
-export type { AcpAgentConnection } from './acp-agent-connection';
-export { AcpSessionRuntime } from './acp-session-runtime';
+export { createAcpAgentConnection } from './connection/acp-agent-connection';
+export type { AcpAgentConnection } from './connection/acp-agent-connection';
+export { AcpRuntime } from './runtime/runtime';
+export { SessionManager } from './runtime/session-manager';
+export type { AttachmentStore, StoredAttachment } from './runtime/attachment-store';
+export type { AcpRuntimeDeps, AcpStartInput, ResolveAcpProvider } from './runtime/types';
+export { ConnectionPool } from './connection/pool';
+export { buildClientHandler } from './connection/client-handler';
+export { SessionCell } from './session/cell';
+export { PermissionBroker } from './session/permission-broker';
+export { SessionMachine, isPromptReady } from './machine/machine';
+export * from './state/live-models';
+export * from './api/contract';
+export * from './api/procedures';
+export { acpLiveTopics, createAcpLiveResolver, type AcpLiveTopics } from './api/live';
+export type { HistoryPage, ResumeResult } from './api/queries';
 export { AgentTerminalManager } from './agent-terminal-manager';
 export type { AgentTerminalHooks as AgentTerminalListener } from './agent-terminal-manager';
 export type { AcpRuntimeError } from './errors';
-export type { AcpPermissionOption, AcpPermissionRequest } from './permissions';
-export type {
-  AcpPromptImage,
-  AcpTurn,
-  ChatHistory,
-  SessionLifecycle,
-  SessionSnapshot,
-  SessionState,
-  SessionUsage,
-  TurnSource,
-  TurnStatus,
-} from './state';
-export { toSessionSnapshot } from './state';
+export * from './models';
 export type {
   AcpFs,
   AcpProcessHandle,
@@ -25,22 +26,4 @@ export type {
   AcpTerminalProcess,
 } from './transport';
 export { readTextFile, writeTextFile } from './transport';
-export type { TerminalSnapshot } from './terminals';
-export type {
-  AcpRuntimeListener,
-  AcpSessionRuntimeDeps,
-  AcpStartInput,
-  IAcpSessionRuntime,
-  ResolveAcpProvider,
-  SetSessionIdError,
-} from './runtime';
-export type {
-  AgentDiff,
-  AgentPlanEntry,
-  AgentPlanEntryPriority,
-  AgentPlanEntryStatus,
-  AgentToolStatus,
-  AgentUpdate,
-} from './agent-update';
-export { toAgentUpdate } from './agent-update';
-export { SessionMachine, isPromptReady } from './session-machine';
+export * from './reducer/index';

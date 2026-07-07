@@ -5,6 +5,11 @@ export const MAX_CONVERSATION_TITLE_LENGTH = 100;
 
 export type ConversationType = 'pty' | 'acp';
 
+export type InitialQueuePrompt = {
+  text: string;
+  hiddenContext?: string;
+};
+
 export type Conversation = {
   id: string;
   projectId: string;
@@ -24,6 +29,8 @@ export type Conversation = {
   sessionId?: string;
   /** Model to pass to the agent CLI. Absent or empty string means use the CLI default. */
   model?: string;
+  /** Initial queued prompts to deliver on first ACP spawn. Only present before sessionId is set. */
+  initialQueue?: InitialQueuePrompt[];
   isInitialConversation: boolean | null;
   agentStatus?: AgentStatus | null;
   agentStatusSeen?: boolean;
@@ -48,6 +55,7 @@ export type CreateConversationParams = {
   isInitialConversation?: boolean;
   initialSize?: { cols: number; rows: number };
   initialPrompt?: string;
+  initialQueue?: InitialQueuePrompt[];
   /** Transport type: 'pty' (default) uses the terminal/PTY path; 'acp' uses the Agent Client Protocol. */
   type?: ConversationType;
 };

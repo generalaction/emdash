@@ -49,18 +49,6 @@ export interface SplitButtonProps {
   className?: string;
 }
 
-// ── Tone dot ──────────────────────────────────────────────────────────────────
-
-const TONE_DOT_CLASS: Record<SplitButtonOptionTone, string> = {
-  neutral: styles.toneDotNeutral,
-  accept: styles.toneDotAccept,
-  reject: styles.toneDotReject,
-};
-
-function ToneDot({ tone = 'neutral' }: { tone?: SplitButtonOptionTone }) {
-  return <span aria-hidden className={TONE_DOT_CLASS[tone]} />;
-}
-
 // ── SplitButton ───────────────────────────────────────────────────────────────
 
 export function SplitButton({
@@ -91,11 +79,12 @@ export function SplitButton({
         tone={tone}
         disabled={disabled}
         className={styles.splitButtonFace}
+        title={selectedOption?.label}
         onClick={() => {
           if (selectedOption) onAction(selectedOption.id);
         }}
       >
-        {selectedOption?.label ?? ''}
+        <span className={styles.splitButtonLabel}>{selectedOption?.label ?? ''}</span>
       </Button>
 
       {/* Chevron trigger — opens the option menu */}
@@ -113,9 +102,12 @@ export function SplitButton({
         </DropdownMenu.Trigger>
         <DropdownMenu.Content align="end" sideOffset={4}>
           {options.map((option) => (
-            <DropdownMenu.Item key={option.id} onClick={() => handleMenuSelect(option)}>
-              <ToneDot tone={option.tone} />
-              {option.label}
+            <DropdownMenu.Item
+              key={option.id}
+              title={option.label}
+              onClick={() => handleMenuSelect(option)}
+            >
+              <span className={styles.splitButtonMenuLabel}>{option.label}</span>
             </DropdownMenu.Item>
           ))}
         </DropdownMenu.Content>

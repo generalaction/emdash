@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
-import type { InitialConversationState } from '@renderer/features/tasks/conversations/initial-conversation-section';
 import type { WorkspaceConfigState } from '@renderer/features/tasks/create-task-modal/use-workspace-config';
+import type { InitialConversationState } from '@renderer/features/tasks/task-config/initial-conversation-section';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 
 export type TaskStateContextValue = {

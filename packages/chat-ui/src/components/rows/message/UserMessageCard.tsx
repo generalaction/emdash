@@ -9,8 +9,8 @@ import { layoutBlockStack } from '@core/layout/block-stack';
 import { blockPlainText } from '@core/markdown/plain-text';
 import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
-import { For, Show, createMemo } from 'solid-js';
-import type { ChatMessage } from '@/model';
+import { For, Show, createMemo, createResource } from 'solid-js';
+import type { ChatImageAttachment, ChatMessage } from '@/model';
 import { attachStripHeight, type MessageVars, userInnerWidth } from './metrics';
 import { srOnly } from './message.css';
 import {
@@ -107,32 +107,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
       <Show when={props.data.attachments?.length}>
         <div class={attachmentStrip}>
           <For each={props.data.attachments}>
-            {(att) => (
-              <Show
-                when={att.dataUrl}
-                fallback={
-                  <div title={att.name} class={attachPlaceholder}>
-                    <ImageOffIcon />
-                  </div>
-                }
-              >
-                <button
-                  type="button"
-                  class={attachThumbBtn}
-                  aria-label={`View image: ${att.name}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    commands().onViewImage?.({
-                      attachment: att,
-                      itemId: props.data.id,
-                      source: 'user-message',
-                    });
-                  }}
-                >
-                  <img src={att.dataUrl} alt={att.name} class={attachThumb} />
-                </button>
-              </Show>
-            )}
+            {(att) => <AttachmentThumb attachment={att} itemId={props.data.id} />}
           </For>
         </div>
       </Show>
@@ -154,6 +129,44 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
         </button>
       </Show>
     </div>
+  );
+}
+
+function AttachmentThumb(props: { attachment: ChatImageAttachment; itemId: string }) {
+  const commands = useCommands();
+  const [resolvedDataUrl] = createResource(
+    () => (props.attachment.dataUrl ? null : props.attachment.id),
+    async () => commands().resolveAttachment?.(props.attachment) ?? null
+  );
+  const dataUrl = () => props.attachment.dataUrl ?? resolvedDataUrl() ?? undefined;
+
+  return (
+    <Show
+      when={dataUrl()}
+      fallback={
+        <div title={props.attachment.name} class={attachPlaceholder}>
+          <ImageOffIcon />
+        </div>
+      }
+    >
+      {(src) => (
+        <button
+          type="button"
+          class={attachThumbBtn}
+          aria-label={`View image: ${props.attachment.name}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            commands().onViewImage?.({
+              attachment: { ...props.attachment, dataUrl: src() },
+              itemId: props.itemId,
+              source: 'user-message',
+            });
+          }}
+        >
+          <img src={src()} alt={props.attachment.name} class={attachThumb} />
+        </button>
+      )}
+    </Show>
   );
 }
 

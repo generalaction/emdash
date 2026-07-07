@@ -1,8 +1,8 @@
 import { observer } from 'mobx-react-lite';
-import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
-import { CLISpinner } from '@renderer/features/tasks/components/cliSpinner';
 import { taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
 import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
+import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
+import { CLISpinner } from '@renderer/lib/components/cliSpinner';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';

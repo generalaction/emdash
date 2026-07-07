@@ -14,6 +14,43 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
+    models: {
+      kind: 'selectable',
+      modelOptions: {
+        'Gemini 3.5 Flash (Medium)': {
+          name: 'Gemini 3.5 Flash (Medium)',
+          modelFeatures: { intelligence: 3, speed: 4 },
+        },
+        'Gemini 3.5 Flash (High)': {
+          name: 'Gemini 3.5 Flash (High)',
+          modelFeatures: { intelligence: 4, speed: 3 },
+        },
+        'Gemini 3.5 Flash (Low)': {
+          name: 'Gemini 3.5 Flash (Low)',
+          modelFeatures: { intelligence: 2, speed: 5 },
+        },
+        'Gemini 3.1 Pro (Low)': {
+          name: 'Gemini 3.1 Pro (Low)',
+          modelFeatures: { intelligence: 4, speed: 3 },
+        },
+        'Gemini 3.1 Pro (High)': {
+          name: 'Gemini 3.1 Pro (High)',
+          modelFeatures: { intelligence: 5, speed: 2 },
+        },
+        'Claude Sonnet 4.6 (Thinking)': {
+          name: 'Claude Sonnet 4.6 (Thinking)',
+          modelFeatures: { intelligence: 4, speed: 3 },
+        },
+        'Claude Opus 4.6 (Thinking)': {
+          name: 'Claude Opus 4.6 (Thinking)',
+          modelFeatures: { intelligence: 5, speed: 2 },
+        },
+        'GPT-OSS 120B (Medium)': {
+          name: 'GPT-OSS 120B (Medium)',
+          modelFeatures: { intelligence: 3, speed: 3 },
+        },
+      },
+    },
     hostDependency: {
       id: 'antigravity',
       binaryNames: ['agy', 'antigravity'],
@@ -60,6 +97,7 @@ export const provider = registerPluginBehavior(plugin, {
         initialPromptFlag: '-i',
         sessionIdFlag: '--conversation=',
         sessionIdAlways: true,
+        modelFlag: '--model',
       }),
   },
 });

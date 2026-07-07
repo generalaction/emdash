@@ -1,9 +1,9 @@
+import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
 import type { TabPersistenceAdapter } from '@renderer/features/tabs/persistence';
 import { rpc } from '@renderer/lib/ipc';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { TabDescriptor, TabGroupsSnapshot, TaskViewSnapshot } from '@shared/view-state';
-import type { TaskTabContext } from './task-tab-context';
 import { resolveWorkspacePath } from './workspace-path';
 
 /**

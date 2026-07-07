@@ -1,5 +1,5 @@
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
-import { definePluginCapability } from '../../../lib/plugins/capability';
 
 export const modelOptionSchema = z.object({
   name: z.string(),

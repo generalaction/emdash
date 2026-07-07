@@ -21,7 +21,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'plugin',
       scope: 'workspace',
-      supportedEvents: ['stop'],
+      supportedEvents: ['session', 'stop'],
     },
     hostDependency: npmDependency({
       id: 'pi',
@@ -48,7 +48,9 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         initialPromptFlag: '',
-        resumeFlag: '-c',
+        resumeFlag: '--session',
+        sessionIdFlag: '--session',
+        sessionIdOnResumeOnly: true,
       }),
   },
   plugins: createFileDropPlugin({ relativePath: PI_EXTENSION_PATH, content: PI_EXTENSION_CONTENT }),

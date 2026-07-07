@@ -32,7 +32,17 @@ export interface MentionItem {
   icon?: ReactNode;
   /** Optional secondary description shown in the popup row. */
   description?: string;
+  /** When provided, selecting this item inserts raw text instead of a mention node. */
+  insertText?: string;
+  /** Host-controlled resolving state for mention pills. Not included in plain-text serialization. */
+  pending?: boolean;
 }
+
+export type RenderMentionIcon = (attrs: {
+  id: string;
+  label: string;
+  kind: MentionKind;
+}) => ReactNode | null;
 
 // ── Context mention provider ──────────────────────────────────────────────────
 
@@ -49,8 +59,12 @@ export interface ContextMentionProvider {
 
 // ── Command items (/ trigger) ─────────────────────────────────────────────────
 
-/** 'insert' → insert a /token node into the doc; 'execute' → run a side-effect and clear the trigger. */
-export type CommandBehavior = 'insert' | 'execute';
+/**
+ * 'insert' → insert a /token node into the doc.
+ * 'insert-text' → insert raw text into the doc.
+ * 'execute' → run a side-effect and clear the trigger.
+ */
+export type CommandBehavior = 'insert' | 'insert-text' | 'execute';
 
 export interface CommandItem {
   id: string;
@@ -60,6 +74,10 @@ export interface CommandItem {
   label?: string;
   description?: string;
   behavior: CommandBehavior;
+  /** Raw text inserted for behavior='insert-text'. */
+  insertText?: string;
+  /** Optional visual grouping label in the slash command popup. */
+  section?: string;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -71,8 +89,16 @@ export interface PromptEditorRef {
   clear(): void;
   /** Read the current serialized plain text. */
   getText(): string;
+  /** Replace the editor contents with serialized plain text. */
+  setText(text: string): void;
   /** Imperatively insert a mention node at the current cursor position. */
   insertMention(item: MentionItem): void;
+  /** Ensure a mention node exists at the start of the editor, replacing duplicates. */
+  prependMention(item: MentionItem): void;
+  /** Remove all mention nodes with the given id. */
+  removeMention(id: string): void;
+  /** Update the pending state for mention nodes with the given id. */
+  setMentionPending(id: string, pending: boolean): void;
 }
 
 export interface PromptEditorProps {
@@ -84,12 +110,19 @@ export interface PromptEditorProps {
   onChange?: (text: string) => void;
   /** Called when the user submits (Enter with no open suggestion). */
   onSubmit?: (text: string) => void;
+  /** Called after a mention node is inserted. Raw insertText entries do not trigger this. */
+  onMentionInsert?: (item: MentionItem) => void;
   /**
    * Preferred: typed provider for @ mention suggestions.
    * When both `mentionProvider` and `queryMentions` are provided,
    * `mentionProvider` takes precedence.
    */
   mentionProvider?: ContextMentionProvider;
+  /**
+   * Optional host renderer for mention pill icons. Used when the host owns
+   * provider-specific assets that this package cannot import directly.
+   */
+  renderMentionIcon?: RenderMentionIcon;
   /**
    * Legacy: async callback that returns @ mention suggestions.
    * Kept for back-compat; prefer `mentionProvider` for new integrations.

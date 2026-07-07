@@ -16,20 +16,9 @@ import type { RenderCtx } from '@core/define';
 import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import type { JSX } from 'solid-js';
-import { Show } from 'solid-js';
 import { clipTrackedHeight } from './card-clip';
-import { IconError } from './icons';
-import {
-  cardChevron,
-  cardChevronExpanded,
-  cardHeader,
-  collapsibleCard,
-  collapsibleCardVars,
-} from './collapsible-card.css';
-import { textShimmer } from '@styles/effects.css';
-import { vars } from '@styles/theme.css';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
+import { CardHeader } from './CardHeader';
+import { collapsibleCard, collapsibleCardVars } from './collapsible-card.css';
 
 export type CollapsibleCardProps = {
   /** Item id wired to data-collapse-id for ChatRoot click delegation. */
@@ -49,6 +38,12 @@ export type CollapsibleCardProps = {
   active?: boolean;
   /** When true, renders the error icon on the far right of the header. */
   error?: boolean;
+  /** Native tooltip shown when hovering the error icon. */
+  errorTitle?: string;
+  /** When true, renders the awaiting-permission icon in the right-side status slot. */
+  awaitingPermission?: boolean;
+  /** Leading icon shown until the header row is hovered. */
+  icon: JSX.Element;
   /** Header label content (left side of the header). */
   header: JSX.Element;
   /** Optional right-aligned content beside the error icon. */
@@ -56,8 +51,6 @@ export type CollapsibleCardProps = {
   /** Card body — rendered below the header inside the clipped shell. */
   children: JSX.Element;
 };
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 export function CollapsibleCard(props: CollapsibleCardProps) {
   // Single source of truth for the bottom-border fix: during a tween, prefer
@@ -69,32 +62,18 @@ export function CollapsibleCard(props: CollapsibleCardProps) {
       class={collapsibleCard}
       style={assignInlineVars(collapsibleCardVars, pxTokens({ height: cardH() }))}
     >
-      <div
-        class={cardHeader}
-        style={{ height: `${props.headerH}px` }}
-        role="button"
-        aria-expanded={props.expanded ? 'true' : 'false'}
-        data-collapse-id={props.id}
-      >
-        <span style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
-          <span classList={{ [textShimmer]: !!props.active }}>{props.header}</span>
-          <span
-            class={cardChevron}
-            classList={{ [cardChevronExpanded]: props.expanded }}
-            aria-hidden="true"
-          >
-            ›
-          </span>
-        </span>
-        <span style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
-          {props.headerRight}
-          <Show when={props.error}>
-            <span style={{ display: 'flex', color: vars.fgError }} aria-label="error">
-              <IconError />
-            </span>
-          </Show>
-        </span>
-      </div>
+      <CardHeader
+        id={props.id}
+        height={props.headerH}
+        expanded={props.expanded}
+        icon={props.icon}
+        title={props.header}
+        active={props.active}
+        error={props.error}
+        errorTitle={props.errorTitle}
+        awaitingPermission={props.awaitingPermission}
+        right={props.headerRight}
+      />
       {props.children}
     </div>
   );

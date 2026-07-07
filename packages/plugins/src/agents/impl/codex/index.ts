@@ -35,17 +35,20 @@ export const plugin = definePlugin(
     models: {
       kind: 'selectable',
       modelOptions: {
-        'codex-mini-latest': {
-          name: 'Codex Mini',
-          modelFeatures: { intelligence: 3, speed: 5 },
+        'gpt-5.5': {
+          name: 'GPT-5.5',
+          description: 'Recommended Codex model for complex coding and agentic workflows.',
+          modelFeatures: { intelligence: 5, speed: 3 },
         },
-        'o4-mini': {
-          name: 'o4-mini',
-          modelFeatures: { intelligence: 4, speed: 4 },
+        'gpt-5.4-mini': {
+          name: 'GPT-5.4 Mini',
+          description: 'Faster Codex model for lighter coding tasks and subagents.',
+          modelFeatures: { intelligence: 4, speed: 5 },
         },
-        o3: {
-          name: 'o3',
-          modelFeatures: { intelligence: 5, speed: 2 },
+        'gpt-5.3-codex-spark': {
+          name: 'GPT-5.3 Codex Spark',
+          description: 'Research-preview Codex model optimized for near-instant iteration.',
+          modelFeatures: { intelligence: 2, speed: 5 },
         },
       },
     },

@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
@@ -13,7 +13,7 @@ export const band = style({
   paddingRight: '0.75rem',
   paddingTop: '0.5rem',
   paddingBottom: '0.5rem',
-  backgroundColor: vars.surface,
+  backgroundColor: `var(--composer-bg, ${vars.surfaceBaseEmphasis})`,
   color: vars.foreground,
   fontSize: tokenVars.textXs,
 });
@@ -27,6 +27,11 @@ export const bandIcon = style({
 
 export const bandLabel = style({
   flex: 1,
+  minWidth: 0,
+  display: '-webkit-box',
+  overflow: 'hidden',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 2,
   lineHeight: 1.375,
   color: vars.foregroundMuted,
 });
@@ -39,4 +44,29 @@ export const bandLabelStrong = style({
 export const bandCounter = style({
   marginLeft: '0.375rem',
   opacity: 0.6,
+});
+
+export const bandAction = style({
+  flexShrink: 0,
+});
+
+globalStyle(`${bandAction} button`, {
+  backgroundColor: vars.surfaceElevated,
+  color: vars.foreground,
+  borderColor: `color-mix(in srgb, ${vars.foreground} 12%, transparent)`,
+});
+
+globalStyle(`${bandAction} button:hover`, {
+  backgroundColor: vars.surfaceElevatedHover,
+  color: vars.foreground,
+});
+
+globalStyle(`${bandAction} button[aria-expanded="true"]`, {
+  backgroundColor: vars.surfaceElevatedSelected,
+  color: vars.foreground,
+});
+
+globalStyle(`${bandAction} button[data-popup-open]`, {
+  backgroundColor: vars.surfaceElevatedSelected,
+  color: vars.foreground,
 });

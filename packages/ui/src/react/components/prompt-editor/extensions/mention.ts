@@ -1,7 +1,7 @@
 /**
  * @ mention extension.
  *
- * Produces atomic inline `mention` nodes with attrs { id, label, name, kind }.
+ * Produces atomic inline `mention` nodes with attrs { id, label, name, kind, pending }.
  *  - `id`    – stable identifier (e.g. file path).
  *  - `label` – full-path text serialized as `@label` in clipboard/plain text.
  *  - `name`  – short display name shown inside the pill (basename by default).
@@ -16,16 +16,19 @@
  */
 
 import { Mention as TipTapMention } from '@tiptap/extension-mention';
+import type { NodeViewProps } from '@tiptap/react';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import type { SuggestionOptions } from '@tiptap/suggestion';
+import React from 'react';
 import { MentionPill } from '../mention-pill';
 import { serializeMentionLabel } from '../serialize';
-import type { MentionItem } from '../types';
+import type { MentionItem, RenderMentionIcon } from '../types';
 
 export function buildMentionExtension(
   // Omit the Selected generic (defaults to TipTap's internal type) so our richer
   // MentionItem attrs don't conflict with TipTap's narrower built-in MentionNodeAttrs type.
-  suggestion: Partial<SuggestionOptions<MentionItem>>
+  suggestion: Partial<SuggestionOptions<MentionItem>>,
+  options: { renderMentionIcon?: RenderMentionIcon } = {}
 ) {
   return TipTapMention.extend({
     name: 'mention',
@@ -38,10 +41,18 @@ export function buildMentionExtension(
         label: { default: null },
         name: { default: null },
         kind: { default: 'custom' },
+        pending: { default: false },
       };
     },
     addNodeView() {
-      return ReactNodeViewRenderer(MentionPill, { as: 'span' });
+      return ReactNodeViewRenderer(
+        (props: NodeViewProps) =>
+          React.createElement(MentionPill, {
+            ...props,
+            renderMentionIcon: options.renderMentionIcon,
+          }),
+        { as: 'span' }
+      );
     },
   }).configure({
     HTMLAttributes: { class: 'mention-chip' },

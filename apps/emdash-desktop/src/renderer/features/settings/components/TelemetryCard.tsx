@@ -1,3 +1,4 @@
+import { ArrowUpRight } from 'lucide-react';
 import React from 'react';
 import { useTelemetryConsent } from '@renderer/lib/hooks/useTelemetryConsent';
 import { rpc } from '@renderer/lib/ipc';
@@ -28,9 +29,7 @@ const TelemetryCard: React.FC = () => {
               <span className="transition-colors group-hover:text-foreground">
                 Telemetry information
               </span>
-              <span className="text-muted-foreground text-sm transition-colors group-hover:text-foreground">
-                ↗
-              </span>
+              <ArrowUpRight className="text-muted-foreground size-3.5 transition-colors transition-transform duration-200 group-hover:translate-x-px group-hover:-translate-y-px group-hover:text-foreground" />
             </Button>
             <span> for details.</span>
           </p>

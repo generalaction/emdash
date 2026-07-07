@@ -62,7 +62,7 @@ async function insertRemoteWorkspace(db: AppDb): Promise<void> {
   });
 }
 
-describe('sshController.deleteConnection', () => {
+describe('sshController', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
 
   beforeEach(async () => {
@@ -78,6 +78,39 @@ describe('sshController.deleteConnection', () => {
   afterEach(() => {
     fixture.close();
     mocks.db = undefined;
+  });
+
+  it('rejects duplicate connection names with a user-facing error', async () => {
+    await insertSshConnection(fixture.db);
+
+    await expect(
+      sshController.saveConnection({
+        name: 'Existing SSH',
+        host: 'other.example.com',
+        port: 22,
+        username: 'jona',
+        authType: 'agent',
+        useAgent: true,
+      })
+    ).rejects.toThrow(
+      'An SSH connection named “Existing SSH” already exists. Choose a different name.'
+    );
+  });
+
+  it('allows saving an existing connection without renaming it', async () => {
+    await insertSshConnection(fixture.db);
+
+    await expect(
+      sshController.saveConnection({
+        id: 'ssh-1',
+        name: 'Existing SSH',
+        host: 'example.org',
+        port: 22,
+        username: 'jona',
+        authType: 'agent',
+        useAgent: true,
+      })
+    ).resolves.toMatchObject({ id: 'ssh-1', name: 'Existing SSH', host: 'example.org' });
   });
 
   it('deletes an unused connection even when an orphan workspace still references it', async () => {

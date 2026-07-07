@@ -3,6 +3,24 @@ import { type IpcMain } from 'electron';
 // oxlint-disable-next-line typescript/no-explicit-any
 type ProcedureMap = Record<string, (...args: any[]) => unknown>;
 
+const senderHandlerSymbol = Symbol.for('emdash.rpc.senderHandler');
+
+type SenderAwareHandler<TArgs extends unknown[], TReturn> = ((...args: TArgs) => TReturn) & {
+  [senderHandlerSymbol]: (senderId: number, ...args: TArgs) => TReturn;
+};
+
+export function withSender<TArgs extends unknown[], TReturn>(
+  handler: (senderId: number, ...args: TArgs) => TReturn
+): (...args: TArgs) => TReturn {
+  const publicHandler = (() => {
+    throw new Error('Sender-aware RPC handlers can only be invoked through IPC');
+  }) as unknown as SenderAwareHandler<TArgs, TReturn>;
+  Object.defineProperty(publicHandler, senderHandlerSymbol, {
+    value: handler,
+  });
+  return publicHandler;
+}
+
 export function createRPCController<T extends ProcedureMap>(handlers: T): T {
   return handlers;
 }
@@ -26,9 +44,13 @@ export function createRPCRouter<T extends RouterMap>(routers: T): T {
 // ipcMain at its full dot-joined path (e.g. "git.commit", "git.worktree.commit").
 function registerHandlers(ipcMain: IpcMain, prefix: string, value: unknown): void {
   if (typeof value === 'function') {
-    ipcMain.handle(prefix, (_event, ...args: unknown[]) =>
-      (value as (...a: unknown[]) => unknown)(...args)
-    );
+    ipcMain.handle(prefix, (event, ...args: unknown[]) => {
+      const senderHandler = (value as Partial<SenderAwareHandler<unknown[], unknown>>)[
+        senderHandlerSymbol
+      ];
+      if (senderHandler) return senderHandler(event.sender.id, ...args);
+      return (value as (...a: unknown[]) => unknown)(...args);
+    });
   } else if (value !== null && typeof value === 'object') {
     for (const [key, child] of Object.entries(value)) {
       registerHandlers(ipcMain, `${prefix}.${key}`, child);

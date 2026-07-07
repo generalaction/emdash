@@ -8,6 +8,27 @@
 
 import type { ChatImageAttachment } from './model';
 
+export type ChatViewCommandId = 'chat.scrollToTop' | 'chat.scrollToBottom';
+
+export type ChatViewCommand = {
+  id: ChatViewCommandId;
+  label: string;
+  defaultKeybinding?: string;
+};
+
+export const CHAT_VIEW_COMMANDS = [
+  {
+    id: 'chat.scrollToTop',
+    label: 'Scroll to top',
+    defaultKeybinding: 'Mod+ArrowUp',
+  },
+  {
+    id: 'chat.scrollToBottom',
+    label: 'Scroll to bottom',
+    defaultKeybinding: 'Mod+ArrowDown',
+  },
+] as const satisfies readonly ChatViewCommand[];
+
 /**
  * Typed callbacks that host apps inject to respond to user actions inside the
  * chat transcript. Pass via `createChatView({ commands })` or update later
@@ -33,6 +54,12 @@ export type ChatCommands = {
     itemId: string;
     source: 'user-message';
   }) => void;
+
+  /**
+   * Resolve an attachment id to a displayable data URL. Used for committed
+   * messages whose transcript stores attachment metadata but not bytes.
+   */
+  resolveAttachment?: (attachment: { id: string; name: string }) => Promise<string | null>;
 
   /**
    * Called when the user clicks the stop button on the current user message

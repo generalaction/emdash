@@ -25,7 +25,7 @@ function CmdShortcut({
   if (!shortcut) return null;
   if (typeof shortcut === 'function') {
     const raw = shortcut();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     const parsed = raw ? (parseHotkey(raw, _PLATFORM) as any) : null;
     return parsed ? <Shortcut hotkey={parsed} className="ml-auto" /> : null;
   }
@@ -82,7 +82,7 @@ export const TabContextMenu = observer(function TabContextMenu({
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger>{children}</ContextMenuTrigger>
+      <ContextMenuTrigger className="flex h-full">{children}</ContextMenuTrigger>
       <ContextMenuContent finalFocus={false}>
         {visibleEngine.map((cmd) => (
           <ContextMenuItem key={cmd.id} onClick={() => void cmd.run()}>

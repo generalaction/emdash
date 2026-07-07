@@ -1,18 +1,18 @@
 import { ROW_H } from '@components/engine/row-metrics';
 import { CollapsibleCard } from '@components/primitives/CollapsibleCard';
+import { IconPlanList } from '@components/primitives/icons';
 import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import type { StackLayout } from '@core/compose';
 import { type Measured, type MeasureCtx, type RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
+import type { SegmentCtx } from '@core/units';
 import { defineUnit } from '@core/units';
 import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
-import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '@/model';
+import type { ChatPlan, PlanEntryPriority, PlanEntryStatus, ToolNode } from '@/model';
 import { PlanList } from './Plan';
 import { planVars, type PlanStyleVars } from './plan.css';
-
-// ── vars type ─────────────────────────────────────────────────────────────────
 
 export type PlanVars = {
   /** Fixed height (px) of the plan header row. */
@@ -33,7 +33,18 @@ export type PlanVars = {
   windowH: number;
 };
 
-// ── Layout type ───────────────────────────────────────────────────────────────
+export function planFromItem(
+  item: Extract<ToolNode, { kind: 'create-plan-tool-call' }>,
+  ctx: SegmentCtx
+): ChatPlan {
+  const plan = ctx.plan();
+  return {
+    kind: 'plan',
+    id: item.id,
+    entries: plan?.entries ?? [],
+    streaming: item.status === 'running',
+  };
+}
 
 export type PlanEntryLaid = {
   /** Pre-measured block stack for this entry's content. */
@@ -41,8 +52,6 @@ export type PlanEntryLaid = {
   status: PlanEntryStatus;
   priority: PlanEntryPriority;
 };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Total horizontal chrome: 2*padX + 2*border. */
 function chromeX(vars: PlanVars): number {
@@ -74,8 +83,6 @@ function listHeight(entries: PlanEntryLaid[], vars: PlanVars): number {
   const gaps = entries.length > 1 ? (entries.length - 1) * vars.entryGap : 0;
   return totalEntryH + gaps + 2 * vars.padY;
 }
-
-// ── UnitDef ───────────────────────────────────────────────────────────────────
 
 function planMeasure(item: ChatPlan, ctx: MeasureCtx, vars: PlanVars): number {
   const headerH = vars.rowH;
@@ -129,6 +136,7 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
         headerH={props.vars.rowH}
         expanded={isExpanded()}
         active={active()}
+        icon={<IconPlanList />}
         header={
           <>
             Plan {done()} out of {total()} Tasks done

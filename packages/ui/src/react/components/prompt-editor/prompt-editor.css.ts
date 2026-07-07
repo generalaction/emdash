@@ -20,6 +20,7 @@ export const editorPlaceholder = style({
   top: 0,
   left: 0,
   fontSize: tokenVars.textSm,
+  lineHeight: 1.4,
   userSelect: 'none',
   color: vars.foregroundPassive,
 });
@@ -28,6 +29,7 @@ export const editorPlaceholder = style({
 export const promptEditorContentClass = style({
   outline: 'none',
   fontSize: tokenVars.textSm,
+  lineHeight: 1.4,
   color: vars.foreground,
-  minHeight: '36px',
+  minHeight: '1.25rem',
 });

@@ -13,7 +13,10 @@ taskService.on('task:created', (task, params) => {
   })();
   telemetryService.capture('task_created', {
     strategy: taskCreatedStrategy,
-    has_initial_prompt: Boolean(initialConversation?.initialPrompt?.trim()),
+    has_initial_prompt: Boolean(
+      initialConversation?.initialPrompt?.trim() ||
+      initialConversation?.initialQueue?.some((prompt) => prompt.text.trim())
+    ),
     has_issue: linkedIssue?.provider ?? 'none',
     provider: initialConversation?.provider ?? null,
     project_id: task.projectId,

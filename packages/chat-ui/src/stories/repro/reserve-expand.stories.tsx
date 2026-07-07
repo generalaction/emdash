@@ -28,7 +28,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { createChatContext } from '@/chat-context';
 import { createChatView } from '@/chat-view';
 import { mockMentionProvider } from '@/mock-transcript';
-import type { ChatItem } from '@/model';
+import type { ChatItem, TranscriptTurn } from '@/model';
 import { createChatState } from '@/state/chat-state';
 import { storyViewport } from '@/stories/_harness/chat-host.css';
 
@@ -53,8 +53,8 @@ Reasoning step B: evaluate trade-offs.
 Reasoning step C: select the best approach.
 `.trim();
 
-function makeShortTranscript(): ChatItem[] {
-  return [
+function makeShortTranscript(): TranscriptTurn[] {
+  const items = [
     {
       kind: 'message',
       id: 'user-1',
@@ -76,6 +76,15 @@ function makeShortTranscript(): ChatItem[] {
       text: 'Sure! I have thought through it carefully and here is my answer.',
     },
   ] satisfies ChatItem[];
+  return [
+    {
+      id: 'reserve-expand-turn',
+      seq: 0,
+      initiator: 'user',
+      items: items.map((item, seq) => ({ ...item, seq })) as TranscriptTurn['items'],
+      outcome: { kind: 'done' },
+    },
+  ];
 }
 
 // ── Story component ───────────────────────────────────────────────────────────

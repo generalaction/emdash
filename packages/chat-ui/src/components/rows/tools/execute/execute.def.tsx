@@ -1,12 +1,13 @@
 import { ROW_H } from '@components/engine/row-metrics';
 import { CollapsibleCard } from '@components/primitives/CollapsibleCard';
+import { IconTerminal } from '@components/primitives/icons';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import { defineUnit } from '@core/units';
 import { Show, createMemo } from 'solid-js';
 import type { ChatExecute } from '@/model';
-import { ExecuteBody } from './Execute';
+import { ExecuteBody, type ExecuteDisplayLine } from './Execute';
 
-// ── Vars ──────────────────────────────────────────────────────────────────────
+export { executeFromItem } from './execute.presenter';
 
 export type ExecuteVars = {
   /** Fixed height (px) of the header row. */
@@ -22,11 +23,9 @@ export type ExecuteVars = {
 const EXECUTE_VARS: ExecuteVars = {
   rowH: ROW_H,
   border: 1,
-  collapsedMaxLines: 3,
+  collapsedMaxLines: 2,
   expandedMaxLines: 16,
 };
-
-// ── Geometry ──────────────────────────────────────────────────────────────────
 
 /** 3 borders: top card edge + header-separator + bottom card edge. */
 function chromeY(vars: ExecuteVars): number {
@@ -37,8 +36,26 @@ function commandLines(command: string): string[] {
   return (command || '…').split('\n');
 }
 
+function outputLines(outputText: string | undefined): string[] {
+  if (!outputText) return [];
+  return outputText.replace(/\r\n/g, '\n').split('\n');
+}
+
+function executeLines(item: ChatExecute): ExecuteDisplayLine[] {
+  const command = commandLines(item.command).map(
+    (line, index): ExecuteDisplayLine => ({
+      kind: 'command',
+      text: `${index === 0 ? '$' : ' '} ${line}`,
+    })
+  );
+  const output = outputLines(item.outputText).map(
+    (line): ExecuteDisplayLine => ({ kind: 'output', text: line })
+  );
+  return output.length > 0 ? [...command, { kind: 'spacer', text: '' }, ...output] : command;
+}
+
 function executeBodyH(
-  lines: string[],
+  lines: ExecuteDisplayLine[],
   codeLineH: number,
   isExpanded: boolean,
   vars: ExecuteVars
@@ -52,19 +69,17 @@ function executeBodyH(
 
 function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): number {
   const isExpanded = ctx.expanded(item.id);
-  const lines = commandLines(item.command);
+  const lines = executeLines(item);
   const { bodyH } = executeBodyH(lines, ctx.theme.fonts.code.lineHeight, isExpanded, vars);
   return vars.rowH + bodyH + chromeY(vars);
 }
-
-// ── Render ────────────────────────────────────────────────────────────────────
 
 function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: ExecuteVars }) {
   const mCtx = () => props.ctx.measureCtx?.();
   // Inverted semantics: stored "collapsed" bool = "expanded".
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
 
-  const lines = createMemo(() => commandLines(props.data.command));
+  const lines = createMemo(() => executeLines(props.data));
   const codeLineH = createMemo(() => mCtx()?.theme.fonts.code.lineHeight ?? 0);
 
   const bodyGeometry = createMemo(() => {
@@ -86,9 +101,12 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
       height={totalH()}
       headerH={props.vars.rowH}
       expanded={isExpanded()}
-      active={props.data.status === 'running'}
+      active={props.data.status === 'running' && !props.data.awaitingPermission}
       error={props.data.status === 'error'}
-      header="Execute"
+      errorTitle={props.data.error}
+      awaitingPermission={props.data.awaitingPermission}
+      icon={<IconTerminal />}
+      header={props.data.inputSummary || 'Execute'}
     >
       <Show when={codeLineH() > 0}>
         <ExecuteBody
@@ -104,8 +122,6 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
   );
 }
 
-// ── UnitDef ───────────────────────────────────────────────────────────────────
-
 export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
   kind: 'execute',
   margin: { top: 2, bottom: 6 },
@@ -113,7 +129,7 @@ export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
 
   estimate(item, _ctx, vars): number {
     // O(1) cheap estimate: use collapsedMaxLines cap (default state).
-    const lines = commandLines(item.command);
+    const lines = executeLines(item);
     // Approximate code line height — use a fixed fallback of 20px for estimate.
     const approxLineH = 20;
     const { bodyH } = executeBodyH(lines, approxLineH, false, vars);

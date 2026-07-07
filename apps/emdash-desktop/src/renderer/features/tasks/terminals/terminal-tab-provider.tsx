@@ -12,13 +12,13 @@ import type {
   TabViewContext,
 } from '@renderer/features/tabs/core/tab-provider';
 import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
+import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
 import {
   GenericTabDragPreview,
   GenericTabItem,
 } from '@renderer/features/tabs/tab-bar/generic-tab-item';
 import type { PtySession } from '@renderer/lib/pty/pty-session';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import type { TaskTabContext } from '../stores/task-tab-context';
 import { terminalRegistry } from '../stores/terminal-registry';
 import type { TerminalManagerStore, TerminalStore } from './terminal-manager';
 import { TerminalPtyContent } from './terminal-pty-content';

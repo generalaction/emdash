@@ -176,6 +176,40 @@ describe('pluginRegistry', () => {
     expect(result.args).toEqual(['--always-approve', '-m', 'my-model', 'Fix the bug']);
   });
 
+  it('exposes Antigravity models and passes the selected model flag', () => {
+    const antigravity = pluginRegistry.get('antigravity')!;
+
+    expect(antigravity.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        'Gemini 3.5 Flash (Medium)': {
+          name: 'Gemini 3.5 Flash (Medium)',
+        },
+        'Claude Opus 4.6 (Thinking)': {
+          name: 'Claude Opus 4.6 (Thinking)',
+        },
+      },
+    });
+
+    const result = antigravity.behavior.prompt!.buildCommand({
+      cli: 'agy',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'Claude Opus 4.6 (Thinking)',
+    });
+
+    expect(result.args).toEqual([
+      '--conversation=conv-1',
+      '--dangerously-skip-permissions',
+      '--model',
+      'Claude Opus 4.6 (Thinking)',
+      '-i',
+      'Fix the bug',
+    ]);
+  });
+
   it('uses the current Amp npm package for install and updates', () => {
     const amp = pluginRegistry.get('amp')!;
 
@@ -210,6 +244,65 @@ describe('pluginRegistry', () => {
     });
 
     expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'deep']);
+  });
+
+  it('exposes Mistral Vibe models and passes the selected model through env', () => {
+    const mistral = pluginRegistry.get('mistral')!;
+
+    expect(mistral.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        'mistral-medium-3.5': { name: 'Mistral Medium 3.5' },
+        'devstral-small': { name: 'Devstral Small' },
+        local: { name: 'Local Devstral' },
+      },
+    });
+
+    const result = mistral.behavior.prompt!.buildCommand({
+      cli: 'vibe',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'mistral-medium-3.5',
+    });
+
+    expect(result).toEqual({
+      command: 'vibe',
+      args: ['--agent', 'auto-approve', 'Fix the bug'],
+      env: { VIBE_ACTIVE_MODEL: 'mistral-medium-3.5' },
+    });
+  });
+
+  it('resumes Pi with the stored session file instead of the latest session', () => {
+    const pi = pluginRegistry.get('pi')!;
+
+    expect(pi.capabilities.hooks.kind).toBe('plugin');
+    if (pi.capabilities.hooks.kind !== 'plugin') throw new Error('Pi hooks should be plugin hooks');
+    expect(pi.capabilities.hooks.supportedEvents).toContain('session');
+
+    const fresh = pi.behavior.prompt!.buildCommand({
+      cli: 'pi',
+      autoApprove: false,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+    expect(fresh.args).toEqual(['Fix the bug']);
+
+    const resumed = pi.behavior.prompt!.buildCommand({
+      cli: 'pi',
+      autoApprove: false,
+      sessionId: 'conv-1',
+      providerSessionId: '/Users/test/.pi/agent/sessions/project/session.jsonl',
+      isResuming: true,
+      model: '',
+    });
+    expect(resumed.args).toEqual([
+      '--session',
+      '/Users/test/.pi/agent/sessions/project/session.jsonl',
+    ]);
   });
 
   it('registers Qoder CLI install metadata and interactive command args', () => {

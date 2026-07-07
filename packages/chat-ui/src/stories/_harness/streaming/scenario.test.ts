@@ -9,7 +9,7 @@
 
 import type { TurnStatus } from '@state/transcript';
 import { describe, expect, it } from 'vitest';
-import type { ChatItem } from '@/model';
+import type { TranscriptTurn } from '@/model';
 import {
   chunkText,
   scenario,
@@ -183,25 +183,28 @@ describe('streamTool', () => {
 
 describe('streamDiff', () => {
   it('first step is a synchronous call that starts with empty newText (Stage A)', () => {
-    const sets: Array<readonly ChatItem[] | null> = [];
+    const sets: Array<TranscriptTurn | null> = [];
     const steps = streamDiff({ id: 'd1', path: 'src/a.ts', oldText: 'a', newText: 'a\nb\nc' });
     expect(steps[0].kind).toBe('call');
     if (steps[0].kind === 'call') {
       steps[0].fn({
         activeTurn: {
           get: () => null,
-          set: (items: readonly ChatItem[] | null) => sets.push(items),
-          status: (): TurnStatus => 'done',
+          set: (turn: TranscriptTurn | null) => sets.push(turn),
           commit: () => {},
         },
         history: { get: () => [], seed: () => {}, prepend: () => {}, append: () => {} },
-        state: { committed: [], activeTurn: null, turnStatus: 'done' as TurnStatus },
-        findIndexById: () => -1,
+        state: {
+          committedTurns: [],
+          activeTurnSnapshot: null,
+          turnStatus: 'done' as TurnStatus,
+        },
+        findItemById: () => undefined,
         reset: () => {},
       });
     }
     // The first set call should produce a diff_start item with empty newText.
-    expect(sets[0]?.[0]).toMatchObject({ kind: 'diff', path: 'src/a.ts', newText: '' });
+    expect(sets[0]?.items[0]).toMatchObject({ kind: 'diff', path: 'src/a.ts', newText: '' });
   });
 
   it('every post-init call is preceded by a wait', () => {
@@ -213,23 +216,26 @@ describe('streamDiff', () => {
   });
 
   it('last step flips status to the final status (Stage C)', () => {
-    const sets: Array<readonly ChatItem[] | null> = [];
+    const sets: Array<TranscriptTurn | null> = [];
     // First seed the diff_start into state so the last update has something to patch.
-    let currentItems: readonly ChatItem[] | null = null;
+    let currentTurn: TranscriptTurn | null = null;
     const steps = streamDiff({ id: 'd1', path: 'src/a.ts', oldText: null, newText: 'x' });
     const mockApi = {
       activeTurn: {
-        get: () => currentItems,
-        set: (items: readonly ChatItem[] | null) => {
-          currentItems = items;
-          sets.push(items);
+        get: () => currentTurn,
+        set: (turn: TranscriptTurn | null) => {
+          currentTurn = turn;
+          sets.push(turn);
         },
-        status: (): TurnStatus => 'done',
         commit: () => {},
       },
       history: { get: () => [], seed: () => {}, prepend: () => {}, append: () => {} },
-      state: { committed: [], activeTurn: null, turnStatus: 'done' as TurnStatus },
-      findIndexById: () => -1,
+      state: {
+        committedTurns: [],
+        activeTurnSnapshot: null,
+        turnStatus: 'done' as TurnStatus,
+      },
+      findItemById: () => undefined,
       reset: () => {},
     };
     // Run all steps to build up state.
@@ -238,7 +244,7 @@ describe('streamDiff', () => {
     }
     // The last set should contain a diff item with status 'done'.
     const lastSet = sets[sets.length - 1];
-    expect(lastSet?.[0]).toMatchObject({ kind: 'diff', status: 'done' });
+    expect(lastSet?.items[0]).toMatchObject({ kind: 'diff', status: 'done' });
   });
 
   it('step count: 1 (start) + 2*lines (content) + 2 (final wait+settle)', () => {

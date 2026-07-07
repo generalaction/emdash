@@ -1,50 +1,40 @@
 import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const splitButtonRoot = style({
   display: 'inline-flex',
+  flexShrink: 0,
   alignItems: 'stretch',
-});
-
-/** Tone dot indicator before option labels. */
-export const toneDotNeutral = style({
-  display: 'inline-block',
-  width: '0.375rem',
-  height: '0.375rem',
-  flexShrink: 0,
-  borderRadius: tokenVars.radiusFull,
-  backgroundColor: vars.foregroundMuted,
-});
-
-export const toneDotAccept = style({
-  display: 'inline-block',
-  width: '0.375rem',
-  height: '0.375rem',
-  flexShrink: 0,
-  borderRadius: tokenVars.radiusFull,
-  backgroundColor: 'var(--color-success, #22c55e)',
-});
-
-export const toneDotReject = style({
-  display: 'inline-block',
-  width: '0.375rem',
-  height: '0.375rem',
-  flexShrink: 0,
-  borderRadius: tokenVars.radiusFull,
-  backgroundColor: vars.foregroundDestructive,
 });
 
 /** Primary face: right side rounded corners removed to butt against chevron. */
 export const splitButtonFace = style({
+  minWidth: 0,
+  maxWidth: 'min(16rem, 40vw)',
+  overflow: 'hidden',
   borderTopRightRadius: 0,
   borderBottomRightRadius: 0,
   paddingRight: '0.5rem',
   paddingLeft: '0.75rem',
 });
 
+export const splitButtonLabel = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
+export const splitButtonMenuLabel = style({
+  minWidth: 0,
+  maxWidth: 'min(28rem, 70vw)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
 /** Chevron face: left side rounded corners removed to butt against primary face. */
 export const splitButtonChevronFace = style({
+  flexShrink: 0,
   borderTopLeftRadius: 0,
   borderBottomLeftRadius: 0,
 });

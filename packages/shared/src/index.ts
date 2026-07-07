@@ -14,6 +14,7 @@ export {
   ok,
   orElse,
   Result,
+  resultSchema,
   sequence,
   sequenceAll,
   tap,

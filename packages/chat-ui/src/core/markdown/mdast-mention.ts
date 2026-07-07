@@ -23,6 +23,8 @@ export interface MdastMention extends Node {
   mentionKind?: MentionKind;
   /** Optional devicon CSS class for the pill icon. */
   iconClass?: string;
+  /** Optional host icon image URL for the pill icon. */
+  iconUrl?: string;
   /** Tone override — 'command' for slash chips, 'math' for inline math. */
   tone?: string;
 }

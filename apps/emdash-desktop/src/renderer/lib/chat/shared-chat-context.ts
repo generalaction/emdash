@@ -1,8 +1,10 @@
 import { createChatContext, type ChatContext } from '@emdash/chat-ui';
+import { rpc } from '@renderer/lib/ipc';
 import { advertisedCommandProvider } from './advertised-command-provider';
-import { workspaceFileMentionProvider } from './workspace-file-mention-provider';
+import { chatMentionProvider, registerIssueMentionIcons } from './chat-mention-provider';
 
 let shared: ChatContext | null = null;
+let didPreloadIssueMentionIcons = false;
 
 /**
  * Create the process-long ChatContext. Call once from the renderer bootstrap
@@ -14,8 +16,9 @@ let shared: ChatContext | null = null;
  */
 export function initSharedChatContext(): ChatContext {
   if (!shared) {
+    preloadIssueMentionIcons();
     shared = createChatContext({
-      mentionProvider: workspaceFileMentionProvider,
+      mentionProvider: chatMentionProvider,
       commandProvider: advertisedCommandProvider,
     });
   }
@@ -28,4 +31,15 @@ export function initSharedChatContext(): ChatContext {
  */
 export function getSharedChatContext(): ChatContext {
   return shared ?? initSharedChatContext();
+}
+
+function preloadIssueMentionIcons(): void {
+  if (didPreloadIssueMentionIcons) return;
+  didPreloadIssueMentionIcons = true;
+  void rpc.integrations
+    .list()
+    .then(registerIssueMentionIcons)
+    .catch(() => {
+      // IntegrationsProvider also refreshes the registry after React mounts.
+    });
 }

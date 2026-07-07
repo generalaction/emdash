@@ -49,3 +49,67 @@ export type { ListViewSection, VirtualListProps, VirtualListHandle } from './vir
 export type { RowProps, SectionHeaderProps } from './list-row';
 export type { FilterPillProps, FilterButtonProps } from './filter-pill';
 export type { ListSelectionState } from './use-list-selection';
+
+// ── Pure primitives ───────────────────────────────────────────────────────────
+
+export { matchesQuery, createTextMatcher } from './matching';
+export type { TextMatcherOptions } from './matching';
+
+export {
+  compareStrings,
+  compareNumbers,
+  compareDates,
+  byField,
+  chainComparators,
+} from './comparators';
+export type { Comparator } from './comparators';
+
+export { useClientListFilter } from './use-client-list-filter';
+export type { ClientListFilterOptions } from './use-client-list-filter';
+
+// ── Headless state factory (createListView) ───────────────────────────────────
+
+export { createListView } from './core/create-list-view';
+export type {
+  ListViewApi,
+  ListProps,
+  StaticListProps,
+  VirtualizationOptions,
+} from './core/create-list-view';
+
+export { ListViewStore } from './core/list-view-store';
+
+export {
+  defineSearch,
+  defineFilter,
+  defineSort,
+  definePagination,
+  defineSelection,
+  defineRename,
+} from './core/define-helpers';
+
+export type {
+  ListViewSpec,
+  ListSource,
+  SearchSpec,
+  FilterSpec,
+  FilterModel,
+  SortSpec,
+  SectionsSpec,
+  PaginationSpec,
+  SelectionSpec,
+  RenameSpec,
+  ExternalSelectionStore,
+  SearchApi,
+  FilterApi,
+  SortApi,
+  PaginationApi,
+  SelectionApi,
+  RenameApi,
+  ScrollApi,
+  ListViewSnapshot,
+  ItemContextValue,
+  SectionContextValue,
+  FilterModelOf,
+  SortKeyOf,
+} from './core/types';
