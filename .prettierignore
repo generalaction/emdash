@@ -1,20 +1,2 @@
-# ignore git and build dependencies
-**/.git
-**/node_modules
-
-# ignore build outputs
-**/dist
-**/.next
-**/build
-**/.turbo
-**/out
-
-# ignore config files that shouldn't be formatted
-**/.env*
-**/pnpm-lock.yaml
-**/yarn.lock
-
-# ignore specific file types
-**/*.md
-**/*.yaml
-**/*.yml
+# .prettierignore — repo uses oxfmt, not prettier. Neutralize `nx format`.
+**

@@ -18,6 +18,10 @@ inputs:
     description: Set to true on Windows to pass MSVC/gyp flags to pnpm install
     required: false
     default: 'false'
+  setup-python:
+    description: Set to false when the job image already provides a compatible Python
+    required: false
+    default: 'true'
 
 runs:
   using: composite
@@ -31,11 +35,13 @@ runs:
         node-version: '24'
         cache: pnpm
 
-    - uses: actions/setup-python@v5
+    - if: inputs.setup-python == 'true'
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
     - name: Install Python build tools
+      if: inputs.setup-python == 'true'
       shell: bash
       run: python -m pip install --upgrade pip setuptools wheel
 
@@ -59,6 +65,6 @@ runs:
         PH_HOST: ${{ inputs.posthog-host }}
         BUILD_VARIANT: ${{ inputs.build-variant }}
       run: |
-        echo "VITE_POSTHOG_KEY=$PH_KEY" >> .env.production
-        echo "VITE_POSTHOG_HOST=$PH_HOST" >> .env.production
-        echo "VITE_BUILD=$BUILD_VARIANT" >> .env.production
+        echo "VITE_POSTHOG_KEY=$PH_KEY" >> apps/emdash-desktop/.env.production
+        echo "VITE_POSTHOG_HOST=$PH_HOST" >> apps/emdash-desktop/.env.production
+        echo "VITE_BUILD=$BUILD_VARIANT" >> apps/emdash-desktop/.env.production

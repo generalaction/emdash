@@ -1,4 +1,4 @@
-name: CI Check
+name: Code Consistency Check
 
 on:
   pull_request:
@@ -14,6 +14,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive Nx SHAs for affected
+        uses: nrwl/nx-set-shas@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -40,11 +45,5 @@ jobs:
             sleep 10
           done
 
-      - name: Check formatting
-        run: pnpm run format:check
-
-      - name: Type check
-        run: pnpm run typecheck
-
-      - name: Check linting
-        run: pnpm run lint
+      - name: Run affected checks
+        run: pnpm nx affected -t format:check typecheck lint

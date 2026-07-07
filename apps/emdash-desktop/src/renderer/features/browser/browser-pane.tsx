@@ -1,0 +1,386 @@
+import { ExternalLink, RotateCcw } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
+import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
+import { EmdashLogo } from '@renderer/lib/emdash-logo';
+import { events, rpc } from '@renderer/lib/ipc';
+import { Button } from '@renderer/lib/ui/button';
+import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
+import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
+import { browserControlsRegistry } from './browser-controls-registry';
+import {
+  browserLoadErrorCode,
+  describeBrowserLoadError,
+  hostLabel,
+  type BrowserLoadErrorPresentation,
+} from './browser-load-error';
+import { decideBrowserReload } from './browser-navigation-controls';
+import { browserSessionStore } from './browser-session-store';
+import { BrowserStartPage } from './browser-start-page';
+import { BrowserToolbar } from './browser-toolbar';
+import { canOpenBrowserUrlExternally, openBrowserUrlExternally } from './browser-toolbar-actions';
+import { bindBrowserWebviewEvents } from './browser-webview-events';
+import {
+  createBrowserWebviewAdapter,
+  type BrowserWebviewAdapter,
+  type BrowserWebviewElement,
+} from './browser-webview-types';
+
+const WEBVIEW_ALLOW_POPUPS_ATTRIBUTE = 'true' as unknown as boolean;
+
+export const BrowserPane = observer(function BrowserPane({
+  browserId,
+  visible,
+}: {
+  browserId: string;
+  visible: boolean;
+}) {
+  const session = browserSessionStore.getSession(browserId);
+  const { pane } = usePaneContext();
+  const previewServers = usePreviewServers();
+  const webviewRef = useRef<BrowserWebviewElement | null>(null);
+  const focusUrlRef = useRef<() => void>(() => {});
+  const [adapter, setAdapter] = useState<BrowserWebviewAdapter | null>(null);
+  const [webviewElement, setWebviewElement] = useState<BrowserWebviewElement | null>(null);
+  const [webviewMount, setWebviewMount] = useState<{
+    browserId: string;
+    partition: string;
+    src: string;
+    revision: number;
+  } | null>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const sessionBrowserId = session?.browserId;
+  const sessionPartition = session?.partition;
+  const showStartPage = session?.currentUrl === 'about:blank' && !session.isLoading;
+  const loadError = session && !session.isLoading ? session.loadError : undefined;
+  const loadErrorUrl = loadError ? (loadError.url ?? session?.currentUrl ?? '') : '';
+  const loadErrorPresentation = useMemo<BrowserLoadErrorPresentation | undefined>(
+    () => (loadError ? describeBrowserLoadError(loadError, loadErrorUrl) : undefined),
+    [loadError, loadErrorUrl]
+  );
+  const canOpenLoadErrorExternal = useMemo(
+    () => (loadError ? canOpenBrowserUrlExternally(loadErrorUrl) : false),
+    [loadError, loadErrorUrl]
+  );
+
+  useEffect(() => {
+    if (!sessionBrowserId || !sessionPartition || !session) {
+      setWebviewMount(null);
+      return;
+    }
+    setWebviewMount((current) => {
+      if (current?.browserId === sessionBrowserId && current.partition === sessionPartition) {
+        return current;
+      }
+      return {
+        browserId: sessionBrowserId,
+        partition: sessionPartition,
+        src: session.currentUrl,
+        revision: 0,
+      };
+    });
+  }, [session, sessionBrowserId, sessionPartition]);
+
+  useEffect(() => {
+    if (!sessionBrowserId || !sessionPartition) return;
+    let disposed = false;
+    setIsRegistered(false);
+    void rpc.browser
+      .registerSession({
+        browserId: sessionBrowserId,
+        partition: sessionPartition,
+      })
+      .then((result) => {
+        if (!disposed) setIsRegistered(result.success);
+      });
+    return () => {
+      disposed = true;
+      setIsRegistered(false);
+    };
+  }, [sessionBrowserId, sessionPartition]);
+
+  useEffect(() => {
+    return () => {
+      void rpc.browser.setActiveBrowser(null);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !sessionBrowserId || adapter === null) return;
+    void rpc.browser.setActiveBrowser(sessionBrowserId);
+  }, [adapter, sessionBrowserId, visible]);
+
+  useEffect(() => {
+    if (!visible || !sessionBrowserId) return;
+    return events.on(tabNavigationShortcutChannel, (event) => {
+      if (event.source.kind !== 'browser' || event.source.browserId !== sessionBrowserId) return;
+      if (event.direction === 'next') {
+        pane.setNextTabActive();
+      } else {
+        pane.setPreviousTabActive();
+      }
+    });
+  }, [sessionBrowserId, pane, visible]);
+
+  const webviewProps = useMemo(() => {
+    if (!webviewMount) return null;
+    return {
+      src: webviewMount.src,
+      partition: webviewMount.partition,
+      allowpopups: WEBVIEW_ALLOW_POPUPS_ATTRIBUTE,
+      'data-browser-id': webviewMount.browserId,
+    };
+  }, [webviewMount]);
+
+  const loadUrl = useCallback(
+    (url: string) => {
+      if (!sessionBrowserId) return;
+      browserSessionStore.updateSession(sessionBrowserId, {
+        currentUrl: url,
+        faviconUrl: null,
+        isLoading: true,
+        loadError: null,
+      });
+      if (adapter) {
+        void adapter.loadUrl(url);
+        return;
+      }
+      setWebviewMount((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          src: url,
+          revision: current.revision + 1,
+        };
+      });
+    },
+    [adapter, sessionBrowserId]
+  );
+
+  const navigateTo = useCallback(
+    (url: string): boolean => {
+      const normalized = normalizeBrowserUrl(url);
+      if (!normalized.ok) return false;
+      loadUrl(normalized.url);
+      return true;
+    },
+    [loadUrl]
+  );
+
+  const goBack = useCallback(() => {
+    if (!adapter?.canGoBack()) return;
+    adapter.goBack();
+  }, [adapter]);
+
+  const goForward = useCallback(() => {
+    if (!adapter?.canGoForward()) return;
+    adapter.goForward();
+  }, [adapter]);
+
+  const reload = useCallback(() => {
+    if (!session) return;
+    const decision = decideBrowserReload({
+      currentUrl: session.currentUrl,
+      isLoading: session.isLoading,
+      hasAdapter: adapter !== null,
+    });
+    if (decision.kind === 'reload-adapter') adapter?.reload();
+    if (decision.kind === 'stop-adapter') adapter?.stop();
+    if (decision.kind === 'retry-url') loadUrl(decision.url);
+  }, [adapter, loadUrl, session]);
+
+  const forceReload = useCallback(() => {
+    if (adapter) {
+      adapter.reloadIgnoringCache();
+      return;
+    }
+    reload();
+  }, [adapter, reload]);
+
+  const setZoomFactor = useCallback(
+    (factor: number) => {
+      if (!sessionBrowserId) return;
+      const zoomFactor = normalizeBrowserZoomFactor(factor);
+      browserSessionStore.updateSession(sessionBrowserId, {
+        zoomFactor,
+      });
+      adapter?.setZoomFactor(zoomFactor);
+    },
+    [adapter, sessionBrowserId]
+  );
+
+  // Must stay referentially stable: React re-invokes inline ref callbacks with
+  // null + node on every render, which would wipe the adapter until the next
+  // dom-ready and break everything adapter-backed (zoom, stop, force reload).
+  const attachWebview = useCallback((node: Element | null) => {
+    const next = node as BrowserWebviewElement | null;
+    if (webviewRef.current === next) return;
+    webviewRef.current = next;
+    setWebviewElement(next);
+    setAdapter(null);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionBrowserId || !webviewElement) return;
+    return bindBrowserWebviewEvents(sessionBrowserId, webviewElement, {
+      onDomReady: () => {
+        if (webviewRef.current !== webviewElement) return;
+        // Browsers can share profile partitions, so the main process cannot infer
+        // which browser a webview belongs to; bind it explicitly.
+        void rpc.browser.bindWebContents({
+          browserId: sessionBrowserId,
+          webContentsId: webviewElement.getWebContentsId(),
+        });
+        setAdapter(createBrowserWebviewAdapter(webviewElement));
+      },
+    });
+  }, [sessionBrowserId, webviewElement]);
+
+  useEffect(() => {
+    if (!sessionBrowserId) return;
+    return browserControlsRegistry.register(sessionBrowserId, {
+      adapter,
+      focusUrl: () => focusUrlRef.current(),
+    });
+  }, [adapter, sessionBrowserId]);
+
+  if (!session) {
+    return (
+      <div className="flex h-full min-h-0 items-center justify-center bg-background text-sm text-foreground-muted">
+        Browser session unavailable
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <BrowserToolbar
+        session={session}
+        adapter={adapter}
+        autoFocusUrl={showStartPage}
+        onNavigate={navigateTo}
+        onGoBack={goBack}
+        onGoForward={goForward}
+        onReload={reload}
+        onForceReload={forceReload}
+        onSetZoomFactor={setZoomFactor}
+        onFocusUrl={(focus) => {
+          focusUrlRef.current = focus;
+        }}
+      />
+      <div className="emlight min-h-0 flex-1 bg-background">
+        {loadError && loadErrorPresentation ? (
+          <BrowserLoadErrorView
+            url={loadErrorUrl}
+            presentation={loadErrorPresentation}
+            code={browserLoadErrorCode(loadError)}
+            canOpenExternal={canOpenLoadErrorExternal}
+            onReload={reload}
+            onOpenExternal={() => openBrowserUrlExternally(loadErrorUrl)}
+          />
+        ) : showStartPage ? (
+          <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
+        ) : webviewProps && isRegistered ? (
+          <webview
+            key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}
+            ref={attachWebview}
+            {...webviewProps}
+            className="h-full w-full bg-background"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-foreground-muted">
+            Preparing browser session
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
+function BrowserLoadErrorDetail({
+  detail,
+  host,
+  url,
+}: {
+  detail: string;
+  host: string;
+  url: string;
+}) {
+  if (detail.startsWith(host)) {
+    return (
+      <p className="text-base leading-relaxed text-foreground-muted" title={url}>
+        <span className="font-medium text-foreground">{host}</span>
+        {detail.slice(host.length)}
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-base leading-relaxed text-foreground-muted" title={url}>
+      {detail}
+    </p>
+  );
+}
+
+function BrowserLoadErrorView({
+  presentation,
+  code,
+  url,
+  canOpenExternal,
+  onReload,
+  onOpenExternal,
+}: {
+  presentation: BrowserLoadErrorPresentation;
+  code: string | null;
+  url: string;
+  canOpenExternal: boolean;
+  onReload: () => void;
+  onOpenExternal: () => void;
+}) {
+  const host = hostLabel(url);
+
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center overflow-auto px-10 py-14">
+      <div className="flex w-full max-w-lg flex-col gap-7">
+        <EmdashLogo height={18} className="text-foreground" />
+        <div className="flex flex-col gap-3">
+          <h1 className="text-2xl font-medium tracking-tight text-foreground">
+            {presentation.heading}
+          </h1>
+          <BrowserLoadErrorDetail detail={presentation.detail} host={host} url={url} />
+        </div>
+        {presentation.suggestions.length > 0 && (
+          <div className="flex flex-col gap-2.5">
+            <span className="text-sm font-medium text-foreground">Try:</span>
+            <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed text-foreground-muted marker:text-foreground-tertiary-muted">
+              {presentation.suggestions.map((suggestion) => (
+                <li key={suggestion}>{suggestion}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {code && (
+          <div className="font-mono text-xs tracking-wide text-foreground-tertiary-muted">
+            {code}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2.5 pt-1">
+          <Button type="button" onClick={onReload}>
+            <RotateCcw className="size-4" />
+            Reload
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!canOpenExternal}
+            onClick={onOpenExternal}
+          >
+            <ExternalLink className="size-4" />
+            Open externally
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

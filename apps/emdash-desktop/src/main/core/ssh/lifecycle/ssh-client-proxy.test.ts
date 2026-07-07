@@ -1,0 +1,250 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as RemoteShellProfileModule from './remote-shell-profile';
+import { SshClientProxy } from './ssh-client-proxy';
+
+const mocks = vi.hoisted(() => ({
+  captureRemoteShellProfile: vi.fn(),
+}));
+
+vi.mock('./remote-shell-profile', async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof RemoteShellProfileModule;
+  return {
+    ...actual,
+    captureRemoteShellProfile: mocks.captureRemoteShellProfile,
+  };
+});
+
+describe('SshClientProxy remote shell profile', () => {
+  beforeEach(() => {
+    mocks.captureRemoteShellProfile.mockReset();
+  });
+
+  it('returns a rejected promise when the SSH connection is unavailable', async () => {
+    const proxy = new SshClientProxy('ssh-1');
+
+    await expect(proxy.getRemoteShellProfile()).rejects.toThrow('SSH connection is not available');
+  });
+
+  it('captures and caches the remote shell profile behind the proxy API', async () => {
+    const client = {};
+    const profile = {
+      shell: '/bin/zsh',
+      env: { PATH: '/opt/homebrew/bin:/usr/bin' },
+    };
+    mocks.captureRemoteShellProfile.mockResolvedValue(profile);
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    await expect(proxy.getRemoteShellProfile()).resolves.toBe(profile);
+    await expect(proxy.getRemoteShellProfile()).resolves.toBe(profile);
+
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(1);
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledWith(proxy);
+  });
+
+  it('does not cache an in-flight shell profile after invalidation', async () => {
+    let resolveFirst!: (profile: { shell: string; env: Record<string, string> }) => void;
+    const firstCapture = new Promise<{ shell: string; env: Record<string, string> }>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const firstClient = {};
+    const secondClient = {};
+    mocks.captureRemoteShellProfile
+      .mockReturnValueOnce(firstCapture)
+      .mockResolvedValueOnce({ shell: '/bin/bash', env: { PATH: '/second' } });
+    const proxy = new SshClientProxy('ssh-1');
+
+    proxy.update(firstClient as never);
+    const staleCapture = proxy.getRemoteShellProfile();
+    proxy.invalidate();
+    proxy.update(secondClient as never);
+    resolveFirst({ shell: '/bin/zsh', env: { PATH: '/first' } });
+    await staleCapture;
+
+    await expect(proxy.getRemoteShellProfile()).resolves.toEqual({
+      shell: '/bin/bash',
+      env: { PATH: '/second' },
+    });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(2);
+    expect(mocks.captureRemoteShellProfile).toHaveBeenNthCalledWith(2, proxy);
+  });
+
+  it('clears cached shell profile on invalidate', async () => {
+    const firstClient = {};
+    const secondClient = {};
+    mocks.captureRemoteShellProfile
+      .mockResolvedValueOnce({ shell: '/bin/zsh', env: { PATH: '/first' } })
+      .mockResolvedValueOnce({ shell: '/bin/bash', env: { PATH: '/second' } });
+    const proxy = new SshClientProxy('ssh-1');
+
+    proxy.update(firstClient as never);
+    await proxy.getRemoteShellProfile();
+    proxy.invalidate();
+    proxy.update(secondClient as never);
+    const profile = await proxy.getRemoteShellProfile();
+
+    expect(profile).toEqual({ shell: '/bin/bash', env: { PATH: '/second' } });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it('recaptures the remote shell profile on explicit refresh', async () => {
+    const client = {};
+    mocks.captureRemoteShellProfile
+      .mockResolvedValueOnce({ shell: '/bin/zsh', env: { PATH: '/old' } })
+      .mockResolvedValueOnce({ shell: '/bin/zsh', env: { PATH: '/new:/usr/bin' } });
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    await expect(proxy.getRemoteShellProfile()).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/old' },
+    });
+    await expect(proxy.refreshRemoteShellProfile()).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/new:/usr/bin' },
+    });
+    await expect(proxy.getRemoteShellProfile()).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/new:/usr/bin' },
+    });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it('deduplicates get calls while a refresh is in flight', async () => {
+    let resolveRefresh!: (profile: { shell: string; env: Record<string, string> }) => void;
+    const refreshCapture = new Promise<{ shell: string; env: Record<string, string> }>(
+      (resolve) => {
+        resolveRefresh = resolve;
+      }
+    );
+    const client = {};
+    mocks.captureRemoteShellProfile.mockReturnValueOnce(refreshCapture);
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    const refresh = proxy.refreshRemoteShellProfile();
+    const concurrentGet = proxy.getRemoteShellProfile();
+    resolveRefresh({ shell: '/bin/zsh', env: { PATH: '/refreshed:/usr/bin' } });
+
+    await expect(refresh).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/refreshed:/usr/bin' },
+    });
+    await expect(concurrentGet).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/refreshed:/usr/bin' },
+    });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(1);
+    await expect(proxy.getRemoteShellProfile()).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/refreshed:/usr/bin' },
+    });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('deduplicates concurrent refreshes for the same client', async () => {
+    let resolveRefresh!: (profile: { shell: string; env: Record<string, string> }) => void;
+    const refreshCapture = new Promise<{ shell: string; env: Record<string, string> }>(
+      (resolve) => {
+        resolveRefresh = resolve;
+      }
+    );
+    const client = {};
+    mocks.captureRemoteShellProfile.mockReturnValueOnce(refreshCapture);
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    const first = proxy.refreshRemoteShellProfile();
+    const second = proxy.refreshRemoteShellProfile();
+    resolveRefresh({ shell: '/bin/zsh', env: { PATH: '/refreshed:/usr/bin' } });
+
+    await expect(first).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/refreshed:/usr/bin' },
+    });
+    await expect(second).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/refreshed:/usr/bin' },
+    });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets refresh preempt an in-flight get capture', async () => {
+    let resolveGet!: (profile: { shell: string; env: Record<string, string> }) => void;
+    let resolveRefresh!: (profile: { shell: string; env: Record<string, string> }) => void;
+    const getCapture = new Promise<{ shell: string; env: Record<string, string> }>((resolve) => {
+      resolveGet = resolve;
+    });
+    const refreshCapture = new Promise<{ shell: string; env: Record<string, string> }>(
+      (resolve) => {
+        resolveRefresh = resolve;
+      }
+    );
+    const client = {};
+    mocks.captureRemoteShellProfile
+      .mockReturnValueOnce(getCapture)
+      .mockReturnValueOnce(refreshCapture);
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    const staleGet = proxy.getRemoteShellProfile();
+    const refresh = proxy.refreshRemoteShellProfile();
+    resolveGet({ shell: '/bin/zsh', env: { PATH: '/old' } });
+    resolveRefresh({ shell: '/bin/zsh', env: { PATH: '/new:/usr/bin' } });
+
+    await expect(staleGet).resolves.toEqual({ shell: '/bin/zsh', env: { PATH: '/old' } });
+    await expect(refresh).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/new:/usr/bin' },
+    });
+    await expect(proxy.getRemoteShellProfile()).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/new:/usr/bin' },
+    });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('SshClientProxy channel health reporting', () => {
+  it('reports exec channel success and failure', () => {
+    const successCallback = vi.fn();
+    const error = new Error('open failed');
+    const reporter = {
+      reportChannelError: vi.fn(),
+    };
+    const client = {
+      exec: vi
+        .fn()
+        .mockImplementationOnce((_command, callback) => callback(undefined, {}))
+        .mockImplementationOnce((_command, callback) => callback(error, undefined)),
+    };
+    const proxy = new SshClientProxy('ssh-1', reporter);
+    proxy.update(client as never);
+
+    proxy.exec('true', successCallback);
+    proxy.exec('false', vi.fn());
+
+    expect(successCallback).toHaveBeenCalledWith(undefined, {});
+    expect(reporter.reportChannelError).toHaveBeenCalledWith('ssh-1', error);
+  });
+
+  it('reports pty and sftp channel failures', () => {
+    const ptyError = new Error('pty failed');
+    const sftpError = new Error('sftp failed');
+    const reporter = {
+      reportChannelError: vi.fn(),
+    };
+    const client = {
+      exec: vi.fn((_command, _options, callback) => callback(ptyError, undefined)),
+      sftp: vi.fn((callback) => callback(sftpError, undefined)),
+    };
+    const proxy = new SshClientProxy('ssh-1', reporter);
+    proxy.update(client as never);
+
+    proxy.execPty('bash', { pty: true }, vi.fn());
+    proxy.sftp(vi.fn());
+
+    expect(reporter.reportChannelError).toHaveBeenCalledWith('ssh-1', ptyError);
+    expect(reporter.reportChannelError).toHaveBeenCalledWith('ssh-1', sftpError);
+  });
+});
