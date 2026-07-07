@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { isIssueIntegration } from '@renderer/features/integrations/integration-display';
 import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
 import { sortGitHubAccountsByDefault } from '@renderer/features/projects/components/github-account-select-model';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
@@ -7,12 +6,12 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import { TooltipProvider } from '@renderer/lib/ui/tooltip';
 import type { AgentIconAsset } from '@shared/core/agents/agent-payload';
-import type { ConnectionStatus, IssueProviderType } from '@shared/issue-providers';
+import type { ConnectionStatus } from '@shared/issue-providers';
 import { IntegrationDetailSidebar } from './IntegrationDetailSidebar';
 import { IntegrationGridCard } from './IntegrationGridCard';
 
 export type IntegrationItem = {
-  id: IssueProviderType;
+  id: string;
   name: string;
   description: string;
   icon: AgentIconAsset;
@@ -41,7 +40,7 @@ const IntegrationsCard: React.FC = () => {
     () => sortGitHubAccountsByDefault(githubAccounts),
     [githubAccounts]
   );
-  const [selectedProvider, setSelectedProvider] = useState<IssueProviderType | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const showIntegrationSetup = useShowModal('integrationSetupModal');
   const showConnectGitHub = useShowModal('githubConnectModal');
   const showConfirm = useShowModal('confirmActionModal');
@@ -67,35 +66,17 @@ const IntegrationsCard: React.FC = () => {
     });
   };
 
-  const integrations: IntegrationItem[] = integrationMetadata
-    .filter(isIssueIntegration)
-    .map((integration) => {
-      const provider = integration.id;
-      const status: ConnectionStatus = connectionStatus[provider] ?? {
-        connected: false,
-        capabilities: integration.capabilities,
-      };
-      const isConfigured = configuredConnections[provider] ?? false;
-      const isConfigurationKnown =
-        provider in configuredConnections || !isCheckingConfiguredConnections;
+  const integrations: IntegrationItem[] = integrationMetadata.map((integration) => {
+    const provider = integration.id;
+    const status: ConnectionStatus = connectionStatus[provider] ?? {
+      connected: false,
+      capabilities: integration.capabilities,
+    };
+    const isConfigured = configuredConnections[provider] ?? false;
+    const isConfigurationKnown =
+      provider in configuredConnections || !isCheckingConfiguredConnections;
 
-      if (provider === 'github') {
-        return {
-          id: provider,
-          name: integration.name,
-          description: integration.description,
-          icon: integration.icon,
-          features: integration.features,
-          isConfigured,
-          isConfigurationKnown,
-          isMutating: false,
-          connectionError: isConfigured ? status.error : undefined,
-          displayName: sortedGithubAccounts[0]?.login ?? status.displayName,
-          displayDetail: status.displayDetail,
-          onConnect: () => showConnectGitHub({}),
-        };
-      }
-
+    if (provider === 'github') {
       return {
         id: provider,
         name: integration.name,
@@ -104,21 +85,37 @@ const IntegrationsCard: React.FC = () => {
         features: integration.features,
         isConfigured,
         isConfigurationKnown,
-        isMutating: isIntegrationMutating(provider),
+        isMutating: false,
         connectionError: isConfigured ? status.error : undefined,
-        displayName: status.displayName,
+        displayName: sortedGithubAccounts[0]?.login ?? status.displayName,
         displayDetail: status.displayDetail,
-        onConnect: () => showIntegrationSetup({ integration: provider }),
-        onDisconnect: () =>
-          confirmDisconnect({
-            name: integration.name,
-            credential: integration.disconnectCredentialLabel,
-            onDisconnect: () => {
-              void disconnectIntegration(provider);
-            },
-          }),
+        onConnect: () => showConnectGitHub({}),
       };
-    });
+    }
+
+    return {
+      id: provider,
+      name: integration.name,
+      description: integration.description,
+      icon: integration.icon,
+      features: integration.features,
+      isConfigured,
+      isConfigurationKnown,
+      isMutating: isIntegrationMutating(provider),
+      connectionError: isConfigured ? status.error : undefined,
+      displayName: status.displayName,
+      displayDetail: status.displayDetail,
+      onConnect: () => showIntegrationSetup({ integration: provider }),
+      onDisconnect: () =>
+        confirmDisconnect({
+          name: integration.name,
+          credential: integration.disconnectCredentialLabel,
+          onDisconnect: () => {
+            void disconnectIntegration(provider);
+          },
+        }),
+    };
+  });
 
   const connectedIntegrations = integrations.filter((integration) => integration.isConfigured);
   const availableIntegrations = integrations.filter(

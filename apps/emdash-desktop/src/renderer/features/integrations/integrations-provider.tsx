@@ -72,7 +72,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
   const { data: configuredConnections = {}, isFetching: isCheckingConfiguredConnections } =
     useQuery({
       queryKey: [...ISSUE_CONNECTION_STATUS_QUERY_KEY, 'configured'],
-      queryFn: () => rpc.issues.checkConfiguredConnections(),
+      queryFn: () => rpc.integrations.checkConfiguredConnections(),
       staleTime: Infinity,
       refetchOnWindowFocus: false,
     });

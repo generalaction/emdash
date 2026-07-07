@@ -131,8 +131,8 @@ export type TelemetryEventProperties = {
   user_signed_in: EmptyProps;
   user_signed_out: EmptyProps;
 
-  integration_connected: { provider: 'github' | 'linear' | 'jira' | 'asana' };
-  integration_disconnected: { provider: 'github' | 'linear' | 'jira' | 'asana' };
+  integration_connected: { provider: string };
+  integration_disconnected: { provider: string };
   issue_linked_to_task: {
     provider:
       | 'github'
