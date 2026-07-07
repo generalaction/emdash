@@ -1,5 +1,9 @@
-import { acpLiveTopics, type AcpLiveTopics, type AcpProcedures } from '@emdash/core/acp';
-import type { StartSessionInput } from '@emdash/core/acp';
+import {
+  acpLiveTopics,
+  type AcpLiveTopics,
+  type AcpProcedures,
+  type StartSessionInput,
+} from '@emdash/core/acp/client';
 import { typedLive, typedProcedures, type TypedLiveTarget } from '@emdash/core/wire';
 import { ipcWire } from '@renderer/lib/wire/ipc-wire';
 
