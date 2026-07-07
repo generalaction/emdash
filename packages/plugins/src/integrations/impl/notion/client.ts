@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { Client, type UserObjectResponse } from '@notionhq/client';
+import { Client } from '@notionhq/client';
 import { parseCredentials } from '../../helpers/credentials';
 import type { IntegrationCredentials } from '../../host';
 import type { IntegrationError } from '../../types';
@@ -30,22 +30,14 @@ export async function verifyNotionCredentials(
   const client = createNotionClient(credentials.data);
   try {
     const user = await client.users.me({});
-    const detail = displayDetail(user);
+    const displayName = user.name ?? (user.type === 'bot' ? 'Notion bot' : 'Notion user');
+    const displayDetail = user.type === 'person' ? user.person.email : undefined;
     return ok({
-      displayName: displayName(user),
-      ...(detail ? { displayDetail: detail } : {}),
+      displayName,
+      ...(displayDetail ? { displayDetail } : {}),
       credentials: credentials.data,
     });
   } catch (error) {
     return err(toNotionIntegrationError(error, 'Failed to validate Notion token.'));
   }
-}
-
-function displayName(user: UserObjectResponse): string {
-  return user.name ?? (user.type === 'bot' ? 'Notion bot' : 'Notion user');
-}
-
-function displayDetail(user: UserObjectResponse): string | undefined {
-  if (user.type === 'person') return user.person.email;
-  return undefined;
 }

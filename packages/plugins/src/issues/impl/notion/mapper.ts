@@ -95,3 +95,7 @@ export function richTextPlainText(richText: RichTextItemResponse[] | undefined):
     .join('')
     .trim();
 }
+
+export function toIssueListItems(pages: PageObjectResponse[]) {
+  return pages.filter(hasMeaningfulTitle).map(toIssueData);
+}

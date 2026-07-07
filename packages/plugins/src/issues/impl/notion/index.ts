@@ -21,7 +21,7 @@ import type {
   IssueSearchOpts,
 } from '../../types';
 import { formatNotionContext } from './context';
-import { hasMeaningfulTitle, isDatabasePage, toIssueData } from './mapper';
+import { hasMeaningfulTitle, isDatabasePage, toIssueData, toIssueListItems } from './mapper';
 
 const NOTION_PAGE_SIZE = 100;
 
@@ -127,7 +127,3 @@ const plugin = defineIssuesPlugin({ integrationId: 'notion' }, { issues: {} }, {
 export const provider = registerIssuesPluginBehavior(plugin, {
   issues: { listIssues, searchIssues, getIssue },
 });
-
-function toIssueListItems(pages: PageObjectResponse[]) {
-  return pages.filter(hasMeaningfulTitle).map(toIssueData);
-}
