@@ -144,6 +144,7 @@ const MOCK_COMMANDS: CommandItem[] = [
     label: 'Clear conversation',
     description: 'Wipe the conversation history.',
     behavior: 'execute',
+    section: 'Commands',
   },
   {
     id: 'model',
@@ -151,6 +152,7 @@ const MOCK_COMMANDS: CommandItem[] = [
     label: 'Switch model',
     description: 'Change the active model.',
     behavior: 'execute',
+    section: 'Commands',
   },
   {
     id: 'help',
@@ -158,6 +160,7 @@ const MOCK_COMMANDS: CommandItem[] = [
     label: 'Help',
     description: 'Show available commands.',
     behavior: 'insert',
+    section: 'Commands',
   },
   {
     id: 'compact',
@@ -165,6 +168,27 @@ const MOCK_COMMANDS: CommandItem[] = [
     label: 'Compact',
     description: 'Summarize and compact the context.',
     behavior: 'execute',
+    section: 'Commands',
+  },
+  {
+    id: 'prompt:review',
+    name: 'Review changes',
+    label: 'Review changes',
+    description: 'Review all changes in this worktree.',
+    behavior: 'insert-text',
+    insertText:
+      'Review all changes in this worktree. Focus on correctness, regressions, edge cases, and missing tests.',
+    section: 'Prompts',
+  },
+  {
+    id: 'prompt:test-plan',
+    name: 'Write a test plan',
+    label: 'Write a test plan',
+    description: 'Create a focused validation plan for this change.',
+    behavior: 'insert-text',
+    insertText:
+      'Create a focused test plan for this change.\n\nInclude unit tests, integration coverage, and any manual verification steps.',
+    section: 'Prompts',
   },
 ];
 
@@ -172,7 +196,13 @@ async function queryCommands(query: string): Promise<CommandItem[]> {
   await new Promise((r) => setTimeout(r, 60));
   const q = query.toLowerCase();
   return q
-    ? MOCK_COMMANDS.filter((c) => c.name.includes(q) || (c.label ?? '').toLowerCase().includes(q))
+    ? MOCK_COMMANDS.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          (c.label ?? '').toLowerCase().includes(q) ||
+          (c.description ?? '').toLowerCase().includes(q) ||
+          (c.insertText ?? '').toLowerCase().includes(q)
+      )
     : MOCK_COMMANDS;
 }
 

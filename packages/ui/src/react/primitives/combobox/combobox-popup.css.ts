@@ -68,6 +68,16 @@ export const popupItemDefault = style({
   textAlign: 'center',
 });
 
+export const popupSectionHeader = style({
+  paddingTop: '0.5rem',
+  paddingBottom: '0.25rem',
+  paddingLeft: '0.5rem',
+  paddingRight: '0.5rem',
+  fontSize: tokenVars.textXs,
+  fontWeight: 400,
+  color: vars.foregroundMuted,
+});
+
 export const popupItemHighlighted = style({
   backgroundColor: vars.surfaceHover,
   color: vars.foreground,

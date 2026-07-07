@@ -1,6 +1,7 @@
 import type { AttachmentMimeType, AttachmentRef } from '@emdash/core/acp/client';
 import { ChatComposer, ImageViewerDialog } from '@emdash/ui/react/components';
 import type {
+  CommandItem,
   ComposerAgentOption,
   ComposerAttachment,
   ComposerPermissionRequest,
@@ -15,6 +16,7 @@ import { createPortal } from 'react-dom';
 import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
 import { IntegrationIcon } from '@renderer/features/integrations/integration-icon';
 import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
+import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import {
   asMounted,
   getProjectStore,
@@ -56,6 +58,20 @@ import { buildIssueMentionHiddenContext } from './issue-mention-context';
 const attachmentDataUrlCache = new Map<string, Promise<string | null>>();
 const ISSUE_SEARCH_MIN_LENGTH = 2;
 const ISSUE_SEARCH_LIMIT = 20;
+const SLASH_COMMANDS_SECTION = 'Commands';
+const SLASH_PROMPTS_SECTION = 'Prompts';
+
+function promptPreview(text: string): string {
+  return text.split(/\r?\n/, 1)[0] ?? '';
+}
+
+function commandMatchesQuery(command: CommandItem, query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return [command.name, command.label, command.description]
+    .filter((value): value is string => !!value)
+    .some((value) => value.toLowerCase().includes(normalized));
+}
 
 function toIssueMentionItem(issue: LinkedIssue): MentionItem {
   const token = issueMentionToken(issue.provider, issue.identifier);
@@ -205,6 +221,7 @@ const ComposerForStore = observer(function ComposerForStore({
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const { value: promptLibrary } = usePromptLibrary();
 
   // Autofocus when the slot becomes available.
   useEffect(() => {
@@ -503,6 +520,36 @@ const ComposerForStore = observer(function ComposerForStore({
     return <IntegrationIcon provider={target.provider} size={12} />;
   }, []);
 
+  const querySlashItems = useCallback(
+    async (query: string): Promise<CommandItem[]> => {
+      const normalized = query.trim().toLowerCase();
+      const commands = store.commands
+        .filter((command) => commandMatchesQuery(command, normalized))
+        .map((command) => ({
+          ...command,
+          section: SLASH_COMMANDS_SECTION,
+        }));
+      const prompts = promptLibrary
+        .filter((prompt) => {
+          if (!normalized) return true;
+          return [prompt.title, prompt.prompt].some((value) =>
+            value.toLowerCase().includes(normalized)
+          );
+        })
+        .map((prompt) => ({
+          id: `prompt:${prompt.id}`,
+          name: prompt.title,
+          label: prompt.title,
+          description: promptPreview(prompt.prompt),
+          behavior: 'insert-text' as const,
+          insertText: prompt.prompt,
+          section: SLASH_PROMPTS_SECTION,
+        }));
+      return [...commands, ...prompts];
+    },
+    [store, promptLibrary]
+  );
+
   const a = store.affordances;
   const permissionRequest = toComposerPermission(store.permissionQueue[0]);
 
@@ -549,9 +596,7 @@ const ComposerForStore = observer(function ComposerForStore({
         }
         mentionProvider={mentionProvider}
         renderMentionIcon={renderMentionIcon}
-        queryCommands={async (query) =>
-          store.commands.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
-        }
+        queryCommands={querySlashItems}
         attachments={attachments}
         onAttachmentsChange={handleAttachmentsChange}
         onAttach={handleAttach}

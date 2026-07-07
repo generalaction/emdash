@@ -55,8 +55,12 @@ export interface ContextMentionProvider {
 
 // ── Command items (/ trigger) ─────────────────────────────────────────────────
 
-/** 'insert' → insert a /token node into the doc; 'execute' → run a side-effect and clear the trigger. */
-export type CommandBehavior = 'insert' | 'execute';
+/**
+ * 'insert' → insert a /token node into the doc.
+ * 'insert-text' → insert raw text into the doc.
+ * 'execute' → run a side-effect and clear the trigger.
+ */
+export type CommandBehavior = 'insert' | 'insert-text' | 'execute';
 
 export interface CommandItem {
   id: string;
@@ -66,6 +70,10 @@ export interface CommandItem {
   label?: string;
   description?: string;
   behavior: CommandBehavior;
+  /** Raw text inserted for behavior='insert-text'. */
+  insertText?: string;
+  /** Optional visual grouping label in the slash command popup. */
+  section?: string;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────

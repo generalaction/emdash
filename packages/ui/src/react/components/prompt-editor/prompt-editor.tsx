@@ -74,13 +74,16 @@ function mentionToPopupItem(item: MentionItem): ComboboxPopupItem {
 }
 
 function commandToPopupItem(item: CommandItem): ComboboxPopupItem {
-  // Primary text is the slash-prefixed command name so the popup reads as a list
-  // of commands; the human-readable description is the muted secondary text.
-  // Strip any leading slash the agent already included so we never double it.
+  // Command entries are slash-prefixed; raw prompt entries keep their title.
+  const label =
+    item.behavior === 'insert-text'
+      ? (item.label ?? item.name)
+      : `/${item.name.replace(/^\/+/, '')}`;
   return {
     id: item.id,
-    label: `/${item.name.replace(/^\/+/, '')}`,
+    label,
     description: item.description,
+    section: item.section,
   };
 }
 

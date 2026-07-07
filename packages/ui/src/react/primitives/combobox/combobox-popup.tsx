@@ -30,6 +30,8 @@ export interface ComboboxPopupItem {
   label: string;
   /** Secondary muted text shown on the right. */
   description?: string;
+  /** Optional visual grouping label rendered as a non-selectable header. */
+  section?: string;
 }
 
 export interface ComboboxPopupHandle {
@@ -67,7 +69,9 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
 
     // Scroll the highlighted item into view.
     React.useEffect(() => {
-      const el = listRef.current?.children[selectedIndex] as HTMLElement | undefined;
+      const el = listRef.current?.querySelector<HTMLElement>(
+        `[data-popup-item-index="${selectedIndex}"]`
+      );
       el?.scrollIntoView({ block: 'nearest' });
     }, [selectedIndex]);
 
@@ -125,41 +129,51 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
           {items.length === 0 && emptyLabel ? (
             <li className={cx(styles.popupItem, styles.popupItemDefault)}>{emptyLabel}</li>
           ) : (
-            items.map((item, index) => (
-              <li
-                key={item.id}
-                role="option"
-                aria-selected={index === selectedIndex}
-                onMouseDown={(e) => {
-                  // Prevent editor blur before select fires.
-                  e.preventDefault();
-                  onSelect(item);
-                }}
-                onMouseEnter={() => setSelectedIndex(index)}
-                className={cx(
-                  styles.popupItem,
-                  stacked && styles.popupItemStacked,
-                  index === selectedIndex ? styles.popupItemHighlighted : styles.popupItemHover
-                )}
-              >
-                {item.icon && <span className={styles.popupItemIcon}>{item.icon}</span>}
-                {stacked ? (
-                  <span className={styles.popupItemTextStack}>
-                    <span className={styles.popupItemLabel}>{item.label}</span>
-                    {item.description && (
-                      <span className={styles.popupItemDescription}>{item.description}</span>
+            items.map((item, index) => {
+              const showSection = item.section && item.section !== items[index - 1]?.section;
+              return (
+                <React.Fragment key={item.id}>
+                  {showSection && (
+                    <li className={styles.popupSectionHeader} role="presentation">
+                      {item.section}
+                    </li>
+                  )}
+                  <li
+                    role="option"
+                    aria-selected={index === selectedIndex}
+                    data-popup-item-index={index}
+                    onMouseDown={(e) => {
+                      // Prevent editor blur before select fires.
+                      e.preventDefault();
+                      onSelect(item);
+                    }}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    className={cx(
+                      styles.popupItem,
+                      stacked && styles.popupItemStacked,
+                      index === selectedIndex ? styles.popupItemHighlighted : styles.popupItemHover
                     )}
-                  </span>
-                ) : (
-                  <>
-                    <span className={styles.popupItemLabel}>{item.label}</span>
-                    {item.description && (
-                      <span className={styles.popupItemDescription}>{item.description}</span>
+                  >
+                    {item.icon && <span className={styles.popupItemIcon}>{item.icon}</span>}
+                    {stacked ? (
+                      <span className={styles.popupItemTextStack}>
+                        <span className={styles.popupItemLabel}>{item.label}</span>
+                        {item.description && (
+                          <span className={styles.popupItemDescription}>{item.description}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <>
+                        <span className={styles.popupItemLabel}>{item.label}</span>
+                        {item.description && (
+                          <span className={styles.popupItemDescription}>{item.description}</span>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
-              </li>
-            ))
+                  </li>
+                </React.Fragment>
+              );
+            })
           )}
         </ul>
       </div>
