@@ -10,7 +10,12 @@ The package has three layers:
 flowchart TB
   subgraph utils [Utils]
     dedupe[deduplicateRequests - server]
+    scope[Scope and ManagedSource]
     optimistic[OptimisticLiveModelGroup - client, MobX]
+  end
+  subgraph process [Process]
+    processHost[ProcessHost supervision]
+    processTransport[processTransport]
   end
   subgraph api [API layer]
     contracts[defineContract endpoint kinds]
@@ -25,6 +30,7 @@ flowchart TB
     mutations[Mutations and registries]
   end
   utils --> api --> live
+  process --> api
 ```
 
 The live layer owns the stateful primitives: `LiveModelServer` and
@@ -32,7 +38,9 @@ The live layer owns the stateful primitives: `LiveModelServer` and
 `LiveJobClient`, plus mutation registries and settling. The API layer turns those
 primitives into a contract with typed procedure calls and live topic bindings.
 The utility layer adds focused behavior around the API boundary, such as
-server-side request deduplication and client-side optimistic group previews.
+scoped disposal, demand-driven resources, server-side request deduplication, and
+client-side optimistic group previews. The process layer adapts supervised
+process-like runtimes into wire transports.
 
 ## Pages
 
@@ -49,6 +57,10 @@ server-side request deduplication and client-side optimistic group previews.
 - [Serving and clients](./serving-and-clients.md): `bindContract()`,
   `serve()`, `connect()`, `contractClient()`, and transports.
 - [Utils](./utils.md): `deduplicateRequests()` and `OptimisticLiveModelGroup`.
+- [Scope and ManagedSource](./scope-managed-source.md): cleanup trees and
+  demand-driven retained resources.
+- [ProcessHost](./process-host.md): supervised child/utility processes and
+  process-backed wire transports.
 
 Runnable examples live under [../examples](../examples). Most snippets in these
 docs are shortened versions of those files.
@@ -66,8 +78,12 @@ Use narrower subpath exports at app boundaries:
 
 - `@emdash/wire/live`: live primitives and mutation registries.
 - `@emdash/wire/api`: contract definition, binding, client creation, and transports.
-- `@emdash/wire/util`: dependency-free utilities, currently `deduplicateRequests`.
+- `@emdash/wire/util`: dependency-free utilities: `Scope`, `ManagedSource`,
+  and `deduplicateRequests`.
 - `@emdash/wire/util/optimistic`: MobX-backed optimistic group utilities.
+- `@emdash/wire/process`: process supervision types, `utilityProcessHost()`,
+  and `processTransport()`.
+- `@emdash/wire/process/node`: Node `childProcessHost()`.
 
 The optimistic utility intentionally lives in its own export because it has a
 `mobx` peer dependency. Server-only code can import `@emdash/wire` or

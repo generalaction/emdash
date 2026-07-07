@@ -4,6 +4,50 @@ Wire utilities sit around the API layer. They do not define new transport
 messages; they compose with existing `bindContract()` and `contractClient()`
 behavior.
 
+## `Scope`
+
+`Scope` owns a tree of cleanup callbacks and disposable resources:
+
+```ts
+import { createScope } from '@emdash/wire/util';
+
+const scope = createScope({ label: 'view' });
+scope.add(() => detachTopic());
+scope.use({ dispose: () => stopRuntime() });
+
+await scope.dispose();
+```
+
+Cleanups run in reverse registration order, child scopes dispose before their
+parent, and late cleanups added after disposal run immediately.
+
+See [Scope and ManagedSource](./scope-managed-source.md) and
+[../examples/scope/client.ts](../examples/scope/client.ts).
+
+## `ManagedSource`
+
+`ManagedSource` creates resources on first demand and disposes them after the
+last lease is released:
+
+```ts
+const sessions = createManagedSource({
+  key: (input: { id: string }) => input.id,
+  graceMs: 5_000,
+  create: async (input, scope) => {
+    const session = await startSession(input.id);
+    scope.add(() => session.stop());
+    return session;
+  },
+});
+
+const lease = sessions.acquire({ id: 'one' });
+const session = await lease.ready();
+await lease.release();
+```
+
+See [Scope and ManagedSource](./scope-managed-source.md) and
+[../examples/managed-source/client.ts](../examples/managed-source/client.ts).
+
 ## `deduplicateRequests`
 
 Import from the dependency-free utility export:

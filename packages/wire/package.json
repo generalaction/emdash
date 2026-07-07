@@ -33,6 +33,14 @@
       "types": "./dist/optimistic.d.mts",
       "default": "./dist/optimistic.mjs"
     },
+    "./process": {
+      "types": "./dist/process.d.mts",
+      "default": "./dist/process.mjs"
+    },
+    "./process/node": {
+      "types": "./dist/process-node.d.mts",
+      "default": "./dist/process-node.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -43,6 +51,8 @@
     "example:batched-model": "tsx examples/batched-model/client.ts",
     "example:live-log": "tsx examples/live-log/client.ts",
     "example:live-job": "tsx examples/live-job/client.ts",
+    "example:scope": "tsx examples/scope/client.ts",
+    "example:managed-source": "tsx examples/managed-source/client.ts",
     "example:mutations": "tsx examples/mutations/client.ts",
     "example:cancellation": "tsx examples/cancellation/client.ts",
     "example:contract": "tsx examples/contract/client.ts",
@@ -54,6 +64,7 @@
     "example:job-contract": "tsx examples/job-contract/client.ts",
     "example:mutation-idempotency": "tsx examples/mutation-idempotency/client.ts",
     "example:multi-window": "tsx examples/multi-window/client.ts",
+    "example:process": "tsx examples/process/client.ts",
     "example:optimistic-group": "tsx examples/optimistic-group/client.ts",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/wire\"'",
     "format": "oxfmt",

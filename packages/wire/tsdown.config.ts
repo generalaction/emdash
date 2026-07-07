@@ -7,6 +7,8 @@ export default defineConfig({
     api: 'src/api/index.ts',
     util: 'src/util/index.ts',
     optimistic: 'src/util/optimistic/index.ts',
+    process: 'src/process/index.ts',
+    'process-node': 'src/process/node/index.ts',
   },
   format: ['esm'],
   dts: true,
