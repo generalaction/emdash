@@ -50,3 +50,4 @@ export function allOpenFilePaths(paneLayout: PaneLayoutStore): string[] {
 export const activeFileEntry = activeFileResource;
 /** @deprecated Use fileResourceByPath */
 export const fileEntryByPath = fileResourceByPath;
+
