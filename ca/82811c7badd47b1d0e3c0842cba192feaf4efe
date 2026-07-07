@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/task-config/task-config-panel.test.ts
+  s_e61de7ce744e08::t_dc4374e2c0c5d7 44-47,79-81,85,90,92-93,119-157
+apps/emdash-desktop/src/renderer/features/tasks/task-config/task-config-panel.tsx
+  s_e61de7ce744e08::t_dc4374e2c0c5d7 1,7,22,24-27,29-35,44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ca82811c7badd47b1d0e3c0842cba192feaf4efe",
+  "prompts": {},
+  "sessions": {
+    "s_e61de7ce744e08": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0c32a4e06ffeaf2emt2qseqaZk",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
