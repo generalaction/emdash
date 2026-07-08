@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { lifecycleScriptStatusChannel } from '@shared/core/tasks/taskEvents';
 import type { Pty, PtyExitInfo } from '../pty/pty';
@@ -14,6 +14,7 @@ import {
 
 const emit = vi.hoisted(() => vi.fn());
 const logError = vi.hoisted(() => vi.fn());
+const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
 
 vi.mock('@main/lib/events', () => ({
   events: {
@@ -103,6 +104,10 @@ function makeWorkspace(runLifecycleScript = vi.fn()) {
   } as never;
 }
 
+function mockPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { value: platform });
+}
+
 function baseArgs(runLifecycleScript = vi.fn()) {
   return {
     workspace: makeWorkspace(runLifecycleScript),
@@ -122,6 +127,10 @@ function baseArgs(runLifecycleScript = vi.fn()) {
 }
 
 describe('runLifecycleScriptWithPolicy', () => {
+  afterEach(() => {
+    if (originalPlatform) Object.defineProperty(process, 'platform', originalPlatform);
+  });
+
   beforeEach(() => {
     emit.mockClear();
     logError.mockClear();
@@ -304,7 +313,8 @@ describe('runLifecycleScriptWithPolicy', () => {
   });
 
   it('runs a manual respawn policy script again after the first PTY exits', async () => {
-    const { provider, spawned, requests } = makeTerminalProvider();
+    mockPlatform('win32');
+    const { provider, spawned } = makeTerminalProvider();
     const projectId = 'project-rerun';
     const workspaceId = 'workspace-rerun';
     const service = new LifecycleScriptService({
@@ -331,15 +341,13 @@ describe('runLifecycleScriptWithPolicy', () => {
     };
 
     const firstRun = runLifecycleScriptWithPolicy(args);
-    await expect.poll(() => requests[0]?.command).toBe('pnpm dev');
-    expect(spawned[0].writes).toEqual([]);
+    await expect.poll(() => spawned[0]?.writes).toEqual(['pnpm dev\rexit\r']);
     spawned[0].emitExit({ exitCode: 0 });
     await expect(firstRun).resolves.toMatchObject({ kind: 'succeeded' });
     await expect.poll(() => spawned.length).toBe(2);
-    expect(requests[1].command).toBeUndefined();
 
     const secondRun = runLifecycleScriptWithPolicy(args);
-    await expect.poll(() => spawned[1]?.writes).toEqual(['pnpm dev; exit\r']);
+    await expect.poll(() => spawned[1]?.writes).toEqual(['pnpm dev\rexit\r']);
     spawned[1].emitExit({ exitCode: 0 });
     await expect(secondRun).resolves.toMatchObject({ kind: 'succeeded' });
     await expect.poll(() => spawned.length).toBe(3);

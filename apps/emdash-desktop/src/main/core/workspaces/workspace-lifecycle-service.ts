@@ -20,11 +20,6 @@ type LifecycleRespawnRequest = {
   initialSize: { cols: number; rows: number };
 };
 
-type PreparedLifecycleScript = {
-  pty: Pty;
-  spawnedWithCommand: boolean;
-};
-
 export type LifecycleScriptExecutionResult =
   | { kind: 'started' }
   | { kind: 'already-running' }
@@ -48,11 +43,11 @@ function appendOutputTail(current: string, chunk: string): string {
   return next.length > OUTPUT_TAIL_CAP ? next.slice(-OUTPUT_TAIL_CAP) : next;
 }
 
-function terminalInputForScript(script: string, exit: boolean): string {
+function terminalInputForScript(script: string, exit: boolean, windowsCmdExit: boolean): string {
   const normalizedScript = script.replace(/\r?\n/g, '\r');
   if (!exit) return `${normalizedScript}\r`;
   const scriptBeforeExit = normalizedScript.replace(/\r+$/, '');
-  return `${scriptBeforeExit}; exit\r`;
+  return windowsCmdExit ? `${scriptBeforeExit}\rexit\r` : `${scriptBeforeExit}; exit\r`;
 }
 
 export class LifecycleScriptService implements IDisposable {
@@ -119,12 +114,12 @@ export class LifecycleScriptService implements IDisposable {
 
   async prepareLifecycleScript(
     script: LifecycleScript,
-    options: { initialSize?: { cols: number; rows: number }; command?: string } = {}
-  ): Promise<PreparedLifecycleScript | null> {
+    options: { initialSize?: { cols: number; rows: number } } = {}
+  ): Promise<Pty | null> {
     const { initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS } } = options;
     const { terminalId, sessionId } = this.resolveIds(script);
     const existingPty = ptySessionRegistry.get(sessionId);
-    if (existingPty) return { pty: existingPty, spawnedWithCommand: false };
+    if (existingPty) return existingPty;
 
     await this.terminals.spawnLifecycleScript({
       terminal: {
@@ -134,7 +129,6 @@ export class LifecycleScriptService implements IDisposable {
         shellId: 'system',
         name: script.type,
       },
-      command: options.command,
       shellSetup: script.shellSetup,
       initialSize,
       respawnOnExit: false,
@@ -142,8 +136,7 @@ export class LifecycleScriptService implements IDisposable {
       watchDevServer: script.type === 'run',
     });
 
-    const pty = ptySessionRegistry.get(sessionId);
-    return pty ? { pty, spawnedWithCommand: options.command !== undefined } : null;
+    return ptySessionRegistry.get(sessionId) ?? null;
   }
 
   async runLifecycleScript(
@@ -164,16 +157,12 @@ export class LifecycleScriptService implements IDisposable {
 
     const { sessionId } = this.resolveIds(script);
 
-    const prepared = await this.prepareLifecycleScript(script, {
-      initialSize,
-      command: exit && !ptySessionRegistry.get(sessionId) ? script.script : undefined,
-    });
-    if (!prepared) {
+    const pty = await this.prepareLifecycleScript(script, { initialSize });
+    if (!pty) {
       throw new Error(
         `Lifecycle script session unavailable for ${script.type} in workspace ${this.workspaceId}`
       );
     }
-    const { pty, spawnedWithCommand } = prepared;
 
     if (waitForExit) {
       if (this.sessionsWaitingForExit.has(sessionId)) {
@@ -197,9 +186,13 @@ export class LifecycleScriptService implements IDisposable {
           })
         : null;
 
-      if (!spawnedWithCommand) {
-        pty.write(terminalInputForScript(script.script, exit));
-      }
+      pty.write(
+        terminalInputForScript(
+          script.script,
+          exit,
+          this.terminals.kind === 'local' && process.platform === 'win32'
+        )
+      );
 
       if (!exitPromise) {
         return { kind: 'started' };
