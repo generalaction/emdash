@@ -101,6 +101,7 @@ export class AcpChatStore {
       affordances: computed,
       isEmpty: computed,
       submitPrompt: action,
+      queuePrompt: action,
       stop: action,
       setModel: action,
       setMode: action,
@@ -301,6 +302,20 @@ export class AcpChatStore {
         if (!result.success) this._toastError('Failed to send message', result.error);
       })
       .catch((error: unknown) => this._toastError('Failed to send message', error));
+  }
+
+  queuePrompt(text: string, attachments: AcpPromptAttachment[] = [], hiddenContext?: string): void {
+    const promptAttachments = attachments.map((attachment) => attachment.ref);
+    void this.session
+      ?.queuePrompt({
+        text,
+        ...(hiddenContext ? { hiddenContext } : {}),
+        ...(promptAttachments.length > 0 ? { attachments: promptAttachments } : {}),
+      })
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to queue message', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to queue message', error));
   }
 
   setDraftText(text: string): void {
