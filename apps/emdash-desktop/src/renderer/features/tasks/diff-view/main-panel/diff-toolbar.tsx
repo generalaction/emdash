@@ -12,6 +12,7 @@ interface DiffToolbarProps {
 export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarProps) {
   const diffView = useWorkspaceViewModel().diffView;
   const diffStyle = diffView?.diffStyle;
+  const canPreview = tab.renderer.kind === 'text' && tab.renderer.previewKind !== undefined;
 
   const diffSourceLabel = (() => {
     if (tab.diffGroup === 'staged') return 'Staged';
@@ -29,23 +30,42 @@ export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarPro
         {diffSourceLabel && <MicroLabel>{diffSourceLabel}</MicroLabel>}
       </div>
       <div className="flex items-center gap-2">
-        <ToggleGroup
-          size="sm"
-          multiple={false}
-          value={[diffStyle]}
-          onValueChange={([value]) => {
-            if (value) {
-              diffView.setDiffStyle(value as 'unified' | 'split');
-            }
-          }}
-        >
-          <ToggleGroupItem value="unified">
-            <AlignJustify className="h-3.5 w-3.5" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="split">
-            <Columns2 className="h-3.5 w-3.5" />
-          </ToggleGroupItem>
-        </ToggleGroup>
+        {canPreview && (
+          <ToggleGroup
+            size="sm"
+            multiple={false}
+            value={[tab.viewMode]}
+            onValueChange={([value]) => {
+              if (value === 'diff' || value === 'preview') tab.setViewMode(value);
+            }}
+          >
+            <ToggleGroupItem value="diff" className="text-xs">
+              Diff
+            </ToggleGroupItem>
+            <ToggleGroupItem value="preview" className="text-xs">
+              Preview
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )}
+        {tab.viewMode === 'diff' && (
+          <ToggleGroup
+            size="sm"
+            multiple={false}
+            value={[diffStyle]}
+            onValueChange={([value]) => {
+              if (value) {
+                diffView.setDiffStyle(value as 'unified' | 'split');
+              }
+            }}
+          >
+            <ToggleGroupItem value="unified">
+              <AlignJustify className="h-3.5 w-3.5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="split">
+              <Columns2 className="h-3.5 w-3.5" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )}
       </div>
     </div>
   );
