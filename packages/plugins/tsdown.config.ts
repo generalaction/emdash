@@ -3,6 +3,7 @@ import { defineConfig } from 'tsdown';
 export default defineConfig({
   entry: {
     agents: 'src/agents/registry.ts',
+    'agents/types': 'src/agents/types.ts',
     integrations: 'src/integrations/index.ts',
     issues: 'src/issues/index.ts',
   },

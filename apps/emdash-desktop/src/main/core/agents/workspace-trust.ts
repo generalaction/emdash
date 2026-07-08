@@ -1,7 +1,7 @@
 import type { ITrustBehavior } from '@emdash/core/agents/plugins';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { getPlugin } from './plugin-registry';
 import { resolveTrustTarget, type WorkspaceTrustHost } from './workspace-trust-target';
 

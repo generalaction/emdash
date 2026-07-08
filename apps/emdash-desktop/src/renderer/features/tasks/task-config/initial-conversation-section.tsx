@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ChatComposer } from '@emdash/ui/react/components';
 import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react/components';
 import {
@@ -20,9 +21,11 @@ import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Field } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
-import { providerSupportsAcp } from '@shared/core/agents/agent-acp';
-import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import {
+  agentSupportsAcp,
+  agentSupportsAutoApprove,
+  type AgentCapabilities,
+} from '@shared/core/agents/agent-payload';
 import { extractIssueMentionTargets, issueMentionToken } from '@shared/core/issues/issue-context';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { buildIssueContextText } from '../context-bar/context-actions';
@@ -68,6 +71,7 @@ export function useInitialConversationState(
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
   const chatUiFeatureEnabled = useFeatureFlag('chat-ui');
+  const { data: agents } = useAgents();
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
@@ -100,9 +104,10 @@ export function useInitialConversationState(
     setModel(null);
   }
 
-  const autoApproveSupported = providerId ? providerSupportsAutoApprove(providerId) : false;
+  const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
+  const autoApproveSupported = agentSupportsAutoApprove(capabilities);
   const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
-  const acpSupported = chatUiFeatureEnabled && providerId ? providerSupportsAcp(providerId) : false;
+  const acpSupported = chatUiFeatureEnabled && agentSupportsAcp(capabilities);
   const useChatUi = acpSupported && useChatUiPreference;
 
   return {
@@ -142,6 +147,12 @@ function useModelOptions(
   if (!providerId) return null;
   const models = agents?.find((a) => a.id === providerId)?.capabilities.models;
   return models?.kind === 'selectable' ? models.modelOptions : null;
+}
+
+function useAgentCapabilities(providerId: AgentProviderId | null): AgentCapabilities | null {
+  const { data: agents } = useAgents();
+  if (!providerId) return null;
+  return agents?.find((agent) => agent.id === providerId)?.capabilities ?? null;
 }
 
 const SLASH_PROMPTS_SECTION = 'Prompts';
@@ -200,10 +211,10 @@ export function InitialConversationField({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [defaultIssueContext, includeIssueContextByDefault]);
 
-  const canToggleAutoApprove = state.provider ? providerSupportsAutoApprove(state.provider) : false;
+  const capabilities = useAgentCapabilities(state.provider);
+  const canToggleAutoApprove = agentSupportsAutoApprove(capabilities);
   const chatUiFeatureEnabled = useFeatureFlag('chat-ui');
-  const canToggleChatUi =
-    chatUiFeatureEnabled && state.provider ? providerSupportsAcp(state.provider) : false;
+  const canToggleChatUi = chatUiFeatureEnabled && agentSupportsAcp(capabilities);
 
   const { isDragOver, dropHandlers } = usePromptFileDrop({
     // Local paths would not exist on the remote host of an SSH project.

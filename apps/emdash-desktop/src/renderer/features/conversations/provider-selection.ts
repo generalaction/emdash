@@ -1,10 +1,8 @@
-import {
-  AGENT_PROVIDER_IDS,
-  type AgentProviderId,
-} from '@shared/core/agents/agent-provider-registry';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 
 type ResolveConversationProviderSelectionParams = {
-  defaultProviderId: AgentProviderId;
+  orderedProviderIds: AgentProviderId[];
+  defaultProviderId: AgentProviderId | null;
   providerOverride: AgentProviderId | null;
   installedProviderIds: AgentProviderId[];
   availabilityKnown: boolean;
@@ -16,6 +14,7 @@ export type ConversationProviderSelection = {
 };
 
 export function resolveConversationProviderSelection({
+  orderedProviderIds,
   defaultProviderId,
   providerOverride,
   installedProviderIds,
@@ -23,8 +22,8 @@ export function resolveConversationProviderSelection({
 }: ResolveConversationProviderSelectionParams): ConversationProviderSelection {
   const installedSet = new Set(installedProviderIds);
   const fallbackProviderId =
-    availabilityKnown && !installedSet.has(defaultProviderId)
-      ? AGENT_PROVIDER_IDS.find((id) => installedSet.has(id))
+    availabilityKnown && (!defaultProviderId || !installedSet.has(defaultProviderId))
+      ? orderedProviderIds.find((id) => installedSet.has(id))
       : undefined;
 
   const noInstalledAgents = availabilityKnown && installedSet.size === 0;
