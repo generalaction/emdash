@@ -21,7 +21,7 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   deps: {
-    neverBundle: ['zod', '@parcel/watcher', 'react', 'smol-toml', 'semver'],
+    neverBundle: ['@emdash/wire', 'zod', '@parcel/watcher', 'react', 'smol-toml', 'semver'],
   },
   sourcemap: true,
   clean: true,

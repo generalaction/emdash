@@ -23,6 +23,7 @@
   "dependencies": {
     "@emdash/core": "workspace:*",
     "@emdash/shared": "workspace:*",
+    "@emdash/wire": "workspace:*",
     "@orpc/server": "^1.14.6",
     "zod": "^4.4.3"
   },

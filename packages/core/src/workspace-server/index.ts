@@ -1,6 +1,7 @@
 export * from './contract';
 export * from './versions/schemas';
 export * from './versions';
+export * from './wire';
 export * from './shared/schemas';
 export * from './git/schemas';
 export * from './git/contract';
