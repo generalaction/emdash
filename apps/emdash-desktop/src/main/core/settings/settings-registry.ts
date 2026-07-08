@@ -32,6 +32,10 @@ export const SETTINGS_DEFAULTS = {
     preserveNameCapitalization: false,
     includeIssueContextByDefault: true,
   },
+  generation: {
+    provider: 'codex' as const,
+    model: '',
+  },
   notifications: {
     enabled: true,
     sound: true,

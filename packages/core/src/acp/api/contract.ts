@@ -1,6 +1,7 @@
 import { resultSchema } from '@emdash/shared';
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
+import { sessionStateSchema } from '../models/session';
 import {
   cancelTurnCommandSchema,
   changeQueuePromptOrderCommandSchema,
@@ -11,6 +12,7 @@ import {
   editQueuedPromptCommandSchema,
   exportAcpTranscriptCommandSchema,
   exportRawAcpLogCommandSchema,
+  getSessionStateCommandSchema,
   queuePromptCommandSchema,
   resolvePermissionCommandSchema,
   resumeSessionCommandSchema,
@@ -63,6 +65,7 @@ export const acpContract = {
   downloadAttachment: oc.input(downloadAttachmentCommandSchema).output(attachmentDownloadResult),
   deleteAttachment: oc.input(deleteAttachmentCommandSchema).output(voidResult),
   getHistory: oc.input(historyPageInputSchema).output(historyResult),
+  getSessionState: oc.input(getSessionStateCommandSchema).output(sessionStateSchema),
   live: acpLiveContract,
 };
 

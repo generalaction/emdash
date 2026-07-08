@@ -1,7 +1,14 @@
 import type { GitBranchRef } from '@emdash/core/git';
-import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
+import {
+  ChevronDown,
+  CircleAlert,
+  GitBranch,
+  GitPullRequest,
+  Loader2,
+  WandSparkles,
+} from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
@@ -9,6 +16,7 @@ import { RemoteSelectContent } from '@renderer/lib/components/remote-select-cont
 import { rpc } from '@renderer/lib/ipc';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Alert, AlertDescription, AlertTitle } from '@renderer/lib/ui/alert';
+import { Button } from '@renderer/lib/ui/button';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -23,6 +31,7 @@ import { Select, SelectTrigger } from '@renderer/lib/ui/select';
 import { Separator } from '@renderer/lib/ui/separator';
 import { SplitButton } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
 import { pullRequestErrorMessage } from '@shared/core/pull-requests/pull-requests';
 import { parseRepositoryRef } from '@shared/repository-ref';
@@ -55,7 +64,9 @@ export const CreatePrModal = observer(function CreatePrModal({
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<GitBranchRef | undefined>();
   const [selectedTargetRemoteName, setSelectedTargetRemoteName] = useState<string | undefined>();
   const [isCreating, setIsCreating] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const generationTokenRef = useRef(0);
   const repo = getGitRepositoryStore(projectId);
   const defaultBranch = repo?.defaultBranch;
   const isOnRemote = repo?.isBranchOnRemote(branchName) ?? false;
@@ -91,8 +102,48 @@ export const CreatePrModal = observer(function CreatePrModal({
 
   const handleTargetRemoteChange = (remoteName: string | null) => {
     if (!remoteName) return;
+    generationTokenRef.current += 1;
     setSelectedTargetRemoteName(remoteName);
     setSelectedBaseOverride(undefined);
+  };
+
+  const handleBaseChange = (base: GitBranchRef) => {
+    generationTokenRef.current += 1;
+    setSelectedBaseOverride(base);
+  };
+
+  const doGenerate = async () => {
+    if (!selectedBase?.branch) {
+      setError('Select a base branch before generating the pull request.');
+      return;
+    }
+    const generationToken = ++generationTokenRef.current;
+    setError(null);
+    setIsGenerating(true);
+    try {
+      const result = await rpc.generation.generatePullRequest({
+        projectId,
+        workspaceId,
+        baseLabel: selectedBase.branch,
+        baseRef:
+          selectedBase.type === 'remote'
+            ? `${selectedBase.remote.name}/${selectedBase.branch}`
+            : selectedBase.branch,
+        branchName,
+      });
+      if (generationToken !== generationTokenRef.current) return;
+      if (!result.success) {
+        setError(result.error.message);
+        return;
+      }
+      setTitle(result.data.title);
+      setDescription(result.data.body);
+    } catch (error) {
+      if (generationToken !== generationTokenRef.current) return;
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (generationToken === generationTokenRef.current) setIsGenerating(false);
+    }
   };
 
   const doCreate = async (push: boolean) => {
@@ -188,7 +239,7 @@ export const CreatePrModal = observer(function CreatePrModal({
           <ProjectBranchSelector
             projectId={projectId}
             value={selectedBase}
-            onValueChange={setSelectedBaseOverride}
+            onValueChange={handleBaseChange}
             remoteOnly
             remoteName={targetRemote?.remote.name}
             branchLabelRemote="short"
@@ -214,13 +265,34 @@ export const CreatePrModal = observer(function CreatePrModal({
         <FieldGroup>
           <Field>
             <FieldLabel>Title</FieldLabel>
-            <Input
-              placeholder="PR title"
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={!hasGitHubRemote}
-            />
+            <div className="flex gap-1.5">
+              <Input
+                placeholder="PR title"
+                autoFocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={!hasGitHubRemote || isGenerating}
+              />
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => void doGenerate()}
+                    disabled={
+                      !hasGitHubRemote || !selectedBase?.branch || isCreating || isGenerating
+                    }
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <WandSparkles className="size-3.5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Generate pull request draft</TooltipContent>
+              </Tooltip>
+            </div>
           </Field>
           <Field>
             <FieldLabel>Description</FieldLabel>
@@ -228,7 +300,7 @@ export const CreatePrModal = observer(function CreatePrModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={1}
-              disabled={!hasGitHubRemote}
+              disabled={!hasGitHubRemote || isGenerating}
             />
           </Field>
         </FieldGroup>
@@ -246,7 +318,7 @@ export const CreatePrModal = observer(function CreatePrModal({
             size="sm"
             loading={isCreating}
             loadingLabel="Creating..."
-            disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim()}
+            disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim() || isGenerating}
             actions={[
               {
                 value: 'push-and-create',
@@ -265,7 +337,13 @@ export const CreatePrModal = observer(function CreatePrModal({
           <ConfirmButton
             size="sm"
             onClick={() => void doCreate(false)}
-            disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim() || isCreating}
+            disabled={
+              !hasGitHubRemote ||
+              !selectedBase?.branch ||
+              !title.trim() ||
+              isCreating ||
+              isGenerating
+            }
           >
             {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
           </ConfirmButton>

@@ -21,6 +21,7 @@ export const acpStartInputSchema = z.object({
   model: z.string().nullable().optional(),
   initialQueue: z.array(promptInputSchema).optional(),
   sessionConfig: sessionConfigInputSchema.optional(),
+  ephemeral: z.boolean().optional(),
 });
 export type AcpStartInputWire = z.infer<typeof acpStartInputSchema>;
 
@@ -68,6 +69,7 @@ export const setPromptDraftCommandSchema = z.object({
 });
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
 export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
+export const getSessionStateCommandSchema = exportAcpTranscriptCommandSchema;
 
 export const uploadAttachmentCommandSchema = z
   .object({

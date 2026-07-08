@@ -1,4 +1,4 @@
-import { CheckCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, Loader2, WandSparkles } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -9,10 +9,13 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
 import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatErrorType, formatPushErrorDetail } from '../../../utils';
 
 type CommitPhase =
@@ -40,8 +43,9 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const [commitMessage, setCommitMessage] = useState('');
   const [description, setDescription] = useState('');
   const [phase, setPhase] = useState<CommitPhase>('idle');
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const fullMessage = description ? `${commitMessage}\n\n${description}` : commitMessage;
-  const isInFlight = phase !== 'idle';
+  const isInFlight = phase !== 'idle' || isGeneratingMessage;
 
   const showCreatePrModal = useShowModal('createPrModal');
   const repositoryUrl = workspace.gitRepository.pullRequestRepositoryUrl;
@@ -62,6 +66,27 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       return false;
     }
     return true;
+  };
+
+  const generateCommitMessage = async () => {
+    setIsGeneratingMessage(true);
+    try {
+      const result = await rpc.generation.generateCommitMessage({
+        projectId,
+        workspaceId,
+        includeUnstaged: autoStage,
+      });
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
+      setCommitMessage(result.data.title);
+      setDescription(result.data.body);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsGeneratingMessage(false);
+    }
   };
 
   const doCommit = async () => {
@@ -158,14 +183,33 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
 
   return (
     <div className="mx-2 mb-2 flex shrink-0 flex-col items-center justify-between gap-2 rounded-xl border border-border bg-background-1 p-2">
-      <Input
-        placeholder="Commit message"
-        autoFocus
-        className="w-full bg-background"
-        value={commitMessage}
-        onChange={(e) => setCommitMessage(e.target.value)}
-        disabled={isInFlight}
-      />
+      <div className="flex w-full gap-1.5">
+        <Input
+          placeholder="Commit message"
+          autoFocus
+          className="min-w-0 flex-1 bg-background"
+          value={commitMessage}
+          onChange={(e) => setCommitMessage(e.target.value)}
+          disabled={isInFlight}
+        />
+        <Tooltip>
+          <TooltipTrigger>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={() => void generateCommitMessage()}
+              disabled={isInFlight}
+            >
+              {isGeneratingMessage ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <WandSparkles className="size-3.5" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Generate commit message</TooltipContent>
+        </Tooltip>
+      </div>
       <Textarea
         placeholder="Description"
         className="w-full bg-background"
@@ -178,7 +222,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
           actions={actions}
           size="sm"
           className="w-full"
-          disabled={!commitMessage.trim()}
+          disabled={isInFlight || !commitMessage.trim()}
           defaultValue={effectiveAction}
           onValueChange={(value) =>
             diffView.setCommitAction(value as 'commit' | 'commit-push' | 'commit-pr')

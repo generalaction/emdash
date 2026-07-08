@@ -1,5 +1,6 @@
 import { RefreshCw } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import { CLISpinner } from '@renderer/lib/components/cliSpinner';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { Button } from '@renderer/lib/ui/button';
@@ -50,7 +51,7 @@ export function AgentsSettingsPage() {
               disabled={refreshing}
               aria-label="Refresh agent detection"
             >
-              <RefreshCw className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? <CLISpinner variant="2" /> : <RefreshCw />}
             </Button>
           </div>
         </div>

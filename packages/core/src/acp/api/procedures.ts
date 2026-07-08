@@ -2,6 +2,7 @@ import type { Result } from '@emdash/shared';
 import type { AcpRuntimeError } from '../errors';
 import type { AttachmentMimeType, AttachmentRef } from '../models/attachments';
 import type { PromptDraftUpdate, PromptInput } from '../models/prompt';
+import type { SessionState } from '../models/session';
 import type { AcpRuntime } from '../runtime/runtime';
 import type { AcpStartInput } from '../runtime/types';
 import type { AcpStartInputWire } from './commands';
@@ -124,6 +125,9 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     }): Result<HistoryPage, AcpRuntimeError> {
       return runtime.getHistory(input.conversationId, input.before, input.limit);
     },
+    getSessionState(input: { conversationId: string }): SessionState {
+      return runtime.getSessionState(input.conversationId);
+    },
   };
 }
 
@@ -140,5 +144,6 @@ function toStartInput(input: StartSessionInput): AcpStartInput {
     sessionId: input.sessionId ?? null,
     model: input.model ?? input.sessionConfig?.model ?? null,
     initialQueue: input.initialQueue,
+    ephemeral: input.ephemeral ?? false,
   };
 }

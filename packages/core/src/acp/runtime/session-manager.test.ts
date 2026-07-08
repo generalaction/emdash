@@ -254,4 +254,20 @@ describe('AcpRuntime session manager', () => {
     expect(rt.sessionLiveModels('conv-close')).toBeNull();
     expect(rt.sessionsListLiveModel().snapshot().data).toEqual({});
   });
+
+  it('keeps ephemeral sessions out of the public sessions list and persistence', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-ephemeral', ephemeral: true })
+    );
+
+    expect(isOk(result)).toBe(true);
+    expect(rt.getSessionState('conv-ephemeral').lifecycle).toBe('ready');
+    expect(rt.sessionsListLiveModel().snapshot().data).toEqual({});
+    expect(h.deps.persistSessionId).not.toHaveBeenCalled();
+
+    rt.stopSession('conv-ephemeral');
+    expect(rt.getSessionState('conv-ephemeral').lifecycle).toBe('closed');
+  });
 });
