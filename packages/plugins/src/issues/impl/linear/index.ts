@@ -15,7 +15,7 @@ import type {
   IssueSearchOpts,
 } from '../../types';
 import { getLinearIssueDetails } from './context';
-import { toIssueData, toIssueDetail } from './mapper';
+import { toIssueData, toIssueDetail, toIssueSearchData } from './mapper';
 import { queryLinearIssues, queryLinearIssueWithActivity, searchLinearIssues } from './queries';
 
 export async function listIssues(
@@ -47,7 +47,7 @@ export async function searchIssues(
   const sanitizedLimit = clampIssueLimit(opts.limit, 20, 200);
   try {
     const issues = await searchLinearIssues(client, term, sanitizedLimit);
-    return ok(issues.map(toIssueData));
+    return ok(issues.map(toIssueSearchData));
   } catch (error) {
     host.log.warn('Linear searchIssues failed', { error });
     return err(toLinearIntegrationError(error, 'Unable to search Linear issues.'));
