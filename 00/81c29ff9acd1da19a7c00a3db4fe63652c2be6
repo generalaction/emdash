@@ -1,0 +1,56 @@
+packages/plugins/src/agents/impl/index.test.ts
+  s_13b797df8116ab::t_c66c3dd654a4cf 277-298,300-314
+  s_c52fddbb2f278c::t_996243d851e5ed 299
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_8ae41dafeddc0a::t_985b58f9d07b6e 16,403-417
+  s_8ae41dafeddc0a::t_69b3a11843f2b0 418
+packages/plugins/src/agents/impl/prompt-delivery.test.ts
+  s_13b797df8116ab::t_c66c3dd654a4cf 46-55
+apps/emdash-desktop/src/assets/images/deepcode.svg
+  s_13b797df8116ab::t_c66c3dd654a4cf 1-6
+packages/plugins/src/agents/impl/deepcode/index.ts
+  s_c52fddbb2f278c::t_996243d851e5ed 25
+  s_8ae41dafeddc0a::t_985b58f9d07b6e 2-6,31-41
+  s_8ae41dafeddc0a::t_e940cdd891744d 1
+  s_8ae41dafeddc0a::t_ea01f42fa0b2ca 42
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_c52fddbb2f278c::t_996243d851e5ed 114-121,295
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_c52fddbb2f278c::t_996243d851e5ed 144-146
+agents/integrations/providers.md
+  s_8ae41dafeddc0a::t_985b58f9d07b6e 9,11
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.test.ts
+  s_13b797df8116ab::t_c66c3dd654a4cf 32-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0081c29ff9acd1da19a7c00a3db4fe63652c2be6",
+  "prompts": {},
+  "sessions": {
+    "s_13b797df8116ab": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033ljy0lWr68Jr8KH8ykgw",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_8ae41dafeddc0a": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033ljx9Sl2woAmSvjL51ZK",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_c52fddbb2f278c": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033ln9eU34YFIMrwAoNHp6",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
