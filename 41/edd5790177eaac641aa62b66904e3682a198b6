@@ -1,0 +1,39 @@
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_1e041521da8f59::t_25e62bf80fa21d 148-150,163-165
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_10d3db54c00156::t_de2333bda0eedf 1,87,90,115-122
+packages/plugins/src/agents/impl/deepcode/index.ts
+  s_124265e2ec7f4c::t_c480b8cbf89d4f 9-10,43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "41edd5790177eaac641aa62b66904e3682a198b6",
+  "prompts": {},
+  "sessions": {
+    "s_10d3db54c00156": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lu3InuvMrY9SwmxHIVn",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_124265e2ec7f4c": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lu3kGbJQlVrD8Vx6dpj",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_1e041521da8f59": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lu24GmLHIiWqhCWUyzc",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
