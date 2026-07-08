@@ -27,4 +27,36 @@ describe('AGENT_PROVIDERS', () => {
       installCommand: 'curl -fsSL https://x.ai/cli/install.sh | bash',
     });
   });
+
+  it('marks ACP-capable providers from the plugin registry research', () => {
+    const acpProviderIds = [
+      'auggie',
+      'claude',
+      'cline',
+      'codex',
+      'copilot',
+      'cursor',
+      'devin',
+      'droid',
+      'gemini',
+      'goose',
+      'grok',
+      'hermes',
+      'junie',
+      'kilocode',
+      'kimi',
+      'kiro',
+      'mimocode',
+      'mistral',
+      'opencode',
+      'qoder',
+      'qwen',
+    ];
+
+    for (const providerId of acpProviderIds) {
+      const provider = AGENT_PROVIDERS.find((candidate) => candidate.id === providerId);
+
+      expect(provider?.acpCapable, providerId).toBe(true);
+    }
+  });
 });
