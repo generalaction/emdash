@@ -27,6 +27,7 @@ pnpm --filter @emdash/wire run example:job-contract
 pnpm --filter @emdash/wire run example:mutation-idempotency
 pnpm --filter @emdash/wire run example:multi-window
 pnpm --filter @emdash/wire run example:logging
+pnpm --filter @emdash/wire run example:process
 pnpm --filter @emdash/wire run example:optimistic-live-model
 ```
 
@@ -64,5 +65,7 @@ Examples:
 - `replica/` demonstrates a cached middle hop with `createLiveModelReplica()`.
 - `logging/` demonstrates `withLogging`, `loggingTransport`, instrumentation
   hooks, redacted debug payload logging, and live-client resync diagnostics.
+- `process/` demonstrates `spawnRuntime()` and `serveProcessRuntime()` running a
+  typed controller in a subprocess with restart resync.
 - `optimistic-live-model/` demonstrates `OptimisticLiveModel` deriving previews
   from inline group mutation handlers and rolling back rejected mutations.

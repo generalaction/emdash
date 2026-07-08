@@ -37,6 +37,10 @@
       "types": "./dist/optimistic.d.mts",
       "default": "./dist/optimistic.mjs"
     },
+    "./util/process-runtime": {
+      "types": "./dist/process-runtime.d.mts",
+      "default": "./dist/process-runtime.mjs"
+    },
     "./process": {
       "types": "./dist/process.d.mts",
       "default": "./dist/process.mjs"

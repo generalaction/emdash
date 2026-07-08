@@ -73,6 +73,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     `describeScope()`, and `ManagedSource`.
   - [ProcessHost](./runtime/process-host.md): supervised child/utility processes
     and process-backed wire transports.
+  - [Process runtimes](./runtime/process-runtimes.md): subprocess-hosted
+    controllers with ready handshakes, graceful shutdown, and reconnect resync.
 - [Observability](./observability.md): ambient logger context, instrumentation
   hooks, controller logging, transport debug logging, and scope loggers.
 
@@ -97,6 +99,8 @@ Use narrower subpath exports at app boundaries:
 - `@emdash/wire/util`: dependency-free utilities: `Scope`, `ManagedSource`,
   and `deduplicateRequests`.
 - `@emdash/wire/util/optimistic`: MobX-backed optimistic group utilities.
+- `@emdash/wire/util/process-runtime`: helpers for serving and consuming
+  process-hosted wire controllers.
 - `@emdash/wire/process`: process supervision types, `utilityProcessHost()`,
   and `processTransport()`.
 - `@emdash/wire/process/node`: Node `childProcessHost()`.

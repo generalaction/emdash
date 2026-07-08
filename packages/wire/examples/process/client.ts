@@ -1,59 +1,58 @@
 import { fileURLToPath } from 'node:url';
-import { client, connect, ReplicaState } from '../../src/index';
-import { processTransport, type ManagedProcess } from '../../src/process';
+import { ReplicaState } from '../../src/index';
 import { childProcessHost } from '../../src/process/node';
 import { createScope } from '../../src/util';
+import { spawnRuntime } from '../../src/util/process-runtime';
 import { processExampleApi } from './contract';
 
 async function main(): Promise<void> {
   const scope = createScope({ label: 'process-example' });
-  const host = childProcessHost();
-  const runtime = await host.spawn(
-    {
+  const runtime = await spawnRuntime({
+    host: childProcessHost(),
+    contract: processExampleApi,
+    spec: {
       entry: fileURLToPath(new URL('./runtime.ts', import.meta.url)),
       supervision: { restart: 'on-failure', backoffMs: [50], maxRestarts: 1 },
     },
-    scope
-  );
+    scope,
+  });
 
-  const client = makeClient(runtime);
-  console.log('ping:', await client.ping('one'));
-  console.log('increment:', await client.increment(undefined));
-
-  const restarted = waitForRestart(runtime);
-  await client.crash(undefined).catch(() => undefined);
-  await restarted;
-  await delay(75);
-
-  const restartedClient = makeClient(runtime);
-  console.log('ping after restart:', await restartedClient.ping('two'));
-  const counter = new ReplicaState(restartedClient.counter.state(undefined, 'counter'), {
+  const counter = new ReplicaState(runtime.client.counter.state(undefined, 'counter'), {
     onChange: (value) => {
-      console.log('counter after restart:', value.count);
+      console.log('counter:', value.count);
     },
   });
   await counter.ready;
+
+  console.log('ping:', await runtime.client.ping('one'));
+  console.log('increment:', await runtime.client.increment(undefined));
+  const restarted = waitForRestart(runtime);
+  await runtime.client.crash(undefined).catch(() => undefined);
+  await restarted;
+
+  console.log('ping after restart:', await runtime.client.ping('two'));
+  await waitFor(() => counter.current().count === 0);
+  console.log('counter after restart:', counter.current().count);
   await counter.dispose();
 
   await scope.dispose();
 }
 
-function makeClient(runtime: ManagedProcess) {
-  return client(processExampleApi, connect(processTransport(runtime)));
-}
-
-function waitForRestart(runtime: ManagedProcess): Promise<void> {
+function waitForRestart(runtime: { onRestarted(cb: () => void): () => void }): Promise<void> {
   return new Promise((resolve) => {
-    const unsubscribe = runtime.onExit((exit) => {
-      if (!exit.willRestart) return;
+    const unsubscribe = runtime.onRestarted(() => {
       unsubscribe();
       resolve();
     });
   });
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error('Timed out waiting for condition');
 }
 
 void main();

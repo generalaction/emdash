@@ -91,7 +91,14 @@ The host uses structural types and does not import `electron`.
 
 ## Serving Wire over a Process
 
-`processTransport(process)` adapts a `ManagedProcess` to `WireTransport`:
+For subprocess runtimes that serve a wire controller, prefer
+[`spawnRuntime()` and `serveProcessRuntime()`](./process-runtimes.md). They add
+the ready handshake, graceful shutdown signal, and reconnect handling needed for
+live attachments to resync after supervised restarts.
+
+The lower-level `processTransport(process)` adapter is still useful when the
+caller wants to manage readiness and reconnect behavior manually. It adapts a
+`ManagedProcess` to `WireTransport`:
 
 ```ts
 import { client, connect } from '@emdash/wire';

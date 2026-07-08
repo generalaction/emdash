@@ -8,6 +8,7 @@ export default defineConfig({
     observability: 'src/observability/index.ts',
     util: 'src/util/index.ts',
     optimistic: 'src/util/optimistic/index.ts',
+    'process-runtime': 'src/util/process-runtime/index.ts',
     process: 'src/process/index.ts',
     'process-node': 'src/process/node/index.ts',
   },
