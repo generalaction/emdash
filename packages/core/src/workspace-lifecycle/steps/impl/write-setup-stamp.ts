@@ -10,6 +10,7 @@ export type SetupStamp = {
 };
 
 export const SETUP_STAMP_RELATIVE_PATH = path.join('emdash', 'setup-stamp');
+export const DIRECTORY_SETUP_STAMP_RELATIVE_PATH = path.join('.emdash', 'setup-stamp');
 
 type ResolveGitDirResult =
   | { success: true; data: string }
@@ -32,9 +33,9 @@ export const writeSetupStampImpl = implement(writeSetupStampStep, async (args, c
   }
 
   const gitDir = await resolveGitDir(worktreePath, ctx.signal);
-  if (!gitDir.success) return gitDir;
-
-  const stampPath = path.join(gitDir.data, SETUP_STAMP_RELATIVE_PATH);
+  const stampPath = gitDir.success
+    ? path.join(gitDir.data, SETUP_STAMP_RELATIVE_PATH)
+    : path.join(worktreePath, DIRECTORY_SETUP_STAMP_RELATIVE_PATH);
   try {
     await mkdir(path.dirname(stampPath), { recursive: true });
     await writeFile(

@@ -3,26 +3,39 @@ import path from 'node:path';
 import { addWorktreeStep } from '../catalog';
 import { implement, stepErr, stepOk, type StepCtx } from '../implement';
 import { gitErrorMessage, runGit } from '../run-git';
-import { parseGitWorktreeList, worktreePathForBranch } from '../worktree-list';
+import { parseGitWorktreeList } from '../worktree-list';
 import { gitFailure } from './helpers';
 
 export const addWorktreeImpl = implement(addWorktreeStep, async (args, ctx) => {
   const existingPath = await getWorktreeForBranch(args.branchName, ctx);
-  if (existingPath) return stepOk({ facts: { created: false, path: existingPath } });
+  if (existingPath === args.path) return stepOk({ facts: { created: false, path: args.path } });
+  if (existingPath) {
+    return stepErr('conflict', {
+      type: 'branch-checked-out-elsewhere',
+      message: `Branch "${args.branchName}" is already checked out at ${existingPath}`,
+      resolutions: ['use-existing', 'remove-existing'],
+    });
+  }
 
   await runGit(['worktree', 'prune'], { cwd: ctx.repoPath, signal: ctx.signal });
-  await mkdir(ctx.worktreePoolPath, { recursive: true });
-  const worktreePath = path.join(ctx.worktreePoolPath, sanitizeBranchName(args.branchName));
-  const result = await runGit(['worktree', 'add', worktreePath, args.branchName], {
+  await mkdir(path.dirname(args.path), { recursive: true });
+  const result = await runGit(['worktree', 'add', args.path, args.branchName], {
     cwd: ctx.repoPath,
     signal: ctx.signal,
   });
-  if (result.success) return stepOk({ facts: { created: true, path: worktreePath } });
+  if (result.success) return stepOk({ facts: { created: true, path: args.path } });
 
   const message = gitErrorMessage(result.error);
   if (message.includes('already checked out')) {
     const checkedOutPath = await getWorktreeForBranch(args.branchName, ctx);
-    if (checkedOutPath) return stepOk({ facts: { created: false, path: checkedOutPath } });
+    if (checkedOutPath === args.path) return stepOk({ facts: { created: false, path: args.path } });
+    if (checkedOutPath) {
+      return stepErr('conflict', {
+        type: 'branch-checked-out-elsewhere',
+        message: `Branch "${args.branchName}" is already checked out at ${checkedOutPath}`,
+        resolutions: ['use-existing', 'remove-existing'],
+      });
+    }
   }
 
   const failure = gitFailure('worktree-failed', result.error);
@@ -39,9 +52,6 @@ async function getWorktreeForBranch(
   });
   if (!result.success) return undefined;
 
-  return worktreePathForBranch(parseGitWorktreeList(result.data.stdout), branchName);
-}
-
-function sanitizeBranchName(branchName: string): string {
-  return branchName.replace(/[^a-zA-Z0-9._-]/g, '-');
+  const branchRef = `refs/heads/${branchName}`;
+  return parseGitWorktreeList(result.data.stdout).find((entry) => entry.branch === branchRef)?.path;
 }

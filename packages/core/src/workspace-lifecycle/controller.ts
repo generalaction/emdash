@@ -21,11 +21,12 @@ export function createWorkspaceLifecycleController(manager = new WorkspaceLifecy
       },
       workspace: manager.host,
       refresh: (input, meta) => manager.refresh(input, meta.signal),
+      listWorkspaces: (input, meta) => manager.listWorkspaces(input.repoPath, meta.signal),
       runPhase: {
         run: (input, ctx) => manager.runPhase(input, ctx),
         toError: toBootstrapError,
       },
-      scriptOutput: (key) => manager.scriptLog(key),
+      stepOutput: (key) => manager.stepLog(key),
     },
     { validate: 'full' }
   );

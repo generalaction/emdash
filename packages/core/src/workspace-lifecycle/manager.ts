@@ -15,20 +15,21 @@ import type {
   ObservedWorkspaceState,
   PhaseKind,
   RunPhaseInput,
-  ScriptOutputKey,
+  StepOutputKey,
+  WorkspaceListEntry,
   WorkspaceLifecycleKey,
   WorkspaceLifecyclePhase,
   WorkspaceRef,
 } from './api/schemas';
 import { validateBootstrapPlan } from './plan/validate';
 import type { WorkspaceLifecycleHooks, WorkspaceLifecycleLogger } from './ports';
-import { derivePhase, probeWorkspace } from './probe';
+import { derivePhase, listRepoWorkspaces, probeWorkspace } from './probe';
 import { noRepoLock, repoLock, type RepoLock } from './runner/repo-lock';
 import { runBootstrapPlan } from './runner/runner';
 
-const SCRIPT_LOG_RETAIN_MS = 5 * 60 * 1000;
+const STEP_LOG_RETAIN_MS = 5 * 60 * 1000;
 
-type ScriptLogEntry = {
+type StepLogEntry = {
   log: LiveLog;
   evictionTimer?: ReturnType<typeof setTimeout>;
 };
@@ -37,20 +38,20 @@ export type WorkspaceLifecycleManagerDeps = {
   hooks?: WorkspaceLifecycleHooks;
   lock?: RepoLock;
   logger?: WorkspaceLifecycleLogger;
-  scriptLogRetainMs?: number;
+  stepLogRetainMs?: number;
 };
 
 export class WorkspaceLifecycleManager {
   readonly host: LiveModelHost<typeof workspaceLifecycleContract.workspace>;
   private readonly inFlight = new Map<string, PhaseKind>();
-  private readonly scriptLogs = new Map<string, ScriptLogEntry>();
+  private readonly stepLogs = new Map<string, StepLogEntry>();
   private readonly lock: RepoLock;
-  private readonly scriptLogRetainMs: number;
+  private readonly stepLogRetainMs: number;
 
   constructor(private readonly deps: WorkspaceLifecycleManagerDeps = {}) {
     this.host = createLiveModelHost(workspaceLifecycleContract.workspace);
     this.lock = deps.lock ?? repoLock;
-    this.scriptLogRetainMs = deps.scriptLogRetainMs ?? SCRIPT_LOG_RETAIN_MS;
+    this.stepLogRetainMs = deps.stepLogRetainMs ?? STEP_LOG_RETAIN_MS;
   }
 
   async refresh(
@@ -72,16 +73,27 @@ export class WorkspaceLifecycleManager {
     return await this.lock.withLock(input.context.repoPath, () => this.runPhaseLocked(input, ctx));
   }
 
-  scriptLog(key: ScriptOutputKey): LiveLog {
-    return this.getScriptLog(key).log;
+  async listWorkspaces(
+    repoPath: string,
+    signal?: AbortSignal
+  ): Promise<Result<WorkspaceListEntry[], BootstrapError>> {
+    try {
+      return ok(await listRepoWorkspaces(repoPath, { signal }));
+    } catch (error) {
+      return err(toBootstrapError(error));
+    }
+  }
+
+  stepLog(key: StepOutputKey): LiveLog {
+    return this.getStepLog(key).log;
   }
 
   dispose(): void {
     this.host.dispose();
-    for (const entry of this.scriptLogs.values()) {
+    for (const entry of this.stepLogs.values()) {
       if (entry.evictionTimer) clearTimeout(entry.evictionTimer);
     }
-    this.scriptLogs.clear();
+    this.stepLogs.clear();
   }
 
   private async runPhaseLocked(
@@ -89,10 +101,10 @@ export class WorkspaceLifecycleManager {
     ctx: LiveJobContext<BootstrapProgress>
   ): Promise<Result<BootstrapResult, BootstrapError>> {
     const before = await this.refreshOrThrow(input.ref, ctx.signal);
-    if (this.inFlight.has(input.ref.workspaceId)) {
+    if (this.inFlight.has(input.ref.path)) {
       return err({
         type: 'phase-in-flight',
-        message: `Workspace "${input.ref.workspaceId}" already has an active lifecycle phase`,
+        message: `Workspace "${input.ref.path}" already has an active lifecycle phase`,
       });
     }
 
@@ -109,7 +121,6 @@ export class WorkspaceLifecycleManager {
       this.deps.hooks?.beforeTeardown
     ) {
       const allowed = await this.deps.hooks.beforeTeardown({
-        workspaceId: input.ref.workspaceId,
         path: before.path,
         force: false,
         signal: ctx.signal,
@@ -123,9 +134,9 @@ export class WorkspaceLifecycleManager {
       }
     }
 
-    this.inFlight.set(input.ref.workspaceId, input.phase);
+    this.inFlight.set(input.ref.path, input.phase);
     await this.publish(input.ref, undefined, ctx.jobId, ctx.signal);
-    this.emitPhaseChanged(input.ref.workspaceId, this.inFlightPhase(input.phase), before.path);
+    this.emitPhaseChanged(input.ref.path, this.inFlightPhase(input.phase));
 
     let result: Result<BootstrapResult, BootstrapError>;
     try {
@@ -134,18 +145,18 @@ export class WorkspaceLifecycleManager {
         signal: ctx.signal,
         onProgress: ctx.progress,
         onStepOutput: (stepId, chunk) =>
-          this.getScriptLog({ jobId: ctx.jobId, stepId }).log.append(chunk),
+          this.getStepLog({ jobId: ctx.jobId, stepId }).log.append(chunk),
       });
     } catch (error) {
       result = err(toBootstrapError(error));
     } finally {
-      this.inFlight.delete(input.ref.workspaceId);
+      this.inFlight.delete(input.ref.path);
     }
 
     const lastError = result.success ? undefined : result.error;
     const after = await this.publish(input.ref, lastError, undefined, ctx.signal);
-    this.emitPhaseChanged(input.ref.workspaceId, after.phase, after.path);
-    this.scheduleScriptLogEviction(ctx.jobId);
+    this.emitPhaseChanged(after.path, after.phase);
+    this.scheduleStepLogEviction(ctx.jobId);
     return result;
   }
 
@@ -175,25 +186,28 @@ export class WorkspaceLifecycleManager {
     activeJobId: string | undefined
   ): LifecycleState {
     return {
-      phase: derivePhase(observed, this.inFlight.get(ref.workspaceId)),
+      phase: derivePhase(observed, this.inFlight.get(ref.path)),
       setup: observed.setup,
-      branchName: ref.branchName,
+      git: observed.git,
+      branchName: observed.branchName,
       branchCreatedByEmdash: observed.branchCreatedByEmdash,
-      path: observed.worktree?.path,
+      path: observed.path,
       lastError,
       activeJobId,
     };
   }
 
   private cellFor(ref: WorkspaceRef) {
-    const key = { workspaceId: ref.workspaceId } satisfies WorkspaceLifecycleKey;
+    const key = { path: ref.path } satisfies WorkspaceLifecycleKey;
     return (
       this.host.get(key) ??
       this.host.create(key, {
         lifecycle: {
           phase: 'unprovisioned',
           setup: 'not-applicable',
-          branchName: ref.branchName,
+          git: 'none',
+          path: ref.path,
+          branchName: ref.kind === 'worktree' ? ref.branchName : undefined,
         },
       })
     );
@@ -232,47 +246,49 @@ export class WorkspaceLifecycleManager {
 
   private inFlightPhase(phase: PhaseKind): WorkspaceLifecyclePhase {
     return derivePhase(
-      { branchExists: true, branchCreatedByEmdash: false, setup: 'not-applicable' },
+      {
+        git: 'none',
+        path: '',
+        directoryExists: true,
+        branchCreatedByEmdash: false,
+        setup: 'not-applicable',
+      },
       phase
     );
   }
 
-  private getScriptLog(key: ScriptOutputKey): ScriptLogEntry {
-    const id = scriptLogId(key);
-    const existing = this.scriptLogs.get(id);
+  private getStepLog(key: StepOutputKey): StepLogEntry {
+    const id = stepLogId(key);
+    const existing = this.stepLogs.get(id);
     if (existing) {
       if (existing.evictionTimer) clearTimeout(existing.evictionTimer);
       existing.evictionTimer = undefined;
       return existing;
     }
     const entry = { log: new LiveLog() };
-    this.scriptLogs.set(id, entry);
+    this.stepLogs.set(id, entry);
     return entry;
   }
 
-  private scheduleScriptLogEviction(jobId: string): void {
-    for (const [id, entry] of this.scriptLogs) {
+  private scheduleStepLogEviction(jobId: string): void {
+    for (const [id, entry] of this.stepLogs) {
       if (!id.startsWith(`${jobId}:`)) continue;
       if (entry.evictionTimer) clearTimeout(entry.evictionTimer);
       entry.evictionTimer = setTimeout(() => {
-        if (this.scriptLogs.get(id) === entry) this.scriptLogs.delete(id);
-      }, this.scriptLogRetainMs);
+        if (this.stepLogs.get(id) === entry) this.stepLogs.delete(id);
+      }, this.stepLogRetainMs);
     }
   }
 
-  private emitPhaseChanged(
-    workspaceId: string,
-    phase: WorkspaceLifecyclePhase,
-    path: string | undefined
-  ): void {
+  private emitPhaseChanged(path: string, phase: WorkspaceLifecyclePhase): void {
     try {
-      this.deps.hooks?.onPhaseChanged?.({ workspaceId, phase, path });
+      this.deps.hooks?.onPhaseChanged?.({ path, phase });
     } catch (error) {
       this.deps.logger?.warn?.('Workspace lifecycle phase hook failed', error);
     }
   }
 }
 
-function scriptLogId(key: ScriptOutputKey): string {
+function stepLogId(key: StepOutputKey): string {
   return `${key.jobId}:${key.stepId}`;
 }

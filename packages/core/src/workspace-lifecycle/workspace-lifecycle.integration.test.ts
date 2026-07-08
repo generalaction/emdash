@@ -16,25 +16,22 @@ describe('workspace bootstrap runtime integration', () => {
       await writeFile(path.join(repo.repoPath, '.env.local'), 'TOKEN=test\n');
       const context: BootstrapContext = {
         repoPath: repo.repoPath,
-        worktreePoolPath: repo.worktreePoolPath,
-        baseRemote: 'origin',
-        pushRemote: 'origin',
         preservePatterns: ['.env.local'],
       };
-      const plan = compileBootstrapPlan(
+      const compiled = compileBootstrapPlan(
         {
           kind: 'create-branch',
           branchName: 'task/demo',
           fromBranch: { type: 'local', branch: 'main' },
         },
-        context
+        optionsFor(repo)
       );
 
-      const result = await runBootstrapPlan(plan, context);
+      const result = await runBootstrapPlan(compiled.plan, context);
 
       expect(result.success).toBe(true);
       if (!result.success) throw new Error(result.error.message);
-      expect(result.data.path).toBe(path.join(repo.worktreePoolPath, 'task-demo'));
+      expect(result.data.path).toBe(compiled.workspacePath);
       expect(result.data.report.map((entry) => entry.kind)).toEqual([
         'create-local-branch',
         'set-branch-base',
@@ -60,16 +57,16 @@ describe('workspace bootstrap runtime integration', () => {
       await execGit(repo.repoPath, ['commit', '-m', 'advance main']);
 
       const context = contextFor(repo);
-      const plan = compileBootstrapPlan(
+      const compiled = compileBootstrapPlan(
         {
           kind: 'create-branch',
           branchName: 'task/conflict',
           fromBranch: { type: 'local', branch: 'main' },
         },
-        context
+        optionsFor(repo)
       );
 
-      const conflict = await runBootstrapPlan(plan, context);
+      const conflict = await runBootstrapPlan(compiled.plan, context);
 
       expect(conflict.success).toBe(false);
       if (conflict.success) throw new Error('Expected branch conflict');
@@ -79,7 +76,7 @@ describe('workspace bootstrap runtime integration', () => {
       });
 
       const resetPlan = {
-        steps: plan.steps.map((entry) =>
+        steps: compiled.plan.steps.map((entry) =>
           entry.step.kind === 'create-local-branch'
             ? {
                 ...entry,
@@ -109,24 +106,30 @@ describe('workspace bootstrap runtime integration', () => {
     const repo = await createTestRepository();
     try {
       const context = contextFor(repo);
-      const plan = compileBootstrapPlan(
+      const compiled = compileBootstrapPlan(
         {
           kind: 'create-branch',
           branchName: 'task/teardown',
           fromBranch: { type: 'local', branch: 'main' },
         },
-        context
+        optionsFor(repo)
       );
-      const result = await runBootstrapPlan(plan, context);
+      const result = await runBootstrapPlan(compiled.plan, context);
       expect(result.success).toBe(true);
       if (!result.success) throw new Error(result.error.message);
 
       const observed = await probeWorkspace({
-        workspaceId: 'workspace-1',
+        kind: 'worktree',
         repoPath: repo.repoPath,
+        path: compiled.workspacePath,
         branchName: 'task/teardown',
       });
-      const teardownPlan = compileTeardownFromProbe(observed, 'task/teardown');
+      const teardownPlan = compileTeardownFromProbe(observed, {
+        kind: 'worktree',
+        repoPath: repo.repoPath,
+        path: compiled.workspacePath,
+        branchName: 'task/teardown',
+      });
       expect(teardownPlan.steps.map((entry) => entry.step.kind)).toEqual([
         'remove-worktree',
         'delete-branch',
@@ -143,6 +146,113 @@ describe('workspace bootstrap runtime integration', () => {
     }
   });
 
+  it('reports an explicit-path worktree conflict when a branch is checked out elsewhere', async () => {
+    const repo = await createTestRepository();
+    try {
+      const branchName = 'task/elsewhere';
+      const firstPath = path.join(repo.worktreePoolPath, 'first');
+      const secondPath = path.join(repo.worktreePoolPath, 'second');
+      await execGit(repo.repoPath, ['branch', branchName, 'main']);
+      await execGit(repo.repoPath, ['worktree', 'add', firstPath, branchName]);
+
+      const conflict = await runBootstrapPlan(
+        {
+          steps: [
+            {
+              id: 'add-worktree:1',
+              label: 'Create worktree',
+              step: step('add-worktree', { branchName, path: secondPath }),
+            },
+          ],
+        },
+        contextFor(repo)
+      );
+
+      expect(conflict).toMatchObject({
+        success: false,
+        error: {
+          type: 'branch-checked-out-elsewhere',
+          resolutions: ['use-existing', 'remove-existing'],
+        },
+      });
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
+  it('clones a repository and streams git output', async () => {
+    const source = await createTestRepository();
+    const cloneRoot = path.join(source.root, 'clones');
+    const clonePath = path.join(cloneRoot, 'repo-clone');
+    try {
+      const output: string[] = [];
+      const progress: string[] = [];
+      const result = await runBootstrapPlan(
+        {
+          steps: [
+            {
+              id: 'git-clone:1',
+              label: 'Clone repo',
+              step: step('git-clone', { url: source.repoPath, path: clonePath }),
+            },
+          ],
+        },
+        { repoPath: clonePath, preservePatterns: [] },
+        {
+          onStepOutput: (_stepId, chunk) => output.push(chunk),
+          onProgress: (entry) => {
+            const message = entry.steps[0].progress?.message;
+            if (message) progress.push(message);
+          },
+        }
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error(result.error.message);
+      expect(result.data.path).toBe(clonePath);
+      expect(output.join('')).toContain('Cloning into');
+      expect(progress.length).toBeGreaterThan(0);
+      await expect(stat(path.join(clonePath, '.git'))).resolves.toBeDefined();
+    } finally {
+      await source.cleanup();
+    }
+  });
+
+  it('tears down a directory workspace through remove-directory', async () => {
+    const repo = await createTestRepository();
+    try {
+      const workspacePath = path.join(repo.root, 'plain-workspace');
+      const create = await runBootstrapPlan(
+        {
+          steps: [
+            {
+              id: 'create-directory:1',
+              label: 'Create directory',
+              step: step('create-directory', { path: workspacePath }),
+            },
+          ],
+        },
+        { repoPath: workspacePath, preservePatterns: [] }
+      );
+      expect(create.success).toBe(true);
+
+      const teardownPlan = compileTeardownFromProbe(
+        await probeWorkspace({ kind: 'directory', path: workspacePath }),
+        { kind: 'directory', path: workspacePath }
+      );
+      expect(teardownPlan.steps.map((entry) => entry.step.kind)).toEqual(['remove-directory']);
+
+      const teardown = await runBootstrapPlan(teardownPlan, {
+        repoPath: workspacePath,
+        preservePatterns: [],
+      });
+      expect(teardown.success).toBe(true);
+      await expect(stat(workspacePath)).rejects.toThrow();
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
   it('serializes concurrent bootstraps against one repo', async () => {
     const repo = await createTestRepository();
     try {
@@ -153,7 +263,7 @@ describe('workspace bootstrap runtime integration', () => {
           branchName: 'task/one',
           fromBranch: { type: 'local', branch: 'main' },
         },
-        context
+        optionsFor(repo)
       );
       const second = compileBootstrapPlan(
         {
@@ -161,12 +271,12 @@ describe('workspace bootstrap runtime integration', () => {
           branchName: 'task/two',
           fromBranch: { type: 'local', branch: 'main' },
         },
-        context
+        optionsFor(repo)
       );
 
       const [firstResult, secondResult] = await Promise.all([
-        runBootstrapPlan(first, context),
-        runBootstrapPlan(second, context),
+        runBootstrapPlan(first.plan, context),
+        runBootstrapPlan(second.plan, context),
       ]);
 
       expect(firstResult.success).toBe(true);
@@ -182,9 +292,13 @@ describe('workspace bootstrap runtime integration', () => {
 function contextFor(repo: { repoPath: string; worktreePoolPath: string }): BootstrapContext {
   return {
     repoPath: repo.repoPath,
+    preservePatterns: [],
+  };
+}
+
+function optionsFor(repo: { worktreePoolPath: string }) {
+  return {
     worktreePoolPath: repo.worktreePoolPath,
     baseRemote: 'origin',
-    pushRemote: 'origin',
-    preservePatterns: [],
   };
 }

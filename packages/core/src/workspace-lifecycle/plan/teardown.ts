@@ -1,5 +1,9 @@
-import type { ObservedWorkspaceState } from '../api/schemas';
-import type { BootstrapPlan, BootstrapStep } from '../api/schemas';
+import type {
+  BootstrapPlan,
+  BootstrapStep,
+  ObservedWorkspaceState,
+  WorkspaceRef,
+} from '../api/schemas';
 import { createPlannedSteps } from './steps';
 
 export type TeardownScript = {
@@ -15,7 +19,7 @@ export type CompileTeardownFromProbeOptions = {
 
 export function compileTeardownFromProbe(
   observed: ObservedWorkspaceState,
-  branchName: string,
+  ref: WorkspaceRef,
   options: CompileTeardownFromProbeOptions = {}
 ): BootstrapPlan {
   const steps: BootstrapStep[] = [];
@@ -32,11 +36,21 @@ export function compileTeardownFromProbe(
     });
   }
 
-  if (observed.worktree?.path) {
+  if (ref.kind === 'directory') {
+    if (observed.directoryExists) {
+      steps.push({
+        kind: 'remove-directory',
+        args: { path: ref.path },
+      });
+    }
+    return { steps: createPlannedSteps(steps) };
+  }
+
+  if (observed.worktree?.registered || observed.directoryExists) {
     steps.push({
       kind: 'remove-worktree',
       args: {
-        path: observed.worktree.path,
+        path: ref.path,
       },
     });
   }
@@ -44,7 +58,7 @@ export function compileTeardownFromProbe(
   if (observed.branchCreatedByEmdash) {
     steps.push({
       kind: 'delete-branch',
-      args: { branchName },
+      args: { branchName: ref.branchName },
     });
   }
 

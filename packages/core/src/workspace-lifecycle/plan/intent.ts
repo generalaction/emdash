@@ -36,6 +36,17 @@ export const bootstrapGitIntentSchema = z.discriminatedUnion('kind', [
     isFork: z.boolean(),
     taskBranch: z.string().min(1).optional(),
   }),
+  z.object({
+    kind: z.literal('clone-repository'),
+    url: z.string().min(1),
+    destination: z.string().min(1),
+    remoteName: z.string().min(1).optional(),
+    depth: z.number().int().positive().optional(),
+  }),
+  z.object({
+    kind: z.literal('plain-directory'),
+    path: z.string().min(1),
+  }),
 ]);
 
 export type BootstrapGitRemote = z.infer<typeof bootstrapGitRemoteSchema>;

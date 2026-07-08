@@ -1,22 +1,35 @@
-import type { BootstrapContext, BootstrapPlan } from '../api/schemas';
+import path from 'node:path';
+import type { BootstrapPlan } from '../api/schemas';
 import { step, type BootstrapStep } from '../steps/catalog';
 import type { BootstrapGitIntent } from './intent';
 import { createPlannedSteps } from './steps';
 
+export type CompileBootstrapPlanOptions = {
+  worktreePoolPath: string;
+  baseRemote: string;
+};
+
+export type CompiledBootstrapPlan = {
+  plan: BootstrapPlan;
+  workspacePath: string;
+};
+
 export function compileBootstrapPlan(
   intent: BootstrapGitIntent,
-  context: BootstrapContext
-): BootstrapPlan {
+  options: CompileBootstrapPlanOptions
+): CompiledBootstrapPlan {
   const steps: BootstrapStep[] = [];
 
   if (intent.kind === 'use-branch') {
-    steps.push(step('add-worktree', { branchName: intent.branchName }));
+    const workspacePath = worktreePathForBranch(options.worktreePoolPath, intent.branchName);
+    steps.push(step('add-worktree', { branchName: intent.branchName, path: workspacePath }));
     steps.push(step('copy-preserved-files', {}));
-    return { steps: createPlannedSteps(steps) };
+    return { plan: { steps: createPlannedSteps(steps) }, workspacePath };
   }
 
   if (intent.kind === 'create-branch') {
     const { branchName, fromBranch } = intent;
+    const workspacePath = worktreePathForBranch(options.worktreePoolPath, branchName);
 
     if (fromBranch.type === 'remote') {
       const remoteName = fromBranch.remote.name;
@@ -33,14 +46,32 @@ export function compileBootstrapPlan(
       steps.push(step('set-branch-base', { branchName, baseRef: fromBranch.branch }));
     }
 
-    steps.push(step('add-worktree', { branchName }));
+    steps.push(step('add-worktree', { branchName, path: workspacePath }));
     steps.push(step('copy-preserved-files', {}));
 
-    return { steps: createPlannedSteps(steps) };
+    return { plan: { steps: createPlannedSteps(steps) }, workspacePath };
+  }
+
+  if (intent.kind === 'clone-repository') {
+    steps.push(
+      step('git-clone', {
+        url: intent.url,
+        path: intent.destination,
+        remoteName: intent.remoteName,
+        depth: intent.depth,
+      })
+    );
+    return { plan: { steps: createPlannedSteps(steps) }, workspacePath: intent.destination };
+  }
+
+  if (intent.kind === 'plain-directory') {
+    steps.push(step('create-directory', { path: intent.path }));
+    return { plan: { steps: createPlannedSteps(steps) }, workspacePath: intent.path };
   }
 
   const { headBranch, headRepositoryUrl, isFork, prNumber, taskBranch } = intent;
   const worktreeBranch = taskBranch ?? headBranch;
+  const workspacePath = worktreePathForBranch(options.worktreePoolPath, worktreeBranch);
 
   if (isFork) {
     const remoteName = forkRemoteName(headRepositoryUrl);
@@ -62,7 +93,7 @@ export function compileBootstrapPlan(
   } else {
     steps.push(
       step('git-fetch', {
-        remote: context.baseRemote,
+        remote: options.baseRemote,
         refspec: `refs/pull/${prNumber}/head:refs/heads/${headBranch}`,
         force: true,
       })
@@ -70,7 +101,7 @@ export function compileBootstrapPlan(
     steps.push(
       step('set-branch-tracking', {
         branchName: headBranch,
-        remote: context.baseRemote,
+        remote: options.baseRemote,
         remoteBranch: headBranch,
       })
     );
@@ -82,10 +113,10 @@ export function compileBootstrapPlan(
     );
   }
 
-  steps.push(step('add-worktree', { branchName: worktreeBranch }));
+  steps.push(step('add-worktree', { branchName: worktreeBranch, path: workspacePath }));
   steps.push(step('copy-preserved-files', {}));
 
-  return { steps: createPlannedSteps(steps) };
+  return { plan: { steps: createPlannedSteps(steps) }, workspacePath };
 }
 
 function forkRemoteName(repositoryUrl: string): string {
@@ -99,4 +130,12 @@ function forkRemoteName(repositoryUrl: string): string {
         .join('/');
   const owner = pathPart.split('/').filter(Boolean).at(0);
   return owner?.replace(/[^a-zA-Z0-9._-]/g, '-') || 'fork';
+}
+
+function worktreePathForBranch(worktreePoolPath: string, branchName: string): string {
+  return path.join(worktreePoolPath, sanitizeBranchName(branchName));
+}
+
+function sanitizeBranchName(branchName: string): string {
+  return branchName.replace(/[^a-zA-Z0-9._-]/g, '-');
 }

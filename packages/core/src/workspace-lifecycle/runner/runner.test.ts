@@ -12,9 +12,6 @@ import { runBootstrapPlan } from './runner';
 
 const context: BootstrapContext = {
   repoPath: '/repo',
-  worktreePoolPath: '/worktrees',
-  baseRemote: 'origin',
-  pushRemote: 'origin',
   preservePatterns: [],
 };
 
@@ -37,7 +34,7 @@ describe('runBootstrapPlan', () => {
       {
         stepId: 'add-worktree:1',
         kind: 'add-worktree',
-        args: { branchName: 'demo' },
+        args: { branchName: 'demo', path: '/worktrees/demo' },
         facts: { path: '/worktrees/demo' },
       },
       {
@@ -134,7 +131,7 @@ describe('runBootstrapPlan', () => {
       const output: string[] = [];
       const result = await runBootstrapPlan(
         runScriptPlan(),
-        { ...context, repoPath: cwd, worktreePoolPath: cwd },
+        { ...context, repoPath: cwd },
         {
           lock: new RepoLock(),
           onStepOutput: (_stepId, chunk) => output.push(chunk),
@@ -172,6 +169,24 @@ describe('runBootstrapPlan', () => {
         .filter((entry) => entry.steps[0].status === 'running')
         .map((entry) => entry.steps[0].attempt)
     ).toEqual([1, 2, 3]);
+  });
+
+  it('surfaces structured progress on the running step view', async () => {
+    const progress: BootstrapProgress[] = [];
+    const result = await runBootstrapPlan(runScriptPlan(), context, {
+      registry: registry({
+        'run-script': async (_args, ctx) => {
+          ctx.reportProgress?.({ percent: 42, message: 'working' });
+          return stepOk();
+        },
+      }),
+      lock: new RepoLock(),
+      onProgress: (entry) => progress.push(entry),
+    });
+
+    expect(result.success).toBe(true);
+    expect(progress.some((entry) => entry.steps[0].progress?.percent === 42)).toBe(true);
+    expect(progress.at(-1)?.steps[0].progress).toBeUndefined();
   });
 
   it('cancels before starting a step', async () => {
@@ -218,7 +233,7 @@ function plan(): BootstrapPlan {
       {
         id: 'add-worktree:1',
         label: 'Create worktree',
-        step: step('add-worktree', { branchName: 'demo' }),
+        step: step('add-worktree', { branchName: 'demo', path: '/worktrees/demo' }),
       },
       {
         id: 'copy-preserved-files:1',

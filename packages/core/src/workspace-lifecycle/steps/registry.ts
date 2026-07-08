@@ -1,11 +1,14 @@
 import type { BootstrapStep, BootstrapStepKind } from './catalog';
 import { addWorktreeImpl } from './impl/add-worktree';
 import { copyPreservedFilesImpl } from './impl/copy-preserved-files';
+import { createDirectoryImpl } from './impl/create-directory';
 import { createLocalBranchImpl } from './impl/create-local-branch';
 import { deleteBranchImpl } from './impl/delete-branch';
 import { ensureRemoteImpl } from './impl/ensure-remote';
+import { gitCloneImpl } from './impl/git-clone';
 import { gitFetchImpl } from './impl/git-fetch';
 import { pushBranchImpl } from './impl/push-branch';
+import { removeDirectoryImpl } from './impl/remove-directory';
 import { removeRemoteImpl } from './impl/remove-remote';
 import { removeWorktreeImpl } from './impl/remove-worktree';
 import { runScriptImpl } from './impl/run-script';
@@ -25,11 +28,14 @@ export const bootstrapStepImplementations = [
   setBranchTrackingImpl,
   setBranchBaseImpl,
   addWorktreeImpl,
+  createDirectoryImpl,
   copyPreservedFilesImpl,
   pushBranchImpl,
   removeWorktreeImpl,
+  removeDirectoryImpl,
   deleteBranchImpl,
   removeRemoteImpl,
+  gitCloneImpl,
   runScriptImpl,
   writeSetupStampImpl,
 ] as const;

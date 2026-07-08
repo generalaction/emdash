@@ -60,9 +60,19 @@ export const addWorktreeStep = defineStep({
   kind: 'add-worktree',
   args: z.object({
     branchName: z.string().min(1),
+    path: z.string().min(1),
   }),
   fatal: true,
   label: (args) => `Create worktree for ${args.branchName}`,
+});
+
+export const createDirectoryStep = defineStep({
+  kind: 'create-directory',
+  args: z.object({
+    path: z.string().min(1),
+  }),
+  fatal: true,
+  label: (args) => `Create directory ${args.path}`,
 });
 
 export const copyPreservedFilesStep = defineStep({
@@ -92,6 +102,15 @@ export const removeWorktreeStep = defineStep({
   label: (args) => `Remove worktree ${args.path}`,
 });
 
+export const removeDirectoryStep = defineStep({
+  kind: 'remove-directory',
+  args: z.object({
+    path: z.string().min(1),
+  }),
+  fatal: true,
+  label: (args) => `Remove directory ${args.path}`,
+});
+
 export const deleteBranchStep = defineStep({
   kind: 'delete-branch',
   args: z.object({
@@ -108,6 +127,18 @@ export const removeRemoteStep = defineStep({
   }),
   fatal: false,
   label: (args) => `Remove remote ${args.name}`,
+});
+
+export const gitCloneStep = defineStep({
+  kind: 'git-clone',
+  args: z.object({
+    url: z.string().min(1),
+    path: z.string().min(1),
+    remoteName: z.string().min(1).optional(),
+    depth: z.number().int().positive().optional(),
+  }),
+  fatal: true,
+  label: (args) => `Clone ${args.url}`,
 });
 
 export const runScriptStep = defineStep({
@@ -139,11 +170,14 @@ export const stepDescriptors = [
   setBranchTrackingStep,
   setBranchBaseStep,
   addWorktreeStep,
+  createDirectoryStep,
   copyPreservedFilesStep,
   pushBranchStep,
   removeWorktreeStep,
+  removeDirectoryStep,
   deleteBranchStep,
   removeRemoteStep,
+  gitCloneStep,
   runScriptStep,
   writeSetupStampStep,
 ] as const;

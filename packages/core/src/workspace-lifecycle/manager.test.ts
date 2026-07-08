@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { err } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { BootstrapPlan } from './api/schemas';
@@ -40,7 +41,7 @@ describe('WorkspaceLifecycleManager', () => {
         {
           ref: ref(repo, 'feature/provision'),
           phase: 'provision',
-          plan: provisionPlan('feature/provision'),
+          plan: provisionPlan('feature/provision', ref(repo, 'feature/provision').path),
           context: context(repo),
         },
         jobCtx('provision')
@@ -48,7 +49,7 @@ describe('WorkspaceLifecycleManager', () => {
 
       expect(result.success).toBe(true);
       const state = manager.host
-        .get({ workspaceId: 'workspace-1' })
+        .get({ path: ref(repo, 'feature/provision').path })
         ?.states.lifecycle.snapshot().data;
       expect(state).toMatchObject({
         phase: 'provisioned',
@@ -74,7 +75,7 @@ describe('WorkspaceLifecycleManager', () => {
         {
           ref: ref(repo, branchName),
           phase: 'provision',
-          plan: provisionPlan(branchName),
+          plan: provisionPlan(branchName, ref(repo, branchName).path),
           context: context(repo),
         },
         jobCtx('provision')
@@ -82,7 +83,7 @@ describe('WorkspaceLifecycleManager', () => {
       expect(provision.success).toBe(true);
 
       const observed = await probeWorkspace(ref(repo, branchName));
-      const teardownPlan = compileTeardownFromProbe(observed, branchName);
+      const teardownPlan = compileTeardownFromProbe(observed, ref(repo, branchName));
       const blocked = await manager.runPhase(
         {
           ref: ref(repo, branchName),
@@ -110,7 +111,8 @@ describe('WorkspaceLifecycleManager', () => {
       expect(forced.success).toBe(true);
       expect(beforeTeardown).toHaveBeenCalledTimes(1);
       expect(
-        manager.host.get({ workspaceId: 'workspace-1' })?.states.lifecycle.snapshot().data.phase
+        manager.host.get({ path: ref(repo, branchName).path })?.states.lifecycle.snapshot().data
+          .phase
       ).toBe('unprovisioned');
       manager.dispose();
     } finally {
@@ -148,7 +150,7 @@ describe('WorkspaceLifecycleManager', () => {
 
       expect(result.success).toBe(false);
       const state = manager.host
-        .get({ workspaceId: 'workspace-1' })
+        .get({ path: ref(repo, branchName).path })
         ?.states.lifecycle.snapshot().data;
       expect(state).toMatchObject({
         phase: 'unprovisioned',
@@ -164,23 +166,25 @@ describe('WorkspaceLifecycleManager', () => {
 
 function ref(repo: { repoPath: string }, branchName: string) {
   return {
-    workspaceId: 'workspace-1',
+    kind: 'worktree' as const,
     repoPath: repo.repoPath,
+    path: path.join(
+      path.dirname(repo.repoPath),
+      'worktrees',
+      branchName.replace(/[^a-zA-Z0-9._-]/g, '-')
+    ),
     branchName,
   };
 }
 
-function context(repo: { repoPath: string; worktreePoolPath: string }) {
+function context(repo: { repoPath: string }) {
   return {
     repoPath: repo.repoPath,
-    worktreePoolPath: repo.worktreePoolPath,
-    baseRemote: 'origin',
-    pushRemote: 'origin',
     preservePatterns: [],
   };
 }
 
-function provisionPlan(branchName: string): BootstrapPlan {
+function provisionPlan(branchName: string, worktreePath: string): BootstrapPlan {
   return {
     steps: [
       {
@@ -191,7 +195,7 @@ function provisionPlan(branchName: string): BootstrapPlan {
       {
         id: 'add-worktree:1',
         label: 'Create worktree',
-        step: step('add-worktree', { branchName }),
+        step: step('add-worktree', { branchName, path: worktreePath }),
       },
     ],
   };

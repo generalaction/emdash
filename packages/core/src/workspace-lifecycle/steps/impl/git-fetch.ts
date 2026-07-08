@@ -1,14 +1,20 @@
 import { gitFetchStep } from '../catalog';
 import { implement, stepErr, stepOk } from '../implement';
 import { gitErrorMessage, runGit } from '../run-git';
+import { runGitStreaming } from '../run-git-streaming';
 import { gitFailure } from './helpers';
 
 export const gitFetchImpl = implement(gitFetchStep, async (args, ctx) => {
-  const gitArgs = ['fetch', args.remote];
+  const gitArgs = ['fetch', '--progress', args.remote];
   if (args.refspec) gitArgs.push(args.refspec);
   if (args.force) gitArgs.push('--force');
 
-  const result = await runGit(gitArgs, { cwd: ctx.repoPath, signal: ctx.signal });
+  const result = await runGitStreaming(gitArgs, {
+    cwd: ctx.repoPath,
+    signal: ctx.signal,
+    onOutput: ctx.emitOutput,
+    onProgress: ctx.reportProgress,
+  });
   if (result.success) return stepOk();
 
   const message = gitErrorMessage(result.error);

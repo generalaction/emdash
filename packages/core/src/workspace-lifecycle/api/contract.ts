@@ -13,11 +13,13 @@ import {
   bootstrapProgressSchema,
   bootstrapResultSchema,
   lifecycleStateSchema,
+  listWorkspacesInputSchema,
   planRejectionSchema,
   runPhaseInputSchema,
-  scriptOutputKeySchema,
+  stepOutputKeySchema,
   validatePlanInputSchema,
   validatePlanResultSchema,
+  workspaceListEntrySchema,
   workspaceLifecycleKeySchema,
   workspaceRefSchema,
 } from './schemas';
@@ -43,11 +45,16 @@ export const workspaceLifecycleContract = defineContract({
     data: lifecycleStateSchema,
     error: bootstrapErrorSchema,
   }),
+  listWorkspaces: fallible({
+    input: listWorkspacesInputSchema,
+    data: z.array(workspaceListEntrySchema),
+    error: bootstrapErrorSchema,
+  }),
   runPhase: liveJob({
     input: runPhaseInputSchema,
     progress: bootstrapProgressSchema,
     result: bootstrapResultSchema,
     error: bootstrapErrorSchema,
   }),
-  scriptOutput: liveLog({ key: scriptOutputKeySchema }),
+  stepOutput: liveLog({ key: stepOutputKeySchema }),
 });

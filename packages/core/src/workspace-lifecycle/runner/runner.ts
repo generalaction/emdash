@@ -81,9 +81,14 @@ async function runBootstrapPlanLocked(
       let result: Awaited<ReturnType<typeof implementation.execute>>;
       try {
         runContext.emitOutput = (chunk) => options.onStepOutput?.(entry.id, chunk);
+        runContext.reportProgress = (progress) => {
+          view.progress = progress;
+          emitProgress(views, options);
+        };
         result = await implementation.execute(entry.step.args, runContext);
       } finally {
         runContext.emitOutput = undefined;
+        runContext.reportProgress = undefined;
       }
       if (result.success) {
         const facts = result.facts ?? {};
@@ -101,6 +106,7 @@ async function runBootstrapPlanLocked(
           facts,
         });
         view.status = 'done';
+        view.progress = undefined;
         emitProgress(views, options);
         break;
       }
@@ -116,11 +122,13 @@ async function runBootstrapPlanLocked(
         view.warnings = [...(view.warnings ?? []), { type: error.type, message: error.message }];
         warnings.push({ type: error.type, message: error.message });
         view.status = 'done';
+        view.progress = undefined;
         emitProgress(views, options);
         break;
       }
 
       view.status = 'failed';
+      view.progress = undefined;
       view.error = error;
       markSkippedFrom(views, index + 1);
       emitProgress(views, options);
@@ -160,6 +168,7 @@ function emitProgress(views: BootstrapStepView[], options: BootstrapRunnerOption
     steps: views.map((view) => ({
       ...view,
       attempt: view.attempt,
+      progress: view.progress ? { ...view.progress } : undefined,
       warnings: view.warnings ? [...view.warnings] : undefined,
       error: view.error ? { ...view.error } : undefined,
     })),

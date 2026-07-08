@@ -4,11 +4,11 @@ import type { FailureClass, StepDescriptor, StepFacts } from './descriptor';
 
 export type StepCtx = {
   repoPath: string;
-  worktreePoolPath: string;
   preservePatterns: string[];
   resolvedWorktreePath?: string;
   signal?: AbortSignal;
   emitOutput?: (chunk: string) => void;
+  reportProgress?: (progress: { percent?: number; message?: string }) => void;
 };
 
 export type StepOutcome =

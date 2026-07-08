@@ -3,16 +3,11 @@ import type { LifecycleState, WorkspaceLifecyclePhase } from './api/schemas';
 
 export type WorkspaceLifecycleHooks = {
   beforeTeardown?(event: {
-    workspaceId: string;
     path: string;
     force: boolean;
     signal: AbortSignal;
   }): Promise<Result<void, { type: 'workspace-busy'; holders: string[] }>>;
-  onPhaseChanged?(event: {
-    workspaceId: string;
-    phase: WorkspaceLifecyclePhase;
-    path?: string;
-  }): void;
+  onPhaseChanged?(event: { path: string; phase: WorkspaceLifecyclePhase }): void;
 };
 
 export type WorkspaceLifecycleLogger = {

@@ -14,4 +14,8 @@ export * from './runner/repo-lock';
 export * from './runner/runner';
 export * from './steps/catalog';
 export * from './steps/descriptor';
+export * from './steps/implement';
+export * from './steps/registry';
+export * from './steps/run-git';
+export * from './steps/run-git-streaming';
 export * from './steps/worktree-list';
