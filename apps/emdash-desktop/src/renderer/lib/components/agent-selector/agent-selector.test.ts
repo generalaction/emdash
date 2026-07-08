@@ -1,5 +1,6 @@
 import { asAgentProviderId } from '@emdash/plugins/agents/types';
 import { describe, expect, it } from 'vitest';
+import type { AgentCapabilities } from '@shared/core/agents/agent-payload';
 import { getAgentInstallActionState, getAgentInstallErrorMessage } from './agent-install';
 import {
   buildAgentGroups,
@@ -9,10 +10,23 @@ import {
   isComboboxOptionDisabled,
 } from './agent-selector-options';
 
+const capabilities = (acpKind: string = 'none'): AgentCapabilities => ({
+  acp: { kind: acpKind },
+  hostDependency: { updates: { kind: 'none' } },
+  models: { kind: 'none' },
+  effort: { kind: 'none' },
+  prompt: { kind: 'none' },
+  sessions: { kind: 'none' },
+  autoApprove: { kind: 'none' },
+  hooks: { kind: 'none' },
+  mcp: { kind: 'none' },
+  plugins: { kind: 'none' },
+});
+
 const agents = [
-  { id: 'codex', name: 'Codex' },
-  { id: 'claude', name: 'Claude Code' },
-  { id: 'qwen', name: 'Qwen Code' },
+  { id: 'codex', name: 'Codex', capabilities: capabilities('supported') },
+  { id: 'claude', name: 'Claude Code', capabilities: capabilities('supported') },
+  { id: 'qwen', name: 'Qwen Code', capabilities: capabilities() },
 ];
 
 const agent = asAgentProviderId;
@@ -52,6 +66,20 @@ describe('buildAgentGroups', () => {
     expect(groups.find((group) => group.value === 'not-installed')?.items).toEqual(
       expect.arrayContaining([expect.objectContaining({ agentId: 'claude', disabled: true })])
     );
+  });
+
+  it('marks ACP-capable agent options', () => {
+    const groups = buildAgentGroups(agents, ['codex']);
+
+    const codex = groups
+      .find((group) => group.value === 'installed')
+      ?.items.find((option) => option.agentId === 'codex');
+    const qwen = groups
+      .find((group) => group.value === 'not-installed')
+      ?.items.find((option) => option.agentId === 'qwen');
+
+    expect(codex).toEqual(expect.objectContaining({ supportsAcp: true }));
+    expect(qwen).toEqual(expect.objectContaining({ supportsAcp: false }));
   });
 
   it('does not assume an installing selected agent is installed', () => {

@@ -4,6 +4,8 @@ import { ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { AgentUiBadge } from '@renderer/lib/components/agent-ui-badge';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import {
   Combobox,
   ComboboxCollection,
@@ -50,6 +52,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     const [open, setOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
     const hoverCard = useAgentHoverCard();
+    const chatUiFeatureEnabled = useFeatureFlag('chat-ui');
     const { groups } = useAgentAvailability({
       connectionId,
       value,
@@ -147,6 +150,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                         >
                           {item.label}
                         </span>
+                        {chatUiFeatureEnabled && item.supportsAcp && <AgentUiBadge />}
                       </ComboboxItem>
                     );
                   }}
