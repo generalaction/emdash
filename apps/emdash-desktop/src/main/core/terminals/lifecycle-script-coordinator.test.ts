@@ -304,7 +304,7 @@ describe('runLifecycleScriptWithPolicy', () => {
   });
 
   it('runs a manual respawn policy script again after the first PTY exits', async () => {
-    const { provider, spawned } = makeTerminalProvider();
+    const { provider, spawned, requests } = makeTerminalProvider();
     const projectId = 'project-rerun';
     const workspaceId = 'workspace-rerun';
     const service = new LifecycleScriptService({
@@ -331,13 +331,15 @@ describe('runLifecycleScriptWithPolicy', () => {
     };
 
     const firstRun = runLifecycleScriptWithPolicy(args);
-    await expect.poll(() => spawned[0]?.writes).toEqual(['pnpm dev; exit\n']);
+    await expect.poll(() => requests[0]?.command).toBe('pnpm dev');
+    expect(spawned[0].writes).toEqual([]);
     spawned[0].emitExit({ exitCode: 0 });
     await expect(firstRun).resolves.toMatchObject({ kind: 'succeeded' });
     await expect.poll(() => spawned.length).toBe(2);
+    expect(requests[1].command).toBeUndefined();
 
     const secondRun = runLifecycleScriptWithPolicy(args);
-    await expect.poll(() => spawned[1]?.writes).toEqual(['pnpm dev; exit\n']);
+    await expect.poll(() => spawned[1]?.writes).toEqual(['pnpm dev; exit\r']);
     spawned[1].emitExit({ exitCode: 0 });
     await expect(secondRun).resolves.toMatchObject({ kind: 'succeeded' });
     await expect.poll(() => spawned.length).toBe(3);
