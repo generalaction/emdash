@@ -105,6 +105,22 @@ describe('linear issues plugin', () => {
       expect.objectContaining({ term: 'GEN-626', limit: 5 })
     );
     expect(rawRequest).toHaveBeenCalledWith(
+      expect.not.stringContaining('state {'),
+      expect.objectContaining({ term: 'GEN-626', limit: 5 })
+    );
+    expect(rawRequest).toHaveBeenCalledWith(
+      expect.not.stringContaining('assignee {'),
+      expect.objectContaining({ term: 'GEN-626', limit: 5 })
+    );
+    expect(rawRequest).toHaveBeenCalledWith(
+      expect.not.stringContaining('project {'),
+      expect.objectContaining({ term: 'GEN-626', limit: 5 })
+    );
+    expect(rawRequest).toHaveBeenCalledWith(
+      expect.not.stringContaining('updatedAt'),
+      expect.objectContaining({ term: 'GEN-626', limit: 5 })
+    );
+    expect(rawRequest).toHaveBeenCalledWith(
       expect.not.stringContaining('comments('),
       expect.objectContaining({ term: 'GEN-626', limit: 5 })
     );
@@ -121,6 +137,11 @@ describe('linear issues plugin', () => {
         }),
       ],
     });
+    if (!result.success) throw new Error('expected Linear search to succeed');
+    expect(result.data[0]).not.toHaveProperty('status');
+    expect(result.data[0]).not.toHaveProperty('assignees');
+    expect(result.data[0]).not.toHaveProperty('project');
+    expect(result.data[0]).not.toHaveProperty('updatedAt');
   });
 
   it('returns a generic error when Linear search fails', async () => {

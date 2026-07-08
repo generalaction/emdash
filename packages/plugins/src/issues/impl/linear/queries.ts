@@ -14,6 +14,15 @@ export type LinearIssueSummaryNode = {
   updatedAt: string;
 };
 
+export type LinearIssueSearchNode = {
+  id: string;
+  identifier: string;
+  title: string;
+  description: string | null;
+  url: string;
+  branchName: string | null;
+};
+
 export type LinearCommentNode = {
   id: string;
   body: string;
@@ -86,7 +95,12 @@ const ISSUE_SUMMARY_FRAGMENT = `
 
 const ISSUE_SEARCH_SUMMARY_FRAGMENT = `
   fragment IssueSearchSummary on IssueSearchResult {
-    ${ISSUE_SUMMARY_FIELDS}
+    id
+    identifier
+    title
+    description
+    url
+    branchName
   }
 `;
 
@@ -208,9 +222,9 @@ export async function searchLinearIssues(
   client: LinearClient,
   term: string,
   limit: number
-): Promise<LinearIssueSummaryNode[]> {
+): Promise<LinearIssueSearchNode[]> {
   const { data } = await client.client.rawRequest<
-    { searchIssues: { nodes: LinearIssueSummaryNode[] } },
+    { searchIssues: { nodes: LinearIssueSearchNode[] } },
     { term: string; limit: number }
   >(SEARCH_QUERY, { term, limit });
 
