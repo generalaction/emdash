@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-file-renderer.tsx
+  s_401ed49e956192::t_67fde2e154f488 140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "06db02571128ddf1d0ee9dfb4c831e13c10c5608",
+  "prompts": {},
+  "sessions": {
+    "s_401ed49e956192": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033luz5kMPtuP7KWBK3BCs",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
