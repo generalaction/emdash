@@ -1,0 +1,29 @@
+packages/plugins/src/agents/impl/native-acp.test.ts
+  s_0053172a0e1e21::t_78de8078842f87 10,15,22,29,89,91-93
+packages/plugins/src/agents/impl/amp/acp-adapter-script.ts
+  s_4f0f28c5c9239e::t_ff0d79752cd162 135,189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2785cefd3ed657d73a911c470cbb64d12bd51c04",
+  "prompts": {},
+  "sessions": {
+    "s_0053172a0e1e21": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033m298mQHissD7vNMx1OG",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_4f0f28c5c9239e": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033m28IzonKIw5RTL8UgUz",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
