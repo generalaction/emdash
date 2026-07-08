@@ -37,9 +37,6 @@ function describeMessage(
 ): Record<string, unknown> {
   const fields: Record<string, unknown> = { kind: message.kind };
   switch (message.kind) {
-    case 'hello':
-      fields.protocol = message.protocol;
-      break;
     case 'call':
       fields.id = message.id;
       fields.path = message.path;

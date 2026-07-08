@@ -1,11 +1,12 @@
+import { err, ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveModel } from '../live/model';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { bindContract, encodeTopic } from './bind';
 import { connect } from './connect';
-import { defineContract, liveModel, procedure } from './define';
-import { WireError, WIRE_CANCELLED_CODE } from './protocol';
+import { defineContract, fallible, liveModel, procedure } from './define';
+import { isWireError, WireError } from './protocol';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
@@ -21,7 +22,7 @@ function setup() {
   const controller = bindContract(contract, {
     greet: ({ name }) => `hello ${name}`,
     fail: () => {
-      throw new WireError('EXPECTED', 'expected failure');
+      throw new WireError('NOT_FOUND', 'expected failure');
     },
     state: ({ id }) => (id === 'known' ? model : null),
   });
@@ -34,7 +35,89 @@ describe('wire serve/connect', () => {
   it('calls procedures and propagates errors', async () => {
     const { connection } = setup();
     await expect(connection.call('greet', { name: 'wire' })).resolves.toBe('hello wire');
-    await expect(connection.call('fail', undefined)).rejects.toMatchObject({ code: 'EXPECTED' });
+    await expect(connection.call('fail', undefined)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('round-trips uncaught handler errors as HANDLER_ERROR with a serialized cause', async () => {
+    const pair = memoryTransportPair();
+    const failingContract = defineContract({
+      fail: procedure({ input: z.void().optional(), output: z.void() }),
+    });
+    const controller = bindContract(failingContract, {
+      fail: () => {
+        throw new TypeError('boom');
+      },
+    });
+    serve(pair.right, controller);
+    const connection = connect(pair.left);
+
+    await expect(connection.call('fail', undefined)).rejects.toMatchObject({
+      code: 'HANDLER_ERROR',
+      message: 'boom',
+      cause: {
+        name: 'TypeError',
+        message: 'boom',
+      },
+    });
+  });
+
+  it('preserves serialized causes on thrown wire errors', async () => {
+    const pair = memoryTransportPair();
+    const failingContract = defineContract({
+      fail: procedure({ input: z.void().optional(), output: z.void() }),
+    });
+    const cause = new Error('root cause');
+    const controller = bindContract(failingContract, {
+      fail: () => {
+        throw new WireError('NOT_FOUND', 'missing resource', { cause });
+      },
+    });
+    serve(pair.right, controller);
+    const connection = connect(pair.left);
+
+    await expect(connection.call('fail', undefined)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'missing resource',
+      cause: {
+        name: 'Error',
+        message: 'root cause',
+      },
+    });
+  });
+
+  it('narrows wire errors with and without a code argument', () => {
+    const error: unknown = new WireError('CANCELLED', 'cancelled');
+
+    expect(isWireError(error)).toBe(true);
+    expect(isWireError(error, 'CANCELLED')).toBe(true);
+    expect(isWireError(error, 'DISCONNECTED')).toBe(false);
+    expect(isWireError(new Error('plain'))).toBe(false);
+  });
+
+  it('supports fallible procedures that return typed Result payloads', async () => {
+    const pair = memoryTransportPair();
+    const fallibleContract = defineContract({
+      load: fallible({
+        input: z.object({ id: z.string() }),
+        data: z.object({ value: z.string() }),
+        error: z.object({ type: z.literal('missing') }),
+      }),
+    });
+    const controller = bindContract(
+      fallibleContract,
+      {
+        load: ({ id }) =>
+          id === 'known' ? ok({ value: 'found' }) : err({ type: 'missing' as const }),
+      },
+      { validate: 'full' }
+    );
+    serve(pair.right, controller);
+    const connection = connect(pair.left);
+
+    await expect(connection.call('load', { id: 'known' })).resolves.toEqual(ok({ value: 'found' }));
+    await expect(connection.call('load', { id: 'missing' })).resolves.toEqual(
+      err({ type: 'missing' })
+    );
   });
 
   it('snapshots and subscribes to live sources with refcounted detach', async () => {
@@ -138,7 +221,7 @@ describe('wire serve/connect', () => {
     await waitFor(() => started);
     abort.abort();
 
-    await expect(result).rejects.toMatchObject({ code: WIRE_CANCELLED_CODE });
+    await expect(result).rejects.toMatchObject({ code: 'CANCELLED' });
     await waitFor(() => aborted);
     expect(serverEvents).toContainEqual({
       kind: 'cancel',
@@ -148,7 +231,7 @@ describe('wire serve/connect', () => {
       kind: 'callEnd',
       event: expect.objectContaining({
         ok: false,
-        errorCode: WIRE_CANCELLED_CODE,
+        errorCode: 'CANCELLED',
         side: 'server',
       }),
     });
@@ -162,7 +245,7 @@ describe('wire serve/connect', () => {
     await expect(
       connection.call('greet', { name: 'wire' }, { signal: abort.signal })
     ).rejects.toMatchObject({
-      code: WIRE_CANCELLED_CODE,
+      code: 'CANCELLED',
     });
   });
 
@@ -214,7 +297,7 @@ describe('wire serve/connect', () => {
     const result = connection.call('slow', undefined, { signal: abort.signal });
     abort.abort();
 
-    await expect(result).rejects.toMatchObject({ code: WIRE_CANCELLED_CODE });
+    await expect(result).rejects.toMatchObject({ code: 'CANCELLED' });
     gate.resolve('late');
     await Promise.resolve();
   });

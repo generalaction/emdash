@@ -29,13 +29,13 @@ describe('streamTransport', () => {
     const messages: WireMessage[] = [];
     transport.onMessage((message) => messages.push(message));
 
-    const first = JSON.stringify({ kind: 'hello', protocol: 1 });
+    const first = JSON.stringify({ kind: 'cancel', id: 'call-1' });
     const second = JSON.stringify({ kind: 'detach', topic: 'topic' });
     input.push(`${first.slice(0, 5)}`);
     input.push(`${first.slice(5)}\nnot-json\n${second}\n`);
 
     expect(messages).toEqual([
-      { kind: 'hello', protocol: 1 },
+      { kind: 'cancel', id: 'call-1' },
       { kind: 'detach', topic: 'topic' },
     ]);
   });

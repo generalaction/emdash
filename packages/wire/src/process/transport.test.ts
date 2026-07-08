@@ -12,13 +12,13 @@ describe('processTransport', () => {
 
     transport.onMessage((message) => messages.push(message));
     transport.onDisconnect(disconnect);
-    transport.post({ kind: 'hello', protocol: 1 });
+    transport.post({ kind: 'cancel', id: 'call-1' });
     process.message({ kind: 'not-wire' });
-    process.message({ kind: 'hello', protocol: 1 });
+    process.message({ kind: 'cancel', id: 'call-1' });
     process.exit({ code: 0, willRestart: false });
 
-    expect(process.sent).toEqual([{ kind: 'hello', protocol: 1 }]);
-    expect(messages).toEqual([{ kind: 'hello', protocol: 1 }]);
+    expect(process.sent).toEqual([{ kind: 'cancel', id: 'call-1' }]);
+    expect(messages).toEqual([{ kind: 'cancel', id: 'call-1' }]);
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
 });

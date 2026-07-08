@@ -45,13 +45,13 @@ describe('domPortTransport', () => {
     });
 
     transport.post({ kind: 'detach', topic: 'topic' });
-    port.emit('message', { kind: 'hello', protocol: 1 });
+    port.emit('message', { kind: 'cancel', id: 'call-1' });
     port.emit('message', { kind: 'unknown' });
     port.emit('close');
 
     expect(port.started).toBe(true);
     expect(port.posted).toEqual([{ kind: 'detach', topic: 'topic' }]);
-    expect(messages).toEqual([{ kind: 'hello', protocol: 1 }]);
+    expect(messages).toEqual([{ kind: 'cancel', id: 'call-1' }]);
     expect(disconnected).toBe(true);
   });
 });

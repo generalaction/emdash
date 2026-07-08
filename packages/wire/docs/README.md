@@ -48,6 +48,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Serving and clients](./api/serving.md): `bindContract()`, `serve()`,
     `connect()`, `contractClient()`, cancellation, relays, session hubs, and
     server-side call helpers.
+  - [Wire errors](./api/errors.md): error planes, `WireErrorCode` meanings,
+    origins, and retry guidance.
   - [Transports](./api/transports.md): memory, ports, Electron, streams,
     reconnecting, process, and logging transports.
 - Live:

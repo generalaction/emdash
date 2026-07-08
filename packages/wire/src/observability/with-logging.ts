@@ -40,6 +40,7 @@ export function withLogging(
             durationMs: performanceNow() - start,
             errorCode: serialized.code,
             errorMessage: serialized.message,
+            errorCause: serialized.cause,
             error,
           })
         );

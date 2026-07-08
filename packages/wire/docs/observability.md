@@ -97,9 +97,9 @@ serve(
 );
 ```
 
-This logs every sent and received protocol message: `hello`, `call`, `result`,
-`snapshot`, `attach`, `detach`, `update`, and `cancel`. Payload logging should be
-used for local debugging because even redacted summaries can be noisy.
+This logs every sent and received protocol message: `call`, `result`, `snapshot`,
+`attach`, `detach`, `update`, and `cancel`. Payload logging should be used for
+local debugging because even redacted summaries can be noisy.
 
 Transport construction is documented in [API transports](./api/transports.md).
 

@@ -76,7 +76,6 @@ the transport disconnects or when the serve loop is disposed.
 
 ```ts
 const connection = connect(pair.left, { instrumentation });
-await connection.hello();
 ```
 
 `Connection` supports:
@@ -85,11 +84,14 @@ await connection.hello();
 - `snapshot(topic)`.
 - `attach(topic, push)`.
 - `onDisconnect(cb)`.
-- `hello()` protocol version handshake.
 
 On disconnect, pending calls reject with `WireError` code `DISCONNECTED`.
 Existing attachments are re-requested when the transport accepts messages again,
 which is useful with `reconnectingTransport()`.
+
+The protocol layer intentionally has no version handshake. Receivers validate the
+message `kind` and required fields in `isWireMessage()`; unknown message kinds are
+ignored by transport adapters that parse untrusted frames.
 
 ## Typed Clients
 

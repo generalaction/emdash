@@ -46,6 +46,24 @@ See [../../examples/api-definition/contract.ts](../../examples/api-definition/co
 accept an optional `{ signal }` call option for cooperative cancellation; see
 [serving](./serving.md#cancellation).
 
+### `fallible`
+
+`fallible({ input, data, error })` defines a procedure whose output is a
+`Result<data, error>` payload:
+
+```ts
+loadNote: fallible({
+  input: z.object({ id: z.string() }),
+  data: noteSchema,
+  error: z.object({ type: z.literal('note_not_found') }),
+});
+```
+
+Use `fallible()` for expected domain failures that callers should handle as data.
+Thrown `WireError`s are reserved for infrastructure failures and bugs such as
+disconnects, unknown paths, and uncaught handler exceptions. See
+[wire errors](./errors.md).
+
 ### `mutation`
 
 `mutation({ input, data, error }, handler?)` defines a live-model mutation shape.

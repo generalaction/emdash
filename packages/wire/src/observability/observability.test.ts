@@ -89,13 +89,13 @@ describe('loggingTransport', () => {
       right.onMessage(() => resolve());
     });
 
-    left.post({ kind: 'hello', protocol: 1 });
+    left.post({ kind: 'cancel', id: 'call-1' });
     await received;
 
     expect(calls.map((call) => call.message)).toEqual([
       'wire protocol send',
       'wire protocol receive',
     ]);
-    expect(calls[0].fields).toMatchObject({ kind: 'hello', protocol: 1 });
+    expect(calls[0].fields).toMatchObject({ kind: 'cancel', id: 'call-1' });
   });
 });

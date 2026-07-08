@@ -4,7 +4,6 @@ import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { mergeControllers, type Controller } from './bind';
 import { connect } from './connect';
 import { defineContract, liveModel, procedure } from './define';
-import { WIRE_CANCELLED_CODE } from './protocol';
 import { relayController } from './relay';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
@@ -71,7 +70,6 @@ describe('relayController', () => {
       snapshot: async () => ({ generation: 1, sequence: 0, timestamp: 0, data: 'ok' }),
       attach: async () => () => {},
       onDisconnect: () => () => {},
-      hello: async () => {},
     });
     const staticController: Controller = {
       call: async () => null,
@@ -113,7 +111,7 @@ describe('relayController', () => {
     await waitFor(() => started);
     abort.abort();
 
-    await expect(result).rejects.toMatchObject({ code: WIRE_CANCELLED_CODE });
+    await expect(result).rejects.toMatchObject({ code: 'CANCELLED' });
     await waitFor(() => aborted);
   });
 });

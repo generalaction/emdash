@@ -1,4 +1,4 @@
-import type { Result } from '@emdash/shared';
+import { resultSchema, type Result } from '@emdash/shared';
 import { z } from 'zod';
 import type { Mutator } from '../live/model';
 import type { LiveModelRef } from '../live/mutations/model-ref';
@@ -174,6 +174,21 @@ export function procedure<
   OutputSchema extends z.ZodTypeAny,
 >(def: { input: InputSchema; output: OutputSchema }): ProcedureDef<InputSchema, OutputSchema> {
   return { kind: 'procedure', ...def };
+}
+
+export function fallible<
+  InputSchema extends z.ZodTypeAny,
+  DataSchema extends z.ZodTypeAny,
+  ErrorSchema extends z.ZodTypeAny,
+>(def: {
+  input: InputSchema;
+  data: DataSchema;
+  error: ErrorSchema;
+}): ProcedureDef<InputSchema, ReturnType<typeof resultSchema<DataSchema, ErrorSchema>>> {
+  return procedure({
+    input: def.input,
+    output: resultSchema(def.data, def.error),
+  });
 }
 
 export function liveModel<KeySchema extends z.ZodTypeAny, DataSchema extends z.ZodTypeAny>(def: {

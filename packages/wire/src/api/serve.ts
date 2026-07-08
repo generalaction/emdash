@@ -2,14 +2,7 @@ import type { Unsubscribe } from '@emdash/shared';
 import { getCurrentLogger, runWithLogger, type Logger } from '@emdash/shared/logger';
 import type { WireInstrumentation } from '../observability';
 import type { Controller } from './bind';
-import {
-  PROTOCOL_VERSION,
-  serializeWireError,
-  WireError,
-  WIRE_CANCELLED_CODE,
-  type WireMessage,
-  type WireTransport,
-} from './protocol';
+import { serializeWireError, WireError, type WireMessage, type WireTransport } from './protocol';
 
 export type ServeOptions = {
   instrumentation?: WireInstrumentation;
@@ -72,7 +65,7 @@ export function serve(
         },
         (error: unknown) => {
           const serialized = abort.signal.aborted
-            ? { code: WIRE_CANCELLED_CODE, message: 'Wire call cancelled' }
+            ? { code: 'CANCELLED' as const, message: 'Wire call cancelled' }
             : serializeWireError(error);
           onEnd?.({
             durationMs: performanceNow() - start,
@@ -129,7 +122,7 @@ export function serve(
           topic,
           durationMs: performanceNow() - start,
           ok: false,
-          errorCode: error instanceof WireError ? error.code : 'ERROR',
+          errorCode: error instanceof WireError ? error.code : 'HANDLER_ERROR',
         });
         throw error;
       }
@@ -148,9 +141,6 @@ export function serve(
 
   function handleMessage(message: WireMessage): void {
     switch (message.kind) {
-      case 'hello':
-        post({ kind: 'hello', protocol: PROTOCOL_VERSION });
-        break;
       case 'call':
         replyControllerCall(message.id, message.path, message.input);
         break;

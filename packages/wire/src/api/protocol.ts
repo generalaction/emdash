@@ -1,13 +1,17 @@
-import type { Unsubscribe } from '@emdash/shared';
+import { toSerializedError, type SerializedError, type Unsubscribe } from '@emdash/shared';
 import type { LiveUpdate } from '../live/protocol';
 
-export const PROTOCOL_VERSION = 1;
-export const WIRE_CANCELLED_CODE = 'CANCELLED';
-
-export type WireHelloMessage = {
-  kind: 'hello';
-  protocol: number;
-};
+export type WireErrorCode =
+  | 'CANCELLED'
+  | 'DISCONNECTED'
+  | 'UNKNOWN_PROCEDURE'
+  | 'UNKNOWN_TOPIC'
+  | 'NOT_FOUND'
+  | 'MISSING_HANDLER'
+  | 'CONTRACT_MISMATCH'
+  | 'ALREADY_EXISTS'
+  | 'DUPLICATE_LIVE_REF'
+  | 'HANDLER_ERROR';
 
 export type WireCallMessage = {
   kind: 'call';
@@ -49,8 +53,9 @@ export type WireResultMessage =
       kind: 'result';
       id: string;
       ok: false;
-      code: string;
+      code: WireErrorCode;
       message: string;
+      cause?: SerializedError;
     };
 
 export type WireUpdateMessage = {
@@ -60,7 +65,6 @@ export type WireUpdateMessage = {
 };
 
 export type WireMessage =
-  | WireHelloMessage
   | WireCallMessage
   | WireSnapshotMessage
   | WireAttachMessage
@@ -77,35 +81,43 @@ export type WireTransport = {
 
 export class WireError extends Error {
   constructor(
-    readonly code: string,
-    message: string
+    readonly code: WireErrorCode,
+    message: string,
+    options: { cause?: unknown } = {}
   ) {
-    super(message);
+    super(message, options);
     this.name = 'WireError';
   }
 }
 
 export type SerializedWireError = {
-  code: string;
+  code: WireErrorCode;
   message: string;
+  cause?: SerializedError;
 };
 
 export function serializeWireError(error: unknown): SerializedWireError {
   if (error instanceof WireError) {
-    return { code: error.code, message: error.message };
+    return {
+      code: error.code,
+      message: error.message,
+      cause: serializeCause(error.cause),
+    };
   }
   if (error instanceof Error) {
-    return { code: 'ERROR', message: error.message };
+    return { code: 'HANDLER_ERROR', message: error.message, cause: toSerializedError(error) };
   }
-  return { code: 'ERROR', message: String(error) };
+  return { code: 'HANDLER_ERROR', message: String(error), cause: toSerializedError(error) };
+}
+
+export function isWireError(error: unknown, code?: WireErrorCode): error is WireError {
+  return error instanceof WireError && (code === undefined || error.code === code);
 }
 
 export function isWireMessage(value: unknown): value is WireMessage {
   if (typeof value !== 'object' || value === null) return false;
   const message = value as Record<string, unknown>;
   switch (message.kind) {
-    case 'hello':
-      return typeof message.protocol === 'number';
     case 'call':
       return typeof message.id === 'string' && typeof message.path === 'string';
     case 'snapshot':
@@ -116,10 +128,31 @@ export function isWireMessage(value: unknown): value is WireMessage {
     case 'cancel':
       return typeof message.id === 'string';
     case 'result':
-      return typeof message.id === 'string' && typeof message.ok === 'boolean';
+      if (typeof message.id !== 'string') return false;
+      if (message.ok === true) return true;
+      return (
+        message.ok === false &&
+        typeof message.code === 'string' &&
+        typeof message.message === 'string'
+      );
     case 'update':
       return typeof message.topic === 'string' && typeof message.update === 'object';
     default:
       return false;
   }
+}
+
+function serializeCause(cause: unknown): SerializedError | undefined {
+  if (cause === undefined) return undefined;
+  if (isSerializedError(cause)) return cause;
+  return toSerializedError(cause);
+}
+
+function isSerializedError(value: unknown): value is SerializedError {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { name?: unknown }).name === 'string' &&
+    typeof (value as { message?: unknown }).message === 'string'
+  );
 }

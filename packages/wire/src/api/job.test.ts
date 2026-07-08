@@ -95,7 +95,7 @@ describe('contract jobs', () => {
     });
 
     await expect(client.build.start({ name: 1 } as never)).rejects.toMatchObject({
-      code: 'ERROR',
+      code: 'HANDLER_ERROR',
     });
   });
 });

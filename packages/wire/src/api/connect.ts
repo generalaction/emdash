@@ -1,13 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
 import type { LiveSnapshot, LiveUpdate } from '../live/protocol';
 import type { WireInstrumentation } from '../observability';
-import {
-  PROTOCOL_VERSION,
-  WireError,
-  WIRE_CANCELLED_CODE,
-  type WireMessage,
-  type WireTransport,
-} from './protocol';
+import { WireError, type WireMessage, type WireTransport } from './protocol';
 
 export type CallOptions = {
   signal?: AbortSignal;
@@ -28,7 +22,6 @@ export type Connection = {
   snapshot(topic: string): Promise<LiveSnapshot<unknown>>;
   attach(topic: string, push: (update: LiveUpdate) => void): Promise<Unsubscribe>;
   onDisconnect(cb: () => void): Unsubscribe;
-  hello(): Promise<void>;
 };
 
 export function connect(transport: WireTransport, options: ConnectOptions = {}): Connection {
@@ -48,7 +41,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       if (message.ok) {
         pendingCall.resolve(message.value);
       } else {
-        pendingCall.reject(new WireError(message.code, message.message));
+        pendingCall.reject(new WireError(message.code, message.message, { cause: message.cause }));
       }
       return;
     }
@@ -95,11 +88,11 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
             side: 'client',
             durationMs: 0,
             ok: false,
-            errorCode: WIRE_CANCELLED_CODE,
+            errorCode: 'CANCELLED',
             errorMessage: 'Wire call cancelled',
           });
         }
-        reject(new WireError(WIRE_CANCELLED_CODE, 'Wire call cancelled'));
+        reject(new WireError('CANCELLED', 'Wire call cancelled'));
         return;
       }
 
@@ -121,11 +114,11 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
             side: 'client',
             durationMs: performanceNow() - (callStart ?? performanceNow()),
             ok: false,
-            errorCode: WIRE_CANCELLED_CODE,
+            errorCode: 'CANCELLED',
             errorMessage: 'Wire call cancelled',
           });
         }
-        reject(new WireError(WIRE_CANCELLED_CODE, 'Wire call cancelled'));
+        reject(new WireError('CANCELLED', 'Wire call cancelled'));
       };
       const cleanup = (): void => options.signal?.removeEventListener('abort', onAbort);
       options.signal?.addEventListener('abort', onAbort, { once: true });
@@ -163,14 +156,14 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
           return value;
         },
         (error: unknown) => {
-          if (error instanceof WireError && error.code === WIRE_CANCELLED_CODE) throw error;
+          if (error instanceof WireError && error.code === 'CANCELLED') throw error;
           instrumentation?.callEnd?.({
             callId: id,
             path,
             side: 'client',
             durationMs: performanceNow() - start,
             ok: false,
-            errorCode: error instanceof WireError ? error.code : 'ERROR',
+            errorCode: error instanceof WireError ? error.code : 'HANDLER_ERROR',
             errorMessage: error instanceof Error ? error.message : String(error),
           });
           throw error;
@@ -202,39 +195,6 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     onDisconnect(cb): Unsubscribe {
       disconnectListeners.add(cb);
       return () => disconnectListeners.delete(cb);
-    },
-    hello() {
-      return new Promise((resolve, reject) => {
-        let resolved = false;
-        const unsubscribe = transport.onMessage((message) => {
-          if (message.kind !== 'hello') return;
-          if (message.protocol !== PROTOCOL_VERSION) {
-            unsubscribe();
-            reject(
-              new WireError(
-                'PROTOCOL_VERSION_MISMATCH',
-                `Expected protocol ${PROTOCOL_VERSION}, got ${message.protocol}`
-              )
-            );
-            return;
-          }
-          resolved = true;
-          unsubscribe();
-          resolve();
-        });
-        try {
-          transport.post({ kind: 'hello', protocol: PROTOCOL_VERSION });
-        } catch (error) {
-          unsubscribe();
-          reject(error instanceof Error ? error : new Error(String(error)));
-          return;
-        }
-        setTimeout(() => {
-          if (resolved) return;
-          unsubscribe();
-          reject(new WireError('HELLO_TIMEOUT', 'Timed out waiting for wire hello'));
-        }, 5_000);
-      });
     },
   };
 }
