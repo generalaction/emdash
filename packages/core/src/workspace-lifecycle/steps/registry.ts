@@ -8,8 +8,10 @@ import { gitFetchImpl } from './impl/git-fetch';
 import { pushBranchImpl } from './impl/push-branch';
 import { removeRemoteImpl } from './impl/remove-remote';
 import { removeWorktreeImpl } from './impl/remove-worktree';
+import { runScriptImpl } from './impl/run-script';
 import { setBranchBaseImpl } from './impl/set-branch-base';
 import { setBranchTrackingImpl } from './impl/set-branch-tracking';
+import { writeSetupStampImpl } from './impl/write-setup-stamp';
 import type { StepImplementation } from './implement';
 
 export type BootstrapStepRegistry = {
@@ -28,6 +30,8 @@ export const bootstrapStepImplementations = [
   removeWorktreeImpl,
   deleteBranchImpl,
   removeRemoteImpl,
+  runScriptImpl,
+  writeSetupStampImpl,
 ] as const;
 
 export const bootstrapStepRegistry = Object.fromEntries(

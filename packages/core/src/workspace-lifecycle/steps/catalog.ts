@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineStep, type StepDescriptor, type StepFacts } from './descriptor';
+import { defineStep, type StepDescriptor } from './descriptor';
 
 export const gitFetchStep = defineStep({
   kind: 'git-fetch',
@@ -21,8 +21,6 @@ export const ensureRemoteStep = defineStep({
   }),
   fatal: true,
   label: (args) => `Ensure remote ${args.name}`,
-  teardown: (args, facts) =>
-    facts.created ? [{ kind: 'remove-remote', args: { name: args.name } }] : [],
 });
 
 export const createLocalBranchStep = defineStep({
@@ -35,8 +33,6 @@ export const createLocalBranchStep = defineStep({
   }),
   fatal: true,
   label: (args) => `Create branch ${args.branchName}`,
-  teardown: (args, facts) =>
-    facts.created ? [{ kind: 'delete-branch', args: { branchName: args.branchName } }] : [],
 });
 
 export const setBranchTrackingStep = defineStep({
@@ -67,8 +63,6 @@ export const addWorktreeStep = defineStep({
   }),
   fatal: true,
   label: (args) => `Create worktree for ${args.branchName}`,
-  teardown: (_args, facts) =>
-    facts.created && facts.path ? [{ kind: 'remove-worktree', args: { path: facts.path } }] : [],
 });
 
 export const copyPreservedFilesStep = defineStep({
@@ -116,6 +110,28 @@ export const removeRemoteStep = defineStep({
   label: (args) => `Remove remote ${args.name}`,
 });
 
+export const runScriptStep = defineStep({
+  kind: 'run-script',
+  args: z.object({
+    id: z.string().min(1),
+    command: z.string().min(1),
+    cwd: z.enum(['repo', 'worktree']).optional(),
+    timeoutMs: z.number().int().positive().optional(),
+    optional: z.boolean().optional(),
+  }),
+  fatal: (args) => !args.optional,
+  label: (args) => `Run ${args.id || truncateCommand(args.command)}`,
+});
+
+export const writeSetupStampStep = defineStep({
+  kind: 'write-setup-stamp',
+  args: z.object({
+    configHash: z.string().min(1),
+  }),
+  fatal: true,
+  label: () => 'Write setup stamp',
+});
+
 export const stepDescriptors = [
   gitFetchStep,
   ensureRemoteStep,
@@ -128,6 +144,8 @@ export const stepDescriptors = [
   removeWorktreeStep,
   deleteBranchStep,
   removeRemoteStep,
+  runScriptStep,
+  writeSetupStampStep,
 ] as const;
 
 type StepDescriptorUnion = (typeof stepDescriptors)[number];
@@ -164,9 +182,6 @@ export function descriptorFor(kind: string): StepDescriptor | undefined {
   return stepDescriptors.find((descriptor) => descriptor.kind === kind);
 }
 
-export function teardownStepsFor(kind: string, args: unknown, facts: StepFacts): BootstrapStep[] {
-  const descriptor = descriptorFor(kind);
-  if (!descriptor?.teardown) return [];
-  const parsedArgs = descriptor.args.parse(args);
-  return descriptor.teardown(parsedArgs, facts) as BootstrapStep[];
+function truncateCommand(command: string): string {
+  return command.length > 40 ? `${command.slice(0, 37)}...` : command;
 }

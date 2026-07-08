@@ -36,16 +36,10 @@ export function compileBootstrapPlan(
     steps.push(step('add-worktree', { branchName }));
     steps.push(step('copy-preserved-files', {}));
 
-    if (intent.pushBranch) {
-      steps.push(
-        step('push-branch', { branchName, remote: context.pushRemote, setUpstream: true })
-      );
-    }
-
     return { steps: createPlannedSteps(steps) };
   }
 
-  const { headBranch, headRepositoryUrl, isFork, prNumber, taskBranch, pushBranch } = intent;
+  const { headBranch, headRepositoryUrl, isFork, prNumber, taskBranch } = intent;
   const worktreeBranch = taskBranch ?? headBranch;
 
   if (isFork) {
@@ -90,10 +84,6 @@ export function compileBootstrapPlan(
 
   steps.push(step('add-worktree', { branchName: worktreeBranch }));
   steps.push(step('copy-preserved-files', {}));
-
-  if (pushBranch && taskBranch) {
-    steps.push(step('push-branch', { branchName: taskBranch, remote: context.pushRemote }));
-  }
 
   return { steps: createPlannedSteps(steps) };
 }

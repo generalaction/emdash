@@ -17,7 +17,7 @@ export default defineConfig({
     live: 'src/live/index.ts',
     wire: 'src/wire/index.ts',
     'workspace-server': 'src/workspace-server/index.ts',
-    'workspace-bootstrap': 'src/workspace-bootstrap/index.ts',
+    'workspace-lifecycle': 'src/workspace-lifecycle/index.ts',
   },
   format: ['esm'],
   dts: true,

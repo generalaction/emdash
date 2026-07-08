@@ -25,7 +25,7 @@ describe('compileBootstrapPlan', () => {
     ]);
   });
 
-  it('plans create-branch from a remote source with push', () => {
+  it('plans create-branch from a remote source', () => {
     const intent: BootstrapGitIntent = {
       kind: 'create-branch',
       branchName: 'task-branch',
@@ -34,7 +34,6 @@ describe('compileBootstrapPlan', () => {
         branch: 'main',
         remote: { name: 'origin', url: 'https://example.com/repo.git' },
       },
-      pushBranch: true,
     };
 
     const plan = compileBootstrapPlan(intent, context);
@@ -48,10 +47,6 @@ describe('compileBootstrapPlan', () => {
       { kind: 'set-branch-base', args: { branchName: 'task-branch', baseRef: 'origin/main' } },
       { kind: 'add-worktree', args: { branchName: 'task-branch' } },
       { kind: 'copy-preserved-files', args: {} },
-      {
-        kind: 'push-branch',
-        args: { branchName: 'task-branch', remote: 'fork', setUpstream: true },
-      },
     ]);
   });
 
@@ -82,7 +77,6 @@ describe('compileBootstrapPlan', () => {
         headRepositoryUrl: 'git@github.com:contributor/repo.git',
         isFork: true,
         taskBranch: 'task/pr-42',
-        pushBranch: true,
       },
       context
     );
@@ -114,7 +108,6 @@ describe('compileBootstrapPlan', () => {
       },
       { kind: 'add-worktree', args: { branchName: 'task/pr-42' } },
       { kind: 'copy-preserved-files', args: {} },
-      { kind: 'push-branch', args: { branchName: 'task/pr-42', remote: 'fork' } },
     ]);
   });
 

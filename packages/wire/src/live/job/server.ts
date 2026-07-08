@@ -6,6 +6,7 @@ const LIVE_JOB_MAX_PROGRESS_ENTRIES = 100;
 export const LIVE_JOB_TERMINAL_RETAIN_MS = 5 * 60 * 1000;
 
 export type LiveJobContext<P> = {
+  jobId: string;
   signal: AbortSignal;
   progress: (progress: P) => void;
 };
@@ -126,6 +127,7 @@ export class LiveJob<I, P, R, E> {
   private async execute(jobId: string, input: I, run: LiveJobRun<P, R, E>): Promise<void> {
     try {
       const result = await this.handler(input, {
+        jobId,
         signal: run.abort.signal,
         progress: (progress) => this.reportProgress(run, progress),
       });

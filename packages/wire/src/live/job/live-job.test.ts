@@ -86,6 +86,20 @@ describe('LiveJob and LiveJobClient', () => {
     });
   });
 
+  it('passes the run jobId to the handler context', async () => {
+    const server = new LiveJob<Input, Progress, Result, ErrorState>(
+      async (_input, ctx) => ok({ ok: ctx.jobId === 'job-context' }),
+      {
+        toError,
+        idFactory: () => 'job-context',
+      }
+    );
+    const { jobId } = server.start({ name: 'context' });
+    const { client } = attach(server, jobId);
+
+    await expect(client.result).resolves.toEqual({ ok: true });
+  });
+
   it('maps handler failures into failed state', async () => {
     const begin = deferred<void>();
     const server = new LiveJob<Input, Progress, Result, ErrorState>(

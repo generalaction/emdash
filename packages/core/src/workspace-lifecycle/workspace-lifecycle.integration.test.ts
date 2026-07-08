@@ -3,7 +3,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { BootstrapContext } from './api/schemas';
 import { compileBootstrapPlan } from './plan/planner';
-import { compileTeardownPlan } from './plan/teardown';
+import { compileTeardownFromProbe } from './plan/teardown';
+import { probeWorkspace } from './probe';
 import { runBootstrapPlan } from './runner/runner';
 import { step } from './steps/catalog';
 import { createTestRepository, execGit } from './test-utils';
@@ -104,7 +105,7 @@ describe('workspace bootstrap runtime integration', () => {
     }
   });
 
-  it('compiles and runs a teardown plan from run report facts', async () => {
+  it('compiles and runs a teardown plan from probed repo state', async () => {
     const repo = await createTestRepository();
     try {
       const context = contextFor(repo);
@@ -120,7 +121,12 @@ describe('workspace bootstrap runtime integration', () => {
       expect(result.success).toBe(true);
       if (!result.success) throw new Error(result.error.message);
 
-      const teardownPlan = compileTeardownPlan(result.data.report);
+      const observed = await probeWorkspace({
+        workspaceId: 'workspace-1',
+        repoPath: repo.repoPath,
+        branchName: 'task/teardown',
+      });
+      const teardownPlan = compileTeardownFromProbe(observed, 'task/teardown');
       expect(teardownPlan.steps.map((entry) => entry.step.kind)).toEqual([
         'remove-worktree',
         'delete-branch',

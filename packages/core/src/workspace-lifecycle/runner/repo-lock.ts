@@ -21,3 +21,9 @@ export class RepoLock {
 }
 
 export const repoLock = new RepoLock();
+
+export const noRepoLock: Pick<RepoLock, 'withLock'> = {
+  async withLock<T>(_repoPath: string, fn: () => Promise<T>): Promise<T> {
+    return await fn();
+  },
+};

@@ -67,11 +67,6 @@ export const lenientBootstrapPlanSchema = z.object({
   ),
 });
 
-export const bootstrapInputSchema = z.object({
-  plan: lenientBootstrapPlanSchema,
-  context: bootstrapContextSchema,
-});
-
 export const validatePlanInputSchema = z.object({
   plan: lenientBootstrapPlanSchema,
 });
@@ -114,6 +109,65 @@ export const bootstrapResultSchema = z.object({
   report: z.array(bootstrapStepReportSchema),
 });
 
+export const workspaceLifecyclePhaseSchema = z.enum([
+  'unprovisioned',
+  'provisioning',
+  'provisioned',
+  'setting-up',
+  'ready',
+  'tearing-down',
+]);
+
+export const setupStateSchema = z.enum(['ready', 'setup-needed', 'setup-stale', 'not-applicable']);
+
+export const phaseKindSchema = z.enum(['provision', 'setup', 'teardown']);
+
+export const workspaceRefSchema = z.object({
+  workspaceId: z.string().min(1),
+  repoPath: z.string().min(1),
+  branchName: z.string().min(1),
+  setupConfigHash: z.string().min(1).optional(),
+});
+
+export const workspaceLifecycleKeySchema = z.object({
+  workspaceId: z.string().min(1),
+});
+
+export const lifecycleStateSchema = z.object({
+  phase: workspaceLifecyclePhaseSchema,
+  setup: setupStateSchema,
+  branchName: z.string().optional(),
+  branchCreatedByEmdash: z.boolean().optional(),
+  path: z.string().optional(),
+  lastError: bootstrapErrorSchema.optional(),
+  activeJobId: z.string().optional(),
+});
+
+export const runPhaseInputSchema = z.object({
+  ref: workspaceRefSchema,
+  phase: phaseKindSchema,
+  plan: lenientBootstrapPlanSchema,
+  context: bootstrapContextSchema,
+  force: z.boolean().optional(),
+});
+
+export const scriptOutputKeySchema = z.object({
+  jobId: z.string().min(1),
+  stepId: z.string().min(1),
+});
+
+export const observedWorkspaceStateSchema = z.object({
+  branchExists: z.boolean(),
+  branchCreatedByEmdash: z.boolean(),
+  worktree: z
+    .object({
+      path: z.string(),
+      directoryExists: z.boolean(),
+    })
+    .optional(),
+  setup: setupStateSchema,
+});
+
 export type BootstrapContext = z.infer<typeof bootstrapContextSchema>;
 export type { BootstrapStep };
 export type BootstrapStepStatus = z.infer<typeof bootstrapStepStatusSchema>;
@@ -128,7 +182,6 @@ export type PlannedBootstrapStep = {
 export type BootstrapPlan = {
   steps: PlannedBootstrapStep[];
 };
-export type BootstrapInput = z.infer<typeof bootstrapInputSchema>;
 export type LenientBootstrapPlan = z.infer<typeof lenientBootstrapPlanSchema>;
 export type ValidatePlanInput = z.infer<typeof validatePlanInputSchema>;
 export type ValidatePlanResult = z.infer<typeof validatePlanResultSchema>;
@@ -136,3 +189,12 @@ export type PlanRejection = z.infer<typeof planRejectionSchema>;
 export type BootstrapProgress = z.infer<typeof bootstrapProgressSchema>;
 export type BootstrapStepReport = z.infer<typeof bootstrapStepReportSchema>;
 export type BootstrapResult = z.infer<typeof bootstrapResultSchema>;
+export type WorkspaceLifecyclePhase = z.infer<typeof workspaceLifecyclePhaseSchema>;
+export type PhaseKind = z.infer<typeof phaseKindSchema>;
+export type SetupState = z.infer<typeof setupStateSchema>;
+export type WorkspaceRef = z.infer<typeof workspaceRefSchema>;
+export type WorkspaceLifecycleKey = z.infer<typeof workspaceLifecycleKeySchema>;
+export type LifecycleState = z.infer<typeof lifecycleStateSchema>;
+export type RunPhaseInput = z.infer<typeof runPhaseInputSchema>;
+export type ScriptOutputKey = z.infer<typeof scriptOutputKeySchema>;
+export type ObservedWorkspaceState = z.infer<typeof observedWorkspaceStateSchema>;

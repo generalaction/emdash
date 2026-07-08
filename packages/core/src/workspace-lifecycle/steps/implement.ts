@@ -8,6 +8,7 @@ export type StepCtx = {
   preservePatterns: string[];
   resolvedWorktreePath?: string;
   signal?: AbortSignal;
+  emitOutput?: (chunk: string) => void;
 };
 
 export type StepOutcome =

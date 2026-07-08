@@ -3,6 +3,7 @@ import path from 'node:path';
 import { addWorktreeStep } from '../catalog';
 import { implement, stepErr, stepOk, type StepCtx } from '../implement';
 import { gitErrorMessage, runGit } from '../run-git';
+import { parseGitWorktreeList, worktreePathForBranch } from '../worktree-list';
 import { gitFailure } from './helpers';
 
 export const addWorktreeImpl = implement(addWorktreeStep, async (args, ctx) => {
@@ -38,14 +39,7 @@ async function getWorktreeForBranch(
   });
   if (!result.success) return undefined;
 
-  const branchLine = `branch refs/heads/${branchName}`;
-  for (const block of result.data.stdout.split('\n\n')) {
-    const lines = block.split('\n');
-    const worktreeLine = lines.find((line) => line.startsWith('worktree '));
-    if (!worktreeLine || !lines.includes(branchLine)) continue;
-    return worktreeLine.slice('worktree '.length);
-  }
-  return undefined;
+  return worktreePathForBranch(parseGitWorktreeList(result.data.stdout), branchName);
 }
 
 function sanitizeBranchName(branchName: string): string {

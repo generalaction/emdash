@@ -350,6 +350,7 @@ function createLiveJob(
   return new LiveJob<unknown, unknown, unknown, unknown>(
     async (input, ctx) => {
       const result = await impl.run(input, {
+        jobId: ctx.jobId,
         signal: ctx.signal,
         progress: (progress) =>
           ctx.progress(validate === 'full' ? def.progress.parse(progress) : progress),

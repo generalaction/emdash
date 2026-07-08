@@ -1,5 +1,5 @@
 import { createLocalBranchStep } from '../catalog';
-import { implement, stepErr, stepOk } from '../implement';
+import { implement, stepErr, stepOk, stepWarning } from '../implement';
 import { gitErrorMessage, runGit } from '../run-git';
 import { gitFailure } from './helpers';
 
@@ -40,7 +40,23 @@ export const createLocalBranchImpl = implement(createLocalBranchStep, async (arg
   gitArgs.push(args.branchName, args.fromRef);
 
   const result = await runGit(gitArgs, { cwd: ctx.repoPath, signal: ctx.signal });
-  if (result.success) return stepOk({ facts: { created: true } });
+  if (result.success) {
+    const marker = await runGit(['config', `branch.${args.branchName}.emdash-created`, 'true'], {
+      cwd: ctx.repoPath,
+      signal: ctx.signal,
+    });
+    return stepOk({
+      facts: { created: true },
+      warnings: marker.success
+        ? undefined
+        : [
+            stepWarning(
+              'ownership-marker-failed',
+              `Created branch "${args.branchName}" but could not record Emdash ownership`
+            ),
+          ],
+    });
+  }
 
   const message = gitErrorMessage(result.error);
   if (

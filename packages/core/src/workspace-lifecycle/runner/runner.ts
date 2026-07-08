@@ -10,6 +10,7 @@ import type {
   BootstrapStepWarning,
 } from '../api/schemas';
 import { planToStepViews } from '../plan/steps';
+import { resolveFatal } from '../steps/descriptor';
 import type { StepCtx } from '../steps/implement';
 import {
   bootstrapStepRegistry,
@@ -20,10 +21,11 @@ import { repoLock, type RepoLock } from './repo-lock';
 
 export type BootstrapRunnerOptions = {
   registry?: BootstrapStepRegistry;
-  lock?: RepoLock;
+  lock?: Pick<RepoLock, 'withLock'>;
   retryDelaysMs?: number[];
   signal?: AbortSignal;
   onProgress?: (progress: BootstrapProgress) => void;
+  onStepOutput?: (stepId: string, chunk: string) => void;
 };
 
 const DEFAULT_RETRY_DELAYS_MS = [1_000, 4_000];
@@ -76,7 +78,13 @@ async function runBootstrapPlanLocked(
       view.attempt = attempt;
       emitProgress(views, options);
 
-      const result = await implementation.execute(entry.step.args, runContext);
+      let result: Awaited<ReturnType<typeof implementation.execute>>;
+      try {
+        runContext.emitOutput = (chunk) => options.onStepOutput?.(entry.id, chunk);
+        result = await implementation.execute(entry.step.args, runContext);
+      } finally {
+        runContext.emitOutput = undefined;
+      }
       if (result.success) {
         const facts = result.facts ?? {};
         if (facts.path) runContext.resolvedWorktreePath = facts.path;
@@ -104,7 +112,7 @@ async function runBootstrapPlanLocked(
       }
 
       const error = withStep(result.error, entry.id, entry.step.kind);
-      if (!implementation.descriptor.fatal) {
+      if (!resolveFatal(implementation.descriptor, entry.step.args)) {
         view.warnings = [...(view.warnings ?? []), { type: error.type, message: error.message }];
         warnings.push({ type: error.type, message: error.message });
         view.status = 'done';

@@ -73,9 +73,9 @@
       "types": "./dist/workspace-server.d.mts",
       "default": "./dist/workspace-server.mjs"
     },
-    "./workspace-bootstrap": {
-      "types": "./dist/workspace-bootstrap.d.mts",
-      "default": "./dist/workspace-bootstrap.mjs"
+    "./workspace-lifecycle": {
+      "types": "./dist/workspace-lifecycle.d.mts",
+      "default": "./dist/workspace-lifecycle.mjs"
     },
     "./package.json": "./package.json"
   },
