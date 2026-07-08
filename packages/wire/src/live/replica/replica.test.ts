@@ -1,9 +1,9 @@
 import { ok } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { bindContract } from '../../api/bind';
 import { client } from '../../api/client';
 import { connect } from '../../api/connect';
+import { createController } from '../../api/controller';
 import { defineContract, liveModel, liveState, mutation } from '../../api/define';
 import { serve } from '../../api/serve';
 import { memoryTransportPair } from '../../api/transports';
@@ -50,7 +50,7 @@ describe('createLiveModelReplica', () => {
     const host = createLiveModelHost(api.counter);
     host.create(key, { state: { count: 0 } });
     const upstreamPair = memoryTransportPair();
-    serve(upstreamPair.right, bindContract(api, { counter: host }));
+    serve(upstreamPair.right, createController(api, { counter: host }));
 
     const upstream = client(api, connect(upstreamPair.left));
     const replica = createLiveModelReplica(api.counter, upstream.counter);
@@ -72,12 +72,12 @@ describe('createLiveModelReplica', () => {
     const host = createLiveModelHost(api.counter);
     const authoritative = host.create(key, { state: { count: 0 } });
     const upstreamPair = memoryTransportPair();
-    serve(upstreamPair.right, bindContract(api, { counter: host }));
+    serve(upstreamPair.right, createController(api, { counter: host }));
 
     const upstream = client(api, connect(upstreamPair.left));
     const replica = createLiveModelReplica(api.counter, upstream.counter, { retentionMs: 100 });
     const downstreamPair = memoryTransportPair();
-    serve(downstreamPair.right, bindContract(api, { counter: replica }));
+    serve(downstreamPair.right, createController(api, { counter: replica }));
 
     const downstream = client(api, connect(downstreamPair.left));
     const downstreamReplica = createLiveModelReplica(api.counter, downstream.counter);
@@ -101,7 +101,7 @@ describe('createLiveModelReplica', () => {
     const host = createLiveModelHost(api.counter);
     host.create(key, { state: { count: 0 } });
     const upstreamPair = memoryTransportPair();
-    serve(upstreamPair.right, bindContract(api, { counter: host }));
+    serve(upstreamPair.right, createController(api, { counter: host }));
 
     const upstream = client(api, connect(upstreamPair.left));
     const replica = createLiveModelReplica(api.counter, upstream.counter, { retentionMs: 50 });

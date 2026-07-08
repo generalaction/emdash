@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
-import { bindContract, encodeTopic } from './bind';
 import { connect } from './connect';
+import { createController, encodeTopic } from './controller';
 import { defineContract, liveModel, liveState } from './define';
 import { createWireSessionHub } from './sessions';
 import { memoryTransportPair } from './transports';
@@ -32,7 +32,7 @@ function makeSource() {
 describe('createWireSessionHub', () => {
   it('serves multiple sessions and closes only the matching subscriptions', async () => {
     const live = makeSource();
-    const controller = bindContract(contract, {
+    const controller = createController(contract, {
       state: {
         kind: 'liveModelProvider',
         contract: contract.state,
@@ -67,7 +67,7 @@ describe('createWireSessionHub', () => {
   it('replaces an existing session id and auto-closes on disconnect', async () => {
     const live = makeSource();
     const hub = createWireSessionHub(
-      bindContract(contract, {
+      createController(contract, {
         state: {
           kind: 'liveModelProvider',
           contract: contract.state,

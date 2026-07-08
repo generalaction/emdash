@@ -19,7 +19,7 @@ pnpm --filter @emdash/wire run example:live-job
 pnpm --filter @emdash/wire run example:cancellation
 pnpm --filter @emdash/wire run example:contract
 pnpm --filter @emdash/wire run example:api-definition
-pnpm --filter @emdash/wire run example:api-binding
+pnpm --filter @emdash/wire run example:controller
 pnpm --filter @emdash/wire run example:api-client
 pnpm --filter @emdash/wire run example:group
 pnpm --filter @emdash/wire run example:dedupe
@@ -47,7 +47,7 @@ Examples:
 - `api-definition/` isolates contract definition with `defineContract`,
   `procedure`, `liveModel`, `liveLog`, and live model contract
   mutations.
-- `api-binding/` isolates controller construction with `bindContract()` and
+- `controller/` isolates controller construction with `createController()` and
   direct controller calls/snapshots.
 - `api-client/` isolates serving a bound controller over a memory transport,
   creating a typed `ContractClient`, and acquiring a live model replica.

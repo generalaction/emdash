@@ -55,7 +55,7 @@ conversations.create(key, {
   usage: { tokens: 0 },
 });
 
-const controller = bindContract(api, { conversation: conversations });
+const controller = createController(api, { conversation: conversations });
 
 const contractClient = client(api, connect(pair.left));
 const replica = createLiveModelReplica(api.conversation, contractClient.conversation);

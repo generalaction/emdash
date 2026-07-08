@@ -1,4 +1,4 @@
-import type { CallMeta } from '../api/bind';
+import type { CallMeta } from '../api/controller';
 import { stableStringify } from '../live/mutations';
 
 export type DeduplicateRequestsOptions<I> = {

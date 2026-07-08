@@ -4,9 +4,9 @@ import { z } from 'zod';
 import { LiveLog } from '../live/log';
 import { createLiveModelHost } from '../live/mutations';
 import { createLiveModelReplica, ReplicaState } from '../live/replica';
-import { bindContract } from './bind';
 import { client } from './client';
 import { connect } from './connect';
+import { createController } from './controller';
 import { defineContract, liveModel, liveState, liveLog, mutation, procedure } from './define';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
@@ -26,7 +26,7 @@ describe('client', () => {
     const host = createLiveModelHost(contract.state);
     const instance = host.create({ id: 'task' }, { state: { count: 0 } });
     const log = new LiveLog({ generation: 2000 });
-    const controller = bindContract(contract, {
+    const controller = createController(contract, {
       increment: () => {
         instance.states.state.produce((draft) => {
           draft.count += 1;
@@ -72,7 +72,7 @@ describe('client', () => {
     const host = createLiveModelHost(nested.child.state);
     const instance = host.create({ id: 'task' }, { state: { count: 0 } });
     const log = new LiveLog({ generation: 2000 });
-    const controller = bindContract(nested, {
+    const controller = createController(nested, {
       child: {
         increment: () => {
           instance.states.state.produce((draft) => {
@@ -123,7 +123,7 @@ describe('client', () => {
     instance.states.state.subscribe((update) => updates.push(update));
 
     const pair = memoryTransportPair();
-    const controller = bindContract(groupContract, { conversation: host });
+    const controller = createController(groupContract, { conversation: host });
     serve(pair.right, controller);
     const contractClient = client(groupContract, connect(pair.left));
     const replica = createLiveModelReplica(

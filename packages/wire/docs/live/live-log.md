@@ -72,7 +72,7 @@ const api = defineContract({
   activity: liveLog({ key: sessionKeySchema }),
 });
 
-const controller = bindContract(api, {
+const controller = createController(api, {
   activity: () => activityLogServer,
 });
 

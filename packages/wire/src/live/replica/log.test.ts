@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { bindContract } from '../../api/bind';
 import { client } from '../../api/client';
 import { connect } from '../../api/connect';
+import { createController } from '../../api/controller';
 import { defineContract, liveLog } from '../../api/define';
 import { serve } from '../../api/serve';
 import { memoryTransportPair } from '../../api/transports';
@@ -19,7 +19,7 @@ describe('createLiveLogReplica', () => {
     const log = new LiveLog({ generation: 1000 });
     log.append('seed\n');
     const pair = memoryTransportPair();
-    serve(pair.right, bindContract(api, { output: () => log }));
+    serve(pair.right, createController(api, { output: () => log }));
     const contractClient = client(api, connect(pair.left));
 
     const replica = createLiveLogReplica(api.output, contractClient.output);
@@ -43,11 +43,11 @@ describe('createLiveLogReplica', () => {
     const key = { id: 'session' };
     const log = new LiveLog({ generation: 1000 });
     const upstreamPair = memoryTransportPair();
-    serve(upstreamPair.right, bindContract(api, { output: () => log }));
+    serve(upstreamPair.right, createController(api, { output: () => log }));
     const upstream = client(api, connect(upstreamPair.left));
     const replica = createLiveLogReplica(api.output, upstream.output);
     const downstreamPair = memoryTransportPair();
-    serve(downstreamPair.right, bindContract(api, { output: replica }));
+    serve(downstreamPair.right, createController(api, { output: replica }));
     const downstream = client(api, connect(downstreamPair.left));
 
     const handle = downstream.output.handle(key);

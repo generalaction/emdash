@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  bindContract,
+  createController,
   client,
   connect,
   defineContract,
@@ -20,7 +20,7 @@ const api = defineContract({
 async function main(): Promise<void> {
   let executions = 0;
   const pair = memoryTransportPair();
-  const controller = bindContract(api, {
+  const controller = createController(api, {
     expensiveStats: deduplicateRequests(async (input) => {
       executions += 1;
       const execution = executions;

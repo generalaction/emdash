@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  bindContract,
+  createController,
   client,
   connect,
   defineContract,
@@ -23,7 +23,7 @@ async function main(): Promise<void> {
 
 async function runCallerCancellation(): Promise<void> {
   const pair = memoryTransportPair();
-  const controller = bindContract(api, {
+  const controller = createController(api, {
     slow: async ({ label }, meta) => {
       await abortableDelay(100, meta.signal);
       return `finished ${label}`;
@@ -45,7 +45,7 @@ async function runDisconnectCancellation(): Promise<void> {
   let aborted = false;
   let started = false;
   const pair = memoryTransportPair();
-  const controller = bindContract(api, {
+  const controller = createController(api, {
     slow: async ({ label }, meta) => {
       started = true;
       meta.signal?.addEventListener('abort', () => {

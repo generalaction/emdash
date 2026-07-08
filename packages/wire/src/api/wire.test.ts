@@ -4,9 +4,9 @@ import { z } from 'zod';
 import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { ReplicaState } from '../live/replica';
-import { bindContract, encodeTopic } from './bind';
 import { client } from './client';
 import { connect } from './connect';
+import { createController, encodeTopic } from './controller';
 import { defineContract, liveModel, liveState, fallible, procedure } from './define';
 import { isWireError, WireError } from './protocol';
 import { serve } from './serve';
@@ -26,7 +26,7 @@ function setup() {
   const host = createLiveModelHost(contract.state);
   const instance = host.create({ id: 'known' }, { state: { count: 0 } });
   const model = instance.states.state;
-  const controller = bindContract(contract, {
+  const controller = createController(contract, {
     greet: ({ name }) => `hello ${name}`,
     fail: () => {
       throw new WireError('NOT_FOUND', 'expected failure');
@@ -50,7 +50,7 @@ describe('wire serve/connect', () => {
     const failingContract = defineContract({
       fail: procedure({ input: z.void().optional(), output: z.void() }),
     });
-    const controller = bindContract(failingContract, {
+    const controller = createController(failingContract, {
       fail: () => {
         throw new TypeError('boom');
       },
@@ -74,7 +74,7 @@ describe('wire serve/connect', () => {
       fail: procedure({ input: z.void().optional(), output: z.void() }),
     });
     const cause = new Error('root cause');
-    const controller = bindContract(failingContract, {
+    const controller = createController(failingContract, {
       fail: () => {
         throw new WireError('NOT_FOUND', 'missing resource', { cause });
       },
@@ -110,7 +110,7 @@ describe('wire serve/connect', () => {
         error: z.object({ type: z.literal('missing') }),
       }),
     });
-    const controller = bindContract(
+    const controller = createController(
       fallibleContract,
       {
         load: ({ id }) =>
@@ -165,7 +165,6 @@ describe('wire serve/connect', () => {
       call: () => {
         throw new WireError('UNKNOWN_PROCEDURE', 'not implemented');
       },
-      liveRefIds: () => ['dynamic.topic'],
       resolveLive: (topic: string) => {
         resolveCount += 1;
         return available && topic === 'dynamic.topic' ? source : null;
@@ -201,7 +200,7 @@ describe('wire serve/connect', () => {
         states: { state: liveState({ data: z.object({}) }) },
       }),
     });
-    const controller = bindContract(cleanupContract, {
+    const controller = createController(cleanupContract, {
       state: {
         kind: 'liveModelProvider',
         contract: cleanupContract.state,
@@ -240,7 +239,7 @@ describe('wire serve/connect', () => {
     const host = createLiveModelHost(contract.state);
     const instance = host.create({ id: 'known' }, { state: { count: 0 } });
     const model = instance.states.state;
-    const controller = bindContract(contract, {
+    const controller = createController(contract, {
       greet: ({ name }) => `hello ${name}`,
       fail: () => {
         throw new WireError('NOT_FOUND', 'expected failure');
@@ -287,7 +286,7 @@ describe('wire serve/connect', () => {
     const slowContract = defineContract({
       slow: procedure({ input: z.void().optional(), output: z.string() }),
     });
-    const controller = bindContract(slowContract, {
+    const controller = createController(slowContract, {
       slow: (_input, meta) =>
         new Promise<string>((resolve, reject) => {
           started = true;
@@ -352,7 +351,7 @@ describe('wire serve/connect', () => {
     const slowContract = defineContract({
       slow: procedure({ input: z.void().optional(), output: z.string() }),
     });
-    const controller = bindContract(slowContract, {
+    const controller = createController(slowContract, {
       slow: (_input, meta) =>
         new Promise<string>((resolve, reject) => {
           started = true;
@@ -385,7 +384,7 @@ describe('wire serve/connect', () => {
     const slowContract = defineContract({
       slow: procedure({ input: z.void().optional(), output: z.string() }),
     });
-    const controller = bindContract(slowContract, { slow: () => gate.promise });
+    const controller = createController(slowContract, { slow: () => gate.promise });
     serve(pair.right, controller);
     const connection = connect(pair.left);
     const abort = new AbortController();

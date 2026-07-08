@@ -1,5 +1,5 @@
 import type { LogFields, Logger, LogLevel } from '@emdash/shared/logger';
-import type { Controller } from '../api/bind';
+import type { Controller } from '../api/controller';
 import { serializeWireError } from '../api/protocol';
 import { summarizePayload, type PayloadSummaryOptions } from './payload';
 
@@ -49,9 +49,6 @@ export function withLogging(
     },
     resolveLive(topic) {
       return controller.resolveLive(topic);
-    },
-    liveRefIds() {
-      return controller.liveRefIds();
     },
     dispose() {
       logger.debug('wire api controller disposing');

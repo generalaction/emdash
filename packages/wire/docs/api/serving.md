@@ -3,12 +3,12 @@
 The API layer turns a contract into a server-side `Controller`, serves it over a
 `WireTransport`, and creates a typed client over the matching transport.
 
-## Binding a Controller
+## Creating a Controller
 
-`bindContract(contract, impl, options?)` maps each endpoint to server behavior:
+`createController(contract, impl, options?)` maps each endpoint to server behavior:
 
 ```ts
-const controller = bindContract(
+const controller = createController(
   notesApi,
   {
     session: sessionsHost,
@@ -29,7 +29,7 @@ const controller = bindContract(
 Options:
 
 - `impl`: server implementations keyed by the contract shape. Procedures receive
-  `(input, meta)`. Jobs bind to `{ run, toError? }`, a `LiveJobClientHandle`, or
+  `(input, meta)`. Jobs use `{ run, toError? }`, a `LiveJobClientHandle`, or
   a `LiveJobReplica`. Live logs use resolver functions, `LiveLogClientHandle`s,
   or `LiveLogReplica`. Live model contracts use a `createLiveModelHost()`,
   `LiveModelClientHandle`, or `LiveModelReplica`.
@@ -42,10 +42,10 @@ controller. The controller only routes calls, snapshots, attachments, and live
 mutation procedure envelopes.
 
 Live model hosts are separate from the contract because live model instances are
-runtime resources. A contract can be bound once, while conversations, sessions,
-or windows create and dispose keyed host instances over time.
+runtime resources. A controller can be created once, while conversations,
+sessions, or windows create and dispose keyed host instances over time.
 
-See [../../examples/api-binding/controller.ts](../../examples/api-binding/controller.ts).
+See [../../examples/controller/controller.ts](../../examples/controller/controller.ts).
 
 ## Serving
 
@@ -168,7 +168,7 @@ If the signal is already aborted, the call rejects locally without posting.
 Server procedure handlers receive the same signal through `CallMeta`:
 
 ```ts
-const controller = bindContract(api, {
+const controller = createController(api, {
   slowOperation: async (input, meta) => {
     await abortableWork(input, meta.signal);
     return { ok: true };
@@ -187,57 +187,51 @@ Mutations are intentionally not cancellable through this API; they use
 Cancelling a `liveJob().start` wire call does not cancel the spawned job; job
 cancellation is domain-level through the generated `<path>.cancel` procedure.
 
-## Merging Controllers
+## Composing Controllers
 
-`mergeControllers({ namespace: controller })` mounts child controllers under
-procedure namespaces:
+Middle tiers compose by creating a typed client for the upstream contract and
+passing client handles, local handlers, or replicas into a new controller. This
+keeps forwarding typed and makes the chosen interception points explicit:
 
 ```ts
-const api = mergeControllers({
-  local: localController,
-  upstream: relayController(upstreamConnection),
+const upstreamConnection = connect(upstreamTransport);
+const upstream = client(workspaceApi, upstreamConnection);
+
+const conversations = createLiveModelReplica(workspaceApi.conversation, upstream.conversation, {
+  retentionMs: 10 * 60_000,
 });
 
-await api.call('local.echo', input);
-```
+const controller = createController(workspaceApi, {
+  // Local override.
+  ping: async () => 'desktop-main',
 
-The namespace is stripped before calling the child. Live ref ids are owned by
-the child controller: duplicate static refs throw `DUPLICATE_LIVE_REF`.
-Resolution checks static owners first, then dynamic controllers.
+  // Stateless forwarding.
+  git: upstream.git,
 
-## Relays and Interception
-
-`relayController(connection)` turns an upstream `Connection` into a local
-`Controller`. Calls forward to `connection.call(path, input, { signal })`, so
-cancellation propagates across hops.
-
-The relay reports `liveRefIds()` as `'dynamic'` and its `resolveLive(topic)`
-always returns a proxying `LiveSource`. Mount a catch-all relay after more
-specific static controllers:
-
-```ts
-const controller = mergeControllers({
-  local: withIntercepts(localController),
-  upstream: relayController(upstreamConnection),
+  // Stateful interception/cache before serving downstream clients.
+  conversation: conversations,
 });
 ```
 
-For endpoint interception, decorate a controller:
+For nested contracts, object destructuring is enough to assemble the
+implementation shape:
 
 ```ts
-function intercept(controller: Controller): Controller {
-  return {
-    ...controller,
-    call(path, input, meta) {
-      if (path === 'expensiveStats') return cachedStats(input);
-      return controller.call(path, input, meta);
+const controller = createController(appApi, {
+  ...upstream,
+  settings: {
+    ...upstream.settings,
+    save: async (input, meta) => {
+      await auditSettingsChange(input, meta.signal);
+      return upstream.settings.save(input, meta);
     },
-  };
-}
+  },
+});
 ```
 
-If multiple dynamic relays are merged, the first one that resolves a topic wins.
-Prefer one fallback relay per merged controller.
+Use replicas when the middle tier needs to inspect, cache, or transform live
+state before exposing it downstream. Use client handles directly when the middle
+tier is only forwarding calls and live sources.
 
 ## Multi-Window Sessions
 
@@ -264,7 +258,7 @@ See [../../examples/multi-window/client.ts](../../examples/multi-window/client.t
 in-flight promise for identical inputs:
 
 ```ts
-const controller = bindContract(api, {
+const controller = createController(api, {
   expensiveStats: deduplicateRequests(async (input) => {
     return await loadStats(input.repo, input.branch);
   }),

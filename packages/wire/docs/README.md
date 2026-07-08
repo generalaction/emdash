@@ -14,7 +14,7 @@ flowchart TB
   end
   subgraph api [API layer]
     contracts[defineContract endpoint kinds]
-    bind[bindContract Controller]
+    controller[createController]
     client[contract client]
     transports[Transports: memory, port, dom-port, electron, stream, reconnecting]
   end
@@ -46,11 +46,11 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
 - API:
   - [Contracts](./api/contracts.md): `defineContract()`, endpoint kinds, nested
     composition, and live model groups.
-  - [Serving and clients](./api/serving.md): `bindContract()`, `serve()`,
-    `connect()`, cancellation, relays, session hubs, and
+  - [Serving and clients](./api/serving.md): `createController()`, `serve()`,
+    `connect()`, cancellation, controller composition, session hubs, and
     server-side call helpers.
   - [Typed clients](./api/clients.md): `ContractClient` handles and forwarding
-    through `bindContract()`.
+    through `createController()`.
   - [Wire errors](./api/errors.md): error planes, `WireErrorCode` meanings,
     origins, and retry guidance.
   - [Transports](./api/transports.md): memory, ports, Electron, streams,
@@ -85,13 +85,13 @@ Use the broad `@emdash/wire` export when building examples or package-local
 features that need both API and live primitives:
 
 ```ts
-import { bindContract, LiveState, defineContract } from '@emdash/wire';
+import { createController, LiveState, defineContract } from '@emdash/wire';
 ```
 
 Use narrower subpath exports at app boundaries:
 
 - `@emdash/wire/live`: live primitives, live model hosts, and mutation settling.
-- `@emdash/wire/api`: contract definition, binding, client creation, and transports.
+- `@emdash/wire/api`: contract definition, controller creation, client creation, and transports.
 - `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
   controller logging middleware.
 - `@emdash/wire/util`: dependency-free utilities: `Scope`, `ManagedSource`,
@@ -111,7 +111,7 @@ The optimistic utility intentionally lives in its own export because it has a
 2. Create server-side `LiveState`, `LiveLog`, `LiveJob`, or
    `createLiveModelHost()` instances.
 3. Create and dispose keyed host instances as domain resources appear.
-4. Bind the contract with `bindContract(contract, impl, options?)`.
+4. Create a controller with `createController(contract, impl, options?)`.
 5. Serve the controller over a `WireTransport`.
 6. Connect from the client and create a typed `client()`.
 7. Use client handles directly for streaming, or create replicas when local state,

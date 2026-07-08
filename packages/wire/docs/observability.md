@@ -79,8 +79,8 @@ serve(transport, loggedController, { logger });
 ```
 
 This logs the endpoint path, duration, outcome, and optional redacted input and
-result payloads. It composes with `bindContract()` and `mergeControllers()`
-because it preserves the `Controller` shape.
+result payloads. It composes with `createController()` because it preserves the
+`Controller` shape.
 
 Serving and client options are documented in [API serving](./api/serving.md).
 

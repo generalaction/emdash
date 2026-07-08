@@ -1,7 +1,7 @@
 import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
-  bindContract,
+  createController,
   client,
   connect,
   createLiveModelHost,
@@ -43,14 +43,14 @@ async function main(): Promise<void> {
   const host = createLiveModelHost(api.conversation);
   host.create(key, { state: { title: 'Initial' } });
   const workspacePair = memoryTransportPair();
-  serve(workspacePair.right, bindContract(api, { conversation: host }));
+  serve(workspacePair.right, createController(api, { conversation: host }));
 
   const upstream = client(api, connect(workspacePair.left));
   const replica = createLiveModelReplica(api.conversation, upstream.conversation, {
     retentionMs: 10_000,
   });
   const desktopPair = memoryTransportPair();
-  serve(desktopPair.right, bindContract(api, { conversation: replica }));
+  serve(desktopPair.right, createController(api, { conversation: replica }));
 
   const renderer = client(api, connect(desktopPair.left));
   const firstReplica = createLiveModelReplica(api.conversation, renderer.conversation, {

@@ -1,9 +1,9 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { bindContract } from '../../api/bind';
 import { client } from '../../api/client';
 import { connect } from '../../api/connect';
+import { createController } from '../../api/controller';
 import { defineContract, liveJob } from '../../api/define';
 import { serve } from '../../api/serve';
 import { memoryTransportPair } from '../../api/transports';
@@ -53,11 +53,11 @@ describe('createLiveJobReplica', () => {
     await jobs.dispose();
   });
 
-  it('serves job state through bindContract from the local replica', async () => {
+  it('serves job state through createController from the local replica', async () => {
     const { contractClient } = setup(async (input) => ({ artifact: `${input.name}.zip` }));
     const jobs = createLiveJobReplica(api.build, contractClient.build);
     const hopPair = memoryTransportPair();
-    serve(hopPair.right, bindContract(api, { build: jobs }));
+    serve(hopPair.right, createController(api, { build: jobs }));
     const downstream = client(api, connect(hopPair.left));
 
     const started = await downstream.build.start({ name: 'served' });
@@ -77,7 +77,7 @@ function setup(
   run: (input: BuildInput, ctx: LiveJobContext<BuildProgress>) => Promise<BuildResult> | BuildResult
 ) {
   const pair = memoryTransportPair();
-  const controller = bindContract(api, {
+  const controller = createController(api, {
     build: {
       run: async (input, ctx) => ok(await run(input as BuildInput, ctx)),
       toError: (error) => ({

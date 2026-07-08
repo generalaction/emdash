@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  bindContract,
+  createController,
   client,
   connect,
   createLiveModelHost,
@@ -26,7 +26,7 @@ const counters = createLiveModelHost(api.counter);
 const counter = counters.create(undefined, {
   counter: { count: 0 } satisfies CounterState,
 }).states.counter;
-const controller = bindContract(api, {
+const controller = createController(api, {
   increment: () => {
     counter.produce((draft) => {
       draft.count += 1;

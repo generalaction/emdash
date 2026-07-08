@@ -1,7 +1,7 @@
 import type { LogFields, LogLevel, Logger } from '@emdash/shared/logger';
 import { z } from 'zod';
 import {
-  bindContract,
+  createController,
   client,
   connect,
   createLiveModelReplica,
@@ -30,7 +30,7 @@ const key = { id: 'demo' };
 const counters = createLiveModelHost(api.counter, { generation: 1000 });
 const counter = counters.create(key, { state: { count: 0 } }).states.state;
 
-const controller = bindContract(api, {
+const controller = createController(api, {
   counter: counters,
   increment: () => {
     counter.produce((draft) => {

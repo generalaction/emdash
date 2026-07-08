@@ -1,6 +1,6 @@
 # API Contracts
 
-Contracts describe the API surface once. Server binding and client creation
+Contracts describe the API surface once. Controller creation and client creation
 derive their types from the same object.
 
 ## Defining a Contract
@@ -95,7 +95,7 @@ build: liveJob({
 });
 ```
 
-`bindContract()` binds the endpoint to `{ run, toError? }`. `run` returns a
+`createController()` binds the endpoint to `{ run, toError? }`. `run` returns a
 `Result<result, error>` payload; `toError` is only an optional fallback for
 unexpected thrown errors. The typed client gets `start(input)`, `cancel(jobId)`,
 and `handle(jobId)` helpers. See
@@ -178,10 +178,10 @@ const instance = conversations.create(key, {
 });
 ```
 
-Then bind the group by passing the host in the implementation object:
+Then expose the group by passing the host in the implementation object:
 
 ```ts
-const controller = bindContract(api, { conversation: conversations });
+const controller = createController(api, { conversation: conversations });
 ```
 
 The live model client handle exposes `state(key, name)` for member handles and

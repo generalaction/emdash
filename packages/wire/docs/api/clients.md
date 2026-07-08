@@ -64,13 +64,13 @@ When a process wants local state, pass the client handle to a replica wrapper in
 ## Forwarding
 
 Contract clients are intentionally forwardable. A procedure method can be passed
-to `bindContract()` as a procedure implementation, and a live model client handle
+to `createController()` as a procedure implementation, and a live model client handle
 can be passed as the group implementation:
 
 ```ts
 const upstream = client(api, connect(sshTransport));
 
-const controller = bindContract(api, {
+const controller = createController(api, {
   ping: upstream.ping,
   conversation: upstream.conversation,
 });
@@ -90,7 +90,7 @@ Forwarding also works selectively:
 ```ts
 const upstream = client(workspaceApi, connect(sshTransport));
 
-const controller = bindContract(workspaceApi, {
+const controller = createController(workspaceApi, {
   // Local interception.
   ping: async () => 'desktop-main',
 
@@ -106,9 +106,9 @@ const controller = bindContract(workspaceApi, {
 });
 ```
 
-`relayController(connection)` still exists for contract-less passthrough. Prefer
-contract-client forwarding when the hop knows the contract, because `bindContract()`
-can keep the implementation typed and can mix local handlers with forwarded subtrees.
+Prefer contract-client forwarding for protocol relays and middle tiers because
+`createController()` keeps the implementation typed and can mix local handlers
+with forwarded subtrees.
 
 ## When to Use Replicas
 

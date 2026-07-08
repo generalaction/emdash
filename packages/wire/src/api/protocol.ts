@@ -10,7 +10,6 @@ export type WireErrorCode =
   | 'MISSING_HANDLER'
   | 'CONTRACT_MISMATCH'
   | 'ALREADY_EXISTS'
-  | 'DUPLICATE_LIVE_REF'
   | 'HANDLER_ERROR';
 
 export type WireCallMessage = {

@@ -2,7 +2,7 @@ import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
   LiveJobCancelledError,
-  bindContract,
+  createController,
   client,
   connect,
   createLiveJobReplica,
@@ -23,7 +23,7 @@ const api = defineContract({
 
 async function main(): Promise<void> {
   const pair = memoryTransportPair();
-  const controller = bindContract(api, {
+  const controller = createController(api, {
     build: {
       run: async ({ target }, ctx) => {
         if (target === 'cancelled') await delay(100, ctx.signal);

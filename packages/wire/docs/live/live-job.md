@@ -107,10 +107,10 @@ const api = defineContract({
 });
 ```
 
-On the server, bind the endpoint with `{ run, toError? }`:
+On the server, implement the endpoint with `{ run, toError? }`:
 
 ```ts
-const controller = bindContract(api, {
+const controller = createController(api, {
   build: {
     run: async (input, ctx) => {
       ctx.progress({ step: 'compile' });

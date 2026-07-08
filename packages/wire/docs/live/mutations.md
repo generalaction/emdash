@@ -108,24 +108,22 @@ mutation must share the same confirmation id.
 ## Idempotency and Retries
 
 `MutationResultCache` is the server-side idempotency cache used by
-`bindContract()`. It stores settled mutation results by `mutationId` and shares
-one in-flight execution for concurrent duplicates.
+`createLiveModelHost()`. It stores settled mutation results by `mutationId` and
+shares one in-flight execution for concurrent duplicates.
 
-By default, `bindContract()` creates a cache with:
+By default, `createLiveModelHost()` creates a cache with:
 
 - `DEFAULT_MUTATION_RESULT_CACHE_TTL_MS` (5 minutes).
 - `DEFAULT_MUTATION_RESULT_CACHE_MAX_ENTRIES` (1000).
 
-Configure or disable it through `mutationDedupe`:
+Configure or disable it on the live model host:
 
 ```ts
-const controller = bindContract(api, {
-  session: sessionsHost,
-}, {
-  mutationDedupe: { ttlMs: 60_000, maxEntries: 500 },
+const sessionsHost = createLiveModelHost(api.session, {
+  idempotency: { ttlMs: 60_000, maxEntries: 500 },
 });
 
-const withoutDedupe = bindContract(api, { session: sessionsHost }, { mutationDedupe: false });
+const withoutDedupe = createLiveModelHost(api.session, { idempotency: false });
 ```
 
 The client retries `DISCONNECTED` mutation calls with the same `mutationId` by

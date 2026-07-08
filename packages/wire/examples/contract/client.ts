@@ -1,7 +1,7 @@
 import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
-  bindContract,
+  createController,
   client,
   connect,
   createLiveModelReplica,
@@ -52,7 +52,7 @@ conversations.create(key, {
   state: { messages: [] } satisfies ChatState,
 });
 
-const controller = bindContract(chatContract, {
+const controller = createController(chatContract, {
   conversation: conversations,
 });
 

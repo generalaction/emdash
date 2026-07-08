@@ -1,6 +1,6 @@
 import type { LogFields, LogLevel, Logger } from '@emdash/shared/logger';
 import { describe, expect, it } from 'vitest';
-import type { Controller } from '../api/bind';
+import type { Controller } from '../api/controller';
 import { loggingTransport, memoryTransportPair } from '../api/transports';
 import { loggerInstrumentation } from './logger-instrumentation';
 import { withLogging } from './with-logging';
@@ -64,7 +64,6 @@ describe('withLogging', () => {
     const controller: Controller = {
       call: async (_path, input) => input,
       resolveLive: () => null,
-      liveRefIds: () => [],
     };
     const logged = withLogging(controller, logger, { level: 'debug', payloads: true });
 

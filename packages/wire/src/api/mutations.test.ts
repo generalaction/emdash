@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost, createLiveModelReplica } from '../live';
 import type { WireInstrumentation } from '../observability';
-import { bindContract } from './bind';
 import type { LiveModelClientHandle } from './client';
 import { client } from './client';
 import { connect } from './connect';
+import { createController } from './controller';
 import {
   defineContract,
   liveModel,
@@ -45,7 +45,7 @@ function setup(instrumentation?: WireInstrumentation) {
     right: { count: 10 },
   });
   const pair = memoryTransportPair();
-  const controller = bindContract(contract, {
+  const controller = createController(contract, {
     counter: host,
   });
   serve(pair.right, controller);
@@ -123,7 +123,7 @@ describe('live model group mutations', () => {
       right: { count: 0 },
     });
     let currentPair: MemoryTransportPair | undefined;
-    const controller = bindContract(contract, { counter: host });
+    const controller = createController(contract, { counter: host });
     const transport = reconnectingTransport(
       async () => {
         currentPair = memoryTransportPair();

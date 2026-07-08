@@ -60,7 +60,7 @@
     "example:cancellation": "tsx examples/cancellation/client.ts",
     "example:contract": "tsx examples/contract/client.ts",
     "example:api-definition": "tsx examples/api-definition/inspect.ts",
-    "example:api-binding": "tsx examples/api-binding/controller.ts",
+    "example:controller": "tsx examples/controller/controller.ts",
     "example:api-client": "tsx examples/api-client/client.ts",
     "example:group": "tsx examples/group/client.ts",
     "example:dedupe": "tsx examples/dedupe/server.ts",

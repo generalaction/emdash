@@ -1,4 +1,4 @@
-import { LiveLog, bindContract, createLiveModelHost, encodeTopic } from '../../src/index';
+import { LiveLog, createController, createLiveModelHost, encodeTopic } from '../../src/index';
 import { notesApi, type NotesState } from '../api-definition/contract';
 
 const session = { sessionId: 'demo' };
@@ -8,7 +8,7 @@ const instance = sessions.create(session, {
 });
 const activity = new LiveLog({ generation: 2000 });
 
-export const notesController = bindContract(notesApi, {
+export const notesController = createController(notesApi, {
   session: sessions,
   activity: () => activity,
   clearNotes: () => {

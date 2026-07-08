@@ -51,7 +51,6 @@ export type CallMeta = {
 export type Controller = {
   call(path: string, input: unknown, meta?: CallMeta): Promise<unknown>;
   resolveLive(topic: string): LiveSource | null;
-  liveRefIds(): readonly string[] | 'dynamic';
   dispose?(): void;
 };
 
@@ -100,7 +99,7 @@ export type ContractImpl<Defs extends ContractDefinitions> = {
       : never;
 };
 
-export type BindContractOptions = {
+export type CreateControllerOptions = {
   validate?: ValidatePolicy;
 };
 
@@ -111,10 +110,10 @@ type LiveEntry = {
 
 const jobKeySchema = z.object({ jobId: z.string() });
 
-export function bindContract<Defs extends ContractDefinitions>(
+export function createController<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
   impl: ContractImpl<Defs>,
-  options: BindContractOptions = {}
+  options: CreateControllerOptions = {}
 ): Controller {
   const validate = options.validate ?? 'none';
   const liveEntries = new Map<string, LiveEntry>();
@@ -327,16 +326,11 @@ export function bindContract<Defs extends ContractDefinitions>(
       const key = validate === 'none' ? rawKey : entry.keySchema.parse(rawKey);
       return entry.resolve(key) ?? missingLiveSource(`Unknown live topic '${topic}'`);
     },
-    liveRefIds() {
-      return [...liveEntries.keys()];
-    },
     dispose() {
       for (const server of jobServers) server.dispose();
     },
   };
 }
-
-export const bind = bindContract;
 
 export { encodeTopic, splitTopic } from './topics';
 
@@ -346,60 +340,6 @@ function createLiveLogResolver(
   if (isLiveLogReplica(impl)) return (key) => impl.resolve(key as never);
   if (isLiveLogClientHandle(impl)) return (key) => impl.handle(key as never).asLiveSource();
   return impl as (key: unknown) => LiveSource | null | undefined;
-}
-
-export function mergeControllers(controllers: Record<string, Controller>): Controller {
-  const refOwners = new Map<string, string>();
-  const dynamicControllers: Controller[] = [];
-  for (const [namespace, controller] of Object.entries(controllers)) {
-    const liveRefIds = controller.liveRefIds();
-    if (liveRefIds === 'dynamic') {
-      dynamicControllers.push(controller);
-      continue;
-    }
-    for (const refId of liveRefIds) {
-      const owner = refOwners.get(refId);
-      if (owner) {
-        throw new WireError(
-          'DUPLICATE_LIVE_REF',
-          `Live ref '${refId}' is registered by both '${owner}' and '${namespace}'`
-        );
-      }
-      refOwners.set(refId, namespace);
-    }
-  }
-
-  return {
-    async call(path, input, meta = {}) {
-      const index = path.indexOf('.');
-      if (index === -1) {
-        throw new WireError('UNKNOWN_PROCEDURE', `Unknown procedure '${path}'`);
-      }
-      const namespace = path.slice(0, index);
-      const child = controllers[namespace];
-      if (!child) {
-        throw new WireError('UNKNOWN_PROCEDURE', `Unknown procedure '${path}'`);
-      }
-      return await child.call(path.slice(index + 1), input, meta);
-    },
-    resolveLive(topic) {
-      const { refId } = splitTopic(topic);
-      const owner = refOwners.get(refId);
-      if (owner) return controllers[owner]?.resolveLive(topic) ?? null;
-      for (const controller of dynamicControllers) {
-        const source = controller.resolveLive(topic);
-        if (source) return source;
-      }
-      return null;
-    },
-    liveRefIds() {
-      if (dynamicControllers.length > 0) return 'dynamic';
-      return [...refOwners.keys()];
-    },
-    dispose() {
-      for (const controller of Object.values(controllers)) controller.dispose?.();
-    },
-  };
 }
 
 function createLiveJob(

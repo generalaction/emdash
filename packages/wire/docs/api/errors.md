@@ -34,8 +34,8 @@ deduplicates repeated ids.
 ### `UNKNOWN_PROCEDURE`
 
 No procedure handler exists for the call path. Common causes are an incorrect
-client path, a missing namespace when using `mergeControllers()`, or a drift
-between the contract and the bound implementation.
+client path, a missing implementation branch in `createController()`, or a drift
+between the contract and the controller implementation.
 
 This is not retryable without changing code or wiring.
 
@@ -44,8 +44,8 @@ This is not retryable without changing code or wiring.
 The live topic's ref id is not registered by the controller.
 
 This usually means the client encoded the wrong live ref id, or a controller was
-merged without the child that owns the ref. It is not retryable without changing
-the topic or server wiring.
+created without the endpoint that owns the ref. It is not retryable without
+changing the topic or server wiring.
 
 ### `NOT_FOUND`
 
@@ -57,15 +57,15 @@ Retrying may make sense only if the domain resource is expected to appear later.
 
 ### `MISSING_HANDLER`
 
-Bind-time error: a contract endpoint has no implementation. Examples include a
+Controller creation-time error: a contract endpoint has no implementation. Examples include a
 missing procedure implementation, missing live resolver, missing job handler, or
 missing live model host.
 
-This should not cross the wire during normal operation. Fix the server binding.
+This should not cross the wire during normal operation. Fix the controller implementation.
 
 ### `CONTRACT_MISMATCH`
 
-Bind-time error: a `LiveModelHost` was created for a different live model
+Controller creation-time error: a `LiveModelHost` was created for a different live model
 contract than the contract endpoint being bound.
 
 This is not retryable; fix the host/contract pairing.
@@ -76,13 +76,6 @@ This is not retryable; fix the host/contract pairing.
 
 This is a lifecycle error. Dispose or reuse the existing instance instead of
 creating another one for the same key.
-
-### `DUPLICATE_LIVE_REF`
-
-`mergeControllers()` found the same static live ref id owned by more than one
-child controller.
-
-This is not retryable; rename or remount one of the conflicting contract entries.
 
 ### `HANDLER_ERROR`
 

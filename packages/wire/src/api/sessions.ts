@@ -1,5 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
-import type { Controller } from './bind';
+import type { Controller } from './controller';
 import type { WireTransport } from './protocol';
 import { serve } from './serve';
 

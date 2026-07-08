@@ -2,9 +2,9 @@ import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost, createLiveModelReplica, type LiveModelReplicaOptions } from '../live';
-import { bindContract, encodeTopic } from './bind';
 import { client, type LiveModelClientHandle } from './client';
 import { connect } from './connect';
+import { createController, encodeTopic } from './controller';
 import {
   defineContract,
   liveModel,
@@ -56,7 +56,7 @@ function setup() {
     usage: { tokens: 0 },
   });
   const pair = memoryTransportPair();
-  const controller = bindContract(contract, { conversation: host });
+  const controller = createController(contract, { conversation: host });
   serve(pair.right, controller);
   return { client: client(contract, connect(pair.left)), controller, key, instance };
 }
@@ -120,7 +120,7 @@ describe('liveModel', () => {
       }),
     });
     const host = createLiveModelHost(other.other);
-    expect(() => bindContract(contract, { conversation: host as never })).toThrow(
+    expect(() => createController(contract, { conversation: host as never })).toThrow(
       /created for 'other'/
     );
   });
@@ -153,7 +153,7 @@ describe('liveModel', () => {
     });
     host.create(key, { state: { title: 'Initial' } });
     const pair = memoryTransportPair();
-    serve(pair.right, bindContract(schemaOnly, { conversation: host }));
+    serve(pair.right, createController(schemaOnly, { conversation: host }));
     const contractClient = client(schemaOnly, connect(pair.left));
 
     const { instance: conversation, dispose } = await acquireConversation(
@@ -183,7 +183,9 @@ describe('liveModel', () => {
     });
     const host = createLiveModelHost(schemaOnly.conversation);
 
-    expect(() => bindContract(schemaOnly, { conversation: host })).toThrow(/requires a handler/);
+    expect(() => createController(schemaOnly, { conversation: host })).toThrow(
+      /requires a handler/
+    );
   });
 
   it('mounts group model ids and mutations under nested contract keys', async () => {
@@ -195,7 +197,7 @@ describe('liveModel', () => {
       usage: { tokens: 0 },
     });
     const pair = memoryTransportPair();
-    const controller = bindContract(nested, { child: { conversation: host } });
+    const controller = createController(nested, { child: { conversation: host } });
     serve(pair.right, controller);
     const contractClient = client(nested, connect(pair.left));
 

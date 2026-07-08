@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveJobCancelledError, type LiveJobContext } from '../live/job';
 import { createLiveJobReplica } from '../live/replica';
-import { bindContract } from './bind';
 import { client } from './client';
 import { connect } from './connect';
+import { createController } from './controller';
 import { defineContract, liveJob } from './define';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
@@ -124,7 +124,7 @@ function setup(
   options: { validate?: 'none' | 'inputs' | 'full' } = {}
 ) {
   const pair = memoryTransportPair();
-  const controller = bindContract(
+  const controller = createController(
     jobContract,
     {
       build: {

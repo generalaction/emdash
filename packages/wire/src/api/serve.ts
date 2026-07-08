@@ -1,7 +1,7 @@
 import { toSerializedError, type Unsubscribe } from '@emdash/shared';
 import { getCurrentLogger, runWithLogger, type Logger } from '@emdash/shared/logger';
 import type { WireInstrumentation } from '../observability';
-import type { Controller } from './bind';
+import type { Controller } from './controller';
 import { serializeWireError, WireError, type WireMessage, type WireTransport } from './protocol';
 
 export type ServeOptions = {

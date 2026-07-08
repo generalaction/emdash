@@ -7,7 +7,7 @@ one of four shapes:
 - Own state: `LiveState`, `LiveLog`, `LiveJob`, or `LiveModelHost`.
 - Stream directly: use a client `snapshot()`/`attach()` handle with no local store,
   for example PTY output written straight into xterm.
-- Forward: pass client handles or subtrees to `bindContract()` so a hop stays stateless.
+- Forward: pass client handles or subtrees to `createController()` so a hop stays stateless.
 - Replica: wrap a client handle to hold local state, share upstream subscriptions, and
   serve downstream clients.
 
@@ -108,12 +108,12 @@ from the upstream live topic but retains the local terminal state while leases o
 
 ## Serving Replicas
 
-Replicas bind directly into `bindContract()`:
+Replicas can be passed directly into `createController()`:
 
 ```ts
 const upstream = client(api, connect(sshTransport));
 
-const controller = bindContract(api, {
+const controller = createController(api, {
   conversation: createLiveModelReplica(api.conversation, upstream.conversation),
   ptyOutput: upstream.ptyOutput, // forward bytes without buffering
   build: createLiveJobReplica(api.build, upstream.build),

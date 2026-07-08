@@ -1,5 +1,5 @@
 import {
-  bindContract,
+  createController,
   createLiveModelHost,
   isWireMessage,
   serve,
@@ -10,7 +10,7 @@ import { processExampleApi } from './contract';
 const counters = createLiveModelHost(processExampleApi.counter);
 const counter = counters.create(undefined, { counter: { count: 0 } }).states.counter;
 
-const controller = bindContract(processExampleApi, {
+const controller = createController(processExampleApi, {
   ping: (value) => `pong:${value}`,
   increment: () => {
     counter.produce((draft) => {

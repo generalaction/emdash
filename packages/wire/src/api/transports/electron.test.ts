@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { bindContract, client, connect, defineContract, liveModel, liveState, procedure } from '..';
+import {
+  createController,
+  client,
+  connect,
+  defineContract,
+  liveModel,
+  liveState,
+  procedure,
+} from '..';
 import { domPortTransport } from './dom-port';
 import { awaitWirePort, exposeWireToWindows, requestWirePort } from './electron';
 
@@ -156,7 +164,7 @@ describe('Electron wire helpers', () => {
     sender.renderer = ipcRenderer;
     const windowLike = new FakeWindow();
     const mainPorts: FakeMessagePort[] = [];
-    const controller = bindContract(api, {
+    const controller = createController(api, {
       ping: ({ value }) => `pong:${value}`,
       state: fakeStateProvider(),
     });
@@ -198,7 +206,7 @@ describe('Electron wire helpers', () => {
     sender.renderer = ipcRenderer;
     const windowLike = new FakeWindow();
     const mainPorts: FakeMessagePort[] = [];
-    const controller = bindContract(api, {
+    const controller = createController(api, {
       ping: ({ value }) => `pong:${value}`,
       state: fakeStateProvider(),
     });

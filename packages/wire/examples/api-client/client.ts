@@ -5,8 +5,8 @@ import {
   memoryTransportPair,
   serve,
 } from '../../src/index';
-import { notesController } from '../api-binding/controller';
 import { notesApi } from '../api-definition/contract';
+import { notesController } from '../controller/controller';
 
 async function main(): Promise<void> {
   const pair = memoryTransportPair();

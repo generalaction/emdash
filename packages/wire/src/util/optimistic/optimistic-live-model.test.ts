@@ -2,7 +2,7 @@ import { err, ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
-  bindContract,
+  createController,
   client,
   connect,
   createLiveModelReplica,
@@ -227,7 +227,7 @@ function setup(api: TestApi): {
   });
 
   const pair = memoryTransportPair();
-  const controller = bindContract(api, { conversation: conversations });
+  const controller = createController(api, { conversation: conversations });
   serve(pair.right, controller);
   const contractClient = client(api, connect(pair.left));
   const replica = createLiveModelReplica(api.conversation, contractClient.conversation);

@@ -1,7 +1,7 @@
 import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
-  bindContract,
+  createController,
   client,
   connect,
   createLiveModelReplica,
@@ -24,7 +24,7 @@ async function main(): Promise<void> {
     state: { count: 0 },
   });
 
-  const controller = bindContract(api, { counter: counters });
+  const controller = createController(api, { counter: counters });
   const pair = memoryTransportPair();
   serve(pair.right, controller);
   const contractClient = client(api, connect(pair.left));

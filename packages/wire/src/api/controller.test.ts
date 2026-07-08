@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost } from '../live/mutations';
-import { bindContract, encodeTopic, mergeControllers, splitTopic } from './bind';
+import { createController, encodeTopic, splitTopic } from './controller';
 import { defineContract, liveModel, liveState, liveLog, procedure } from './define';
-import type { WireError } from './protocol';
 
 const keySchema = z.object({ id: z.string() });
 const stateSchema = z.object({ count: z.number() });
@@ -17,10 +16,10 @@ function makeContract() {
   });
 }
 
-describe('bindContract', () => {
+describe('createController', () => {
   it('validates inputs and outputs according to policy', async () => {
     const contract = makeContract();
-    const controller = bindContract(
+    const controller = createController(
       contract,
       {
         echo: (input) => ({ value: input.value.toUpperCase() }),
@@ -40,7 +39,7 @@ describe('bindContract', () => {
     const contract = makeContract();
     const host = createLiveModelHost(contract.state);
     host.create({ id: 'known' }, { state: { count: 1 } });
-    const controller = bindContract(contract, {
+    const controller = createController(contract, {
       echo: (input) => ({ value: input.value }),
       state: host,
       output: () => null,
@@ -59,7 +58,7 @@ describe('bindContract', () => {
   it('requires live model providers', () => {
     const contract = makeContract();
     expect(() =>
-      bindContract(contract, {
+      createController(contract, {
         echo: (input) => ({ value: input.value }),
         output: () => null,
       })
@@ -82,7 +81,7 @@ describe('bindContract', () => {
     const contract = defineContract({ child });
     const host = createLiveModelHost(contract.child.state);
     host.create({ id: 'known' }, { state: { count: 3 } });
-    const controller = bindContract(contract, {
+    const controller = createController(contract, {
       child: {
         echo: (input) => ({ value: `child:${input.value}` }),
         state: host,
@@ -103,40 +102,5 @@ describe('bindContract', () => {
         .resolveLive(encodeTopic(contract.child.state.states.state.id, { id: 'known' }))
         ?.snapshot()
     ).toMatchObject({ data: { count: 3 } });
-  });
-
-  it('merges procedure namespaces', async () => {
-    const procedureContract = defineContract({
-      echo: procedure({ input: z.object({ value: z.string() }), output: outputSchema }),
-    });
-    const first = bindContract(procedureContract, {
-      echo: (input) => ({ value: `first:${input.value}` }),
-    });
-    const second = bindContract(procedureContract, {
-      echo: (input) => ({ value: `second:${input.value}` }),
-    });
-
-    const merged = mergeControllers({ first, second });
-    await expect(merged.call('second.echo', { value: 'x' })).resolves.toEqual({
-      value: 'second:x',
-    });
-    await expect(merged.call('missing.echo', { value: 'x' })).rejects.toMatchObject({
-      code: 'UNKNOWN_PROCEDURE',
-    } satisfies Partial<WireError>);
-  });
-
-  it('rejects duplicate live refs when merging controllers', () => {
-    const first = bindContract(makeContract(), {
-      echo: (input) => ({ value: input.value }),
-      state: createLiveModelHost(makeContract().state),
-      output: () => null,
-    });
-    const second = bindContract(makeContract(), {
-      echo: (input) => ({ value: input.value }),
-      state: createLiveModelHost(makeContract().state),
-      output: () => null,
-    });
-
-    expect(() => mergeControllers({ first, second })).toThrow(/Live ref/);
   });
 });
