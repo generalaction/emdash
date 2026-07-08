@@ -43,6 +43,13 @@ function appendOutputTail(current: string, chunk: string): string {
   return next.length > OUTPUT_TAIL_CAP ? next.slice(-OUTPUT_TAIL_CAP) : next;
 }
 
+function terminalInputForScript(script: string, exit: boolean, windowsCmdExit: boolean): string {
+  const normalizedScript = script.replace(/\r?\n/g, '\r');
+  if (!exit) return `${normalizedScript}\r`;
+  const scriptBeforeExit = normalizedScript.replace(/\r+$/, '');
+  return windowsCmdExit ? `${scriptBeforeExit}\rexit\r` : `${scriptBeforeExit}; exit\r`;
+}
+
 export class LifecycleScriptService implements IDisposable {
   private readonly projectId: string;
   private readonly workspaceId: string;
@@ -180,8 +187,13 @@ export class LifecycleScriptService implements IDisposable {
           })
         : null;
 
-      const command = exit ? `${script.script}; exit` : script.script;
-      pty.write(`${command}\n`);
+      pty.write(
+        terminalInputForScript(
+          script.script,
+          exit,
+          this.terminals.kind === 'local' && process.platform === 'win32'
+        )
+      );
 
       if (!exitPromise) {
         return { kind: 'started' };
