@@ -1,8 +1,20 @@
+import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
+
 export type AcpRuntimeControlRequest =
   | {
       type: 'resolve-spawn-context';
       requestId: string;
       providerId: string;
+    }
+  | {
+      type: 'check-auth';
+      requestId: string;
+      providerId: string;
+    }
+  | {
+      type: 'mark-auth-required';
+      providerId: string;
+      message?: string;
     }
   | {
       type: 'persist-session-id';
@@ -17,6 +29,18 @@ export type AcpRuntimeControlRequest =
     };
 
 export type AcpRuntimeControlResponse =
+  | {
+      type: 'check-auth-result';
+      requestId: string;
+      ok: true;
+      value: AgentAuthStatus;
+    }
+  | {
+      type: 'check-auth-result';
+      requestId: string;
+      ok: false;
+      error: string;
+    }
   | {
       type: 'resolve-spawn-context-result';
       requestId: string;

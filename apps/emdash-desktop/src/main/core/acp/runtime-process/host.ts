@@ -4,6 +4,7 @@ import type { Unsubscribe, WireTransport } from '@emdash/core/wire';
 import { app, utilityProcess } from 'electron';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
+import { agentAuthService } from '../../agents/agent-auth-service';
 import { resolveLocalAcpSpawnContext } from '../transport/local-acp-process-host';
 import type {
   AcpRuntimeChildMessage,
@@ -92,6 +93,12 @@ class AcpRuntimeProcessHost {
       case 'resolve-spawn-context':
         await this.resolveSpawnContext(message.requestId, message.providerId);
         break;
+      case 'check-auth':
+        await this.checkAuth(message.requestId, message.providerId);
+        break;
+      case 'mark-auth-required':
+        this.markAuthRequired(message.providerId, message.message);
+        break;
       case 'persist-session-id':
         await this.persistSessionId(message.conversationId, message.sessionId);
         break;
@@ -118,6 +125,29 @@ class AcpRuntimeProcessHost {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  private async checkAuth(requestId: string, providerId: string): Promise<void> {
+    try {
+      const value = await agentAuthService.getStatus(providerId);
+      this.post({
+        type: 'check-auth-result',
+        requestId,
+        ok: true,
+        value,
+      });
+    } catch (error) {
+      this.post({
+        type: 'check-auth-result',
+        requestId,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private markAuthRequired(providerId: string, message?: string): void {
+    agentAuthService.markUnauthenticated(providerId, message);
   }
 
   private async persistSessionId(conversationId: string, sessionId: string): Promise<void> {
@@ -152,7 +182,13 @@ export const acpRuntimeProcessHost = new AcpRuntimeProcessHost();
 function isChildMessage(value: unknown): value is AcpRuntimeChildMessage {
   if (typeof value !== 'object' || value === null) return false;
   const type = (value as { type?: unknown }).type;
-  return type === 'resolve-spawn-context' || type === 'persist-session-id' || type === 'log';
+  return (
+    type === 'resolve-spawn-context' ||
+    type === 'check-auth' ||
+    type === 'mark-auth-required' ||
+    type === 'persist-session-id' ||
+    type === 'log'
+  );
 }
 
 function resolveRuntimeEntry(): string {

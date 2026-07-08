@@ -89,6 +89,15 @@ export class SessionManager implements InboundRouter {
       return acpErr.providerUnsupported(input.providerId);
     }
 
+    const authStatus = await this.checkAuth(input.providerId);
+    if (authStatus.kind === 'unauthenticated') {
+      this.deleteSessionSummary(input.conversationId);
+      return acpErr.authRequired({
+        name: 'AuthRequired',
+        message: authStatus.message ?? `Provider '${input.providerId}' requires authentication`,
+      });
+    }
+
     const acquire = await this.pool.acquire({
       providerId: input.providerId,
       workspaceId: input.workspaceId,
@@ -135,7 +144,8 @@ export class SessionManager implements InboundRouter {
           if (!queueResult.success) return queueResult;
           record.cell.endReplay();
           loaded = true;
-        } catch {
+        } catch (e) {
+          if (isAuthRequiredError(e)) throw e;
           this.deps.logger.warn('SessionManager: loadSession failed, starting a new session', {
             conversationId: input.conversationId,
           });
@@ -182,7 +192,24 @@ export class SessionManager implements InboundRouter {
       if (record) this.removeRecord(record.input.conversationId, false);
       this.pool.release(connection.key);
       this.deleteSessionSummary(input.conversationId);
+      if (isAuthRequiredError(e)) {
+        this.deps.onAuthRequired?.(input.providerId);
+        return acpErr.authRequired(toSerializedError(e));
+      }
       return acpErr.initializeFailed(toSerializedError(e));
+    }
+  }
+
+  private async checkAuth(providerId: string) {
+    if (!this.deps.checkAuth) return { kind: 'unknown' as const };
+    try {
+      return await this.deps.checkAuth(providerId);
+    } catch (error) {
+      this.deps.logger.warn('SessionManager: auth status check failed', {
+        providerId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { kind: 'unknown' as const };
     }
   }
 
@@ -593,4 +620,11 @@ export class SessionManager implements InboundRouter {
   private buildLoadSessionRequest(cwd: string, sessionId: string): LoadSessionRequest {
     return { cwd, sessionId, mcpServers: [] };
   }
+}
+
+function isAuthRequiredError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const value = error as { code?: unknown; cause?: unknown };
+  if (value.code === -32000) return true;
+  return isAuthRequiredError(value.cause);
 }

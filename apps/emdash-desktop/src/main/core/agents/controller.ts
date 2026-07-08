@@ -111,6 +111,18 @@ export const agentsController = createRPCController({
   updateSettings: (id: string, config: Partial<ProviderCustomConfig>): Promise<void> =>
     providerOverrideSettings.updateItem(id, config),
 
+  // ── Auth status ──────────────────────────────────────────────────────────────
+
+  getAuthStatus: async (id: string, options?: { refresh?: boolean }) => {
+    const { agentAuthService } = await import('./agent-auth-service');
+    return agentAuthService.getStatus(id, options);
+  },
+
+  startCliLogin: async (id: string, methodId: string) => {
+    const { agentAuthService } = await import('./agent-auth-service');
+    return agentAuthService.startCliLogin(id, methodId);
+  },
+
   // ── Selection + probe ────────────────────────────────────────────────────────
 
   setUsedInstallation: async (
