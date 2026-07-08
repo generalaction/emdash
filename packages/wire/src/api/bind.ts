@@ -6,6 +6,7 @@ import {
   isLiveModelHost,
   type LiveModelHost,
   MutationResultCache,
+  createMutationId,
   type MutationResultCacheOptions,
   type LiveMutationResult,
 } from '../live/mutations';
@@ -374,8 +375,7 @@ function parseGroupMutationInput(
   return {
     key,
     input: (parsedInput ?? {}) as Record<string, unknown>,
-    mutationId:
-      typeof envelope.mutationId === 'string' ? envelope.mutationId : createFallbackMutationId(),
+    mutationId: typeof envelope.mutationId === 'string' ? envelope.mutationId : createMutationId(),
   };
 }
 
@@ -403,10 +403,6 @@ function runMutation<D, E>(
         onDedupe: () => instrumentation?.mutationDeduped?.({ mutationId, path }),
       })
     : execute();
-}
-
-function createFallbackMutationId(): string {
-  return `mutation_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
 function missingLiveSource(message: string): LiveSource {

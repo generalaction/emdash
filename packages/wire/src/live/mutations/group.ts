@@ -1,4 +1,3 @@
-import type { Unsubscribe } from '@emdash/shared';
 import type {
   EndpointLiveModelData,
   GroupMutationCtx,
@@ -78,12 +77,6 @@ export class GroupMutationContext<
       cursor,
     });
   }
-}
-
-export function combineUnsubscribes(unsubscribes: Unsubscribe[]): Unsubscribe {
-  return () => {
-    for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
-  };
 }
 
 function compareCursor(left: LiveCursor, right: LiveCursor): number {

@@ -1,8 +1,8 @@
 import type { Result } from '@emdash/shared';
 import { z } from 'zod';
 import type { Mutator } from '../live/model';
-import type { LiveMutationInput } from '../live/mutations/handler';
 import type { LiveModelRef } from '../live/mutations/model-ref';
+import type { LiveMutationInput } from '../live/mutations/types';
 
 export const contractSymbol: unique symbol = Symbol('wire.contract');
 
@@ -213,7 +213,7 @@ export function job<
 }
 
 /**
- * Defines a liveModelGroup member mutation. Handlers should be pure functions
+ * Defines a live model contract member mutation. Handlers should be pure functions
  * of the member drafts and input. The optimistic group utility may run the same
  * handler client-side to derive previews before the server confirms them.
  */
@@ -356,9 +356,3 @@ export function isEndpointDef(value: ContractEntry): value is EndpointDef {
       return false;
   }
 }
-
-/** Backwards-compatible alias for callers that imported the previous helper name. */
-export const liveLogRef = <KeySchema extends z.ZodTypeAny>(
-  id: string,
-  keySchema: KeySchema
-): LiveLogEndpointDef<string, KeySchema> => ({ kind: 'liveLog', id, keySchema });

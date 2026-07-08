@@ -430,13 +430,7 @@ function delay(ms: number): Promise<void> {
 }
 
 function addMutationId(input: unknown, mutationId: string): unknown {
-  if (isGroupEnvelope(input)) return { ...input, mutationId };
-  if (typeof input === 'object' && input !== null) return { ...input, mutationId };
-  return { value: input, mutationId };
-}
-
-function isGroupEnvelope(value: unknown): value is { key: unknown; input: unknown } {
-  return typeof value === 'object' && value !== null && 'key' in value && 'input' in value;
+  return { ...(input as { key: unknown; input: unknown }), mutationId };
 }
 
 async function settleCursors(
@@ -448,24 +442,10 @@ async function settleCursors(
     cursors.map((entry) => {
       const binding = bindingRegistry.find(entry.model, entry.key);
       if (!binding) return Promise.resolve();
-      return firstResolved([
+      return Promise.any([
         binding.waitForMutation(mutationId),
         binding.waitForCursor(entry.cursor),
       ]);
     })
   );
-}
-
-function firstResolved(promises: Promise<void>[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    let rejections = 0;
-    let lastError: unknown;
-    for (const promise of promises) {
-      promise.then(resolve, (error: unknown) => {
-        rejections += 1;
-        lastError = error;
-        if (rejections === promises.length) reject(lastError);
-      });
-    }
-  });
 }

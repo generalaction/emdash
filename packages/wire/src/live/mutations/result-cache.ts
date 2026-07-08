@@ -1,4 +1,4 @@
-import type { LiveMutationResult } from './handler';
+import type { LiveMutationResult } from './types';
 
 export const DEFAULT_MUTATION_RESULT_CACHE_TTL_MS = 5 * 60 * 1000;
 export const DEFAULT_MUTATION_RESULT_CACHE_MAX_ENTRIES = 1000;

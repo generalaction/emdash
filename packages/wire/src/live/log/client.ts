@@ -1,5 +1,6 @@
-import { log as ambientLog, type Logger } from '@emdash/shared/logger';
-import type { WireInstrumentation, WireResyncReason } from '../../observability';
+import type { Logger } from '@emdash/shared/logger';
+import type { WireInstrumentation } from '../../observability';
+import { LiveFollower, type LiveFollowerApplyResult } from '../follower';
 import type { LiveLogDelta, LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../protocol';
 
 export type LiveLogClientDeps = {
@@ -11,82 +12,36 @@ export type LiveLogClientDeps = {
   topic?: string;
 };
 
-export class LiveLogClient {
-  private generation = -1;
-  private sequence = -1;
-  private value: LiveLogSnapshotData | undefined;
-  private resyncing = false;
-
-  constructor(private readonly deps: LiveLogClientDeps) {}
-
-  isReady(): boolean {
-    return this.value !== undefined;
+export class LiveLogClient extends LiveFollower<LiveLogSnapshotData> {
+  constructor(private readonly deps: LiveLogClientDeps) {
+    super(deps.refetchSnapshot, { ...deps, label: 'live log' });
   }
 
-  getSnapshot(): LiveLogSnapshotData | undefined {
-    return this.value;
+  protected onSeeded(data: LiveLogSnapshotData): void {
+    this.deps.onReset(data);
   }
 
-  seed(snapshot: LiveSnapshot<LiveLogSnapshotData>): void {
-    this.value = snapshot.data;
-    this.generation = snapshot.generation;
-    this.sequence = snapshot.sequence;
-    this.deps.onReset(this.value);
-  }
-
-  applyUpdate(update: LiveUpdate): void {
-    if (!this.value) {
-      this.reportResync('sequence-gap', { reason: 'update-before-seed' });
-      void this.resync();
-      return;
+  protected applyDelta(update: LiveUpdate): LiveFollowerApplyResult<LiveLogSnapshotData> {
+    const current = this.value;
+    if (current === undefined) {
+      return { ok: false, reason: 'sequence-gap', details: { reason: 'update-before-seed' } };
     }
-
-    if (update.generation !== this.generation) {
-      this.reportResync('generation', {
-        local: this.generation,
-        incoming: update.generation,
-      });
-      void this.resync();
-      return;
-    }
-
-    if (update.baseSequence !== this.sequence) {
-      this.reportResync('sequence-gap', {
-        expected: this.sequence,
-        got: update.baseSequence,
-      });
-      void this.resync();
-      return;
-    }
-
     if (!isLiveLogDelta(update.delta)) {
-      this.reportResync('patch-failed', { reason: 'invalid-delta' });
-      void this.resync();
-      return;
+      return { ok: false, reason: 'patch-failed', details: { reason: 'invalid-delta' } };
     }
 
-    this.sequence = update.sequence;
-    this.value = {
-      ...this.value,
-      text: this.value.text + update.delta.chunk,
+    return {
+      ok: true,
+      value: {
+        ...current,
+        text: `${current.text}${update.delta.chunk}`,
+      },
     };
+  }
+
+  protected onApplied(_value: LiveLogSnapshotData, update: LiveUpdate): void {
+    if (!isLiveLogDelta(update.delta)) return;
     this.deps.onAppend(update.delta.chunk);
-  }
-
-  private async resync(): Promise<void> {
-    if (this.resyncing) return;
-    this.resyncing = true;
-    try {
-      this.seed(await this.deps.refetchSnapshot());
-    } finally {
-      this.resyncing = false;
-    }
-  }
-
-  private reportResync(reason: WireResyncReason, details: Record<string, unknown> = {}): void {
-    const event = { topic: this.deps.topic, reason, details };
-    this.deps.instrumentation?.resync?.(event);
-    (this.deps.logger ?? ambientLog).warn('wire live log resyncing', event);
   }
 }
 

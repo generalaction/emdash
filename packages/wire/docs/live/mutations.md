@@ -23,21 +23,34 @@ server.produce(
 The update carries `mutationIds: ['example-add-task']`. A `LiveModelClient` can
 resolve `waitForMutation('example-add-task')` when it applies that update.
 
-## Registries and Context
+## Hosts and Context
 
-`LiveModelRegistry` maps a model ref and key to a `LiveModel`:
+Live model contract mutations run against a keyed `LiveModelHost` instance. The
+host owns each instance's member `LiveModel`s and resolves schema-only mutation
+handlers supplied at host creation:
 
 ```ts
-const registry = new LiveModelRegistry();
-registry.register(treeRef, { rootPath: '/repo', sessionId: 'left-pane' }, leftTree);
-registry.register(treeRef, { rootPath: '/repo', sessionId: 'right-pane' }, rightTree);
+const sessions = createLiveModelHost(sessionContract, {
+  mutations: {
+    setTitle: (ctx, input) => {
+      ctx.produce('metadata', (draft) => {
+        draft.title = input.title;
+      });
+      return ok({ title: input.title });
+    },
+  },
+});
+
+sessions.create({ sessionId: 'demo' }, {
+  metadata: { title: 'Untitled' },
+  transcript: { items: [] },
+});
 ```
 
-Keys use `stableStringify()`, so object key order does not matter. `instances()`
-can match a partial key, which lets a mutation update every bound model instance
-for one shared dimension.
-
-`MutationContext` records the cursor of every touched model. The wire result is:
+Keys use `stableStringify()`, so object key order does not matter when hosts and
+client bindings look up an instance. `GroupMutationContext` is instance-bound:
+`ctx.key` identifies the current host instance and `ctx.produce(member, mutator)`
+records the cursor of every touched member model. The wire result is:
 
 ```ts
 type LiveMutationResult<D, E> =
@@ -139,5 +152,6 @@ Use `procedure()` for API calls that do not need live model cursor settling.
 `mutation()` is only valid as a member of `defineLiveModelContract().mutations`
 in the contract API.
 
-See [../../examples/mutations/client.ts](../../examples/mutations/client.ts) and
-[../../examples/mutation-idempotency/client.ts](../../examples/mutation-idempotency/client.ts).
+See [../../examples/group/client.ts](../../examples/group/client.ts),
+[../../examples/optimistic-group/client.ts](../../examples/optimistic-group/client.ts),
+and [../../examples/mutation-idempotency/client.ts](../../examples/mutation-idempotency/client.ts).

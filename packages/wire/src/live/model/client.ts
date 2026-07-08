@@ -1,6 +1,7 @@
-import { log as ambientLog, type Logger } from '@emdash/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
 import type z from 'zod';
-import type { WireInstrumentation, WireResyncReason } from '../../observability';
+import type { WireInstrumentation } from '../../observability';
+import { LiveFollower, type LiveFollowerApplyResult } from '../follower';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
 import { applyPatches, type Patch } from './immer-setup';
 
@@ -26,96 +27,21 @@ export type LiveModelClientOptions = {
   topic?: string;
 };
 
-export class LiveModelClient<T> {
-  private generation = -1;
-  private sequence = -1;
-  private value: T | undefined;
-  private resyncing = false;
+export class LiveModelClient<T> extends LiveFollower<T> {
   private cursorWaiters: CursorWaiter[] = [];
   private mutationWaiters: MutationWaiter[] = [];
+  private readonly schema: z.ZodType<T>;
+  private readonly onChange: (value: T, meta: LiveChangeMeta) => void;
 
   constructor(
-    private readonly schema: z.ZodType<T>,
-    private readonly refetchSnapshot: () => Promise<LiveSnapshot<T>>,
-    private readonly onChange: (value: T, meta: LiveChangeMeta) => void,
-    private readonly options: LiveModelClientOptions = {}
-  ) {}
-
-  get cursor(): LiveCursor | undefined {
-    if (this.generation < 0) return undefined;
-    return {
-      generation: this.generation,
-      sequence: this.sequence,
-    };
-  }
-
-  /** True once the first seed() has landed. */
-  isReady(): boolean {
-    return this.value !== undefined;
-  }
-
-  /** The current value, or undefined before the first seed. */
-  getSnapshot(): T | undefined {
-    return this.value;
-  }
-
-  seed(snapshot: LiveSnapshot<T>): void {
-    const next = snapshot.data;
-    this.value = next;
-    this.generation = snapshot.generation;
-    this.sequence = snapshot.sequence;
-    this.onChange(next, { kind: 'seed' });
-    this.flushCursorWaiters();
-    this.flushAllMutationWaiters();
-  }
-
-  applyUpdate(update: LiveUpdate): void {
-    if (this.value === undefined) {
-      this.reportResync('sequence-gap', { reason: 'update-before-seed' });
-      void this.resync();
-      return;
-    }
-
-    if (update.generation !== this.generation) {
-      this.reportResync('generation', {
-        local: this.generation,
-        incoming: update.generation,
-      });
-      void this.resync();
-      return;
-    }
-
-    if (update.baseSequence !== this.sequence) {
-      this.reportResync('sequence-gap', {
-        expected: this.sequence,
-        got: update.baseSequence,
-      });
-      void this.resync();
-      return;
-    }
-
-    let next: T;
-    try {
-      // applyPatches returns a new structurally-shared reference — untouched
-      // subtrees keep identity, which allows downstream memoized selectors to
-      // avoid recomputing on unchanged branches.
-      next = applyPatches(this.value as object, update.delta as Patch[]) as T;
-    } catch (err) {
-      this.reportResync('patch-failed', { error: err });
-      void this.resync();
-      return;
-    }
-
-    if (!this.validate(next)) {
-      void this.resync();
-      return;
-    }
-
-    this.value = next;
-    this.sequence = update.sequence;
-    this.onChange(this.value, { kind: 'update', mutationIds: update.mutationIds ?? [] });
-    this.flushCursorWaiters();
-    this.flushMutationWaiters(update.mutationIds ?? []);
+    schema: z.ZodType<T>,
+    refetchSnapshot: () => Promise<LiveSnapshot<T>>,
+    onChange: (value: T, meta: LiveChangeMeta) => void,
+    options: LiveModelClientOptions = {}
+  ) {
+    super(refetchSnapshot, { ...options, label: 'live model' });
+    this.schema = schema;
+    this.onChange = onChange;
   }
 
   /** Resolves when local state provably includes the given cursor. */
@@ -168,36 +94,45 @@ export class LiveModelClient<T> {
    * are the primary correctness mechanism; schema validation is a dev-only
    * safety net that catches shape regressions early.
    */
-  private validate(next: unknown): next is T {
-    if (readNodeEnv() === 'production') return true;
+  protected onSeeded(data: T): void {
+    this.onChange(data, { kind: 'seed' });
+    this.flushCursorWaiters();
+    this.flushAllMutationWaiters();
+  }
+
+  protected applyDelta(update: LiveUpdate): LiveFollowerApplyResult<T> {
+    try {
+      // applyPatches returns a new structurally-shared reference — untouched
+      // subtrees keep identity, which allows downstream memoized selectors to
+      // avoid recomputing on unchanged branches.
+      const next = applyPatches(this.value as object, update.delta as Patch[]) as T;
+      const validated = this.validate(next);
+      return validated.ok ? { ok: true, value: next } : validated;
+    } catch (error) {
+      return { ok: false, reason: 'patch-failed', details: { error } };
+    }
+  }
+
+  protected onApplied(value: T, update: LiveUpdate): void {
+    this.onChange(value, { kind: 'update', mutationIds: update.mutationIds ?? [] });
+    this.flushCursorWaiters();
+    this.flushMutationWaiters(update.mutationIds ?? []);
+  }
+
+  private validate(next: unknown): { ok: true } | LiveFollowerApplyResult<T> {
+    if (readNodeEnv() === 'production') return { ok: true };
     const r = this.schema.safeParse(next);
     if (!r.success) {
-      this.reportResync('validation', { error: r.error });
-      return false;
+      return { ok: false, reason: 'validation', details: { error: r.error } };
     }
-    return true;
-  }
-
-  private async resync(): Promise<void> {
-    if (this.resyncing) return;
-    this.resyncing = true;
-    try {
-      this.seed(await this.refetchSnapshot());
-    } finally {
-      this.resyncing = false;
-    }
-  }
-
-  private reportResync(reason: WireResyncReason, details: Record<string, unknown> = {}): void {
-    const event = { topic: this.options.topic, reason, details };
-    this.options.instrumentation?.resync?.(event);
-    (this.options.logger ?? ambientLog).warn('wire live model resyncing', event);
+    return { ok: true };
   }
 
   private cursorSatisfies(target: LiveCursor): boolean {
-    if (this.generation < 0) return false;
-    if (this.generation > target.generation) return true;
-    return this.generation === target.generation && this.sequence >= target.sequence;
+    const cursor = this.cursor;
+    if (!cursor) return false;
+    if (cursor.generation > target.generation) return true;
+    return cursor.generation === target.generation && cursor.sequence >= target.sequence;
   }
 
   private flushCursorWaiters(): void {

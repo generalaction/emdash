@@ -57,7 +57,6 @@
     "example:live-job": "tsx examples/live-job/client.ts",
     "example:scope": "tsx examples/scope/client.ts",
     "example:managed-source": "tsx examples/managed-source/client.ts",
-    "example:mutations": "tsx examples/mutations/client.ts",
     "example:cancellation": "tsx examples/cancellation/client.ts",
     "example:contract": "tsx examples/contract/client.ts",
     "example:api-definition": "tsx examples/api-definition/inspect.ts",

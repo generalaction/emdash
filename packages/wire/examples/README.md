@@ -16,7 +16,6 @@ pnpm --filter @emdash/wire run example:live-model
 pnpm --filter @emdash/wire run example:batched-model
 pnpm --filter @emdash/wire run example:live-log
 pnpm --filter @emdash/wire run example:live-job
-pnpm --filter @emdash/wire run example:mutations
 pnpm --filter @emdash/wire run example:cancellation
 pnpm --filter @emdash/wire run example:contract
 pnpm --filter @emdash/wire run example:api-definition
@@ -41,27 +40,24 @@ Examples:
   tail snapshots.
 - `live-job/` demonstrates progress, terminal state, result promises, and
   cancellation errors.
-- `mutations/` demonstrates `LiveModelRegistry`, `MutationContext`,
-  `liveMutation`, `LiveBindingRegistry`, and `createLiveMutationsClient` across
-  multiple model instances.
 - `cancellation/` demonstrates procedure cancellation with `AbortSignal` and
   server-side abort on disconnect.
 - `contract/` demonstrates the full API flow in one file: contract definition,
   bound controller, memory transport, and typed client.
 - `api-definition/` isolates contract definition with `defineContract`,
-  `procedure`, `liveModel`, `liveLog`, and `liveModelGroup` member mutations.
+  `procedure`, `liveModel`, `liveLog`, and live model contract mutations.
 - `api-binding/` isolates controller construction with `bindContract()` and
   direct controller calls/snapshots.
 - `api-client/` isolates serving a bound controller over a memory transport and
   creating a typed `contractClient`.
-- `group/` demonstrates `liveModelGroup`, group instance registration, typed
-  group client binding, and mutation settling across multiple member models.
+- `group/` demonstrates `defineLiveModelContract`, host instance lifecycle,
+  typed group client binding, and mutation settling across multiple member models.
 - `dedupe/` demonstrates server-side `deduplicateRequests()` for in-flight
   procedure calls.
 - `job-contract/` demonstrates the contract-level `job()` endpoint with start,
   progress, cancellation, terminal result, and reattach.
-- `mutation-idempotency/` demonstrates mutationId-based server dedupe for
-  `liveModelGroup` member mutations.
+- `mutation-idempotency/` demonstrates mutationId-based server dedupe for live
+  model contract mutations.
 - `multi-window/` demonstrates one `Controller` served to multiple independent
   clients through `createWireSessionHub`.
 - `logging/` demonstrates `withLogging`, `loggingTransport`, instrumentation

@@ -82,4 +82,30 @@ describe('LiveLogClient', () => {
 
     await vi.waitFor(() => expect(refetchSnapshot).toHaveBeenCalledTimes(1));
   });
+
+  it('refreshes from a fresh snapshot on demand', async () => {
+    const server = new LiveLogServer({ generation: 1000 });
+    const onReset =
+      vi.fn<(data: { baseOffset: number; text: string; truncated: boolean }) => void>();
+    const onAppend = vi.fn<(chunk: string) => void>();
+    const refetchSnapshot = vi.fn(async () => server.snapshot());
+    const client = new LiveLogClient({ refetchSnapshot, onReset, onAppend });
+    client.seed(server.snapshot());
+
+    server.append('offline output');
+    await client.refresh();
+
+    expect(client.getSnapshot()).toEqual({
+      baseOffset: 0,
+      text: 'offline output',
+      truncated: false,
+    });
+    expect(refetchSnapshot).toHaveBeenCalledTimes(1);
+    expect(onReset).toHaveBeenLastCalledWith({
+      baseOffset: 0,
+      text: 'offline output',
+      truncated: false,
+    });
+    expect(onAppend).not.toHaveBeenCalled();
+  });
 });

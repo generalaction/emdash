@@ -1,26 +1,4 @@
 export {
-  createLiveMutationsClient,
-  type LiveMutationCaller,
-  type LiveMutationInvocation,
-  type LiveMutationsClient,
-} from './client';
-export { MutationContext } from './context';
-export {
-  defineLiveMutations,
-  type LiveMutationData,
-  type LiveMutationDefinition,
-  type LiveMutationDefinitions,
-  type LiveMutationError,
-  type LiveMutationInput,
-} from './define';
-export {
-  createMutationId,
-  liveMutation,
-  type LiveMutationHandler,
-  type LiveMutationResult,
-  type LiveMutationSuccess,
-} from './handler';
-export {
   createGroupInstance,
   GroupMutationContext,
   type GroupInitialState,
@@ -35,13 +13,8 @@ export {
   type LiveModelHostMutationHandlers,
   type LiveModelHostOptions,
 } from './host';
-export {
-  liveModelRef,
-  type LiveModelData,
-  type LiveModelKey,
-  type LiveModelRef,
-} from './model-ref';
-export { LiveBindingRegistry, LiveModelRegistry, stableStringify } from './registry';
+export { type LiveModelData, type LiveModelKey, type LiveModelRef } from './model-ref';
+export { LiveBindingRegistry, stableStringify } from './registry';
 export {
   DEFAULT_MUTATION_RESULT_CACHE_MAX_ENTRIES,
   DEFAULT_MUTATION_RESULT_CACHE_TTL_MS,
@@ -50,3 +23,9 @@ export {
   type MutationResultCacheOptions,
   type MutationResultCacheRunOptions,
 } from './result-cache';
+export {
+  createMutationId,
+  type LiveMutationInput,
+  type LiveMutationResult,
+  type LiveMutationSuccess,
+} from './types';

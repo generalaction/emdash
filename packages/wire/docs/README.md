@@ -35,7 +35,7 @@ flowchart TB
 
 The live layer owns the stateful primitives: `LiveModel` and
 `LiveModelClient`, `LiveLogServer` and `LiveLogClient`, `LiveJobServer` and
-`LiveJobClient`, plus mutation registries and settling. The API layer turns those
+`LiveJobClient`, plus host-backed mutations and settling. The API layer turns those
 primitives into a contract with typed procedure calls and live topic bindings.
 The runtime layer owns lifecycle utilities and process supervision. Observability
 hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
@@ -57,10 +57,10 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     callbacks.
   - [Live jobs](./live/live-job.md): progress, cancellation, terminal state,
     retention, and contract job handles.
-  - [Mutations](./live/mutations.md): mutation ids, registries, cursor settling,
+  - [Mutations](./live/mutations.md): mutation ids, host contexts, cursor settling,
     idempotency cache, and retry behavior.
   - [Optimistic live model groups](./live/optimistic-group.md): MobX-backed
-    optimistic previews for `liveModelGroup`.
+    optimistic previews for live model contract mutations.
 - Runtime:
   - [Lifecycle utilities](./runtime/lifecycle.md): `Scope`, scope loggers,
     `describeScope()`, and `ManagedSource`.
@@ -83,7 +83,7 @@ import { bindContract, LiveModel, defineContract } from '@emdash/wire';
 
 Use narrower subpath exports at app boundaries:
 
-- `@emdash/wire/live`: live primitives and mutation registries.
+- `@emdash/wire/live`: live primitives, live model hosts, and mutation settling.
 - `@emdash/wire/api`: contract definition, binding, client creation, and transports.
 - `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
   controller logging middleware.

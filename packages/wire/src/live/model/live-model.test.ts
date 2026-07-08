@@ -129,6 +129,23 @@ describe('LiveModel and LiveModelClient', () => {
     ]);
   });
 
+  it('refreshes from a fresh snapshot on demand', async () => {
+    const server = new LiveModel<State>(makeState(), 1000);
+    const onChange = vi.fn<(value: State, meta: LiveChangeMeta) => void>();
+    const refetchSnapshot = vi.fn(async () => server.snapshot());
+    const client = new LiveModelClient<State>(stateSchema, refetchSnapshot, onChange);
+    client.seed(server.snapshot());
+
+    server.produce((draft) => {
+      draft.count = 12;
+    });
+    await client.refresh();
+
+    expect(client.getSnapshot()).toEqual(makeState({ count: 12 }));
+    expect(refetchSnapshot).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenLastCalledWith(makeState({ count: 12 }), { kind: 'seed' });
+  });
+
   it('waits for tagged mutations', async () => {
     const { server, client } = setup();
     const wait = client.waitForMutation('m1');
