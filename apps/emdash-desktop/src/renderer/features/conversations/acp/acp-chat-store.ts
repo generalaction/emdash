@@ -19,7 +19,7 @@ import { action, computed, makeObservable, observable, runInAction, toJS } from 
 // TODO(conversations-extraction): Inject task/workspace lookups instead of importing task stores.
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
-import { AcpLiveSession } from '@renderer/lib/acp/acp-live-session';
+import { AcpLiveSession, AcpStartError } from '@renderer/lib/acp/acp-live-session';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
@@ -52,13 +52,17 @@ type PermissionQueueItem = {
   options: Array<{ optionId: string; name: string; kind: string }>;
 };
 
+export type AcpLoadError =
+  | { kind: 'auth_required'; message: string }
+  | { kind: 'generic'; message: string };
+
 export class AcpChatStore {
   readonly chatContext: ChatContext;
   readonly chatState: ChatState;
 
   session: AcpLiveSession | null = null;
   historyLoading = true;
-  loadError: string | null = null;
+  loadError: AcpLoadError | null = null;
   messageCount = 0;
   draftText = '';
 
@@ -448,7 +452,7 @@ export class AcpChatStore {
       });
       runInAction(() => {
         this.historyLoading = false;
-        this.loadError = error instanceof Error ? error.message : 'Failed to load chat.';
+        this.loadError = toLoadError(error);
       });
     }
   }
@@ -670,4 +674,12 @@ function resultError(error: unknown): Error {
     return new Error(typeof message === 'string' ? message : String(type ?? 'Unknown error'));
   }
   return new Error(String(error));
+}
+
+function toLoadError(error: unknown): AcpLoadError {
+  const message = error instanceof Error ? error.message : 'Failed to load chat.';
+  if (error instanceof AcpStartError && error.errorType === 'auth_required') {
+    return { kind: 'auth_required', message };
+  }
+  return { kind: 'generic', message };
 }

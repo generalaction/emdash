@@ -7,6 +7,7 @@ import { sessionStateSchema } from '../models/session';
 import { transcriptTurnSchema } from '../models/turns';
 import { AcpRuntime } from '../runtime/runtime';
 import { uploadAttachmentCommandSchema } from './commands';
+import { acpRuntimeErrorSchema } from './errors';
 
 describe('ACP API contract schemas', () => {
   it('parses runtime live model snapshots with the public schemas', async () => {
@@ -48,5 +49,14 @@ describe('ACP API contract schemas', () => {
         name: 'image.png',
       })
     ).toThrow();
+  });
+
+  it('accepts auth_required runtime errors', () => {
+    expect(() =>
+      acpRuntimeErrorSchema.parse({
+        type: 'auth_required',
+        cause: { name: 'RequestError', message: 'Authentication required' },
+      })
+    ).not.toThrow();
   });
 });

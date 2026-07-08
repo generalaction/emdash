@@ -41,12 +41,13 @@ import {
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-image-paths';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { log } from '@renderer/utils/logger';
+import { agentAuthStatusChangedChannel } from '@shared/core/agents/agentEvents';
 import { linkedIssueMentionName, type LinkedIssue } from '@shared/core/linked-issue';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
@@ -679,6 +680,31 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       : undefined
   );
   const conversationSeen = conversationStore?.seen;
+  const { data: agents } = useAgents();
+  const providerId = conversationStore?.data.providerId ?? null;
+  const agent = agents?.find((candidate) => candidate.id === providerId) ?? null;
+  const cliAuthMethod =
+    agent?.capabilities.auth.kind === 'supported'
+      ? agent.capabilities.auth.methods.find((method) => method.kind === 'cli-login')
+      : undefined;
+
+  useEffect(() => {
+    if (!providerId || !store) return;
+    return events.on(agentAuthStatusChangedChannel, (event) => {
+      if (event.providerId !== providerId || event.status.kind !== 'authenticated') return;
+      if (store.loadError?.kind === 'auth_required') store.retry();
+    });
+  }, [providerId, store]);
+
+  const openSignInModal = useCallback(() => {
+    if (!providerId || !cliAuthMethod) return;
+    showModal('agentSignInModal', {
+      providerId,
+      methodId: cliAuthMethod.id,
+      providerName: agent?.name ?? providerId,
+    });
+  }, [agent?.name, cliAuthMethod, providerId]);
+
   useEffect(() => {
     if (conversationStore && !conversationStore.seen) {
       conversationStore.markSeen();
@@ -786,19 +812,47 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         (store.loadError !== null || store.historyLoading) &&
         createPortal(
           <div
-            className={`absolute inset-0 flex items-center justify-center text-sm text-foreground-muted ${
+            // The library-owned overlay slot is pointer-events: none by design;
+            // opt back in so the Sign in / Retry buttons are clickable.
+            className={`pointer-events-auto absolute inset-0 flex items-center justify-center text-sm text-foreground-muted ${
               store.loadError !== null || store.historyLoading ? 'bg-background-secondary-1' : ''
             }`}
             aria-live="polite"
           >
             {store.loadError !== null ? (
-              <div className="flex max-w-md flex-col items-center gap-2 px-6 text-center">
-                <span className="text-foreground">Failed to load chat.</span>
-                <span className="text-xs text-foreground-muted">{store.loadError}</span>
-                <Button variant="outline" size="sm" className="mt-1" onClick={() => store.retry()}>
-                  Retry
-                </Button>
-              </div>
+              store.loadError.kind === 'auth_required' ? (
+                <div className="flex max-w-md flex-col items-center gap-2 px-6 text-center">
+                  <span className="text-foreground">
+                    {agent?.name ?? 'This agent'} needs you to sign in.
+                  </span>
+                  <span className="text-xs text-foreground-muted">
+                    {cliAuthMethod?.description ?? store.loadError.message}
+                  </span>
+                  <div className="mt-1 flex gap-2">
+                    {cliAuthMethod && (
+                      <Button variant="default" size="sm" onClick={openSignInModal}>
+                        Sign in
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => store.retry()}>
+                      Retry
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex max-w-md flex-col items-center gap-2 px-6 text-center">
+                  <span className="text-foreground">Failed to load chat.</span>
+                  <span className="text-xs text-foreground-muted">{store.loadError.message}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-1"
+                    onClick={() => store.retry()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )
             ) : (
               'Loading chat...'
             )}

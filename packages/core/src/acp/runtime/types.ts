@@ -1,6 +1,7 @@
 import type { Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { IAcpBehavior } from '../../agents/plugins/capabilities/acp';
+import type { AgentAuthStatus } from '../../agents/plugins/capabilities/auth';
 import type { PromptAttachment } from '../models/attachments';
 import type { PromptInput } from '../models/prompt';
 import type { AcpProcessHost } from '../transport';
@@ -43,6 +44,8 @@ export interface AcpRuntimeDeps {
     sessionId: string
   ) => Promise<Result<void, SetSessionIdError>>;
   resolveAttachment: ResolvePromptAttachment;
+  checkAuth?: (providerId: string) => Promise<AgentAuthStatus>;
+  onAuthRequired?: (providerId: string) => void;
   attachmentStore?: AttachmentStore;
   logger: Logger;
 }

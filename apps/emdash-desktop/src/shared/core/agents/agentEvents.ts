@@ -1,3 +1,4 @@
+import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
 import { defineEvent } from '@shared/lib/ipc/events';
 
 export type AgentEventType = 'notification' | 'stop' | 'error' | 'start';
@@ -46,3 +47,12 @@ export interface AgentSessionExited {
 
 /** Emitted when an agent PTY session exits. Topic = taskId. */
 export const agentSessionExitedChannel = defineEvent<AgentSessionExited>('agent:session-exited');
+
+export type AgentAuthStatusChanged = {
+  providerId: string;
+  status: AgentAuthStatus;
+};
+
+export const agentAuthStatusChangedChannel = defineEvent<AgentAuthStatusChanged>(
+  'agent:auth-status-changed'
+);

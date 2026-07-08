@@ -13,6 +13,42 @@ async function startHarness(conversationId = 'conv-1') {
 }
 
 describe('AcpRuntime session manager', () => {
+  it('returns auth_required without spawning when cached auth status is unauthenticated', async () => {
+    const checkAuth = vi.fn().mockResolvedValue({ kind: 'unauthenticated' });
+    const h = makeAcpHarness({ checkAuth });
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-auth' }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.type).toBe('auth_required');
+    expect(checkAuth).toHaveBeenCalledWith('claude');
+    expect(h.children).toHaveLength(0);
+  });
+
+  it('continues startup when cached auth status is unknown', async () => {
+    const h = makeAcpHarness({ checkAuth: vi.fn().mockResolvedValue({ kind: 'unknown' }) });
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-auth-unknown' }));
+
+    expect(isOk(result)).toBe(true);
+    expect(h.children).toHaveLength(1);
+  });
+
+  it('maps ACP auth_required JSON-RPC errors to auth_required and notifies deps', async () => {
+    const onAuthRequired = vi.fn();
+    const h = makeAcpHarness({ onAuthRequired });
+    const rt = new AcpRuntime(h.deps);
+    h.agent.newSession.mockRejectedValueOnce({ code: -32000, message: 'Authentication required' });
+
+    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-auth-required' }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.type).toBe('auth_required');
+    expect(onAuthRequired).toHaveBeenCalledWith('claude');
+  });
+
   it('shares one process for conversations in the same provider/workspace and releases on last stop', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
