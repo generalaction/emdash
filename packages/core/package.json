@@ -87,6 +87,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/shared": "workspace:*",
+    "@emdash/wire": "workspace:*",
     "@orpc/contract": "^1.14.6",
     "@orpc/server": "^1.14.6",
     "@parcel/watcher": "^2.5.6",
