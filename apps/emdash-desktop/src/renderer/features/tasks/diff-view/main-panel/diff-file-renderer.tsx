@@ -137,6 +137,9 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
     return uri;
   })();
 
+  const previewContentUri =
+    tab.diffGroup === 'disk' ? modelRegistry.toDiskUri(uri) : modifiedUri;
+
   useEffect(() => {
     let disposed = false;
 
@@ -230,7 +233,7 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
     return (
       <DiffContentPreview
         tab={tab}
-        contentUri={modifiedUri}
+        contentUri={previewContentUri}
         previewKind={tab.renderer.previewKind}
       />
     );
