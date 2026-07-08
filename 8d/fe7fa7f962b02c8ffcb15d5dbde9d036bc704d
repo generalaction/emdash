@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/assets/images/deepcode.svg
+  s_522e8277e28d04::t_55211bf28acf78 1-15
+packages/plugins/src/agents/impl/deepcode/icon.ts
+  s_522e8277e28d04::t_91c90d2263bcb1 9-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8dfe7fa7f962b02c8ffcb15d5dbde9d036bc704d",
+  "prompts": {},
+  "sessions": {
+    "s_522e8277e28d04": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f414e-7b3d-7ab3-93b3-42a7a3e5ab24",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
