@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/modal/modal-renderer.tsx
+  s_ea3b8464203edc::t_2eb6c2e26ecc6c 53,56-57,64,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4df6270d08a72ad66da40d1795dfee42be674364",
+  "prompts": {},
+  "sessions": {
+    "s_ea3b8464203edc": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lto421UFBzBsstofP47",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
