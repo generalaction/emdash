@@ -17,16 +17,16 @@ const nativeAcpProviders: Array<{
 }> = [
   {
     id: 'amp',
-    command: process.execPath,
-    args: ['amp-acp-adapter'],
-    env: { ELECTRON_RUN_AS_NODE: '1', AMP_CLI_PATH: spawnCtx.cli },
+    command: 'npx',
+    args: ['-y', 'amp-acp'],
+    env: { AMP_CLI_PATH: spawnCtx.cli },
   },
   {
     id: 'amp',
     cli: windowsAmpCli,
-    command: process.execPath,
-    args: ['amp-acp-adapter'],
-    env: { ELECTRON_RUN_AS_NODE: '1', AMP_CLI_PATH: windowsAmpCli },
+    command: 'npx.cmd',
+    args: ['-y', 'amp-acp'],
+    env: { AMP_CLI_PATH: windowsAmpCli },
   },
   {
     id: 'auggie',
@@ -85,12 +85,7 @@ describe('native ACP provider behaviors', () => {
     const spawn = provider.behavior.acp!.buildSpawn({ ...spawnCtx, cli });
 
     expect(spawn.command).toBe(entry.command ?? cli);
-    if (entry.id === 'amp') {
-      expect(spawn.args).toHaveLength(1);
-      expect(spawn.args[0]).toContain(entry.args[0]);
-    } else {
-      expect(spawn.args).toEqual(entry.args);
-    }
+    expect(spawn.args).toEqual(entry.args);
 
     if (entry.env) {
       expect(spawn.env).toEqual(entry.env);
