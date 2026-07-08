@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/assets/images/autohand.svg
+  s_509cddd8375b20::t_27d4134ab935ca 1-17
+packages/plugins/src/agents/impl/autohand/icon.ts
+  s_509cddd8375b20::t_27d4134ab935ca 9-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5705497a8a69dbf680da75e0966fc69870972211",
+  "prompts": {},
+  "sessions": {
+    "s_509cddd8375b20": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lrj2OnJqN2wEeMGisWt",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
