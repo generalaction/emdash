@@ -6,6 +6,8 @@ import {
 } from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
 
+const DEEPCODE_GLOBAL_SETTINGS_PATH = '.deepcode/settings.json';
+
 export const plugin = definePlugin(
   {
     id: 'deepcode',
@@ -38,5 +40,5 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) => buildStandardCommand(ctx, {}),
   },
-  mcp: passthroughMcpAdapter('.deepcode/settings.json'),
+  mcp: passthroughMcpAdapter(DEEPCODE_GLOBAL_SETTINGS_PATH),
 });

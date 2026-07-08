@@ -1,3 +1,4 @@
+import os from 'node:os';
 import type { McpServerRegistration, PluginFs } from '@emdash/core/agents/plugins';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { McpServer } from '@shared/core/mcp/types';
@@ -83,9 +84,10 @@ vi.mock('@emdash/plugins/agents', () => ({
 }));
 
 let mockFs: PluginFs;
+const createPluginFsMock = vi.hoisted(() => vi.fn(() => mockFs));
 
 vi.mock('@main/core/agents/plugin-fs', () => ({
-  createPluginFs: () => mockFs,
+  createPluginFs: createPluginFsMock,
 }));
 
 vi.mock('../utils/catalog', () => ({
@@ -110,6 +112,14 @@ describe('McpService', () => {
   });
 
   describe('loadAll', () => {
+    it('resolves global MCP config paths relative to the user home', async () => {
+      mockProviders.push(fakeProvider('deepcode', '.deepcode/settings.json'));
+
+      await service.loadAll();
+
+      expect(createPluginFsMock).toHaveBeenCalledWith(os.homedir());
+    });
+
     it('reads servers from all MCP agents and returns McpServer[]', async () => {
       mockProviders.push(fakeProvider('claude', '.claude.json'));
       await mockFs.write(

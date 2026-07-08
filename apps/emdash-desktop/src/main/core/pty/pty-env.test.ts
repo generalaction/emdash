@@ -141,13 +141,13 @@ describe('buildAgentEnv provider env forwarding', () => {
       QWEN_SANDBOX: '1',
       QWEN_CODE_SUPPRESS_YOLO_WARNING: '1',
       ALL_PROXY: 'socks5://127.0.0.1:9000',
-      DEEPCODE_API_KEY: 'deepcode-key',
-      DEEPCODE_NOTIFY: '/tmp/deepcode-notify.sh',
-      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: 'github-mcp-token',
     };
     Object.assign(process.env, providerEnv, {
       CLAUDE_PROJECT_DIR: '/tmp/hook-owned',
       CODEX_ACCESS_TOKEN: 'do-not-pass',
+      DEEPCODE_API_KEY: 'do-not-pass',
+      DEEPCODE_NOTIFY: 'do-not-pass',
+      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: 'do-not-pass',
       GOOSE_TERMINAL: 'do-not-pass',
       TOOLBOX_ACTION: 'do-not-pass',
     });
@@ -160,6 +160,9 @@ describe('buildAgentEnv provider env forwarding', () => {
     }
     expect(env.CLAUDE_PROJECT_DIR).toBeUndefined();
     expect(env.CODEX_ACCESS_TOKEN).toBeUndefined();
+    expect(env.DEEPCODE_API_KEY).toBeUndefined();
+    expect(env.DEEPCODE_NOTIFY).toBeUndefined();
+    expect(env.DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN).toBeUndefined();
     expect(env.GOOSE_TERMINAL).toBeUndefined();
     expect(env.TOOLBOX_ACTION).toBeUndefined();
   });
