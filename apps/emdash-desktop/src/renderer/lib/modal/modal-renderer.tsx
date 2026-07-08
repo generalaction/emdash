@@ -50,7 +50,10 @@ export const ModalRenderer = observer(function ModalRenderer() {
   const displayArgs = lastArgsRef.current;
   const displayEntry = lastEntryRef.current;
   const activeModalId = modalStore.activeModalId;
+  const activeEntryRef = useRef<ModalRegistryEntry | null>(null);
   const ignoreNextOutsidePressRef = useRef(false);
+
+  activeEntryRef.current = entry;
 
   useEffect(() => {
     ignoreNextOutsidePressRef.current = false;
@@ -58,14 +61,14 @@ export const ModalRenderer = observer(function ModalRenderer() {
 
   useEffect(() => {
     const handleWindowBlur = () => {
-      if (modalStore.isOpen && entry?.ignoreOutsidePressAfterWindowBlur) {
+      if (modalStore.isOpen && activeEntryRef.current?.ignoreOutsidePressAfterWindowBlur) {
         ignoreNextOutsidePressRef.current = true;
       }
     };
 
     window.addEventListener('blur', handleWindowBlur);
     return () => window.removeEventListener('blur', handleWindowBlur);
-  }, [entry?.ignoreOutsidePressAfterWindowBlur]);
+  }, []);
 
   const handleOpenChange = (
     open: boolean,
