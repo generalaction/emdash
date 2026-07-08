@@ -1,3 +1,4 @@
+import type { AgentAuthDescriptor } from '@emdash/core/agents/plugins';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 
 // ---------------------------------------------------------------------------
@@ -174,6 +175,7 @@ export type AgentModelsCapability =
 
 export type AgentCapabilities = {
   acp: { kind: string };
+  auth: AgentAuthDescriptor;
   hostDependency: AgentHostDependencyInfo;
   models: AgentModelsCapability;
   effort: { kind: string };

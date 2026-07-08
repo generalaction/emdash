@@ -5,6 +5,7 @@ import {
   createAcpProcedures,
   type AcpRuntimeDeps,
 } from '@emdash/core/acp';
+import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
 import { localWire, serveWire } from '@emdash/core/wire';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
@@ -20,6 +21,10 @@ if (!parentPort) {
 
 const childHost = new ChildAcpProcessHost(parentPort);
 const logger = createParentLogger(parentPort);
+const pendingAuthChecks = new Map<
+  string,
+  { resolve: (value: AgentAuthStatus) => void; reject: (error: Error) => void }
+>();
 const attachmentsDir = process.env.EMDASH_ACP_ATTACHMENTS_DIR;
 
 if (!attachmentsDir) {
@@ -40,6 +45,10 @@ const runtime = new AcpRuntime({
   persistSessionId: async (conversationId, sessionId) => {
     parentPort.postMessage({ type: 'persist-session-id', conversationId, sessionId });
     return { success: true, data: undefined };
+  },
+  checkAuth: (providerId) => requestAuthStatus(providerId),
+  onAuthRequired: (providerId) => {
+    parentPort.postMessage({ type: 'mark-auth-required', providerId });
   },
   resolveAttachment: async (attachment) => {
     if (attachment.type === 'attachment') {
@@ -67,6 +76,7 @@ serveWire(parentPort, localWire(createAcpProcedures(runtime), createAcpLiveResol
 parentPort.on('message', (event) => {
   const message = event.data;
   childHost.handleMessage(message);
+  handleAuthStatusMessage(message);
 
   if (!isHostMessage(message)) return;
   switch (message.type) {
@@ -76,6 +86,26 @@ parentPort.on('message', (event) => {
       break;
   }
 });
+
+function requestAuthStatus(providerId: string): Promise<AgentAuthStatus> {
+  const requestId = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    pendingAuthChecks.set(requestId, { resolve, reject });
+    parentPort.postMessage({ type: 'check-auth', requestId, providerId });
+  });
+}
+
+function handleAuthStatusMessage(message: unknown): void {
+  if (!isAuthStatusResult(message)) return;
+  const pending = pendingAuthChecks.get(message.requestId);
+  if (!pending) return;
+  pendingAuthChecks.delete(message.requestId);
+  if (message.ok) {
+    pending.resolve(message.value);
+  } else {
+    pending.reject(new Error(message.error));
+  }
+}
 
 function createParentLogger(port: UtilityParentPort, bindings: LogFields = {}): Logger {
   const emit = (level: LogLevel, message: string, data?: LogFields): void => {
@@ -99,5 +129,26 @@ function createParentLogger(port: UtilityParentPort, bindings: LogFields = {}): 
 function isHostMessage(value: unknown): value is { type: 'shutdown' } {
   return (
     typeof value === 'object' && value !== null && (value as { type?: unknown }).type === 'shutdown'
+  );
+}
+
+function isAuthStatusResult(value: unknown): value is
+  | {
+      type: 'check-auth-result';
+      requestId: string;
+      ok: true;
+      value: AgentAuthStatus;
+    }
+  | {
+      type: 'check-auth-result';
+      requestId: string;
+      ok: false;
+      error: string;
+    } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'check-auth-result' &&
+    typeof (value as { requestId?: unknown }).requestId === 'string'
   );
 }

@@ -24,6 +24,7 @@ export const acpRuntimeErrorSchema = z.union([
   failedErrorSchema('spawn_failed'),
   failedErrorSchema('initialize_failed'),
   failedErrorSchema('new_session_failed'),
+  failedErrorSchema('auth_required'),
   failedErrorSchema('load_session_failed'),
   failedErrorSchema('prompt_failed'),
   failedErrorSchema('cancel_failed'),

@@ -8,6 +8,7 @@ import {
   transcriptTurnSchema,
   type AttachmentMimeType,
   type AttachmentRef,
+  type AcpRuntimeError,
   type HistoryPage,
   type PromptDraftUpdate,
   type PromptInput,
@@ -25,6 +26,17 @@ import {
   type AcpRuntimeRpcClient,
   type StartSessionInput,
 } from './runtime-client';
+
+export class AcpStartError extends Error {
+  constructor(readonly runtimeError: AcpRuntimeError) {
+    super(runtimeError.message ?? runtimeError.cause?.message ?? runtimeError.type);
+    this.name = 'AcpStartError';
+  }
+
+  get errorType(): AcpRuntimeError['type'] {
+    return this.runtimeError.type;
+  }
+}
 
 export class AcpLiveSession {
   readonly sessionState: LiveBinding<SessionState>;
@@ -88,7 +100,7 @@ export class AcpLiveSession {
         'Timed out starting ACP session'
       );
       if (!result.success) {
-        throw new Error(result.error.message ?? result.error.type);
+        throw new AcpStartError(result.error);
       }
     }
     const session = new AcpLiveSession(conversationId, client, live);

@@ -6,6 +6,7 @@ import {
   passthroughMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
+import { authenticatedFromEnv } from '../../helpers/auth';
 import { enrichClaudeUpdate } from './acp-transform';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
@@ -31,6 +32,25 @@ export const plugin = definePlugin(
     },
     autoApprove: {
       kind: 'supported',
+    },
+    auth: {
+      kind: 'supported',
+      methods: [
+        {
+          kind: 'cli-login',
+          id: 'claude-login',
+          name: 'Sign in with Claude Code',
+          args: ['/login'],
+          description: 'Open Claude Code in a terminal and complete the built-in sign-in flow.',
+        },
+        {
+          kind: 'api-key',
+          id: 'anthropic-api-key',
+          name: 'Use an Anthropic API key',
+          envVars: [{ name: 'ANTHROPIC_API_KEY', label: 'Anthropic API key' }],
+          helpUrl: 'https://docs.anthropic.com/en/api/admin-api/apikeys/get-api-key',
+        },
+      ],
     },
     models: {
       kind: 'selectable',
@@ -138,6 +158,9 @@ export const provider = registerPluginBehavior(plugin, {
       return connectStdioAcp(io, toClient);
     },
     enrich: enrichClaudeUpdate,
+  },
+  auth: {
+    checkStatus: async (ctx) => authenticatedFromEnv(ctx, ['ANTHROPIC_API_KEY']),
   },
   prompt: {
     buildCommand: (ctx) =>

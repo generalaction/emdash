@@ -220,9 +220,12 @@ export function usePty(
   );
 
   const focus = useCallback(() => {
-    if (document.activeElement?.closest('[role="dialog"]')) return;
+    // Don't steal focus from an open modal — unless this terminal is rendered
+    // inside it (e.g. the agent sign-in terminal).
+    const dialog = document.activeElement?.closest('[role="dialog"]');
+    if (dialog && !dialog.contains(containerRef.current)) return;
     termRef.current?.focus();
-  }, []);
+  }, [containerRef]);
 
   const copySelectionToClipboard = useCallback(() => {
     const selection =
@@ -377,7 +380,10 @@ export function usePty(
 
       // ── Keyboard shortcuts ─────────────────────────────────────────────────
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-        if (document.querySelector('[role="dialog"]')) return false;
+        // Ignore keys while a modal is open — unless this terminal is the one
+        // rendered inside it (e.g. the agent sign-in terminal).
+        const dialog = document.querySelector('[role="dialog"]');
+        if (dialog && !dialog.contains(container)) return false;
 
         if (dispatchTerminalTabNavigationHotkey(event)) {
           event.preventDefault();

@@ -12,6 +12,7 @@ import {
 
 const capabilities = (acpKind: string = 'none'): AgentCapabilities => ({
   acp: { kind: acpKind },
+  auth: { kind: 'none' },
   hostDependency: { updates: { kind: 'none' } },
   models: { kind: 'none' },
   effort: { kind: 'none' },

@@ -7,6 +7,7 @@ import {
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
+import { authenticatedFromEnv, commandAuthStatus } from '../../helpers/auth';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -30,6 +31,25 @@ export const plugin = definePlugin(
     },
     autoApprove: {
       kind: 'supported',
+    },
+    auth: {
+      kind: 'supported',
+      methods: [
+        {
+          kind: 'cli-login',
+          id: 'codex-login',
+          name: 'Sign in with Codex',
+          args: ['login'],
+          description: 'Open the Codex CLI sign-in flow in a terminal.',
+        },
+        {
+          kind: 'api-key',
+          id: 'openai-api-key',
+          name: 'Use an OpenAI API key',
+          envVars: [{ name: 'OPENAI_API_KEY', label: 'OpenAI API key' }],
+          helpUrl: 'https://platform.openai.com/api-keys',
+        },
+      ],
     },
     models: {
       kind: 'selectable',
@@ -101,6 +121,16 @@ export const provider = registerPluginBehavior(plugin, {
     }),
     connect: (io, toClient) => {
       return connectStdioAcp(io, toClient);
+    },
+  },
+  auth: {
+    checkStatus: async (ctx) => {
+      const envStatus = authenticatedFromEnv(ctx, ['OPENAI_API_KEY']);
+      if (envStatus.kind === 'authenticated') return envStatus;
+      return commandAuthStatus(ctx, ['login', 'status'], {
+        authenticatedPattern: /authenticated|logged in|signed in/i,
+        unauthenticatedPattern: /not authenticated|not logged in|not signed in|login required/i,
+      });
     },
   },
   prompt: {
