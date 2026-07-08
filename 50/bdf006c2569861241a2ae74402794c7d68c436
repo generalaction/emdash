@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/amp/acp-adapter-entry.ts
+  s_380f3feda7d8e1::t_faf447b86cb25c 1-13
+packages/plugins/src/agents/impl/amp/index.ts
+  s_380f3feda7d8e1::t_faf447b86cb25c 8-9,84-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "50bdf006c2569861241a2ae74402794c7d68c436",
+  "prompts": {},
+  "sessions": {
+    "s_380f3feda7d8e1": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033m1KT2G3uQ2WuM94F1hO",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
