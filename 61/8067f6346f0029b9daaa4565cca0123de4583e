@@ -1,0 +1,49 @@
+apps/emdash-desktop/src/renderer/app/modal-registry.ts
+  s_7f759eca921032::t_181a8eee99b353 33,45
+apps/emdash-desktop/src/renderer/lib/modal/modal-renderer.tsx
+  s_f4fd7937159b9e::t_304131ea9eb87d 52
+  s_ec2e0e2d524ca3::t_011f2ec1e21401 56,58-59
+  s_506aa371101e5c::t_f9ca7e15309c9c 55,57
+  s_7f759eca921032::t_181a8eee99b353 53,60-68,75-85,87,135-137
+  s_7f759eca921032::t_d378a5d4088e5b 138-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "618067f6346f0029b9daaa4565cca0123de4583e",
+  "prompts": {},
+  "sessions": {
+    "s_506aa371101e5c": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033ljpWZZLdB41Xwv1bP7x",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_7f759eca921032": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033ljlJmRoRlRvQFmrqxI0",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_ec2e0e2d524ca3": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033ljmk1K7oCSPJK22hqxr",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f4fd7937159b9e": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033ljpB9b7fqKtVcGvKOca",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
