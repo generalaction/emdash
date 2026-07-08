@@ -18,9 +18,16 @@ import {
   useWorkspaceViewModel,
 } from '../../task-view-context';
 import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
+import { CommitRangeCommitsList } from './components/pr-entry/commits-list';
 import { PullRequestEntry } from './components/pr-entry/pr-entry';
+import { type CommitRange, useCommits } from './components/pr-entry/use-commits';
 import { SectionHeader } from './components/section-header';
 import { useChangesViewMode } from './hooks/use-changes-view-mode';
+
+const BRANCH_COMMITS_EMPTY_STATE = {
+  label: 'No commits',
+  description: 'No commits ahead of the base branch.',
+};
 
 export const PullRequestsSection = observer(function PullRequestsSection({
   collapsed,
@@ -38,6 +45,19 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const taskBranch = getTaskGitWorktreeStore(projectId, taskId)?.branchName;
   const pullRequests = prStore?.pullRequests ?? [];
   const currentPr = prStore?.currentPr;
+  const defaultBranch = workspace.gitRepository.defaultBranch;
+  const headOid = workspace.gitWorktree.headOid;
+  const branchCommitRange: CommitRange | undefined =
+    !currentPr && workspace.gitWorktree.hasBranchCommitRange && defaultBranch?.oid && headOid
+      ? {
+          source: 'branch',
+          baseRefOid: defaultBranch.oid,
+          headRefOid: headOid,
+          revision: workspace.gitWorktree.statusRevision,
+        }
+      : undefined;
+  const branchCommits = useCommits(projectId, workspaceId, branchCommitRange);
+  const branchCommitCount = branchCommits.data?.pages[0]?.aheadCount ?? 0;
   const showCreatePrModal = useShowModal('createPrModal');
   const { toast } = useToast();
   const prSyncStore = getPrSyncStore(projectId);
@@ -100,21 +120,31 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   };
 
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('pr');
+  const showBranchCommits = !!branchCommitRange;
+  const sectionLabel = showBranchCommits ? 'Branch Commits' : 'Pull Requests';
+  const sectionCount = showBranchCommits ? branchCommitCount : pullRequests.length;
+  const createPrTooltip = !repositoryUrl
+    ? 'Pull requests unavailable'
+    : hasOpenPr
+      ? 'A pull request is already open'
+      : 'Create a pull request';
 
   return (
     <>
       <SectionHeader
-        label="Pull Requests"
-        count={pullRequests.length}
+        label={sectionLabel}
+        count={sectionCount}
         collapsed={collapsed}
         onToggleCollapsed={onToggleCollapsed}
         actions={
           <>
-            <ChangesViewModeToggle
-              value={viewMode}
-              onChange={setViewMode}
-              label="Pull request files"
-            />
+            {currentPr && (
+              <ChangesViewModeToggle
+                value={viewMode}
+                onChange={setViewMode}
+                label="Pull request files"
+              />
+            )}
             <Tooltip>
               <TooltipTrigger>
                 <SplitButton
@@ -125,9 +155,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
                   icon={<Plus className="size-3" />}
                 />
               </TooltipTrigger>
-              <TooltipContent>
-                {hasOpenPr ? 'A pull request is already open' : 'Create a pull request'}
-              </TooltipContent>
+              <TooltipContent>{createPrTooltip}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
@@ -146,7 +174,11 @@ export const PullRequestsSection = observer(function PullRequestsSection({
         }
       />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {!repositoryUrl ? (
+        {currentPr ? (
+          <PullRequestEntry key={currentPr.url} pr={currentPr} />
+        ) : branchCommitRange ? (
+          <BranchCommitsEntry range={branchCommitRange} />
+        ) : !repositoryUrl ? (
           <EmptyState
             label="Pull requests unavailable"
             description="Pull requests are currently available only for configured GitHub remotes."
@@ -157,8 +189,17 @@ export const PullRequestsSection = observer(function PullRequestsSection({
             description={syncError ?? 'Push your branch and create a PR to start a review.'}
           />
         ) : null}
-        {repositoryUrl && currentPr && <PullRequestEntry key={currentPr.url} pr={currentPr} />}
       </div>
     </>
   );
 });
+
+function BranchCommitsEntry({ range }: { range: CommitRange }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+      <div className="min-h-0 flex-1 px-2.5">
+        <CommitRangeCommitsList range={range} emptyState={BRANCH_COMMITS_EMPTY_STATE} />
+      </div>
+    </div>
+  );
+}

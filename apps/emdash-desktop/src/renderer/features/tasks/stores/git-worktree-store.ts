@@ -114,8 +114,10 @@ export class GitWorktreeStore {
       aheadCount: computed,
       behindCount: computed,
       branchName: computed,
+      headOid: computed,
       headKind: computed,
       headDisplay: computed,
+      hasBranchCommitRange: computed,
       effectiveStatus: computed,
       syncStatus: computed,
       statusRevision: computed,
@@ -226,6 +228,11 @@ export class GitWorktreeStore {
     return head.name;
   }
 
+  get headOid(): string | null {
+    const head = this.head.value;
+    return head?.kind === 'branch' || head?.kind === 'detached' ? head.oid : null;
+  }
+
   get headKind(): 'branch' | 'detached' | 'unborn' {
     return this.head.value?.kind ?? 'branch';
   }
@@ -234,6 +241,12 @@ export class GitWorktreeStore {
     const head = this.head.value;
     if (!head) return null;
     return head.kind === 'detached' ? head.shortHash : head.name;
+  }
+
+  get hasBranchCommitRange(): boolean {
+    const headOid = this.headOid;
+    const baseOid = this.gitRepositoryStore.defaultBranch?.oid;
+    return !!headOid && !!baseOid && headOid !== baseOid;
   }
 
   get isBranchPublished(): boolean {
