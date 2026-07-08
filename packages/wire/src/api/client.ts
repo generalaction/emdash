@@ -112,14 +112,23 @@ export type LiveJobStateFor<Def extends JobEndpointDef> =
     }
   | {
       status: 'succeeded';
+      startedAt: number;
+      finishedAt: number;
+      progress: JobProgress<Def>[];
       result: JobResult<Def>;
     }
   | {
       status: 'failed';
+      startedAt: number;
+      finishedAt: number;
+      progress: JobProgress<Def>[];
       error: JobError<Def>;
     }
   | {
       status: 'cancelled';
+      startedAt: number;
+      finishedAt: number;
+      progress: JobProgress<Def>[];
     };
 
 type EndpointClient<Def> = Def extends { kind: 'procedure' }

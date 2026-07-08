@@ -80,14 +80,23 @@ export function liveJobStateSchema<
     }),
     z.object({
       status: z.literal('succeeded'),
+      startedAt: z.number().int().nonnegative(),
+      finishedAt: z.number().int().nonnegative(),
+      progress: z.array(progress),
       result,
     }),
     z.object({
       status: z.literal('failed'),
+      startedAt: z.number().int().nonnegative(),
+      finishedAt: z.number().int().nonnegative(),
+      progress: z.array(progress),
       error,
     }),
     z.object({
       status: z.literal('cancelled'),
+      startedAt: z.number().int().nonnegative(),
+      finishedAt: z.number().int().nonnegative(),
+      progress: z.array(progress),
     }),
   ]);
 }
@@ -101,12 +110,21 @@ export type LiveJobState<P, R, E> =
     }
   | {
       status: 'succeeded';
+      startedAt: number;
+      finishedAt: number;
+      progress: P[];
       result: R;
     }
   | {
       status: 'failed';
+      startedAt: number;
+      finishedAt: number;
+      progress: P[];
       error: E;
     }
   | {
       status: 'cancelled';
+      startedAt: number;
+      finishedAt: number;
+      progress: P[];
     };

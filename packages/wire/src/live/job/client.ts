@@ -1,11 +1,16 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import type { z } from 'zod';
+import type { WireInstrumentation } from '../../observability';
 import { LiveModelClient } from '../model';
-import type { LiveJobState, LiveSnapshot, LiveUpdate } from '../protocol';
+import type { LiveCursor, LiveJobState, LiveSnapshot, LiveUpdate } from '../protocol';
 
 export type LiveJobClientDeps<P, R, E> = {
   refetchSnapshot: () => Promise<LiveSnapshot<LiveJobState<P, R, E>>>;
   onState?: (state: LiveJobState<P, R, E>) => void;
+  instrumentation?: WireInstrumentation;
+  logger?: Logger;
+  topic?: string;
 };
 
 export class LiveJobFailedError<E> extends Error {
@@ -44,12 +49,21 @@ export class LiveJobClient<P, R, E> {
     this.model = new LiveModelClient<LiveJobState<P, R, E>>(
       stateSchema,
       deps.refetchSnapshot,
-      (state) => this.handleState(state)
+      (state) => this.handleState(state),
+      {
+        instrumentation: deps.instrumentation,
+        logger: deps.logger,
+        topic: deps.topic,
+      }
     );
   }
 
   isReady(): boolean {
     return this.model.isReady();
+  }
+
+  get cursor(): LiveCursor | undefined {
+    return this.model.cursor;
   }
 
   getState(): LiveJobState<P, R, E> | undefined {
@@ -82,12 +96,52 @@ export class LiveJobClient<P, R, E> {
     return this.progressEmitter.subscribe(cb);
   }
 
+  waitForTerminal(timeoutMs = 15_000): Promise<void> {
+    if (this.settled) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timer =
+        timeoutMs > 0
+          ? setTimeout(() => {
+              cleanup();
+              reject(new Error('Timed out waiting for live job to finish'));
+            }, timeoutMs)
+          : undefined;
+      const cleanup = this.onStateChange((state) => {
+        if (state.status === 'running') return;
+        if (timer) clearTimeout(timer);
+        cleanup();
+        resolve();
+      });
+    });
+  }
+
+  waitForProgressCount(count: number, timeoutMs = 15_000): Promise<void> {
+    if (this.progressCountSatisfies(count)) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timer =
+        timeoutMs > 0
+          ? setTimeout(() => {
+              cleanup();
+              reject(new Error(`Timed out waiting for live job progress count ${count}`));
+            }, timeoutMs)
+          : undefined;
+      const cleanup = this.onStateChange(() => {
+        if (!this.progressCountSatisfies(count)) return;
+        if (timer) clearTimeout(timer);
+        cleanup();
+        resolve();
+      });
+    });
+  }
+
   dispose(): void {
     this.progressEmitter.clear();
+    this.stateEmitter.clear();
   }
 
   private handleState(state: LiveJobState<P, R, E>): void {
     this.deps.onState?.(state);
+    this.stateEmitter.emit(state);
 
     if (state.status === 'running') {
       this.emitNewProgress(state);
@@ -127,5 +181,16 @@ export class LiveJobClient<P, R, E> {
     } else if (state.status === 'cancelled') {
       this.rejectResult(new LiveJobCancelledError());
     }
+  }
+
+  private readonly stateEmitter = new Emitter<LiveJobState<P, R, E>>();
+
+  private onStateChange(cb: (state: LiveJobState<P, R, E>) => void): Unsubscribe {
+    return this.stateEmitter.subscribe(cb);
+  }
+
+  private progressCountSatisfies(count: number): boolean {
+    const state = this.getState();
+    return state?.status === 'running' && state.progressCount >= count;
   }
 }

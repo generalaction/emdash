@@ -34,9 +34,9 @@ flowchart TB
 ```
 
 The live layer owns the stateful primitives: `LiveModel`, manual materializers,
-`LiveLogServer` and `LiveLogClient`, `LiveJobServer` and `LiveJobClient`, plus
-host-backed mutations and settling. The API layer turns those primitives into a
-contract with typed procedure calls and thin live topic refs.
+`LiveLogServer` and `LiveLogClient`, `LiveJob` and `LiveJobClient`, plus host-backed
+mutations and settling. The API layer turns those primitives into a contract with
+typed procedure calls and thin live topic refs.
 The runtime layer owns lifecycle utilities and process supervision. Observability
 hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
 
@@ -107,7 +107,7 @@ The optimistic utility intentionally lives in its own export because it has a
 ## Typical Flow
 
 1. Define a contract with `defineContract({ ... })`.
-2. Create server-side `LiveModel`, `LiveLogServer`, `LiveJobServer`, or
+2. Create server-side `LiveModel`, `LiveLogServer`, `LiveJob`, or
    `createLiveModelHost()` instances.
 3. Create and dispose keyed host instances as domain resources appear.
 4. Bind the contract with `bindContract(contract, impl, options?)`.

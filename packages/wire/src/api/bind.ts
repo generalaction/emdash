@@ -1,6 +1,6 @@
 import { err, ok, resultSchema, type Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
-import { LiveJobServer, type LiveJobContext } from '../live/job';
+import { LiveJob, type LiveJobContext } from '../live/job';
 import {
   isLiveModelGroupProvider,
   type LiveModelGroupProvider,
@@ -206,7 +206,7 @@ export function bindContract<Defs extends ContractDefinitions>(
             });
             break;
           }
-          const server = createJobServer(def, impl, validate);
+          const server = createLiveJob(def, impl, validate);
           jobServers.push(server);
           procedureEntries.set(`${fullPath}.start`, async (input) => {
             const parsedInput = validate === 'none' ? input : def.input.parse(input);
@@ -219,7 +219,7 @@ export function bindContract<Defs extends ContractDefinitions>(
           });
           liveEntries.set(def.id, {
             keySchema: jobKeySchema,
-            resolve: (key) => server.job((key as { jobId: string }).jobId),
+            resolve: (key) => server.source((key as { jobId: string }).jobId),
           });
           break;
         }
@@ -444,12 +444,12 @@ export function mergeControllers(controllers: Record<string, Controller>): Contr
   };
 }
 
-function createJobServer(
+function createLiveJob(
   def: JobEndpointDef,
   impl: JobImpl<JobEndpointDef>,
   validate: ValidatePolicy
-): LiveJobServer<unknown, unknown, unknown, unknown> {
-  return new LiveJobServer<unknown, unknown, unknown, unknown>(
+): LiveJob<unknown, unknown, unknown, unknown> {
+  return new LiveJob<unknown, unknown, unknown, unknown>(
     async (input, ctx) => {
       const result = await impl.run(input, {
         signal: ctx.signal,

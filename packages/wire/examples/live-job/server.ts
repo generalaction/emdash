@@ -1,6 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
-import { LiveJobServer } from '../../src/live/job/index';
+import { LiveJob } from '../../src/live/job/index';
 import {
   liveJobStateSchema,
   type LiveJobState,
@@ -20,28 +20,22 @@ type ErrorState = z.infer<typeof errorSchema>;
 
 export const jobStateSchema = liveJobStateSchema(progressSchema, resultSchema, errorSchema);
 
-const successfulJobs = new LiveJobServer<Input, Progress, Result, ErrorState>(
-  async (input, ctx) => {
-    await delay();
-    ctx.progress({ step: 'checkout' });
-    await delay();
-    ctx.progress({ step: 'build' });
-    return { message: `Finished ${input.name}` };
-  },
-  toError
-);
+const successfulJobs = new LiveJob<Input, Progress, Result, ErrorState>(async (input, ctx) => {
+  await delay();
+  ctx.progress({ step: 'checkout' });
+  await delay();
+  ctx.progress({ step: 'build' });
+  return { message: `Finished ${input.name}` };
+}, toError);
 
-const cancellableJobs = new LiveJobServer<Input, Progress, Result, ErrorState>(
-  async (_input, ctx) => {
-    await new Promise<never>((_resolve, reject) => {
-      ctx.signal.addEventListener('abort', () => reject(new Error('cancelled by user')), {
-        once: true,
-      });
+const cancellableJobs = new LiveJob<Input, Progress, Result, ErrorState>(async (_input, ctx) => {
+  await new Promise<never>((_resolve, reject) => {
+    ctx.signal.addEventListener('abort', () => reject(new Error('cancelled by user')), {
+      once: true,
     });
-    return { message: 'unreachable' };
-  },
-  toError
-);
+  });
+  return { message: 'unreachable' };
+}, toError);
 
 export function startSuccessfulJob(): string {
   return successfulJobs.start({ name: 'demo job' }).jobId;
@@ -63,27 +57,36 @@ export function disposeJobServers(): void {
 export async function fetchSuccessfulSnapshot(
   jobId: string
 ): Promise<LiveSnapshot<LiveJobState<Progress, Result, ErrorState>>> {
-  return getJob(successfulJobs, jobId).snapshot();
+  return getSnapshot(successfulJobs, jobId);
 }
 
 export async function fetchCancellableSnapshot(
   jobId: string
 ): Promise<LiveSnapshot<LiveJobState<Progress, Result, ErrorState>>> {
-  return getJob(cancellableJobs, jobId).snapshot();
+  return getSnapshot(cancellableJobs, jobId);
 }
 
 export function attachSuccessful(jobId: string, push: (update: LiveUpdate) => void): Unsubscribe {
-  return getJob(successfulJobs, jobId).subscribe(push);
+  return getSource(successfulJobs, jobId).subscribe(push);
 }
 
 export function attachCancellable(jobId: string, push: (update: LiveUpdate) => void): Unsubscribe {
-  return getJob(cancellableJobs, jobId).subscribe(push);
+  return getSource(cancellableJobs, jobId).subscribe(push);
 }
 
-function getJob(server: LiveJobServer<Input, Progress, Result, ErrorState>, jobId: string) {
-  const model = server.job(jobId);
-  if (!model) throw new Error(`Missing job ${jobId}`);
-  return model;
+function getSource(server: LiveJob<Input, Progress, Result, ErrorState>, jobId: string) {
+  const source = server.source(jobId);
+  if (!source) throw new Error(`Missing job ${jobId}`);
+  return source;
+}
+
+async function getSnapshot(
+  server: LiveJob<Input, Progress, Result, ErrorState>,
+  jobId: string
+): Promise<LiveSnapshot<LiveJobState<Progress, Result, ErrorState>>> {
+  return (await getSource(server, jobId).snapshot()) as LiveSnapshot<
+    LiveJobState<Progress, Result, ErrorState>
+  >;
 }
 
 function toError(err: unknown): ErrorState {

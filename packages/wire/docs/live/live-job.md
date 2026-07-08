@@ -10,21 +10,22 @@ need both a final result and a stream of progress updates.
 ```ts
 type LiveJobState<P, R, E> =
   | { status: 'running'; startedAt: number; progress: P[]; progressCount: number }
-  | { status: 'succeeded'; result: R }
-  | { status: 'failed'; error: E }
-  | { status: 'cancelled' };
+  | { status: 'succeeded'; startedAt: number; finishedAt: number; progress: P[]; result: R }
+  | { status: 'failed'; startedAt: number; finishedAt: number; progress: P[]; error: E }
+  | { status: 'cancelled'; startedAt: number; finishedAt: number; progress: P[] };
 ```
 
 `progress` is a retained ring of recent entries. `progressCount` is the total
 number of progress events emitted, including entries that may have rolled out of
-the retained ring.
+the retained ring. Terminal states retain lifecycle timestamps and the most
+recent progress entries, but they do not carry `progressCount`.
 
 ## Server
 
-`LiveJobServer<I, P, R, E>` accepts a handler and an error mapper:
+`LiveJob<I, P, R, E>` accepts a handler and an error mapper:
 
 ```ts
-const jobs = new LiveJobServer<Input, Progress, Result, ErrorState>(
+const jobs = new LiveJob<Input, Progress, Result, ErrorState>(
   async (input, ctx) => {
     ctx.progress({ step: 'checkout' });
     await build(input, ctx.signal);
@@ -43,6 +44,12 @@ Options:
 - `generation`: optional fixed generation for every job state model.
 - `maxProgressEntries`: retained progress entries. Default:
   `DEFAULT_LIVE_JOB_MAX_PROGRESS_ENTRIES` (`100`).
+- `terminalRetainMs`: how long terminal state remains attachable. Default:
+  `LIVE_JOB_TERMINAL_RETAIN_MS` (5 minutes).
+- `idFactory`: custom job id factory, useful for deterministic tests.
+- `clock`: custom timestamp source, useful for deterministic tests.
+- `onRunStarted`, `onRunChanged`, and `onRunEvicted`: optional hooks for callers
+  that want to maintain their own job listing.
 
 Handlers receive `LiveJobContext`:
 
@@ -50,9 +57,10 @@ Handlers receive `LiveJobContext`:
 - `ctx.signal` is an `AbortSignal`. If the signal is aborted, the job finishes
   as `cancelled`.
 
-`job(jobId)` returns the underlying live model source for that job. `cancel(id)`
-aborts a running job. `dispose()` aborts running jobs, clears eviction timers, and
-removes all job state.
+`source(jobId)` returns a read-only live source for that job. `snapshot(jobId)` and
+`getState(jobId)` are convenience accessors. `cancel(id)` aborts a running job.
+`dispose()` aborts running jobs, clears eviction timers, and removes all job
+state.
 
 Terminal job state is retained for `LIVE_JOB_TERMINAL_RETAIN_MS` (5 minutes) so
 late clients can reattach by id. This retention is process-local, not durable.
@@ -79,6 +87,9 @@ client.dispose();
 If the job fails, `result` rejects with `LiveJobFailedError`. If it is cancelled,
 it rejects with `LiveJobCancelledError`. Progress emitted by a seed is suppressed
 so reattaching clients do not replay old progress as fresh events.
+
+`LiveJobClient` also exposes `cursor`, `refresh()`, `waitForTerminal()`, and
+`waitForProgressCount(count)` for parity with other live clients.
 
 ## Contract Endpoint
 
@@ -129,7 +140,7 @@ await reattached.dispose();
 Cancellation at the procedure/wire level is documented in
 [serving](../api/serving.md#cancellation). Job cancellation is domain-level:
 `handle.cancel()` calls the generated `<path>.cancel` procedure, which calls
-`LiveJobServer.cancel(jobId)`.
+`LiveJob.cancel(jobId)`.
 
 See [../../examples/job-contract/client.ts](../../examples/job-contract/client.ts)
 and [../../examples/live-job/client.ts](../../examples/live-job/client.ts).

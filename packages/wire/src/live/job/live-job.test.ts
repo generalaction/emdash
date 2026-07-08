@@ -1,9 +1,9 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { liveJobStateSchema } from '../protocol';
+import { liveJobStateSchema, type LiveSnapshot } from '../protocol';
 import { LiveJobCancelledError, LiveJobClient, LiveJobFailedError } from './client';
-import { LIVE_JOB_TERMINAL_RETAIN_MS, LiveJobServer, type LiveJobContext } from './server';
+import { LIVE_JOB_TERMINAL_RETAIN_MS, LiveJob, type LiveJobContext } from './server';
 
 const inputSchema = z.object({ name: z.string() });
 const progressSchema = z.object({ step: z.number() });
@@ -30,11 +30,13 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function attach(server: LiveJobServer<Input, Progress, Result, ErrorState>, jobId: string) {
-  const model = server.job(jobId);
-  if (!model) throw new Error(`Missing job ${jobId}`);
+function attach(server: LiveJob<Input, Progress, Result, ErrorState>, jobId: string) {
+  const source = server.source(jobId);
+  if (!source) throw new Error(`Missing job ${jobId}`);
 
-  const refetchSnapshot = vi.fn(async () => model.snapshot());
+  const refetchSnapshot = vi.fn(
+    async () => (await source.snapshot()) as LiveSnapshot<z.infer<typeof stateSchema>>
+  );
   const onState = vi.fn<(state: z.infer<typeof stateSchema>) => void>();
   const onProgress = vi.fn<(progress: Progress) => void>();
   const client = new LiveJobClient<Progress, Result, ErrorState>(stateSchema, {
@@ -43,8 +45,8 @@ function attach(server: LiveJobServer<Input, Progress, Result, ErrorState>, jobI
   });
 
   client.onProgress(onProgress);
-  client.seed(model.snapshot());
-  let unsubscribe: Unsubscribe = model.subscribe((update) => client.applyUpdate(update));
+  client.seed(server.snapshot(jobId)!);
+  let unsubscribe: Unsubscribe = source.subscribe((update) => client.applyUpdate(update));
 
   return {
     client,
@@ -52,15 +54,15 @@ function attach(server: LiveJobServer<Input, Progress, Result, ErrorState>, jobI
     refetchSnapshot,
     unsubscribe: () => unsubscribe(),
     resubscribe: () => {
-      unsubscribe = model.subscribe((update) => client.applyUpdate(update));
+      unsubscribe = source.subscribe((update) => client.applyUpdate(update));
     },
   };
 }
 
-describe('LiveJobServer and LiveJobClient', () => {
+describe('LiveJob and LiveJobClient', () => {
   it('streams progress and resolves the result', async () => {
     const begin = deferred<void>();
-    const server = new LiveJobServer<Input, Progress, Result, ErrorState>(async (_input, ctx) => {
+    const server = new LiveJob<Input, Progress, Result, ErrorState>(async (_input, ctx) => {
       await begin.promise;
       ctx.progress({ step: 1 });
       ctx.progress({ step: 2 });
@@ -74,12 +76,16 @@ describe('LiveJobServer and LiveJobClient', () => {
     await expect(client.result).resolves.toEqual({ ok: true });
     expect(onProgress).toHaveBeenNthCalledWith(1, { step: 1 });
     expect(onProgress).toHaveBeenNthCalledWith(2, { step: 2 });
-    expect(client.getState()).toEqual({ status: 'succeeded', result: { ok: true } });
+    expect(client.getState()).toMatchObject({
+      status: 'succeeded',
+      progress: [{ step: 1 }, { step: 2 }],
+      result: { ok: true },
+    });
   });
 
   it('maps handler failures into failed state', async () => {
     const begin = deferred<void>();
-    const server = new LiveJobServer<Input, Progress, Result, ErrorState>(async () => {
+    const server = new LiveJob<Input, Progress, Result, ErrorState>(async () => {
       await begin.promise;
       throw new Error('boom');
     }, toError);
@@ -96,7 +102,7 @@ describe('LiveJobServer and LiveJobClient', () => {
 
   it('cancels cooperatively through the job signal', async () => {
     let signal: AbortSignal | undefined;
-    const server = new LiveJobServer<Input, Progress, Result, ErrorState>(async (_input, ctx) => {
+    const server = new LiveJob<Input, Progress, Result, ErrorState>(async (_input, ctx) => {
       signal = ctx.signal;
       await new Promise<never>((_resolve, reject) => {
         ctx.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
@@ -117,13 +123,10 @@ describe('LiveJobServer and LiveJobClient', () => {
   it('resyncs on sequence gaps without re-emitting already seen progress', async () => {
     let ctx: LiveJobContext<Progress> | undefined;
     const finish = deferred<Result>();
-    const server = new LiveJobServer<Input, Progress, Result, ErrorState>(
-      async (_input, jobCtx) => {
-        ctx = jobCtx;
-        return finish.promise;
-      },
-      toError
-    );
+    const server = new LiveJob<Input, Progress, Result, ErrorState>(async (_input, jobCtx) => {
+      ctx = jobCtx;
+      return finish.promise;
+    }, toError);
     const { jobId } = server.start({ name: 'resync' });
     const { client, onProgress, refetchSnapshot, unsubscribe, resubscribe } = attach(server, jobId);
 
@@ -138,7 +141,7 @@ describe('LiveJobServer and LiveJobClient', () => {
     ctx?.progress({ step: 4 });
 
     await vi.waitFor(() => expect(refetchSnapshot).toHaveBeenCalledTimes(1));
-    expect(onProgress).toHaveBeenCalledTimes(4);
+    await vi.waitFor(() => expect(onProgress).toHaveBeenCalledTimes(4));
 
     finish.resolve({ ok: true });
     await expect(client.result).resolves.toEqual({ ok: true });
@@ -147,23 +150,115 @@ describe('LiveJobServer and LiveJobClient', () => {
   it('evicts terminal jobs after the fixed grace period', async () => {
     vi.useFakeTimers({ now: 1000 });
     try {
-      const server = new LiveJobServer<Input, Progress, Result, ErrorState>(
+      const server = new LiveJob<Input, Progress, Result, ErrorState>(
         async () => ({ ok: true }),
         toError
       );
       const { jobId } = server.start({ name: 'evict' });
 
       await Promise.resolve();
-      expect(server.job(jobId)?.snapshot().data).toEqual({
+      expect(server.getState(jobId)).toMatchObject({
         status: 'succeeded',
         result: { ok: true },
       });
 
       vi.advanceTimersByTime(LIVE_JOB_TERMINAL_RETAIN_MS);
 
-      expect(server.job(jobId)).toBeUndefined();
+      expect(server.source(jobId)).toBeUndefined();
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('uses configured id, clock, and terminal retention', async () => {
+    vi.useFakeTimers();
+    try {
+      let now = 100;
+      const server = new LiveJob<Input, Progress, Result, ErrorState>(
+        async (_input, ctx) => {
+          now = 150;
+          ctx.progress({ step: 1 });
+          now = 200;
+          return { ok: true };
+        },
+        toError,
+        {
+          idFactory: () => 'job-1',
+          clock: () => now,
+          terminalRetainMs: 10,
+        }
+      );
+
+      const { jobId } = server.start({ name: 'options' });
+      expect(jobId).toBe('job-1');
+
+      await Promise.resolve();
+      expect(server.getState(jobId)).toEqual({
+        status: 'succeeded',
+        startedAt: 100,
+        finishedAt: 200,
+        progress: [{ step: 1 }],
+        result: { ok: true },
+      });
+
+      vi.advanceTimersByTime(10);
+      expect(server.source(jobId)).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports run lifecycle hooks for optional listing', async () => {
+    const events: unknown[] = [];
+    const server = new LiveJob<Input, Progress, Result, ErrorState>(
+      async () => ({ ok: true }),
+      toError,
+      {
+        idFactory: () => 'listed-job',
+        clock: () => 100,
+        terminalRetainMs: 0,
+        onRunStarted: (entry) => events.push({ kind: 'started', entry }),
+        onRunChanged: (entry) => events.push({ kind: 'changed', entry }),
+        onRunEvicted: (jobId) => events.push({ kind: 'evicted', jobId }),
+      }
+    );
+
+    const { jobId } = server.start({ name: 'listed' });
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(events).toEqual([
+      {
+        kind: 'started',
+        entry: { jobId, status: 'running', startedAt: 100, finishedAt: undefined },
+      },
+      {
+        kind: 'changed',
+        entry: { jobId, status: 'succeeded', startedAt: 100, finishedAt: 100 },
+      },
+      { kind: 'evicted', jobId },
+    ]);
+  });
+
+  it('exposes cursor and wait helpers on the client', async () => {
+    let ctx: LiveJobContext<Progress> | undefined;
+    const finish = deferred<Result>();
+    const server = new LiveJob<Input, Progress, Result, ErrorState>(async (_input, jobCtx) => {
+      ctx = jobCtx;
+      return finish.promise;
+    }, toError);
+    const { jobId } = server.start({ name: 'client' });
+    const { client } = attach(server, jobId);
+
+    expect(client.cursor).toBeDefined();
+    await vi.waitFor(() => expect(ctx).toBeDefined());
+    const progressReady = client.waitForProgressCount(1);
+    ctx?.progress({ step: 1 });
+    await progressReady;
+
+    const terminalReady = client.waitForTerminal();
+    finish.resolve({ ok: true });
+    await terminalReady;
+    await expect(client.result).resolves.toEqual({ ok: true });
   });
 });
