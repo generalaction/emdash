@@ -127,6 +127,12 @@ export class LocalTerminalProvider implements TerminalProvider {
     );
   }
 
+  async getLifecycleScriptShellFamily(terminalId: string) {
+    const sessionId = makePtySessionId(this.projectId, this.scopeId, terminalId);
+    const shellProfile = await this.getSessionShellProfile(sessionId, 'system');
+    return shellProfile.family;
+  }
+
   private async spawnWithPolicy(
     terminal: Terminal,
     initialSize: { cols: number; rows: number },

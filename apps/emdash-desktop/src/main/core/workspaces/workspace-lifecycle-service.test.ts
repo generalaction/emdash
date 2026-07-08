@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import type { TerminalShellFamily } from '@shared/core/terminals/terminal-settings';
 import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 import type { Pty, PtyExitInfo } from '../pty/pty';
 import type { LifecycleScriptSpawnRequest, TerminalProvider } from '../terminals/terminal-provider';
@@ -57,7 +58,7 @@ function mockPlatform(platform: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { value: platform });
 }
 
-function makeTerminalProvider(): {
+function makeTerminalProvider(shellFamily: TerminalShellFamily = 'windows-cmd'): {
   provider: TerminalProvider;
   spawned: FakePty[];
   requests: LifecycleScriptSpawnRequest[];
@@ -75,6 +76,9 @@ function makeTerminalProvider(): {
       ptySessionRegistry.register(`${terminal.projectId}:${terminal.taskId}:${terminal.id}`, pty, {
         preserveBufferOnExit: true,
       });
+    },
+    async getLifecycleScriptShellFamily() {
+      return shellFamily;
     },
     async killTerminal() {},
     async destroyAll() {},
@@ -147,6 +151,7 @@ describe('WorkspaceLifecycleService', () => {
   });
 
   it('respawns with the latest shell setup after repeated exit-backed runs', async () => {
+    mockPlatform('win32');
     const { provider, spawned, requests } = makeTerminalProvider();
     const service = new LifecycleScriptService({
       projectId: 'project-3',
@@ -333,10 +338,21 @@ describe('WorkspaceLifecycleService', () => {
       terminals: provider,
     });
 
-    await service.runLifecycleScript(
-      { type: 'setup', script: 'pnpm install' },
-      { exit: true }
-    );
+    await service.runLifecycleScript({ type: 'setup', script: 'pnpm install' }, { exit: true });
+
+    expect(spawned[0].writes).toEqual(['pnpm install; exit\r']);
+  });
+
+  it('preserves same-line exit semantics for local WSL shells on Windows', async () => {
+    mockPlatform('win32');
+    const { provider, spawned } = makeTerminalProvider('wsl');
+    const service = new LifecycleScriptService({
+      projectId: 'project-wsl',
+      workspaceId: 'branch:feature',
+      terminals: provider,
+    });
+
+    await service.runLifecycleScript({ type: 'setup', script: 'pnpm install' }, { exit: true });
 
     expect(spawned[0].writes).toEqual(['pnpm install; exit\r']);
   });

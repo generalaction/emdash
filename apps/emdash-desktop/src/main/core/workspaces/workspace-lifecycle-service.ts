@@ -112,6 +112,12 @@ export class LifecycleScriptService implements IDisposable {
     return { terminalId, sessionId };
   }
 
+  private async shouldUseWindowsCommandExit(terminalId: string): Promise<boolean> {
+    if (this.terminals.kind !== 'local' || process.platform !== 'win32') return false;
+    const shellFamily = await this.terminals.getLifecycleScriptShellFamily?.(terminalId);
+    return shellFamily === 'windows-cmd' || shellFamily === 'powershell';
+  }
+
   async prepareLifecycleScript(
     script: LifecycleScript,
     options: { initialSize?: { cols: number; rows: number } } = {}
@@ -155,7 +161,7 @@ export class LifecycleScriptService implements IDisposable {
       initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     } = options;
 
-    const { sessionId } = this.resolveIds(script);
+    const { terminalId, sessionId } = this.resolveIds(script);
 
     const pty = await this.prepareLifecycleScript(script, { initialSize });
     if (!pty) {
@@ -190,7 +196,7 @@ export class LifecycleScriptService implements IDisposable {
         terminalInputForScript(
           script.script,
           exit,
-          this.terminals.kind === 'local' && process.platform === 'win32'
+          await this.shouldUseWindowsCommandExit(terminalId)
         )
       );
 

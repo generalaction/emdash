@@ -88,6 +88,9 @@ function makeTerminalProvider(): {
         preserveBufferOnExit: true,
       });
     },
+    async getLifecycleScriptShellFamily() {
+      return 'windows-cmd';
+    },
     async killTerminal() {},
     async destroyAll() {},
     async detachAll() {},
