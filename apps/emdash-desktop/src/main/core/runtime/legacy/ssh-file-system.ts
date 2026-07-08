@@ -125,8 +125,6 @@ export class LegacySshFileSystem implements IFileSystem {
   }
 
   async measureUsage(absPath: string): Promise<Result<FileUsage, FileError>> {
-    // Recursive usage measurement over SFTP is not implemented; no current
-    // feature measures remote paths. Callers get a typed error, not a throw.
     return err({
       type: 'fs-error',
       path: absPath,

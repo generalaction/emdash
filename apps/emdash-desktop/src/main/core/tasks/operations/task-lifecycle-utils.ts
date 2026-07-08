@@ -15,8 +15,6 @@ import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspaceKind, WorkspaceType } from '@shared/core/workspaces/workspaces';
 import type { ProjectProvider } from '../../projects/project-provider';
 
-// Local-only helpers by contract (`isLocalWorkspace` guards below), so the
-// local core FileSystem is used directly rather than a per-machine runtime.
 const localFileSystem = new FileSystem();
 
 export type LocalWorkspaceCleanupTarget = {

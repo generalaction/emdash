@@ -18,8 +18,6 @@ import {
 
 const MEASURE_CONCURRENCY = 4;
 
-// Usage listing only measures local worktrees (remote rows short-circuit
-// below), so the local core FileSystem is used directly.
 const localFileSystem = new FileSystem();
 
 async function mapWithConcurrency<T, U>(

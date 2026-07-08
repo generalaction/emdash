@@ -105,9 +105,7 @@ async function scanPath(state: ScanState, currentPath: string): Promise<void> {
 }
 
 /**
- * Measures apparent and on-disk usage of a path. Missing or unreadable
- * subtrees are recorded as partial errors; only a failure to stat the root
- * itself should be treated as fatal (the caller converts that throw).
+ * Unreadable subtrees are recorded as partial errors.
  * @throws the root `lstat` error when `targetPath` itself is inaccessible.
  */
 export async function measureUsage(targetPath: string): Promise<FileUsage> {

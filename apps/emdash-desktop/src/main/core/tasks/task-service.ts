@@ -184,9 +184,8 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     taskIds: string[],
     options?: DeleteTaskOptions
   ): Promise<void> {
-    // Notify per completed deletion: a failure in one task must not suppress
-    // the taskDeleted events of the tasks that were already removed, or the
-    // renderer's optimistic rollback would resurrect them.
+    // Notify per deletion: one failure must not suppress taskDeleted for the
+    // already-removed tasks, or the renderer rollback would resurrect them.
     const results = await Promise.allSettled(
       taskIds.map(async (id) => {
         await deleteTask(projectId, id, options);
