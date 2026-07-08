@@ -1,6 +1,6 @@
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { AgentUiBadge } from '@renderer/lib/components/agent-ui-badge';
 import { getAgentUpdateActionState } from '@renderer/lib/components/agent-selector/agent-install';
+import { AgentUiBadge } from '@renderer/lib/components/agent-ui-badge';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { agentSupportsAcp, type AgentPayload } from '@shared/core/agents/agent-payload';
 import { InstalledBadge, UninstalledBadge, UpdateAvailableBadge } from './agent-status-badge';
