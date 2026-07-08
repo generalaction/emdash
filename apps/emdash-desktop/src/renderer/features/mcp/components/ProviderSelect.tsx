@@ -1,9 +1,9 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import React from 'react';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { cn } from '@renderer/utils/utils';
-import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { McpProvidersResponse } from '@shared/core/mcp/types';
 
 interface ProviderSelectProps {

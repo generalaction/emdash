@@ -1,6 +1,5 @@
 import { match } from 'ts-pattern';
 import type { AgentInstallError, AgentUpdateError } from '@shared/core/agents/agent-payload';
-import { getProvider, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 
 export type AgentInstallActionState = {
   render: boolean;
@@ -24,14 +23,12 @@ export function getAgentInstallErrorMessage(error: AgentInstallError): string {
 }
 
 export function getAgentInstallActionState({
-  agentId,
   agentName,
   canInstall,
   isInstalled,
   isInstalling,
 }: {
-  agentId: AgentProviderId;
-  agentName?: string;
+  agentName: string;
   canInstall: boolean;
   isInstalled: boolean;
   isInstalling: boolean;
@@ -40,7 +37,7 @@ export function getAgentInstallActionState({
     render: canInstall && !isInstalled,
     disabled: isInstalling,
     installing: isInstalling,
-    label: `Install ${agentName ?? getProvider(agentId)?.name ?? agentId}`,
+    label: `Install ${agentName}`,
   };
 }
 

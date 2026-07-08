@@ -1,4 +1,7 @@
-import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
+import type {
+  TerminalShellFamily,
+  TerminalShellId,
+} from '@shared/core/terminals/terminal-settings';
 import type { Terminal } from '@shared/core/terminals/terminals';
 
 export type LifecycleScriptSpawnRequest = {
@@ -24,6 +27,7 @@ export interface TerminalProvider {
     options?: TerminalSpawnOptions
   ): Promise<void>;
   spawnLifecycleScript(request: LifecycleScriptSpawnRequest): Promise<void>;
+  getLifecycleScriptShellFamily?(terminalId: string): Promise<TerminalShellFamily | undefined>;
   killTerminal(terminalId: string): Promise<void>;
   destroyAll(): Promise<void>;
   detachAll(): Promise<void>;

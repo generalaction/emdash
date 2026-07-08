@@ -1,9 +1,7 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
+import { isValidProviderId } from '@main/core/agents/plugin-registry';
 import { automationsService } from '@main/core/automations/automations-service';
 import { telemetryService } from '@main/lib/telemetry';
-import {
-  isValidProviderId,
-  type AgentProviderId,
-} from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun, AutomationRunStatus } from '@shared/core/automations/automation-run';
 

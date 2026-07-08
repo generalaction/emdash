@@ -173,6 +173,7 @@ export type AgentModelsCapability =
   | { kind: 'selectable'; modelOptions: Record<string, AgentModelOption> };
 
 export type AgentCapabilities = {
+  acp: { kind: string };
   hostDependency: AgentHostDependencyInfo;
   models: AgentModelsCapability;
   effort: { kind: string };
@@ -183,6 +184,16 @@ export type AgentCapabilities = {
   mcp: { kind: string };
   plugins: { kind: string };
 };
+
+export function agentSupportsAcp(capabilities: AgentCapabilities | undefined | null): boolean {
+  return capabilities?.acp.kind === 'supported';
+}
+
+export function agentSupportsAutoApprove(
+  capabilities: AgentCapabilities | undefined | null
+): boolean {
+  return capabilities?.autoApprove.kind === 'supported';
+}
 
 // ---------------------------------------------------------------------------
 // Icon asset DTO — mirrors AgentIconAsset from @emdash/core/agents/plugins

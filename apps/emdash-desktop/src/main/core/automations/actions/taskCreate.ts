@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { err, ok, type Result } from '@emdash/shared';
 import { acpRuntimeProcedures } from '@main/core/acp/controller';
+import { getPlugin, isValidProviderId } from '@main/core/agents/plugin-registry';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { issueController } from '@main/core/issues/controller';
 import { openProject } from '@main/core/projects/operations/openProject';
@@ -16,8 +18,6 @@ import {
 import { taskService } from '@main/core/tasks/task-service';
 import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
-import { resolveAutomationAgentAutoApprove } from '@shared/core/agents/agent-auto-approve';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
 import type { InitialQueuePrompt } from '@shared/core/conversations/conversations';
@@ -53,6 +53,14 @@ function scopeWorkspaceConfigToRun(config: WorkspaceConfig, taskName: string): W
   if (git.kind === 'pr-branch' && git.taskBranch)
     return { ...config, git: { ...git, taskBranch: taskName } };
   return config;
+}
+
+function resolveAutomationAgentAutoApprove(
+  provider: AgentProviderId,
+  configured: boolean | undefined
+): boolean | undefined {
+  if (!isValidProviderId(provider)) return configured;
+  return getPlugin(provider).capabilities.autoApprove.kind === 'supported' ? true : configured;
 }
 
 async function buildAutomationInitialQueue(

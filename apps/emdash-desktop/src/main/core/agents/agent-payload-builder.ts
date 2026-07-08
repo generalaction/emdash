@@ -13,13 +13,13 @@ import type {
   HostDependency,
   HostDependencyManager,
 } from '@emdash/core/deps/runtime';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import type {
   AgentInstallationStatus,
   AgentMetadata,
   AgentPayload,
   InstallOption,
 } from '@shared/core/agents/agent-payload';
-import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { getDependencyDescriptor } from '../dependencies/registry';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 import { getPlugin, listPlugins } from './plugin-registry';
@@ -40,6 +40,7 @@ function buildMetadata(provider: CLIAgentPluginProvider): AgentMetadata {
     websiteUrl: metadata.websiteUrl,
     icon: assets.icon,
     capabilities: {
+      acp: capabilities.acp,
       hostDependency: capabilities.hostDependency,
       models: capabilities.models,
       effort: capabilities.effort,
@@ -108,7 +109,9 @@ export async function buildAgentPayloads(
   enrichHostDep?: EnrichHostDep
 ): Promise<AgentPayload[]> {
   const results = await Promise.all(
-    AGENT_PROVIDERS.map((p) => buildOne(p.id, platform, dependencyManager, enrichHostDep))
+    listPlugins().map((provider) =>
+      buildOne(provider.metadata.id as AgentProviderId, platform, dependencyManager, enrichHostDep)
+    )
   );
   return results.filter((r): r is AgentPayload => r !== null);
 }

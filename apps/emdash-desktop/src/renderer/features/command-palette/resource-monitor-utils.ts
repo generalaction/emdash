@@ -1,10 +1,10 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import {
   getConversationsForTask,
   getTerminalsForTask,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { appState } from '@renderer/lib/stores/app-state';
 import { formatBytes } from '@renderer/utils/formatBytes';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 import type {
   ResourceAppProcess,
