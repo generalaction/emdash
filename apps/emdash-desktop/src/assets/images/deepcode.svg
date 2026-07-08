@@ -1,12 +1,4 @@
-import type { PluginIconAsset } from '@emdash/shared/plugins';
-
-export const icon: PluginIconAsset = {
-  kind: 'svg',
-  alt: 'Deep Code CLI',
-  variants: [
-    {
-      minSize: 0,
-      light: `<svg width="160" height="126" viewBox="0 0 160 126" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="160" height="126" viewBox="0 0 160 126" fill="none" xmlns="http://www.w3.org/2000/svg">
   <g fill="#229AC3">
     <ellipse cx="80" cy="43" rx="39" ry="38"/>
     <path d="M44 55C31 58 23 67 20 80C18 88 22 95 30 97C39 99 46 94 48 85C49 79 54 75 61 74C68 73 73 67 72 60C71 53 64 49 57 51L44 55Z"/>
@@ -28,7 +20,4 @@ export const icon: PluginIconAsset = {
     <ellipse cx="69" cy="107" rx="3.6" ry="4.4" transform="rotate(-28 69 107)"/>
     <ellipse cx="91" cy="107" rx="3.6" ry="4.4" transform="rotate(28 91 107)"/>
   </g>
-</svg>`,
-    },
-  ],
-};
+</svg>

@@ -412,7 +412,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'deepcode',
     initialPromptFlag: '',
     useKeystrokeInjection: true,
-    icon: 'deepcode.png',
+    icon: 'deepcode.svg',
     alt: 'Deep Code CLI',
     terminalOnly: true,
   },
