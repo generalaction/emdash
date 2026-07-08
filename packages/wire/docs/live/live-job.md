@@ -122,24 +122,34 @@ const controller = bindContract(api, {
 });
 ```
 
-The typed client exposes a job endpoint client:
+The typed client exposes a thin job endpoint client. Use it directly for
+low-level forwarding, or wrap it in `createLiveJobReplica()` when a consumer wants
+ref-counted local state:
 
 ```ts
-const handle = await client.build.start({ target: 'desktop' });
+const jobs = createLiveJobReplica(api.build, thin.build, { retentionMs: 30_000 });
+const lease = await jobs.start({ target: 'desktop' });
+const handle = await lease.ready();
+
 handle.onProgress((progress) => console.log(progress.step));
 console.log(await handle.result);
 
-const reattached = await client.build.attach(handle.jobId);
-await reattached.ready;
-await reattached.dispose();
+await lease.release();
+
+const reattachedLease = jobs.acquire(handle.jobId);
+const reattached = await reattachedLease.ready();
+console.log(await reattached.result);
+await reattachedLease.release();
+await jobs.dispose();
 ```
 
-`JobHandle` exposes `jobId`, `client`, `ready`, `result`, `onProgress(cb)`,
-`cancel()`, and `dispose()`.
+`ReplicaJob` exposes `jobId`, `ready`, `result`, `getState()`,
+`onProgress(cb)`, and `cancel()`. The `LiveJobReplica` manager owns ref counting,
+subscription sharing, and terminal-state retention.
 
 Cancellation at the procedure/wire level is documented in
 [serving](../api/serving.md#cancellation). Job cancellation is domain-level:
-`handle.cancel()` calls the generated `<path>.cancel` procedure, which calls
+`ReplicaJob.cancel()` calls the generated `<path>.cancel` procedure, which calls
 `LiveJob.cancel(jobId)`.
 
 See [../../examples/job-contract/client.ts](../../examples/job-contract/client.ts)

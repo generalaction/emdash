@@ -4,12 +4,12 @@ import {
   bindContract,
   client,
   connect,
+  createLiveModelReplica,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
   loggerInstrumentation,
   loggingTransport,
-  materializeInstance,
   memoryTransportPair,
   procedure,
   serve,
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
   const thin = client(api, connection);
 
   const observed: number[] = [];
-  const binding = materializeInstance(thin.counter, key, {
+  const replica = createLiveModelReplica(api.counter, thin.counter, {
     instrumentation,
     onChange: {
       state: (value, meta) => {
@@ -80,7 +80,8 @@ async function main(): Promise<void> {
       },
     },
   });
-  await binding.ready;
+  const lease = replica.acquire(key);
+  await lease.ready();
 
   await thin.increment({ ...key, token: 'sk-test-secret-value-for-redaction' });
 
@@ -89,7 +90,8 @@ async function main(): Promise<void> {
   await delay(0);
 
   logger.info('observed counter values', { observed });
-  await binding.dispose();
+  await lease.release();
+  await replica.dispose();
   stopServer();
 }
 

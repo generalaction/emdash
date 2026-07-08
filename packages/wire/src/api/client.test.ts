@@ -1,21 +1,13 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { LiveLogServer } from '../live/log';
-import { MaterializedModel, materializeInstance } from '../live/materialize';
-import { LiveModel } from '../live/model';
+import { LiveLog } from '../live/log';
 import { createLiveModelHost } from '../live/mutations';
+import { createLiveModelReplica, ReplicaModel } from '../live/replica';
 import { bindContract } from './bind';
 import { client } from './client';
 import { connect } from './connect';
-import {
-  defineContract,
-  defineLiveModelContract,
-  liveLog,
-  liveModel,
-  mutation,
-  procedure,
-} from './define';
+import { defineContract, defineLiveModelContract, liveLog, mutation, procedure } from './define';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
@@ -24,31 +16,32 @@ const keySchema = z.object({ id: z.string() });
 
 const contract = defineContract({
   increment: procedure({ input: keySchema, output: stateSchema }),
-  state: liveModel({ key: keySchema, data: stateSchema }),
+  state: defineLiveModelContract({ key: keySchema, models: { state: stateSchema } }),
   output: liveLog({ key: keySchema }),
 });
 
 describe('client', () => {
   it('calls typed procedures and exposes thin model/log handles', async () => {
     const pair = memoryTransportPair();
-    const model = new LiveModel({ count: 0 }, 1000);
-    const log = new LiveLogServer({ generation: 2000 });
+    const host = createLiveModelHost(contract.state);
+    const instance = host.create({ id: 'task' }, { state: { count: 0 } });
+    const log = new LiveLog({ generation: 2000 });
     const controller = bindContract(contract, {
       increment: () => {
-        model.produce((draft) => {
+        instance.models.state.produce((draft) => {
           draft.count += 1;
         });
         log.append('incremented\n');
-        return model.snapshot().data;
+        return instance.models.state.snapshot().data;
       },
-      state: () => model,
+      state: host,
       output: () => log,
     });
     serve(pair.right, controller);
     const thin = client(contract, connect(pair.left));
 
     const seenStates: Array<{ count: number }> = [];
-    const state = new MaterializedModel(thin.state.handle({ id: 'task' }), {
+    const state = new ReplicaModel(thin.state.model({ id: 'task' }, 'state'), {
       schema: stateSchema,
       onChange: (value) => seenStates.push(value),
     });
@@ -76,25 +69,26 @@ describe('client', () => {
   it('builds nested clients using object keys as call paths', async () => {
     const nested = defineContract({ child: contract });
     const pair = memoryTransportPair();
-    const model = new LiveModel({ count: 0 }, 1000);
-    const log = new LiveLogServer({ generation: 2000 });
+    const host = createLiveModelHost(nested.child.state);
+    const instance = host.create({ id: 'task' }, { state: { count: 0 } });
+    const log = new LiveLog({ generation: 2000 });
     const controller = bindContract(nested, {
       child: {
         increment: () => {
-          model.produce((draft) => {
+          instance.models.state.produce((draft) => {
             draft.count += 1;
           });
           log.append('incremented\n');
-          return model.snapshot().data;
+          return instance.models.state.snapshot().data;
         },
-        state: () => model,
+        state: host,
         output: () => log,
       },
     });
     serve(pair.right, controller);
     const thin = client(nested, connect(pair.left));
 
-    const state = new MaterializedModel(thin.child.state.handle({ id: 'task' }), {
+    const state = new ReplicaModel(thin.child.state.model({ id: 'task' }, 'state'), {
       schema: stateSchema,
     });
     await state.ready;
@@ -132,14 +126,17 @@ describe('client', () => {
     const controller = bindContract(groupContract, { conversation: host });
     serve(pair.right, controller);
     const thin = client(groupContract, connect(pair.left));
-    const binding = materializeInstance(thin.conversation, key);
+    const replica = createLiveModelReplica(thin.conversation.def, thin.conversation);
+    const lease = replica.acquire(key);
+    const binding = await lease.ready();
 
     await binding.ready;
     const invocation = await binding.mutations.bump({}, { mutationId: 'custom-mutation' });
     await invocation.settled;
 
     expect(updates).toMatchObject([{ mutationIds: ['custom-mutation'] }]);
-    await binding.dispose();
+    await lease.release();
+    await replica.dispose();
   });
 });
 

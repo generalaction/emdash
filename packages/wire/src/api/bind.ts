@@ -2,10 +2,6 @@ import { err, ok, resultSchema, type Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import { LiveJob, type LiveJobContext } from '../live/job';
 import {
-  isLiveModelGroupProvider,
-  type LiveModelGroupProvider,
-} from '../live/materialize/provider';
-import {
   GroupMutationContext,
   isLiveModelHost,
   type LiveModelHost,
@@ -16,16 +12,22 @@ import {
 } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
 import { liveCursorEntrySchema } from '../live/protocol';
+import {
+  isLiveJobReplica,
+  isLiveLogReplica,
+  isLiveModelProvider,
+  type LiveJobReplica,
+  type LiveLogReplica,
+  type LiveModelProvider,
+} from '../live/replica';
 import type { WireInstrumentation } from '../observability';
 import {
   isThinGroup,
   isThinJob,
   isThinLiveLogRef,
-  isThinLiveModelRef,
   type ThinGroup,
   type ThinJob,
   type ThinLiveLogRef,
-  type ThinLiveModelRef,
 } from './client';
 import type {
   Contract,
@@ -33,14 +35,12 @@ import type {
   EndpointDef,
   EndpointInput,
   EndpointOutput,
-  EndpointLiveModelKey,
   LiveLogKey,
   JobEndpointDef,
   JobInput,
   JobProgress,
   JobResult,
   JobError,
-  LiveModelEndpointDef,
   LiveModelGroupDef,
   MutationDef,
 } from './define';
@@ -66,34 +66,24 @@ type ProcedureImpl<Def extends EndpointDef> = (
   meta: CallMeta
 ) => Promise<EndpointOutput<Def>> | EndpointOutput<Def>;
 
-type LiveModelImpl<Def extends LiveModelEndpointDef> = (
-  key: EndpointLiveModelKey<Def>
-) => LiveSource | null | undefined;
-
-type LiveModelEntryImpl<Def extends LiveModelEndpointDef> =
-  | LiveModelImpl<Def>
-  | ThinLiveModelRef<Def>;
-
 type LiveLogImpl<Def extends EndpointDef> = (key: LiveLogKey<Def>) => LiveSource | null | undefined;
 
-type LiveLogEntryImpl<Def extends EndpointDef> = LiveLogImpl<Def> | ThinLiveLogRef;
+type LiveLogEntryImpl<Def extends EndpointDef> = LiveLogImpl<Def> | ThinLiveLogRef | LiveLogReplica;
 
 type GroupImpl<Def extends LiveModelGroupDef> =
   | LiveModelHost<Def>
   | ThinGroup<Def>
-  | LiveModelGroupProvider<Def>;
+  | LiveModelProvider<Def>;
 
 type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
   ? ProcedureImpl<Def>
-  : Def extends LiveModelEndpointDef
-    ? LiveModelEntryImpl<Def>
-    : Def extends { kind: 'liveLog' }
-      ? LiveLogEntryImpl<Def>
-      : Def extends LiveModelGroupDef
-        ? GroupImpl<Def>
-        : Def extends JobEndpointDef
-          ? JobImpl<Def> | ThinJob<Def>
-          : never;
+  : Def extends { kind: 'liveLog' }
+    ? LiveLogEntryImpl<Def>
+    : Def extends LiveModelGroupDef
+      ? GroupImpl<Def>
+      : Def extends JobEndpointDef
+        ? JobImpl<Def> | ThinJob<Def> | LiveJobReplica<Def>
+        : never;
 
 type JobImpl<Def extends JobEndpointDef> = {
   run(
@@ -166,21 +156,16 @@ export function bindContract<Defs extends ContractDefinitions>(
           });
           break;
         }
-        case 'liveModel': {
-          const impl = entryImpl as LiveModelEntryImpl<LiveModelEndpointDef> | undefined;
-          if (!impl) {
-            throw new WireError('MISSING_HANDLER', `Live model '${fullPath}' requires a resolver`);
-          }
-          liveEntries.set(def.id, {
-            keySchema: def.keySchema,
-            resolve: createLiveModelResolver(impl),
-          });
-          break;
-        }
         case 'liveLog': {
           const impl = entryImpl as LiveLogEntryImpl<EndpointDef> | undefined;
           if (!impl) {
             throw new WireError('MISSING_HANDLER', `Live log '${fullPath}' requires a resolver`);
+          }
+          if (isLiveLogReplica(impl) && impl.def.id !== def.id) {
+            throw new WireError(
+              'CONTRACT_MISMATCH',
+              `Live log replica for '${fullPath}' was created for '${impl.def.id}'`
+            );
           }
           liveEntries.set(def.id, {
             keySchema: def.keySchema,
@@ -189,7 +174,7 @@ export function bindContract<Defs extends ContractDefinitions>(
           break;
         }
         case 'job': {
-          const impl = entryImpl as JobImpl<JobEndpointDef> | ThinJob | undefined;
+          const impl = entryImpl as JobImpl<JobEndpointDef> | ThinJob | LiveJobReplica | undefined;
           if (!impl) {
             throw new WireError('MISSING_HANDLER', `Job '${fullPath}' requires a handler`);
           }
@@ -203,6 +188,33 @@ export function bindContract<Defs extends ContractDefinitions>(
             liveEntries.set(def.id, {
               keySchema: jobKeySchema,
               resolve: (key) => impl.handle((key as { jobId: string }).jobId).asLiveSource(),
+            });
+            break;
+          }
+          if (isLiveJobReplica(impl)) {
+            if (impl.def.id !== def.id) {
+              throw new WireError(
+                'CONTRACT_MISMATCH',
+                `Live job replica for '${fullPath}' was created for '${impl.def.id}'`
+              );
+            }
+            procedureEntries.set(`${fullPath}.start`, async (input) => {
+              const lease = await impl.start(input as never);
+              try {
+                const job = await lease.ready();
+                return { jobId: job.jobId };
+              } finally {
+                await lease.release();
+              }
+            });
+            procedureEntries.set(`${fullPath}.cancel`, async (input) => {
+              const parsed = z.object({ jobId: z.string() }).parse(input);
+              await impl.cancel(parsed.jobId);
+              return undefined;
+            });
+            liveEntries.set(def.id, {
+              keySchema: jobKeySchema,
+              resolve: (key) => impl.resolve((key as { jobId: string }).jobId),
             });
             break;
           }
@@ -248,8 +260,8 @@ export function bindContract<Defs extends ContractDefinitions>(
     def: LiveModelGroupDef,
     entryImpl: unknown,
     fullPath: string
-  ): LiveModelGroupProvider {
-    if (isLiveModelGroupProvider(entryImpl)) {
+  ): LiveModelProvider {
+    if (isLiveModelProvider(entryImpl)) {
       if (entryImpl.contract.id !== def.id) {
         throw new WireError(
           'CONTRACT_MISMATCH',
@@ -267,7 +279,7 @@ export function bindContract<Defs extends ContractDefinitions>(
         );
       }
       return {
-        kind: 'liveModelGroupProvider',
+        kind: 'liveModelProvider',
         contract: def,
         resolveModel: (key, name) => entryImpl.model(key, name).asLiveSource(),
         runMutation: (name, envelope) => entryImpl.mutate(name, envelope),
@@ -290,7 +302,7 @@ export function bindContract<Defs extends ContractDefinitions>(
         );
       }
       return {
-        kind: 'liveModelGroupProvider',
+        kind: 'liveModelProvider',
         contract: def,
         resolveModel: (key, name) => host.get(key as never)?.models[name],
         runMutation: (name, envelope) =>
@@ -376,16 +388,10 @@ export const bind = bindContract;
 
 export { encodeTopic, splitTopic } from './topics';
 
-function createLiveModelResolver(
-  impl: LiveModelEntryImpl<LiveModelEndpointDef>
-): (key: unknown) => LiveSource | null | undefined {
-  if (isThinLiveModelRef(impl)) return (key) => impl.handle(key as never).asLiveSource();
-  return impl as (key: unknown) => LiveSource | null | undefined;
-}
-
 function createLiveLogResolver(
   impl: LiveLogEntryImpl<EndpointDef>
 ): (key: unknown) => LiveSource | null | undefined {
+  if (isLiveLogReplica(impl)) return (key) => impl.resolve(key as never);
   if (isThinLiveLogRef(impl)) return (key) => impl.handle(key as never).asLiveSource();
   return impl as (key: unknown) => LiveSource | null | undefined;
 }

@@ -1,7 +1,14 @@
-import { LiveModel, bindContract, isWireMessage, serve, type WireTransport } from '../../src/index';
+import {
+  bindContract,
+  createLiveModelHost,
+  isWireMessage,
+  serve,
+  type WireTransport,
+} from '../../src/index';
 import { processExampleApi } from './contract';
 
-const counter = new LiveModel({ count: 0 }, Date.now());
+const counters = createLiveModelHost(processExampleApi.counter);
+const counter = counters.create(undefined, { counter: { count: 0 } }).models.counter;
 
 const controller = bindContract(processExampleApi, {
   ping: (value) => `pong:${value}`,
@@ -14,7 +21,7 @@ const controller = bindContract(processExampleApi, {
   crash: () => {
     setTimeout(() => process.exit(1), 0);
   },
-  counter: () => counter,
+  counter: counters,
 });
 
 serve(currentProcessTransport(), controller);

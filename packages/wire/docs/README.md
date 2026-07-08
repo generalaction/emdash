@@ -33,10 +33,11 @@ flowchart TB
   processHost --> api
 ```
 
-The live layer owns the stateful primitives: `LiveModel`, manual materializers,
-`LiveLogServer` and `LiveLogClient`, `LiveJob` and `LiveJobClient`, plus host-backed
-mutations and settling. The API layer turns those primitives into a contract with
-typed procedure calls and thin live topic refs.
+The live layer owns the stateful primitives: `LiveModel`, `LiveLog`, `LiveJob`,
+`LiveModelHost`, and consumer-instantiated replicas. Low-level `*Client` followers
+remain protocol machinery; most consumers use thin refs directly or wrap them in
+replicas. The API layer turns those primitives into a contract with typed
+procedure calls and thin live topic refs.
 The runtime layer owns lifecycle utilities and process supervision. Observability
 hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
 
@@ -63,8 +64,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     retention, and contract job handles.
   - [Mutations](./live/mutations.md): mutation ids, host contexts, cursor settling,
     idempotency cache, and retry behavior.
-  - [Materialization](./live/materialize.md): `MaterializedModel`,
-    `materializeInstance()`, pluggable stores, and `createLiveModelReplica()`.
+  - [Replicas](./live/replicas.md): `LiveModelReplica`, `LiveLogReplica`,
+    `LiveJobReplica`, pluggable stores, ref counting, and serving cached state.
   - [Optimistic live model groups](./live/optimistic-group.md): MobX-backed
     optimistic previews for live model contract mutations.
 - Runtime:
@@ -107,13 +108,13 @@ The optimistic utility intentionally lives in its own export because it has a
 ## Typical Flow
 
 1. Define a contract with `defineContract({ ... })`.
-2. Create server-side `LiveModel`, `LiveLogServer`, `LiveJob`, or
+2. Create server-side `LiveModel`, `LiveLog`, `LiveJob`, or
    `createLiveModelHost()` instances.
 3. Create and dispose keyed host instances as domain resources appear.
 4. Bind the contract with `bindContract(contract, impl, options?)`.
 5. Serve the controller over a `WireTransport`.
 6. Connect from the client and create a thin typed `client()`.
-7. Materialize live state explicitly when needed, call procedures/mutations, and
-   dispose materializers when the view or session goes away.
+7. Use thin handles directly for streaming, or create replicas when local state,
+   ref counting, or downstream serving is needed.
 
 For a complete example in one file, see [../examples/contract/client.ts](../examples/contract/client.ts).

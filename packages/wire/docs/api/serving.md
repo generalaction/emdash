@@ -31,9 +31,10 @@ const controller = bindContract(
 Options:
 
 - `impl`: server implementations keyed by the contract shape. Procedures receive
-  `(input, meta)`. Jobs bind to `{ run, toError }`. Standalone live models and
-  live logs use resolver functions. Live model contracts use a
-  `createLiveModelHost()` instance.
+  `(input, meta)`. Jobs bind to `{ run, toError }`, a thin job ref, or a
+  `LiveJobReplica`. Live logs use resolver functions, thin refs, or
+  `LiveLogReplica`. Live model contracts use a `createLiveModelHost()`, thin
+  group ref, or `LiveModelReplica`.
 - `validate`: `none` (default), `inputs`, or `full`. `inputs` parses call inputs
   and live keys; `full` also parses procedure, mutation, job progress, job
   result, and job error outputs where supported.
@@ -90,9 +91,9 @@ Existing attachments are retained locally. If the transport exposes
 `onReconnect`, `connect()` re-issues active `attach` requests after the replacement
 link is live and then calls each attachment's `onReattach` callback.
 
-Manual materializers use `onReattach` for live models and jobs to force a fresh
-snapshot after reattach. This closes the stale-generation case where a server
-restarts or reseeds a live source without immediately sending update traffic.
+Replicas use `onReattach` for live models, logs, and jobs to force a fresh
+snapshot after reattach. Direct thin consumers can use the same callback when
+they need to reseed UI state after reconnect.
 
 The protocol layer intentionally has no version handshake. Receivers validate the
 message `kind` and required fields in `isWireMessage()`; unknown message kinds are
@@ -106,22 +107,25 @@ the contract:
 ```ts
 const thin = client(notesApi, connection);
 
-const session = materializeInstance(thin.session, { sessionId: 'demo' }, {
+const sessions = createLiveModelReplica(notesApi.session, thin.session, {
   onChange: {
     notes: (state, meta) => {
       console.log('notes model:', state, meta.kind);
     },
   },
 });
+const lease = sessions.acquire({ sessionId: 'demo' });
+const session = await lease.ready();
 
-await session.ready;
 const added = await session.mutations.addNote({ text: 'Typed client mutation' });
 await added.settled;
-await session.dispose();
+await lease.release();
+await sessions.dispose();
 ```
 
-Live model and live log accessors are thin refs. Use `handle(key)` to snapshot or
-attach without materializing, or pass the ref to a materializer.
+Live model and live log accessors are thin refs. Use `model(key, name)` or
+`handle(key)` to snapshot/attach without local state, or pass the thin ref to a
+replica wrapper.
 
 Mutations return `ContractMutationInvocation`:
 

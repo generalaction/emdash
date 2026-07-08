@@ -36,7 +36,7 @@ Examples:
   mutation IDs, and resync after a generation change.
 - `batched-model/` demonstrates `BatchedLiveModel` coalescing multiple queued
   mutators into one emitted update.
-- `live-log/` demonstrates `LiveLogServer` and `LiveLogClient` with retained
+- `live-log/` demonstrates `LiveLog` and `LiveLogClient` with retained
   tail snapshots.
 - `live-job/` demonstrates progress, terminal state, result promises, and
   cancellation errors.

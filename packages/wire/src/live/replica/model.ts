@@ -9,7 +9,7 @@ import { LiveModelWaiters } from '../model/waiters';
 import type { LiveCursor, LiveSnapshot, LiveSource, LiveUpdate, Patch } from '../protocol';
 import { createPlainStore, type StateStore } from './store';
 
-export type MaterializedModelOptions<T> = {
+export type ReplicaModelOptions<T> = {
   store?: StateStore<T>;
   schema?: z.ZodType<T>;
   onChange?: (value: T, meta: LiveChangeMeta) => void;
@@ -17,7 +17,7 @@ export type MaterializedModelOptions<T> = {
   logger?: Logger;
 };
 
-export class MaterializedModel<T> extends LiveFollower<T> implements LiveSource {
+export class ReplicaModel<T> extends LiveFollower<T> implements LiveSource {
   readonly ready: Promise<void>;
 
   private readonly emitter = new Emitter<LiveUpdate>();
@@ -33,13 +33,13 @@ export class MaterializedModel<T> extends LiveFollower<T> implements LiveSource 
 
   constructor(
     private readonly handle: ThinLiveHandle<T>,
-    private readonly deps: MaterializedModelOptions<T> = {}
+    private readonly deps: ReplicaModelOptions<T> = {}
   ) {
     super(() => handle.snapshot(), {
       instrumentation: deps.instrumentation,
       logger: deps.logger,
       topic: handle.topic,
-      label: 'materialized model',
+      label: 'replica model',
     });
     this.store = deps.store ?? createPlainStore<T>();
     this.schema = deps.schema;
@@ -107,8 +107,8 @@ export class MaterializedModel<T> extends LiveFollower<T> implements LiveSource 
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    this.waiters.rejectAll(new Error('MaterializedModel disposed'));
-    this.localWaiters.rejectAll(new Error('MaterializedModel disposed'));
+    this.waiters.rejectAll(new Error('ReplicaModel disposed'));
+    this.localWaiters.rejectAll(new Error('ReplicaModel disposed'));
     this.emitter.clear();
     (await this.detachPromise)();
   }

@@ -4,11 +4,11 @@ import {
   bindContract,
   client,
   connect,
+  createLiveModelReplica,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
   memoryTransportPair,
-  materializeInstance,
   mutation,
   serve,
 } from '../../src/index';
@@ -58,9 +58,19 @@ async function main(): Promise<void> {
   serve(pair.right, controller);
 
   const thin = client(api, connect(pair.left));
-  const conversation = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) =>
-    materializeInstance(thin.conversation, groupKey, { onChange: onChange as never })
-  );
+  const conversation = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) => {
+    const replica = createLiveModelReplica(api.conversation, thin.conversation, {
+      onChange: onChange as never,
+    });
+    const lease = replica.acquire(groupKey);
+    return {
+      ready: () => lease.ready(),
+      release: async () => {
+        await lease.release();
+        await replica.dispose();
+      },
+    };
+  });
   await conversation.ready;
 
   console.log('initial:', conversation.values.state, conversation.values.usage);

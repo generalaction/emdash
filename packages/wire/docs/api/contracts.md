@@ -75,22 +75,11 @@ Group mutations usually provide the inline handler in the contract because
 `procedure()` for calls that do not update live models and `job()` for
 long-running work.
 
-### `liveModel`
-
-`liveModel({ key, data })` declares a keyed live model endpoint. If `key` is
-omitted, the endpoint uses an optional void key. The endpoint id is assigned from
-the contract path:
-
-```ts
-notes: liveModel({ data: notesStateSchema });
-// notesApi.session.models.notes.id === 'session.notes'
-```
-
 ### `liveLog`
 
 `liveLog({ key })` declares a keyed text log endpoint. It is served by a
-`LiveLogServer` resolver and bound on the client with `onReset`/`onAppend`
-callbacks.
+`LiveLog` resolver and consumed through a thin `handle(key)` or a
+`LiveLogReplica`.
 
 ### `job`
 
@@ -107,7 +96,8 @@ build: job({
 ```
 
 `bindContract()` binds the endpoint to `{ run, toError }`. The typed client gets
-`start(input)` and `attach(jobId)` helpers. See [live jobs](../live/live-job.md).
+`start(input)`, `cancel(jobId)`, and `handle(jobId)` helpers. See
+[live jobs](../live/live-job.md).
 
 ### `defineLiveModelContract`
 
@@ -153,7 +143,10 @@ Contracts can contain other contracts:
 
 ```ts
 const ptyAgent = defineContract({
-  sessions: liveModel({ key: sessionKeySchema, data: sessionStateSchema }),
+  sessions: defineLiveModelContract({
+    key: sessionKeySchema,
+    models: { state: sessionStateSchema },
+  }),
   output: liveLog({ key: sessionKeySchema }),
 });
 
@@ -162,7 +155,7 @@ const api = defineContract({ ptyAgent });
 
 The final mount path determines ids and procedure paths:
 
-- `api.ptyAgent.sessions.id` is `ptyAgent.sessions`.
+- `api.ptyAgent.sessions.models.state.id` is `ptyAgent.sessions.state`.
 - `api.ptyAgent.output.id` is `ptyAgent.output`.
 - a procedure at `api.ptyAgent.startSession` is called as `ptyAgent.startSession`.
 - a group member at `api.tasks.conversation.models.state` gets the id
@@ -190,5 +183,7 @@ Then bind the group by passing the host in the implementation object:
 const controller = bindContract(api, { conversation: conversations });
 ```
 
-The client group binding exposes each member model, each mutation method,
-`ready`, and `dispose()`. See [serving](./serving.md#typed-clients).
+The thin client group exposes `model(key, name)` for member handles and
+`mutate(name, envelope)` for mutation calls. Wrap it in `createLiveModelReplica()`
+when a process wants local state, ref counting, and mutation settling. See
+[serving](./serving.md#typed-clients).

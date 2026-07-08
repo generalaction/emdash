@@ -4,12 +4,12 @@ import {
   bindContract,
   client,
   connect,
+  createLiveModelReplica,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
   memoryTransportPair,
   mutation,
-  materializeInstance,
   serve,
 } from '../../src/index';
 
@@ -54,17 +54,19 @@ async function main(): Promise<void> {
   serve(pair.right, controller);
 
   const thin = client(api, connect(pair.left));
-  const conversation = materializeInstance(thin.conversation, key, {
+  const replica = createLiveModelReplica(api.conversation, thin.conversation, {
     onChange: {
       state: (state) => console.log('state:', state),
       usage: (usage) => console.log('usage:', usage),
     },
   });
+  const lease = replica.acquire(key);
+  const conversation = await lease.ready();
 
-  await conversation.ready;
   const updated = await conversation.mutations.setTitle({ title: 'Grouped wire' });
   await updated.settled;
-  await conversation.dispose();
+  await lease.release();
+  await replica.dispose();
 }
 
 void main();

@@ -6,11 +6,11 @@ need to attach late and still see recent context.
 
 ## Server
 
-`LiveLogServer` stores a bounded text buffer. `append(chunk)` emits
+`LiveLog` stores a bounded text buffer. `append(chunk)` emits
 `{ chunk }` deltas to subscribers and updates the retained snapshot:
 
 ```ts
-const server = new LiveLogServer({ generation: 3000, maxBufferBytes: 12 });
+const server = new LiveLog({ generation: 3000, maxBufferBytes: 12 });
 
 export function appendLine(line: string): void {
   server.append(`${line}\n`);
@@ -78,15 +78,16 @@ const controller = bindContract(api, {
   activity: () => activityLogServer,
 });
 
-const binding = client.activity(session, {
-  onReset: (snapshot) => console.log(snapshot.text),
-  onAppend: (chunk) => console.log(chunk),
+const activity = thin.activity.handle(session);
+const detach = await activity.attach((update) => {
+  console.log((update.delta as { chunk: string }).chunk);
 });
 
-await binding.ready;
-await binding.dispose();
+detach();
 ```
 
 The API layer handles topic encoding, snapshots, attachment, and detachment.
+Use `createLiveLogReplica()` when a process wants a retained local buffer that can
+also be served downstream.
 
 See [../../examples/live-log/client.ts](../../examples/live-log/client.ts).

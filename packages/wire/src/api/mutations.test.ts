@@ -1,17 +1,19 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createLiveModelHost } from '../live';
-import { materializeInstance } from '../live/materialize';
+import { createLiveModelHost, createLiveModelReplica } from '../live';
 import type { WireInstrumentation } from '../observability';
 import { bindContract } from './bind';
+import type { ThinGroup } from './client';
 import { client } from './client';
 import { connect } from './connect';
 import {
   defineContract,
   defineLiveModelContract,
   mutation,
+  type GroupKey,
   type GroupMutationHandler,
+  type LiveModelGroupDef,
 } from './define';
 import { serve } from './serve';
 import { memoryTransportPair, reconnectingTransport, type MemoryTransportPair } from './transports';
@@ -64,8 +66,7 @@ function setup(instrumentation?: WireInstrumentation) {
 describe('live model group mutations', () => {
   it('settles only the live models actually touched by a mutation', async () => {
     const { client, key } = setup();
-    const counter = materializeInstance(client.counter, key);
-    await counter.ready;
+    const { instance: counter, dispose } = await acquireCounter(client.counter, key);
 
     const first = await counter.mutations.bump({ touchRight: false });
     expect(first.result).toMatchObject({ success: true, data: { data: { touched: ['left'] } } });
@@ -77,17 +78,19 @@ describe('live model group mutations', () => {
     await second.settled;
     expect(counter.models.left.current()).toEqual({ count: 2 });
     expect(counter.models.right.current()).toEqual({ count: 11 });
+    await dispose();
   });
 
   it('settles touched models through the materialized instance', async () => {
     const { client, key } = setup();
-    const counter = materializeInstance(client.counter, key);
+    const { instance: counter, dispose } = await acquireCounter(client.counter, key);
     await counter.models.left.ready;
 
     const invocation = await counter.mutations.bump({ touchRight: true });
     await invocation.settled;
     expect(counter.models.left.current()).toEqual({ count: 1 });
     expect(counter.models.right.current()).toEqual({ count: 11 });
+    await dispose();
   });
 
   it('dedupes duplicate group mutation ids', async () => {
@@ -95,8 +98,7 @@ describe('live model group mutations', () => {
     const { client, key, left, calls } = setup({
       mutationDeduped: (event) => dedupes.push(event),
     });
-    const counter = materializeInstance(client.counter, key);
-    await counter.ready;
+    const { instance: counter, dispose } = await acquireCounter(client.counter, key);
 
     const first = await counter.mutations.bump({ touchRight: false }, { mutationId: 'same' });
     const second = await counter.mutations.bump({ touchRight: false }, { mutationId: 'same' });
@@ -105,6 +107,7 @@ describe('live model group mutations', () => {
     expect(left.snapshot().data).toEqual({ count: 1 });
     expect(calls()).toBe(1);
     expect(dedupes).toEqual([{ mutationId: 'same', path: 'counter.bump' }]);
+    await dispose();
   });
 
   it('retries disconnected mutations with the same mutation id', async () => {
@@ -135,8 +138,7 @@ describe('live model group mutations', () => {
       { backoffMs: [0] }
     );
     const thin = client(contract, connect(transport));
-    const counter = materializeInstance(thin.counter, key);
-    await counter.ready;
+    const { instance: counter, dispose } = await acquireCounter(thin.counter, key);
 
     const invocation = counter.mutations.bump(
       { touchRight: false },
@@ -151,8 +153,26 @@ describe('live model group mutations', () => {
     });
     expect(instance.models.left.snapshot().data).toEqual({ count: 1 });
     expect(handlerCalls).toBe(1);
+    await dispose();
+    transport.close();
   });
 });
+
+async function acquireCounter<Group extends LiveModelGroupDef>(
+  group: ThinGroup<Group>,
+  key: GroupKey<Group>
+) {
+  const replica = createLiveModelReplica(group.def, group);
+  const lease = replica.acquire(key);
+  const instance = await lease.ready();
+  return {
+    instance,
+    async dispose() {
+      await lease.release();
+      await replica.dispose();
+    },
+  };
+}
 
 function createCounterContract(
   handler: GroupMutationHandler<

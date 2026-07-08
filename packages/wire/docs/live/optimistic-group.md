@@ -57,9 +57,17 @@ conversations.create(key, {
 const controller = bindContract(api, { conversation: conversations });
 
 const thin = client(api, connect(pair.left));
-const conversation = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) =>
-  materializeInstance(thin.conversation, groupKey, { onChange })
-);
+const conversation = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) => {
+  const replica = createLiveModelReplica(api.conversation, thin.conversation, { onChange });
+  const lease = replica.acquire(groupKey);
+  return {
+    ready: () => lease.ready(),
+    release: async () => {
+      await lease.release();
+      await replica.dispose();
+    },
+  };
+});
 await conversation.ready;
 ```
 

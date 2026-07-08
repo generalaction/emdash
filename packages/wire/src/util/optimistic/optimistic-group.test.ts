@@ -1,10 +1,11 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok, type PendingLease } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
   bindContract,
   client,
   connect,
+  createLiveModelReplica,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
@@ -12,7 +13,7 @@ import {
   mutation,
   serve,
 } from '../../index';
-import { materializeInstance } from '../../live/materialize';
+import type { ReplicaInstance } from '../../live/replica';
 import { OptimisticLiveModelGroup } from './optimistic-group';
 
 const keySchema = z.object({ id: z.string() });
@@ -113,11 +114,11 @@ describe('OptimisticLiveModelGroup', () => {
         captured['usage'] = onChange?.usage as (value: unknown, meta: { kind: 'seed' }) => void;
         captured['state']({ title: 'Initial' }, { kind: 'seed' });
         captured['usage']({ tokens: 0 }, { kind: 'seed' });
-        return {
+        return leaseFor({
           key,
           models: {
-            state: stubMaterializedModel(),
-            usage: stubMaterializedModel(),
+            state: stubReplicaModel(),
+            usage: stubReplicaModel(),
           },
           mutations: {
             setTitle: async () => pendingInvocation(),
@@ -126,8 +127,7 @@ describe('OptimisticLiveModelGroup', () => {
             localThrow: async () => pendingInvocation(),
           },
           ready: Promise.resolve(),
-          dispose: async () => {},
-        } as never;
+        } as never);
       }
     );
 
@@ -241,9 +241,19 @@ function setup(api: TestApi): {
   const controller = bindContract(api, { conversation: conversations });
   serve(pair.right, controller);
   const thin = client(api, connect(pair.left));
-  const group = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) =>
-    materializeInstance(thin.conversation, groupKey, { onChange: onChange as never })
-  );
+  const group = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) => {
+    const replica = createLiveModelReplica(api.conversation, thin.conversation, {
+      onChange: onChange as never,
+    });
+    const lease = replica.acquire(groupKey);
+    return {
+      ready: () => lease.ready(),
+      release: async () => {
+        await lease.release();
+        await replica.dispose();
+      },
+    };
+  });
   return { group };
 }
 
@@ -251,11 +261,11 @@ function createFakePendingGroup(api: TestApi): OptimisticLiveModelGroup<TestApi[
   return new OptimisticLiveModelGroup(api.conversation, { id: 'demo' }, (_key, onChange) => {
     onChange?.state?.({ title: 'Initial' }, { kind: 'seed' });
     onChange?.usage?.({ tokens: 0 }, { kind: 'seed' });
-    return {
+    return leaseFor({
       key: _key,
       models: {
-        state: stubMaterializedModel(),
-        usage: stubMaterializedModel(),
+        state: stubReplicaModel(),
+        usage: stubReplicaModel(),
       },
       mutations: {
         setTitle: async () => pendingInvocation(),
@@ -264,16 +274,21 @@ function createFakePendingGroup(api: TestApi): OptimisticLiveModelGroup<TestApi[
         localThrow: async () => pendingInvocation(),
       },
       ready: Promise.resolve(),
-      dispose: async () => {},
-    } as never;
+    } as never);
   });
 }
 
-function stubMaterializedModel() {
+function stubReplicaModel() {
   return {
     ready: Promise.resolve(),
     current: () => undefined,
-    dispose: async () => {},
+  };
+}
+
+function leaseFor<Group extends ReplicaInstance>(instance: Group): PendingLease<Group> {
+  return {
+    ready: async () => instance,
+    release: async () => {},
   };
 }
 

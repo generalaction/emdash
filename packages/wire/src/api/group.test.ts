@@ -1,12 +1,17 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createLiveModelHost } from '../live';
-import { materializeInstance } from '../live/materialize';
+import { createLiveModelHost, createLiveModelReplica, type LiveModelReplicaOptions } from '../live';
 import { bindContract, encodeTopic } from './bind';
-import { client } from './client';
+import { client, type ThinGroup } from './client';
 import { connect } from './connect';
-import { defineContract, defineLiveModelContract, mutation } from './define';
+import {
+  defineContract,
+  defineLiveModelContract,
+  mutation,
+  type GroupKey,
+  type LiveModelGroupDef,
+} from './define';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
@@ -70,11 +75,15 @@ describe('defineLiveModelContract', () => {
   it('binds a group client and settles multi-member mutations', async () => {
     const { client, key } = setup();
     const seenTitles: string[] = [];
-    const conversation = materializeInstance(client.conversation, key, {
-      onChange: {
-        state: (state) => seenTitles.push((state as { title: string }).title),
-      },
-    });
+    const { instance: conversation, dispose } = await acquireConversation(
+      client.conversation,
+      key,
+      {
+        onChange: {
+          state: (state) => seenTitles.push((state as { title: string }).title),
+        },
+      }
+    );
     await conversation.ready;
 
     const invocation = await conversation.mutations.setTitle({ title: 'Updated' });
@@ -84,13 +93,12 @@ describe('defineLiveModelContract', () => {
     expect(conversation.models.state.current()).toEqual({ title: 'Updated' });
     expect(conversation.models.usage.current()).toEqual({ tokens: 7 });
     expect(seenTitles.at(-1)).toBe('Updated');
-    await conversation.dispose();
+    await dispose();
   });
 
   it('dedupes duplicate group mutation ids', async () => {
     const { client, key } = setup();
-    const conversation = materializeInstance(client.conversation, key);
-    await conversation.ready;
+    const { instance: conversation, dispose } = await acquireConversation(client.conversation, key);
 
     await conversation.mutations.setTitle({ title: 'Once' }, { mutationId: 'same-group-mutation' });
     await conversation.mutations.setTitle(
@@ -100,7 +108,7 @@ describe('defineLiveModelContract', () => {
 
     expect(conversation.models.state.current()).toEqual({ title: 'Once' });
     expect(conversation.models.usage.current()).toEqual({ tokens: 4 });
-    await conversation.dispose();
+    await dispose();
   });
 
   it('requires a matching host for groups', () => {
@@ -147,13 +155,12 @@ describe('defineLiveModelContract', () => {
     serve(pair.right, bindContract(schemaOnly, { conversation: host }));
     const thin = client(schemaOnly, connect(pair.left));
 
-    const conversation = materializeInstance(thin.conversation, key);
-    await conversation.ready;
+    const { instance: conversation, dispose } = await acquireConversation(thin.conversation, key);
     const invocation = await conversation.mutations.setTitle({ title: 'Host handled' });
     await invocation.settled;
 
     expect(conversation.models.state.current()).toEqual({ title: 'Host handled' });
-    await conversation.dispose();
+    await dispose();
   });
 
   it('requires handlers for schema-only mutations', () => {
@@ -189,12 +196,31 @@ describe('defineLiveModelContract', () => {
     const thin = client(nested, connect(pair.left));
 
     expect(nested.child.conversation.models.state.id).toBe('child.conversation.state');
-    const conversation = materializeInstance(thin.child.conversation, key);
-    await conversation.ready;
+    const { instance: conversation, dispose } = await acquireConversation(
+      thin.child.conversation,
+      key
+    );
     const invocation = await conversation.mutations.setTitle({ title: 'Nested' });
     await invocation.settled;
 
     expect(conversation.models.state.current()).toEqual({ title: 'Nested' });
-    await conversation.dispose();
+    await dispose();
   });
 });
+
+async function acquireConversation<Group extends LiveModelGroupDef>(
+  group: ThinGroup<Group>,
+  key: GroupKey<Group>,
+  options: LiveModelReplicaOptions = {}
+) {
+  const replica = createLiveModelReplica(group.def, group, options);
+  const lease = replica.acquire(key);
+  const instance = await lease.ready();
+  return {
+    instance,
+    async dispose() {
+      await lease.release();
+      await replica.dispose();
+    },
+  };
+}

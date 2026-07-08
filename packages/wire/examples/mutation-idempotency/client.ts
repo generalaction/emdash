@@ -4,11 +4,11 @@ import {
   bindContract,
   client,
   connect,
+  createLiveModelReplica,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
   memoryTransportPair,
-  materializeInstance,
   mutation,
   serve,
 } from '../../src/index';
@@ -27,8 +27,9 @@ async function main(): Promise<void> {
   const pair = memoryTransportPair();
   serve(pair.right, controller);
   const thin = client(api, connect(pair.left));
-  const binding = materializeInstance(thin.counter, key);
-  await binding.ready;
+  const replica = createLiveModelReplica(api.counter, thin.counter);
+  const lease = replica.acquire(key);
+  const binding = await lease.ready();
 
   const first = await binding.mutations.increment(
     {},
@@ -46,6 +47,8 @@ async function main(): Promise<void> {
   console.log('first result:', first.result);
   console.log('second result:', second.result);
   console.log('counter:', counter.models.state.snapshot().data);
+  await lease.release();
+  await replica.dispose();
 }
 
 function createApi() {

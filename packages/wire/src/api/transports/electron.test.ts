@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { bindContract, client, connect, defineContract, liveModel, procedure } from '..';
+import {
+  bindContract,
+  client,
+  connect,
+  defineContract,
+  defineLiveModelContract,
+  procedure,
+} from '..';
 import { domPortTransport } from './dom-port';
 import { awaitWirePort, exposeWireToWindows, requestWirePort } from './electron';
 
 const api = defineContract({
   ping: procedure({ input: z.object({ value: z.string() }), output: z.string() }),
-  state: liveModel({ key: z.void().optional(), data: z.object({ ready: z.boolean() }) }),
+  state: defineLiveModelContract({
+    key: z.void().optional(),
+    models: { state: z.object({ ready: z.boolean() }) },
+  }),
 });
 
 class FakeMessagePort {
@@ -155,10 +165,7 @@ describe('Electron wire helpers', () => {
     const mainPorts: FakeMessagePort[] = [];
     const controller = bindContract(api, {
       ping: ({ value }) => `pong:${value}`,
-      state: () => ({
-        snapshot: () => ({ generation: 1, sequence: 0, timestamp: 0, data: { ready: true } }),
-        subscribe: () => () => {},
-      }),
+      state: fakeStateProvider(),
     });
 
     const dispose = exposeWireToWindows(
@@ -200,10 +207,7 @@ describe('Electron wire helpers', () => {
     const mainPorts: FakeMessagePort[] = [];
     const controller = bindContract(api, {
       ping: ({ value }) => `pong:${value}`,
-      state: () => ({
-        snapshot: () => ({ generation: 1, sequence: 0, timestamp: 0, data: { ready: true } }),
-        subscribe: () => () => {},
-      }),
+      state: fakeStateProvider(),
     });
 
     const dispose = exposeWireToWindows(
@@ -248,4 +252,18 @@ function getOrCreate<K, V>(map: Map<K, Set<V>>, key: K): Set<V> {
   const created = new Set<V>();
   map.set(key, created);
   return created;
+}
+
+function fakeStateProvider() {
+  return {
+    kind: 'liveModelProvider' as const,
+    contract: api.state,
+    resolveModel: () => ({
+      snapshot: () => ({ generation: 1, sequence: 0, timestamp: 0, data: { ready: true } }),
+      subscribe: () => () => {},
+    }),
+    runMutation: async () => {
+      throw new Error('No mutations');
+    },
+  };
 }

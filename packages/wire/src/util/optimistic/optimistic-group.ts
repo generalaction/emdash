@@ -1,4 +1,4 @@
-import type { Result } from '@emdash/shared';
+import type { PendingLease, Result } from '@emdash/shared';
 import { produce } from 'immer';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import type { MutationCallOptions } from '../../api/client';
@@ -13,9 +13,9 @@ import type {
   MutationError,
   MutationInput,
 } from '../../api/define';
-import type { ContractMutationInvocation, MaterializedInstance } from '../../live/materialize';
 import type { LiveChangeMeta, Mutator } from '../../live/model';
 import { createMutationId } from '../../live/mutations';
+import type { ContractMutationInvocation, ReplicaInstance } from '../../live/replica';
 
 export type OptimisticLiveModelGroupValues<Group extends LiveModelGroupDef> = {
   readonly [Name in keyof GroupModels<Group>]:
@@ -38,7 +38,7 @@ export type OptimisticLiveModelGroupMutations<Group extends LiveModelGroupDef> =
 export type OptimisticLiveModelGroupBinding<Group extends LiveModelGroupDef> = (
   key: GroupKey<Group>,
   onChange?: OptimisticLiveModelGroupOnChange<Group>
-) => MaterializedInstance<Group>;
+) => PendingLease<ReplicaInstance<Group>>;
 
 type OptimisticLiveModelGroupOnChange<Group extends LiveModelGroupDef> = Partial<{
   [Name in keyof GroupModels<Group>]: (
@@ -58,7 +58,8 @@ export class OptimisticLiveModelGroup<Group extends LiveModelGroupDef> {
   readonly mutations: OptimisticLiveModelGroupMutations<Group>;
   readonly ready: Promise<void>;
 
-  private readonly binding: MaterializedInstance<Group>;
+  private readonly lease: PendingLease<ReplicaInstance<Group>>;
+  private readonly binding: Promise<ReplicaInstance<Group>>;
   private readonly cells: MemberCells<Group>;
 
   constructor(
@@ -70,8 +71,9 @@ export class OptimisticLiveModelGroup<Group extends LiveModelGroupDef> {
 
     this.cells = createCells(group);
     this.values = createValues(this.cells);
-    this.binding = bind(key, createOnChange(this.cells));
-    this.ready = this.binding.ready;
+    this.lease = bind(key, createOnChange(this.cells));
+    this.binding = this.lease.ready();
+    this.ready = this.binding.then((binding) => binding.ready);
     this.mutations = createMutations(group, this.binding, this.cells, key);
   }
 
@@ -80,7 +82,7 @@ export class OptimisticLiveModelGroup<Group extends LiveModelGroupDef> {
   }
 
   async dispose(): Promise<void> {
-    await this.binding.dispose();
+    await this.lease.release();
   }
 }
 
@@ -193,7 +195,7 @@ function createOnChange<Group extends LiveModelGroupDef>(
 
 function createMutations<Group extends LiveModelGroupDef>(
   group: Group,
-  binding: MaterializedInstance<Group>,
+  binding: Promise<ReplicaInstance<Group>>,
   cells: MemberCells<Group>,
   key: GroupKey<Group>
 ): OptimisticLiveModelGroupMutations<Group> {
@@ -212,8 +214,9 @@ function createMutations<Group extends LiveModelGroupDef>(
       if (resolvedLocalResult?.success) overlay.commit(cells);
 
       try {
+        const instance = await binding;
         const invocation = await (
-          binding.mutations as Record<
+          instance.mutations as Record<
             string,
             (
               input: unknown,

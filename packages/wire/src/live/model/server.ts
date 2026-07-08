@@ -98,8 +98,3 @@ export class LiveModel<T> {
     return this.emitter.subscribe(cb);
   }
 }
-
-/** @deprecated Use `LiveModel` instead. */
-export const LiveModelServer = LiveModel;
-/** @deprecated Use `LiveModel` instead. */
-export type LiveModelServer<T> = LiveModel<T>;

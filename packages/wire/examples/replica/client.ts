@@ -8,7 +8,6 @@ import {
   createLiveModelReplica,
   defineContract,
   defineLiveModelContract,
-  materializeInstance,
   memoryTransportPair,
   mutation,
   serve,
@@ -53,20 +52,24 @@ async function main(): Promise<void> {
   serve(desktopPair.right, bindContract(api, { conversation: replica }));
 
   const renderer = client(api, connect(desktopPair.left));
-  const firstWindow = materializeInstance(renderer.conversation, key, {
+  const firstReplica = createLiveModelReplica(api.conversation, renderer.conversation, {
     onChange: {
       state: (state) => console.log('window state:', state),
     },
   });
-  await firstWindow.ready;
+  const firstLease = firstReplica.acquire(key);
+  const firstWindow = await firstLease.ready();
   const updated = await firstWindow.mutations.setTitle({ title: 'Cached in Electron main' });
   await updated.settled;
-  await firstWindow.dispose();
+  await firstLease.release();
+  await firstReplica.dispose();
 
-  const reloadedWindow = materializeInstance(renderer.conversation, key);
-  await reloadedWindow.ready;
+  const reloadedReplica = createLiveModelReplica(api.conversation, renderer.conversation);
+  const reloadedLease = reloadedReplica.acquire(key);
+  const reloadedWindow = await reloadedLease.ready();
   console.log('reloaded snapshot:', reloadedWindow.models.state.current());
-  await reloadedWindow.dispose();
+  await reloadedLease.release();
+  await reloadedReplica.dispose();
   await replica.dispose();
 }
 

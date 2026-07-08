@@ -4,13 +4,13 @@ import {
   bindContract,
   client,
   connect,
+  createLiveModelReplica,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
   memoryTransportPair,
   mutation,
   serve,
-  materializeInstance,
 } from '../../src/index';
 
 const keySchema = z.object({ conversationId: z.string() });
@@ -60,18 +60,20 @@ async function main(): Promise<void> {
   serve(pair.right, controller);
   const thin = client(chatContract, connect(pair.left));
 
-  const conversation = materializeInstance(thin.conversation, key, {
+  const replica = createLiveModelReplica(chatContract.conversation, thin.conversation, {
     onChange: {
       state: (value) => {
         console.log('state:', value);
       },
     },
   });
+  const lease = replica.acquire(key);
+  const conversation = await lease.ready();
 
-  await conversation.ready;
   const sent = await conversation.mutations.send({ text: 'hello wire' });
   await sent.settled;
-  await conversation.dispose();
+  await lease.release();
+  await replica.dispose();
 }
 
 void main();

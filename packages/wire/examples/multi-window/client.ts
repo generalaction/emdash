@@ -3,22 +3,28 @@ import {
   bindContract,
   client,
   connect,
+  createLiveModelHost,
+  createLiveModelReplica,
   createWireSessionHub,
   defineContract,
-  liveModel,
-  LiveModel,
-  MaterializedModel,
+  defineLiveModelContract,
   memoryTransportPair,
   procedure,
 } from '../../src/index';
 
 const api = defineContract({
   increment: procedure({ input: z.void().optional(), output: z.number() }),
-  counter: liveModel({ key: z.void().optional(), data: z.object({ count: z.number() }) }),
+  counter: defineLiveModelContract({
+    key: z.void().optional(),
+    models: { counter: z.object({ count: z.number() }) },
+  }),
 });
 
 type CounterState = { count: number };
-const counter = new LiveModel<CounterState>({ count: 0 }, 1000);
+const counters = createLiveModelHost(api.counter);
+const counter = counters.create(undefined, {
+  counter: { count: 0 } satisfies CounterState,
+}).models.counter;
 const controller = bindContract(api, {
   increment: () => {
     counter.produce((draft) => {
@@ -26,7 +32,7 @@ const controller = bindContract(api, {
     });
     return counter.snapshot().data.count;
   },
-  counter: () => counter,
+  counter: counters,
 });
 
 async function main(): Promise<void> {
@@ -34,28 +40,38 @@ async function main(): Promise<void> {
   const first = openWindow(hub, 'window-1');
   const second = openWindow(hub, 'window-2');
 
-  const firstCounter = new MaterializedModel(first.client.counter.handle(undefined), {
-    onChange: (value) => {
-      console.log('window-1:', value);
+  const firstReplica = createLiveModelReplica(api.counter, first.client.counter, {
+    onChange: {
+      counter: (value) => {
+        console.log('window-1:', value);
+      },
     },
   });
-  const secondCounter = new MaterializedModel(second.client.counter.handle(undefined), {
-    onChange: (value) => {
-      console.log('window-2:', value);
+  const firstLease = firstReplica.acquire(undefined);
+  const firstCounter = await firstLease.ready();
+  const secondReplica = createLiveModelReplica(api.counter, second.client.counter, {
+    onChange: {
+      counter: (value) => {
+        console.log('window-2:', value);
+      },
     },
   });
+  const secondLease = secondReplica.acquire(undefined);
+  const secondCounter = await secondLease.ready();
 
   await Promise.all([firstCounter.ready, secondCounter.ready]);
   await first.client.increment(undefined);
   await second.client.increment(undefined);
   await Promise.resolve();
 
-  await firstCounter.dispose();
+  await firstLease.release();
+  await firstReplica.dispose();
   first.close();
   await second.client.increment(undefined);
   await Promise.resolve();
 
-  await secondCounter.dispose();
+  await secondLease.release();
+  await secondReplica.dispose();
   second.close();
   hub.dispose();
 }

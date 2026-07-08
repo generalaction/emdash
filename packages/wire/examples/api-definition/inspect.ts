@@ -12,7 +12,9 @@ console.log(
 );
 console.log(
   'live models:',
-  entries.filter(([, def]) => def.kind === 'liveModel').map(([name]) => name)
+  entries.flatMap(([name, def]) =>
+    def.kind === 'group' ? Object.keys(def.models).map((model) => `${name}.${model}`) : []
+  )
 );
 console.log(
   'live logs:',

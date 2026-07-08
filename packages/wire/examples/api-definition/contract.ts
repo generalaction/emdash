@@ -4,7 +4,6 @@ import {
   defineContract,
   defineLiveModelContract,
   liveLog,
-  liveModel,
   mutation,
   procedure,
 } from '../../src/index';
@@ -17,7 +16,6 @@ export type SessionKey = z.infer<typeof sessionKeySchema>;
 export type NotesState = z.infer<typeof notesStateSchema>;
 
 export const notesApi = defineContract({
-  notes: liveModel({ key: sessionKeySchema, data: notesStateSchema }),
   activity: liveLog({ key: sessionKeySchema }),
   session: defineLiveModelContract({
     key: sessionKeySchema,

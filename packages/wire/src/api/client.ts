@@ -8,7 +8,6 @@ import type {
   EndpointDef,
   EndpointInput,
   EndpointLiveModelData,
-  EndpointLiveModelKey,
   EndpointOutput,
   GroupKey,
   GroupModels,
@@ -20,7 +19,6 @@ import type {
   JobResult,
   LiveLogEndpointDef,
   LiveLogKey,
-  LiveModelEndpointDef,
   LiveModelGroupDef,
   MutationData,
   MutationError,
@@ -55,12 +53,6 @@ export type ThinLiveHandle<T = unknown> = {
   snapshot(): Promise<LiveSnapshot<T>>;
   attach(push: (update: LiveUpdate) => void, options?: ThinAttachOptions): Promise<Unsubscribe>;
   asLiveSource(): LiveSource;
-};
-
-export type ThinLiveModelRef<Def extends LiveModelEndpointDef = LiveModelEndpointDef> = {
-  readonly kind: 'thinLiveModel';
-  readonly def: Def;
-  handle(key: EndpointLiveModelKey<Def>): ThinLiveHandle<EndpointLiveModelData<Def>>;
 };
 
 export type ThinLiveLogRef<Def extends LiveLogEndpointDef = LiveLogEndpointDef> = {
@@ -135,13 +127,11 @@ type EndpointClient<Def> = Def extends { kind: 'procedure' }
   ? (input: EndpointInput<Def>, options?: ProcedureCallOptions) => Promise<EndpointOutput<Def>>
   : Def extends JobEndpointDef
     ? ThinJob<Def>
-    : Def extends LiveModelEndpointDef
-      ? ThinLiveModelRef<Def>
-      : Def extends LiveLogEndpointDef
-        ? ThinLiveLogRef<Def>
-        : Def extends LiveModelGroupDef
-          ? ThinGroup<Def>
-          : never;
+    : Def extends LiveLogEndpointDef
+      ? ThinLiveLogRef<Def>
+      : Def extends LiveModelGroupDef
+        ? ThinGroup<Def>
+        : never;
 
 type ContractEntryClient<Def> = Def extends EndpointDef
   ? EndpointClient<Def>
@@ -184,9 +174,6 @@ function buildContractClient(
       case 'job':
         client[name] = createThinJob(connection, def, fullPath);
         break;
-      case 'liveModel':
-        client[name] = createThinLiveModel(connection, def);
-        break;
       case 'liveLog':
         client[name] = createThinLiveLog(connection, def);
         break;
@@ -197,17 +184,6 @@ function buildContractClient(
   }
 
   return client;
-}
-
-function createThinLiveModel<Def extends LiveModelEndpointDef>(
-  connection: Connection,
-  def: Def
-): ThinLiveModelRef<Def> {
-  return {
-    kind: 'thinLiveModel',
-    def,
-    handle: (key) => createThinLiveHandle(connection, encodeTopic(def.id, key)),
-  };
 }
 
 function createThinLiveLog<Def extends LiveLogEndpointDef>(
@@ -334,10 +310,6 @@ function delay(ms: number): Promise<void> {
 
 function addMutationId(input: unknown, mutationId: string): unknown {
   return { ...(input as { key: unknown; input: unknown }), mutationId };
-}
-
-export function isThinLiveModelRef(value: unknown): value is ThinLiveModelRef {
-  return isTagged(value, 'thinLiveModel');
 }
 
 export function isThinLiveLogRef(value: unknown): value is ThinLiveLogRef {

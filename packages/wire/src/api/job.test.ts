@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveJobCancelledError, type LiveJobContext } from '../live/job';
-import { materializeJob, startMaterializedJob } from '../live/materialize';
+import { createLiveJobReplica } from '../live/replica';
 import { bindContract } from './bind';
 import { client } from './client';
 import { connect } from './connect';
@@ -31,14 +31,17 @@ describe('contract jobs', () => {
       return { artifact: `${input.name}.zip` };
     });
 
-    const handle = await startMaterializedJob(client.build, { name: 'demo' });
-    await handle.ready;
+    const jobs = createLiveJobReplica(jobContract.build, client.build);
+    const lease = await jobs.start({ name: 'demo' });
+    const handle = await lease.ready();
     const progress: Array<{ step: string }> = [];
     handle.onProgress((entry) => progress.push(entry));
     gate.resolve();
 
     await expect(handle.result).resolves.toEqual({ artifact: 'demo.zip' });
     expect(progress).toEqual([{ step: 'build' }]);
+    await lease.release();
+    await jobs.dispose();
   });
 
   it('cancels a running job', async () => {
@@ -50,11 +53,14 @@ describe('contract jobs', () => {
         })
     );
 
-    const handle = await startMaterializedJob(client.build, { name: 'cancel' });
-    await handle.ready;
+    const jobs = createLiveJobReplica(jobContract.build, client.build);
+    const lease = await jobs.start({ name: 'cancel' });
+    const handle = await lease.ready();
     await handle.cancel();
 
     await expect(handle.result).rejects.toBeInstanceOf(LiveJobCancelledError);
+    await lease.release();
+    await jobs.dispose();
   });
 
   it('reattaches to a terminal job state by id', async () => {
@@ -64,14 +70,19 @@ describe('contract jobs', () => {
       return { artifact: `${input.name}.zip` };
     });
 
-    const handle = await startMaterializedJob(client.build, { name: 'reattach' });
+    const jobs = createLiveJobReplica(jobContract.build, client.build, { retentionMs: 100 });
+    const lease = await jobs.start({ name: 'reattach' });
+    const handle = await lease.ready();
     gate.resolve();
     await expect(handle.result).resolves.toEqual({ artifact: 'reattach.zip' });
+    await lease.release();
 
-    const reattached = materializeJob(client.build, handle.jobId);
-    await reattached.ready;
+    const reattachedLease = jobs.acquire(handle.jobId);
+    const reattached = await reattachedLease.ready();
 
     await expect(reattached.result).resolves.toEqual({ artifact: 'reattach.zip' });
+    await reattachedLease.release();
+    await jobs.dispose();
   });
 
   it('cancels running jobs when the controller is disposed', async () => {
@@ -83,11 +94,14 @@ describe('contract jobs', () => {
         })
     );
 
-    const handle = await startMaterializedJob(client.build, { name: 'dispose' });
-    await handle.ready;
+    const jobs = createLiveJobReplica(jobContract.build, client.build);
+    const lease = await jobs.start({ name: 'dispose' });
+    const handle = await lease.ready();
     controller.dispose?.();
 
     await expect(handle.result).rejects.toBeInstanceOf(LiveJobCancelledError);
+    await lease.release();
+    await jobs.dispose();
   });
 
   it('validates job start input in full validation mode', async () => {

@@ -24,7 +24,6 @@ const detach = await state.attach((update) => {
 Each contract endpoint becomes a thin protocol shape:
 
 - Procedures become typed functions: `thin.ping(input, { signal? })`.
-- Standalone live models become refs: `thin.state.handle(key)`.
 - Live logs become refs: `thin.output.handle(key)`.
 - Live model groups become group refs: `thin.conversation.model(key, 'state')`
   and `thin.conversation.mutate('setTitle', envelope)`.
@@ -42,9 +41,24 @@ type ThinLiveHandle<T> = {
 };
 ```
 
-`snapshot()` and `attach()` are useful for low-level code. Most callers should pass
-the handle to a materializer instead, so resync and local cursor bookkeeping are
-handled once in the shared materialization layer.
+`snapshot()` and `attach()` are useful for low-level code. For example, PTY output
+can stream directly into an xterm instance without allocating another store:
+
+```ts
+const output = thin.ptyOutput.handle({ sessionId });
+term.write((await output.snapshot()).data.text);
+
+const detach = await output.attach((update) => {
+  term.write((update.delta as { chunk: string }).chunk);
+}, {
+  onReattach: async () => {
+    term.reset();
+    term.write((await output.snapshot()).data.text);
+  },
+});
+```
+
+When a process wants local state, pass the thin ref to a replica wrapper instead.
 
 ## Forwarding
 
@@ -66,7 +80,7 @@ while calls, snapshots, live attachments, jobs, and group mutations are forwarde
 the upstream connection.
 
 This is the right shape for protocol relays and middle tiers that should not own or
-cache state. The hop does not create `MaterializedModel`s, does not allocate local
+cache state. The hop does not create `ReplicaModel`s, does not allocate local
 cursor spaces, and does not run mutation settling. It just preserves the contract
 surface while delegating to the upstream connection.
 
@@ -82,7 +96,7 @@ const controller = bindContract(workspaceApi, {
   // Forwarded subtree.
   git: upstream.git,
 
-  // Cached group; see Materialization and Replica Local Access.
+  // Cached group; see Replicas.
   conversation: createLiveModelReplica(
     workspaceApi.conversation,
     upstream.conversation,
@@ -95,10 +109,9 @@ const controller = bindContract(workspaceApi, {
 thin-client forwarding when the hop knows the contract, because `bindContract()` can
 keep the implementation typed and can mix local handlers with forwarded subtrees.
 
-## When to Materialize
+## When to Use Replicas
 
-Use manual materializers when a process wants local state. See
-[Materialization](../live/materialize.md).
+Use replicas when a process wants local state. See [Replicas](../live/replicas.md).
 
 Common examples:
 
@@ -109,6 +122,6 @@ Common examples:
 
 For Electron main and other middle tiers that both serve and inspect live state, use
 the replica local access pattern in
-[Materialization](../live/materialize.md#replica-local-access).
+[Replicas](../live/replicas.md#model-replicas).
 
 Do not materialize just to forward. Forward the thin ref or subtree directly.

@@ -9,7 +9,7 @@ type RetainedChunk = {
   bytes: number;
 };
 
-export type LiveLogServerOptions = {
+export type LiveLogOptions = {
   maxBufferBytes?: number;
   generation?: number;
 };
@@ -21,7 +21,7 @@ export type LiveLogServerOptions = {
  * `{ chunk: string }`. Snapshots return the retained tail plus the byte offset
  * of the first retained byte so clients can reset cheaply after gaps.
  */
-export class LiveLogServer {
+export class LiveLog {
   private readonly emitter = new Emitter<LiveUpdate>();
   private readonly maxBufferBytes: number;
   private generation: number;
@@ -31,7 +31,7 @@ export class LiveLogServer {
   private truncated = false;
   private chunks: RetainedChunk[] = [];
 
-  constructor(options: LiveLogServerOptions = {}) {
+  constructor(options: LiveLogOptions = {}) {
     this.maxBufferBytes = Math.max(0, options.maxBufferBytes ?? DEFAULT_MAX_BUFFER_BYTES);
     this.generation = options.generation ?? Date.now();
   }

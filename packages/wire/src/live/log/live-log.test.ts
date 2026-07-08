@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { LiveLogClient } from './client';
-import { LiveLogServer } from './server';
+import { LiveLog } from './server';
 
 function setup(options: { maxBufferBytes?: number; generation?: number } = {}) {
-  const server = new LiveLogServer({
+  const server = new LiveLog({
     generation: options.generation ?? 1000,
     maxBufferBytes: options.maxBufferBytes,
   });
@@ -18,9 +18,9 @@ function setup(options: { maxBufferBytes?: number; generation?: number } = {}) {
   return { server, client, onReset, onAppend, refetchSnapshot };
 }
 
-describe('LiveLogServer', () => {
+describe('LiveLog', () => {
   it('emits envelope-correct append updates', () => {
-    const server = new LiveLogServer({ generation: 1000 });
+    const server = new LiveLog({ generation: 1000 });
     const updates: unknown[] = [];
     server.subscribe((update) => updates.push(update));
 
@@ -38,7 +38,7 @@ describe('LiveLogServer', () => {
   });
 
   it('snapshots the retained tail with offset and truncation metadata', () => {
-    const server = new LiveLogServer({ generation: 1000, maxBufferBytes: 5 });
+    const server = new LiveLog({ generation: 1000, maxBufferBytes: 5 });
 
     server.append('abc');
     server.append('de');
@@ -84,7 +84,7 @@ describe('LiveLogClient', () => {
   });
 
   it('refreshes from a fresh snapshot on demand', async () => {
-    const server = new LiveLogServer({ generation: 1000 });
+    const server = new LiveLog({ generation: 1000 });
     const onReset =
       vi.fn<(data: { baseOffset: number; text: string; truncated: boolean }) => void>();
     const onAppend = vi.fn<(chunk: string) => void>();

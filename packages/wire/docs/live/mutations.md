@@ -63,18 +63,21 @@ live model bindings need to catch up.
 
 ## Client Settling
 
-`materializeInstance()` tracks the materialized member models for one group key.
-Its mutation methods call the thin group and then settle against those local
-materialized models.
+`LiveModelReplica.acquire(key)` returns a `ReplicaInstance` for one group key. Its
+mutation methods call the thin group and then settle against the local
+`ReplicaModel`s.
 
 Group mutation methods return `{ result, settled }`:
 
 ```ts
-const session = materializeInstance(thin.session, { sessionId: 'demo' });
-await session.ready;
+const sessions = createLiveModelReplica(api.session, thin.session);
+const lease = sessions.acquire({ sessionId: 'demo' });
+const session = await lease.ready();
 
 const added = await session.mutations.addNote({ text: 'Typed client mutation' });
 await added.settled;
+await lease.release();
+await sessions.dispose();
 ```
 
 `settled` waits for every cursor in the mutation result. For each cursor entry,
@@ -97,7 +100,8 @@ const updated = await session.mutations.setTitle({ title: 'Grouped wire' }, {
 await updated.settled;
 ```
 
-If no id is provided, `materializeInstance()` generates one with `createMutationId()`.
+If no id is provided, the replica mutation helper generates one with
+`createMutationId()`.
 Explicit ids are useful for optimistic previews, where the preview and server
 mutation must share the same confirmation id.
 

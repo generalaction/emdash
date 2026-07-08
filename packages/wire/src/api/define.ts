@@ -1,5 +1,5 @@
 import { resultSchema, type Result } from '@emdash/shared';
-import { z } from 'zod';
+import type { z } from 'zod';
 import type { Mutator } from '../live/model';
 import type { LiveModelRef } from '../live/mutations/model-ref';
 import type { LiveMutationInput } from '../live/mutations/types';
@@ -82,12 +82,7 @@ export type LiveModelGroupDef<
   mutations: Mutations;
 };
 
-export type EndpointDef =
-  | ProcedureDef
-  | LiveModelEndpointDef
-  | LiveLogEndpointDef
-  | JobEndpointDef
-  | LiveModelGroupDef;
+export type EndpointDef = ProcedureDef | LiveLogEndpointDef | JobEndpointDef | LiveModelGroupDef;
 
 export type ContractEntry = EndpointDef | Contract<ContractDefinitions>;
 export interface ContractDefinitions {
@@ -191,22 +186,6 @@ export function fallible<
   });
 }
 
-export function liveModel<KeySchema extends z.ZodTypeAny, DataSchema extends z.ZodTypeAny>(def: {
-  key: KeySchema;
-  data: DataSchema;
-}): LiveModelEndpointDef<string, KeySchema, DataSchema>;
-export function liveModel<DataSchema extends z.ZodTypeAny>(def: {
-  data: DataSchema;
-}): LiveModelEndpointDef<string, z.ZodOptional<z.ZodVoid>, DataSchema>;
-export function liveModel(def: { key?: z.ZodTypeAny; data: z.ZodTypeAny }): LiveModelEndpointDef {
-  return {
-    kind: 'liveModel',
-    id: '',
-    keySchema: def.key ?? z.void().optional(),
-    dataSchema: def.data,
-  };
-}
-
 export function liveLog<KeySchema extends z.ZodTypeAny>(def: {
   key: KeySchema;
 }): LiveLogEndpointDef<string, KeySchema> {
@@ -273,7 +252,12 @@ export function defineLiveModelContract<
 > {
   const models: Record<string, LiveModelEndpointDef> = {};
   for (const [name, data] of Object.entries(def.models)) {
-    models[name] = liveModel({ key: def.key, data });
+    models[name] = {
+      kind: 'liveModel',
+      id: '',
+      keySchema: def.key,
+      dataSchema: data,
+    };
   }
   return {
     kind: 'group',
@@ -317,8 +301,6 @@ function finalizeContract(
 function finalizeEndpoint(path: string[], def: EndpointDef): EndpointDef {
   const id = path.join('.');
   switch (def.kind) {
-    case 'liveModel':
-      return { ...def, id };
     case 'liveLog':
       return { ...def, id };
     case 'job':
@@ -361,7 +343,6 @@ export function isEndpointDef(value: ContractEntry): value is EndpointDef {
   if (typeof value !== 'object' || value === null) return false;
   const kind = (value as { kind?: unknown }).kind;
   switch (kind) {
-    case 'liveModel':
     case 'liveLog':
     case 'job':
     case 'group':

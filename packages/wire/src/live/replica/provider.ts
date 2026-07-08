@@ -18,8 +18,8 @@ export type GroupMutationEnvelope<
   mutationId: string;
 };
 
-export type LiveModelGroupProvider<Group extends LiveModelGroupDef = LiveModelGroupDef> = {
-  readonly kind: 'liveModelGroupProvider';
+export type LiveModelProvider<Group extends LiveModelGroupDef = LiveModelGroupDef> = {
+  readonly kind: 'liveModelProvider';
   readonly contract: Group;
   resolveModel<Name extends Extract<keyof Group['models'], string>>(
     key: GroupKey<Group>,
@@ -36,10 +36,10 @@ export type LiveModelGroupProvider<Group extends LiveModelGroupDef = LiveModelGr
   >;
 };
 
-export function isLiveModelGroupProvider(value: unknown): value is LiveModelGroupProvider {
+export function isLiveModelProvider(value: unknown): value is LiveModelProvider {
   return (
     typeof value === 'object' &&
     value !== null &&
-    (value as { kind?: unknown }).kind === 'liveModelGroupProvider'
+    (value as { kind?: unknown }).kind === 'liveModelProvider'
   );
 }

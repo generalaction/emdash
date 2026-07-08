@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { client, connect, MaterializedModel } from '../../src/index';
+import { client, connect, ReplicaModel } from '../../src/index';
 import { processTransport, type ManagedProcess } from '../../src/process';
 import { childProcessHost } from '../../src/process/node';
 import { createScope } from '../../src/util';
@@ -27,7 +27,7 @@ async function main(): Promise<void> {
 
   const restartedClient = makeClient(runtime);
   console.log('ping after restart:', await restartedClient.ping('two'));
-  const counter = new MaterializedModel(restartedClient.counter.handle(undefined), {
+  const counter = new ReplicaModel(restartedClient.counter.model(undefined, 'counter'), {
     onChange: (value) => {
       console.log('counter after restart:', value.count);
     },

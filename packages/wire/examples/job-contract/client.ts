@@ -4,12 +4,11 @@ import {
   bindContract,
   client,
   connect,
+  createLiveJobReplica,
   defineContract,
   job,
-  materializeJob,
   memoryTransportPair,
   serve,
-  startMaterializedJob,
 } from '../../src/index';
 
 const api = defineContract({
@@ -40,16 +39,21 @@ async function main(): Promise<void> {
   });
   serve(pair.right, controller);
   const thin = client(api, connect(pair.left));
+  const jobs = createLiveJobReplica(api.build, thin.build, { retentionMs: 10_000 });
 
-  const successful = await startMaterializedJob(thin.build, { target: 'desktop' });
+  const successfulLease = await jobs.start({ target: 'desktop' });
+  const successful = await successfulLease.ready();
   successful.onProgress((progress) => console.log('job progress:', progress.step));
   console.log('job result:', await successful.result);
+  await successfulLease.release();
 
-  const reattached = materializeJob(thin.build, successful.jobId);
-  await reattached.ready;
+  const reattachedLease = jobs.acquire(successful.jobId);
+  const reattached = await reattachedLease.ready();
   console.log('reattached result:', await reattached.result);
+  await reattachedLease.release();
 
-  const cancellable = await startMaterializedJob(thin.build, { target: 'cancelled' });
+  const cancellableLease = await jobs.start({ target: 'cancelled' });
+  const cancellable = await cancellableLease.ready();
   const cancelled = cancellable.result.catch((error) => error);
   await cancellable.cancel();
   const error = await cancelled;
@@ -58,6 +62,8 @@ async function main(): Promise<void> {
   } else {
     throw error;
   }
+  await cancellableLease.release();
+  await jobs.dispose();
 
   controller.dispose?.();
 }

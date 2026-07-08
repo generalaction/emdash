@@ -3,14 +3,17 @@ import { z } from 'zod';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { mergeControllers, type Controller } from './bind';
 import { connect } from './connect';
-import { defineContract, liveModel, procedure } from './define';
+import { defineContract, defineLiveModelContract, procedure } from './define';
 import { relayController } from './relay';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
 const contract = defineContract({
   greet: procedure({ input: z.object({ name: z.string() }), output: z.string() }),
-  state: liveModel({ key: z.object({ id: z.string() }), data: z.object({ count: z.number() }) }),
+  state: defineLiveModelContract({
+    key: z.object({ id: z.string() }),
+    models: { state: z.object({ count: z.number() }) },
+  }),
 });
 
 describe('relayController', () => {
@@ -24,7 +27,7 @@ describe('relayController', () => {
     const relay = relayController(connect(upstreamPair.left));
 
     await expect(relay.call('greet', { name: 'relay' })).resolves.toBe('hello relay');
-    await expect(relay.resolveLive('state|{"id":"x"}')?.snapshot()).resolves.toMatchObject({
+    await expect(relay.resolveLive('state.state|{"id":"x"}')?.snapshot()).resolves.toMatchObject({
       data: { count: 1 },
     });
   });
@@ -51,7 +54,7 @@ describe('relayController', () => {
     const second = memoryTransportPair();
     serve(first.right, relay);
     serve(second.right, relay);
-    const topic = 'state|{"id":"x"}';
+    const topic = 'state.state|{"id":"x"}';
 
     const firstDetach = await connect(first.left).attach(topic, () => {});
     const secondDetach = await connect(second.left).attach(topic, () => {});
@@ -123,7 +126,7 @@ function makeController(source: LiveSource): Controller {
       return `hello ${(input as { name: string }).name}`;
     },
     resolveLive: () => source,
-    liveRefIds: () => [contract.state.id],
+    liveRefIds: () => [contract.state.models.state.id],
   };
 }
 
