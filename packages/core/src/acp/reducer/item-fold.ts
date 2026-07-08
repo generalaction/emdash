@@ -684,6 +684,7 @@ export function foldItem(
         toolKind: event.toolKind,
         status: event.status,
         parentToolCallId,
+        ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
         ...(event.outputText !== undefined ? { outputText: event.outputText } : {}),
         ...(event.terminalId !== undefined ? { terminalId: event.terminalId } : {}),
       });

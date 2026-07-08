@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
+import { SidebarConversationsList } from '@renderer/features/conversations/sidebar-conversations-list';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { ShowHide } from '@renderer/lib/ui/show-hide';
-import { SidebarConversationsList } from '../conversations/sidebar-conversations-list';
 import { ChangesPanel } from '../diff-view/changes-panel/changes-panel';
 import { EditorFileTree } from '../editor/editor-file-tree';
 

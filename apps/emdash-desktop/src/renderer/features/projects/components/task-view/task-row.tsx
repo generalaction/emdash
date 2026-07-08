@@ -1,6 +1,5 @@
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
-import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
 import {
@@ -9,6 +8,7 @@ import {
   taskAgentStatus,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
+import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
 import { PrBadge } from '@renderer/lib/components/pr-badge';
 import { StackedAgentLogos } from '@renderer/lib/components/stacked-agent-logos';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';

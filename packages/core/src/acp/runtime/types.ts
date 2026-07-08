@@ -15,7 +15,7 @@ export interface AcpStartInput {
   cwd: string;
   sessionId: string | null;
   model: string | null;
-  initialPrompt?: string;
+  initialQueue?: PromptInput[];
 }
 
 export interface ResumeSessionInput extends AcpStartInput {

@@ -17,6 +17,7 @@ const v0Schema = z.object({
     'featurebase',
     'asana',
     'monday',
+    'notion',
     'trello',
   ]),
   url: z.string(),
@@ -54,3 +55,15 @@ export const linkedIssueSchema = linkedIssue.schema;
 
 /** The TypeScript type for a linked issue. */
 export type LinkedIssue = typeof linkedIssue.Type;
+
+export function linkedIssueDisplayIdentifier(
+  issue: Pick<LinkedIssue, 'identifier' | 'displayIdentifier'>
+): string | null {
+  return issue.displayIdentifier === null ? null : (issue.displayIdentifier ?? issue.identifier);
+}
+
+export function linkedIssueMentionName(
+  issue: Pick<LinkedIssue, 'identifier' | 'displayIdentifier' | 'title'>
+): string {
+  return linkedIssueDisplayIdentifier(issue) ?? (issue.title || 'Linked issue');
+}

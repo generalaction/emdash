@@ -12,7 +12,29 @@ describe('claude acp capability', () => {
   });
 
   it('all non-ACP plugins default acp to { kind: none }', () => {
-    const acpProviders = new Set(['claude', 'codex']);
+    const acpProviders = new Set([
+      'auggie',
+      'claude',
+      'cline',
+      'codex',
+      'copilot',
+      'cursor',
+      'devin',
+      'droid',
+      'gemini',
+      'goose',
+      'grok',
+      'hermes',
+      'junie',
+      'kilocode',
+      'kimi',
+      'kiro',
+      'mimocode',
+      'mistral',
+      'opencode',
+      'qoder',
+      'qwen',
+    ]);
     for (const p of pluginRegistry.getAll()) {
       if (acpProviders.has(p.metadata.id)) continue;
       expect(p.capabilities.acp.kind).toBe('none');

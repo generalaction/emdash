@@ -50,7 +50,7 @@ vi.mock('./workspace-registry', () => ({
   },
 }));
 
-vi.mock('./conversation-registry', () => ({
+vi.mock('@renderer/features/conversations/stores/conversation-registry', () => ({
   conversationRegistry: {
     get: vi.fn(),
   },

@@ -657,8 +657,13 @@ export function usePty(
           fn();
         } catch {}
       }
-      // Return terminal's ownedContainer to the off-screen host.
-      pty.unmount();
+      // Return terminal's ownedContainer to the off-screen host only if this
+      // React host still owns it. A terminal session can be reparented into a
+      // different surface before this cleanup runs; in that case, unmounting
+      // here would steal the xterm DOM back from the new owner.
+      if (container.contains(pty.ownedContainer)) {
+        pty.unmount();
+      }
       termRef.current = null;
       ptyStartedRef.current = false;
       firstMessageSentRef.current = false;

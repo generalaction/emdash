@@ -11,6 +11,8 @@
       "@renderer/*": ["./src/renderer/*"],
       "@main/*": ["./src/main/*"],
       "@shared/*": ["./src/shared/*"],
+      "@emdash/core/acp": ["../../packages/core/src/acp/index.ts"],
+      "@emdash/core/wire": ["../../packages/core/src/wire/index.ts"],
       "@root/*": ["./*"],
       "@/*": ["./src/*"],
       "@tooling/*": ["./tooling/*"]

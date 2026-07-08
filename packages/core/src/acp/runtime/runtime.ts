@@ -9,7 +9,7 @@ import { ConnectionPool } from '../connection/pool';
 import type { AcpRuntimeError } from '../errors';
 import { acpErr } from '../errors';
 import type { AttachmentMimeType, AttachmentRef } from '../models/attachments';
-import type { PromptInput } from '../models/prompt';
+import type { PromptDraftUpdate, PromptInput } from '../models/prompt';
 import type { SessionState } from '../models/session';
 import type { TerminalState } from '../models/terminals';
 import type { TranscriptTurn } from '../models/turns';
@@ -97,6 +97,10 @@ export class AcpRuntime {
     return this.manager.cancel(conversationId);
   }
 
+  setPromptDraft(conversationId: string, draft: PromptDraftUpdate): Result<void, AcpRuntimeError> {
+    return this.manager.setPromptDraft(conversationId, draft);
+  }
+
   resolvePermission(
     conversationId: string,
     requestId: string,
@@ -157,7 +161,7 @@ export class AcpRuntime {
   }
 
   async uploadAttachment(input: {
-    data: Uint8Array;
+    data?: Uint8Array;
     mimeType: AttachmentMimeType;
     name?: string;
     originalPath?: string;

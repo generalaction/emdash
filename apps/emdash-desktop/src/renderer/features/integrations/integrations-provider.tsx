@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { registerIssueMentionIcons } from '@renderer/lib/chat/chat-mention-provider';
 import { rpc } from '@renderer/lib/ipc';
 import type { ConnectionStatus } from '@shared/issue-providers';
 import type { IntegrationFormInput } from './types';
@@ -56,6 +57,10 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
+
+  useEffect(() => {
+    registerIssueMentionIcons(integrations);
+  }, [integrations]);
 
   const { data: statusData, isFetching: isCheckingConnections } = useQuery({
     queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY,

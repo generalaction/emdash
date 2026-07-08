@@ -8,8 +8,8 @@ import type {
   TabContentProps,
 } from '@renderer/features/tabs/core/tab-provider';
 import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
+import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
 import type { ActiveFile } from '@shared/view-state';
-import type { TaskTabContext } from '../stores/task-tab-context';
 import { resolveWorkspacePath } from '../stores/workspace-path';
 import { DiffTabBarItem, DiffTabBarItemDragPreview } from './diff-tab-item';
 import { DiffView } from './main-panel/diff-view';

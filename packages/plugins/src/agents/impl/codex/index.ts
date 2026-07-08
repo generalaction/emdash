@@ -1,6 +1,4 @@
 import { createRequire } from 'node:module';
-import { Readable, Writable } from 'node:stream';
-import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
@@ -8,6 +6,7 @@ import {
   homebrewOption,
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
+import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -35,17 +34,20 @@ export const plugin = definePlugin(
     models: {
       kind: 'selectable',
       modelOptions: {
-        'codex-mini-latest': {
-          name: 'Codex Mini',
-          modelFeatures: { intelligence: 3, speed: 5 },
+        'gpt-5.5': {
+          name: 'GPT-5.5',
+          description: 'Recommended Codex model for complex coding and agentic workflows.',
+          modelFeatures: { intelligence: 5, speed: 3 },
         },
-        'o4-mini': {
-          name: 'o4-mini',
-          modelFeatures: { intelligence: 4, speed: 4 },
+        'gpt-5.4-mini': {
+          name: 'GPT-5.4 Mini',
+          description: 'Faster Codex model for lighter coding tasks and subagents.',
+          modelFeatures: { intelligence: 4, speed: 5 },
         },
-        o3: {
-          name: 'o3',
-          modelFeatures: { intelligence: 5, speed: 2 },
+        'gpt-5.3-codex-spark': {
+          name: 'GPT-5.3 Codex Spark',
+          description: 'Research-preview Codex model optimized for near-instant iteration.',
+          modelFeatures: { intelligence: 2, speed: 5 },
         },
       },
     },
@@ -98,11 +100,7 @@ export const provider = registerPluginBehavior(plugin, {
       },
     }),
     connect: (io, toClient) => {
-      const stream = ndJsonStream(
-        Writable.toWeb(io.stdin) as WritableStream<Uint8Array>,
-        Readable.toWeb(io.stdout) as unknown as ReadableStream<Uint8Array>
-      );
-      return new ClientSideConnection((agent) => toClient(agent as never), stream);
+      return connectStdioAcp(io, toClient);
     },
   },
   prompt: {

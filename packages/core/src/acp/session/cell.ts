@@ -17,10 +17,10 @@ import {
   SessionMachine,
   type SessionMachineContext,
 } from '../machine/machine';
-import type { SessionConfigState } from '../models/config';
+import type { SessionConfigState, SessionUsage } from '../models/config';
 import type { AcpPermissionRequest } from '../models/permissions';
 import { SESSION_PLAN_ID } from '../models/plan';
-import type { PromptInput, QueuedPrompt } from '../models/prompt';
+import type { PromptDraft, PromptDraftUpdate, PromptInput, QueuedPrompt } from '../models/prompt';
 import type { SessionState, StopReason } from '../models/session';
 import type {
   ToolCallItem,
@@ -41,6 +41,8 @@ export interface AcpChatHistory {
   active: TranscriptTurn | null;
 }
 
+type ConfigDimension = 'model' | 'effort';
+
 export class SessionCell {
   readonly machine: SessionMachine;
   readonly transcript: AcpTranscriptParser;
@@ -49,6 +51,10 @@ export class SessionCell {
   private _acpSessionId: string;
   private quiesceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastRunningAgentCount = 0;
+  private effectQueue: Effect[] = [];
+  private interpretingEffects = false;
+  private draft: PromptDraft | null = null;
+  private draftRev = 0;
 
   constructor(private readonly deps: SessionCellDeps) {
     this._acpSessionId = deps.acpSessionId;
@@ -79,8 +85,16 @@ export class SessionCell {
     return this.machine.sessionState();
   }
 
+  get promptDraft(): PromptDraft | null {
+    return this.draft ? structuredClone(this.draft) : null;
+  }
+
   get config(): SessionConfigState {
     return this.transcript.config;
+  }
+
+  get usage(): SessionUsage | null {
+    return this.transcript.usage;
   }
 
   history(): AcpChatHistory {
@@ -123,7 +137,9 @@ export class SessionCell {
   }
 
   endReplay(at = Date.now()): void {
+    const previousRunningAgentCount = this.lastRunningAgentCount;
     this.transcript.endReplay(at);
+    this.dispatchAgentsChangedIfNeeded(previousRunningAgentCount);
     this.applyEvent({ type: 'ReplayEnded', status: 'complete' });
     this.emitTranscriptChanged();
   }
@@ -174,12 +190,14 @@ export class SessionCell {
 
   async prompt(input: PromptInput): Promise<Result<SessionPromptResult, AcpRuntimeError>> {
     const now = Date.now();
-    return this.sendPromptInternal({
+    const result = await this.sendPromptInternal({
       id: crypto.randomUUID(),
       ...input,
       createdAt: now,
       updatedAt: now,
     });
+    if (result.success) this.clearDraft();
+    return result;
   }
 
   queuePrompt(input: PromptInput): Result<void, AcpRuntimeError> {
@@ -194,6 +212,24 @@ export class SessionCell {
       },
     });
     if (!result.success) return result;
+    this.clearDraft();
+    return ok();
+  }
+
+  setPromptDraft(update: PromptDraftUpdate): Result<void, AcpRuntimeError> {
+    if (update.rev <= this.draftRev) return ok();
+    this.draftRev = update.rev;
+
+    if (update.input === null) {
+      if (this.draft !== null) {
+        this.draft = null;
+        this.deps.callbacks?.onDraftChanged?.();
+      }
+      return ok();
+    }
+
+    this.draft = { ...update.input, rev: update.rev, updatedAt: Date.now() };
+    this.deps.callbacks?.onDraftChanged?.();
     return ok();
   }
 
@@ -275,6 +311,20 @@ export class SessionCell {
   async setMode(modeId: string): Promise<Result<void, AcpRuntimeError>> {
     const result = this.dispatch({ type: 'SetMode', modeId });
     if (!result.success) return result;
+    const configId = this.transcript.config.modeOptions?.configId ?? null;
+    if (configId && this.deps.agent.setSessionConfigOption) {
+      try {
+        const response = await this.deps.agent.setSessionConfigOption({
+          sessionId: this.acpSessionId,
+          configId,
+          value: modeId,
+        } satisfies SetSessionConfigOptionRequest);
+        this.seedTranscriptMeta({ configOptions: response.configOptions });
+        return ok();
+      } catch (e) {
+        return acpErr.setModeFailed(toSerializedError(e));
+      }
+    }
     if (!this.deps.agent.setSessionMode) {
       return acpErr.setModeFailed({
         name: 'Error',
@@ -292,7 +342,17 @@ export class SessionCell {
     }
   }
 
-  async setConfigOption(configId: string, value: string): Promise<Result<void, AcpRuntimeError>> {
+  async setConfigOption(
+    dimension: ConfigDimension,
+    value: string
+  ): Promise<Result<void, AcpRuntimeError>> {
+    const configId = this.configIdForDimension(dimension);
+    if (!configId) {
+      return acpErr.setConfigFailed({
+        name: 'Error',
+        message: `Agent connection does not expose ${dimension} configuration`,
+      });
+    }
     const result = this.dispatch({ type: 'SetConfigOption', configId, value });
     if (!result.success) return result;
     if (!this.deps.agent.setSessionConfigOption) return ok();
@@ -310,7 +370,9 @@ export class SessionCell {
   }
 
   settleTurn(outcome: TranscriptTurnOutcome): void {
+    const previousRunningAgentCount = this.lastRunningAgentCount;
     this.transcript.settleTurn(outcome);
+    this.dispatchAgentsChangedIfNeeded(previousRunningAgentCount);
     this.emitTranscriptChanged();
     this.applyEvent({ type: 'TurnEnded', outcome: machineOutcome(outcome) });
   }
@@ -337,33 +399,52 @@ export class SessionCell {
   }
 
   private interpretEffects(effects: Effect[]): void {
+    this.effectQueue.push(...effects);
+    if (this.interpretingEffects) return;
+
+    this.interpretingEffects = true;
     let stateChanged = false;
-    for (const effect of effects) {
-      switch (effect.type) {
-        case 'state':
-        case 'permissionRequest':
-          stateChanged = true;
-          break;
-        case 'permissionResolved':
-          stateChanged = true;
-          if (effect.cancelled) this.permissions.cancel(effect.requestId);
-          break;
-        case 'closed':
-          this.deps.callbacks?.onClosed?.(effect.exitCode);
-          break;
-        case 'agentEvent':
-          this.deps.callbacks?.onAgentEvent?.(effect.phase);
-          break;
-        case 'sendPrompt':
-          this.deps.callbacks?.onSendQueuedPrompt?.(effect.prompt);
-          void this.sendPromptInternal(effect.prompt);
-          break;
-        case 'warn':
-          this.deps.logger.warn(`SessionCell: ${effect.message}`, {
-            conversationId: this.conversationId,
-          });
-          break;
+    try {
+      while (this.effectQueue.length > 0) {
+        const effect = this.effectQueue.shift()!;
+        switch (effect.type) {
+          case 'state':
+          case 'permissionRequest':
+            stateChanged = true;
+            break;
+          case 'permissionResolved':
+            stateChanged = true;
+            if (effect.cancelled) this.permissions.cancel(effect.requestId);
+            break;
+          case 'closed':
+            this.deps.callbacks?.onClosed?.(effect.exitCode);
+            break;
+          case 'agentEvent':
+            this.deps.callbacks?.onAgentEvent?.(effect.phase);
+            break;
+          case 'settleAgents':
+            this.settleRunningAgents(effect.scope, effect.status);
+            break;
+          case 'sendPrompt':
+            this.deps.callbacks?.onSendQueuedPrompt?.(effect.prompt);
+            void this.sendPromptInternal(effect.prompt).then((result) => {
+              if (!result.success) {
+                this.deps.logger.warn('SessionCell: failed to send queued prompt', {
+                  conversationId: this.conversationId,
+                  error: result.error,
+                });
+              }
+            });
+            break;
+          case 'warn':
+            this.deps.logger.warn(`SessionCell: ${effect.message}`, {
+              conversationId: this.conversationId,
+            });
+            break;
+        }
       }
+    } finally {
+      this.interpretingEffects = false;
     }
     if (stateChanged) this.deps.callbacks?.onSessionStateChanged?.();
   }
@@ -387,7 +468,7 @@ export class SessionCell {
       ...(prompt.attachments?.length
         ? {
             attachments: prompt.attachments.map((attachment, index) => ({
-              id: `${messageId}-image-${index}`,
+              id: attachment.type === 'attachment' ? attachment.id : `${messageId}-image-${index}`,
               name: attachment.name ?? `image-${index + 1}`,
               mimeType: attachment.mimeType,
             })),
@@ -409,6 +490,7 @@ export class SessionCell {
             mimeType: attachment.mimeType,
           })),
           ...(prompt.text ? [{ type: 'text' as const, text: prompt.text }] : []),
+          ...(prompt.hiddenContext ? [{ type: 'text' as const, text: prompt.hiddenContext }] : []),
         ],
       };
       this.rawLog.record({
@@ -467,6 +549,29 @@ export class SessionCell {
     this.applyEvent({ type: 'AgentsChanged', runningCount: nextRunningAgentCount });
   }
 
+  private settleRunningAgents(scope: 'turn' | 'all', status: 'completed' | 'failed'): void {
+    const runningAgents = this.transcript.agents.filter((agent) => {
+      if (agent.status !== 'running') return false;
+      return scope === 'all' || agent.background !== true;
+    });
+
+    for (const agent of runningAgents) {
+      this.push({
+        kind: 'subagent_update',
+        agentId: agent.agentId,
+        toolCallId: agent.toolCallId,
+        status,
+      });
+    }
+  }
+
+  private clearDraft(): void {
+    this.draftRev += 1;
+    if (this.draft === null) return;
+    this.draft = null;
+    this.deps.callbacks?.onDraftChanged?.();
+  }
+
   private scheduleQuiesce(): void {
     if (this.quiesceTimer) clearTimeout(this.quiesceTimer);
     this.quiesceTimer = setTimeout(() => {
@@ -488,10 +593,21 @@ export class SessionCell {
     return {
       modeIds: this.transcript.config.modeOptions?.available.map((mode) => mode.id) ?? [],
       configOptionIds: [
-        ...(this.transcript.config.modelOptions ? ['model'] : []),
-        ...(this.transcript.config.efforts ? ['effort'] : []),
+        ...(this.transcript.config.modelOptions
+          ? [this.transcript.config.modelOptions.configId]
+          : []),
+        ...(this.transcript.config.efforts ? [this.transcript.config.efforts.configId] : []),
       ],
     };
+  }
+
+  private configIdForDimension(dimension: ConfigDimension): string | null {
+    switch (dimension) {
+      case 'model':
+        return this.transcript.config.modelOptions?.configId ?? null;
+      case 'effort':
+        return this.transcript.config.efforts?.configId ?? null;
+    }
   }
 
   private isTranscriptEvent(event: NormalizedEvent): boolean {

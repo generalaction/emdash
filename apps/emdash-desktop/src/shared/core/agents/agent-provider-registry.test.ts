@@ -1,3 +1,4 @@
+import { pluginRegistry } from '@emdash/plugins/agents';
 import { describe, expect, it } from 'vitest';
 import { AGENT_PROVIDERS } from './agent-provider-registry';
 
@@ -26,5 +27,23 @@ describe('AGENT_PROVIDERS', () => {
       docUrl: 'https://docs.x.ai/build/overview',
       installCommand: 'curl -fsSL https://x.ai/cli/install.sh | bash',
     });
+  });
+
+  it('keeps ACP capability flags aligned with plugin behavior', () => {
+    const pluginAcpProviderIds = pluginRegistry
+      .getAll()
+      .filter((provider) => {
+        if (provider.capabilities.acp.kind !== 'supported') return false;
+        expect(provider.behavior.acp, provider.metadata.id).toBeDefined();
+        return true;
+      })
+      .map((provider) => provider.metadata.id)
+      .sort();
+
+    const sharedAcpProviderIds = AGENT_PROVIDERS.filter((provider) => provider.acpCapable)
+      .map((provider) => provider.id)
+      .sort();
+
+    expect(sharedAcpProviderIds).toEqual(pluginAcpProviderIds);
   });
 });

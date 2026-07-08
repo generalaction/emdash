@@ -44,6 +44,14 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const terminalTabs = terminalTabView.tabs;
   const lifecycleScriptTabs = lifecycleScriptsMgr?.tabs ?? [];
+  const terminalIdsOpenInMain = new Set<string>();
+  for (const group of taskView.paneLayout.groups) {
+    for (const entry of group.pane.entries.values()) {
+      if (entry.kind !== 'terminal') continue;
+      const terminalId = (entry.state as { terminalId?: unknown }).terminalId;
+      if (typeof terminalId === 'string') terminalIdsOpenInMain.add(terminalId);
+    }
+  }
 
   // Unified active item — spans both terminals and scripts sections.
   const activeItem = resolveTerminalPanelActiveItem({
@@ -54,14 +62,19 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   });
 
   const activeTerminalId = activeItem.kind === 'terminal' ? activeItem.id : undefined;
+  const activeTerminalIsOpenInMain =
+    activeTerminalId !== undefined && terminalIdsOpenInMain.has(activeTerminalId);
 
   const activeSession =
     activeItem.kind === 'terminal'
-      ? (terminalMgr.sessions.get(activeTerminalId ?? '') ?? null)
+      ? activeTerminalIsOpenInMain
+        ? null
+        : (terminalMgr.sessions.get(activeTerminalId ?? '') ?? null)
       : (lifecycleScriptTabs.find((s) => s.data.id === activeItem.id)?.session ?? null);
 
   const allSessionIds = [
     ...terminalTabs
+      .filter((t) => !terminalIdsOpenInMain.has(t.data.id))
       .map((t) => terminalMgr.sessions.get(t.data.id)?.sessionId)
       .filter((id): id is string => Boolean(id)),
     ...lifecycleScriptTabs.map((s) => s.session.sessionId),
@@ -109,18 +122,24 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const emptyState = (
     <EmptyState
       icon={<Terminal className="text-muted-foreground h-5 w-5" />}
-      label="No terminals yet"
-      description="Add a terminal to run shell commands in this task's working directory."
+      label={activeTerminalIsOpenInMain ? 'Terminal open in main pane' : 'No terminals yet'}
+      description={
+        activeTerminalIsOpenInMain
+          ? 'Select the terminal tab in the main pane or create another terminal.'
+          : "Add a terminal to run shell commands in this task's working directory."
+      }
       action={
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => void handleCreate()}
-          className="flex items-center gap-2"
-        >
-          New terminal
-          <BoundShortcut settingsKey="newTerminal" variant="keycaps" />
-        </Button>
+        activeTerminalIsOpenInMain ? undefined : (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void handleCreate()}
+            className="flex items-center gap-2"
+          >
+            New terminal
+            <BoundShortcut settingsKey="newTerminal" variant="keycaps" />
+          </Button>
+        )
       }
     />
   );

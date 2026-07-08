@@ -43,6 +43,21 @@ describe('SessionCell prompts', () => {
     expect(history.committed[0].outcome).toEqual({ kind: 'done', reason: 'end_turn' });
   });
 
+  it('stores prompt drafts by monotonic revision and clears them after submit', async () => {
+    const { cell, agent } = makeCell();
+    agent.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+
+    expect(isOk(cell.setPromptDraft({ rev: 1, input: { text: 'old' } }))).toBe(true);
+    expect(isOk(cell.setPromptDraft({ rev: 1, input: { text: 'stale' } }))).toBe(true);
+    expect(cell.promptDraft).toMatchObject({ text: 'old', rev: 1 });
+
+    expect(isOk(cell.setPromptDraft({ rev: 2, input: { text: 'new' } }))).toBe(true);
+    expect(cell.promptDraft).toMatchObject({ text: 'new', rev: 2 });
+
+    await cell.prompt({ text: 'send' });
+    expect(cell.promptDraft).toBeNull();
+  });
+
   it('queues while working and drains after the active turn settles', async () => {
     const { cell, agent } = makeCell();
     let resolveFirst!: (value: { stopReason: 'end_turn' }) => void;
@@ -67,6 +82,38 @@ describe('SessionCell prompts', () => {
 
     expect(agent.prompt).toHaveBeenCalledTimes(2);
     expect(cell.sessionState.queuedPrompts).toHaveLength(0);
+  });
+
+  it('keeps prompts queued while background agents run and drains after cancel settles them', async () => {
+    const { cell, agent } = makeCell();
+    agent.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+
+    cell.push({
+      kind: 'subagent',
+      toolCallId: 'tool-1',
+      agentId: 'agent-1',
+      title: 'Background agent',
+      status: 'in_progress',
+      parentToolCallId: null,
+      background: true,
+    });
+    expect(cell.sessionState.backgroundAgentCount).toBe(1);
+
+    const queued = await cell.prompt({ text: 'queued' });
+    expect(queued).toEqual({ success: true, data: { queued: true } });
+    expect(agent.prompt).not.toHaveBeenCalled();
+
+    await cell.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(agent.cancel).toHaveBeenCalledWith({ sessionId: 'session-1' });
+    expect(cell.transcript.agents).toMatchObject([{ agentId: 'agent-1', status: 'failed' }]);
+    expect(cell.sessionState.backgroundAgentCount).toBe(0);
+    expect(cell.sessionState.queuedPrompts).toHaveLength(0);
+    expect(agent.prompt).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      prompt: [{ type: 'text', text: 'queued' }],
+    });
   });
 });
 
@@ -109,6 +156,124 @@ describe('SessionCell permissions', () => {
     cell.dispose();
 
     await expect(permission).resolves.toEqual({ outcome: { outcome: 'cancelled' } });
+  });
+});
+
+describe('SessionCell config options', () => {
+  it('sets mode through the provider config option and seeds the response', async () => {
+    const { cell, agent } = makeCell();
+    cell.applySessionMeta({
+      configOptions: [
+        {
+          id: 'mode',
+          name: 'Mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'agent',
+          options: [
+            { value: 'agent', name: 'Agent' },
+            { value: 'agent-full-access', name: 'Agent (full access)' },
+          ],
+        },
+      ],
+    });
+    agent.setSessionConfigOption = vi.fn().mockResolvedValue({
+      configOptions: [
+        {
+          id: 'mode',
+          name: 'Mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'agent-full-access',
+          options: [
+            { value: 'agent', name: 'Agent' },
+            { value: 'agent-full-access', name: 'Agent (full access)' },
+          ],
+        },
+      ],
+    });
+
+    const result = await cell.setMode('agent-full-access');
+
+    expect(isOk(result)).toBe(true);
+    expect(agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      configId: 'mode',
+      value: 'agent-full-access',
+    });
+    expect(agent.setSessionMode).not.toHaveBeenCalled();
+    expect(cell.config.modeOptions?.selected).toBe('agent-full-access');
+  });
+
+  it('falls back to setSessionMode when config updates are unavailable', async () => {
+    const { cell, agent } = makeCell();
+    cell.applySessionMeta({
+      configOptions: [
+        {
+          id: 'mode',
+          name: 'Mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'agent',
+          options: [
+            { value: 'agent', name: 'Agent' },
+            { value: 'read-only', name: 'Read-only' },
+          ],
+        },
+      ],
+    });
+    agent.setSessionConfigOption = undefined as unknown as typeof agent.setSessionConfigOption;
+
+    const result = await cell.setMode('read-only');
+
+    expect(isOk(result)).toBe(true);
+    expect(agent.setSessionMode).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      modeId: 'read-only',
+    });
+  });
+
+  it('resolves effort dimension to the provider config option id', async () => {
+    const { cell, agent } = makeCell();
+    cell.applySessionMeta({
+      configOptions: [
+        {
+          id: 'reasoning_effort',
+          name: 'Reasoning effort',
+          category: 'thought_level',
+          type: 'select',
+          currentValue: 'medium',
+          options: [
+            { value: 'medium', name: 'Medium' },
+            { value: 'high', name: 'High' },
+          ],
+        },
+      ],
+    });
+    agent.setSessionConfigOption = vi.fn().mockResolvedValue({
+      configOptions: [
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          type: 'select',
+          currentValue: 'high',
+          options: [
+            { value: 'medium', name: 'Medium' },
+            { value: 'high', name: 'High' },
+          ],
+        },
+      ],
+    });
+
+    const result = await cell.setConfigOption('effort', 'high');
+
+    expect(isOk(result)).toBe(true);
+    expect(agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      configId: 'reasoning_effort',
+      value: 'high',
+    });
+    expect(cell.config.efforts?.selected).toBe('high');
   });
 });
 

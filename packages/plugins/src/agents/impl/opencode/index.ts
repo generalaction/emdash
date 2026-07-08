@@ -5,6 +5,7 @@ import {
   npmDependency,
   opencodeMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
+import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
 
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
@@ -20,6 +21,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://opencode.ai/docs/cli/',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -50,6 +54,15 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: {
+    buildSpawn: (ctx) => ({
+      command: ctx.cli,
+      args: ['acp'],
+    }),
+    connect: (io, toClient) => {
+      return connectStdioAcp(io, toClient);
+    },
+  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

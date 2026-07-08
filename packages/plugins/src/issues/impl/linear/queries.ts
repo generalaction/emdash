@@ -14,6 +14,15 @@ export type LinearIssueSummaryNode = {
   updatedAt: string;
 };
 
+export type LinearIssueSearchNode = {
+  id: string;
+  identifier: string;
+  title: string;
+  description: string | null;
+  url: string;
+  branchName: string | null;
+};
+
 export type LinearCommentNode = {
   id: string;
   body: string;
@@ -64,19 +73,34 @@ export type LinearIssueWithActivity = LinearIssueSummaryNode & LinearIssueActivi
 
 const ACTIVITY_PAGE_SIZE = 50;
 
+const ISSUE_SUMMARY_FIELDS = `
+  id
+  identifier
+  title
+  description
+  url
+  branchName
+  state { name type color }
+  team { name key }
+  project { name }
+  assignee { displayName name }
+  updatedAt
+`;
+
 const ISSUE_SUMMARY_FRAGMENT = `
   fragment IssueSummary on Issue {
+    ${ISSUE_SUMMARY_FIELDS}
+  }
+`;
+
+const ISSUE_SEARCH_SUMMARY_FRAGMENT = `
+  fragment IssueSearchSummary on IssueSearchResult {
     id
     identifier
     title
     description
     url
     branchName
-    state { name type color }
-    team { name key }
-    project { name }
-    assignee { displayName name }
-    updatedAt
   }
 `;
 
@@ -138,12 +162,12 @@ const ISSUES_QUERY = `
 `;
 
 const SEARCH_QUERY = `
-  ${ISSUE_SUMMARY_FRAGMENT}
+  ${ISSUE_SEARCH_SUMMARY_FRAGMENT}
 
   query SearchIssues($term: String!, $limit: Int!) {
     searchIssues(term: $term, first: $limit) {
       nodes {
-        ...IssueSummary
+        ...IssueSearchSummary
       }
     }
   }
@@ -198,9 +222,9 @@ export async function searchLinearIssues(
   client: LinearClient,
   term: string,
   limit: number
-): Promise<LinearIssueSummaryNode[]> {
+): Promise<LinearIssueSearchNode[]> {
   const { data } = await client.client.rawRequest<
-    { searchIssues: { nodes: LinearIssueSummaryNode[] } },
+    { searchIssues: { nodes: LinearIssueSearchNode[] } },
     { term: string; limit: number }
   >(SEARCH_QUERY, { term, limit });
 

@@ -374,6 +374,20 @@ describe('AcpTranscriptParser', () => {
     });
   });
 
+  it('preserves provider execute descriptions as inputSummary', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'install dependencies'));
+    p.push({
+      ...toolCallUpdate('exec-1', 'pnpm install', 'execute'),
+      description: 'Installing Dependencies',
+    } as unknown as SessionUpdate);
+
+    expect(p.activeTurn?.items.find((i) => i.kind === 'execute-tool-call')).toMatchObject({
+      command: 'pnpm install',
+      inputSummary: 'Installing Dependencies',
+    });
+  });
+
   it('passes through standard terminalId on execute tool updates', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'run it'));
@@ -869,7 +883,7 @@ describe('AcpTranscriptParser – session slices', () => {
           ],
         },
         {
-          id: 'effort',
+          id: 'reasoning_effort',
           category: 'thought_level',
           type: 'select',
           currentValue: 'high',
@@ -893,14 +907,17 @@ describe('AcpTranscriptParser – session slices', () => {
 
     const { modelOptions, efforts, modeOptions } = p.config;
 
+    expect(modelOptions?.configId).toBe('model');
     expect(modelOptions?.selected).toBe('opus');
     expect(modelOptions?.available).toHaveLength(2);
     expect(modelOptions?.available[0]).toEqual({ id: 'opus', name: 'Opus' });
 
+    expect(efforts?.configId).toBe('reasoning_effort');
     expect(efforts?.selected).toBe('high');
     expect(efforts?.available).toHaveLength(2);
     expect(efforts?.available[1]).toEqual({ id: 'high', name: 'High' });
 
+    expect(modeOptions?.configId).toBe('mode');
     expect(modeOptions?.selected).toBe('default');
     expect(modeOptions?.available).toHaveLength(2);
     expect(modeOptions?.available[0]).toEqual({ id: 'default', name: 'Default' });

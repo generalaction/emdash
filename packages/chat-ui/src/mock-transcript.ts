@@ -375,7 +375,7 @@ function thinkingText(rng: () => number): string {
 const FILE_PATHS = [
   'packages/chat-ui/src/components/execute/Execute.tsx',
   'packages/chat-ui/src/components/file-op/FileOperation.tsx',
-  'apps/emdash-desktop/src/renderer/features/tasks/conversations/chat/chat-store.ts',
+  'apps/emdash-desktop/src/renderer/features/conversations/chat/chat-store.ts',
   'packages/ui/src/theme/theme.css',
   'packages/chat-ui/src/state/transcript.ts',
   'apps/emdash-desktop/src/main/core/acp/acp-session-manager.ts',
@@ -447,7 +447,7 @@ function pick<T>(rng: () => number, arr: T[]): T {
 
 /** Varied resource-link targets for the mock cycle. */
 const RESOURCE_LINK_TARGETS: ResourceTarget[] = [
-  { kind: 'workspace-file', path: 'src/renderer/features/tasks/conversations/chat/chat-store.ts' },
+  { kind: 'workspace-file', path: 'src/renderer/features/conversations/chat/chat-store.ts' },
   { kind: 'workspace-file', path: 'packages/chat-ui/src/model.ts' },
   { kind: 'external', url: 'https://github.com/anthropics/anthropic-sdk-python' },
   { kind: 'opaque' },

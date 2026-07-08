@@ -12,7 +12,7 @@ import type {
   ResolvedTab,
 } from '@renderer/features/tabs/core/tab-provider';
 import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
-import type { TaskTabContext } from '@renderer/features/tasks/stores/task-tab-context';
+import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
 import { rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserProfileSelection } from '@shared/browser';
 import type { BrowserSessionSnapshot } from '@shared/browser';

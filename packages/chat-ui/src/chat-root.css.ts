@@ -88,10 +88,15 @@ export const pinnedOverlay = style({
   top: 0,
   zIndex: 10,
   willChange: 'transform',
-  // Match the scroll container gutter so the pinned card aligns with the
-  // scrolled rows instead of jumping 16px when a user message pins.
-  paddingLeft: CONTENT_GUTTER,
-  paddingRight: CONTENT_GUTTER,
+});
+
+/**
+ * Pinned overlay column. ChatRoot positions this from the width probe's actual
+ * rect so it shares the scroll container's content geometry, including any
+ * scrollbar gutter reserved by the browser.
+ */
+export const pinnedOverlayColumn = style({
+  position: 'relative',
 });
 
 /**
@@ -137,6 +142,50 @@ export const composerSlotClass = style({
 });
 
 /**
+ * Centered composer slot layer used for new/empty conversations. The layer
+ * covers the transcript while letting only the hero/composer children receive
+ * input, so the host keeps one stable portal target across placements.
+ */
+export const composerSlotCenteredClass = style({
+  position: 'absolute',
+  inset: 0,
+  zIndex: 20,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '100%',
+  paddingLeft: CONTENT_GUTTER,
+  paddingRight: CONTENT_GUTTER,
+  pointerEvents: 'none',
+});
+
+export const composerSlotAnimatingClass = style({
+  transition: 'transform 420ms cubic-bezier(0.16, 1, 0.3, 1)',
+});
+
+export const heroSlotClass = style({
+  marginBottom: '1rem',
+  width: '100%',
+  maxWidth: CONTAINER_WIDTH,
+  pointerEvents: 'auto',
+  transition: 'opacity 260ms ease-out, transform 360ms cubic-bezier(0.16, 1, 0.3, 1)',
+});
+
+export const heroSlotVisibleClass = style({
+  position: 'relative',
+  opacity: 1,
+  transform: 'translateY(0)',
+});
+
+export const heroSlotHiddenClass = style({
+  position: 'absolute',
+  opacity: 0,
+  transform: 'translateY(8px)',
+  pointerEvents: 'none',
+});
+
+/**
  * Inner centering wrapper inside the composer slot — constrains the composer
  * to the same max-width as the content column so it aligns with user message
  * cards. Carries the blurred backdrop and 8px bottom gap so the blur only
@@ -149,6 +198,14 @@ export const composerSlotInnerClass = style({
   width: '100%',
   maxWidth: CONTAINER_WIDTH,
   paddingBottom: '8px',
+  pointerEvents: 'auto',
+});
+
+export const composerSlotInnerBottomClass = style({
   background: `color-mix(in srgb, ${vars.bg} 80%, transparent)`,
   backdropFilter: 'blur(8px)',
+});
+
+export const composerSlotInnerCenteredClass = style({
+  paddingBottom: 0,
 });

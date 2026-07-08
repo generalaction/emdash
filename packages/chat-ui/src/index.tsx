@@ -42,7 +42,12 @@ export type {
 } from './state/chat-state';
 
 export { createChatView } from './chat-view';
-export type { ChatView, ChatViewOptions } from './chat-view';
+export type {
+  ChatView,
+  ChatViewOptions,
+  ComposerPlacement,
+  ComposerPlacementOptions,
+} from './chat-view';
 
 // ── Data types ────────────────────────────────────────────────────────────────
 
@@ -109,7 +114,13 @@ export type { CommandProvider, ChatCommandMeta } from './core/markdown/command-p
 
 // ── Commands + scroll helpers ─────────────────────────────────────────────────
 
-export type { ChatCommands, ScrollToItemOptions } from './commands';
+export { CHAT_VIEW_COMMANDS } from './commands';
+export type {
+  ChatCommands,
+  ChatViewCommand,
+  ChatViewCommandId,
+  ScrollToItemOptions,
+} from './commands';
 
 // ── Dev helpers ───────────────────────────────────────────────────────────────
 

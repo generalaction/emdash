@@ -92,6 +92,7 @@ function phrasingsToRuns(
         name: m.name,
         mentionKind: m.mentionKind,
         iconClass: m.iconClass,
+        iconUrl: m.iconUrl,
         tone: m.tone,
       } satisfies InlineMention);
       continue;

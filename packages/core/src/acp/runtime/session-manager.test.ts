@@ -74,6 +74,112 @@ describe('AcpRuntime session manager', () => {
     await prompt;
   });
 
+  it('publishes usage updates through live models', async () => {
+    const { rt, client, sessionId } = await startHarness('conv-usage');
+    const live = rt.sessionLiveModels('conv-usage');
+    if (!live) throw new Error('expected live models');
+    const updates: unknown[] = [];
+    const unsubscribe = live.usage.subscribe((update) => updates.push(update));
+
+    await client.sessionUpdate({
+      sessionId,
+      update: {
+        sessionUpdate: 'usage_update',
+        sessionId,
+        used: 42_000,
+        size: 200_000,
+        cost: { amount: 0.25, currency: 'USD' },
+      } as SessionUpdate,
+    });
+
+    expect(live.usage.snapshot().data).toEqual({
+      contextUsed: 42_000,
+      contextSize: 200_000,
+      cost: { amount: 0.25, currency: 'USD' },
+    });
+    expect(updates.length).toBeGreaterThan(0);
+    unsubscribe();
+  });
+
+  it('keeps stored attachment ids in user transcript messages', async () => {
+    const resolveAttachment = vi.fn().mockResolvedValue({
+      data: 'base64-image',
+      mimeType: 'image/png',
+    });
+    const h = makeAcpHarness({ resolveAttachment });
+    const rt = new AcpRuntime(h.deps);
+    const started = await rt.startSession(makeStartInput({ conversationId: 'conv-attachment' }));
+    expect(isOk(started)).toBe(true);
+
+    const sent = await rt.sendPrompt('conv-attachment', {
+      text: 'look',
+      attachments: [
+        {
+          type: 'attachment',
+          id: 'attachment-1',
+          name: 'image.png',
+          mimeType: 'image/png',
+        },
+      ],
+    });
+
+    expect(isOk(sent)).toBe(true);
+    expect(resolveAttachment).toHaveBeenCalledWith({
+      type: 'attachment',
+      id: 'attachment-1',
+      name: 'image.png',
+      mimeType: 'image/png',
+    });
+    expect(h.agent.prompt).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      prompt: [
+        { type: 'image', data: 'base64-image', mimeType: 'image/png' },
+        { type: 'text', text: 'look' },
+      ],
+    });
+
+    const history = rt.getHistory('conv-attachment');
+    expect(isOk(history)).toBe(true);
+    if (!isOk(history)) return;
+    expect(history.data.turns[0].items[0]).toMatchObject({
+      kind: 'message',
+      text: 'look',
+      attachments: [{ id: 'attachment-1', name: 'image.png', mimeType: 'image/png' }],
+    });
+  });
+
+  it('sends hidden prompt context to the agent without adding it to the transcript', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const started = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-hidden-context' })
+    );
+    expect(isOk(started)).toBe(true);
+
+    const sent = await rt.sendPrompt('conv-hidden-context', {
+      text: 'Fix @[ENG-123](issue:linear:ENG-123)',
+      hiddenContext: '<issue_context identifier="ENG-123">Context body</issue_context>',
+    });
+
+    expect(isOk(sent)).toBe(true);
+    expect(h.agent.prompt).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      prompt: [
+        { type: 'text', text: 'Fix @[ENG-123](issue:linear:ENG-123)' },
+        { type: 'text', text: '<issue_context identifier="ENG-123">Context body</issue_context>' },
+      ],
+    });
+
+    const history = rt.getHistory('conv-hidden-context');
+    expect(isOk(history)).toBe(true);
+    if (!isOk(history)) return;
+    expect(history.data.turns[0].items[0]).toMatchObject({
+      kind: 'message',
+      text: 'Fix @[ENG-123](issue:linear:ENG-123)',
+    });
+    expect(JSON.stringify(history.data.turns[0].items[0])).not.toContain('Context body');
+  });
+
   it('returns a resume result with replayed history', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);

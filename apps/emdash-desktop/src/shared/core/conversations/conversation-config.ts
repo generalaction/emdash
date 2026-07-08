@@ -10,6 +10,11 @@ const conversationConfigV0Schema = z.object({
   model: z.string().optional(),
 });
 
+const initialQueuePromptSchema = z.object({
+  text: z.string(),
+  hiddenContext: z.string().optional(),
+});
+
 const ptyConfigV1 = z.object({
   version: z.literal('1'),
   type: z.literal('pty'),
@@ -24,8 +29,10 @@ const acpConfigV1 = z.object({
   version: z.literal('1'),
   type: z.literal('acp'),
   autoApprove: z.boolean().optional(),
-  /** Initial prompt to deliver on first spawn (delivered once, gated on sessionId === null). */
+  /** @deprecated Use initialQueue; kept so older in-progress ACP configs remain readable. */
   initialPrompt: z.string().optional(),
+  /** Initial queued prompts to deliver on first spawn (delivered once, gated on sessionId === null). */
+  initialQueue: z.array(initialQueuePromptSchema).optional(),
   /** Model to pass to the agent CLI. Empty string or absent = CLI default. */
   model: z.string().optional(),
 });

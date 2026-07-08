@@ -111,15 +111,7 @@ export function ChatHostExpanded(props: {
     state.transcript.history.seed(toTurns(props.items));
   });
 
-  // Pre-toggle so the item starts in the expanded state.
-  // Access internal viewState via a view handle isn't available at story level,
-  // so we use createChatView for hosts that need external collapse control.
-  // For ChatHostExpanded, we instead expose a ref-based approach via controls.
-  // NOTE: toggleCollapsed is available after mount via the EngineControls.
-  // For simplicity, this host directly renders ChatRoot and relies on the
-  // story using view.toggleCollapsed via createChatView instead.
-  // This leaves the item in its default state — stories requiring pre-expanded
-  // items should use ScriptedChat or createChatView directly.
+  state.viewState.toggleCollapsed(props.expandId);
 
   const commands = createMemo(() => makeCommands(state.transcript, props.commands)());
 

@@ -1,5 +1,7 @@
+import { dirname, extname, join } from 'node:path';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildMistralHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -12,6 +14,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/mistralai/mistral-vibe',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -19,6 +24,26 @@ export const plugin = definePlugin(
       kind: 'config',
       scope: 'workspace',
       supportedEvents: ['notification', 'stop'],
+    },
+    models: {
+      kind: 'selectable',
+      modelOptions: {
+        'mistral-medium-3.5': {
+          name: 'Mistral Medium 3.5',
+          description: 'Default hosted Mistral Vibe model with high thinking and image support.',
+          modelFeatures: { intelligence: 5, speed: 4 },
+        },
+        'devstral-small': {
+          name: 'Devstral Small',
+          description: 'Lower-cost hosted Devstral model for faster coding tasks.',
+          modelFeatures: { intelligence: 3, speed: 5 },
+        },
+        local: {
+          name: 'Local Devstral',
+          description: 'Local llama.cpp Devstral model configured by Mistral Vibe.',
+          modelFeatures: { intelligence: 3, speed: 3 },
+        },
+      },
     },
     hostDependency: {
       id: 'mistral',
@@ -60,12 +85,21 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: createNativeAcpBehavior((ctx) => {
+    const ext = extname(ctx.cli);
+    const acpExt = ['.exe', '.cmd', '.bat', '.ps1'].includes(ext.toLowerCase()) ? ext : '';
+    return {
+      command: join(dirname(ctx.cli), `vibe-acp${acpExt}`),
+      args: [],
+    };
+  }),
   hooks: buildMistralHookConfig(),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag: '--agent auto-approve',
         initialPromptFlag: '',
+        extraEnv: ctx.model ? { VIBE_ACTIVE_MODEL: ctx.model } : undefined,
       }),
   },
 });
