@@ -642,9 +642,8 @@ export class TaskManagerStore {
   async deleteTasks(taskIds: string[], opts?: DeleteTaskOptions): Promise<void> {
     const removed = new Map<string, TaskStore>();
 
-    // The optimistic removal below empties this.tasks before the taskDeleted
-    // events arrive, so _removeTaskLocally can't witness them. Record them
-    // here so a partial failure only rolls back unconfirmed tasks.
+    // Optimistic removal empties this.tasks before taskDeleted events arrive,
+    // so record confirmations here and skip them during rollback.
     const confirmed = new Set<string>();
     const unsubConfirmations = events.on(taskDeletedChannel, ({ taskId, projectId }) => {
       if (projectId === this.projectId) confirmed.add(taskId);
