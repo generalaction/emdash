@@ -171,6 +171,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     invertInDark: true,
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'devin',
@@ -190,6 +191,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Devin',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'cursor',
@@ -208,6 +210,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Cursor CLI',
     invertInDark: true,
     terminalOnly: true,
+    acpCapable: true,
   },
   {
     id: 'gemini',
@@ -226,6 +229,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Gemini CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'antigravity',
@@ -265,6 +269,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Qwen Code CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'qoder',
@@ -286,6 +291,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Qoder CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'droid',
@@ -306,6 +312,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Factory Droid',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'amp',
@@ -390,6 +397,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'hermesagent.jpg',
     alt: 'Hermes Agent CLI',
     terminalOnly: true,
+    acpCapable: true,
   },
   {
     id: 'copilot',
@@ -412,6 +420,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     invertInDark: true,
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'charm',
@@ -449,6 +458,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Auggie CLI',
     invertInDark: true,
     terminalOnly: true,
+    acpCapable: true,
   },
   {
     id: 'goose',
@@ -470,6 +480,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Goose CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'kimi',
@@ -491,6 +502,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Kimi CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'kilocode',
@@ -509,6 +521,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Kilocode CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'kiro',
@@ -531,6 +544,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Kiro CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'rovo',
@@ -562,6 +576,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'cline.png',
     alt: 'Cline CLI',
     terminalOnly: true,
+    acpCapable: true,
   },
   {
     id: 'continue',
@@ -626,6 +641,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Mistral Vibe CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'jules',
@@ -658,6 +674,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'junie-color.png',
     alt: 'Junie CLI',
     terminalOnly: true,
+    acpCapable: true,
   },
   {
     id: 'pi',
@@ -732,6 +749,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'MiMo Code CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
 ];
 

@@ -4,6 +4,7 @@ import {
   npmDependency,
   qwenMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
+import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildQwenHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -16,6 +17,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/QwenLM/qwen-code',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -42,6 +46,9 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: createNativeAcpBehavior(() => ({
+    args: ['--acp', '--experimental-skills'],
+  })),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

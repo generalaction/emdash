@@ -19,6 +19,15 @@ import { createChatState } from '@/state/chat-state';
 const nextPaint = (): Promise<void> =>
   new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
+async function waitFor<T>(fn: () => T | null, frames = 10): Promise<T | null> {
+  for (let i = 0; i < frames; i++) {
+    const value = fn();
+    if (value) return value;
+    await nextPaint();
+  }
+  return null;
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('createChatView', () => {
@@ -65,6 +74,39 @@ describe('createChatView', () => {
     view.scrollToTop();
     await nextPaint();
     expect(scrollEl!.scrollTop).toBe(0);
+
+    view.dispose();
+    ctx.dispose();
+    state.dispose();
+    document.body.removeChild(host);
+  });
+
+  it('aligns pinned user messages with the measured transcript column', async () => {
+    const ctx = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(ctx);
+    state.transcript.history.seed(generateMockTranscript(80, 11));
+
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:320px;';
+    document.body.appendChild(host);
+
+    const view = createChatView({ context: ctx, state, parent: host, pinUserMessages: true });
+    await nextPaint();
+
+    view.scrollToBottom();
+    const pinnedCard = await waitFor(
+      () => host.querySelector('[aria-hidden="true"] [data-user-card]') as HTMLElement | null
+    );
+
+    expect(pinnedCard).not.toBeNull();
+
+    const probe = host.querySelector('[data-chat-width-probe]') as HTMLElement | null;
+    expect(probe).not.toBeNull();
+
+    const pinRect = pinnedCard!.getBoundingClientRect();
+    const probeRect = probe!.getBoundingClientRect();
+    expect(Math.abs(pinRect.left - probeRect.left)).toBeLessThan(1);
+    expect(Math.abs(pinRect.width - probeRect.width)).toBeLessThan(1);
 
     view.dispose();
     ctx.dispose();

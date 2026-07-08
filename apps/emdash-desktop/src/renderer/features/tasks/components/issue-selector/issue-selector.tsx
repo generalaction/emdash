@@ -28,7 +28,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import type { LinkedIssue } from '@shared/core/linked-issue';
+import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@shared/core/linked-issue';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
@@ -39,8 +39,7 @@ export function IssueIdentifier({
   issue: Pick<LinkedIssue, 'identifier' | 'displayIdentifier'>;
   className?: string;
 }) {
-  const identifier =
-    issue.displayIdentifier === null ? null : (issue.displayIdentifier ?? issue.identifier);
+  const identifier = linkedIssueDisplayIdentifier(issue);
   if (!identifier) return null;
 
   return (

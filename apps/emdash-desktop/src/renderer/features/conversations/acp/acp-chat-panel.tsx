@@ -1,5 +1,5 @@
 import type { AttachmentMimeType, AttachmentRef } from '@emdash/core/acp/client';
-import { ChatComposer, ImageViewerDialog } from '@emdash/ui/react/components';
+import { ChatComposer, ImageViewerDialog, MermaidViewerDialog } from '@emdash/ui/react/components';
 import type {
   CommandItem,
   ComposerAgentOption,
@@ -47,7 +47,7 @@ import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-i
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { log } from '@renderer/utils/logger';
-import type { LinkedIssue } from '@shared/core/linked-issue';
+import { linkedIssueMentionName, type LinkedIssue } from '@shared/core/linked-issue';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
@@ -78,7 +78,7 @@ function toIssueMentionItem(issue: LinkedIssue): MentionItem {
   return {
     id: token,
     label: token,
-    name: issue.displayIdentifier ?? issue.identifier,
+    name: linkedIssueMentionName(issue),
     kind: 'issue',
     description: issue.title,
     icon: <IntegrationIcon provider={issue.provider} size={13} />,
@@ -291,7 +291,7 @@ const ComposerForStore = observer(function ComposerForStore({
       setAttachments([]);
       editorApiRef.current?.clear();
       const hiddenContext = await buildHiddenIssueContext(value);
-      store.submitPrompt(value, promptAttachments, hiddenContext);
+      store.queuePrompt(value, promptAttachments, hiddenContext);
     },
     [store, buildPromptAttachments, buildHiddenIssueContext]
   );
@@ -631,6 +631,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const [heroSlot, setHeroSlot] = useState<HTMLElement | null>(null);
   const [overlaySlot, setOverlaySlot] = useState<HTMLElement | null>(null);
   const [viewer, setViewer] = useState<{ src?: string; alt?: string } | null>(null);
+  const [mermaidViewer, setMermaidViewer] = useState<{ svg: string | null } | null>(null);
   const placementConversationRef = useRef<string | null>(null);
   const placementWasEmptyRef = useRef<boolean | null>(null);
   // True while the scroll viewport is at the tail. Defaults to true so the
@@ -721,6 +722,11 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       },
       resolveAttachment: (attachment) =>
         store ? resolveAttachmentDataUrl(store, attachment.id) : Promise.resolve(null),
+      onViewMermaid: (arg) => {
+        setMermaidViewer({
+          svg: store?.chatContext.sharedCaches.renderMermaid(arg.chart) ?? null,
+        });
+      },
       onOpenFile: (arg) => {
         if (!store) return;
         const open = arg.source === 'diff' ? openFileInAdjacentPane : openFileInTaskEditor;
@@ -843,6 +849,13 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         }}
         src={viewer?.src}
         alt={viewer?.alt}
+      />
+      <MermaidViewerDialog
+        open={!!mermaidViewer}
+        onOpenChange={(open) => {
+          if (!open) setMermaidViewer(null);
+        }}
+        svg={mermaidViewer?.svg ?? null}
       />
     </div>
   );

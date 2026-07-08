@@ -604,9 +604,9 @@ export function ChatComposer({
     const hasImages = attachments.some((a) => a.kind === 'image');
     if (!text.trim() && !hasImages) return;
     // While the agent is actively working, route to the host's conflict handler
-    // (e.g. a "cancel turn and send" confirmation modal) instead of submitting.
-    if (isWorking && onSubmitWhileWorking) {
-      onSubmitWhileWorking(text);
+    // (e.g. queueing or a cancel-and-send confirmation) instead of submitting.
+    if (isWorking) {
+      onSubmitWhileWorking?.(text);
       return;
     }
     if (disabled || !canSubmit) return;
@@ -708,6 +708,7 @@ export function ChatComposer({
     !!onSendQueuedPromptNow;
   // The permission band takes priority over the notice band.
   const hasBand = canShowQueuedPrompts || !!(permissionRequest ?? notice);
+  const shouldHandleSubmitAttempt = !disabled && (isWorking ? !!onSubmitWhileWorking : canSubmit);
   const resolvedPlaceholder = disabled
     ? 'Session closed'
     : isWorking
@@ -801,7 +802,7 @@ export function ChatComposer({
             placeholder={resolvedPlaceholder}
             disabled={disabled}
             onChange={onInputChange}
-            onSubmit={canSubmit ? handleSubmit : undefined}
+            onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
             onMentionInsert={onMentionInsert}
             mentionProvider={mentionProvider}
             renderMentionIcon={renderMentionIcon}

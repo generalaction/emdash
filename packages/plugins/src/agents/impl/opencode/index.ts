@@ -1,5 +1,3 @@
-import { Readable, Writable } from 'node:stream';
-import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
@@ -7,6 +5,7 @@ import {
   npmDependency,
   opencodeMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
+import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
 
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
@@ -61,11 +60,7 @@ export const provider = registerPluginBehavior(plugin, {
       args: ['acp'],
     }),
     connect: (io, toClient) => {
-      const stream = ndJsonStream(
-        Writable.toWeb(io.stdin) as WritableStream<Uint8Array>,
-        Readable.toWeb(io.stdout) as unknown as ReadableStream<Uint8Array>
-      );
-      return new ClientSideConnection((agent) => toClient(agent as never), stream);
+      return connectStdioAcp(io, toClient);
     },
   },
   prompt: {

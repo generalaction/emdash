@@ -16,24 +16,56 @@ import { cn } from '@renderer/utils/utils';
 import { commitRef, refsEqual } from '@shared/core/git/utils';
 import { ChangesListItem } from '../changes-list-item';
 import { useCommitFiles } from './use-commit-files';
-import { usePrCommits } from './use-pr-commits';
+import { type CommitRange, useCommits } from './use-commits';
 
 const ESTIMATED_COMMIT_ROW_HEIGHT = 43;
 const COMMIT_ROW_GAP = 4;
 
-export const PrCommitsList = observer(function PrCommitsList() {
+const DEFAULT_EMPTY_STATE = {
+  label: 'No commits',
+  description: 'No commits available',
+};
+
+type CommitListEmptyState = {
+  label: string;
+  description: string;
+};
+
+type ExpandedCommitState = {
+  rangeIdentity: string;
+  hashes: ReadonlySet<string>;
+};
+
+const EMPTY_EXPANDED_HASHES: ReadonlySet<string> = new Set();
+
+function commitRangeIdentity(range: CommitRange | undefined): string {
+  if (!range) return 'none';
+  return `${range.source}:${range.baseRefOid}:${range.headRefOid}:${range.revision ?? 0}`;
+}
+
+export const CommitRangeCommitsList = observer(function CommitRangeCommitsList({
+  range,
+  emptyState = DEFAULT_EMPTY_STATE,
+}: {
+  range: CommitRange | undefined;
+  emptyState?: CommitListEmptyState;
+}) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
-  const taskView = useWorkspaceViewModel();
-  const pr = taskView.prStore?.currentPr;
-  const [expandedHashes, setExpandedHashes] = useState<Set<string>>(() => new Set());
-  const { data, isFetchingNextPage, hasNextPage, fetchNextPage } = usePrCommits(
+  const rangeIdentity = commitRangeIdentity(range);
+  const [expanded, setExpanded] = useState<ExpandedCommitState>(() => ({
+    rangeIdentity,
+    hashes: new Set(),
+  }));
+  const { data, isFetchingNextPage, hasNextPage, fetchNextPage } = useCommits(
     projectId,
     workspaceId,
-    pr
+    range
   );
 
-  const commits = data?.pages.flat() ?? [];
+  const commits = data?.pages.flatMap((page) => page.commits) ?? [];
+  const expandedHashes =
+    expanded.rangeIdentity === rangeIdentity ? expanded.hashes : EMPTY_EXPANDED_HASHES;
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: commits.length,
@@ -45,19 +77,21 @@ export const PrCommitsList = observer(function PrCommitsList() {
   });
 
   const toggleExpanded = (hash: string) => {
-    setExpandedHashes((current) => {
-      const next = new Set(current);
+    setExpanded((current) => {
+      const currentHashes =
+        current.rangeIdentity === rangeIdentity ? current.hashes : EMPTY_EXPANDED_HASHES;
+      const next = new Set(currentHashes);
       if (next.has(hash)) {
         next.delete(hash);
       } else {
         next.add(hash);
       }
-      return next;
+      return { rangeIdentity, hashes: next };
     });
   };
 
   if (commits.length === 0 && !isFetchingNextPage) {
-    return <EmptyState label="No commits" description="No commits available" />;
+    return <EmptyState label={emptyState.label} description={emptyState.description} />;
   }
 
   return (
