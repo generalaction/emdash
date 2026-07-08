@@ -82,7 +82,7 @@ const controller = bindContract(workspaceApi, {
   // Forwarded subtree.
   git: upstream.git,
 
-  // Cached group; see Materialization.
+  // Cached group; see Materialization and Replica Local Access.
   conversation: createLiveModelReplica(
     workspaceApi.conversation,
     upstream.conversation,
@@ -106,5 +106,9 @@ Common examples:
 - Electron main wants state that survives renderer reloads.
 - A process wants a local cache before serving the same live model contract to
   downstream clients.
+
+For Electron main and other middle tiers that both serve and inspect live state, use
+the replica local access pattern in
+[Materialization](../live/materialize.md#replica-local-access).
 
 Do not materialize just to forward. Forward the thin ref or subtree directly.

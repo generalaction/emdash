@@ -17,6 +17,7 @@ export {
   createLiveModelReplica,
   isLiveModelReplica,
   type LiveModelReplica,
+  type LiveModelReplicaInstance,
   type LiveModelReplicaOptions,
 } from './replica';
 export { createPlainStore, type StateStore } from './store';

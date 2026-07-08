@@ -165,6 +165,62 @@ equivalent local cursors so downstream settling works without special cases.
 Replicas cache one upstream. If a process needs to merge multiple writers or own
 domain behavior, use `createLiveModelHost()` instead.
 
+### Replica Local Access
+
+Replicas are also the right shape when a serving process needs to inspect the same
+state it forwards. Electron main can keep a replica warm for renderer windows and
+also acquire the materialized instance for local reads:
+
+```ts
+const upstream = client(workspaceApi, connect(sshTransport));
+const conversations = createLiveModelReplica(workspaceApi.conversation, upstream.conversation, {
+  retentionMs: 10 * 60_000,
+});
+
+const controller = bindContract(workspaceApi, {
+  git: upstream.git, // pure forward
+  conversation: conversations, // cached and locally readable
+});
+
+async function summarizeConversation(conversationId: string) {
+  const lease = conversations.acquire({ conversationId });
+  try {
+    const conversation = await lease.ready();
+    return summarize(conversation.models.transcript.current());
+  } finally {
+    await lease.release();
+  }
+}
+```
+
+`acquire()` creates or reuses the managed replica instance and holds it active until
+`release()`. `peek()` returns an already-warm instance without creating a new one:
+
+```ts
+const warm = conversations.peek({ conversationId });
+const transcript = warm?.models.transcript.current();
+```
+
+Long-lived desktop responsibilities, such as badges or notifications, should hold a
+lease in their own scope:
+
+```ts
+const lease = conversations.acquire({ conversationId });
+const conversation = await lease.ready();
+const unsubscribe = conversation.models.transcript.subscribe(() => {
+  updateDockBadge(conversation.models.transcript.current());
+});
+
+scope.add(async () => {
+  unsubscribe();
+  await lease.release();
+});
+```
+
+Renderer subscriptions and desktop leases share the same `ManagedSource` ref count.
+When all leases release, `retentionMs` keeps the instance warm for reloads; after the
+retention window, the replica disposes its upstream subscriptions.
+
 ### Replica Mutation Flow
 
 For a group mutation through a replica:
@@ -187,7 +243,7 @@ as if it owned the state, even though main is only caching one upstream source.
   behavior.
 - Use thin-client forwarding when this process should not keep state.
 - Use `createLiveModelReplica()` when this process should keep a cached copy of one
-  upstream and serve it to downstream clients.
+  upstream, serve it to downstream clients, or inspect it locally.
 
 Replicas are not merge points. If two upstreams can write the same key, put domain
 logic behind a host instead of a replica.

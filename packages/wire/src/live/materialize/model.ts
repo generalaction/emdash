@@ -24,6 +24,7 @@ export class MaterializedModel<T> extends LiveFollower<T> implements LiveSource 
   private readonly store: StateStore<T>;
   private readonly schema: z.ZodType<T> | undefined;
   private readonly waiters = new LiveModelWaiters(() => this.cursor);
+  private readonly localWaiters = new LiveModelWaiters(() => this.localCursor());
   private readonly detachPromise: Promise<Unsubscribe>;
   private localGeneration = nextGeneration();
   private localSequence = 0;
@@ -70,6 +71,10 @@ export class MaterializedModel<T> extends LiveFollower<T> implements LiveSource 
     return this.waiters.waitForCursor(target, timeoutMs);
   }
 
+  waitForLocalCursor(target: LiveCursor, timeoutMs = 15_000): Promise<void> {
+    return this.localWaiters.waitForCursor(target, timeoutMs);
+  }
+
   waitForMutation(mutationId: string, timeoutMs = 15_000): Promise<void> {
     return this.waiters.waitForMutation(mutationId, timeoutMs);
   }
@@ -103,6 +108,7 @@ export class MaterializedModel<T> extends LiveFollower<T> implements LiveSource 
     if (this.disposed) return;
     this.disposed = true;
     this.waiters.rejectAll(new Error('MaterializedModel disposed'));
+    this.localWaiters.rejectAll(new Error('MaterializedModel disposed'));
     this.emitter.clear();
     (await this.detachPromise)();
   }
@@ -114,6 +120,7 @@ export class MaterializedModel<T> extends LiveFollower<T> implements LiveSource 
     this.deps.onChange?.(this.store.current(), { kind: 'seed' });
     this.waiters.flushCursorWaiters();
     this.waiters.flushAllMutationWaiters();
+    this.localWaiters.flushCursorWaiters();
   }
 
   protected applyDelta(update: LiveUpdate): LiveFollowerApplyResult<T> {
@@ -146,6 +153,7 @@ export class MaterializedModel<T> extends LiveFollower<T> implements LiveSource 
     });
     this.waiters.flushCursorWaiters();
     this.waiters.flushMutationWaiters(update.mutationIds ?? []);
+    this.localWaiters.flushCursorWaiters();
   }
 
   private localCursor(): LiveCursor {
