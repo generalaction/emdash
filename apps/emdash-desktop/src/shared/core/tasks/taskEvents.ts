@@ -4,6 +4,17 @@ import { defineEvent } from '@shared/lib/ipc/events';
 
 export const taskCreatedChannel = defineEvent<{ task: Task }>('task:created');
 
+/**
+ * Emitted by the main process whenever a task is archived — regardless of
+ * initiator (renderer, automations, inbound MCP server). The renderer's
+ * own archive flow updates its store optimistically, so its handler for
+ * this event must be (and is) idempotent; the event exists so headless
+ * archives reach open windows too.
+ */
+export const taskArchivedChannel = defineEvent<{ taskId: string; projectId: string }>(
+  'task:archived'
+);
+
 export const taskStatusUpdatedChannel = defineEvent<{
   taskId: string;
   projectId: string;
