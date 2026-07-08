@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/native-acp.test.ts
+  s_53e61aba6bd499::t_6206c88bf7ef7b 20-22,27-29,88
+packages/plugins/src/agents/impl/amp/index.ts
+  s_53e61aba6bd499::t_6206c88bf7ef7b 1,16-19,83-84,86-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9085063a707e7a27a68c91f6cd8f1c47a9db04e4",
+  "prompts": {},
+  "sessions": {
+    "s_53e61aba6bd499": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033m05LNuGyFsW42veII3c",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
