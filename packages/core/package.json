@@ -77,6 +77,14 @@
       "types": "./dist/workspace-lifecycle.d.mts",
       "default": "./dist/workspace-lifecycle.mjs"
     },
+    "./workspace-activity": {
+      "types": "./dist/workspace-activity.d.mts",
+      "default": "./dist/workspace-activity.mjs"
+    },
+    "./workspace-coordinator": {
+      "types": "./dist/workspace-coordinator.d.mts",
+      "default": "./dist/workspace-coordinator.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

@@ -18,6 +18,8 @@ export default defineConfig({
     wire: 'src/wire/index.ts',
     'workspace-server': 'src/workspace-server/index.ts',
     'workspace-lifecycle': 'src/workspace-lifecycle/index.ts',
+    'workspace-activity': 'src/workspace-activity/index.ts',
+    'workspace-coordinator': 'src/workspace-coordinator/index.ts',
   },
   format: ['esm'],
   dts: true,
