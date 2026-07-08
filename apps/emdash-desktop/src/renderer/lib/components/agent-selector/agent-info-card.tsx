@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react';
 import React from 'react';
+import { DefaultModelSelect } from '@renderer/features/settings/agents-page/DefaultModelSelect';
 import { InstallSection } from '@renderer/features/settings/agents-page/InstallSection';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
@@ -37,6 +38,10 @@ export const AgentInfoCard: React.FC<Props> = ({ id, connectionId }) => {
 
   const isInstalled = (statusData?.status ?? payload?.status) === 'available';
   const isDefaultAgent = defaultAgent === id;
+  const modelOptions =
+    payload?.capabilities.models.kind === 'selectable'
+      ? payload.capabilities.models.modelOptions
+      : null;
 
   function handleSetDefaultAgent(checked: boolean) {
     if (!checked || isDefaultAgent) return;
@@ -67,20 +72,34 @@ export const AgentInfoCard: React.FC<Props> = ({ id, connectionId }) => {
         <p className="mb-2 text-xs leading-relaxed text-foreground-muted">{description}</p>
       ) : null}
 
-      <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-border bg-background-1 px-2.5 py-2">
-        <label
-          htmlFor={`set-default-agent-${id}`}
-          className="min-w-0 flex-1 text-xs text-foreground"
-        >
-          Set as the default agent
-        </label>
-        <Switch
-          id={`set-default-agent-${id}`}
-          size="sm"
-          checked={isDefaultAgent}
-          disabled={!isInstalled || isDefaultAgentLoading || isDefaultAgentSaving}
-          onCheckedChange={handleSetDefaultAgent}
-        />
+      <div className="mb-3 flex flex-col gap-2 rounded-md border border-border bg-background-1 px-2.5 py-2">
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor={`set-default-agent-${id}`}
+            className="min-w-0 flex-1 text-xs text-foreground"
+          >
+            Set as the default agent
+          </label>
+          <Switch
+            id={`set-default-agent-${id}`}
+            size="sm"
+            checked={isDefaultAgent}
+            disabled={!isInstalled || isDefaultAgentLoading || isDefaultAgentSaving}
+            onCheckedChange={handleSetDefaultAgent}
+          />
+        </div>
+        {isDefaultAgent && modelOptions ? (
+          <div className="flex items-center justify-between gap-3">
+            <span className="min-w-0 flex-1 text-xs text-foreground">Default model</span>
+            <DefaultModelSelect
+              agentId={id}
+              modelSettingKey="defaultModel"
+              modelOptions={modelOptions}
+              disabled={!isInstalled}
+              className="shrink-0"
+            />
+          </div>
+        ) : null}
       </div>
 
       {payload && (

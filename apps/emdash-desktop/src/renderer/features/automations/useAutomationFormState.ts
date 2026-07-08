@@ -103,6 +103,9 @@ export function useAutomationFormState(
 
   const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider, false, {
     resetPromptOnProjectChange: false,
+    defaultAgentSettingKey: 'defaultAutomationAgent',
+    defaultModelSettingKey: 'defaultAutomationModel',
+    applyDefaultModel: !seed,
   });
 
   const [promptSeeded, setPromptSeeded] = useState(false);

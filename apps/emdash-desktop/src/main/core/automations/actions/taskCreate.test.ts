@@ -326,6 +326,83 @@ describe('executeTaskCreate', () => {
     );
   });
 
+  it('uses automation default agent and model when the automation has no provider or model', async () => {
+    vi.mocked(appSettingsService.get).mockImplementation(async (key) => {
+      if (key === 'defaultAutomationAgent') return 'codex' as never;
+      if (key === 'defaultAutomationModel') return 'gpt-5-codex' as never;
+      return null as never;
+    });
+
+    await executeTaskCreate(
+      {
+        ...automation,
+        conversationConfig: { prompt: 'Check things', provider: '', autoApprove: false },
+      },
+      run,
+      noopStep
+    );
+
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'codex',
+        model: 'gpt-5-codex',
+      })
+    );
+  });
+
+  it('keeps an automation-specific model ahead of the automation default model', async () => {
+    vi.mocked(appSettingsService.get).mockImplementation(async (key) => {
+      if (key === 'defaultAutomationAgent') return 'claude' as never;
+      if (key === 'defaultAutomationModel') return 'claude-default' as never;
+      return null as never;
+    });
+
+    await executeTaskCreate(
+      {
+        ...automation,
+        conversationConfig: {
+          prompt: 'Check things',
+          provider: 'claude',
+          autoApprove: false,
+          model: 'claude-specific',
+        },
+      },
+      run,
+      noopStep
+    );
+
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'claude',
+        model: 'claude-specific',
+      })
+    );
+  });
+
+  it('does not apply a later automation default model to an automation with an explicit provider', async () => {
+    vi.mocked(appSettingsService.get).mockImplementation(async (key) => {
+      if (key === 'defaultAutomationAgent') return 'claude' as never;
+      if (key === 'defaultAutomationModel') return 'claude-default' as never;
+      return null as never;
+    });
+
+    await executeTaskCreate(
+      {
+        ...automation,
+        conversationConfig: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      },
+      run,
+      noopStep
+    );
+
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'claude',
+        model: undefined,
+      })
+    );
+  });
+
   it('creates ACP conversations with an initial queue and eagerly starts the session', async () => {
     await executeTaskCreate(
       {
@@ -345,6 +422,53 @@ describe('executeTaskCreate', () => {
     expect(createConversation).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: 'claude',
+        model: 'sonnet',
+        initialQueue: [{ text: 'Check things' }],
+        isInitialConversation: true,
+        type: 'acp',
+      })
+    );
+    expect(vi.mocked(createConversation).mock.calls[0]?.[0].initialPrompt).toBeUndefined();
+    expect(acpRuntimeProcedures.startSession).toHaveBeenCalledWith({
+      input: expect.objectContaining({
+        conversationId: expect.any(String),
+        projectId: 'project-1',
+        taskId: expect.any(String),
+        providerId: 'claude',
+        workspaceId: 'workspace-1',
+        cwd: '/tmp/task',
+        sessionId: null,
+        model: 'sonnet',
+        initialQueue: [{ text: 'Check things' }],
+      }),
+    });
+  });
+
+  it('passes automation default model to ACP startup when no provider is configured', async () => {
+    vi.mocked(appSettingsService.get).mockImplementation(async (key) => {
+      if (key === 'defaultAutomationAgent') return 'claude' as never;
+      if (key === 'defaultAutomationModel') return 'sonnet' as never;
+      return null as never;
+    });
+
+    await executeTaskCreate(
+      {
+        ...automation,
+        conversationConfig: {
+          prompt: 'Check things',
+          provider: '',
+          autoApprove: false,
+          type: 'acp',
+        },
+      },
+      run,
+      noopStep
+    );
+
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'claude',
+        model: 'sonnet',
         initialQueue: [{ text: 'Check things' }],
         isInitialConversation: true,
         type: 'acp',
