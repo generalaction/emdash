@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/assets/images/mimocode.svg
+  s_e7c8ebd90eb6bf::t_ea77929bfe3979 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8e98c39f613091370ba926fbd7dd18b5735af45a",
+  "prompts": {},
+  "sessions": {
+    "s_e7c8ebd90eb6bf": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lmwRK2LVirHDLIq0Wd4",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
