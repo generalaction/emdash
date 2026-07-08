@@ -49,15 +49,42 @@ export const ModalRenderer = observer(function ModalRenderer() {
   const DisplayComponent = lastComponentRef.current;
   const displayArgs = lastArgsRef.current;
   const displayEntry = lastEntryRef.current;
+  const activeModalId = modalStore.activeModalId;
+  const ignoreNextOutsidePressRef = useRef(false);
+
+  useEffect(() => {
+    ignoreNextOutsidePressRef.current = false;
+  }, [activeModalId]);
+
+  useEffect(() => {
+    const handleWindowBlur = () => {
+      if (modalStore.isOpen && entry?.ignoreOutsidePressAfterWindowBlur) {
+        ignoreNextOutsidePressRef.current = true;
+      }
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
+    return () => window.removeEventListener('blur', handleWindowBlur);
+  }, [entry?.ignoreOutsidePressAfterWindowBlur]);
 
   const handleOpenChange = (
     open: boolean,
     eventDetails: DialogPrimitive.Root.ChangeEventDetails
   ) => {
     if (!open && modalStore.isOpen) {
-      const isPassiveDismiss =
-        eventDetails.reason === 'outside-press' || eventDetails.reason === 'escape-key';
+      const isOutsidePress = eventDetails.reason === 'outside-press';
+      if (
+        isOutsidePress &&
+        displayEntry?.ignoreOutsidePressAfterWindowBlur &&
+        ignoreNextOutsidePressRef.current
+      ) {
+        ignoreNextOutsidePressRef.current = false;
+        return;
+      }
+
+      const isPassiveDismiss = isOutsidePress || eventDetails.reason === 'escape-key';
       if (modalStore.closeGuardActive && isPassiveDismiss) return;
+      ignoreNextOutsidePressRef.current = false;
       modalStore.closeModal();
     }
   };
@@ -103,6 +130,11 @@ export const ModalRenderer = observer(function ModalRenderer() {
           onKeyDownCapture={(e) => {
             if ((e.metaKey || e.ctrlKey || e.altKey) && e.key === 'Enter') {
               e.preventDefault();
+            }
+          }}
+          onPointerDownCapture={() => {
+            if (displayEntry?.ignoreOutsidePressAfterWindowBlur) {
+              ignoreNextOutsidePressRef.current = false;
             }
           }}
           className={cn(
