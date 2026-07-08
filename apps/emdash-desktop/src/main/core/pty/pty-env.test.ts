@@ -141,6 +141,9 @@ describe('buildAgentEnv provider env forwarding', () => {
       QWEN_SANDBOX: '1',
       QWEN_CODE_SUPPRESS_YOLO_WARNING: '1',
       ALL_PROXY: 'socks5://127.0.0.1:9000',
+      DEEPCODE_API_KEY: 'deepcode-key',
+      DEEPCODE_NOTIFY: '/tmp/deepcode-notify.sh',
+      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: 'github-mcp-token',
     };
     Object.assign(process.env, providerEnv, {
       CLAUDE_PROJECT_DIR: '/tmp/hook-owned',

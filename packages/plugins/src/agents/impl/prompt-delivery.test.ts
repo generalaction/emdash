@@ -43,11 +43,14 @@ describe('prompt delivery (ENG-1546 regression)', () => {
 
   // Keystroke agents deliver the prompt by typing into the TUI; it must never leak
   // into argv (their CLIs reject/parse a bare positional differently).
-  it.each(['jules', 'freebuff'])('%s uses keystroke delivery and no argv prompt', (id) => {
-    const plugin = pluginRegistry.get(id)!;
-    expect(plugin.capabilities.prompt.kind).toBe('keystroke');
+  it.each(['deepcode', 'jules', 'freebuff'])(
+    '%s uses keystroke delivery and no argv prompt',
+    (id) => {
+      const plugin = pluginRegistry.get(id)!;
+      expect(plugin.capabilities.prompt.kind).toBe('keystroke');
 
-    const args = buildArgs(id, freshCtx());
-    expect(args).not.toContain(PROMPT_TOKEN);
-  });
+      const args = buildArgs(id, freshCtx());
+      expect(args).not.toContain(PROMPT_TOKEN);
+    }
+  );
 });

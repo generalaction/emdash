@@ -29,6 +29,18 @@ describe('AGENT_PROVIDERS', () => {
     });
   });
 
+  it('registers Deep Code with the DeepSeek integration docs and npm package', () => {
+    const deepcode = AGENT_PROVIDERS.find((provider) => provider.id === 'deepcode');
+
+    expect(deepcode).toMatchObject({
+      docUrl: 'https://api-docs.deepseek.com/quick_start/agent_integrations/deepcode',
+      installCommand: 'npm install -g @vegamo/deepcode-cli',
+      commands: ['deepcode'],
+      useKeystrokeInjection: true,
+      terminalOnly: true,
+    });
+  });
+
   it('keeps ACP capability flags aligned with plugin behavior', () => {
     const pluginAcpProviderIds = pluginRegistry
       .getAll()

@@ -274,6 +274,44 @@ describe('pluginRegistry', () => {
     });
   });
 
+  it('registers Deep Code as a keystroke-driven DeepSeek CLI with MCP settings support', () => {
+    const deepcode = pluginRegistry.get('deepcode')!;
+
+    expect(deepcode.metadata.websiteUrl).toBe(
+      'https://api-docs.deepseek.com/quick_start/agent_integrations/deepcode'
+    );
+    expect(deepcode.capabilities.hostDependency).toMatchObject({
+      id: 'deepcode',
+      binaryNames: ['deepcode'],
+      updates: {
+        kind: 'supported',
+        releaseSource: { kind: 'npm', package: '@vegamo/deepcode-cli' },
+      },
+    });
+    expect(deepcode.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'npm install -g @vegamo/deepcode-cli'
+    );
+    expect(deepcode.capabilities.prompt).toEqual({ kind: 'keystroke' });
+    expect(deepcode.capabilities.sessions).toEqual({ kind: 'stateless' });
+    expect(deepcode.capabilities.mcp).toMatchObject({
+      kind: 'supported',
+      scope: 'global',
+      supportedTransports: ['stdio'],
+    });
+    expect(deepcode.behavior.mcp).toBeDefined();
+
+    const result = deepcode.behavior.prompt!.buildCommand({
+      cli: 'deepcode',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+
+    expect(result).toEqual({ command: 'deepcode', args: [], env: {} });
+  });
+
   it('resumes Pi with the stored session file instead of the latest session', () => {
     const pi = pluginRegistry.get('pi')!;
 

@@ -111,6 +111,14 @@ function getAllowlistedEnv(keys: readonly string[]): Record<string, string> {
   return env;
 }
 
+function getEnvByPrefix(prefix: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, val] of Object.entries(process.env)) {
+    if (key.startsWith(prefix) && val) env[key] = val;
+  }
+  return env;
+}
+
 function getWindowsEssentialEnv(resolvedPath: string): Record<string, string> {
   const home = os.homedir();
   return {
@@ -284,6 +292,7 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
       const val = process.env[key];
       if (val) env[key] = val;
     }
+    Object.assign(env, getEnvByPrefix('DEEPCODE_'));
   }
 
   if (providerVars) {

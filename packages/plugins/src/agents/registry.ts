@@ -14,6 +14,7 @@ import { provider as commandcode } from './impl/commandcode';
 import { provider as continueCli } from './impl/continue';
 import { provider as copilot } from './impl/copilot';
 import { provider as cursor } from './impl/cursor';
+import { provider as deepcode } from './impl/deepcode';
 import { provider as devin } from './impl/devin';
 import { provider as droid } from './impl/droid';
 import { provider as freebuff } from './impl/freebuff';
@@ -51,6 +52,7 @@ for (const p of [
   continueCli,
   copilot,
   cursor,
+  deepcode,
   devin,
   droid,
   freebuff,
