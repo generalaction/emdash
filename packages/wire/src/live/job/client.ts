@@ -69,6 +69,15 @@ export class LiveJobClient<P, R, E> {
     this.model.applyUpdate(update);
   }
 
+  async refresh(): Promise<void> {
+    this.suppressProgress = true;
+    try {
+      await this.model.refresh();
+    } finally {
+      this.suppressProgress = false;
+    }
+  }
+
   onProgress(cb: (progress: P) => void): Unsubscribe {
     return this.progressEmitter.subscribe(cb);
   }

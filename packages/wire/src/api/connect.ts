@@ -7,6 +7,10 @@ export type CallOptions = {
   signal?: AbortSignal;
 };
 
+export type AttachOptions = {
+  onReattach?: () => void;
+};
+
 export type ConnectOptions = {
   instrumentation?: WireInstrumentation;
 };
@@ -17,16 +21,26 @@ type PendingCall = {
   cleanup(): void;
 };
 
+type Attachment = {
+  pushes: Set<(update: LiveUpdate) => void>;
+  onReattach: Set<() => void>;
+  established: Promise<void>;
+};
+
 export type Connection = {
   call(path: string, input: unknown, options?: CallOptions): Promise<unknown>;
   snapshot(topic: string): Promise<LiveSnapshot<unknown>>;
-  attach(topic: string, push: (update: LiveUpdate) => void): Promise<Unsubscribe>;
+  attach(
+    topic: string,
+    push: (update: LiveUpdate) => void,
+    options?: AttachOptions
+  ): Promise<Unsubscribe>;
   onDisconnect(cb: () => void): Unsubscribe;
 };
 
 export function connect(transport: WireTransport, options: ConnectOptions = {}): Connection {
   const pending = new Map<string, PendingCall>();
-  const attachments = new Map<string, Set<(update: LiveUpdate) => void>>();
+  const attachments = new Map<string, Attachment>();
   const disconnectListeners = new Set<() => void>();
   const instrumentation = options.instrumentation;
 
@@ -47,7 +61,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     }
 
     if (message.kind === 'update') {
-      for (const push of attachments.get(message.topic) ?? []) push(message.update);
+      for (const push of attachments.get(message.topic)?.pushes ?? []) push(message.update);
     }
   });
 
@@ -60,8 +74,12 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     pending.clear();
 
     for (const listener of disconnectListeners) listener();
-    for (const topic of attachments.keys()) {
-      request({ kind: 'attach', id: createRequestId(), topic }).catch(() => {});
+  });
+
+  transport.onReconnect?.(() => {
+    instrumentation?.transport?.({ event: 'reconnect' });
+    for (const [topic, entry] of attachments) {
+      entry.established = establishAttachment(topic, entry, true);
     }
   });
 
@@ -175,21 +193,31 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
         LiveSnapshot<unknown>
       >;
     },
-    async attach(topic, push) {
-      let pushes = attachments.get(topic);
-      if (!pushes) {
-        pushes = new Set();
-        attachments.set(topic, pushes);
-        await request({ kind: 'attach', id: createRequestId(), topic });
+    async attach(topic, push, attachOptions = {}) {
+      const entry = getOrCreateAttachment(topic);
+      entry.pushes.add(push);
+      if (attachOptions.onReattach) entry.onReattach.add(attachOptions.onReattach);
+
+      try {
+        await entry.established;
+      } catch (error) {
+        entry.pushes.delete(push);
+        if (attachOptions.onReattach) entry.onReattach.delete(attachOptions.onReattach);
+        throw error;
       }
-      pushes.add(push);
 
       return () => {
         const current = attachments.get(topic);
-        current?.delete(push);
-        if ((current?.size ?? 0) > 0) return;
+        if (current !== entry) return;
+        current.pushes.delete(push);
+        if (attachOptions.onReattach) current.onReattach.delete(attachOptions.onReattach);
+        if (current.pushes.size > 0) return;
         attachments.delete(topic);
-        transport.post({ kind: 'detach', topic });
+        try {
+          transport.post({ kind: 'detach', topic });
+        } catch {
+          // The peer may already be disconnected; local teardown is complete.
+        }
       };
     },
     onDisconnect(cb): Unsubscribe {
@@ -197,6 +225,43 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       return () => disconnectListeners.delete(cb);
     },
   };
+
+  function getOrCreateAttachment(topic: string): Attachment {
+    const current = attachments.get(topic);
+    if (current) return current;
+    const created: Attachment = {
+      pushes: new Set(),
+      onReattach: new Set(),
+      established: Promise.resolve(),
+    };
+    attachments.set(topic, created);
+    created.established = establishAttachment(topic, created, false);
+    return created;
+  }
+
+  function establishAttachment(
+    topic: string,
+    entry: Attachment,
+    notifyReattach: boolean
+  ): Promise<void> {
+    const established = request({ kind: 'attach', id: createRequestId(), topic }).then(() => {});
+    established.then(
+      () => {
+        if (!notifyReattach || attachments.get(topic) !== entry) return;
+        for (const cb of entry.onReattach) {
+          try {
+            cb();
+          } catch {
+            // Reattach observers are best-effort and must not break the connection.
+          }
+        }
+      },
+      () => {
+        if (attachments.get(topic) === entry) attachments.delete(topic);
+      }
+    );
+    return established;
+  }
 }
 
 function performanceNow(): number {

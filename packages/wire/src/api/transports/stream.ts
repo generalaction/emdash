@@ -23,6 +23,7 @@ export function streamTransport(input: ReadableLike, output: WritableLike): Wire
   };
 
   input.on('data', (chunk) => {
+    if (disconnected) return;
     buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     let index = buffer.indexOf('\n');
     while (index !== -1) {
@@ -38,6 +39,7 @@ export function streamTransport(input: ReadableLike, output: WritableLike): Wire
 
   return {
     post(message) {
+      if (disconnected) throw new Error('Stream transport disconnected');
       output.write(`${JSON.stringify(message)}\n`);
     },
     onMessage(cb): Unsubscribe {
@@ -47,6 +49,12 @@ export function streamTransport(input: ReadableLike, output: WritableLike): Wire
     onDisconnect(cb): Unsubscribe {
       disconnectListeners.add(cb);
       return () => disconnectListeners.delete(cb);
+    },
+    close() {
+      notifyDisconnect();
+      messageListeners.clear();
+      disconnectListeners.clear();
+      buffer = '';
     },
   };
 }

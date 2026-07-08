@@ -11,6 +11,7 @@ export type DomPortLike = {
 
 export function domPortTransport(port: DomPortLike): WireTransport {
   const disconnectListeners = new Set<() => void>();
+  const messageListeners = new Set<(event: { data?: unknown }) => void>();
   const notifyDisconnect = (): void => {
     for (const listener of disconnectListeners) listener();
   };
@@ -24,12 +25,23 @@ export function domPortTransport(port: DomPortLike): WireTransport {
       const listener = (event: { data?: unknown }) => {
         if (isWireMessage(event.data)) cb(event.data);
       };
+      messageListeners.add(listener);
       port.addEventListener('message', listener);
-      return () => port.removeEventListener?.('message', listener);
+      return () => {
+        messageListeners.delete(listener);
+        port.removeEventListener?.('message', listener);
+      };
     },
     onDisconnect(cb): Unsubscribe {
       disconnectListeners.add(cb);
       return () => disconnectListeners.delete(cb);
+    },
+    close() {
+      for (const listener of messageListeners) port.removeEventListener?.('message', listener);
+      messageListeners.clear();
+      port.removeEventListener?.('close', notifyDisconnect);
+      disconnectListeners.clear();
+      port.close?.();
     },
   };
 }

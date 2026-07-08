@@ -15,6 +15,7 @@ class FakeMessagePort {
   private domListeners = new Map<string, Set<(event: { data?: unknown }) => void>>();
   started = false;
   closed = false;
+  closeCalls = 0;
 
   pair(peer: FakeMessagePort): void {
     this.peer = peer;
@@ -30,6 +31,7 @@ class FakeMessagePort {
   }
 
   close(): void {
+    this.closeCalls += 1;
     if (this.closed) return;
     this.closed = true;
     this.emitClose();
@@ -150,6 +152,7 @@ describe('Electron wire helpers', () => {
     const ipcRenderer = new FakeIpcRenderer(ipcMain, sender);
     sender.renderer = ipcRenderer;
     const windowLike = new FakeWindow();
+    const mainPorts: FakeMessagePort[] = [];
     const controller = bindContract(api, {
       ping: ({ value }) => `pong:${value}`,
       state: () => ({
@@ -164,6 +167,7 @@ describe('Electron wire helpers', () => {
         createMessageChannel: () => {
           const port1 = new FakeMessagePort();
           const port2 = new FakeMessagePort();
+          mainPorts.push(port1);
           port1.pair(port2);
           port2.pair(port1);
           return { port1, port2 };
@@ -183,6 +187,49 @@ describe('Electron wire helpers', () => {
 
     dispose();
     expect(ipcMain.handlers.has('wire:connect')).toBe(false);
+    expect(secondPort.closed).toBe(true);
+    expect(mainPorts[1]?.closeCalls).toBe(1);
+  });
+
+  it('removes naturally closed ports from the session map', async () => {
+    const ipcMain = new FakeIpcMain();
+    const sender = new FakeWebContents();
+    const ipcRenderer = new FakeIpcRenderer(ipcMain, sender);
+    sender.renderer = ipcRenderer;
+    const windowLike = new FakeWindow();
+    const mainPorts: FakeMessagePort[] = [];
+    const controller = bindContract(api, {
+      ping: ({ value }) => `pong:${value}`,
+      state: () => ({
+        snapshot: () => ({ generation: 1, sequence: 0, timestamp: 0, data: { ready: true } }),
+        subscribe: () => () => {},
+      }),
+    });
+
+    const dispose = exposeWireToWindows(
+      {
+        ipcMain,
+        createMessageChannel: () => {
+          const port1 = new FakeMessagePort();
+          const port2 = new FakeMessagePort();
+          mainPorts.push(port1);
+          port1.pair(port2);
+          port2.pair(port1);
+          return { port1, port2 };
+        },
+      },
+      controller
+    );
+
+    const firstPort = await requestAndAwaitPort(ipcRenderer, windowLike);
+    firstPort.close();
+    expect(mainPorts[0]?.closed).toBe(true);
+    expect(mainPorts[0]?.closeCalls).toBe(1);
+
+    await requestAndAwaitPort(ipcRenderer, windowLike);
+    expect(mainPorts[0]?.closeCalls).toBe(1);
+
+    dispose();
   });
 });
 

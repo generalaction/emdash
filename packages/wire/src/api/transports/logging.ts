@@ -28,6 +28,18 @@ export function loggingTransport(
         cb();
       });
     },
+    onReconnect(cb) {
+      return (
+        transport.onReconnect?.(() => {
+          logger.debug('wire protocol reconnected');
+          cb();
+        }) ?? (() => {})
+      );
+    },
+    close() {
+      logger.debug('wire protocol closing');
+      transport.close?.();
+    },
   };
 }
 

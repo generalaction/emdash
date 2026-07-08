@@ -7,11 +7,19 @@ type WireTransport = {
   post(message: WireMessage): void;
   onMessage(cb: (message: WireMessage) => void): Unsubscribe;
   onDisconnect(cb: () => void): Unsubscribe;
+  onReconnect?(cb: () => void): Unsubscribe;
+  close?(): void;
 };
 ```
 
 The same `serve()`, `connect()`, and `contractClient()` code works across every
 transport. Only construction changes.
+
+`onReconnect` is optional and should fire only after a replacement link is live.
+`connect()` uses it to re-attach live topics; typed live clients then force a fresh
+snapshot. `close()` releases listeners registered by the adapter. It closes the
+underlying channel only when the adapter owns a closeable channel, such as a
+`MessagePort`.
 
 ## Memory
 
@@ -25,7 +33,8 @@ serve(pair.right, controller);
 const client = contractClient(api, connect(pair.left));
 ```
 
-`pair.disconnect()` disconnects both sides.
+`pair.disconnect()` disconnects both sides. Each endpoint also exposes `close()`,
+which aliases the pair disconnect for test cleanup.
 
 ## Event Ports
 
@@ -38,6 +47,8 @@ serve(transport, controller);
 ```
 
 The adapter listens for `close`, `exit`, and `error` as disconnect signals.
+`close()` removes the message and lifecycle listeners it registered and calls
+`port.close?.()`.
 
 ## DOM MessagePort
 
@@ -51,6 +62,7 @@ const connection = connect(domPortTransport(channel.port2));
 ```
 
 The adapter calls `port.start?.()` and listens for `message` and `close` events.
+`close()` removes those listeners and calls `port.close?.()`.
 
 ## Electron Windows
 
@@ -76,8 +88,9 @@ const port = await awaitWirePort(window, { channel: 'wire' });
 const client = contractClient(api, connect(domPortTransport(port as MessagePort)));
 ```
 
-Opening a new port for the same `webContents.id` closes the old one. Internally,
-the helper uses `createWireSessionHub(controller)`.
+Opening a new port for the same `webContents.id` closes the old one. Naturally
+closed ports are removed from the session map. Internally, the helper uses
+`createWireSessionHub(controller)`, so session teardown also closes the transport.
 
 ## Node Streams
 
@@ -90,7 +103,9 @@ const client = contractClient(api, connect(transport));
 ```
 
 Malformed frames are ignored. `close`, `end`, and `error` on the readable side
-trigger disconnect listeners.
+trigger disconnect listeners. `close()` stops parsing and clears local listeners;
+it does not close the readable or writable streams because those streams are owned
+by the caller.
 
 ## Reconnecting
 
@@ -102,13 +117,19 @@ const transport = reconnectingTransport(
     const pair = await openRemoteWirePair();
     return pair.left;
   },
-  { backoffMs: [100, 250, 500, 1000] }
+  { backoffMs: [100, 250, 500, 1000], maxQueuedMessages: 1000 }
 );
 ```
 
 Messages posted while no inner transport is connected are queued. When an inner
-transport disconnects, listeners are notified and reconnection starts. Existing
-`Connection` attachments re-request their `attach` messages after disconnect.
+transport disconnects, listeners are notified and reconnection starts. The queue
+is bounded with drop-oldest semantics; `maxQueuedMessages` defaults to `1000`.
+
+`onReconnect` fires after a replacement inner transport is connected and queued
+messages are flushed. `Connection` listens for that signal, re-issues active
+`attach` requests, and typed live model, log, and job bindings refresh their
+snapshots after reattach. `close()` stops the retry loop, closes the current inner
+transport if present, and clears queued messages and listeners.
 
 ## Process Transport
 
@@ -121,6 +142,9 @@ const client = contractClient(api, connect(processTransport(runtime)));
 ```
 
 See [process host](../runtime/process-host.md).
+
+`close()` releases `ManagedProcess` message and exit subscriptions. It does not
+kill the process; process lifetime remains owned by the `ProcessHost`/`Scope`.
 
 ## Logging Transport
 
@@ -137,3 +161,6 @@ const transport = loggingTransport(pair.right, logger.child({ side: 'server' }),
 Use it for local debugging and integration diagnostics. For semantic request
 events, prefer instrumentation and `withLogging()`; see
 [observability](../observability.md).
+
+`loggingTransport.close()` delegates to the wrapped transport, and
+`onReconnect()` is forwarded when the wrapped transport supports it.

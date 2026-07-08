@@ -3,6 +3,7 @@ import type { WireMessage, WireTransport } from '../protocol';
 
 type MemoryEndpoint = WireTransport & {
   disconnect(): void;
+  close(): void;
 };
 
 export type MemoryTransportPair = {
@@ -29,8 +30,8 @@ export function memoryTransportPair(): MemoryTransportPair {
   };
 
   return {
-    left: { ...left, disconnect },
-    right: { ...right, disconnect },
+    left: { ...left, disconnect, close: disconnect },
+    right: { ...right, disconnect, close: disconnect },
     disconnect,
   };
 }

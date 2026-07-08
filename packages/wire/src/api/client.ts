@@ -224,7 +224,9 @@ function bindModel(
   });
   const unregister = bindingRegistry.register(ref, key, model);
   const ready = fetchSnapshot().then((snapshot) => model.seed(snapshot));
-  const detach = connection.attach(topic, (update) => model.applyUpdate(update));
+  const detach = connection.attach(topic, (update) => model.applyUpdate(update), {
+    onReattach: () => void model.refresh(),
+  });
   return {
     client: model,
     ready,
@@ -252,7 +254,9 @@ function bindLog(
   const ready = connection
     .snapshot(topic)
     .then((snapshot) => log.seed(snapshot as LiveSnapshot<LiveLogSnapshotData>));
-  const detach = connection.attach(topic, (update: LiveUpdate) => log.applyUpdate(update));
+  const detach = connection.attach(topic, (update: LiveUpdate) => log.applyUpdate(update), {
+    onReattach: () => void log.refresh(),
+  });
   return {
     client: log,
     ready,
@@ -297,7 +301,9 @@ async function bindJobHandle(
     .then((snapshot) =>
       job.seed(snapshot as LiveSnapshot<LiveJobState<unknown, unknown, unknown>>)
     );
-  const detach = connection.attach(topic, (update: LiveUpdate) => job.applyUpdate(update));
+  const detach = connection.attach(topic, (update: LiveUpdate) => job.applyUpdate(update), {
+    onReattach: () => void job.refresh(),
+  });
   let disposed = false;
 
   const dispose = async (): Promise<void> => {

@@ -77,6 +77,8 @@ export type WireTransport = {
   post(message: WireMessage): void;
   onMessage(cb: (message: WireMessage) => void): Unsubscribe;
   onDisconnect(cb: () => void): Unsubscribe;
+  onReconnect?(cb: () => void): Unsubscribe;
+  close?(): void;
 };
 
 export class WireError extends Error {

@@ -82,12 +82,18 @@ const connection = connect(pair.left, { instrumentation });
 
 - `call(path, input, { signal? })`.
 - `snapshot(topic)`.
-- `attach(topic, push)`.
+- `attach(topic, push, { onReattach? })`.
 - `onDisconnect(cb)`.
 
 On disconnect, pending calls reject with `WireError` code `DISCONNECTED`.
-Existing attachments are re-requested when the transport accepts messages again,
-which is useful with `reconnectingTransport()`.
+Existing attachments are retained locally. If the transport exposes
+`onReconnect`, `connect()` re-issues active `attach` requests after the replacement
+link is live and then calls each attachment's `onReattach` callback.
+
+`contractClient()` uses `onReattach` for live models, live logs, and live jobs to
+force a fresh snapshot after reattach. This closes the stale-generation case where
+a server restarts or reseeds a live source without immediately sending update
+traffic.
 
 The protocol layer intentionally has no version handshake. Receivers validate the
 message `kind` and required fields in `isWireMessage()`; unknown message kinds are
@@ -245,7 +251,8 @@ const client = contractClient(api, connect(pair.left));
 ```
 
 Opening the same session id closes the previous transport. `close(id)` closes
-one session. `dispose()` closes all sessions and calls `controller.dispose?.()`.
+one session and calls `transport.close?.()` after disposing the serve loop.
+`dispose()` closes all sessions and calls `controller.dispose?.()`.
 
 See [../../examples/multi-window/client.ts](../../examples/multi-window/client.ts).
 

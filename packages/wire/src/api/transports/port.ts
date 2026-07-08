@@ -6,17 +6,19 @@ export type PortLike = {
   on(event: string, cb: (...args: unknown[]) => void): void;
   off?(event: string, cb: (...args: unknown[]) => void): void;
   removeListener?(event: string, cb: (...args: unknown[]) => void): void;
+  close?(): void;
 };
 
 export function portTransport(port: PortLike): WireTransport {
   const disconnectListeners = new Set<() => void>();
+  const messageListeners = new Set<(...args: unknown[]) => void>();
   const notifyDisconnect = (): void => {
     for (const listener of disconnectListeners) listener();
   };
 
-  port.on?.('close', notifyDisconnect);
-  port.on?.('exit', notifyDisconnect);
-  port.on?.('error', notifyDisconnect);
+  port.on('close', notifyDisconnect);
+  port.on('exit', notifyDisconnect);
+  port.on('error', notifyDisconnect);
 
   return {
     post: (message) => port.postMessage(message),
@@ -26,12 +28,25 @@ export function portTransport(port: PortLike): WireTransport {
         if (!isPortMessageEvent(event)) return;
         if (isWireMessage(event.data)) cb(event.data);
       };
+      messageListeners.add(listener);
       port.on('message', listener);
-      return () => removePortListener(port, 'message', listener);
+      return () => {
+        messageListeners.delete(listener);
+        removePortListener(port, 'message', listener);
+      };
     },
     onDisconnect(cb): Unsubscribe {
       disconnectListeners.add(cb);
       return () => disconnectListeners.delete(cb);
+    },
+    close() {
+      for (const listener of messageListeners) removePortListener(port, 'message', listener);
+      messageListeners.clear();
+      removePortListener(port, 'close', notifyDisconnect);
+      removePortListener(port, 'exit', notifyDisconnect);
+      removePortListener(port, 'error', notifyDisconnect);
+      disconnectListeners.clear();
+      port.close?.();
     },
   };
 }

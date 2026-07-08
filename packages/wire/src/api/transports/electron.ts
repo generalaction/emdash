@@ -49,6 +49,11 @@ export type ExposeWireOptions = {
   channel?: string;
 };
 
+type WindowPortRecord = {
+  port: MessagePortMainLike;
+  disposeMapCleanup: Unsubscribe;
+};
+
 export function exposeWireToWindows(
   deps: { ipcMain: IpcMainLike; createMessageChannel: MessageChannelFactory },
   controller: Controller,
@@ -58,13 +63,24 @@ export function exposeWireToWindows(
   const connectChannel = `${channel}:connect`;
   const portChannel = `${channel}:port`;
   const hub = createWireSessionHub(controller);
-  const ports = new Map<number, MessagePortMainLike>();
+  const ports = new Map<number, WindowPortRecord>();
 
   deps.ipcMain.handle(connectChannel, (event) => {
     const { port1, port2 } = deps.createMessageChannel();
-    ports.get(event.sender.id)?.close?.();
-    ports.set(event.sender.id, port1);
-    hub.open(event.sender.id, portTransport(port1));
+    const existing = ports.get(event.sender.id);
+    existing?.port.close?.();
+    existing?.disposeMapCleanup();
+    ports.delete(event.sender.id);
+
+    const transport = portTransport(port1);
+    const disposeMapCleanup = transport.onDisconnect(() => {
+      const current = ports.get(event.sender.id);
+      if (current?.port !== port1) return;
+      current.disposeMapCleanup();
+      ports.delete(event.sender.id);
+    });
+    ports.set(event.sender.id, { port: port1, disposeMapCleanup });
+    hub.open(event.sender.id, transport);
     port1.start?.();
     event.sender.postMessage(portChannel, null, [port2]);
     return undefined;
@@ -73,7 +89,7 @@ export function exposeWireToWindows(
   return () => {
     deps.ipcMain.removeHandler?.(connectChannel);
     hub.dispose();
-    for (const port of ports.values()) port.close?.();
+    for (const record of ports.values()) record.disposeMapCleanup();
     ports.clear();
   };
 }

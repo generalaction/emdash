@@ -12,6 +12,7 @@ export type WireSessionHub = {
 type SessionRecord = {
   dispose: Unsubscribe;
   disconnect: Unsubscribe;
+  transport: WireTransport;
 };
 
 export function createWireSessionHub(controller: Controller): WireSessionHub {
@@ -24,6 +25,7 @@ export function createWireSessionHub(controller: Controller): WireSessionHub {
     sessions.delete(key);
     session.disconnect();
     session.dispose();
+    session.transport.close?.();
   }
 
   return {
@@ -32,7 +34,7 @@ export function createWireSessionHub(controller: Controller): WireSessionHub {
       close(key);
       const dispose = serve(transport, controller);
       const disconnect = transport.onDisconnect(() => close(key));
-      sessions.set(key, { dispose, disconnect });
+      sessions.set(key, { dispose, disconnect, transport });
       return () => close(key);
     },
     close,
