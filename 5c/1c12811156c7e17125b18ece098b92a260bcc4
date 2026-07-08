@@ -1,0 +1,19 @@
+packages/plugins/src/agents/impl/amp/index.ts
+  s_80868f225daaa8::t_cc1d4af4556cf0 90-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5c1c12811156c7e17125b18ece098b92a260bcc4",
+  "prompts": {},
+  "sessions": {
+    "s_80868f225daaa8": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033m1BgekKFoJAVkLVoaq8",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
