@@ -132,7 +132,7 @@ function toolMetadata(name, input) {
   return { title, kind, rawInput: input === undefined ? undefined : input };
 }
 
-function acpContentArray(content, isError) {
+function acpContentArray(content) {
   if (Array.isArray(content)) {
     return content
       .map((item) => {
@@ -186,7 +186,7 @@ function emitAmpMessage(sessionId, message) {
         sessionUpdate: 'tool_call_update',
         toolCallId: chunk.tool_use_id,
         status: chunk.is_error ? 'failed' : 'completed',
-        content: acpContentArray(chunk.content, chunk.is_error),
+        content: acpContentArray(chunk.content),
       });
       emitted = true;
     }

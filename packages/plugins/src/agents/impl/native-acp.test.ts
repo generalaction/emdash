@@ -7,25 +7,26 @@ const spawnCtx = {
   cli: '/usr/local/bin/agent',
 };
 const windowsAmpCli = 'C:\\Users\\user\\AppData\\Local\\Programs\\Amp\\amp.exe';
+type ExpectedArgs = string[] | { contains: string };
 
 const nativeAcpProviders: Array<{
   id: string;
   cli?: string;
-  args: string[];
+  args: ExpectedArgs;
   command?: string;
   env?: Record<string, string>;
 }> = [
   {
     id: 'amp',
     command: process.execPath,
-    args: ['amp-acp-adapter'],
+    args: { contains: 'amp-acp-adapter' },
     env: { ELECTRON_RUN_AS_NODE: '1', AMP_CLI_PATH: spawnCtx.cli },
   },
   {
     id: 'amp',
     cli: windowsAmpCli,
     command: process.execPath,
-    args: ['amp-acp-adapter'],
+    args: { contains: 'amp-acp-adapter' },
     env: { ELECTRON_RUN_AS_NODE: '1', AMP_CLI_PATH: windowsAmpCli },
   },
   {
@@ -85,11 +86,11 @@ describe('native ACP provider behaviors', () => {
     const spawn = provider.behavior.acp!.buildSpawn({ ...spawnCtx, cli });
 
     expect(spawn.command).toBe(entry.command ?? cli);
-    if (entry.id === 'amp') {
-      expect(spawn.args).toHaveLength(1);
-      expect(spawn.args[0]).toContain(entry.args[0]);
-    } else {
+    if (Array.isArray(entry.args)) {
       expect(spawn.args).toEqual(entry.args);
+    } else {
+      expect(spawn.args).toHaveLength(1);
+      expect(spawn.args[0]).toContain(entry.args.contains);
     }
 
     if (entry.env) {
