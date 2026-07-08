@@ -57,14 +57,13 @@ export class ChangesViewStore {
         () => {
           const hasUnstaged = this.gitWorktree.unstagedFileChanges.length > 0;
           const hasStaged = this.gitWorktree.stagedFileChanges.length > 0;
-          const hasPullRequestSectionContent = this._pullRequestSectionContentCount > 0;
+          const hasPullRequests = this.pr.pullRequests.length > 0;
 
           runInAction(() => {
             this.expandedSections = {
-              unstaged:
-                hasUnstaged || (!hasStaged && !hasUnstaged && !hasPullRequestSectionContent),
+              unstaged: hasUnstaged || (!hasStaged && !hasUnstaged && !hasPullRequests),
               staged: hasStaged,
-              pullRequests: hasPullRequestSectionContent,
+              pullRequests: hasPullRequests,
             };
           });
         }
@@ -77,7 +76,7 @@ export class ChangesViewStore {
         () => ({
           unstaged: this.gitWorktree.unstagedFileChanges.length,
           staged: this.gitWorktree.stagedFileChanges.length,
-          pullRequests: this._pullRequestSectionContentCount,
+          pullRequests: this.pr.pullRequests.length,
         }),
         (curr, prev) => {
           runInAction(() => {
@@ -217,10 +216,6 @@ export class ChangesViewStore {
 
   suppressNextAutoExpand(section: keyof ExpandedSections): void {
     this._suppressAutoExpand.add(section);
-  }
-
-  private get _pullRequestSectionContentCount(): number {
-    return this.pr.pullRequests.length + (this.gitWorktree.hasBranchCommitRange ? 1 : 0);
   }
 
   dispose(): void {

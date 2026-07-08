@@ -48,7 +48,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const defaultBranch = workspace.gitRepository.defaultBranch;
   const headOid = workspace.gitWorktree.headOid;
   const branchCommitRange: CommitRange | undefined =
-    !currentPr && workspace.gitWorktree.hasBranchCommitRange && defaultBranch?.oid && headOid
+    !currentPr && defaultBranch?.oid && headOid && defaultBranch.oid !== headOid
       ? {
           source: 'branch',
           baseRefOid: defaultBranch.oid,
@@ -57,7 +57,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
         }
       : undefined;
   const branchCommits = useCommits(projectId, workspaceId, branchCommitRange);
-  const branchCommitCount = branchCommits.data?.pages[0]?.aheadCount ?? 0;
+  const branchCommitCount = branchCommits.data?.pages[0]?.aheadCount;
   const showCreatePrModal = useShowModal('createPrModal');
   const { toast } = useToast();
   const prSyncStore = getPrSyncStore(projectId);
@@ -120,9 +120,10 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   };
 
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('pr');
-  const showBranchCommits = !!branchCommitRange;
+  const showBranchCommits =
+    !!branchCommitRange && branchCommitCount !== undefined && branchCommitCount > 0;
   const sectionLabel = showBranchCommits ? 'Branch Commits' : 'Pull Requests';
-  const sectionCount = showBranchCommits ? branchCommitCount : pullRequests.length;
+  const sectionCount = showBranchCommits ? (branchCommitCount ?? 0) : pullRequests.length;
   const createPrTooltip = !repositoryUrl
     ? 'Pull requests unavailable'
     : hasOpenPr
@@ -176,7 +177,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {currentPr ? (
           <PullRequestEntry key={currentPr.url} pr={currentPr} />
-        ) : branchCommitRange ? (
+        ) : showBranchCommits ? (
           <BranchCommitsEntry range={branchCommitRange} />
         ) : !repositoryUrl ? (
           <EmptyState

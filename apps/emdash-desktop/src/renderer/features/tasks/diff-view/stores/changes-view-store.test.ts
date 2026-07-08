@@ -10,7 +10,6 @@ class FakeGitWorktreeStore {
   stagedFileChanges: GitChange[] = [];
   isLoading = true;
   error: string | undefined = undefined;
-  hasBranchCommitRange = false;
 
   constructor() {
     makeAutoObservable(this);
@@ -26,10 +25,6 @@ class FakeGitWorktreeStore {
     this.unstagedFileChanges = unstaged;
     this.stagedFileChanges = staged;
     this.isLoading = false;
-  }
-
-  setBranchCommitRange(hasBranchCommitRange: boolean) {
-    this.hasBranchCommitRange = hasBranchCommitRange;
   }
 }
 
@@ -85,56 +80,6 @@ describe('ChangesViewStore expanded sections', () => {
       unstaged: false,
       staged: false,
       pullRequests: true,
-    });
-  });
-
-  it('opens branch commits on the first load when no pull request exists', () => {
-    const { git, store } = createStore();
-
-    runInAction(() => {
-      git.setBranchCommitRange(true);
-      git.setStatus({ unstaged: [], staged: [] });
-    });
-
-    expect(store.expandedSections).toEqual({
-      unstaged: false,
-      staged: false,
-      pullRequests: true,
-    });
-  });
-
-  it('keeps the pull request section open when a pull request disappears but branch commits remain', () => {
-    const { git, pr, store } = createStore();
-
-    runInAction(() => {
-      pr.setPullRequests(1);
-      git.setStatus({ unstaged: [], staged: [] });
-    });
-    runInAction(() => {
-      pr.setPullRequests(0);
-      git.setBranchCommitRange(true);
-    });
-
-    expect(store.expandedSections).toEqual({
-      unstaged: false,
-      staged: false,
-      pullRequests: true,
-    });
-  });
-
-  it('closes the pull request section when both pull requests and branch commits disappear', () => {
-    const { git, store } = createStore();
-
-    runInAction(() => {
-      git.setBranchCommitRange(true);
-      git.setStatus({ unstaged: [], staged: [] });
-    });
-    runInAction(() => git.setBranchCommitRange(false));
-
-    expect(store.expandedSections).toEqual({
-      unstaged: false,
-      staged: false,
-      pullRequests: false,
     });
   });
 
