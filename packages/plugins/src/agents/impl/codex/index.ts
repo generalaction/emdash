@@ -4,7 +4,6 @@ import {
   buildStandardCommand,
   codexMcpAdapter,
   homebrewOption,
-  npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { buildCodexHookConfig } from './hooks';
@@ -56,12 +55,40 @@ export const plugin = definePlugin(
       scope: 'global',
       supportedEvents: ['notification', 'stop', 'session'],
     },
-    hostDependency: npmDependency({
+    hostDependency: {
       id: 'codex',
-      package: '@openai/codex',
-      extraOptions: {
-        macos: [homebrewOption({ formula: 'codex', cask: true })],
-        linux: [homebrewOption({ formula: 'codex', cask: true })],
+      binaryNames: ['codex'],
+      installCommands: {
+        macos: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+            updateCommand: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+            recommended: true,
+          },
+          {
+            method: 'npm',
+            command: 'npm install -g @openai/codex',
+            updateCommand: 'npm install -g @openai/codex',
+            uninstallCommand: 'npm uninstall -g @openai/codex',
+          },
+          homebrewOption({ formula: 'codex', cask: true }),
+        ],
+        linux: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+            updateCommand: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+            recommended: true,
+          },
+          {
+            method: 'npm',
+            command: 'npm install -g @openai/codex',
+            updateCommand: 'npm install -g @openai/codex',
+            uninstallCommand: 'npm uninstall -g @openai/codex',
+          },
+          homebrewOption({ formula: 'codex', cask: true }),
+        ],
         windows: [
           {
             method: 'powershell',
@@ -69,10 +96,30 @@ export const plugin = definePlugin(
               'powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"',
             updateCommand:
               'powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"',
+            recommended: true,
+          },
+          {
+            method: 'npm',
+            command: 'npm install -g @openai/codex',
+            updateCommand: 'npm install -g @openai/codex',
+            uninstallCommand: 'npm uninstall -g @openai/codex',
           },
         ],
       },
-    }),
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'npm',
+          package: '@openai/codex',
+        },
+        update: {
+          kind: 'package-manager',
+        },
+      },
+      uninstall: {
+        kind: 'package-manager',
+      },
+    },
     mcp: {
       kind: 'supported',
       scope: 'global',

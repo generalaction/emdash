@@ -107,7 +107,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     description:
       'CLI that connects to OpenAI models for project-aware code assistance and terminal workflows.',
     docUrl: 'https://github.com/openai/codex',
-    installCommand: 'npm install -g @openai/codex',
+    installCommand: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
     commands: ['codex'],
     versionArgs: ['--version'],
     cli: 'codex',
