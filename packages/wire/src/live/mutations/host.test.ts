@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { defineLiveModelContract } from '../../api/define';
+import { liveModel, liveState } from '../../api/define';
 import { createLiveModelHost } from './host';
 
 const keySchema = z.object({ workspaceId: z.string(), taskId: z.string() });
@@ -8,9 +8,9 @@ const stateSchema = z.object({ count: z.number() });
 
 describe('createLiveModelHost', () => {
   it('creates, resolves, filters, and disposes keyed instances', () => {
-    const contract = defineLiveModelContract({
+    const contract = liveModel({
       key: keySchema,
-      models: { state: stateSchema },
+      states: { state: liveState({ data: stateSchema }) },
     });
     const host = createLiveModelHost(contract);
     const firstKey = { workspaceId: 'w1', taskId: 't1' };
@@ -31,9 +31,9 @@ describe('createLiveModelHost', () => {
   });
 
   it('rejects duplicate instance keys', () => {
-    const contract = defineLiveModelContract({
+    const contract = liveModel({
       key: keySchema,
-      models: { state: stateSchema },
+      states: { state: liveState({ data: stateSchema }) },
     });
     const host = createLiveModelHost(contract);
     const key = { workspaceId: 'w1', taskId: 't1' };

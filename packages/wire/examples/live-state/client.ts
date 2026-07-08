@@ -1,4 +1,4 @@
-import { LiveModelClient } from '../../src/live/model/index';
+import { LiveStateClient } from '../../src/live/state/index';
 import {
   addTask,
   attach,
@@ -9,7 +9,7 @@ import {
 } from './server';
 
 async function main(): Promise<void> {
-  const client = new LiveModelClient(taskListSchema, fetchSnapshot, (value) => {
+  const client = new LiveStateClient(taskListSchema, fetchSnapshot, (value) => {
     console.log('client state:', value);
   });
 
@@ -38,7 +38,7 @@ async function waitFor(predicate: () => boolean): Promise<void> {
     if (predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
-  throw new Error('Timed out waiting for live-model example condition');
+  throw new Error('Timed out waiting for live-state example condition');
 }
 
 void main();

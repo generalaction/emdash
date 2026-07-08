@@ -15,11 +15,11 @@ flowchart TB
   subgraph api [API layer]
     contracts[defineContract endpoint kinds]
     bind[bindContract Controller]
-    client[thin client]
+    client[contract client]
     transports[Transports: memory, port, dom-port, electron, stream, reconnecting]
   end
   subgraph live [Live primitives]
-    model[LiveModel and replicas]
+    model[LiveState and replicas]
     log[LiveLog]
     job[LiveJob]
     mutations[Mutations and registries]
@@ -33,11 +33,11 @@ flowchart TB
   processHost --> api
 ```
 
-The live layer owns the stateful primitives: `LiveModel`, `LiveLog`, `LiveJob`,
+The live layer owns the stateful primitives: `LiveState`, `LiveLog`, `LiveJob`,
 `LiveModelHost`, and consumer-instantiated replicas. Low-level `*Client` followers
-remain protocol machinery; most consumers use thin refs directly or wrap them in
+remain protocol machinery; most consumers use client handles directly or wrap them in
 replicas. The API layer turns those primitives into a contract with typed
-procedure calls and thin live topic refs.
+procedure calls and live topic client handles.
 The runtime layer owns lifecycle utilities and process supervision. Observability
 hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
 
@@ -49,15 +49,15 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Serving and clients](./api/serving.md): `bindContract()`, `serve()`,
     `connect()`, cancellation, relays, session hubs, and
     server-side call helpers.
-  - [Typed clients](./api/clients.md): thin `client()` refs and forwarding
+  - [Typed clients](./api/clients.md): `ContractClient` handles and forwarding
     through `bindContract()`.
   - [Wire errors](./api/errors.md): error planes, `WireErrorCode` meanings,
     origins, and retry guidance.
   - [Transports](./api/transports.md): memory, ports, Electron, streams,
     reconnecting, process, and logging transports.
 - Live:
-  - [Live models and protocol](./live/live-model.md): snapshots, updates,
-    cursors, `LiveModel`, replicas, and `BatchedLiveModel`.
+  - [Live models and protocol](./live/live-state.md): snapshots, updates,
+    cursors, `LiveState`, replicas, and `BatchedLiveState`.
   - [Live logs](./live/live-log.md): retained terminal-style logs and client
     callbacks.
   - [Live jobs](./live/live-job.md): progress, cancellation, terminal state,
@@ -85,7 +85,7 @@ Use the broad `@emdash/wire` export when building examples or package-local
 features that need both API and live primitives:
 
 ```ts
-import { bindContract, LiveModel, defineContract } from '@emdash/wire';
+import { bindContract, LiveState, defineContract } from '@emdash/wire';
 ```
 
 Use narrower subpath exports at app boundaries:
@@ -108,13 +108,13 @@ The optimistic utility intentionally lives in its own export because it has a
 ## Typical Flow
 
 1. Define a contract with `defineContract({ ... })`.
-2. Create server-side `LiveModel`, `LiveLog`, `LiveJob`, or
+2. Create server-side `LiveState`, `LiveLog`, `LiveJob`, or
    `createLiveModelHost()` instances.
 3. Create and dispose keyed host instances as domain resources appear.
 4. Bind the contract with `bindContract(contract, impl, options?)`.
 5. Serve the controller over a `WireTransport`.
-6. Connect from the client and create a thin typed `client()`.
-7. Use thin handles directly for streaming, or create replicas when local state,
+6. Connect from the client and create a typed `client()`.
+7. Use client handles directly for streaming, or create replicas when local state,
    ref counting, or downstream serving is needed.
 
 For a complete example in one file, see [../examples/contract/client.ts](../examples/contract/client.ts).

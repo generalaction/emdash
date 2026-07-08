@@ -7,7 +7,8 @@ import {
   createLiveModelReplica,
   createLiveModelHost,
   defineContract,
-  defineLiveModelContract,
+  liveModel,
+  liveState,
   memoryTransportPair,
   mutation,
   serve,
@@ -26,8 +27,8 @@ async function main(): Promise<void> {
   const controller = bindContract(api, { counter: counters });
   const pair = memoryTransportPair();
   serve(pair.right, controller);
-  const thin = client(api, connect(pair.left));
-  const replica = createLiveModelReplica(api.counter, thin.counter);
+  const contractClient = client(api, connect(pair.left));
+  const replica = createLiveModelReplica(api.counter, contractClient.counter);
   const lease = replica.acquire(key);
   const binding = await lease.ready();
 
@@ -46,17 +47,17 @@ async function main(): Promise<void> {
 
   console.log('first result:', first.result);
   console.log('second result:', second.result);
-  console.log('counter:', counter.models.state.snapshot().data);
+  console.log('counter:', counter.states.state.snapshot().data);
   await lease.release();
   await replica.dispose();
 }
 
 function createApi() {
   return defineContract({
-    counter: defineLiveModelContract({
+    counter: liveModel({
       key: keySchema,
-      models: {
-        state: z.object({ count: z.number() }),
+      states: {
+        state: liveState({ data: z.object({ count: z.number() }) }),
       },
       mutations: {
         increment: mutation(

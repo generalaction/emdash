@@ -7,7 +7,8 @@ import {
   createLiveModelReplica,
   createLiveModelHost,
   defineContract,
-  defineLiveModelContract,
+  liveModel,
+  liveState,
   memoryTransportPair,
   mutation,
   serve,
@@ -19,10 +20,10 @@ const stateSchema = z.object({ messages: z.array(z.string()) });
 type ChatState = z.infer<typeof stateSchema>;
 
 const chatContract = defineContract({
-  conversation: defineLiveModelContract({
+  conversation: liveModel({
     key: keySchema,
-    models: {
-      state: stateSchema,
+    states: {
+      state: liveState({ data: stateSchema }),
     },
     mutations: {
       send: mutation(
@@ -58,9 +59,9 @@ const controller = bindContract(chatContract, {
 async function main(): Promise<void> {
   const pair = memoryTransportPair();
   serve(pair.right, controller);
-  const thin = client(chatContract, connect(pair.left));
+  const contractClient = client(chatContract, connect(pair.left));
 
-  const replica = createLiveModelReplica(chatContract.conversation, thin.conversation, {
+  const replica = createLiveModelReplica(chatContract.conversation, contractClient.conversation, {
     onChange: {
       state: (value) => {
         console.log('state:', value);

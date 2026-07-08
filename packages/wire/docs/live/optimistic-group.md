@@ -1,29 +1,29 @@
 # Optimistic Live Model Groups
 
-`OptimisticLiveModelGroup` is a MobX-backed client utility for
-`defineLiveModelContract` endpoints. It derives local previews from inline group
+`OptimisticLiveModel` is a MobX-backed client utility for
+`liveModel` endpoints. It derives local previews from inline group
 mutation handlers when they exist, then rolls those previews forward or back as
 authoritative live updates arrive.
 
 Import it from the MobX subpath:
 
 ```ts
-import { OptimisticLiveModelGroup } from '@emdash/wire/util/optimistic';
+import { OptimisticLiveModel } from '@emdash/wire/util/optimistic';
 ```
 
 ## Contract Requirements
 
-`OptimisticLiveModelGroup` works with `defineLiveModelContract` definitions.
+`OptimisticLiveModel` works with `liveModel` definitions.
 Previews require inline mutation handlers; schema-only mutations skip the local
 preview and settle normally after the server response.
 
 ```ts
 const api = defineContract({
-  conversation: defineLiveModelContract({
+  conversation: liveModel({
     key: conversationKeySchema,
-    models: {
-      state: stateSchema,
-      usage: usageSchema,
+    states: {
+      state: liveState({ data: stateSchema }),
+      usage: liveState({ data: usageSchema }),
     },
     mutations: {
       setTitle: mutation(
@@ -45,7 +45,8 @@ const api = defineContract({
 
 ## Client Usage
 
-Create the normal live model host and typed client, then wrap the group endpoint:
+Create the normal live model host and typed client, then create a replica and
+wrap it with `OptimisticLiveModel`:
 
 ```ts
 const conversations = createLiveModelHost(api.conversation);
@@ -56,18 +57,9 @@ conversations.create(key, {
 
 const controller = bindContract(api, { conversation: conversations });
 
-const thin = client(api, connect(pair.left));
-const conversation = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) => {
-  const replica = createLiveModelReplica(api.conversation, thin.conversation, { onChange });
-  const lease = replica.acquire(groupKey);
-  return {
-    ready: () => lease.ready(),
-    release: async () => {
-      await lease.release();
-      await replica.dispose();
-    },
-  };
-});
+const contractClient = client(api, connect(pair.left));
+const replica = createLiveModelReplica(api.conversation, contractClient.conversation);
+const conversation = new OptimisticLiveModel(api.conversation, key, replica);
 await conversation.ready;
 ```
 
@@ -85,6 +77,7 @@ await result.settled;
 console.log(conversation.isPending); // false
 
 await conversation.dispose();
+await replica.dispose();
 ```
 
 ## Lifecycle
@@ -122,10 +115,10 @@ Group mutation handlers may run on both server and client. Keep them pure:
   stores in the inline handler.
 
 If a workflow needs server-only work, keep that work outside the inline group
-handler and model it as a `procedure()` or `job()` that updates domain state.
+handler and model it as a `procedure()` or `liveJob()` that updates domain state.
 
 `@emdash/wire/util/optimistic` intentionally has a separate subpath export
 because it depends on MobX. Server-only code should import lifecycle utilities
 from `@emdash/wire/util`.
 
-See [../../examples/optimistic-group/client.ts](../../examples/optimistic-group/client.ts).
+See [../../examples/optimistic-live-model/client.ts](../../examples/optimistic-live-model/client.ts).

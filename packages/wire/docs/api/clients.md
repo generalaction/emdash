@@ -1,6 +1,6 @@
 # Typed Clients
 
-`client(contract, connection)` creates a thin, typed protocol client. It has the
+`client(contract, connection)` creates a typed `ContractClient`. It has the
 same nested shape as the contract, but it does not materialize live state.
 
 Think of it as a type-safe wrapper around `Connection`: it knows contract paths,
@@ -8,11 +8,11 @@ input/output types, live topic ids, group keys, and mutation envelopes, but it d
 not keep snapshots, apply patches, or settle mutations against local state.
 
 ```ts
-const thin = client(api, connect(transport));
+const contractClient = client(api, connect(transport));
 
-await thin.ping({ message: 'hello' });
+await contractClient.ping({ message: 'hello' });
 
-const state = thin.conversation.model(key, 'state');
+const state = contractClient.conversation.state(key, 'state');
 const snapshot = await state.snapshot();
 const detach = await state.attach((update) => {
   console.log(update.delta);
@@ -21,19 +21,20 @@ const detach = await state.attach((update) => {
 
 ## Endpoint Shapes
 
-Each contract endpoint becomes a thin protocol shape:
+Each contract endpoint becomes a protocol client handle:
 
-- Procedures become typed functions: `thin.ping(input, { signal? })`.
-- Live logs become refs: `thin.output.handle(key)`.
-- Live model groups become group refs: `thin.conversation.model(key, 'state')`
-  and `thin.conversation.mutate('setTitle', envelope)`.
-- Jobs become job refs: `thin.build.start(input)`, `thin.build.cancel(jobId)`,
-  and `thin.build.handle(jobId)`.
+- Procedures become typed functions: `contractClient.ping(input, { signal? })`.
+- Live logs become `LiveLogClientHandle`s: `contractClient.output.handle(key)`.
+- Live models become `LiveModelClientHandle`s:
+  `contractClient.conversation.state(key, 'state')` and
+  `contractClient.conversation.mutate('setTitle', envelope)`.
+- Jobs become `LiveJobClientHandle`s: `contractClient.build.start(input)`,
+  `contractClient.build.cancel(jobId)`, and `contractClient.build.handle(jobId)`.
 
-`ThinLiveHandle` is the common live handle:
+`LiveClientHandle` is the common live handle:
 
 ```ts
-type ThinLiveHandle<T> = {
+type LiveClientHandle<T> = {
   topic: string;
   snapshot(): Promise<LiveSnapshot<T>>;
   attach(push: (update: LiveUpdate) => void, options?: { onReattach?: () => void }): Promise<Unsubscribe>;
@@ -45,7 +46,7 @@ type ThinLiveHandle<T> = {
 can stream directly into an xterm instance without allocating another store:
 
 ```ts
-const output = thin.ptyOutput.handle({ sessionId });
+const output = contractClient.ptyOutput.handle({ sessionId });
 term.write((await output.snapshot()).data.text);
 
 const detach = await output.attach((update) => {
@@ -58,13 +59,13 @@ const detach = await output.attach((update) => {
 });
 ```
 
-When a process wants local state, pass the thin ref to a replica wrapper instead.
+When a process wants local state, pass the client handle to a replica wrapper instead.
 
 ## Forwarding
 
-Thin clients are intentionally forwardable. A procedure method can be passed to
-`bindContract()` as a procedure implementation, and a thin live model group can be
-passed as the group implementation:
+Contract clients are intentionally forwardable. A procedure method can be passed
+to `bindContract()` as a procedure implementation, and a live model client handle
+can be passed as the group implementation:
 
 ```ts
 const upstream = client(api, connect(sshTransport));
@@ -80,7 +81,7 @@ while calls, snapshots, live attachments, jobs, and group mutations are forwarde
 the upstream connection.
 
 This is the right shape for protocol relays and middle tiers that should not own or
-cache state. The hop does not create `ReplicaModel`s, does not allocate local
+cache state. The hop does not create `ReplicaState`s, does not allocate local
 cursor spaces, and does not run mutation settling. It just preserves the contract
 surface while delegating to the upstream connection.
 
@@ -106,8 +107,8 @@ const controller = bindContract(workspaceApi, {
 ```
 
 `relayController(connection)` still exists for contract-less passthrough. Prefer
-thin-client forwarding when the hop knows the contract, because `bindContract()` can
-keep the implementation typed and can mix local handlers with forwarded subtrees.
+contract-client forwarding when the hop knows the contract, because `bindContract()`
+can keep the implementation typed and can mix local handlers with forwarded subtrees.
 
 ## When to Use Replicas
 
@@ -124,4 +125,4 @@ For Electron main and other middle tiers that both serve and inspect live state,
 the replica local access pattern in
 [Replicas](../live/replicas.md#model-replicas).
 
-Do not materialize just to forward. Forward the thin ref or subtree directly.
+Do not materialize just to forward. Forward the client handle or subtree directly.

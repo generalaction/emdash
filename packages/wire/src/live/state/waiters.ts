@@ -14,7 +14,7 @@ type MutationWaiter = {
   timer: ReturnType<typeof setTimeout> | undefined;
 };
 
-export class LiveModelWaiters {
+export class LiveStateWaiters {
   private cursorWaiters: CursorWaiter[] = [];
   private mutationWaiters: MutationWaiter[] = [];
 

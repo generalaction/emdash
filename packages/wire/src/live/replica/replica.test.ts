@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { bindContract } from '../../api/bind';
 import { client } from '../../api/client';
 import { connect } from '../../api/connect';
-import { defineContract, defineLiveModelContract, mutation } from '../../api/define';
+import { defineContract, liveModel, liveState, mutation } from '../../api/define';
 import { serve } from '../../api/serve';
 import { memoryTransportPair } from '../../api/transports';
 import { createLiveModelHost } from '../mutations';
@@ -14,10 +14,10 @@ const keySchema = z.object({ id: z.string() });
 const stateSchema = z.object({ count: z.number() });
 
 const api = defineContract({
-  counter: defineLiveModelContract({
+  counter: liveModel({
     key: keySchema,
-    models: {
-      state: stateSchema,
+    states: {
+      state: liveState({ data: stateSchema }),
     },
     mutations: {
       bump: mutation(
@@ -60,7 +60,7 @@ describe('createLiveModelReplica', () => {
     const instance = await lease.ready();
 
     expect(instance.key).toEqual(key);
-    expect(instance.models.state.current()).toEqual({ count: 0 });
+    expect(instance.states.state.current()).toEqual({ count: 0 });
     expect(replica.peek(key)).toBe(instance);
 
     await lease.release();
@@ -87,8 +87,8 @@ describe('createLiveModelReplica', () => {
     const invocation = await counter.mutations.bump({});
     await invocation.settled;
 
-    expect(counter.models.state.current()).toEqual({ count: 1 });
-    expect(authoritative.models.state.snapshot().data).toEqual({ count: 1 });
+    expect(counter.states.state.current()).toEqual({ count: 1 });
+    expect(authoritative.states.state.snapshot().data).toEqual({ count: 1 });
 
     await downstreamLease.release();
     await downstreamReplica.dispose();

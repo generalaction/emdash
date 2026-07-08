@@ -1,3 +1,4 @@
+import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveJobCancelledError, type LiveJobContext } from '../live/job';
@@ -5,12 +6,12 @@ import { createLiveJobReplica } from '../live/replica';
 import { bindContract } from './bind';
 import { client } from './client';
 import { connect } from './connect';
-import { defineContract, job } from './define';
+import { defineContract, liveJob } from './define';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
 const jobContract = defineContract({
-  build: job({
+  build: liveJob({
     input: z.object({ name: z.string() }),
     progress: z.object({ step: z.string() }),
     result: z.object({ artifact: z.string() }),
@@ -127,7 +128,7 @@ function setup(
     jobContract,
     {
       build: {
-        run,
+        run: async (input, ctx) => ok(await run(input as BuildInput, ctx)),
         toError: (error) => ({
           message: error instanceof Error ? error.message : String(error),
         }),
@@ -136,8 +137,8 @@ function setup(
     { validate: options.validate }
   );
   serve(pair.right, controller);
-  const thin = client(jobContract, connect(pair.left));
-  return { client: thin, controller };
+  const contractClient = client(jobContract, connect(pair.left));
+  return { client: contractClient, controller };
 }
 
 function deferred<T>(): {

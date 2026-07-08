@@ -1,14 +1,14 @@
 # Replicas
 
-Replicas are consumer-instantiated materialization wrappers around thin refs from
+Replicas are consumer-instantiated materialization wrappers around client handles from
 `client()`. The typed client itself never stores live state. A consumer chooses
 one of four shapes:
 
-- Own state: `LiveModel`, `LiveLog`, `LiveJob`, or `LiveModelHost`.
-- Stream directly: use a thin `snapshot()`/`attach()` handle with no local store,
+- Own state: `LiveState`, `LiveLog`, `LiveJob`, or `LiveModelHost`.
+- Stream directly: use a client `snapshot()`/`attach()` handle with no local store,
   for example PTY output written straight into xterm.
-- Forward: pass thin refs or subtrees to `bindContract()` so a hop stays stateless.
-- Replica: wrap a thin ref to hold local state, share upstream subscriptions, and
+- Forward: pass client handles or subtrees to `bindContract()` so a hop stays stateless.
+- Replica: wrap a client handle to hold local state, share upstream subscriptions, and
   serve downstream clients.
 
 Every replica manager has the same lifecycle shape:
@@ -27,13 +27,13 @@ retained.
 
 ## Model Replicas
 
-Live models are exposed only through `defineLiveModelContract()`. A
-`LiveModelReplica` follows a thin group and yields a `ReplicaInstance`:
+Live models are exposed only through `liveModel()`. A
+`LiveModelReplica` follows a live model client handle and yields a `ReplicaInstance`:
 
 ```ts
-const conversations = createLiveModelReplica(api.conversation, thin.conversation, {
+const conversations = createLiveModelReplica(api.conversation, contractClient.conversation, {
   retentionMs: 30_000,
-  store: (modelName) => createMobxStore(modelName),
+  store: (stateName) => createMobxStore(stateName),
   onChange: {
     state: (value, meta) => console.log(value, meta.kind),
   },
@@ -44,11 +44,11 @@ const conversation = await lease.ready();
 
 const updated = await conversation.mutations.setTitle({ title: 'Replicated' });
 await updated.settled;
-console.log(conversation.models.state.current());
+console.log(conversation.states.state.current());
 ```
 
-`ReplicaInstance.models` contains one `ReplicaModel` per contract member.
-`ReplicaModel` follows upstream snapshots and updates, stores current state in a
+`ReplicaInstance.states` contains one `ReplicaState` per contract member.
+`ReplicaState` follows upstream snapshots and updates, stores current state in a
 pluggable `StateStore`, and re-emits updates in a replica-local cursor space.
 
 Mutation helpers return `{ result, settled }`. On success, the replica translates
@@ -61,7 +61,7 @@ Use a `LiveLogReplica` when a process needs a local retained text buffer or want
 to serve log output downstream:
 
 ```ts
-const outputs = createLiveLogReplica(api.ptyOutput, thin.ptyOutput, {
+const outputs = createLiveLogReplica(api.ptyOutput, contractClient.ptyOutput, {
   retentionMs: 10_000,
   maxBufferBytes: 1024 * 1024,
 });
@@ -72,10 +72,10 @@ output.onAppend((chunk) => index(chunk));
 console.log(output.text());
 ```
 
-For terminal rendering, prefer the thin handle directly:
+For terminal rendering, prefer the client handle directly:
 
 ```ts
-const output = thin.ptyOutput.handle({ sessionId });
+const output = contractClient.ptyOutput.handle({ sessionId });
 term.write((await output.snapshot()).data.text);
 const detach = await output.attach((update) => {
   term.write((update.delta as { chunk: string }).chunk);
@@ -84,12 +84,12 @@ const detach = await output.attach((update) => {
 
 ## Job Replicas
 
-`LiveJobReplica` wraps a thin job endpoint. It forwards `start()` and `cancel()`,
+`LiveJobReplica` wraps a live job client handle. It forwards `start()` and `cancel()`,
 materializes job state by `jobId`, and keeps terminal state readable under lease
 or retention:
 
 ```ts
-const jobs = createLiveJobReplica(api.build, thin.build, { retentionMs: 30_000 });
+const jobs = createLiveJobReplica(api.build, contractClient.build, { retentionMs: 30_000 });
 
 const lease = await jobs.start({ target: 'desktop' });
 const job = await lease.ready();
@@ -121,4 +121,4 @@ const controller = bindContract(api, {
 ```
 
 Use replicas only when the hop needs local state. If the hop is a pure relay,
-forward the thin subtree instead.
+forward the client subtree instead.

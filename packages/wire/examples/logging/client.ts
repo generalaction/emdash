@@ -7,7 +7,8 @@ import {
   createLiveModelReplica,
   createLiveModelHost,
   defineContract,
-  defineLiveModelContract,
+  liveModel,
+  liveState,
   loggerInstrumentation,
   loggingTransport,
   memoryTransportPair,
@@ -21,13 +22,13 @@ const counterSchema = z.object({ count: z.number() });
 const inputSchema = keySchema.extend({ token: z.string().optional() });
 
 const api = defineContract({
-  counter: defineLiveModelContract({ key: keySchema, models: { state: counterSchema } }),
+  counter: liveModel({ key: keySchema, states: { state: liveState({ data: counterSchema }) } }),
   increment: procedure({ input: inputSchema, output: counterSchema }),
 });
 
 const key = { id: 'demo' };
 const counters = createLiveModelHost(api.counter, { generation: 1000 });
-const counter = counters.create(key, { state: { count: 0 } }).models.state;
+const counter = counters.create(key, { state: { count: 0 } }).states.state;
 
 const controller = bindContract(api, {
   counter: counters,
@@ -67,10 +68,10 @@ async function main(): Promise<void> {
     }),
     { instrumentation }
   );
-  const thin = client(api, connection);
+  const contractClient = client(api, connection);
 
   const observed: number[] = [];
-  const replica = createLiveModelReplica(api.counter, thin.counter, {
+  const replica = createLiveModelReplica(api.counter, contractClient.counter, {
     instrumentation,
     onChange: {
       state: (value, meta) => {
@@ -83,10 +84,10 @@ async function main(): Promise<void> {
   const lease = replica.acquire(key);
   await lease.ready();
 
-  await thin.increment({ ...key, token: 'sk-test-secret-value-for-redaction' });
+  await contractClient.increment({ ...key, token: 'sk-test-secret-value-for-redaction' });
 
   counter.reseed({ count: 100 });
-  await thin.increment({ ...key, token: 'sk-test-secret-value-for-redaction' });
+  await contractClient.increment({ ...key, token: 'sk-test-secret-value-for-redaction' });
   await delay(0);
 
   logger.info('observed counter values', { observed });

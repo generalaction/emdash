@@ -1,19 +1,19 @@
 import type { MutationCallOptions } from '../../api/client';
 import type {
-  EndpointLiveModelData,
-  GroupKey,
-  GroupModels,
-  GroupMutations,
-  LiveModelEndpointDef,
-  LiveModelGroupDef,
+  LiveStateData,
+  LiveModelKey,
+  LiveModelStates,
+  LiveModelMutations,
+  LiveModelDef,
+  LiveStateDef,
   MutationData,
   MutationError,
   MutationInput,
 } from '../../api/define';
-import type { LiveChangeMeta } from '../model';
 import { createMutationId, type LiveMutationResult } from '../mutations';
 import type { LiveCursorEntry } from '../protocol';
-import type { ReplicaModel, ReplicaModelOptions } from './model';
+import type { LiveChangeMeta } from '../state';
+import type { ReplicaState, ReplicaStateOptions } from './state';
 import type { StateStore } from './store';
 
 export type ContractMutationInvocation<D, E> = {
@@ -21,58 +21,58 @@ export type ContractMutationInvocation<D, E> = {
   settled: Promise<void>;
 };
 
-export type ReplicaModels<Group extends LiveModelGroupDef> = {
-  [Name in keyof GroupModels<Group>]: ReplicaModel<EndpointLiveModelData<GroupModels<Group>[Name]>>;
+export type ReplicaStates<Group extends LiveModelDef> = {
+  [Name in keyof LiveModelStates<Group>]: ReplicaState<LiveStateData<LiveModelStates<Group>[Name]>>;
 };
 
-export type ReplicaMutations<Group extends LiveModelGroupDef> = {
-  [Name in keyof GroupMutations<Group>]: (
-    input: MutationInput<GroupMutations<Group>[Name]>,
+export type ReplicaMutations<Group extends LiveModelDef> = {
+  [Name in keyof LiveModelMutations<Group>]: (
+    input: MutationInput<LiveModelMutations<Group>[Name]>,
     options?: MutationCallOptions
   ) => Promise<
     ContractMutationInvocation<
-      MutationData<GroupMutations<Group>[Name]>,
-      MutationError<GroupMutations<Group>[Name]>
+      MutationData<LiveModelMutations<Group>[Name]>,
+      MutationError<LiveModelMutations<Group>[Name]>
     >
   >;
 };
 
-export type ReplicaInstance<Group extends LiveModelGroupDef = LiveModelGroupDef> = {
-  readonly key: GroupKey<Group>;
-  readonly models: ReplicaModels<Group>;
+export type ReplicaInstance<Group extends LiveModelDef = LiveModelDef> = {
+  readonly key: LiveModelKey<Group>;
+  readonly states: ReplicaStates<Group>;
   readonly mutations: ReplicaMutations<Group>;
   readonly ready: Promise<void>;
 };
 
-export type ReplicaInstanceOptions = Omit<ReplicaModelOptions<unknown>, 'store' | 'onChange'> & {
-  store?: (modelName: string) => StateStore<unknown>;
+export type ReplicaInstanceOptions = Omit<ReplicaStateOptions<unknown>, 'store' | 'onChange'> & {
+  store?: (stateName: string) => StateStore<unknown>;
   onChange?: Record<string, (value: unknown, meta: LiveChangeMeta) => void>;
 };
 
-export function buildReplicaInstance<Group extends LiveModelGroupDef>(
+export function buildReplicaInstance<Group extends LiveModelDef>(
   contract: Group,
-  key: GroupKey<Group>,
+  key: LiveModelKey<Group>,
   opts: {
-    createModel(name: string, modelDef: LiveModelEndpointDef): ReplicaModel<unknown>;
-    mutate<Name extends Extract<keyof GroupMutations<Group>, string>>(
+    createState(name: string, stateDef: LiveStateDef): ReplicaState<unknown>;
+    mutate<Name extends Extract<keyof LiveModelMutations<Group>, string>>(
       name: Name,
       envelope: {
-        key: GroupKey<Group>;
+        key: LiveModelKey<Group>;
         input: unknown;
         mutationId: string;
       }
     ): Promise<
       LiveMutationResult<
-        MutationData<GroupMutations<Group>[Name]>,
-        MutationError<GroupMutations<Group>[Name]>
+        MutationData<LiveModelMutations<Group>[Name]>,
+        MutationError<LiveModelMutations<Group>[Name]>
       >
     >;
   }
 ): ReplicaInstance<Group> {
-  const models: Record<string, ReplicaModel<unknown>> = {};
+  const states: Record<string, ReplicaState<unknown>> = {};
 
-  for (const [name, model] of Object.entries(contract.models)) {
-    models[name] = opts.createModel(name, model);
+  for (const [name, state] of Object.entries(contract.states)) {
+    states[name] = opts.createState(name, state);
   }
 
   const mutations: Record<string, unknown> = {};
@@ -86,7 +86,7 @@ export function buildReplicaInstance<Group extends LiveModelGroupDef>(
       return {
         result,
         settled: result.success
-          ? settleCursors(models, contract, mutationId, result.data.cursors)
+          ? settleCursors(states, contract, mutationId, result.data.cursors)
           : Promise.resolve(),
       };
     };
@@ -94,60 +94,60 @@ export function buildReplicaInstance<Group extends LiveModelGroupDef>(
 
   return {
     key,
-    models: models as ReplicaModels<Group>,
+    states: states as ReplicaStates<Group>,
     mutations: mutations as ReplicaMutations<Group>,
-    ready: Promise.all(Object.values(models).map((model) => model.ready)).then(() => undefined),
+    ready: Promise.all(Object.values(states).map((state) => state.ready)).then(() => undefined),
   };
 }
 
 export async function translateCursors(
   instance: ReplicaInstance,
-  contract: LiveModelGroupDef,
+  contract: LiveModelDef,
   cursors: LiveCursorEntry[]
 ): Promise<LiveCursorEntry[]> {
   const translated: LiveCursorEntry[] = [];
   for (const entry of cursors) {
-    const modelName = modelNameForCursor(contract, entry);
-    const model = modelName ? instance.models[modelName] : undefined;
-    if (!model) {
+    const stateName = stateNameForCursor(contract, entry);
+    const state = stateName ? instance.states[stateName] : undefined;
+    if (!state) {
       translated.push(entry);
       continue;
     }
-    await model.waitForCursor(entry.cursor);
+    await state.waitForCursor(entry.cursor);
     translated.push({
       ...entry,
-      cursor: model.localCursorFor(entry.cursor),
+      cursor: state.localCursorFor(entry.cursor),
     });
   }
   return translated;
 }
 
 async function settleCursors(
-  models: Record<string, ReplicaModel<unknown>>,
-  group: LiveModelGroupDef,
+  states: Record<string, ReplicaState<unknown>>,
+  group: LiveModelDef,
   mutationId: string,
   cursors: LiveCursorEntry[]
 ): Promise<void> {
   await Promise.all(
     cursors.map((entry) => {
-      const modelName = modelNameForCursor(group, entry);
-      if (!modelName) return Promise.resolve();
-      const model = models[modelName];
-      if (!model) return Promise.resolve();
+      const stateName = stateNameForCursor(group, entry);
+      if (!stateName) return Promise.resolve();
+      const state = states[stateName];
+      if (!state) return Promise.resolve();
       return Promise.any([
-        model.waitForMutation(mutationId),
-        model.waitForLocalCursor(entry.cursor),
+        state.waitForMutation(mutationId),
+        state.waitForLocalCursor(entry.cursor),
       ]).then(() => undefined);
     })
   );
 }
 
-export function modelNameForCursor(
-  group: LiveModelGroupDef,
+export function stateNameForCursor(
+  group: LiveModelDef,
   entry: LiveCursorEntry
 ): string | undefined {
-  for (const [name, model] of Object.entries(group.models)) {
-    if (model.id === entry.model) return name;
+  for (const [name, state] of Object.entries(group.states)) {
+    if (state.id === entry.model) return name;
   }
   return undefined;
 }

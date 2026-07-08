@@ -11,7 +11,7 @@ need both a final result and a stream of progress updates.
 type LiveJobState<P, R, E> =
   | { status: 'running'; startedAt: number; progress: P[]; progressCount: number }
   | { status: 'succeeded'; startedAt: number; finishedAt: number; progress: P[]; result: R }
-  | { status: 'failed'; startedAt: number; finishedAt: number; progress: P[]; error: E }
+  | { status: 'failed'; startedAt: number; finishedAt: number; progress: P[]; error?: E; cause?: SerializedError }
   | { status: 'cancelled'; startedAt: number; finishedAt: number; progress: P[] };
 ```
 
@@ -22,7 +22,7 @@ recent progress entries, but they do not carry `progressCount`.
 
 ## Server
 
-`LiveJob<I, P, R, E>` accepts a handler and an error mapper:
+`LiveJob<I, P, R, E>` accepts a handler that returns `Result<R, E>`:
 
 ```ts
 const jobs = new LiveJob<Input, Progress, Result, ErrorState>(
@@ -30,10 +30,9 @@ const jobs = new LiveJob<Input, Progress, Result, ErrorState>(
     ctx.progress({ step: 'checkout' });
     await build(input, ctx.signal);
     ctx.progress({ step: 'package' });
-    return { artifact: `${input.target}.zip` };
+    return ok({ artifact: `${input.target}.zip` });
   },
-  (error) => ({ message: error instanceof Error ? error.message : String(error) }),
-  { maxProgressEntries: 100 }
+  { toError: (error) => ({ message: error instanceof Error ? error.message : String(error) }) }
 );
 
 const { jobId } = jobs.start({ target: 'desktop' });
@@ -42,12 +41,12 @@ const { jobId } = jobs.start({ target: 'desktop' });
 Options:
 
 - `generation`: optional fixed generation for every job state model.
-- `maxProgressEntries`: retained progress entries. Default:
-  `DEFAULT_LIVE_JOB_MAX_PROGRESS_ENTRIES` (`100`).
 - `terminalRetainMs`: how long terminal state remains attachable. Default:
   `LIVE_JOB_TERMINAL_RETAIN_MS` (5 minutes).
 - `idFactory`: custom job id factory, useful for deterministic tests.
 - `clock`: custom timestamp source, useful for deterministic tests.
+- `toError`: optional fallback for unexpected thrown errors. Domain failures
+  should be returned as `err(error)` from the handler.
 - `onRunStarted`, `onRunChanged`, and `onRunEvicted`: optional hooks for callers
   that want to maintain their own job listing.
 
@@ -56,6 +55,11 @@ Handlers receive `LiveJobContext`:
 - `ctx.progress(value)` appends retained progress and emits an update.
 - `ctx.signal` is an `AbortSignal`. If the signal is aborted, the job finishes
   as `cancelled`.
+
+Return `ok(result)` for successful completion and `err(error)` for expected
+domain failures. If the handler throws and `toError` is configured, the thrown
+value is mapped into typed `error`; otherwise the failed state carries a
+serialized `cause`.
 
 `source(jobId)` returns a read-only live source for that job. `snapshot(jobId)` and
 `getState(jobId)` are convenience accessors. `cancel(id)` aborts a running job.
@@ -67,18 +71,18 @@ late clients can reattach by id. This retention is process-local, not durable.
 
 ## Consumers
 
-Consumers normally reach jobs through the API layer. The thin client starts,
+Consumers normally reach jobs through the API layer. The contract client starts,
 cancels, and attaches to jobs without retaining local state:
 
 ```ts
-const { jobId } = await thin.build.start({ target: 'desktop' });
-const handle = thin.build.handle(jobId);
+const { jobId } = await contractClient.build.start({ target: 'desktop' });
+const handle = contractClient.build.handle(jobId);
 
 const detach = await handle.attach((update) => {
   console.log(update.delta);
 });
 
-await thin.build.cancel(jobId);
+await contractClient.build.cancel(jobId);
 detach();
 ```
 
@@ -94,7 +98,7 @@ The API contract layer can expose a job directly:
 
 ```ts
 const api = defineContract({
-  build: job({
+  build: liveJob({
     input: z.object({ target: z.string() }),
     progress: z.object({ step: z.string() }),
     result: z.object({ artifact: z.string() }),
@@ -103,14 +107,14 @@ const api = defineContract({
 });
 ```
 
-On the server, bind the endpoint with `{ run, toError }`:
+On the server, bind the endpoint with `{ run, toError? }`:
 
 ```ts
 const controller = bindContract(api, {
   build: {
     run: async (input, ctx) => {
       ctx.progress({ step: 'compile' });
-      return { artifact: `${input.target}.zip` };
+      return ok({ artifact: `${input.target}.zip` });
     },
     toError: (error) => ({
       message: error instanceof Error ? error.message : String(error),
@@ -119,12 +123,12 @@ const controller = bindContract(api, {
 });
 ```
 
-The typed client exposes a thin job endpoint client. Use it directly for
+The typed client exposes a live job client handle. Use it directly for
 low-level forwarding, or wrap it in `createLiveJobReplica()` when a consumer wants
 ref-counted local state:
 
 ```ts
-const jobs = createLiveJobReplica(api.build, thin.build, { retentionMs: 30_000 });
+const jobs = createLiveJobReplica(api.build, contractClient.build, { retentionMs: 30_000 });
 const lease = await jobs.start({ target: 'desktop' });
 const handle = await lease.ready();
 

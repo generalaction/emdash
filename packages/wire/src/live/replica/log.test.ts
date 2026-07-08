@@ -20,9 +20,9 @@ describe('createLiveLogReplica', () => {
     log.append('seed\n');
     const pair = memoryTransportPair();
     serve(pair.right, bindContract(api, { output: () => log }));
-    const thin = client(api, connect(pair.left));
+    const contractClient = client(api, connect(pair.left));
 
-    const replica = createLiveLogReplica(api.output, thin.output);
+    const replica = createLiveLogReplica(api.output, contractClient.output);
     const lease = replica.acquire(key);
     const output = await lease.ready();
     const appends: string[] = [];
@@ -55,6 +55,7 @@ describe('createLiveLogReplica', () => {
     const detach = await handle.attach((update) => {
       updates.push((update.delta as { chunk: string }).chunk);
     });
+    await handle.snapshot();
     log.append('served\n');
     await waitFor(() => updates.length === 1);
 

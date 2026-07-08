@@ -8,7 +8,7 @@ import {
 import { processExampleApi } from './contract';
 
 const counters = createLiveModelHost(processExampleApi.counter);
-const counter = counters.create(undefined, { counter: { count: 0 } }).models.counter;
+const counter = counters.create(undefined, { counter: { count: 0 } }).states.counter;
 
 const controller = bindContract(processExampleApi, {
   ping: (value) => `pong:${value}`,

@@ -7,16 +7,17 @@ import {
   createLiveModelReplica,
   createWireSessionHub,
   defineContract,
-  defineLiveModelContract,
+  liveModel,
+  liveState,
   memoryTransportPair,
   procedure,
 } from '../../src/index';
 
 const api = defineContract({
   increment: procedure({ input: z.void().optional(), output: z.number() }),
-  counter: defineLiveModelContract({
+  counter: liveModel({
     key: z.void().optional(),
-    models: { counter: z.object({ count: z.number() }) },
+    states: { counter: liveState({ data: z.object({ count: z.number() }) }) },
   }),
 });
 
@@ -24,7 +25,7 @@ type CounterState = { count: number };
 const counters = createLiveModelHost(api.counter);
 const counter = counters.create(undefined, {
   counter: { count: 0 } satisfies CounterState,
-}).models.counter;
+}).states.counter;
 const controller = bindContract(api, {
   increment: () => {
     counter.produce((draft) => {

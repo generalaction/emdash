@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost } from '../live/mutations';
 import { bindContract, encodeTopic, mergeControllers, splitTopic } from './bind';
-import { defineContract, defineLiveModelContract, liveLog, procedure } from './define';
+import { defineContract, liveModel, liveState, liveLog, procedure } from './define';
 import type { WireError } from './protocol';
 
 const keySchema = z.object({ id: z.string() });
@@ -12,7 +12,7 @@ const outputSchema = z.object({ value: z.string() });
 function makeContract() {
   return defineContract({
     echo: procedure({ input: z.object({ value: z.string() }), output: outputSchema }),
-    state: defineLiveModelContract({ key: keySchema, models: { state: stateSchema } }),
+    state: liveModel({ key: keySchema, states: { state: liveState({ data: stateSchema }) } }),
     output: liveLog({ key: keySchema }),
   });
 }
@@ -47,11 +47,11 @@ describe('bindContract', () => {
     });
 
     const source = controller.resolveLive(
-      encodeTopic(contract.state.models.state.id, { id: 'known' })
+      encodeTopic(contract.state.states.state.id, { id: 'known' })
     );
     expect(source?.snapshot()).toMatchObject({ data: { count: 1 } });
     expect(
-      controller.resolveLive(encodeTopic(contract.state.models.state.id, { id: 'missing' }))
+      controller.resolveLive(encodeTopic(contract.state.states.state.id, { id: 'missing' }))
         ?.snapshot
     ).toThrow(/Unknown live topic/);
   });
@@ -91,16 +91,16 @@ describe('bindContract', () => {
     });
 
     expect(child.state.id).toBe('state');
-    expect(child.state.models.state.id).toBe('state.state');
+    expect(child.state.states.state.id).toBe('state.state');
     expect(contract.child.state.id).toBe('child.state');
-    expect(contract.child.state.models.state.id).toBe('child.state.state');
+    expect(contract.child.state.states.state.id).toBe('child.state.state');
     expect(contract.child.output.id).toBe('child.output');
     await expect(controller.call('child.echo', { value: 'x' })).resolves.toEqual({
       value: 'child:x',
     });
     expect(
       controller
-        .resolveLive(encodeTopic(contract.child.state.models.state.id, { id: 'known' }))
+        .resolveLive(encodeTopic(contract.child.state.states.state.id, { id: 'known' }))
         ?.snapshot()
     ).toMatchObject({ data: { count: 3 } });
   });

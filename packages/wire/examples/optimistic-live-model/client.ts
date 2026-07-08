@@ -7,23 +7,24 @@ import {
   createLiveModelReplica,
   createLiveModelHost,
   defineContract,
-  defineLiveModelContract,
+  liveModel,
+  liveState,
   memoryTransportPair,
   mutation,
   serve,
 } from '../../src/index';
-import { OptimisticLiveModelGroup } from '../../src/util/optimistic';
+import { OptimisticLiveModel } from '../../src/util/optimistic';
 
 const conversationKeySchema = z.object({ conversationId: z.string() });
 const stateSchema = z.object({ title: z.string() });
 const usageSchema = z.object({ tokens: z.number() });
 
 const api = defineContract({
-  conversation: defineLiveModelContract({
+  conversation: liveModel({
     key: conversationKeySchema,
-    models: {
-      state: stateSchema,
-      usage: usageSchema,
+    states: {
+      state: liveState({ data: stateSchema }),
+      usage: liveState({ data: usageSchema }),
     },
     mutations: {
       setTitle: mutation(
@@ -57,20 +58,9 @@ async function main(): Promise<void> {
   const controller = bindContract(api, { conversation: conversations });
   serve(pair.right, controller);
 
-  const thin = client(api, connect(pair.left));
-  const conversation = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) => {
-    const replica = createLiveModelReplica(api.conversation, thin.conversation, {
-      onChange: onChange as never,
-    });
-    const lease = replica.acquire(groupKey);
-    return {
-      ready: () => lease.ready(),
-      release: async () => {
-        await lease.release();
-        await replica.dispose();
-      },
-    };
-  });
+  const contractClient = client(api, connect(pair.left));
+  const replica = createLiveModelReplica(api.conversation, contractClient.conversation);
+  const conversation = new OptimisticLiveModel(api.conversation, key, replica);
   await conversation.ready;
 
   console.log('initial:', conversation.values.state, conversation.values.usage);
@@ -88,6 +78,7 @@ async function main(): Promise<void> {
   console.log('after rollback:', conversation.values.state, conversation.values.usage);
 
   await conversation.dispose();
+  await replica.dispose();
 }
 
 function applyTitle(

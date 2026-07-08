@@ -12,11 +12,11 @@ export const notesController = bindContract(notesApi, {
   session: sessions,
   activity: () => activity,
   clearNotes: () => {
-    instance.models.notes.produce((draft) => {
+    instance.states.notes.produce((draft) => {
       draft.notes = [];
     });
     activity.append('cleared notes\n');
-    return instance.models.notes.snapshot().data;
+    return instance.states.notes.snapshot().data;
   },
 });
 
@@ -25,7 +25,7 @@ async function main(): Promise<void> {
     key: session,
     input: { text: 'Bound controller call' },
   });
-  const topic = encodeTopic(notesApi.session.models.notes.id, session);
+  const topic = encodeTopic(notesApi.session.states.notes.id, session);
   const snapshot = await notesController.resolveLive(topic)?.snapshot();
 
   console.log('mutation result:', note);

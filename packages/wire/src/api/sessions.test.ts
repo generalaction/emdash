@@ -3,14 +3,14 @@ import { z } from 'zod';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { bindContract, encodeTopic } from './bind';
 import { connect } from './connect';
-import { defineContract, defineLiveModelContract } from './define';
+import { defineContract, liveModel, liveState } from './define';
 import { createWireSessionHub } from './sessions';
 import { memoryTransportPair } from './transports';
 
 const contract = defineContract({
-  state: defineLiveModelContract({
+  state: liveModel({
     key: z.object({ id: z.string() }),
-    models: { state: z.object({ count: z.number() }) },
+    states: { state: liveState({ data: z.object({ count: z.number() }) }) },
   }),
 });
 
@@ -36,7 +36,7 @@ describe('createWireSessionHub', () => {
       state: {
         kind: 'liveModelProvider',
         contract: contract.state,
-        resolveModel: () => live.source,
+        resolveState: () => live.source,
         runMutation: async () => {
           throw new Error('No mutations');
         },
@@ -49,7 +49,7 @@ describe('createWireSessionHub', () => {
     hub.open('second', second.right);
     const firstClient = connect(first.left);
     const secondClient = connect(second.left);
-    const topic = encodeTopic(contract.state.models.state.id, { id: 'same' });
+    const topic = encodeTopic(contract.state.states.state.id, { id: 'same' });
 
     await firstClient.attach(topic, () => {});
     await secondClient.attach(topic, () => {});
@@ -71,7 +71,7 @@ describe('createWireSessionHub', () => {
         state: {
           kind: 'liveModelProvider',
           contract: contract.state,
-          resolveModel: () => live.source,
+          resolveState: () => live.source,
           runMutation: async () => {
             throw new Error('No mutations');
           },
@@ -80,7 +80,7 @@ describe('createWireSessionHub', () => {
     );
     const original = memoryTransportPair();
     const replacement = memoryTransportPair();
-    const topic = encodeTopic(contract.state.models.state.id, { id: 'same' });
+    const topic = encodeTopic(contract.state.states.state.id, { id: 'same' });
 
     hub.open('window', original.right);
     await connect(original.left).attach(topic, () => {});

@@ -1,3 +1,4 @@
+import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
   LiveJobCancelledError,
@@ -6,13 +7,13 @@ import {
   connect,
   createLiveJobReplica,
   defineContract,
-  job,
+  liveJob,
   memoryTransportPair,
   serve,
 } from '../../src/index';
 
 const api = defineContract({
-  build: job({
+  build: liveJob({
     input: z.object({ target: z.string() }),
     progress: z.object({ step: z.string() }),
     result: z.object({ artifact: z.string() }),
@@ -30,7 +31,7 @@ async function main(): Promise<void> {
         ctx.progress({ step: 'compile' });
         await delay(0, ctx.signal);
         ctx.progress({ step: 'package' });
-        return { artifact: `${target}.zip` };
+        return ok({ artifact: `${target}.zip` });
       },
       toError: (error) => ({
         message: error instanceof Error ? error.message : String(error),
@@ -38,8 +39,8 @@ async function main(): Promise<void> {
     },
   });
   serve(pair.right, controller);
-  const thin = client(api, connect(pair.left));
-  const jobs = createLiveJobReplica(api.build, thin.build, { retentionMs: 10_000 });
+  const contractClient = client(api, connect(pair.left));
+  const jobs = createLiveJobReplica(api.build, contractClient.build, { retentionMs: 10_000 });
 
   const successfulLease = await jobs.start({ target: 'desktop' });
   const successful = await successfulLease.ready();

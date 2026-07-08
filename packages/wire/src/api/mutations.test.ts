@@ -4,16 +4,17 @@ import { z } from 'zod';
 import { createLiveModelHost, createLiveModelReplica } from '../live';
 import type { WireInstrumentation } from '../observability';
 import { bindContract } from './bind';
-import type { ThinGroup } from './client';
+import type { LiveModelClientHandle } from './client';
 import { client } from './client';
 import { connect } from './connect';
 import {
   defineContract,
-  defineLiveModelContract,
+  liveModel,
+  liveState,
   mutation,
-  type GroupKey,
-  type GroupMutationHandler,
-  type LiveModelGroupDef,
+  type LiveModelKey,
+  type LiveModelMutationHandler,
+  type LiveModelDef,
 } from './define';
 import { serve } from './serve';
 import { memoryTransportPair, reconnectingTransport, type MemoryTransportPair } from './transports';
@@ -38,27 +39,21 @@ function setup(instrumentation?: WireInstrumentation) {
     return ok({ touched });
   });
   const key = { id: 'shared' };
-  const host = createLiveModelHost(contract.counter);
+  const host = createLiveModelHost(contract.counter, { instrumentation });
   const instance = host.create(key, {
     left: { count: 0 },
     right: { count: 10 },
   });
   const pair = memoryTransportPair();
-  const controller = bindContract(
-    contract,
-    {
-      counter: host,
-    },
-    {
-      instrumentation,
-    }
-  );
+  const controller = bindContract(contract, {
+    counter: host,
+  });
   serve(pair.right, controller);
   return {
     client: client(contract, connect(pair.left)),
     key,
-    left: instance.models.left,
-    right: instance.models.right,
+    left: instance.states.left,
+    right: instance.states.right,
     calls: () => handlerCalls,
   };
 }
@@ -71,25 +66,25 @@ describe('live model group mutations', () => {
     const first = await counter.mutations.bump({ touchRight: false });
     expect(first.result).toMatchObject({ success: true, data: { data: { touched: ['left'] } } });
     await first.settled;
-    expect(counter.models.left.current()).toEqual({ count: 1 });
-    expect(counter.models.right.current()).toEqual({ count: 10 });
+    expect(counter.states.left.current()).toEqual({ count: 1 });
+    expect(counter.states.right.current()).toEqual({ count: 10 });
 
     const second = await counter.mutations.bump({ touchRight: true });
     await second.settled;
-    expect(counter.models.left.current()).toEqual({ count: 2 });
-    expect(counter.models.right.current()).toEqual({ count: 11 });
+    expect(counter.states.left.current()).toEqual({ count: 2 });
+    expect(counter.states.right.current()).toEqual({ count: 11 });
     await dispose();
   });
 
   it('settles touched models through the materialized instance', async () => {
     const { client, key } = setup();
     const { instance: counter, dispose } = await acquireCounter(client.counter, key);
-    await counter.models.left.ready;
+    await counter.states.left.ready;
 
     const invocation = await counter.mutations.bump({ touchRight: true });
     await invocation.settled;
-    expect(counter.models.left.current()).toEqual({ count: 1 });
-    expect(counter.models.right.current()).toEqual({ count: 11 });
+    expect(counter.states.left.current()).toEqual({ count: 1 });
+    expect(counter.states.right.current()).toEqual({ count: 11 });
     await dispose();
   });
 
@@ -137,8 +132,8 @@ describe('live model group mutations', () => {
       },
       { backoffMs: [0] }
     );
-    const thin = client(contract, connect(transport));
-    const { instance: counter, dispose } = await acquireCounter(thin.counter, key);
+    const contractClient = client(contract, connect(transport));
+    const { instance: counter, dispose } = await acquireCounter(contractClient.counter, key);
 
     const invocation = counter.mutations.bump(
       { touchRight: false },
@@ -151,16 +146,16 @@ describe('live model group mutations', () => {
     await expect(invocation).resolves.toMatchObject({
       result: { success: true },
     });
-    expect(instance.models.left.snapshot().data).toEqual({ count: 1 });
+    expect(instance.states.left.snapshot().data).toEqual({ count: 1 });
     expect(handlerCalls).toBe(1);
     await dispose();
     transport.close();
   });
 });
 
-async function acquireCounter<Group extends LiveModelGroupDef>(
-  group: ThinGroup<Group>,
-  key: GroupKey<Group>
+async function acquireCounter<Group extends LiveModelDef>(
+  group: LiveModelClientHandle<Group>,
+  key: LiveModelKey<Group>
 ) {
   const replica = createLiveModelReplica(group.def, group);
   const lease = replica.acquire(key);
@@ -175,18 +170,18 @@ async function acquireCounter<Group extends LiveModelGroupDef>(
 }
 
 function createCounterContract(
-  handler: GroupMutationHandler<
+  handler: LiveModelMutationHandler<
     z.ZodObject<{ touchRight: z.ZodBoolean }>,
     z.ZodObject<{ touched: z.ZodArray<z.ZodString> }>,
     z.ZodString
   >
 ) {
   return defineContract({
-    counter: defineLiveModelContract({
+    counter: liveModel({
       key: keySchema,
-      models: {
-        left: stateSchema,
-        right: stateSchema,
+      states: {
+        left: liveState({ data: stateSchema }),
+        right: liveState({ data: stateSchema }),
       },
       mutations: {
         bump: mutation(

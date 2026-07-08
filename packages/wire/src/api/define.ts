@@ -1,8 +1,8 @@
 import { resultSchema, type Result } from '@emdash/shared';
-import type { z } from 'zod';
-import type { Mutator } from '../live/model';
-import type { LiveModelRef } from '../live/mutations/model-ref';
+import { z } from 'zod';
+import type { LiveStateRef } from '../live/mutations/model-ref';
 import type { LiveMutationInput } from '../live/mutations/types';
+import type { Mutator } from '../live/state';
 
 export const contractSymbol: unique symbol = Symbol('wire.contract');
 
@@ -15,12 +15,12 @@ export type ProcedureDef<
   output: OutputSchema;
 };
 
-export type LiveModelEndpointDef<
+export type LiveStateDef<
   Id extends string = string,
   KeySchema extends z.ZodTypeAny = z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny = z.ZodTypeAny,
-> = LiveModelRef<Id, KeySchema, DataSchema> & {
-  kind: 'liveModel';
+> = LiveStateRef<Id, KeySchema, DataSchema> & {
+  kind: 'liveState';
 };
 
 export type LiveLogEndpointDef<
@@ -32,14 +32,14 @@ export type LiveLogEndpointDef<
   keySchema: KeySchema;
 };
 
-export type JobEndpointDef<
+export type LiveJobEndpointDef<
   Id extends string = string,
   InputSchema extends z.ZodTypeAny = z.ZodTypeAny,
   ProgressSchema extends z.ZodTypeAny = z.ZodTypeAny,
   ResultSchema extends z.ZodTypeAny = z.ZodTypeAny,
   ErrorSchema extends z.ZodTypeAny = z.ZodTypeAny,
 > = {
-  kind: 'job';
+  kind: 'liveJob';
   id: Id;
   input: InputSchema;
   progress: ProgressSchema;
@@ -56,33 +56,33 @@ export type MutationDef<
   input: InputSchema;
   data: DataSchema;
   error: ErrorSchema;
-  handler?: GroupMutationHandler<InputSchema, DataSchema, ErrorSchema>;
+  handler?: LiveModelMutationHandler<InputSchema, DataSchema, ErrorSchema>;
 };
 
-export type GroupMutationHandler<
+export type LiveModelMutationHandler<
   InputSchema extends z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny,
   ErrorSchema extends z.ZodTypeAny,
 > = (
-  ctx: GroupMutationCtx<LiveModelGroupDef>,
+  ctx: LiveModelMutationCtx<LiveModelDef>,
   input: LiveMutationInput<z.infer<InputSchema>>
 ) =>
   | Promise<Result<z.infer<DataSchema>, z.infer<ErrorSchema>>>
   | Result<z.infer<DataSchema>, z.infer<ErrorSchema>>;
 
-export type LiveModelGroupDef<
+export type LiveModelDef<
   KeySchema extends z.ZodTypeAny = z.ZodTypeAny,
-  Models extends Record<string, LiveModelEndpointDef> = Record<string, LiveModelEndpointDef>,
+  States extends Record<string, LiveStateDef> = Record<string, LiveStateDef>,
   Mutations extends Record<string, MutationDef> = Record<string, MutationDef>,
 > = {
-  kind: 'group';
+  kind: 'liveModel';
   id: string;
   keySchema: KeySchema;
-  models: Models;
+  states: States;
   mutations: Mutations;
 };
 
-export type EndpointDef = ProcedureDef | LiveLogEndpointDef | JobEndpointDef | LiveModelGroupDef;
+export type EndpointDef = ProcedureDef | LiveLogEndpointDef | LiveJobEndpointDef | LiveModelDef;
 
 export type ContractEntry = EndpointDef | Contract<ContractDefinitions>;
 export interface ContractDefinitions {
@@ -107,60 +107,56 @@ export type MutationData<Def> =
 export type MutationError<Def> =
   Def extends MutationDef<z.ZodTypeAny, z.ZodTypeAny, infer Error> ? z.infer<Error> : never;
 
-export type EndpointLiveModelKey<Def> =
-  Def extends LiveModelEndpointDef<string, infer Key, z.ZodTypeAny> ? z.infer<Key> : never;
+export type LiveStateKey<Def> =
+  Def extends LiveStateDef<string, infer Key, z.ZodTypeAny> ? z.infer<Key> : never;
 
-export type EndpointLiveModelData<Def> =
-  Def extends LiveModelEndpointDef<string, z.ZodTypeAny, infer Data> ? z.infer<Data> : never;
+export type LiveStateData<Def> =
+  Def extends LiveStateDef<string, z.ZodTypeAny, infer Data> ? z.infer<Data> : never;
 
 export type LiveLogKey<Def> =
   Def extends LiveLogEndpointDef<string, infer Key> ? z.infer<Key> : never;
 
 export type JobInput<Def> =
-  Def extends JobEndpointDef<string, infer Input, z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny>
+  Def extends LiveJobEndpointDef<string, infer Input, z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny>
     ? z.infer<Input>
     : never;
 
 export type JobProgress<Def> =
-  Def extends JobEndpointDef<string, z.ZodTypeAny, infer Progress, z.ZodTypeAny, z.ZodTypeAny>
+  Def extends LiveJobEndpointDef<string, z.ZodTypeAny, infer Progress, z.ZodTypeAny, z.ZodTypeAny>
     ? z.infer<Progress>
     : never;
 
 export type JobResult<Def> =
-  Def extends JobEndpointDef<string, z.ZodTypeAny, z.ZodTypeAny, infer Result, z.ZodTypeAny>
+  Def extends LiveJobEndpointDef<string, z.ZodTypeAny, z.ZodTypeAny, infer Result, z.ZodTypeAny>
     ? z.infer<Result>
     : never;
 
 export type JobError<Def> =
-  Def extends JobEndpointDef<string, z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny, infer Error>
+  Def extends LiveJobEndpointDef<string, z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny, infer Error>
     ? z.infer<Error>
     : never;
 
-export type GroupKey<Def> =
-  Def extends LiveModelGroupDef<
-    infer Key,
-    Record<string, LiveModelEndpointDef>,
-    Record<string, MutationDef>
-  >
+export type LiveModelKey<Def> =
+  Def extends LiveModelDef<infer Key, Record<string, LiveStateDef>, Record<string, MutationDef>>
     ? z.infer<Key>
     : never;
 
-export type GroupModels<Def> =
-  Def extends LiveModelGroupDef<z.ZodTypeAny, infer Models, Record<string, MutationDef>>
+export type LiveModelStates<Def> =
+  Def extends LiveModelDef<z.ZodTypeAny, infer Models, Record<string, MutationDef>>
     ? Models
     : never;
 
-export type GroupMutations<Def> =
-  Def extends LiveModelGroupDef<z.ZodTypeAny, Record<string, LiveModelEndpointDef>, infer Mutations>
+export type LiveModelMutations<Def> =
+  Def extends LiveModelDef<z.ZodTypeAny, Record<string, LiveStateDef>, infer Mutations>
     ? Mutations
     : never;
 
-export interface GroupMutationCtx<Group extends LiveModelGroupDef = LiveModelGroupDef> {
+export interface LiveModelMutationCtx<Group extends LiveModelDef = LiveModelDef> {
   readonly mutationId: string;
-  readonly key: GroupKey<Group>;
-  produce<Name extends keyof GroupModels<Group>>(
+  readonly key: LiveModelKey<Group>;
+  produce<Name extends keyof LiveModelStates<Group>>(
     name: Name,
-    mutator: Mutator<EndpointLiveModelData<GroupModels<Group>[Name]>>
+    mutator: Mutator<LiveStateData<LiveModelStates<Group>[Name]>>
   ): void;
 }
 
@@ -192,7 +188,7 @@ export function liveLog<KeySchema extends z.ZodTypeAny>(def: {
   return { kind: 'liveLog', id: '', keySchema: def.key };
 }
 
-export function job<
+export function liveJob<
   InputSchema extends z.ZodTypeAny,
   ProgressSchema extends z.ZodTypeAny,
   ResultSchema extends z.ZodTypeAny,
@@ -202,8 +198,8 @@ export function job<
   progress: ProgressSchema;
   result: ResultSchema;
   error: ErrorSchema;
-}): JobEndpointDef<string, InputSchema, ProgressSchema, ResultSchema, ErrorSchema> {
-  return { kind: 'job', id: '', ...def };
+}): LiveJobEndpointDef<string, InputSchema, ProgressSchema, ResultSchema, ErrorSchema> {
+  return { kind: 'liveJob', id: '', ...def };
 }
 
 /**
@@ -217,7 +213,7 @@ export function mutation<
   ErrorSchema extends z.ZodTypeAny,
 >(
   def: { input: InputSchema; data: DataSchema; error: ErrorSchema },
-  handler: GroupMutationHandler<InputSchema, DataSchema, ErrorSchema>
+  handler: LiveModelMutationHandler<InputSchema, DataSchema, ErrorSchema>
 ): MutationDef<InputSchema, DataSchema, ErrorSchema>;
 export function mutation<
   InputSchema extends z.ZodTypeAny,
@@ -230,41 +226,52 @@ export function mutation<
 }): MutationDef<InputSchema, DataSchema, ErrorSchema>;
 export function mutation(
   def: { input: z.ZodTypeAny; data: z.ZodTypeAny; error: z.ZodTypeAny },
-  handler?: GroupMutationHandler<z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny>
+  handler?: LiveModelMutationHandler<z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny>
 ): MutationDef {
   return { kind: 'mutation', ...def, handler };
 }
 
-export function defineLiveModelContract<
+export function liveState<DataSchema extends z.ZodTypeAny>(def: {
+  data: DataSchema;
+}): LiveStateDef<string, z.ZodUnknown, DataSchema> {
+  return {
+    kind: 'liveState',
+    id: '',
+    keySchema: z.unknown(),
+    dataSchema: def.data,
+  };
+}
+
+export function liveModel<
   KeySchema extends z.ZodTypeAny,
-  Models extends Record<string, z.ZodTypeAny>,
+  States extends Record<string, LiveStateDef>,
   Mutations extends Record<string, MutationDef> = {},
 >(def: {
   key: KeySchema;
-  models: Models;
+  states: States;
   mutations?: Mutations;
-}): LiveModelGroupDef<
+}): LiveModelDef<
   KeySchema,
   {
-    [Name in keyof Models]: LiveModelEndpointDef<string, KeySchema, Models[Name]>;
+    [Name in keyof States]: LiveStateDef<string, KeySchema, States[Name]['dataSchema']>;
   },
   Mutations
 > {
-  const models: Record<string, LiveModelEndpointDef> = {};
-  for (const [name, data] of Object.entries(def.models)) {
-    models[name] = {
-      kind: 'liveModel',
+  const states: Record<string, LiveStateDef> = {};
+  for (const [name, state] of Object.entries(def.states)) {
+    states[name] = {
+      ...state,
+      kind: 'liveState',
       id: '',
       keySchema: def.key,
-      dataSchema: data,
     };
   }
   return {
-    kind: 'group',
+    kind: 'liveModel',
     id: '',
     keySchema: def.key,
-    models: models as {
-      [Name in keyof Models]: LiveModelEndpointDef<string, KeySchema, Models[Name]>;
+    states: states as {
+      [Name in keyof States]: LiveStateDef<string, KeySchema, States[Name]['dataSchema']>;
     },
     mutations: (def.mutations ?? {}) as Mutations,
   };
@@ -284,7 +291,7 @@ function finalizeContract(
   for (const [name, def] of Object.entries(definitions)) {
     if (isMutationDef(def)) {
       throw new Error(
-        `Mutation '${[...prefix, name].join('.')}' must be declared inside defineLiveModelContract().mutations`
+        `Mutation '${[...prefix, name].join('.')}' must be declared inside liveModel().mutations`
       );
     }
     finalized[name] = isEndpointDef(def)
@@ -303,21 +310,21 @@ function finalizeEndpoint(path: string[], def: EndpointDef): EndpointDef {
   switch (def.kind) {
     case 'liveLog':
       return { ...def, id };
-    case 'job':
+    case 'liveJob':
       return { ...def, id };
-    case 'group':
-      return finalizeGroupEndpoint(id, def);
+    case 'liveModel':
+      return finalizeLiveModelEndpoint(id, def);
     case 'procedure':
       return { ...def };
   }
 }
 
-function finalizeGroupEndpoint(id: string, def: LiveModelGroupDef): LiveModelGroupDef {
-  const models: Record<string, LiveModelEndpointDef> = {};
-  for (const [modelName, model] of Object.entries(def.models)) {
-    models[modelName] = {
-      ...model,
-      id: `${id}.${modelName}`,
+function finalizeLiveModelEndpoint(id: string, def: LiveModelDef): LiveModelDef {
+  const states: Record<string, LiveStateDef> = {};
+  for (const [stateName, state] of Object.entries(def.states)) {
+    states[stateName] = {
+      ...state,
+      id: `${id}.${stateName}`,
       keySchema: def.keySchema,
     };
   }
@@ -328,7 +335,7 @@ function finalizeGroupEndpoint(id: string, def: LiveModelGroupDef): LiveModelGro
   return {
     ...def,
     id,
-    models,
+    states,
     mutations,
   };
 }
@@ -344,8 +351,8 @@ export function isEndpointDef(value: ContractEntry): value is EndpointDef {
   const kind = (value as { kind?: unknown }).kind;
   switch (kind) {
     case 'liveLog':
-    case 'job':
-    case 'group':
+    case 'liveJob':
+    case 'liveModel':
     case 'procedure':
       return true;
     default:

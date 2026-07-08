@@ -1,4 +1,4 @@
-import { applyPatches, type Patch } from '../model/immer-setup';
+import { applyPatches, type Patch } from '../state/immer-setup';
 
 export interface StateStore<T> {
   reset(data: T): void;

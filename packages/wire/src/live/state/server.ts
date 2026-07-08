@@ -2,7 +2,7 @@ import { Emitter, type Unsubscribe } from '@emdash/shared';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
 import { type Patch, produceWithPatches } from './immer-setup';
 
-export type LiveModelProduceOptions = {
+export type LiveStateProduceOptions = {
   mutationIds?: string[];
 };
 
@@ -21,7 +21,7 @@ export type LiveModelProduceOptions = {
  * travel as opaque unknown across the wire; non-JSON values in the patched
  * result cause validation failures and resync loops on the client.
  */
-export class LiveModel<T> {
+export class LiveState<T> {
   private readonly emitter = new Emitter<LiveUpdate>();
   private generation: number;
   private sequence = 0;
@@ -62,7 +62,7 @@ export class LiveModel<T> {
    * the current cursor because the authoritative state already reflected the
    * requested operation.
    */
-  produce(mutator: (draft: T) => void, options: LiveModelProduceOptions = {}): LiveCursor {
+  produce(mutator: (draft: T) => void, options: LiveStateProduceOptions = {}): LiveCursor {
     const [next, patches] = produceWithPatches(
       this.current,
       mutator as (draft: object) => void

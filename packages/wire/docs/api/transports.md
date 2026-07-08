@@ -30,11 +30,17 @@ examples:
 const pair = memoryTransportPair();
 serve(pair.right, controller);
 
-const thin = client(api, connect(pair.left));
+const contractClient = client(api, connect(pair.left));
 ```
 
 `pair.disconnect()` disconnects both sides. Each endpoint also exposes `close()`,
 which aliases the pair disconnect for test cleanup.
+
+`left` and `right` are the two ends of one duplex channel, not semantic roles.
+Posting on `left` delivers to listeners registered on `right`, and posting on
+`right` delivers to listeners registered on `left`. This mirrors
+`MessageChannel`'s `port1`/`port2`: tests commonly call `serve(pair.right, ...)`
+and `connect(pair.left)`, but the opposite assignment is equally valid.
 
 ## Event Ports
 
@@ -85,7 +91,7 @@ The renderer asks for a port, then waits for the browser-side transfer:
 ```ts
 await requestWirePort({ ipcRenderer, window }, { channel: 'wire' });
 const port = await awaitWirePort(window, { channel: 'wire' });
-const thin = client(api, connect(domPortTransport(port as MessagePort)));
+const contractClient = client(api, connect(domPortTransport(port as MessagePort)));
 ```
 
 Opening a new port for the same `webContents.id` closes the old one. Naturally
@@ -99,7 +105,7 @@ useful for subprocess, stdio, and SSH-style boundaries:
 
 ```ts
 const transport = streamTransport(child.stdout, child.stdin);
-const thin = client(api, connect(transport));
+const contractClient = client(api, connect(transport));
 ```
 
 Malformed frames are ignored. `close`, `end`, and `error` on the readable side
@@ -138,7 +144,7 @@ transport if present, and clears queued messages and listeners.
 
 ```ts
 const runtime = await host.spawn({ entry: '/path/to/runtime.js' }, scope);
-const thin = client(api, connect(processTransport(runtime)));
+const contractClient = client(api, connect(processTransport(runtime)));
 ```
 
 See [process host](../runtime/process-host.md).
@@ -164,3 +170,22 @@ events, prefer instrumentation and `withLogging()`; see
 
 `loggingTransport.close()` delegates to the wrapped transport, and
 `onReconnect()` is forwarded when the wrapped transport supports it.
+
+Transport composition is ordinary function wrapping, so order matters:
+
+```ts
+// Logs the stable outer endpoint, including queued frames and reconnect events.
+const outerLogged = loggingTransport(reconnectingTransport(openTransport), logger);
+
+// Logs each concrete inner connection separately.
+const innerLogged = reconnectingTransport(async () =>
+  loggingTransport(await openTransport(), logger)
+);
+```
+
+Use transport-level logging when you need frame-level evidence: raw `call`,
+`result`, `attach`, `update`, and reconnect traffic. Use controller/client
+instrumentation for semantic telemetry: one event per logical call, snapshot,
+attachment, cancellation, resync, or mutation dedupe. In practice, apps should
+enable instrumentation by default and turn on transport logging only while
+debugging a boundary.

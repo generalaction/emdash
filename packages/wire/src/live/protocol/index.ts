@@ -1,6 +1,6 @@
-import type { Unsubscribe } from '@emdash/shared';
+import type { SerializedError, Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
-import type { Patch } from '../model/immer-setup';
+import type { Patch } from '../state/immer-setup';
 
 export type { Patch };
 
@@ -66,6 +66,12 @@ export const liveLogDeltaSchema = z.object({
 
 export type LiveLogDelta = z.infer<typeof liveLogDeltaSchema>;
 
+export const serializedErrorSchema = z.object({
+  name: z.string(),
+  message: z.string(),
+  stack: z.string().optional(),
+});
+
 export function liveJobStateSchema<
   P extends z.ZodTypeAny,
   R extends z.ZodTypeAny,
@@ -90,7 +96,8 @@ export function liveJobStateSchema<
       startedAt: z.number().int().nonnegative(),
       finishedAt: z.number().int().nonnegative(),
       progress: z.array(progress),
-      error,
+      error: error.optional(),
+      cause: serializedErrorSchema.optional(),
     }),
     z.object({
       status: z.literal('cancelled'),
@@ -120,7 +127,8 @@ export type LiveJobState<P, R, E> =
       startedAt: number;
       finishedAt: number;
       progress: P[];
-      error: E;
+      error?: E;
+      cause?: SerializedError;
     }
   | {
       status: 'cancelled';

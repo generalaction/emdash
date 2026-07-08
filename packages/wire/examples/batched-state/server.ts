@@ -1,7 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
-import { BatchedLiveModel, LiveModel } from '../../src/live/model/index';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../src/live/protocol/index';
+import { BatchedLiveState, LiveState } from '../../src/live/state/index';
 
 export const fileTreeSchema = z.object({
   files: z.record(z.string(), z.string()),
@@ -9,7 +9,7 @@ export const fileTreeSchema = z.object({
 
 export type FileTreeState = z.infer<typeof fileTreeSchema>;
 
-const server = new LiveModel<FileTreeState>(
+const server = new LiveState<FileTreeState>(
   {
     files: {
       'src/old.ts': 'console.log("old");',
@@ -18,7 +18,7 @@ const server = new LiveModel<FileTreeState>(
   2000
 );
 
-const batched = new BatchedLiveModel<FileTreeState>(server, () => {
+const batched = new BatchedLiveState<FileTreeState>(server, () => {
   // Keep flushing manual in the example so the client can see the batch boundary.
 });
 

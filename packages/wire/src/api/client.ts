@@ -1,25 +1,25 @@
-import type { Unsubscribe } from '@emdash/shared';
+import type { SerializedError, Unsubscribe } from '@emdash/shared';
 import { createMutationId, type LiveMutationResult } from '../live/mutations';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../live/protocol';
-import type { CallOptions, Connection } from './connect';
+import type { AttachOptions, CallOptions, Connection } from './connect';
 import type {
   Contract,
   ContractDefinitions,
   EndpointDef,
   EndpointInput,
-  EndpointLiveModelData,
+  LiveStateData,
   EndpointOutput,
-  GroupKey,
-  GroupModels,
-  GroupMutations,
-  JobEndpointDef,
+  LiveModelKey,
+  LiveModelStates,
+  LiveModelMutations,
+  LiveJobEndpointDef,
   JobError,
   JobInput,
   JobProgress,
   JobResult,
   LiveLogEndpointDef,
   LiveLogKey,
-  LiveModelGroupDef,
+  LiveModelDef,
   MutationData,
   MutationError,
   MutationInput,
@@ -44,58 +44,54 @@ export type ClientOptions = {
   pathPrefix?: string;
 };
 
-export type ThinAttachOptions = {
-  onReattach?: () => void;
-};
-
-export type ThinLiveHandle<T = unknown> = {
+export type LiveClientHandle<T = unknown> = {
   readonly topic: string;
   snapshot(): Promise<LiveSnapshot<T>>;
-  attach(push: (update: LiveUpdate) => void, options?: ThinAttachOptions): Promise<Unsubscribe>;
+  attach(push: (update: LiveUpdate) => void, options?: AttachOptions): Promise<Unsubscribe>;
   asLiveSource(): LiveSource;
 };
 
-export type ThinLiveLogRef<Def extends LiveLogEndpointDef = LiveLogEndpointDef> = {
-  readonly kind: 'thinLiveLog';
+export type LiveLogClientHandle<Def extends LiveLogEndpointDef = LiveLogEndpointDef> = {
+  readonly kind: 'liveLogClientHandle';
   readonly def: Def;
-  handle(key: LiveLogKey<Def>): ThinLiveHandle<LiveLogSnapshotData>;
+  handle(key: LiveLogKey<Def>): LiveClientHandle<LiveLogSnapshotData>;
 };
 
-export type ThinGroup<Def extends LiveModelGroupDef = LiveModelGroupDef> =
-  Def extends LiveModelGroupDef
+export type LiveModelClientHandle<Def extends LiveModelDef = LiveModelDef> =
+  Def extends LiveModelDef
     ? {
-        readonly kind: 'thinGroup';
+        readonly kind: 'liveModelClientHandle';
         readonly def: Def;
-        model<Name extends Extract<keyof GroupModels<Def>, string>>(
-          key: GroupKey<Def>,
+        state<Name extends Extract<keyof LiveModelStates<Def>, string>>(
+          key: LiveModelKey<Def>,
           name: Name
-        ): ThinLiveHandle<EndpointLiveModelData<GroupModels<Def>[Name]>>;
-        mutate<Name extends Extract<keyof GroupMutations<Def>, string>>(
+        ): LiveClientHandle<LiveStateData<LiveModelStates<Def>[Name]>>;
+        mutate<Name extends Extract<keyof LiveModelMutations<Def>, string>>(
           name: Name,
           envelope: {
-            key: GroupKey<Def>;
-            input: MutationInput<GroupMutations<Def>[Name]>;
+            key: LiveModelKey<Def>;
+            input: MutationInput<LiveModelMutations<Def>[Name]>;
             mutationId?: string;
           },
           options?: MutationCallOptions
         ): Promise<
           LiveMutationResult<
-            MutationData<GroupMutations<Def>[Name]>,
-            MutationError<GroupMutations<Def>[Name]>
+            MutationData<LiveModelMutations<Def>[Name]>,
+            MutationError<LiveModelMutations<Def>[Name]>
           >
         >;
       }
     : never;
 
-export type ThinJob<Def extends JobEndpointDef = JobEndpointDef> = {
-  readonly kind: 'thinJob';
+export type LiveJobClientHandle<Def extends LiveJobEndpointDef = LiveJobEndpointDef> = {
+  readonly kind: 'liveJobClientHandle';
   readonly def: Def;
   start(input: JobInput<Def>): Promise<{ jobId: string }>;
   cancel(jobId: string): Promise<void>;
-  handle(jobId: string): ThinLiveHandle<LiveJobStateFor<Def>>;
+  handle(jobId: string): LiveClientHandle<LiveJobStateFor<Def>>;
 };
 
-export type LiveJobStateFor<Def extends JobEndpointDef> =
+export type LiveJobStateFor<Def extends LiveJobEndpointDef> =
   | {
       status: 'running';
       startedAt: number;
@@ -114,7 +110,8 @@ export type LiveJobStateFor<Def extends JobEndpointDef> =
       startedAt: number;
       finishedAt: number;
       progress: JobProgress<Def>[];
-      error: JobError<Def>;
+      error?: JobError<Def>;
+      cause?: SerializedError;
     }
   | {
       status: 'cancelled';
@@ -125,21 +122,21 @@ export type LiveJobStateFor<Def extends JobEndpointDef> =
 
 type EndpointClient<Def> = Def extends { kind: 'procedure' }
   ? (input: EndpointInput<Def>, options?: ProcedureCallOptions) => Promise<EndpointOutput<Def>>
-  : Def extends JobEndpointDef
-    ? ThinJob<Def>
+  : Def extends LiveJobEndpointDef
+    ? LiveJobClientHandle<Def>
     : Def extends LiveLogEndpointDef
-      ? ThinLiveLogRef<Def>
-      : Def extends LiveModelGroupDef
-        ? ThinGroup<Def>
+      ? LiveLogClientHandle<Def>
+      : Def extends LiveModelDef
+        ? LiveModelClientHandle<Def>
         : never;
 
 type ContractEntryClient<Def> = Def extends EndpointDef
   ? EndpointClient<Def>
   : Def extends Contract<infer Nested>
-    ? ThinClient<Nested>
+    ? ContractClient<Nested>
     : never;
 
-export type ThinClient<Defs extends ContractDefinitions> = {
+export type ContractClient<Defs extends ContractDefinitions> = {
   [Name in Extract<keyof Defs, string>]: ContractEntryClient<Defs[Name]>;
 };
 
@@ -147,9 +144,9 @@ export function client<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
   connection: Connection,
   options: ClientOptions = {}
-): ThinClient<Defs> {
+): ContractClient<Defs> {
   const pathPrefix = options.pathPrefix ? [options.pathPrefix] : [];
-  return buildContractClient(contract, pathPrefix, connection) as ThinClient<Defs>;
+  return buildContractClient(contract, pathPrefix, connection) as ContractClient<Defs>;
 }
 
 function buildContractClient(
@@ -171,14 +168,14 @@ function buildContractClient(
         client[name] = (input: unknown, options?: ProcedureCallOptions) =>
           connection.call(fullPath, input, options);
         break;
-      case 'job':
-        client[name] = createThinJob(connection, def, fullPath);
+      case 'liveJob':
+        client[name] = createLiveJobClientHandle(connection, def, fullPath);
         break;
       case 'liveLog':
-        client[name] = createThinLiveLog(connection, def);
+        client[name] = createLiveLogClientHandle(connection, def);
         break;
-      case 'group':
-        client[name] = createThinGroup(connection, fullPath, def);
+      case 'liveModel':
+        client[name] = createLiveModelClientHandle(connection, fullPath, def);
         break;
     }
   }
@@ -186,24 +183,24 @@ function buildContractClient(
   return client;
 }
 
-function createThinLiveLog<Def extends LiveLogEndpointDef>(
+function createLiveLogClientHandle<Def extends LiveLogEndpointDef>(
   connection: Connection,
   def: Def
-): ThinLiveLogRef<Def> {
+): LiveLogClientHandle<Def> {
   return {
-    kind: 'thinLiveLog',
+    kind: 'liveLogClientHandle',
     def,
-    handle: (key) => createThinLiveHandle(connection, encodeTopic(def.id, key)),
+    handle: (key) => createLiveClientHandle(connection, encodeTopic(def.id, key)),
   };
 }
 
-function createThinJob<Def extends JobEndpointDef>(
+function createLiveJobClientHandle<Def extends LiveJobEndpointDef>(
   connection: Connection,
   def: Def,
   path: string
-): ThinJob<Def> {
+): LiveJobClientHandle<Def> {
   return {
-    kind: 'thinJob',
+    kind: 'liveJobClientHandle',
     def,
     async start(input) {
       return (await connection.call(`${path}.start`, input)) as { jobId: string };
@@ -212,22 +209,22 @@ function createThinJob<Def extends JobEndpointDef>(
       await connection.call(`${path}.cancel`, { jobId });
     },
     handle(jobId) {
-      return createThinLiveHandle(connection, encodeTopic(def.id, { jobId }));
+      return createLiveClientHandle(connection, encodeTopic(def.id, { jobId }));
     },
   };
 }
 
-function createThinGroup<Def extends LiveModelGroupDef>(
+function createLiveModelClientHandle<Def extends LiveModelDef>(
   connection: Connection,
   path: string,
   def: Def
-): ThinGroup<Def> {
+): LiveModelClientHandle<Def> {
   return {
-    kind: 'thinGroup',
+    kind: 'liveModelClientHandle',
     def,
-    model(key: unknown, name: string) {
-      const model = def.models[name];
-      return createThinLiveHandle(connection, encodeTopic(model.id, key));
+    state(key: unknown, name: string) {
+      const state = def.states[name];
+      return createLiveClientHandle(connection, encodeTopic(state.id, key));
     },
     mutate(
       name: string,
@@ -243,10 +240,10 @@ function createThinGroup<Def extends LiveModelGroupDef>(
         options ?? {}
       ) as Promise<LiveMutationResult<never, never>>;
     },
-  } as unknown as ThinGroup<Def>;
+  } as unknown as LiveModelClientHandle<Def>;
 }
 
-function createThinLiveHandle<T>(connection: Connection, topic: string): ThinLiveHandle<T> {
+function createLiveClientHandle<T>(connection: Connection, topic: string): LiveClientHandle<T> {
   return {
     topic,
     snapshot: () => connection.snapshot(topic) as Promise<LiveSnapshot<T>>,
@@ -312,16 +309,16 @@ function addMutationId(input: unknown, mutationId: string): unknown {
   return { ...(input as { key: unknown; input: unknown }), mutationId };
 }
 
-export function isThinLiveLogRef(value: unknown): value is ThinLiveLogRef {
-  return isTagged(value, 'thinLiveLog');
+export function isLiveLogClientHandle(value: unknown): value is LiveLogClientHandle {
+  return isTagged(value, 'liveLogClientHandle');
 }
 
-export function isThinGroup(value: unknown): value is ThinGroup {
-  return isTagged(value, 'thinGroup');
+export function isLiveModelClientHandle(value: unknown): value is LiveModelClientHandle {
+  return isTagged(value, 'liveModelClientHandle');
 }
 
-export function isThinJob(value: unknown): value is ThinJob {
-  return isTagged(value, 'thinJob');
+export function isLiveJobClientHandle(value: unknown): value is LiveJobClientHandle {
+  return isTagged(value, 'liveJobClientHandle');
 }
 
 function isTagged(value: unknown, kind: string): boolean {

@@ -14,16 +14,14 @@ const controller = bindContract(
     session: sessionsHost,
     activity: () => activityLogServer,
     clearNotes: (input) => {
-      instance.models.notes.produce((draft) => {
+      instance.states.notes.produce((draft) => {
         draft.notes = [];
       });
-      return instance.models.notes.snapshot().data;
+      return instance.states.notes.snapshot().data;
     },
   },
   {
     validate: 'inputs',
-    mutationDedupe: { ttlMs: 60_000, maxEntries: 500 },
-    instrumentation,
   }
 );
 ```
@@ -31,17 +29,17 @@ const controller = bindContract(
 Options:
 
 - `impl`: server implementations keyed by the contract shape. Procedures receive
-  `(input, meta)`. Jobs bind to `{ run, toError }`, a thin job ref, or a
-  `LiveJobReplica`. Live logs use resolver functions, thin refs, or
-  `LiveLogReplica`. Live model contracts use a `createLiveModelHost()`, thin
-  group ref, or `LiveModelReplica`.
+  `(input, meta)`. Jobs bind to `{ run, toError? }`, a `LiveJobClientHandle`, or
+  a `LiveJobReplica`. Live logs use resolver functions, `LiveLogClientHandle`s,
+  or `LiveLogReplica`. Live model contracts use a `createLiveModelHost()`,
+  `LiveModelClientHandle`, or `LiveModelReplica`.
 - `validate`: `none` (default), `inputs`, or `full`. `inputs` parses call inputs
   and live keys; `full` also parses procedure, mutation, job progress, job
   result, and job error outputs where supported.
-- `mutationDedupe`: `false` disables mutation idempotency. Otherwise
-  `MutationResultCache` is enabled with default TTL and size, or with the
-  provided `{ ttlMs, maxEntries }` options.
-- `instrumentation`: optional `WireInstrumentation` hooks.
+
+Mutation idempotency is configured on `createLiveModelHost()`, not on the
+controller. The controller only routes calls, snapshots, attachments, and live
+mutation procedure envelopes.
 
 Live model hosts are separate from the contract because live model instances are
 runtime resources. A contract can be bound once, while conversations, sessions,
@@ -92,7 +90,7 @@ Existing attachments are retained locally. If the transport exposes
 link is live and then calls each attachment's `onReattach` callback.
 
 Replicas use `onReattach` for live models, logs, and jobs to force a fresh
-snapshot after reattach. Direct thin consumers can use the same callback when
+snapshot after reattach. Direct client-handle consumers can use the same callback when
 they need to reseed UI state after reconnect.
 
 The protocol layer intentionally has no version handshake. Receivers validate the
@@ -101,13 +99,13 @@ ignored by transport adapters that parse untrusted frames.
 
 ## Typed Clients
 
-`client(contract, connection)` returns a thin client with the same nested shape as
-the contract:
+`client(contract, connection)` returns a `ContractClient` with the same nested
+shape as the contract:
 
 ```ts
-const thin = client(notesApi, connection);
+const contractClient = client(notesApi, connection);
 
-const sessions = createLiveModelReplica(notesApi.session, thin.session, {
+const sessions = createLiveModelReplica(notesApi.session, contractClient.session, {
   onChange: {
     notes: (state, meta) => {
       console.log('notes model:', state, meta.kind);
@@ -123,9 +121,9 @@ await lease.release();
 await sessions.dispose();
 ```
 
-Live model and live log accessors are thin refs. Use `model(key, name)` or
-`handle(key)` to snapshot/attach without local state, or pass the thin ref to a
-replica wrapper.
+Live model and live log accessors are client handles. Use `state(key, name)` or
+`handle(key)` to snapshot/attach without local state, or pass the client handle
+to a replica wrapper.
 
 Mutations return `ContractMutationInvocation`:
 
@@ -149,8 +147,8 @@ See [../../examples/api-client/client.ts](../../examples/api-client/client.ts).
 
 ## Cancellation
 
-Wire supports cooperative cancellation for procedure calls. The client sends a
-protocol message for the call id:
+Wire supports cooperative cancellation for request messages. The client sends a
+protocol message for the request id:
 
 ```ts
 { kind: 'cancel', id: callId }
@@ -180,8 +178,14 @@ const controller = bindContract(api, {
 
 Cancellation is cooperative. Long-running handlers should pass the signal into
 their own async work, listen for `abort`, or periodically check
-`meta.signal?.aborted`. Mutations are not cancellable through this API; they use
+`meta.signal?.aborted`. `snapshot` and `attach` requests also share the same
+server-side cancellation registry, though most live sources complete those
+requests synchronously.
+
+Mutations are intentionally not cancellable through this API; they use
 `mutationId` for idempotency and retry. See [mutations](../live/mutations.md).
+Cancelling a `liveJob().start` wire call does not cancel the spawned job; job
+cancellation is domain-level through the generated `<path>.cancel` procedure.
 
 ## Merging Controllers
 
@@ -245,7 +249,7 @@ const hub = createWireSessionHub(controller);
 const pair = memoryTransportPair();
 
 hub.open('window-1', pair.right);
-const thin = client(api, connect(pair.left));
+const contractClient = client(api, connect(pair.left));
 ```
 
 Opening the same session id closes the previous transport. `close(id)` closes

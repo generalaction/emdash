@@ -30,11 +30,11 @@ async function main(): Promise<void> {
   });
   serve(pair.right, controller);
 
-  const thin = client(api, connect(pair.left));
+  const contractClient = client(api, connect(pair.left));
   const [first, second, third] = await Promise.all([
-    thin.expensiveStats({ repo: 'emdash', branch: 'main' }),
-    thin.expensiveStats({ branch: 'main', repo: 'emdash' }),
-    thin.expensiveStats({ repo: 'emdash', branch: 'feature' }),
+    contractClient.expensiveStats({ repo: 'emdash', branch: 'main' }),
+    contractClient.expensiveStats({ branch: 'main', repo: 'emdash' }),
+    contractClient.expensiveStats({ repo: 'emdash', branch: 'feature' }),
   ]);
 
   console.log('first:', first);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { BatchedLiveModel, type FlushScheduler } from './batched-live-model';
-import { LiveModel } from './server';
+import { BatchedLiveState, type FlushScheduler } from './batched-live-state';
+import { LiveState } from './server';
 
 const treeSchema = z.object({
   count: z.number(),
@@ -27,15 +27,15 @@ function makeSyncScheduler() {
 }
 
 function setup(initial: Tree = makeTree()) {
-  const server = new LiveModel<Tree>(initial, 1000);
+  const server = new LiveState<Tree>(initial, 1000);
   const { schedule, trigger } = makeSyncScheduler();
-  const batched = new BatchedLiveModel<Tree>(server, schedule);
+  const batched = new BatchedLiveState<Tree>(server, schedule);
   const updates: unknown[] = [];
   server.subscribe((update) => updates.push(update));
   return { server, batched, trigger, updates };
 }
 
-describe('BatchedLiveModel', () => {
+describe('BatchedLiveState', () => {
   it('batches multiple enqueues into one update', () => {
     const { server, batched, trigger, updates } = setup();
     batched.enqueue((draft) => {
@@ -80,10 +80,10 @@ describe('BatchedLiveModel', () => {
   });
 
   it('drops a throwing batch and allows later mutations', () => {
-    const server = new LiveModel<Tree>(makeTree({ count: 3 }), 1000);
+    const server = new LiveState<Tree>(makeTree({ count: 3 }), 1000);
     const { schedule, trigger } = makeSyncScheduler();
     const dropped: unknown[] = [];
-    const batched = new BatchedLiveModel<Tree>(server, schedule, {
+    const batched = new BatchedLiveState<Tree>(server, schedule, {
       instrumentation: {
         batchDropped: (event) => dropped.push(event),
       },

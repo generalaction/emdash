@@ -1,9 +1,9 @@
 export {
   createGroupInstance,
-  GroupMutationContext,
-  type GroupInitialState,
-  type GroupModelServers,
-  type LiveModelGroupInstance,
+  LiveModelMutationContext,
+  type LiveModelInitialState,
+  type LiveModelStateServers,
+  type LiveModelInstance,
 } from './group';
 export {
   createLiveModelHost,
@@ -13,7 +13,7 @@ export {
   type LiveModelHostMutationHandlers,
   type LiveModelHostOptions,
 } from './host';
-export { type LiveModelData, type LiveModelKey, type LiveModelRef } from './model-ref';
+export { type LiveStateRef } from './model-ref';
 export { stableStringify } from './registry';
 export {
   DEFAULT_MUTATION_RESULT_CACHE_MAX_ENTRIES,

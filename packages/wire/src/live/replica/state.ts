@@ -1,15 +1,15 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { z } from 'zod';
-import type { ThinLiveHandle } from '../../api/client';
+import type { LiveClientHandle } from '../../api/client';
 import type { WireInstrumentation } from '../../observability';
 import { LiveFollower, type LiveFollowerApplyResult } from '../follower';
-import type { LiveChangeMeta } from '../model';
-import { LiveModelWaiters } from '../model/waiters';
 import type { LiveCursor, LiveSnapshot, LiveSource, LiveUpdate, Patch } from '../protocol';
+import type { LiveChangeMeta } from '../state';
+import { LiveStateWaiters } from '../state/waiters';
 import { createPlainStore, type StateStore } from './store';
 
-export type ReplicaModelOptions<T> = {
+export type ReplicaStateOptions<T> = {
   store?: StateStore<T>;
   schema?: z.ZodType<T>;
   onChange?: (value: T, meta: LiveChangeMeta) => void;
@@ -17,14 +17,20 @@ export type ReplicaModelOptions<T> = {
   logger?: Logger;
 };
 
-export class ReplicaModel<T> extends LiveFollower<T> implements LiveSource {
+type ReplicaStateChange<T> = {
+  value: T;
+  meta: LiveChangeMeta;
+};
+
+export class ReplicaState<T> extends LiveFollower<T> implements LiveSource {
   readonly ready: Promise<void>;
 
   private readonly emitter = new Emitter<LiveUpdate>();
+  private readonly changeEmitter = new Emitter<ReplicaStateChange<T>>();
   private readonly store: StateStore<T>;
   private readonly schema: z.ZodType<T> | undefined;
-  private readonly waiters = new LiveModelWaiters(() => this.cursor);
-  private readonly localWaiters = new LiveModelWaiters(() => this.localCursor());
+  private readonly waiters = new LiveStateWaiters(() => this.cursor);
+  private readonly localWaiters = new LiveStateWaiters(() => this.localCursor());
   private readonly detachPromise: Promise<Unsubscribe>;
   private localGeneration = nextGeneration();
   private localSequence = 0;
@@ -32,8 +38,8 @@ export class ReplicaModel<T> extends LiveFollower<T> implements LiveSource {
   private disposed = false;
 
   constructor(
-    private readonly handle: ThinLiveHandle<T>,
-    private readonly deps: ReplicaModelOptions<T> = {}
+    private readonly handle: LiveClientHandle<T>,
+    private readonly deps: ReplicaStateOptions<T> = {}
   ) {
     super(() => handle.snapshot(), {
       instrumentation: deps.instrumentation,
@@ -65,6 +71,10 @@ export class ReplicaModel<T> extends LiveFollower<T> implements LiveSource {
 
   subscribe(cb: (update: LiveUpdate) => void): Unsubscribe {
     return this.emitter.subscribe(cb);
+  }
+
+  onChange(cb: (value: T, meta: LiveChangeMeta) => void): Unsubscribe {
+    return this.changeEmitter.subscribe(({ value, meta }) => cb(value, meta));
   }
 
   waitForCursor(target: LiveCursor, timeoutMs = 15_000): Promise<void> {
@@ -107,9 +117,10 @@ export class ReplicaModel<T> extends LiveFollower<T> implements LiveSource {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    this.waiters.rejectAll(new Error('ReplicaModel disposed'));
-    this.localWaiters.rejectAll(new Error('ReplicaModel disposed'));
+    this.waiters.rejectAll(new Error('ReplicaState disposed'));
+    this.localWaiters.rejectAll(new Error('ReplicaState disposed'));
     this.emitter.clear();
+    this.changeEmitter.clear();
     (await this.detachPromise)();
   }
 
@@ -117,7 +128,7 @@ export class ReplicaModel<T> extends LiveFollower<T> implements LiveSource {
     this.store.reset(data);
     this.localGeneration = nextGeneration(this.localGeneration);
     this.localSequence = 0;
-    this.deps.onChange?.(this.store.current(), { kind: 'seed' });
+    this.emitChange({ kind: 'seed' });
     this.waiters.flushCursorWaiters();
     this.waiters.flushAllMutationWaiters();
     this.localWaiters.flushCursorWaiters();
@@ -147,10 +158,7 @@ export class ReplicaModel<T> extends LiveFollower<T> implements LiveSource {
       delta: update.delta,
       mutationIds: update.mutationIds,
     });
-    this.deps.onChange?.(this.store.current(), {
-      kind: 'update',
-      mutationIds: update.mutationIds ?? [],
-    });
+    this.emitChange({ kind: 'update', mutationIds: update.mutationIds ?? [] });
     this.waiters.flushCursorWaiters();
     this.waiters.flushMutationWaiters(update.mutationIds ?? []);
     this.localWaiters.flushCursorWaiters();
@@ -161,6 +169,12 @@ export class ReplicaModel<T> extends LiveFollower<T> implements LiveSource {
       generation: this.localGeneration,
       sequence: this.localSequence,
     };
+  }
+
+  private emitChange(meta: LiveChangeMeta): void {
+    const value = this.store.current();
+    this.deps.onChange?.(value, meta);
+    this.changeEmitter.emit({ value, meta });
   }
 }
 

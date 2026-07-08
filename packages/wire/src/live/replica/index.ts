@@ -1,11 +1,11 @@
 export {
   buildReplicaInstance,
-  modelNameForCursor,
+  stateNameForCursor,
   translateCursors,
   type ContractMutationInvocation,
   type ReplicaInstance,
   type ReplicaInstanceOptions,
-  type ReplicaModels,
+  type ReplicaStates,
   type ReplicaMutations,
 } from './instance';
 export {
@@ -26,7 +26,7 @@ export {
   type LiveLogReplicaOptions,
   type ReplicaLogOptions,
 } from './log';
-export { ReplicaModel, type ReplicaModelOptions } from './model';
+export { ReplicaState, type ReplicaStateOptions } from './state';
 export {
   isLiveModelProvider,
   type GroupMutationEnvelope,
@@ -39,4 +39,4 @@ export {
   type LiveModelReplicaOptions,
 } from './replica';
 export { createPlainStore, type StateStore } from './store';
-export type { LiveChangeMeta } from '../model';
+export type { LiveChangeMeta } from '../state';

@@ -26,7 +26,7 @@ The update carries `mutationIds: ['example-add-task']`. A replica can resolve
 ## Hosts and Context
 
 Live model contract mutations run against a keyed `LiveModelHost` instance. The
-host owns each instance's member `LiveModel`s and resolves schema-only mutation
+host owns each instance's member `LiveState`s and resolves schema-only mutation
 handlers supplied at host creation:
 
 ```ts
@@ -48,7 +48,7 @@ sessions.create({ sessionId: 'demo' }, {
 ```
 
 Keys use `stableStringify()`, so object key order does not matter when hosts and
-client bindings look up an instance. `GroupMutationContext` is instance-bound:
+client bindings look up an instance. `LiveModelMutationContext` is instance-bound:
 `ctx.key` identifies the current host instance and `ctx.produce(member, mutator)`
 records the cursor of every touched member model. The wire result is:
 
@@ -64,13 +64,13 @@ live model bindings need to catch up.
 ## Client Settling
 
 `LiveModelReplica.acquire(key)` returns a `ReplicaInstance` for one group key. Its
-mutation methods call the thin group and then settle against the local
-`ReplicaModel`s.
+mutation methods call the live model client handle and then settle against the local
+`ReplicaState`s.
 
 Group mutation methods return `{ result, settled }`:
 
 ```ts
-const sessions = createLiveModelReplica(api.session, thin.session);
+const sessions = createLiveModelReplica(api.session, contractClient.session);
 const lease = sessions.acquire({ sessionId: 'demo' });
 const session = await lease.ready();
 
@@ -90,7 +90,7 @@ This lets UI code safely read live client snapshots after `await settled`.
 
 ## Group Contract Mutations
 
-The API layer integrates mutations through `defineLiveModelContract()` member
+The API layer integrates mutations through `liveModel()` member
 mutations. Each group mutation becomes a client method:
 
 ```ts
@@ -147,9 +147,9 @@ mutation has durable side effects such as database writes, store the
 `mutationId` in that domain layer too.
 
 Use `procedure()` for API calls that do not need live model cursor settling.
-`mutation()` is only valid as a member of `defineLiveModelContract().mutations`
+`mutation()` is only valid as a member of `liveModel().mutations`
 in the contract API.
 
 See [../../examples/group/client.ts](../../examples/group/client.ts),
-[../../examples/optimistic-group/client.ts](../../examples/optimistic-group/client.ts),
+[../../examples/optimistic-live-model/client.ts](../../examples/optimistic-live-model/client.ts),
 and [../../examples/mutation-idempotency/client.ts](../../examples/mutation-idempotency/client.ts).

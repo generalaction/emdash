@@ -1,6 +1,5 @@
 export {
-  OptimisticLiveModelGroup,
-  type OptimisticLiveModelGroupBinding,
-  type OptimisticLiveModelGroupMutations,
-  type OptimisticLiveModelGroupValues,
-} from './optimistic-group';
+  OptimisticLiveModel,
+  type OptimisticLiveModelMutations,
+  type OptimisticLiveModelValues,
+} from './optimistic-live-model';

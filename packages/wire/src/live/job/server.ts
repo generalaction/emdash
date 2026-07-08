@@ -1,7 +1,8 @@
-import { LiveModel } from '../model';
+import { toSerializedError, type Result } from '@emdash/shared';
 import type { LiveJobState, LiveSnapshot, LiveSource } from '../protocol';
+import { LiveState } from '../state';
 
-export const DEFAULT_LIVE_JOB_MAX_PROGRESS_ENTRIES = 100;
+const LIVE_JOB_MAX_PROGRESS_ENTRIES = 100;
 export const LIVE_JOB_TERMINAL_RETAIN_MS = 5 * 60 * 1000;
 
 export type LiveJobContext<P> = {
@@ -9,7 +10,10 @@ export type LiveJobContext<P> = {
   progress: (progress: P) => void;
 };
 
-export type LiveJobHandler<I, P, R> = (input: I, ctx: LiveJobContext<P>) => Promise<R>;
+export type LiveJobHandler<I, P, R, E> = (
+  input: I,
+  ctx: LiveJobContext<P>
+) => Promise<Result<R, E>> | Result<R, E>;
 
 export type LiveJobListEntry = {
   jobId: string;
@@ -18,12 +22,12 @@ export type LiveJobListEntry = {
   finishedAt?: number;
 };
 
-export type LiveJobOptions = {
+export type LiveJobOptions<E = unknown> = {
   generation?: number;
-  maxProgressEntries?: number;
   terminalRetainMs?: number;
   idFactory?: () => string;
   clock?: () => number;
+  toError?: (err: unknown) => E;
   onRunStarted?: (entry: LiveJobListEntry) => void;
   onRunChanged?: (entry: LiveJobListEntry) => void;
   onRunEvicted?: (jobId: string) => void;
@@ -31,15 +35,15 @@ export type LiveJobOptions = {
 
 type LiveJobRun<P, R, E> = {
   abort: AbortController;
-  model: LiveModel<LiveJobState<P, R, E>>;
+  model: LiveState<LiveJobState<P, R, E>>;
   evictionTimer: ReturnType<typeof setTimeout> | undefined;
 };
 
 /**
  * Transport-agnostic cancellable job source.
  *
- * Each run is represented by a LiveModel-backed state resource, so jobs inherit
- * the snapshot/update protocol used by LiveModel while keeping execution,
+ * Each run is represented by a LiveState-backed state resource, so jobs inherit
+ * the snapshot/update protocol used by LiveState while keeping execution,
  * cancellation, and terminal retention scoped to this primitive.
  *
  * A LiveJob survives transport disconnects, but it is process-local and not
@@ -49,21 +53,15 @@ type LiveJobRun<P, R, E> = {
 export class LiveJob<I, P, R, E> {
   private readonly runs = new Map<string, LiveJobRun<P, R, E>>();
   private readonly generation: number | undefined;
-  private readonly maxProgressEntries: number;
   private readonly terminalRetainMs: number;
   private readonly idFactory: () => string;
   private readonly clock: () => number;
 
   constructor(
-    private readonly handler: LiveJobHandler<I, P, R>,
-    private readonly toError: (err: unknown) => E,
-    private readonly options: LiveJobOptions = {}
+    private readonly handler: LiveJobHandler<I, P, R, E>,
+    private readonly options: LiveJobOptions<E> = {}
   ) {
     this.generation = options.generation;
-    this.maxProgressEntries = Math.max(
-      0,
-      options.maxProgressEntries ?? DEFAULT_LIVE_JOB_MAX_PROGRESS_ENTRIES
-    );
     this.terminalRetainMs = Math.max(0, options.terminalRetainMs ?? LIVE_JOB_TERMINAL_RETAIN_MS);
     this.idFactory = options.idFactory ?? (() => crypto.randomUUID());
     this.clock = options.clock ?? (() => Date.now());
@@ -73,7 +71,7 @@ export class LiveJob<I, P, R, E> {
     const jobId = this.idFactory();
     const abort = new AbortController();
     const now = this.clock();
-    const model = new LiveModel<LiveJobState<P, R, E>>(
+    const model = new LiveState<LiveJobState<P, R, E>>(
       {
         status: 'running',
         startedAt: now,
@@ -113,7 +111,7 @@ export class LiveJob<I, P, R, E> {
     return this.snapshot(jobId)?.data;
   }
 
-  private job(jobId: string): LiveModel<LiveJobState<P, R, E>> | undefined {
+  private liveJob(jobId: string): LiveState<LiveJobState<P, R, E>> | undefined {
     return this.runs.get(jobId)?.model;
   }
 
@@ -131,16 +129,14 @@ export class LiveJob<I, P, R, E> {
         signal: run.abort.signal,
         progress: (progress) => this.reportProgress(run, progress),
       });
-      if (run.abort.signal.aborted) {
-        this.markCancelled(run);
-      } else {
-        this.markSucceeded(run, result);
-      }
+      if (run.abort.signal.aborted) this.markCancelled(run);
+      else if (result.success) this.markSucceeded(run, result.data);
+      else this.markFailed(run, result.error, false);
     } catch (err) {
       if (run.abort.signal.aborted) {
         this.markCancelled(run);
       } else {
-        this.markFailed(run, err);
+        this.markFailed(run, err, true);
       }
     } finally {
       this.scheduleEviction(jobId, run);
@@ -152,8 +148,8 @@ export class LiveJob<I, P, R, E> {
     run.model.produce((draft) => {
       if (draft.status !== 'running') return;
       draft.progress.push(progress);
-      if (draft.progress.length > this.maxProgressEntries) {
-        draft.progress.splice(0, draft.progress.length - this.maxProgressEntries);
+      if (draft.progress.length > LIVE_JOB_MAX_PROGRESS_ENTRIES) {
+        draft.progress.splice(0, draft.progress.length - LIVE_JOB_MAX_PROGRESS_ENTRIES);
       }
       draft.progressCount += 1;
     });
@@ -172,16 +168,19 @@ export class LiveJob<I, P, R, E> {
     });
   }
 
-  private markFailed(run: LiveJobRun<P, R, E>, err: unknown): void {
+  private markFailed(run: LiveJobRun<P, R, E>, err: unknown, thrown: boolean): void {
+    const mapped = thrown && this.options.toError ? this.options.toError(err) : undefined;
     run.model.produce((draft) => {
       if (draft.status !== 'running') return;
-      return {
+      const failed: LiveJobState<P, R, E> = {
         status: 'failed',
         startedAt: draft.startedAt,
         finishedAt: this.clock(),
         progress: [...draft.progress],
-        error: this.toError(err),
       };
+      if (thrown && mapped === undefined) failed.cause = toSerializedError(err);
+      else failed.error = (thrown ? mapped : err) as E;
+      return failed;
     });
   }
 

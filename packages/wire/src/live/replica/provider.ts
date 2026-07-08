@@ -1,7 +1,7 @@
 import type {
-  GroupKey,
-  GroupMutations,
-  LiveModelGroupDef,
+  LiveModelKey,
+  LiveModelMutations,
+  LiveModelDef,
   MutationData,
   MutationError,
   MutationInput,
@@ -10,28 +10,28 @@ import type { LiveMutationResult } from '../mutations';
 import type { LiveSource } from '../protocol';
 
 export type GroupMutationEnvelope<
-  Group extends LiveModelGroupDef,
-  Name extends keyof GroupMutations<Group>,
+  Group extends LiveModelDef,
+  Name extends keyof LiveModelMutations<Group>,
 > = {
-  key: GroupKey<Group>;
-  input: MutationInput<GroupMutations<Group>[Name]>;
+  key: LiveModelKey<Group>;
+  input: MutationInput<LiveModelMutations<Group>[Name]>;
   mutationId: string;
 };
 
-export type LiveModelProvider<Group extends LiveModelGroupDef = LiveModelGroupDef> = {
+export type LiveModelProvider<Group extends LiveModelDef = LiveModelDef> = {
   readonly kind: 'liveModelProvider';
   readonly contract: Group;
-  resolveModel<Name extends Extract<keyof Group['models'], string>>(
-    key: GroupKey<Group>,
+  resolveState<Name extends Extract<keyof Group['states'], string>>(
+    key: LiveModelKey<Group>,
     name: Name
   ): LiveSource | null | undefined;
-  runMutation<Name extends Extract<keyof GroupMutations<Group>, string>>(
+  runMutation<Name extends Extract<keyof LiveModelMutations<Group>, string>>(
     name: Name,
     envelope: GroupMutationEnvelope<Group, Name>
   ): Promise<
     LiveMutationResult<
-      MutationData<GroupMutations<Group>[Name]>,
-      MutationError<GroupMutations<Group>[Name]>
+      MutationData<LiveModelMutations<Group>[Name]>,
+      MutationError<LiveModelMutations<Group>[Name]>
     >
   >;
 };

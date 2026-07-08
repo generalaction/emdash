@@ -7,7 +7,8 @@ import {
   createLiveModelReplica,
   createLiveModelHost,
   defineContract,
-  defineLiveModelContract,
+  liveModel,
+  liveState,
   memoryTransportPair,
   mutation,
   serve,
@@ -18,11 +19,11 @@ const stateSchema = z.object({ title: z.string() });
 const usageSchema = z.object({ tokens: z.number() });
 
 const api = defineContract({
-  conversation: defineLiveModelContract({
+  conversation: liveModel({
     key: conversationKeySchema,
-    models: {
-      state: stateSchema,
-      usage: usageSchema,
+    states: {
+      state: liveState({ data: stateSchema }),
+      usage: liveState({ data: usageSchema }),
     },
     mutations: {
       setTitle: mutation(
@@ -53,8 +54,8 @@ async function main(): Promise<void> {
   const pair = memoryTransportPair();
   serve(pair.right, controller);
 
-  const thin = client(api, connect(pair.left));
-  const replica = createLiveModelReplica(api.conversation, thin.conversation, {
+  const contractClient = client(api, connect(pair.left));
+  const replica = createLiveModelReplica(api.conversation, contractClient.conversation, {
     onChange: {
       state: (state) => console.log('state:', state),
       usage: (usage) => console.log('usage:', usage),

@@ -1,9 +1,9 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { Emitter, type SerializedError, type Unsubscribe } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { z } from 'zod';
 import type { WireInstrumentation } from '../../observability';
-import { LiveModelClient } from '../model';
 import type { LiveCursor, LiveJobState, LiveSnapshot, LiveUpdate } from '../protocol';
+import { LiveStateClient } from '../state';
 
 export type LiveJobClientDeps<P, R, E> = {
   refetchSnapshot: () => Promise<LiveSnapshot<LiveJobState<P, R, E>>>;
@@ -14,9 +14,13 @@ export type LiveJobClientDeps<P, R, E> = {
 };
 
 export class LiveJobFailedError<E> extends Error {
-  constructor(readonly error: E) {
+  constructor(
+    readonly error: E | undefined,
+    options: { cause?: SerializedError } = {}
+  ) {
     super('Live job failed');
     this.name = 'LiveJobFailedError';
+    this.cause = options.cause;
   }
 }
 
@@ -31,7 +35,7 @@ export class LiveJobClient<P, R, E> {
   readonly result: Promise<R>;
 
   private readonly progressEmitter = new Emitter<P>();
-  private readonly model: LiveModelClient<LiveJobState<P, R, E>>;
+  private readonly model: LiveStateClient<LiveJobState<P, R, E>>;
   private lastProgressCount = 0;
   private suppressProgress = false;
   private settled = false;
@@ -46,7 +50,7 @@ export class LiveJobClient<P, R, E> {
       this.resolveResult = resolve;
       this.rejectResult = reject;
     });
-    this.model = new LiveModelClient<LiveJobState<P, R, E>>(
+    this.model = new LiveStateClient<LiveJobState<P, R, E>>(
       stateSchema,
       deps.refetchSnapshot,
       (state) => this.handleState(state),
@@ -177,7 +181,7 @@ export class LiveJobClient<P, R, E> {
     if (state.status === 'succeeded') {
       this.resolveResult(state.result);
     } else if (state.status === 'failed') {
-      this.rejectResult(new LiveJobFailedError(state.error));
+      this.rejectResult(new LiveJobFailedError(state.error, { cause: state.cause }));
     } else if (state.status === 'cancelled') {
       this.rejectResult(new LiveJobCancelledError());
     }

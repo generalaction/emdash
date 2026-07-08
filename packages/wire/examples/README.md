@@ -12,8 +12,8 @@ For conceptual docs that explain how the examples fit together, see
 Run them from the repository root:
 
 ```bash
-pnpm --filter @emdash/wire run example:live-model
-pnpm --filter @emdash/wire run example:batched-model
+pnpm --filter @emdash/wire run example:live-state
+pnpm --filter @emdash/wire run example:batched-state
 pnpm --filter @emdash/wire run example:live-log
 pnpm --filter @emdash/wire run example:live-job
 pnpm --filter @emdash/wire run example:cancellation
@@ -27,14 +27,14 @@ pnpm --filter @emdash/wire run example:job-contract
 pnpm --filter @emdash/wire run example:mutation-idempotency
 pnpm --filter @emdash/wire run example:multi-window
 pnpm --filter @emdash/wire run example:logging
-pnpm --filter @emdash/wire run example:optimistic-group
+pnpm --filter @emdash/wire run example:optimistic-live-model
 ```
 
 Examples:
 
-- `live-model/` demonstrates `LiveModel`, the package-local protocol follower,
+- `live-state/` demonstrates `LiveState`, the package-local protocol follower,
   cursors, mutation IDs, and resync after a generation change.
-- `batched-model/` demonstrates `BatchedLiveModel` coalescing multiple queued
+- `batched-state/` demonstrates `BatchedLiveState` coalescing multiple queued
   mutators into one emitted update.
 - `live-log/` demonstrates `LiveLog` and the package-local protocol follower
   with retained tail snapshots.
@@ -45,17 +45,17 @@ Examples:
 - `contract/` demonstrates the full API flow in one file: contract definition,
   bound controller, memory transport, and typed client.
 - `api-definition/` isolates contract definition with `defineContract`,
-  `procedure`, `defineLiveModelContract`, `liveLog`, and live model contract
+  `procedure`, `liveModel`, `liveLog`, and live model contract
   mutations.
 - `api-binding/` isolates controller construction with `bindContract()` and
   direct controller calls/snapshots.
 - `api-client/` isolates serving a bound controller over a memory transport,
-  creating a typed thin `client()`, and acquiring a live model replica.
-- `group/` demonstrates `defineLiveModelContract`, host instance lifecycle,
+  creating a typed `ContractClient`, and acquiring a live model replica.
+- `group/` demonstrates `liveModel`, host instance lifecycle,
   typed group client binding, and mutation settling across multiple member models.
 - `dedupe/` demonstrates server-side `deduplicateRequests()` for in-flight
   procedure calls.
-- `job-contract/` demonstrates the contract-level `job()` endpoint with start,
+- `job-contract/` demonstrates the contract-level `liveJob()` endpoint with start,
   progress, cancellation, terminal result, and reattach.
 - `mutation-idempotency/` demonstrates mutationId-based server dedupe for live
   model contract mutations.
@@ -64,5 +64,5 @@ Examples:
 - `replica/` demonstrates a cached middle hop with `createLiveModelReplica()`.
 - `logging/` demonstrates `withLogging`, `loggingTransport`, instrumentation
   hooks, redacted debug payload logging, and live-client resync diagnostics.
-- `optimistic-group/` demonstrates `OptimisticLiveModelGroup` deriving previews
+- `optimistic-live-model/` demonstrates `OptimisticLiveModel` deriving previews
   from inline group mutation handlers and rolling back rejected mutations.

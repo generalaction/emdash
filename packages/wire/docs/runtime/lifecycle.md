@@ -19,7 +19,7 @@ import { createScope } from '@emdash/wire/util';
 
 const scope = createScope({ label: 'conversation:abc', logger });
 
-scope.add(() => detachLiveModel());
+scope.add(() => detachLiveState());
 scope.add(() => removeWindowListener());
 scope.use({ dispose: () => runtime.dispose() });
 

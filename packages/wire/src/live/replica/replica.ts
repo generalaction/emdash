@@ -1,6 +1,10 @@
 import type { PendingLease } from '@emdash/shared';
-import type { MutationCallOptions, ThinGroup, ThinLiveHandle } from '../../api/client';
-import type { GroupKey, LiveModelGroupDef, MutationData, MutationError } from '../../api/define';
+import type {
+  MutationCallOptions,
+  LiveModelClientHandle,
+  LiveClientHandle,
+} from '../../api/client';
+import type { LiveModelKey, LiveModelDef, MutationData, MutationError } from '../../api/define';
 import { createManagedSource } from '../../util/managed-source';
 import { stableStringify, type LiveMutationResult } from '../mutations';
 import type { LiveSource } from '../protocol';
@@ -10,35 +14,35 @@ import {
   type ReplicaInstance,
   type ReplicaInstanceOptions,
 } from './instance';
-import { ReplicaModel } from './model';
 import type { LiveModelProvider } from './provider';
 import { managedLiveSource } from './source';
+import { ReplicaState } from './state';
 
 export type LiveModelReplicaOptions = ReplicaInstanceOptions & {
   retentionMs?: number;
 };
 
-export type LiveModelReplica<Group extends LiveModelGroupDef = LiveModelGroupDef> =
+export type LiveModelReplica<Group extends LiveModelDef = LiveModelDef> =
   LiveModelProvider<Group> & {
     readonly replica: true;
-    acquire(key: GroupKey<Group>): PendingLease<ReplicaInstance<Group>>;
-    peek(key: GroupKey<Group>): ReplicaInstance<Group> | undefined;
+    acquire(key: LiveModelKey<Group>): PendingLease<ReplicaInstance<Group>>;
+    peek(key: LiveModelKey<Group>): ReplicaInstance<Group> | undefined;
     dispose(): Promise<void>;
   };
 
-export function createLiveModelReplica<Group extends LiveModelGroupDef>(
+export function createLiveModelReplica<Group extends LiveModelDef>(
   contract: Group,
-  group: ThinGroup<Group>,
+  group: LiveModelClientHandle<Group>,
   options: LiveModelReplicaOptions = {}
 ): LiveModelReplica<Group> {
-  const source = createManagedSource<GroupKey<Group>, ReplicaInstance<Group>>({
+  const source = createManagedSource<LiveModelKey<Group>, ReplicaInstance<Group>>({
     key: stableStringify,
     graceMs: options.retentionMs,
     async create(key, scope) {
       const instance = buildReplicaInstance(contract, key, {
-        createModel(name, model) {
-          const replica = new ReplicaModel(
-            group.model(key, name as never) as ThinLiveHandle<unknown>,
+        createState(name, model) {
+          const replica = new ReplicaState(
+            group.state(key, name as never) as LiveClientHandle<unknown>,
             {
               instrumentation: options.instrumentation,
               logger: options.logger,
@@ -69,8 +73,8 @@ export function createLiveModelReplica<Group extends LiveModelGroupDef>(
     peek(key) {
       return source.peek(key);
     },
-    resolveModel(key, name) {
-      return managedLiveSource(source, key, (instance) => modelFor(instance, name));
+    resolveState(key, name) {
+      return managedLiveSource(source, key, (instance) => stateFor(instance, name));
     },
     async runMutation(name, envelope) {
       return runReplicaMutation(name, envelope);
@@ -83,7 +87,7 @@ export function createLiveModelReplica<Group extends LiveModelGroupDef>(
   async function runReplicaMutation<Name extends Extract<keyof Group['mutations'], string>>(
     name: Name,
     envelope: {
-      key: GroupKey<Group>;
+      key: LiveModelKey<Group>;
       input: unknown;
       mutationId: string;
     }
@@ -129,8 +133,8 @@ export function isLiveModelReplica(value: unknown): value is LiveModelReplica {
   );
 }
 
-function modelFor(instance: ReplicaInstance, name: string): LiveSource {
-  const model = instance.models[name];
+function stateFor(instance: ReplicaInstance, name: string): LiveSource {
+  const model = instance.states[name];
   if (!model) throw new Error(`Unknown replica model '${name}'`);
   return model;
 }

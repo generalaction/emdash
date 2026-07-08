@@ -17,7 +17,7 @@ export type LiveLogOptions = {
 /**
  * Transport-agnostic append-only log source.
  *
- * The update envelope matches LiveModel, but the delta is log-specific:
+ * The update envelope matches LiveState, but the delta is log-specific:
  * `{ chunk: string }`. Snapshots return the retained tail plus the byte offset
  * of the first retained byte so clients can reset cheaply after gaps.
  */

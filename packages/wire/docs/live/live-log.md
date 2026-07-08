@@ -42,11 +42,11 @@ limit.
 
 ## Consumers
 
-Consumers normally reach logs through the API layer. The thin handle is useful
+Consumers normally reach logs through the API layer. The client handle is useful
 when you want to stream directly into a terminal or log viewer:
 
 ```ts
-const output = thin.activity.handle(session);
+const output = contractClient.activity.handle(session);
 const snapshot = await output.snapshot();
 term.write(snapshot.data.text);
 
@@ -76,7 +76,7 @@ const controller = bindContract(api, {
   activity: () => activityLogServer,
 });
 
-const activity = thin.activity.handle(session);
+const activity = contractClient.activity.handle(session);
 const detach = await activity.attach((update) => {
   console.log((update.delta as { chunk: string }).chunk);
 });

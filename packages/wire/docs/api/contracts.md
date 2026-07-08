@@ -11,10 +11,10 @@ procedure paths and live ref ids after nested contracts are mounted.
 ```ts
 export const notesApi = defineContract({
   activity: liveLog({ key: sessionKeySchema }),
-  session: defineLiveModelContract({
+  session: liveModel({
     key: sessionKeySchema,
-    models: {
-      notes: notesStateSchema,
+    states: {
+      notes: liveState({ data: notesStateSchema }),
     },
     mutations: {
       addNote: mutation(
@@ -66,28 +66,28 @@ disconnects, unknown paths, and uncaught handler exceptions. See
 
 ### `mutation`
 
-`mutation({ input, data, error }, handler?)` defines a live-model mutation shape.
-Top-level mutation endpoints are bound through `bindContract()` implementations.
-Group mutations usually provide the inline handler in the contract because
-`OptimisticLiveModelGroup` can run the same pure handler on the client.
+`mutation({ input, data, error }, handler?)` defines a live-state mutation shape.
+Mutations are members of `liveModel()` definitions. They usually provide the
+inline handler in the contract because
+`OptimisticLiveModel` can run the same pure handler on the client.
 
 `mutation()` is for operations that must settle live model cursors. Use
-`procedure()` for calls that do not update live models and `job()` for
+`procedure()` for calls that do not update live models and `liveJob()` for
 long-running work.
 
 ### `liveLog`
 
 `liveLog({ key })` declares a keyed text log endpoint. It is served by a
-`LiveLog` resolver and consumed through a thin `handle(key)` or a
+`LiveLog` resolver and consumed through a `LiveLogClientHandle` or a
 `LiveLogReplica`.
 
-### `job`
+### `liveJob`
 
-`job({ input, progress, result, error })` models long-running work with progress,
+`liveJob({ input, progress, result, error })` models long-running work with progress,
 cancellation, terminal state, and reattach:
 
 ```ts
-build: job({
+build: liveJob({
   input: z.object({ target: z.string() }),
   progress: z.object({ step: z.string() }),
   result: z.object({ artifact: z.string() }),
@@ -95,24 +95,25 @@ build: job({
 });
 ```
 
-`bindContract()` binds the endpoint to `{ run, toError }`. The typed client gets
-`start(input)`, `cancel(jobId)`, and `handle(jobId)` helpers. See
+`bindContract()` binds the endpoint to `{ run, toError? }`. `run` returns a
+`Result<result, error>` payload; `toError` is only an optional fallback for
+unexpected thrown errors. The typed client gets `start(input)`, `cancel(jobId)`,
+and `handle(jobId)` helpers. See
 [live jobs](../live/live-job.md).
 
-### `defineLiveModelContract`
+### `liveModel`
 
-`defineLiveModelContract({ key, models, mutations })` aggregates related live
-models and the mutations that may touch them. A single key addresses every
-member. Models are declared as data schemas; the helper creates the keyed member
-refs.
+`liveModel({ key, states, mutations })` aggregates related live states and the
+mutations that may touch them. A single key addresses every member. States are
+declared with `liveState({ data })`; the helper creates keyed member refs.
 
 ```ts
 const api = defineContract({
-  conversation: defineLiveModelContract({
+  conversation: liveModel({
     key: conversationKeySchema,
-    models: {
-      state: stateSchema,
-      usage: usageSchema,
+    states: {
+      state: liveState({ data: stateSchema }),
+      usage: liveState({ data: usageSchema }),
     },
     mutations: {
       setTitle: mutation(
@@ -143,9 +144,9 @@ Contracts can contain other contracts:
 
 ```ts
 const ptyAgent = defineContract({
-  sessions: defineLiveModelContract({
+  sessions: liveModel({
     key: sessionKeySchema,
-    models: { state: sessionStateSchema },
+    states: { state: liveState({ data: sessionStateSchema }) },
   }),
   output: liveLog({ key: sessionKeySchema }),
 });
@@ -155,10 +156,10 @@ const api = defineContract({ ptyAgent });
 
 The final mount path determines ids and procedure paths:
 
-- `api.ptyAgent.sessions.models.state.id` is `ptyAgent.sessions.state`.
+- `api.ptyAgent.sessions.states.state.id` is `ptyAgent.sessions.state`.
 - `api.ptyAgent.output.id` is `ptyAgent.output`.
 - a procedure at `api.ptyAgent.startSession` is called as `ptyAgent.startSession`.
-- a group member at `api.tasks.conversation.models.state` gets the id
+- a group member at `api.tasks.conversation.states.state` gets the id
   `tasks.conversation.state`.
 
 This lets packages define small contracts locally and compose them into a larger
@@ -183,7 +184,7 @@ Then bind the group by passing the host in the implementation object:
 const controller = bindContract(api, { conversation: conversations });
 ```
 
-The thin client group exposes `model(key, name)` for member handles and
+The live model client handle exposes `state(key, name)` for member handles and
 `mutate(name, envelope)` for mutation calls. Wrap it in `createLiveModelReplica()`
 when a process wants local state, ref counting, and mutation settling. See
 [serving](./serving.md#typed-clients).

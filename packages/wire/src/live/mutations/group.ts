@@ -1,63 +1,63 @@
 import type {
-  EndpointLiveModelData,
-  GroupMutationCtx,
-  GroupKey,
-  GroupModels,
-  LiveModelGroupDef,
+  LiveStateData,
+  LiveModelMutationCtx,
+  LiveModelKey,
+  LiveModelStates,
+  LiveModelDef,
 } from '../../api/define';
-import type { Mutator } from '../model';
-import { LiveModel } from '../model';
 import type { LiveCursor, LiveCursorEntry } from '../protocol';
+import type { Mutator } from '../state';
+import { LiveState } from '../state';
 import { stableStringify } from './registry';
 
-export type GroupInitialState<Group extends LiveModelGroupDef> = {
-  [Name in keyof GroupModels<Group>]: EndpointLiveModelData<GroupModels<Group>[Name]>;
+export type LiveModelInitialState<Group extends LiveModelDef> = {
+  [Name in keyof LiveModelStates<Group>]: LiveStateData<LiveModelStates<Group>[Name]>;
 };
 
-export type GroupModelServers<Group extends LiveModelGroupDef> = {
-  [Name in keyof GroupModels<Group>]: LiveModel<EndpointLiveModelData<GroupModels<Group>[Name]>>;
+export type LiveModelStateServers<Group extends LiveModelDef> = {
+  [Name in keyof LiveModelStates<Group>]: LiveState<LiveStateData<LiveModelStates<Group>[Name]>>;
 };
 
-export type LiveModelGroupInstance<Group extends LiveModelGroupDef = LiveModelGroupDef> = {
+export type LiveModelInstance<Group extends LiveModelDef = LiveModelDef> = {
   group: Group;
-  key: GroupKey<Group>;
-  models: GroupModelServers<Group>;
+  key: LiveModelKey<Group>;
+  states: LiveModelStateServers<Group>;
 };
 
-export function createGroupInstance<Group extends LiveModelGroupDef>(
+export function createGroupInstance<Group extends LiveModelDef>(
   group: Group,
-  key: GroupKey<Group>,
-  initialState: GroupInitialState<Group>,
+  key: LiveModelKey<Group>,
+  initialState: LiveModelInitialState<Group>,
   options: { generation?: number } = {}
-): LiveModelGroupInstance<Group> {
-  const models: Record<string, LiveModel<unknown>> = {};
-  for (const name of Object.keys(group.models)) {
-    models[name] = new LiveModel(
+): LiveModelInstance<Group> {
+  const states: Record<string, LiveState<unknown>> = {};
+  for (const name of Object.keys(group.states)) {
+    states[name] = new LiveState(
       structuredClone((initialState as Record<string, unknown>)[name]),
       options.generation
     );
   }
-  return { group, key, models: models as GroupModelServers<Group> };
+  return { group, key, states: states as LiveModelStateServers<Group> };
 }
 
-export class GroupMutationContext<
-  Group extends LiveModelGroupDef = LiveModelGroupDef,
-> implements GroupMutationCtx<Group> {
+export class LiveModelMutationContext<
+  Group extends LiveModelDef = LiveModelDef,
+> implements LiveModelMutationCtx<Group> {
   private readonly captured = new Map<string, LiveCursorEntry>();
 
   constructor(
     private readonly group: Group,
-    readonly key: GroupKey<Group>,
-    private readonly instance: LiveModelGroupInstance<Group>,
+    readonly key: LiveModelKey<Group>,
+    private readonly instance: LiveModelInstance<Group>,
     readonly mutationId: string
   ) {}
 
-  produce<Name extends keyof GroupModels<Group>>(
+  produce<Name extends keyof LiveModelStates<Group>>(
     name: Name,
-    mutator: Mutator<EndpointLiveModelData<GroupModels<Group>[Name]>>
+    mutator: Mutator<LiveStateData<LiveModelStates<Group>[Name]>>
   ): void {
-    const server = this.instance.models[name];
-    const ref = (this.group.models as GroupModels<Group>)[name];
+    const server = this.instance.states[name];
+    const ref = (this.group.states as LiveModelStates<Group>)[name];
     if (!server || !ref) return;
     const cursor = server.produce(mutator, { mutationIds: [this.mutationId] });
     this.capture(ref.id, cursor);

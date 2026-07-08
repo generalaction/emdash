@@ -7,7 +7,8 @@ import {
   createLiveModelHost,
   createLiveModelReplica,
   defineContract,
-  defineLiveModelContract,
+  liveModel,
+  liveState,
   memoryTransportPair,
   mutation,
   serve,
@@ -17,10 +18,10 @@ const keySchema = z.object({ conversationId: z.string() });
 const stateSchema = z.object({ title: z.string() });
 
 const api = defineContract({
-  conversation: defineLiveModelContract({
+  conversation: liveModel({
     key: keySchema,
-    models: {
-      state: stateSchema,
+    states: {
+      state: liveState({ data: stateSchema }),
     },
     mutations: {
       setTitle: mutation(
@@ -67,7 +68,7 @@ async function main(): Promise<void> {
   const reloadedReplica = createLiveModelReplica(api.conversation, renderer.conversation);
   const reloadedLease = reloadedReplica.acquire(key);
   const reloadedWindow = await reloadedLease.ready();
-  console.log('reloaded snapshot:', reloadedWindow.models.state.current());
+  console.log('reloaded snapshot:', reloadedWindow.states.state.current());
   await reloadedLease.release();
   await reloadedReplica.dispose();
   await replica.dispose();

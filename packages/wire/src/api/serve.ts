@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@emdash/shared';
+import { toSerializedError, type Unsubscribe } from '@emdash/shared';
 import { getCurrentLogger, runWithLogger, type Logger } from '@emdash/shared/logger';
 import type { WireInstrumentation } from '../observability';
 import type { Controller } from './bind';
@@ -26,18 +26,7 @@ export function serve(
     }
   }
 
-  function reply(id: string, work: () => Promise<unknown> | unknown): void {
-    Promise.resolve()
-      .then(work)
-      .then(
-        (value) => post({ kind: 'result', id, ok: true, value }),
-        (error: unknown) => {
-          post({ kind: 'result', id, ok: false, ...serializeWireError(error) });
-        }
-      );
-  }
-
-  function replyCall(
+  function replyRequest(
     id: string,
     work: (signal: AbortSignal) => Promise<unknown> | unknown,
     onEnd?: (event: {
@@ -65,7 +54,11 @@ export function serve(
         },
         (error: unknown) => {
           const serialized = abort.signal.aborted
-            ? { code: 'CANCELLED' as const, message: 'Wire call cancelled' }
+            ? {
+                code: 'CANCELLED' as const,
+                message: 'Wire call cancelled',
+                cause: error === undefined ? undefined : toSerializedError(error),
+              }
             : serializeWireError(error);
           onEnd?.({
             durationMs: performanceNow() - start,
@@ -84,7 +77,7 @@ export function serve(
   function replyControllerCall(id: string, path: string, input: unknown): void {
     instrumentation?.callStart?.({ callId: id, path, input, side: 'server' });
     const logger = options.logger ?? getCurrentLogger();
-    replyCall(
+    replyRequest(
       id,
       (signal) =>
         runWithLogger(logger.child({ wireCallId: id, wirePath: path }), () =>
@@ -106,7 +99,8 @@ export function serve(
 
   function replySnapshot(id: string, topic: string): void {
     const start = performanceNow();
-    reply(id, async () => {
+    replyRequest(id, async (signal) => {
+      if (signal.aborted) throw new WireError('CANCELLED', 'Wire snapshot cancelled');
       try {
         const snapshot = await requireLiveSource(controller, topic).snapshot();
         instrumentation?.snapshot?.({
@@ -148,7 +142,8 @@ export function serve(
         replySnapshot(message.id, message.topic);
         break;
       case 'attach':
-        reply(message.id, () => {
+        replyRequest(message.id, (signal) => {
+          if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
           if (attached.has(message.topic)) return undefined;
           const source = requireLiveSource(controller, message.topic);
           attached.set(

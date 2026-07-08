@@ -3,16 +3,16 @@ import { z } from 'zod';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { mergeControllers, type Controller } from './bind';
 import { connect } from './connect';
-import { defineContract, defineLiveModelContract, procedure } from './define';
+import { defineContract, liveModel, liveState, procedure } from './define';
 import { relayController } from './relay';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
 const contract = defineContract({
   greet: procedure({ input: z.object({ name: z.string() }), output: z.string() }),
-  state: defineLiveModelContract({
+  state: liveModel({
     key: z.object({ id: z.string() }),
-    models: { state: z.object({ count: z.number() }) },
+    states: { state: liveState({ data: z.object({ count: z.number() }) }) },
   }),
 });
 
@@ -126,7 +126,7 @@ function makeController(source: LiveSource): Controller {
       return `hello ${(input as { name: string }).name}`;
     },
     resolveLive: () => source,
-    liveRefIds: () => [contract.state.models.state.id],
+    liveRefIds: () => [contract.state.states.state.id],
   };
 }
 

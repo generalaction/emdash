@@ -1,13 +1,10 @@
-import { err, ok, resultSchema, type Unsubscribe } from '@emdash/shared';
+import { resultSchema, type Result, type Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import { LiveJob, type LiveJobContext } from '../live/job';
 import {
-  GroupMutationContext,
   isLiveModelHost,
   type LiveModelHost,
-  MutationResultCache,
   createMutationId,
-  type MutationResultCacheOptions,
   type LiveMutationResult,
 } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
@@ -20,14 +17,13 @@ import {
   type LiveLogReplica,
   type LiveModelProvider,
 } from '../live/replica';
-import type { WireInstrumentation } from '../observability';
 import {
-  isThinGroup,
-  isThinJob,
-  isThinLiveLogRef,
-  type ThinGroup,
-  type ThinJob,
-  type ThinLiveLogRef,
+  isLiveModelClientHandle,
+  isLiveJobClientHandle,
+  isLiveLogClientHandle,
+  type LiveModelClientHandle,
+  type LiveJobClientHandle,
+  type LiveLogClientHandle,
 } from './client';
 import type {
   Contract,
@@ -36,12 +32,12 @@ import type {
   EndpointInput,
   EndpointOutput,
   LiveLogKey,
-  JobEndpointDef,
+  LiveJobEndpointDef,
   JobInput,
   JobProgress,
   JobResult,
   JobError,
-  LiveModelGroupDef,
+  LiveModelDef,
   MutationDef,
 } from './define';
 import { isEndpointDef } from './define';
@@ -68,29 +64,32 @@ type ProcedureImpl<Def extends EndpointDef> = (
 
 type LiveLogImpl<Def extends EndpointDef> = (key: LiveLogKey<Def>) => LiveSource | null | undefined;
 
-type LiveLogEntryImpl<Def extends EndpointDef> = LiveLogImpl<Def> | ThinLiveLogRef | LiveLogReplica;
+type LiveLogEntryImpl<Def extends EndpointDef> =
+  | LiveLogImpl<Def>
+  | LiveLogClientHandle
+  | LiveLogReplica;
 
-type GroupImpl<Def extends LiveModelGroupDef> =
+type GroupImpl<Def extends LiveModelDef> =
   | LiveModelHost<Def>
-  | ThinGroup<Def>
+  | LiveModelClientHandle<Def>
   | LiveModelProvider<Def>;
 
 type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
   ? ProcedureImpl<Def>
   : Def extends { kind: 'liveLog' }
     ? LiveLogEntryImpl<Def>
-    : Def extends LiveModelGroupDef
+    : Def extends LiveModelDef
       ? GroupImpl<Def>
-      : Def extends JobEndpointDef
-        ? JobImpl<Def> | ThinJob<Def> | LiveJobReplica<Def>
+      : Def extends LiveJobEndpointDef
+        ? JobImpl<Def> | LiveJobClientHandle<Def> | LiveJobReplica<Def>
         : never;
 
-type JobImpl<Def extends JobEndpointDef> = {
+type JobImpl<Def extends LiveJobEndpointDef> = {
   run(
     input: JobInput<Def>,
     ctx: LiveJobContext<JobProgress<Def>>
-  ): Promise<JobResult<Def>> | JobResult<Def>;
-  toError(error: unknown): JobError<Def>;
+  ): Promise<Result<JobResult<Def>, JobError<Def>>> | Result<JobResult<Def>, JobError<Def>>;
+  toError?(error: unknown): JobError<Def>;
 };
 
 export type ContractImpl<Defs extends ContractDefinitions> = {
@@ -103,8 +102,6 @@ export type ContractImpl<Defs extends ContractDefinitions> = {
 
 export type BindContractOptions = {
   validate?: ValidatePolicy;
-  mutationDedupe?: MutationResultCacheOptions | false;
-  instrumentation?: WireInstrumentation;
 };
 
 type LiveEntry = {
@@ -123,8 +120,6 @@ export function bindContract<Defs extends ContractDefinitions>(
   const liveEntries = new Map<string, LiveEntry>();
   const procedureEntries = new Map<string, (input: unknown, meta: CallMeta) => Promise<unknown>>();
   const jobServers: Array<{ dispose(): void }> = [];
-  const mutationCache =
-    options.mutationDedupe === false ? undefined : new MutationResultCache(options.mutationDedupe);
 
   collectContractEntries(contract, impl as Record<string, unknown>, []);
 
@@ -173,12 +168,16 @@ export function bindContract<Defs extends ContractDefinitions>(
           });
           break;
         }
-        case 'job': {
-          const impl = entryImpl as JobImpl<JobEndpointDef> | ThinJob | LiveJobReplica | undefined;
+        case 'liveJob': {
+          const impl = entryImpl as
+            | JobImpl<LiveJobEndpointDef>
+            | LiveJobClientHandle
+            | LiveJobReplica
+            | undefined;
           if (!impl) {
             throw new WireError('MISSING_HANDLER', `Job '${fullPath}' requires a handler`);
           }
-          if (isThinJob(impl)) {
+          if (isLiveJobClientHandle(impl)) {
             procedureEntries.set(`${fullPath}.start`, (input) => impl.start(input as never));
             procedureEntries.set(`${fullPath}.cancel`, async (input) => {
               const parsed = z.object({ jobId: z.string() }).parse(input);
@@ -235,12 +234,12 @@ export function bindContract<Defs extends ContractDefinitions>(
           });
           break;
         }
-        case 'group': {
+        case 'liveModel': {
           const provider = createGroupProvider(def, entryImpl, fullPath);
-          for (const [modelName, model] of Object.entries(def.models)) {
-            liveEntries.set(model.id, {
+          for (const [stateName, state] of Object.entries(def.states)) {
+            liveEntries.set(state.id, {
               keySchema: def.keySchema,
-              resolve: (key) => provider.resolveModel(key as never, modelName),
+              resolve: (key) => provider.resolveState(key as never, stateName),
             });
           }
           for (const [mutationName, mutationDef] of Object.entries(def.mutations)) {
@@ -257,7 +256,7 @@ export function bindContract<Defs extends ContractDefinitions>(
   }
 
   function createGroupProvider(
-    def: LiveModelGroupDef,
+    def: LiveModelDef,
     entryImpl: unknown,
     fullPath: string
   ): LiveModelProvider {
@@ -271,23 +270,23 @@ export function bindContract<Defs extends ContractDefinitions>(
       return entryImpl;
     }
 
-    if (isThinGroup(entryImpl)) {
+    if (isLiveModelClientHandle(entryImpl)) {
       if (entryImpl.def.id !== def.id) {
         throw new WireError(
           'CONTRACT_MISMATCH',
-          `Thin group for '${fullPath}' was created for '${entryImpl.def.id}'`
+          `Live model client handle for '${fullPath}' was created for '${entryImpl.def.id}'`
         );
       }
       return {
         kind: 'liveModelProvider',
         contract: def,
-        resolveModel: (key, name) => entryImpl.model(key, name).asLiveSource(),
+        resolveState: (key, name) => entryImpl.state(key, name).asLiveSource(),
         runMutation: (name, envelope) => entryImpl.mutate(name, envelope),
       };
     }
 
     if (isLiveModelHost(entryImpl)) {
-      const host = entryImpl as LiveModelHost<LiveModelGroupDef>;
+      const host = entryImpl as LiveModelHost<LiveModelDef>;
       if (host.contract.id !== def.id) {
         throw new WireError(
           'CONTRACT_MISMATCH',
@@ -304,53 +303,14 @@ export function bindContract<Defs extends ContractDefinitions>(
       return {
         kind: 'liveModelProvider',
         contract: def,
-        resolveModel: (key, name) => host.get(key as never)?.models[name],
-        runMutation: (name, envelope) =>
-          runHostMutation(def, host, fullPath, name, envelope, options.instrumentation),
+        resolveState: (key, name) => host.get(key as never)?.states[name],
+        runMutation: (name, envelope) => host.runMutation(name as never, envelope as never),
       };
     }
 
     throw new WireError(
       'MISSING_HANDLER',
       `Group '${fullPath}' requires a LiveModelHost or provider`
-    );
-  }
-
-  async function runHostMutation(
-    def: LiveModelGroupDef,
-    host: LiveModelHost<LiveModelGroupDef>,
-    fullPath: string,
-    mutationName: string,
-    envelope: { key: unknown; input: unknown; mutationId: string },
-    instrumentation: WireInstrumentation | undefined
-  ): Promise<LiveMutationResult<unknown, unknown>> {
-    const mutationDef = def.mutations[mutationName];
-    const handler = mutationDef?.handler ?? host.mutationHandler(mutationName);
-    if (!handler) {
-      throw new WireError(
-        'MISSING_HANDLER',
-        `Mutation '${fullPath}.${mutationName}' requires a handler`
-      );
-    }
-    const instance = host.get(envelope.key as never);
-    if (!instance) {
-      throw new WireError('NOT_FOUND', `Unknown group instance '${fullPath}'`);
-    }
-    const ctx = new GroupMutationContext(def, envelope.key, instance, envelope.mutationId);
-    return runMutation(
-      mutationCache,
-      envelope.mutationId,
-      `${fullPath}.${mutationName}`,
-      async () => {
-        const result = await handler(ctx, {
-          ...objectInput(envelope.input),
-          mutationId: envelope.mutationId,
-        });
-        return result.success
-          ? ok({ data: result.data, cursors: ctx.cursors() })
-          : err(result.error);
-      },
-      instrumentation
     );
   }
 
@@ -371,17 +331,9 @@ export function bindContract<Defs extends ContractDefinitions>(
       return [...liveEntries.keys()];
     },
     dispose() {
-      mutationCache?.clear();
       for (const server of jobServers) server.dispose();
     },
   };
-}
-
-function objectInput(input: unknown): Record<string, unknown> {
-  if (typeof input === 'object' && input !== null && !Array.isArray(input))
-    return input as Record<string, unknown>;
-  if (input === undefined) return {};
-  return { value: input };
 }
 
 export const bind = bindContract;
@@ -392,7 +344,7 @@ function createLiveLogResolver(
   impl: LiveLogEntryImpl<EndpointDef>
 ): (key: unknown) => LiveSource | null | undefined {
   if (isLiveLogReplica(impl)) return (key) => impl.resolve(key as never);
-  if (isThinLiveLogRef(impl)) return (key) => impl.handle(key as never).asLiveSource();
+  if (isLiveLogClientHandle(impl)) return (key) => impl.handle(key as never).asLiveSource();
   return impl as (key: unknown) => LiveSource | null | undefined;
 }
 
@@ -451,8 +403,8 @@ export function mergeControllers(controllers: Record<string, Controller>): Contr
 }
 
 function createLiveJob(
-  def: JobEndpointDef,
-  impl: JobImpl<JobEndpointDef>,
+  def: LiveJobEndpointDef,
+  impl: JobImpl<LiveJobEndpointDef>,
   validate: ValidatePolicy
 ): LiveJob<unknown, unknown, unknown, unknown> {
   return new LiveJob<unknown, unknown, unknown, unknown>(
@@ -462,17 +414,22 @@ function createLiveJob(
         progress: (progress) =>
           ctx.progress(validate === 'full' ? def.progress.parse(progress) : progress),
       });
-      return validate === 'full' ? def.result.parse(result) : result;
+      if (validate !== 'full') return result;
+      return resultSchema(def.result, def.error).parse(result) as Result<unknown, unknown>;
     },
-    (error) => {
-      const mapped = impl.toError(error);
-      return validate === 'full' ? def.error.parse(mapped) : mapped;
+    {
+      toError: impl.toError
+        ? (error) => {
+            const mapped = impl.toError?.(error);
+            return validate === 'full' ? def.error.parse(mapped) : mapped;
+          }
+        : undefined,
     }
   );
 }
 
 function parseGroupMutationInput(
-  group: LiveModelGroupDef,
+  group: LiveModelDef,
   def: MutationDef,
   input: unknown,
   validate: ValidatePolicy
@@ -497,20 +454,6 @@ function validateMutationOutput(
     z.object({ data: def.data, cursors: z.array(liveCursorEntrySchema) }),
     def.error
   ).parse(output) as LiveMutationResult<unknown, unknown>;
-}
-
-function runMutation<D, E>(
-  cache: MutationResultCache | undefined,
-  mutationId: string,
-  path: string,
-  execute: () => Promise<LiveMutationResult<D, E>>,
-  instrumentation: WireInstrumentation | undefined
-): Promise<LiveMutationResult<D, E>> {
-  return cache
-    ? cache.run(mutationId, execute, {
-        onDedupe: () => instrumentation?.mutationDeduped?.({ mutationId, path }),
-      })
-    : execute();
 }
 
 function missingLiveSource(message: string): LiveSource {

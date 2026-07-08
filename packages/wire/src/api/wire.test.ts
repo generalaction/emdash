@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
-import { ReplicaModel } from '../live/replica';
+import { ReplicaState } from '../live/replica';
 import { bindContract, encodeTopic } from './bind';
 import { client } from './client';
 import { connect } from './connect';
-import { defineContract, defineLiveModelContract, fallible, procedure } from './define';
+import { defineContract, liveModel, liveState, fallible, procedure } from './define';
 import { isWireError, WireError } from './protocol';
 import { serve } from './serve';
 import { memoryTransportPair, reconnectingTransport } from './transports';
@@ -15,9 +15,9 @@ import { memoryTransportPair, reconnectingTransport } from './transports';
 const contract = defineContract({
   greet: procedure({ input: z.object({ name: z.string() }), output: z.string() }),
   fail: procedure({ input: z.void().optional(), output: z.void() }),
-  state: defineLiveModelContract({
+  state: liveModel({
     key: z.object({ id: z.string() }),
-    models: { state: z.object({ count: z.number() }) },
+    states: { state: liveState({ data: z.object({ count: z.number() }) }) },
   }),
 });
 
@@ -25,7 +25,7 @@ function setup() {
   const pair = memoryTransportPair();
   const host = createLiveModelHost(contract.state);
   const instance = host.create({ id: 'known' }, { state: { count: 0 } });
-  const model = instance.models.state;
+  const model = instance.states.state;
   const controller = bindContract(contract, {
     greet: ({ name }) => `hello ${name}`,
     fail: () => {
@@ -129,7 +129,7 @@ describe('wire serve/connect', () => {
 
   it('snapshots and subscribes to live sources with refcounted detach', async () => {
     const { connection, model } = setup();
-    const topic = encodeTopic(contract.state.models.state.id, { id: 'known' });
+    const topic = encodeTopic(contract.state.states.state.id, { id: 'known' });
     await expect(connection.snapshot(topic)).resolves.toMatchObject({ data: { count: 0 } });
 
     const updates: LiveUpdate[] = [];
@@ -196,23 +196,23 @@ describe('wire serve/connect', () => {
     };
     const pair = memoryTransportPair();
     const cleanupContract = defineContract({
-      state: defineLiveModelContract({
+      state: liveModel({
         key: z.void().optional(),
-        models: { state: z.object({}) },
+        states: { state: liveState({ data: z.object({}) }) },
       }),
     });
     const controller = bindContract(cleanupContract, {
       state: {
         kind: 'liveModelProvider',
         contract: cleanupContract.state,
-        resolveModel: () => source,
+        resolveState: () => source,
         runMutation: async () => ok({ data: undefined, cursors: [] }),
       },
     });
     serve(pair.right, controller);
     const connection = connect(pair.left);
     await connection.attach(
-      encodeTopic(cleanupContract.state.models.state.id, undefined),
+      encodeTopic(cleanupContract.state.states.state.id, undefined),
       () => {}
     );
     pair.disconnect();
@@ -221,7 +221,7 @@ describe('wire serve/connect', () => {
 
   it('does not throw when an attachment is detached after disconnect', async () => {
     const { connection, pair, model } = setup();
-    const topic = encodeTopic(contract.state.models.state.id, { id: 'known' });
+    const topic = encodeTopic(contract.state.states.state.id, { id: 'known' });
     const updates: LiveUpdate[] = [];
     const detach = await connection.attach(topic, (update) => updates.push(update));
     pair.left.disconnect();
@@ -239,7 +239,7 @@ describe('wire serve/connect', () => {
   it('reattaches and refreshes bound live models after reconnect', async () => {
     const host = createLiveModelHost(contract.state);
     const instance = host.create({ id: 'known' }, { state: { count: 0 } });
-    const model = instance.models.state;
+    const model = instance.states.state;
     const controller = bindContract(contract, {
       greet: ({ name }) => `hello ${name}`,
       fail: () => {
@@ -255,9 +255,9 @@ describe('wire serve/connect', () => {
       serverDisposers.push(serve(pair.right, controller));
       return pair.left;
     });
-    const thin = client(contract, connect(transport));
+    const contractClient = client(contract, connect(transport));
     const seen: Array<{ count: number }> = [];
-    const binding = new ReplicaModel(thin.state.model({ id: 'known' }, 'state'), {
+    const binding = new ReplicaState(contractClient.state.state({ id: 'known' }, 'state'), {
       schema: z.object({ count: z.number() }),
       onChange: (value) => seen.push(value),
     });

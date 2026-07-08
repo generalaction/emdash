@@ -1,6 +1,6 @@
-# Live Models and Protocol
+# Live States and Protocol
 
-Live models are reactive JSON state containers. A server owns authoritative
+Live states are reactive JSON state containers. A server owns authoritative
 state, emits ordered Immer patches, and clients apply those patches locally.
 When a client detects a gap, it refetches a snapshot and resumes from the new
 generation.
@@ -14,7 +14,7 @@ The shared protocol lives in `src/live/protocol`.
 - `LiveUpdate` is an ordered delta:
   `{ generation, baseSequence, sequence, timestamp, delta, mutationIds? }`.
 - `LiveCursor` is `{ generation, sequence }` and identifies a point in a live
-  model stream.
+  state stream.
 - `LiveSource` is the common server-side shape consumed by the API layer:
   `snapshot()` plus `subscribe(cb)`.
 
@@ -25,11 +25,11 @@ current sequence; otherwise the client has missed an update and resyncs from
 
 ## Server
 
-`LiveModel<T>` owns one authoritative state object. Mutate it with
+`LiveState<T>` owns one authoritative state object. Mutate it with
 `produce()`, not by mutating the original object:
 
 ```ts
-const server = new LiveModel<TaskListState>(
+const server = new LiveState<TaskListState>(
   {
     tasks: [{ id: 'task-1', title: 'Read the plan', done: false }],
     filter: 'all',
@@ -53,18 +53,18 @@ next observed update.
 
 ## Consumers
 
-Consumers normally reach live models through a live model contract. Use the thin
-client when you only need protocol access:
+Consumers normally reach live states through a live model contract. Use the
+contract client when you only need protocol access:
 
 ```ts
-const model = thin.conversation.model({ sessionId }, 'state');
+const model = contractClient.conversation.state({ sessionId }, 'state');
 const snapshot = await model.snapshot();
 const detach = await model.attach((update) => {
   console.log(update.delta);
 });
 ```
 
-Wrap that thin model ref in `createLiveModelReplica()` when a process wants local
+Wrap that live state client handle in `createLiveModelReplica()` when a process wants local
 state, mutation settling, ref counting, or a downstream `LiveSource`; see
 [replicas](./replicas.md#model-replicas).
 
@@ -90,13 +90,13 @@ authoritative.
 
 These waiters are used by mutation settling; see [mutations](./mutations.md).
 
-## BatchedLiveModel
+## BatchedLiveState
 
-`BatchedLiveModel<T>` wraps a `LiveModel<T>` and coalesces queued mutators
+`BatchedLiveState<T>` wraps a `LiveState<T>` and coalesces queued mutators
 into one `produce()` call:
 
 ```ts
-const batched = new BatchedLiveModel(server, microtaskScheduler, {
+const batched = new BatchedLiveState(server, microtaskScheduler, {
   instrumentation,
   logger,
 });
@@ -114,5 +114,5 @@ time-windowed trailing debounce. If the combined batch throws, server state is
 unchanged, the batch is dropped, and `batchDropped` instrumentation/logging is
 emitted.
 
-See [../../examples/live-model/client.ts](../../examples/live-model/client.ts)
-and [../../examples/batched-model/client.ts](../../examples/batched-model/client.ts).
+See [../../examples/live-state/client.ts](../../examples/live-state/client.ts)
+and [../../examples/batched-state/client.ts](../../examples/batched-state/client.ts).

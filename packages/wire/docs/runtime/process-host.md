@@ -98,7 +98,7 @@ import { client, connect } from '@emdash/wire';
 import { processTransport } from '@emdash/wire/process';
 
 const runtime = await host.spawn({ entry: '/path/to/runtime.js' }, scope);
-const thin = client(api, connect(processTransport(runtime)));
+const contractClient = client(api, connect(processTransport(runtime)));
 ```
 
 The child runtime must serve a controller over its IPC messages:

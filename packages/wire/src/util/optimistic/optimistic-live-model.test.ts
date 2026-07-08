@@ -1,4 +1,4 @@
-import { err, ok, type PendingLease } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
@@ -8,13 +8,14 @@ import {
   createLiveModelReplica,
   createLiveModelHost,
   defineContract,
-  defineLiveModelContract,
+  liveModel,
+  liveState,
   memoryTransportPair,
   mutation,
   serve,
 } from '../../index';
-import type { ReplicaInstance } from '../../live/replica';
-import { OptimisticLiveModelGroup } from './optimistic-group';
+import type { LiveModelReplica } from '../../live/replica';
+import { OptimisticLiveModel } from './optimistic-live-model';
 
 const keySchema = z.object({ id: z.string() });
 const stateSchema = z.object({ title: z.string() });
@@ -23,7 +24,7 @@ const titleInputSchema = z.object({ title: z.string() });
 
 type TestApi = ReturnType<typeof createTestApi>;
 
-describe('OptimisticLiveModelGroup', () => {
+describe('OptimisticLiveModel', () => {
   it('previews multi-member group mutations and confirms without double-applying', async () => {
     const api = createTestApi();
     const { group } = setup(api);
@@ -104,40 +105,26 @@ describe('OptimisticLiveModelGroup', () => {
   });
 
   it('clears pending overlays when a seed/resync lands', async () => {
-    const api = createTestApi();
-    const captured: Record<string, (value: unknown, meta: { kind: 'seed' }) => void> = {};
-    const group = new OptimisticLiveModelGroup(
-      api.conversation,
-      { id: 'demo' },
-      (key, onChange) => {
-        captured['state'] = onChange?.state as (value: unknown, meta: { kind: 'seed' }) => void;
-        captured['usage'] = onChange?.usage as (value: unknown, meta: { kind: 'seed' }) => void;
-        captured['state']({ title: 'Initial' }, { kind: 'seed' });
-        captured['usage']({ tokens: 0 }, { kind: 'seed' });
-        return leaseFor({
-          key,
-          models: {
-            state: stubReplicaModel(),
-            usage: stubReplicaModel(),
-          },
-          mutations: {
-            setTitle: async () => pendingInvocation(),
-            serverError: async () => pendingInvocation(),
-            serverThrow: async () => pendingInvocation(),
-            localThrow: async () => pendingInvocation(),
-          },
-          ready: Promise.resolve(),
-        } as never);
-      }
-    );
+    const gates: Array<Deferred<void>> = [];
+    const { group, replica, key } = setup(createTestApi({ delayAuthoritativeMutations: gates }));
 
     await group.ready;
     void group.mutations.setTitle({ title: 'Preview' });
     expect(group.values.state).toEqual({ title: 'Preview' });
     expect(group.isPending).toBe(true);
 
-    captured['state']({ title: 'Resynced' }, { kind: 'seed' });
-    captured['usage']({ tokens: 10 }, { kind: 'seed' });
+    replica.peek(key)?.states.state.seed({
+      generation: 100,
+      sequence: 0,
+      timestamp: Date.now(),
+      data: { title: 'Resynced' },
+    });
+    replica.peek(key)?.states.usage.seed({
+      generation: 100,
+      sequence: 0,
+      timestamp: Date.now(),
+      data: { tokens: 10 },
+    });
 
     expect(group.values.state).toEqual({ title: 'Resynced' });
     expect(group.values.usage).toEqual({ tokens: 10 });
@@ -146,8 +133,8 @@ describe('OptimisticLiveModelGroup', () => {
   });
 
   it('composes concurrent optimistic mutations in insertion order', async () => {
-    const api = createTestApi();
-    const group = createFakePendingGroup(api);
+    const gates: Array<Deferred<void>> = [];
+    const { group } = setup(createTestApi({ delayAuthoritativeMutations: gates }));
 
     await group.ready;
     void group.mutations.setTitle({ title: 'A' });
@@ -169,11 +156,11 @@ function createTestApi(
   } = {}
 ) {
   return defineContract({
-    conversation: defineLiveModelContract({
+    conversation: liveModel({
       key: keySchema,
-      models: {
-        state: stateSchema,
-        usage: usageSchema,
+      states: {
+        state: liveState({ data: stateSchema }),
+        usage: liveState({ data: usageSchema }),
       },
       mutations: {
         setTitle: titleMutation('setTitle'),
@@ -228,7 +215,9 @@ function applyTitle(
 }
 
 function setup(api: TestApi): {
-  group: OptimisticLiveModelGroup<TestApi['conversation']>;
+  group: OptimisticLiveModel<TestApi['conversation']>;
+  replica: LiveModelReplica<TestApi['conversation']>;
+  key: { id: string };
 } {
   const key = { id: 'demo' };
   const conversations = createLiveModelHost(api.conversation);
@@ -240,60 +229,10 @@ function setup(api: TestApi): {
   const pair = memoryTransportPair();
   const controller = bindContract(api, { conversation: conversations });
   serve(pair.right, controller);
-  const thin = client(api, connect(pair.left));
-  const group = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) => {
-    const replica = createLiveModelReplica(api.conversation, thin.conversation, {
-      onChange: onChange as never,
-    });
-    const lease = replica.acquire(groupKey);
-    return {
-      ready: () => lease.ready(),
-      release: async () => {
-        await lease.release();
-        await replica.dispose();
-      },
-    };
-  });
-  return { group };
-}
-
-function createFakePendingGroup(api: TestApi): OptimisticLiveModelGroup<TestApi['conversation']> {
-  return new OptimisticLiveModelGroup(api.conversation, { id: 'demo' }, (_key, onChange) => {
-    onChange?.state?.({ title: 'Initial' }, { kind: 'seed' });
-    onChange?.usage?.({ tokens: 0 }, { kind: 'seed' });
-    return leaseFor({
-      key: _key,
-      models: {
-        state: stubReplicaModel(),
-        usage: stubReplicaModel(),
-      },
-      mutations: {
-        setTitle: async () => pendingInvocation(),
-        serverError: async () => pendingInvocation(),
-        serverThrow: async () => pendingInvocation(),
-        localThrow: async () => pendingInvocation(),
-      },
-      ready: Promise.resolve(),
-    } as never);
-  });
-}
-
-function stubReplicaModel() {
-  return {
-    ready: Promise.resolve(),
-    current: () => undefined,
-  };
-}
-
-function leaseFor<Group extends ReplicaInstance>(instance: Group): PendingLease<Group> {
-  return {
-    ready: async () => instance,
-    release: async () => {},
-  };
-}
-
-function pendingInvocation(): Promise<never> {
-  return new Promise(() => {});
+  const contractClient = client(api, connect(pair.left));
+  const replica = createLiveModelReplica(api.conversation, contractClient.conversation);
+  const group = new OptimisticLiveModel(api.conversation, key, replica);
+  return { group, replica, key };
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {

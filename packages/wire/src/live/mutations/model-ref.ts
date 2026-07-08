@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 
-export type LiveModelRef<
+export type LiveStateRef<
   Id extends string = string,
   KeySchema extends z.ZodTypeAny = z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny = z.ZodTypeAny,
@@ -10,6 +10,6 @@ export type LiveModelRef<
   dataSchema: DataSchema;
 };
 
-export type LiveModelKey<Ref extends LiveModelRef> = z.infer<Ref['keySchema']>;
+export type LiveStateKey<Ref extends LiveStateRef> = z.infer<Ref['keySchema']>;
 
-export type LiveModelData<Ref extends LiveModelRef> = z.infer<Ref['dataSchema']>;
+export type LiveStateData<Ref extends LiveStateRef> = z.infer<Ref['dataSchema']>;

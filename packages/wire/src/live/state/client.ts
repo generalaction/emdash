@@ -4,18 +4,18 @@ import type { WireInstrumentation } from '../../observability';
 import { LiveFollower, type LiveFollowerApplyResult } from '../follower';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
 import { applyPatches, type Patch } from './immer-setup';
-import { LiveModelWaiters } from './waiters';
+import { LiveStateWaiters } from './waiters';
 
 export type LiveChangeMeta = { kind: 'seed' } | { kind: 'update'; mutationIds: string[] };
 
-export type LiveModelClientOptions = {
+export type LiveStateClientOptions = {
   instrumentation?: WireInstrumentation;
   logger?: Logger;
   topic?: string;
 };
 
-export class LiveModelClient<T> extends LiveFollower<T> {
-  private readonly waiters = new LiveModelWaiters(() => this.cursor);
+export class LiveStateClient<T> extends LiveFollower<T> {
+  private readonly waiters = new LiveStateWaiters(() => this.cursor);
   private readonly schema: z.ZodType<T>;
   private readonly onChange: (value: T, meta: LiveChangeMeta) => void;
 
@@ -23,7 +23,7 @@ export class LiveModelClient<T> extends LiveFollower<T> {
     schema: z.ZodType<T>,
     refetchSnapshot: () => Promise<LiveSnapshot<T>>,
     onChange: (value: T, meta: LiveChangeMeta) => void,
-    options: LiveModelClientOptions = {}
+    options: LiveStateClientOptions = {}
   ) {
     super(refetchSnapshot, { ...options, label: 'live model' });
     this.schema = schema;

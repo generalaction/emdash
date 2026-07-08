@@ -1,28 +1,34 @@
 import type { PendingLease, Unsubscribe } from '@emdash/shared';
 import type { z } from 'zod';
-import type { ThinJob } from '../../api/client';
-import type { JobEndpointDef, JobError, JobInput, JobProgress, JobResult } from '../../api/define';
+import type { LiveJobClientHandle } from '../../api/client';
+import type {
+  LiveJobEndpointDef,
+  JobError,
+  JobInput,
+  JobProgress,
+  JobResult,
+} from '../../api/define';
 import type { WireInstrumentation } from '../../observability';
 import { createManagedSource } from '../../util/managed-source';
 import { LiveJobCancelledError, LiveJobClient, LiveJobFailedError } from '../job';
-import { LiveModel } from '../model';
 import { stableStringify } from '../mutations';
 import { liveJobStateSchema } from '../protocol';
 import type { LiveJobState, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
+import { LiveState } from '../state';
 import { managedLiveSource } from './source';
 
 export type ReplicaJobOptions = {
   instrumentation?: WireInstrumentation;
 };
 
-export class ReplicaJob<Def extends JobEndpointDef = JobEndpointDef> implements LiveSource {
+export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> implements LiveSource {
   readonly jobId: string;
   readonly ready: Promise<void>;
   readonly result: Promise<JobResult<Def>>;
 
   private readonly client: LiveJobClient<JobProgress<Def>, JobResult<Def>, JobError<Def>>;
   private local:
-    | LiveModel<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>>
+    | LiveState<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>>
     | undefined;
   private readonly detachPromise: Promise<Unsubscribe>;
   private seeding = false;
@@ -30,7 +36,7 @@ export class ReplicaJob<Def extends JobEndpointDef = JobEndpointDef> implements 
   private disposed = false;
 
   constructor(
-    private readonly job: ThinJob<Def>,
+    private readonly job: LiveJobClientHandle<Def>,
     jobId: string,
     options: ReplicaJobOptions = {}
   ) {
@@ -52,7 +58,7 @@ export class ReplicaJob<Def extends JobEndpointDef = JobEndpointDef> implements 
     });
     this.result = this.client.result;
     this.ready = handle.snapshot().then((snapshot) => {
-      this.local = new LiveModel(
+      this.local = new LiveState(
         structuredClone(snapshot.data) as LiveJobState<
           JobProgress<Def>,
           JobResult<Def>,
@@ -123,7 +129,7 @@ export class ReplicaJob<Def extends JobEndpointDef = JobEndpointDef> implements 
     (await this.detachPromise)();
   }
 
-  private localSource(): LiveModel<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>> {
+  private localSource(): LiveState<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>> {
     if (!this.local) throw new Error('ReplicaJob is not ready');
     return this.local;
   }
@@ -133,7 +139,7 @@ export type LiveJobReplicaOptions = ReplicaJobOptions & {
   retentionMs?: number;
 };
 
-export type LiveJobReplica<Def extends JobEndpointDef = JobEndpointDef> = {
+export type LiveJobReplica<Def extends LiveJobEndpointDef = LiveJobEndpointDef> = {
   readonly kind: 'liveJobReplica';
   readonly def: Def;
   start(input: JobInput<Def>): Promise<PendingLease<ReplicaJob<Def>>>;
@@ -144,9 +150,9 @@ export type LiveJobReplica<Def extends JobEndpointDef = JobEndpointDef> = {
   dispose(): Promise<void>;
 };
 
-export function createLiveJobReplica<Def extends JobEndpointDef>(
+export function createLiveJobReplica<Def extends LiveJobEndpointDef>(
   def: Def,
-  job: ThinJob<Def>,
+  job: LiveJobClientHandle<Def>,
   options: LiveJobReplicaOptions = {}
 ): LiveJobReplica<Def> {
   const source = createManagedSource<string, ReplicaJob<Def>>({

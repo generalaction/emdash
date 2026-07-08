@@ -30,12 +30,12 @@ async function runCallerCancellation(): Promise<void> {
     },
   });
   serve(pair.right, controller);
-  const thin = client(api, connect(pair.left));
+  const contractClient = client(api, connect(pair.left));
   const abort = new AbortController();
 
-  const result = thin
+  const result = contractClient
     .slow({ label: 'cancelled' }, { signal: abort.signal })
-    .catch((error) => error);
+    .catch((error: unknown) => error);
   abort.abort();
 
   console.log('caller cancelled:', await result);
@@ -56,9 +56,9 @@ async function runDisconnectCancellation(): Promise<void> {
     },
   });
   serve(pair.right, controller);
-  const thin = client(api, connect(pair.left));
+  const contractClient = client(api, connect(pair.left));
 
-  const result = thin.slow({ label: 'disconnect' }).catch((error) => error);
+  const result = contractClient.slow({ label: 'disconnect' }).catch((error) => error);
   await waitFor(() => started);
   pair.disconnect();
 

@@ -1,4 +1,4 @@
-import { LiveModelClient } from '../../src/live/model/index';
+import { LiveStateClient } from '../../src/live/state/index';
 import {
   attach,
   enqueueRename,
@@ -9,7 +9,7 @@ import {
 } from './server';
 
 async function main(): Promise<void> {
-  const client = new LiveModelClient(fileTreeSchema, fetchSnapshot, (value) => {
+  const client = new LiveStateClient(fileTreeSchema, fetchSnapshot, (value) => {
     console.log('client file tree:', value);
   });
 

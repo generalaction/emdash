@@ -1,5 +1,5 @@
 import { Emitter, type PendingLease, type Unsubscribe } from '@emdash/shared';
-import type { ThinLiveLogRef } from '../../api/client';
+import type { LiveLogClientHandle } from '../../api/client';
 import type { LiveLogEndpointDef, LiveLogKey } from '../../api/define';
 import type { WireInstrumentation } from '../../observability';
 import { createManagedSource } from '../../util/managed-source';
@@ -22,7 +22,7 @@ export class ReplicaLog implements LiveSource {
   private disposed = false;
 
   constructor(
-    private readonly handle: ReturnType<ThinLiveLogRef['handle']>,
+    private readonly handle: ReturnType<LiveLogClientHandle['handle']>,
     private readonly options: ReplicaLogOptions = {}
   ) {
     this.local = new LiveLog(options);
@@ -89,7 +89,7 @@ export type LiveLogReplica<Def extends LiveLogEndpointDef = LiveLogEndpointDef> 
 
 export function createLiveLogReplica<Def extends LiveLogEndpointDef>(
   def: Def,
-  log: ThinLiveLogRef<Def>,
+  log: LiveLogClientHandle<Def>,
   options: LiveLogReplicaOptions = {}
 ): LiveLogReplica<Def> {
   const source = createManagedSource<LiveLogKey<Def>, ReplicaLog>({

@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@emdash/shared';
+import { ok, type Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import { LiveJob } from '../../src/live/job/index';
 import {
@@ -20,22 +20,28 @@ type ErrorState = z.infer<typeof errorSchema>;
 
 export const jobStateSchema = liveJobStateSchema(progressSchema, resultSchema, errorSchema);
 
-const successfulJobs = new LiveJob<Input, Progress, Result, ErrorState>(async (input, ctx) => {
-  await delay();
-  ctx.progress({ step: 'checkout' });
-  await delay();
-  ctx.progress({ step: 'build' });
-  return { message: `Finished ${input.name}` };
-}, toError);
+const successfulJobs = new LiveJob<Input, Progress, Result, ErrorState>(
+  async (input, ctx) => {
+    await delay();
+    ctx.progress({ step: 'checkout' });
+    await delay();
+    ctx.progress({ step: 'build' });
+    return ok({ message: `Finished ${input.name}` });
+  },
+  { toError }
+);
 
-const cancellableJobs = new LiveJob<Input, Progress, Result, ErrorState>(async (_input, ctx) => {
-  await new Promise<never>((_resolve, reject) => {
-    ctx.signal.addEventListener('abort', () => reject(new Error('cancelled by user')), {
-      once: true,
+const cancellableJobs = new LiveJob<Input, Progress, Result, ErrorState>(
+  async (_input, ctx) => {
+    await new Promise<never>((_resolve, reject) => {
+      ctx.signal.addEventListener('abort', () => reject(new Error('cancelled by user')), {
+        once: true,
+      });
     });
-  });
-  return { message: 'unreachable' };
-}, toError);
+    return ok({ message: 'unreachable' });
+  },
+  { toError }
+);
 
 export function startSuccessfulJob(): string {
   return successfulJobs.start({ name: 'demo job' }).jobId;

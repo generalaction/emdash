@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveLog } from '../live/log';
 import { createLiveModelHost } from '../live/mutations';
-import { createLiveModelReplica, ReplicaModel } from '../live/replica';
+import { createLiveModelReplica, ReplicaState } from '../live/replica';
 import { bindContract } from './bind';
 import { client } from './client';
 import { connect } from './connect';
-import { defineContract, defineLiveModelContract, liveLog, mutation, procedure } from './define';
+import { defineContract, liveModel, liveState, liveLog, mutation, procedure } from './define';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
@@ -16,38 +16,38 @@ const keySchema = z.object({ id: z.string() });
 
 const contract = defineContract({
   increment: procedure({ input: keySchema, output: stateSchema }),
-  state: defineLiveModelContract({ key: keySchema, models: { state: stateSchema } }),
+  state: liveModel({ key: keySchema, states: { state: liveState({ data: stateSchema }) } }),
   output: liveLog({ key: keySchema }),
 });
 
 describe('client', () => {
-  it('calls typed procedures and exposes thin model/log handles', async () => {
+  it('calls typed procedures and exposes live client handles', async () => {
     const pair = memoryTransportPair();
     const host = createLiveModelHost(contract.state);
     const instance = host.create({ id: 'task' }, { state: { count: 0 } });
     const log = new LiveLog({ generation: 2000 });
     const controller = bindContract(contract, {
       increment: () => {
-        instance.models.state.produce((draft) => {
+        instance.states.state.produce((draft) => {
           draft.count += 1;
         });
         log.append('incremented\n');
-        return instance.models.state.snapshot().data;
+        return instance.states.state.snapshot().data;
       },
       state: host,
       output: () => log,
     });
     serve(pair.right, controller);
-    const thin = client(contract, connect(pair.left));
+    const contractClient = client(contract, connect(pair.left));
 
     const seenStates: Array<{ count: number }> = [];
-    const state = new ReplicaModel(thin.state.model({ id: 'task' }, 'state'), {
+    const state = new ReplicaState(contractClient.state.state({ id: 'task' }, 'state'), {
       schema: stateSchema,
       onChange: (value) => seenStates.push(value),
     });
     const appended: string[] = [];
     const resets: string[] = [];
-    const output = thin.output.handle({ id: 'task' });
+    const output = contractClient.output.handle({ id: 'task' });
 
     await state.ready;
     resets.push((await output.snapshot()).data.text);
@@ -55,7 +55,7 @@ describe('client', () => {
       const delta = update.delta as { chunk: string };
       appended.push(delta.chunk);
     });
-    await expect(thin.increment({ id: 'task' })).resolves.toEqual({ count: 1 });
+    await expect(contractClient.increment({ id: 'task' })).resolves.toEqual({ count: 1 });
     await waitFor(() => state.current().count === 1 && appended.length === 1);
 
     expect(seenStates.at(-1)).toEqual({ count: 1 });
@@ -75,34 +75,34 @@ describe('client', () => {
     const controller = bindContract(nested, {
       child: {
         increment: () => {
-          instance.models.state.produce((draft) => {
+          instance.states.state.produce((draft) => {
             draft.count += 1;
           });
           log.append('incremented\n');
-          return instance.models.state.snapshot().data;
+          return instance.states.state.snapshot().data;
         },
         state: host,
         output: () => log,
       },
     });
     serve(pair.right, controller);
-    const thin = client(nested, connect(pair.left));
+    const contractClient = client(nested, connect(pair.left));
 
-    const state = new ReplicaModel(thin.child.state.model({ id: 'task' }, 'state'), {
+    const state = new ReplicaState(contractClient.child.state.state({ id: 'task' }, 'state'), {
       schema: stateSchema,
     });
     await state.ready;
-    await expect(thin.child.increment({ id: 'task' })).resolves.toEqual({ count: 1 });
+    await expect(contractClient.child.increment({ id: 'task' })).resolves.toEqual({ count: 1 });
     await waitFor(() => state.current().count === 1);
     await state.dispose();
   });
 
   it('uses caller-supplied mutation IDs for group mutations', async () => {
     const groupContract = defineContract({
-      conversation: defineLiveModelContract({
+      conversation: liveModel({
         key: keySchema,
-        models: {
-          state: stateSchema,
+        states: {
+          state: liveState({ data: stateSchema }),
         },
         mutations: {
           bump: mutation({ input: z.object({}), data: z.void(), error: z.string() }, (ctx) => {
@@ -120,13 +120,16 @@ describe('client', () => {
       state: { count: 0 },
     });
     const updates: unknown[] = [];
-    instance.models.state.subscribe((update) => updates.push(update));
+    instance.states.state.subscribe((update) => updates.push(update));
 
     const pair = memoryTransportPair();
     const controller = bindContract(groupContract, { conversation: host });
     serve(pair.right, controller);
-    const thin = client(groupContract, connect(pair.left));
-    const replica = createLiveModelReplica(thin.conversation.def, thin.conversation);
+    const contractClient = client(groupContract, connect(pair.left));
+    const replica = createLiveModelReplica(
+      contractClient.conversation.def,
+      contractClient.conversation
+    );
     const lease = replica.acquire(key);
     const binding = await lease.ready();
 

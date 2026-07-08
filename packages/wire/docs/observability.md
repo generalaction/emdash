@@ -40,7 +40,7 @@ const instrumentation = loggerInstrumentation(logger);
 
 serve(transport, controller, { logger, instrumentation });
 const connection = connect(clientTransport, { instrumentation });
-const thin = client(api, connection);
+const contractClient = client(api, connection);
 ```
 
 Hooks currently cover:
@@ -50,7 +50,7 @@ Hooks currently cover:
 - live topic attach/detach.
 - live model/log resync reasons.
 - mutation dedupe hits.
-- dropped `BatchedLiveModel` batches.
+- dropped `BatchedLiveState` batches.
 - scope cleanup errors.
 - transport connect/disconnect events.
 

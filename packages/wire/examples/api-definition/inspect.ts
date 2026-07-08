@@ -7,13 +7,13 @@ console.log(
   entries.filter(([, def]) => def.kind === 'procedure').map(([name]) => name)
 );
 console.log(
-  'groups:',
-  entries.filter(([, def]) => def.kind === 'group').map(([name]) => name)
+  'live models:',
+  entries.filter(([, def]) => def.kind === 'liveModel').map(([name]) => name)
 );
 console.log(
-  'live models:',
+  'live states:',
   entries.flatMap(([name, def]) =>
-    def.kind === 'group' ? Object.keys(def.models).map((model) => `${name}.${model}`) : []
+    def.kind === 'liveModel' ? Object.keys(def.states).map((model) => `${name}.${model}`) : []
   )
 );
 console.log(

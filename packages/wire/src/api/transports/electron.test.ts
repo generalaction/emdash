@@ -1,21 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import {
-  bindContract,
-  client,
-  connect,
-  defineContract,
-  defineLiveModelContract,
-  procedure,
-} from '..';
+import { bindContract, client, connect, defineContract, liveModel, liveState, procedure } from '..';
 import { domPortTransport } from './dom-port';
 import { awaitWirePort, exposeWireToWindows, requestWirePort } from './electron';
 
 const api = defineContract({
   ping: procedure({ input: z.object({ value: z.string() }), output: z.string() }),
-  state: defineLiveModelContract({
+  state: liveModel({
     key: z.void().optional(),
-    models: { state: z.object({ ready: z.boolean() }) },
+    states: { state: liveState({ data: z.object({ ready: z.boolean() }) }) },
   }),
 });
 
@@ -258,7 +251,7 @@ function fakeStateProvider() {
   return {
     kind: 'liveModelProvider' as const,
     contract: api.state,
-    resolveModel: () => ({
+    resolveState: () => ({
       snapshot: () => ({ generation: 1, sequence: 0, timestamp: 0, data: { ready: true } }),
       subscribe: () => () => {},
     }),

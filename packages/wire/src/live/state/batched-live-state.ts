@@ -2,13 +2,13 @@ import type { Unsubscribe } from '@emdash/shared';
 import { log as ambientLog, type Logger } from '@emdash/shared/logger';
 import type { WireInstrumentation } from '../../observability';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
-import type { LiveModelProduceOptions, LiveModel } from './server';
+import type { LiveStateProduceOptions, LiveState } from './server';
 
 export type Mutator<T> = (draft: T) => void;
 
 export type FlushScheduler = (flush: () => void) => void;
 
-export type BatchedLiveModelOptions = {
+export type BatchedLiveStateOptions = {
   instrumentation?: WireInstrumentation;
   logger?: Logger;
 };
@@ -30,7 +30,7 @@ export function timerScheduler(ms: number): FlushScheduler {
 }
 
 /**
- * Wraps a LiveModel with a mutation queue so that multiple calls to
+ * Wraps a LiveState with a mutation queue so that multiple calls to
  * `enqueue()` within one scheduler window are coalesced into a single
  * `server.produce()`. Immer then emits one minimal patch for the net effect:
  *
@@ -43,22 +43,22 @@ export function timerScheduler(ms: number): FlushScheduler {
  * Pass `timerScheduler(ms)` for time-windowed coalescing, or a custom
  * synchronous scheduler in tests.
  */
-export class BatchedLiveModel<T> {
+export class BatchedLiveState<T> {
   private pending: PendingMutation<T>[] = [];
   private scheduled = false;
   private disposed = false;
 
   constructor(
-    private readonly model: LiveModel<T>,
+    private readonly model: LiveState<T>,
     private readonly schedule: FlushScheduler = microtaskScheduler,
-    private readonly options: BatchedLiveModelOptions = {}
+    private readonly options: BatchedLiveStateOptions = {}
   ) {}
 
   /**
    * Enqueues a mutation for the next flush. Schedules a flush automatically if
    * one is not already scheduled. Silently ignored after `dispose()`.
    */
-  enqueue(mutator: Mutator<T>, options: LiveModelProduceOptions = {}): void {
+  enqueue(mutator: Mutator<T>, options: LiveStateProduceOptions = {}): void {
     if (this.disposed) return;
     this.pending.push({ mutator, mutationIds: options.mutationIds ?? [] });
     if (!this.scheduled) {

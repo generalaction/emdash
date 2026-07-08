@@ -2,19 +2,18 @@ export * from './protocol';
 export * from './mutations';
 export * from './replica';
 export {
-  BatchedLiveModel,
-  LiveModel,
+  BatchedLiveState,
+  LiveState,
   microtaskScheduler,
   timerScheduler,
-  type BatchedLiveModelOptions,
+  type BatchedLiveStateOptions,
   type FlushScheduler,
   type LiveChangeMeta,
-  type LiveModelProduceOptions,
+  type LiveStateProduceOptions,
   type Mutator,
-} from './model';
+} from './state';
 export { LiveLog, type LiveLogOptions } from './log';
 export {
-  DEFAULT_LIVE_JOB_MAX_PROGRESS_ENTRIES,
   LIVE_JOB_TERMINAL_RETAIN_MS,
   LiveJob,
   LiveJobCancelledError,

@@ -1,79 +1,72 @@
-import type { PendingLease, Result } from '@emdash/shared';
+import type { PendingLease, Result, Unsubscribe } from '@emdash/shared';
 import { produce } from 'immer';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import type { MutationCallOptions } from '../../api/client';
 import type {
-  EndpointLiveModelData,
-  GroupKey,
-  GroupModels,
-  GroupMutationCtx,
-  GroupMutations,
-  LiveModelGroupDef,
+  LiveStateData,
+  LiveModelKey,
+  LiveModelStates,
+  LiveModelMutationCtx,
+  LiveModelMutations,
+  LiveModelDef,
   MutationData,
   MutationError,
   MutationInput,
 } from '../../api/define';
-import type { LiveChangeMeta, Mutator } from '../../live/model';
 import { createMutationId } from '../../live/mutations';
-import type { ContractMutationInvocation, ReplicaInstance } from '../../live/replica';
+import type {
+  ContractMutationInvocation,
+  LiveModelReplica,
+  ReplicaInstance,
+} from '../../live/replica';
+import type { LiveChangeMeta, Mutator } from '../../live/state';
 
-export type OptimisticLiveModelGroupValues<Group extends LiveModelGroupDef> = {
-  readonly [Name in keyof GroupModels<Group>]:
-    | EndpointLiveModelData<GroupModels<Group>[Name]>
+export type OptimisticLiveModelValues<Group extends LiveModelDef> = {
+  readonly [Name in keyof LiveModelStates<Group>]:
+    | LiveStateData<LiveModelStates<Group>[Name]>
     | undefined;
 };
 
-export type OptimisticLiveModelGroupMutations<Group extends LiveModelGroupDef> = {
-  [Name in keyof GroupMutations<Group>]: (
-    input: MutationInput<GroupMutations<Group>[Name]>,
+export type OptimisticLiveModelMutations<Group extends LiveModelDef> = {
+  [Name in keyof LiveModelMutations<Group>]: (
+    input: MutationInput<LiveModelMutations<Group>[Name]>,
     options?: Omit<MutationCallOptions, 'mutationId'>
   ) => Promise<
     ContractMutationInvocation<
-      MutationData<GroupMutations<Group>[Name]>,
-      MutationError<GroupMutations<Group>[Name]>
+      MutationData<LiveModelMutations<Group>[Name]>,
+      MutationError<LiveModelMutations<Group>[Name]>
     >
   >;
 };
 
-export type OptimisticLiveModelGroupBinding<Group extends LiveModelGroupDef> = (
-  key: GroupKey<Group>,
-  onChange?: OptimisticLiveModelGroupOnChange<Group>
-) => PendingLease<ReplicaInstance<Group>>;
-
-type OptimisticLiveModelGroupOnChange<Group extends LiveModelGroupDef> = Partial<{
-  [Name in keyof GroupModels<Group>]: (
-    value: EndpointLiveModelData<GroupModels<Group>[Name]>,
-    meta: LiveChangeMeta
-  ) => void;
-}>;
-
-type MemberCells<Group extends LiveModelGroupDef> = {
-  [Name in keyof GroupModels<Group>]: OptimisticMemberCell<
-    EndpointLiveModelData<GroupModels<Group>[Name]>
+type MemberCells<Group extends LiveModelDef> = {
+  [Name in keyof LiveModelStates<Group>]: OptimisticMemberCell<
+    LiveStateData<LiveModelStates<Group>[Name]>
   >;
 };
 
-export class OptimisticLiveModelGroup<Group extends LiveModelGroupDef> {
-  readonly values: OptimisticLiveModelGroupValues<Group>;
-  readonly mutations: OptimisticLiveModelGroupMutations<Group>;
+export class OptimisticLiveModel<Group extends LiveModelDef> {
+  readonly values: OptimisticLiveModelValues<Group>;
+  readonly mutations: OptimisticLiveModelMutations<Group>;
   readonly ready: Promise<void>;
 
   private readonly lease: PendingLease<ReplicaInstance<Group>>;
   private readonly binding: Promise<ReplicaInstance<Group>>;
   private readonly cells: MemberCells<Group>;
+  private readonly unsubscribes: Unsubscribe[] = [];
 
   constructor(
     private readonly group: Group,
-    key: GroupKey<Group>,
-    bind: OptimisticLiveModelGroupBinding<Group>
+    key: LiveModelKey<Group>,
+    replica: LiveModelReplica<Group>
   ) {
     makeObservable(this, { isPending: computed });
 
     this.cells = createCells(group);
     this.values = createValues(this.cells);
-    this.lease = bind(key, createOnChange(this.cells));
+    this.lease = replica.acquire(key);
     this.binding = this.lease.ready();
-    this.ready = this.binding.then((binding) => binding.ready);
+    this.ready = this.binding.then((binding) => this.bindAuthoritativeState(binding));
     this.mutations = createMutations(group, this.binding, this.cells, key);
   }
 
@@ -82,7 +75,22 @@ export class OptimisticLiveModelGroup<Group extends LiveModelGroupDef> {
   }
 
   async dispose(): Promise<void> {
+    for (const unsubscribe of this.unsubscribes.splice(0)) unsubscribe();
     await this.lease.release();
+  }
+
+  private async bindAuthoritativeState(binding: ReplicaInstance<Group>): Promise<void> {
+    await binding.ready;
+    for (const [name, state] of Object.entries(binding.states)) {
+      const cell = this.cells[name as keyof LiveModelStates<Group>];
+      if (!cell) continue;
+      cell.onAuthoritative(state.current(), { kind: 'seed' });
+      this.unsubscribes.push(
+        state.onChange((value: unknown, meta: LiveChangeMeta) => {
+          cell.onAuthoritative(value as never, meta);
+        })
+      );
+    }
   }
 }
 
@@ -137,19 +145,19 @@ class OptimisticMemberCell<T> {
   }
 }
 
-class OverlayGroupMutationContext<
-  Group extends LiveModelGroupDef,
-> implements GroupMutationCtx<Group> {
-  private readonly recipes = new Map<keyof GroupModels<Group>, Mutator<unknown>[]>();
+class OverlayLiveModelMutationContext<
+  Group extends LiveModelDef,
+> implements LiveModelMutationCtx<Group> {
+  private readonly recipes = new Map<keyof LiveModelStates<Group>, Mutator<unknown>[]>();
 
   constructor(
     readonly mutationId: string,
-    readonly key: GroupKey<Group>
+    readonly key: LiveModelKey<Group>
   ) {}
 
-  produce<Name extends keyof GroupModels<Group>>(
+  produce<Name extends keyof LiveModelStates<Group>>(
     name: Name,
-    mutator: Mutator<EndpointLiveModelData<GroupModels<Group>[Name]>>
+    mutator: Mutator<LiveStateData<LiveModelStates<Group>[Name]>>
   ): void {
     const recipes = this.recipes.get(name) ?? [];
     recipes.push(mutator as Mutator<unknown>);
@@ -164,15 +172,15 @@ class OverlayGroupMutationContext<
   }
 }
 
-function createCells<Group extends LiveModelGroupDef>(group: Group): MemberCells<Group> {
+function createCells<Group extends LiveModelDef>(group: Group): MemberCells<Group> {
   const cells: Record<string, OptimisticMemberCell<unknown>> = {};
-  for (const name of Object.keys(group.models)) cells[name] = new OptimisticMemberCell();
+  for (const name of Object.keys(group.states)) cells[name] = new OptimisticMemberCell();
   return cells as MemberCells<Group>;
 }
 
-function createValues<Group extends LiveModelGroupDef>(
+function createValues<Group extends LiveModelDef>(
   cells: MemberCells<Group>
-): OptimisticLiveModelGroupValues<Group> {
+): OptimisticLiveModelValues<Group> {
   const values: Record<string, unknown> = {};
   for (const [name, cell] of Object.entries(cells)) {
     Object.defineProperty(values, name, {
@@ -180,25 +188,15 @@ function createValues<Group extends LiveModelGroupDef>(
       get: () => cell.value,
     });
   }
-  return values as OptimisticLiveModelGroupValues<Group>;
+  return values as OptimisticLiveModelValues<Group>;
 }
 
-function createOnChange<Group extends LiveModelGroupDef>(
-  cells: MemberCells<Group>
-): OptimisticLiveModelGroupOnChange<Group> {
-  const onChange: Record<string, (value: unknown, meta: LiveChangeMeta) => void> = {};
-  for (const [name, cell] of Object.entries(cells)) {
-    onChange[name] = (value, meta) => cell.onAuthoritative(value, meta);
-  }
-  return onChange as OptimisticLiveModelGroupOnChange<Group>;
-}
-
-function createMutations<Group extends LiveModelGroupDef>(
+function createMutations<Group extends LiveModelDef>(
   group: Group,
   binding: Promise<ReplicaInstance<Group>>,
   cells: MemberCells<Group>,
-  key: GroupKey<Group>
-): OptimisticLiveModelGroupMutations<Group> {
+  key: LiveModelKey<Group>
+): OptimisticLiveModelMutations<Group> {
   const mutations: Record<string, unknown> = {};
   for (const [name, mutation] of Object.entries(group.mutations)) {
     mutations[name] = async (
@@ -206,7 +204,7 @@ function createMutations<Group extends LiveModelGroupDef>(
       options: Omit<MutationCallOptions, 'mutationId'> = {}
     ) => {
       const mutationId = createMutationId();
-      const overlay = new OverlayGroupMutationContext<Group>(mutationId, key);
+      const overlay = new OverlayLiveModelMutationContext<Group>(mutationId, key);
       const localResult = runLocalGroupHandler(mutation.handler, overlay, input, mutationId);
       const resolvedLocalResult = isPromiseLike(localResult)
         ? await localResult.catch(() => undefined)
@@ -234,12 +232,12 @@ function createMutations<Group extends LiveModelGroupDef>(
       }
     };
   }
-  return mutations as OptimisticLiveModelGroupMutations<Group>;
+  return mutations as OptimisticLiveModelMutations<Group>;
 }
 
 function runLocalGroupHandler(
-  handler: LiveModelGroupDef['mutations'][string]['handler'],
-  overlay: OverlayGroupMutationContext<LiveModelGroupDef>,
+  handler: LiveModelDef['mutations'][string]['handler'],
+  overlay: OverlayLiveModelMutationContext<LiveModelDef>,
   input: unknown,
   mutationId: string
 ): Result<unknown, unknown> | Promise<Result<unknown, unknown>> | undefined {
@@ -261,9 +259,6 @@ function addMutationId(input: unknown, mutationId: string): Record<string, unkno
   return { value: input, mutationId };
 }
 
-function rollback<Group extends LiveModelGroupDef>(
-  cells: MemberCells<Group>,
-  mutationId: string
-): void {
+function rollback<Group extends LiveModelDef>(cells: MemberCells<Group>, mutationId: string): void {
   for (const cell of Object.values(cells)) cell.rollback(mutationId);
 }
