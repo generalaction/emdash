@@ -336,6 +336,9 @@ importers:
       '@emdash/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@emdash/wire':
+        specifier: workspace:*
+        version: link:../../packages/wire
       '@orpc/server':
         specifier: ^1.14.6
         version: 1.14.6(ws@8.21.0)
@@ -488,6 +491,9 @@ importers:
       '@emdash/shared':
         specifier: workspace:*
         version: link:../shared
+      '@emdash/wire':
+        specifier: workspace:*
+        version: link:../wire
       '@orpc/contract':
         specifier: ^1.14.6
         version: 1.14.6
