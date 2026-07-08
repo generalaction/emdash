@@ -137,8 +137,7 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
     return uri;
   })();
 
-  const previewContentUri =
-    tab.diffGroup === 'disk' ? modelRegistry.toDiskUri(uri) : modifiedUri;
+  const previewContentUri = tab.diffGroup === 'disk' ? modelRegistry.toDiskUri(uri) : modifiedUri;
 
   useEffect(() => {
     let disposed = false;
