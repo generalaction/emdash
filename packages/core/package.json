@@ -61,14 +61,6 @@
       "types": "./dist/agents-plugins-helpers.d.mts",
       "default": "./dist/agents-plugins-helpers.mjs"
     },
-    "./live": {
-      "types": "./dist/live.d.mts",
-      "default": "./dist/live.mjs"
-    },
-    "./wire": {
-      "types": "./dist/wire.d.mts",
-      "default": "./dist/wire.mjs"
-    },
     "./workspace-server": {
       "types": "./dist/workspace-server.d.mts",
       "default": "./dist/workspace-server.mjs"
@@ -100,8 +92,6 @@
     "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/shared": "workspace:*",
     "@emdash/wire": "workspace:*",
-    "@orpc/contract": "^1.14.6",
-    "@orpc/server": "^1.14.6",
     "@parcel/watcher": "^2.5.6",
     "glob": "^13.0.6",
     "immer": "^10.1.1",

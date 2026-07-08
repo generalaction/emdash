@@ -2,7 +2,7 @@
   "name": "@emdash/workspace-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Emdash Workspace Server — runs as a daemon on remote machines and exposes workspace runtimes via oRPC",
+  "description": "Emdash Workspace Server — runs as a daemon on remote machines and exposes workspace runtimes via wire",
   "license": "Apache-2.0",
   "author": {
     "name": "Emdash Contributors",
@@ -24,7 +24,6 @@
     "@emdash/core": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/wire": "workspace:*",
-    "@orpc/server": "^1.14.6",
     "zod": "^4.4.3"
   },
   "devDependencies": {

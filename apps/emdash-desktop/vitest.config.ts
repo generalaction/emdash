@@ -19,7 +19,6 @@ const alias = {
     __dirname,
     '../../packages/core/src/agents/plugins/index.ts'
   ),
-  '@emdash/core/wire': resolve(__dirname, '../../packages/core/src/wire/index.ts'),
   '@emdash/plugins/agents/types': resolve(__dirname, '../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve(__dirname, '../../packages/plugins/src/agents/registry.ts'),
   '@emdash/wire/api': resolve(__dirname, '../../packages/wire/src/api/index.ts'),

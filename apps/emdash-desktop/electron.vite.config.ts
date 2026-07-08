@@ -10,7 +10,6 @@ const workspaceAliases = {
     '../../packages/core/src/agents/plugins/helpers/index.ts'
   ),
   '@emdash/core/agents/plugins': resolve('../../packages/core/src/agents/plugins/index.ts'),
-  '@emdash/core/wire': resolve('../../packages/core/src/wire/index.ts'),
   '@emdash/plugins/agents/types': resolve('../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve('../../packages/plugins/src/agents/registry.ts'),
   '@emdash/wire/api': resolve('../../packages/wire/src/api/index.ts'),

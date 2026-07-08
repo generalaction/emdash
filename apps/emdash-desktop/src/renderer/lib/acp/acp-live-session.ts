@@ -24,12 +24,22 @@ import {
   type LiveLogSnapshotData,
 } from '@emdash/wire';
 import { z } from 'zod';
-import type { LiveLogBinding, LiveBinding } from '@renderer/lib/live/live-bindings';
 import {
   getAcpRuntimeClient,
   type AcpRuntimeRpcClient,
   type StartSessionInput,
 } from './runtime-client';
+
+export interface LiveBinding<T> {
+  start(): Promise<void>;
+  dispose(): void;
+  getSnapshot(): T | undefined;
+  subscribe(cb: () => void): Unsubscribe;
+}
+
+export interface LiveLogBinding extends LiveBinding<LiveLogSnapshotData> {
+  text(): string;
+}
 
 export class AcpStartError extends Error {
   constructor(readonly runtimeError: AcpRuntimeError) {
