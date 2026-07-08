@@ -22,9 +22,9 @@ describe('opencodeAuthStatus', () => {
   it('reports authenticated from provider API keys without probing the CLI', async () => {
     const exec = vi.fn();
 
-    await expect(opencodeAuthStatus(ctx({ env: { OPENAI_API_KEY: 'test-key' }, exec }))).resolves.toEqual(
-      { kind: 'authenticated' }
-    );
+    await expect(
+      opencodeAuthStatus(ctx({ env: { OPENAI_API_KEY: 'test-key' }, exec }))
+    ).resolves.toEqual({ kind: 'authenticated' });
     expect(exec).not.toHaveBeenCalled();
   });
 

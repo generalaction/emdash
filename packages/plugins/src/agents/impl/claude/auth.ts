@@ -30,7 +30,9 @@ export async function claudeAuthStatus(ctx: AgentAuthContext): Promise<AgentAuth
 }
 
 function isExitCode(error: unknown, code: number): boolean {
-  return typeof error === 'object' && error !== null && (error as ExecErrorWithOutput).code === code;
+  return (
+    typeof error === 'object' && error !== null && (error as ExecErrorWithOutput).code === code
+  );
 }
 
 function isAuthStatusResponse(output: ExecErrorOutput): boolean {
