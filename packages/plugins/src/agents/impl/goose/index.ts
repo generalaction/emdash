@@ -1,4 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildGooseHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -10,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://goose-docs.ai/docs/quickstart/',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'none',
     },
@@ -72,6 +76,9 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: createNativeAcpBehavior(() => ({
+    args: ['acp'],
+  })),
   prompt: {
     buildCommand: (ctx) => {
       if (ctx.isResuming) {

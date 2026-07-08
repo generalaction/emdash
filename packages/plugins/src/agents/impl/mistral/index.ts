@@ -1,5 +1,7 @@
+import { dirname, extname, join } from 'node:path';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildMistralHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -12,6 +14,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/mistralai/mistral-vibe',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -80,6 +85,13 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: createNativeAcpBehavior((ctx) => {
+    const ext = extname(ctx.cli);
+    return {
+      command: join(dirname(ctx.cli), ext.toLowerCase() === '.exe' ? 'vibe-acp.exe' : 'vibe-acp'),
+      args: [],
+    };
+  }),
   hooks: buildMistralHookConfig(),
   prompt: {
     buildCommand: (ctx) =>
