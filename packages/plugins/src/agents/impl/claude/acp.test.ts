@@ -13,6 +13,7 @@ describe('claude acp capability', () => {
 
   it('all non-ACP plugins default acp to { kind: none }', () => {
     const acpProviders = new Set([
+      'amp',
       'auggie',
       'claude',
       'cline',

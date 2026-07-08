@@ -6,6 +6,7 @@ const spawnCtx = {
   env: {},
   cli: '/usr/local/bin/agent',
 };
+const windowsAmpCli = 'C:\\Users\\user\\AppData\\Local\\Programs\\Amp\\amp.exe';
 
 const nativeAcpProviders: Array<{
   id: string;
@@ -14,6 +15,19 @@ const nativeAcpProviders: Array<{
   command?: string;
   env?: Record<string, string>;
 }> = [
+  {
+    id: 'amp',
+    command: 'npx',
+    args: ['-y', 'amp-acp'],
+    env: { AMP_CLI_PATH: spawnCtx.cli },
+  },
+  {
+    id: 'amp',
+    cli: windowsAmpCli,
+    command: 'npx.cmd',
+    args: ['-y', 'amp-acp'],
+    env: { AMP_CLI_PATH: windowsAmpCli },
+  },
   {
     id: 'auggie',
     args: ['--acp'],

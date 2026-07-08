@@ -1,3 +1,4 @@
+import { extname } from 'node:path';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   ampMcpAdapter,
@@ -5,12 +6,17 @@ import {
   createFileDropPlugin,
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
+import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
+import { icon } from './icon';
 import { AMP_PLUGIN_CONTENT } from './plugin-file';
 
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 // Amp thread ids are prefixed with 'T-'; only accept those for resume.
 const validateSessionId = (id: string) => id.startsWith('T-');
-import { icon } from './icon';
+const npxCommandForAmpCli = (cli: string) => {
+  const ext = extname(cli).toLowerCase();
+  return ['.exe', '.cmd', '.bat', '.ps1'].includes(ext) ? 'npx.cmd' : 'npx';
+};
 
 export const plugin = definePlugin(
   {
@@ -21,6 +27,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://ampcode.com/manual#install',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -71,6 +80,13 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  // Amp does not expose a native ACP subcommand; use the stdio adapter and
+  // point it at Emdash's resolved Amp CLI so credentials and installs stay aligned.
+  acp: createNativeAcpBehavior((ctx) => ({
+    command: npxCommandForAmpCli(ctx.cli),
+    args: ['-y', 'amp-acp'],
+    env: { AMP_CLI_PATH: ctx.cli },
+  })),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
