@@ -642,6 +642,14 @@ export class TaskManagerStore {
   async deleteTasks(taskIds: string[], opts?: DeleteTaskOptions): Promise<void> {
     const removed = new Map<string, TaskStore>();
 
+    // The optimistic removal below empties this.tasks before the taskDeleted
+    // events arrive, so _removeTaskLocally can't witness them. Record them
+    // here so a partial failure only rolls back unconfirmed tasks.
+    const confirmed = new Set<string>();
+    const unsubConfirmations = events.on(taskDeletedChannel, ({ taskId, projectId }) => {
+      if (projectId === this.projectId) confirmed.add(taskId);
+    });
+
     runInAction(() => {
       for (const id of taskIds) {
         const t = this.tasks.get(id);
@@ -661,12 +669,16 @@ export class TaskManagerStore {
       await rpc.tasks.deleteTasks(this.projectId, taskIds, opts);
     } catch (e) {
       runInAction(() => {
-        removed.forEach((t, id) => this.tasks.set(id, t));
+        removed.forEach((t, id) => {
+          if (!confirmed.has(id)) this.tasks.set(id, t);
+        });
       });
       toast.error(`Could not delete ${taskIds.length === 1 ? 'task' : 'tasks'}`, {
         description: formatErrorMessage(e),
       });
       throw e;
+    } finally {
+      unsubConfirmations();
     }
   }
 
