@@ -19,7 +19,7 @@ flowchart TB
     transports[Transports: memory, port, dom-port, electron, stream, reconnecting]
   end
   subgraph live [Live primitives]
-    model[LiveModel server client]
+    model[LiveModel and replicas]
     log[LiveLog]
     job[LiveJob]
     mutations[Mutations and registries]
@@ -57,7 +57,7 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     reconnecting, process, and logging transports.
 - Live:
   - [Live models and protocol](./live/live-model.md): snapshots, updates,
-    cursors, `LiveModel`, `LiveModelClient`, and `BatchedLiveModel`.
+    cursors, `LiveModel`, replicas, and `BatchedLiveModel`.
   - [Live logs](./live/live-log.md): retained terminal-style logs and client
     callbacks.
   - [Live jobs](./live/live-job.md): progress, cancellation, terminal state,

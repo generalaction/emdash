@@ -65,31 +65,28 @@ state.
 Terminal job state is retained for `LIVE_JOB_TERMINAL_RETAIN_MS` (5 minutes) so
 late clients can reattach by id. This retention is process-local, not durable.
 
-## Client
+## Consumers
 
-`LiveJobClient` wraps the live state and exposes a `result` promise:
+Consumers normally reach jobs through the API layer. The thin client starts,
+cancels, and attaches to jobs without retaining local state:
 
 ```ts
-const client = new LiveJobClient(jobStateSchema, {
-  refetchSnapshot: () => fetchSnapshot(jobId),
-  onState: (state) => console.log('job state:', state.status),
+const { jobId } = await thin.build.start({ target: 'desktop' });
+const handle = thin.build.handle(jobId);
+
+const detach = await handle.attach((update) => {
+  console.log(update.delta);
 });
 
-client.onProgress((progress) => console.log(progress.step));
-client.seed(await fetchSnapshot(jobId));
-const detach = attach(jobId, (update) => client.applyUpdate(update));
-
-console.log(await client.result);
+await thin.build.cancel(jobId);
 detach();
-client.dispose();
 ```
 
-If the job fails, `result` rejects with `LiveJobFailedError`. If it is cancelled,
-it rejects with `LiveJobCancelledError`. Progress emitted by a seed is suppressed
-so reattaching clients do not replay old progress as fresh events.
-
-`LiveJobClient` also exposes `cursor`, `refresh()`, `waitForTerminal()`, and
-`waitForProgressCount(count)` for parity with other live clients.
+Use `createLiveJobReplica()` when a consumer wants a `result` promise, progress
+callbacks, ref-counted attachment, and terminal-state retention. If the job fails,
+`ReplicaJob.result` rejects with `LiveJobFailedError`; if it is cancelled, it
+rejects with `LiveJobCancelledError`. Progress emitted by a seed is suppressed so
+reattaching clients do not replay old progress as fresh events.
 
 ## Contract Endpoint
 

@@ -16,7 +16,7 @@ The same `serve()`, `connect()`, and `client()` code works across every
 transport. Only construction changes.
 
 `onReconnect` is optional and should fire only after a replacement link is live.
-`connect()` uses it to re-attach live topics; materializers then force a fresh
+`connect()` uses it to re-attach live topics; replicas then force a fresh
 snapshot. `close()` releases listeners registered by the adapter. It closes the
 underlying channel only when the adapter owns a closeable channel, such as a
 `MessagePort`.
@@ -127,8 +127,8 @@ is bounded with drop-oldest semantics; `maxQueuedMessages` defaults to `1000`.
 
 `onReconnect` fires after a replacement inner transport is connected and queued
 messages are flushed. `Connection` listens for that signal and re-issues active
-`attach` requests; materialized models and jobs refresh their snapshots after
-reattach. `close()` stops the retry loop, closes the current inner
+`attach` requests; replicas refresh their snapshots after reattach.
+`close()` stops the retry loop, closes the current inner
 transport if present, and clears queued messages and listeners.
 
 ## Process Transport

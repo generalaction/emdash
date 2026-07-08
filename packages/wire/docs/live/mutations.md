@@ -20,8 +20,8 @@ server.produce(
 );
 ```
 
-The update carries `mutationIds: ['example-add-task']`. A `LiveModelClient` can
-resolve `waitForMutation('example-add-task')` when it applies that update.
+The update carries `mutationIds: ['example-add-task']`. A replica can resolve
+`waitForMutation('example-add-task')` when its local model applies that update.
 
 ## Hosts and Context
 

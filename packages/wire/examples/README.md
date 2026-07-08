@@ -32,12 +32,12 @@ pnpm --filter @emdash/wire run example:optimistic-group
 
 Examples:
 
-- `live-model/` demonstrates `LiveModel`, `LiveModelClient`, cursors,
-  mutation IDs, and resync after a generation change.
+- `live-model/` demonstrates `LiveModel`, the package-local protocol follower,
+  cursors, mutation IDs, and resync after a generation change.
 - `batched-model/` demonstrates `BatchedLiveModel` coalescing multiple queued
   mutators into one emitted update.
-- `live-log/` demonstrates `LiveLog` and `LiveLogClient` with retained
-  tail snapshots.
+- `live-log/` demonstrates `LiveLog` and the package-local protocol follower
+  with retained tail snapshots.
 - `live-job/` demonstrates progress, terminal state, result promises, and
   cancellation errors.
 - `cancellation/` demonstrates procedure cancellation with `AbortSignal` and
@@ -45,11 +45,12 @@ Examples:
 - `contract/` demonstrates the full API flow in one file: contract definition,
   bound controller, memory transport, and typed client.
 - `api-definition/` isolates contract definition with `defineContract`,
-  `procedure`, `liveModel`, `liveLog`, and live model contract mutations.
+  `procedure`, `defineLiveModelContract`, `liveLog`, and live model contract
+  mutations.
 - `api-binding/` isolates controller construction with `bindContract()` and
   direct controller calls/snapshots.
 - `api-client/` isolates serving a bound controller over a memory transport,
-  creating a typed thin `client()`, and materializing a group.
+  creating a typed thin `client()`, and acquiring a live model replica.
 - `group/` demonstrates `defineLiveModelContract`, host instance lifecycle,
   typed group client binding, and mutation settling across multiple member models.
 - `dedupe/` demonstrates server-side `deduplicateRequests()` for in-flight

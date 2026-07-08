@@ -40,30 +40,28 @@ limit.
 `reseed()` starts a new generation, clears retained text, resets `baseOffset` to
 `0`, and resets sequence to `0`.
 
-## Client
+## Consumers
 
-`LiveLogClient` is callback-oriented rather than state-model-oriented:
+Consumers normally reach logs through the API layer. The thin handle is useful
+when you want to stream directly into a terminal or log viewer:
 
 ```ts
-const client = new LiveLogClient({
-  refetchSnapshot: fetchSnapshot,
-  onReset: (data) => console.log('log reset:', data.text),
-  onAppend: (chunk) => console.log('log append:', chunk),
-  topic,
-  instrumentation,
-  logger,
-});
+const output = thin.activity.handle(session);
+const snapshot = await output.snapshot();
+term.write(snapshot.data.text);
 
-client.seed(await fetchSnapshot());
-const detach = attach((update) => client.applyUpdate(update));
+const detach = await output.attach((update) => {
+  term.write((update.delta as { chunk: string }).chunk);
+});
 ```
 
-Use `onReset` to replace rendered text and `onAppend` to append incremental
-chunks. `getSnapshot()` returns the retained tail the client has applied so far.
+Use `createLiveLogReplica()` when a process wants a retained local buffer that can
+also be served downstream. The replica replaces rendered text after a resync and
+appends incremental chunks while attached.
 
-The client resyncs on update-before-seed, generation mismatch, sequence gap, or
-invalid log delta. Resync events use the same `resync` instrumentation hook as
-live models.
+The underlying protocol follower resyncs on update-before-seed, generation
+mismatch, sequence gap, or invalid log delta. Resync events use the same `resync`
+instrumentation hook as live models.
 
 ## API Layer Usage
 
@@ -87,7 +85,5 @@ detach();
 ```
 
 The API layer handles topic encoding, snapshots, attachment, and detachment.
-Use `createLiveLogReplica()` when a process wants a retained local buffer that can
-also be served downstream.
 
 See [../../examples/live-log/client.ts](../../examples/live-log/client.ts).

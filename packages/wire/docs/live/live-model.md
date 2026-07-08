@@ -51,31 +51,25 @@ clones the current state. `reseed(next?)` replaces the generation, resets
 sequence to `0`, optionally replaces state, and forces clients to resync on the
 next observed update.
 
-## Client
+## Consumers
 
-`LiveModelClient<T>` consumes snapshots and updates:
+Consumers normally reach live models through a live model contract. Use the thin
+client when you only need protocol access:
 
 ```ts
-const client = new LiveModelClient(schema, fetchSnapshot, (value, meta) => {
-  render(value, meta.kind);
-}, {
-  topic,
-  instrumentation,
-  logger,
+const model = thin.conversation.model({ sessionId }, 'state');
+const snapshot = await model.snapshot();
+const detach = await model.attach((update) => {
+  console.log(update.delta);
 });
-
-client.seed(await fetchSnapshot());
-const detach = server.subscribe((update) => client.applyUpdate(update));
 ```
 
-Options are optional:
+Wrap that thin model ref in `createLiveModelReplica()` when a process wants local
+state, mutation settling, ref counting, or a downstream `LiveSource`; see
+[replicas](./replicas.md#model-replicas).
 
-- `topic`: included in resync observability events.
-- `instrumentation`: receives resync events.
-- `logger`: receives structured resync logs; otherwise the ambient logger is
-  used.
-
-The client resyncs when:
+The package also has low-level protocol followers internally. They consume
+snapshots and ordered updates, then resync when:
 
 - an update arrives before `seed()`.
 - `generation` differs from the local generation.
