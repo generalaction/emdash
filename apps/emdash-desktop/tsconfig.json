@@ -11,8 +11,21 @@
       "@renderer/*": ["./src/renderer/*"],
       "@main/*": ["./src/main/*"],
       "@shared/*": ["./src/shared/*"],
+      "@emdash/core/acp/client": ["../../packages/core/src/acp/client.ts"],
       "@emdash/core/acp": ["../../packages/core/src/acp/index.ts"],
+      "@emdash/core/agents/plugins/helpers": [
+        "../../packages/core/src/agents/plugins/helpers/index.ts"
+      ],
+      "@emdash/core/agents/plugins": ["../../packages/core/src/agents/plugins/index.ts"],
       "@emdash/core/wire": ["../../packages/core/src/wire/index.ts"],
+      "@emdash/plugins/agents/types": ["../../packages/plugins/src/agents/types.ts"],
+      "@emdash/plugins/agents": ["../../packages/plugins/src/agents/registry.ts"],
+      "@emdash/wire/api": ["../../packages/wire/src/api/index.ts"],
+      "@emdash/wire/process": ["../../packages/wire/src/process/index.ts"],
+      "@emdash/wire/util/process-runtime": [
+        "../../packages/wire/src/util/process-runtime/index.ts"
+      ],
+      "@emdash/wire": ["../../packages/wire/src/index.ts"],
       "@root/*": ["./*"],
       "@/*": ["./src/*"],
       "@tooling/*": ["./tooling/*"]

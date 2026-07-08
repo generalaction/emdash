@@ -110,7 +110,7 @@ export function createAcpProcedures(runtime: AcpRuntime) {
         success: true,
         data: {
           ref: result.data.ref,
-          data: new Uint8Array(result.data.data),
+          data: new Uint8Array([...result.data.data]),
         },
       };
     },

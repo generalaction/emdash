@@ -1,0 +1,197 @@
+import { defineContract, fallible, liveLog, liveModel, liveState, procedure } from '@emdash/wire';
+import { z } from 'zod';
+import { agentAuthStatusSchema } from '../../agents/plugins/capabilities/auth';
+import { terminalStateSchema } from '../models';
+import { agentStateSchema } from '../models/agents';
+import { sessionConfigStateSchema, sessionUsageSchema } from '../models/config';
+import { planStateSchema } from '../models/plan';
+import { promptDraftSchema } from '../models/prompt';
+import { sessionStateSchema, sessionSummarySchema } from '../models/session';
+import { transcriptTurnSchema } from '../models/turns';
+import {
+  cancelTurnCommandSchema,
+  changeQueuePromptOrderCommandSchema,
+  deleteAttachmentCommandSchema,
+  deleteQueuedPromptCommandSchema,
+  downloadAttachmentCommandSchema,
+  downloadAttachmentResponseSchema,
+  editQueuedPromptCommandSchema,
+  exportAcpTranscriptCommandSchema,
+  exportRawAcpLogCommandSchema,
+  queuePromptCommandSchema,
+  resolvePermissionCommandSchema,
+  resumeSessionCommandSchema,
+  sendPromptCommandSchema,
+  sendPromptResponseSchema,
+  setModeOptionCommandSchema,
+  setModelOptionCommandSchema,
+  setPromptDraftCommandSchema,
+  startSessionCommandSchema,
+  stopSessionCommandSchema,
+  uploadAttachmentCommandSchema,
+  uploadAttachmentResponseSchema,
+} from './commands';
+import { acpRuntimeErrorSchema } from './errors';
+import { historyPageInputSchema, historyPageSchema, resumeResultSchema } from './queries';
+
+const startSessionResultSchema = z.object({ sessionId: z.string() });
+const sessionKeySchema = z.object({ conversationId: z.string() });
+const terminalOutputKeySchema = z.object({ terminalId: z.string() });
+
+export const acpApiContract = defineContract({
+  startSession: fallible({
+    input: startSessionCommandSchema,
+    data: startSessionResultSchema,
+    error: acpRuntimeErrorSchema,
+  }),
+  resumeSession: fallible({
+    input: resumeSessionCommandSchema,
+    data: resumeResultSchema,
+    error: acpRuntimeErrorSchema,
+  }),
+  stopSession: fallible({
+    input: stopSessionCommandSchema,
+    data: z.void(),
+    error: acpRuntimeErrorSchema,
+  }),
+  sendPrompt: fallible({
+    input: sendPromptCommandSchema,
+    data: sendPromptResponseSchema,
+    error: acpRuntimeErrorSchema,
+  }),
+  queuePrompt: fallible({
+    input: queuePromptCommandSchema,
+    data: sendPromptResponseSchema,
+    error: acpRuntimeErrorSchema,
+  }),
+  editQueuedPrompt: fallible({
+    input: editQueuedPromptCommandSchema,
+    data: z.void(),
+    error: acpRuntimeErrorSchema,
+  }),
+  deleteQueuedPrompt: fallible({
+    input: deleteQueuedPromptCommandSchema,
+    data: z.void(),
+    error: acpRuntimeErrorSchema,
+  }),
+  changeQueuePromptOrder: fallible({
+    input: changeQueuePromptOrderCommandSchema,
+    data: z.void(),
+    error: acpRuntimeErrorSchema,
+  }),
+  cancelTurn: fallible({
+    input: cancelTurnCommandSchema,
+    data: z.void(),
+    error: acpRuntimeErrorSchema,
+  }),
+  setModelOption: fallible({
+    input: setModelOptionCommandSchema,
+    data: z.void(),
+    error: acpRuntimeErrorSchema,
+  }),
+  setModeOption: fallible({
+    input: setModeOptionCommandSchema,
+    data: z.void(),
+    error: acpRuntimeErrorSchema,
+  }),
+  resolvePermission: fallible({
+    input: resolvePermissionCommandSchema,
+    data: z.void(),
+    error: acpRuntimeErrorSchema,
+  }),
+  setPromptDraft: fallible({
+    input: setPromptDraftCommandSchema,
+    data: z.void(),
+    error: acpRuntimeErrorSchema,
+  }),
+  exportACPTranscript: fallible({
+    input: exportAcpTranscriptCommandSchema,
+    data: z.string(),
+    error: acpRuntimeErrorSchema,
+  }),
+  exportRawAcpLog: fallible({
+    input: exportRawAcpLogCommandSchema,
+    data: z.string(),
+    error: acpRuntimeErrorSchema,
+  }),
+  uploadAttachment: fallible({
+    input: uploadAttachmentCommandSchema,
+    data: uploadAttachmentResponseSchema,
+    error: acpRuntimeErrorSchema,
+  }),
+  downloadAttachment: fallible({
+    input: downloadAttachmentCommandSchema,
+    data: downloadAttachmentResponseSchema,
+    error: acpRuntimeErrorSchema,
+  }),
+  deleteAttachment: fallible({
+    input: deleteAttachmentCommandSchema,
+    data: z.void(),
+    error: acpRuntimeErrorSchema,
+  }),
+  getHistory: fallible({
+    input: historyPageInputSchema,
+    data: historyPageSchema,
+    error: acpRuntimeErrorSchema,
+  }),
+  sessions: liveModel({
+    key: z.void(),
+    states: {
+      list: liveState({ data: z.record(z.string(), sessionSummarySchema) }),
+    },
+  }),
+  session: liveModel({
+    key: sessionKeySchema,
+    states: {
+      state: liveState({ data: sessionStateSchema }),
+      config: liveState({ data: sessionConfigStateSchema }),
+      usage: liveState({ data: sessionUsageSchema.nullable() }),
+      plan: liveState({ data: planStateSchema.nullable() }),
+      agents: liveState({ data: z.array(agentStateSchema) }),
+      activeTurn: liveState({ data: transcriptTurnSchema.nullable() }),
+      draft: liveState({ data: promptDraftSchema.nullable() }),
+      terminals: liveState({ data: z.array(terminalStateSchema) }),
+    },
+  }),
+  terminalOutput: liveLog({ key: terminalOutputKeySchema }),
+});
+
+export const acpHostContract = defineContract({
+  resolveSpawnContext: procedure({
+    input: z.object({ providerId: z.string() }),
+    output: z.object({
+      cli: z.string(),
+      agentEnv: z.record(z.string(), z.string()),
+    }),
+  }),
+  checkAuth: procedure({
+    input: z.object({ providerId: z.string() }),
+    output: agentAuthStatusSchema,
+  }),
+  markAuthRequired: procedure({
+    input: z.object({
+      providerId: z.string(),
+      message: z.string().optional(),
+    }),
+    output: z.void(),
+  }),
+  persistSessionId: procedure({
+    input: z.object({
+      conversationId: z.string(),
+      sessionId: z.string(),
+    }),
+    output: z.void(),
+  }),
+  log: procedure({
+    input: z.object({
+      level: z.enum(['debug', 'info', 'warn', 'error']),
+      message: z.string(),
+      data: z.record(z.string(), z.unknown()).optional(),
+    }),
+    output: z.void(),
+  }),
+});
+
+export type AcpApiContract = typeof acpApiContract;
+export type AcpHostContract = typeof acpHostContract;
+export type StartSessionInput = z.infer<typeof startSessionCommandSchema>['input'];

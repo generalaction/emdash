@@ -54,6 +54,7 @@
     "@emdash/core": "workspace:*",
     "@emdash/plugins": "workspace:*",
     "@emdash/shared": "workspace:*",
+    "@emdash/wire": "workspace:*",
     "@emdash/ui": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "5.2.8",

@@ -1,27 +1,30 @@
-import {
-  acpLiveTopics,
-  type AcpLiveTopics,
-  type AcpProcedures,
-  type StartSessionInput,
-} from '@emdash/core/acp/client';
-import { typedLive, typedProcedures, type TypedLiveTarget } from '@emdash/core/wire';
-import { ipcWire } from '@renderer/lib/wire/ipc-wire';
+import { acpApiContract, type StartSessionInput } from '@emdash/core/acp/client';
+import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
 
-const acpWire = ipcWire('acp');
+const ACP_WIRE_CHANNEL = 'acp-wire';
 
-export const acpRuntimeProcedures = typedProcedures<AcpProcedures>(acpWire.procedures);
-export const acpRuntimeLive = typedLive<AcpLiveTopics>(acpWire.live, acpLiveTopics);
+export type AcpRuntimeRpcClient = ReturnType<typeof createAcpClientForPort>;
 
-export type AcpRuntimeRpcClient = typeof acpRuntimeProcedures;
-export type AcpRuntimeLiveClient = TypedLiveTarget<AcpLiveTopics>;
+let clientPromise: Promise<AcpRuntimeRpcClient> | null = null;
 export type { StartSessionInput };
 
 export function getAcpRuntimeClient(): Promise<AcpRuntimeRpcClient> {
-  return Promise.resolve(acpRuntimeProcedures);
+  clientPromise ??= createAcpRuntimeClient();
+  return clientPromise;
 }
 
-export function getAcpRuntimeLive(): AcpRuntimeLiveClient {
-  return acpRuntimeLive;
+export function resetAcpRuntimeClient(): void {
+  clientPromise = null;
 }
 
-export function resetAcpRuntimeClient(): void {}
+async function createAcpRuntimeClient(): Promise<AcpRuntimeRpcClient> {
+  const portPromise = awaitWirePort(window, { channel: ACP_WIRE_CHANNEL });
+  await window.electronAPI.requestWirePort(ACP_WIRE_CHANNEL);
+  const port = (await portPromise) as DomPortLike;
+  return createAcpClientForPort(port);
+}
+
+function createAcpClientForPort(port: DomPortLike) {
+  const transport = domPortTransport(port);
+  return client(acpApiContract, connect(transport));
+}

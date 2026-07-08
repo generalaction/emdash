@@ -1,13 +1,17 @@
+import { client, connect, memoryTransportPair, ReplicaState, serve } from '@emdash/wire';
 import { isOk } from '@emdash/shared';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { makeAcpHarness, makeStartInput } from '../acp-test-support';
 import { sessionConfigStateSchema, sessionUsageSchema } from '../models/config';
 import { promptDraftSchema } from '../models/prompt';
-import { sessionStateSchema } from '../models/session';
+import { sessionStateSchema, sessionSummarySchema } from '../models/session';
 import { transcriptTurnSchema } from '../models/turns';
 import { AcpRuntime } from '../runtime/runtime';
 import { uploadAttachmentCommandSchema } from './commands';
+import { createAcpController } from './controller';
 import { acpRuntimeErrorSchema } from './errors';
+import { acpApiContract } from './wire-contract';
+import { z } from 'zod';
 
 describe('ACP API contract schemas', () => {
   it('parses runtime live model snapshots with the public schemas', async () => {
@@ -19,13 +23,52 @@ describe('ACP API contract schemas', () => {
     const live = rt.sessionLiveModels('conv-contract');
     if (!live) throw new Error('expected live models');
 
-    expect(() => sessionStateSchema.parse(live.sessionState.snapshot().data)).not.toThrow();
-    expect(() => sessionConfigStateSchema.parse(live.config.snapshot().data)).not.toThrow();
-    expect(() => sessionUsageSchema.nullable().parse(live.usage.snapshot().data)).not.toThrow();
+    expect(acpApiContract.session.id).toBe('session');
+    expect(() => sessionStateSchema.parse(live.states.state.snapshot().data)).not.toThrow();
+    expect(() => sessionConfigStateSchema.parse(live.states.config.snapshot().data)).not.toThrow();
+    expect(() => sessionUsageSchema.nullable().parse(live.states.usage.snapshot().data)).not.toThrow();
     expect(() =>
-      transcriptTurnSchema.nullable().parse(live.activeTurn.snapshot().data)
+      transcriptTurnSchema.nullable().parse(live.states.activeTurn.snapshot().data)
     ).not.toThrow();
-    expect(() => promptDraftSchema.nullable().parse(live.draft.snapshot().data)).not.toThrow();
+    expect(() => promptDraftSchema.nullable().parse(live.states.draft.snapshot().data)).not.toThrow();
+  });
+
+  it('round-trips procedures and live state over a wire transport', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const pair = memoryTransportPair();
+    const dispose = serve(pair.right, createAcpController(rt));
+    const contractClient = client(acpApiContract, connect(pair.left));
+    const summaries = new ReplicaState(contractClient.sessions.state(undefined, 'list'), {
+      schema: z.record(z.string(), sessionSummarySchema),
+    });
+
+    try {
+      await summaries.ready;
+      const input = makeStartInput({ conversationId: 'conv-wire' });
+      const started = await contractClient.startSession({ input });
+      expect(started).toEqual({ success: true, data: { sessionId: 'session-1' } });
+
+      await vi.waitFor(() => {
+        expect(summaries.current()['conv-wire']).toMatchObject({
+          conversationId: 'conv-wire',
+          lifecycle: 'ready',
+        });
+      });
+
+      const state = new ReplicaState(
+        contractClient.session.state({ conversationId: 'conv-wire' }, 'state'),
+        { schema: sessionStateSchema }
+      );
+      await state.ready;
+      expect(state.current()).toMatchObject({ lifecycle: 'ready' });
+      await state.dispose();
+    } finally {
+      await summaries.dispose();
+      dispose();
+      pair.left.close?.();
+      pair.right.close?.();
+    }
   });
 
   it('accepts attachment uploads by bytes or original path', () => {

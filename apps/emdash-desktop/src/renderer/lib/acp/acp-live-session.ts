@@ -16,13 +16,17 @@ import {
   type TerminalState,
 } from '@emdash/core/acp/client';
 import type { Result } from '@emdash/shared';
+import type { Unsubscribe } from '@emdash/shared';
+import {
+  ReplicaLog,
+  ReplicaState,
+  type LiveClientHandle,
+  type LiveLogSnapshotData,
+} from '@emdash/wire';
 import { z } from 'zod';
 import type { LiveLogBinding, LiveBinding } from '@renderer/lib/live/live-bindings';
-import { createLiveLogBinding, createLiveModelBinding } from '@renderer/lib/live/live-bindings';
 import {
   getAcpRuntimeClient,
-  getAcpRuntimeLive,
-  type AcpRuntimeLiveClient,
   type AcpRuntimeRpcClient,
   type StartSessionInput,
 } from './runtime-client';
@@ -51,49 +55,38 @@ export class AcpLiveSession {
 
   private constructor(
     readonly conversationId: string,
-    private readonly client: AcpRuntimeRpcClient,
-    private readonly live: AcpRuntimeLiveClient
+    private readonly client: AcpRuntimeRpcClient
   ) {
-    this.sessionState = createLiveModelBinding({
-      schema: sessionStateSchema,
-      snapshot: () => live.sessionState.snapshot({ conversationId }),
-      attach: (push) => live.sessionState.attach({ conversationId }, push),
-    });
-    this.config = createLiveModelBinding({
-      schema: sessionConfigStateSchema,
-      snapshot: () => live.sessionConfig.snapshot({ conversationId }),
-      attach: (push) => live.sessionConfig.attach({ conversationId }, push),
-    });
-    this.usage = createLiveModelBinding({
-      schema: sessionUsageSchema.nullable(),
-      snapshot: () => live.sessionUsage.snapshot({ conversationId }),
-      attach: (push) => live.sessionUsage.attach({ conversationId }, push),
-    });
-    this.plan = createLiveModelBinding({
-      schema: planStateSchema.nullable(),
-      snapshot: () => live.plan.snapshot({ conversationId }),
-      attach: (push) => live.plan.attach({ conversationId }, push),
-    });
-    this.activeTurn = createLiveModelBinding({
-      schema: transcriptTurnSchema.nullable(),
-      snapshot: () => live.activeTurn.snapshot({ conversationId }),
-      attach: (push) => live.activeTurn.attach({ conversationId }, push),
-    });
-    this.draft = createLiveModelBinding({
-      schema: promptDraftSchema.nullable(),
-      snapshot: () => live.promptDraft.snapshot({ conversationId }),
-      attach: (push) => live.promptDraft.attach({ conversationId }, push),
-    });
-    this.terminals = createLiveModelBinding({
-      schema: z.array(terminalStateSchema),
-      snapshot: () => live.terminals.snapshot({ conversationId }),
-      attach: (push) => live.terminals.attach({ conversationId }, push),
-    });
+    const key = { conversationId };
+    this.sessionState = new ReplicaStateBinding(
+      client.session.state(key, 'state'),
+      sessionStateSchema
+    );
+    this.config = new ReplicaStateBinding(
+      client.session.state(key, 'config'),
+      sessionConfigStateSchema
+    );
+    this.usage = new ReplicaStateBinding(
+      client.session.state(key, 'usage'),
+      sessionUsageSchema.nullable()
+    );
+    this.plan = new ReplicaStateBinding(client.session.state(key, 'plan'), planStateSchema.nullable());
+    this.activeTurn = new ReplicaStateBinding(
+      client.session.state(key, 'activeTurn'),
+      transcriptTurnSchema.nullable()
+    );
+    this.draft = new ReplicaStateBinding(
+      client.session.state(key, 'draft'),
+      promptDraftSchema.nullable()
+    );
+    this.terminals = new ReplicaStateBinding(
+      client.session.state(key, 'terminals'),
+      z.array(terminalStateSchema)
+    );
   }
 
   static async create(conversationId: string, input?: StartSessionInput): Promise<AcpLiveSession> {
     const client = await getAcpRuntimeClient();
-    const live = getAcpRuntimeLive();
     if (input) {
       const result = await withTimeout(
         client.startSession({ input }),
@@ -103,7 +96,7 @@ export class AcpLiveSession {
         throw new AcpStartError(result.error);
       }
     }
-    const session = new AcpLiveSession(conversationId, client, live);
+    const session = new AcpLiveSession(conversationId, client);
     await withTimeout(
       Promise.all([
         session.sessionState.start(),
@@ -215,10 +208,7 @@ export class AcpLiveSession {
   async terminalOutput(terminalId: string): Promise<LiveLogBinding> {
     const existing = this.terminalLogs.get(terminalId);
     if (existing) return existing;
-    const binding = createLiveLogBinding({
-      snapshot: () => this.live.terminalOutput.snapshot({ terminalId }),
-      attach: (push) => this.live.terminalOutput.attach({ terminalId }, push),
-    });
+    const binding = new ReplicaLogBinding(this.client.terminalOutput.handle({ terminalId }));
     this.terminalLogs.set(terminalId, binding);
     await binding.start();
     if (this.disposed) binding.dispose();
@@ -238,6 +228,108 @@ export class AcpLiveSession {
       binding.dispose();
     }
     this.terminalLogs.clear();
+  }
+}
+
+class ReplicaStateBinding<T> implements LiveBinding<T> {
+  private readonly listeners = new Set<() => void>();
+  private replica: ReplicaState<T> | null = null;
+  private disposed = false;
+
+  constructor(
+    private readonly handle: LiveClientHandle<T>,
+    private readonly schema: z.ZodType<T>
+  ) {}
+
+  async start(): Promise<void> {
+    if (this.replica) return;
+    const replica = new ReplicaState(this.handle, {
+      schema: this.schema,
+      onChange: () => this.notify(),
+    });
+    this.replica = replica;
+    await replica.ready;
+    if (this.disposed) {
+      await replica.dispose();
+      return;
+    }
+    this.notify();
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    const replica = this.replica;
+    this.replica = null;
+    this.listeners.clear();
+    if (replica) void replica.dispose();
+  }
+
+  getSnapshot(): T | undefined {
+    return this.replica?.current();
+  }
+
+  subscribe(cb: () => void): Unsubscribe {
+    this.listeners.add(cb);
+    return () => this.listeners.delete(cb);
+  }
+
+  private notify(): void {
+    for (const listener of this.listeners) listener();
+  }
+}
+
+class ReplicaLogBinding implements LiveLogBinding {
+  private readonly listeners = new Set<() => void>();
+  private replica: ReplicaLog | null = null;
+  private unsubscribe: Unsubscribe | null = null;
+  private value: LiveLogSnapshotData | undefined;
+  private disposed = false;
+
+  constructor(private readonly handle: LiveClientHandle<LiveLogSnapshotData>) {}
+
+  async start(): Promise<void> {
+    if (this.replica) return;
+    const replica = new ReplicaLog(this.handle);
+    this.replica = replica;
+    await replica.ready;
+    if (this.disposed) {
+      await replica.dispose();
+      return;
+    }
+    await this.refresh();
+    this.unsubscribe = replica.subscribe(() => {
+      void this.refresh();
+    });
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+    const replica = this.replica;
+    this.replica = null;
+    this.listeners.clear();
+    if (replica) void replica.dispose();
+  }
+
+  getSnapshot(): LiveLogSnapshotData | undefined {
+    return this.value;
+  }
+
+  text(): string {
+    return this.value?.text ?? this.replica?.text() ?? '';
+  }
+
+  subscribe(cb: () => void): Unsubscribe {
+    this.listeners.add(cb);
+    return () => this.listeners.delete(cb);
+  }
+
+  private async refresh(): Promise<void> {
+    const replica = this.replica;
+    if (!replica) return;
+    this.value = (await replica.snapshot()).data;
+    for (const listener of this.listeners) listener();
   }
 }
 

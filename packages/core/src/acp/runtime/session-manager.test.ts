@@ -78,7 +78,7 @@ describe('AcpRuntime session manager', () => {
     const live = rt.sessionLiveModels('conv-live');
     if (!live) throw new Error('expected live models');
     const updates: Array<{ delta: unknown }> = [];
-    const unsubscribe = live.activeTurn.subscribe((update) => updates.push(update));
+    const unsubscribe = live.states.activeTurn.subscribe((update) => updates.push(update));
 
     const prompt = rt.sendPrompt('conv-live', { text: 'hello' });
     updates.length = 0;
@@ -115,7 +115,7 @@ describe('AcpRuntime session manager', () => {
     const live = rt.sessionLiveModels('conv-usage');
     if (!live) throw new Error('expected live models');
     const updates: unknown[] = [];
-    const unsubscribe = live.usage.subscribe((update) => updates.push(update));
+    const unsubscribe = live.states.usage.subscribe((update) => updates.push(update));
 
     await client.sessionUpdate({
       sessionId,
@@ -128,7 +128,7 @@ describe('AcpRuntime session manager', () => {
       } as SessionUpdate,
     });
 
-    expect(live.usage.snapshot().data).toEqual({
+    expect(live.states.usage.snapshot().data).toEqual({
       contextUsed: 42_000,
       contextSize: 200_000,
       cost: { amount: 0.25, currency: 'USD' },
@@ -258,7 +258,7 @@ describe('AcpRuntime session manager', () => {
       cwd: '/tmp',
     });
 
-    expect(rt.terminalsLiveModel('conv-terminal').snapshot().data).toMatchObject([
+    expect(rt.sessionLiveModels('conv-terminal')?.states.terminals.snapshot().data).toMatchObject([
       { terminalId: created.terminalId, command: 'echo', exitStatus: null },
     ]);
 
@@ -275,7 +275,7 @@ describe('AcpRuntime session manager', () => {
     expect(updates.at(-1)).toMatchObject({ delta: { chunk: ' world' } });
 
     terminal.triggerExit({ exitCode: 0, signal: null });
-    expect(rt.terminalsLiveModel('conv-terminal').snapshot().data).toMatchObject([
+    expect(rt.sessionLiveModels('conv-terminal')?.states.terminals.snapshot().data).toMatchObject([
       { terminalId: created.terminalId, exitStatus: { exitCode: 0, signal: null } },
     ]);
     unsub();
@@ -288,6 +288,6 @@ describe('AcpRuntime session manager', () => {
 
     expect(rt.getSessionState('conv-close').lifecycle).toBe('closed');
     expect(rt.sessionLiveModels('conv-close')).toBeNull();
-    expect(rt.sessionsListLiveModel().snapshot().data).toEqual({});
+    expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
   });
 });

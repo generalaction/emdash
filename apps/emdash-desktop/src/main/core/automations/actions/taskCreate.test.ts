@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { acpRuntimeProcedures } from '@main/core/acp/controller';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { issueController } from '@main/core/issues/controller';
 import { openProject } from '@main/core/projects/operations/openProject';
@@ -22,6 +21,10 @@ import {
   markRunLaunchingTask,
 } from '../run-transitions';
 import { executeTaskCreate } from './taskCreate';
+
+const { mockAcpStartSession } = vi.hoisted(() => ({
+  mockAcpStartSession: vi.fn(),
+}));
 
 vi.mock('@main/core/conversations/createConversation', () => ({ createConversation: vi.fn() }));
 vi.mock('@main/core/projects/operations/ensure-repository-workspace', () => ({
@@ -63,7 +66,7 @@ vi.mock('@main/lib/logger', () => ({
   log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), child: vi.fn(() => ({ debug: vi.fn() })) },
 }));
 vi.mock('@main/core/acp/controller', () => ({
-  acpRuntimeProcedures: { startSession: vi.fn() },
+  getAcpRuntimeClient: vi.fn(() => Promise.resolve({ startSession: mockAcpStartSession })),
 }));
 vi.mock('@main/core/issues/controller', () => ({
   issueController: { getIssueContext: vi.fn() },
@@ -148,7 +151,7 @@ describe('executeTaskCreate', () => {
       data: { path: '/tmp/task', workspaceId: 'workspace-1' },
     });
     vi.mocked(createConversation).mockResolvedValue({} as never);
-    vi.mocked(acpRuntimeProcedures.startSession).mockResolvedValue({
+    mockAcpStartSession.mockResolvedValue({
       success: true,
       data: { sessionId: 'acp-session' },
     });
@@ -351,7 +354,7 @@ describe('executeTaskCreate', () => {
       })
     );
     expect(vi.mocked(createConversation).mock.calls[0]?.[0].initialPrompt).toBeUndefined();
-    expect(acpRuntimeProcedures.startSession).toHaveBeenCalledWith({
+    expect(mockAcpStartSession).toHaveBeenCalledWith({
       input: expect.objectContaining({
         conversationId: expect.any(String),
         projectId: 'project-1',

@@ -1,7 +1,6 @@
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
-import type { LiveLogServer } from '../../live/log';
-import type { LiveModelServer } from '../../live/model';
+import type { LiveLog } from '@emdash/wire';
 import { AgentTerminalManager } from '../agent-terminal-manager';
 import type { ResumeResult } from '../api/queries';
 import { FsPort, TerminalPort } from '../client-ports';
@@ -23,13 +22,16 @@ export class AcpRuntime {
   readonly terminals: AgentTerminalManager;
   readonly pool: ConnectionPool;
   readonly manager: SessionManager;
-  private readonly terminalLiveRegistry = new TerminalLiveRegistry();
+  private readonly terminalLiveRegistry: TerminalLiveRegistry;
 
   constructor(private readonly deps: AcpRuntimeDeps) {
+    let manager: SessionManager | null = null;
+    this.terminalLiveRegistry = new TerminalLiveRegistry((conversationId) =>
+      manager?.syncTerminals(conversationId)
+    );
     this.terminals = new AgentTerminalManager(deps.host, this.terminalLiveRegistry.hooks);
     const fs = new FsPort(deps.host);
     const terminalPort = new TerminalPort(this.terminals);
-    let manager: SessionManager | null = null;
     this.pool = new ConnectionPool({
       host: deps.host,
       logger: deps.logger,
@@ -191,11 +193,15 @@ export class AcpRuntime {
     return this.manager.sessionsList;
   }
 
-  terminalsLiveModel(conversationId: string): LiveModelServer<TerminalState[]> {
-    return this.terminalLiveRegistry.getTerminalsModel(conversationId);
+  sessionLiveHost() {
+    return this.manager.sessionHost;
   }
 
-  terminalOutputLog(terminalId: string): LiveLogServer | null {
+  sessionsLiveHost() {
+    return this.manager.sessionsHost;
+  }
+
+  terminalOutputLog(terminalId: string): LiveLog | null {
     return this.terminalLiveRegistry.getTerminalLog(terminalId);
   }
 }

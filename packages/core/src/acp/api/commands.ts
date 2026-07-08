@@ -69,9 +69,13 @@ export const setPromptDraftCommandSchema = z.object({
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
 export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
 
+const byteArraySchema = z.custom<Uint8Array<ArrayBufferLike>>(
+  (value) => value instanceof Uint8Array
+);
+
 export const uploadAttachmentCommandSchema = z
   .object({
-    data: z.instanceof(Uint8Array).optional(),
+    data: byteArraySchema.optional(),
     mimeType: attachmentMimeTypeSchema,
     name: z.string().optional(),
     originalPath: z.string().optional(),
@@ -88,7 +92,7 @@ export const uploadAttachmentResponseSchema = attachmentRefSchema;
 export const downloadAttachmentCommandSchema = z.object({ id: z.string() });
 export const downloadAttachmentResponseSchema = z.object({
   ref: attachmentRefSchema,
-  data: z.instanceof(Uint8Array),
+  data: byteArraySchema,
 });
 export const deleteAttachmentCommandSchema = z.object({ id: z.string() });
 

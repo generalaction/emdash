@@ -1,17 +1,26 @@
 import { readFile } from 'node:fs/promises';
 import {
   AcpRuntime,
-  createAcpLiveResolver,
-  createAcpProcedures,
+  acpHostContract,
+  createAcpController,
   type AcpRuntimeDeps,
 } from '@emdash/core/acp';
 import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
-import { localWire, serveWire } from '@emdash/core/wire';
+import { client, connect, isWireMessage, type WireTransport } from '@emdash/wire';
+import {
+  serveProcessRuntime,
+  type ProcessRuntimePort,
+} from '@emdash/wire/util/process-runtime';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
 import { ChildAcpProcessHost } from './child-process-host';
 import { LocalAttachmentStore } from './local-attachment-store';
-import type { UtilityParentPort } from './protocol';
+
+type UtilityParentPort = {
+  postMessage(message: unknown): void;
+  on(event: 'message', cb: (event: { data: unknown }) => void): void;
+  off(event: 'message', cb: (event: { data: unknown }) => void): void;
+};
 
 const parentPort = (process as NodeJS.Process & { parentPort?: UtilityParentPort }).parentPort;
 
@@ -19,112 +28,98 @@ if (!parentPort) {
   throw new Error('ACP runtime process started without parentPort');
 }
 
-const childHost = new ChildAcpProcessHost(parentPort);
-const logger = createParentLogger(parentPort);
 const AUTH_STATUS_TIMEOUT_MS = 10_000;
-const pendingAuthChecks = new Map<
-  string,
-  {
-    resolve: (value: AgentAuthStatus) => void;
-    reject: (error: Error) => void;
-    timeout: ReturnType<typeof setTimeout>;
-  }
->();
 const attachmentsDir = process.env.EMDASH_ACP_ATTACHMENTS_DIR;
 
 if (!attachmentsDir) {
   throw new Error('ACP runtime process started without EMDASH_ACP_ATTACHMENTS_DIR');
 }
 
+const runtimePort = createRuntimePort(parentPort);
+const hostTransport = createHostTransport(runtimePort);
+const hostClient = client(acpHostContract, connect(hostTransport));
+const childHost = new ChildAcpProcessHost(hostClient);
+const logger = createParentLogger(hostClient);
 const attachmentStore = new LocalAttachmentStore(attachmentsDir);
 
-const runtime = new AcpRuntime({
-  resolveAcp: (providerId) => {
-    const plugin = pluginRegistry.get(providerId);
-    if (!plugin || plugin.capabilities.acp.kind !== 'supported' || !plugin.behavior.acp) {
-      return null;
-    }
-    return { behavior: plugin.behavior.acp };
+void serveProcessRuntime(
+  (scope) => {
+    const runtime = new AcpRuntime({
+      resolveAcp: (providerId) => {
+        const plugin = pluginRegistry.get(providerId);
+        if (!plugin || plugin.capabilities.acp.kind !== 'supported' || !plugin.behavior.acp) {
+          return null;
+        }
+        return { behavior: plugin.behavior.acp };
+      },
+      host: childHost,
+      persistSessionId: async (conversationId, sessionId) => {
+        await hostClient.persistSessionId({ conversationId, sessionId });
+        return { success: true, data: undefined };
+      },
+      checkAuth: (providerId) => checkAuthWithTimeout(providerId),
+      onAuthRequired: (providerId) => {
+        void hostClient.markAuthRequired({ providerId });
+      },
+      resolveAttachment: async (attachment) => {
+        if (attachment.type === 'attachment') {
+          const stored = await attachmentStore.get(attachment.id);
+          if (!stored) {
+            throw new Error(`Attachment '${attachment.id}' could not be resolved`);
+          }
+          return {
+            data: Buffer.from(stored.data).toString('base64'),
+            mimeType: stored.ref.mimeType,
+          };
+        }
+        const data = await readFile(attachment.originalPath);
+        return {
+          data: data.toString('base64'),
+          mimeType: attachment.mimeType,
+        };
+      },
+      attachmentStore,
+      logger,
+    } satisfies AcpRuntimeDeps);
+    scope.add(() => runtime.killAllTerminals());
+    return createAcpController(runtime);
   },
-  host: childHost,
-  persistSessionId: async (conversationId, sessionId) => {
-    parentPort.postMessage({ type: 'persist-session-id', conversationId, sessionId });
-    return { success: true, data: undefined };
-  },
-  checkAuth: (providerId) => requestAuthStatus(providerId),
-  onAuthRequired: (providerId) => {
-    parentPort.postMessage({ type: 'mark-auth-required', providerId });
-  },
-  resolveAttachment: async (attachment) => {
-    if (attachment.type === 'attachment') {
-      const stored = await attachmentStore.get(attachment.id);
-      if (!stored) {
-        throw new Error(`Attachment '${attachment.id}' could not be resolved`);
-      }
-      return {
-        data: Buffer.from(stored.data).toString('base64'),
-        mimeType: stored.ref.mimeType,
-      };
-    }
-    const data = await readFile(attachment.originalPath);
-    return {
-      data: data.toString('base64'),
-      mimeType: attachment.mimeType,
-    };
-  },
-  attachmentStore,
-  logger,
-} satisfies AcpRuntimeDeps);
-
-serveWire(parentPort, localWire(createAcpProcedures(runtime), createAcpLiveResolver(runtime)));
-
-parentPort.on('message', (event) => {
-  const message = event.data;
-  childHost.handleMessage(message);
-  handleAuthStatusMessage(message);
-
-  if (!isHostMessage(message)) return;
-  switch (message.type) {
-    case 'shutdown':
-      runtime.killAllTerminals();
-      process.exit(0);
-      break;
-  }
+  { port: runtimePort, logger }
+).catch((error: unknown) => {
+  process.stderr.write(
+    `ACP runtime process failed: ${error instanceof Error ? error.message : String(error)}\n`
+  );
+  process.exit(1);
 });
 
-function requestAuthStatus(providerId: string): Promise<AgentAuthStatus> {
-  const requestId = crypto.randomUUID();
+function checkAuthWithTimeout(providerId: string): Promise<AgentAuthStatus> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      if (!pendingAuthChecks.delete(requestId)) return;
       logger.warn('ACP runtime auth status check timed out', {
         providerId,
         timeoutMs: AUTH_STATUS_TIMEOUT_MS,
       });
       resolve({ kind: 'unknown' });
     }, AUTH_STATUS_TIMEOUT_MS);
-    pendingAuthChecks.set(requestId, { resolve, reject, timeout });
-    parentPort.postMessage({ type: 'check-auth', requestId, providerId });
+    hostClient.checkAuth({ providerId }).then(
+      (status) => {
+        clearTimeout(timeout);
+        resolve(status);
+      },
+      (error: unknown) => {
+        clearTimeout(timeout);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    );
   });
 }
 
-function handleAuthStatusMessage(message: unknown): void {
-  if (!isAuthStatusResult(message)) return;
-  const pending = pendingAuthChecks.get(message.requestId);
-  if (!pending) return;
-  pendingAuthChecks.delete(message.requestId);
-  clearTimeout(pending.timeout);
-  if (message.ok) {
-    pending.resolve(message.value);
-  } else {
-    pending.reject(new Error(message.error));
-  }
-}
-
-function createParentLogger(port: UtilityParentPort, bindings: LogFields = {}): Logger {
+function createParentLogger(
+  host: typeof hostClient,
+  bindings: LogFields = {}
+): Logger {
   const emit = (level: LogLevel, message: string, data?: LogFields): void => {
-    port.postMessage({
-      type: 'log',
+    void host.log({
       level,
       message,
       data: data ? { ...bindings, ...data } : bindings,
@@ -136,33 +131,38 @@ function createParentLogger(port: UtilityParentPort, bindings: LogFields = {}): 
     info: (message, data) => emit('info', message, data),
     warn: (message, data) => emit('warn', message, data),
     error: (message, data) => emit('error', message, data),
-    child: (next) => createParentLogger(port, { ...bindings, ...next }),
+    child: (next) => createParentLogger(host, { ...bindings, ...next }),
   };
 }
 
-function isHostMessage(value: unknown): value is { type: 'shutdown' } {
-  return (
-    typeof value === 'object' && value !== null && (value as { type?: unknown }).type === 'shutdown'
-  );
+function createRuntimePort(port: UtilityParentPort): ProcessRuntimePort {
+  return {
+    send(message) {
+      port.postMessage(message);
+    },
+    onMessage(cb) {
+      const listener = (event: { data: unknown }): void => cb(event.data);
+      port.on('message', listener);
+      return () => port.off('message', listener);
+    },
+    onDisconnect() {
+      return () => {};
+    },
+  };
 }
 
-function isAuthStatusResult(value: unknown): value is
-  | {
-      type: 'check-auth-result';
-      requestId: string;
-      ok: true;
-      value: AgentAuthStatus;
-    }
-  | {
-      type: 'check-auth-result';
-      requestId: string;
-      ok: false;
-      error: string;
-    } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as { type?: unknown }).type === 'check-auth-result' &&
-    typeof (value as { requestId?: unknown }).requestId === 'string'
-  );
+function createHostTransport(port: ProcessRuntimePort): WireTransport {
+  return {
+    post(message) {
+      port.send(message);
+    },
+    onMessage(cb) {
+      return port.onMessage((message) => {
+        if (isWireMessage(message)) cb(message);
+      });
+    },
+    onDisconnect(cb) {
+      return port.onDisconnect(cb);
+    },
+  };
 }

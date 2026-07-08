@@ -32,6 +32,9 @@ importers:
       '@emdash/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@emdash/wire':
+        specifier: workspace:*
+        version: link:../../packages/wire
       '@fontsource-variable/inter':
         specifier: ^5.2.8
         version: 5.2.8

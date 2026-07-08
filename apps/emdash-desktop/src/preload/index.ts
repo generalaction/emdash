@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
+import { requestWirePort } from '@emdash/wire/api';
 
 // Expose protected methods that allow the renderer process to use
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -18,4 +19,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return '';
     }
   },
+  requestWirePort: (channel: string) => requestWirePort({ ipcRenderer, window }, { channel }),
 });
