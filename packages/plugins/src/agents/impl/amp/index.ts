@@ -87,10 +87,11 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
-  // Amp does not expose a native ACP subcommand. Avoid `npx amp-acp` here: that
-  // package resolves its bundled @ampcode/cli before AMP_CLI_PATH, which can run
-  // a stale CLI and hang after creating the remote thread. This small adapter
-  // speaks ACP over stdio and shells out to Emdash's resolved Amp CLI directly.
+  // Temporary compatibility shim: `npx amp-acp` currently resolves its nested
+  // package-local @ampcode/cli before AMP_CLI_PATH during prompt execution. That
+  // can create the remote thread and then leave the ACP turn stuck in `working`.
+  // Shell out to Emdash's resolved Amp CLI directly until amp-acp prioritizes
+  // AMP_CLI_PATH or Amp exposes a native ACP subcommand.
   acp: createNativeAcpBehavior((ctx) => ({
     command: process.execPath,
     args: [ensureAmpAcpAdapterScript()],
