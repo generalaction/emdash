@@ -1,5 +1,9 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
+import {
+  buildStandardCommand,
+  nativeAcpBehavior,
+  npmDependency,
+} from '@emdash/core/agents/plugins/helpers';
 import { buildAuggieHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -12,6 +16,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.augmentcode.com/cli/overview',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     hooks: {
       kind: 'config',
       scope: 'workspace',
@@ -30,6 +37,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: nativeAcpBehavior(['--acp']),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

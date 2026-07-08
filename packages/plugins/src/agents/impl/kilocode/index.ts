@@ -2,6 +2,7 @@ import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugin
 import {
   buildStandardCommand,
   createFileDropPlugin,
+  nativeAcpBehavior,
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
@@ -18,6 +19,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://kilo.ai/docs/cli',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -50,6 +54,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: nativeAcpBehavior(['acp']),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

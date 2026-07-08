@@ -2,6 +2,7 @@ import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugin
 import {
   buildStandardCommand,
   geminiMcpAdapter,
+  nativeAcpBehavior,
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
@@ -15,6 +16,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/google-gemini/gemini-cli',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -36,6 +40,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: nativeAcpBehavior(['--acp']),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

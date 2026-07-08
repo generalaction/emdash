@@ -1,6 +1,7 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
+  nativeAcpBehavior,
   npmDependency,
   qwenMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
@@ -16,6 +17,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/QwenLM/qwen-code',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -42,6 +46,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: nativeAcpBehavior(['--acp']),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

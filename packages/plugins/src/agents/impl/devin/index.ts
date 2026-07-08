@@ -1,5 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import { buildStandardCommand, nativeAcpBehavior } from '@emdash/core/agents/plugins/helpers';
 import { buildDevinHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -12,6 +12,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.devin.ai/cli',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -59,6 +62,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: nativeAcpBehavior(['acp']),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

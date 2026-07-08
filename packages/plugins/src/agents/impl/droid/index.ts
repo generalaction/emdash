@@ -1,5 +1,9 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand, droidMcpAdapter } from '@emdash/core/agents/plugins/helpers';
+import {
+  buildStandardCommand,
+  droidMcpAdapter,
+  nativeAcpBehavior,
+} from '@emdash/core/agents/plugins/helpers';
 import { buildDroidHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -15,6 +19,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -67,6 +74,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: nativeAcpBehavior(['exec', '--output-format', 'acp']),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
