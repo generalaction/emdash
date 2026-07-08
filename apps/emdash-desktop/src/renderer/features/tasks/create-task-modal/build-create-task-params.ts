@@ -1,6 +1,5 @@
 import { nextDefaultConversationTitle } from '@renderer/features/conversations/conversation-title-utils';
 import type { InitialConversationState } from '@renderer/features/tasks/task-config/initial-conversation-section';
-import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import { extractIssueMentionTargets } from '@shared/core/issues/issue-context';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import type { TaskConfig } from '@shared/core/tasks/task-config';
@@ -46,7 +45,7 @@ export function buildInitialConversation(
     ...(type === 'acp'
       ? { initialQueue: buildInitialQueue(state) }
       : { initialPrompt: buildFinalPrompt(state.issueContext, state.prompt) }),
-    autoApprove: providerSupportsAutoApprove(provider) && state.autoApprove,
+    autoApprove: state.autoApprove,
     model: state.model ?? undefined,
     type,
   };

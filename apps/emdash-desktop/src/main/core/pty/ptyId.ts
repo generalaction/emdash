@@ -1,10 +1,17 @@
-import { AGENT_PROVIDER_IDS, type AgentProviderId } from '../agents/agent-provider-registry';
+import { asAgentProviderId, pluginRegistry, type AgentProviderId } from '@emdash/plugins/agents';
 
 const CONV_SEP = '-conv-';
 
 // Legacy separators — used only for snapshot migration fallback lookups.
 const LEGACY_MAIN_SEP = '-main-';
 const LEGACY_CHAT_SEP = '-chat-';
+
+function providerIdsLongestFirst(): AgentProviderId[] {
+  return pluginRegistry
+    .ids()
+    .map(asAgentProviderId)
+    .sort((a, b) => b.length - a.length);
+}
 
 export function makePtyId(provider: AgentProviderId | 'shell', conversationId: string): string {
   return `${provider}${CONV_SEP}${conversationId}`;
@@ -15,10 +22,7 @@ export function parsePtyId(id: string): {
   conversationId: string;
 } | null {
   // Try 'shell' sentinel first, then all known provider IDs longest-first to avoid prefix collisions.
-  const candidates: Array<AgentProviderId | 'shell'> = [
-    'shell',
-    ...[...AGENT_PROVIDER_IDS].sort((a, b) => b.length - a.length),
-  ];
+  const candidates: Array<AgentProviderId | 'shell'> = ['shell', ...providerIdsLongestFirst()];
   for (const pid of candidates) {
     const prefix = pid + CONV_SEP;
     if (id.startsWith(prefix)) {
@@ -37,8 +41,7 @@ export function parseLegacyPtyId(id: string): {
   kind: 'main' | 'chat';
   suffix: string;
 } | null {
-  const sorted = [...AGENT_PROVIDER_IDS].sort((a, b) => b.length - a.length);
-  for (const pid of sorted) {
+  for (const pid of providerIdsLongestFirst()) {
     if (id.startsWith(pid + LEGACY_MAIN_SEP)) {
       return {
         providerId: pid,

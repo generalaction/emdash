@@ -1,8 +1,5 @@
-import {
-  AGENT_PROVIDERS,
-  getProvider,
-  type AgentProviderId,
-} from '@shared/core/agents/agent-provider-registry';
+import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import { getAgentInstallActionState } from './agent-install';
 
 export interface AgentOption {
@@ -19,19 +16,20 @@ export interface AgentGroup {
 }
 
 export function buildAgentGroups(
+  agents: readonly Pick<AgentPayload, 'id' | 'name'>[],
   installedAgents: string[],
   assumedInstalledAgents: string[] = [],
-  installingAgents: ReadonlySet<AgentProviderId> = new Set(),
-  getName?: (id: AgentProviderId) => string
+  installingAgents: ReadonlySet<AgentProviderId> = new Set()
 ): AgentGroup[] {
-  const allAgentIds = AGENT_PROVIDERS.map((p) => p.id);
+  const allAgentIds = agents.map((agent) => agent.id as AgentProviderId);
+  const agentNames = new Map(agents.map((agent) => [agent.id, agent.name]));
   const installedSet = new Set(
     [...installedAgents, ...assumedInstalledAgents].filter((id) =>
       allAgentIds.includes(id as AgentProviderId)
     )
   );
 
-  const resolveName = getName ?? ((id: AgentProviderId) => getProvider(id)?.name ?? id);
+  const resolveName = (id: AgentProviderId) => agentNames.get(id) ?? id;
 
   const installedOptions: AgentOption[] = allAgentIds
     .filter((id) => installedSet.has(id) && !installingAgents.has(id))
@@ -68,7 +66,6 @@ export function getInstallButtonState(
   installingAgents: ReadonlySet<AgentProviderId>
 ): { render: boolean; disabled: boolean; installing: boolean; label: string } {
   return getAgentInstallActionState({
-    agentId: item.agentId,
     agentName: item.label,
     canInstall: allowInstall,
     isInstalled: !item.disabled,

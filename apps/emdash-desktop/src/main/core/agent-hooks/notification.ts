@@ -1,12 +1,12 @@
 import { eq } from 'drizzle-orm';
 import { app, BrowserWindow, Notification } from 'electron';
 import { getMainWindow } from '@main/app/window';
+import { getPluginMetadata } from '@main/core/agents/plugin-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { getProvider, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { isAttentionNotification, type AgentEvent } from '@shared/core/agents/agentEvents';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 
@@ -51,6 +51,14 @@ async function getTaskName(taskId: string | undefined): Promise<string | null> {
   return row?.name ?? null;
 }
 
+function getProviderName(providerId: string): string {
+  try {
+    return getPluginMetadata(providerId).name;
+  } catch {
+    return providerId;
+  }
+}
+
 export async function maybeShowNotification(event: AgentEvent, appFocused: boolean): Promise<void> {
   try {
     const { enabled, osNotifications } = await appSettingsService.get('notifications');
@@ -59,7 +67,7 @@ export async function maybeShowNotification(event: AgentEvent, appFocused: boole
     const body = getNotificationBody(event);
     if (!body) return;
 
-    const providerName = getProvider(event.providerId as AgentProviderId)?.name ?? event.providerId;
+    const providerName = event.providerId ? getProviderName(event.providerId) : 'Agent';
     const taskName = await getTaskName(event.taskId);
     const title = taskName ? `${providerName} — ${taskName}` : providerName;
 

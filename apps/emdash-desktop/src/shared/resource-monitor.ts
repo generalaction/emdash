@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 
 /**
  * Per-PTY resource sample. `cpu` is a percentage of one core (can exceed 100

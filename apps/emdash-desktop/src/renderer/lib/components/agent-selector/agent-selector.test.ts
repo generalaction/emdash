@@ -1,3 +1,4 @@
+import { asAgentProviderId } from '@emdash/plugins/agents/types';
 import { describe, expect, it } from 'vitest';
 import { getAgentInstallActionState, getAgentInstallErrorMessage } from './agent-install';
 import {
@@ -8,9 +9,17 @@ import {
   isComboboxOptionDisabled,
 } from './agent-selector-options';
 
+const agents = [
+  { id: 'codex', name: 'Codex' },
+  { id: 'claude', name: 'Claude Code' },
+  { id: 'qwen', name: 'Qwen Code' },
+];
+
+const agent = asAgentProviderId;
+
 describe('buildAgentGroups', () => {
   it('marks installed agents selectable and uninstalled agents disabled', () => {
-    const groups = buildAgentGroups(['codex']);
+    const groups = buildAgentGroups(agents, ['codex']);
 
     expect(groups.find((group) => group.value === 'installed')?.items).toEqual(
       expect.arrayContaining([expect.objectContaining({ agentId: 'codex', disabled: false })])
@@ -21,7 +30,7 @@ describe('buildAgentGroups', () => {
   });
 
   it('keeps the selected agent installed while availability is still unknown', () => {
-    const groups = buildAgentGroups([], ['codex']);
+    const groups = buildAgentGroups(agents, [], ['codex']);
 
     expect(groups.find((group) => group.value === 'installed')?.items).toEqual([
       expect.objectContaining({ agentId: 'codex', disabled: false }),
@@ -32,7 +41,7 @@ describe('buildAgentGroups', () => {
   });
 
   it('keeps installing agents in the not-installed group until install resolves', () => {
-    const groups = buildAgentGroups(['codex', 'claude'], [], new Set(['claude']));
+    const groups = buildAgentGroups(agents, ['codex', 'claude'], [], new Set([agent('claude')]));
 
     expect(groups.find((group) => group.value === 'installed')?.items).toEqual(
       expect.arrayContaining([expect.objectContaining({ agentId: 'codex', disabled: false })])
@@ -46,7 +55,7 @@ describe('buildAgentGroups', () => {
   });
 
   it('does not assume an installing selected agent is installed', () => {
-    const groups = buildAgentGroups([], ['claude'], new Set(['claude']));
+    const groups = buildAgentGroups(agents, [], ['claude'], new Set([agent('claude')]));
 
     expect(groups.find((group) => group.value === 'installed')?.items).toBeUndefined();
     expect(groups.find((group) => group.value === 'not-installed')?.items).toEqual(
@@ -55,7 +64,7 @@ describe('buildAgentGroups', () => {
   });
 
   it('keeps the selected agent installed when dependency data is partial', () => {
-    const assumedInstalledAgents = getAssumedInstalledAgents('codex', {
+    const assumedInstalledAgents = getAssumedInstalledAgents(agent('codex'), {
       claude: {
         id: 'claude',
         category: 'agent',
@@ -65,7 +74,7 @@ describe('buildAgentGroups', () => {
         checkedAt: 1,
       },
     });
-    const groups = buildAgentGroups(['claude'], assumedInstalledAgents);
+    const groups = buildAgentGroups(agents, ['claude'], assumedInstalledAgents);
 
     expect(groups.find((group) => group.value === 'installed')?.items).toEqual(
       expect.arrayContaining([
@@ -79,7 +88,7 @@ describe('buildAgentGroups', () => {
   });
 
   it('keeps inline-install rows disabled while allowing install actions', () => {
-    const item = buildAgentGroups(['codex'])
+    const item = buildAgentGroups(agents, ['codex'])
       .find((group) => group.value === 'not-installed')
       ?.items.find((option) => option.agentId === 'claude');
 
@@ -108,7 +117,7 @@ describe('buildAgentGroups', () => {
   it('supports non-combobox install actions', () => {
     expect(
       getAgentInstallActionState({
-        agentId: 'cursor',
+        agentName: 'Cursor',
         canInstall: true,
         isInstalled: false,
         isInstalling: true,
@@ -122,7 +131,7 @@ describe('buildAgentGroups', () => {
 
     expect(
       getAgentInstallActionState({
-        agentId: 'cursor',
+        agentName: 'Cursor',
         canInstall: true,
         isInstalled: true,
         isInstalling: false,
@@ -132,11 +141,12 @@ describe('buildAgentGroups', () => {
 
   it('only disables the actively installing agent button', () => {
     const notInstalledItems =
-      buildAgentGroups(['codex']).find((group) => group.value === 'not-installed')?.items ?? [];
+      buildAgentGroups(agents, ['codex']).find((group) => group.value === 'not-installed')?.items ??
+      [];
     const claude = notInstalledItems.find((option) => option.agentId === 'claude')!;
     const qwen = notInstalledItems.find((option) => option.agentId === 'qwen')!;
 
-    expect(getInstallButtonState(claude, true, new Set(['claude']))).toEqual({
+    expect(getInstallButtonState(claude, true, new Set([agent('claude')]))).toEqual({
       render: true,
       disabled: true,
       installing: true,
@@ -152,17 +162,18 @@ describe('buildAgentGroups', () => {
 
   it('supports multiple active installs at the same time', () => {
     const notInstalledItems =
-      buildAgentGroups(['codex']).find((group) => group.value === 'not-installed')?.items ?? [];
+      buildAgentGroups(agents, ['codex']).find((group) => group.value === 'not-installed')?.items ??
+      [];
     const claude = notInstalledItems.find((option) => option.agentId === 'claude')!;
     const qwen = notInstalledItems.find((option) => option.agentId === 'qwen')!;
 
-    expect(getInstallButtonState(claude, true, new Set(['claude', 'qwen']))).toEqual({
+    expect(getInstallButtonState(claude, true, new Set([agent('claude'), agent('qwen')]))).toEqual({
       render: true,
       disabled: true,
       installing: true,
       label: 'Install Claude Code',
     });
-    expect(getInstallButtonState(qwen, true, new Set(['claude', 'qwen']))).toEqual({
+    expect(getInstallButtonState(qwen, true, new Set([agent('claude'), agent('qwen')]))).toEqual({
       render: true,
       disabled: true,
       installing: true,

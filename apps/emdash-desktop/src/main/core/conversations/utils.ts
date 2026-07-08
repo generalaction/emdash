@@ -1,5 +1,5 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { type ConversationRow } from '@main/db/schema';
-import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { type AgentStatus } from '@shared/core/agents/agentEvents';
 import {
   type Conversation,

@@ -1,4 +1,5 @@
 import type { ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
@@ -15,7 +16,6 @@ import {
   ComboboxTrigger,
 } from '@renderer/lib/ui/combobox';
 import { cn } from '@renderer/utils/utils';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { AgentHoverCard, isEventInsideAgentHoverCard, useAgentHoverCard } from './agent-hover-card';
 import {
   canInstallAgentOption,

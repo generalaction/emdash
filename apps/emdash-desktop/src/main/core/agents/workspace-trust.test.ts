@@ -1,11 +1,11 @@
 import path from 'node:path';
 import type { ITrustBehavior } from '@emdash/core/agents/plugins';
 import type { FileError, IFileSystem } from '@emdash/core/files';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { IFilesRuntime } from '@main/core/runtime/types';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { WorkspaceTrustService } from './workspace-trust';
 
 const mockWarn = vi.hoisted(() => vi.fn());

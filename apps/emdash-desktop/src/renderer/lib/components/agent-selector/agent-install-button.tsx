@@ -1,15 +1,16 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { Download, Loader2 } from 'lucide-react';
 import type React from 'react';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { getAgentInstallActionState } from './agent-install';
 
 type TooltipSide = 'top' | 'right' | 'bottom' | 'left';
 
 type AgentInstallButtonProps = {
   agentId: AgentProviderId;
+  agentName: string;
   canInstall: boolean;
   isInstalled: boolean;
   isInstalling: boolean;
@@ -20,7 +21,7 @@ type AgentInstallButtonProps = {
 };
 
 export function AgentInstallButton({
-  agentId,
+  agentName,
   canInstall,
   isInstalled,
   isInstalling,
@@ -30,7 +31,7 @@ export function AgentInstallButton({
   tooltipSide = 'right',
 }: AgentInstallButtonProps) {
   const state = getAgentInstallActionState({
-    agentId,
+    agentName,
     canInstall,
     isInstalled,
     isInstalling,
