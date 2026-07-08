@@ -50,6 +50,7 @@ describe('claudeAuthStatus', () => {
       code: 1,
       stdout: JSON.stringify({ loggedIn: false }),
       stderr: '',
+      message: 'Command failed: claude auth status\n',
     });
 
     await expect(claudeAuthStatus(ctx({ exec }))).resolves.toEqual({ kind: 'unauthenticated' });

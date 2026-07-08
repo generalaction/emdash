@@ -33,9 +33,9 @@ function isExitCode(error: unknown, code: number): boolean {
   return typeof error === 'object' && error !== null && (error as ExecErrorWithOutput).code === code;
 }
 
-function isAuthStatusResponse(output: string): boolean {
-  if (parseAuthStatus(output)) return true;
-  return LOGGED_OUT_PATTERN.test(output);
+function isAuthStatusResponse(output: ExecErrorOutput): boolean {
+  if (parseAuthStatus(output.stdout)) return true;
+  return LOGGED_OUT_PATTERN.test(output.combined);
 }
 
 function accountFromAuthStatus(output: string): string | undefined {
@@ -71,10 +71,20 @@ function objectValue(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function outputFromExecError(error: unknown): string {
-  if (typeof error !== 'object' || error === null) return String(error);
+type ExecErrorOutput = {
+  stdout: string;
+  combined: string;
+};
+
+function outputFromExecError(error: unknown): ExecErrorOutput {
+  if (typeof error !== 'object' || error === null) {
+    const message = String(error);
+    return { stdout: '', combined: message };
+  }
   const withOutput = error as ExecErrorWithOutput;
-  return [withOutput.stdout, withOutput.stderr, withOutput.message]
+  const stdout = typeof withOutput.stdout === 'string' ? withOutput.stdout : '';
+  const combined = [withOutput.stdout, withOutput.stderr, withOutput.message]
     .filter((value): value is string => typeof value === 'string')
     .join('\n');
+  return { stdout, combined };
 }
