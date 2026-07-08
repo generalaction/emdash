@@ -6,8 +6,8 @@ import {
   passthroughMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
-import { authenticatedFromEnv } from '../../helpers/auth';
 import { enrichClaudeUpdate } from './acp-transform';
+import { claudeAuthStatus } from './auth';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
 import { buildClaudeTrustBehavior } from './trust';
@@ -40,8 +40,8 @@ export const plugin = definePlugin(
           kind: 'cli-login',
           id: 'claude-login',
           name: 'Sign in with Claude Code',
-          args: ['/login'],
-          description: 'Open Claude Code in a terminal and complete the built-in sign-in flow.',
+          args: ['auth', 'login'],
+          description: 'Open the Claude Code CLI sign-in flow in a terminal.',
         },
         {
           kind: 'api-key',
@@ -160,7 +160,7 @@ export const provider = registerPluginBehavior(plugin, {
     enrich: enrichClaudeUpdate,
   },
   auth: {
-    checkStatus: async (ctx) => authenticatedFromEnv(ctx, ['ANTHROPIC_API_KEY']),
+    checkStatus: claudeAuthStatus,
   },
   prompt: {
     buildCommand: (ctx) =>

@@ -6,7 +6,7 @@ import {
   opencodeMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
-import { authenticatedFromEnv } from '../../helpers/auth';
+import { opencodeAuthStatus } from './auth';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
 
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
@@ -78,8 +78,7 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   auth: {
-    checkStatus: async (ctx) =>
-      authenticatedFromEnv(ctx, ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY']),
+    checkStatus: opencodeAuthStatus,
   },
   acp: {
     buildSpawn: (ctx) => ({

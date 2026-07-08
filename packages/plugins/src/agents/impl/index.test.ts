@@ -43,6 +43,17 @@ describe('pluginRegistry', () => {
     }
   });
 
+  it('uses supported CLI login commands for providers with explicit auth commands', () => {
+    const claude = pluginRegistry.get('claude')!;
+    expect(cliLoginArgs(claude, 'claude-login')).toEqual(['auth', 'login']);
+
+    const codex = pluginRegistry.get('codex')!;
+    expect(cliLoginArgs(codex, 'codex-login')).toEqual(['login']);
+
+    const opencode = pluginRegistry.get('opencode')!;
+    expect(cliLoginArgs(opencode, 'opencode-login')).toEqual(['auth', 'login']);
+  });
+
   it('each entry has hostDependency.updates with valid kind', () => {
     for (const d of pluginRegistry.getAll()) {
       expect(d.capabilities.hostDependency.updates).toBeDefined();
@@ -350,3 +361,13 @@ describe('pluginRegistry', () => {
     expect(resumed.args).toEqual(['-r', 'qoder-session-1', '--yolo']);
   });
 });
+
+function cliLoginArgs(
+  plugin: NonNullable<ReturnType<typeof pluginRegistry.get>>,
+  methodId: string
+): string[] | undefined {
+  if (plugin.capabilities.auth.kind !== 'supported') return undefined;
+  const method = plugin.capabilities.auth.methods.find((candidate) => candidate.id === methodId);
+  if (!method || method.kind !== 'cli-login') return undefined;
+  return method?.args;
+}

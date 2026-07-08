@@ -21,9 +21,14 @@ if (!parentPort) {
 
 const childHost = new ChildAcpProcessHost(parentPort);
 const logger = createParentLogger(parentPort);
+const AUTH_STATUS_TIMEOUT_MS = 10_000;
 const pendingAuthChecks = new Map<
   string,
-  { resolve: (value: AgentAuthStatus) => void; reject: (error: Error) => void }
+  {
+    resolve: (value: AgentAuthStatus) => void;
+    reject: (error: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }
 >();
 const attachmentsDir = process.env.EMDASH_ACP_ATTACHMENTS_DIR;
 
@@ -90,7 +95,15 @@ parentPort.on('message', (event) => {
 function requestAuthStatus(providerId: string): Promise<AgentAuthStatus> {
   const requestId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
-    pendingAuthChecks.set(requestId, { resolve, reject });
+    const timeout = setTimeout(() => {
+      if (!pendingAuthChecks.delete(requestId)) return;
+      logger.warn('ACP runtime auth status check timed out', {
+        providerId,
+        timeoutMs: AUTH_STATUS_TIMEOUT_MS,
+      });
+      resolve({ kind: 'unknown' });
+    }, AUTH_STATUS_TIMEOUT_MS);
+    pendingAuthChecks.set(requestId, { resolve, reject, timeout });
     parentPort.postMessage({ type: 'check-auth', requestId, providerId });
   });
 }
@@ -100,6 +113,7 @@ function handleAuthStatusMessage(message: unknown): void {
   const pending = pendingAuthChecks.get(message.requestId);
   if (!pending) return;
   pendingAuthChecks.delete(message.requestId);
+  clearTimeout(pending.timeout);
   if (message.ok) {
     pending.resolve(message.value);
   } else {
