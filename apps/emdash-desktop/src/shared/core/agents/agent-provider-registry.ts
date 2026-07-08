@@ -334,6 +334,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Amp CLI',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'commandcode',

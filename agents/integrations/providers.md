@@ -10,9 +10,9 @@
 
 codex, claude, grok, devin, qwen, qoder, droid, gemini, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, continue, codebuff, freebuff, mistral, jules, junie, pi, autohand, letta, mimocode
 
-## Current ACP-Capable Providers (21)
+## Current ACP-Capable Providers (22)
 
-codex, claude, opencode, grok, devin, qwen, qoder, droid, gemini, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode
+codex, claude, opencode, grok, devin, qwen, qoder, droid, gemini, cursor, copilot, amp, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode
 
 ## Provider Metadata Includes
 

@@ -5,12 +5,14 @@ import {
   createFileDropPlugin,
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
+import { connectStdioAcp } from '../../helpers/acp-stdio';
+import { resolveAmpAcpAdapterEntry } from './acp-adapter-entry';
+import { icon } from './icon';
 import { AMP_PLUGIN_CONTENT } from './plugin-file';
 
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 // Amp thread ids are prefixed with 'T-'; only accept those for resume.
 const validateSessionId = (id: string) => id.startsWith('T-');
-import { icon } from './icon';
 
 export const plugin = definePlugin(
   {
@@ -21,6 +23,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://ampcode.com/manual#install',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -71,6 +76,19 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  // Temporary compatibility shim: `npx amp-acp` currently resolves its nested
+  // package-local @ampcode/cli before AMP_CLI_PATH during prompt execution. That
+  // can create the remote thread and then leave the ACP turn stuck in `working`.
+  // Shell out to Emdash's resolved Amp CLI directly until amp-acp prioritizes
+  // AMP_CLI_PATH or Amp exposes a native ACP subcommand.
+  acp: {
+    buildSpawn: (ctx) => ({
+      command: process.execPath,
+      args: [resolveAmpAcpAdapterEntry()],
+      env: { ELECTRON_RUN_AS_NODE: '1', AMP_CLI_PATH: ctx.cli },
+    }),
+    connect: (io, toClient) => connectStdioAcp(io, toClient),
+  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
