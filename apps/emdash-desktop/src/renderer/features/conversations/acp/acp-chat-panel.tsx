@@ -291,7 +291,7 @@ const ComposerForStore = observer(function ComposerForStore({
       setAttachments([]);
       editorApiRef.current?.clear();
       const hiddenContext = await buildHiddenIssueContext(value);
-      store.submitPrompt(value, promptAttachments, hiddenContext);
+      store.queuePrompt(value, promptAttachments, hiddenContext);
     },
     [store, buildPromptAttachments, buildHiddenIssueContext]
   );
