@@ -1,0 +1,49 @@
+apps/emdash-desktop/src/assets/images/kimi.svg
+  s_29b5cd83ebb51a::t_4a043a49b42681 1
+  s_ca980de33b6459::t_fd81638df5e39c 2-10
+packages/plugins/src/agents/impl/kimi/icon.ts
+  s_dc8f2e3351a305::t_265e5172dd5c25 10-18
+  s_29b5cd83ebb51a::t_4a043a49b42681 9
+apps/emdash-desktop/src/assets/images/mimocode.svg
+  s_e7c8ebd90eb6bf::t_ea77929bfe3979 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "584ff6ecc814516c444a52ab1a54ee8e7d8cb4ca",
+  "prompts": {},
+  "sessions": {
+    "s_29b5cd83ebb51a": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033llbkJmrppnJi9wG9LCR",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_ca980de33b6459": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033llaVnQmbl2VQSF3pcyj",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_dc8f2e3351a305": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033llZjLI3Pt2FMUR7a8WJ",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e7c8ebd90eb6bf": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lmwRK2LVirHDLIq0Wd4",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
