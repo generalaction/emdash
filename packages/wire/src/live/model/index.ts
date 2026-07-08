@@ -7,4 +7,4 @@ export {
   type Mutator,
 } from './batched-live-model';
 export { LiveModelClient, type LiveChangeMeta, type LiveModelClientOptions } from './client';
-export { LiveModelServer, type LiveModelProduceOptions } from './server';
+export { LiveModel, LiveModelServer, type LiveModelProduceOptions } from './server';

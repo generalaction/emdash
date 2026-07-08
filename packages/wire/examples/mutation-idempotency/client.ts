@@ -1,15 +1,12 @@
 import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
-  LiveModelRegistry,
   bindContract,
   connect,
   contractClient,
-  createGroupInstance,
+  createLiveModelHost,
   defineContract,
-  fromRegistry,
-  liveModel,
-  liveModelGroup,
+  defineLiveModelContract,
   memoryTransportPair,
   mutation,
   serve,
@@ -19,19 +16,13 @@ const keySchema = z.object({ id: z.string() });
 
 async function main(): Promise<void> {
   const api = createApi();
-  const registry = new LiveModelRegistry();
   const key = { id: 'shared' };
-  const counter = createGroupInstance(api.counter, key, {
+  const counters = createLiveModelHost(api.counter);
+  const counter = counters.create(key, {
     state: { count: 0 },
   });
-  registry.registerGroup(api.counter, key, counter);
 
-  const controller = bindContract(api, {
-    registry,
-    impl: {
-      counter: fromRegistry(),
-    },
-  });
+  const controller = bindContract(api, { counter: counters });
   const pair = memoryTransportPair();
   serve(pair.right, controller);
   const client = contractClient(api, connect(pair.left));
@@ -58,12 +49,10 @@ async function main(): Promise<void> {
 
 function createApi() {
   return defineContract({
-    counter: liveModelGroup({
+    counter: defineLiveModelContract({
       key: keySchema,
       models: {
-        state: liveModel({
-          data: z.object({ count: z.number() }),
-        }),
+        state: z.object({ count: z.number() }),
       },
       mutations: {
         increment: mutation(

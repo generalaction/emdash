@@ -6,7 +6,7 @@ import {
   createWireSessionHub,
   defineContract,
   liveModel,
-  LiveModelServer,
+  LiveModel,
   memoryTransportPair,
   procedure,
 } from '../../src/index';
@@ -17,17 +17,15 @@ const api = defineContract({
 });
 
 type CounterState = { count: number };
-const counter = new LiveModelServer<CounterState>({ count: 0 }, 1000);
+const counter = new LiveModel<CounterState>({ count: 0 }, 1000);
 const controller = bindContract(api, {
-  impl: {
-    increment: () => {
-      counter.produce((draft) => {
-        draft.count += 1;
-      });
-      return counter.snapshot().data.count;
-    },
-    counter: () => counter,
+  increment: () => {
+    counter.produce((draft) => {
+      draft.count += 1;
+    });
+    return counter.snapshot().data.count;
   },
+  counter: () => counter,
 });
 
 async function main(): Promise<void> {

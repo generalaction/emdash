@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { BatchedLiveModel, type FlushScheduler } from './batched-live-model';
-import { LiveModelServer } from './server';
+import { LiveModel } from './server';
 
 const treeSchema = z.object({
   count: z.number(),
@@ -27,7 +27,7 @@ function makeSyncScheduler() {
 }
 
 function setup(initial: Tree = makeTree()) {
-  const server = new LiveModelServer<Tree>(initial, 1000);
+  const server = new LiveModel<Tree>(initial, 1000);
   const { schedule, trigger } = makeSyncScheduler();
   const batched = new BatchedLiveModel<Tree>(server, schedule);
   const updates: unknown[] = [];
@@ -80,7 +80,7 @@ describe('BatchedLiveModel', () => {
   });
 
   it('drops a throwing batch and allows later mutations', () => {
-    const server = new LiveModelServer<Tree>(makeTree({ count: 3 }), 1000);
+    const server = new LiveModel<Tree>(makeTree({ count: 3 }), 1000);
     const { schedule, trigger } = makeSyncScheduler();
     const dropped: unknown[] = [];
     const batched = new BatchedLiveModel<Tree>(server, schedule, {

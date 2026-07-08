@@ -1,15 +1,12 @@
 import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
-  LiveModelRegistry,
   bindContract,
   connect,
   contractClient,
-  createGroupInstance,
+  createLiveModelHost,
   defineContract,
-  fromRegistry,
-  liveModel,
-  liveModelGroup,
+  defineLiveModelContract,
   memoryTransportPair,
   mutation,
   serve,
@@ -21,10 +18,10 @@ const stateSchema = z.object({ messages: z.array(z.string()) });
 type ChatState = z.infer<typeof stateSchema>;
 
 const chatContract = defineContract({
-  conversation: liveModelGroup({
+  conversation: defineLiveModelContract({
     key: keySchema,
     models: {
-      state: liveModel({ data: stateSchema }),
+      state: stateSchema,
     },
     mutations: {
       send: mutation(
@@ -48,17 +45,13 @@ const chatContract = defineContract({
 });
 
 const key = { conversationId: 'demo' };
-const registry = new LiveModelRegistry();
-const instance = createGroupInstance(chatContract.conversation, key, {
+const conversations = createLiveModelHost(chatContract.conversation);
+conversations.create(key, {
   state: { messages: [] } satisfies ChatState,
 });
-registry.registerGroup(chatContract.conversation, key, instance);
 
 const controller = bindContract(chatContract, {
-  registry,
-  impl: {
-    conversation: fromRegistry(),
-  },
+  conversation: conversations,
 });
 
 async function main(): Promise<void> {

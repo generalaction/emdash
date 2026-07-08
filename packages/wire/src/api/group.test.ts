@@ -1,11 +1,11 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createGroupInstance, LiveModelRegistry } from '../live';
-import { bindContract, encodeTopic, fromRegistry } from './bind';
+import { createLiveModelHost } from '../live';
+import { bindContract, encodeTopic } from './bind';
 import { contractClient } from './client';
 import { connect } from './connect';
-import { defineContract, liveModel, liveModelGroup, mutation } from './define';
+import { defineContract, defineLiveModelContract, mutation } from './define';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
@@ -14,11 +14,11 @@ const stateSchema = z.object({ title: z.string() });
 const usageSchema = z.object({ tokens: z.number() });
 
 const contract = defineContract({
-  conversation: liveModelGroup({
+  conversation: defineLiveModelContract({
     key: keySchema,
     models: {
-      state: liveModel({ data: stateSchema }),
-      usage: liveModel({ data: usageSchema }),
+      state: stateSchema,
+      usage: usageSchema,
     },
     mutations: {
       setTitle: mutation(
@@ -43,28 +43,24 @@ const contract = defineContract({
 
 function setup() {
   const key = { conversationId: 'c1' };
-  const registry = new LiveModelRegistry();
-  const instance = createGroupInstance(contract.conversation, key, {
+  const host = createLiveModelHost(contract.conversation);
+  const instance = host.create(key, {
     state: { title: 'Initial' },
     usage: { tokens: 0 },
   });
-  const unregister = registry.registerGroup(contract.conversation, key, instance);
   const pair = memoryTransportPair();
-  const controller = bindContract(contract, {
-    registry,
-    impl: { conversation: fromRegistry() },
-  });
+  const controller = bindContract(contract, { conversation: host });
   serve(pair.right, controller);
-  return { client: contractClient(contract, connect(pair.left)), controller, key, unregister };
+  return { client: contractClient(contract, connect(pair.left)), controller, key, instance };
 }
 
-describe('liveModelGroup', () => {
+describe('defineLiveModelContract', () => {
   it('registers group member models and resolves their live topics', () => {
-    const { controller, key, unregister } = setup();
+    const { controller, key, instance } = setup();
     expect(
       controller.resolveLive(encodeTopic(contract.conversation.models.state.id, key))?.snapshot()
     ).toMatchObject({ data: { title: 'Initial' } });
-    unregister();
+    instance.dispose();
     expect(
       controller.resolveLive(encodeTopic(contract.conversation.models.state.id, key))?.snapshot
     ).toThrow(/Unknown live topic/);
@@ -101,26 +97,88 @@ describe('liveModelGroup', () => {
     await conversation.dispose();
   });
 
-  it('requires a registry for groups', () => {
-    expect(() => bindContract(contract, { impl: { conversation: fromRegistry() } })).toThrow(
-      /requires a registry/
+  it('requires a matching host for groups', () => {
+    const other = defineContract({
+      other: defineLiveModelContract({
+        key: keySchema,
+        models: { state: stateSchema },
+      }),
+    });
+    const host = createLiveModelHost(other.other);
+    expect(() => bindContract(contract, { conversation: host as never })).toThrow(
+      /created for 'other'/
     );
+  });
+
+  it('runs schema-only mutation handlers supplied by the host', async () => {
+    const schemaOnly = defineContract({
+      conversation: defineLiveModelContract({
+        key: keySchema,
+        models: { state: stateSchema },
+        mutations: {
+          setTitle: mutation({
+            input: z.object({ title: z.string() }),
+            data: z.void(),
+            error: z.string(),
+          }),
+        },
+      }),
+    });
+    const key = { conversationId: 'schema-only' };
+    const host = createLiveModelHost(schemaOnly.conversation, {
+      mutations: {
+        setTitle: (ctx, input) => {
+          expect(ctx.key).toEqual(key);
+          ctx.produce('state', (draft) => {
+            (draft as { title: string }).title = input.title;
+          });
+          return ok(undefined);
+        },
+      },
+    });
+    host.create(key, { state: { title: 'Initial' } });
+    const pair = memoryTransportPair();
+    serve(pair.right, bindContract(schemaOnly, { conversation: host }));
+    const client = contractClient(schemaOnly, connect(pair.left));
+
+    const conversation = client.conversation(key);
+    await conversation.ready;
+    const invocation = await conversation.setTitle({ title: 'Host handled' });
+    await invocation.settled;
+
+    expect(conversation.state.client.getSnapshot()).toEqual({ title: 'Host handled' });
+    await conversation.dispose();
+  });
+
+  it('requires handlers for schema-only mutations', () => {
+    const schemaOnly = defineContract({
+      conversation: defineLiveModelContract({
+        key: keySchema,
+        models: { state: stateSchema },
+        mutations: {
+          setTitle: mutation({
+            input: z.object({ title: z.string() }),
+            data: z.void(),
+            error: z.string(),
+          }),
+        },
+      }),
+    });
+    const host = createLiveModelHost(schemaOnly.conversation);
+
+    expect(() => bindContract(schemaOnly, { conversation: host })).toThrow(/requires a handler/);
   });
 
   it('mounts group model ids and mutations under nested contract keys', async () => {
     const nested = defineContract({ child: contract });
     const key = { conversationId: 'nested' };
-    const registry = new LiveModelRegistry();
-    const instance = createGroupInstance(nested.child.conversation, key, {
+    const host = createLiveModelHost(nested.child.conversation);
+    host.create(key, {
       state: { title: 'Initial' },
       usage: { tokens: 0 },
     });
-    registry.registerGroup(nested.child.conversation, key, instance);
     const pair = memoryTransportPair();
-    const controller = bindContract(nested, {
-      registry,
-      impl: { child: { conversation: fromRegistry() } },
-    });
+    const controller = bindContract(nested, { child: { conversation: host } });
     serve(pair.right, controller);
     const client = contractClient(nested, connect(pair.left));
 

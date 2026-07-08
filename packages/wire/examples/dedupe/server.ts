@@ -21,14 +21,12 @@ async function main(): Promise<void> {
   let executions = 0;
   const pair = memoryTransportPair();
   const controller = bindContract(api, {
-    impl: {
-      expensiveStats: deduplicateRequests(async (input) => {
-        executions += 1;
-        const execution = executions;
-        await sleep(10);
-        return { ...input, executions: execution };
-      }),
-    },
+    expensiveStats: deduplicateRequests(async (input) => {
+      executions += 1;
+      const execution = executions;
+      await sleep(10);
+      return { ...input, executions: execution };
+    }),
   });
   serve(pair.right, controller);
 

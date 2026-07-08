@@ -1,4 +1,4 @@
-import { LiveModelServer } from '../model';
+import { LiveModel } from '../model';
 import type { LiveJobState } from '../protocol';
 
 export const DEFAULT_LIVE_JOB_MAX_PROGRESS_ENTRIES = 100;
@@ -18,7 +18,7 @@ export type LiveJobServerOptions = {
 
 type LiveJobRun<P, R, E> = {
   abort: AbortController;
-  model: LiveModelServer<LiveJobState<P, R, E>>;
+  model: LiveModel<LiveJobState<P, R, E>>;
   evictionTimer: ReturnType<typeof setTimeout> | undefined;
 };
 
@@ -49,7 +49,7 @@ export class LiveJobServer<I, P, R, E> {
   start(input: I): { jobId: string } {
     const jobId = crypto.randomUUID();
     const abort = new AbortController();
-    const model = new LiveModelServer<LiveJobState<P, R, E>>(
+    const model = new LiveModel<LiveJobState<P, R, E>>(
       {
         status: 'running',
         startedAt: Date.now(),
@@ -76,7 +76,7 @@ export class LiveJobServer<I, P, R, E> {
     run.abort.abort();
   }
 
-  job(jobId: string): LiveModelServer<LiveJobState<P, R, E>> | undefined {
+  job(jobId: string): LiveModel<LiveJobState<P, R, E>> | undefined {
     return this.runs.get(jobId)?.model;
   }
 

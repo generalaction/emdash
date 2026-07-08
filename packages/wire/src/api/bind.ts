@@ -1,13 +1,13 @@
 import { err, ok, resultSchema, type Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import { LiveJobServer, type LiveJobContext } from '../live/job';
-import type { LiveModelServer } from '../live/model';
 import {
   GroupMutationContext,
+  isLiveModelHost,
+  type LiveModelHost,
   MutationResultCache,
   type MutationResultCacheOptions,
   type LiveMutationResult,
-  type LiveModelRegistry,
 } from '../live/mutations';
 import { stableStringify } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
@@ -46,28 +46,18 @@ export type Controller = {
 
 export type ValidatePolicy = 'none' | 'inputs' | 'full';
 
-export type RegistryResolver = {
-  kind: 'fromRegistry';
-};
-
-export function fromRegistry(): RegistryResolver {
-  return { kind: 'fromRegistry' };
-}
-
 type ProcedureImpl<Def extends EndpointDef> = (
   input: EndpointInput<Def>,
   meta: CallMeta
 ) => Promise<EndpointOutput<Def>> | EndpointOutput<Def>;
 
-type LiveModelImpl<Def extends LiveModelEndpointDef> =
-  | RegistryResolver
-  | ((key: EndpointLiveModelKey<Def>) => LiveSource | null | undefined);
+type LiveModelImpl<Def extends LiveModelEndpointDef> = (
+  key: EndpointLiveModelKey<Def>
+) => LiveSource | null | undefined;
 
-type LiveLogImpl<Def extends EndpointDef> =
-  | ((key: LiveLogKey<Def>) => LiveSource | null | undefined)
-  | RegistryResolver;
+type LiveLogImpl<Def extends EndpointDef> = (key: LiveLogKey<Def>) => LiveSource | null | undefined;
 
-type GroupImpl = RegistryResolver | undefined;
+type GroupImpl<Def extends LiveModelGroupDef> = LiveModelHost<Def>;
 
 type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
   ? ProcedureImpl<Def>
@@ -75,8 +65,8 @@ type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
     ? LiveModelImpl<Def>
     : Def extends { kind: 'liveLog' }
       ? LiveLogImpl<Def>
-      : Def extends { kind: 'group' }
-        ? GroupImpl
+      : Def extends LiveModelGroupDef
+        ? GroupImpl<Def>
         : Def extends JobEndpointDef
           ? JobImpl<Def>
           : never;
@@ -97,6 +87,12 @@ export type ContractImpl<Defs extends ContractDefinitions> = {
       : never;
 };
 
+export type BindContractOptions = {
+  validate?: ValidatePolicy;
+  mutationDedupe?: MutationResultCacheOptions | false;
+  instrumentation?: WireInstrumentation;
+};
+
 type LiveEntry = {
   keySchema: z.ZodTypeAny;
   resolve(key: unknown): LiveSource | null | undefined;
@@ -106,13 +102,8 @@ const jobKeySchema = z.object({ jobId: z.string() });
 
 export function bindContract<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
-  options: {
-    registry?: LiveModelRegistry;
-    impl: ContractImpl<Defs>;
-    validate?: ValidatePolicy;
-    mutationDedupe?: MutationResultCacheOptions | false;
-    instrumentation?: WireInstrumentation;
-  }
+  impl: ContractImpl<Defs>,
+  options: BindContractOptions = {}
 ): Controller {
   const validate = options.validate ?? 'none';
   const liveEntries = new Map<string, LiveEntry>();
@@ -120,9 +111,8 @@ export function bindContract<Defs extends ContractDefinitions>(
   const jobServers: Array<{ dispose(): void }> = [];
   const mutationCache =
     options.mutationDedupe === false ? undefined : new MutationResultCache(options.mutationDedupe);
-  const registry = options.registry;
 
-  collectContractEntries(contract, options.impl as Record<string, unknown>, []);
+  collectContractEntries(contract, impl as Record<string, unknown>, []);
 
   function collectContractEntries(
     definitions: ContractDefinitions,
@@ -154,15 +144,18 @@ export function bindContract<Defs extends ContractDefinitions>(
         }
         case 'liveModel': {
           const impl = entryImpl as LiveModelImpl<LiveModelEndpointDef> | undefined;
+          if (!impl) {
+            throw new WireError('MISSING_HANDLER', `Live model '${fullPath}' requires a resolver`);
+          }
           liveEntries.set(def.id, {
             keySchema: def.keySchema,
-            resolve: createModelResolver(def, impl ?? fromRegistry(), registry),
+            resolve: impl as (key: unknown) => LiveSource | null,
           });
           break;
         }
         case 'liveLog': {
           const impl = entryImpl as LiveLogImpl<EndpointDef> | undefined;
-          if (!impl || isRegistryResolver(impl)) {
+          if (!impl) {
             throw new WireError('MISSING_HANDLER', `Live log '${fullPath}' requires a resolver`);
           }
           liveEntries.set(def.id, {
@@ -194,18 +187,33 @@ export function bindContract<Defs extends ContractDefinitions>(
           break;
         }
         case 'group': {
-          if (!registry)
-            throw new WireError('MISSING_REGISTRY', `Group '${fullPath}' requires a registry`);
-          for (const model of Object.values(def.models)) {
+          if (!isLiveModelHost(entryImpl)) {
+            throw new WireError('MISSING_HANDLER', `Group '${fullPath}' requires a LiveModelHost`);
+          }
+          const host = entryImpl as LiveModelHost<LiveModelGroupDef>;
+          if (host.contract.id !== def.id) {
+            throw new WireError(
+              'CONTRACT_MISMATCH',
+              `Live model host for '${fullPath}' was created for '${host.contract.id}'`
+            );
+          }
+          for (const [modelName, model] of Object.entries(def.models)) {
             liveEntries.set(model.id, {
               keySchema: def.keySchema,
-              resolve: (key) => registry.resolve(model, key as never),
+              resolve: (key) => host.get(key as never)?.models[modelName],
             });
           }
           for (const [mutationName, mutationDef] of Object.entries(def.mutations)) {
+            const handler = mutationDef.handler ?? host.mutationHandler(mutationName);
+            if (!handler) {
+              throw new WireError(
+                'MISSING_HANDLER',
+                `Mutation '${fullPath}.${mutationName}' requires a handler`
+              );
+            }
             procedureEntries.set(`${fullPath}.${mutationName}`, async (input) => {
               const envelope = parseGroupMutationInput(def, mutationDef, input, validate);
-              const instance = resolveGroupInstance(registry, def, envelope.key);
+              const instance = host.get(envelope.key as never);
               if (!instance) {
                 throw new WireError('NOT_FOUND', `Unknown group instance '${fullPath}'`);
               }
@@ -220,7 +228,7 @@ export function bindContract<Defs extends ContractDefinitions>(
                 envelope.mutationId,
                 `${fullPath}.${mutationName}`,
                 async () => {
-                  const result = await mutationDef.handler!(ctx, {
+                  const result = await handler(ctx, {
                     ...envelope.input,
                     mutationId: envelope.mutationId,
                   });
@@ -333,17 +341,6 @@ export function mergeControllers(controllers: Record<string, Controller>): Contr
   };
 }
 
-function createModelResolver(
-  ref: LiveModelEndpointDef,
-  impl: LiveModelImpl<LiveModelEndpointDef>,
-  registry: LiveModelRegistry | undefined
-): (key: unknown) => LiveSource | null | undefined {
-  if (!isRegistryResolver(impl)) return impl as (key: unknown) => LiveSource | null | undefined;
-  if (!registry)
-    throw new WireError('MISSING_REGISTRY', `Live model '${ref.id}' requires a registry`);
-  return (key) => registry.resolve(ref, key as never);
-}
-
 function createJobServer(
   def: JobEndpointDef,
   impl: JobImpl<JobEndpointDef>,
@@ -362,14 +359,6 @@ function createJobServer(
       const mapped = impl.toError(error);
       return validate === 'full' ? def.error.parse(mapped) : mapped;
     }
-  );
-}
-
-function isRegistryResolver(value: unknown): value is RegistryResolver {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as { kind?: unknown }).kind === 'fromRegistry'
   );
 }
 
@@ -414,20 +403,6 @@ function runMutation<D, E>(
         onDedupe: () => instrumentation?.mutationDeduped?.({ mutationId, path }),
       })
     : execute();
-}
-
-function resolveGroupInstance(registry: LiveModelRegistry, group: LiveModelGroupDef, key: unknown) {
-  const firstModel = Object.values(group.models)[0];
-  if (!firstModel) return null;
-  const firstServer = registry.resolve(firstModel, key as never);
-  if (!firstServer) return null;
-  const models: Record<string, LiveModelServer<unknown>> = {};
-  for (const [name, ref] of Object.entries(group.models)) {
-    const server = registry.resolve(ref, key as never);
-    if (!server) return null;
-    models[name] = server as LiveModelServer<unknown>;
-  }
-  return { group, key, models };
 }
 
 function createFallbackMutationId(): string {

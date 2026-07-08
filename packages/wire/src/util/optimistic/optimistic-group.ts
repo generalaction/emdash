@@ -75,7 +75,7 @@ export class OptimisticLiveModelGroup<Group extends LiveModelGroupDef> {
     this.values = createValues(this.cells);
     this.binding = bind(key, createOnChange(this.cells));
     this.ready = this.binding.ready;
-    this.mutations = createMutations(group, this.binding, this.cells);
+    this.mutations = createMutations(group, this.binding, this.cells, key);
   }
 
   get isPending(): boolean {
@@ -143,7 +143,10 @@ class OverlayGroupMutationContext<
 > implements GroupMutationCtx<Group> {
   private readonly recipes = new Map<keyof GroupModels<Group>, Mutator<unknown>[]>();
 
-  constructor(readonly mutationId: string) {}
+  constructor(
+    readonly mutationId: string,
+    readonly key: GroupKey<Group>
+  ) {}
 
   produce<Name extends keyof GroupModels<Group>>(
     name: Name,
@@ -194,7 +197,8 @@ function createOnChange<Group extends LiveModelGroupDef>(
 function createMutations<Group extends LiveModelGroupDef>(
   group: Group,
   binding: GroupBinding<Group>,
-  cells: MemberCells<Group>
+  cells: MemberCells<Group>,
+  key: GroupKey<Group>
 ): OptimisticLiveModelGroupMutations<Group> {
   const mutations: Record<string, unknown> = {};
   for (const [name, mutation] of Object.entries(group.mutations)) {
@@ -203,7 +207,7 @@ function createMutations<Group extends LiveModelGroupDef>(
       options: Omit<MutationCallOptions, 'mutationId'> = {}
     ) => {
       const mutationId = createMutationId();
-      const overlay = new OverlayGroupMutationContext<Group>(mutationId);
+      const overlay = new OverlayGroupMutationContext<Group>(mutationId, key);
       const localResult = runLocalGroupHandler(mutation.handler, overlay, input, mutationId);
       const resolvedLocalResult = isPromiseLike(localResult)
         ? await localResult.catch(() => undefined)

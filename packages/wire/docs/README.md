@@ -33,7 +33,7 @@ flowchart TB
   processHost --> api
 ```
 
-The live layer owns the stateful primitives: `LiveModelServer` and
+The live layer owns the stateful primitives: `LiveModel` and
 `LiveModelClient`, `LiveLogServer` and `LiveLogClient`, `LiveJobServer` and
 `LiveJobClient`, plus mutation registries and settling. The API layer turns those
 primitives into a contract with typed procedure calls and live topic bindings.
@@ -52,7 +52,7 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     reconnecting, process, and logging transports.
 - Live:
   - [Live models and protocol](./live/live-model.md): snapshots, updates,
-    cursors, `LiveModelServer`, `LiveModelClient`, and `BatchedLiveModel`.
+    cursors, `LiveModel`, `LiveModelClient`, and `BatchedLiveModel`.
   - [Live logs](./live/live-log.md): retained terminal-style logs and client
     callbacks.
   - [Live jobs](./live/live-job.md): progress, cancellation, terminal state,
@@ -78,7 +78,7 @@ Use the broad `@emdash/wire` export when building examples or package-local
 features that need both API and live primitives:
 
 ```ts
-import { bindContract, LiveModelServer, defineContract } from '@emdash/wire';
+import { bindContract, LiveModel, defineContract } from '@emdash/wire';
 ```
 
 Use narrower subpath exports at app boundaries:
@@ -101,11 +101,10 @@ The optimistic utility intentionally lives in its own export because it has a
 ## Typical Flow
 
 1. Define a contract with `defineContract({ ... })`.
-2. Create server-side `LiveModelServer`, `LiveLogServer`, or `LiveJobServer`
-   instances.
-3. Register live model instances in `LiveModelRegistry` when mutations or
-   `fromRegistry()` should resolve them.
-4. Bind the contract with `bindContract(contract, { impl, registry })`.
+2. Create server-side `LiveModel`, `LiveLogServer`, `LiveJobServer`, or
+   `createLiveModelHost()` instances.
+3. Create and dispose keyed host instances as domain resources appear.
+4. Bind the contract with `bindContract(contract, impl, options?)`.
 5. Serve the controller over a `WireTransport`.
 6. Connect from the client and create a typed `contractClient`.
 7. Bind live endpoints, call procedures/mutations, and dispose bindings when

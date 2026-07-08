@@ -1,13 +1,12 @@
 import type { LogFields, LogLevel, Logger } from '@emdash/shared/logger';
 import { z } from 'zod';
 import {
-  LiveModelServer,
   bindContract,
   connect,
   contractClient,
+  createLiveModelHost,
   defineContract,
-  fromRegistry,
-  liveModel,
+  defineLiveModelContract,
   loggerInstrumentation,
   loggingTransport,
   memoryTransportPair,
@@ -15,32 +14,27 @@ import {
   serve,
   withLogging,
 } from '../../src/index';
-import { LiveModelRegistry } from '../../src/live';
 
 const keySchema = z.object({ id: z.string() });
 const counterSchema = z.object({ count: z.number() });
 const inputSchema = keySchema.extend({ token: z.string().optional() });
 
 const api = defineContract({
-  counter: liveModel({ key: keySchema, data: counterSchema }),
+  counter: defineLiveModelContract({ key: keySchema, models: { state: counterSchema } }),
   increment: procedure({ input: inputSchema, output: counterSchema }),
 });
 
 const key = { id: 'demo' };
-const registry = new LiveModelRegistry();
-const counter = new LiveModelServer({ count: 0 }, 1000);
-registry.register(api.counter, key, counter);
+const counters = createLiveModelHost(api.counter, { generation: 1000 });
+const counter = counters.create(key, { state: { count: 0 } }).models.state;
 
 const controller = bindContract(api, {
-  registry,
-  impl: {
-    counter: fromRegistry(),
-    increment: () => {
-      counter.produce((draft) => {
-        draft.count += 1;
-      });
-      return counter.snapshot().data;
-    },
+  counter: counters,
+  increment: () => {
+    counter.produce((draft) => {
+      draft.count += 1;
+    });
+    return counter.snapshot().data;
   },
 });
 
@@ -75,9 +69,11 @@ async function main(): Promise<void> {
   const client = contractClient(api, connection, { instrumentation });
 
   const observed: number[] = [];
-  const binding = client.counter(key, (value, meta) => {
-    observed.push(value.count);
-    logger.info('counter changed', { count: value.count, change: meta.kind });
+  const binding = client.counter(key, {
+    state: (value, meta) => {
+      observed.push(value.count);
+      logger.info('counter changed', { count: value.count, change: meta.kind });
+    },
   });
   await binding.ready;
 

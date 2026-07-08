@@ -4,12 +4,9 @@ import {
   bindContract,
   connect,
   contractClient,
-  createGroupInstance,
+  createLiveModelHost,
   defineContract,
-  fromRegistry,
-  LiveModelRegistry,
-  liveModel,
-  liveModelGroup,
+  defineLiveModelContract,
   memoryTransportPair,
   mutation,
   serve,
@@ -21,11 +18,11 @@ const stateSchema = z.object({ title: z.string() });
 const usageSchema = z.object({ tokens: z.number() });
 
 const api = defineContract({
-  conversation: liveModelGroup({
+  conversation: defineLiveModelContract({
     key: conversationKeySchema,
     models: {
-      state: liveModel({ data: stateSchema }),
-      usage: liveModel({ data: usageSchema }),
+      state: stateSchema,
+      usage: usageSchema,
     },
     mutations: {
       setTitle: mutation(
@@ -49,18 +46,14 @@ const api = defineContract({
 
 async function main(): Promise<void> {
   const key = { conversationId: 'demo' };
-  const registry = new LiveModelRegistry();
-  const instance = createGroupInstance(api.conversation, key, {
+  const conversations = createLiveModelHost(api.conversation);
+  conversations.create(key, {
     state: { title: 'Initial' },
     usage: { tokens: 0 },
   });
-  registry.registerGroup(api.conversation, key, instance);
 
   const pair = memoryTransportPair();
-  const controller = bindContract(api, {
-    registry,
-    impl: { conversation: fromRegistry() },
-  });
+  const controller = bindContract(api, { conversation: conversations });
   serve(pair.right, controller);
 
   const client = contractClient(api, connect(pair.left));

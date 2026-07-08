@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { LiveModelServer } from '../live/model';
+import { LiveModel } from '../live/model';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { bindContract, encodeTopic } from './bind';
 import { connect } from './connect';
@@ -17,15 +17,13 @@ const contract = defineContract({
 
 function setup() {
   const pair = memoryTransportPair();
-  const model = new LiveModelServer({ count: 0 }, 1000);
+  const model = new LiveModel({ count: 0 }, 1000);
   const controller = bindContract(contract, {
-    impl: {
-      greet: ({ name }) => `hello ${name}`,
-      fail: () => {
-        throw new WireError('EXPECTED', 'expected failure');
-      },
-      state: ({ id }) => (id === 'known' ? model : null),
+    greet: ({ name }) => `hello ${name}`,
+    fail: () => {
+      throw new WireError('EXPECTED', 'expected failure');
     },
+    state: ({ id }) => (id === 'known' ? model : null),
   });
   const disposeServer = serve(pair.right, controller);
   const connection = connect(pair.left);
@@ -79,9 +77,7 @@ describe('wire serve/connect', () => {
     const cleanupContract = defineContract({
       state: liveModel({ key: z.void().optional(), data: z.object({}) }),
     });
-    const controller = bindContract(cleanupContract, {
-      impl: { state: () => source },
-    });
+    const controller = bindContract(cleanupContract, { state: () => source });
     serve(pair.right, controller);
     const connection = connect(pair.left);
     await connection.attach(encodeTopic(cleanupContract.state.id, undefined), () => {});
@@ -113,22 +109,20 @@ describe('wire serve/connect', () => {
       slow: procedure({ input: z.void().optional(), output: z.string() }),
     });
     const controller = bindContract(slowContract, {
-      impl: {
-        slow: (_input, meta) =>
-          new Promise<string>((resolve, reject) => {
-            started = true;
-            if (meta.signal?.aborted) {
-              aborted = true;
-              reject(new Error('aborted'));
-              return;
-            }
-            meta.signal?.addEventListener('abort', () => {
-              aborted = true;
-              reject(new Error('aborted'));
-            });
-            setTimeout(() => resolve('late'), 10);
-          }),
-      },
+      slow: (_input, meta) =>
+        new Promise<string>((resolve, reject) => {
+          started = true;
+          if (meta.signal?.aborted) {
+            aborted = true;
+            reject(new Error('aborted'));
+            return;
+          }
+          meta.signal?.addEventListener('abort', () => {
+            aborted = true;
+            reject(new Error('aborted'));
+          });
+          setTimeout(() => resolve('late'), 10);
+        }),
     });
     const serverEvents: unknown[] = [];
     serve(pair.right, controller, {
@@ -180,22 +174,20 @@ describe('wire serve/connect', () => {
       slow: procedure({ input: z.void().optional(), output: z.string() }),
     });
     const controller = bindContract(slowContract, {
-      impl: {
-        slow: (_input, meta) =>
-          new Promise<string>((resolve, reject) => {
-            started = true;
-            if (meta.signal?.aborted) {
-              aborted = true;
-              reject(new Error('aborted'));
-              return;
-            }
-            meta.signal?.addEventListener('abort', () => {
-              aborted = true;
-              reject(new Error('aborted'));
-            });
-            setTimeout(() => resolve('late'), 10);
-          }),
-      },
+      slow: (_input, meta) =>
+        new Promise<string>((resolve, reject) => {
+          started = true;
+          if (meta.signal?.aborted) {
+            aborted = true;
+            reject(new Error('aborted'));
+            return;
+          }
+          meta.signal?.addEventListener('abort', () => {
+            aborted = true;
+            reject(new Error('aborted'));
+          });
+          setTimeout(() => resolve('late'), 10);
+        }),
     });
     serve(pair.right, controller);
     const connection = connect(pair.left);
@@ -214,11 +206,7 @@ describe('wire serve/connect', () => {
     const slowContract = defineContract({
       slow: procedure({ input: z.void().optional(), output: z.string() }),
     });
-    const controller = bindContract(slowContract, {
-      impl: {
-        slow: () => gate.promise,
-      },
-    });
+    const controller = bindContract(slowContract, { slow: () => gate.promise });
     serve(pair.right, controller);
     const connection = connect(pair.left);
     const abort = new AbortController();

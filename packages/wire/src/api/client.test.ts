@@ -2,13 +2,19 @@ import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveLogServer } from '../live/log';
-import { LiveModelServer } from '../live/model';
-import { createGroupInstance, LiveModelRegistry } from '../live/mutations';
+import { LiveModel } from '../live/model';
+import { createLiveModelHost } from '../live/mutations';
 import { bindContract } from './bind';
-import { fromRegistry } from './bind';
 import { contractClient } from './client';
 import { connect } from './connect';
-import { defineContract, liveLog, liveModel, liveModelGroup, mutation, procedure } from './define';
+import {
+  defineContract,
+  defineLiveModelContract,
+  liveLog,
+  liveModel,
+  mutation,
+  procedure,
+} from './define';
 import { serve } from './serve';
 import { memoryTransportPair } from './transports';
 
@@ -24,20 +30,18 @@ const contract = defineContract({
 describe('contractClient', () => {
   it('calls typed procedures and wires model/log clients', async () => {
     const pair = memoryTransportPair();
-    const model = new LiveModelServer({ count: 0 }, 1000);
+    const model = new LiveModel({ count: 0 }, 1000);
     const log = new LiveLogServer({ generation: 2000 });
     const controller = bindContract(contract, {
-      impl: {
-        increment: () => {
-          model.produce((draft) => {
-            draft.count += 1;
-          });
-          log.append('incremented\n');
-          return model.snapshot().data;
-        },
-        state: () => model,
-        output: () => log,
+      increment: () => {
+        model.produce((draft) => {
+          draft.count += 1;
+        });
+        log.append('incremented\n');
+        return model.snapshot().data;
       },
+      state: () => model,
+      output: () => log,
     });
     serve(pair.right, controller);
     const client = contractClient(contract, connect(pair.left));
@@ -70,21 +74,19 @@ describe('contractClient', () => {
   it('builds nested clients using object keys as call paths', async () => {
     const nested = defineContract({ child: contract });
     const pair = memoryTransportPair();
-    const model = new LiveModelServer({ count: 0 }, 1000);
+    const model = new LiveModel({ count: 0 }, 1000);
     const log = new LiveLogServer({ generation: 2000 });
     const controller = bindContract(nested, {
-      impl: {
-        child: {
-          increment: () => {
-            model.produce((draft) => {
-              draft.count += 1;
-            });
-            log.append('incremented\n');
-            return model.snapshot().data;
-          },
-          state: () => model,
-          output: () => log,
+      child: {
+        increment: () => {
+          model.produce((draft) => {
+            draft.count += 1;
+          });
+          log.append('incremented\n');
+          return model.snapshot().data;
         },
+        state: () => model,
+        output: () => log,
       },
     });
     serve(pair.right, controller);
@@ -99,10 +101,10 @@ describe('contractClient', () => {
 
   it('uses caller-supplied mutation IDs for group mutations', async () => {
     const groupContract = defineContract({
-      conversation: liveModelGroup({
+      conversation: defineLiveModelContract({
         key: keySchema,
         models: {
-          state: liveModel({ data: stateSchema }),
+          state: stateSchema,
         },
         mutations: {
           bump: mutation({ input: z.object({}), data: z.void(), error: z.string() }, (ctx) => {
@@ -115,19 +117,15 @@ describe('contractClient', () => {
       }),
     });
     const key = { id: 'task' };
-    const registry = new LiveModelRegistry();
-    const instance = createGroupInstance(groupContract.conversation, key, {
+    const host = createLiveModelHost(groupContract.conversation);
+    const instance = host.create(key, {
       state: { count: 0 },
     });
     const updates: unknown[] = [];
     instance.models.state.subscribe((update) => updates.push(update));
-    registry.registerGroup(groupContract.conversation, key, instance);
 
     const pair = memoryTransportPair();
-    const controller = bindContract(groupContract, {
-      registry,
-      impl: { conversation: fromRegistry() },
-    });
+    const controller = bindContract(groupContract, { conversation: host });
     serve(pair.right, controller);
     const client = contractClient(groupContract, connect(pair.left));
     const binding = client.conversation(key, { state: () => {} });

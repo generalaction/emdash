@@ -22,20 +22,18 @@ const api = defineContract({
 async function main(): Promise<void> {
   const pair = memoryTransportPair();
   const controller = bindContract(api, {
-    impl: {
-      build: {
-        run: async ({ target }, ctx) => {
-          if (target === 'cancelled') await delay(100, ctx.signal);
-          await delay(0, ctx.signal);
-          ctx.progress({ step: 'compile' });
-          await delay(0, ctx.signal);
-          ctx.progress({ step: 'package' });
-          return { artifact: `${target}.zip` };
-        },
-        toError: (error) => ({
-          message: error instanceof Error ? error.message : String(error),
-        }),
+    build: {
+      run: async ({ target }, ctx) => {
+        if (target === 'cancelled') await delay(100, ctx.signal);
+        await delay(0, ctx.signal);
+        ctx.progress({ step: 'compile' });
+        await delay(0, ctx.signal);
+        ctx.progress({ step: 'package' });
+        return { artifact: `${target}.zip` };
       },
+      toError: (error) => ({
+        message: error instanceof Error ? error.message : String(error),
+      }),
     },
   });
   serve(pair.right, controller);

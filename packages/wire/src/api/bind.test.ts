@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { LiveModelServer } from '../live/model';
-import { LiveModelRegistry } from '../live/mutations';
-import { bindContract, encodeTopic, fromRegistry, mergeControllers, splitTopic } from './bind';
+import { LiveModel } from '../live/model';
+import { bindContract, encodeTopic, mergeControllers, splitTopic } from './bind';
 import { defineContract, liveLog, liveModel, procedure } from './define';
 import type { WireError } from './protocol';
 
@@ -21,14 +20,17 @@ function makeContract() {
 describe('bindContract', () => {
   it('validates inputs and outputs according to policy', async () => {
     const contract = makeContract();
-    const controller = bindContract(contract, {
-      impl: {
+    const controller = bindContract(
+      contract,
+      {
         echo: (input) => ({ value: input.value.toUpperCase() }),
         state: () => null,
         output: () => null,
       },
-      validate: 'full',
-    });
+      {
+        validate: 'full',
+      }
+    );
 
     await expect(controller.call('echo', { value: 'ok' })).resolves.toEqual({ value: 'OK' });
     await expect(controller.call('echo', { value: 1 })).rejects.toThrow();
@@ -36,13 +38,11 @@ describe('bindContract', () => {
 
   it('routes live topics through encoded keys', () => {
     const contract = makeContract();
-    const server = new LiveModelServer({ count: 1 }, 1000);
+    const server = new LiveModel({ count: 1 }, 1000);
     const controller = bindContract(contract, {
-      impl: {
-        echo: (input) => ({ value: input.value }),
-        state: (key) => (key.id === 'known' ? server : null),
-        output: () => null,
-      },
+      echo: (input) => ({ value: input.value }),
+      state: (key) => (key.id === 'known' ? server : null),
+      output: () => null,
     });
 
     const source = controller.resolveLive(encodeTopic(contract.state.id, { id: 'known' }));
@@ -52,25 +52,14 @@ describe('bindContract', () => {
     ).toThrow(/Unknown live topic/);
   });
 
-  it('can resolve live models from the registry', () => {
+  it('requires live model resolvers', () => {
     const contract = makeContract();
-    const registry = new LiveModelRegistry();
-    const server = new LiveModelServer({ count: 2 }, 1000);
-    registry.register(contract.state, { id: 'known' }, server);
-    const controller = bindContract(contract, {
-      registry,
-      impl: {
+    expect(() =>
+      bindContract(contract, {
         echo: (input) => ({ value: input.value }),
-        state: fromRegistry(),
         output: () => null,
-      },
-    });
-
-    expect(
-      controller.resolveLive(encodeTopic(contract.state.id, { id: 'known' }))?.snapshot()
-    ).toMatchObject({
-      data: { count: 2 },
-    });
+      })
+    ).toThrow(/requires a resolver/);
   });
 
   it('roundtrips topic encoding including undefined keys', () => {
@@ -87,14 +76,12 @@ describe('bindContract', () => {
   it('binds nested contracts using object keys as paths', async () => {
     const child = makeContract();
     const contract = defineContract({ child });
-    const server = new LiveModelServer({ count: 3 }, 1000);
+    const server = new LiveModel({ count: 3 }, 1000);
     const controller = bindContract(contract, {
-      impl: {
-        child: {
-          echo: (input) => ({ value: `child:${input.value}` }),
-          state: (key) => (key.id === 'known' ? server : null),
-          output: () => null,
-        },
+      child: {
+        echo: (input) => ({ value: `child:${input.value}` }),
+        state: (key) => (key.id === 'known' ? server : null),
+        output: () => null,
       },
     });
 
@@ -114,14 +101,10 @@ describe('bindContract', () => {
       echo: procedure({ input: z.object({ value: z.string() }), output: outputSchema }),
     });
     const first = bindContract(procedureContract, {
-      impl: {
-        echo: (input) => ({ value: `first:${input.value}` }),
-      },
+      echo: (input) => ({ value: `first:${input.value}` }),
     });
     const second = bindContract(procedureContract, {
-      impl: {
-        echo: (input) => ({ value: `second:${input.value}` }),
-      },
+      echo: (input) => ({ value: `second:${input.value}` }),
     });
 
     const merged = mergeControllers({ first, second });
@@ -135,18 +118,14 @@ describe('bindContract', () => {
 
   it('rejects duplicate live refs when merging controllers', () => {
     const first = bindContract(makeContract(), {
-      impl: {
-        echo: (input) => ({ value: input.value }),
-        state: () => null,
-        output: () => null,
-      },
+      echo: (input) => ({ value: input.value }),
+      state: () => null,
+      output: () => null,
     });
     const second = bindContract(makeContract(), {
-      impl: {
-        echo: (input) => ({ value: input.value }),
-        state: () => null,
-        output: () => null,
-      },
+      echo: (input) => ({ value: input.value }),
+      state: () => null,
+      output: () => null,
     });
 
     expect(() => mergeControllers({ first, second })).toThrow(/Live ref/);

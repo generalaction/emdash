@@ -99,16 +99,14 @@ On the server, bind the endpoint with `{ run, toError }`:
 
 ```ts
 const controller = bindContract(api, {
-  impl: {
-    build: {
-      run: async (input, ctx) => {
-        ctx.progress({ step: 'compile' });
-        return { artifact: `${input.target}.zip` };
-      },
-      toError: (error) => ({
-        message: error instanceof Error ? error.message : String(error),
-      }),
+  build: {
+    run: async (input, ctx) => {
+      ctx.progress({ step: 'compile' });
+      return { artifact: `${input.target}.zip` };
     },
+    toError: (error) => ({
+      message: error instanceof Error ? error.message : String(error),
+    }),
   },
 });
 ```

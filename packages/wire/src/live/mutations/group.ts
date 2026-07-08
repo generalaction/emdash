@@ -7,7 +7,7 @@ import type {
   LiveModelGroupDef,
 } from '../../api/define';
 import type { Mutator } from '../model';
-import { LiveModelServer } from '../model';
+import { LiveModel } from '../model';
 import type { LiveCursor, LiveCursorEntry } from '../protocol';
 import { stableStringify } from './registry';
 
@@ -16,9 +16,7 @@ export type GroupInitialState<Group extends LiveModelGroupDef> = {
 };
 
 export type GroupModelServers<Group extends LiveModelGroupDef> = {
-  [Name in keyof GroupModels<Group>]: LiveModelServer<
-    EndpointLiveModelData<GroupModels<Group>[Name]>
-  >;
+  [Name in keyof GroupModels<Group>]: LiveModel<EndpointLiveModelData<GroupModels<Group>[Name]>>;
 };
 
 export type LiveModelGroupInstance<Group extends LiveModelGroupDef = LiveModelGroupDef> = {
@@ -33,9 +31,9 @@ export function createGroupInstance<Group extends LiveModelGroupDef>(
   initialState: GroupInitialState<Group>,
   options: { generation?: number } = {}
 ): LiveModelGroupInstance<Group> {
-  const models: Record<string, LiveModelServer<unknown>> = {};
+  const models: Record<string, LiveModel<unknown>> = {};
   for (const name of Object.keys(group.models)) {
-    models[name] = new LiveModelServer(
+    models[name] = new LiveModel(
       structuredClone((initialState as Record<string, unknown>)[name]),
       options.generation
     );
@@ -50,7 +48,7 @@ export class GroupMutationContext<
 
   constructor(
     private readonly group: Group,
-    private readonly key: GroupKey<Group>,
+    readonly key: GroupKey<Group>,
     private readonly instance: LiveModelGroupInstance<Group>,
     readonly mutationId: string
   ) {}

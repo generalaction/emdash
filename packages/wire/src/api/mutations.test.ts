@@ -1,12 +1,17 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createGroupInstance, LiveModelRegistry } from '../live';
+import { createLiveModelHost } from '../live';
 import type { WireInstrumentation } from '../observability';
-import { bindContract, fromRegistry } from './bind';
+import { bindContract } from './bind';
 import { contractClient } from './client';
 import { connect } from './connect';
-import { defineContract, liveModel, liveModelGroup, mutation } from './define';
+import {
+  defineContract,
+  defineLiveModelContract,
+  mutation,
+  type GroupMutationHandler,
+} from './define';
 import { serve } from './serve';
 import { memoryTransportPair, reconnectingTransport, type MemoryTransportPair } from './transports';
 
@@ -29,21 +34,22 @@ function setup(instrumentation?: WireInstrumentation) {
     }
     return ok({ touched });
   });
-  const registry = new LiveModelRegistry();
   const key = { id: 'shared' };
-  const instance = createGroupInstance(contract.counter, key, {
+  const host = createLiveModelHost(contract.counter);
+  const instance = host.create(key, {
     left: { count: 0 },
     right: { count: 10 },
   });
-  registry.registerGroup(contract.counter, key, instance);
   const pair = memoryTransportPair();
-  const controller = bindContract(contract, {
-    registry,
-    instrumentation,
-    impl: {
-      counter: fromRegistry(),
+  const controller = bindContract(
+    contract,
+    {
+      counter: host,
     },
-  });
+    {
+      instrumentation,
+    }
+  );
   serve(pair.right, controller);
   return {
     client: contractClient(contract, connect(pair.left)),
@@ -111,20 +117,14 @@ describe('live model group mutations', () => {
       await gate.promise;
       return ok({ touched: ['left'] });
     });
-    const registry = new LiveModelRegistry();
     const key = { id: 'shared' };
-    const instance = createGroupInstance(contract.counter, key, {
+    const host = createLiveModelHost(contract.counter);
+    const instance = host.create(key, {
       left: { count: 0 },
       right: { count: 0 },
     });
-    registry.registerGroup(contract.counter, key, instance);
     let currentPair: MemoryTransportPair | undefined;
-    const controller = bindContract(contract, {
-      registry,
-      impl: {
-        counter: fromRegistry(),
-      },
-    });
+    const controller = bindContract(contract, { counter: host });
     const transport = reconnectingTransport(
       async () => {
         currentPair = memoryTransportPair();
@@ -153,13 +153,19 @@ describe('live model group mutations', () => {
   });
 });
 
-function createCounterContract(handler: Parameters<typeof mutation>[1]) {
+function createCounterContract(
+  handler: GroupMutationHandler<
+    z.ZodObject<{ touchRight: z.ZodBoolean }>,
+    z.ZodObject<{ touched: z.ZodArray<z.ZodString> }>,
+    z.ZodString
+  >
+) {
   return defineContract({
-    counter: liveModelGroup({
+    counter: defineLiveModelContract({
       key: keySchema,
       models: {
-        left: liveModel({ data: stateSchema }),
-        right: liveModel({ data: stateSchema }),
+        left: stateSchema,
+        right: stateSchema,
       },
       mutations: {
         bump: mutation(

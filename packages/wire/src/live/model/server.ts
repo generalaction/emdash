@@ -7,7 +7,7 @@ export type LiveModelProduceOptions = {
 };
 
 /**
- * Transport-agnostic live model server.
+ * Transport-agnostic live model.
  *
  * Holds authoritative state, emits structural Immer patches on each mutation,
  * and fans out LiveUpdate events to subscribers. One instance per logical
@@ -21,7 +21,7 @@ export type LiveModelProduceOptions = {
  * travel as opaque unknown across the wire; non-JSON values in the patched
  * result cause validation failures and resync loops on the client.
  */
-export class LiveModelServer<T> {
+export class LiveModel<T> {
   private readonly emitter = new Emitter<LiveUpdate>();
   private generation: number;
   private sequence = 0;
@@ -98,3 +98,8 @@ export class LiveModelServer<T> {
     return this.emitter.subscribe(cb);
   }
 }
+
+/** @deprecated Use `LiveModel` instead. */
+export const LiveModelServer = LiveModel;
+/** @deprecated Use `LiveModel` instead. */
+export type LiveModelServer<T> = LiveModel<T>;

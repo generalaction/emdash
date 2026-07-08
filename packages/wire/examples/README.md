@@ -33,7 +33,7 @@ pnpm --filter @emdash/wire run example:optimistic-group
 
 Examples:
 
-- `live-model/` demonstrates `LiveModelServer`, `LiveModelClient`, cursors,
+- `live-model/` demonstrates `LiveModel`, `LiveModelClient`, cursors,
   mutation IDs, and resync after a generation change.
 - `batched-model/` demonstrates `BatchedLiveModel` coalescing multiple queued
   mutators into one emitted update.

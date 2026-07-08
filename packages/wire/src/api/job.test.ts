@@ -108,9 +108,9 @@ function setup(
   options: { validate?: 'none' | 'inputs' | 'full' } = {}
 ) {
   const pair = memoryTransportPair();
-  const controller = bindContract(jobContract, {
-    validate: options.validate,
-    impl: {
+  const controller = bindContract(
+    jobContract,
+    {
       build: {
         run,
         toError: (error) => ({
@@ -118,7 +118,8 @@ function setup(
         }),
       },
     },
-  });
+    { validate: options.validate }
+  );
   serve(pair.right, controller);
   const client = contractClient(jobContract, connect(pair.left));
   return { client, controller };

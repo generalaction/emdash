@@ -1,5 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
-import type { LiveModelClient, LiveModelServer } from '../model';
+import type { LiveModelClient, LiveModel } from '../model';
 import type { LiveModelGroupInstance } from './group';
 import type { LiveModelData, LiveModelKey, LiveModelRef } from './model-ref';
 
@@ -19,7 +19,7 @@ export class LiveModelRegistry {
   register<Ref extends LiveModelRef>(
     ref: Ref,
     key: LiveModelKey<Ref>,
-    server: LiveModelServer<LiveModelData<Ref>>
+    server: LiveModel<LiveModelData<Ref>>
   ): Unsubscribe {
     const group = getOrCreate(this.entries, ref.id);
     const stableKey = stableStringify(key);
@@ -33,24 +33,21 @@ export class LiveModelRegistry {
   resolve<Ref extends LiveModelRef>(
     ref: Ref,
     key: LiveModelKey<Ref>
-  ): LiveModelServer<LiveModelData<Ref>> | undefined {
+  ): LiveModel<LiveModelData<Ref>> | undefined {
     const entry = this.entries.get(ref.id)?.get(stableStringify(key));
-    return entry?.server as LiveModelServer<LiveModelData<Ref>> | undefined;
+    return entry?.server as LiveModel<LiveModelData<Ref>> | undefined;
   }
 
   instances<Ref extends LiveModelRef>(
     ref: Ref,
     partialKey: Partial<LiveModelKey<Ref>> = {}
-  ): Array<[LiveModelKey<Ref>, LiveModelServer<LiveModelData<Ref>>]> {
+  ): Array<[LiveModelKey<Ref>, LiveModel<LiveModelData<Ref>>]> {
     const group = this.entries.get(ref.id);
     if (!group) return [];
-    const matches: Array<[LiveModelKey<Ref>, LiveModelServer<LiveModelData<Ref>>]> = [];
+    const matches: Array<[LiveModelKey<Ref>, LiveModel<LiveModelData<Ref>>]> = [];
     for (const entry of group.values()) {
       if (!matchesPartial(entry.key, partialKey)) continue;
-      matches.push([
-        entry.key as LiveModelKey<Ref>,
-        entry.server as LiveModelServer<LiveModelData<Ref>>,
-      ]);
+      matches.push([entry.key as LiveModelKey<Ref>, entry.server as LiveModel<LiveModelData<Ref>>]);
     }
     return matches;
   }
@@ -64,7 +61,7 @@ export class LiveModelRegistry {
     for (const [name, ref] of Object.entries(group.models)) {
       const server = instance.models[name];
       if (!server) continue;
-      unsubscribes.push(this.register(ref, key as never, server as LiveModelServer<never>));
+      unsubscribes.push(this.register(ref, key as never, server as LiveModel<never>));
     }
     return () => {
       for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();

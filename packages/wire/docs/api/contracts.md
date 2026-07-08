@@ -11,10 +11,10 @@ procedure paths and live ref ids after nested contracts are mounted.
 ```ts
 export const notesApi = defineContract({
   activity: liveLog({ key: sessionKeySchema }),
-  session: liveModelGroup({
+  session: defineLiveModelContract({
     key: sessionKeySchema,
     models: {
-      notes: liveModel({ data: notesStateSchema }),
+      notes: notesStateSchema,
     },
     mutations: {
       addNote: mutation(
@@ -91,18 +91,20 @@ build: job({
 `bindContract()` binds the endpoint to `{ run, toError }`. The typed client gets
 `start(input)` and `attach(jobId)` helpers. See [live jobs](../live/live-job.md).
 
-### `liveModelGroup`
+### `defineLiveModelContract`
 
-`liveModelGroup({ key, models, mutations })` aggregates related live models and
-the mutations that may touch them. A single key addresses every member:
+`defineLiveModelContract({ key, models, mutations })` aggregates related live
+models and the mutations that may touch them. A single key addresses every
+member. Models are declared as data schemas; the helper creates the keyed member
+refs.
 
 ```ts
 const api = defineContract({
-  conversation: liveModelGroup({
+  conversation: defineLiveModelContract({
     key: conversationKeySchema,
     models: {
-      state: liveModel({ data: stateSchema }),
-      usage: liveModel({ data: usageSchema }),
+      state: stateSchema,
+      usage: usageSchema,
     },
     mutations: {
       setTitle: mutation(
@@ -122,8 +124,10 @@ const api = defineContract({
 });
 ```
 
-Group mutation handlers should be pure functions of the member drafts and input:
-avoid I/O, time, randomness, and server-only state in the inline handler body.
+Inline group mutation handlers should be pure functions of the member drafts and
+input: avoid I/O, time, randomness, and server-only state in the inline handler
+body. If a mutation is schema-only (`mutation(def)`), the server supplies the
+handler when it creates the live model host.
 
 ## Nested Composition
 
@@ -151,26 +155,21 @@ workspace API without an extra namespace argument.
 
 ## Group Instances
 
-On the server, create and register a group instance when a keyed resource is
-created:
+On the server, create a host for the group contract, then create instances as
+keyed resources appear:
 
 ```ts
-const registry = new LiveModelRegistry();
-const instance = createGroupInstance(api.conversation, key, {
+const conversations = createLiveModelHost(api.conversation);
+const instance = conversations.create(key, {
   state: { title: 'Initial' },
   usage: { tokens: 0 },
 });
-
-registry.registerGroup(api.conversation, key, instance);
 ```
 
-Then bind the group through the registry:
+Then bind the group by passing the host in the implementation object:
 
 ```ts
-const controller = bindContract(api, {
-  registry,
-  impl: { conversation: fromRegistry() },
-});
+const controller = bindContract(api, { conversation: conversations });
 ```
 
 The client group binding exposes each member model, each mutation method,

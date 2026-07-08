@@ -25,11 +25,11 @@ current sequence; otherwise the client has missed an update and resyncs from
 
 ## Server
 
-`LiveModelServer<T>` owns one authoritative state object. Mutate it with
+`LiveModel<T>` owns one authoritative state object. Mutate it with
 `produce()`, not by mutating the original object:
 
 ```ts
-const server = new LiveModelServer<TaskListState>(
+const server = new LiveModel<TaskListState>(
   {
     tasks: [{ id: 'task-1', title: 'Read the plan', done: false }],
     filter: 'all',
@@ -98,7 +98,7 @@ These waiters are used by mutation settling; see [mutations](./mutations.md).
 
 ## BatchedLiveModel
 
-`BatchedLiveModel<T>` wraps a `LiveModelServer<T>` and coalesces queued mutators
+`BatchedLiveModel<T>` wraps a `LiveModel<T>` and coalesces queued mutators
 into one `produce()` call:
 
 ```ts

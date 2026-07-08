@@ -25,7 +25,7 @@ resolve `waitForMutation('example-add-task')` when it applies that update.
 
 ## Registries and Context
 
-`LiveModelRegistry` maps a model ref and key to a `LiveModelServer`:
+`LiveModelRegistry` maps a model ref and key to a `LiveModel`:
 
 ```ts
 const registry = new LiveModelRegistry();
@@ -80,8 +80,8 @@ This lets UI code safely read live client snapshots after `await settled`.
 
 ## Group Contract Mutations
 
-The API layer integrates mutations through `liveModelGroup` member mutations.
-Each group mutation becomes a client method:
+The API layer integrates mutations through `defineLiveModelContract()` member
+mutations. Each group mutation becomes a client method:
 
 ```ts
 const updated = await session.setTitle({ title: 'Grouped wire' }, {
@@ -109,16 +109,12 @@ Configure or disable it through `mutationDedupe`:
 
 ```ts
 const controller = bindContract(api, {
-  registry,
+  session: sessionsHost,
+}, {
   mutationDedupe: { ttlMs: 60_000, maxEntries: 500 },
-  impl,
 });
 
-const withoutDedupe = bindContract(api, {
-  registry,
-  mutationDedupe: false,
-  impl,
-});
+const withoutDedupe = bindContract(api, { session: sessionsHost }, { mutationDedupe: false });
 ```
 
 The client retries `DISCONNECTED` mutation calls with the same `mutationId` by
@@ -140,8 +136,8 @@ mutation has durable side effects such as database writes, store the
 `mutationId` in that domain layer too.
 
 Use `procedure()` for API calls that do not need live model cursor settling.
-`mutation()` is only valid as a member of `liveModelGroup.mutations` in the
-current contract API.
+`mutation()` is only valid as a member of `defineLiveModelContract().mutations`
+in the contract API.
 
 See [../../examples/mutations/client.ts](../../examples/mutations/client.ts) and
 [../../examples/mutation-idempotency/client.ts](../../examples/mutation-idempotency/client.ts).

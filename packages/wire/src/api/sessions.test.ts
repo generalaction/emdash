@@ -29,9 +29,7 @@ function makeSource() {
 describe('createWireSessionHub', () => {
   it('serves multiple sessions and closes only the matching subscriptions', async () => {
     const live = makeSource();
-    const controller = bindContract(contract, {
-      impl: { state: () => live.source },
-    });
+    const controller = bindContract(contract, { state: () => live.source });
     const hub = createWireSessionHub(controller);
     const first = memoryTransportPair();
     const second = memoryTransportPair();
@@ -56,11 +54,7 @@ describe('createWireSessionHub', () => {
 
   it('replaces an existing session id and auto-closes on disconnect', async () => {
     const live = makeSource();
-    const hub = createWireSessionHub(
-      bindContract(contract, {
-        impl: { state: () => live.source },
-      })
-    );
+    const hub = createWireSessionHub(bindContract(contract, { state: () => live.source }));
     const original = memoryTransportPair();
     const replacement = memoryTransportPair();
     const topic = encodeTopic(contract.state.id, { id: 'same' });

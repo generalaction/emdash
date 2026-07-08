@@ -24,11 +24,9 @@ async function main(): Promise<void> {
 async function runCallerCancellation(): Promise<void> {
   const pair = memoryTransportPair();
   const controller = bindContract(api, {
-    impl: {
-      slow: async ({ label }, meta) => {
-        await abortableDelay(100, meta.signal);
-        return `finished ${label}`;
-      },
+    slow: async ({ label }, meta) => {
+      await abortableDelay(100, meta.signal);
+      return `finished ${label}`;
     },
   });
   serve(pair.right, controller);
@@ -48,15 +46,13 @@ async function runDisconnectCancellation(): Promise<void> {
   let started = false;
   const pair = memoryTransportPair();
   const controller = bindContract(api, {
-    impl: {
-      slow: async ({ label }, meta) => {
-        started = true;
-        meta.signal?.addEventListener('abort', () => {
-          aborted = true;
-        });
-        await abortableDelay(100, meta.signal);
-        return `finished ${label}`;
-      },
+    slow: async ({ label }, meta) => {
+      started = true;
+      meta.signal?.addEventListener('abort', () => {
+        aborted = true;
+      });
+      await abortableDelay(100, meta.signal);
+      return `finished ${label}`;
     },
   });
   serve(pair.right, controller);

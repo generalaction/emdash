@@ -1,7 +1,7 @@
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { LiveModelClient, LiveModelServer } from '../model';
+import { LiveModelClient, LiveModel } from '../model';
 import { createLiveMutationsClient } from './client';
 import type { LiveMutationCaller } from './client';
 import { defineLiveMutations } from './define';
@@ -47,8 +47,8 @@ describe('mutation registries', () => {
 
   it('resolves exact and partial model instances', () => {
     const registry = new LiveModelRegistry();
-    const first = new LiveModelServer<Tree>(makeTree(), 1000);
-    const second = new LiveModelServer<Tree>(makeTree(), 2000);
+    const first = new LiveModel<Tree>(makeTree(), 1000);
+    const second = new LiveModel<Tree>(makeTree(), 2000);
 
     registry.register(treeRef, { rootPath: '/repo', sessionId: 'a' }, first);
     registry.register(treeRef, { rootPath: '/repo', sessionId: 'b' }, second);
@@ -62,8 +62,8 @@ describe('mutation registries', () => {
 describe('liveMutation', () => {
   it('captures cursors for every touched model instance', async () => {
     const registry = new LiveModelRegistry();
-    const first = new LiveModelServer<Tree>(makeTree({ 'old.ts': 'a' }), 1000);
-    const second = new LiveModelServer<Tree>(makeTree({ 'old.ts': 'b' }), 2000);
+    const first = new LiveModel<Tree>(makeTree({ 'old.ts': 'a' }), 1000);
+    const second = new LiveModel<Tree>(makeTree({ 'old.ts': 'b' }), 2000);
     registry.register(treeRef, { rootPath: '/repo', sessionId: 'a' }, first);
     registry.register(treeRef, { rootPath: '/repo', sessionId: 'b' }, second);
 
@@ -181,7 +181,7 @@ describe('createLiveMutationsClient', () => {
     });
     const serverRegistry = new LiveModelRegistry();
     const bindingRegistry = new LiveBindingRegistry();
-    const server = new LiveModelServer<Tree>(makeTree({ 'old.ts': 'content' }), 1000);
+    const server = new LiveModel<Tree>(makeTree({ 'old.ts': 'content' }), 1000);
     const refetchSnapshot = vi.fn(async () => server.snapshot());
     const liveClient = new LiveModelClient<Tree>(treeSchema, refetchSnapshot, () => {});
 

@@ -151,13 +151,11 @@ describe('Electron wire helpers', () => {
     sender.renderer = ipcRenderer;
     const windowLike = new FakeWindow();
     const controller = bindContract(api, {
-      impl: {
-        ping: ({ value }) => `pong:${value}`,
-        state: () => ({
-          snapshot: () => ({ generation: 1, sequence: 0, timestamp: 0, data: { ready: true } }),
-          subscribe: () => () => {},
-        }),
-      },
+      ping: ({ value }) => `pong:${value}`,
+      state: () => ({
+        snapshot: () => ({ generation: 1, sequence: 0, timestamp: 0, data: { ready: true } }),
+        subscribe: () => () => {},
+      }),
     });
 
     const dispose = exposeWireToWindows(

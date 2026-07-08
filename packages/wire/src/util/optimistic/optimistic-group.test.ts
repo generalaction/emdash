@@ -5,12 +5,9 @@ import {
   bindContract,
   connect,
   contractClient,
-  createGroupInstance,
+  createLiveModelHost,
   defineContract,
-  fromRegistry,
-  LiveModelRegistry,
-  liveModel,
-  liveModelGroup,
+  defineLiveModelContract,
   memoryTransportPair,
   mutation,
   serve,
@@ -166,11 +163,11 @@ function createTestApi(
   } = {}
 ) {
   return defineContract({
-    conversation: liveModelGroup({
+    conversation: defineLiveModelContract({
       key: keySchema,
       models: {
-        state: liveModel({ data: stateSchema }),
-        usage: liveModel({ data: usageSchema }),
+        state: stateSchema,
+        usage: usageSchema,
       },
       mutations: {
         setTitle: titleMutation('setTitle'),
@@ -228,18 +225,14 @@ function setup(api: TestApi): {
   group: OptimisticLiveModelGroup<TestApi['conversation']>;
 } {
   const key = { id: 'demo' };
-  const registry = new LiveModelRegistry();
-  const instance = createGroupInstance(api.conversation, key, {
+  const conversations = createLiveModelHost(api.conversation);
+  conversations.create(key, {
     state: { title: 'Initial' },
     usage: { tokens: 0 },
   });
-  registry.registerGroup(api.conversation, key, instance);
 
   const pair = memoryTransportPair();
-  const controller = bindContract(api, {
-    registry,
-    impl: { conversation: fromRegistry() },
-  });
+  const controller = bindContract(api, { conversation: conversations });
   serve(pair.right, controller);
   const client = contractClient(api, connect(pair.left));
   const group = new OptimisticLiveModelGroup(api.conversation, key, client.conversation);

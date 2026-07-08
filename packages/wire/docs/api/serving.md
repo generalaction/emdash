@@ -5,16 +5,13 @@ The API layer turns a contract into a server-side `Controller`, serves it over a
 
 ## Binding a Controller
 
-`bindContract(contract, options)` maps each endpoint to server behavior:
+`bindContract(contract, impl, options?)` maps each endpoint to server behavior:
 
 ```ts
-const controller = bindContract(notesApi, {
-  registry,
-  validate: 'inputs',
-  mutationDedupe: { ttlMs: 60_000, maxEntries: 500 },
-  instrumentation,
-  impl: {
-    session: fromRegistry(),
+const controller = bindContract(
+  notesApi,
+  {
+    session: sessionsHost,
     activity: () => activityLogServer,
     clearNotes: (input) => {
       instance.models.notes.produce((draft) => {
@@ -23,18 +20,20 @@ const controller = bindContract(notesApi, {
       return instance.models.notes.snapshot().data;
     },
   },
-});
+  {
+    validate: 'inputs',
+    mutationDedupe: { ttlMs: 60_000, maxEntries: 500 },
+    instrumentation,
+  }
+);
 ```
 
 Options:
 
 - `impl`: server implementations keyed by the contract shape. Procedures receive
-  `(input, meta)`. Jobs bind to `{ run, toError }`. Live models use
-  `fromRegistry()` or a resolver. Live logs use a resolver. Groups usually use
-  `fromRegistry()` after registering group instances.
-- `registry`: a `LiveModelRegistry` used by `fromRegistry()`, top-level
-  mutations, and group mutations to resolve runtime live model instances by
-  `(refId, key)`.
+  `(input, meta)`. Jobs bind to `{ run, toError }`. Standalone live models and
+  live logs use resolver functions. Live model contracts use a
+  `createLiveModelHost()` instance.
 - `validate`: `none` (default), `inputs`, or `full`. `inputs` parses call inputs
   and live keys; `full` also parses procedure, mutation, job progress, job
   result, and job error outputs where supported.
@@ -43,9 +42,9 @@ Options:
   provided `{ ttlMs, maxEntries }` options.
 - `instrumentation`: optional `WireInstrumentation` hooks.
 
-The registry is separate from the contract because live model instances are
+Live model hosts are separate from the contract because live model instances are
 runtime resources. A contract can be bound once, while conversations, sessions,
-or windows register and unregister model instances over time.
+or windows create and dispose keyed host instances over time.
 
 See [../../examples/api-binding/controller.ts](../../examples/api-binding/controller.ts).
 
@@ -166,11 +165,9 @@ Server procedure handlers receive the same signal through `CallMeta`:
 
 ```ts
 const controller = bindContract(api, {
-  impl: {
-    slowOperation: async (input, meta) => {
-      await abortableWork(input, meta.signal);
-      return { ok: true };
-    },
+  slowOperation: async (input, meta) => {
+    await abortableWork(input, meta.signal);
+    return { ok: true };
   },
 });
 ```
@@ -257,11 +254,9 @@ in-flight promise for identical inputs:
 
 ```ts
 const controller = bindContract(api, {
-  impl: {
-    expensiveStats: deduplicateRequests(async (input) => {
-      return await loadStats(input.repo, input.branch);
-    }),
-  },
+  expensiveStats: deduplicateRequests(async (input) => {
+    return await loadStats(input.repo, input.branch);
+  }),
 });
 ```
 

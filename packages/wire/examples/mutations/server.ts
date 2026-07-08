@@ -1,6 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import type { Unsubscribe } from '@emdash/shared';
-import { LiveModelServer } from '../../src/live/model/index';
+import { LiveModel } from '../../src/live/model/index';
 import { LiveModelRegistry, liveMutation } from '../../src/live/mutations/index';
 import type { LiveMutationResult } from '../../src/live/mutations/index';
 import type { LiveSnapshot, LiveUpdate } from '../../src/live/protocol/index';
@@ -18,11 +18,11 @@ const registry = new LiveModelRegistry();
 const sessionA: TreeKey = { rootPath: '/repo', sessionId: 'left-pane' };
 const sessionB: TreeKey = { rootPath: '/repo', sessionId: 'right-pane' };
 
-const leftTree = new LiveModelServer<TreeState>(
+const leftTree = new LiveModel<TreeState>(
   { files: { 'src/old.ts': 'export const name = "left";' } },
   5000
 );
-const rightTree = new LiveModelServer<TreeState>(
+const rightTree = new LiveModel<TreeState>(
   { files: { 'src/old.ts': 'export const name = "right";' } },
   6000
 );
@@ -58,7 +58,7 @@ export async function callFileMutation(
   return renameMutation(input);
 }
 
-function resolveTree(key: TreeKey): LiveModelServer<TreeState> {
+function resolveTree(key: TreeKey): LiveModel<TreeState> {
   const model = registry.resolve(treeRef, key);
   if (!model) throw new Error(`Missing tree model for ${key.sessionId}`);
   return model;

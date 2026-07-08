@@ -56,7 +56,7 @@ export type MutationDef<
   input: InputSchema;
   data: DataSchema;
   error: ErrorSchema;
-  handler: GroupMutationHandler<InputSchema, DataSchema, ErrorSchema>;
+  handler?: GroupMutationHandler<InputSchema, DataSchema, ErrorSchema>;
 };
 
 export type GroupMutationHandler<
@@ -162,6 +162,7 @@ export type GroupMutations<Def> =
 
 export interface GroupMutationCtx<Group extends LiveModelGroupDef = LiveModelGroupDef> {
   readonly mutationId: string;
+  readonly key: GroupKey<Group>;
   produce<Name extends keyof GroupModels<Group>>(
     name: Name,
     mutator: Mutator<EndpointLiveModelData<GroupModels<Group>[Name]>>
@@ -224,28 +225,49 @@ export function mutation<
   def: { input: InputSchema; data: DataSchema; error: ErrorSchema },
   handler: GroupMutationHandler<InputSchema, DataSchema, ErrorSchema>
 ): MutationDef<InputSchema, DataSchema, ErrorSchema>;
+export function mutation<
+  InputSchema extends z.ZodTypeAny,
+  DataSchema extends z.ZodTypeAny,
+  ErrorSchema extends z.ZodTypeAny,
+>(def: {
+  input: InputSchema;
+  data: DataSchema;
+  error: ErrorSchema;
+}): MutationDef<InputSchema, DataSchema, ErrorSchema>;
 export function mutation(
   def: { input: z.ZodTypeAny; data: z.ZodTypeAny; error: z.ZodTypeAny },
-  handler: GroupMutationHandler<z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny>
+  handler?: GroupMutationHandler<z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny>
 ): MutationDef {
   return { kind: 'mutation', ...def, handler };
 }
 
-export function liveModelGroup<
+export function defineLiveModelContract<
   KeySchema extends z.ZodTypeAny,
-  Models extends Record<string, LiveModelEndpointDef>,
-  Mutations extends Record<string, MutationDef>,
+  Models extends Record<string, z.ZodTypeAny>,
+  Mutations extends Record<string, MutationDef> = {},
 >(def: {
   key: KeySchema;
   models: Models;
-  mutations: Mutations;
-}): LiveModelGroupDef<KeySchema, Models, Mutations> {
+  mutations?: Mutations;
+}): LiveModelGroupDef<
+  KeySchema,
+  {
+    [Name in keyof Models]: LiveModelEndpointDef<string, KeySchema, Models[Name]>;
+  },
+  Mutations
+> {
+  const models: Record<string, LiveModelEndpointDef> = {};
+  for (const [name, data] of Object.entries(def.models)) {
+    models[name] = liveModel({ key: def.key, data });
+  }
   return {
     kind: 'group',
     id: '',
     keySchema: def.key,
-    models: def.models,
-    mutations: def.mutations,
+    models: models as {
+      [Name in keyof Models]: LiveModelEndpointDef<string, KeySchema, Models[Name]>;
+    },
+    mutations: (def.mutations ?? {}) as Mutations,
   };
 }
 
@@ -263,7 +285,7 @@ function finalizeContract(
   for (const [name, def] of Object.entries(definitions)) {
     if (isMutationDef(def)) {
       throw new Error(
-        `Mutation '${[...prefix, name].join('.')}' must be declared inside liveModelGroup().mutations`
+        `Mutation '${[...prefix, name].join('.')}' must be declared inside defineLiveModelContract().mutations`
       );
     }
     finalized[name] = isEndpointDef(def)

@@ -28,6 +28,14 @@ export {
   type LiveModelGroupInstance,
 } from './group';
 export {
+  createLiveModelHost,
+  isLiveModelHost,
+  type LiveInstance,
+  type LiveModelHost,
+  type LiveModelHostMutationHandlers,
+  type LiveModelHostOptions,
+} from './host';
+export {
   liveModelRef,
   type LiveModelData,
   type LiveModelKey,

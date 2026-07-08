@@ -1,6 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
-import { BatchedLiveModel, LiveModelServer } from '../../src/live/model/index';
+import { BatchedLiveModel, LiveModel } from '../../src/live/model/index';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../src/live/protocol/index';
 
 export const fileTreeSchema = z.object({
@@ -9,7 +9,7 @@ export const fileTreeSchema = z.object({
 
 export type FileTreeState = z.infer<typeof fileTreeSchema>;
 
-const server = new LiveModelServer<FileTreeState>(
+const server = new LiveModel<FileTreeState>(
   {
     files: {
       'src/old.ts': 'console.log("old");',

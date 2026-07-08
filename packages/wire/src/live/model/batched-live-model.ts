@@ -2,7 +2,7 @@ import type { Unsubscribe } from '@emdash/shared';
 import { log as ambientLog, type Logger } from '@emdash/shared/logger';
 import type { WireInstrumentation } from '../../observability';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
-import type { LiveModelProduceOptions, LiveModelServer } from './server';
+import type { LiveModelProduceOptions, LiveModel } from './server';
 
 export type Mutator<T> = (draft: T) => void;
 
@@ -30,7 +30,7 @@ export function timerScheduler(ms: number): FlushScheduler {
 }
 
 /**
- * Wraps a LiveModelServer with a mutation queue so that multiple calls to
+ * Wraps a LiveModel with a mutation queue so that multiple calls to
  * `enqueue()` within one scheduler window are coalesced into a single
  * `server.produce()`. Immer then emits one minimal patch for the net effect:
  *
@@ -49,7 +49,7 @@ export class BatchedLiveModel<T> {
   private disposed = false;
 
   constructor(
-    private readonly model: LiveModelServer<T>,
+    private readonly model: LiveModel<T>,
     private readonly schedule: FlushScheduler = microtaskScheduler,
     private readonly options: BatchedLiveModelOptions = {}
   ) {}

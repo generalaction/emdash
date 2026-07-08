@@ -1,9 +1,9 @@
 # Optimistic Live Model Groups
 
 `OptimisticLiveModelGroup` is a MobX-backed client utility for
-`liveModelGroup` endpoints. It derives local previews from the same inline group
-mutation handlers that the server uses, then rolls those previews forward or
-back as authoritative live updates arrive.
+`defineLiveModelContract` endpoints. It derives local previews from inline group
+mutation handlers when they exist, then rolls those previews forward or back as
+authoritative live updates arrive.
 
 Import it from the MobX subpath:
 
@@ -13,17 +13,17 @@ import { OptimisticLiveModelGroup } from '@emdash/wire/util/optimistic';
 
 ## Contract Requirements
 
-`OptimisticLiveModelGroup` works only with `liveModelGroup` definitions. The
-group has all information needed for a safe preview: member models, shared key,
-and inline group mutation handlers.
+`OptimisticLiveModelGroup` works with `defineLiveModelContract` definitions.
+Previews require inline mutation handlers; schema-only mutations skip the local
+preview and settle normally after the server response.
 
 ```ts
 const api = defineContract({
-  conversation: liveModelGroup({
+  conversation: defineLiveModelContract({
     key: conversationKeySchema,
     models: {
-      state: liveModel({ data: stateSchema }),
-      usage: liveModel({ data: usageSchema }),
+      state: stateSchema,
+      usage: usageSchema,
     },
     mutations: {
       setTitle: mutation(
@@ -45,14 +45,16 @@ const api = defineContract({
 
 ## Client Usage
 
-Create the normal server registry and typed client, then wrap the group endpoint:
+Create the normal live model host and typed client, then wrap the group endpoint:
 
 ```ts
-const instance = createGroupInstance(api.conversation, key, {
+const conversations = createLiveModelHost(api.conversation);
+conversations.create(key, {
   state: { title: 'Initial' },
   usage: { tokens: 0 },
 });
-registry.registerGroup(api.conversation, key, instance);
+
+const controller = bindContract(api, { conversation: conversations });
 
 const client = contractClient(api, connect(pair.left));
 const conversation = new OptimisticLiveModelGroup(api.conversation, key, client.conversation);

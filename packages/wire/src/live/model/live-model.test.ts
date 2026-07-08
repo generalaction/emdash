@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { LiveModelClient, type LiveChangeMeta } from './client';
-import { LiveModelServer } from './server';
+import { LiveModel } from './server';
 
 const stateSchema = z.object({
   count: z.number(),
@@ -15,7 +15,7 @@ function makeState(overrides: Partial<State> = {}): State {
 }
 
 function setup(initial: State = makeState(), generation = 1000) {
-  const server = new LiveModelServer<State>(initial, generation);
+  const server = new LiveModel<State>(initial, generation);
   const onChange = vi.fn<(value: State, meta: LiveChangeMeta) => void>();
   const refetchSnapshot = vi.fn(async () => server.snapshot());
   const client = new LiveModelClient<State>(stateSchema, refetchSnapshot, onChange);
@@ -24,7 +24,7 @@ function setup(initial: State = makeState(), generation = 1000) {
   return { server, client, onChange, refetchSnapshot };
 }
 
-describe('LiveModelServer and LiveModelClient', () => {
+describe('LiveModel and LiveModelClient', () => {
   it('applies server mutations to the client', () => {
     const { server, client } = setup();
     server.produce((draft) => {
@@ -48,7 +48,7 @@ describe('LiveModelServer and LiveModelClient', () => {
   });
 
   it('emits mutation IDs on tagged produce calls', () => {
-    const server = new LiveModelServer<State>(makeState(), 1000);
+    const server = new LiveModel<State>(makeState(), 1000);
     const updates: unknown[] = [];
     server.subscribe((update) => updates.push(update));
 
@@ -104,7 +104,7 @@ describe('LiveModelServer and LiveModelClient', () => {
   });
 
   it('emits instrumentation when a generation mismatch causes resync', async () => {
-    const server = new LiveModelServer<State>(makeState(), 1000);
+    const server = new LiveModel<State>(makeState(), 1000);
     const resyncs: unknown[] = [];
     const client = new LiveModelClient<State>(stateSchema, async () => server.snapshot(), vi.fn(), {
       topic: 'state|demo',

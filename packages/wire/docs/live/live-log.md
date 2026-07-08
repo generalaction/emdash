@@ -75,9 +75,7 @@ const api = defineContract({
 });
 
 const controller = bindContract(api, {
-  impl: {
-    activity: () => activityLogServer,
-  },
+  activity: () => activityLogServer,
 });
 
 const binding = client.activity(session, {

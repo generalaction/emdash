@@ -2,9 +2,9 @@ import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
   defineContract,
+  defineLiveModelContract,
   liveLog,
   liveModel,
-  liveModelGroup,
   mutation,
   procedure,
 } from '../../src/index';
@@ -19,10 +19,10 @@ export type NotesState = z.infer<typeof notesStateSchema>;
 export const notesApi = defineContract({
   notes: liveModel({ key: sessionKeySchema, data: notesStateSchema }),
   activity: liveLog({ key: sessionKeySchema }),
-  session: liveModelGroup({
+  session: defineLiveModelContract({
     key: sessionKeySchema,
     models: {
-      notes: liveModel({ data: notesStateSchema }),
+      notes: notesStateSchema,
     },
     mutations: {
       addNote: mutation(
