@@ -1,3 +1,4 @@
+import { pluginRegistry } from '@emdash/plugins/agents';
 import { describe, expect, it } from 'vitest';
 import { AGENT_PROVIDERS } from './agent-provider-registry';
 
@@ -28,35 +29,21 @@ describe('AGENT_PROVIDERS', () => {
     });
   });
 
-  it('marks ACP-capable providers from the plugin registry research', () => {
-    const acpProviderIds = [
-      'auggie',
-      'claude',
-      'cline',
-      'codex',
-      'copilot',
-      'cursor',
-      'devin',
-      'droid',
-      'gemini',
-      'goose',
-      'grok',
-      'hermes',
-      'junie',
-      'kilocode',
-      'kimi',
-      'kiro',
-      'mimocode',
-      'mistral',
-      'opencode',
-      'qoder',
-      'qwen',
-    ];
+  it('keeps ACP capability flags aligned with plugin behavior', () => {
+    const pluginAcpProviderIds = pluginRegistry
+      .getAll()
+      .filter((provider) => {
+        if (provider.capabilities.acp.kind !== 'supported') return false;
+        expect(provider.behavior.acp, provider.metadata.id).toBeDefined();
+        return true;
+      })
+      .map((provider) => provider.metadata.id)
+      .sort();
 
-    for (const providerId of acpProviderIds) {
-      const provider = AGENT_PROVIDERS.find((candidate) => candidate.id === providerId);
+    const sharedAcpProviderIds = AGENT_PROVIDERS.filter((provider) => provider.acpCapable)
+      .map((provider) => provider.id)
+      .sort();
 
-      expect(provider?.acpCapable, providerId).toBe(true);
-    }
+    expect(sharedAcpProviderIds).toEqual(pluginAcpProviderIds);
   });
 });
