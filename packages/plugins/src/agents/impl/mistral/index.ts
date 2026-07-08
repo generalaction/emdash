@@ -87,8 +87,9 @@ export const plugin = definePlugin(
 export const provider = registerPluginBehavior(plugin, {
   acp: createNativeAcpBehavior((ctx) => {
     const ext = extname(ctx.cli);
+    const acpExt = ['.exe', '.cmd', '.bat', '.ps1'].includes(ext.toLowerCase()) ? ext : '';
     return {
-      command: join(dirname(ctx.cli), ext.toLowerCase() === '.exe' ? 'vibe-acp.exe' : 'vibe-acp'),
+      command: join(dirname(ctx.cli), `vibe-acp${acpExt}`),
       args: [],
     };
   }),

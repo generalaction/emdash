@@ -46,6 +46,12 @@ const nativeAcpProviders: Array<{
     command: '/usr/local/bin/vibe-acp',
     args: [],
   },
+  {
+    id: 'mistral',
+    cli: 'vibe.cmd',
+    command: 'vibe-acp.cmd',
+    args: [],
+  },
   { id: 'qoder', args: ['--acp'] },
   { id: 'qwen', args: ['--acp', '--experimental-skills'] },
 ];
