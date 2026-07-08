@@ -15,7 +15,7 @@ flowchart TB
   subgraph api [API layer]
     contracts[defineContract endpoint kinds]
     bind[bindContract Controller]
-    client[contractClient bindings]
+    client[thin client]
     transports[Transports: memory, port, dom-port, electron, stream, reconnecting]
   end
   subgraph live [Live primitives]
@@ -33,10 +33,10 @@ flowchart TB
   processHost --> api
 ```
 
-The live layer owns the stateful primitives: `LiveModel` and
-`LiveModelClient`, `LiveLogServer` and `LiveLogClient`, `LiveJobServer` and
-`LiveJobClient`, plus host-backed mutations and settling. The API layer turns those
-primitives into a contract with typed procedure calls and live topic bindings.
+The live layer owns the stateful primitives: `LiveModel`, manual materializers,
+`LiveLogServer` and `LiveLogClient`, `LiveJobServer` and `LiveJobClient`, plus
+host-backed mutations and settling. The API layer turns those primitives into a
+contract with typed procedure calls and thin live topic refs.
 The runtime layer owns lifecycle utilities and process supervision. Observability
 hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
 
@@ -46,8 +46,10 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Contracts](./api/contracts.md): `defineContract()`, endpoint kinds, nested
     composition, and live model groups.
   - [Serving and clients](./api/serving.md): `bindContract()`, `serve()`,
-    `connect()`, `contractClient()`, cancellation, relays, session hubs, and
+    `connect()`, cancellation, relays, session hubs, and
     server-side call helpers.
+  - [Typed clients](./api/clients.md): thin `client()` refs and forwarding
+    through `bindContract()`.
   - [Wire errors](./api/errors.md): error planes, `WireErrorCode` meanings,
     origins, and retry guidance.
   - [Transports](./api/transports.md): memory, ports, Electron, streams,
@@ -61,6 +63,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     retention, and contract job handles.
   - [Mutations](./live/mutations.md): mutation ids, host contexts, cursor settling,
     idempotency cache, and retry behavior.
+  - [Materialization](./live/materialize.md): `MaterializedModel`,
+    `materializeInstance()`, pluggable stores, and `createLiveModelReplica()`.
   - [Optimistic live model groups](./live/optimistic-group.md): MobX-backed
     optimistic previews for live model contract mutations.
 - Runtime:
@@ -108,8 +112,8 @@ The optimistic utility intentionally lives in its own export because it has a
 3. Create and dispose keyed host instances as domain resources appear.
 4. Bind the contract with `bindContract(contract, impl, options?)`.
 5. Serve the controller over a `WireTransport`.
-6. Connect from the client and create a typed `contractClient`.
-7. Bind live endpoints, call procedures/mutations, and dispose bindings when
-   the view or session goes away.
+6. Connect from the client and create a thin typed `client()`.
+7. Materialize live state explicitly when needed, call procedures/mutations, and
+   dispose materializers when the view or session goes away.
 
 For a complete example in one file, see [../examples/contract/client.ts](../examples/contract/client.ts).

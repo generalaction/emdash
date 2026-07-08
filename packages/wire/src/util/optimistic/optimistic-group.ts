@@ -1,11 +1,7 @@
 import type { Result } from '@emdash/shared';
 import { produce } from 'immer';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
-import type {
-  ContractMutationInvocation,
-  GroupBinding,
-  MutationCallOptions,
-} from '../../api/client';
+import type { MutationCallOptions } from '../../api/client';
 import type {
   EndpointLiveModelData,
   GroupKey,
@@ -17,6 +13,7 @@ import type {
   MutationError,
   MutationInput,
 } from '../../api/define';
+import type { ContractMutationInvocation, MaterializedInstance } from '../../live/materialize';
 import type { LiveChangeMeta, Mutator } from '../../live/model';
 import { createMutationId } from '../../live/mutations';
 
@@ -41,7 +38,7 @@ export type OptimisticLiveModelGroupMutations<Group extends LiveModelGroupDef> =
 export type OptimisticLiveModelGroupBinding<Group extends LiveModelGroupDef> = (
   key: GroupKey<Group>,
   onChange?: OptimisticLiveModelGroupOnChange<Group>
-) => GroupBinding<Group>;
+) => MaterializedInstance<Group>;
 
 type OptimisticLiveModelGroupOnChange<Group extends LiveModelGroupDef> = Partial<{
   [Name in keyof GroupModels<Group>]: (
@@ -61,7 +58,7 @@ export class OptimisticLiveModelGroup<Group extends LiveModelGroupDef> {
   readonly mutations: OptimisticLiveModelGroupMutations<Group>;
   readonly ready: Promise<void>;
 
-  private readonly binding: GroupBinding<Group>;
+  private readonly binding: MaterializedInstance<Group>;
   private readonly cells: MemberCells<Group>;
 
   constructor(
@@ -196,7 +193,7 @@ function createOnChange<Group extends LiveModelGroupDef>(
 
 function createMutations<Group extends LiveModelGroupDef>(
   group: Group,
-  binding: GroupBinding<Group>,
+  binding: MaterializedInstance<Group>,
   cells: MemberCells<Group>,
   key: GroupKey<Group>
 ): OptimisticLiveModelGroupMutations<Group> {
@@ -216,7 +213,7 @@ function createMutations<Group extends LiveModelGroupDef>(
 
       try {
         const invocation = await (
-          binding as Record<
+          binding.mutations as Record<
             string,
             (
               input: unknown,

@@ -2,9 +2,10 @@ import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost } from '../live';
+import { materializeInstance } from '../live/materialize';
 import type { WireInstrumentation } from '../observability';
 import { bindContract } from './bind';
-import { contractClient } from './client';
+import { client } from './client';
 import { connect } from './connect';
 import {
   defineContract,
@@ -52,7 +53,7 @@ function setup(instrumentation?: WireInstrumentation) {
   );
   serve(pair.right, controller);
   return {
-    client: contractClient(contract, connect(pair.left)),
+    client: client(contract, connect(pair.left)),
     key,
     left: instance.models.left,
     right: instance.models.right,
@@ -63,30 +64,30 @@ function setup(instrumentation?: WireInstrumentation) {
 describe('live model group mutations', () => {
   it('settles only the live models actually touched by a mutation', async () => {
     const { client, key } = setup();
-    const counter = client.counter(key);
+    const counter = materializeInstance(client.counter, key);
     await counter.ready;
 
-    const first = await counter.bump({ touchRight: false });
+    const first = await counter.mutations.bump({ touchRight: false });
     expect(first.result).toMatchObject({ success: true, data: { data: { touched: ['left'] } } });
     await first.settled;
-    expect(counter.left.client.getSnapshot()).toEqual({ count: 1 });
-    expect(counter.right.client.getSnapshot()).toEqual({ count: 10 });
+    expect(counter.models.left.current()).toEqual({ count: 1 });
+    expect(counter.models.right.current()).toEqual({ count: 10 });
 
-    const second = await counter.bump({ touchRight: true });
+    const second = await counter.mutations.bump({ touchRight: true });
     await second.settled;
-    expect(counter.left.client.getSnapshot()).toEqual({ count: 2 });
-    expect(counter.right.client.getSnapshot()).toEqual({ count: 11 });
+    expect(counter.models.left.current()).toEqual({ count: 2 });
+    expect(counter.models.right.current()).toEqual({ count: 11 });
   });
 
-  it('settles immediately for touched models that are not locally bound', async () => {
+  it('settles touched models through the materialized instance', async () => {
     const { client, key } = setup();
-    const counter = client.counter(key, { left: () => {} });
-    await counter.left.ready;
+    const counter = materializeInstance(client.counter, key);
+    await counter.models.left.ready;
 
-    await counter.right.dispose();
-    const invocation = await counter.bump({ touchRight: true });
+    const invocation = await counter.mutations.bump({ touchRight: true });
     await invocation.settled;
-    expect(counter.left.client.getSnapshot()).toEqual({ count: 1 });
+    expect(counter.models.left.current()).toEqual({ count: 1 });
+    expect(counter.models.right.current()).toEqual({ count: 11 });
   });
 
   it('dedupes duplicate group mutation ids', async () => {
@@ -94,11 +95,11 @@ describe('live model group mutations', () => {
     const { client, key, left, calls } = setup({
       mutationDeduped: (event) => dedupes.push(event),
     });
-    const counter = client.counter(key);
+    const counter = materializeInstance(client.counter, key);
     await counter.ready;
 
-    const first = await counter.bump({ touchRight: false }, { mutationId: 'same' });
-    const second = await counter.bump({ touchRight: false }, { mutationId: 'same' });
+    const first = await counter.mutations.bump({ touchRight: false }, { mutationId: 'same' });
+    const second = await counter.mutations.bump({ touchRight: false }, { mutationId: 'same' });
 
     expect(first.result).toEqual(second.result);
     expect(left.snapshot().data).toEqual({ count: 1 });
@@ -133,11 +134,11 @@ describe('live model group mutations', () => {
       },
       { backoffMs: [0] }
     );
-    const client = contractClient(contract, connect(transport));
-    const counter = client.counter(key);
+    const thin = client(contract, connect(transport));
+    const counter = materializeInstance(thin.counter, key);
     await counter.ready;
 
-    const invocation = counter.bump(
+    const invocation = counter.mutations.bump(
       { touchRight: false },
       { mutationId: 'retry-mutation', retry: { maxRetries: 1 } }
     );

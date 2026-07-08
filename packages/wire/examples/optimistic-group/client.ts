@@ -2,12 +2,13 @@ import { err, ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
   bindContract,
+  client,
   connect,
-  contractClient,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
   memoryTransportPair,
+  materializeInstance,
   mutation,
   serve,
 } from '../../src/index';
@@ -56,8 +57,10 @@ async function main(): Promise<void> {
   const controller = bindContract(api, { conversation: conversations });
   serve(pair.right, controller);
 
-  const client = contractClient(api, connect(pair.left));
-  const conversation = new OptimisticLiveModelGroup(api.conversation, key, client.conversation);
+  const thin = client(api, connect(pair.left));
+  const conversation = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) =>
+    materializeInstance(thin.conversation, groupKey, { onChange: onChange as never })
+  );
   await conversation.ready;
 
   console.log('initial:', conversation.values.state, conversation.values.usage);

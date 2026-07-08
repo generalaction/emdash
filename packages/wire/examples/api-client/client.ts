@@ -1,4 +1,4 @@
-import { connect, contractClient, memoryTransportPair, serve } from '../../src/index';
+import { client, connect, materializeInstance, memoryTransportPair, serve } from '../../src/index';
 import { notesController } from '../api-binding/controller';
 import { notesApi } from '../api-definition/contract';
 
@@ -6,28 +6,31 @@ async function main(): Promise<void> {
   const pair = memoryTransportPair();
   serve(pair.right, notesController);
 
-  const client = contractClient(notesApi, connect(pair.left));
+  const thin = client(notesApi, connect(pair.left));
   const session = { sessionId: 'demo' };
 
-  const sessionBinding = client.session(session, {
-    notes: (state) => {
-      console.log('notes model:', state);
+  const sessionBinding = materializeInstance(thin.session, session, {
+    onChange: {
+      notes: (state) => {
+        console.log('notes model:', state);
+      },
     },
   });
-  const activityBinding = client.activity(session, {
-    onReset: (snapshot) => console.log('activity reset:', JSON.stringify(snapshot)),
-    onAppend: (chunk) => console.log('activity append:', chunk.trim()),
-  });
+  const activity = thin.activity.handle(session);
 
   await sessionBinding.ready;
-  await activityBinding.ready;
-  const added = await sessionBinding.addNote({ text: 'Typed client mutation' });
+  console.log('activity reset:', JSON.stringify((await activity.snapshot()).data));
+  const detachActivity = await activity.attach((update) => {
+    const delta = update.delta as { chunk: string };
+    console.log('activity append:', delta.chunk.trim());
+  });
+  const added = await sessionBinding.mutations.addNote({ text: 'Typed client mutation' });
   await added.settled;
-  await client.clearNotes(session);
+  await thin.clearNotes(session);
   await Promise.resolve();
 
   await sessionBinding.dispose();
-  await activityBinding.dispose();
+  detachActivity();
 }
 
 void main();

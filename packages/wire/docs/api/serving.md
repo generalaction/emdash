@@ -90,10 +90,9 @@ Existing attachments are retained locally. If the transport exposes
 `onReconnect`, `connect()` re-issues active `attach` requests after the replacement
 link is live and then calls each attachment's `onReattach` callback.
 
-`contractClient()` uses `onReattach` for live models, live logs, and live jobs to
-force a fresh snapshot after reattach. This closes the stale-generation case where
-a server restarts or reseeds a live source without immediately sending update
-traffic.
+Manual materializers use `onReattach` for live models and jobs to force a fresh
+snapshot after reattach. This closes the stale-generation case where a server
+restarts or reseeds a live source without immediately sending update traffic.
 
 The protocol layer intentionally has no version handshake. Receivers validate the
 message `kind` and required fields in `isWireMessage()`; unknown message kinds are
@@ -101,33 +100,28 @@ ignored by transport adapters that parse untrusted frames.
 
 ## Typed Clients
 
-`contractClient(contract, connection, options?)` returns a client with the same
-nested shape as the contract:
+`client(contract, connection)` returns a thin client with the same nested shape as
+the contract:
 
 ```ts
-const client = contractClient(notesApi, connection, { instrumentation });
+const thin = client(notesApi, connection);
 
-const session = client.session({ sessionId: 'demo' }, {
-  notes: (state, meta) => {
-    console.log('notes model:', state, meta.kind);
+const session = materializeInstance(thin.session, { sessionId: 'demo' }, {
+  onChange: {
+    notes: (state, meta) => {
+      console.log('notes model:', state, meta.kind);
+    },
   },
 });
 
 await session.ready;
-const added = await session.addNote({ text: 'Typed client mutation' });
+const added = await session.mutations.addNote({ text: 'Typed client mutation' });
 await added.settled;
 await session.dispose();
 ```
 
-Live model and live log accessors return `WiredLiveClient`:
-
-```ts
-type WiredLiveClient<TClient> = {
-  client: TClient;
-  ready: Promise<void>;
-  dispose(): Promise<void>;
-};
-```
+Live model and live log accessors are thin refs. Use `handle(key)` to snapshot or
+attach without materializing, or pass the ref to a materializer.
 
 Mutations return `ContractMutationInvocation`:
 
@@ -141,7 +135,7 @@ type ContractMutationInvocation<D, E> = {
 `MutationCallOptions` lets callers provide a `mutationId` and retry policy:
 
 ```ts
-await session.addNote({ text: 'Optimistic title' }, {
+await session.mutations.addNote({ text: 'Optimistic title' }, {
   mutationId: 'custom-mutation',
   retry: { maxRetries: 1 },
 });
@@ -247,7 +241,7 @@ const hub = createWireSessionHub(controller);
 const pair = memoryTransportPair();
 
 hub.open('window-1', pair.right);
-const client = contractClient(api, connect(pair.left));
+const thin = client(api, connect(pair.left));
 ```
 
 Opening the same session id closes the previous transport. `close(id)` closes

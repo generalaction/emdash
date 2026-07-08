@@ -63,23 +63,17 @@ live model bindings need to catch up.
 
 ## Client Settling
 
-`LiveBindingRegistry` tracks the `LiveModelClient` instances currently bound in
-the UI. `contractClient()` creates one by default, or accepts a caller-supplied
-registry:
-
-```ts
-const client = contractClient(api, connection, {
-  bindingRegistry: new LiveBindingRegistry(),
-});
-```
+`materializeInstance()` tracks the materialized member models for one group key.
+Its mutation methods call the thin group and then settle against those local
+materialized models.
 
 Group mutation methods return `{ result, settled }`:
 
 ```ts
-const session = client.session({ sessionId: 'demo' });
+const session = materializeInstance(thin.session, { sessionId: 'demo' });
 await session.ready;
 
-const added = await session.addNote({ text: 'Typed client mutation' });
+const added = await session.mutations.addNote({ text: 'Typed client mutation' });
 await added.settled;
 ```
 
@@ -97,13 +91,13 @@ The API layer integrates mutations through `defineLiveModelContract()` member
 mutations. Each group mutation becomes a client method:
 
 ```ts
-const updated = await session.setTitle({ title: 'Grouped wire' }, {
+const updated = await session.mutations.setTitle({ title: 'Grouped wire' }, {
   mutationId: 'custom-mutation',
 });
 await updated.settled;
 ```
 
-If no id is provided, `contractClient()` generates one with `createMutationId()`.
+If no id is provided, `materializeInstance()` generates one with `createMutationId()`.
 Explicit ids are useful for optimistic previews, where the preview and server
 mutation must share the same confirmation id.
 

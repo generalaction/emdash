@@ -1,10 +1,11 @@
 import { err, ok, type Unsubscribe } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { MaterializedModel } from '../live/materialize';
 import { LiveModel } from '../live/model';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { bindContract, encodeTopic } from './bind';
-import { contractClient } from './client';
+import { client } from './client';
 import { connect } from './connect';
 import { defineContract, fallible, liveModel, procedure } from './define';
 import { isWireError, WireError } from './protocol';
@@ -234,21 +235,24 @@ describe('wire serve/connect', () => {
       serverDisposers.push(serve(pair.right, controller));
       return pair.left;
     });
-    const client = contractClient(contract, connect(transport));
+    const thin = client(contract, connect(transport));
     const seen: Array<{ count: number }> = [];
-    const binding = client.state({ id: 'known' }, (value) => seen.push(value));
+    const binding = new MaterializedModel(thin.state.handle({ id: 'known' }), {
+      schema: z.object({ count: z.number() }),
+      onChange: (value) => seen.push(value),
+    });
 
     await binding.ready;
     model.produce((draft) => {
       draft.count = 1;
     });
-    await waitFor(() => binding.client.getSnapshot()?.count === 1);
+    await waitFor(() => binding.current().count === 1);
 
     pairs[0]?.disconnect();
     model.reseed({ count: 9 });
 
     await waitFor(() => pairs.length === 2);
-    await waitFor(() => binding.client.getSnapshot()?.count === 9);
+    await waitFor(() => binding.current().count === 9);
     expect(seen.at(-1)).toEqual({ count: 9 });
 
     await binding.dispose();

@@ -2,14 +2,15 @@ import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
   bindContract,
+  client,
   connect,
-  contractClient,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
   memoryTransportPair,
   mutation,
   serve,
+  materializeInstance,
 } from '../../src/index';
 
 const keySchema = z.object({ conversationId: z.string() });
@@ -57,16 +58,18 @@ const controller = bindContract(chatContract, {
 async function main(): Promise<void> {
   const pair = memoryTransportPair();
   serve(pair.right, controller);
-  const client = contractClient(chatContract, connect(pair.left));
+  const thin = client(chatContract, connect(pair.left));
 
-  const conversation = client.conversation(key, {
-    state: (value) => {
-      console.log('state:', value);
+  const conversation = materializeInstance(thin.conversation, key, {
+    onChange: {
+      state: (value) => {
+        console.log('state:', value);
+      },
     },
   });
 
   await conversation.ready;
-  const sent = await conversation.send({ text: 'hello wire' });
+  const sent = await conversation.mutations.send({ text: 'hello wire' });
   await sent.settled;
   await conversation.dispose();
 }

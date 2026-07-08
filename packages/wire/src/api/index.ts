@@ -6,4 +6,5 @@ export * from './protocol';
 export * from './relay';
 export * from './serve';
 export * from './sessions';
+export * from './topics';
 export * from './transports';

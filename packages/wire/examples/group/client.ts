@@ -2,13 +2,14 @@ import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
   bindContract,
+  client,
   connect,
-  contractClient,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
   memoryTransportPair,
   mutation,
+  materializeInstance,
   serve,
 } from '../../src/index';
 
@@ -52,14 +53,16 @@ async function main(): Promise<void> {
   const pair = memoryTransportPair();
   serve(pair.right, controller);
 
-  const client = contractClient(api, connect(pair.left));
-  const conversation = client.conversation(key, {
-    state: (state) => console.log('state:', state),
-    usage: (usage) => console.log('usage:', usage),
+  const thin = client(api, connect(pair.left));
+  const conversation = materializeInstance(thin.conversation, key, {
+    onChange: {
+      state: (state) => console.log('state:', state),
+      usage: (usage) => console.log('usage:', usage),
+    },
   });
 
   await conversation.ready;
-  const updated = await conversation.setTitle({ title: 'Grouped wire' });
+  const updated = await conversation.mutations.setTitle({ title: 'Grouped wire' });
   await updated.settled;
   await conversation.dispose();
 }

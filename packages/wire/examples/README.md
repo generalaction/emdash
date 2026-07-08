@@ -48,8 +48,8 @@ Examples:
   `procedure`, `liveModel`, `liveLog`, and live model contract mutations.
 - `api-binding/` isolates controller construction with `bindContract()` and
   direct controller calls/snapshots.
-- `api-client/` isolates serving a bound controller over a memory transport and
-  creating a typed `contractClient`.
+- `api-client/` isolates serving a bound controller over a memory transport,
+  creating a typed thin `client()`, and materializing a group.
 - `group/` demonstrates `defineLiveModelContract`, host instance lifecycle,
   typed group client binding, and mutation settling across multiple member models.
 - `dedupe/` demonstrates server-side `deduplicateRequests()` for in-flight
@@ -60,6 +60,7 @@ Examples:
   model contract mutations.
 - `multi-window/` demonstrates one `Controller` served to multiple independent
   clients through `createWireSessionHub`.
+- `replica/` demonstrates a cached middle hop with `createLiveModelReplica()`.
 - `logging/` demonstrates `withLogging`, `loggingTransport`, instrumentation
   hooks, redacted debug payload logging, and live-client resync diagnostics.
 - `optimistic-group/` demonstrates `OptimisticLiveModelGroup` deriving previews

@@ -1,18 +1,6 @@
-import type { z } from 'zod';
-import { LiveJobClient } from '../live/job';
-import { LiveLogClient, type LiveLogClientDeps } from '../live/log';
-import { LiveModelClient, type LiveChangeMeta } from '../live/model';
-import { createMutationId, LiveBindingRegistry, type LiveMutationResult } from '../live/mutations';
-import { liveJobStateSchema } from '../live/protocol';
-import type {
-  LiveLogSnapshotData,
-  LiveJobState,
-  LiveSnapshot,
-  LiveUpdate,
-  LiveCursorEntry,
-} from '../live/protocol';
-import type { WireInstrumentation } from '../observability';
-import { encodeTopic } from './bind';
+import type { Unsubscribe } from '@emdash/shared';
+import { createMutationId, type LiveMutationResult } from '../live/mutations';
+import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../live/protocol';
 import type { CallOptions, Connection } from './connect';
 import type {
   Contract,
@@ -30,25 +18,17 @@ import type {
   JobInput,
   JobProgress,
   JobResult,
+  LiveLogEndpointDef,
   LiveLogKey,
   LiveModelEndpointDef,
+  LiveModelGroupDef,
   MutationData,
   MutationError,
   MutationInput,
 } from './define';
 import { isEndpointDef } from './define';
 import { WireError } from './protocol';
-
-export type WiredLiveClient<TClient> = {
-  client: TClient;
-  ready: Promise<void>;
-  dispose(): Promise<void>;
-};
-
-export type ContractMutationInvocation<D, E> = {
-  result: LiveMutationResult<D, E>;
-  settled: Promise<void>;
-};
+import { encodeTopic } from './topics';
 
 export type MutationCallOptions = {
   mutationId?: string;
@@ -62,121 +42,128 @@ export type MutationCallOptions = {
 
 export type ProcedureCallOptions = Pick<CallOptions, 'signal'>;
 
-export type ContractClientOptions = {
+export type ClientOptions = {
   pathPrefix?: string;
-  bindingRegistry?: LiveBindingRegistry;
-  instrumentation?: WireInstrumentation;
 };
+
+export type ThinAttachOptions = {
+  onReattach?: () => void;
+};
+
+export type ThinLiveHandle<T = unknown> = {
+  readonly topic: string;
+  snapshot(): Promise<LiveSnapshot<T>>;
+  attach(push: (update: LiveUpdate) => void, options?: ThinAttachOptions): Promise<Unsubscribe>;
+  asLiveSource(): LiveSource;
+};
+
+export type ThinLiveModelRef<Def extends LiveModelEndpointDef = LiveModelEndpointDef> = {
+  readonly kind: 'thinLiveModel';
+  readonly def: Def;
+  handle(key: EndpointLiveModelKey<Def>): ThinLiveHandle<EndpointLiveModelData<Def>>;
+};
+
+export type ThinLiveLogRef<Def extends LiveLogEndpointDef = LiveLogEndpointDef> = {
+  readonly kind: 'thinLiveLog';
+  readonly def: Def;
+  handle(key: LiveLogKey<Def>): ThinLiveHandle<LiveLogSnapshotData>;
+};
+
+export type ThinGroup<Def extends LiveModelGroupDef = LiveModelGroupDef> =
+  Def extends LiveModelGroupDef
+    ? {
+        readonly kind: 'thinGroup';
+        readonly def: Def;
+        model<Name extends Extract<keyof GroupModels<Def>, string>>(
+          key: GroupKey<Def>,
+          name: Name
+        ): ThinLiveHandle<EndpointLiveModelData<GroupModels<Def>[Name]>>;
+        mutate<Name extends Extract<keyof GroupMutations<Def>, string>>(
+          name: Name,
+          envelope: {
+            key: GroupKey<Def>;
+            input: MutationInput<GroupMutations<Def>[Name]>;
+            mutationId?: string;
+          },
+          options?: MutationCallOptions
+        ): Promise<
+          LiveMutationResult<
+            MutationData<GroupMutations<Def>[Name]>,
+            MutationError<GroupMutations<Def>[Name]>
+          >
+        >;
+      }
+    : never;
+
+export type ThinJob<Def extends JobEndpointDef = JobEndpointDef> = {
+  readonly kind: 'thinJob';
+  readonly def: Def;
+  start(input: JobInput<Def>): Promise<{ jobId: string }>;
+  cancel(jobId: string): Promise<void>;
+  handle(jobId: string): ThinLiveHandle<LiveJobStateFor<Def>>;
+};
+
+export type LiveJobStateFor<Def extends JobEndpointDef> =
+  | {
+      status: 'running';
+      startedAt: number;
+      progress: JobProgress<Def>[];
+      progressCount: number;
+    }
+  | {
+      status: 'succeeded';
+      result: JobResult<Def>;
+    }
+  | {
+      status: 'failed';
+      error: JobError<Def>;
+    }
+  | {
+      status: 'cancelled';
+    };
 
 type EndpointClient<Def> = Def extends { kind: 'procedure' }
   ? (input: EndpointInput<Def>, options?: ProcedureCallOptions) => Promise<EndpointOutput<Def>>
   : Def extends JobEndpointDef
-    ? JobEndpointClient<Def>
+    ? ThinJob<Def>
     : Def extends LiveModelEndpointDef
-      ? (
-          key: EndpointLiveModelKey<Def>,
-          onChange: (value: EndpointLiveModelData<Def>, meta: LiveChangeMeta) => void
-        ) => WiredLiveClient<LiveModelClient<EndpointLiveModelData<Def>>>
-      : Def extends { kind: 'liveLog' }
-        ? (
-            key: LiveLogKey<Def>,
-            deps: Omit<LiveLogClientDeps, 'refetchSnapshot'>
-          ) => WiredLiveClient<LiveLogClient>
-        : Def extends { kind: 'group' }
-          ? (key: GroupKey<Def>, onChange?: GroupOnChange<Def>) => GroupBinding<Def>
+      ? ThinLiveModelRef<Def>
+      : Def extends LiveLogEndpointDef
+        ? ThinLiveLogRef<Def>
+        : Def extends LiveModelGroupDef
+          ? ThinGroup<Def>
           : never;
-
-export type JobHandle<P, R, E> = {
-  jobId: string;
-  client: LiveJobClient<P, R, E>;
-  ready: Promise<void>;
-  result: Promise<R>;
-  onProgress(cb: (progress: P) => void): () => void;
-  cancel(): Promise<void>;
-  dispose(): Promise<void>;
-};
-
-type JobEndpointClient<Def extends JobEndpointDef> = {
-  start(input: JobInput<Def>): Promise<JobHandle<JobProgress<Def>, JobResult<Def>, JobError<Def>>>;
-  attach(jobId: string): Promise<JobHandle<JobProgress<Def>, JobResult<Def>, JobError<Def>>>;
-};
 
 type ContractEntryClient<Def> = Def extends EndpointDef
   ? EndpointClient<Def>
   : Def extends Contract<infer Nested>
-    ? ContractClient<Nested>
+    ? ThinClient<Nested>
     : never;
 
-type GroupOnChange<Def> = Def extends { kind: 'group' }
-  ? Partial<{
-      [Name in keyof GroupModels<Def>]: (
-        value: EndpointLiveModelData<GroupModels<Def>[Name]>,
-        meta: LiveChangeMeta
-      ) => void;
-    }>
-  : never;
-
-export type GroupBinding<Def> = Def extends { kind: 'group' }
-  ? {
-      [Name in keyof GroupModels<Def>]: WiredLiveClient<
-        LiveModelClient<EndpointLiveModelData<GroupModels<Def>[Name]>>
-      >;
-    } & {
-      [Name in keyof GroupMutations<Def>]: (
-        input: MutationInput<GroupMutations<Def>[Name]>,
-        options?: MutationCallOptions
-      ) => Promise<
-        ContractMutationInvocation<
-          MutationData<GroupMutations<Def>[Name]>,
-          MutationError<GroupMutations<Def>[Name]>
-        >
-      >;
-    } & {
-      ready: Promise<void>;
-      dispose(): Promise<void>;
-    }
-  : never;
-
-export type ContractClient<Defs extends ContractDefinitions> = {
+export type ThinClient<Defs extends ContractDefinitions> = {
   [Name in Extract<keyof Defs, string>]: ContractEntryClient<Defs[Name]>;
 };
 
-export function contractClient<Defs extends ContractDefinitions>(
+export function client<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
   connection: Connection,
-  options: ContractClientOptions = {}
-): ContractClient<Defs> {
-  const bindingRegistry = options.bindingRegistry ?? new LiveBindingRegistry();
+  options: ClientOptions = {}
+): ThinClient<Defs> {
   const pathPrefix = options.pathPrefix ? [options.pathPrefix] : [];
-
-  return buildContractClient(
-    contract,
-    pathPrefix,
-    connection,
-    bindingRegistry,
-    options.instrumentation
-  ) as ContractClient<Defs>;
+  return buildContractClient(contract, pathPrefix, connection) as ThinClient<Defs>;
 }
 
 function buildContractClient(
   contract: ContractDefinitions,
   pathPrefix: string[],
-  connection: Connection,
-  bindingRegistry: LiveBindingRegistry,
-  instrumentation: WireInstrumentation | undefined
+  connection: Connection
 ): Record<string, unknown> {
   const client: Record<string, unknown> = {};
 
   for (const [name, def] of Object.entries(contract)) {
     const fullPath = [...pathPrefix, name].join('.');
     if (!isEndpointDef(def)) {
-      client[name] = buildContractClient(
-        def,
-        [...pathPrefix, name],
-        connection,
-        bindingRegistry,
-        instrumentation
-      );
+      client[name] = buildContractClient(def, [...pathPrefix, name], connection);
       continue;
     }
 
@@ -186,21 +173,16 @@ function buildContractClient(
           connection.call(fullPath, input, options);
         break;
       case 'job':
-        client[name] = createJobEndpointClient(connection, def, fullPath);
+        client[name] = createThinJob(connection, def, fullPath);
         break;
       case 'liveModel':
-        client[name] = (key: unknown, onChange: (value: unknown, meta: LiveChangeMeta) => void) =>
-          bindModel(connection, bindingRegistry, def, key, onChange, instrumentation);
+        client[name] = createThinLiveModel(connection, def);
         break;
       case 'liveLog':
-        client[name] = (key: unknown, deps: Omit<LiveLogClientDeps, 'refetchSnapshot'>) =>
-          bindLog(connection, def.id, key, deps, instrumentation);
+        client[name] = createThinLiveLog(connection, def);
         break;
       case 'group':
-        client[name] = (
-          key: unknown,
-          onChange: Record<string, (value: unknown, meta: LiveChangeMeta) => void> = {}
-        ) => bindGroup(connection, bindingRegistry, fullPath, def, key, onChange, instrumentation);
+        client[name] = createThinGroup(connection, fullPath, def);
         break;
     }
   }
@@ -208,192 +190,98 @@ function buildContractClient(
   return client;
 }
 
-function bindModel(
+function createThinLiveModel<Def extends LiveModelEndpointDef>(
   connection: Connection,
-  bindingRegistry: LiveBindingRegistry,
-  ref: LiveModelEndpointDef,
-  key: unknown,
-  onChange: (value: unknown, meta: LiveChangeMeta) => void,
-  instrumentation: WireInstrumentation | undefined
-): WiredLiveClient<LiveModelClient<unknown>> {
-  const topic = encodeTopic(ref.id, key);
-  const fetchSnapshot = () => connection.snapshot(topic) as Promise<LiveSnapshot<unknown>>;
-  const model = new LiveModelClient(ref.dataSchema as z.ZodType<unknown>, fetchSnapshot, onChange, {
-    instrumentation,
-    topic,
-  });
-  const unregister = bindingRegistry.register(ref, key, model);
-  const ready = fetchSnapshot().then((snapshot) => model.seed(snapshot));
-  const detach = connection.attach(topic, (update) => model.applyUpdate(update), {
-    onReattach: () => void model.refresh(),
-  });
+  def: Def
+): ThinLiveModelRef<Def> {
   return {
-    client: model,
-    ready,
-    async dispose() {
-      unregister();
-      (await detach)();
-    },
+    kind: 'thinLiveModel',
+    def,
+    handle: (key) => createThinLiveHandle(connection, encodeTopic(def.id, key)),
   };
 }
 
-function bindLog(
+function createThinLiveLog<Def extends LiveLogEndpointDef>(
   connection: Connection,
-  refId: string,
-  key: unknown,
-  deps: Omit<LiveLogClientDeps, 'refetchSnapshot'>,
-  instrumentation: WireInstrumentation | undefined
-): WiredLiveClient<LiveLogClient> {
-  const topic = encodeTopic(refId, key);
-  const log = new LiveLogClient({
-    ...deps,
-    refetchSnapshot: () => connection.snapshot(topic) as Promise<LiveSnapshot<LiveLogSnapshotData>>,
-    instrumentation,
-    topic,
-  });
-  const ready = connection
-    .snapshot(topic)
-    .then((snapshot) => log.seed(snapshot as LiveSnapshot<LiveLogSnapshotData>));
-  const detach = connection.attach(topic, (update: LiveUpdate) => log.applyUpdate(update), {
-    onReattach: () => void log.refresh(),
-  });
+  def: Def
+): ThinLiveLogRef<Def> {
   return {
-    client: log,
-    ready,
-    async dispose() {
-      (await detach)();
-    },
+    kind: 'thinLiveLog',
+    def,
+    handle: (key) => createThinLiveHandle(connection, encodeTopic(def.id, key)),
   };
 }
 
-function createJobEndpointClient(
+function createThinJob<Def extends JobEndpointDef>(
   connection: Connection,
-  def: JobEndpointDef,
+  def: Def,
   path: string
-): JobEndpointClient<JobEndpointDef> {
+): ThinJob<Def> {
   return {
+    kind: 'thinJob',
+    def,
     async start(input) {
-      const started = (await connection.call(`${path}.start`, input)) as { jobId: string };
-      return bindJobHandle(connection, def, path, started.jobId);
+      return (await connection.call(`${path}.start`, input)) as { jobId: string };
     },
-    attach(jobId) {
-      return bindJobHandle(connection, def, path, jobId);
-    },
-  };
-}
-
-async function bindJobHandle(
-  connection: Connection,
-  def: JobEndpointDef,
-  path: string,
-  jobId: string
-): Promise<JobHandle<unknown, unknown, unknown>> {
-  const topic = encodeTopic(def.id, { jobId });
-  const stateSchema = liveJobStateSchema(def.progress, def.result, def.error) as z.ZodType<
-    LiveJobState<unknown, unknown, unknown>
-  >;
-  const job = new LiveJobClient<unknown, unknown, unknown>(stateSchema, {
-    refetchSnapshot: () =>
-      connection.snapshot(topic) as Promise<LiveSnapshot<LiveJobState<unknown, unknown, unknown>>>,
-  });
-  const ready = connection
-    .snapshot(topic)
-    .then((snapshot) =>
-      job.seed(snapshot as LiveSnapshot<LiveJobState<unknown, unknown, unknown>>)
-    );
-  const detach = connection.attach(topic, (update: LiveUpdate) => job.applyUpdate(update), {
-    onReattach: () => void job.refresh(),
-  });
-  let disposed = false;
-
-  const dispose = async (): Promise<void> => {
-    if (disposed) return;
-    disposed = true;
-    (await detach)();
-    job.dispose();
-  };
-
-  void job.result.then(
-    () => dispose(),
-    () => dispose()
-  );
-
-  return {
-    jobId,
-    client: job,
-    ready,
-    result: job.result,
-    onProgress: (cb) => job.onProgress(cb),
-    async cancel() {
+    async cancel(jobId) {
       await connection.call(`${path}.cancel`, { jobId });
     },
-    dispose,
+    handle(jobId) {
+      return createThinLiveHandle(connection, encodeTopic(def.id, { jobId }));
+    },
   };
 }
 
-function bindGroup(
+function createThinGroup<Def extends LiveModelGroupDef>(
   connection: Connection,
-  bindingRegistry: LiveBindingRegistry,
   path: string,
-  group: {
-    models: Record<string, LiveModelEndpointDef>;
-    mutations: Record<string, { kind: 'mutation' }>;
-  },
-  key: unknown,
-  onChange: Record<string, (value: unknown, meta: LiveChangeMeta) => void>,
-  instrumentation: WireInstrumentation | undefined
-): GroupBinding<never> {
-  const binding: Record<string, unknown> = {};
-  const disposables: Array<() => Promise<void>> = [];
-  const ready: Promise<void>[] = [];
-
-  for (const [name, model] of Object.entries(group.models)) {
-    const modelBinding = bindModel(
-      connection,
-      bindingRegistry,
-      model,
-      key,
-      onChange[name] ?? (() => {}),
-      instrumentation
-    );
-    binding[name] = modelBinding;
-    ready.push(modelBinding.ready);
-    disposables.push(modelBinding.dispose);
-  }
-
-  for (const name of Object.keys(group.mutations)) {
-    binding[name] = (input: unknown, options?: MutationCallOptions) =>
-      callMutation(connection, bindingRegistry, `${path}.${name}`, { key, input }, options);
-  }
-
-  binding.ready = Promise.all(ready).then(() => undefined);
-  binding.dispose = async () => {
-    await Promise.all(disposables.map((dispose) => dispose()));
-  };
-
-  return binding as GroupBinding<never>;
-}
-
-async function callMutation<D, E>(
-  connection: Connection,
-  bindingRegistry: LiveBindingRegistry,
-  path: string,
-  input: unknown,
-  options: MutationCallOptions = {}
-): Promise<ContractMutationInvocation<D, E>> {
-  const mutationId = options.mutationId ?? createMutationId();
-  const result = (await callMutationWithRetry(
-    connection,
-    path,
-    input,
-    mutationId,
-    options
-  )) as LiveMutationResult<D, E>;
+  def: Def
+): ThinGroup<Def> {
   return {
-    result,
-    settled: result.success
-      ? settleCursors(bindingRegistry, mutationId, result.data.cursors)
-      : Promise.resolve(),
+    kind: 'thinGroup',
+    def,
+    model(key: unknown, name: string) {
+      const model = def.models[name];
+      return createThinLiveHandle(connection, encodeTopic(model.id, key));
+    },
+    mutate(
+      name: string,
+      envelope: { key: unknown; input: unknown; mutationId?: string },
+      options?: MutationCallOptions
+    ) {
+      const mutationId = envelope.mutationId ?? options?.mutationId ?? createMutationId();
+      return callMutationWithRetry(
+        connection,
+        `${path}.${name}`,
+        envelope,
+        mutationId,
+        options ?? {}
+      ) as Promise<LiveMutationResult<never, never>>;
+    },
+  } as unknown as ThinGroup<Def>;
+}
+
+function createThinLiveHandle<T>(connection: Connection, topic: string): ThinLiveHandle<T> {
+  return {
+    topic,
+    snapshot: () => connection.snapshot(topic) as Promise<LiveSnapshot<T>>,
+    attach: (push, options) => connection.attach(topic, push, options),
+    asLiveSource() {
+      return {
+        snapshot: () => connection.snapshot(topic),
+        subscribe: (cb): Unsubscribe => {
+          let disposed = false;
+          const attach = connection.attach(topic, cb).catch(() => () => {});
+          void attach.then((detach) => {
+            if (disposed) detach();
+          });
+          return () => {
+            disposed = true;
+            void attach.then((detach) => detach());
+          };
+        },
+      };
+    },
   };
 }
 
@@ -439,19 +327,22 @@ function addMutationId(input: unknown, mutationId: string): unknown {
   return { ...(input as { key: unknown; input: unknown }), mutationId };
 }
 
-async function settleCursors(
-  bindingRegistry: LiveBindingRegistry,
-  mutationId: string,
-  cursors: LiveCursorEntry[]
-): Promise<void> {
-  await Promise.all(
-    cursors.map((entry) => {
-      const binding = bindingRegistry.find(entry.model, entry.key);
-      if (!binding) return Promise.resolve();
-      return Promise.any([
-        binding.waitForMutation(mutationId),
-        binding.waitForCursor(entry.cursor),
-      ]);
-    })
-  );
+export function isThinLiveModelRef(value: unknown): value is ThinLiveModelRef {
+  return isTagged(value, 'thinLiveModel');
+}
+
+export function isThinLiveLogRef(value: unknown): value is ThinLiveLogRef {
+  return isTagged(value, 'thinLiveLog');
+}
+
+export function isThinGroup(value: unknown): value is ThinGroup {
+  return isTagged(value, 'thinGroup');
+}
+
+export function isThinJob(value: unknown): value is ThinJob {
+  return isTagged(value, 'thinJob');
+}
+
+function isTagged(value: unknown, kind: string): boolean {
+  return typeof value === 'object' && value !== null && (value as { kind?: unknown }).kind === kind;
 }

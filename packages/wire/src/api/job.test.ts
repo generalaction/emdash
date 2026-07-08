@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveJobCancelledError, type LiveJobContext } from '../live/job';
+import { materializeJob, startMaterializedJob } from '../live/materialize';
 import { bindContract } from './bind';
-import { contractClient } from './client';
+import { client } from './client';
 import { connect } from './connect';
 import { defineContract, job } from './define';
 import { serve } from './serve';
@@ -30,7 +31,7 @@ describe('contract jobs', () => {
       return { artifact: `${input.name}.zip` };
     });
 
-    const handle = await client.build.start({ name: 'demo' });
+    const handle = await startMaterializedJob(client.build, { name: 'demo' });
     await handle.ready;
     const progress: Array<{ step: string }> = [];
     handle.onProgress((entry) => progress.push(entry));
@@ -49,7 +50,7 @@ describe('contract jobs', () => {
         })
     );
 
-    const handle = await client.build.start({ name: 'cancel' });
+    const handle = await startMaterializedJob(client.build, { name: 'cancel' });
     await handle.ready;
     await handle.cancel();
 
@@ -63,11 +64,11 @@ describe('contract jobs', () => {
       return { artifact: `${input.name}.zip` };
     });
 
-    const handle = await client.build.start({ name: 'reattach' });
+    const handle = await startMaterializedJob(client.build, { name: 'reattach' });
     gate.resolve();
     await expect(handle.result).resolves.toEqual({ artifact: 'reattach.zip' });
 
-    const reattached = await client.build.attach(handle.jobId);
+    const reattached = materializeJob(client.build, handle.jobId);
     await reattached.ready;
 
     await expect(reattached.result).resolves.toEqual({ artifact: 'reattach.zip' });
@@ -82,7 +83,7 @@ describe('contract jobs', () => {
         })
     );
 
-    const handle = await client.build.start({ name: 'dispose' });
+    const handle = await startMaterializedJob(client.build, { name: 'dispose' });
     await handle.ready;
     controller.dispose?.();
 
@@ -121,8 +122,8 @@ function setup(
     { validate: options.validate }
   );
   serve(pair.right, controller);
-  const client = contractClient(jobContract, connect(pair.left));
-  return { client, controller };
+  const thin = client(jobContract, connect(pair.left));
+  return { client: thin, controller };
 }
 
 function deferred<T>(): {

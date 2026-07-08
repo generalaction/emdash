@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import {
   bindContract,
+  client,
   connect,
-  contractClient,
   defineContract,
   memoryTransportPair,
   procedure,
@@ -30,10 +30,10 @@ async function runCallerCancellation(): Promise<void> {
     },
   });
   serve(pair.right, controller);
-  const client = contractClient(api, connect(pair.left));
+  const thin = client(api, connect(pair.left));
   const abort = new AbortController();
 
-  const result = client
+  const result = thin
     .slow({ label: 'cancelled' }, { signal: abort.signal })
     .catch((error) => error);
   abort.abort();
@@ -56,9 +56,9 @@ async function runDisconnectCancellation(): Promise<void> {
     },
   });
   serve(pair.right, controller);
-  const client = contractClient(api, connect(pair.left));
+  const thin = client(api, connect(pair.left));
 
-  const result = client.slow({ label: 'disconnect' }).catch((error) => error);
+  const result = thin.slow({ label: 'disconnect' }).catch((error) => error);
   await waitFor(() => started);
   pair.disconnect();
 

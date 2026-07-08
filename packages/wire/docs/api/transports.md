@@ -12,11 +12,11 @@ type WireTransport = {
 };
 ```
 
-The same `serve()`, `connect()`, and `contractClient()` code works across every
+The same `serve()`, `connect()`, and `client()` code works across every
 transport. Only construction changes.
 
 `onReconnect` is optional and should fire only after a replacement link is live.
-`connect()` uses it to re-attach live topics; typed live clients then force a fresh
+`connect()` uses it to re-attach live topics; materializers then force a fresh
 snapshot. `close()` releases listeners registered by the adapter. It closes the
 underlying channel only when the adapter owns a closeable channel, such as a
 `MessagePort`.
@@ -30,7 +30,7 @@ examples:
 const pair = memoryTransportPair();
 serve(pair.right, controller);
 
-const client = contractClient(api, connect(pair.left));
+const thin = client(api, connect(pair.left));
 ```
 
 `pair.disconnect()` disconnects both sides. Each endpoint also exposes `close()`,
@@ -85,7 +85,7 @@ The renderer asks for a port, then waits for the browser-side transfer:
 ```ts
 await requestWirePort({ ipcRenderer, window }, { channel: 'wire' });
 const port = await awaitWirePort(window, { channel: 'wire' });
-const client = contractClient(api, connect(domPortTransport(port as MessagePort)));
+const thin = client(api, connect(domPortTransport(port as MessagePort)));
 ```
 
 Opening a new port for the same `webContents.id` closes the old one. Naturally
@@ -99,7 +99,7 @@ useful for subprocess, stdio, and SSH-style boundaries:
 
 ```ts
 const transport = streamTransport(child.stdout, child.stdin);
-const client = contractClient(api, connect(transport));
+const thin = client(api, connect(transport));
 ```
 
 Malformed frames are ignored. `close`, `end`, and `error` on the readable side
@@ -126,9 +126,9 @@ transport disconnects, listeners are notified and reconnection starts. The queue
 is bounded with drop-oldest semantics; `maxQueuedMessages` defaults to `1000`.
 
 `onReconnect` fires after a replacement inner transport is connected and queued
-messages are flushed. `Connection` listens for that signal, re-issues active
-`attach` requests, and typed live model, log, and job bindings refresh their
-snapshots after reattach. `close()` stops the retry loop, closes the current inner
+messages are flushed. `Connection` listens for that signal and re-issues active
+`attach` requests; materialized models and jobs refresh their snapshots after
+reattach. `close()` stops the retry loop, closes the current inner
 transport if present, and clears queued messages and listeners.
 
 ## Process Transport
@@ -138,7 +138,7 @@ transport if present, and clears queued messages and listeners.
 
 ```ts
 const runtime = await host.spawn({ entry: '/path/to/runtime.js' }, scope);
-const client = contractClient(api, connect(processTransport(runtime)));
+const thin = client(api, connect(processTransport(runtime)));
 ```
 
 See [process host](../runtime/process-host.md).

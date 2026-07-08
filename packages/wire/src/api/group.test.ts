@@ -2,8 +2,9 @@ import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost } from '../live';
+import { materializeInstance } from '../live/materialize';
 import { bindContract, encodeTopic } from './bind';
-import { contractClient } from './client';
+import { client } from './client';
 import { connect } from './connect';
 import { defineContract, defineLiveModelContract, mutation } from './define';
 import { serve } from './serve';
@@ -51,7 +52,7 @@ function setup() {
   const pair = memoryTransportPair();
   const controller = bindContract(contract, { conversation: host });
   serve(pair.right, controller);
-  return { client: contractClient(contract, connect(pair.left)), controller, key, instance };
+  return { client: client(contract, connect(pair.left)), controller, key, instance };
 }
 
 describe('defineLiveModelContract', () => {
@@ -69,31 +70,36 @@ describe('defineLiveModelContract', () => {
   it('binds a group client and settles multi-member mutations', async () => {
     const { client, key } = setup();
     const seenTitles: string[] = [];
-    const conversation = client.conversation(key, {
-      state: (state) => seenTitles.push(state.title),
+    const conversation = materializeInstance(client.conversation, key, {
+      onChange: {
+        state: (state) => seenTitles.push((state as { title: string }).title),
+      },
     });
     await conversation.ready;
 
-    const invocation = await conversation.setTitle({ title: 'Updated' });
+    const invocation = await conversation.mutations.setTitle({ title: 'Updated' });
     await invocation.settled;
 
     expect(invocation.result.success).toBe(true);
-    expect(conversation.state.client.getSnapshot()).toEqual({ title: 'Updated' });
-    expect(conversation.usage.client.getSnapshot()).toEqual({ tokens: 7 });
+    expect(conversation.models.state.current()).toEqual({ title: 'Updated' });
+    expect(conversation.models.usage.current()).toEqual({ tokens: 7 });
     expect(seenTitles.at(-1)).toBe('Updated');
     await conversation.dispose();
   });
 
   it('dedupes duplicate group mutation ids', async () => {
     const { client, key } = setup();
-    const conversation = client.conversation(key);
+    const conversation = materializeInstance(client.conversation, key);
     await conversation.ready;
 
-    await conversation.setTitle({ title: 'Once' }, { mutationId: 'same-group-mutation' });
-    await conversation.setTitle({ title: 'Twice' }, { mutationId: 'same-group-mutation' });
+    await conversation.mutations.setTitle({ title: 'Once' }, { mutationId: 'same-group-mutation' });
+    await conversation.mutations.setTitle(
+      { title: 'Twice' },
+      { mutationId: 'same-group-mutation' }
+    );
 
-    expect(conversation.state.client.getSnapshot()).toEqual({ title: 'Once' });
-    expect(conversation.usage.client.getSnapshot()).toEqual({ tokens: 4 });
+    expect(conversation.models.state.current()).toEqual({ title: 'Once' });
+    expect(conversation.models.usage.current()).toEqual({ tokens: 4 });
     await conversation.dispose();
   });
 
@@ -139,14 +145,14 @@ describe('defineLiveModelContract', () => {
     host.create(key, { state: { title: 'Initial' } });
     const pair = memoryTransportPair();
     serve(pair.right, bindContract(schemaOnly, { conversation: host }));
-    const client = contractClient(schemaOnly, connect(pair.left));
+    const thin = client(schemaOnly, connect(pair.left));
 
-    const conversation = client.conversation(key);
+    const conversation = materializeInstance(thin.conversation, key);
     await conversation.ready;
-    const invocation = await conversation.setTitle({ title: 'Host handled' });
+    const invocation = await conversation.mutations.setTitle({ title: 'Host handled' });
     await invocation.settled;
 
-    expect(conversation.state.client.getSnapshot()).toEqual({ title: 'Host handled' });
+    expect(conversation.models.state.current()).toEqual({ title: 'Host handled' });
     await conversation.dispose();
   });
 
@@ -180,15 +186,15 @@ describe('defineLiveModelContract', () => {
     const pair = memoryTransportPair();
     const controller = bindContract(nested, { child: { conversation: host } });
     serve(pair.right, controller);
-    const client = contractClient(nested, connect(pair.left));
+    const thin = client(nested, connect(pair.left));
 
     expect(nested.child.conversation.models.state.id).toBe('child.conversation.state');
-    const conversation = client.child.conversation(key);
+    const conversation = materializeInstance(thin.child.conversation, key);
     await conversation.ready;
-    const invocation = await conversation.setTitle({ title: 'Nested' });
+    const invocation = await conversation.mutations.setTitle({ title: 'Nested' });
     await invocation.settled;
 
-    expect(conversation.state.client.getSnapshot()).toEqual({ title: 'Nested' });
+    expect(conversation.models.state.current()).toEqual({ title: 'Nested' });
     await conversation.dispose();
   });
 });

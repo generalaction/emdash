@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import {
   bindContract,
+  client,
   connect,
-  contractClient,
   createWireSessionHub,
   defineContract,
   liveModel,
   LiveModel,
+  MaterializedModel,
   memoryTransportPair,
   procedure,
 } from '../../src/index';
@@ -33,11 +34,15 @@ async function main(): Promise<void> {
   const first = openWindow(hub, 'window-1');
   const second = openWindow(hub, 'window-2');
 
-  const firstCounter = first.client.counter(undefined, (value) => {
-    console.log('window-1:', value);
+  const firstCounter = new MaterializedModel(first.client.counter.handle(undefined), {
+    onChange: (value) => {
+      console.log('window-1:', value);
+    },
   });
-  const secondCounter = second.client.counter(undefined, (value) => {
-    console.log('window-2:', value);
+  const secondCounter = new MaterializedModel(second.client.counter.handle(undefined), {
+    onChange: (value) => {
+      console.log('window-2:', value);
+    },
   });
 
   await Promise.all([firstCounter.ready, secondCounter.ready]);
@@ -59,7 +64,7 @@ function openWindow(hub: ReturnType<typeof createWireSessionHub>, id: string) {
   const pair = memoryTransportPair();
   hub.open(id, pair.right);
   return {
-    client: contractClient(api, connect(pair.left)),
+    client: client(api, connect(pair.left)),
     close: pair.disconnect,
   };
 }

@@ -56,8 +56,10 @@ conversations.create(key, {
 
 const controller = bindContract(api, { conversation: conversations });
 
-const client = contractClient(api, connect(pair.left));
-const conversation = new OptimisticLiveModelGroup(api.conversation, key, client.conversation);
+const thin = client(api, connect(pair.left));
+const conversation = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) =>
+  materializeInstance(thin.conversation, groupKey, { onChange })
+);
 await conversation.ready;
 ```
 

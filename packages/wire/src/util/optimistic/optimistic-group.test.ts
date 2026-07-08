@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
   bindContract,
+  client,
   connect,
-  contractClient,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
@@ -12,6 +12,7 @@ import {
   mutation,
   serve,
 } from '../../index';
+import { materializeInstance } from '../../live/materialize';
 import { OptimisticLiveModelGroup } from './optimistic-group';
 
 const keySchema = z.object({ id: z.string() });
@@ -113,12 +114,17 @@ describe('OptimisticLiveModelGroup', () => {
         captured['state']({ title: 'Initial' }, { kind: 'seed' });
         captured['usage']({ tokens: 0 }, { kind: 'seed' });
         return {
-          state: stubLiveBinding(),
-          usage: stubLiveBinding(),
-          setTitle: async () => pendingInvocation(),
-          serverError: async () => pendingInvocation(),
-          serverThrow: async () => pendingInvocation(),
-          localThrow: async () => pendingInvocation(),
+          key,
+          models: {
+            state: stubMaterializedModel(),
+            usage: stubMaterializedModel(),
+          },
+          mutations: {
+            setTitle: async () => pendingInvocation(),
+            serverError: async () => pendingInvocation(),
+            serverThrow: async () => pendingInvocation(),
+            localThrow: async () => pendingInvocation(),
+          },
           ready: Promise.resolve(),
           dispose: async () => {},
         } as never;
@@ -234,8 +240,10 @@ function setup(api: TestApi): {
   const pair = memoryTransportPair();
   const controller = bindContract(api, { conversation: conversations });
   serve(pair.right, controller);
-  const client = contractClient(api, connect(pair.left));
-  const group = new OptimisticLiveModelGroup(api.conversation, key, client.conversation);
+  const thin = client(api, connect(pair.left));
+  const group = new OptimisticLiveModelGroup(api.conversation, key, (groupKey, onChange) =>
+    materializeInstance(thin.conversation, groupKey, { onChange: onChange as never })
+  );
   return { group };
 }
 
@@ -244,22 +252,27 @@ function createFakePendingGroup(api: TestApi): OptimisticLiveModelGroup<TestApi[
     onChange?.state?.({ title: 'Initial' }, { kind: 'seed' });
     onChange?.usage?.({ tokens: 0 }, { kind: 'seed' });
     return {
-      state: stubLiveBinding(),
-      usage: stubLiveBinding(),
-      setTitle: async () => pendingInvocation(),
-      serverError: async () => pendingInvocation(),
-      serverThrow: async () => pendingInvocation(),
-      localThrow: async () => pendingInvocation(),
+      key: _key,
+      models: {
+        state: stubMaterializedModel(),
+        usage: stubMaterializedModel(),
+      },
+      mutations: {
+        setTitle: async () => pendingInvocation(),
+        serverError: async () => pendingInvocation(),
+        serverThrow: async () => pendingInvocation(),
+        localThrow: async () => pendingInvocation(),
+      },
       ready: Promise.resolve(),
       dispose: async () => {},
     } as never;
   });
 }
 
-function stubLiveBinding() {
+function stubMaterializedModel() {
   return {
-    client: undefined as never,
     ready: Promise.resolve(),
+    current: () => undefined,
     dispose: async () => {},
   };
 }

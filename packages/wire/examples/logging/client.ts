@@ -2,13 +2,14 @@ import type { LogFields, LogLevel, Logger } from '@emdash/shared/logger';
 import { z } from 'zod';
 import {
   bindContract,
+  client,
   connect,
-  contractClient,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
   loggerInstrumentation,
   loggingTransport,
+  materializeInstance,
   memoryTransportPair,
   procedure,
   serve,
@@ -66,21 +67,25 @@ async function main(): Promise<void> {
     }),
     { instrumentation }
   );
-  const client = contractClient(api, connection, { instrumentation });
+  const thin = client(api, connection);
 
   const observed: number[] = [];
-  const binding = client.counter(key, {
-    state: (value, meta) => {
-      observed.push(value.count);
-      logger.info('counter changed', { count: value.count, change: meta.kind });
+  const binding = materializeInstance(thin.counter, key, {
+    instrumentation,
+    onChange: {
+      state: (value, meta) => {
+        const state = value as { count: number };
+        observed.push(state.count);
+        logger.info('counter changed', { count: state.count, change: meta.kind });
+      },
     },
   });
   await binding.ready;
 
-  await client.increment({ ...key, token: 'sk-test-secret-value-for-redaction' });
+  await thin.increment({ ...key, token: 'sk-test-secret-value-for-redaction' });
 
   counter.reseed({ count: 100 });
-  await client.increment({ ...key, token: 'sk-test-secret-value-for-redaction' });
+  await thin.increment({ ...key, token: 'sk-test-secret-value-for-redaction' });
   await delay(0);
 
   logger.info('observed counter values', { observed });

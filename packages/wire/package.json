@@ -68,6 +68,7 @@
     "example:mutation-idempotency": "tsx examples/mutation-idempotency/client.ts",
     "example:multi-window": "tsx examples/multi-window/client.ts",
     "example:logging": "tsx examples/logging/client.ts",
+    "example:replica": "tsx examples/replica/client.ts",
     "example:process": "tsx examples/process/client.ts",
     "example:optimistic-group": "tsx examples/optimistic-group/client.ts",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/wire\"'",

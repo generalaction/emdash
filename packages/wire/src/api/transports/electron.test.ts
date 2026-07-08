@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { bindContract, connect, contractClient, defineContract, liveModel, procedure } from '..';
+import { bindContract, client, connect, defineContract, liveModel, procedure } from '..';
 import { domPortTransport } from './dom-port';
 import { awaitWirePort, exposeWireToWindows, requestWirePort } from './electron';
 
@@ -177,12 +177,12 @@ describe('Electron wire helpers', () => {
     );
 
     const firstPort = await requestAndAwaitPort(ipcRenderer, windowLike);
-    const client = contractClient(api, connect(domPortTransport(firstPort)));
-    await expect(client.ping({ value: 'one' })).resolves.toBe('pong:one');
+    const firstClient = client(api, connect(domPortTransport(firstPort)));
+    await expect(firstClient.ping({ value: 'one' })).resolves.toBe('pong:one');
 
     const secondPort = await requestAndAwaitPort(ipcRenderer, windowLike);
     expect(firstPort.closed).toBe(true);
-    const secondClient = contractClient(api, connect(domPortTransport(secondPort)));
+    const secondClient = client(api, connect(domPortTransport(secondPort)));
     await expect(secondClient.ping({ value: 'two' })).resolves.toBe('pong:two');
 
     dispose();

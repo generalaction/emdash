@@ -2,12 +2,13 @@ import { ok } from '@emdash/shared';
 import { z } from 'zod';
 import {
   bindContract,
+  client,
   connect,
-  contractClient,
   createLiveModelHost,
   defineContract,
   defineLiveModelContract,
   memoryTransportPair,
+  materializeInstance,
   mutation,
   serve,
 } from '../../src/index';
@@ -25,17 +26,17 @@ async function main(): Promise<void> {
   const controller = bindContract(api, { counter: counters });
   const pair = memoryTransportPair();
   serve(pair.right, controller);
-  const client = contractClient(api, connect(pair.left));
-  const binding = client.counter(key);
+  const thin = client(api, connect(pair.left));
+  const binding = materializeInstance(thin.counter, key);
   await binding.ready;
 
-  const first = await binding.increment(
+  const first = await binding.mutations.increment(
     {},
     {
       mutationId: 'example-mutation',
     }
   );
-  const second = await binding.increment(
+  const second = await binding.mutations.increment(
     {},
     {
       mutationId: 'example-mutation',

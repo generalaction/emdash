@@ -2,6 +2,10 @@ import { err, ok, resultSchema, type Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import { LiveJobServer, type LiveJobContext } from '../live/job';
 import {
+  isLiveModelGroupProvider,
+  type LiveModelGroupProvider,
+} from '../live/materialize/provider';
+import {
   GroupMutationContext,
   isLiveModelHost,
   type LiveModelHost,
@@ -10,10 +14,19 @@ import {
   type MutationResultCacheOptions,
   type LiveMutationResult,
 } from '../live/mutations';
-import { stableStringify } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
 import { liveCursorEntrySchema } from '../live/protocol';
 import type { WireInstrumentation } from '../observability';
+import {
+  isThinGroup,
+  isThinJob,
+  isThinLiveLogRef,
+  isThinLiveModelRef,
+  type ThinGroup,
+  type ThinJob,
+  type ThinLiveLogRef,
+  type ThinLiveModelRef,
+} from './client';
 import type {
   Contract,
   ContractDefinitions,
@@ -33,6 +46,7 @@ import type {
 } from './define';
 import { isEndpointDef } from './define';
 import { WireError } from './protocol';
+import { splitTopic } from './topics';
 
 export type CallMeta = {
   signal?: AbortSignal;
@@ -56,20 +70,29 @@ type LiveModelImpl<Def extends LiveModelEndpointDef> = (
   key: EndpointLiveModelKey<Def>
 ) => LiveSource | null | undefined;
 
+type LiveModelEntryImpl<Def extends LiveModelEndpointDef> =
+  | LiveModelImpl<Def>
+  | ThinLiveModelRef<Def>;
+
 type LiveLogImpl<Def extends EndpointDef> = (key: LiveLogKey<Def>) => LiveSource | null | undefined;
 
-type GroupImpl<Def extends LiveModelGroupDef> = LiveModelHost<Def>;
+type LiveLogEntryImpl<Def extends EndpointDef> = LiveLogImpl<Def> | ThinLiveLogRef;
+
+type GroupImpl<Def extends LiveModelGroupDef> =
+  | LiveModelHost<Def>
+  | ThinGroup<Def>
+  | LiveModelGroupProvider<Def>;
 
 type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
   ? ProcedureImpl<Def>
   : Def extends LiveModelEndpointDef
-    ? LiveModelImpl<Def>
+    ? LiveModelEntryImpl<Def>
     : Def extends { kind: 'liveLog' }
-      ? LiveLogImpl<Def>
+      ? LiveLogEntryImpl<Def>
       : Def extends LiveModelGroupDef
         ? GroupImpl<Def>
         : Def extends JobEndpointDef
-          ? JobImpl<Def>
+          ? JobImpl<Def> | ThinJob<Def>
           : never;
 
 type JobImpl<Def extends JobEndpointDef> = {
@@ -144,31 +167,44 @@ export function bindContract<Defs extends ContractDefinitions>(
           break;
         }
         case 'liveModel': {
-          const impl = entryImpl as LiveModelImpl<LiveModelEndpointDef> | undefined;
+          const impl = entryImpl as LiveModelEntryImpl<LiveModelEndpointDef> | undefined;
           if (!impl) {
             throw new WireError('MISSING_HANDLER', `Live model '${fullPath}' requires a resolver`);
           }
           liveEntries.set(def.id, {
             keySchema: def.keySchema,
-            resolve: impl as (key: unknown) => LiveSource | null,
+            resolve: createLiveModelResolver(impl),
           });
           break;
         }
         case 'liveLog': {
-          const impl = entryImpl as LiveLogImpl<EndpointDef> | undefined;
+          const impl = entryImpl as LiveLogEntryImpl<EndpointDef> | undefined;
           if (!impl) {
             throw new WireError('MISSING_HANDLER', `Live log '${fullPath}' requires a resolver`);
           }
           liveEntries.set(def.id, {
             keySchema: def.keySchema,
-            resolve: impl as (key: unknown) => LiveSource | null,
+            resolve: createLiveLogResolver(impl),
           });
           break;
         }
         case 'job': {
-          const impl = entryImpl as JobImpl<JobEndpointDef> | undefined;
+          const impl = entryImpl as JobImpl<JobEndpointDef> | ThinJob | undefined;
           if (!impl) {
             throw new WireError('MISSING_HANDLER', `Job '${fullPath}' requires a handler`);
+          }
+          if (isThinJob(impl)) {
+            procedureEntries.set(`${fullPath}.start`, (input) => impl.start(input as never));
+            procedureEntries.set(`${fullPath}.cancel`, async (input) => {
+              const parsed = z.object({ jobId: z.string() }).parse(input);
+              await impl.cancel(parsed.jobId);
+              return undefined;
+            });
+            liveEntries.set(def.id, {
+              keySchema: jobKeySchema,
+              resolve: (key) => impl.handle((key as { jobId: string }).jobId).asLiveSource(),
+            });
+            break;
           }
           const server = createJobServer(def, impl, validate);
           jobServers.push(server);
@@ -188,57 +224,17 @@ export function bindContract<Defs extends ContractDefinitions>(
           break;
         }
         case 'group': {
-          if (!isLiveModelHost(entryImpl)) {
-            throw new WireError('MISSING_HANDLER', `Group '${fullPath}' requires a LiveModelHost`);
-          }
-          const host = entryImpl as LiveModelHost<LiveModelGroupDef>;
-          if (host.contract.id !== def.id) {
-            throw new WireError(
-              'CONTRACT_MISMATCH',
-              `Live model host for '${fullPath}' was created for '${host.contract.id}'`
-            );
-          }
+          const provider = createGroupProvider(def, entryImpl, fullPath);
           for (const [modelName, model] of Object.entries(def.models)) {
             liveEntries.set(model.id, {
               keySchema: def.keySchema,
-              resolve: (key) => host.get(key as never)?.models[modelName],
+              resolve: (key) => provider.resolveModel(key as never, modelName),
             });
           }
           for (const [mutationName, mutationDef] of Object.entries(def.mutations)) {
-            const handler = mutationDef.handler ?? host.mutationHandler(mutationName);
-            if (!handler) {
-              throw new WireError(
-                'MISSING_HANDLER',
-                `Mutation '${fullPath}.${mutationName}' requires a handler`
-              );
-            }
             procedureEntries.set(`${fullPath}.${mutationName}`, async (input) => {
               const envelope = parseGroupMutationInput(def, mutationDef, input, validate);
-              const instance = host.get(envelope.key as never);
-              if (!instance) {
-                throw new WireError('NOT_FOUND', `Unknown group instance '${fullPath}'`);
-              }
-              const ctx = new GroupMutationContext(
-                def,
-                envelope.key,
-                instance,
-                envelope.mutationId
-              );
-              const output = await runMutation(
-                mutationCache,
-                envelope.mutationId,
-                `${fullPath}.${mutationName}`,
-                async () => {
-                  const result = await handler(ctx, {
-                    ...envelope.input,
-                    mutationId: envelope.mutationId,
-                  });
-                  return result.success
-                    ? ok({ data: result.data, cursors: ctx.cursors() })
-                    : err(result.error);
-                },
-                options.instrumentation
-              );
+              const output = await provider.runMutation(mutationName, envelope as never);
               return validateMutationOutput(mutationDef, output, validate);
             });
           }
@@ -246,6 +242,104 @@ export function bindContract<Defs extends ContractDefinitions>(
         }
       }
     }
+  }
+
+  function createGroupProvider(
+    def: LiveModelGroupDef,
+    entryImpl: unknown,
+    fullPath: string
+  ): LiveModelGroupProvider {
+    if (isLiveModelGroupProvider(entryImpl)) {
+      if (entryImpl.contract.id !== def.id) {
+        throw new WireError(
+          'CONTRACT_MISMATCH',
+          `Live model provider for '${fullPath}' was created for '${entryImpl.contract.id}'`
+        );
+      }
+      return entryImpl;
+    }
+
+    if (isThinGroup(entryImpl)) {
+      if (entryImpl.def.id !== def.id) {
+        throw new WireError(
+          'CONTRACT_MISMATCH',
+          `Thin group for '${fullPath}' was created for '${entryImpl.def.id}'`
+        );
+      }
+      return {
+        kind: 'liveModelGroupProvider',
+        contract: def,
+        resolveModel: (key, name) => entryImpl.model(key, name).asLiveSource(),
+        runMutation: (name, envelope) => entryImpl.mutate(name, envelope),
+      };
+    }
+
+    if (isLiveModelHost(entryImpl)) {
+      const host = entryImpl as LiveModelHost<LiveModelGroupDef>;
+      if (host.contract.id !== def.id) {
+        throw new WireError(
+          'CONTRACT_MISMATCH',
+          `Live model host for '${fullPath}' was created for '${host.contract.id}'`
+        );
+      }
+      for (const [mutationName, mutationDef] of Object.entries(def.mutations)) {
+        if (mutationDef.handler ?? host.mutationHandler(mutationName)) continue;
+        throw new WireError(
+          'MISSING_HANDLER',
+          `Mutation '${fullPath}.${mutationName}' requires a handler`
+        );
+      }
+      return {
+        kind: 'liveModelGroupProvider',
+        contract: def,
+        resolveModel: (key, name) => host.get(key as never)?.models[name],
+        runMutation: (name, envelope) =>
+          runHostMutation(def, host, fullPath, name, envelope, options.instrumentation),
+      };
+    }
+
+    throw new WireError(
+      'MISSING_HANDLER',
+      `Group '${fullPath}' requires a LiveModelHost or provider`
+    );
+  }
+
+  async function runHostMutation(
+    def: LiveModelGroupDef,
+    host: LiveModelHost<LiveModelGroupDef>,
+    fullPath: string,
+    mutationName: string,
+    envelope: { key: unknown; input: unknown; mutationId: string },
+    instrumentation: WireInstrumentation | undefined
+  ): Promise<LiveMutationResult<unknown, unknown>> {
+    const mutationDef = def.mutations[mutationName];
+    const handler = mutationDef?.handler ?? host.mutationHandler(mutationName);
+    if (!handler) {
+      throw new WireError(
+        'MISSING_HANDLER',
+        `Mutation '${fullPath}.${mutationName}' requires a handler`
+      );
+    }
+    const instance = host.get(envelope.key as never);
+    if (!instance) {
+      throw new WireError('NOT_FOUND', `Unknown group instance '${fullPath}'`);
+    }
+    const ctx = new GroupMutationContext(def, envelope.key, instance, envelope.mutationId);
+    return runMutation(
+      mutationCache,
+      envelope.mutationId,
+      `${fullPath}.${mutationName}`,
+      async () => {
+        const result = await handler(ctx, {
+          ...objectInput(envelope.input),
+          mutationId: envelope.mutationId,
+        });
+        return result.success
+          ? ok({ data: result.data, cursors: ctx.cursors() })
+          : err(result.error);
+      },
+      instrumentation
+    );
   }
 
   return {
@@ -271,21 +365,29 @@ export function bindContract<Defs extends ContractDefinitions>(
   };
 }
 
-export const bind = bindContract;
-
-export function encodeTopic(refId: string, key: unknown): string {
-  if (key === undefined) return refId;
-  return `${refId}|${stableStringify(key)}`;
+function objectInput(input: unknown): Record<string, unknown> {
+  if (typeof input === 'object' && input !== null && !Array.isArray(input))
+    return input as Record<string, unknown>;
+  if (input === undefined) return {};
+  return { value: input };
 }
 
-export function splitTopic(topic: string): { refId: string; rawKey: unknown } {
-  const index = topic.indexOf('|');
-  if (index === -1) return { refId: topic, rawKey: undefined };
-  const encoded = topic.slice(index + 1);
-  return {
-    refId: topic.slice(0, index),
-    rawKey: encoded.length === 0 ? undefined : JSON.parse(encoded),
-  };
+export const bind = bindContract;
+
+export { encodeTopic, splitTopic } from './topics';
+
+function createLiveModelResolver(
+  impl: LiveModelEntryImpl<LiveModelEndpointDef>
+): (key: unknown) => LiveSource | null | undefined {
+  if (isThinLiveModelRef(impl)) return (key) => impl.handle(key as never).asLiveSource();
+  return impl as (key: unknown) => LiveSource | null | undefined;
+}
+
+function createLiveLogResolver(
+  impl: LiveLogEntryImpl<EndpointDef>
+): (key: unknown) => LiveSource | null | undefined {
+  if (isThinLiveLogRef(impl)) return (key) => impl.handle(key as never).asLiveSource();
+  return impl as (key: unknown) => LiveSource | null | undefined;
 }
 
 export function mergeControllers(controllers: Record<string, Controller>): Controller {

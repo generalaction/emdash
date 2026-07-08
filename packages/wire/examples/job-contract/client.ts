@@ -2,12 +2,14 @@ import { z } from 'zod';
 import {
   LiveJobCancelledError,
   bindContract,
+  client,
   connect,
-  contractClient,
   defineContract,
   job,
+  materializeJob,
   memoryTransportPair,
   serve,
+  startMaterializedJob,
 } from '../../src/index';
 
 const api = defineContract({
@@ -37,17 +39,17 @@ async function main(): Promise<void> {
     },
   });
   serve(pair.right, controller);
-  const client = contractClient(api, connect(pair.left));
+  const thin = client(api, connect(pair.left));
 
-  const successful = await client.build.start({ target: 'desktop' });
+  const successful = await startMaterializedJob(thin.build, { target: 'desktop' });
   successful.onProgress((progress) => console.log('job progress:', progress.step));
   console.log('job result:', await successful.result);
 
-  const reattached = await client.build.attach(successful.jobId);
+  const reattached = materializeJob(thin.build, successful.jobId);
   await reattached.ready;
   console.log('reattached result:', await reattached.result);
 
-  const cancellable = await client.build.start({ target: 'cancelled' });
+  const cancellable = await startMaterializedJob(thin.build, { target: 'cancelled' });
   const cancelled = cancellable.result.catch((error) => error);
   await cancellable.cancel();
   const error = await cancelled;

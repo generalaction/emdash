@@ -40,7 +40,7 @@ const instrumentation = loggerInstrumentation(logger);
 
 serve(transport, controller, { logger, instrumentation });
 const connection = connect(clientTransport, { instrumentation });
-const client = contractClient(api, connection, { instrumentation });
+const thin = client(api, connection);
 ```
 
 Hooks currently cover:

@@ -94,11 +94,11 @@ The host uses structural types and does not import `electron`.
 `processTransport(process)` adapts a `ManagedProcess` to `WireTransport`:
 
 ```ts
-import { connect, contractClient } from '@emdash/wire';
+import { client, connect } from '@emdash/wire';
 import { processTransport } from '@emdash/wire/process';
 
 const runtime = await host.spawn({ entry: '/path/to/runtime.js' }, scope);
-const client = contractClient(api, connect(processTransport(runtime)));
+const thin = client(api, connect(processTransport(runtime)));
 ```
 
 The child runtime must serve a controller over its IPC messages:

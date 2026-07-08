@@ -4,20 +4,7 @@ import type { WireInstrumentation } from '../../observability';
 import { LiveFollower, type LiveFollowerApplyResult } from '../follower';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
 import { applyPatches, type Patch } from './immer-setup';
-
-type CursorWaiter = {
-  target: LiveCursor;
-  resolve: () => void;
-  reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout> | undefined;
-};
-
-type MutationWaiter = {
-  mutationId: string;
-  resolve: () => void;
-  reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout> | undefined;
-};
+import { LiveModelWaiters } from './waiters';
 
 export type LiveChangeMeta = { kind: 'seed' } | { kind: 'update'; mutationIds: string[] };
 
@@ -28,8 +15,7 @@ export type LiveModelClientOptions = {
 };
 
 export class LiveModelClient<T> extends LiveFollower<T> {
-  private cursorWaiters: CursorWaiter[] = [];
-  private mutationWaiters: MutationWaiter[] = [];
+  private readonly waiters = new LiveModelWaiters(() => this.cursor);
   private readonly schema: z.ZodType<T>;
   private readonly onChange: (value: T, meta: LiveChangeMeta) => void;
 
@@ -46,22 +32,7 @@ export class LiveModelClient<T> extends LiveFollower<T> {
 
   /** Resolves when local state provably includes the given cursor. */
   waitForCursor(target: LiveCursor, timeoutMs = 15_000): Promise<void> {
-    if (this.cursorSatisfies(target)) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const waiter: CursorWaiter = {
-        target,
-        resolve,
-        reject,
-        timer:
-          timeoutMs > 0
-            ? setTimeout(() => {
-                this.cursorWaiters = this.cursorWaiters.filter((candidate) => candidate !== waiter);
-                reject(new Error(`Timed out waiting for live cursor ${formatCursor(target)}`));
-              }, timeoutMs)
-            : undefined,
-      };
-      this.cursorWaiters.push(waiter);
-    });
+    return this.waiters.waitForCursor(target, timeoutMs);
   }
 
   /**
@@ -69,23 +40,7 @@ export class LiveModelClient<T> extends LiveFollower<T> {
    * Any seed/resync also resolves because a fresh snapshot is authoritative.
    */
   waitForMutation(mutationId: string, timeoutMs = 15_000): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const waiter: MutationWaiter = {
-        mutationId,
-        resolve,
-        reject,
-        timer:
-          timeoutMs > 0
-            ? setTimeout(() => {
-                this.mutationWaiters = this.mutationWaiters.filter(
-                  (candidate) => candidate !== waiter
-                );
-                reject(new Error(`Timed out waiting for live mutation ${mutationId}`));
-              }, timeoutMs)
-            : undefined,
-      };
-      this.mutationWaiters.push(waiter);
-    });
+    return this.waiters.waitForMutation(mutationId, timeoutMs);
   }
 
   /**
@@ -96,8 +51,8 @@ export class LiveModelClient<T> extends LiveFollower<T> {
    */
   protected onSeeded(data: T): void {
     this.onChange(data, { kind: 'seed' });
-    this.flushCursorWaiters();
-    this.flushAllMutationWaiters();
+    this.waiters.flushCursorWaiters();
+    this.waiters.flushAllMutationWaiters();
   }
 
   protected applyDelta(update: LiveUpdate): LiveFollowerApplyResult<T> {
@@ -106,7 +61,7 @@ export class LiveModelClient<T> extends LiveFollower<T> {
       // subtrees keep identity, which allows downstream memoized selectors to
       // avoid recomputing on unchanged branches.
       const next = applyPatches(this.value as object, update.delta as Patch[]) as T;
-      const validated = this.validate(next);
+      const validated = validateSchema(this.schema, next);
       return validated.ok ? { ok: true, value: next } : validated;
     } catch (error) {
       return { ok: false, reason: 'patch-failed', details: { error } };
@@ -115,63 +70,21 @@ export class LiveModelClient<T> extends LiveFollower<T> {
 
   protected onApplied(value: T, update: LiveUpdate): void {
     this.onChange(value, { kind: 'update', mutationIds: update.mutationIds ?? [] });
-    this.flushCursorWaiters();
-    this.flushMutationWaiters(update.mutationIds ?? []);
-  }
-
-  private validate(next: unknown): { ok: true } | LiveFollowerApplyResult<T> {
-    if (readNodeEnv() === 'production') return { ok: true };
-    const r = this.schema.safeParse(next);
-    if (!r.success) {
-      return { ok: false, reason: 'validation', details: { error: r.error } };
-    }
-    return { ok: true };
-  }
-
-  private cursorSatisfies(target: LiveCursor): boolean {
-    const cursor = this.cursor;
-    if (!cursor) return false;
-    if (cursor.generation > target.generation) return true;
-    return cursor.generation === target.generation && cursor.sequence >= target.sequence;
-  }
-
-  private flushCursorWaiters(): void {
-    const ready = this.cursorWaiters.filter((waiter) => this.cursorSatisfies(waiter.target));
-    if (ready.length === 0) return;
-    this.cursorWaiters = this.cursorWaiters.filter(
-      (waiter) => !this.cursorSatisfies(waiter.target)
-    );
-    for (const waiter of ready) {
-      if (waiter.timer) clearTimeout(waiter.timer);
-      waiter.resolve();
-    }
-  }
-
-  private flushMutationWaiters(mutationIds: string[]): void {
-    if (mutationIds.length === 0) return;
-    const ids = new Set(mutationIds);
-    const ready = this.mutationWaiters.filter((waiter) => ids.has(waiter.mutationId));
-    if (ready.length === 0) return;
-    this.mutationWaiters = this.mutationWaiters.filter((waiter) => !ids.has(waiter.mutationId));
-    for (const waiter of ready) {
-      if (waiter.timer) clearTimeout(waiter.timer);
-      waiter.resolve();
-    }
-  }
-
-  private flushAllMutationWaiters(): void {
-    const ready = this.mutationWaiters;
-    if (ready.length === 0) return;
-    this.mutationWaiters = [];
-    for (const waiter of ready) {
-      if (waiter.timer) clearTimeout(waiter.timer);
-      waiter.resolve();
-    }
+    this.waiters.flushCursorWaiters();
+    this.waiters.flushMutationWaiters(update.mutationIds ?? []);
   }
 }
 
-function formatCursor(cursor: LiveCursor): string {
-  return `${cursor.generation}:${cursor.sequence}`;
+function validateSchema<T>(
+  schema: z.ZodType<T>,
+  next: unknown
+): { ok: true } | LiveFollowerApplyResult<T> {
+  if (readNodeEnv() === 'production') return { ok: true };
+  const r = schema.safeParse(next);
+  if (!r.success) {
+    return { ok: false, reason: 'validation', details: { error: r.error } };
+  }
+  return { ok: true };
 }
 
 function readNodeEnv(): string | undefined {

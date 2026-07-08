@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import {
   bindContract,
+  client,
   connect,
-  contractClient,
   defineContract,
   memoryTransportPair,
   procedure,
@@ -30,11 +30,11 @@ async function main(): Promise<void> {
   });
   serve(pair.right, controller);
 
-  const client = contractClient(api, connect(pair.left));
+  const thin = client(api, connect(pair.left));
   const [first, second, third] = await Promise.all([
-    client.expensiveStats({ repo: 'emdash', branch: 'main' }),
-    client.expensiveStats({ branch: 'main', repo: 'emdash' }),
-    client.expensiveStats({ repo: 'emdash', branch: 'feature' }),
+    thin.expensiveStats({ repo: 'emdash', branch: 'main' }),
+    thin.expensiveStats({ branch: 'main', repo: 'emdash' }),
+    thin.expensiveStats({ repo: 'emdash', branch: 'feature' }),
   ]);
 
   console.log('first:', first);
