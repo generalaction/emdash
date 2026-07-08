@@ -30,6 +30,7 @@ export type ModalRegistryEntry<TProps = unknown, TResult = unknown> = {
   component: ModalComponent<TProps, TResult>;
   size?: ModalSize;
   position?: ModalPosition;
+  ignoreOutsidePressAfterWindowBlur?: boolean;
 };
 
 export function createModal<TProps, TResult>(
@@ -41,7 +42,7 @@ export function createModal<TProps, TResult>(
 
 export const modalRegistry = {
   commandPaletteModal: createModal(CommandPaletteModal, { size: 'md' }),
-  taskModal: createModal(CreateTaskModal),
+  taskModal: createModal(CreateTaskModal, { ignoreOutsidePressAfterWindowBlur: true }),
   addProjectModal: createModal(AddProjectModal),
   addSshConnModal: createModal(AddSshConnModal),
   changeProjectConnectionModal: createModal(ChangeProjectConnectionModal, { size: 'sm' }),
