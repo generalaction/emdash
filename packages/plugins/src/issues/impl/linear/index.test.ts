@@ -97,6 +97,14 @@ describe('linear issues plugin', () => {
       expect.objectContaining({ term: 'GEN-626', limit: 5 })
     );
     expect(rawRequest).toHaveBeenCalledWith(
+      expect.stringContaining('fragment IssueSearchSummary on IssueSearchResult'),
+      expect.objectContaining({ term: 'GEN-626', limit: 5 })
+    );
+    expect(rawRequest).toHaveBeenCalledWith(
+      expect.not.stringContaining('fragment IssueSummary on Issue'),
+      expect.objectContaining({ term: 'GEN-626', limit: 5 })
+    );
+    expect(rawRequest).toHaveBeenCalledWith(
       expect.not.stringContaining('comments('),
       expect.objectContaining({ term: 'GEN-626', limit: 5 })
     );

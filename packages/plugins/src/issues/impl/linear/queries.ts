@@ -64,19 +64,29 @@ export type LinearIssueWithActivity = LinearIssueSummaryNode & LinearIssueActivi
 
 const ACTIVITY_PAGE_SIZE = 50;
 
+const ISSUE_SUMMARY_FIELDS = `
+  id
+  identifier
+  title
+  description
+  url
+  branchName
+  state { name type color }
+  team { name key }
+  project { name }
+  assignee { displayName name }
+  updatedAt
+`;
+
 const ISSUE_SUMMARY_FRAGMENT = `
   fragment IssueSummary on Issue {
-    id
-    identifier
-    title
-    description
-    url
-    branchName
-    state { name type color }
-    team { name key }
-    project { name }
-    assignee { displayName name }
-    updatedAt
+    ${ISSUE_SUMMARY_FIELDS}
+  }
+`;
+
+const ISSUE_SEARCH_SUMMARY_FRAGMENT = `
+  fragment IssueSearchSummary on IssueSearchResult {
+    ${ISSUE_SUMMARY_FIELDS}
   }
 `;
 
@@ -138,12 +148,12 @@ const ISSUES_QUERY = `
 `;
 
 const SEARCH_QUERY = `
-  ${ISSUE_SUMMARY_FRAGMENT}
+  ${ISSUE_SEARCH_SUMMARY_FRAGMENT}
 
   query SearchIssues($term: String!, $limit: Int!) {
     searchIssues(term: $term, first: $limit) {
       nodes {
-        ...IssueSummary
+        ...IssueSearchSummary
       }
     }
   }
