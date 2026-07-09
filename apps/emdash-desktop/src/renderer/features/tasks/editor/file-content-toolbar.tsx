@@ -9,7 +9,7 @@ interface FileContentToolbarProps {
   canToggle: boolean;
 }
 
-/** Top bar shown on every file tab: file path on the left, Preview/Source tabs on the right. */
+/** Top bar shown on every file tab: file path on the left, Raw/Preview tabs on the right. */
 export const FileContentToolbar = observer(function FileContentToolbar({
   tab,
   canToggle,
@@ -30,11 +30,11 @@ export const FileContentToolbar = observer(function FileContentToolbar({
             if (value === 'preview' || value === 'source') tab.setViewMode(value);
           }}
         >
+          <ToggleGroupItem value="source" className="text-xs">
+            Raw
+          </ToggleGroupItem>
           <ToggleGroupItem value="preview" className="text-xs">
             Preview
-          </ToggleGroupItem>
-          <ToggleGroupItem value="source" className="text-xs">
-            Source
           </ToggleGroupItem>
         </ToggleGroup>
       )}
