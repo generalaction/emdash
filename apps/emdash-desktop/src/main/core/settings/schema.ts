@@ -131,6 +131,10 @@ export const browserSettingsSchema = z
 
 export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const indexerSettingsSchema = z.object({
+  additionalExcludedSegments: z.array(z.string().trim().min(1)).default([]),
+});
+
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -151,6 +155,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
+  indexer: indexerSettingsSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -168,4 +173,5 @@ export const appSettingsSchema = z.object({
   browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
+  indexer: indexerSettingsSchema,
 });
