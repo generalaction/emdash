@@ -1,0 +1,161 @@
+packages/plugins/src/agents/impl/oh-my-pi/plugin-file.ts
+  s_dd8458445ded88::t_56f5eca5391ebf 39-55,57,61,65
+  s_a7f8ac522399e3::t_11103549537ef3 1-38,56,58-60,62-64,66-67
+packages/plugins/src/agents/impl/native-acp.test.ts
+  s_81555216e51fe9::t_b587f4bea0e112 43
+packages/plugins/src/agents/impl/oh-my-pi/icon.ts
+  s_3a645adcf74fd5::t_3e8e354a7c7c25 9-10,12-17
+  s_a84a85a7b2ab4b::t_f94ed451efca90 11,18
+  s_3a645adcf74fd5::t_545739ac4e9ae0 6-8
+  s_a84a85a7b2ab4b::t_a4defceb707077 19-21
+packages/plugins/src/agents/registry.ts
+  s_945a0637fbfd59::t_57218169e1fc29 32,73
+packages/plugins/src/agents/impl/index.test.ts
+  s_de698632291867::t_1f5459fb07c1b5 350-356,367-368
+  s_05bb070ae37197::t_ad241a7e374c12 329,332-334,336-340
+  s_81555216e51fe9::t_b587f4bea0e112 320-328,330-331,335,341-349,357-366,369-373
+agents/integrations/providers.md
+  s_81555216e51fe9::t_b587f4bea0e112 10,12,14,16
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_945a0637fbfd59::t_57218169e1fc29 129
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_945a0637fbfd59::t_57218169e1fc29 7,67,83-85,89-94,102
+packages/plugins/src/agents/impl/oh-my-pi/plugin-file.test.ts
+  s_bca210810d30e2::t_42e60b0a9fafea 1-44
+packages/plugins/src/agents/impl/oh-my-pi/index.ts
+  s_fd88eed0a53736::t_0fb302e0ceee31 1,109
+  s_89b65f23b30c32::t_747b7bbb5c4359 5
+  s_0f4a34bd9490fe::t_d804125110367a 9,111
+  s_ebfa662e333270::t_da74a2078a31b7 4,6-8,13-30,32-42,44,50-56,58,64-71,78-80,86,88,92,96,99,105-107,116-122
+  s_ebfa662e333270::t_8894c761aeb21f 31
+  s_ebfa662e333270::t_32b689075fe7bc 43
+  s_ebfa662e333270::t_2a818cfe153fe2 45-49
+  s_ebfa662e333270::t_273697cd5940c5 57
+  s_ebfa662e333270::t_a4522aa5bcc24a 59-63
+  s_ebfa662e333270::t_a3547f96be504f 72-77
+  s_ebfa662e333270::t_e4078fb6cc3dac 81-85
+  s_ebfa662e333270::t_e95ba223ecc75c 87
+  s_ebfa662e333270::t_0715012100a938 89-91
+  s_ebfa662e333270::t_1aab0f99c51ca0 93-95
+  s_ebfa662e333270::t_fe03e41f3890f4 97-98
+  s_ebfa662e333270::t_e3dc82d19c588c 100-104
+  s_ebfa662e333270::t_657de2d00c3f42 123
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_945a0637fbfd59::t_57218169e1fc29 9
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_81555216e51fe9::t_b587f4bea0e112 143-157
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_81555216e51fe9::t_b587f4bea0e112 136-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d9b3d2f4714d22765744320ca006d4a35f14f712",
+  "prompts": {},
+  "sessions": {
+    "s_05bb070ae37197": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mJVqyWsLN4bRWg97Mus",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_0f4a34bd9490fe": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mP37cnVpWoU1r8WADDK",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_3a645adcf74fd5": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mP2LmloK7JmkG3lykBf",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_81555216e51fe9": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mJ3BMRnoFMJkBSMUbi1",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_89b65f23b30c32": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mJCf4zseLqEIXjGuNH8",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_945a0637fbfd59": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mJ2cZzbkjOj9IY7cV75",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_a7f8ac522399e3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0bc37d0-deb0-41d8-bae2-072e5e19d991",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_a84a85a7b2ab4b": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mP3TqmAMizr4uLTVA1r",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_bca210810d30e2": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mKQAxMJOtukDNxX4jvy",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_dd8458445ded88": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mKPiKFIZUMd49T0AQki",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_de698632291867": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mP3PPIWPwLcYsaFNhk8",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_ebfa662e333270": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mJ20rvixUI25abEMIeX",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_fd88eed0a53736": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mPnt7cKk15VPMXbh9AZ",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
