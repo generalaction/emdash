@@ -1,0 +1,28 @@
+packages/plugins/src/agents/impl/index.test.ts
+  s_7abe62647460ae::t_f6343c4e4831fd 329
+  s_cb2a513747c763::t_dd2ba7240b16b8 328,330
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "62bed4cc87043535b610482547d2da7ad6597542",
+  "prompts": {},
+  "sessions": {
+    "s_7abe62647460ae": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mPsGcHrocejoDDwEfzf",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_cb2a513747c763": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mPrWLLeOfYAXeegpr0i",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
