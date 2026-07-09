@@ -4,16 +4,6 @@ import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { BoundExec } from '../../exec';
 import type {
-  CommitOptions,
-  GitLogOptions,
-  MergeOptions,
-  PushOptions,
-  RebaseOptions,
-  ResetMode,
-  StashPushOptions,
-  SwitchOptions,
-} from '../api/commands';
-import type {
   CommitError,
   GitCommandError,
   MergeError,
@@ -23,18 +13,7 @@ import type {
   SwitchError,
   SyncError,
 } from '../api/errors';
-import type { GitSyncProgress } from '../api/jobs';
-import {
-  type BlameResult,
-  type Commit,
-  type CommitFile,
-  type ConflictVersions,
-  type DiffTarget,
-  type FileDiff,
-  type GitChange,
-  type GitLogResult,
-  type ImageReadResult,
-} from '../api/queries';
+import type { GitSyncProgress } from '../api/schemas';
 import {
   classifyCommitError,
   classifyMergeError,
@@ -51,7 +30,7 @@ import {
   syncStepProgress,
   throwIfGitOpAborted,
   type GitOpContext,
-} from '../transfer-progress';
+} from '../exec/transfer-progress';
 import type { GitHeadModel } from './models/head';
 import type { CheckoutStatusModel } from './models/status';
 import { blame as readBlame } from './ops/blame';
@@ -70,12 +49,27 @@ import {
   getLog as readLog,
 } from './ops/log';
 import { computeStatusModel } from './ops/status';
+import {
+  type BlameResult,
+  type Commit,
+  type CommitFile,
+  type CommitOptions,
+  type ConflictVersions,
+  type DiffTarget,
+  type FileDiff,
+  type GitChange,
+  type GitLogOptions,
+  type GitLogResult,
+  type ImageReadResult,
+  type MergeOptions,
+  type PushOptions,
+  type RebaseOptions,
+  type ResetMode,
+  type StashPushOptions,
+  type SwitchOptions,
+} from './schemas';
 import type { CheckoutRepository, GitCheckoutOptions, IGitCheckout } from './types';
 
-/**
- * A single working tree capability. It knows Git commands and fresh reads;
- * live-state ownership lives in the checkout live-model runtime.
- */
 export class GitCheckout implements IGitCheckout {
   readonly checkoutPath: string;
   readonly gitDir: string;

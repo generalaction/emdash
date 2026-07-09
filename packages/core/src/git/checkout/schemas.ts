@@ -1,6 +1,12 @@
 import { z } from 'zod';
-import { gitHeadModelSchema } from '../checkout/models/head';
 import { gitBranchRefSchema } from '../repository/models/refs';
+import { checkoutKeySchema } from './key';
+
+/**
+ * Checkout subdomain schemas: the read/diff/history vocabulary and the option
+ * shapes for checkout mutations and jobs. Object refs reference the repository's
+ * branch model (a checkout resolves refs against its repository).
+ */
 
 export const gitChangeStatusSchema = z.enum([
   'added',
@@ -27,15 +33,6 @@ export type FileChange = z.infer<typeof fileChangeSchema>;
 
 export const gitChangeSchema = fileChangeSchema;
 export type GitChange = z.infer<typeof gitChangeSchema>;
-
-export const checkoutInfoSchema = z.object({
-  checkoutPath: z.string(),
-  isMain: z.boolean(),
-  head: gitHeadModelSchema,
-  locked: z.boolean().optional(),
-  prunable: z.boolean().optional(),
-});
-export type CheckoutInfo = z.infer<typeof checkoutInfoSchema>;
 
 export const commitSchema = z.object({
   hash: z.string(),
@@ -158,20 +155,6 @@ export type MergeBaseRange = z.infer<typeof mergeBaseRangeSchema>;
 export const diffTargetSchema = z.union([diffModeSchema, gitObjectRefSchema, mergeBaseRangeSchema]);
 export type DiffTarget = z.infer<typeof diffTargetSchema>;
 
-export const gitRepositoryInfoSchema = z.object({
-  kind: z.literal('repository'),
-  rootPath: z.string(),
-  baseRef: z.string(),
-});
-export type GitRepositoryInfo = z.infer<typeof gitRepositoryInfoSchema>;
-
-export const gitPathInspectionSchema = z.union([
-  gitRepositoryInfoSchema,
-  z.object({ kind: z.literal('not-repository'), path: z.string() }),
-  z.object({ kind: z.literal('inspect-failed'), path: z.string(), message: z.string() }),
-]);
-export type GitPathInspection = z.infer<typeof gitPathInspectionSchema>;
-
 export function toRefString(ref: GitObjectRef): string {
   switch (ref.kind) {
     case 'branch':
@@ -188,3 +171,80 @@ export function toRefString(ref: GitObjectRef): string {
 export function toRangeString(range: MergeBaseRange): string {
   return `${toRefString(range.base)}...${toRefString(range.head)}`;
 }
+
+// -- Mutation option shapes --
+
+// GitLogOptions.base/head are restricted to GitObjectRef (branch|commit|tag only)
+export const gitLogOptionsSchema = z.object({
+  limit: z.number().int().optional(),
+  skip: z.number().int().optional(),
+  base: gitObjectRefSchema.optional(),
+  head: gitObjectRefSchema.optional(),
+});
+export type GitLogOptions = z.infer<typeof gitLogOptionsSchema>;
+
+export const commitOptionsSchema = z.object({
+  amend: z.boolean().optional(),
+  signoff: z.boolean().optional(),
+  noVerify: z.boolean().optional(),
+  allowEmpty: z.boolean().optional(),
+});
+export type CommitOptions = z.infer<typeof commitOptionsSchema>;
+
+export const resetModeSchema = z.enum(['soft', 'mixed', 'hard']);
+export type ResetMode = z.infer<typeof resetModeSchema>;
+
+export const switchOptionsSchema = z.object({
+  /** Ref to switch to (branch name, tag, or commit SHA). */
+  ref: z.string(),
+  /** Create a new branch at this ref. */
+  newBranch: z.string().optional(),
+  /** Force switch even when local changes exist (discard). */
+  force: z.boolean().optional(),
+});
+export type SwitchOptions = z.infer<typeof switchOptionsSchema>;
+
+export const mergeOptionsSchema = z.object({
+  branch: z.string(),
+  /** Prevent fast-forward; always create a merge commit. */
+  noFf: z.boolean().optional(),
+  squash: z.boolean().optional(),
+  message: z.string().optional(),
+});
+export type MergeOptions = z.infer<typeof mergeOptionsSchema>;
+
+export const rebaseOptionsSchema = z.object({
+  /** Branch / ref to rebase onto. */
+  onto: z.string(),
+  /** Interactive (implies passing --interactive to git, not modelled further here). */
+  interactive: z.boolean().optional(),
+});
+export type RebaseOptions = z.infer<typeof rebaseOptionsSchema>;
+
+export const pushOptionsSchema = z.object({
+  remote: z.string().optional(),
+  force: z.boolean().optional(),
+  setUpstream: z.boolean().optional(),
+});
+export type PushOptions = z.infer<typeof pushOptionsSchema>;
+
+export const stashPushOptionsSchema = z.object({
+  message: z.string().optional(),
+  includeUntracked: z.boolean().optional(),
+  keepIndex: z.boolean().optional(),
+  paths: z.array(z.string()).optional(),
+});
+export type StashPushOptions = z.infer<typeof stashPushOptionsSchema>;
+
+// -- Job inputs --
+
+export const pushJobInputSchema = checkoutKeySchema.extend({
+  options: pushOptionsSchema.optional(),
+});
+export type PushJobInput = z.infer<typeof pushJobInputSchema>;
+
+export const pullJobInputSchema = checkoutKeySchema;
+export type PullJobInput = z.infer<typeof pullJobInputSchema>;
+
+export const syncJobInputSchema = checkoutKeySchema;
+export type SyncJobInput = z.infer<typeof syncJobInputSchema>;

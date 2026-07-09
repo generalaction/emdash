@@ -3,12 +3,6 @@ import type { BoundExec } from '../../exec';
 import type { KeyedMutex } from '../../lib';
 import { realpathOrResolve } from '../../watch';
 import type {
-  AddCheckoutOptions,
-  CreateBranchOptions,
-  FetchPrForReviewOptions,
-  TagOptions,
-} from '../api/commands';
-import type {
   CreateBranchError,
   DeleteBranchError,
   FetchError,
@@ -16,7 +10,7 @@ import type {
   GitCommandError,
   PushError,
 } from '../api/errors';
-import type { CheckoutInfo } from '../api/queries';
+import type { CheckoutInfo } from '../api/schemas';
 import {
   classifyCreateBranchError,
   classifyDeleteBranchError,
@@ -25,7 +19,11 @@ import {
   classifyPushError,
   toGitCommandError,
 } from '../errors';
-import { execGitWithProgress, throwIfGitOpAborted, type GitOpContext } from '../transfer-progress';
+import {
+  execGitWithProgress,
+  throwIfGitOpAborted,
+  type GitOpContext,
+} from '../exec/transfer-progress';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';
 import type { GitStashesModel } from './models/stashes';
@@ -34,6 +32,12 @@ import { parseWorktreeList } from './ops/checkouts';
 import { computeRefsModel } from './ops/refs';
 import { computeRemotesModel, remoteNameForRepositoryUrl } from './ops/remotes';
 import { computeStashesModel } from './ops/stashes';
+import type {
+  AddCheckoutOptions,
+  CreateBranchOptions,
+  FetchPrForReviewOptions,
+  TagOptions,
+} from './schemas';
 import type { GitRepositoryOptions, IGitRepository } from './types';
 
 /**

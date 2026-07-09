@@ -1,7 +1,7 @@
 import { type Result } from '@emdash/shared';
 import { type LiveModelHostMutationHandlers } from '@emdash/wire';
 import type { GitCommandError } from '../api/errors';
-import type { RepositoryKey } from './api/key';
+import type { RepositoryKey } from './key';
 import type { RepositoryModel } from './live-models';
 import type { RepositoryResource } from './resource';
 

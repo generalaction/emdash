@@ -1,14 +1,14 @@
 export { GitRuntime, type GitRuntimeOptions } from './git-runtime';
 export { classifyCloneRepositoryError, gitErr, gitErrorMessage, toGitCommandError } from './errors';
-export { computeBaseRef } from './base-ref';
+export { computeBaseRef } from './repository/ops/base-ref';
 export { gitContract, type GitContract } from './api/contract';
-export { gitRepositoryContract, type GitRepositoryContract } from './repository/api/contract';
+export { gitRepositoryContract, type GitRepositoryContract } from './repository/contract';
 export { gitCheckoutContract, type GitCheckoutContract } from './checkout/contract';
 export { createGitController, type GitControllerOptions } from './api/controller';
-export { repositoryKeySchema, type RepositoryKey } from './repository/api/key';
+export { repositoryKeySchema, type RepositoryKey } from './repository/key';
 export { checkoutKeySchema, type CheckoutKey } from './checkout/key';
 export { GitSessionManager } from './session/session-manager';
-export type { GitIdentity, GitOnError, GitSessionManagerOptions } from './session/types';
+export type { GitIdentity, GitOnError, GitSessionManagerOptions } from './session/identity';
 export {
   createRepositoryLiveHost,
   createRepositoryLiveModels,
@@ -34,18 +34,7 @@ export {
   type FileDiffStaleness,
   type FileDiffStalenessReason,
 } from './checkout/models/file-diff';
-export type { GitOpContext } from './transfer-progress';
-export type {
-  CloneRepositoryJobInput,
-  FetchJobInput,
-  FetchPrForReviewJobInput,
-  GitSyncProgress,
-  GitTransferProgress,
-  PublishBranchJobInput,
-  PullJobInput,
-  PushJobInput,
-  SyncJobInput,
-} from './api/jobs';
+export type { GitOpContext } from './exec/transfer-progress';
 export { MAX_STATUS_FILES, StatusParser, TooManyFilesChangedError } from './checkout/ops/status';
 export type { FileStatus } from './checkout/ops/status';
 export type { IGitRepository } from './repository/types';
@@ -67,11 +56,20 @@ export type {
   SyncError,
 } from './api/errors';
 export type {
+  CheckoutInfo,
+  CloneRepositoryJobInput,
+  EnsureRepositoryOptions,
+  GitPathInspection,
+  GitRepositoryInfo,
+  GitSyncProgress,
+  GitTransferProgress,
+} from './api/schemas';
+export type {
   BlameHunk,
   BlameResult,
-  CheckoutInfo,
   Commit,
   CommitFile,
+  CommitOptions,
   ConflictVersions,
   DiffHunk,
   DiffLine,
@@ -81,30 +79,32 @@ export type {
   FileDiff,
   GitChange,
   GitChangeStatus,
+  GitLogOptions,
   GitLogResult,
   GitObjectRef,
-  GitPathInspection,
-  GitRepositoryInfo,
   ImageBlob,
   ImageReadResult,
   ImageUnavailableReason,
   MergeBaseRange,
-} from './api/queries';
-export type {
-  AddCheckoutOptions,
-  CommitOptions,
-  CreateBranchOptions,
-  EnsureRepositoryOptions,
-  FetchPrForReviewOptions,
-  GitLogOptions,
   MergeOptions,
+  PullJobInput,
+  PushJobInput,
   PushOptions,
   RebaseOptions,
   ResetMode,
   StashPushOptions,
   SwitchOptions,
+  SyncJobInput,
+} from './checkout/schemas';
+export type {
+  AddCheckoutOptions,
+  CreateBranchOptions,
+  FetchJobInput,
+  FetchPrForReviewJobInput,
+  FetchPrForReviewOptions,
+  PublishBranchJobInput,
   TagOptions,
-} from './api/commands';
+} from './repository/schemas';
 export type {
   GitBranch,
   GitBranchRef,

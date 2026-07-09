@@ -9,43 +9,28 @@ import {
 } from '@emdash/wire';
 import { z } from 'zod';
 import {
-  addCheckoutOptionsSchema,
-  createBranchOptionsSchema,
-  tagOptionsSchema,
-} from '../../api/commands';
-import {
   createBranchErrorSchema,
   deleteBranchErrorSchema,
   fetchErrorSchema,
   fetchPrForReviewErrorSchema,
   gitCommandErrorSchema,
   pushErrorSchema,
-} from '../../api/errors';
+} from '../api/errors';
+import { checkoutInfoSchema, transferProgressSchema } from '../api/schemas';
+import { repositoryKeySchema } from './key';
+import { gitCheckoutsModelSchema } from './models/checkouts';
+import { gitRefsModelSchema } from './models/refs';
+import { gitRemotesModelSchema } from './models/remotes';
+import { gitStashesModelSchema } from './models/stashes';
 import {
+  addCheckoutOptionsSchema,
+  createBranchOptionsSchema,
   fetchJobInputSchema,
   fetchPrForReviewJobInputSchema,
   publishBranchJobInputSchema,
-  transferProgressSchema,
-} from '../../api/jobs';
-import { checkoutInfoSchema } from '../../api/queries';
-import { gitCheckoutsModelSchema } from '../models/checkouts';
-import { gitRefsModelSchema } from '../models/refs';
-import { gitRemotesModelSchema } from '../models/remotes';
-import { gitStashesModelSchema } from '../models/stashes';
-import { repositoryKeySchema } from './key';
+  tagOptionsSchema,
+} from './schemas';
 
-/**
- * Repository subdomain contract.
- *
- * `model` groups the repository-owned live states (refs / remotes / stashes / checkouts)
- * with the mutations that change them. Mutations settle live-model cursors so
- * clients can read their own writes; mutation inputs carry only operation
- * arguments — the repository key travels in the mutation envelope.
- *
- * Repository resources are scoped, so clients must `open({ path })` (which
- * returns the canonical key) before attaching to states or issuing mutations,
- * and `close(key)` when done.
- */
 export const gitRepositoryContract = defineContract({
   model: liveModel({
     key: repositoryKeySchema,

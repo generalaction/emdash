@@ -6,18 +6,18 @@ import type { BoundExec } from '../../exec';
 import type { KeyedMutex } from '../../lib';
 import { realpathOrResolve, type IWatchService } from '../../watch';
 import type { GitCommandError } from '../api/errors';
-import { createCheckoutMutationHandlers } from '../checkout/context';
 import { GitCheckout } from '../checkout/git-checkout';
 import type { CheckoutKey } from '../checkout/key';
 import { createCheckoutLiveHost, type CheckoutLiveHost } from '../checkout/live-models';
+import { createCheckoutMutationHandlers } from '../checkout/mutations';
 import { CheckoutResource } from '../checkout/resource';
 import { gitErr, toGitCommandError } from '../errors';
-import type { RepositoryKey } from '../repository/api/key';
-import { createRepositoryMutationHandlers } from '../repository/context';
 import { GitRepository } from '../repository/git-repository';
+import type { RepositoryKey } from '../repository/key';
 import { createRepositoryLiveHost, type RepositoryLiveHost } from '../repository/live-models';
+import { createRepositoryMutationHandlers } from '../repository/mutations';
 import { RepositoryResource } from '../repository/resource';
-import type { GitIdentity, GitOnError, GitSessionManagerOptions } from './types';
+import type { GitIdentity, GitOnError, GitSessionManagerOptions } from './identity';
 
 export class GitSessionManager {
   readonly repositoryHost: RepositoryLiveHost;

@@ -1,4 +1,4 @@
-import { createBoundExec, type BoundExec } from '../exec';
+import { createBoundExec, type BoundExec } from '../../exec';
 
 export type CreateGitExecOptions = {
   cwd: string;

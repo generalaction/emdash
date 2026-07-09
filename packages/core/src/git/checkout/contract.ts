@@ -9,15 +9,6 @@ import {
 } from '@emdash/wire';
 import { z } from 'zod';
 import {
-  commitOptionsSchema,
-  gitLogOptionsSchema,
-  mergeOptionsSchema,
-  rebaseOptionsSchema,
-  resetModeSchema,
-  stashPushOptionsSchema,
-  switchOptionsSchema,
-} from '../api/commands';
-import {
   commitErrorSchema,
   gitCommandErrorSchema,
   mergeErrorSchema,
@@ -27,44 +18,33 @@ import {
   switchErrorSchema,
   syncErrorSchema,
 } from '../api/errors';
-import {
-  pullJobInputSchema,
-  pushJobInputSchema,
-  syncJobInputSchema,
-  syncProgressSchema,
-  transferProgressSchema,
-} from '../api/jobs';
+import { syncProgressSchema, transferProgressSchema } from '../api/schemas';
+import { checkoutKeySchema } from './key';
+import { fileDiffStalenessSchema } from './models/file-diff';
+import { gitHeadModelSchema } from './models/head';
+import { checkoutStatusModelSchema } from './models/status';
 import {
   blameResultSchema,
   commitFileSchema,
+  commitOptionsSchema,
   commitSchema,
   conflictVersionsSchema,
   diffTargetSchema,
   fileDiffSchema,
   gitChangeSchema,
+  gitLogOptionsSchema,
   gitLogResultSchema,
   imageReadResultSchema,
-} from '../api/queries';
-import { checkoutKeySchema } from './key';
-import { fileDiffStalenessSchema } from './models/file-diff';
-import { gitHeadModelSchema } from './models/head';
-import { checkoutStatusModelSchema } from './models/status';
+  mergeOptionsSchema,
+  pullJobInputSchema,
+  pushJobInputSchema,
+  rebaseOptionsSchema,
+  resetModeSchema,
+  stashPushOptionsSchema,
+  switchOptionsSchema,
+  syncJobInputSchema,
+} from './schemas';
 
-/**
- * Checkout subdomain contract.
- *
- * `model` groups the checkout-owned live states (status / head) with the
- * mutations that change them (staging, commit, switch, merge, rebase, stash…).
- * Mutations settle live-model cursors for read-your-writes; their inputs carry
- * only operation arguments — the checkout key travels in the envelope.
- *
- * `fileDiff` is a keyed staleness model (per checkout + path) that replaces the
- * old `subscribeFileDiff` event stream: its `revision` bumps when a file's diff
- * would change and clients re-fetch via `getFileDiff`.
- *
- * Checkout resources are scoped, so clients must `open({ path })` (which returns
- * the canonical key) before attaching or mutating, and `close(key)` when done.
- */
 export const gitCheckoutContract = defineContract({
   model: liveModel({
     key: checkoutKeySchema,

@@ -10,7 +10,7 @@ import type { CheckoutKey } from '../checkout/key';
 import type { CheckoutResource } from '../checkout/resource';
 import { toGitCommandError } from '../errors';
 import type { GitRuntime } from '../git-runtime';
-import type { RepositoryKey } from '../repository/api/key';
+import type { RepositoryKey } from '../repository/key';
 import type { RepositoryResource } from '../repository/resource';
 import type { GitSessionManager } from '../session/session-manager';
 import { gitContract } from './contract';

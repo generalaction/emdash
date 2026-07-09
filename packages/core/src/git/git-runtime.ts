@@ -3,19 +3,18 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { BoundExec } from '../exec';
 import { KeyedMutex } from '../lib';
 import { WatchService, realpathOrResolve, type IWatchService } from '../watch';
-import type { EnsureRepositoryOptions } from './api/commands';
 import type { CloneRepositoryError, EnsureRepositoryError } from './api/errors';
-import type { GitPathInspection, GitRepositoryInfo } from './api/queries';
-import { computeBaseRef } from './base-ref';
+import type { EnsureRepositoryOptions, GitPathInspection, GitRepositoryInfo } from './api/schemas';
 import {
   classifyCloneRepositoryError,
   gitErrorMessage,
   isNotRepositoryInspectionError,
 } from './errors';
-import { createGitExec } from './git-env';
+import { createGitExec } from './exec/git-env';
+import { execGitWithProgress, type GitOpContext } from './exec/transfer-progress';
+import { computeBaseRef } from './repository/ops/base-ref';
+import type { GitOnError } from './session/identity';
 import { GitSessionManager } from './session/session-manager';
-import type { GitOnError } from './session/types';
-import { execGitWithProgress, type GitOpContext } from './transfer-progress';
 
 export type GitRuntimeOptions = {
   watcher?: IWatchService;

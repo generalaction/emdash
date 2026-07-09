@@ -1,5 +1,5 @@
-import type { BoundExec, ExecResult } from '../exec';
-import type { GitSyncProgress, GitTransferProgress } from './api/jobs';
+import type { BoundExec, ExecResult } from '../../exec';
+import type { GitSyncProgress, GitTransferProgress } from '../api/schemas';
 
 const DEFAULT_THROTTLE_MS = 250;
 const PROGRESS_PHASES = new Set([

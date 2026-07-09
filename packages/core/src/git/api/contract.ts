@@ -1,21 +1,16 @@
 import { defineContract, fallible, liveJob, procedure } from '@emdash/wire';
 import { z } from 'zod';
 import { gitCheckoutContract } from '../checkout/contract';
-import { gitRepositoryContract } from '../repository/api/contract';
-import { ensureRepositoryOptionsSchema } from './commands';
+import { gitRepositoryContract } from '../repository/contract';
 import { cloneRepositoryErrorSchema, ensureRepositoryErrorSchema } from './errors';
-import { cloneRepositoryJobInputSchema, transferProgressSchema } from './jobs';
-import { gitPathInspectionSchema, gitRepositoryInfoSchema } from './queries';
+import {
+  cloneRepositoryJobInputSchema,
+  ensureRepositoryOptionsSchema,
+  gitPathInspectionSchema,
+  gitRepositoryInfoSchema,
+  transferProgressSchema,
+} from './schemas';
 
-/**
- * Git domain wire contract.
- *
- * Composes the machine-wide runtime endpoints (path inspection, repository
- * bootstrap, clone) with the scoped repository and checkout subdomain
- * contracts. Repository- and checkout-scoped work is reached under `repository`
- * and `checkout`; callers `open` a resource to obtain its key, attach to live
- * models / issue mutations / run reads against that key, then `close`.
- */
 export const gitContract = defineContract({
   inspectPath: procedure({
     input: z.object({ path: z.string() }),

@@ -1,4 +1,4 @@
-import type { CheckoutInfo } from '../../api/queries';
+import type { CheckoutInfo } from '../../api/schemas';
 import type { GitHeadModel } from '../../checkout/models/head';
 
 const UNBORN_OID = /^0+$/;

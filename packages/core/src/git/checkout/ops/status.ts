@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { BoundExec } from '../../../exec';
-import type { GitChangeStatus } from '../../api/queries';
 import { gitErrorMessage } from '../../errors';
 import type {
   CheckoutOperation,
@@ -9,6 +8,7 @@ import type {
   FileGitStatus,
   GitStatusCode,
 } from '../models/status';
+import type { GitChangeStatus } from '../schemas';
 
 export const MAX_STATUS_FILES = 10_000;
 

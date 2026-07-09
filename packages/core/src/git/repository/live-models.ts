@@ -5,7 +5,7 @@ import {
   type LiveModelHostMutationHandlers,
 } from '@emdash/wire';
 import { gitContract } from '../api/contract';
-import type { RepositoryKey } from './api/key';
+import type { RepositoryKey } from './key';
 import type { GitCheckoutsModel } from './models/checkouts';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';

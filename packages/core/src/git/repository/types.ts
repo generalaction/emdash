@@ -2,12 +2,6 @@ import type { IDisposable, Result } from '@emdash/shared';
 import type { BoundExec } from '../../exec';
 import type { KeyedMutex } from '../../lib';
 import type {
-  AddCheckoutOptions,
-  CreateBranchOptions,
-  FetchPrForReviewOptions,
-  TagOptions,
-} from '../api/commands';
-import type {
   CreateBranchError,
   DeleteBranchError,
   FetchError,
@@ -15,11 +9,17 @@ import type {
   GitCommandError,
   PushError,
 } from '../api/errors';
-import type { CheckoutInfo } from '../api/queries';
-import type { GitOpContext } from '../transfer-progress';
+import type { CheckoutInfo } from '../api/schemas';
+import type { GitOpContext } from '../exec/transfer-progress';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';
 import type { GitStashesModel } from './models/stashes';
+import type {
+  AddCheckoutOptions,
+  CreateBranchOptions,
+  FetchPrForReviewOptions,
+  TagOptions,
+} from './schemas';
 
 export type GitRepositoryOptions = {
   gitCommonDir: string;

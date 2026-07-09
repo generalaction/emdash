@@ -1,16 +1,6 @@
 import type { IDisposable, Result } from '@emdash/shared';
 import type { BoundExec } from '../../exec';
 import type {
-  CommitOptions,
-  MergeOptions,
-  RebaseOptions,
-  PushOptions,
-  ResetMode,
-  StashPushOptions,
-  SwitchOptions,
-  GitLogOptions,
-} from '../api/commands';
-import type {
   CommitError,
   GitCommandError,
   MergeError,
@@ -20,22 +10,30 @@ import type {
   SwitchError,
   SyncError,
 } from '../api/errors';
-import type { GitSyncProgress } from '../api/jobs';
+import type { GitSyncProgress } from '../api/schemas';
+import type { GitOpContext } from '../exec/transfer-progress';
+import type { IGitRepository } from '../repository/types';
+import type { GitHeadModel } from './models/head';
+import type { CheckoutStatusModel } from './models/status';
 import type {
+  BlameResult,
   Commit,
+  CommitFile,
+  CommitOptions,
   ConflictVersions,
   DiffTarget,
   FileDiff,
   GitChange,
-  CommitFile,
+  GitLogOptions,
   GitLogResult,
   ImageReadResult,
-  BlameResult,
-} from '../api/queries';
-import type { IGitRepository } from '../repository/types';
-import type { GitOpContext } from '../transfer-progress';
-import type { GitHeadModel } from './models/head';
-import type { CheckoutStatusModel } from './models/status';
+  MergeOptions,
+  PushOptions,
+  RebaseOptions,
+  ResetMode,
+  StashPushOptions,
+  SwitchOptions,
+} from './schemas';
 
 export type CheckoutRepository = Pick<IGitRepository, 'gitCommonDir' | 'readBlobAtRef'>;
 

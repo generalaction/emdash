@@ -3,7 +3,7 @@ import { type LiveModelMutationCtx } from '@emdash/wire';
 import { createComputedState, reconcileDraft, type ComputedState } from '../../lib';
 import type { IWatchService, WatchHandle } from '../../watch';
 import { classifyGitWatchEvents, type WorktreeWatchEffects } from '../watch/classifier';
-import type { RepositoryKey } from './api/key';
+import type { RepositoryKey } from './key';
 import type { RepositoryLiveHost, RepositoryLiveModels, RepositoryModel } from './live-models';
 import { createRepositoryLiveModels } from './live-models';
 import type { GitCheckoutsModel } from './models/checkouts';
