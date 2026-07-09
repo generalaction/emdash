@@ -6,6 +6,7 @@ import { AgentsSettingsPage } from '../agents-page/AgentsSettingsPage';
 import { AccountTab } from './AccountTab';
 import { BrowserSettingsCard } from './BrowserSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
+import IndexerSettingsCard from './IndexerSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
@@ -124,6 +125,7 @@ function InterfaceSettingsPage() {
       <TerminalSettingsCard />
       <SidebarMetadataSettingsCard />
       <ResourceMonitorSettingsCard />
+      <IndexerSettingsCard />
       <InterfaceSettingsCard />
       <div className="flex flex-col gap-3">
         <h3 className="text-sm font-normal text-foreground">Keyboard shortcuts</h3>
