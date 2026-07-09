@@ -104,7 +104,6 @@ const recordingFs: AcpFs = {
 const PROVIDER_BINARY_NAMES: Record<string, string[]> = {
   claude: ['claude'],
   codex: ['codex'],
-  gemini: ['gemini'],
   opencode: ['opencode'],
 };
 

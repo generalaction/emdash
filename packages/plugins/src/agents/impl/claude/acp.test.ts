@@ -21,7 +21,6 @@ describe('claude acp capability', () => {
       'cursor',
       'devin',
       'droid',
-      'gemini',
       'goose',
       'grok',
       'hermes',
