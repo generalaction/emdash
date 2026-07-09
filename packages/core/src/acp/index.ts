@@ -1,29 +1,11 @@
-export { createAcpAgentConnection } from './connection/acp-agent-connection';
-export type { AcpAgentConnection } from './connection/acp-agent-connection';
-export { AcpRuntime } from './runtime/runtime';
-export { AcpAuthManager } from './runtime/auth-manager';
-export { SessionManager } from './runtime/session-manager';
-export type { AttachmentStore, StoredAttachment } from './runtime/attachment-store';
-export type {
-  AcpRuntimeDeps,
-  AcpStartInput,
-  ResolveAcpProvider,
-  ResolveAuthProvider,
-} from './runtime/types';
-export { ConnectionPool } from './connection/pool';
-export { buildClientHandler } from './connection/client-handler';
-export { SessionCell } from './session/cell';
-export { PermissionBroker } from './session/permission-broker';
-export { SessionMachine, isPromptReady } from './machine/machine';
-export * from './state/live-models';
 export * from './api/contract';
-export { createAcpController } from './api/controller';
-export { createAcpProcedures } from './api/procedures';
-export type { HistoryPage, ResumeResult } from './api/queries';
-export { AgentTerminalManager } from './agent-terminal-manager';
-export type { AgentTerminalHooks as AgentTerminalListener } from './agent-terminal-manager';
-export type { AcpRuntimeError } from './errors';
+export * from './api/commands';
+export * from './api/errors';
+export * from './api/queries';
+export * from './errors';
 export * from './models';
+export { decodeSessionUpdate } from './reducer/decode';
+export { createToolCallItem } from './reducer/item-fold';
 export type {
   AcpFs,
   AcpProcessHandle,

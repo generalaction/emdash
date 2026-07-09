@@ -19,8 +19,32 @@ const alias = {
     __dirname,
     '../../packages/core/src/agents/plugins/index.ts'
   ),
+  '@emdash/core/lib': resolve(__dirname, '../../packages/core/src/lib/index.ts'),
   '@emdash/plugins/agents/types': resolve(__dirname, '../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve(__dirname, '../../packages/plugins/src/agents/registry.ts'),
+  '@emdash/runtime/acp': resolve(__dirname, '../../packages/runtime/src/acp/index.ts'),
+  '@emdash/shared/config': resolve(__dirname, '../../packages/shared/src/config/index.ts'),
+  '@emdash/shared/logger/context-node': resolve(
+    __dirname,
+    '../../packages/shared/src/logger/context-node.ts'
+  ),
+  '@emdash/shared/logger/context': resolve(
+    __dirname,
+    '../../packages/shared/src/logger/context.ts'
+  ),
+  '@emdash/shared/logger/pino': resolve(
+    __dirname,
+    '../../packages/shared/src/logger/pino/index.ts'
+  ),
+  '@emdash/shared/logger/transport': resolve(
+    __dirname,
+    '../../packages/shared/src/logger/transport/index.ts'
+  ),
+  '@emdash/shared/logger': resolve(__dirname, '../../packages/shared/src/logger/index.ts'),
+  '@emdash/shared/markdown': resolve(__dirname, '../../packages/shared/src/markdown/index.ts'),
+  '@emdash/shared/plugins': resolve(__dirname, '../../packages/shared/src/plugins/index.ts'),
+  '@emdash/shared/result': resolve(__dirname, '../../packages/shared/src/result/index.ts'),
+  '@emdash/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),
   '@emdash/wire/api': resolve(__dirname, '../../packages/wire/src/api/index.ts'),
   '@emdash/wire/process': resolve(__dirname, '../../packages/wire/src/process/index.ts'),
   '@emdash/wire/util/mobx': resolve(__dirname, '../../packages/wire/src/util/mobx/index.ts'),

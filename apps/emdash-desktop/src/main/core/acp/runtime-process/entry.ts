@@ -1,13 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
-import {
-  AcpRuntime,
-  acpHostContract,
-  createAcpController,
-  type AcpRuntimeDeps,
-} from '@emdash/core/acp';
+import { acpHostContract } from '@emdash/core/acp';
 import { AgentPluginHost } from '@emdash/core/agents/plugins';
 import { pluginRegistry } from '@emdash/plugins/agents';
+import { AcpRuntime, createAcpController, type AcpRuntimeDeps } from '@emdash/runtime/acp';
 import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
 import { client, connect, isWireMessage, type WireTransport } from '@emdash/wire';
 import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
