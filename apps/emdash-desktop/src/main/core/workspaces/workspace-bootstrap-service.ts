@@ -67,6 +67,7 @@ export class WorkspaceBootstrapService {
     taskRow: {
       workspaceIntent: string | null;
       workspaceProvider: string | null;
+      taskBranch?: string | null;
     },
     task: Task,
     project: ProjectProvider
@@ -144,7 +145,7 @@ export class WorkspaceBootstrapService {
     }
 
     // Fast path: non-worktree path already persisted and still exists on disk.
-    if (workspaceRow.path && !isByoi) {
+    if (workspaceRow.path && !isByoi && !isWorktreeWorkspace) {
       const exists = await project.worktreeService.existsAtAbsolutePath(workspaceRow.path);
       if (exists) {
         return this._acquireAndBuild(

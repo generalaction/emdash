@@ -22,9 +22,11 @@ export function deriveBranchName(git: GitSetup): string | null {
 type TaskRow = {
   workspaceIntent: string | null | undefined;
   workspaceProvider: string | null | undefined;
+  taskBranch?: string | null | undefined;
 };
 
 type WorkspaceRow = {
+  kind?: string | null | undefined;
   type: WorkspaceType;
   path: string | null | undefined;
   config?: WorkspaceConfig | null | undefined;
@@ -102,9 +104,14 @@ function inferLegacyIntent(taskRow: TaskRow, workspaceRow: WorkspaceRow): Worksp
   }
 
   const host = workspaceRow.type === 'project-ssh' ? 'project-ssh' : 'local';
+  const branchName = workspaceRow.branchName ?? taskRow.taskBranch ?? null;
 
-  // If a path is already stored, the workspace exists at that location.
-  if (workspaceRow.path) {
+  if (workspaceRow.kind === 'worktree' && !branchName) {
+    return null;
+  }
+
+  // If a non-branch path is already stored, the workspace exists at that location.
+  if (workspaceRow.path && workspaceRow.kind !== 'worktree' && !branchName) {
     return {
       git: { kind: 'none' },
       workspace: { host, path: workspaceRow.path },
@@ -112,14 +119,12 @@ function inferLegacyIntent(taskRow: TaskRow, workspaceRow: WorkspaceRow): Worksp
   }
 
   // No branchName means the task uses the project root.
-  if (!workspaceRow.branchName) {
+  if (!branchName) {
     return {
       git: { kind: 'none' },
       workspace: { host },
     };
   }
-
-  const branchName = workspaceRow.branchName;
 
   // For legacy rows we can only infer use-branch since we no longer store sourceBranch.
   return {
