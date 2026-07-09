@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/editor/pdf-renderer.tsx
+  s_e6be1a8d877ec5::t_64005cb8f363fc 12,395-399,441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "888ceb21260406e5117702f8263203e1484dc528",
+  "prompts": {},
+  "sessions": {
+    "s_e6be1a8d877ec5": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mTIJcWE9zGgFwLl9Rol",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
