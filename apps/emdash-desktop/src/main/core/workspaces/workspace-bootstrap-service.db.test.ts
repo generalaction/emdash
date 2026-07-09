@@ -117,7 +117,7 @@ describe('WorkspaceBootstrapService', () => {
       expect(ws.path).toBeNull();
     });
 
-    it('backfills branch name when reusing an existing workspace by key', async () => {
+    it('does not mutate branch metadata when reusing an existing workspace by key', async () => {
       const existingWsId = crypto.randomUUID();
       const conflictPath = '/worktrees/taken';
       const conflictKey = computeWorkspaceKey('local', conflictPath);
@@ -143,7 +143,7 @@ describe('WorkspaceBootstrapService', () => {
         .select()
         .from(workspaces)
         .where(eq(workspaces.id, existingWsId));
-      expect(existing.branchName).toBe('task/branch');
+      expect(existing.branchName).toBeNull();
     });
   });
 

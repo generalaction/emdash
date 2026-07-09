@@ -279,12 +279,6 @@ export class WorkspaceBootstrapService {
     if (key) {
       const [existing] = await this.db.select().from(workspaces).where(eq(workspaces.key, key));
       if (existing && existing.id !== workspaceId) {
-        if (branchName && !existing.branchName) {
-          await this.db
-            .update(workspaces)
-            .set({ branchName, updatedAt: sql`CURRENT_TIMESTAMP` })
-            .where(eq(workspaces.id, existing.id));
-        }
         return existing.id;
       }
     }
