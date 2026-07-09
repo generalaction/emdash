@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/agents/plugin-registry.ts
+  s_15de85d8163a9a::t_43d21c36b29fec 2
+apps/emdash-desktop/src/main/core/mcp/utils/catalog.ts
+  s_15de85d8163a9a::t_43d21c36b29fec 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b4861542bc71caef48a013c9debdef9752a8f4f3",
+  "prompts": {},
+  "sessions": {
+    "s_15de85d8163a9a": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mdqea2CfVKVwGLT6IxQ",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
