@@ -40,6 +40,7 @@ const nativeAcpProviders: Array<{
   { id: 'kimi', args: ['acp'] },
   { id: 'kiro', args: ['acp'] },
   { id: 'mimocode', args: ['acp'] },
+  { id: 'oh-my-pi', args: ['acp'] },
   {
     id: 'mistral',
     cli: '/usr/local/bin/vibe',

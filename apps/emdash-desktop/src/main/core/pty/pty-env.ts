@@ -4,6 +4,7 @@ import { detectSshAuthSock } from '@main/utils/shellEnv';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
 
 export const AGENT_ENV_VARS = [
+  'AIMLAPI_API_KEY',
   'ALL_PROXY',
   'AMP_API_KEY',
   'AMP_TOOLBOX',
@@ -63,6 +64,7 @@ export const AGENT_ENV_VARS = [
   'GOOSE_PROVIDER__TYPE',
   'GROK_CODE_XAI_API_KEY',
   'GROK_DEPLOYMENT_KEY',
+  'GROQ_API_KEY',
   'GROK_HOME',
   'GROK_POOL_IDLE_TIMEOUT_SECS',
   'GROK_PROXY_URL',
@@ -78,9 +80,18 @@ export const AGENT_ENV_VARS = [
   'OPENAI_MODEL',
   'OPENAI_ORGANIZATION',
   'OPENAI_PROJECT',
+  'OMP_AUTH_BROKER_SNAPSHOT_CACHE',
+  'OMP_AUTH_BROKER_SNAPSHOT_TTL_MS',
+  'OMP_AUTH_BROKER_URL',
   'OPENCODE_MODEL',
   'OPENROUTER_API_KEY',
   'OPENROUTER_BASE_URL',
+  'PI_CODING_AGENT_DIR',
+  'PI_CONFIG_DIR',
+  'PI_NO_TITLE',
+  'PI_PLAN_MODEL',
+  'PI_SLOW_MODEL',
+  'PI_SMOL_MODEL',
   'QWEN_CODE_SUPPRESS_YOLO_WARNING',
   'QWEN_DEFAULT_AUTH_TYPE',
   'QWEN_HOME',
@@ -88,6 +99,7 @@ export const AGENT_ENV_VARS = [
   'QWEN_RUNTIME_DIR',
   'QWEN_SANDBOX',
   'XAI_API_KEY',
+  'ZAI_API_KEY',
 ] as const;
 
 const DISPLAY_ENV_VARS = [
