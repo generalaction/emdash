@@ -1,0 +1,34 @@
+packages/plugins/src/agents/impl/oh-my-pi/plugin-file.ts
+  s_dbfb13d1ead7ab::t_981ac3b65f281a 37-44,57,61,65
+  s_b0b48977652ac7::t_82be97ea9c5528 47
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_dbfb13d1ead7ab::t_981ac3b65f281a 71,78-80
+packages/plugins/src/agents/impl/oh-my-pi/index.ts
+  s_dbfb13d1ead7ab::t_981ac3b65f281a 87
+packages/plugins/src/agents/impl/index.test.ts
+  s_dbfb13d1ead7ab::t_981ac3b65f281a 343-345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4210908159355c6c9e82fa44c1c15d100cb4e1eb",
+  "prompts": {},
+  "sessions": {
+    "s_b0b48977652ac7": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mQC8koeRp2GuhHtDr2f",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_dbfb13d1ead7ab": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mQAMlIlJFF2M0Iwa57C",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
