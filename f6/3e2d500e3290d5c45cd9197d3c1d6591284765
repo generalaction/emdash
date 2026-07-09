@@ -1,0 +1,73 @@
+apps/emdash-desktop/src/renderer/lib/editor/pdf-renderer.tsx
+  s_0ad8fa5e88d28c::t_3d7ad06186cb5e 3-7,9-10
+  s_0212eb5acf0953::t_8075ac5a19a328 237-241,243,245,250-251,254,257,260,263-266,268,270-291,332-349,354-356,358,364-370
+  s_e71e8eb14ed32d::t_674dab43fd953e 357,359
+  s_873f7dcffef24a::t_8fd6bbd1268e37 16,101,125-128,157,210-216
+  s_9d53d0cc132977::t_6030842b2e829d 2,18-22,102,108-119,164,166-209,228-236,351
+  s_8aaa9f29271e64::t_9495eec1fb9bfc 8,23-28,242,247,256,259,267,269,292-323,325-328,360-361,363
+  s_0b2316f1fd9fca::t_d5a900f73bdf52 17,330,362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f63e2d500e3290d5c45cd9197d3c1d6591284765",
+  "prompts": {},
+  "sessions": {
+    "s_0212eb5acf0953": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lwIx3wyjN3UQ5JUpfvb",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_0ad8fa5e88d28c": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mQVXwdUpxEvfb6zwhFW",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_0b2316f1fd9fca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f465c-5a4c-7b52-a8d6-9f49f542e6a1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_873f7dcffef24a": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lw1E1bJrWJ18mjgiCbx",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_8aaa9f29271e64": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mQhotFpua78k77epHmR",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_9d53d0cc132977": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mQkqdk6DjTVRuFJiYgG",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e71e8eb14ed32d": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033lwLpi7yqzVicIK10jum",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
