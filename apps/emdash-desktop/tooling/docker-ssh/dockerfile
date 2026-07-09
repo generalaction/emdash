@@ -3,7 +3,7 @@
 #
 # A self-contained Linux environment you can SSH into from emdash's SSH remote
 # development feature. Includes git, gh, tmux, Node.js, and Claude Code out
-# of the box. Other agents (codex, gemini, etc.) can be installed on top.
+# of the box. Other agents (codex, opencode, etc.) can be installed on top.
 #
 # Usage:
 #   docker compose up --build -d
@@ -64,7 +64,6 @@ RUN npm install -g @anthropic-ai/claude-code
 
 # ── Optional: additional agents (uncomment as needed) ───────────────────────
 # RUN npm install -g @openai/codex          # OpenAI Codex CLI
-# RUN npm install -g @google/gemini-cli     # Gemini CLI
 # RUN npm install -g opencode               # OpenCode
 
 # ── Dev user ─────────────────────────────────────────────────────────────────
