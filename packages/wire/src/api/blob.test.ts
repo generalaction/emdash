@@ -1,7 +1,7 @@
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { BLOB_CHUNK_SIZE } from './blob-channel';
+import { BLOB_CHUNK_SIZE, normalizeUploadFile, type UploadFileValue } from './blob-channel';
 import { client } from './client';
 import { connect } from './connect';
 import { createController } from './controller';
@@ -136,6 +136,31 @@ describe('blob file endpoints', () => {
     result.data.cancel();
 
     await waitFor(() => disposed);
+  });
+
+  it('keeps upload meta structured-clone-safe (no source or functions leaked)', () => {
+    const sourceMeta = normalizeUploadFile({
+      name: 'upload.txt',
+      mimeType: 'text/plain',
+      size: 3,
+      customKey: 'kept',
+      source: chunks(new Uint8Array([1, 2, 3])),
+    } as UploadFileValue).meta;
+    expect('source' in sourceMeta).toBe(false);
+    expect(sourceMeta).toMatchObject({ name: 'upload.txt', mimeType: 'text/plain', size: 3 });
+    expect(sourceMeta.customKey).toBe('kept');
+
+    const wireFileMeta = normalizeUploadFile({
+      name: 'wire.bin',
+      mimeType: 'application/octet-stream',
+      size: 1,
+      stream: () => chunks(new Uint8Array([1])),
+      bytes: async () => new Uint8Array([1]),
+      file: async () => ({ name: 'wire.bin', mimeType: 'application/octet-stream' }) as never,
+      cancel: () => undefined,
+    }).meta;
+    expect(Object.values(wireFileMeta).some((value) => typeof value === 'function')).toBe(false);
+    expect(wireFileMeta).toMatchObject({ name: 'wire.bin', size: 1 });
   });
 
   it('rejects double consumption of a download handle', async () => {

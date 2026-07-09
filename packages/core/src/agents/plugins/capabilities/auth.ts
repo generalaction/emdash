@@ -80,5 +80,8 @@ export type IAgentAuthBehavior = {
 export const authCapability = definePluginCapability<IAgentAuthBehavior>()(
   'auth',
   agentAuthDescriptorSchema,
-  { kind: 'none' }
+  { kind: 'none' },
+  {
+    requiresBehavior: (descriptor) => descriptor.kind === 'supported',
+  }
 );

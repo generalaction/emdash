@@ -60,6 +60,21 @@ export function createPluginFramework<
   type PluginDefinition = ReturnType<typeof definePlugin>;
 
   function registerPluginBehavior(plugin: PluginDefinition, behavior: CapabilityBehaviors<TCaps>) {
+    for (const key of Object.keys(capabilityMap) as (keyof TCaps)[]) {
+      const capability = capabilityMap[key];
+      if (!capability.requiresBehavior) continue;
+
+      const descriptor = plugin.capabilities[key];
+      const behaviorForCapability = behavior[key as keyof CapabilityBehaviors<TCaps>];
+      if (capability.requiresBehavior(descriptor) && behaviorForCapability === undefined) {
+        const metadata = plugin.metadata as { id?: unknown };
+        const pluginId = typeof metadata.id === 'string' ? metadata.id : '<unknown>';
+        throw new Error(
+          `Plugin '${pluginId}' declares capability '${capability.id}' that requires behavior, but no behavior was registered.`
+        );
+      }
+    }
+
     return { ...plugin, behavior };
   }
 

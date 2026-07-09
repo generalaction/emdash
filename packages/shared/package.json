@@ -21,6 +21,10 @@
       "types": "./dist/result.d.mts",
       "default": "./dist/result.mjs"
     },
+    "./config": {
+      "types": "./dist/config.d.mts",
+      "default": "./dist/config.mjs"
+    },
     "./logger": {
       "types": "./dist/logger.d.mts",
       "default": "./dist/logger.mjs"

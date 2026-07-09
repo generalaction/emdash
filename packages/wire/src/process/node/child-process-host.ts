@@ -18,6 +18,11 @@ function spawnChildProcess(spec: ProcessSpec, _scope: Scope): ChildHandle {
     cwd: spec.cwd,
     env: { ...process.env, ...spec.env },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    // Structured-clone (V8) serialization preserves `undefined` values, typed
+    // arrays, and Dates across the IPC channel, matching the semantics wire
+    // payloads were designed for. The default JSON mode drops `undefined`
+    // object properties, which breaks Result<void> payloads.
+    serialization: 'advanced',
   });
 
   return {

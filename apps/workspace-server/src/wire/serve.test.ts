@@ -6,7 +6,7 @@ import { PassThrough } from 'node:stream';
 import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
 import { client as createClient, connect, streamTransport } from '@emdash/wire';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createWorkspaceWireController } from './controller';
+import { createWorkspaceWireController } from '../api/controller';
 import { serveSocket, type SocketServeHandle } from './serve-socket';
 import { serveStdio } from './serve-stdio';
 
