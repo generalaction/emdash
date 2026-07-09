@@ -17,7 +17,11 @@ export async function refreshWorkspaceCurrentBranchCache(
   try {
     const branchName = await readCurrentBranch();
     const [workspace] = await db
-      .select({ branchName: workspaces.branchName, config: workspaces.config })
+      .select({
+        branchName: workspaces.branchName,
+        config: workspaces.config,
+        kind: workspaces.kind,
+      })
       .from(workspaces)
       .where(eq(workspaces.id, workspaceId))
       .limit(1);
@@ -29,7 +33,7 @@ export async function refreshWorkspaceCurrentBranchCache(
       return undefined;
     }
 
-    if (!workspace.config) {
+    if (!workspace.config && workspace.kind !== 'project-root') {
       return { branchName: workspace.branchName, changed: false };
     }
 

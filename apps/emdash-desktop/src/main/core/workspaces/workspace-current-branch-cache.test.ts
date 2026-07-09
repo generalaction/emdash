@@ -13,7 +13,7 @@ vi.mock('@main/db/client', () => ({
 }));
 
 vi.mock('@main/db/schema', () => ({
-  workspaces: { id: 'id', branchName: 'branch_name', config: 'config' },
+  workspaces: { id: 'id', branchName: 'branch_name', config: 'config', kind: 'kind' },
 }));
 
 vi.mock('@main/lib/logger', () => ({
@@ -50,7 +50,7 @@ describe('refreshWorkspaceCurrentBranchCache', () => {
   });
 
   it('writes the cache and reports changed when the branch differs', async () => {
-    queueSelect([{ branchName: 'old-branch', config: { version: '2' } }]);
+    queueSelect([{ branchName: 'old-branch', config: { version: '2' }, kind: 'worktree' }]);
     const update = mockUpdate();
 
     const result = await refreshWorkspaceCurrentBranchCache('ws-1', () =>
@@ -62,7 +62,7 @@ describe('refreshWorkspaceCurrentBranchCache', () => {
   });
 
   it('does not write and reports unchanged when the branch matches', async () => {
-    queueSelect([{ branchName: 'same-branch', config: { version: '2' } }]);
+    queueSelect([{ branchName: 'same-branch', config: { version: '2' }, kind: 'worktree' }]);
 
     const result = await refreshWorkspaceCurrentBranchCache('ws-1', () =>
       Promise.resolve('same-branch')
@@ -73,7 +73,7 @@ describe('refreshWorkspaceCurrentBranchCache', () => {
   });
 
   it('persists a null branch for configured rows when HEAD is detached', async () => {
-    queueSelect([{ branchName: 'old-branch', config: { version: '2' } }]);
+    queueSelect([{ branchName: 'old-branch', config: { version: '2' }, kind: 'worktree' }]);
     const update = mockUpdate();
 
     const result = await refreshWorkspaceCurrentBranchCache('ws-1', () => Promise.resolve(null));
@@ -83,12 +83,24 @@ describe('refreshWorkspaceCurrentBranchCache', () => {
   });
 
   it('does not overwrite legacy branch intent when HEAD is detached', async () => {
-    queueSelect([{ branchName: 'old-branch', config: null }]);
+    queueSelect([{ branchName: 'old-branch', config: null, kind: null }]);
 
     const result = await refreshWorkspaceCurrentBranchCache('ws-1', () => Promise.resolve(null));
 
     expect(result).toEqual({ branchName: 'old-branch', changed: false });
     expect(dbMocks.update).not.toHaveBeenCalled();
+  });
+
+  it('updates configless project-root branch cache', async () => {
+    queueSelect([{ branchName: 'old-branch', config: null, kind: 'project-root' }]);
+    const update = mockUpdate();
+
+    const result = await refreshWorkspaceCurrentBranchCache('ws-1', () =>
+      Promise.resolve('new-branch')
+    );
+
+    expect(result).toEqual({ branchName: 'new-branch', changed: true });
+    expect(update.set).toHaveBeenCalledWith({ branchName: 'new-branch' });
   });
 
   it('returns undefined when the workspace is not found', async () => {
