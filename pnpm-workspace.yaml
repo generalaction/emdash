@@ -2,5 +2,10 @@ packages:
   - 'apps/*'
   - 'packages/**'
 
+packageExtensions:
+  storybook-solidjs-vite@10.4.0:
+    dependencies:
+      '@typescript/typescript6': ^6.0.2
+
 patchedDependencies:
   storybook-solidjs-vite@10.4.0: patches/storybook-solidjs-vite@10.4.0.patch

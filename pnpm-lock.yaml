@@ -4,18 +4,17 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+packageExtensionsChecksum: sha256-VVxfDi9diOEzkonx1JmMH0tcnWH4eIOeGgdUtQTBuUs=
+
 patchedDependencies:
   storybook-solidjs-vite@10.4.0:
-    hash: 9df7cfd5b24cf88ed95d0376a4f04221e1e9be1df315bd383d787d109575ebba
+    hash: 47ae4e5dc4cb2041bcfca2fc24dde552892dc8f308564915dbf7bcea7bbf11d0
     path: patches/storybook-solidjs-vite@10.4.0.patch
 
 importers:
 
   .:
     devDependencies:
-      '@typescript/typescript6':
-        specifier: ^6.0.2
-        version: 6.0.2
       nx:
         specifier: ^23.0.0
         version: 23.0.0
@@ -474,7 +473,7 @@ importers:
         version: 10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@2.8.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       storybook-solidjs-vite:
         specifier: 10.4.0
-        version: 10.4.0(patch_hash=9df7cfd5b24cf88ed95d0376a4f04221e1e9be1df315bd383d787d109575ebba)(@solidjs/web@2.0.0-beta.14(solid-js@1.9.13))(esbuild@0.28.1)(rollup@4.61.1)(solid-js@1.9.13)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@2.8.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@7.0.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.13)(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(webpack@5.107.2(esbuild@0.28.1)(lightningcss@1.32.0))
+        version: 10.4.0(patch_hash=47ae4e5dc4cb2041bcfca2fc24dde552892dc8f308564915dbf7bcea7bbf11d0)(@solidjs/web@2.0.0-beta.14(solid-js@1.9.13))(esbuild@0.28.1)(rollup@4.61.1)(solid-js@1.9.13)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@2.8.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@7.0.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.13)(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(webpack@5.107.2(esbuild@0.28.1)(lightningcss@1.32.0))
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -17536,10 +17535,11 @@ snapshots:
 
   stopword@3.1.5: {}
 
-  storybook-solidjs-vite@10.4.0(patch_hash=9df7cfd5b24cf88ed95d0376a4f04221e1e9be1df315bd383d787d109575ebba)(@solidjs/web@2.0.0-beta.14(solid-js@1.9.13))(esbuild@0.28.1)(rollup@4.61.1)(solid-js@1.9.13)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@2.8.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@7.0.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.13)(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(webpack@5.107.2(esbuild@0.28.1)(lightningcss@1.32.0)):
+  storybook-solidjs-vite@10.4.0(patch_hash=47ae4e5dc4cb2041bcfca2fc24dde552892dc8f308564915dbf7bcea7bbf11d0)(@solidjs/web@2.0.0-beta.14(solid-js@1.9.13))(esbuild@0.28.1)(rollup@4.61.1)(solid-js@1.9.13)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@2.8.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@7.0.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.13)(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(webpack@5.107.2(esbuild@0.28.1)(lightningcss@1.32.0)):
     dependencies:
       '@storybook/builder-vite': 10.4.4(esbuild@0.28.1)(rollup@4.61.1)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@2.8.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(webpack@5.107.2(esbuild@0.28.1)(lightningcss@1.32.0))
       '@storybook/global': 5.0.0
+      '@typescript/typescript6': 6.0.2
       '@volar/language-core': 2.4.28
       '@volar/typescript': 2.4.28
       semver: 7.8.1
