@@ -1,0 +1,28 @@
+apps/emdash-desktop/src/renderer/features/tasks/delete-task-modal.tsx
+  s_14dac27d7d32f9::t_3bacc13acb4c99 41,64
+  s_e4d07981199b19::t_88f9c5f075fb8e 60,126,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5df1366dbff2b088e3d81e9cd8b0894dd3d15b8f",
+  "prompts": {},
+  "sessions": {
+    "s_14dac27d7d32f9": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mTcN3FNosNz0Q18VWBb",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e4d07981199b19": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mTcgpLw7Pgb8w88KmUV",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
