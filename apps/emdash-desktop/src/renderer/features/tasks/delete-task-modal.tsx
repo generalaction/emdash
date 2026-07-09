@@ -38,6 +38,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
 
   const { data: preflight = null } = useQuery({
     queryKey: ['deleteTaskPreflight', projectId, taskIds],
+    staleTime: Infinity,
     queryFn: async () => {
       try {
         return (await rpc.tasks.getDeletePreflight(projectId, taskIds)).tasks;
@@ -56,10 +57,11 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
   const showWorktreeCheckbox = !isLoading && worktreeTasks.length > 0;
   const showBranchCheckbox = !isLoading && branchTasks.length > 0;
   const effectiveDeleteBranch = deleteBranchOverride ?? deleteBranchByDefault;
+  const shouldDeleteBranch = deleteWorktree && effectiveDeleteBranch;
 
   const handleWorktreeChange = (checked: boolean) => {
     setDeleteWorktree(checked);
-    if (!checked) setDeleteBranchOverride(false);
+    if (!checked) setDeleteBranchOverride(undefined);
   };
 
   const title = isBulk ? `Delete ${count} tasks` : 'Delete task';
@@ -121,7 +123,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
                 aria-disabled={!deleteWorktree}
               >
                 <Checkbox
-                  checked={effectiveDeleteBranch}
+                  checked={shouldDeleteBranch}
                   onCheckedChange={(checked) => setDeleteBranchOverride(Boolean(checked))}
                   disabled={!deleteWorktree}
                 />
@@ -141,7 +143,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
           onClick={() =>
             onSuccess({
               deleteWorktree,
-              deleteBranch: showBranchCheckbox && effectiveDeleteBranch,
+              deleteBranch: showBranchCheckbox && shouldDeleteBranch,
             })
           }
         >
