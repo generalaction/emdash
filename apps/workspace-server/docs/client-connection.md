@@ -31,8 +31,8 @@ a user-owned directory with mode `0700`; SSH authentication plus filesystem
 permissions form the access boundary. Desktop clients do not connect to a TCP
 port on the remote host.
 
-`--socket` is the daemon serving mode. `--stdio` serves the same wire controller
-over stdin/stdout and exists as a test and debugging harness.
+`serve --socket` is the daemon serving mode. `serve --stdio` serves the same
+wire controller over stdin/stdout and exists as a test and debugging harness.
 
 ## Desktop Utility Shape
 
@@ -64,9 +64,10 @@ const workspaces = createManagedSource({
 });
 ```
 
-`ensureWorkspaceDaemon()` is a future bootstrap step. It should probe the socket,
-start the daemon if absent, and leave version upgrades to the wire update flow.
-After the daemon exists, each `connectOnce` opens a streamlocal channel with
+`ensureWorkspaceDaemon()` is a future desktop bootstrap step. It should call the
+server-side lifecycle CLI to probe the socket, start the daemon if absent, and
+leave version upgrades to the wire update flow. After the daemon exists, each
+`connectOnce` opens a streamlocal channel with
 `SshClientProxy.forwardOutStreamLocal(socketPath)` and adapts it with
 `streamTransport(channel, channel)`.
 
@@ -93,18 +94,42 @@ After the daemon exists, each `connectOnce` opens a streamlocal channel with
 Socket mode:
 
 ```bash
-emdash-workspace-server --socket
-emdash-workspace-server --socket ~/.emdash/workspace-server/run/workspace.sock
+emdash-workspace-server serve --socket
+emdash-workspace-server serve --socket ~/.emdash/workspace-server/run/workspace.sock
 ```
 
 The server ensures the socket directory exists, probes before unlinking stale
 socket files, and serves each accepted `net.Socket` through
 `createWireSessionHub`.
 
+Daemon lifecycle:
+
+```bash
+emdash-workspace-server start
+emdash-workspace-server status
+emdash-workspace-server stop
+```
+
+Lifecycle commands use socket mode by default. They derive sidecar files from
+the socket path so custom paths remain self-contained:
+
+```text
+~/.emdash/workspace-server/run/workspace.sock
+~/.emdash/workspace-server/run/workspace.sock.pid
+~/.emdash/workspace-server/run/workspace.sock.lock
+~/.emdash/workspace-server/run/workspace.sock.log
+```
+
+`start` probes the socket first, acquires the lock, spawns `serve --socket` as a
+detached process when needed, and waits for `health` to succeed. `stop` reads the
+pid file and sends `SIGTERM`, relying on the daemon signal handlers to dispose
+the socket server and unlink the socket file. `status` connects to the socket and
+calls `health`.
+
 Stdio mode:
 
 ```bash
-emdash-workspace-server --stdio
+emdash-workspace-server serve --stdio
 ```
 
 Stdio mode must not write logs to stdout because stdout is the wire protocol
