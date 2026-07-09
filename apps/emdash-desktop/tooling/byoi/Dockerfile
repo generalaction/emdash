@@ -45,7 +45,6 @@ RUN npm install -g @anthropic-ai/claude-code
 
 # ── Optional: additional agents (uncomment as needed) ────────────────────────
 # RUN npm install -g @openai/codex
-# RUN npm install -g @google/gemini-cli
 
 # ── Dev user ──────────────────────────────────────────────────────────────────
 # Username: devuser  Password: devpass

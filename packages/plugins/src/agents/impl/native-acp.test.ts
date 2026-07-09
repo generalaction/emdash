@@ -31,7 +31,6 @@ const nativeAcpProviders: Array<{
       FACTORY_DROID_AUTO_UPDATE_ENABLED: 'false',
     },
   },
-  { id: 'gemini', args: ['--acp'] },
   { id: 'goose', args: ['acp'] },
   { id: 'grok', args: ['agent', 'stdio'] },
   { id: 'hermes', args: ['acp'] },
