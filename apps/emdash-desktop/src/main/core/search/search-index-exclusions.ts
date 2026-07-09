@@ -23,6 +23,7 @@ export const SEARCH_INDEX_EXCLUDED_PATH_SEGMENTS = [
   '.idea',
   '__pycache__',
   '.pytest_cache',
+  '.tox',
   'venv',
   '.venv',
   'target',
@@ -48,11 +49,26 @@ export const SEARCH_INDEX_EXCLUDED_PATH_SEGMENTS = [
 
 const SEARCH_INDEX_EXCLUDED_PATH_SEGMENT_SET = new Set<string>(SEARCH_INDEX_EXCLUDED_PATH_SEGMENTS);
 
-export function createSearchIndexExclusion(rootPath: string): FileExclusionPredicate {
-  return (absPath) => isSearchIndexExcludedInsideRoot(rootPath, absPath);
+export type SearchIndexExclusionOptions = {
+  additionalSegments?: readonly string[];
+};
+
+export function createSearchIndexExclusion(
+  rootPath: string,
+  options: SearchIndexExclusionOptions = {}
+): FileExclusionPredicate {
+  const extra = options.additionalSegments ?? [];
+  const segments = extra.length
+    ? new Set<string>([...SEARCH_INDEX_EXCLUDED_PATH_SEGMENT_SET, ...extra])
+    : SEARCH_INDEX_EXCLUDED_PATH_SEGMENT_SET;
+  return (absPath) => isSearchIndexExcludedInsideRoot(rootPath, absPath, segments);
 }
 
-export function isSearchIndexExcludedInsideRoot(rootPath: string, absPath: string): boolean {
+export function isSearchIndexExcludedInsideRoot(
+  rootPath: string,
+  absPath: string,
+  segments: ReadonlySet<string> = SEARCH_INDEX_EXCLUDED_PATH_SEGMENT_SET
+): boolean {
   const relativeToRoot = path.relative(rootPath, absPath);
   if (
     !relativeToRoot ||
@@ -66,5 +82,5 @@ export function isSearchIndexExcludedInsideRoot(rootPath: string, absPath: strin
   return relativeToRoot
     .replace(/\\/g, '/')
     .split('/')
-    .some((segment) => SEARCH_INDEX_EXCLUDED_PATH_SEGMENT_SET.has(segment));
+    .some((segment) => segments.has(segment));
 }
