@@ -1,40 +1,40 @@
-import { oc } from '@orpc/contract';
+import { defineContract, fallible, procedure } from '@emdash/wire';
 import { z } from 'zod';
 import {
-  dependencyInstallResultSchema,
-  dependencyUninstallResultSchema,
+  dependencyInstallErrorSchema,
+  dependencyStateSchema,
+  dependencyUninstallErrorSchema,
   depsInstallStrategySchema,
   depsUninstallStrategySchema,
   probeResponseSchema,
   wireDependencyDescriptorSchema,
 } from './schemas';
 
-export const depsContract = {
-  probe: oc
-    .input(
-      z.object({
-        descriptor: wireDependencyDescriptorSchema,
-        /** When true the server refreshes the shell environment before probing. */
-        refreshShellEnv: z.boolean().optional(),
-      })
-    )
-    .output(probeResponseSchema),
-  install: oc
-    .input(
-      z.object({
-        descriptor: wireDependencyDescriptorSchema,
-        strategy: depsInstallStrategySchema,
-      })
-    )
-    .output(dependencyInstallResultSchema),
-  uninstall: oc
-    .input(
-      z.object({
-        descriptor: wireDependencyDescriptorSchema,
-        strategy: depsUninstallStrategySchema,
-      })
-    )
-    .output(dependencyUninstallResultSchema),
-};
+export const depsContract = defineContract({
+  probe: procedure({
+    input: z.object({
+      descriptor: wireDependencyDescriptorSchema,
+      /** When true the server refreshes the shell environment before probing. */
+      refreshShellEnv: z.boolean().optional(),
+    }),
+    output: probeResponseSchema,
+  }),
+  install: fallible({
+    input: z.object({
+      descriptor: wireDependencyDescriptorSchema,
+      strategy: depsInstallStrategySchema,
+    }),
+    data: dependencyStateSchema,
+    error: dependencyInstallErrorSchema,
+  }),
+  uninstall: fallible({
+    input: z.object({
+      descriptor: wireDependencyDescriptorSchema,
+      strategy: depsUninstallStrategySchema,
+    }),
+    data: dependencyStateSchema,
+    error: dependencyUninstallErrorSchema,
+  }),
+});
 
 export type DepsContract = typeof depsContract;

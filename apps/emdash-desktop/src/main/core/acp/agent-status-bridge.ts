@@ -1,13 +1,12 @@
-import { acpLiveTopics, sessionSummarySchema, type SessionSummary } from '@emdash/core/acp';
-import { LiveModelClient, type LiveSnapshot, type LiveUpdate } from '@emdash/core/live';
+import { sessionSummarySchema, type SessionSummary } from '@emdash/core/acp';
 import type { Unsubscribe } from '@emdash/shared';
+import { ReplicaState } from '@emdash/wire';
 import { z } from 'zod';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { isAppFocused } from '@main/core/agent-hooks/notification';
 import { log } from '@main/lib/logger';
 import { deriveAcpAgentStatusActions, type AcpAgentStatusAction } from './agent-status-transition';
-import { acpWire } from './controller';
-import { acpRuntimeProcessHost } from './runtime-process/host';
+import { getAcpRuntimeHandle } from './controller';
 
 type SessionSummaryList = Record<string, SessionSummary>;
 
@@ -15,21 +14,19 @@ const sessionSummaryListSchema = z.record(z.string(), sessionSummarySchema);
 
 class AcpAgentStatusBridge {
   private readonly summaries = new Map<string, SessionSummary>();
-  private startedUnsubscribe: Unsubscribe | null = null;
-  private wireUnsubscribe: Unsubscribe | null = null;
+  private processExitUnsubscribe: Unsubscribe | null = null;
+  private replica: ReplicaState<SessionSummaryList> | null = null;
   private attaching = false;
 
   initialize(): void {
-    this.startedUnsubscribe = acpRuntimeProcessHost.onStarted(() => {
-      void this.attach().catch((error) => {
-        log.warn('ACP agent status bridge failed to attach', { error: String(error) });
-      });
+    void this.attach().catch((error) => {
+      log.warn('ACP agent status bridge failed to attach', { error: String(error) });
     });
   }
 
   dispose(): void {
-    this.startedUnsubscribe?.();
-    this.startedUnsubscribe = null;
+    this.processExitUnsubscribe?.();
+    this.processExitUnsubscribe = null;
     this.detach();
   }
 
@@ -38,58 +35,37 @@ class AcpAgentStatusBridge {
     this.attaching = true;
     try {
       this.detach();
-
-      const topic = acpLiveTopics.sessionStateList.topic(undefined);
-      const client = new LiveModelClient<SessionSummaryList>(
-        sessionSummaryListSchema,
-        () => acpWire.live.snapshot(topic) as Promise<LiveSnapshot<SessionSummaryList>>,
-        (summaries) => void this.applySummaries(summaries)
-      );
-      const buffer: LiveUpdate[] = [];
-      let seeded = false;
-      let detachLive: Unsubscribe | null = null;
-      let detachWire: Unsubscribe | null = null;
-
-      try {
-        detachLive = await acpWire.live.attach(topic, (update) => {
-          if (seeded) {
-            client.applyUpdate(update);
-          } else {
-            buffer.push(update);
-          }
-        });
-        detachWire = acpWire.onDisconnect(() => {
-          void this.resetAll().catch((error) => {
-            log.warn('ACP agent status bridge failed to reset statuses on disconnect', {
-              error: String(error),
-            });
+      const handle = await getAcpRuntimeHandle();
+      this.processExitUnsubscribe = handle.process.onExit((exit) => {
+        if (exit.willRestart) return;
+        void this.resetAll().catch((error) => {
+          log.warn('ACP agent status bridge failed to reset statuses on disconnect', {
+            error: String(error),
           });
-          this.detach();
         });
-
-        client.seed((await acpWire.live.snapshot(topic)) as LiveSnapshot<SessionSummaryList>);
-        seeded = true;
-        for (const update of buffer) {
-          client.applyUpdate(update);
+        this.detach();
+      });
+      const replica = new ReplicaState<SessionSummaryList>(
+        handle.client.sessions.state(undefined, 'list'),
+        {
+          schema: sessionSummaryListSchema,
+          onChange: (summaries) => void this.applySummaries(summaries),
         }
-
-        this.wireUnsubscribe = () => {
-          detachLive?.();
-          detachWire?.();
-        };
-      } catch (error) {
-        detachLive?.();
-        detachWire?.();
-        throw error;
-      }
+      );
+      await replica.ready;
+      this.replica = replica;
+      this.applySummaries(replica.current());
     } finally {
       this.attaching = false;
     }
   }
 
   private detach(): void {
-    this.wireUnsubscribe?.();
-    this.wireUnsubscribe = null;
+    this.processExitUnsubscribe?.();
+    this.processExitUnsubscribe = null;
+    const replica = this.replica;
+    this.replica = null;
+    if (replica) void replica.dispose();
   }
 
   private applySummaries(nextSummaries: SessionSummaryList): void {

@@ -53,6 +53,10 @@
       "types": "./dist/lib.d.mts",
       "default": "./dist/lib.mjs"
     },
+    "./pty": {
+      "types": "./dist/pty.d.mts",
+      "default": "./dist/pty.mjs"
+    },
     "./agents/plugins": {
       "types": "./dist/agents-plugins.d.mts",
       "default": "./dist/agents-plugins.mjs"
@@ -61,17 +65,21 @@
       "types": "./dist/agents-plugins-helpers.d.mts",
       "default": "./dist/agents-plugins-helpers.mjs"
     },
-    "./live": {
-      "types": "./dist/live.d.mts",
-      "default": "./dist/live.mjs"
-    },
-    "./wire": {
-      "types": "./dist/wire.d.mts",
-      "default": "./dist/wire.mjs"
-    },
     "./workspace-server": {
       "types": "./dist/workspace-server.d.mts",
       "default": "./dist/workspace-server.mjs"
+    },
+    "./workspace-lifecycle": {
+      "types": "./dist/workspace-lifecycle.d.mts",
+      "default": "./dist/workspace-lifecycle.mjs"
+    },
+    "./workspace-activity": {
+      "types": "./dist/workspace-activity.d.mts",
+      "default": "./dist/workspace-activity.mjs"
+    },
+    "./workspace-coordinator": {
+      "types": "./dist/workspace-coordinator.d.mts",
+      "default": "./dist/workspace-coordinator.mjs"
     },
     "./package.json": "./package.json"
   },
@@ -88,8 +96,6 @@
     "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/shared": "workspace:*",
     "@emdash/wire": "workspace:*",
-    "@orpc/contract": "^1.14.6",
-    "@orpc/server": "^1.14.6",
     "@parcel/watcher": "^2.5.6",
     "glob": "^13.0.6",
     "immer": "^10.1.1",

@@ -1,193 +1,196 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Unsubscribe, WireTransport } from '@emdash/core/wire';
-import { app, utilityProcess } from 'electron';
+import { acpApiContract, acpHostContract } from '@emdash/core/acp';
+import { ok } from '@emdash/shared';
+import { createController, exposeWireToWindows, serve } from '@emdash/wire/api';
+import {
+  processTransport,
+  utilityProcessHost,
+  type ManagedProcess,
+  type UtilityForkLike,
+} from '@emdash/wire/process';
+import { spawnRuntime } from '@emdash/wire/util/process-runtime';
+import { app, ipcMain, MessageChannelMain, utilityProcess } from 'electron';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
-import { agentAuthService } from '../../agents/agent-auth-service';
 import { resolveLocalAcpSpawnContext } from '../transport/local-acp-process-host';
-import type {
-  AcpRuntimeChildMessage,
-  AcpRuntimeControlResponse,
-  AcpRuntimeHostMessage,
-} from './protocol';
 
-type RuntimeChild = ReturnType<typeof utilityProcess.fork>;
+const ACP_WIRE_CHANNEL = 'acp-wire';
 
-class AcpRuntimeProcessHost {
-  private child: RuntimeChild | null = null;
-  private readonly messageListeners = new Set<(message: unknown) => void>();
-  private readonly disconnectListeners = new Set<() => void>();
-  private readonly startedListeners = new Set<() => void>();
+type AcpRuntimeHandle = Awaited<ReturnType<typeof spawnAcpRuntime>>;
+export type AcpRuntimeClient = AcpRuntimeHandle['client'];
+type EventEmitterLike = {
+  on(event: string, cb: (...args: unknown[]) => void): void;
+  off(event: string, cb: (...args: unknown[]) => void): void;
+};
 
-  transport(): WireTransport {
-    return {
-      post: (message) => {
-        this.ensureStarted().postMessage(message);
-      },
-      onMessage: (cb): Unsubscribe => {
-        this.messageListeners.add(cb);
-        return () => this.messageListeners.delete(cb);
-      },
-      onDisconnect: (cb): Unsubscribe => {
-        this.disconnectListeners.add(cb);
-        return () => this.disconnectListeners.delete(cb);
-      },
-    };
-  }
+let handlePromise: Promise<AcpRuntimeHandle> | null = null;
+let rendererWireDispose: (() => void) | null = null;
+let hostWireDispose: (() => void) | null = null;
 
-  shutdown(): void {
-    const child = this.child;
-    this.child = null;
-    child?.postMessage({ type: 'shutdown' } satisfies AcpRuntimeHostMessage);
-  }
+export function initializeAcpRuntimeProcess(): Promise<AcpRuntimeHandle> {
+  if (handlePromise) return handlePromise;
+  handlePromise = spawnAcpRuntime().then((handle) => {
+    installHostWire(handle);
+    installRendererWire(handle.client);
+    app.once('before-quit', () => {
+      void disposeAcpRuntimeProcess();
+    });
+    return handle;
+  });
+  return handlePromise;
+}
 
-  onStarted(cb: () => void): Unsubscribe {
-    this.startedListeners.add(cb);
-    if (this.child) queueMicrotask(cb);
-    return () => this.startedListeners.delete(cb);
-  }
+export async function getAcpRuntimeHandle(): Promise<AcpRuntimeHandle> {
+  return initializeAcpRuntimeProcess();
+}
 
-  private ensureStarted(): RuntimeChild {
-    if (this.child) return this.child;
-    const entry = resolveRuntimeEntry();
-    log.info('ACP runtime utility process entry resolved', { entry });
-    const child = utilityProcess.fork(entry, [], {
+export async function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
+  return (await getAcpRuntimeHandle()).client;
+}
+
+export async function disposeAcpRuntimeProcess(): Promise<void> {
+  rendererWireDispose?.();
+  rendererWireDispose = null;
+  hostWireDispose?.();
+  hostWireDispose = null;
+  const handle = await handlePromise;
+  handlePromise = null;
+  await handle?.dispose();
+}
+
+async function spawnAcpRuntime() {
+  const entry = resolveRuntimeEntry();
+  log.info('ACP runtime utility process entry resolved', { entry });
+  const handle = await spawnRuntime({
+    host: utilityProcessHost({ fork: forkUtilityProcess }),
+    contract: acpApiContract,
+    spec: {
+      entry,
       env: {
         ...process.env,
         EMDASH_ACP_ATTACHMENTS_DIR: join(app.getPath('userData'), 'acp-attachments'),
       },
-      stdio: 'pipe',
-    });
-    child.on('error', (error) => {
-      if (this.child === child) this.child = null;
-      log.error('ACP runtime utility process failed', { error });
-      this.notifyDisconnected();
-    });
-    child.on('message', (message) => {
-      void this.handleMessage(message);
-      this.notifyMessage(message);
-    });
-    child.on('exit', (code) => {
-      if (this.child === child) this.child = null;
-      log.warn('ACP runtime utility process exited', { code });
-      this.notifyDisconnected();
-    });
-    child.on('spawn', () => {
-      log.info('ACP runtime utility process started');
-      this.notifyStarted();
-    });
-    child.stdout?.on('data', (chunk) => {
-      log.debug('ACP runtime stdout', { chunk: String(chunk) });
-    });
-    child.stderr?.on('data', (chunk) => {
-      log.warn('ACP runtime stderr', { chunk: String(chunk) });
-    });
-    this.child = child;
-    return child;
-  }
-
-  private async handleMessage(message: unknown): Promise<void> {
-    if (!isChildMessage(message)) return;
-    switch (message.type) {
-      case 'resolve-spawn-context':
-        await this.resolveSpawnContext(message.requestId, message.providerId);
-        break;
-      case 'check-auth':
-        await this.checkAuth(message.requestId, message.providerId);
-        break;
-      case 'mark-auth-required':
-        this.markAuthRequired(message.providerId, message.message);
-        break;
-      case 'persist-session-id':
-        await this.persistSessionId(message.conversationId, message.sessionId);
-        break;
-      case 'log':
-        log[message.level](message.message, { source: 'acp-runtime', data: message.data });
-        break;
-    }
-  }
-
-  private async resolveSpawnContext(requestId: string, providerId: string): Promise<void> {
-    try {
-      const value = await resolveLocalAcpSpawnContext(providerId);
-      this.post({
-        type: 'resolve-spawn-context-result',
-        requestId,
-        ok: true,
-        value,
-      });
-    } catch (error) {
-      this.post({
-        type: 'resolve-spawn-context-result',
-        requestId,
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  private async checkAuth(requestId: string, providerId: string): Promise<void> {
-    try {
-      const value = await agentAuthService.getStatus(providerId);
-      this.post({
-        type: 'check-auth-result',
-        requestId,
-        ok: true,
-        value,
-      });
-    } catch (error) {
-      this.post({
-        type: 'check-auth-result',
-        requestId,
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  private markAuthRequired(providerId: string, message?: string): void {
-    agentAuthService.markUnauthenticated(providerId, message);
-  }
-
-  private async persistSessionId(conversationId: string, sessionId: string): Promise<void> {
-    const result = await setSessionId(conversationId, sessionId);
-    if (!result.success) {
-      log.warn('ACP runtime failed to persist session id', {
-        conversationId,
-        error: result.error,
-      });
-    }
-  }
-
-  private post(message: AcpRuntimeControlResponse): void {
-    this.child?.postMessage(message);
-  }
-
-  private notifyMessage(message: unknown): void {
-    for (const listener of this.messageListeners) listener(message);
-  }
-
-  private notifyDisconnected(): void {
-    for (const listener of this.disconnectListeners) listener();
-  }
-
-  private notifyStarted(): void {
-    for (const listener of this.startedListeners) listener();
-  }
+      supervision: { restart: 'on-failure', backoffMs: [250, 1_000, 2_500], maxRestarts: 5 },
+    },
+    onProcess: attachAcpRuntimeLogging,
+  });
+  handle.onRestarted(() => {
+    log.info('ACP runtime utility process restarted');
+  });
+  return handle;
 }
 
-export const acpRuntimeProcessHost = new AcpRuntimeProcessHost();
+function attachAcpRuntimeLogging(process: ManagedProcess): void {
+  process.onStdio((stream, chunk) => {
+    if (stream === 'stderr') {
+      log.warn('ACP runtime stderr', { chunk });
+    } else {
+      log.debug('ACP runtime stdout', { chunk });
+    }
+  });
+  process.onExit((exit) => {
+    log.warn('ACP runtime utility process exited', exit);
+  });
+}
 
-function isChildMessage(value: unknown): value is AcpRuntimeChildMessage {
-  if (typeof value !== 'object' || value === null) return false;
-  const type = (value as { type?: unknown }).type;
-  return (
-    type === 'resolve-spawn-context' ||
-    type === 'check-auth' ||
-    type === 'mark-auth-required' ||
-    type === 'persist-session-id' ||
-    type === 'log'
+const forkUtilityProcess: UtilityForkLike = (entry, args, options) => {
+  const child = utilityProcess.fork(entry, args, { ...options, stdio: 'pipe' });
+  const events = child as unknown as EventEmitterLike;
+  return {
+    get pid() {
+      return child.pid;
+    },
+    postMessage: (message) => child.postMessage(message),
+    kill: () => child.kill(),
+    on: (event, cb) => events.on(event, cb),
+    off: (event, cb) => events.off(event, cb),
+    stdout: child.stdout ?? undefined,
+    stderr: child.stderr ?? undefined,
+  };
+};
+
+function installHostWire(handle: AcpRuntimeHandle): void {
+  hostWireDispose?.();
+  const transport = processTransport(handle.process);
+  const controller = createController(
+    acpHostContract,
+    {
+      resolveSpawnContext: ({ providerId }) => resolveLocalAcpSpawnContext(providerId),
+      persistSessionId: async ({ conversationId, sessionId }) => {
+        const result = await setSessionId(conversationId, sessionId);
+        if (!result.success) {
+          log.warn('ACP runtime failed to persist session id', {
+            conversationId,
+            error: result.error,
+          });
+        }
+      },
+      log: ({ level, message, data }) => {
+        log[level](message, { source: 'acp-runtime', data });
+      },
+    },
+    { validate: 'full' }
+  );
+  const disposeServer = serve(transport, controller);
+  hostWireDispose = () => {
+    disposeServer();
+    transport.close?.();
+  };
+}
+
+function installRendererWire(client: AcpRuntimeClient): void {
+  rendererWireDispose?.();
+  const controller = createController(
+    acpApiContract,
+    {
+      startSession: (input, meta) => client.startSession(input, meta),
+      resumeSession: (input, meta) => client.resumeSession(input, meta),
+      stopSession: (input, meta) => client.stopSession(input, meta),
+      sendPrompt: (input, meta) => client.sendPrompt(input, meta),
+      queuePrompt: (input, meta) => client.queuePrompt(input, meta),
+      editQueuedPrompt: (input, meta) => client.editQueuedPrompt(input, meta),
+      deleteQueuedPrompt: (input, meta) => client.deleteQueuedPrompt(input, meta),
+      changeQueuePromptOrder: (input, meta) => client.changeQueuePromptOrder(input, meta),
+      cancelTurn: (input, meta) => client.cancelTurn(input, meta),
+      setModelOption: (input, meta) => client.setModelOption(input, meta),
+      setModeOption: (input, meta) => client.setModeOption(input, meta),
+      resolvePermission: (input, meta) => client.resolvePermission(input, meta),
+      setPromptDraft: (input, meta) => client.setPromptDraft(input, meta),
+      exportACPTranscript: (input, meta) => client.exportACPTranscript(input, meta),
+      exportRawAcpLog: (input, meta) => client.exportRawAcpLog(input, meta),
+      uploadAttachment: (input, file, meta) => client.uploadAttachment(input, file, meta),
+      downloadAttachment: async (input, meta) => {
+        const result = await client.downloadAttachment(input, meta);
+        if (!result.success) return result;
+        return ok({ meta: result.data.meta, source: result.data.chunks() });
+      },
+      deleteAttachment: (input, meta) => client.deleteAttachment(input, meta),
+      getHistory: (input, meta) => client.getHistory(input, meta),
+      startLogin: (input, meta) => client.startLogin(input, meta),
+      cancelLogin: (input, meta) => client.cancelLogin(input, meta),
+      sendLoginInput: (input, meta) => client.sendLoginInput(input, meta),
+      resizeLogin: (input, meta) => client.resizeLogin(input, meta),
+      markUrlHandled: (input, meta) => client.markUrlHandled(input, meta),
+      refreshAuthStatus: (input, meta) => client.refreshAuthStatus(input, meta),
+      sessions: client.sessions,
+      session: client.session,
+      terminalOutput: client.terminalOutput,
+      authStatus: client.authStatus,
+      loginOutput: client.loginOutput,
+    },
+    { validate: 'full' }
+  );
+  rendererWireDispose = exposeWireToWindows(
+    {
+      ipcMain,
+      createMessageChannel: () => {
+        const channel = new MessageChannelMain();
+        return { port1: channel.port1, port2: channel.port2 };
+      },
+    },
+    controller,
+    { channel: ACP_WIRE_CHANNEL }
   );
 }
 

@@ -39,6 +39,68 @@ describe('createLiveLogReplica', () => {
     await replica.dispose();
   });
 
+  it('writes through to a custom log store', async () => {
+    const key = { id: 'session' };
+    const log = new LiveLog({ generation: 1000 });
+    log.append('seed');
+    const pair = memoryTransportPair();
+    serve(pair.right, createController(api, { output: () => log }));
+    const contractClient = client(api, connect(pair.left));
+    let text = '';
+
+    const replica = createLiveLogReplica(api.output, contractClient.output, {
+      store: () => ({
+        reset: (data) => {
+          text = data.text;
+        },
+        append: (chunk) => {
+          text += chunk;
+        },
+        text: () => text,
+      }),
+    });
+    const lease = replica.acquire(key);
+    const output = await lease.ready();
+
+    expect(output.text()).toBe('seed');
+    log.append('\nnext');
+    await waitFor(() => output.text() === 'seed\nnext');
+
+    await lease.release();
+    await replica.dispose();
+  });
+
+  it('supports write-only log sinks without readable text', async () => {
+    const key = { id: 'session' };
+    const log = new LiveLog({ generation: 1000 });
+    log.append('seed');
+    const pair = memoryTransportPair();
+    serve(pair.right, createController(api, { output: () => log }));
+    const contractClient = client(api, connect(pair.left));
+    const writes: string[] = [];
+
+    const replica = createLiveLogReplica(api.output, contractClient.output, {
+      store: () => ({
+        reset: (data) => {
+          writes.push(`reset:${data.text}`);
+        },
+        append: (chunk) => {
+          writes.push(`append:${chunk}`);
+        },
+      }),
+    });
+    const lease = replica.acquire(key);
+    const output = await lease.ready();
+
+    expect(() => output.text()).toThrow('write-only LogSink');
+    log.append('\nnext');
+    await waitFor(() => writes.length === 2);
+    expect(writes).toEqual(['reset:seed', 'append:\nnext']);
+
+    await lease.release();
+    await replica.dispose();
+  });
+
   it('serves downstream clients from the local log buffer', async () => {
     const key = { id: 'session' };
     const log = new LiveLog({ generation: 1000 });

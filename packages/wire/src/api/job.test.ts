@@ -45,6 +45,18 @@ describe('contract jobs', () => {
     await jobs.dispose();
   });
 
+  it('passes the server job id through controller job context', async () => {
+    const { client } = setup(async (_input, ctx) => ({ artifact: ctx.jobId }));
+
+    const jobs = createLiveJobReplica(jobContract.build, client.build);
+    const lease = await jobs.start({ name: 'context' });
+    const handle = await lease.ready();
+
+    await expect(handle.result).resolves.toEqual({ artifact: handle.jobId });
+    await lease.release();
+    await jobs.dispose();
+  });
+
   it('cancels a running job', async () => {
     const { client } = setup(
       async (_input, ctx) =>

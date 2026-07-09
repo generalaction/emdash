@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   appendLine('second line');
   appendLine('third line');
 
-  console.log('retained log snapshot:', client.getSnapshot());
+  console.log('written log bytes:', client.writtenOffset);
   detach();
 }
 

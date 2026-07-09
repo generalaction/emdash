@@ -15,6 +15,7 @@ import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { acpAgentStatusBridge } from './core/acp/agent-status-bridge';
+import { initializeAcpRuntimeProcess } from './core/acp/controller';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
@@ -152,6 +153,9 @@ void app.whenReady().then(async () => {
 
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
+  });
+  initializeAcpRuntimeProcess().catch((e) => {
+    log.error('Failed to start ACP runtime process:', e);
   });
   acpAgentStatusBridge.initialize();
 

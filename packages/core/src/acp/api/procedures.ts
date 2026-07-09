@@ -1,4 +1,5 @@
-import type { Result } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
+import type { WireFile } from '@emdash/wire';
 import type { AcpRuntimeError } from '../errors';
 import type { AttachmentMimeType, AttachmentRef } from '../models/attachments';
 import type { PromptDraftUpdate, PromptInput } from '../models/prompt';
@@ -93,26 +94,31 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     exportRawAcpLog(input: { conversationId: string }): Result<string, AcpRuntimeError> {
       return runtime.exportRawAcpLog(input.conversationId);
     },
-    uploadAttachment(input: {
-      data?: Uint8Array;
-      mimeType: AttachmentMimeType;
-      name?: string;
-      originalPath?: string;
-    }): Promise<Result<AttachmentRef, AcpRuntimeError>> {
-      return runtime.uploadAttachment(input);
+    async uploadAttachment(
+      input: {
+        originalPath?: string;
+      },
+      file: WireFile
+    ): Promise<Result<AttachmentRef, AcpRuntimeError>> {
+      const data = input.originalPath ? undefined : await file.bytes();
+      return runtime.uploadAttachment({
+        data,
+        mimeType: file.mimeType as AttachmentMimeType,
+        name: file.name,
+        originalPath: input.originalPath,
+      });
     },
     async downloadAttachment(input: {
       id: string;
-    }): Promise<Result<{ ref: AttachmentRef; data: Uint8Array }, AcpRuntimeError>> {
+    }): Promise<
+      Result<{ meta: AttachmentRef; source: AsyncIterable<Uint8Array> }, AcpRuntimeError>
+    > {
       const result = await runtime.downloadAttachment(input.id);
       if (!result.success) return result;
-      return {
-        success: true,
-        data: {
-          ref: result.data.ref,
-          data: new Uint8Array(result.data.data),
-        },
-      };
+      return ok({
+        meta: result.data.ref,
+        source: singleChunk(result.data.data),
+      });
     },
     deleteAttachment(input: { id: string }): Promise<Result<void, AcpRuntimeError>> {
       return runtime.deleteAttachment(input.id);
@@ -124,7 +130,36 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     }): Result<HistoryPage, AcpRuntimeError> {
       return runtime.getHistory(input.conversationId, input.before, input.limit);
     },
+    startLogin(input: {
+      providerId: string;
+      methodId: string;
+    }): Promise<Result<void, AcpRuntimeError>> {
+      return runtime.startLogin(input.providerId, input.methodId);
+    },
+    cancelLogin(input: { providerId: string }): Result<void, AcpRuntimeError> {
+      return runtime.cancelLogin(input.providerId);
+    },
+    sendLoginInput(input: { providerId: string; data: string }): Result<void, AcpRuntimeError> {
+      return runtime.sendLoginInput(input.providerId, input.data);
+    },
+    resizeLogin(input: {
+      providerId: string;
+      cols: number;
+      rows: number;
+    }): Result<void, AcpRuntimeError> {
+      return runtime.resizeLogin(input.providerId, input.cols, input.rows);
+    },
+    markUrlHandled(input: { providerId: string; urlId: string }): Result<void, AcpRuntimeError> {
+      return runtime.markUrlHandled(input.providerId, input.urlId);
+    },
+    refreshAuthStatus(input: { providerId: string }) {
+      return runtime.refreshAuthStatus(input.providerId);
+    },
   };
+}
+
+async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
+  yield data;
 }
 
 export type AcpProcedures = ReturnType<typeof createAcpProcedures>;

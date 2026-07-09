@@ -38,6 +38,21 @@ export const agentAuthDescriptorSchema = z.discriminatedUnion('kind', [
 export type AgentAuthMethod = z.infer<typeof authMethodSchema>;
 export type AgentAuthDescriptor = z.infer<typeof agentAuthDescriptorSchema>;
 
+export const agentAuthStatusSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('authenticated'),
+    account: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal('unauthenticated'),
+    message: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal('unknown'),
+    message: z.string().optional(),
+  }),
+]);
+
 export type AgentAuthStatus =
   | { kind: 'authenticated'; account?: string }
   | { kind: 'unauthenticated'; message?: string }

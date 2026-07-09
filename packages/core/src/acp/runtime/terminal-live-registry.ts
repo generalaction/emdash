@@ -1,12 +1,11 @@
-import { LiveLogServer } from '../../live/log';
-import { LiveModelServer } from '../../live/model';
+import { LiveLog } from '@emdash/wire';
 import type { AgentTerminalHooks } from '../agent-terminal-manager';
 import type { TerminalState } from '../models/terminals';
 
 type TerminalRecord = {
   conversationId: string;
   state: TerminalState;
-  log: LiveLogServer;
+  log: LiveLog;
 };
 
 /**
@@ -19,7 +18,8 @@ type TerminalRecord = {
 export class TerminalLiveRegistry {
   private readonly byTerminal = new Map<string, TerminalRecord>();
   private readonly byConversation = new Map<string, Set<string>>();
-  private readonly models = new Map<string, LiveModelServer<TerminalState[]>>();
+
+  constructor(private readonly onConversationChanged?: (conversationId: string) => void) {}
 
   readonly hooks: AgentTerminalHooks = {
     onTerminalCreated: ({ conversationId, terminalId, command, args, cwd }) => {
@@ -34,11 +34,11 @@ export class TerminalLiveRegistry {
           truncated: false,
           exitStatus: null,
         },
-        log: new LiveLogServer(),
+        log: new LiveLog(),
       };
       this.byTerminal.set(terminalId, record);
       this.addToConversation(conversationId, terminalId);
-      this.publishConversation(conversationId);
+      this.onConversationChanged?.(conversationId);
     },
     onTerminalOutput: ({ conversationId, terminalId, chunk, truncated }) => {
       const record = this.byTerminal.get(terminalId);
@@ -50,34 +50,25 @@ export class TerminalLiveRegistry {
         truncated,
       };
       this.byTerminal.set(terminalId, record);
-      this.publishConversation(conversationId);
+      this.onConversationChanged?.(conversationId);
     },
     onTerminalExit: ({ conversationId, terminalId, exitStatus }) => {
       const record = this.byTerminal.get(terminalId);
       if (!record) return;
       record.state = { ...record.state, exitStatus };
       this.byTerminal.set(terminalId, record);
-      this.publishConversation(conversationId);
+      this.onConversationChanged?.(conversationId);
     },
     onTerminalReleased: ({ conversationId, terminalId }) => {
       this.byTerminal.delete(terminalId);
       const ids = this.byConversation.get(conversationId);
       ids?.delete(terminalId);
       if (ids?.size === 0) this.byConversation.delete(conversationId);
-      this.publishConversation(conversationId);
+      this.onConversationChanged?.(conversationId);
     },
   };
 
-  getTerminalsModel(conversationId: string): LiveModelServer<TerminalState[]> {
-    let model = this.models.get(conversationId);
-    if (!model) {
-      model = new LiveModelServer<TerminalState[]>(this.snapshotConversation(conversationId));
-      this.models.set(conversationId, model);
-    }
-    return model;
-  }
-
-  getTerminalLog(terminalId: string): LiveLogServer | null {
+  getTerminalLog(terminalId: string): LiveLog | null {
     return this.byTerminal.get(terminalId)?.log ?? null;
   }
 
@@ -90,23 +81,12 @@ export class TerminalLiveRegistry {
     ids.add(terminalId);
   }
 
-  private snapshotConversation(conversationId: string): TerminalState[] {
+  snapshotConversation(conversationId: string): TerminalState[] {
     const ids = this.byConversation.get(conversationId);
     if (!ids) return [];
     return [...ids].flatMap((terminalId) => {
       const record = this.byTerminal.get(terminalId);
       return record ? [record.state] : [];
-    });
-  }
-
-  private publishConversation(conversationId: string): void {
-    const model = this.getTerminalsModel(conversationId);
-    const next = this.snapshotConversation(conversationId);
-    model.produce((draft) => {
-      draft.length = next.length;
-      for (let index = 0; index < next.length; index += 1) {
-        draft[index] = next[index]!;
-      }
     });
   }
 }

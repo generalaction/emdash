@@ -29,12 +29,17 @@ import type { NormalizedEvent } from '../reducer/normalized-event';
 import { SessionCell, type AcpChatHistory } from '../session/cell';
 import type { SessionCellCallbacks } from '../session/cell-deps';
 import {
+  createAcpSessionLiveHost,
+  createAcpSessionsLiveHost,
   createSessionLiveModels,
   createSessionsListModel,
   publishLiveModelState,
+  type AcpSessionLiveHost,
+  type AcpSessionsLiveHost,
   type SessionLiveModels,
   type SessionsListModel,
 } from '../state/live-models';
+import type { AcpAuthManager } from './auth-manager';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 
 interface SessionRecord {
@@ -50,6 +55,7 @@ interface SessionRecord {
     agents?: AgentState[];
     activeTurn?: TranscriptTurn | null;
     draft?: PromptDraft | null;
+    terminals?: TerminalState[];
   };
 }
 
@@ -59,7 +65,9 @@ export interface HistoryPage {
 }
 
 export class SessionManager implements InboundRouter {
-  readonly sessionsList: SessionsListModel = createSessionsListModel();
+  readonly sessionHost: AcpSessionLiveHost = createAcpSessionLiveHost();
+  readonly sessionsHost: AcpSessionsLiveHost = createAcpSessionsLiveHost();
+  readonly sessionsList: SessionsListModel = createSessionsListModel(this.sessionsHost);
   private readonly cells = new Map<string, SessionRecord>();
   private readonly routes = new Map<string, Map<string, string>>();
   private readonly loadingConversations = new Map<string, Set<string>>();
@@ -68,6 +76,7 @@ export class SessionManager implements InboundRouter {
     private readonly deps: AcpRuntimeDeps & { logger: Logger },
     private readonly pool: ConnectionPool,
     private readonly terminals: AgentTerminalManager,
+    private readonly auth: AcpAuthManager,
     private readonly ports: { fs: FsPort; terminals: TerminalPort }
   ) {}
 
@@ -193,7 +202,7 @@ export class SessionManager implements InboundRouter {
       this.pool.release(connection.key);
       this.deleteSessionSummary(input.conversationId);
       if (isAuthRequiredError(e)) {
-        this.deps.onAuthRequired?.(input.providerId);
+        this.auth.markUnauthenticated(input.providerId);
         return acpErr.authRequired(toSerializedError(e));
       }
       return acpErr.initializeFailed(toSerializedError(e));
@@ -201,9 +210,8 @@ export class SessionManager implements InboundRouter {
   }
 
   private async checkAuth(providerId: string) {
-    if (!this.deps.checkAuth) return { kind: 'unknown' as const };
     try {
-      return await this.deps.checkAuth(providerId);
+      return await this.auth.getStatus(providerId);
     } catch (error) {
       this.deps.logger.warn('SessionManager: auth status check failed', {
         providerId,
@@ -352,6 +360,14 @@ export class SessionManager implements InboundRouter {
     return this.cells.get(conversationId)?.live ?? null;
   }
 
+  syncTerminals(conversationId: string): void {
+    const record = this.cells.get(conversationId);
+    if (!record) return;
+    const terminals = this.getTerminals(conversationId);
+    publishLiveModelState(record.live.states.terminals, terminals, record.lastSynced.terminals);
+    record.lastSynced.terminals = terminals;
+  }
+
   killAllTerminals(): void {
     this.terminals.killAll();
   }
@@ -446,7 +462,7 @@ export class SessionManager implements InboundRouter {
       input,
       processKey: connection.key,
       cell,
-      live: createSessionLiveModels(cell.sessionState),
+      live: createSessionLiveModels(this.sessionHost, input.conversationId, cell.sessionState),
       lastSynced: {
         sessionState: cell.sessionState,
         config: cell.config,
@@ -455,6 +471,7 @@ export class SessionManager implements InboundRouter {
         agents: [],
         activeTurn: null,
         draft: null,
+        terminals: [],
       },
     });
     this.cells.set(input.conversationId, record);
@@ -471,33 +488,35 @@ export class SessionManager implements InboundRouter {
 
   private syncRecord(record: SessionRecord): void {
     const state = record.cell.sessionState;
-    publishLiveModelState(record.live.sessionState, state, record.lastSynced.sessionState);
+    publishLiveModelState(record.live.states.state, state, record.lastSynced.sessionState);
     record.lastSynced.sessionState = state;
 
     const config = record.cell.config;
-    publishLiveModelState(record.live.config, config, record.lastSynced.config);
+    publishLiveModelState(record.live.states.config, config, record.lastSynced.config);
     record.lastSynced.config = config;
 
     const usage = record.cell.usage;
-    publishLiveModelState(record.live.usage, usage, record.lastSynced.usage);
+    publishLiveModelState(record.live.states.usage, usage, record.lastSynced.usage);
     record.lastSynced.usage = usage;
 
     const plan = record.cell.transcript.plan ?? null;
-    publishLiveModelState(record.live.plan, plan, record.lastSynced.plan);
+    publishLiveModelState(record.live.states.plan, plan, record.lastSynced.plan);
     record.lastSynced.plan = plan;
 
     const agents = record.cell.transcript.agents;
     const agentSnapshot = [...agents];
-    publishLiveModelState(record.live.agents, agentSnapshot, record.lastSynced.agents);
+    publishLiveModelState(record.live.states.agents, agentSnapshot, record.lastSynced.agents);
     record.lastSynced.agents = agentSnapshot;
 
     const activeTurn = record.cell.transcript.activeTurn;
-    publishLiveModelState(record.live.activeTurn, activeTurn, record.lastSynced.activeTurn);
+    publishLiveModelState(record.live.states.activeTurn, activeTurn, record.lastSynced.activeTurn);
     record.lastSynced.activeTurn = activeTurn;
 
     const draft = record.cell.promptDraft;
-    publishLiveModelState(record.live.draft, draft, record.lastSynced.draft);
+    publishLiveModelState(record.live.states.draft, draft, record.lastSynced.draft);
     record.lastSynced.draft = draft;
+
+    this.syncTerminals(record.input.conversationId);
 
     this.upsertSessionSummary(record.input, record.cell, state);
   }
@@ -529,13 +548,13 @@ export class SessionManager implements InboundRouter {
       title: cell?.transcript.title ?? null,
       updatedAt: Date.now(),
     };
-    this.sessionsList.produce((draft) => {
+    this.sessionsList.states.list.produce((draft) => {
       draft[input.conversationId] = summary;
     });
   }
 
   private deleteSessionSummary(conversationId: string): void {
-    this.sessionsList.produce((draft) => {
+    this.sessionsList.states.list.produce((draft) => {
       delete draft[conversationId];
     });
   }
@@ -547,6 +566,7 @@ export class SessionManager implements InboundRouter {
     this.unregisterRoutes(record.processKey, conversationId);
     this.cells.delete(conversationId);
     this.terminals.disposeConversation(conversationId);
+    record.live.dispose();
     this.deleteSessionSummary(conversationId);
     if (releaseConnection) this.pool.release(record.processKey);
   }

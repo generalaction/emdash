@@ -4,18 +4,18 @@ import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 class FakeLiveList<T> {
   private listeners = new Set<() => void>();
 
-  constructor(private value: T | undefined) {}
+  constructor(private value: T) {}
 
-  getSnapshot(): T | undefined {
+  current(): T {
     return this.value;
   }
 
-  subscribe(listener: () => void): () => void {
+  onChange(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  set(value: T | undefined): void {
+  set(value: T): void {
     this.value = value;
     for (const listener of this.listeners) listener();
   }
@@ -30,7 +30,7 @@ class FakeLog {
     return this.value;
   }
 
-  subscribe(listener: () => void): () => void {
+  onAppend(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }

@@ -1,4 +1,10 @@
-import { LiveModelServer } from '../../live/model';
+import {
+  createLiveModelHost,
+  type LiveInstance,
+  type LiveModelHost,
+  type LiveState,
+} from '@emdash/wire';
+import { acpApiContract, type AuthStatusModelState } from '../api/wire-contract';
 import type { AgentState } from '../models/agents';
 import {
   initialSessionConfigState,
@@ -8,38 +14,65 @@ import {
 import type { PlanState } from '../models/plan';
 import type { PromptDraft } from '../models/prompt';
 import type { SessionState, SessionSummary } from '../models/session';
+import type { TerminalState } from '../models/terminals';
 import type { TranscriptTurn } from '../models/turns';
 
-export interface SessionLiveModels {
-  sessionState: LiveModelServer<SessionState>;
-  config: LiveModelServer<SessionConfigState>;
-  usage: LiveModelServer<SessionUsage | null>;
-  plan: LiveModelServer<PlanState | null>;
-  agents: LiveModelServer<AgentState[]>;
-  activeTurn: LiveModelServer<TranscriptTurn | null>;
-  draft: LiveModelServer<PromptDraft | null>;
+export type AcpSessionLiveHost = LiveModelHost<typeof acpApiContract.session>;
+export type AcpSessionsLiveHost = LiveModelHost<typeof acpApiContract.sessions>;
+export type AcpAuthStatusLiveHost = LiveModelHost<typeof acpApiContract.authStatus>;
+export type SessionLiveModels = LiveInstance<typeof acpApiContract.session>;
+export type SessionsListModel = LiveInstance<typeof acpApiContract.sessions>;
+export type AuthStatusModel = LiveInstance<typeof acpApiContract.authStatus>;
+
+export function createAcpSessionLiveHost(): AcpSessionLiveHost {
+  return createLiveModelHost(acpApiContract.session);
 }
 
-export type SessionsListModel = LiveModelServer<Record<string, SessionSummary>>;
-
-export function createSessionLiveModels(initialState: SessionState): SessionLiveModels {
-  return {
-    sessionState: new LiveModelServer(initialState),
-    config: new LiveModelServer(initialSessionConfigState),
-    usage: new LiveModelServer<SessionUsage | null>(null),
-    plan: new LiveModelServer<PlanState | null>(null),
-    agents: new LiveModelServer<AgentState[]>([]),
-    activeTurn: new LiveModelServer<TranscriptTurn | null>(null),
-    draft: new LiveModelServer<PromptDraft | null>(null),
-  };
+export function createAcpSessionsLiveHost(): AcpSessionsLiveHost {
+  return createLiveModelHost(acpApiContract.sessions);
 }
 
-export function createSessionsListModel(): SessionsListModel {
-  return new LiveModelServer<Record<string, SessionSummary>>({});
+export function createAcpAuthStatusLiveHost(): AcpAuthStatusLiveHost {
+  return createLiveModelHost(acpApiContract.authStatus);
+}
+
+export function createAuthStatusModel(
+  host: AcpAuthStatusLiveHost,
+  providerId: string,
+  initialState: AuthStatusModelState = {
+    status: { kind: 'unknown' },
+    login: null,
+  }
+): AuthStatusModel {
+  return host.create({ providerId }, { status: initialState });
+}
+
+export function createSessionLiveModels(
+  host: AcpSessionLiveHost,
+  conversationId: string,
+  initialState: SessionState
+): SessionLiveModels {
+  return host.create(
+    { conversationId },
+    {
+      state: initialState,
+      config: initialSessionConfigState,
+      usage: null,
+      plan: null,
+      agents: [],
+      activeTurn: null,
+      draft: null,
+      terminals: [],
+    }
+  );
+}
+
+export function createSessionsListModel(host: AcpSessionsLiveHost): SessionsListModel {
+  return host.create(undefined, { list: {} });
 }
 
 export function publishLiveModelState<T>(
-  model: LiveModelServer<T>,
+  model: LiveState<T>,
   next: T,
   previous: T | undefined
 ): void {
@@ -48,6 +81,18 @@ export function publishLiveModelState<T>(
     return assignDraft(draft, next) as never;
   });
 }
+
+export type {
+  AgentState,
+  PlanState,
+  PromptDraft,
+  SessionConfigState,
+  SessionState,
+  SessionSummary,
+  SessionUsage,
+  TerminalState,
+  TranscriptTurn,
+};
 
 function assignDraft<T>(draft: T, next: T): T | void {
   if (!isObjectLike(draft) || !isObjectLike(next)) {
