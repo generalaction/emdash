@@ -41,13 +41,12 @@ import {
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { events, rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-image-paths';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { log } from '@renderer/utils/logger';
-import { agentAuthStatusChangedChannel } from '@shared/core/agents/agentEvents';
 import { linkedIssueMentionName, type LinkedIssue } from '@shared/core/linked-issue';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
@@ -689,22 +688,17 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       ? agent.capabilities.auth.methods.find((method) => method.kind === 'cli-login')
       : undefined;
 
-  useEffect(() => {
-    if (!providerId || !store) return;
-    return events.on(agentAuthStatusChangedChannel, (event) => {
-      if (event.providerId !== providerId || event.status.kind !== 'authenticated') return;
-      if (store.loadError?.kind === 'auth_required') store.retry();
-    });
-  }, [providerId, store]);
-
   const openSignInModal = useCallback(() => {
-    if (!providerId || !cliAuthMethod) return;
+    if (!providerId || !cliAuthMethod || !store) return;
     showModal('agentSignInModal', {
       providerId,
       methodId: cliAuthMethod.id,
       providerName: agent?.name ?? providerId,
+      onSuccess: () => {
+        if (store.loadError?.kind === 'auth_required') store.retry();
+      },
     });
-  }, [agent?.name, cliAuthMethod, providerId]);
+  }, [agent?.name, cliAuthMethod, providerId, store]);
 
   useEffect(() => {
     if (conversationStore && !conversationStore.seen) {

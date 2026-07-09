@@ -1,3 +1,4 @@
+import { noopLogger, type Logger } from '@emdash/shared/logger';
 import {
   collectLocalProcessInfosByPidAsync,
   collectLocalProcessTreeAsync,
@@ -43,24 +44,15 @@ function isSameProcessIdentity(expected: ProcessInfo, current: ProcessInfo | und
   return true;
 }
 
-async function signalMatchingProcessIdentities(
-  processes: ProcessInfo[],
-  signal: NodeJS.Signals
-): Promise<void> {
-  const currentByPid = await collectLocalProcessInfosByPidAsync(pidsOf(processes));
-  const matchingPids = processes
-    .filter((processInfo) => isSameProcessIdentity(processInfo, currentByPid.get(processInfo.pid)))
-    .map(({ pid }) => pid);
-  signalPids(matchingPids, signal);
-}
-
 export class PosixPtyTerminator {
   private rootKillTimer: ReturnType<typeof setTimeout> | null = null;
   private descendantKillTimer: ReturnType<typeof setTimeout> | null = null;
   private exited = false;
 
+  constructor(private readonly logger: Logger = noopLogger) {}
+
   kill(rootPid: number, killPty: () => void): void {
-    void collectLocalProcessTreeAsync(rootPid).then(
+    void collectLocalProcessTreeAsync(rootPid, this.logger).then(
       (snapshot) => this.terminate(rootPid, snapshot, killPty),
       () => this.terminate(rootPid, { descendants: [] }, killPty)
     );
@@ -99,7 +91,7 @@ export class PosixPtyTerminator {
     );
     if (escapedDescendants.length > 0) {
       this.descendantKillTimer = setTimeout(() => {
-        void signalMatchingProcessIdentities(escapedDescendants, 'SIGKILL').finally(() => {
+        void this.signalMatchingProcessIdentities(escapedDescendants, 'SIGKILL').finally(() => {
           this.descendantKillTimer = null;
         });
       }, KILL_GRACE_MS);
@@ -108,5 +100,18 @@ export class PosixPtyTerminator {
     if (!this.exited) {
       killPty();
     }
+  }
+
+  private async signalMatchingProcessIdentities(
+    processes: ProcessInfo[],
+    signal: NodeJS.Signals
+  ): Promise<void> {
+    const currentByPid = await collectLocalProcessInfosByPidAsync(pidsOf(processes), this.logger);
+    const matchingPids = processes
+      .filter((processInfo) =>
+        isSameProcessIdentity(processInfo, currentByPid.get(processInfo.pid))
+      )
+      .map(({ pid }) => pid);
+    signalPids(matchingPids, signal);
   }
 }

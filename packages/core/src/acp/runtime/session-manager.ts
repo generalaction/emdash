@@ -39,6 +39,7 @@ import {
   type SessionLiveModels,
   type SessionsListModel,
 } from '../state/live-models';
+import type { AcpAuthManager } from './auth-manager';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 
 interface SessionRecord {
@@ -75,6 +76,7 @@ export class SessionManager implements InboundRouter {
     private readonly deps: AcpRuntimeDeps & { logger: Logger },
     private readonly pool: ConnectionPool,
     private readonly terminals: AgentTerminalManager,
+    private readonly auth: AcpAuthManager,
     private readonly ports: { fs: FsPort; terminals: TerminalPort }
   ) {}
 
@@ -200,7 +202,7 @@ export class SessionManager implements InboundRouter {
       this.pool.release(connection.key);
       this.deleteSessionSummary(input.conversationId);
       if (isAuthRequiredError(e)) {
-        this.deps.onAuthRequired?.(input.providerId);
+        this.auth.markUnauthenticated(input.providerId);
         return acpErr.authRequired(toSerializedError(e));
       }
       return acpErr.initializeFailed(toSerializedError(e));
@@ -208,9 +210,8 @@ export class SessionManager implements InboundRouter {
   }
 
   private async checkAuth(providerId: string) {
-    if (!this.deps.checkAuth) return { kind: 'unknown' as const };
     try {
-      return await this.deps.checkAuth(providerId);
+      return await this.auth.getStatus(providerId);
     } catch (error) {
       this.deps.logger.warn('SessionManager: auth status check failed', {
         providerId,

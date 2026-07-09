@@ -1,6 +1,6 @@
+import type { PosixPtyTerminator } from '@emdash/core/pty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalPtySession } from './local-pty';
-import type { PosixPtyTerminator } from './posix-pty-terminator';
 
 vi.mock('node-pty', () => ({
   spawn: vi.fn(),

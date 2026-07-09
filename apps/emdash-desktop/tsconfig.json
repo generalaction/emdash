@@ -13,6 +13,7 @@
       "@shared/*": ["./src/shared/*"],
       "@emdash/core/acp/client": ["../../packages/core/src/acp/client.ts"],
       "@emdash/core/acp": ["../../packages/core/src/acp/index.ts"],
+      "@emdash/core/pty": ["../../packages/core/src/pty/index.ts"],
       "@emdash/core/agents/plugins/helpers": [
         "../../packages/core/src/agents/plugins/helpers/index.ts"
       ],

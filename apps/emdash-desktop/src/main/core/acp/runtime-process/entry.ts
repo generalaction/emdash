@@ -1,17 +1,18 @@
 import { readFile } from 'node:fs/promises';
+import os from 'node:os';
 import {
   AcpRuntime,
   acpHostContract,
   createAcpController,
   type AcpRuntimeDeps,
 } from '@emdash/core/acp';
-import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
 import { client, connect, isWireMessage, type WireTransport } from '@emdash/wire';
 import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
 import { ChildAcpProcessHost } from './child-process-host';
 import { LocalAttachmentStore } from './local-attachment-store';
+import { NodePtySpawner } from './node-pty-spawner';
 
 type UtilityParentPort = {
   postMessage(message: unknown): void;
@@ -25,7 +26,6 @@ if (!parentPort) {
   throw new Error('ACP runtime process started without parentPort');
 }
 
-const AUTH_STATUS_TIMEOUT_MS = 10_000;
 const attachmentsDir = process.env.EMDASH_ACP_ATTACHMENTS_DIR;
 
 if (!attachmentsDir) {
@@ -49,14 +49,22 @@ void serveProcessRuntime(
         }
         return { behavior: plugin.behavior.acp };
       },
+      resolveAuthProvider: (providerId) => {
+        const plugin = pluginRegistry.get(providerId);
+        if (!plugin) return null;
+        return {
+          name: plugin.metadata.name,
+          auth: plugin.capabilities.auth,
+          behavior: plugin.behavior.auth,
+        };
+      },
       host: childHost,
+      ptySpawner: new NodePtySpawner(),
+      authHomeDir: os.homedir(),
+      authEnv: process.env,
       persistSessionId: async (conversationId, sessionId) => {
         await hostClient.persistSessionId({ conversationId, sessionId });
         return { success: true, data: undefined };
-      },
-      checkAuth: (providerId) => checkAuthWithTimeout(providerId),
-      onAuthRequired: (providerId) => {
-        void hostClient.markAuthRequired({ providerId });
       },
       resolveAttachment: async (attachment) => {
         if (attachment.type === 'attachment') {
@@ -78,7 +86,7 @@ void serveProcessRuntime(
       attachmentStore,
       logger,
     } satisfies AcpRuntimeDeps);
-    scope.add(() => runtime.killAllTerminals());
+    scope.add(() => runtime.dispose());
     return createAcpController(runtime);
   },
   { port: runtimePort, logger }
@@ -88,28 +96,6 @@ void serveProcessRuntime(
   );
   process.exit(1);
 });
-
-function checkAuthWithTimeout(providerId: string): Promise<AgentAuthStatus> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      logger.warn('ACP runtime auth status check timed out', {
-        providerId,
-        timeoutMs: AUTH_STATUS_TIMEOUT_MS,
-      });
-      resolve({ kind: 'unknown' });
-    }, AUTH_STATUS_TIMEOUT_MS);
-    hostClient.checkAuth({ providerId }).then(
-      (status) => {
-        clearTimeout(timeout);
-        resolve(status);
-      },
-      (error: unknown) => {
-        clearTimeout(timeout);
-        reject(error instanceof Error ? error : new Error(String(error)));
-      }
-    );
-  });
-}
 
 function createParentLogger(host: typeof hostClient, bindings: LogFields = {}): Logger {
   const emit = (level: LogLevel, message: string, data?: LogFields): void => {

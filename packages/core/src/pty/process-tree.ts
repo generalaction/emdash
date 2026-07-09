@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { log } from '@main/lib/logger';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
 
 export interface PidPpidPair {
   pid: number;
@@ -98,7 +98,10 @@ export function collectDescendantPids(pairs: PidPpidPair[], roots: number[]): nu
   return collectDescendantProcesses(pairs, roots).map(({ pid }) => pid);
 }
 
-function snapshotLocalProcesses(args: string[]): Promise<ProcessInfo[]> {
+function snapshotLocalProcesses(
+  args: string[],
+  logger: Logger = noopLogger
+): Promise<ProcessInfo[]> {
   return new Promise((resolve) => {
     execFile(
       'ps',
@@ -106,7 +109,7 @@ function snapshotLocalProcesses(args: string[]): Promise<ProcessInfo[]> {
       { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, timeout: 2000 },
       (error, stdout) => {
         if (error && !stdout) {
-          log.debug('process-tree: ps snapshot failed', {
+          logger.debug('process-tree: ps snapshot failed', {
             args,
             error: String(error),
           });
@@ -114,7 +117,7 @@ function snapshotLocalProcesses(args: string[]): Promise<ProcessInfo[]> {
           return;
         }
         if (error) {
-          log.debug('process-tree: ps snapshot partially failed', {
+          logger.debug('process-tree: ps snapshot partially failed', {
             args,
             error: String(error),
           });
@@ -130,13 +133,16 @@ function snapshotLocalProcesses(args: string[]): Promise<ProcessInfo[]> {
  * descendants of `rootPid`. Best-effort: resolves an empty descendant list if
  * `ps` is unavailable or fails.
  *
- * Asynchronous on purpose — this runs on the Electron main process, so spawning
- * `ps` must not block the event loop. POSIX only; callers guard the platform.
- * `ps -A -o pid=,ppid=,pgid=,sess=,lstart=` is supported by both Linux
- * (procps) and macOS (BSD) `ps`.
+ * Asynchronous on purpose -- this runs on the Electron main process or a utility
+ * process, so spawning `ps` must not block the event loop. POSIX only; callers
+ * guard the platform. `ps -A -o pid=,ppid=,pgid=,sess=,lstart=` is supported by
+ * both Linux (procps) and macOS (BSD) `ps`.
  */
-export async function collectLocalProcessTreeAsync(rootPid: number): Promise<ProcessTreeSnapshot> {
-  const processes = await snapshotLocalProcesses(['-A', '-o', PS_TREE_COLUMNS]);
+export async function collectLocalProcessTreeAsync(
+  rootPid: number,
+  logger: Logger = noopLogger
+): Promise<ProcessTreeSnapshot> {
+  const processes = await snapshotLocalProcesses(['-A', '-o', PS_TREE_COLUMNS], logger);
   return {
     root: processes.find(({ pid }) => pid === rootPid),
     descendants: collectDescendantProcesses(processes, [rootPid]),
@@ -148,16 +154,15 @@ export async function collectLocalProcessTreeAsync(rootPid: number): Promise<Pro
  * omitted from the returned map.
  */
 export async function collectLocalProcessInfosByPidAsync(
-  pids: number[]
+  pids: number[],
+  logger: Logger = noopLogger
 ): Promise<Map<number, ProcessInfo>> {
   const uniquePids = [...new Set(pids.filter((pid) => Number.isInteger(pid) && pid > 0))];
   if (uniquePids.length === 0) return new Map();
 
-  const processes = await snapshotLocalProcesses([
-    '-p',
-    uniquePids.join(','),
-    '-o',
-    PS_TREE_COLUMNS,
-  ]);
+  const processes = await snapshotLocalProcesses(
+    ['-p', uniquePids.join(','), '-o', PS_TREE_COLUMNS],
+    logger
+  );
   return new Map(processes.map((processInfo) => [processInfo.pid, processInfo]));
 }

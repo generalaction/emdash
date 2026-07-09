@@ -53,6 +53,10 @@
       "types": "./dist/lib.d.mts",
       "default": "./dist/lib.mjs"
     },
+    "./pty": {
+      "types": "./dist/pty.d.mts",
+      "default": "./dist/pty.mjs"
+    },
     "./agents/plugins": {
       "types": "./dist/agents-plugins.d.mts",
       "default": "./dist/agents-plugins.mjs"

@@ -3,12 +3,16 @@ import { join } from 'node:path';
 import { acpApiContract, acpHostContract } from '@emdash/core/acp';
 import { ok } from '@emdash/shared';
 import { createController, exposeWireToWindows, serve } from '@emdash/wire/api';
-import { processTransport, utilityProcessHost, type UtilityForkLike } from '@emdash/wire/process';
+import {
+  processTransport,
+  utilityProcessHost,
+  type ManagedProcess,
+  type UtilityForkLike,
+} from '@emdash/wire/process';
 import { spawnRuntime } from '@emdash/wire/util/process-runtime';
 import { app, ipcMain, MessageChannelMain, utilityProcess } from 'electron';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
-import { agentAuthService } from '../../agents/agent-auth-service';
 import { resolveLocalAcpSpawnContext } from '../transport/local-acp-process-host';
 
 const ACP_WIRE_CHANNEL = 'acp-wire';
@@ -69,21 +73,25 @@ async function spawnAcpRuntime() {
       },
       supervision: { restart: 'on-failure', backoffMs: [250, 1_000, 2_500], maxRestarts: 5 },
     },
+    onProcess: attachAcpRuntimeLogging,
   });
-  handle.process.onStdio((stream, chunk) => {
+  handle.onRestarted(() => {
+    log.info('ACP runtime utility process restarted');
+  });
+  return handle;
+}
+
+function attachAcpRuntimeLogging(process: ManagedProcess): void {
+  process.onStdio((stream, chunk) => {
     if (stream === 'stderr') {
       log.warn('ACP runtime stderr', { chunk });
     } else {
       log.debug('ACP runtime stdout', { chunk });
     }
   });
-  handle.process.onExit((exit) => {
+  process.onExit((exit) => {
     log.warn('ACP runtime utility process exited', exit);
   });
-  handle.onRestarted(() => {
-    log.info('ACP runtime utility process restarted');
-  });
-  return handle;
 }
 
 const forkUtilityProcess: UtilityForkLike = (entry, args, options) => {
@@ -109,10 +117,6 @@ function installHostWire(handle: AcpRuntimeHandle): void {
     acpHostContract,
     {
       resolveSpawnContext: ({ providerId }) => resolveLocalAcpSpawnContext(providerId),
-      checkAuth: ({ providerId }) => agentAuthService.getStatus(providerId),
-      markAuthRequired: ({ providerId, message }) => {
-        agentAuthService.markUnauthenticated(providerId, message);
-      },
       persistSessionId: async ({ conversationId, sessionId }) => {
         const result = await setSessionId(conversationId, sessionId);
         if (!result.success) {
@@ -163,9 +167,17 @@ function installRendererWire(client: AcpRuntimeClient): void {
       },
       deleteAttachment: (input, meta) => client.deleteAttachment(input, meta),
       getHistory: (input, meta) => client.getHistory(input, meta),
+      startLogin: (input, meta) => client.startLogin(input, meta),
+      cancelLogin: (input, meta) => client.cancelLogin(input, meta),
+      sendLoginInput: (input, meta) => client.sendLoginInput(input, meta),
+      resizeLogin: (input, meta) => client.resizeLogin(input, meta),
+      markUrlHandled: (input, meta) => client.markUrlHandled(input, meta),
+      refreshAuthStatus: (input, meta) => client.refreshAuthStatus(input, meta),
       sessions: client.sessions,
       session: client.session,
       terminalOutput: client.terminalOutput,
+      authStatus: client.authStatus,
+      loginOutput: client.loginOutput,
     },
     { validate: 'full' }
   );

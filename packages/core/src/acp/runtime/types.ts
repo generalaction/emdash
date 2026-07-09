@@ -1,7 +1,11 @@
 import type { Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { IAcpBehavior } from '../../agents/plugins/capabilities/acp';
-import type { AgentAuthStatus } from '../../agents/plugins/capabilities/auth';
+import type {
+  AgentAuthDescriptor,
+  IAgentAuthBehavior,
+} from '../../agents/plugins/capabilities/auth';
+import type { PtySpawner } from '../../pty';
 import type { PromptAttachment } from '../models/attachments';
 import type { PromptInput } from '../models/prompt';
 import type { AcpProcessHost } from '../transport';
@@ -25,6 +29,12 @@ export interface ResumeSessionInput extends AcpStartInput {
 
 export type ResolveAcpProvider = (providerId: string) => { behavior: IAcpBehavior } | null;
 
+export type ResolveAuthProvider = (providerId: string) => {
+  name: string;
+  auth: AgentAuthDescriptor;
+  behavior?: IAgentAuthBehavior;
+} | null;
+
 export interface ResolvedPromptAttachment {
   data: string;
   mimeType: string;
@@ -38,14 +48,16 @@ export type SetSessionIdError = { type: string; message?: string };
 
 export interface AcpRuntimeDeps {
   resolveAcp: ResolveAcpProvider;
+  resolveAuthProvider?: ResolveAuthProvider;
   host: AcpProcessHost;
+  ptySpawner?: PtySpawner;
+  authHomeDir?: string;
+  authEnv?: Record<string, string | undefined>;
   persistSessionId: (
     conversationId: string,
     sessionId: string
   ) => Promise<Result<void, SetSessionIdError>>;
   resolveAttachment: ResolvePromptAttachment;
-  checkAuth?: (providerId: string) => Promise<AgentAuthStatus>;
-  onAuthRequired?: (providerId: string) => void;
   attachmentStore?: AttachmentStore;
   logger: Logger;
 }

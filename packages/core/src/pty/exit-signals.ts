@@ -1,33 +1,33 @@
 export type PtySignal =
-  | 'SIGHUP' // 1  — hangup / PTY master closed (common when emdash window closes)
-  | 'SIGINT' // 2  — Ctrl+C (user interrupt)
-  | 'SIGQUIT' // 3  — Ctrl+\ (quit + core dump)
-  | 'SIGILL' // 4  — illegal instruction
-  | 'SIGTRAP' // 5  — trace / breakpoint trap
-  | 'SIGABRT' // 6  — abort() called
-  | 'SIGBUS' // 7  — bus error (bad memory access)
-  | 'SIGFPE' // 8  — floating-point exception
-  | 'SIGKILL' // 9  — force kill (cannot be caught or ignored)
-  | 'SIGUSR1' // 10 — user-defined signal 1
-  | 'SIGSEGV' // 11 — invalid memory reference (segfault)
-  | 'SIGUSR2' // 12 — user-defined signal 2
-  | 'SIGPIPE' // 13 — write to closed pipe (agent output discarded)
-  | 'SIGALRM' // 14 — alarm timer expired
-  | 'SIGTERM' // 15 — graceful termination request (default `kill` signal)
-  | 'SIGCHLD' // 17 — child process state changed
-  | 'SIGCONT' // 18 — continue a stopped process
-  | 'SIGSTOP' // 19 — stop process (cannot be caught or ignored)
-  | 'SIGTSTP' // 20 — Ctrl+Z (stop from terminal)
-  | 'SIGTTIN' // 21 — background process attempted terminal read
-  | 'SIGTTOU' // 22 — background process attempted terminal write
-  | 'SIGURG' // 23 — urgent data available on socket
-  | 'SIGXCPU' // 24 — CPU time limit exceeded
-  | 'SIGXFSZ' // 25 — file size limit exceeded
-  | 'SIGVTALRM' // 26 — virtual timer expired
-  | 'SIGPROF' // 27 — profiling timer expired
-  | 'SIGWINCH' // 28 — terminal window resized (rarely surfaces as an exit signal)
-  | 'SIGPWR' // 30 — power failure
-  | 'SIGSYS'; // 31 — bad system call
+  | 'SIGHUP' // 1  - hangup / PTY master closed (common when emdash window closes)
+  | 'SIGINT' // 2  - Ctrl+C (user interrupt)
+  | 'SIGQUIT' // 3  - Ctrl+\ (quit + core dump)
+  | 'SIGILL' // 4  - illegal instruction
+  | 'SIGTRAP' // 5  - trace / breakpoint trap
+  | 'SIGABRT' // 6  - abort() called
+  | 'SIGBUS' // 7  - bus error (bad memory access)
+  | 'SIGFPE' // 8  - floating-point exception
+  | 'SIGKILL' // 9  - force kill (cannot be caught or ignored)
+  | 'SIGUSR1' // 10 - user-defined signal 1
+  | 'SIGSEGV' // 11 - invalid memory reference (segfault)
+  | 'SIGUSR2' // 12 - user-defined signal 2
+  | 'SIGPIPE' // 13 - write to closed pipe (agent output discarded)
+  | 'SIGALRM' // 14 - alarm timer expired
+  | 'SIGTERM' // 15 - graceful termination request (default `kill` signal)
+  | 'SIGCHLD' // 17 - child process state changed
+  | 'SIGCONT' // 18 - continue a stopped process
+  | 'SIGSTOP' // 19 - stop process (cannot be caught or ignored)
+  | 'SIGTSTP' // 20 - Ctrl+Z (stop from terminal)
+  | 'SIGTTIN' // 21 - background process attempted terminal read
+  | 'SIGTTOU' // 22 - background process attempted terminal write
+  | 'SIGURG' // 23 - urgent data available on socket
+  | 'SIGXCPU' // 24 - CPU time limit exceeded
+  | 'SIGXFSZ' // 25 - file size limit exceeded
+  | 'SIGVTALRM' // 26 - virtual timer expired
+  | 'SIGPROF' // 27 - profiling timer expired
+  | 'SIGWINCH' // 28 - terminal window resized (rarely surfaces as an exit signal)
+  | 'SIGPWR' // 30 - power failure
+  | 'SIGSYS'; // 31 - bad system call
 
 export const SIGNAL_BY_NUMBER: Readonly<Record<number, PtySignal>> = {
   1: 'SIGHUP',

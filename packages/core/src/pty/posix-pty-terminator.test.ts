@@ -98,7 +98,7 @@ describe('PosixPtyTerminator', () => {
     terminator.kill(1234, killPty);
     await flushSnapshot();
 
-    expect(collectLocalProcessTreeAsync).toHaveBeenCalledWith(1234);
+    expect(collectLocalProcessTreeAsync).toHaveBeenCalledWith(1234, expect.anything());
     expect(process.kill).toHaveBeenCalledWith(5678, 'SIGTERM');
     expect(process.kill).toHaveBeenCalledWith(9012, 'SIGTERM');
   });
@@ -127,7 +127,7 @@ describe('PosixPtyTerminator', () => {
     await flushSnapshot();
     // The dead group's SIGKILL is cancelled...
     expect(process.kill).not.toHaveBeenCalledWith(-1234, 'SIGKILL');
-    // ...but the detached descendant is still force-killed — this is the bug the
+    // ...but the detached descendant is still force-killed - this is the bug the
     // independent descendant timer fixes.
     expect(process.kill).toHaveBeenCalledWith(5678, 'SIGKILL');
   });
