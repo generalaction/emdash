@@ -4,7 +4,7 @@ import {
   type LiveModelHost,
   type LiveState,
 } from '@emdash/wire';
-import { acpApiContract, type AuthStatusModelState } from '../api/wire-contract';
+import { acpApiContract, type AuthStatusModelState } from '../api/contract';
 import type { AgentState } from '../models/agents';
 import {
   initialSessionConfigState,

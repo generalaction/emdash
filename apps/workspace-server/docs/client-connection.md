@@ -138,6 +138,7 @@ the production SSH transport.
 
 ## Related Docs
 
+- `apps/workspace-server/docs/daemon.md`
 - `packages/wire/docs/api/serving.md`
 - `packages/wire/docs/api/transports.md`
 - `packages/wire/docs/runtime/lifecycle.md`

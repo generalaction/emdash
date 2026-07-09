@@ -16,7 +16,7 @@ export { SessionCell } from './session/cell';
 export { PermissionBroker } from './session/permission-broker';
 export { SessionMachine, isPromptReady } from './machine/machine';
 export * from './state/live-models';
-export * from './api/wire-contract';
+export * from './api/contract';
 export { createAcpController } from './api/controller';
 export { createAcpProcedures } from './api/procedures';
 export type { HistoryPage, ResumeResult } from './api/queries';

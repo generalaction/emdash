@@ -11,7 +11,7 @@ import { AcpRuntime } from '../runtime/runtime';
 import { uploadAttachmentCommandSchema } from './commands';
 import { createAcpController } from './controller';
 import { acpRuntimeErrorSchema } from './errors';
-import { acpApiContract } from './wire-contract';
+import { acpApiContract } from './contract';
 
 describe('ACP API contract schemas', () => {
   it('parses runtime live model snapshots with the public schemas', async () => {

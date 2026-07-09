@@ -11,7 +11,7 @@ import type { LiveLog } from '@emdash/wire';
 import type { AgentAuthMethod, AgentAuthStatus, PluginFs } from '../../agents/plugins';
 import { PtyRegistry } from '../../pty';
 import type { PtySpawner } from '../../pty';
-import type { AuthStatusModelState } from '../api/wire-contract';
+import type { AuthStatusModelState } from '../api/contract';
 import type { AcpRuntimeError } from '../errors';
 import { acpErr } from '../errors';
 import {
