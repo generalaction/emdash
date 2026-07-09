@@ -11,7 +11,12 @@ describe('classifyGitWatchEvents', () => {
       { gitCommonDir, worktrees: [] }
     );
 
-    expect(classification.repo).toEqual({ refs: true, remotes: true, stashes: false });
+    expect(classification.repo).toEqual({
+      refs: true,
+      remotes: true,
+      stashes: false,
+      checkouts: false,
+    });
   });
 
   it('ignores object database writes for repo facts', () => {
@@ -22,7 +27,12 @@ describe('classifyGitWatchEvents', () => {
       { gitCommonDir, worktrees: [] }
     );
 
-    expect(classification.repo).toEqual({ refs: false, remotes: false, stashes: false });
+    expect(classification.repo).toEqual({
+      refs: false,
+      remotes: false,
+      stashes: false,
+      checkouts: false,
+    });
   });
 
   it('treats branch ref changes as worktree head and status staleness', () => {
@@ -34,7 +44,12 @@ describe('classifyGitWatchEvents', () => {
       { gitCommonDir, worktrees: [{ id: 'main', gitDir: gitCommonDir, worktree }] }
     );
 
-    expect(classification.repo).toEqual({ refs: true, remotes: false, stashes: false });
+    expect(classification.repo).toEqual({
+      refs: true,
+      remotes: false,
+      stashes: false,
+      checkouts: false,
+    });
     expect(classification.worktrees.get('main')).toEqual({ status: true, head: true });
   });
 
@@ -47,7 +62,12 @@ describe('classifyGitWatchEvents', () => {
       { gitCommonDir, worktrees: [{ id: 'main', gitDir: gitCommonDir, worktree }] }
     );
 
-    expect(classification.repo).toEqual({ refs: true, remotes: false, stashes: false });
+    expect(classification.repo).toEqual({
+      refs: true,
+      remotes: false,
+      stashes: false,
+      checkouts: false,
+    });
     expect(classification.worktrees.size).toBe(0);
   });
 
@@ -63,7 +83,12 @@ describe('classifyGitWatchEvents', () => {
       { gitCommonDir, worktrees: [{ id: 'main', gitDir: gitCommonDir, worktree }] }
     );
 
-    expect(classification.repo).toEqual({ refs: false, remotes: false, stashes: false });
+    expect(classification.repo).toEqual({
+      refs: false,
+      remotes: false,
+      stashes: false,
+      checkouts: false,
+    });
     expect(classification.worktrees.size).toBe(0);
   });
 
@@ -77,5 +102,21 @@ describe('classifyGitWatchEvents', () => {
     );
 
     expect(classification.worktrees.get('main')).toEqual({ status: true, head: true });
+  });
+
+  it('treats common worktrees directory changes as checkout-list staleness', () => {
+    const gitCommonDir = path.join(path.sep, 'repo', '.git');
+
+    const classification = classifyGitWatchEvents(
+      [{ kind: 'create', path: path.join(gitCommonDir, 'worktrees', 'feature', 'gitdir') }],
+      { gitCommonDir, worktrees: [] }
+    );
+
+    expect(classification.repo).toEqual({
+      refs: false,
+      remotes: false,
+      stashes: false,
+      checkouts: true,
+    });
   });
 });

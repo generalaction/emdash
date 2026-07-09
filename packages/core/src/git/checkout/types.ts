@@ -37,10 +37,7 @@ import type { GitOpContext } from '../transfer-progress';
 import type { GitHeadModel } from './models/head';
 import type { CheckoutStatusModel } from './models/status';
 
-export type CheckoutRepository = Pick<
-  IGitRepository,
-  'gitCommonDir' | 'readBlobAtRef'
->;
+export type CheckoutRepository = Pick<IGitRepository, 'gitCommonDir' | 'readBlobAtRef'>;
 
 export type GitCheckoutOptions = {
   checkoutPath: string;

@@ -1,11 +1,18 @@
 import { resultSchema as result } from '@emdash/shared';
 import { z } from 'zod';
 
-export const gitCommandErrorSchema = z.object({
+export const gitExecErrorSchema = z.object({
   type: z.literal('git_error'),
   message: z.string(),
   stderr: z.string().optional(),
 });
+export const gitNotOpenErrorSchema = z.object({
+  type: z.literal('not_open'),
+  resource: z.enum(['repository', 'checkout']),
+  key: z.string(),
+  message: z.string(),
+});
+export const gitCommandErrorSchema = z.union([gitExecErrorSchema, gitNotOpenErrorSchema]);
 export type GitCommandError = z.infer<typeof gitCommandErrorSchema>;
 
 export const cloneRepositoryErrorSchema = z.union([

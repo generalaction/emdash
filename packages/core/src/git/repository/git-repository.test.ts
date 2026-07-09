@@ -103,9 +103,9 @@ describe('GitRepository', () => {
       await expect(repository.createTag({ name: 'v1' })).resolves.toMatchObject({
         success: true,
       });
-      await expect(repository.createTag({ name: 'v2', message: 'release two' })).resolves.toMatchObject(
-        { success: true }
-      );
+      await expect(
+        repository.createTag({ name: 'v2', message: 'release two' })
+      ).resolves.toMatchObject({ success: true });
 
       const tags = (await repository.getRefs()).tags;
       expect(tags).toEqual([
@@ -115,9 +115,7 @@ describe('GitRepository', () => {
       expect(tags[1]!.oid).toBe(tags[0]!.oid);
 
       await expect(repository.deleteTag('v1')).resolves.toMatchObject({ success: true });
-      expect((await repository.getRefs()).tags).toEqual([
-        expect.objectContaining({ name: 'v2' }),
-      ]);
+      expect((await repository.getRefs()).tags).toEqual([expect.objectContaining({ name: 'v2' })]);
     } finally {
       await cleanup();
     }

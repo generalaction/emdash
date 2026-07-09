@@ -14,6 +14,17 @@ import type {
   SwitchError,
 } from './api/errors';
 
+export const gitErr = {
+  notOpen(resource: 'repository' | 'checkout', key: string): GitCommandError {
+    return {
+      type: 'not_open',
+      resource,
+      key,
+      message: `Git ${resource} session is not open: ${key}`,
+    };
+  },
+};
+
 function errorStringProperty(error: unknown, property: 'stdout' | 'stderr' | 'message'): string {
   if (!error || typeof error !== 'object' || !(property in error)) return '';
   return String((error as Record<typeof property, unknown>)[property] ?? '').trim();
@@ -230,7 +241,10 @@ export function classifyCreateBranchError(
   from: string
 ): CreateBranchError {
   const commandError = toGitCommandError(error);
-  const stderr = commandError.stderr ?? commandError.message;
+  const stderr =
+    commandError.type === 'git_error'
+      ? (commandError.stderr ?? commandError.message)
+      : commandError.message;
   if (stderr.includes('already exists')) {
     return { type: 'already_exists', branch, message: commandError.message };
   }
@@ -299,7 +313,11 @@ export function classifySwitchError(error: unknown, ref: string): SwitchError {
 
 export function classifyDeleteBranchError(error: unknown, branch: string): DeleteBranchError {
   const commandError = toGitCommandError(error);
-  const stderr = (commandError.stderr ?? commandError.message).toLowerCase();
+  const stderr = (
+    commandError.type === 'git_error'
+      ? (commandError.stderr ?? commandError.message)
+      : commandError.message
+  ).toLowerCase();
   if (
     stderr.includes('checked out') ||
     stderr.includes('currently checked out') ||

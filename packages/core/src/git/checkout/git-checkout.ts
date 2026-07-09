@@ -110,7 +110,9 @@ export class GitCheckout implements IGitCheckout {
 
   async stage(paths: string[]): Promise<Result<void, GitCommandError>> {
     if (paths.length === 0) return ok(undefined);
-    return this.commandMutation(() => this.exec.exec(['add', '--', ...this.toRelativePaths(paths)]));
+    return this.commandMutation(() =>
+      this.exec.exec(['add', '--', ...this.toRelativePaths(paths)])
+    );
   }
 
   async unstage(paths: string[]): Promise<Result<void, GitCommandError>> {

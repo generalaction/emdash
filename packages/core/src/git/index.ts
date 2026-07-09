@@ -1,13 +1,33 @@
 export { GitRuntime, type GitRuntimeOptions } from './git-runtime';
-export { classifyCloneRepositoryError, gitErrorMessage, toGitCommandError } from './errors';
+export { classifyCloneRepositoryError, gitErr, gitErrorMessage, toGitCommandError } from './errors';
 export { computeBaseRef } from './base-ref';
 export { gitContract, type GitContract } from './api/contract';
 export { gitRepositoryContract, type GitRepositoryContract } from './repository/api/contract';
 export { gitCheckoutContract, type GitCheckoutContract } from './checkout/contract';
 export { createGitController, type GitControllerOptions } from './api/controller';
-export { GitWireResources } from './api/resources';
 export { repositoryKeySchema, type RepositoryKey } from './repository/api/key';
 export { checkoutKeySchema, type CheckoutKey } from './checkout/key';
+export { GitSessionManager } from './session/session-manager';
+export type { GitIdentity, GitOnError, GitSessionManagerOptions } from './session/types';
+export {
+  createRepositoryLiveHost,
+  createRepositoryLiveModels,
+  type RepositoryInitialState,
+  type RepositoryLiveHost,
+  type RepositoryLiveModels,
+  type RepositoryModel,
+} from './repository/live-models';
+export { RepositoryResource, type CheckoutWatchRegistration } from './repository/resource';
+export {
+  createCheckoutLiveHost,
+  createCheckoutLiveModels,
+  type CheckoutFileDiffModel,
+  type CheckoutInitialState,
+  type CheckoutLiveHost,
+  type CheckoutLiveModels,
+  type CheckoutModel,
+} from './checkout/live-models';
+export { CheckoutResource } from './checkout/resource';
 export {
   fileDiffStalenessSchema,
   fileDiffStalenessReasonSchema,
@@ -28,7 +48,6 @@ export type {
 } from './api/jobs';
 export { MAX_STATUS_FILES, StatusParser, TooManyFilesChangedError } from './checkout/ops/status';
 export type { FileStatus } from './checkout/ops/status';
-export type { CheckoutLease, GitOnError, IGitRuntime, RepoLease } from './types';
 export type { IGitRepository } from './repository/types';
 export type { IGitCheckout } from './checkout/types';
 export type {
@@ -99,6 +118,7 @@ export type {
 } from './repository/models/refs';
 export type { GitRemotesModel } from './repository/models/remotes';
 export type { GitStash, GitStashesModel } from './repository/models/stashes';
+export type { GitCheckoutsModel } from './repository/models/checkouts';
 export type { GitHeadModel } from './checkout/models/head';
 export type {
   CheckoutOperation,

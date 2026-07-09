@@ -208,7 +208,7 @@ describe('GitRuntime', () => {
     }
   });
 
-  it('deduplicates repositories by common git dir and releases them by lease', async () => {
+  it('deduplicates repositories by common git dir and releases them by session', async () => {
     const repo = await makeRepo();
     const linked = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-linked-'));
     await execFileAsync('git', ['worktree', 'add', linked, '-b', 'feature'], { cwd: repo });
@@ -216,20 +216,32 @@ describe('GitRuntime', () => {
     const watcher = createNoopWatcher();
     const runtime = new GitRuntime({ watcher });
     try {
-      const repoLease = await runtime.openRepository(repo);
-      const checkoutLease = await runtime.openCheckout(linked);
+      const repoKeyResult = await runtime.sessions.startRepositorySession(repo);
+      const checkoutKeyResult = await runtime.sessions.startCheckoutSession(linked);
+      expect(repoKeyResult.success).toBe(true);
+      expect(checkoutKeyResult.success).toBe(true);
+      if (!repoKeyResult.success || !checkoutKeyResult.success) throw new Error('open failed');
+      const repoSession = runtime.sessions.requireRepositorySession(repoKeyResult.data);
+      const checkoutSession = runtime.sessions.requireCheckoutSession(checkoutKeyResult.data);
+      expect(repoSession.success).toBe(true);
+      expect(checkoutSession.success).toBe(true);
+      if (!repoSession.success || !checkoutSession.success) throw new Error('require failed');
       const commonDir = await realpath(path.join(repo, '.git'));
 
-      expect(repoLease.value.gitCommonDir).toBe(commonDir);
-      expect(checkoutLease.value.checkoutPath).toBe(await realpath(linked));
+      expect(repoSession.data.repository.gitCommonDir).toBe(commonDir);
+      expect(checkoutSession.data.checkout.checkoutPath).toBe(await realpath(linked));
 
-      // The checkout's repository lease resolves to the same shared instance.
-      const linkedRepoLease = await runtime.openRepository(linked);
-      expect(linkedRepoLease.value).toBe(repoLease.value);
-      await linkedRepoLease.release();
+      const linkedRepoKeyResult = await runtime.sessions.startRepositorySession(linked);
+      expect(linkedRepoKeyResult.success).toBe(true);
+      if (!linkedRepoKeyResult.success) throw new Error('open linked repo failed');
+      const linkedRepoSession = runtime.sessions.requireRepositorySession(linkedRepoKeyResult.data);
+      expect(linkedRepoSession.success).toBe(true);
+      if (!linkedRepoSession.success) throw new Error('require linked repo failed');
+      expect(linkedRepoSession.data.repository).toBe(repoSession.data.repository);
 
-      await checkoutLease.release();
-      await repoLease.release();
+      await runtime.sessions.stopRepositorySession(linkedRepoKeyResult.data);
+      await runtime.sessions.stopCheckoutSession(checkoutKeyResult.data);
+      await runtime.sessions.stopRepositorySession(repoKeyResult.data);
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -252,8 +264,10 @@ describe('GitRuntime', () => {
     };
     const runtime = new GitRuntime({ watcher });
 
-    const lease = await runtime.openRepository(repo);
-    const release = lease.release();
+    const keyResult = await runtime.sessions.startRepositorySession(repo);
+    expect(keyResult.success).toBe(true);
+    if (!keyResult.success) throw new Error('open failed');
+    const release = runtime.sessions.stopRepositorySession(keyResult.data);
 
     const dispose = runtime.dispose();
     let disposed = false;
@@ -277,8 +291,10 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime({ executable, watcher: createNoopWatcher() });
 
     try {
-      const lease = await runtime.openCheckout(repo);
-      await lease.release();
+      const keyResult = await runtime.sessions.startCheckoutSession(repo);
+      expect(keyResult.success).toBe(true);
+      if (!keyResult.success) throw new Error('open failed');
+      await runtime.sessions.stopCheckoutSession(keyResult.data);
     } finally {
       await runtime.dispose();
     }
