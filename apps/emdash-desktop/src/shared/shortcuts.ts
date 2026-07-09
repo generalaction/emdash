@@ -150,6 +150,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'Archive Task',
     description: 'Archive the current task',
     category: 'Task View',
+    ignoreWhenMonacoFocused: true,
   },
   newProject: {
     defaultHotkey: 'Mod+Shift+N',
