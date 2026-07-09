@@ -16,14 +16,14 @@ describe('AcpRuntime session manager', () => {
   it('returns auth_required without spawning when cached auth status is unauthenticated', async () => {
     const checkStatus = vi.fn().mockResolvedValue({ kind: 'unauthenticated' });
     const h = makeAcpHarness({
-      resolveAuthProvider: () => ({
+      authProvider: {
         name: 'Claude Code',
         auth: {
           kind: 'supported',
           methods: [{ kind: 'cli-login', id: 'login', name: 'Login', args: [] }],
         },
         behavior: { checkStatus },
-      }),
+      },
     });
     const rt = new AcpRuntime(h.deps);
 
@@ -37,14 +37,14 @@ describe('AcpRuntime session manager', () => {
 
   it('continues startup when cached auth status is unknown', async () => {
     const h = makeAcpHarness({
-      resolveAuthProvider: () => ({
+      authProvider: {
         name: 'Claude Code',
         auth: {
           kind: 'supported',
           methods: [{ kind: 'cli-login', id: 'login', name: 'Login', args: [] }],
         },
         behavior: { checkStatus: vi.fn().mockResolvedValue({ kind: 'unknown' }) },
-      }),
+      },
     });
     const rt = new AcpRuntime(h.deps);
 

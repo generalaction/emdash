@@ -92,7 +92,7 @@ export class SessionManager implements InboundRouter {
       queuedPromptCount: 0,
     });
 
-    const binding = this.deps.resolveAcp(input.providerId);
+    const binding = this.deps.pluginHost.resolveAcp(input.providerId);
     if (!binding) {
       this.deleteSessionSummary(input.conversationId);
       return acpErr.providerUnsupported(input.providerId);

@@ -9,9 +9,9 @@ import { sessionStateSchema, sessionSummarySchema } from '../models/session';
 import { transcriptTurnSchema } from '../models/turns';
 import { AcpRuntime } from '../runtime/runtime';
 import { uploadAttachmentCommandSchema } from './commands';
+import { acpApiContract } from './contract';
 import { createAcpController } from './controller';
 import { acpRuntimeErrorSchema } from './errors';
-import { acpApiContract } from './contract';
 
 describe('ACP API contract schemas', () => {
   it('parses runtime live model snapshots with the public schemas', async () => {

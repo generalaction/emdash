@@ -38,7 +38,7 @@ export class AcpRuntime {
     );
     this.terminals = new AgentTerminalManager(deps.host, this.terminalLiveRegistry.hooks);
     this.auth = new AcpAuthManager({
-      resolveAuthProvider: deps.resolveAuthProvider,
+      resolveAuthProvider: (providerId) => deps.pluginHost.resolveAuthProvider(providerId),
       host: deps.host,
       ptySpawner: deps.ptySpawner,
       homeDir: deps.authHomeDir,

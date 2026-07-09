@@ -1,10 +1,10 @@
 import type { Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import type { IAcpBehavior } from '../../agents/plugins/capabilities/acp';
 import type {
-  AgentAuthDescriptor,
-  IAgentAuthBehavior,
-} from '../../agents/plugins/capabilities/auth';
+  AgentPluginHost,
+  ResolvedAcpProvider,
+  ResolvedAuthProvider,
+} from '../../agents/plugins';
 import type { PtySpawner } from '../../pty';
 import type { PromptAttachment } from '../models/attachments';
 import type { PromptInput } from '../models/prompt';
@@ -27,13 +27,9 @@ export interface ResumeSessionInput extends AcpStartInput {
   sessionId: string;
 }
 
-export type ResolveAcpProvider = (providerId: string) => { behavior: IAcpBehavior } | null;
+export type ResolveAcpProvider = (providerId: string) => ResolvedAcpProvider | null;
 
-export type ResolveAuthProvider = (providerId: string) => {
-  name: string;
-  auth: AgentAuthDescriptor;
-  behavior?: IAgentAuthBehavior;
-} | null;
+export type ResolveAuthProvider = (providerId: string) => ResolvedAuthProvider | null;
 
 export interface ResolvedPromptAttachment {
   data: string;
@@ -47,8 +43,7 @@ export type ResolvePromptAttachment = (
 export type SetSessionIdError = { type: string; message?: string };
 
 export interface AcpRuntimeDeps {
-  resolveAcp: ResolveAcpProvider;
-  resolveAuthProvider?: ResolveAuthProvider;
+  pluginHost: AgentPluginHost;
   host: AcpProcessHost;
   ptySpawner?: PtySpawner;
   authHomeDir?: string;

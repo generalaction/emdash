@@ -6,6 +6,7 @@ import {
   createAcpController,
   type AcpRuntimeDeps,
 } from '@emdash/core/acp';
+import { AgentPluginHost } from '@emdash/core/agents/plugins';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
 import { client, connect, isWireMessage, type WireTransport } from '@emdash/wire';
@@ -42,22 +43,7 @@ const attachmentStore = new LocalAttachmentStore(attachmentsDir);
 void serveProcessRuntime(
   (scope) => {
     const runtime = new AcpRuntime({
-      resolveAcp: (providerId) => {
-        const plugin = pluginRegistry.get(providerId);
-        if (!plugin || plugin.capabilities.acp.kind !== 'supported' || !plugin.behavior.acp) {
-          return null;
-        }
-        return { behavior: plugin.behavior.acp };
-      },
-      resolveAuthProvider: (providerId) => {
-        const plugin = pluginRegistry.get(providerId);
-        if (!plugin) return null;
-        return {
-          name: plugin.metadata.name,
-          auth: plugin.capabilities.auth,
-          behavior: plugin.behavior.auth,
-        };
-      },
+      pluginHost: new AgentPluginHost(pluginRegistry),
       host: childHost,
       ptySpawner: new NodePtySpawner(),
       authHomeDir: os.homedir(),

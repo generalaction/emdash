@@ -1,7 +1,7 @@
 import { createController } from '@emdash/wire';
 import type { AcpRuntime } from '../runtime/runtime';
-import { createAcpProcedures } from './procedures';
 import { acpApiContract } from './contract';
+import { createAcpProcedures } from './procedures';
 
 export function createAcpController(runtime: AcpRuntime) {
   const procedures = createAcpProcedures(runtime);

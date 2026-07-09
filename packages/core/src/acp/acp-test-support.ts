@@ -10,6 +10,12 @@ import { PassThrough } from 'node:stream';
 import type { Client } from '@agentclientprotocol/sdk';
 import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
+import {
+  AgentPluginHost,
+  createPluginRegistry,
+  type CLIAgentPluginProvider,
+  type ResolvedAuthProvider,
+} from '../agents/plugins';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '../pty';
 import type { AgentTerminalHooks } from './agent-terminal-manager';
@@ -289,22 +295,60 @@ export class FakePtySpawner implements PtySpawner {
   }
 }
 
-export function makeAcpHarness(depOverrides: Partial<AcpRuntimeDeps> = {}) {
+type AcpHarnessOptions = Partial<AcpRuntimeDeps> & {
+  acpBehavior?: IAcpBehavior;
+  authProvider?: ResolvedAuthProvider;
+};
+
+export function testPluginHost(
+  options: {
+    providerId?: string;
+    acpBehavior?: IAcpBehavior;
+    authProvider?: ResolvedAuthProvider;
+  } = {}
+): AgentPluginHost {
+  const providerId = options.providerId ?? 'claude';
+  const registry = createPluginRegistry<CLIAgentPluginProvider>();
+
+  registry.register({
+    metadata: {
+      id: providerId,
+      name: options.authProvider?.name ?? 'Claude Code',
+      description: 'Test provider',
+      websiteUrl: 'https://example.com',
+    },
+    capabilities: {
+      acp: options.acpBehavior ? { kind: 'supported' } : { kind: 'none' },
+      auth: options.authProvider?.auth ?? { kind: 'none' },
+    },
+    behavior: {
+      acp: options.acpBehavior,
+      auth: options.authProvider?.behavior,
+    },
+  } as unknown as CLIAgentPluginProvider);
+
+  return new AgentPluginHost(registry);
+}
+
+export function makeAcpHarness(options: AcpHarnessOptions = {}) {
+  const { acpBehavior, authProvider, ...depOverrides } = options;
   const agent = new FakeAcpAgent();
   const fakeHost = new FakeAcpProcessHost();
   const ptySpawner = new FakePtySpawner();
 
   const deps: AcpRuntimeDeps = {
-    resolveAcp: () => ({
-      behavior: {
-        buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
-        connect: agent.behavior.connect,
-      },
-    }),
-    resolveAuthProvider: () => ({
-      name: 'Claude Code',
-      auth: { kind: 'none' },
-    }),
+    pluginHost:
+      depOverrides.pluginHost ??
+      testPluginHost({
+        acpBehavior: acpBehavior ?? {
+          buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
+          connect: agent.behavior.connect,
+        },
+        authProvider: authProvider ?? {
+          name: 'Claude Code',
+          auth: { kind: 'none' },
+        },
+      }),
     host: fakeHost,
     ptySpawner,
     authHomeDir: '/tmp',
