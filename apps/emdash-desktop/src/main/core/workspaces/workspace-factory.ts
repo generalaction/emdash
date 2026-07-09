@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -194,6 +195,10 @@ export function createWorkspaceFactory(
           enumerate: (root, options) => {
             const fs = filesRuntime.fileSystem();
             return fs.success ? fs.data.enumerate(root, options) : fs;
+          },
+          listGitFiles: async () => {
+            const relativePaths = await ws.gitWorktree.listIndexableFiles();
+            return relativePaths.map((relativePath) => path.join(ws.path, relativePath));
           },
         });
         unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) =>
