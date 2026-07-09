@@ -1,4 +1,3 @@
-import { TextDecoder, TextEncoder } from 'node:util';
 import type { Unsubscribe } from '@emdash/shared';
 import { isWireMessage, type WireMessage, type WireTransport } from '../protocol';
 
@@ -18,8 +17,6 @@ const FRAME_BINARY = 0x01;
 const HEADER_BYTES = 5;
 const BODY_LENGTH_BYTES = 4;
 const MAX_FRAME_BYTES = 16 * 1024 * 1024;
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
 
 export function streamTransport(input: ReadableLike, output: WritableLike): WireTransport {
   const messageListeners = new Set<(message: WireMessage) => void>();
@@ -147,7 +144,7 @@ function emitParsedMessage(
   body: Bytes | undefined,
   listeners: Set<(message: WireMessage) => void>
 ): void {
-  const parsed: unknown = JSON.parse(decoder.decode(headerBytes));
+  const parsed: unknown = JSON.parse(decodeText(headerBytes));
   const message = body
     ? { ...(parsed as Record<string, unknown>), data: new Uint8Array(body) }
     : parsed;
@@ -156,7 +153,7 @@ function emitParsedMessage(
 }
 
 function encodeJson(value: unknown): Uint8Array {
-  return encoder.encode(JSON.stringify(value));
+  return encodeText(JSON.stringify(value));
 }
 
 function concat(left: Bytes, right: Bytes): Bytes {
@@ -168,7 +165,15 @@ function concat(left: Bytes, right: Bytes): Bytes {
 }
 
 function normalizeChunk(chunk: Buffer | string): Bytes {
-  return typeof chunk === 'string' ? new Uint8Array(encoder.encode(chunk)) : new Uint8Array(chunk);
+  return typeof chunk === 'string' ? new Uint8Array(encodeText(chunk)) : new Uint8Array(chunk);
+}
+
+function encodeText(value: string): Uint8Array {
+  return new globalThis.TextEncoder().encode(value);
+}
+
+function decodeText(value: Uint8Array): string {
+  return new globalThis.TextDecoder().decode(value);
 }
 
 function writeU32(target: Uint8Array, offset: number, value: number): void {

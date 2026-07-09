@@ -18,7 +18,7 @@ import {
 import type { Result } from '@emdash/shared';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaLog, ReplicaState, type BlobSource, type LiveClientHandle } from '@emdash/wire';
-import { createMobxLogStore, createMobxStore } from '@emdash/wire/util/mobx';
+import { createImmutableMobxStore, createMobxLogStore } from '@emdash/wire/util/mobx';
 import { z } from 'zod';
 import {
   getAcpRuntimeClient,
@@ -261,7 +261,7 @@ async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
 function createReplicaState<T>(handle: LiveClientHandle<T>, schema: z.ZodType<T>): ReplicaState<T> {
   return new ReplicaState(handle, {
     schema,
-    store: createMobxStore(),
+    store: createImmutableMobxStore(),
   });
 }
 

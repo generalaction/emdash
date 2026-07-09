@@ -8,6 +8,7 @@ import type { LiveModelKey, LiveModelDef, MutationData, MutationError } from '..
 import { createManagedSource } from '../../util/managed-source';
 import { stableStringify, type LiveMutationResult } from '../mutations';
 import type { LiveSource } from '../protocol';
+import type { LiveChangeMeta } from '../state';
 import {
   buildReplicaInstance,
   translateCursors,
@@ -17,10 +18,12 @@ import {
 import type { LiveModelProvider } from './provider';
 import { managedLiveSource } from './source';
 import { ReplicaState } from './state';
+import type { StateStore } from './store';
 
-export type LiveModelReplicaOptions = ReplicaInstanceOptions & {
-  retentionMs?: number;
-};
+export type LiveModelReplicaOptions<Group extends LiveModelDef = LiveModelDef> =
+  ReplicaInstanceOptions<Group> & {
+    retentionMs?: number;
+  };
 
 export type LiveModelReplica<Group extends LiveModelDef = LiveModelDef> =
   LiveModelProvider<Group> & {
@@ -33,7 +36,7 @@ export type LiveModelReplica<Group extends LiveModelDef = LiveModelDef> =
 export function createLiveModelReplica<Group extends LiveModelDef>(
   contract: Group,
   group: LiveModelClientHandle<Group>,
-  options: LiveModelReplicaOptions = {}
+  options: LiveModelReplicaOptions<Group> = {}
 ): LiveModelReplica<Group> {
   const source = createManagedSource<LiveModelKey<Group>, ReplicaInstance<Group>>({
     key: stableStringify,
@@ -41,14 +44,17 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
     async create(key, scope) {
       const instance = buildReplicaInstance(contract, key, {
         createState(name, model) {
+          const stateName = name as keyof Group['states'];
           const replica = new ReplicaState(
             group.state(key, name as never) as LiveClientHandle<unknown>,
             {
               instrumentation: options.instrumentation,
               logger: options.logger,
-              onChange: options.onChange?.[name],
+              onChange: options.onChange?.[stateName] as
+                | ((value: unknown, meta: LiveChangeMeta) => void)
+                | undefined,
               schema: model.dataSchema,
-              store: options.store?.(name),
+              store: options.stores?.[stateName]?.() as StateStore<unknown> | undefined,
             }
           );
           scope.add(() => replica.dispose());

@@ -35,8 +35,9 @@ flowchart TB
 
 The live layer owns the stateful primitives: `LiveState`, `LiveLog`, `LiveJob`,
 `LiveModelHost`, and consumer-instantiated replicas. Low-level `*Client` followers
-remain protocol machinery; most consumers use client handles directly or wrap them in
-replicas. The API layer turns those primitives into a contract with typed
+track cursors and resync, while materializers (`StateStore`, `LogSink`,
+`JobStore`) own values. Most consumers use client handles directly or wrap them
+in replicas. The API layer turns those primitives into a contract with typed
 procedure calls and live topic client handles.
 The runtime layer owns lifecycle utilities and process supervision. Observability
 hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
@@ -100,7 +101,9 @@ Use narrower subpath exports at app boundaries:
   controller logging middleware.
 - `@emdash/wire/util`: dependency-free utilities: `Scope`, `ManagedSource`,
   and `deduplicateRequests`.
-- `@emdash/wire/util/mobx`: MobX-backed replica stores and optimistic group utilities.
+- `@emdash/wire/util/mobx`: MobX-backed replica stores
+  (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)
+  and optimistic group utilities.
 - `@emdash/wire/util/process-runtime`: helpers for serving and consuming
   process-hosted wire controllers.
 - `@emdash/wire/process`: process supervision types, `utilityProcessHost()`,

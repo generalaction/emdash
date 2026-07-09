@@ -31,11 +31,13 @@ Live models are exposed only through `liveModel()`. A
 `LiveModelReplica` follows a live model client handle and yields a `ReplicaInstance`:
 
 ```ts
-import { createMobxStore } from '@emdash/wire/util/mobx';
+import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 
 const conversations = createLiveModelReplica(api.conversation, contractClient.conversation, {
   retentionMs: 30_000,
-  store: () => createMobxStore(),
+  stores: {
+    state: () => createImmutableMobxStore(),
+  },
   onChange: {
     state: (value, meta) => console.log(value, meta.kind),
   },
@@ -51,9 +53,12 @@ console.log(conversation.states.state.current());
 
 `ReplicaInstance.states` contains one `ReplicaState` per contract member.
 `ReplicaState` follows upstream snapshots and updates, stores current state in a
-pluggable `StateStore`, and re-emits updates in a replica-local cursor space.
-MobX consumers can pass `createMobxStore()` from `@emdash/wire/util/mobx` to
-make `current()` reads observable inside computeds and reactions.
+pluggable `StateStore`, and re-emits updates in a replica-local cursor space. If
+no store is supplied, the replica uses the plain immutable store.
+MobX consumers can pass stores per liveState through `stores`. Use
+`createImmutableMobxStore()` for snapshot/reference consumers such as
+`useSyncExternalStore`, or `createReactiveMobxStore()` for `observer` components
+that benefit from property-level MobX tracking.
 
 Mutation helpers return `{ result, settled }`. On success, the replica translates
 upstream cursors to local cursors before returning them to downstream clients, so
@@ -79,8 +84,11 @@ output.onAppend((chunk) => index(chunk));
 console.log(output.text());
 ```
 
-The log replica keeps its internal `LiveLog` buffer for downstream serving, and
-optionally writes the retained text through to a pluggable `LogStore`.
+Without a custom sink, the log replica keeps an eager internal `LiveLog` buffer
+that is readable through `text()` and can serve downstream clients. With a custom
+sink, the sink owns storage: readable `LogStore`s expose `text()`, while
+write-only `LogSink`s (for example xterm scrollback) support reset/append without
+allocating a duplicate string buffer.
 
 For terminal rendering, prefer the client handle directly:
 
@@ -99,11 +107,11 @@ materializes job state by `jobId`, and keeps terminal state readable under lease
 or retention:
 
 ```ts
-import { createMobxStore } from '@emdash/wire/util/mobx';
+import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 
 const jobs = createLiveJobReplica(api.build, contractClient.build, {
   retentionMs: 30_000,
-  store: () => createMobxStore(),
+  store: () => createImmutableMobxStore(),
 });
 
 const lease = await jobs.start({ target: 'desktop' });
@@ -120,8 +128,9 @@ console.log((await late.ready()).getState());
 When a job reaches `succeeded`, `failed`, or `cancelled`, the replica detaches
 from the upstream live topic but retains the local terminal state while leases or
 `retentionMs` keep it warm.
-The job replica also supports a pluggable `StateStore`, so `getState()` can be
-observable while the internal `LiveState` continues to serve downstream clients.
+The job replica also supports a pluggable reset/current `JobStore`, so
+`getState()` can be observable. The internal `LiveState` used for downstream
+serving is created only if `snapshot()` or `subscribe()` is requested.
 
 ## Serving Replicas
 

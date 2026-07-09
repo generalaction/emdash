@@ -8,31 +8,35 @@ import { stableStringify } from '../mutations';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
 import { managedLiveSource } from './source';
 
-export interface LogStore {
+export interface LogSink {
   reset(data: LiveLogSnapshotData): void;
   append(chunk: string): void;
+}
+
+export interface LogStore extends LogSink {
   text(): string;
 }
 
 export type ReplicaLogOptions = LiveLogOptions & {
   instrumentation?: WireInstrumentation;
-  store?: LogStore;
+  store?: LogSink;
 };
 
 export class ReplicaLog implements LiveSource {
   readonly ready: Promise<void>;
 
-  private readonly local: LiveLog;
+  private local: LiveLog | undefined;
   private readonly client: LiveLogClient;
   private readonly appendEmitter = new Emitter<string>();
   private readonly detachPromise: Promise<Unsubscribe>;
+  private writtenOffset = 0;
   private disposed = false;
 
   constructor(
     private readonly handle: ReturnType<LiveLogClientHandle['handle']>,
     private readonly options: ReplicaLogOptions = {}
   ) {
-    this.local = new LiveLog(options);
+    if (!options.store) this.local = new LiveLog(options);
     this.client = new LiveLogClient({
       refetchSnapshot: () => handle.snapshot(),
       onReset: (data) => this.reset(data),
@@ -47,7 +51,10 @@ export class ReplicaLog implements LiveSource {
   }
 
   text(): string {
-    return this.options.store?.text() ?? this.local.snapshot().data.text;
+    const readable = asReadableLogStore(this.options.store);
+    if (readable) return readable.text();
+    if (this.local) return this.local.snapshot().data.text;
+    throw new Error('ReplicaLog is backed by a write-only LogSink');
   }
 
   onAppend(cb: (chunk: string) => void): Unsubscribe {
@@ -56,11 +63,11 @@ export class ReplicaLog implements LiveSource {
 
   async snapshot(): Promise<LiveSnapshot<LiveLogSnapshotData>> {
     await this.ready;
-    return this.local.snapshot();
+    return this.localSource().snapshot();
   }
 
   subscribe(cb: (update: LiveUpdate) => void): Unsubscribe {
-    return this.local.subscribe(cb);
+    return this.localSource().subscribe(cb);
   }
 
   async dispose(): Promise<void> {
@@ -72,20 +79,37 @@ export class ReplicaLog implements LiveSource {
 
   private reset(data: LiveLogSnapshotData): void {
     this.options.store?.reset(data);
-    this.local.reseed();
-    if (data.text.length > 0) this.local.append(data.text);
+    this.local?.reseed(data);
+    this.writtenOffset = data.baseOffset + byteLength(data.text);
   }
 
   private append(chunk: string): void {
     this.options.store?.append(chunk);
-    this.local.append(chunk);
+    this.local?.append(chunk);
+    this.writtenOffset += byteLength(chunk);
     this.appendEmitter.emit(chunk);
+  }
+
+  private localSource(): LiveLog {
+    if (!this.local) {
+      const readable = asReadableLogStore(this.options.store);
+      const text = readable?.text() ?? '';
+      const bytes = byteLength(text);
+      const baseOffset = this.writtenOffset >= bytes ? this.writtenOffset - bytes : 0;
+      this.local = new LiveLog(this.options);
+      this.local.reseed({
+        baseOffset,
+        text,
+        truncated: true,
+      });
+    }
+    return this.local;
   }
 }
 
 export type LiveLogReplicaOptions = Omit<ReplicaLogOptions, 'store'> & {
   retentionMs?: number;
-  store?: () => LogStore;
+  store?: () => LogSink;
 };
 
 export type LiveLogReplica<Def extends LiveLogEndpointDef = LiveLogEndpointDef> = {
@@ -130,6 +154,18 @@ export function createLiveLogReplica<Def extends LiveLogEndpointDef>(
       return source.dispose();
     },
   };
+}
+
+function asReadableLogStore(store: LogSink | undefined): LogStore | undefined {
+  if (!store) return undefined;
+  const candidate = store as Partial<LogStore>;
+  return typeof candidate.text === 'function' ? (store as LogStore) : undefined;
+}
+
+const encoder = new TextEncoder();
+
+function byteLength(text: string): number {
+  return encoder.encode(text).byteLength;
 }
 
 export function isLiveLogReplica(value: unknown): value is LiveLogReplica {
