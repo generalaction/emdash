@@ -34,8 +34,17 @@ function errorMessage(error: unknown): string {
   return 'Oh My Pi exited with an error';
 }
 
+let stopNotified = false;
+
+async function notifyStopOnce(message: string) {
+  if (stopNotified) return;
+  stopNotified = true;
+  await notifyEmdash('stop', { message });
+}
+
 export default function (pi: ExtensionAPI) {
   pi.on('session_start', async (_event, ctx) => {
+    stopNotified = false;
     const sessionFile = ctx.sessionManager?.getSessionFile?.();
     if (!sessionFile) return;
     await notifyEmdash('session', { providerSessionId: sessionFile });
@@ -45,15 +54,15 @@ export default function (pi: ExtensionAPI) {
     if (typeof event.session_file === 'string' && event.session_file.trim()) {
       await notifyEmdash('session', { providerSessionId: event.session_file });
     }
-    await notifyEmdash('stop', { message: 'Task completed' });
+    await notifyStopOnce('Task completed');
   });
 
   pi.on('agent_end', async () => {
-    await notifyEmdash('stop', { message: 'Task completed' });
+    await notifyStopOnce('Task completed');
   });
 
   pi.on('session_shutdown', async () => {
-    await notifyEmdash('stop', { message: 'Session ended' });
+    await notifyStopOnce('Session ended');
   });
 
   process.once('uncaughtException', (error) => {

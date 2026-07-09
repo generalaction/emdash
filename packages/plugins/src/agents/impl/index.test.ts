@@ -340,6 +340,9 @@ describe('pluginRegistry', () => {
       releaseSource: { kind: 'github', repo: 'can1357/oh-my-pi' },
       update: { kind: 'package-manager' },
     });
+    expect(ohMyPi.capabilities.hostDependency.uninstall).toEqual({
+      kind: 'package-manager',
+    });
 
     const fresh = ohMyPi.behavior.prompt!.buildCommand({
       cli: 'omp',

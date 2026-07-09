@@ -84,7 +84,7 @@ export const plugin = definePlugin(
         releaseSource: { kind: 'github', repo: 'can1357/oh-my-pi' },
         update: { kind: 'package-manager' },
       },
-      uninstall: { kind: 'none' },
+      uninstall: { kind: 'package-manager' },
     },
     plugins: {
       kind: 'file-drop',
