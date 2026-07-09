@@ -1,0 +1,30 @@
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_b3998ec6e0eef2::t_a350988b83d46f 148-153
+apps/emdash-desktop/src/renderer/features/command-palette/command-icons.ts
+  s_b3998ec6e0eef2::t_a350988b83d46f 2,66
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_b3998ec6e0eef2::t_a350988b83d46f 8,50,80,439-448
+  s_b3998ec6e0eef2::t_4072ece3978a8b 449-450
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_b3998ec6e0eef2::t_a350988b83d46f 43,78,145-147,330-342
+  s_b3998ec6e0eef2::t_5523e3862ad044 343-344
+apps/emdash-desktop/src/shared/commands.ts
+  s_b3998ec6e0eef2::t_a350988b83d46f 267-274
+  s_b3998ec6e0eef2::t_04229ac7b1d4a7 266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8d1003310553553de630db95378ad3e2e67a4858",
+  "prompts": {},
+  "sessions": {
+    "s_b3998ec6e0eef2": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mTNEqousf4l3NaVEvUT",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
