@@ -444,8 +444,14 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: archiveDef.group,
           enabled: taskData != null && !taskData.archivedAt,
           execute() {
-            appState.navigation.navigate('project', { projectId });
-            void taskManager?.archiveTask(taskId);
+            void (async () => {
+              try {
+                await taskManager?.archiveTask(taskId);
+                appState.navigation.navigate('project', { projectId });
+              } catch {
+                toast({ title: 'Could not archive task', variant: 'destructive' });
+              }
+            })();
           },
         },
         // ── Navigation ─────────────────────────────────────────────────────
