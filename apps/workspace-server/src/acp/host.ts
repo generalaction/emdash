@@ -4,7 +4,13 @@ import { delimiter, dirname, isAbsolute, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acpApiContract, acpHostContract, type AcpApiContract } from '@emdash/core/acp';
 import { pluginRegistry } from '@emdash/plugins/agents';
-import { createController, serve, type ContractClient } from '@emdash/wire/api';
+import {
+  createController,
+  serve,
+  withValidation,
+  type ContractClient,
+  type ValidatePolicy,
+} from '@emdash/wire/api';
 import { processTransport, type ManagedProcess } from '@emdash/wire/process';
 import { childProcessHost } from '@emdash/wire/process/node';
 import { spawnRuntime } from '@emdash/wire/util/process-runtime';
@@ -137,9 +143,9 @@ export async function spawnAcpWorkspaceRuntimeProcess(options: { socketPath?: st
   });
 
   const transport = processTransport(handle.process);
-  const controller = createController(
+  const controller = withValidation(
     acpHostContract,
-    {
+    createController(acpHostContract, {
       resolveSpawnContext: ({ providerId }) => resolveWorkspaceAcpSpawnContext(providerId),
       persistSessionId: ({ conversationId, sessionId }) => {
         log('debug', 'ACP runtime returned session id for client persistence', {
@@ -150,8 +156,8 @@ export async function spawnAcpWorkspaceRuntimeProcess(options: { socketPath?: st
       log: ({ level, message, data }) => {
         log(level, message, data);
       },
-    },
-    { validate: 'full' }
+    }),
+    workspaceServerWireValidationPolicy()
   );
   const disposeServer = serve(transport, controller);
   handle.onRestarted(() => {
@@ -166,6 +172,10 @@ export async function spawnAcpWorkspaceRuntimeProcess(options: { socketPath?: st
       await handle.dispose();
     },
   };
+}
+
+function workspaceServerWireValidationPolicy(): ValidatePolicy {
+  return process.env.NODE_ENV === 'production' ? 'inputs' : 'full';
 }
 
 export async function resolveWorkspaceAcpSpawnContext(

@@ -13,6 +13,14 @@ export type ResolvedAuthProvider = {
   behavior?: IAgentAuthBehavior;
 };
 
+export type ResolvedTuiProvider = {
+  name: string;
+  prompt: CLIAgentPluginProvider['capabilities']['prompt'];
+  hooks: CLIAgentPluginProvider['capabilities']['hooks'];
+  buildCommand: NonNullable<CLIAgentPluginProvider['behavior']['prompt']>['buildCommand'];
+  parseHookEvent?: NonNullable<CLIAgentPluginProvider['behavior']['hooks']>['parseHookEvent'];
+};
+
 export class AgentPluginHost {
   constructor(private readonly registry: PluginRegistry<CLIAgentPluginProvider>) {}
 
@@ -41,6 +49,20 @@ export class AgentPluginHost {
       name: plugin.metadata.name,
       auth: plugin.capabilities.auth,
       behavior: plugin.behavior.auth,
+    };
+  }
+
+  resolveTuiProvider(providerId: string): ResolvedTuiProvider | null {
+    const plugin = this.registry.get(providerId);
+    const prompt = plugin?.behavior.prompt;
+    if (!plugin || !prompt) return null;
+
+    return {
+      name: plugin.metadata.name,
+      prompt: plugin.capabilities.prompt,
+      hooks: plugin.capabilities.hooks,
+      buildCommand: prompt.buildCommand,
+      parseHookEvent: plugin.behavior.hooks?.parseHookEvent,
     };
   }
 }

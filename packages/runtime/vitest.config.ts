@@ -5,6 +5,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@emdash/core/acp': resolve(__dirname, '../core/src/acp/index.ts'),
+      '@emdash/core/workspace-server': resolve(__dirname, '../core/src/workspace-server/index.ts'),
+      '@emdash/core/agents/plugins/helpers': resolve(
+        __dirname,
+        '../core/src/agents/plugins/helpers/index.ts'
+      ),
       '@emdash/core/agents/plugins': resolve(__dirname, '../core/src/agents/plugins/index.ts'),
       '@emdash/core/lib': resolve(__dirname, '../core/src/lib/index.ts'),
       '@emdash/core/pty/node': resolve(__dirname, '../core/src/pty/node/index.ts'),
@@ -13,6 +18,7 @@ export default defineConfig({
       '@emdash/shared/plugins': resolve(__dirname, '../shared/src/plugins/index.ts'),
       '@emdash/shared': resolve(__dirname, '../shared/src/index.ts'),
       '@emdash/wire/testing': resolve(__dirname, '../wire/src/testing/index.ts'),
+      '@emdash/wire/util': resolve(__dirname, '../wire/src/util/index.ts'),
       '@emdash/wire': resolve(__dirname, '../wire/src/index.ts'),
     },
   },

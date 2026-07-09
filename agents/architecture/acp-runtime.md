@@ -18,10 +18,10 @@ not mix cross-session routing with per-session state projection.
   workspace and can host multiple ACP sessions.
 - Models under `packages/core/src/acp/models/` are the shared vocabulary for
   reducer output, live model state, and the public ACP API contract.
-- Runtime implementation code lives under `packages/runtime/src/acp/`; core keeps
+- Runtime implementation code lives under `packages/runtime/src/acp-agents/`; core keeps
   the contract, models, reducer vocabulary, errors, and transport ports.
 - Node host adapters live behind explicit Node-only subpaths:
-  `@emdash/runtime/acp/node` for the ACP child-process bootstrap and attachment
+  `@emdash/runtime/acp-agents/node` for the ACP child-process bootstrap and attachment
   store, and `@emdash/core/pty/node` for the lazy `node-pty` spawner.
 
 ```mermaid
@@ -77,7 +77,7 @@ designed.
 
 Desktop-local ACP and workspace-server ACP both use plain Node child processes via
 `childProcessHost()` and `spawnRuntime()`. The child process entry calls
-`bootAcpRuntimeProcess()` from `@emdash/runtime/acp/node`, which constructs
+`bootAcpRuntimeProcess()` from `@emdash/runtime/acp-agents/node`, which constructs
 `AcpRuntime`, `AgentPluginHost`, `ChildAcpProcessHost`, `LocalAttachmentStore`,
 and `NodePtySpawner`.
 

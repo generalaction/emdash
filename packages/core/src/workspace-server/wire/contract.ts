@@ -4,7 +4,7 @@ import { acpApiContract } from '../../acp';
 import { depsContract } from '../deps/contract';
 import { filesContract } from '../files/contract';
 import { gitContract } from '../git/contract';
-import { ptyAgentContract } from '../pty-agent/contract';
+import { tuiAgentsContract } from '../tui-agents/contract';
 import {
   wireHealthSchema,
   wireInitializeInputSchema,
@@ -22,6 +22,6 @@ export const workspaceWireContract = defineContract({
   git: gitContract,
   files: filesContract,
   deps: depsContract,
-  ptyAgent: ptyAgentContract,
+  tuiAgents: tuiAgentsContract,
   acp: acpApiContract,
 });

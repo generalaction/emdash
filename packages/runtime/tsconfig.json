@@ -14,6 +14,8 @@
     "types": ["node"],
     "paths": {
       "@emdash/core/acp": ["../core/src/acp/index.ts"],
+      "@emdash/core/workspace-server": ["../core/src/workspace-server/index.ts"],
+      "@emdash/core/agents/plugins/helpers": ["../core/src/agents/plugins/helpers/index.ts"],
       "@emdash/core/agents/plugins": ["../core/src/agents/plugins/index.ts"],
       "@emdash/core/lib": ["../core/src/lib/index.ts"],
       "@emdash/core/pty/node": ["../core/src/pty/node/index.ts"],
@@ -22,6 +24,7 @@
       "@emdash/shared/plugins": ["../shared/src/plugins/index.ts"],
       "@emdash/shared": ["../shared/src/index.ts"],
       "@emdash/wire/testing": ["../wire/src/testing/index.ts"],
+      "@emdash/wire/util": ["../wire/src/util/index.ts"],
       "@emdash/wire": ["../wire/src/index.ts"]
     }
   },

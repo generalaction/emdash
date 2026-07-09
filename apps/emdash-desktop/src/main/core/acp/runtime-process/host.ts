@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { acpApiContract, acpHostContract } from '@emdash/core/acp';
 import { ok } from '@emdash/shared';
-import { createController, exposeWireToWindows, serve } from '@emdash/wire/api';
+import { createController, exposeWireToWindows, serve, withValidation } from '@emdash/wire/api';
 import { processTransport, type ManagedProcess } from '@emdash/wire/process';
 import { childProcessHost } from '@emdash/wire/process/node';
 import { spawnRuntime } from '@emdash/wire/util/process-runtime';
@@ -89,9 +89,9 @@ function attachAcpRuntimeLogging(process: ManagedProcess): void {
 function installHostWire(handle: AcpRuntimeHandle): void {
   hostWireDispose?.();
   const transport = processTransport(handle.process);
-  const controller = createController(
+  const controller = withValidation(
     acpHostContract,
-    {
+    createController(acpHostContract, {
       resolveSpawnContext: ({ providerId }) => resolveLocalAcpSpawnContext(providerId),
       persistSessionId: async ({ conversationId, sessionId }) => {
         const result = await setSessionId(conversationId, sessionId);
@@ -105,8 +105,8 @@ function installHostWire(handle: AcpRuntimeHandle): void {
       log: ({ level, message, data }) => {
         log[level](message, { source: 'acp-runtime', data });
       },
-    },
-    { validate: 'full' }
+    }),
+    runtimeWireValidationPolicy()
   );
   const disposeServer = serve(transport, controller);
   hostWireDispose = () => {
@@ -117,9 +117,9 @@ function installHostWire(handle: AcpRuntimeHandle): void {
 
 function installRendererWire(client: AcpRuntimeClient): void {
   rendererWireDispose?.();
-  const controller = createController(
+  const controller = withValidation(
     acpApiContract,
-    {
+    createController(acpApiContract, {
       startSession: (input, meta) => client.startSession(input, meta),
       resumeSession: (input, meta) => client.resumeSession(input, meta),
       stopSession: (input, meta) => client.stopSession(input, meta),
@@ -154,8 +154,8 @@ function installRendererWire(client: AcpRuntimeClient): void {
       terminalOutput: client.terminalOutput,
       authStatus: client.authStatus,
       loginOutput: client.loginOutput,
-    },
-    { validate: 'full' }
+    }),
+    runtimeWireValidationPolicy()
   );
   rendererWireDispose = exposeWireToWindows(
     {
@@ -168,6 +168,10 @@ function installRendererWire(client: AcpRuntimeClient): void {
     controller,
     { channel: ACP_WIRE_CHANNEL }
   );
+}
+
+function runtimeWireValidationPolicy() {
+  return import.meta.env.DEV ? 'full' : 'inputs';
 }
 
 function resolveRuntimeEntry(): string {

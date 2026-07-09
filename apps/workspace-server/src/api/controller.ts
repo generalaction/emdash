@@ -82,10 +82,7 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
       },
       content: unavailableLiveModel(workspaceWireContract.files.content),
     },
-    ptyAgent: {
-      output: () => null,
-      sessions: unavailableLiveModel(workspaceWireContract.ptyAgent.sessions),
-    },
+    tuiAgents: unavailableTuiAgents(),
     acp: deps.acp ? createAcpProxy(deps.acp) : unavailableAcp(),
   });
 }
@@ -141,6 +138,25 @@ function createAcpProxy(
     terminalOutput: client.terminalOutput,
     authStatus: client.authStatus,
     loginOutput: client.loginOutput,
+  };
+}
+
+function unavailableTuiAgents(): NonNullable<
+  ContractImpl<typeof workspaceWireContract>['tuiAgents']
+> {
+  const unavailable = () => err({ type: 'spawn-failed' as const, message: notImplementedMessage });
+
+  return {
+    startSession: unavailable,
+    resumeSession: unavailable,
+    stopSession: unavailable,
+    deleteSession: unavailable,
+    sendInput: unavailable,
+    resize: unavailable,
+    emitHookEvent: unavailable,
+    output: () => null,
+    sessions: unavailableLiveModel(workspaceWireContract.tuiAgents.sessions),
+    notifications: unavailableLiveModel(workspaceWireContract.tuiAgents.notifications),
   };
 }
 

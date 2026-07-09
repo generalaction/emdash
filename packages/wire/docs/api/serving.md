@@ -5,7 +5,7 @@ The API layer turns a contract into a server-side `Controller`, serves it over a
 
 ## Creating a Controller
 
-`createController(contract, impl, options?)` maps each endpoint to server behavior:
+`createController(contract, impl)` maps each endpoint to server behavior:
 
 ```ts
 const controller = createController(
@@ -19,23 +19,15 @@ const controller = createController(
       });
       return instance.states.notes.snapshot().data;
     },
-  },
-  {
-    validate: 'inputs',
   }
 );
 ```
 
-Options:
-
-- `impl`: server implementations keyed by the contract shape. Procedures receive
-  `(input, meta)`. Jobs use `{ run, toError? }`, a `LiveJobClientHandle`, or
-  a `LiveJobReplica`. Live logs use resolver functions, `LiveLogClientHandle`s,
-  or `LiveLogReplica`. Live model contracts use a `createLiveModelHost()`,
-  `LiveModelClientHandle`, or `LiveModelReplica`.
-- `validate`: `none` (default), `inputs`, or `full`. `inputs` parses call inputs
-  and live keys; `full` also parses procedure, mutation, job progress, job
-  result, and job error outputs where supported.
+The `impl` object is keyed by the contract shape. Procedures receive
+`(input, meta)`. Jobs use `{ run, toError? }`, a `LiveJobClientHandle`, or a
+`LiveJobReplica`. Live logs use resolver functions, `LiveLogClientHandle`s, or
+`LiveLogReplica`. Live model contracts use a `createLiveModelHost()`,
+`LiveModelClientHandle`, or `LiveModelReplica`.
 
 Mutation idempotency is configured on `createLiveModelHost()`, not on the
 controller. The controller only routes calls, snapshots, attachments, and live
@@ -68,6 +60,39 @@ const stop = serve(pair.right, controller, {
 `serve()` returns an unsubscribe. Call it when the transport or server session
 goes away. It also aborts in-flight calls and detaches live subscriptions when
 the transport disconnects or when the serve loop is disposed.
+
+## Validation
+
+Controller validation is applied explicitly at the serving boundary with
+`withValidation(contract, controller, policy)`:
+
+```ts
+const controller = createController(notesApi, impl);
+const servedController = withValidation(
+  notesApi,
+  controller,
+  process.env.NODE_ENV === 'production' ? 'inputs' : 'full'
+);
+const stop = serve(pair.right, servedController);
+```
+
+Policies:
+
+- `none`: no schema parsing.
+- `inputs`: parse procedure inputs, upload/download inputs, live model mutation
+  envelopes, job start/cancel inputs, and live topic keys before delegating.
+- `full`: includes `inputs`, then also parses procedure outputs, upload/download
+  results, mutation results, and live job start results.
+
+Use `inputs` for production boundaries that receive values from another process
+or client. Inputs cross a trust boundary and should stay parsed even when output
+validation is too expensive. Use `full` in development and tests to catch handler
+contract drift quickly.
+
+`withValidation()` validates request/response values that pass through
+`Controller.call()` and live topic keys passed to `Controller.resolveLive()`.
+Live job progress, result, and error values are emitted later as live updates and
+are not intercepted by the middleware.
 
 ## Connecting
 

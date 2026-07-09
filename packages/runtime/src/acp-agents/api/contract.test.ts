@@ -45,7 +45,7 @@ describe('ACP API contract schemas', () => {
   it('round-trips procedures and live state over a wire transport', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
-    const wire = createTestWire(acpApiContract, createAcpController(rt));
+    const wire = createTestWire(acpApiContract, createAcpController(rt), { validate: 'full' });
     const contractClient = wire.client;
     const summaries = new ReplicaState(contractClient.sessions.state(undefined, 'list'), {
       schema: z.record(z.string(), sessionSummarySchema),

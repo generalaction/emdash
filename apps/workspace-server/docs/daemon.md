@@ -127,7 +127,7 @@ Socket mode mounts the ACP runtime as a child process. The parent daemon uses
 `childProcessHost()` from `@emdash/wire/process/node` and `spawnRuntime()` from
 `@emdash/wire/util/process-runtime` to fork `acp-runtime.mjs` in production or
 `src/acp/runtime-entry.ts` in development. The child calls the shared
-`bootAcpRuntimeProcess()` helper from `@emdash/runtime/acp/node`.
+`bootAcpRuntimeProcess()` helper from `@emdash/runtime/acp-agents/node`.
 
 Two wire contracts share the process IPC channel:
 

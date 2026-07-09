@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
-import { acpHostContract } from '@emdash/core/acp';
+import { acpApiContract, acpHostContract } from '@emdash/core/acp';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
 import { NodePtySpawner } from '@emdash/core/pty/node';
 import { ok } from '@emdash/shared';
@@ -10,7 +10,9 @@ import {
   client,
   connect,
   isWireMessage,
+  withValidation,
   type ContractClient,
+  type ValidatePolicy,
   type WireTransport,
 } from '@emdash/wire';
 import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
@@ -75,7 +77,11 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
         logger,
       } satisfies AcpRuntimeDeps);
       scope.add(() => runtime.dispose());
-      return createAcpController(runtime);
+      return withValidation(
+        acpApiContract,
+        createAcpController(runtime),
+        runtimeWireValidationPolicy(env)
+      );
     },
     { port: runtimePort, exit: options.exit, logger }
   ).catch((error: unknown) => {
@@ -84,6 +90,10 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
     );
     (options.exit ?? process.exit)(1);
   });
+}
+
+function runtimeWireValidationPolicy(env: NodeJS.ProcessEnv): ValidatePolicy {
+  return env.NODE_ENV === 'production' ? 'inputs' : 'full';
 }
 
 function createParentLogger(

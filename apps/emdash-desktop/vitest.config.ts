@@ -24,8 +24,14 @@ const alias = {
   '@emdash/core/pty': resolve(__dirname, '../../packages/core/src/pty/index.ts'),
   '@emdash/plugins/agents/types': resolve(__dirname, '../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve(__dirname, '../../packages/plugins/src/agents/registry.ts'),
-  '@emdash/runtime/acp/node': resolve(__dirname, '../../packages/runtime/src/acp/node/index.ts'),
-  '@emdash/runtime/acp': resolve(__dirname, '../../packages/runtime/src/acp/index.ts'),
+  '@emdash/runtime/acp-agents/node': resolve(
+    __dirname,
+    '../../packages/runtime/src/acp-agents/node/index.ts'
+  ),
+  '@emdash/runtime/acp-agents': resolve(
+    __dirname,
+    '../../packages/runtime/src/acp-agents/index.ts'
+  ),
   '@emdash/shared/config': resolve(__dirname, '../../packages/shared/src/config/index.ts'),
   '@emdash/shared/logger/context-node': resolve(
     __dirname,

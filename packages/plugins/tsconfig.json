@@ -7,7 +7,7 @@
     "lib": ["ES2022", "DOM"],
     "types": ["node"],
     "paths": {
-      "@emdash/runtime/acp": ["../runtime/src/acp/index.ts"]
+      "@emdash/runtime/acp-agents": ["../runtime/src/acp-agents/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],

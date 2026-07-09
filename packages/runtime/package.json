@@ -13,13 +13,21 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./acp": {
-      "types": "./dist/acp.d.mts",
-      "default": "./dist/acp.mjs"
+    "./acp-agents": {
+      "types": "./dist/acp-agents.d.mts",
+      "default": "./dist/acp-agents.mjs"
     },
-    "./acp/node": {
-      "types": "./dist/acp-node.d.mts",
-      "default": "./dist/acp-node.mjs"
+    "./acp-agents/node": {
+      "types": "./dist/acp-agents-node.d.mts",
+      "default": "./dist/acp-agents-node.mjs"
+    },
+    "./tui-agents": {
+      "types": "./dist/tui-agents.d.mts",
+      "default": "./dist/tui-agents.mjs"
+    },
+    "./tui-agents/node": {
+      "types": "./dist/tui-agents-node.d.mts",
+      "default": "./dist/tui-agents-node.mjs"
     },
     "./package.json": "./package.json"
   },

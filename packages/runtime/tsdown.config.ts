@@ -2,8 +2,10 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
-    acp: 'src/acp/index.ts',
-    'acp-node': 'src/acp/node/index.ts',
+    'acp-agents': 'src/acp-agents/index.ts',
+    'acp-agents-node': 'src/acp-agents/node/index.ts',
+    'tui-agents': 'src/tui-agents/index.ts',
+    'tui-agents-node': 'src/tui-agents/node/index.ts',
   },
   format: ['esm'],
   dts: true,

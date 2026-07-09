@@ -114,7 +114,7 @@ export type { IPlugins } from './capabilities/plugins';
 export type { ISessionsBehavior } from './capabilities/sessions';
 export type { ITrustBehavior, TrustContext } from './capabilities/trust';
 export { AgentPluginHost } from './plugin-host';
-export type { ResolvedAcpProvider, ResolvedAuthProvider } from './plugin-host';
+export type { ResolvedAcpProvider, ResolvedAuthProvider, ResolvedTuiProvider } from './plugin-host';
 
 // Typed registry factory
 export { createPluginRegistry, type PluginRegistry } from '@emdash/shared/plugins';

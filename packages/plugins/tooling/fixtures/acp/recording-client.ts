@@ -35,7 +35,7 @@ import type {
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
 import type { AcpProcessHost } from '@emdash/core/acp';
-import { AgentTerminalManager } from '@emdash/runtime/acp';
+import { AgentTerminalManager } from '@emdash/runtime/acp-agents';
 import type { Recorder } from './recorder';
 
 /**

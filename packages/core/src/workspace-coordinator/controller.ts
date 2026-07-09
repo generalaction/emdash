@@ -4,24 +4,20 @@ import type { WorkspaceCoordinator } from './coordinator';
 import type { CoordinatorError } from './schema';
 
 export function createWorkspaceCoordinatorController(coordinator: WorkspaceCoordinator) {
-  return createController(
-    workspaceCoordinatorContract,
-    {
-      activate: {
-        run: (input, ctx) => coordinator.activate(input, ctx),
-        toError: toCoordinatorError,
-      },
-      deactivate: {
-        run: (input, ctx) => coordinator.deactivate(input, ctx),
-        toError: toCoordinatorError,
-      },
-      teardown: {
-        run: (input, ctx) => coordinator.teardown(input, ctx),
-        toError: toCoordinatorError,
-      },
+  return createController(workspaceCoordinatorContract, {
+    activate: {
+      run: (input, ctx) => coordinator.activate(input, ctx),
+      toError: toCoordinatorError,
     },
-    { validate: 'full' }
-  );
+    deactivate: {
+      run: (input, ctx) => coordinator.deactivate(input, ctx),
+      toError: toCoordinatorError,
+    },
+    teardown: {
+      run: (input, ctx) => coordinator.teardown(input, ctx),
+      toError: toCoordinatorError,
+    },
+  });
 }
 
 function toCoordinatorError(error: unknown): CoordinatorError {
