@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/editor/pdf-renderer.tsx
+  s_7588371815911d::t_4993e0cf019160 3-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ab92941271a04841bf7fb43b2b9a4bff170ada61",
+  "prompts": {},
+  "sessions": {
+    "s_7588371815911d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cd29ca76-c053-4d1c-abec-105738e2cf25",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
