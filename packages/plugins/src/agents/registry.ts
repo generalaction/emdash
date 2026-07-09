@@ -17,7 +17,6 @@ import { provider as cursor } from './impl/cursor';
 import { provider as devin } from './impl/devin';
 import { provider as droid } from './impl/droid';
 import { provider as freebuff } from './impl/freebuff';
-import { provider as gemini } from './impl/gemini';
 import { provider as goose } from './impl/goose';
 import { provider as grok } from './impl/grok';
 import { provider as hermes } from './impl/hermes';
@@ -48,7 +47,6 @@ for (const p of [
   devin,
   qwen,
   droid,
-  gemini,
   antigravity,
   cursor,
   copilot,

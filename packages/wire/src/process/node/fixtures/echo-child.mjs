@@ -1,6 +1,6 @@
 process.on('message', (message) => {
   if (message?.kind === 'echo') {
-    process.send?.({ kind: 'echo', value: message.value });
+    process.send?.(message);
     return;
   }
 

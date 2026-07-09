@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost, createLiveModelReplica } from '../live';
 import type { WireInstrumentation } from '../observability';
+import { createTestWire, deferred, waitFor } from '../testing';
 import type { LiveModelClientHandle } from './client';
 import { client } from './client';
 import { connect } from './connect';
@@ -44,13 +45,9 @@ function setup(instrumentation?: WireInstrumentation) {
     left: { count: 0 },
     right: { count: 10 },
   });
-  const pair = memoryTransportPair();
-  const controller = createController(contract, {
-    counter: host,
-  });
-  serve(pair.right, controller);
+  const wire = createTestWire(contract, { counter: host });
   return {
-    client: client(contract, connect(pair.left)),
+    client: wire.client,
     key,
     left: instance.states.left,
     right: instance.states.right,
@@ -195,26 +192,4 @@ function createCounterContract(
       },
     }),
   });
-}
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for condition');
-}
-
-function deferred<T>(): {
-  promise: Promise<T>;
-  resolve(value: T): void;
-  reject(error: unknown): void;
-} {
-  let resolve!: (value: T) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return { promise, resolve, reject };
 }

@@ -12,7 +12,11 @@ import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import type { LinkedIssue } from '@shared/core/linked-issue';
-import { taskCreatedChannel, taskProvisionedChannel } from '@shared/core/tasks/taskEvents';
+import {
+  taskCreatedChannel,
+  taskDeletedChannel,
+  taskProvisionedChannel,
+} from '@shared/core/tasks/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -167,7 +171,12 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
 
   async deleteTask(projectId: string, taskId: string, options?: DeleteTaskOptions): Promise<void> {
     await deleteTask(projectId, taskId, options);
+    this.notifyTaskDeleted(taskId, projectId);
+  }
+
+  notifyTaskDeleted(taskId: string, projectId: string): void {
     this._hooks.callHookBackground('task:deleted', taskId, projectId);
+    events.emit(taskDeletedChannel, { taskId, projectId });
   }
 
   async deleteTasks(
@@ -175,8 +184,18 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     taskIds: string[],
     options?: DeleteTaskOptions
   ): Promise<void> {
-    await Promise.all(taskIds.map((id) => deleteTask(projectId, id, options)));
-    taskIds.forEach((id) => this._hooks.callHookBackground('task:deleted', id, projectId));
+    // Notify per deletion: one failure must not suppress taskDeleted for the
+    // already-removed tasks, or the renderer rollback would resurrect them.
+    const results = await Promise.allSettled(
+      taskIds.map(async (id) => {
+        await deleteTask(projectId, id, options);
+        this.notifyTaskDeleted(id, projectId);
+      })
+    );
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected'
+    );
+    if (failure) throw failure.reason;
   }
 
   async archiveTask(projectId: string, taskId: string): Promise<void> {

@@ -1,12 +1,8 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { client } from '../../api/client';
-import { connect } from '../../api/connect';
-import { createController } from '../../api/controller';
 import { defineContract, liveJob } from '../../api/define';
-import { serve } from '../../api/serve';
-import { memoryTransportPair } from '../../api/transports';
+import { createTestWire, deferred, waitFor } from '../../testing';
 import { type LiveJobContext } from '../job';
 import { createLiveJobReplica, type ReplicaJobState } from './job';
 import { createPlainStore } from './store';
@@ -84,14 +80,12 @@ describe('createLiveJobReplica', () => {
   it('serves job state through createController from the local replica', async () => {
     const { contractClient } = setup(async (input) => ({ artifact: `${input.name}.zip` }));
     const jobs = createLiveJobReplica(api.build, contractClient.build);
-    const hopPair = memoryTransportPair();
-    serve(hopPair.right, createController(api, { build: jobs }));
-    const downstream = client(api, connect(hopPair.left));
+    const downstream = createTestWire(api, { build: jobs }).client;
 
     const started = await downstream.build.start({ name: 'served' });
     const handle = downstream.build.handle(started.jobId);
 
-    await waitForSnapshot(handle.snapshot, (state) => state.status === 'succeeded');
+    await waitFor(async () => (await handle.snapshot()).data.status === 'succeeded');
     expect((await handle.snapshot()).data).toMatchObject({
       status: 'succeeded',
       result: { artifact: 'served.zip' },
@@ -104,8 +98,7 @@ describe('createLiveJobReplica', () => {
 function setup(
   run: (input: BuildInput, ctx: LiveJobContext<BuildProgress>) => Promise<BuildResult> | BuildResult
 ) {
-  const pair = memoryTransportPair();
-  const controller = createController(api, {
+  const wire = createTestWire(api, {
     build: {
       run: async (input, ctx) => ok(await run(input as BuildInput, ctx)),
       toError: (error) => ({
@@ -113,36 +106,5 @@ function setup(
       }),
     },
   });
-  serve(pair.right, controller);
-  return { contractClient: client(api, connect(pair.left)) };
-}
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for condition');
-}
-
-async function waitForSnapshot<T>(
-  snapshot: () => Promise<{ data: T }>,
-  predicate: (data: T) => boolean
-): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate((await snapshot()).data)) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for snapshot');
-}
-
-function deferred<T>(): {
-  promise: Promise<T>;
-  resolve(value: T): void;
-} {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
+  return { contractClient: wire.client };
 }

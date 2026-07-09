@@ -123,7 +123,6 @@ describe('buildAgentEnv provider env forwarding', () => {
       CODEX_HOME: '/tmp/codex-home',
       OPENAI_ORGANIZATION: 'org_123',
       OPENAI_PROJECT: 'proj_123',
-      GEMINI_MODEL: 'gemini-2.5-pro',
       GOOGLE_GENAI_API_VERSION: 'v1beta',
       GROK_CODE_XAI_API_KEY: 'xai-key',
       GROK_HOME: '/tmp/grok-home',

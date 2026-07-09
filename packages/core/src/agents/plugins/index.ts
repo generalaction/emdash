@@ -1,4 +1,11 @@
-import { createPluginFramework, iconAsset } from '@emdash/shared/plugins';
+import {
+  createPluginFramework,
+  iconAsset,
+  type AssetDescriptors,
+  type CapabilityBehaviors,
+  type CapabilityDescriptors,
+  type ResolvedCapabilityDescriptors,
+} from '@emdash/shared/plugins';
 import z from 'zod';
 import { hostDependencyCapability } from '../../host-dependencies/capability';
 import { acpCapability } from './capabilities/acp';
@@ -46,14 +53,29 @@ const metadataSchema = z.object({
 
 export type CLIAgentPluginMetadata = z.infer<typeof metadataSchema>;
 
-export const { definePlugin, registerPluginBehavior } = createPluginFramework(
-  PLUGIN_CAPABILITIES,
-  metadataSchema,
-  PLUGIN_ASSETS
-);
+export type CLIAgentPluginDefinition = {
+  metadata: CLIAgentPluginMetadata;
+  capabilities: ResolvedCapabilityDescriptors<Capabilities>;
+  assets: AssetDescriptors<Assets>;
+  validate(): z.ZodError[];
+};
 
-export type CLIAgentPluginDefinition = ReturnType<typeof definePlugin>;
-export type CLIAgentPluginProvider = ReturnType<typeof registerPluginBehavior>;
+export type CLIAgentPluginProvider = CLIAgentPluginDefinition & {
+  behavior: CapabilityBehaviors<Capabilities>;
+};
+
+const pluginFramework = createPluginFramework(PLUGIN_CAPABILITIES, metadataSchema, PLUGIN_ASSETS);
+
+export const definePlugin: (
+  metadata: CLIAgentPluginMetadata,
+  capabilities: CapabilityDescriptors<Capabilities>,
+  assets: AssetDescriptors<Assets>
+) => CLIAgentPluginDefinition = pluginFramework.definePlugin;
+
+export const registerPluginBehavior: (
+  plugin: CLIAgentPluginDefinition,
+  behavior: CapabilityBehaviors<Capabilities>
+) => CLIAgentPluginProvider = pluginFramework.registerPluginBehavior;
 
 export type {
   PluginIconAsset as AgentIconAsset,
@@ -91,6 +113,8 @@ export type { IMcpBehavior, McpServerRegistration } from './capabilities/mcp';
 export type { IPlugins } from './capabilities/plugins';
 export type { ISessionsBehavior } from './capabilities/sessions';
 export type { ITrustBehavior, TrustContext } from './capabilities/trust';
+export { AgentPluginHost } from './plugin-host';
+export type { ResolvedAcpProvider, ResolvedAuthProvider } from './plugin-host';
 
 // Typed registry factory
-export { createPluginRegistry } from '@emdash/shared/plugins';
+export { createPluginRegistry, type PluginRegistry } from '@emdash/shared/plugins';

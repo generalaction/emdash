@@ -84,7 +84,7 @@ export function ContextUsageIndicator({
       />
       <Popover.Content align="end" side="top">
         <Popover.Header>
-          <Popover.Title>Context Usage</Popover.Title>
+          <Popover.Title>Context usage</Popover.Title>
         </Popover.Header>
         <div className={styles.usagePopoverBody}>
           <div className={styles.usageStatsRow}>
