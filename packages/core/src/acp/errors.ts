@@ -29,6 +29,9 @@ export type InitializeFailedError = BaseError<'initialize_failed', SerializedErr
 /** The agent's newSession call failed. */
 export type NewSessionFailedError = BaseError<'new_session_failed', SerializedError>;
 
+/** The agent requires authentication before a session can be started. */
+export type AuthRequiredError = BaseError<'auth_required', SerializedError>;
+
 /** The agent's loadSession call failed. */
 export type LoadSessionFailedError = BaseError<'load_session_failed', SerializedError>;
 
@@ -52,6 +55,7 @@ export type AcpRuntimeError =
   | SpawnFailedError
   | InitializeFailedError
   | NewSessionFailedError
+  | AuthRequiredError
   | LoadSessionFailedError
   | PromptFailedError
   | CancelFailedError
@@ -75,6 +79,8 @@ export const acpErr = {
   initializeFailed: (cause: SerializedError) => fail('initialize_failed', { cause }),
 
   newSessionFailed: (cause: SerializedError) => fail('new_session_failed', { cause }),
+
+  authRequired: (cause: SerializedError) => fail('auth_required', { cause }),
 
   loadSessionFailed: (cause: SerializedError) => fail('load_session_failed', { cause }),
 

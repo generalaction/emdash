@@ -25,8 +25,7 @@ import {
   SelectValue,
 } from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
-import { providerSupportsAcp } from '@shared/core/agents/agent-acp';
-import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
+import { agentSupportsAcp, agentSupportsAutoApprove } from '@shared/core/agents/agent-payload';
 import type { ConversationType } from '@shared/core/conversations/conversations';
 import { nextDefaultConversationTitle } from './conversation-title-utils';
 import { useEffectiveProvider } from './use-effective-provider';
@@ -52,20 +51,25 @@ export const CreateConversationModal = observer(function CreateConversationModal
   useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents();
-  const modelsCapability = agents?.find((a) => a.id === providerId)?.capabilities.models;
+  const selectedAgent = agents?.find((a) => a.id === providerId);
+  const modelsCapability = selectedAgent?.capabilities.models;
   const modelOptions =
     modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : null;
 
-  const showAutoApproveToggle = providerId ? providerSupportsAutoApprove(providerId) : false;
-  const showAcpToggle = chatUiEnabled && providerId ? providerSupportsAcp(providerId) : false;
+  const showAutoApproveToggle = agentSupportsAutoApprove(selectedAgent?.capabilities);
+  const showAcpToggle = chatUiEnabled && agentSupportsAcp(selectedAgent?.capabilities);
   const useAcp = showAcpToggle && useAcpOverride;
   const skipPermissions =
     showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);
-  const titleProviderId = providerId ?? 'claude';
-  const title = nextDefaultConversationTitle(
-    titleProviderId,
-    Array.from(conversationMgr?.conversations.values() ?? [], (conversation) => conversation.data)
-  );
+  const title = providerId
+    ? nextDefaultConversationTitle(
+        providerId,
+        Array.from(
+          conversationMgr?.conversations.values() ?? [],
+          (conversation) => conversation.data
+        )
+      )
+    : 'Conversation';
 
   // Reset model and ACP override when the provider changes (ids are provider-specific).
   const handleProviderChange = useCallback(

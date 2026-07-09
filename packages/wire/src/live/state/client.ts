@@ -1,33 +1,66 @@
 import type { Logger } from '@emdash/shared/logger';
 import type z from 'zod';
 import type { WireInstrumentation } from '../../observability';
-import { LiveFollower, type LiveFollowerApplyResult } from '../follower';
+import { LiveFollower } from '../follower';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
-import { applyPatches, type Patch } from './immer-setup';
+import { createPlainStore, createStateMaterializer, type StateStore } from '../replica/store';
 import { LiveStateWaiters } from './waiters';
 
 export type LiveChangeMeta = { kind: 'seed' } | { kind: 'update'; mutationIds: string[] };
 
-export type LiveStateClientOptions = {
+export type LiveStateClientOptions<T = unknown> = {
   instrumentation?: WireInstrumentation;
   logger?: Logger;
   topic?: string;
+  store?: StateStore<T>;
 };
 
-export class LiveStateClient<T> extends LiveFollower<T> {
+export class LiveStateClient<T> {
+  private readonly follower: LiveFollower<T>;
   private readonly waiters = new LiveStateWaiters(() => this.cursor);
-  private readonly schema: z.ZodType<T>;
+  private readonly store: StateStore<T>;
   private readonly onChange: (value: T, meta: LiveChangeMeta) => void;
 
   constructor(
     schema: z.ZodType<T>,
     refetchSnapshot: () => Promise<LiveSnapshot<T>>,
     onChange: (value: T, meta: LiveChangeMeta) => void,
-    options: LiveStateClientOptions = {}
+    options: LiveStateClientOptions<T> = {}
   ) {
-    super(refetchSnapshot, { ...options, label: 'live model' });
-    this.schema = schema;
+    const { store, ...followerOptions } = options;
+    this.store = store ?? createPlainStore<T>();
     this.onChange = onChange;
+    this.follower = new LiveFollower(refetchSnapshot, createStateMaterializer(this.store, schema), {
+      ...followerOptions,
+      label: 'live model',
+      onSeeded: () => this.handleSeeded(),
+      onApplied: (update) => this.handleApplied(update),
+    });
+  }
+
+  get cursor(): LiveCursor | undefined {
+    return this.follower.cursor;
+  }
+
+  isReady(): boolean {
+    return this.follower.isReady();
+  }
+
+  getSnapshot(): T | undefined {
+    if (!this.follower.isReady()) return undefined;
+    return this.store.current();
+  }
+
+  seed(snapshot: LiveSnapshot<T>): void {
+    this.follower.seed(snapshot);
+  }
+
+  applyUpdate(update: LiveUpdate): void {
+    this.follower.applyUpdate(update);
+  }
+
+  refresh(): Promise<void> {
+    return this.follower.refresh();
   }
 
   /** Resolves when local state provably includes the given cursor. */
@@ -43,50 +76,15 @@ export class LiveStateClient<T> extends LiveFollower<T> {
     return this.waiters.waitForMutation(mutationId, timeoutMs);
   }
 
-  /**
-   * Validates the patched result against the schema.
-   * Skipped entirely in production — the generation + baseSequence gap guards
-   * are the primary correctness mechanism; schema validation is a dev-only
-   * safety net that catches shape regressions early.
-   */
-  protected onSeeded(data: T): void {
-    this.onChange(data, { kind: 'seed' });
+  private handleSeeded(): void {
+    this.onChange(this.store.current(), { kind: 'seed' });
     this.waiters.flushCursorWaiters();
     this.waiters.flushAllMutationWaiters();
   }
 
-  protected applyDelta(update: LiveUpdate): LiveFollowerApplyResult<T> {
-    try {
-      // applyPatches returns a new structurally-shared reference — untouched
-      // subtrees keep identity, which allows downstream memoized selectors to
-      // avoid recomputing on unchanged branches.
-      const next = applyPatches(this.value as object, update.delta as Patch[]) as T;
-      const validated = validateSchema(this.schema, next);
-      return validated.ok ? { ok: true, value: next } : validated;
-    } catch (error) {
-      return { ok: false, reason: 'patch-failed', details: { error } };
-    }
-  }
-
-  protected onApplied(value: T, update: LiveUpdate): void {
-    this.onChange(value, { kind: 'update', mutationIds: update.mutationIds ?? [] });
+  private handleApplied(update: LiveUpdate): void {
+    this.onChange(this.store.current(), { kind: 'update', mutationIds: update.mutationIds ?? [] });
     this.waiters.flushCursorWaiters();
     this.waiters.flushMutationWaiters(update.mutationIds ?? []);
   }
-}
-
-function validateSchema<T>(
-  schema: z.ZodType<T>,
-  next: unknown
-): { ok: true } | LiveFollowerApplyResult<T> {
-  if (readNodeEnv() === 'production') return { ok: true };
-  const r = schema.safeParse(next);
-  if (!r.success) {
-    return { ok: false, reason: 'validation', details: { error: r.error } };
-  }
-  return { ok: true };
-}
-
-function readNodeEnv(): string | undefined {
-  return typeof process !== 'undefined' ? process.env['NODE_ENV'] : undefined;
 }

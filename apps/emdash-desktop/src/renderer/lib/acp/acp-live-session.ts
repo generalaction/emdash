@@ -8,6 +8,7 @@ import {
   transcriptTurnSchema,
   type AttachmentMimeType,
   type AttachmentRef,
+  type AcpRuntimeError,
   type HistoryPage,
   type PromptDraftUpdate,
   type PromptInput,
@@ -15,92 +16,97 @@ import {
   type TerminalState,
 } from '@emdash/core/acp/client';
 import type { Result } from '@emdash/shared';
+import type { Unsubscribe } from '@emdash/shared';
+import { ReplicaLog, ReplicaState, type BlobSource, type LiveClientHandle } from '@emdash/wire';
+import { createImmutableMobxStore, createMobxLogStore } from '@emdash/wire/util/mobx';
 import { z } from 'zod';
-import type { LiveLogBinding, LiveBinding } from '@renderer/lib/live/live-bindings';
-import { createLiveLogBinding, createLiveModelBinding } from '@renderer/lib/live/live-bindings';
 import {
   getAcpRuntimeClient,
-  getAcpRuntimeLive,
-  type AcpRuntimeLiveClient,
   type AcpRuntimeRpcClient,
   type StartSessionInput,
 } from './runtime-client';
 
+export interface LiveValueSource<T> {
+  getSnapshot(): T;
+  subscribe(cb: () => void): Unsubscribe;
+}
+
+export function asValueSource<T>(replica: ReplicaState<T>): LiveValueSource<T> {
+  return {
+    getSnapshot: () => replica.current(),
+    subscribe: (cb) => replica.onChange(() => cb()),
+  };
+}
+
+export class AcpStartError extends Error {
+  constructor(readonly runtimeError: AcpRuntimeError) {
+    super(runtimeError.message ?? runtimeError.cause?.message ?? runtimeError.type);
+    this.name = 'AcpStartError';
+  }
+
+  get errorType(): AcpRuntimeError['type'] {
+    return this.runtimeError.type;
+  }
+}
+
 export class AcpLiveSession {
-  readonly sessionState: LiveBinding<SessionState>;
-  readonly config: LiveBinding<z.infer<typeof sessionConfigStateSchema>>;
-  readonly usage: LiveBinding<z.infer<typeof sessionUsageSchema> | null>;
-  readonly plan: LiveBinding<z.infer<typeof planStateSchema> | null>;
-  readonly activeTurn: LiveBinding<z.infer<typeof transcriptTurnSchema> | null>;
-  readonly draft: LiveBinding<z.infer<typeof promptDraftSchema> | null>;
-  readonly terminals: LiveBinding<TerminalState[]>;
-  private readonly terminalLogs = new Map<string, LiveLogBinding>();
+  readonly sessionState: ReplicaState<SessionState>;
+  readonly config: ReplicaState<z.infer<typeof sessionConfigStateSchema>>;
+  readonly usage: ReplicaState<z.infer<typeof sessionUsageSchema> | null>;
+  readonly plan: ReplicaState<z.infer<typeof planStateSchema> | null>;
+  readonly activeTurn: ReplicaState<z.infer<typeof transcriptTurnSchema> | null>;
+  readonly draft: ReplicaState<z.infer<typeof promptDraftSchema> | null>;
+  readonly terminals: ReplicaState<TerminalState[]>;
+  private readonly terminalLogs = new Map<string, ReplicaLog>();
   private disposed = false;
 
   private constructor(
     readonly conversationId: string,
-    private readonly client: AcpRuntimeRpcClient,
-    private readonly live: AcpRuntimeLiveClient
+    private readonly client: AcpRuntimeRpcClient
   ) {
-    this.sessionState = createLiveModelBinding({
-      schema: sessionStateSchema,
-      snapshot: () => live.sessionState.snapshot({ conversationId }),
-      attach: (push) => live.sessionState.attach({ conversationId }, push),
-    });
-    this.config = createLiveModelBinding({
-      schema: sessionConfigStateSchema,
-      snapshot: () => live.sessionConfig.snapshot({ conversationId }),
-      attach: (push) => live.sessionConfig.attach({ conversationId }, push),
-    });
-    this.usage = createLiveModelBinding({
-      schema: sessionUsageSchema.nullable(),
-      snapshot: () => live.sessionUsage.snapshot({ conversationId }),
-      attach: (push) => live.sessionUsage.attach({ conversationId }, push),
-    });
-    this.plan = createLiveModelBinding({
-      schema: planStateSchema.nullable(),
-      snapshot: () => live.plan.snapshot({ conversationId }),
-      attach: (push) => live.plan.attach({ conversationId }, push),
-    });
-    this.activeTurn = createLiveModelBinding({
-      schema: transcriptTurnSchema.nullable(),
-      snapshot: () => live.activeTurn.snapshot({ conversationId }),
-      attach: (push) => live.activeTurn.attach({ conversationId }, push),
-    });
-    this.draft = createLiveModelBinding({
-      schema: promptDraftSchema.nullable(),
-      snapshot: () => live.promptDraft.snapshot({ conversationId }),
-      attach: (push) => live.promptDraft.attach({ conversationId }, push),
-    });
-    this.terminals = createLiveModelBinding({
-      schema: z.array(terminalStateSchema),
-      snapshot: () => live.terminals.snapshot({ conversationId }),
-      attach: (push) => live.terminals.attach({ conversationId }, push),
-    });
+    const key = { conversationId };
+    this.sessionState = createReplicaState(client.session.state(key, 'state'), sessionStateSchema);
+    this.config = createReplicaState(client.session.state(key, 'config'), sessionConfigStateSchema);
+    this.usage = createReplicaState(
+      client.session.state(key, 'usage'),
+      sessionUsageSchema.nullable()
+    );
+    this.plan = createReplicaState(client.session.state(key, 'plan'), planStateSchema.nullable());
+    this.activeTurn = createReplicaState(
+      client.session.state(key, 'activeTurn'),
+      transcriptTurnSchema.nullable()
+    );
+    this.draft = createReplicaState(
+      client.session.state(key, 'draft'),
+      promptDraftSchema.nullable()
+    );
+    this.terminals = createReplicaState(
+      client.session.state(key, 'terminals'),
+      z.array(terminalStateSchema)
+    );
   }
 
   static async create(conversationId: string, input?: StartSessionInput): Promise<AcpLiveSession> {
     const client = await getAcpRuntimeClient();
-    const live = getAcpRuntimeLive();
     if (input) {
       const result = await withTimeout(
         client.startSession({ input }),
         'Timed out starting ACP session'
       );
       if (!result.success) {
-        throw new Error(result.error.message ?? result.error.type);
+        throw new AcpStartError(result.error);
       }
     }
-    const session = new AcpLiveSession(conversationId, client, live);
+    const session = new AcpLiveSession(conversationId, client);
     await withTimeout(
       Promise.all([
-        session.sessionState.start(),
-        session.config.start(),
-        session.usage.start(),
-        session.plan.start(),
-        session.activeTurn.start(),
-        session.draft.start(),
-        session.terminals.start(),
+        session.sessionState.ready,
+        session.config.ready,
+        session.usage.ready,
+        session.plan.ready,
+        session.activeTurn.ready,
+        session.draft.ready,
+        session.terminals.ready,
       ]),
       'Timed out connecting ACP live models'
     );
@@ -139,17 +145,37 @@ export class AcpLiveSession {
 
   uploadAttachment(input: {
     data?: Uint8Array;
+    source?: BlobSource;
+    size?: number;
     mimeType: AttachmentMimeType;
     name?: string;
     originalPath?: string;
   }): Promise<Result<AttachmentRef, unknown>> {
-    return this.client.uploadAttachment(input);
+    return this.client.uploadAttachment(
+      { originalPath: input.originalPath },
+      {
+        name: input.name ?? 'attachment',
+        mimeType: input.mimeType,
+        size: input.size ?? input.data?.byteLength,
+        source:
+          input.source ?? (input.data ? singleChunk(input.data) : singleChunk(new Uint8Array())),
+      }
+    );
   }
 
   downloadAttachment(
     id: string
   ): Promise<Result<{ ref: AttachmentRef; data: Uint8Array }, unknown>> {
-    return this.client.downloadAttachment({ id });
+    return this.client.downloadAttachment({ id }).then(async (result) => {
+      if (!result.success) return result;
+      return {
+        success: true,
+        data: {
+          ref: result.data.meta,
+          data: await result.data.bytes(),
+        },
+      };
+    });
   }
 
   deleteAttachment(id: string): Promise<Result<void, unknown>> {
@@ -200,33 +226,43 @@ export class AcpLiveSession {
     });
   }
 
-  async terminalOutput(terminalId: string): Promise<LiveLogBinding> {
+  async terminalOutput(terminalId: string): Promise<ReplicaLog> {
     const existing = this.terminalLogs.get(terminalId);
     if (existing) return existing;
-    const binding = createLiveLogBinding({
-      snapshot: () => this.live.terminalOutput.snapshot({ terminalId }),
-      attach: (push) => this.live.terminalOutput.attach({ terminalId }, push),
+    const binding = new ReplicaLog(this.client.terminalOutput.handle({ terminalId }), {
+      store: createMobxLogStore(),
     });
     this.terminalLogs.set(terminalId, binding);
-    await binding.start();
-    if (this.disposed) binding.dispose();
+    await binding.ready;
+    if (this.disposed) void binding.dispose();
     return binding;
   }
 
   dispose(): void {
     this.disposed = true;
-    this.sessionState.dispose();
-    this.config.dispose();
-    this.usage.dispose();
-    this.plan.dispose();
-    this.activeTurn.dispose();
-    this.draft.dispose();
-    this.terminals.dispose();
+    void this.sessionState.dispose();
+    void this.config.dispose();
+    void this.usage.dispose();
+    void this.plan.dispose();
+    void this.activeTurn.dispose();
+    void this.draft.dispose();
+    void this.terminals.dispose();
     for (const binding of this.terminalLogs.values()) {
-      binding.dispose();
+      void binding.dispose();
     }
     this.terminalLogs.clear();
   }
+}
+
+async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
+  yield data;
+}
+
+function createReplicaState<T>(handle: LiveClientHandle<T>, schema: z.ZodType<T>): ReplicaState<T> {
+  return new ReplicaState(handle, {
+    schema,
+    store: createImmutableMobxStore(),
+  });
 }
 
 function withTimeout<T>(promise: Promise<T>, message: string, ms = 10_000): Promise<T> {

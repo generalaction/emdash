@@ -69,13 +69,14 @@ export class LiveLog {
     };
   }
 
-  reseed(): void {
+  reseed(data?: LiveLogSnapshotData): void {
     this.generation = Date.now();
     this.sequence = 0;
-    this.baseOffset = 0;
-    this.bufferedBytes = 0;
-    this.truncated = false;
-    this.chunks = [];
+    this.baseOffset = data?.baseOffset ?? 0;
+    this.truncated = data?.truncated ?? false;
+    this.chunks = data?.text ? [{ text: data.text, bytes: byteLength(data.text) }] : [];
+    this.bufferedBytes = this.chunks.reduce((total, chunk) => total + chunk.bytes, 0);
+    this.evictOldChunks();
   }
 
   subscribe(cb: (update: LiveUpdate) => void): Unsubscribe {

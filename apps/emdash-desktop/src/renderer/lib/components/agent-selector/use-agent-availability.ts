@@ -1,7 +1,7 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { useMemo } from 'react';
 import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { useAgents } from '@renderer/lib/stores/use-agents';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { buildAgentGroups, getAssumedInstalledAgents } from './agent-selector-options';
 
 export function useAgentAvailability({
@@ -13,12 +13,6 @@ export function useAgentAvailability({
 }) {
   const { data: agents } = useAgents();
   const { data: statuses, install, isInstalling } = useAgentInstallationStatuses(connectionId);
-
-  const agentNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const a of agents ?? []) map.set(a.id, a.name);
-    return map;
-  }, [agents]);
 
   const dependencyData = useMemo(() => {
     if (!statuses) return null;
@@ -46,12 +40,11 @@ export function useAgentAvailability({
 
   const installingAgents = new Set<AgentProviderId>();
 
-  const getName = (id: AgentProviderId) => agentNameMap.get(id) ?? id;
   const groups = buildAgentGroups(
+    agents ?? [],
     installedAgents,
     assumedInstalledAgents,
-    installingAgents,
-    getName
+    installingAgents
   );
 
   async function installAgent(agentId: AgentProviderId): Promise<void> {

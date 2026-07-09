@@ -44,9 +44,25 @@ export type ReplicaInstance<Group extends LiveModelDef = LiveModelDef> = {
   readonly ready: Promise<void>;
 };
 
-export type ReplicaInstanceOptions = Omit<ReplicaStateOptions<unknown>, 'store' | 'onChange'> & {
-  store?: (stateName: string) => StateStore<unknown>;
-  onChange?: Record<string, (value: unknown, meta: LiveChangeMeta) => void>;
+export type ReplicaStateStores<Group extends LiveModelDef> = {
+  [Name in keyof LiveModelStates<Group>]?: () => StateStore<
+    LiveStateData<LiveModelStates<Group>[Name]>
+  >;
+};
+
+export type ReplicaStateChangeHandlers<Group extends LiveModelDef> = {
+  [Name in keyof LiveModelStates<Group>]?: (
+    value: LiveStateData<LiveModelStates<Group>[Name]>,
+    meta: LiveChangeMeta
+  ) => void;
+};
+
+export type ReplicaInstanceOptions<Group extends LiveModelDef = LiveModelDef> = Omit<
+  ReplicaStateOptions<unknown>,
+  'store' | 'onChange'
+> & {
+  stores?: ReplicaStateStores<Group>;
+  onChange?: ReplicaStateChangeHandlers<Group>;
 };
 
 export function buildReplicaInstance<Group extends LiveModelDef>(
@@ -137,7 +153,9 @@ async function settleCursors(
       return Promise.any([
         state.waitForMutation(mutationId),
         state.waitForLocalCursor(entry.cursor),
-      ]).then(() => undefined);
+      ])
+        .then(() => undefined)
+        .catch(() => undefined);
     })
   );
 }

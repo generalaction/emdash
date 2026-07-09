@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
@@ -11,7 +12,6 @@ import type { ProjectSettingsStore } from '@renderer/features/projects/stores/pr
 import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
@@ -90,7 +90,7 @@ function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
   return match(error)
     .with(
       { type: 'no-intent' },
-      () => 'Workspace has no intent and no resolved path — cannot provision.'
+      () => 'Workspace is missing recoverable setup intent and cannot be provisioned.'
     )
     .with(
       { type: 'missing-workspace' },

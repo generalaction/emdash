@@ -114,6 +114,7 @@ export class GitWorktreeStore {
       aheadCount: computed,
       behindCount: computed,
       branchName: computed,
+      headOid: computed,
       headKind: computed,
       headDisplay: computed,
       effectiveStatus: computed,
@@ -224,6 +225,11 @@ export class GitWorktreeStore {
     const head = this.head.value;
     if (!head || head.kind === 'detached') return null;
     return head.name;
+  }
+
+  get headOid(): string | null {
+    const head = this.head.value;
+    return head?.kind === 'branch' || head?.kind === 'detached' ? head.oid : null;
   }
 
   get headKind(): 'branch' | 'detached' | 'unborn' {

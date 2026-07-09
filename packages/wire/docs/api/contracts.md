@@ -101,6 +101,32 @@ unexpected thrown errors. The typed client gets `start(input)`, `cancel(jobId)`,
 and `handle(jobId)` helpers. See
 [live jobs](../live/live-job.md).
 
+### `downloadFile` and `uploadFile`
+
+`downloadFile({ input, meta?, error })` and
+`uploadFile({ input, accept?, maxSize?, result, error })` model byte transfer as a
+typed call envelope plus a credit-based blob channel. Bytes are streamed in
+bounded chunks and are not embedded in procedure inputs or results:
+
+```ts
+readAttachment: downloadFile({
+  input: z.object({ id: z.string() }),
+  error: z.object({ type: z.string() }),
+});
+
+uploadAttachment: uploadFile({
+  input: z.object({ conversationId: z.string() }),
+  accept: ['image/png', 'image/jpeg'],
+  maxSize: 25 * 1024 * 1024,
+  result: attachmentRefSchema,
+  error: z.object({ type: z.string() }),
+});
+```
+
+Download clients receive a single-use handle with `chunks()`, `bytes()`, `file()`,
+and `cancel()`. Upload clients pass a file-like value as the second argument. See
+[file endpoints](./files.md).
+
 ### `liveModel`
 
 `liveModel({ key, states, mutations })` aggregates related live states and the

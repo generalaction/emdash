@@ -66,7 +66,7 @@ describe('LiveLogClient', () => {
     expect(onReset).toHaveBeenCalledWith({ baseOffset: 0, text: '', truncated: false });
     expect(onAppend).toHaveBeenNthCalledWith(1, 'hello');
     expect(onAppend).toHaveBeenNthCalledWith(2, ' world');
-    expect(client.getSnapshot()).toEqual({ baseOffset: 0, text: 'hello world', truncated: false });
+    expect(client.writtenOffset).toBe('hello world'.length);
   });
 
   it('resyncs on sequence gaps', async () => {
@@ -95,17 +95,9 @@ describe('LiveLogClient', () => {
     server.append('offline output');
     await client.refresh();
 
-    expect(client.getSnapshot()).toEqual({
-      baseOffset: 0,
-      text: 'offline output',
-      truncated: false,
-    });
+    expect(client.writtenOffset).toBe('offline output'.length);
     expect(refetchSnapshot).toHaveBeenCalledTimes(1);
-    expect(onReset).toHaveBeenLastCalledWith({
-      baseOffset: 0,
-      text: 'offline output',
-      truncated: false,
-    });
-    expect(onAppend).not.toHaveBeenCalled();
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(onAppend).toHaveBeenCalledWith('offline output');
   });
 });

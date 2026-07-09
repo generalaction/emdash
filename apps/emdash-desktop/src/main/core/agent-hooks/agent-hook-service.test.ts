@@ -14,6 +14,7 @@ vi.mock('@main/core/agents/plugin-registry', () => ({
             },
     },
   })),
+  isValidProviderId: vi.fn((value: unknown) => typeof value === 'string'),
 }));
 
 vi.mock('@main/db/client', () => ({

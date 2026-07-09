@@ -1,7 +1,9 @@
+import { asAgentProviderId, type AgentProviderId } from '@emdash/plugins/agents/types';
 import { describe, expect, it } from 'vitest';
 import type { InitialConversationState } from '@renderer/features/tasks/task-config/initial-conversation-section';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { buildInitialConversation } from './build-create-task-params';
+
+const agent = asAgentProviderId;
 
 function makeInitialConversationState(
   provider: AgentProviderId,
@@ -31,20 +33,20 @@ function makeInitialConversationState(
 
 describe('buildInitialConversation', () => {
   it('uses the draft auto-approve value for supported providers', () => {
-    expect(buildInitialConversation(makeInitialConversationState('claude', true))).toEqual(
+    expect(buildInitialConversation(makeInitialConversationState(agent('claude'), true))).toEqual(
       expect.objectContaining({ provider: 'claude', autoApprove: true })
     );
   });
 
-  it('does not auto-approve unsupported providers', () => {
-    expect(buildInitialConversation(makeInitialConversationState('jules', true))).toEqual(
+  it('preserves a capability-gated false auto-approve value', () => {
+    expect(buildInitialConversation(makeInitialConversationState(agent('jules'), false))).toEqual(
       expect.objectContaining({ provider: 'jules', autoApprove: false })
     );
   });
 
   it('builds an ACP initial queue from prompt and stashed mention contexts', () => {
     const conversation = buildInitialConversation(
-      makeInitialConversationState('claude', false, {
+      makeInitialConversationState(agent('claude'), false, {
         useChatUi: true,
         prompt: 'Check (issue:github:123)',
         issueContext: 'Pinned issue context',

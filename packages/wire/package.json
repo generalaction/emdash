@@ -33,9 +33,9 @@
       "types": "./dist/util.d.mts",
       "default": "./dist/util.mjs"
     },
-    "./util/optimistic": {
-      "types": "./dist/optimistic.d.mts",
-      "default": "./dist/optimistic.mjs"
+    "./util/mobx": {
+      "types": "./dist/mobx.d.mts",
+      "default": "./dist/mobx.mjs"
     },
     "./util/process-runtime": {
       "types": "./dist/process-runtime.d.mts",

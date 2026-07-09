@@ -15,6 +15,10 @@
       "types": "./dist/agents.d.mts",
       "default": "./dist/agents.mjs"
     },
+    "./agents/types": {
+      "types": "./dist/agents/types.d.mts",
+      "default": "./dist/agents/types.mjs"
+    },
     "./integrations": {
       "types": "./dist/integrations.d.mts",
       "default": "./dist/integrations.mjs"

@@ -2,26 +2,32 @@ import { log as ambientLog, type Logger } from '@emdash/shared/logger';
 import type { WireInstrumentation, WireResyncReason } from '../observability';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from './protocol';
 
-export type LiveFollowerApplyResult<T> =
-  | { ok: true; value: T }
+export type LiveFollowerApplyResult =
+  | { ok: true }
   | { ok: false; reason: WireResyncReason; details?: Record<string, unknown> };
+
+export interface LiveMaterializer<T> {
+  seed(snapshot: LiveSnapshot<T>): void;
+  apply(update: LiveUpdate): LiveFollowerApplyResult;
+}
 
 type LiveFollowerOptions = {
   instrumentation?: WireInstrumentation;
   logger?: Logger;
   topic?: string;
   label: string;
+  onSeeded?: () => void;
+  onApplied?: (update: LiveUpdate) => void;
 };
 
-export abstract class LiveFollower<T> {
-  protected value: T | undefined;
-
+export class LiveFollower<T> {
   private generation = -1;
   private sequence = -1;
   private resyncing = false;
 
   constructor(
     private readonly refetchSnapshot: () => Promise<LiveSnapshot<T>>,
+    private readonly materializer: LiveMaterializer<T>,
     private readonly options: LiveFollowerOptions
   ) {}
 
@@ -34,22 +40,18 @@ export abstract class LiveFollower<T> {
   }
 
   isReady(): boolean {
-    return this.value !== undefined;
-  }
-
-  getSnapshot(): T | undefined {
-    return this.value;
+    return this.generation >= 0;
   }
 
   seed(snapshot: LiveSnapshot<T>): void {
-    this.value = snapshot.data;
+    this.materializer.seed(snapshot);
     this.generation = snapshot.generation;
     this.sequence = snapshot.sequence;
-    this.onSeeded(snapshot.data);
+    this.options.onSeeded?.();
   }
 
   applyUpdate(update: LiveUpdate): void {
-    if (this.value === undefined) {
+    if (!this.isReady()) {
       this.triggerResync('sequence-gap', { reason: 'update-before-seed' });
       return;
     }
@@ -70,15 +72,14 @@ export abstract class LiveFollower<T> {
       return;
     }
 
-    const applied = this.applyDelta(update);
+    const applied = this.materializer.apply(update);
     if (!applied.ok) {
       this.triggerResync(applied.reason, applied.details ?? {});
       return;
     }
 
-    this.value = applied.value;
     this.sequence = update.sequence;
-    this.onApplied(applied.value, update);
+    this.options.onApplied?.(update);
   }
 
   async refresh(): Promise<void> {
@@ -97,8 +98,4 @@ export abstract class LiveFollower<T> {
     (this.options.logger ?? ambientLog).warn(`wire ${this.options.label} resyncing`, event);
     void this.refresh();
   }
-
-  protected abstract onSeeded(data: T): void;
-  protected abstract applyDelta(update: LiveUpdate): LiveFollowerApplyResult<T>;
-  protected abstract onApplied(value: T, update: LiveUpdate): void;
 }

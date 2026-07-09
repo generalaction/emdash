@@ -1,6 +1,6 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { WireInstrumentation } from '../../observability';
-import { LiveFollower, type LiveFollowerApplyResult } from '../follower';
+import { LiveFollower, type LiveFollowerApplyResult, type LiveMaterializer } from '../follower';
 import type { LiveLogDelta, LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../protocol';
 
 export type LiveLogClientDeps = {
@@ -12,36 +12,70 @@ export type LiveLogClientDeps = {
   topic?: string;
 };
 
-export class LiveLogClient extends LiveFollower<LiveLogSnapshotData> {
+export class LiveLogClient {
+  private readonly follower: LiveFollower<LiveLogSnapshotData>;
+  private readonly materializer: LiveLogMaterializer;
+
   constructor(private readonly deps: LiveLogClientDeps) {
-    super(deps.refetchSnapshot, { ...deps, label: 'live log' });
+    this.materializer = new LiveLogMaterializer(deps);
+    this.follower = new LiveFollower(deps.refetchSnapshot, this.materializer, {
+      ...deps,
+      label: 'live log',
+    });
   }
 
-  protected onSeeded(data: LiveLogSnapshotData): void {
-    this.deps.onReset(data);
+  get writtenOffset(): number {
+    return this.materializer.writtenOffset;
   }
 
-  protected applyDelta(update: LiveUpdate): LiveFollowerApplyResult<LiveLogSnapshotData> {
-    const current = this.value;
-    if (current === undefined) {
-      return { ok: false, reason: 'sequence-gap', details: { reason: 'update-before-seed' } };
+  isReady(): boolean {
+    return this.follower.isReady();
+  }
+
+  seed(snapshot: LiveSnapshot<LiveLogSnapshotData>): void {
+    this.follower.seed(snapshot);
+  }
+
+  applyUpdate(update: LiveUpdate): void {
+    this.follower.applyUpdate(update);
+  }
+
+  refresh(): Promise<void> {
+    return this.follower.refresh();
+  }
+}
+
+class LiveLogMaterializer implements LiveMaterializer<LiveLogSnapshotData> {
+  private generation: number | undefined;
+  writtenOffset = 0;
+
+  constructor(private readonly deps: LiveLogClientDeps) {}
+
+  seed(snapshot: LiveSnapshot<LiveLogSnapshotData>): void {
+    const data = snapshot.data;
+    const endOffset = data.baseOffset + byteLength(data.text);
+    if (
+      this.generation === snapshot.generation &&
+      this.writtenOffset >= data.baseOffset &&
+      this.writtenOffset <= endOffset
+    ) {
+      const missing = suffixFromByteOffset(data.text, this.writtenOffset - data.baseOffset);
+      if (missing.length > 0) this.deps.onAppend(missing);
+    } else {
+      this.deps.onReset(data);
     }
+    this.generation = snapshot.generation;
+    this.writtenOffset = endOffset;
+  }
+
+  apply(update: LiveUpdate): LiveFollowerApplyResult {
     if (!isLiveLogDelta(update.delta)) {
       return { ok: false, reason: 'patch-failed', details: { reason: 'invalid-delta' } };
     }
 
-    return {
-      ok: true,
-      value: {
-        ...current,
-        text: `${current.text}${update.delta.chunk}`,
-      },
-    };
-  }
-
-  protected onApplied(_value: LiveLogSnapshotData, update: LiveUpdate): void {
-    if (!isLiveLogDelta(update.delta)) return;
     this.deps.onAppend(update.delta.chunk);
+    this.writtenOffset += byteLength(update.delta.chunk);
+    return { ok: true };
   }
 }
 
@@ -52,4 +86,18 @@ function isLiveLogDelta(value: unknown): value is LiveLogDelta {
     'chunk' in value &&
     typeof (value as { chunk: unknown }).chunk === 'string'
   );
+}
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+function byteLength(text: string): number {
+  return encoder.encode(text).byteLength;
+}
+
+function suffixFromByteOffset(text: string, offset: number): string {
+  if (offset <= 0) return text;
+  const bytes = encoder.encode(text);
+  if (offset >= bytes.byteLength) return '';
+  return decoder.decode(bytes.slice(offset));
 }

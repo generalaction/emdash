@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { LiveStateRef } from '../live/mutations/model-ref';
 import type { LiveMutationInput } from '../live/mutations/types';
 import type { Mutator } from '../live/state';
+import type { WireFileMeta } from './protocol';
 
 export const contractSymbol: unique symbol = Symbol('wire.contract');
 
@@ -47,6 +48,41 @@ export type LiveJobEndpointDef<
   error: ErrorSchema;
 };
 
+export const wireFileMetaSchema = z.object({
+  name: z.string(),
+  mimeType: z.string(),
+  size: z.number().nonnegative().optional(),
+  lastModified: z.number().optional(),
+});
+
+export type DownloadFileEndpointDef<
+  Id extends string = string,
+  InputSchema extends z.ZodTypeAny = z.ZodTypeAny,
+  MetaSchema extends z.ZodTypeAny = z.ZodTypeAny,
+  ErrorSchema extends z.ZodTypeAny = z.ZodTypeAny,
+> = {
+  kind: 'downloadFile';
+  id: Id;
+  input: InputSchema;
+  meta: MetaSchema;
+  error: ErrorSchema;
+};
+
+export type UploadFileEndpointDef<
+  Id extends string = string,
+  InputSchema extends z.ZodTypeAny = z.ZodTypeAny,
+  ResultSchema extends z.ZodTypeAny = z.ZodTypeAny,
+  ErrorSchema extends z.ZodTypeAny = z.ZodTypeAny,
+> = {
+  kind: 'uploadFile';
+  id: Id;
+  input: InputSchema;
+  accept?: readonly string[];
+  maxSize?: number;
+  result: ResultSchema;
+  error: ErrorSchema;
+};
+
 export type MutationDef<
   InputSchema extends z.ZodTypeAny = z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny = z.ZodTypeAny,
@@ -82,7 +118,13 @@ export type LiveModelDef<
   mutations: Mutations;
 };
 
-export type EndpointDef = ProcedureDef | LiveLogEndpointDef | LiveJobEndpointDef | LiveModelDef;
+export type EndpointDef =
+  | ProcedureDef
+  | LiveLogEndpointDef
+  | LiveJobEndpointDef
+  | LiveModelDef
+  | DownloadFileEndpointDef
+  | UploadFileEndpointDef;
 
 export type ContractEntry = EndpointDef | Contract<ContractDefinitions>;
 export interface ContractDefinitions {
@@ -133,6 +175,36 @@ export type JobResult<Def> =
 
 export type JobError<Def> =
   Def extends LiveJobEndpointDef<string, z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny, infer Error>
+    ? z.infer<Error>
+    : never;
+
+export type DownloadFileInput<Def> =
+  Def extends DownloadFileEndpointDef<string, infer Input, z.ZodTypeAny, z.ZodTypeAny>
+    ? z.infer<Input>
+    : never;
+
+export type DownloadFileMeta<Def> =
+  Def extends DownloadFileEndpointDef<string, z.ZodTypeAny, infer Meta, z.ZodTypeAny>
+    ? z.infer<Meta> & WireFileMeta
+    : never;
+
+export type DownloadFileError<Def> =
+  Def extends DownloadFileEndpointDef<string, z.ZodTypeAny, z.ZodTypeAny, infer Error>
+    ? z.infer<Error>
+    : never;
+
+export type UploadFileInput<Def> =
+  Def extends UploadFileEndpointDef<string, infer Input, z.ZodTypeAny, z.ZodTypeAny>
+    ? z.infer<Input>
+    : never;
+
+export type UploadFileResult<Def> =
+  Def extends UploadFileEndpointDef<string, z.ZodTypeAny, infer Result, z.ZodTypeAny>
+    ? z.infer<Result>
+    : never;
+
+export type UploadFileError<Def> =
+  Def extends UploadFileEndpointDef<string, z.ZodTypeAny, z.ZodTypeAny, infer Error>
     ? z.infer<Error>
     : never;
 
@@ -200,6 +272,38 @@ export function liveJob<
   error: ErrorSchema;
 }): LiveJobEndpointDef<string, InputSchema, ProgressSchema, ResultSchema, ErrorSchema> {
   return { kind: 'liveJob', id: '', ...def };
+}
+
+export function downloadFile<
+  InputSchema extends z.ZodTypeAny,
+  MetaSchema extends z.ZodTypeAny = typeof wireFileMetaSchema,
+  ErrorSchema extends z.ZodTypeAny = z.ZodUnknown,
+>(def: {
+  input: InputSchema;
+  meta?: MetaSchema;
+  error: ErrorSchema;
+}): DownloadFileEndpointDef<string, InputSchema, MetaSchema, ErrorSchema> {
+  return {
+    kind: 'downloadFile',
+    id: '',
+    input: def.input,
+    meta: (def.meta ?? wireFileMetaSchema) as MetaSchema,
+    error: def.error,
+  };
+}
+
+export function uploadFile<
+  InputSchema extends z.ZodTypeAny,
+  ResultSchema extends z.ZodTypeAny,
+  ErrorSchema extends z.ZodTypeAny,
+>(def: {
+  input: InputSchema;
+  accept?: readonly string[];
+  maxSize?: number;
+  result: ResultSchema;
+  error: ErrorSchema;
+}): UploadFileEndpointDef<string, InputSchema, ResultSchema, ErrorSchema> {
+  return { kind: 'uploadFile', id: '', ...def };
 }
 
 /**
@@ -312,6 +416,10 @@ function finalizeEndpoint(path: string[], def: EndpointDef): EndpointDef {
       return { ...def, id };
     case 'liveJob':
       return { ...def, id };
+    case 'downloadFile':
+      return { ...def, id };
+    case 'uploadFile':
+      return { ...def, id };
     case 'liveModel':
       return finalizeLiveModelEndpoint(id, def);
     case 'procedure':
@@ -353,6 +461,8 @@ export function isEndpointDef(value: ContractEntry): value is EndpointDef {
     case 'liveLog':
     case 'liveJob':
     case 'liveModel':
+    case 'downloadFile':
+    case 'uploadFile':
     case 'procedure':
       return true;
     default:

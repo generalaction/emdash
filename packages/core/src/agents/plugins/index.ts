@@ -2,6 +2,7 @@ import { createPluginFramework, iconAsset } from '@emdash/shared/plugins';
 import z from 'zod';
 import { hostDependencyCapability } from '../../host-dependencies/capability';
 import { acpCapability } from './capabilities/acp';
+import { authCapability } from './capabilities/auth';
 import { autoApproveCapability } from './capabilities/auto-approve';
 import { effortCapability } from './capabilities/effort';
 import { hooksCapability } from './capabilities/hooks';
@@ -14,6 +15,7 @@ import { trustCapability } from './capabilities/trust';
 
 export const PLUGIN_CAPABILITIES = {
   acp: acpCapability,
+  auth: authCapability,
   autoApprove: autoApproveCapability,
   effort: effortCapability,
   hooks: hooksCapability,
@@ -76,6 +78,13 @@ export type {
   AcpAgentApi,
   AcpClientFactory,
 } from './capabilities/acp';
+export type {
+  AgentAuthContext,
+  AgentAuthDescriptor,
+  AgentAuthMethod,
+  AgentAuthStatus,
+  IAgentAuthBehavior,
+} from './capabilities/auth';
 export type { IHostDependencyBehavior } from '../../host-dependencies/capability';
 export type { IHooksBehavior } from './capabilities/hooks';
 export type { IMcpBehavior, McpServerRegistration } from './capabilities/mcp';

@@ -13,7 +13,7 @@ import {
   mutation,
   serve,
 } from '../../src/index';
-import { OptimisticLiveModel } from '../../src/util/optimistic';
+import { OptimisticLiveModel } from '../../src/util/mobx';
 
 const conversationKeySchema = z.object({ conversationId: z.string() });
 const stateSchema = z.object({ title: z.string() });

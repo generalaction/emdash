@@ -17,6 +17,7 @@ import {
   type LiveLogReplica,
   type LiveModelProvider,
 } from '../live/replica';
+import type { BlobSource, WireFile } from './blob-channel';
 import {
   isLiveModelClientHandle,
   isLiveJobClientHandle,
@@ -28,6 +29,10 @@ import {
 import type {
   Contract,
   ContractDefinitions,
+  DownloadFileEndpointDef,
+  DownloadFileError,
+  DownloadFileInput,
+  DownloadFileMeta,
   EndpointDef,
   EndpointInput,
   EndpointOutput,
@@ -39,14 +44,45 @@ import type {
   JobError,
   LiveModelDef,
   MutationDef,
+  UploadFileEndpointDef,
+  UploadFileError,
+  UploadFileInput,
+  UploadFileResult,
 } from './define';
 import { isEndpointDef } from './define';
+import type { WireFileMeta } from './protocol';
 import { WireError } from './protocol';
 import { splitTopic } from './topics';
 
 export type CallMeta = {
   signal?: AbortSignal;
+  uploadFile?: WireFile;
 };
+
+const downloadFileOpenSymbol: unique symbol = Symbol('wire.downloadFileOpen');
+
+export type DownloadFileOpen = {
+  readonly [downloadFileOpenSymbol]: true;
+  readonly meta: WireFileMeta;
+  readonly source: BlobSource;
+};
+
+export function markDownloadFileOpen(meta: WireFileMeta, source: BlobSource): DownloadFileOpen {
+  return { [downloadFileOpenSymbol]: true, meta, source };
+}
+
+export function isDownloadFileOpenResult(
+  value: unknown
+): value is { success: true; data: DownloadFileOpen } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { success?: unknown }).success === true &&
+    typeof (value as { data?: unknown }).data === 'object' &&
+    (value as { data?: { [downloadFileOpenSymbol]?: unknown } }).data?.[downloadFileOpenSymbol] ===
+      true
+  );
+}
 
 export type Controller = {
   call(path: string, input: unknown, meta?: CallMeta): Promise<unknown>;
@@ -60,6 +96,21 @@ type ProcedureImpl<Def extends EndpointDef> = (
   input: EndpointInput<Def>,
   meta: CallMeta
 ) => Promise<EndpointOutput<Def>> | EndpointOutput<Def>;
+
+type DownloadFileImpl<Def extends DownloadFileEndpointDef> = (
+  input: DownloadFileInput<Def>,
+  meta: CallMeta
+) =>
+  | Promise<Result<{ meta: DownloadFileMeta<Def>; source: BlobSource }, DownloadFileError<Def>>>
+  | Result<{ meta: DownloadFileMeta<Def>; source: BlobSource }, DownloadFileError<Def>>;
+
+type UploadFileImpl<Def extends UploadFileEndpointDef> = (
+  input: UploadFileInput<Def>,
+  file: WireFile,
+  meta: CallMeta
+) =>
+  | Promise<Result<UploadFileResult<Def>, UploadFileError<Def>>>
+  | Result<UploadFileResult<Def>, UploadFileError<Def>>;
 
 type LiveLogImpl<Def extends EndpointDef> = (key: LiveLogKey<Def>) => LiveSource | null | undefined;
 
@@ -81,7 +132,11 @@ type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
       ? GroupImpl<Def>
       : Def extends LiveJobEndpointDef
         ? JobImpl<Def> | LiveJobClientHandle<Def> | LiveJobReplica<Def>
-        : never;
+        : Def extends DownloadFileEndpointDef
+          ? DownloadFileImpl<Def>
+          : Def extends UploadFileEndpointDef
+            ? UploadFileImpl<Def>
+            : never;
 
 type JobImpl<Def extends LiveJobEndpointDef> = {
   run(
@@ -147,6 +202,49 @@ export function createController<Defs extends ContractDefinitions>(
             const parsedInput = validate === 'none' ? input : def.input.parse(input);
             const output = await handler(parsedInput, meta);
             return validate === 'full' ? def.output.parse(output) : output;
+          });
+          break;
+        }
+        case 'downloadFile': {
+          const handler = entryImpl as DownloadFileImpl<DownloadFileEndpointDef> | undefined;
+          if (!handler) break;
+          procedureEntries.set(fullPath, async (input, meta) => {
+            const parsedInput = validate === 'none' ? input : def.input.parse(input);
+            const output = await handler(parsedInput, meta);
+            if (!output.success) {
+              return validate === 'full'
+                ? { success: false, error: def.error.parse(output.error) }
+                : output;
+            }
+            const parsedMeta =
+              validate === 'none' ? output.data.meta : def.meta.parse(output.data.meta);
+            return {
+              success: true,
+              data: markDownloadFileOpen(parsedMeta as WireFileMeta, output.data.source),
+            };
+          });
+          break;
+        }
+        case 'uploadFile': {
+          const handler = entryImpl as UploadFileImpl<UploadFileEndpointDef> | undefined;
+          if (!handler) break;
+          procedureEntries.set(fullPath, async (input, meta) => {
+            const uploadFile = meta.uploadFile;
+            if (!uploadFile) {
+              throw new WireError(
+                'HANDLER_ERROR',
+                `Upload file '${fullPath}' requires a file payload`
+              );
+            }
+            const parsedInput = validate === 'none' ? input : def.input.parse(input);
+            validateUploadFileEnvelope(def, uploadFile);
+            const output = await handler(
+              parsedInput,
+              limitUploadFile(uploadFile, def.maxSize),
+              meta
+            );
+            if (validate !== 'full') return output;
+            return resultSchema(def.result, def.error).parse(output) as Result<unknown, unknown>;
           });
           break;
         }
@@ -332,6 +430,67 @@ export function createController<Defs extends ContractDefinitions>(
   };
 }
 
+function limitUploadFile(file: WireFile, maxSize: number | undefined): WireFile {
+  if (maxSize === undefined) return file;
+  return {
+    ...file,
+    stream() {
+      return (async function* () {
+        const iterator = file.stream()[Symbol.asyncIterator]();
+        let total = 0;
+        try {
+          for (;;) {
+            const next = await iterator.next();
+            if (next.done) return;
+            const chunk = next.value;
+            total += chunk.byteLength;
+            if (total > maxSize) {
+              file.cancel();
+              throw new WireError(
+                'CONTRACT_MISMATCH',
+                `Upload file size exceeded maximum ${maxSize}`
+              );
+            }
+            yield chunk;
+          }
+        } finally {
+          await iterator.return?.();
+        }
+      })();
+    },
+    async bytes() {
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for await (const chunk of this.stream()) {
+        chunks.push(chunk);
+        total += chunk.byteLength;
+      }
+      const out = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        out.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return out;
+    },
+  };
+}
+
+function validateUploadFileEnvelope(def: UploadFileEndpointDef, file: WireFile): void {
+  if (def.accept && !def.accept.includes(file.mimeType)) {
+    throw new WireError(
+      'CONTRACT_MISMATCH',
+      `Upload file MIME type '${file.mimeType}' is not accepted`
+    );
+  }
+  if (def.maxSize !== undefined && file.size !== undefined && file.size > def.maxSize) {
+    throw new WireError(
+      'CONTRACT_MISMATCH',
+      `Upload file size ${file.size} exceeds maximum ${def.maxSize}`
+    );
+  }
+}
+
 export { encodeTopic, splitTopic } from './topics';
 
 function createLiveLogResolver(
@@ -350,6 +509,7 @@ function createLiveJob(
   return new LiveJob<unknown, unknown, unknown, unknown>(
     async (input, ctx) => {
       const result = await impl.run(input, {
+        jobId: ctx.jobId,
         signal: ctx.signal,
         progress: (progress) =>
           ctx.progress(validate === 'full' ? def.progress.parse(progress) : progress),

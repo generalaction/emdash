@@ -20,17 +20,13 @@ vi.mock('@main/core/dependencies/registry', () => ({
   DEPENDENCIES: [],
 }));
 
-vi.mock('@shared/core/agents/agent-provider-registry', () => ({
-  AGENT_PROVIDERS: [{ id: 'claude' }, { id: 'codex' }],
-}));
-
 vi.mock('../settings/provider-settings-service', () => ({
   providerOverrideSettings: {
     getItemWithMeta: vi.fn(),
   },
 }));
 
-const { getPlugin } = await import('@main/core/agents/plugin-registry');
+const { getPlugin, listPlugins } = await import('@main/core/agents/plugin-registry');
 const { providerOverrideSettings } = await import('../settings/provider-settings-service');
 void (await import('@main/core/dependencies/registry'));
 
@@ -48,6 +44,7 @@ function makeProvider(id: string, binaryName: string): CLIAgentPluginProvider {
       websiteUrl: `https://${id}.example.com`,
     },
     capabilities: {
+      acp: { kind: 'none' },
       hostDependency: {
         binaryNames: [binaryName],
         installCommands: {
@@ -176,7 +173,11 @@ describe('buildAgentPayload', () => {
 });
 
 describe('buildAgentPayloads', () => {
-  it('returns one entry per AGENT_PROVIDERS entry', async () => {
+  it('returns one entry per registered plugin', async () => {
+    vi.mocked(listPlugins).mockReturnValue([
+      makeProvider('claude', 'claude'),
+      makeProvider('codex', 'codex'),
+    ]);
     vi.mocked(getPlugin).mockImplementation((id) => makeProvider(id, id));
     vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 

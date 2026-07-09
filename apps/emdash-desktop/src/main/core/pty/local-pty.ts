@@ -1,9 +1,8 @@
+import { normalizeSignal, PosixPtyTerminator } from '@emdash/core/pty';
 import * as nodePty from 'node-pty';
 import type { IPty } from 'node-pty';
 import { log } from '@main/lib/logger';
-import { normalizeSignal } from './exit-signals';
 import { suppressExpectedNodePtyErrors } from './node-pty-errors';
-import { PosixPtyTerminator } from './posix-pty-terminator';
 import type { Pty, PtyDimensions, PtyExitInfo } from './pty';
 
 export interface LocalSpawnOptions extends PtyDimensions {
@@ -55,7 +54,7 @@ export class LocalPtySession implements Pty {
     private readonly posixTerminator: Pick<
       PosixPtyTerminator,
       'kill' | 'markExited'
-    > = new PosixPtyTerminator()
+    > = new PosixPtyTerminator(log)
   ) {
     this.id = id;
   }
