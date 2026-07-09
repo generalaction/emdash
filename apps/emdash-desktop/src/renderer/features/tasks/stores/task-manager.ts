@@ -90,7 +90,7 @@ function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
   return match(error)
     .with(
       { type: 'no-intent' },
-      () => 'Workspace has no intent and no resolved path — cannot provision.'
+      () => 'Workspace is missing recoverable setup intent and cannot be provisioned.'
     )
     .with(
       { type: 'missing-workspace' },
