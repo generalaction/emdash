@@ -17,5 +17,4 @@ export {
 export { consoleLogger, noopLogger, type Logger } from './logger';
 export { LiveModel, type LiveModelOptions, type LiveValue } from './live-model';
 export { reconcileDraft } from './reconcile';
-export { RefreshScheduler, type RefreshSchedulerOptions } from './refresh-scheduler';
 export { ResourceMap, type ResourceMapOptions } from './resource-map';
