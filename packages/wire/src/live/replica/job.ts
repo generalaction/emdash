@@ -16,9 +16,17 @@ import { liveJobStateSchema } from '../protocol';
 import type { LiveJobState, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
 import { LiveState } from '../state';
 import { managedLiveSource } from './source';
+import type { StateStore } from './store';
 
-export type ReplicaJobOptions = {
+export type ReplicaJobState<Def extends LiveJobEndpointDef> = LiveJobState<
+  JobProgress<Def>,
+  JobResult<Def>,
+  JobError<Def>
+>;
+
+export type ReplicaJobOptions<Def extends LiveJobEndpointDef = LiveJobEndpointDef> = {
   instrumentation?: WireInstrumentation;
+  store?: StateStore<ReplicaJobState<Def>>;
 };
 
 export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> implements LiveSource {
@@ -38,7 +46,7 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
   constructor(
     private readonly job: LiveJobClientHandle<Def>,
     jobId: string,
-    options: ReplicaJobOptions = {}
+    private readonly options: ReplicaJobOptions<Def> = {}
   ) {
     this.jobId = jobId;
     const handle = this.job.handle(jobId);
@@ -58,13 +66,9 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
     });
     this.result = this.client.result;
     this.ready = handle.snapshot().then((snapshot) => {
-      this.local = new LiveState(
-        structuredClone(snapshot.data) as LiveJobState<
-          JobProgress<Def>,
-          JobResult<Def>,
-          JobError<Def>
-        >
-      );
+      const data = structuredClone(snapshot.data) as ReplicaJobState<Def>;
+      this.local = new LiveState(data);
+      this.options.store?.reset(data);
       this.seeding = true;
       try {
         this.client.seed(
@@ -81,6 +85,13 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
   }
 
   getState(): LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>> | undefined {
+    if (this.options.store) {
+      try {
+        return this.options.store.current();
+      } catch {
+        // Fall back to the protocol client before the replica has finished seeding.
+      }
+    }
     return this.local?.snapshot().data ?? this.client.getState();
   }
 
@@ -120,6 +131,7 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
     if (local) {
       local.produce(() => structuredClone(state));
     }
+    this.options.store?.reset(state);
     if (state.status !== 'running') void this.detachUpstream();
   }
 
@@ -135,8 +147,12 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
   }
 }
 
-export type LiveJobReplicaOptions = ReplicaJobOptions & {
+export type LiveJobReplicaOptions<Def extends LiveJobEndpointDef = LiveJobEndpointDef> = Omit<
+  ReplicaJobOptions<Def>,
+  'store'
+> & {
   retentionMs?: number;
+  store?: () => StateStore<ReplicaJobState<Def>>;
 };
 
 export type LiveJobReplica<Def extends LiveJobEndpointDef = LiveJobEndpointDef> = {
@@ -153,13 +169,14 @@ export type LiveJobReplica<Def extends LiveJobEndpointDef = LiveJobEndpointDef> 
 export function createLiveJobReplica<Def extends LiveJobEndpointDef>(
   def: Def,
   job: LiveJobClientHandle<Def>,
-  options: LiveJobReplicaOptions = {}
+  options: LiveJobReplicaOptions<Def> = {}
 ): LiveJobReplica<Def> {
   const source = createManagedSource<string, ReplicaJob<Def>>({
     key: stableStringify,
     graceMs: options.retentionMs,
     async create(jobId, scope) {
-      const replica = new ReplicaJob(job, jobId, options);
+      const { store, ...replicaOptions } = options;
+      const replica = new ReplicaJob(job, jobId, { ...replicaOptions, store: store?.() });
       scope.add(() => replica.dispose());
       await replica.ready;
       return replica;

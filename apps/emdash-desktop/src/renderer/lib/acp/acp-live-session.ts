@@ -17,12 +17,8 @@ import {
 } from '@emdash/core/acp/client';
 import type { Result } from '@emdash/shared';
 import type { Unsubscribe } from '@emdash/shared';
-import {
-  ReplicaLog,
-  ReplicaState,
-  type LiveClientHandle,
-  type LiveLogSnapshotData,
-} from '@emdash/wire';
+import { ReplicaLog, ReplicaState, type LiveClientHandle } from '@emdash/wire';
+import { createMobxLogStore, createMobxStore } from '@emdash/wire/util/mobx';
 import { z } from 'zod';
 import {
   getAcpRuntimeClient,
@@ -30,15 +26,16 @@ import {
   type StartSessionInput,
 } from './runtime-client';
 
-export interface LiveBinding<T> {
-  start(): Promise<void>;
-  dispose(): void;
-  getSnapshot(): T | undefined;
+export interface LiveValueSource<T> {
+  getSnapshot(): T;
   subscribe(cb: () => void): Unsubscribe;
 }
 
-export interface LiveLogBinding extends LiveBinding<LiveLogSnapshotData> {
-  text(): string;
+export function asValueSource<T>(replica: ReplicaState<T>): LiveValueSource<T> {
+  return {
+    getSnapshot: () => replica.current(),
+    subscribe: (cb) => replica.onChange(() => cb()),
+  };
 }
 
 export class AcpStartError extends Error {
@@ -53,14 +50,14 @@ export class AcpStartError extends Error {
 }
 
 export class AcpLiveSession {
-  readonly sessionState: LiveBinding<SessionState>;
-  readonly config: LiveBinding<z.infer<typeof sessionConfigStateSchema>>;
-  readonly usage: LiveBinding<z.infer<typeof sessionUsageSchema> | null>;
-  readonly plan: LiveBinding<z.infer<typeof planStateSchema> | null>;
-  readonly activeTurn: LiveBinding<z.infer<typeof transcriptTurnSchema> | null>;
-  readonly draft: LiveBinding<z.infer<typeof promptDraftSchema> | null>;
-  readonly terminals: LiveBinding<TerminalState[]>;
-  private readonly terminalLogs = new Map<string, LiveLogBinding>();
+  readonly sessionState: ReplicaState<SessionState>;
+  readonly config: ReplicaState<z.infer<typeof sessionConfigStateSchema>>;
+  readonly usage: ReplicaState<z.infer<typeof sessionUsageSchema> | null>;
+  readonly plan: ReplicaState<z.infer<typeof planStateSchema> | null>;
+  readonly activeTurn: ReplicaState<z.infer<typeof transcriptTurnSchema> | null>;
+  readonly draft: ReplicaState<z.infer<typeof promptDraftSchema> | null>;
+  readonly terminals: ReplicaState<TerminalState[]>;
+  private readonly terminalLogs = new Map<string, ReplicaLog>();
   private disposed = false;
 
   private constructor(
@@ -68,28 +65,22 @@ export class AcpLiveSession {
     private readonly client: AcpRuntimeRpcClient
   ) {
     const key = { conversationId };
-    this.sessionState = new ReplicaStateBinding(
-      client.session.state(key, 'state'),
-      sessionStateSchema
-    );
-    this.config = new ReplicaStateBinding(
-      client.session.state(key, 'config'),
-      sessionConfigStateSchema
-    );
-    this.usage = new ReplicaStateBinding(
+    this.sessionState = createReplicaState(client.session.state(key, 'state'), sessionStateSchema);
+    this.config = createReplicaState(client.session.state(key, 'config'), sessionConfigStateSchema);
+    this.usage = createReplicaState(
       client.session.state(key, 'usage'),
       sessionUsageSchema.nullable()
     );
-    this.plan = new ReplicaStateBinding(client.session.state(key, 'plan'), planStateSchema.nullable());
-    this.activeTurn = new ReplicaStateBinding(
+    this.plan = createReplicaState(client.session.state(key, 'plan'), planStateSchema.nullable());
+    this.activeTurn = createReplicaState(
       client.session.state(key, 'activeTurn'),
       transcriptTurnSchema.nullable()
     );
-    this.draft = new ReplicaStateBinding(
+    this.draft = createReplicaState(
       client.session.state(key, 'draft'),
       promptDraftSchema.nullable()
     );
-    this.terminals = new ReplicaStateBinding(
+    this.terminals = createReplicaState(
       client.session.state(key, 'terminals'),
       z.array(terminalStateSchema)
     );
@@ -109,13 +100,13 @@ export class AcpLiveSession {
     const session = new AcpLiveSession(conversationId, client);
     await withTimeout(
       Promise.all([
-        session.sessionState.start(),
-        session.config.start(),
-        session.usage.start(),
-        session.plan.start(),
-        session.activeTurn.start(),
-        session.draft.start(),
-        session.terminals.start(),
+        session.sessionState.ready,
+        session.config.ready,
+        session.usage.ready,
+        session.plan.ready,
+        session.activeTurn.ready,
+        session.draft.ready,
+        session.terminals.ready,
       ]),
       'Timed out connecting ACP live models'
     );
@@ -215,132 +206,39 @@ export class AcpLiveSession {
     });
   }
 
-  async terminalOutput(terminalId: string): Promise<LiveLogBinding> {
+  async terminalOutput(terminalId: string): Promise<ReplicaLog> {
     const existing = this.terminalLogs.get(terminalId);
     if (existing) return existing;
-    const binding = new ReplicaLogBinding(this.client.terminalOutput.handle({ terminalId }));
+    const binding = new ReplicaLog(this.client.terminalOutput.handle({ terminalId }), {
+      store: createMobxLogStore(),
+    });
     this.terminalLogs.set(terminalId, binding);
-    await binding.start();
-    if (this.disposed) binding.dispose();
+    await binding.ready;
+    if (this.disposed) void binding.dispose();
     return binding;
   }
 
   dispose(): void {
     this.disposed = true;
-    this.sessionState.dispose();
-    this.config.dispose();
-    this.usage.dispose();
-    this.plan.dispose();
-    this.activeTurn.dispose();
-    this.draft.dispose();
-    this.terminals.dispose();
+    void this.sessionState.dispose();
+    void this.config.dispose();
+    void this.usage.dispose();
+    void this.plan.dispose();
+    void this.activeTurn.dispose();
+    void this.draft.dispose();
+    void this.terminals.dispose();
     for (const binding of this.terminalLogs.values()) {
-      binding.dispose();
+      void binding.dispose();
     }
     this.terminalLogs.clear();
   }
 }
 
-class ReplicaStateBinding<T> implements LiveBinding<T> {
-  private readonly listeners = new Set<() => void>();
-  private replica: ReplicaState<T> | null = null;
-  private disposed = false;
-
-  constructor(
-    private readonly handle: LiveClientHandle<T>,
-    private readonly schema: z.ZodType<T>
-  ) {}
-
-  async start(): Promise<void> {
-    if (this.replica) return;
-    const replica = new ReplicaState(this.handle, {
-      schema: this.schema,
-      onChange: () => this.notify(),
-    });
-    this.replica = replica;
-    await replica.ready;
-    if (this.disposed) {
-      await replica.dispose();
-      return;
-    }
-    this.notify();
-  }
-
-  dispose(): void {
-    this.disposed = true;
-    const replica = this.replica;
-    this.replica = null;
-    this.listeners.clear();
-    if (replica) void replica.dispose();
-  }
-
-  getSnapshot(): T | undefined {
-    return this.replica?.current();
-  }
-
-  subscribe(cb: () => void): Unsubscribe {
-    this.listeners.add(cb);
-    return () => this.listeners.delete(cb);
-  }
-
-  private notify(): void {
-    for (const listener of this.listeners) listener();
-  }
-}
-
-class ReplicaLogBinding implements LiveLogBinding {
-  private readonly listeners = new Set<() => void>();
-  private replica: ReplicaLog | null = null;
-  private unsubscribe: Unsubscribe | null = null;
-  private value: LiveLogSnapshotData | undefined;
-  private disposed = false;
-
-  constructor(private readonly handle: LiveClientHandle<LiveLogSnapshotData>) {}
-
-  async start(): Promise<void> {
-    if (this.replica) return;
-    const replica = new ReplicaLog(this.handle);
-    this.replica = replica;
-    await replica.ready;
-    if (this.disposed) {
-      await replica.dispose();
-      return;
-    }
-    await this.refresh();
-    this.unsubscribe = replica.subscribe(() => {
-      void this.refresh();
-    });
-  }
-
-  dispose(): void {
-    this.disposed = true;
-    this.unsubscribe?.();
-    this.unsubscribe = null;
-    const replica = this.replica;
-    this.replica = null;
-    this.listeners.clear();
-    if (replica) void replica.dispose();
-  }
-
-  getSnapshot(): LiveLogSnapshotData | undefined {
-    return this.value;
-  }
-
-  text(): string {
-    return this.value?.text ?? this.replica?.text() ?? '';
-  }
-
-  subscribe(cb: () => void): Unsubscribe {
-    this.listeners.add(cb);
-    return () => this.listeners.delete(cb);
-  }
-
-  private async refresh(): Promise<void> {
-    const replica = this.replica;
-    if (!replica) return;
-    this.value = (await replica.snapshot()).data;
-    for (const listener of this.listeners) listener();
-  }
+function createReplicaState<T>(handle: LiveClientHandle<T>, schema: z.ZodType<T>): ReplicaState<T> {
+  return new ReplicaState(handle, {
+    schema,
+    store: createMobxStore(),
+  });
 }
 
 function withTimeout<T>(promise: Promise<T>, message: string, ms = 10_000): Promise<T> {

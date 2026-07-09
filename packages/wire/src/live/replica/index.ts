@@ -16,6 +16,7 @@ export {
   ReplicaJob,
   type LiveJobReplica,
   type LiveJobReplicaOptions,
+  type ReplicaJobState,
   type ReplicaJobOptions,
 } from './job';
 export {
@@ -24,6 +25,7 @@ export {
   ReplicaLog,
   type LiveLogReplica,
   type LiveLogReplicaOptions,
+  type LogStore,
   type ReplicaLogOptions,
 } from './log';
 export { ReplicaState, type ReplicaStateOptions } from './state';

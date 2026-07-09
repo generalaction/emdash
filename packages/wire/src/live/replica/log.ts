@@ -8,8 +8,15 @@ import { stableStringify } from '../mutations';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
 import { managedLiveSource } from './source';
 
+export interface LogStore {
+  reset(data: LiveLogSnapshotData): void;
+  append(chunk: string): void;
+  text(): string;
+}
+
 export type ReplicaLogOptions = LiveLogOptions & {
   instrumentation?: WireInstrumentation;
+  store?: LogStore;
 };
 
 export class ReplicaLog implements LiveSource {
@@ -40,7 +47,7 @@ export class ReplicaLog implements LiveSource {
   }
 
   text(): string {
-    return this.local.snapshot().data.text;
+    return this.options.store?.text() ?? this.local.snapshot().data.text;
   }
 
   onAppend(cb: (chunk: string) => void): Unsubscribe {
@@ -64,18 +71,21 @@ export class ReplicaLog implements LiveSource {
   }
 
   private reset(data: LiveLogSnapshotData): void {
+    this.options.store?.reset(data);
     this.local.reseed();
     if (data.text.length > 0) this.local.append(data.text);
   }
 
   private append(chunk: string): void {
+    this.options.store?.append(chunk);
     this.local.append(chunk);
     this.appendEmitter.emit(chunk);
   }
 }
 
-export type LiveLogReplicaOptions = ReplicaLogOptions & {
+export type LiveLogReplicaOptions = Omit<ReplicaLogOptions, 'store'> & {
   retentionMs?: number;
+  store?: () => LogStore;
 };
 
 export type LiveLogReplica<Def extends LiveLogEndpointDef = LiveLogEndpointDef> = {
@@ -96,7 +106,8 @@ export function createLiveLogReplica<Def extends LiveLogEndpointDef>(
     key: stableStringify,
     graceMs: options.retentionMs,
     async create(key, scope) {
-      const replica = new ReplicaLog(log.handle(key), options);
+      const { store, ...replicaOptions } = options;
+      const replica = new ReplicaLog(log.handle(key), { ...replicaOptions, store: store?.() });
       scope.add(() => replica.dispose());
       await replica.ready;
       return replica;

@@ -14,7 +14,10 @@ const workspaceAliases = {
   '@emdash/plugins/agents': resolve('../../packages/plugins/src/agents/registry.ts'),
   '@emdash/wire/api': resolve('../../packages/wire/src/api/index.ts'),
   '@emdash/wire/process': resolve('../../packages/wire/src/process/index.ts'),
-  '@emdash/wire/util/process-runtime': resolve('../../packages/wire/src/util/process-runtime/index.ts'),
+  '@emdash/wire/util/mobx': resolve('../../packages/wire/src/util/mobx/index.ts'),
+  '@emdash/wire/util/process-runtime': resolve(
+    '../../packages/wire/src/util/process-runtime/index.ts'
+  ),
   '@emdash/wire': resolve('../../packages/wire/src/index.ts'),
 };
 

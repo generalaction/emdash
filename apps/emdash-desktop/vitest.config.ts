@@ -23,6 +23,7 @@ const alias = {
   '@emdash/plugins/agents': resolve(__dirname, '../../packages/plugins/src/agents/registry.ts'),
   '@emdash/wire/api': resolve(__dirname, '../../packages/wire/src/api/index.ts'),
   '@emdash/wire/process': resolve(__dirname, '../../packages/wire/src/process/index.ts'),
+  '@emdash/wire/util/mobx': resolve(__dirname, '../../packages/wire/src/util/mobx/index.ts'),
   '@emdash/wire/util/process-runtime': resolve(
     __dirname,
     '../../packages/wire/src/util/process-runtime/index.ts'

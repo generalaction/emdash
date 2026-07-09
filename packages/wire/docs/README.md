@@ -98,14 +98,14 @@ Use narrower subpath exports at app boundaries:
   controller logging middleware.
 - `@emdash/wire/util`: dependency-free utilities: `Scope`, `ManagedSource`,
   and `deduplicateRequests`.
-- `@emdash/wire/util/optimistic`: MobX-backed optimistic group utilities.
+- `@emdash/wire/util/mobx`: MobX-backed replica stores and optimistic group utilities.
 - `@emdash/wire/util/process-runtime`: helpers for serving and consuming
   process-hosted wire controllers.
 - `@emdash/wire/process`: process supervision types, `utilityProcessHost()`,
   and `processTransport()`.
 - `@emdash/wire/process/node`: Node `childProcessHost()`.
 
-The optimistic utility intentionally lives in its own export because it has a
+MobX-backed utilities intentionally live in their own export because they have a
 `mobx` peer dependency. Server-only code can import `@emdash/wire` or
 `@emdash/wire/util` without pulling in MobX.
 

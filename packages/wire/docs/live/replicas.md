@@ -31,9 +31,11 @@ Live models are exposed only through `liveModel()`. A
 `LiveModelReplica` follows a live model client handle and yields a `ReplicaInstance`:
 
 ```ts
+import { createMobxStore } from '@emdash/wire/util/mobx';
+
 const conversations = createLiveModelReplica(api.conversation, contractClient.conversation, {
   retentionMs: 30_000,
-  store: (stateName) => createMobxStore(stateName),
+  store: () => createMobxStore(),
   onChange: {
     state: (value, meta) => console.log(value, meta.kind),
   },
@@ -50,6 +52,8 @@ console.log(conversation.states.state.current());
 `ReplicaInstance.states` contains one `ReplicaState` per contract member.
 `ReplicaState` follows upstream snapshots and updates, stores current state in a
 pluggable `StateStore`, and re-emits updates in a replica-local cursor space.
+MobX consumers can pass `createMobxStore()` from `@emdash/wire/util/mobx` to
+make `current()` reads observable inside computeds and reactions.
 
 Mutation helpers return `{ result, settled }`. On success, the replica translates
 upstream cursors to local cursors before returning them to downstream clients, so
@@ -61,9 +65,12 @@ Use a `LiveLogReplica` when a process needs a local retained text buffer or want
 to serve log output downstream:
 
 ```ts
+import { createMobxLogStore } from '@emdash/wire/util/mobx';
+
 const outputs = createLiveLogReplica(api.ptyOutput, contractClient.ptyOutput, {
   retentionMs: 10_000,
   maxBufferBytes: 1024 * 1024,
+  store: () => createMobxLogStore(),
 });
 
 const lease = outputs.acquire({ sessionId });
@@ -71,6 +78,9 @@ const output = await lease.ready();
 output.onAppend((chunk) => index(chunk));
 console.log(output.text());
 ```
+
+The log replica keeps its internal `LiveLog` buffer for downstream serving, and
+optionally writes the retained text through to a pluggable `LogStore`.
 
 For terminal rendering, prefer the client handle directly:
 
@@ -89,7 +99,12 @@ materializes job state by `jobId`, and keeps terminal state readable under lease
 or retention:
 
 ```ts
-const jobs = createLiveJobReplica(api.build, contractClient.build, { retentionMs: 30_000 });
+import { createMobxStore } from '@emdash/wire/util/mobx';
+
+const jobs = createLiveJobReplica(api.build, contractClient.build, {
+  retentionMs: 30_000,
+  store: () => createMobxStore(),
+});
 
 const lease = await jobs.start({ target: 'desktop' });
 const job = await lease.ready();
@@ -105,6 +120,8 @@ console.log((await late.ready()).getState());
 When a job reaches `succeeded`, `failed`, or `cancelled`, the replica detaches
 from the upstream live topic but retains the local terminal state while leases or
 `retentionMs` keep it warm.
+The job replica also supports a pluggable `StateStore`, so `getState()` can be
+observable while the internal `LiveState` continues to serve downstream clients.
 
 ## Serving Replicas
 

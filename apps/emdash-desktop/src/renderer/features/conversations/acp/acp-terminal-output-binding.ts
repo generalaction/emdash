@@ -1,12 +1,12 @@
 type TerminalOutputBinding = {
   text(): string;
-  subscribe(listener: () => void): () => void;
+  onAppend(listener: () => void): () => void;
 };
 
 type TerminalOutputSession = {
   terminals: {
-    getSnapshot(): ReadonlyArray<{ terminalId: string }> | undefined;
-    subscribe(listener: () => void): () => void;
+    current(): ReadonlyArray<{ terminalId: string }>;
+    onChange(listener: () => void): () => void;
   };
   terminalOutput(terminalId: string): Promise<TerminalOutputBinding>;
 };
@@ -25,9 +25,7 @@ export function bindSessionTerminalOutputs(
 
   const syncTerminals = (): void => {
     if (disposed) return;
-    const nextIds = new Set(
-      (session.terminals.getSnapshot() ?? []).map((terminal) => terminal.terminalId)
-    );
+    const nextIds = new Set(session.terminals.current().map((terminal) => terminal.terminalId));
 
     for (const terminalId of Array.from(terminalUnsubs.keys())) {
       if (!nextIds.has(terminalId)) removeTerminal(terminalId);
@@ -50,7 +48,7 @@ export function bindSessionTerminalOutputs(
           if (disposed || !active) return;
           const syncOutput = (): void => setTerminalOutput(terminalId, binding.text());
           syncOutput();
-          unsubscribeLog = binding.subscribe(syncOutput);
+          unsubscribeLog = binding.onAppend(syncOutput);
         })
         .catch(() => {
           if (active) setTerminalOutput(terminalId, null);
@@ -59,7 +57,7 @@ export function bindSessionTerminalOutputs(
   };
 
   syncTerminals();
-  const unsubscribeTerminals = session.terminals.subscribe(syncTerminals);
+  const unsubscribeTerminals = session.terminals.onChange(syncTerminals);
   return () => {
     disposed = true;
     unsubscribeTerminals();
