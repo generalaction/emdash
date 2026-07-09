@@ -1,0 +1,21 @@
+pnpm-workspace.yaml
+  s_430b7f700027de::t_b0183264ae9369 5-9
+patches/storybook-solidjs-vite@10.4.0.patch
+  s_430b7f700027de::t_b0183264ae9369 15-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3c5e4bcb054d20ab0aef472f1c091786b0343331",
+  "prompts": {},
+  "sessions": {
+    "s_430b7f700027de": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mNv5nX12qSNIU6vnRTZ",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
