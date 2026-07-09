@@ -1,0 +1,20 @@
+packages/plugins/src/agents/impl/codex/index.ts
+  s_674f7825a662d9::t_7e6546f9069a0f 57-71,89-96
+  s_674f7825a662d9::t_ed0dd57bf08fa3 97-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a0efd810ac2b536ab2e2aa05555f460c79436e91",
+  "prompts": {},
+  "sessions": {
+    "s_674f7825a662d9": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mdVGCLvoVEtSOwAwoN6",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
