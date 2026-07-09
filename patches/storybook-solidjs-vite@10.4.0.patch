@@ -1,0 +1,37 @@
+diff --git a/dist/chunk-TKOWB3JL.js b/dist/chunk-TKOWB3JL.js
+index 532f0e8b2821bfe58827699672a5a82dffd9943c..16ec8db1021d5aaabf28ad51ec9b3889b2214198 100644
+--- a/dist/chunk-TKOWB3JL.js
++++ b/dist/chunk-TKOWB3JL.js
+@@ -1,10 +1,13 @@
+ import { watch } from 'fs';
+ import * as path2 from 'path';
+ import { logger } from 'storybook/internal/node-logger';
+-import ts from 'typescript';
++import ts7 from 'typescript';
++import ts6 from '@typescript/typescript6';
+ import { createLanguage, FileMap } from '@volar/language-core';
+ import { resolveFileLanguageId, createLanguageServiceHost } from '@volar/typescript';
+ 
++const ts = ts7.JsxEmit ? ts7 : ts6;
++
+ // src/internal/componentManifest/solidComponentMeta/SolidComponentMetaManager.ts
+ 
+ // src/internal/componentManifest/solidComponentMeta/resolveProps.ts
+@@ -630,6 +633,6 @@ var SolidComponentMetaManager = class {
+ var SolidComponentMetaManager = class {
+   constructor(typescript) {
+-    this.typescript = typescript;
++    this.typescript = typescript?.JsxEmit ? typescript : ts;
+   }
+   configProjects = /* @__PURE__ */ new Map();
+   fsFileSnapshots = /* @__PURE__ */ new Map();
+@@ -798,8 +801,7 @@ async function getOrCreateSolidComponentMetaManager(watchMode = false) {
+     return watchManager;
+   }
+   try {
+-    const ts2 = await import('typescript');
+-    const instance = new SolidComponentMetaManager(ts2);
++    const instance = new SolidComponentMetaManager(ts);
+     if (watchMode) {
+       watchManager = instance;
+     }

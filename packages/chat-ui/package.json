@@ -70,7 +70,7 @@
     "react-dom": "^19.2.0",
     "storybook": "^10.4.5",
     "storybook-solidjs-vite": "10.4.0",
-    "typescript": "^6.0.2",
+    "typescript": "^7.0.2",
     "vite": "7.1.11",
     "vite-plugin-dts": "5.0.2",
     "vite-plugin-solid": "2.11.12",

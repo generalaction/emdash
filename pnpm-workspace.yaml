@@ -1,3 +1,6 @@
 packages:
   - 'apps/*'
   - 'packages/**'
+
+patchedDependencies:
+  storybook-solidjs-vite@10.4.0: patches/storybook-solidjs-vite@10.4.0.patch
