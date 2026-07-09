@@ -713,7 +713,7 @@ export function ChatComposer({
     ? 'Session closed'
     : isWorking
       ? 'Add a follow-up'
-      : (placeholder ?? 'Send a Message, tag @files or use /commands');
+      : (placeholder ?? 'Send a message, tag @files or use /commands');
 
   return (
     <div className={cx(styles.composerRoot, className)}>
