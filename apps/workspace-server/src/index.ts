@@ -1,4 +1,9 @@
-import { createWorkspaceWireController } from './wire/controller';
+import {
+  formatWorkspaceServerConfigError,
+  loadWorkspaceServerConfig,
+  type WorkspaceServerConfig,
+} from './config';
+import { createWorkspaceWireController } from './api/controller';
 import { serveSocket } from './wire/serve-socket';
 import { serveStdio } from './wire/serve-stdio';
 
@@ -7,33 +12,27 @@ type Disposable = {
 };
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const mode = parseMode(args);
-  const active = await start(mode);
+  const config = loadWorkspaceServerConfig();
+  if (!config.success) {
+    throw new Error(formatWorkspaceServerConfigError(config.error));
+  }
+
+  const active = await start(config.data);
   installSignalHandlers(active);
 }
 
-async function start(mode: ReturnType<typeof parseMode>): Promise<Disposable> {
-  if (mode.kind === 'socket') {
-    const handle = await serveSocket(createWorkspaceWireController(), { socketPath: mode.path });
+async function start(config: WorkspaceServerConfig): Promise<Disposable> {
+  const controller = createWorkspaceWireController({ appVersion: config.appVersion });
+
+  if (config.serve.kind === 'socket') {
+    const handle = await serveSocket(controller, { socketPath: config.serve.path });
     process.stderr.write(`workspace-server wire socket listening at ${handle.socketPath}\n`);
     return handle;
   }
 
-  const dispose = serveStdio(createWorkspaceWireController());
+  const dispose = serveStdio(controller);
   process.stderr.write('workspace-server wire stdio listening\n');
   return { dispose };
-}
-
-function parseMode(
-  args: string[]
-): { kind: 'stdio' } | { kind: 'socket'; path: string | undefined } {
-  const socketIndex = args.indexOf('--socket');
-  if (socketIndex !== -1) {
-    const next = args[socketIndex + 1];
-    return { kind: 'socket', path: next && !next.startsWith('--') ? next : undefined };
-  }
-  return { kind: 'stdio' };
 }
 
 function installSignalHandlers(active: Disposable): void {
