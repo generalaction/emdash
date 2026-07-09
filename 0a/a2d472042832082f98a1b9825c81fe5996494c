@@ -1,0 +1,28 @@
+apps/emdash-desktop/src/renderer/lib/editor/pdf-renderer.tsx
+  s_0cf2e09480ec91::t_e13279e08506f0 2,12,23-27,109,114,116-117,120-123,125-126,132-166,175-176,186,203-213,225-232,262-270
+  s_269082c19bc24d::t_1d1da9976f3f3c 271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0aa2d472042832082f98a1b9825c81fe5996494c",
+  "prompts": {},
+  "sessions": {
+    "s_0cf2e09480ec91": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mSIeye3SCE7PI5MD9rk",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_269082c19bc24d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4621-76d2-79a1-9df7-818768f9dead",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
