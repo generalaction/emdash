@@ -1,0 +1,47 @@
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_1880084cf07c19::t_4f10539b9f3c8f 22,61
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_1880084cf07c19::t_4f10539b9f3c8f 41
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_1880084cf07c19::t_4f10539b9f3c8f 33
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_1880084cf07c19::t_4f10539b9f3c8f 143-168
+apps/emdash-desktop/src/renderer/features/tasks/delete-task-modal.tsx
+  s_1880084cf07c19::t_4f10539b9f3c8f 1,3,16,31,41-42,49-50
+  s_6ebb9c2ed0fab1::t_57e2b0afb615de 33,43-48,60,126,143-148
+  s_8c6f5c8f6a5c9e::t_09cd4a249d482b 38
+apps/emdash-desktop/src/renderer/features/tasks/hooks/useTaskSettings.ts
+  s_1880084cf07c19::t_4f10539b9f3c8f 8,19,27,34,54,64,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1228d4195ca6283ca1b9c9f0127f4a23c7d8d57b",
+  "prompts": {},
+  "sessions": {
+    "s_1880084cf07c19": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mJDZFfevz9JBRH1kpzL",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_6ebb9c2ed0fab1": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mJF7Uulubwml5maWZQk",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_8c6f5c8f6a5c9e": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mJH95KeQxWV5kFU2P4f",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
