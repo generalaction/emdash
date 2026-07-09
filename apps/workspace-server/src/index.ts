@@ -1,3 +1,4 @@
+import { spawnAcpWorkspaceRuntimeProcess } from './acp/host';
 import { createWorkspaceWireController } from './api/controller';
 import {
   formatWorkspaceServerConfigError,
@@ -41,15 +42,29 @@ async function main(): Promise<void> {
 }
 
 async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
-  const controller = createWorkspaceWireController({ appVersion: config.appVersion });
-
   if (config.serve.kind === 'socket') {
+    let acpRuntime: Awaited<ReturnType<typeof spawnAcpWorkspaceRuntimeProcess>> | null = null;
+    try {
+      acpRuntime = await spawnAcpWorkspaceRuntimeProcess({ socketPath: config.serve.path });
+    } catch (error) {
+      process.stderr.write(
+        `workspace-server ACP runtime failed to start: ${
+          error instanceof Error ? error.message : String(error)
+        }\n`
+      );
+    }
+
+    const controller = createWorkspaceWireController({
+      appVersion: config.appVersion,
+      acp: acpRuntime?.client,
+    });
     const handle = await serveSocket(controller, { socketPath: config.serve.path });
     const paths = daemonPaths(handle.socketPath);
     try {
       await writePidFile(paths.pidPath);
     } catch (error) {
       await handle.dispose();
+      await acpRuntime?.dispose();
       throw error;
     }
     process.stderr.write(`workspace-server wire socket listening at ${handle.socketPath}\n`);
@@ -57,10 +72,12 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
       async dispose() {
         await handle.dispose();
         await removePidFile(paths.pidPath);
+        await acpRuntime?.dispose();
       },
     };
   }
 
+  const controller = createWorkspaceWireController({ appVersion: config.appVersion });
   const dispose = serveStdio(controller);
   process.stderr.write('workspace-server wire stdio listening\n');
   return { dispose };

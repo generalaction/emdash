@@ -17,6 +17,10 @@
       "types": "./dist/acp.d.mts",
       "default": "./dist/acp.mjs"
     },
+    "./acp/node": {
+      "types": "./dist/acp-node.d.mts",
+      "default": "./dist/acp-node.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -40,5 +44,13 @@
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "tsdown": "^0.22.2",
     "vitest": "^4.1.0"
+  },
+  "peerDependencies": {
+    "node-pty": "1.1.0"
+  },
+  "peerDependenciesMeta": {
+    "node-pty": {
+      "optional": true
+    }
   }
 }

@@ -57,6 +57,10 @@
       "types": "./dist/pty.d.mts",
       "default": "./dist/pty.mjs"
     },
+    "./pty/node": {
+      "types": "./dist/pty-node.d.mts",
+      "default": "./dist/pty-node.mjs"
+    },
     "./agents/plugins": {
       "types": "./dist/agents-plugins.d.mts",
       "default": "./dist/agents-plugins.mjs"
@@ -107,7 +111,16 @@
     "@types/node": "^20.19.42",
     "@types/semver": "^7.7.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
+    "node-pty": "1.1.0",
     "tsdown": "^0.22.2",
     "vitest": "^4.1.0"
+  },
+  "peerDependencies": {
+    "node-pty": "1.1.0"
+  },
+  "peerDependenciesMeta": {
+    "node-pty": {
+      "optional": true
+    }
   }
 }

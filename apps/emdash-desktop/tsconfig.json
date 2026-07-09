@@ -13,6 +13,7 @@
       "@shared/*": ["./src/shared/*"],
       "@emdash/core/acp/client": ["../../packages/core/src/acp/client.ts"],
       "@emdash/core/acp": ["../../packages/core/src/acp/index.ts"],
+      "@emdash/core/pty/node": ["../../packages/core/src/pty/node/index.ts"],
       "@emdash/core/pty": ["../../packages/core/src/pty/index.ts"],
       "@emdash/core/agents/plugins/helpers": [
         "../../packages/core/src/agents/plugins/helpers/index.ts"
@@ -21,6 +22,7 @@
       "@emdash/core/lib": ["../../packages/core/src/lib/index.ts"],
       "@emdash/plugins/agents/types": ["../../packages/plugins/src/agents/types.ts"],
       "@emdash/plugins/agents": ["../../packages/plugins/src/agents/registry.ts"],
+      "@emdash/runtime/acp/node": ["../../packages/runtime/src/acp/node/index.ts"],
       "@emdash/runtime/acp": ["../../packages/runtime/src/acp/index.ts"],
       "@emdash/shared/config": ["../../packages/shared/src/config/index.ts"],
       "@emdash/shared/logger/context-node": ["../../packages/shared/src/logger/context-node.ts"],
@@ -33,6 +35,7 @@
       "@emdash/shared/result": ["../../packages/shared/src/result/index.ts"],
       "@emdash/shared": ["../../packages/shared/src/index.ts"],
       "@emdash/wire/api": ["../../packages/wire/src/api/index.ts"],
+      "@emdash/wire/process/node": ["../../packages/wire/src/process/node/index.ts"],
       "@emdash/wire/process": ["../../packages/wire/src/process/index.ts"],
       "@emdash/wire/util/process-runtime": [
         "../../packages/wire/src/util/process-runtime/index.ts"

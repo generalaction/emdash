@@ -5,12 +5,19 @@ import {
   workspaceWireContract,
 } from '@emdash/core/workspace-server';
 import { err, ok } from '@emdash/shared';
-import { createController, type LiveModelDef, type LiveModelProvider } from '@emdash/wire';
+import {
+  createController,
+  type ContractImpl,
+  type LiveModelDef,
+  type LiveModelProvider,
+} from '@emdash/wire';
+import type { WorkspaceAcpRuntimeClient } from '../acp/host';
 
 export type WorkspaceWireControllerDeps = {
   appVersion?: string;
   daemonId?: string;
   startedAt?: number;
+  acp?: WorkspaceAcpRuntimeClient;
 };
 
 const defaultStartedAt = Date.now();
@@ -79,6 +86,7 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
       output: () => null,
       sessions: unavailableLiveModel(workspaceWireContract.ptyAgent.sessions),
     },
+    acp: deps.acp ? createAcpProxy(deps.acp) : unavailableAcp(),
   });
 }
 
@@ -92,5 +100,56 @@ function unavailableLiveModel<Group extends LiveModelDef>(
     async runMutation() {
       throw new Error(notImplementedMessage);
     },
+  };
+}
+
+function createAcpProxy(
+  client: WorkspaceAcpRuntimeClient
+): NonNullable<ContractImpl<typeof workspaceWireContract>['acp']> {
+  return {
+    startSession: (input, meta) => client.startSession(input, meta),
+    resumeSession: (input, meta) => client.resumeSession(input, meta),
+    stopSession: (input, meta) => client.stopSession(input, meta),
+    sendPrompt: (input, meta) => client.sendPrompt(input, meta),
+    queuePrompt: (input, meta) => client.queuePrompt(input, meta),
+    editQueuedPrompt: (input, meta) => client.editQueuedPrompt(input, meta),
+    deleteQueuedPrompt: (input, meta) => client.deleteQueuedPrompt(input, meta),
+    changeQueuePromptOrder: (input, meta) => client.changeQueuePromptOrder(input, meta),
+    cancelTurn: (input, meta) => client.cancelTurn(input, meta),
+    setModelOption: (input, meta) => client.setModelOption(input, meta),
+    setModeOption: (input, meta) => client.setModeOption(input, meta),
+    resolvePermission: (input, meta) => client.resolvePermission(input, meta),
+    setPromptDraft: (input, meta) => client.setPromptDraft(input, meta),
+    exportACPTranscript: (input, meta) => client.exportACPTranscript(input, meta),
+    exportRawAcpLog: (input, meta) => client.exportRawAcpLog(input, meta),
+    uploadAttachment: (input, file, meta) => client.uploadAttachment(input, file, meta),
+    downloadAttachment: async (input, meta) => {
+      const result = await client.downloadAttachment(input, meta);
+      if (!result.success) return result;
+      return ok({ meta: result.data.meta, source: result.data.chunks() });
+    },
+    deleteAttachment: (input, meta) => client.deleteAttachment(input, meta),
+    getHistory: (input, meta) => client.getHistory(input, meta),
+    startLogin: (input, meta) => client.startLogin(input, meta),
+    cancelLogin: (input, meta) => client.cancelLogin(input, meta),
+    sendLoginInput: (input, meta) => client.sendLoginInput(input, meta),
+    resizeLogin: (input, meta) => client.resizeLogin(input, meta),
+    markUrlHandled: (input, meta) => client.markUrlHandled(input, meta),
+    refreshAuthStatus: (input, meta) => client.refreshAuthStatus(input, meta),
+    sessions: client.sessions,
+    session: client.session,
+    terminalOutput: client.terminalOutput,
+    authStatus: client.authStatus,
+    loginOutput: client.loginOutput,
+  };
+}
+
+function unavailableAcp(): NonNullable<ContractImpl<typeof workspaceWireContract>['acp']> {
+  return {
+    sessions: unavailableLiveModel(workspaceWireContract.acp.sessions),
+    session: unavailableLiveModel(workspaceWireContract.acp.session),
+    terminalOutput: () => null,
+    authStatus: unavailableLiveModel(workspaceWireContract.acp.authStatus),
+    loginOutput: () => null,
   };
 }

@@ -5,16 +5,43 @@ import {
   type PtyProcess,
   type PtySpawner,
   type PtySpawnSpec,
-} from '@emdash/core/pty';
-import * as nodePty from 'node-pty';
-import type { IPty } from 'node-pty';
+} from '../index';
 
 const MIN_COLS = 2;
 const MIN_ROWS = 1;
 
+type NodePtyModule = {
+  spawn(
+    command: string,
+    args: string[],
+    options: {
+      name: string;
+      cols: number;
+      rows: number;
+      cwd: string;
+      env: Record<string, string>;
+    }
+  ): NodePtyLike;
+};
+
+type NodePtyLike = {
+  pid: number;
+  write(data: string): void;
+  resize(cols: number, rows: number): void;
+  kill(): void;
+  onData(handler: (data: string) => void): void;
+  onExit(
+    handler: (event: { exitCode: number | null; signal?: number | string | null }) => void
+  ): void;
+  on?: (event: 'error', handler: (error: NodeJS.ErrnoException) => void) => void;
+};
+
+let nodePtyPromise: Promise<NodePtyModule> | null = null;
+
 export class NodePtySpawner implements PtySpawner {
-  spawn(spec: PtySpawnSpec): PtyProcess {
+  async spawn(spec: PtySpawnSpec): Promise<PtyProcess> {
     try {
+      const nodePty = await loadNodePty();
       const proc = nodePty.spawn(spec.command, spec.args, {
         name: 'xterm-256color',
         cols: spec.cols,
@@ -35,7 +62,7 @@ class NodePtyProcess implements PtyProcess {
   private killed = false;
 
   constructor(
-    private readonly proc: IPty,
+    private readonly proc: NodePtyLike,
     private readonly posixTerminator: Pick<
       PosixPtyTerminator,
       'kill' | 'markExited'
@@ -93,16 +120,17 @@ class NodePtyProcess implements PtyProcess {
   }
 }
 
-type NodePtyWithErrorEvents = IPty & {
-  on?: (event: 'error', handler: (error: NodeJS.ErrnoException) => void) => void;
-};
+async function loadNodePty(): Promise<NodePtyModule> {
+  nodePtyPromise ??= import('node-pty').then((mod) => mod as NodePtyModule);
+  return nodePtyPromise;
+}
 
 function suppressExpectedNodePtyErrors(
-  proc: IPty,
+  proc: NodePtyLike,
   platform: NodeJS.Platform = process.platform
 ): void {
   if (platform !== 'win32') return;
-  (proc as NodePtyWithErrorEvents).on?.('error', (error) => {
+  proc.on?.('error', (error) => {
     if (error.code === 'EPIPE' || error.code === 'EIO') return;
     process.stderr.write(`node-pty: unexpected PTY error: ${error.message}\n`);
   });

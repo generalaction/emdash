@@ -339,12 +339,21 @@ importers:
       '@emdash/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@emdash/plugins':
+        specifier: workspace:*
+        version: link:../../packages/plugins
+      '@emdash/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       '@emdash/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@emdash/wire':
         specifier: workspace:*
         version: link:../../packages/wire
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -525,6 +534,9 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260609.1
         version: 7.0.0-dev.20260609.1
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
       tsdown:
         specifier: ^0.22.2
         version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(oxc-resolver@11.20.0)(tsx@4.22.4)(typescript@6.0.3)
@@ -628,6 +640,9 @@ importers:
       '@emdash/wire':
         specifier: workspace:*
         version: link:../wire
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3

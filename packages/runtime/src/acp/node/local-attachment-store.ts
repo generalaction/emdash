@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import type { AttachmentMimeType, AttachmentRef } from '@emdash/core/acp';
-import type { AttachmentStore, StoredAttachment } from '@emdash/runtime/acp';
+import type { AttachmentStore, StoredAttachment } from '../runtime/attachment-store';
 
 type AttachmentRecord = {
   ref: AttachmentRef;

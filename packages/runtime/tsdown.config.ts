@@ -3,6 +3,7 @@ import { defineConfig } from 'tsdown';
 export default defineConfig({
   entry: {
     acp: 'src/acp/index.ts',
+    'acp-node': 'src/acp/node/index.ts',
   },
   format: ['esm'],
   dts: true,
@@ -12,6 +13,7 @@ export default defineConfig({
       '@emdash/core',
       '@emdash/shared',
       '@emdash/wire',
+      'node-pty',
       'zod',
     ],
   },

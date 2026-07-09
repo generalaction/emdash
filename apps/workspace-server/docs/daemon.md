@@ -28,6 +28,8 @@ flowchart LR
   desktop["Desktop over SSH"] -->|"streamlocal channel"| socket
   socket --> sessionHub["WireSessionHub"]
   sessionHub --> controller["workspaceWireContract controller"]
+  daemon -->|"fork acp-runtime"| acpRuntime["ACP runtime child process"]
+  acpRuntime -->|"spawn provider CLIs"| agentCli["Agent CLI processes"]
 ```
 
 ## Commands
@@ -69,12 +71,14 @@ self-contained:
 ~/.emdash/workspace-server/run/workspace.sock.pid
 ~/.emdash/workspace-server/run/workspace.sock.lock
 ~/.emdash/workspace-server/run/workspace.sock.log
+~/.emdash/workspace-server/run/acp-attachments/
 ```
 
 - `.sock` is the Unix domain socket accepted by the foreground daemon.
 - `.pid` records the daemon process id after socket serving starts.
 - `.lock` prevents competing `start` calls from spawning duplicate daemons.
 - `.log` receives stdout/stderr from the detached daemon process.
+- `acp-attachments/` stores uploaded ACP prompt attachments for the runtime child.
 
 The socket directory is created with mode `0700`, so the filesystem boundary is
 the local user account. Desktop clients reach the socket through SSH, not through
@@ -108,12 +112,39 @@ exits.
 4. Write the pid file.
 5. For every accepted `net.Socket`, convert it to a `WireTransport` and open a
    session in `createWireSessionHub`.
-6. On `SIGINT` or `SIGTERM`, dispose all wire sessions, close the server, unlink
-   the socket, remove the pid file, and exit.
+6. In socket mode, fork the ACP runtime child and mount its API under
+   `workspaceWireContract.acp`.
+7. On `SIGINT` or `SIGTERM`, dispose all wire sessions, close the server, unlink
+   the socket, remove the pid file, stop the ACP runtime child, and exit.
 
 The session hub is what lets one daemon serve multiple client connections while
 keeping per-client live subscriptions, in-flight calls, and blob channels scoped
 to the connection that created them.
+
+## ACP Runtime Child
+
+Socket mode mounts the ACP runtime as a child process. The parent daemon uses
+`childProcessHost()` from `@emdash/wire/process/node` and `spawnRuntime()` from
+`@emdash/wire/util/process-runtime` to fork `acp-runtime.mjs` in production or
+`src/acp/runtime-entry.ts` in development. The child calls the shared
+`bootAcpRuntimeProcess()` helper from `@emdash/runtime/acp/node`.
+
+Two wire contracts share the process IPC channel:
+
+- Parent to child: `acpApiContract`, exposed to desktop clients as
+  `workspaceWireContract.acp`.
+- Child to parent: `acpHostContract`, used for `resolveSpawnContext`, logging, and
+  session-id notifications.
+
+The daemon resolves provider binaries from the plugin registry's first
+`hostDependency.binaryNames` entry and searches the remote `PATH`. The environment
+passed to provider CLIs is intentionally allowlisted: terminal identity, home/user
+fields, shell/locale basics, proxy variables, and known provider API-key variables.
+The full daemon environment is not forwarded.
+
+`startSession` already returns `{ sessionId }` through the ACP API. The workspace
+server logs `persistSessionId` callbacks but does not store them; the connected
+desktop client owns persistence when remote ACP consumption is added.
 
 ## Stop Flow
 

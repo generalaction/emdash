@@ -21,6 +21,21 @@ describe('childProcessHost', () => {
     process.send({ kind: 'exit', code: 3 });
     await expect(exit).resolves.toMatchObject({ code: 3, willRestart: false });
   });
+
+  it('preserves undefined object properties across the ipc channel', async () => {
+    const host = childProcessHost();
+    const process = await host.spawn({ entry: fixturePath() });
+
+    const echo = waitForMessage(process);
+    process.send({ kind: 'echo', value: 'result', data: undefined });
+    const message = (await echo) as Record<string, unknown>;
+    expect('data' in message).toBe(true);
+    expect(message.data).toBeUndefined();
+
+    const exit = waitForExit(process);
+    process.send({ kind: 'exit', code: 0 });
+    await exit;
+  });
 });
 
 function fixturePath(): string {

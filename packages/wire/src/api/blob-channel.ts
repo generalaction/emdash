@@ -344,7 +344,10 @@ export function normalizeUploadFile(input: UploadFileValue): {
   source: BlobSource;
 } {
   if (isWireFile(input)) return { meta: fileMeta(input), source: input.stream() };
-  if (hasSource(input)) return { meta: fileMeta(input), source: input.source };
+  if (hasSource(input)) {
+    const { source, ...meta } = input;
+    return { meta: fileMeta(meta), source };
+  }
   const maybeFile = input as FileLike;
   return {
     meta: {
@@ -394,8 +397,16 @@ function isWireFile(value: unknown): value is WireFile {
 }
 
 function fileMeta(value: WireFileMeta): WireFileMeta {
+  // The meta travels inside the `call` message envelope, so it must stay
+  // structured-clone-safe: drop functions (e.g. WireFile methods) while
+  // preserving extra custom meta keys.
+  const extras: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === 'function') continue;
+    extras[key] = entry;
+  }
   return {
-    ...value,
+    ...extras,
     name: value.name,
     mimeType: value.mimeType,
     size: value.size,

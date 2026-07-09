@@ -1,6 +1,99 @@
-import { PROTOCOL_VERSION } from '@emdash/core/workspace-server';
-import { describe, expect, it } from 'vitest';
+import { PassThrough } from 'node:stream';
+import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
+import { ok } from '@emdash/shared';
+import { client as createClient, connect, serve, streamTransport } from '@emdash/wire';
+import { describe, expect, it, vi } from 'vitest';
+import type { WorkspaceAcpRuntimeClient } from '../acp/host';
 import { createWorkspaceWireController } from './controller';
+
+describe('createWorkspaceWireController', () => {
+  it('forwards ACP procedures to the mounted runtime client', async () => {
+    const acp = createFakeAcpClient();
+    const clientToServer = new PassThrough();
+    const serverToClient = new PassThrough();
+    const controller = createWorkspaceWireController({ acp });
+    const disposeServer = serve(streamTransport(clientToServer, serverToClient), controller);
+    const transport = streamTransport(serverToClient, clientToServer);
+    const wireClient = createClient(workspaceWireContract, connect(transport));
+
+    try {
+      const result = await wireClient.acp.startSession({
+        input: {
+          conversationId: 'conversation-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          providerId: 'codex',
+          workspaceId: 'workspace-1',
+          cwd: '/tmp/project',
+        },
+      });
+
+      expect(result).toEqual(ok({ sessionId: 'acp-session-1' }));
+      expect(acp.startSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({ conversationId: 'conversation-1' }),
+        }),
+        expect.any(Object)
+      );
+    } finally {
+      disposeServer();
+      transport.close?.();
+    }
+  });
+});
+
+function createFakeAcpClient(): WorkspaceAcpRuntimeClient {
+  const acpContract = workspaceWireContract.acp;
+  const liveSource = {
+    snapshot: async () => ({ version: 0, data: null }),
+    attach: async () => () => {},
+    asLiveSource: () => null,
+  };
+  const liveModel = (def: unknown) => ({
+    kind: 'liveModelClientHandle' as const,
+    def,
+    state: () => liveSource,
+    mutate: async () => ok(undefined),
+  });
+  const liveLog = (def: unknown) => ({
+    kind: 'liveLogClientHandle' as const,
+    def,
+    handle: () => liveSource,
+  });
+
+  return {
+    startSession: vi.fn(async () => ok({ sessionId: 'acp-session-1' })),
+    resumeSession: vi.fn(),
+    stopSession: vi.fn(),
+    sendPrompt: vi.fn(),
+    queuePrompt: vi.fn(),
+    editQueuedPrompt: vi.fn(),
+    deleteQueuedPrompt: vi.fn(),
+    changeQueuePromptOrder: vi.fn(),
+    cancelTurn: vi.fn(),
+    setModelOption: vi.fn(),
+    setModeOption: vi.fn(),
+    resolvePermission: vi.fn(),
+    setPromptDraft: vi.fn(),
+    exportACPTranscript: vi.fn(),
+    exportRawAcpLog: vi.fn(),
+    uploadAttachment: vi.fn(),
+    downloadAttachment: vi.fn(),
+    deleteAttachment: vi.fn(),
+    getHistory: vi.fn(),
+    startLogin: vi.fn(),
+    cancelLogin: vi.fn(),
+    sendLoginInput: vi.fn(),
+    resizeLogin: vi.fn(),
+    markUrlHandled: vi.fn(),
+    refreshAuthStatus: vi.fn(),
+    sessions: liveModel(acpContract.sessions),
+    session: liveModel(acpContract.session),
+    terminalOutput: liveLog(acpContract.terminalOutput),
+    authStatus: liveModel(acpContract.authStatus),
+    loginOutput: liveLog(acpContract.loginOutput),
+  } as unknown as WorkspaceAcpRuntimeClient;
+}
 
 describe('createWorkspaceWireController', () => {
   it('health returns ok status and protocol version', async () => {

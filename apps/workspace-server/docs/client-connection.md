@@ -17,6 +17,7 @@ flowchart LR
     socket["Unix socket ~/.emdash/workspace-server/run/workspace.sock"]
     hub[createWireSessionHub]
     controller[workspaceWireContract controller]
+    acpRuntime["ACP runtime child process"]
   end
   source --> reconnecting
   reconnecting --> sshManager
@@ -24,6 +25,7 @@ flowchart LR
   proxy -->|"openssh_forwardOutStreamLocal"| socket
   socket --> hub
   hub --> controller
+  controller -->|"acp domain"| acpRuntime
 ```
 
 The workspace server daemon listens on a Unix domain socket. The socket lives in
@@ -33,6 +35,12 @@ port on the remote host.
 
 `serve --socket` is the daemon serving mode. `serve --stdio` serves the same
 wire controller over stdin/stdout and exists as a test and debugging harness.
+
+The daemon also forks an ACP runtime child in socket mode. Desktop clients reach
+that runtime through the same workspace wire client at `client.acp.*`; the daemon
+forwards `acpApiContract` calls and live-model subscriptions to the child. The
+runtime child asks the daemon to resolve provider CLI binaries on the remote host
+and then spawns those CLIs locally on that host.
 
 ## Desktop Utility Shape
 
@@ -118,6 +126,7 @@ the socket path so custom paths remain self-contained:
 ~/.emdash/workspace-server/run/workspace.sock.pid
 ~/.emdash/workspace-server/run/workspace.sock.lock
 ~/.emdash/workspace-server/run/workspace.sock.log
+~/.emdash/workspace-server/run/acp-attachments/
 ```
 
 `start` probes the socket first, acquires the lock, spawns `serve --socket` as a
@@ -125,6 +134,15 @@ detached process when needed, and waits for `health` to succeed. `stop` reads th
 pid file and sends `SIGTERM`, relying on the daemon signal handlers to dispose
 the socket server and unlink the socket file. `status` connects to the socket and
 calls `health`.
+
+## ACP Session IDs
+
+ACP `startSession` returns `{ sessionId }` directly to the desktop client through
+the workspace wire connection. The runtime still calls the host-side
+`persistSessionId` hook for consistency with desktop-local ACP hosting, but the
+workspace server currently logs that callback instead of writing a local database.
+The desktop side should persist the returned session id when remote ACP session
+resume is wired.
 
 Stdio mode:
 
