@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { deferred } from '../testing';
 import { createManagedSource } from './managed-source';
 import type { Scope } from './scope';
 
@@ -121,14 +122,3 @@ describe('createManagedSource', () => {
     await expect(source.acquire('same').ready()).rejects.toThrow('ManagedSource is disposed');
   });
 });
-
-function deferred<T>(): {
-  promise: Promise<T>;
-  resolve(value: T): void;
-} {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}

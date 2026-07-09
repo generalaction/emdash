@@ -10,7 +10,8 @@ import {
   uploadAttachmentCommandSchema,
 } from '@emdash/core/acp';
 import { isOk } from '@emdash/shared';
-import { client, connect, memoryTransportPair, ReplicaState, serve } from '@emdash/wire';
+import { ReplicaState } from '@emdash/wire';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { makeAcpHarness, makeStartInput } from '../acp-test-support';
@@ -44,9 +45,8 @@ describe('ACP API contract schemas', () => {
   it('round-trips procedures and live state over a wire transport', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
-    const pair = memoryTransportPair();
-    const dispose = serve(pair.right, createAcpController(rt));
-    const contractClient = client(acpApiContract, connect(pair.left));
+    const wire = createTestWire(acpApiContract, createAcpController(rt));
+    const contractClient = wire.client;
     const summaries = new ReplicaState(contractClient.sessions.state(undefined, 'list'), {
       schema: z.record(z.string(), sessionSummarySchema),
     });
@@ -73,9 +73,7 @@ describe('ACP API contract schemas', () => {
       await state.dispose();
     } finally {
       await summaries.dispose();
-      dispose();
-      pair.left.close?.();
-      pair.right.close?.();
+      wire.dispose();
     }
   });
 

@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { client } from '../../api/client';
-import { connect } from '../../api/connect';
-import { createController } from '../../api/controller';
 import { defineContract, liveLog } from '../../api/define';
-import { serve } from '../../api/serve';
-import { memoryTransportPair } from '../../api/transports';
+import { createTestWire, waitFor } from '../../testing';
 import { LiveLog } from '../log';
 import { createLiveLogReplica } from './log';
 
@@ -18,9 +14,7 @@ describe('createLiveLogReplica', () => {
     const key = { id: 'session' };
     const log = new LiveLog({ generation: 1000 });
     log.append('seed\n');
-    const pair = memoryTransportPair();
-    serve(pair.right, createController(api, { output: () => log }));
-    const contractClient = client(api, connect(pair.left));
+    const contractClient = createTestWire(api, { output: () => log }).client;
 
     const replica = createLiveLogReplica(api.output, contractClient.output);
     const lease = replica.acquire(key);
@@ -43,9 +37,7 @@ describe('createLiveLogReplica', () => {
     const key = { id: 'session' };
     const log = new LiveLog({ generation: 1000 });
     log.append('seed');
-    const pair = memoryTransportPair();
-    serve(pair.right, createController(api, { output: () => log }));
-    const contractClient = client(api, connect(pair.left));
+    const contractClient = createTestWire(api, { output: () => log }).client;
     let text = '';
 
     const replica = createLiveLogReplica(api.output, contractClient.output, {
@@ -74,9 +66,7 @@ describe('createLiveLogReplica', () => {
     const key = { id: 'session' };
     const log = new LiveLog({ generation: 1000 });
     log.append('seed');
-    const pair = memoryTransportPair();
-    serve(pair.right, createController(api, { output: () => log }));
-    const contractClient = client(api, connect(pair.left));
+    const contractClient = createTestWire(api, { output: () => log }).client;
     const writes: string[] = [];
 
     const replica = createLiveLogReplica(api.output, contractClient.output, {
@@ -104,13 +94,9 @@ describe('createLiveLogReplica', () => {
   it('serves downstream clients from the local log buffer', async () => {
     const key = { id: 'session' };
     const log = new LiveLog({ generation: 1000 });
-    const upstreamPair = memoryTransportPair();
-    serve(upstreamPair.right, createController(api, { output: () => log }));
-    const upstream = client(api, connect(upstreamPair.left));
+    const upstream = createTestWire(api, { output: () => log }).client;
     const replica = createLiveLogReplica(api.output, upstream.output);
-    const downstreamPair = memoryTransportPair();
-    serve(downstreamPair.right, createController(api, { output: replica }));
-    const downstream = client(api, connect(downstreamPair.left));
+    const downstream = createTestWire(api, { output: replica }).client;
 
     const handle = downstream.output.handle(key);
     const updates: string[] = [];
@@ -127,11 +113,3 @@ describe('createLiveLogReplica', () => {
     await replica.dispose();
   });
 });
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for condition');
-}

@@ -12,6 +12,7 @@ import type {
   ProcessSpec,
   StdioStream,
 } from '../../process/types';
+import { waitFor } from '../../testing';
 import { createScope } from '../scope';
 import {
   RUNTIME_SHUTDOWN_SIGNAL,
@@ -169,14 +170,6 @@ function waitForRestarted(runtime: { onRestarted(cb: () => void): Unsubscribe })
       resolve();
     });
   });
-}
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for condition');
 }
 
 function attachCount(messages: unknown[]): number {

@@ -21,6 +21,7 @@
       "@emdash/shared/logger": ["../shared/src/logger/index.ts"],
       "@emdash/shared/plugins": ["../shared/src/plugins/index.ts"],
       "@emdash/shared": ["../shared/src/index.ts"],
+      "@emdash/wire/testing": ["../wire/src/testing/index.ts"],
       "@emdash/wire": ["../wire/src/index.ts"]
     }
   },

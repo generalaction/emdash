@@ -3,12 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveJobCancelledError, type LiveJobContext } from '../live/job';
 import { createLiveJobReplica } from '../live/replica';
-import { client } from './client';
-import { connect } from './connect';
-import { createController } from './controller';
+import { createTestWire, deferred } from '../testing';
 import { defineContract, liveJob } from './define';
-import { serve } from './serve';
-import { memoryTransportPair } from './transports';
 
 const jobContract = defineContract({
   build: liveJob({
@@ -135,8 +131,7 @@ function setup(
   ) => Promise<BuildResult> | BuildResult,
   options: { validate?: 'none' | 'inputs' | 'full' } = {}
 ) {
-  const pair = memoryTransportPair();
-  const controller = createController(
+  const wire = createTestWire(
     jobContract,
     {
       build: {
@@ -148,21 +143,5 @@ function setup(
     },
     { validate: options.validate }
   );
-  serve(pair.right, controller);
-  const contractClient = client(jobContract, connect(pair.left));
-  return { client: contractClient, controller };
-}
-
-function deferred<T>(): {
-  promise: Promise<T>;
-  resolve(value: T): void;
-  reject(error: unknown): void;
-} {
-  let resolve!: (value: T) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return { promise, resolve, reject };
+  return { client: wire.client, controller: wire.controller };
 }
