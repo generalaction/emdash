@@ -53,6 +53,7 @@
     "@emdash/chat-ui": "workspace:*",
     "@emdash/core": "workspace:*",
     "@emdash/plugins": "workspace:*",
+    "@emdash/runtime": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/ui": "workspace:*",
     "@emdash/wire": "workspace:*",

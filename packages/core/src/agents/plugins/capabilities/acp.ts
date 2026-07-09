@@ -101,5 +101,8 @@ export const acpCapability = definePluginCapability<IAcpBehavior>()(
     z.object({ kind: z.literal('none') }),
     z.object({ kind: z.literal('supported') }),
   ]),
-  { kind: 'none' }
+  { kind: 'none' },
+  {
+    requiresBehavior: (descriptor) => descriptor.kind === 'supported',
+  }
 );

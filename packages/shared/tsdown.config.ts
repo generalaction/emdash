@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     result: 'src/result/index.ts',
+    config: 'src/config/index.ts',
     logger: 'src/logger/index.ts',
     'logger-context': 'src/logger/context.ts',
     'logger-context-node': 'src/logger/context-node.ts',

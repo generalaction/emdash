@@ -1,5 +1,6 @@
 import { defineContract, fallible, procedure } from '@emdash/wire';
 import { z } from 'zod';
+import { acpApiContract } from '../../acp';
 import { gitContract } from '../../git/api/contract';
 import { depsContract } from '../deps/contract';
 import { filesContract } from '../files/contract';
@@ -22,4 +23,5 @@ export const workspaceWireContract = defineContract({
   files: filesContract,
   deps: depsContract,
   ptyAgent: ptyAgentContract,
+  acp: acpApiContract,
 });

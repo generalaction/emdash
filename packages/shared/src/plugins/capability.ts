@@ -25,11 +25,15 @@ export function definePluginCapability<TBehavior = never>() {
   >(
     id: TId,
     descriptorSchema: TSchema,
-    defaultDescriptor?: TDefault
+    defaultDescriptor?: TDefault,
+    options: {
+      requiresBehavior?: (descriptor: z.output<TSchema>) => boolean;
+    } = {}
   ) => ({
     id,
     descriptorSchema,
     defaultDescriptor,
+    requiresBehavior: options.requiresBehavior as ((descriptor: unknown) => boolean) | undefined,
     _descriptor: undefined as z.output<TSchema>,
     _descriptorInput: undefined as z.input<TSchema>,
     _behavior: undefined as unknown as TBehavior,
@@ -42,6 +46,7 @@ export type AnyPluginCapability = {
   id: string;
   descriptorSchema: z.ZodType;
   defaultDescriptor?: unknown;
+  requiresBehavior?: (descriptor: unknown) => boolean;
   _descriptor: unknown;
   _descriptorInput: unknown;
   _behavior: unknown;
