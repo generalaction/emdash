@@ -1,0 +1,41 @@
+apps/emdash-desktop/electron.vite.config.ts
+  s_7588371815911d::t_ea2e8b3125356d 53-57
+apps/emdash-desktop/src/main/core/files/file-system/pdf-support.test.ts
+  s_7588371815911d::t_ae22da5004f25e 1-54,61-64,69-70
+  s_7588371815911d::t_252be9c665d4e6 55-60,65-68
+apps/emdash-desktop/src/main/core/files/file-system/pdf-support.ts
+  s_7588371815911d::t_d7e72ef12cc18d 1-29
+apps/emdash-desktop/src/main/core/files/file-system/controller.ts
+  s_7588371815911d::t_74171e40ac503e 120
+  s_7588371815911d::t_000ca025722c55 9
+apps/emdash-desktop/src/renderer/lib/editor/pdf-renderer.tsx
+  s_7588371815911d::t_b4beeba3be3d6f 105
+  s_7588371815911d::t_bc00ae22c2e468 250
+  s_7588371815911d::t_4304b427ddcfe9 438-447
+  s_7588371815911d::t_c8e9ead06fa2ab 184,188
+  s_7588371815911d::t_76e04b7096e9fd 448-451
+  s_7588371815911d::t_52b3851a21588e 2-5,7
+  s_7588371815911d::t_7f8e61594a64ab 210-211
+  s_7588371815911d::t_e520b78ae71f06 130,133-134,136-137,139
+  s_7588371815911d::t_5646c632113eca 11
+  s_7588371815911d::t_dd999e3380e18e 222
+  s_7588371815911d::t_d2d27503bd2aca 266,276-282
+  s_7588371815911d::t_a6f02ba4893901 173
+  s_7588371815911d::t_bd3d3c8776389e 308,313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "221c855182b67d9bdfcb8fc6fda69822f67749fd",
+  "prompts": {},
+  "sessions": {
+    "s_7588371815911d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cd29ca76-c053-4d1c-abec-105738e2cf25",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
