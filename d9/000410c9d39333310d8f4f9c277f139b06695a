@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/renderer/features/settings/agents-page/CliAgentsList.tsx
+  s_f812f8e7ed3d21::t_5470288a470f11 22
+README.md
+  s_f812f8e7ed3d21::t_5470288a470f11 26,53
+apps/emdash-desktop/tooling/docker-ssh/dockerfile
+  s_f812f8e7ed3d21::t_5470288a470f11 6
+agents/integrations/providers.md
+  s_f812f8e7ed3d21::t_5470288a470f11 10,12,14,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d9000410c9d39333310d8f4f9c277f139b06695a",
+  "prompts": {},
+  "sessions": {
+    "s_f812f8e7ed3d21": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mImgtBODzzRH93UJbjZ",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
