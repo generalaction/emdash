@@ -6,6 +6,10 @@ import type {
   IWorkspaceFileIndexStore,
 } from './workspace-file-index-store';
 
+vi.mock('@main/core/settings/settings-service', () => ({
+  appSettingsService: { get: vi.fn(async () => ({ additionalExcludedSegments: [] })) },
+}));
+
 vi.mock('./workspace-file-index-store', () => ({
   WorkspaceFileIndexStore: class {},
 }));
@@ -230,11 +234,59 @@ describe('WorkspaceFileIndexService', () => {
     expect([...store.pathSet('ws-1')].sort()).toEqual(['/repo/a.ts', '/repo/b.ts']);
     expect(store.operations).toEqual([]);
   });
+
+  it('uses listGitFiles as the enumeration source when present', async () => {
+    const store = new FakeStore();
+    const service = await createService(store);
+
+    await service.onWorkspaceActivated('ws-1', {
+      rootPath: '/repo',
+      enumerate: enumerator(() => {
+        throw new Error('should not walk when git listing is available');
+      }),
+      listGitFiles: async () => ['/repo/src/app.ts', '/repo/.tox/junk.py'],
+    });
+
+    expect([...store.pathSet('ws-1')]).toEqual(['/repo/src/app.ts']); // .tox filtered by segments
+  });
+
+  it('falls back to the filesystem walk when listGitFiles throws', async () => {
+    const store = new FakeStore();
+    const service = await createService(store);
+
+    await service.onWorkspaceActivated('ws-1', {
+      rootPath: '/repo',
+      enumerate: enumerator(() => ['/repo/fresh.ts']),
+      listGitFiles: async () => {
+        throw new Error('not a git repo');
+      },
+    });
+
+    expect([...store.pathSet('ws-1')]).toEqual(['/repo/fresh.ts']);
+  });
+
+  it('applies configured extra excluded segments during reindex', async () => {
+    const store = new FakeStore();
+    const service = await createService(store, {
+      getExtraExcludedSegments: async () => ['generated'],
+    });
+
+    await service.onWorkspaceActivated('ws-1', {
+      rootPath: '/repo',
+      enumerate: enumerator(() => ['/repo/keep.ts', '/repo/generated/out.ts']),
+    });
+
+    expect([...store.pathSet('ws-1')]).toEqual(['/repo/keep.ts']);
+  });
 });
 
 async function createService(
   store: FakeStore,
-  options: { maxFiles?: number; reindexDebounceMs?: number } = {}
+  options: {
+    maxFiles?: number;
+    reindexDebounceMs?: number;
+    getExtraExcludedSegments?: () => Promise<string[]>;
+  } = {}
 ) {
   const { WorkspaceFileIndexService } = await import('./workspace-file-index-service');
   return new WorkspaceFileIndexService({ store, ...options });
