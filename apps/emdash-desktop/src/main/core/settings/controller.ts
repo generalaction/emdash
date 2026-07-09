@@ -1,6 +1,7 @@
 import { setBrowserCorsRelaxationSettings } from '@main/core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import { reconcileResourceSampler } from '@main/core/resource-monitor/resource-sampler';
+import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
 
@@ -12,6 +13,9 @@ async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void>
   }
   if (key === 'browser') {
     setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
+  }
+  if (key === 'indexer') {
+    workspaceFileIndexService.reindexActiveWorkspaces();
   }
 }
 
