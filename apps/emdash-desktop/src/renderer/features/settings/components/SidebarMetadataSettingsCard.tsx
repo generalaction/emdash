@@ -22,6 +22,7 @@ const SidebarMetadataSettingsCard: React.FC = () => {
   return (
     <div className="grid gap-4">
       <SettingRow
+        settingId="left-sidebar-line-changes"
         title="Left sidebar line changes"
         description="Show added and removed line counts for tasks in the left sidebar."
         control={
@@ -42,6 +43,7 @@ const SidebarMetadataSettingsCard: React.FC = () => {
         }
       />
       <SettingRow
+        settingId="left-sidebar-pr-status"
         title="Left sidebar PR status"
         description="Show GitHub PR merge and status icons for tasks in the left sidebar."
         control={
@@ -62,6 +64,7 @@ const SidebarMetadataSettingsCard: React.FC = () => {
         }
       />
       <SettingRow
+        settingId="left-sidebar-timestamps"
         title="Left sidebar timestamps"
         description="Show the relative task timestamp in the left sidebar."
         control={

@@ -98,6 +98,7 @@ const NotificationSettingsCard: React.FC = () => {
   return (
     <div className="flex flex-col gap-4">
       <SettingRow
+        settingId="notifications"
         title="Notifications"
         description="Get notified when agents need your attention."
         control={
@@ -123,6 +124,7 @@ const NotificationSettingsCard: React.FC = () => {
         )}
       >
         <SettingRow
+          settingId="notification-sound"
           title="Sound"
           description="Play audio cues for agent events."
           control={
@@ -144,6 +146,7 @@ const NotificationSettingsCard: React.FC = () => {
         />
 
         <SettingRow
+          settingId="notification-custom-sound"
           title="Custom sound"
           description="Use an audio file instead of the built-in cue."
           control={
@@ -186,6 +189,7 @@ const NotificationSettingsCard: React.FC = () => {
         />
 
         <SettingRow
+          settingId="notification-sound-timing"
           title="Sound timing"
           description="When to play sounds."
           control={
@@ -215,6 +219,7 @@ const NotificationSettingsCard: React.FC = () => {
         />
 
         <SettingRow
+          settingId="os-notifications"
           title="OS notifications"
           description="Show system banners when agents need attention or finish (while Emdash is unfocused)."
           control={

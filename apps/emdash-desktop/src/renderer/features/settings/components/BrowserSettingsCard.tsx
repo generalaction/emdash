@@ -34,7 +34,7 @@ import {
   type BrowserProfile,
   type BrowsingDataKind,
 } from '@shared/browser';
-import { SettingRow } from './SettingRow';
+import { SettingRow, SettingTarget } from './SettingRow';
 
 export function BrowserSettingsCard() {
   const {
@@ -153,6 +153,7 @@ export function BrowserSettingsCard() {
   return (
     <div className="flex flex-col gap-4">
       <SettingRow
+        settingId="default-browser-profile"
         title="Default browser profile"
         description="New browser tabs open with this profile. You can switch an individual tab's profile from its toolbar menu."
         control={
@@ -179,6 +180,7 @@ export function BrowserSettingsCard() {
       />
 
       <SettingRow
+        settingId="disable-cors-localhost"
         title="Disable CORS for localhost"
         description="Allows pages opened from localhost in Emdash browser tabs to call APIs that do not send matching CORS headers."
         control={
@@ -190,7 +192,10 @@ export function BrowserSettingsCard() {
         }
       />
 
-      <div className="rounded-lg border border-border/70 bg-background-secondary-1 p-3">
+      <SettingTarget
+        settingId="browser-profiles"
+        className="rounded-lg border border-border/70 bg-background-secondary-1 p-3"
+      >
         <div className="flex flex-col gap-1">
           <div className="text-sm text-foreground">Browser profiles</div>
           <div className="text-xs text-foreground-passive">
@@ -343,7 +348,7 @@ export function BrowserSettingsCard() {
             </Button>
           )}
         </div>
-      </div>
+      </SettingTarget>
 
       <div className="rounded-lg border border-border/70 bg-background-secondary-1 p-3">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

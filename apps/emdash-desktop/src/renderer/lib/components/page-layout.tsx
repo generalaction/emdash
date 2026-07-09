@@ -12,14 +12,18 @@ export function PageSidebarMenu<T extends string>({
   items,
   activeId,
   onSelect,
+  className,
+  navClassName,
 }: {
   items: ReadonlyArray<PageSidebarItem<T>>;
   activeId: T;
   onSelect: (item: PageSidebarItem<T>) => void;
+  className?: string;
+  navClassName?: string;
 }) {
   return (
-    <div className="sticky top-0 self-start py-10 [-webkit-app-region:drag]">
-      <nav className="flex w-52 flex-col gap-0.5 [-webkit-app-region:no-drag]">
+    <div className={cn('sticky top-0 self-start py-10 [-webkit-app-region:drag]', className)}>
+      <nav className={cn('flex w-52 flex-col gap-0.5 [-webkit-app-region:no-drag]', navClassName)}>
         {items.map((item) => {
           const isActive = item.id === activeId && !item.isExternal;
           return (

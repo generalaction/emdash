@@ -4,7 +4,7 @@ import { Input } from '@renderer/lib/ui/input';
 import { Switch } from '@renderer/lib/ui/switch';
 import { normalizeBranchPrefix } from '@shared/util/branch-prefix';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
-import { SettingRow } from './SettingRow';
+import { SettingRow, SettingTarget } from './SettingRow';
 
 const RepositorySettingsCard: React.FC = () => {
   const {
@@ -33,7 +33,7 @@ const RepositorySettingsCard: React.FC = () => {
 
   return (
     <div className="grid gap-8">
-      <div className="grid gap-2">
+      <SettingTarget settingId="branch-prefix" className="grid gap-2">
         <div className="flex items-center gap-2">
           <Input
             key={branchPrefix}
@@ -60,8 +60,9 @@ const RepositorySettingsCard: React.FC = () => {
         <div className="text-xs text-foreground-passive">
           Leave empty to create branches without a prefix.
         </div>
-      </div>
+      </SettingTarget>
       <SettingRow
+        settingId="random-branch-suffix"
         title="Random branch suffix"
         description="Add a random suffix to branch names."
         control={
@@ -82,6 +83,7 @@ const RepositorySettingsCard: React.FC = () => {
         }
       />
       <SettingRow
+        settingId="auto-push-on-create"
         title="Auto-push on create"
         description="Push the new branch to the selected project remote and set upstream after creation."
         control={
@@ -102,6 +104,7 @@ const RepositorySettingsCard: React.FC = () => {
         }
       />
       <SettingRow
+        settingId="auto-update-gitignore"
         title="Auto-update .gitignore"
         description="When Emdash writes CLI hook configs, also add their paths to .gitignore."
         control={

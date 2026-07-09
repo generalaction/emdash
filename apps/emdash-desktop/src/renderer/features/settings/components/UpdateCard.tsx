@@ -26,6 +26,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
   return (
     <div className="grid gap-3">
       <SettingRow
+        settingId="general-app-version"
         title={versionTitle}
         description={renderStatusMessage()}
         className="items-center rounded-lg border p-4"
