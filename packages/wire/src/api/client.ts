@@ -1,10 +1,20 @@
-import type { SerializedError, Unsubscribe } from '@emdash/shared';
+import { ok, type Result, type SerializedError, type Unsubscribe } from '@emdash/shared';
 import { createMutationId, type LiveMutationResult } from '../live/mutations';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../live/protocol';
+import {
+  createSingleUseDownloadHandle,
+  normalizeUploadFile,
+  type BlobDownloadHandle,
+  type UploadFileValue,
+} from './blob-channel';
 import type { AttachOptions, CallOptions, Connection } from './connect';
 import type {
   Contract,
   ContractDefinitions,
+  DownloadFileEndpointDef,
+  DownloadFileError,
+  DownloadFileInput,
+  DownloadFileMeta,
   EndpointDef,
   EndpointInput,
   LiveStateData,
@@ -23,6 +33,10 @@ import type {
   MutationData,
   MutationError,
   MutationInput,
+  UploadFileEndpointDef,
+  UploadFileError,
+  UploadFileInput,
+  UploadFileResult,
 } from './define';
 import { isEndpointDef } from './define';
 import { WireError } from './protocol';
@@ -39,6 +53,9 @@ export type MutationCallOptions = {
 };
 
 export type ProcedureCallOptions = Pick<CallOptions, 'signal'>;
+export type FileUploadCallOptions = ProcedureCallOptions & {
+  onProgress?: (progress: { sent: number; total?: number }) => void;
+};
 
 export type ClientOptions = {
   pathPrefix?: string;
@@ -128,7 +145,18 @@ type EndpointClient<Def> = Def extends { kind: 'procedure' }
       ? LiveLogClientHandle<Def>
       : Def extends LiveModelDef
         ? LiveModelClientHandle<Def>
-        : never;
+        : Def extends DownloadFileEndpointDef
+          ? (
+              input: DownloadFileInput<Def>,
+              options?: ProcedureCallOptions
+            ) => Promise<Result<BlobDownloadHandle<DownloadFileMeta<Def>>, DownloadFileError<Def>>>
+          : Def extends UploadFileEndpointDef
+            ? (
+                input: UploadFileInput<Def>,
+                file: UploadFileValue,
+                options?: FileUploadCallOptions
+              ) => Promise<Result<UploadFileResult<Def>, UploadFileError<Def>>>
+            : never;
 
 type ContractEntryClient<Def> = Def extends EndpointDef
   ? EndpointClient<Def>
@@ -167,6 +195,43 @@ function buildContractClient(
       case 'procedure':
         client[name] = (input: unknown, options?: ProcedureCallOptions) =>
           connection.call(fullPath, input, options);
+        break;
+      case 'downloadFile':
+        client[name] = async (input: unknown, options?: ProcedureCallOptions) => {
+          const result = (await connection.call(fullPath, input, options)) as Result<
+            { meta: DownloadFileMeta<typeof def>; channel: string },
+            unknown
+          >;
+          if (!result.success) return result;
+          const handle = createSingleUseDownloadHandle(
+            result.data.meta,
+            connection.openBlobConsumer(result.data.channel)
+          );
+          options?.signal?.addEventListener('abort', () => handle.cancel(), { once: true });
+          return ok(handle);
+        };
+        break;
+      case 'uploadFile':
+        client[name] = async (
+          input: unknown,
+          file: UploadFileValue,
+          options?: FileUploadCallOptions
+        ) => {
+          const { meta, source } = normalizeUploadFile(file);
+          const channel = createRequestId();
+          const producer = connection.openBlobProducer(channel, source);
+          const onAbort = (): void => producer.close();
+          options?.signal?.addEventListener('abort', onAbort, { once: true });
+          try {
+            return (await connection.call(fullPath, input, {
+              signal: options?.signal,
+              upload: { channel, meta },
+            })) as Result<unknown, unknown>;
+          } finally {
+            options?.signal?.removeEventListener('abort', onAbort);
+            producer.close();
+          }
+        };
         break;
       case 'liveJob':
         client[name] = createLiveJobClientHandle(connection, def, fullPath);
@@ -303,6 +368,11 @@ function shouldRetryMutation(error: unknown, attempt: number, maxRetries: number
 function delay(ms: number): Promise<void> {
   if (ms <= 0) return Promise.resolve();
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createRequestId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `wire_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
 function addMutationId(input: unknown, mutationId: string): unknown {

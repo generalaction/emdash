@@ -2,7 +2,8 @@
 
 ## Source Of Truth
 
-- `src/shared/core/agents/agent-provider-registry.ts`
+- `packages/plugins/src/agents/registry.ts`
+- `packages/plugins/src/agents/impl/`
 - `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
@@ -16,14 +17,10 @@ codex, claude, opencode, grok, devin, qwen, qoder, droid, gemini, cursor, copilo
 
 ## Provider Metadata Includes
 
-- CLI and detection commands
-- version args
-- install command and docs URL
-- auto-approve flags
-- initial prompt handling
-- keystroke injection behavior
-- resume and session flags
-- optional plan activation and auto-start commands
+- provider metadata and icon assets
+- host dependency detection, install, update, and uninstall descriptors
+- prompt delivery behavior
+- auto-approve, ACP, hooks, MCP, model, session, trust, and plugin capabilities
 
 ## Agent Hooks And Notifications
 
@@ -42,7 +39,8 @@ or notify an inferred status for that event.
 
 ## Adding Or Changing A Provider
 
-1. update `src/shared/core/agents/agent-provider-registry.ts`
+1. add or update the plugin in `packages/plugins/src/agents/impl/` and register it in
+   `packages/plugins/src/agents/registry.ts`
 2. update allowlisted agent env vars in `src/main/core/pty/pty-env.ts` if needed
 3. add or update hook/plugin installation in `src/main/core/agent-hooks/` if the provider
    supports explicit events

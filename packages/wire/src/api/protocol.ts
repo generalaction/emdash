@@ -17,6 +17,10 @@ export type WireCallMessage = {
   id: string;
   path: string;
   input: unknown;
+  upload?: {
+    channel: string;
+    meta: WireFileMeta;
+  };
 };
 
 export type WireSnapshotMessage = {
@@ -63,6 +67,43 @@ export type WireUpdateMessage = {
   update: LiveUpdate;
 };
 
+export type WireFileMeta = {
+  name: string;
+  mimeType: string;
+  size?: number;
+  lastModified?: number;
+  [key: string]: unknown;
+};
+
+export type WireBlobPullMessage = {
+  kind: 'blob-pull';
+  channel: string;
+  credit: number;
+};
+
+export type WireBlobChunkMessage = {
+  kind: 'blob-chunk';
+  channel: string;
+  seq: number;
+  data: Uint8Array;
+};
+
+export type WireBlobEndMessage = {
+  kind: 'blob-end';
+  channel: string;
+};
+
+export type WireBlobErrorMessage = {
+  kind: 'blob-error';
+  channel: string;
+  error: SerializedWireError;
+};
+
+export type WireBlobCloseMessage = {
+  kind: 'blob-close';
+  channel: string;
+};
+
 export type WireMessage =
   | WireCallMessage
   | WireSnapshotMessage
@@ -70,7 +111,12 @@ export type WireMessage =
   | WireDetachMessage
   | WireCancelMessage
   | WireResultMessage
-  | WireUpdateMessage;
+  | WireUpdateMessage
+  | WireBlobPullMessage
+  | WireBlobChunkMessage
+  | WireBlobEndMessage
+  | WireBlobErrorMessage
+  | WireBlobCloseMessage;
 
 export type WireTransport = {
   post(message: WireMessage): void;
@@ -138,6 +184,19 @@ export function isWireMessage(value: unknown): value is WireMessage {
       );
     case 'update':
       return typeof message.topic === 'string' && typeof message.update === 'object';
+    case 'blob-pull':
+      return typeof message.channel === 'string' && typeof message.credit === 'number';
+    case 'blob-chunk':
+      return (
+        typeof message.channel === 'string' &&
+        typeof message.seq === 'number' &&
+        message.data instanceof Uint8Array
+      );
+    case 'blob-end':
+    case 'blob-close':
+      return typeof message.channel === 'string';
+    case 'blob-error':
+      return typeof message.channel === 'string' && typeof message.error === 'object';
     default:
       return false;
   }

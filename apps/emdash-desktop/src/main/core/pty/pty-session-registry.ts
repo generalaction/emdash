@@ -1,5 +1,5 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { events } from '@main/lib/events';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/core/pty/ptyEvents';
 import { ptyStartedChannel } from '@shared/events/appEvents';
 import type { Pty, PtyExitInfo } from './pty';

@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from '@renderer/lib/hooks/use-toast';
@@ -11,7 +12,6 @@ import type {
   InstallMethod,
   SelectedSource,
 } from '@shared/core/agents/agent-payload';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { agentInstallationStatusUpdatedChannel } from '@shared/events/appEvents';
 import { AGENTS_METADATA_QUERY_KEY, useAgents } from './use-agents';
 

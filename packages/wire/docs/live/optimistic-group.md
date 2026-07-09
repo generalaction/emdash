@@ -8,7 +8,7 @@ authoritative live updates arrive.
 Import it from the MobX subpath:
 
 ```ts
-import { OptimisticLiveModel } from '@emdash/wire/util/optimistic';
+import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
 ```
 
 ## Contract Requirements
@@ -117,8 +117,8 @@ Group mutation handlers may run on both server and client. Keep them pure:
 If a workflow needs server-only work, keep that work outside the inline group
 handler and model it as a `procedure()` or `liveJob()` that updates domain state.
 
-`@emdash/wire/util/optimistic` intentionally has a separate subpath export
-because it depends on MobX. Server-only code should import lifecycle utilities
-from `@emdash/wire/util`.
+`@emdash/wire/util/mobx` intentionally has a separate subpath export because it
+depends on MobX. Server-only code should import lifecycle utilities from
+`@emdash/wire/util`.
 
 See [../../examples/optimistic-live-model/client.ts](../../examples/optimistic-live-model/client.ts).

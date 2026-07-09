@@ -376,9 +376,11 @@ pnpm run test
 - Agent provider plugins live in `packages/plugins/src/agents/impl/` and are registered
   in `packages/plugins/src/agents/registry.ts`.
 - Provider capabilities and helpers live in `packages/core/src/agents/plugins/`.
-- Shared app provider metadata lives in `src/shared/core/agents/agent-provider-registry.ts`.
-- ACP support is exposed through plugin ACP capabilities, `providerSupportsAcp()`, and
-  `src/shared/core/acp/` event and turn types.
+- Agent provider metadata and capabilities live in `packages/plugins/src/agents/registry.ts`
+  and `packages/plugins/src/agents/impl/`; renderer-facing DTOs are built by
+  `src/main/core/agents/agent-payload-builder.ts`.
+- ACP support is exposed through plugin ACP capabilities and `src/shared/core/acp/`
+  event and turn types.
 - Provider detection lives in `src/main/core/dependencies/`.
 - Provider PTY behavior and env passthrough live under `src/main/core/pty/`.
 - Provider event hooks and plugins live under `src/main/core/agent-hooks/`.

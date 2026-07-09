@@ -302,15 +302,20 @@ describe('GitCheckout', () => {
     }
   });
 
-  it('notifies file-diff subscribers when watched content changes', async () => {
+  it('bumps file-diff staleness when watched content changes', async () => {
     const { repo, checkout, cleanup } = await makeCheckout();
     try {
-      const events: string[] = [];
-      const unsubscribe = checkout.subscribeFileDiff('tracked.txt', (event) =>
-        events.push(event.reason)
-      );
+      const source = checkout.fileDiffStaleness('tracked.txt');
+      let updates = 0;
+      const unsubscribe = source.subscribe(() => {
+        updates += 1;
+      });
       await writeFile(path.join(repo, 'tracked.txt'), 'changed\n', 'utf8');
-      await eventually(() => (events.includes('content-changed') ? true : undefined));
+      await eventually(() => (updates > 0 ? true : undefined));
+      const snapshot = await source.snapshot();
+      const staleness = snapshot.data as { revision: number; lastReason?: string };
+      expect(staleness.revision).toBeGreaterThan(0);
+      expect(staleness.lastReason).toBe('content-changed');
       unsubscribe();
     } finally {
       await cleanup();

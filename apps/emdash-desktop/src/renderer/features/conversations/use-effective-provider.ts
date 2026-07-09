@@ -1,10 +1,8 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
-import {
-  isValidProviderId,
-  type AgentProviderId,
-} from '@shared/core/agents/agent-provider-registry';
+import { useAgents } from '@renderer/lib/stores/use-agents';
 import { resolveConversationProviderSelection } from './provider-selection';
 
 export type EffectiveProvider = {
@@ -22,9 +20,13 @@ export function useEffectiveProvider(
   );
 
   const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
-  const defaultProviderId: AgentProviderId = isValidProviderId(defaultAgentValue)
-    ? defaultAgentValue
-    : 'claude';
+  const { data: agents } = useAgents();
+  const orderedProviderIds = useMemo(
+    () => (agents ?? []).map((agent) => agent.id as AgentProviderId),
+    [agents]
+  );
+  const defaultProviderId =
+    defaultAgentValue && orderedProviderIds.includes(defaultAgentValue) ? defaultAgentValue : null;
 
   const { data: statuses } = useAgentInstallationStatuses(connectionId);
   const availabilityKnown = statuses !== undefined;
@@ -36,6 +38,7 @@ export function useEffectiveProvider(
   );
 
   const { providerId, createDisabled } = resolveConversationProviderSelection({
+    orderedProviderIds,
     defaultProviderId,
     providerOverride,
     installedProviderIds,

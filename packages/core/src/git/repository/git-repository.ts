@@ -1,9 +1,7 @@
-import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { BoundExec } from '../../exec';
 import type { KeyedMutex } from '../../lib';
-import { RefreshScheduler } from '../../lib/refresh-scheduler';
-import { LiveModelServer, reconcileDraft } from '../../live/model';
-import { realpathOrResolve, type WatchHandle } from '../../watch';
+import { realpathOrResolve } from '../../watch';
 import type {
   AddCheckoutOptions,
   CreateBranchOptions,
@@ -28,7 +26,6 @@ import {
   toGitCommandError,
 } from '../errors';
 import { execGitWithProgress, throwIfGitOpAborted, type GitOpContext } from '../transfer-progress';
-import { classifyGitWatchEvents } from '../watch/classifier';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';
 import type { GitStashesModel } from './models/stashes';
@@ -37,149 +34,50 @@ import { parseWorktreeList } from './ops/checkouts';
 import { computeRefsModel } from './ops/refs';
 import { computeRemotesModel, remoteNameForRepositoryUrl } from './ops/remotes';
 import { computeStashesModel } from './ops/stashes';
-import type { CheckoutWatchRegistration, GitRepositoryOptions, IGitRepository } from './types';
-
-const WATCH_DEBOUNCE_MS = 100;
-const REVALIDATE_INTERVAL_MS = 5 * 60_000;
+import type { GitRepositoryOptions, IGitRepository } from './types';
 
 /**
- * A repository (shared `.git` directory), in workspace-server contract shape.
- *
- * Owns the single commonDir watch: linked-worktree git dirs live inside the
- * commonDir and the main checkout's git dir *is* it, so this is the one place
- * that observes ref/index/HEAD churn. Classified effects fan out to the
- * repository's own models (refs / remotes / stashes) and to registered
- * checkouts. Mutations run the git command, then synchronously refresh the
- * affected models before resolving, so callers read their own writes.
+ * A repository (shared `.git` directory) capability. It knows Git commands and
+ * fresh reads; live-state ownership lives in the repository live-model runtime.
  */
 export class GitRepository implements IGitRepository {
   readonly gitCommonDir: string;
-  readonly refs: LiveModelServer<GitRefsModel>;
-  readonly remotes: LiveModelServer<GitRemotesModel>;
-  readonly stashes: LiveModelServer<GitStashesModel>;
 
   private readonly objectStoreDir: string;
   private readonly exec: BoundExec;
   private readonly objectStoreMutex: KeyedMutex;
-  private readonly refsRefresh: RefreshScheduler;
-  private readonly remotesRefresh: RefreshScheduler;
-  private readonly stashesRefresh: RefreshScheduler;
-  private readonly commonDirWatch: WatchHandle;
-  private readonly checkouts = new Map<string, CheckoutWatchRegistration>();
   private catFile: CatFileBatch | null = null;
 
-  /** Async factory: seeds all three live models before the instance is observable. */
   static async create(options: GitRepositoryOptions): Promise<GitRepository> {
-    const remotes = await computeRemotesModel(options.exec).catch(
-      (): GitRemotesModel => ({ remotes: [] })
-    );
-    const [refs, stashes] = await Promise.all([
-      computeRefsModel(options.exec, remotes.remotes).catch(
-        (): GitRefsModel => ({ branches: [], tags: [] })
-      ),
-      computeStashesModel(options.exec).catch((): GitStashesModel => ({ stashes: [] })),
-    ]);
-    const repository = new GitRepository(options, refs, remotes, stashes);
-    await repository.commonDirWatch.ready();
-    return repository;
+    return new GitRepository(options);
   }
 
-  private constructor(
-    options: GitRepositoryOptions,
-    initialRefs: GitRefsModel,
-    initialRemotes: GitRemotesModel,
-    initialStashes: GitStashesModel
-  ) {
+  private constructor(options: GitRepositoryOptions) {
     this.gitCommonDir = options.gitCommonDir;
     this.objectStoreDir = options.objectStoreDir;
     this.exec = options.exec;
     this.objectStoreMutex = options.objectStoreMutex;
-    const onError = options.onError ?? (() => {});
-
-    this.refs = new LiveModelServer<GitRefsModel>(initialRefs);
-    this.remotes = new LiveModelServer<GitRemotesModel>(initialRemotes);
-    this.stashes = new LiveModelServer<GitStashesModel>(initialStashes);
-
-    this.refsRefresh = new RefreshScheduler({
-      refresh: async () => {
-        const remotes = await computeRemotesModel(this.exec);
-        const fresh = await computeRefsModel(this.exec, remotes.remotes);
-        this.refs.produce((draft) => reconcileDraft(draft, fresh) as never);
-      },
-      debounceMs: WATCH_DEBOUNCE_MS,
-      intervalMs: REVALIDATE_INTERVAL_MS,
-      onError: (error) => onError(`refs ${this.gitCommonDir}`, error),
-    });
-    this.remotesRefresh = new RefreshScheduler({
-      refresh: async () => {
-        const fresh = await computeRemotesModel(this.exec);
-        this.remotes.produce((draft) => reconcileDraft(draft, fresh) as never);
-      },
-      debounceMs: WATCH_DEBOUNCE_MS,
-      intervalMs: REVALIDATE_INTERVAL_MS,
-      onError: (error) => onError(`remotes ${this.gitCommonDir}`, error),
-    });
-    this.stashesRefresh = new RefreshScheduler({
-      refresh: async () => {
-        const fresh = await computeStashesModel(this.exec);
-        this.stashes.produce((draft) => reconcileDraft(draft, fresh) as never);
-      },
-      debounceMs: WATCH_DEBOUNCE_MS,
-      intervalMs: REVALIDATE_INTERVAL_MS,
-      onError: (error) => onError(`stashes ${this.gitCommonDir}`, error),
-    });
-
-    this.commonDirWatch = options.watcher.watch(
-      this.gitCommonDir,
-      (events) => {
-        const classification = classifyGitWatchEvents(events, this.layout());
-        if (classification.repo.refs) this.refsRefresh.invalidate();
-        if (classification.repo.remotes) this.remotesRefresh.invalidate();
-        if (classification.repo.stashes) this.stashesRefresh.invalidate();
-        for (const [id, effects] of classification.worktrees) {
-          this.checkouts.get(id)?.onEffects(effects);
-        }
-      },
-      {
-        ignore: ['objects/**'],
-        onResync: () => {
-          this.refsRefresh.invalidate();
-          this.remotesRefresh.invalidate();
-          this.stashesRefresh.invalidate();
-          for (const registration of this.checkouts.values()) {
-            registration.onEffects({ status: true, head: true });
-          }
-        },
-      }
-    );
   }
 
-  async refresh(): Promise<void> {
-    await Promise.all([
-      this.refsRefresh.refreshNow(),
-      this.remotesRefresh.refreshNow(),
-      this.stashesRefresh.refreshNow(),
-    ]);
+  async getRefs(): Promise<GitRefsModel> {
+    const remotes = await this.getRemotes().catch((): GitRemotesModel => ({ remotes: [] }));
+    return computeRefsModel(this.exec, remotes.remotes);
+  }
+
+  getRemotes(): Promise<GitRemotesModel> {
+    return computeRemotesModel(this.exec);
+  }
+
+  getStashes(): Promise<GitStashesModel> {
+    return computeStashesModel(this.exec);
   }
 
   async dispose(): Promise<void> {
-    await this.commonDirWatch.release();
-    this.refsRefresh.dispose();
-    this.remotesRefresh.dispose();
-    this.stashesRefresh.dispose();
-    this.checkouts.clear();
     this.catFile?.dispose();
     this.catFile = null;
   }
 
   // -- Checkout integration -----------------------------------------------------
-
-  registerCheckout(id: string, registration: CheckoutWatchRegistration): Unsubscribe {
-    this.checkouts.set(id, registration);
-    return () => {
-      if (this.checkouts.get(id) === registration) this.checkouts.delete(id);
-    };
-  }
 
   async readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
     this.catFile ??= new CatFileBatch({ exec: this.exec });
@@ -193,11 +91,6 @@ export class GitRepository implements IGitRepository {
         return null;
       }
     }
-  }
-
-  /** Sync-refresh hook for checkout mutations that change repository-owned facts. */
-  onCheckoutMutation(effect: 'refs' | 'stashes'): Promise<void> {
-    return effect === 'refs' ? this.refsRefresh.refreshNow() : this.stashesRefresh.refreshNow();
   }
 
   // -- Checkouts (worktrees) ------------------------------------------------------
@@ -217,7 +110,6 @@ export class GitRepository implements IGitRepository {
         options.path,
         ...(options.ref ? [options.ref] : []),
       ]);
-      await this.refsRefresh.refreshNow();
       const target = realpathOrResolve(options.path);
       const checkouts = await this.listCheckouts();
       const info = checkouts.find(
@@ -266,7 +158,6 @@ export class GitRepository implements IGitRepository {
     try {
       await this.exec.exec(['branch', '--no-track', '--', name, base]);
       await this.setBranchBaseConfig(name, base);
-      await this.refsRefresh.refreshNow();
       return ok(undefined);
     } catch (error) {
       return err(classifyCreateBranchError(error, name, from));
@@ -276,7 +167,6 @@ export class GitRepository implements IGitRepository {
   async deleteBranch(branch: string, force = false): Promise<Result<void, DeleteBranchError>> {
     try {
       await this.exec.exec(['branch', force ? '-D' : '-d', '--', branch]);
-      await this.refsRefresh.refreshNow();
       return ok(undefined);
     } catch (error) {
       return err(classifyDeleteBranchError(error, branch));
@@ -338,7 +228,6 @@ export class GitRepository implements IGitRepository {
           context
         );
       });
-      await this.refsRefresh.refreshNow();
       return ok(undefined);
     } catch (error) {
       if (context.signal?.aborted) throw error;
@@ -357,7 +246,6 @@ export class GitRepository implements IGitRepository {
         ['push', '--progress', '--set-upstream', remote, '--', branchName],
         context
       );
-      await this.refsRefresh.refreshNow();
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
       if (context.signal?.aborted) throw error;
@@ -444,7 +332,6 @@ export class GitRepository implements IGitRepository {
             if (context.signal?.aborted) throw error;
             return { stdout: '', stderr: '' };
           });
-        await Promise.all([this.refsRefresh.refreshNow(), this.remotesRefresh.refreshNow()]);
         return ok(undefined);
       }
 
@@ -475,7 +362,6 @@ export class GitRepository implements IGitRepository {
           if (context.signal?.aborted) throw error;
           return { stdout: '', stderr: '' };
         });
-      await this.refsRefresh.refreshNow();
       return ok(undefined);
     } catch (error) {
       if (context.signal?.aborted) throw error;
@@ -488,7 +374,6 @@ export class GitRepository implements IGitRepository {
   async stashDrop(stashIndex: number): Promise<Result<void, GitCommandError>> {
     try {
       await this.exec.exec(['stash', 'drop', `stash@{${stashIndex}}`]);
-      await this.stashesRefresh.refreshNow();
       return ok(undefined);
     } catch (error) {
       return err(toGitCommandError(error));
@@ -497,41 +382,26 @@ export class GitRepository implements IGitRepository {
 
   // -- Internals ----------------------------------------------------------------------
 
-  private layout() {
-    return {
-      gitCommonDir: this.gitCommonDir,
-      worktrees: [...this.checkouts.entries()].map(([id, registration]) => ({
-        id,
-        gitDir: registration.gitDir,
-        worktree: registration.worktree,
-      })),
-    };
-  }
-
   private async refsMutation(run: () => Promise<unknown>): Promise<Result<void, GitCommandError>> {
     try {
       await run();
-      await this.refsRefresh.refreshNow();
       return ok(undefined);
     } catch (error) {
       return err(toGitCommandError(error));
     }
   }
 
-  /** Remote config changes also remap branch upstreams, so refresh both models. */
   private async remotesMutation(
     run: () => Promise<unknown>
   ): Promise<Result<void, GitCommandError>> {
     try {
       await run();
-      await Promise.all([this.remotesRefresh.refreshNow(), this.refsRefresh.refreshNow()]);
       return ok(undefined);
     } catch (error) {
       return err(toGitCommandError(error));
     }
   }
 
-  /** No live model depends on the outcome; run and classify only. */
   private async commandMutation(
     run: () => Promise<unknown>
   ): Promise<Result<void, GitCommandError>> {

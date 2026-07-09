@@ -2,18 +2,14 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import type {
+  acpHostContract,
   AcpFs,
   AcpProcessHandle,
   AcpProcessHost,
   AcpTerminalExit,
   AcpTerminalProcess,
 } from '@emdash/core/acp';
-import type { UtilityParentPort } from './protocol';
-
-type PendingResolve = {
-  resolve(value: { cli: string; agentEnv: Record<string, string> }): void;
-  reject(error: Error): void;
-};
+import type { ContractClient } from '@emdash/wire/api';
 
 class ChildProcessHandle implements AcpProcessHandle {
   constructor(private readonly child: ReturnType<typeof spawn>) {}
@@ -95,30 +91,13 @@ const fsPort: AcpFs = {
 
 export class ChildAcpProcessHost implements AcpProcessHost {
   readonly fs = fsPort;
-  private readonly pending = new Map<string, PendingResolve>();
 
-  constructor(private readonly parentPort: UtilityParentPort) {}
-
-  handleMessage(message: unknown): void {
-    if (!isResolveResult(message)) return;
-    const pending = this.pending.get(message.requestId);
-    if (!pending) return;
-    this.pending.delete(message.requestId);
-    if (message.ok) {
-      pending.resolve(message.value);
-    } else {
-      pending.reject(new Error(message.error));
-    }
-  }
+  constructor(private readonly host: ContractClient<typeof acpHostContract>) {}
 
   resolveSpawnContext(
     providerId: string
   ): Promise<{ cli: string; agentEnv: Record<string, string> }> {
-    const requestId = crypto.randomUUID();
-    return new Promise((resolve, reject) => {
-      this.pending.set(requestId, { resolve, reject });
-      this.parentPort.postMessage({ type: 'resolve-spawn-context', requestId, providerId });
-    });
+    return this.host.resolveSpawnContext({ providerId });
   }
 
   async spawn(spec: {
@@ -154,19 +133,4 @@ export class ChildAcpProcessHost implements AcpProcessHost {
     }
     return new ChildTerminalProcess(child);
   }
-}
-
-function isResolveResult(value: unknown): value is {
-  type: 'resolve-spawn-context-result';
-  requestId: string;
-  ok: boolean;
-  value: { cli: string; agentEnv: Record<string, string> };
-  error: string;
-} {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as { type?: unknown }).type === 'resolve-spawn-context-result' &&
-    typeof (value as { requestId?: unknown }).requestId === 'string'
-  );
 }

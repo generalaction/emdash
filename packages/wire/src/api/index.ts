@@ -1,4 +1,5 @@
 export * from './client';
+export * from './blob-channel';
 export * from './connect';
 export * from './controller';
 export * from './define';

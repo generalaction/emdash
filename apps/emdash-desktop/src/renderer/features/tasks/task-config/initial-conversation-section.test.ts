@@ -88,7 +88,18 @@ vi.mock('../context-bar/add-context-popover', () => ({
 }));
 
 vi.mock('@renderer/lib/stores/use-agents', () => ({
-  useAgents: () => ({ data: [] }),
+  useAgents: () => ({
+    data: [
+      {
+        id: 'claude',
+        capabilities: {
+          acp: { kind: 'supported' },
+          autoApprove: { kind: 'supported' },
+          models: { kind: 'none' },
+        },
+      },
+    ],
+  }),
 }));
 
 vi.mock('@renderer/lib/hooks/useFeatureFlag', () => ({

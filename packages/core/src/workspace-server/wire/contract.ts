@@ -1,5 +1,9 @@
 import { defineContract, fallible, procedure } from '@emdash/wire';
 import { z } from 'zod';
+import { gitContract } from '../../git/api/contract';
+import { depsContract } from '../deps/contract';
+import { filesContract } from '../files/contract';
+import { ptyAgentContract } from '../pty-agent/contract';
 import {
   wireHealthSchema,
   wireInitializeInputSchema,
@@ -14,4 +18,8 @@ export const workspaceWireContract = defineContract({
     data: wireInitializeResultSchema,
     error: wireProtocolIncompatibleSchema,
   }),
+  git: gitContract,
+  files: filesContract,
+  deps: depsContract,
+  ptyAgent: ptyAgentContract,
 });

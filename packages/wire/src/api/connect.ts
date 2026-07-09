@@ -1,10 +1,21 @@
 import type { Unsubscribe } from '@emdash/shared';
 import type { LiveSnapshot, LiveUpdate } from '../live/protocol';
 import type { WireInstrumentation } from '../observability';
-import { WireError, type WireMessage, type WireTransport } from './protocol';
+import {
+  createBlobConsumer,
+  createBlobProducer,
+  type BlobConsumer,
+  type BlobProducer,
+  type BlobSource,
+} from './blob-channel';
+import { WireError, type WireFileMeta, type WireMessage, type WireTransport } from './protocol';
 
 export type CallOptions = {
   signal?: AbortSignal;
+  upload?: {
+    channel: string;
+    meta: WireFileMeta;
+  };
 };
 
 export type AttachOptions = {
@@ -29,6 +40,8 @@ type Attachment = {
 
 export type Connection = {
   call(path: string, input: unknown, options?: CallOptions): Promise<unknown>;
+  openBlobConsumer(channel: string): BlobConsumer;
+  openBlobProducer(channel: string, source: BlobSource): BlobProducer;
   snapshot(topic: string): Promise<LiveSnapshot<unknown>>;
   attach(
     topic: string,
@@ -41,6 +54,8 @@ export type Connection = {
 export function connect(transport: WireTransport, options: ConnectOptions = {}): Connection {
   const pending = new Map<string, PendingCall>();
   const attachments = new Map<string, Attachment>();
+  const blobConsumers = new Map<string, BlobConsumer>();
+  const blobProducers = new Map<string, BlobProducer>();
   const disconnectListeners = new Set<() => void>();
   const instrumentation = options.instrumentation;
 
@@ -62,6 +77,38 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
 
     if (message.kind === 'update') {
       for (const push of attachments.get(message.topic)?.pushes ?? []) push(message.update);
+      return;
+    }
+
+    if (message.kind === 'blob-pull') {
+      blobProducers.get(message.channel)?.grant(message.credit);
+      return;
+    }
+
+    if (message.kind === 'blob-chunk') {
+      blobConsumers.get(message.channel)?.push(message.seq, message.data);
+      return;
+    }
+
+    if (message.kind === 'blob-end') {
+      blobConsumers.get(message.channel)?.end();
+      blobConsumers.delete(message.channel);
+      return;
+    }
+
+    if (message.kind === 'blob-error') {
+      blobConsumers
+        .get(message.channel)
+        ?.fail(
+          new WireError(message.error.code, message.error.message, { cause: message.error.cause })
+        );
+      blobConsumers.delete(message.channel);
+      return;
+    }
+
+    if (message.kind === 'blob-close') {
+      blobProducers.get(message.channel)?.close();
+      blobProducers.delete(message.channel);
     }
   });
 
@@ -74,6 +121,13 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     pending.clear();
 
     for (const listener of disconnectListeners) listener();
+
+    for (const consumer of blobConsumers.values()) {
+      consumer.fail(new WireError('DISCONNECTED', 'Wire transport disconnected'));
+    }
+    blobConsumers.clear();
+    for (const producer of blobProducers.values()) producer.close();
+    blobProducers.clear();
   });
 
   transport.onReconnect?.(() => {
@@ -161,7 +215,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     call(path, input, options) {
       const id = createRequestId();
       const start = performanceNow();
-      return request({ kind: 'call', id, path, input }, options).then(
+      return request({ kind: 'call', id, path, input, upload: options?.upload }, options).then(
         (value) => {
           instrumentation?.callEnd?.({
             callId: id,
@@ -187,6 +241,31 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
           throw error;
         }
       );
+    },
+    openBlobConsumer(channel) {
+      const base = createBlobConsumer({
+        channel,
+        post: (message) => transport.post(message),
+      });
+      const wrapped: BlobConsumer = {
+        ...base,
+        cancel() {
+          base.cancel();
+          blobConsumers.delete(channel);
+        },
+      };
+      blobConsumers.set(channel, wrapped);
+      return wrapped;
+    },
+    openBlobProducer(channel, source) {
+      const producer = createBlobProducer({
+        channel,
+        source,
+        post: (message) => transport.post(message),
+        onClose: () => blobProducers.delete(channel),
+      });
+      blobProducers.set(channel, producer);
+      return producer;
     },
     snapshot(topic) {
       return request({ kind: 'snapshot', id: createRequestId(), topic }) as Promise<

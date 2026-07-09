@@ -1,11 +1,8 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { BoundExec } from '../../exec';
-import { RefreshScheduler } from '../../lib/refresh-scheduler';
-import { LiveModelServer, reconcileDraft } from '../../live/model';
-import type { WatchHandle } from '../../watch';
 import type {
   CommitOptions,
   GitLogOptions,
@@ -34,7 +31,6 @@ import {
   type ConflictVersions,
   type DiffTarget,
   type FileDiff,
-  type FileDiffStalenessEvent,
   type GitChange,
   type GitLogResult,
   type ImageReadResult,
@@ -56,7 +52,6 @@ import {
   throwIfGitOpAborted,
   type GitOpContext,
 } from '../transfer-progress';
-import { classifyGitWatchEvents } from '../watch/classifier';
 import type { GitHeadModel } from './models/head';
 import type { CheckoutStatusModel } from './models/status';
 import { blame as readBlame } from './ops/blame';
@@ -77,153 +72,60 @@ import {
 import { computeStatusModel } from './ops/status';
 import type { CheckoutRepository, GitCheckoutOptions, IGitCheckout } from './types';
 
-const WATCH_DEBOUNCE_MS = 100;
-const REVALIDATE_INTERVAL_MS = 5 * 60_000;
-
-type StalenessCallback = (event: FileDiffStalenessEvent) => void;
-
 /**
- * A single working tree of a repository, in workspace-server contract shape.
- *
- * State flows one way: filesystem/git-dir watch events (and explicit
- * `refreshNow` after mutations) demand a recompute through per-model
- * RefreshSchedulers; each recompute reconciles the fresh value into a
- * LiveModelServer, which emits minimal patches to subscribers.
+ * A single working tree capability. It knows Git commands and fresh reads;
+ * live-state ownership lives in the checkout live-model runtime.
  */
 export class GitCheckout implements IGitCheckout {
   readonly checkoutPath: string;
   readonly gitDir: string;
-  readonly status: LiveModelServer<CheckoutStatusModel>;
-  readonly head: LiveModelServer<GitHeadModel>;
 
   private readonly repository: CheckoutRepository;
   private readonly exec: BoundExec;
-  private readonly statusRefresh: RefreshScheduler;
-  private readonly headRefresh: RefreshScheduler;
-  private readonly worktreeWatch: WatchHandle;
-  private readonly unregisterFromRepository: Unsubscribe;
-  private readonly diffSubscriptions = new Map<string, Set<StalenessCallback>>();
 
   static async create(options: GitCheckoutOptions): Promise<GitCheckout> {
-    const [status, head] = await Promise.all([
-      computeStatusModel(options.exec, options.gitDir, options.checkoutPath),
-      computeHeadModel(options.exec).catch(
-        (): GitHeadModel => ({ kind: 'unborn', name: 'unknown' })
-      ),
-    ]);
-    const checkout = new GitCheckout(options, status, head);
-    await checkout.worktreeWatch.ready();
-    return checkout;
+    return new GitCheckout(options);
   }
 
-  private constructor(
-    options: GitCheckoutOptions,
-    initialStatus: CheckoutStatusModel,
-    initialHead: GitHeadModel
-  ) {
+  private constructor(options: GitCheckoutOptions) {
     this.checkoutPath = options.checkoutPath;
     this.gitDir = options.gitDir;
     this.repository = options.repository;
     this.exec = options.exec;
-    const onError = options.onError ?? (() => {});
+  }
 
-    this.status = new LiveModelServer<CheckoutStatusModel>(initialStatus);
-    this.head = new LiveModelServer<GitHeadModel>(initialHead);
+  getStatus(): Promise<CheckoutStatusModel> {
+    return computeStatusModel(this.exec, this.gitDir, this.checkoutPath);
+  }
 
-    this.statusRefresh = new RefreshScheduler({
-      refresh: async () => {
-        const fresh = await computeStatusModel(this.exec, this.gitDir, this.checkoutPath);
-        this.status.produce((draft) => reconcileDraft(draft, fresh) as never);
-      },
-      debounceMs: WATCH_DEBOUNCE_MS,
-      intervalMs: REVALIDATE_INTERVAL_MS,
-      onError: (error) => onError(`status ${this.checkoutPath}`, error),
-    });
-    this.headRefresh = new RefreshScheduler({
-      refresh: async () => {
-        const fresh = await computeHeadModel(this.exec);
-        this.head.produce((draft) => reconcileDraft(draft, fresh) as never);
-      },
-      debounceMs: WATCH_DEBOUNCE_MS,
-      intervalMs: REVALIDATE_INTERVAL_MS,
-      onError: (error) => onError(`head ${this.checkoutPath}`, error),
-    });
-
-    this.unregisterFromRepository = this.repository.registerCheckout(this.checkoutPath, {
-      gitDir: this.gitDir,
-      worktree: this.checkoutPath,
-      onEffects: (effects) => {
-        if (effects.status) {
-          this.statusRefresh.invalidate();
-          this.notifyDiffStaleness('index-changed');
-        }
-        if (effects.head) {
-          this.headRefresh.invalidate();
-          this.notifyDiffStaleness('ref-changed');
-        }
-      },
-    });
-
-    this.worktreeWatch = options.watcher.watch(
-      this.checkoutPath,
-      (events) => {
-        const classification = classifyGitWatchEvents(events, {
-          gitCommonDir: this.repository.gitCommonDir,
-          worktrees: [{ id: 'self', gitDir: this.gitDir, worktree: this.checkoutPath }],
-        });
-        const effects = classification.worktrees.get('self');
-        if (effects?.status) this.statusRefresh.invalidate();
-        if (effects?.head) this.headRefresh.invalidate();
-
-        for (const event of events) {
-          const relative = this.toRelativePath(event.path);
-          if (this.diffSubscriptions.has(relative)) {
-            this.emitDiffStaleness(relative, 'content-changed');
-          }
-        }
-      },
-      {
-        ignore: ['.git/**'],
-        onResync: () => {
-          this.statusRefresh.invalidate();
-          this.headRefresh.invalidate();
-        },
-      }
+  async getHead(): Promise<GitHeadModel> {
+    return computeHeadModel(this.exec).catch(
+      (): GitHeadModel => ({ kind: 'unborn', name: 'unknown' })
     );
   }
 
-  async refresh(): Promise<void> {
-    await Promise.all([this.statusRefresh.refreshNow(), this.headRefresh.refreshNow()]);
-  }
-
-  async dispose(): Promise<void> {
-    this.unregisterFromRepository();
-    await this.worktreeWatch.release();
-    this.statusRefresh.dispose();
-    this.headRefresh.dispose();
-    this.diffSubscriptions.clear();
-  }
+  async dispose(): Promise<void> {}
 
   // -- Staging ----------------------------------------------------------------
 
   async stage(paths: string[]): Promise<Result<void, GitCommandError>> {
     if (paths.length === 0) return ok(undefined);
-    return this.statusMutation(() => this.exec.exec(['add', '--', ...this.toRelativePaths(paths)]));
+    return this.commandMutation(() => this.exec.exec(['add', '--', ...this.toRelativePaths(paths)]));
   }
 
   async unstage(paths: string[]): Promise<Result<void, GitCommandError>> {
     if (paths.length === 0) return ok(undefined);
-    return this.statusMutation(() =>
+    return this.commandMutation(() =>
       this.exec.exec(['reset', 'HEAD', '--', ...this.toRelativePaths(paths)])
     );
   }
 
   async stageAll(): Promise<Result<void, GitCommandError>> {
-    return this.statusMutation(() => this.exec.exec(['add', '-A']));
+    return this.commandMutation(() => this.exec.exec(['add', '-A']));
   }
 
   async unstageAll(): Promise<Result<void, GitCommandError>> {
-    return this.statusMutation(async () => {
+    return this.commandMutation(async () => {
       try {
         await this.exec.exec(['reset', 'HEAD']);
       } catch (error) {
@@ -238,7 +140,7 @@ export class GitCheckout implements IGitCheckout {
   async revert(paths: string[]): Promise<Result<void, GitCommandError>> {
     if (paths.length === 0) return ok(undefined);
     const relativePaths = this.toRelativePaths(paths);
-    return this.statusMutation(async () => {
+    return this.commandMutation(async () => {
       const indexedPaths = await this.getIndexedPaths(relativePaths);
       const headPaths = await this.getHeadPaths(relativePaths);
       const indexedPathSet = new Set(indexedPaths);
@@ -258,7 +160,7 @@ export class GitCheckout implements IGitCheckout {
   }
 
   async revertAll(): Promise<Result<void, GitCommandError>> {
-    return this.statusMutation(async () => {
+    return this.commandMutation(async () => {
       try {
         await this.exec.exec(['reset', '--hard', 'HEAD']);
       } catch (error) {
@@ -271,7 +173,7 @@ export class GitCheckout implements IGitCheckout {
   async clean(
     options: { paths?: string[]; force?: boolean } = {}
   ): Promise<Result<void, GitCommandError>> {
-    return this.statusMutation(() =>
+    return this.commandMutation(() =>
       this.exec.exec([
         'clean',
         '-d',
@@ -312,7 +214,6 @@ export class GitCheckout implements IGitCheckout {
         ...(options.allowEmpty ? ['--allow-empty'] : []),
       ]);
       const { stdout } = await this.exec.exec(['rev-parse', 'HEAD']);
-      await this.refreshAfterHistoryChange();
       return ok({ hash: stdout.trim() });
     } catch (error) {
       return err(classifyCommitError(error));
@@ -327,7 +228,6 @@ export class GitCheckout implements IGitCheckout {
         ...(options.newBranch ? ['-c', options.newBranch] : []),
         options.ref,
       ]);
-      await this.refreshAfterHistoryChange();
       return ok(undefined);
     } catch (error) {
       return err(classifySwitchError(error, options.ref));
@@ -335,7 +235,7 @@ export class GitCheckout implements IGitCheckout {
   }
 
   async reset(ref: string, mode: ResetMode = 'mixed'): Promise<Result<void, GitCommandError>> {
-    return this.historyMutation(() => this.exec.exec(['reset', `--${mode}`, ref]));
+    return this.commandMutation(() => this.exec.exec(['reset', `--${mode}`, ref]));
   }
 
   async merge(options: MergeOptions): Promise<Result<void, MergeError>> {
@@ -347,10 +247,8 @@ export class GitCheckout implements IGitCheckout {
         ...(options.message ? ['-m', options.message] : []),
         options.branch,
       ]);
-      await this.refreshAfterHistoryChange();
       return ok(undefined);
     } catch (error) {
-      await this.refreshAfterHistoryChange();
       return err(classifyMergeError(error, await this.getConflictedPaths()));
     }
   }
@@ -362,7 +260,6 @@ export class GitCheckout implements IGitCheckout {
       } else {
         await this.exec.exec(['merge', '--continue'], { env: { GIT_EDITOR: 'true' } });
       }
-      await this.refreshAfterHistoryChange();
       return ok(undefined);
     } catch (error) {
       return err(classifyMergeError(error, await this.getConflictedPaths()));
@@ -370,16 +267,14 @@ export class GitCheckout implements IGitCheckout {
   }
 
   async mergeAbort(): Promise<Result<void, GitCommandError>> {
-    return this.historyMutation(() => this.exec.exec(['merge', '--abort']));
+    return this.commandMutation(() => this.exec.exec(['merge', '--abort']));
   }
 
   async rebase(options: RebaseOptions): Promise<Result<void, RebaseError>> {
     try {
       await this.exec.exec(['rebase', options.onto], { env: { GIT_EDITOR: 'true' } });
-      await this.refreshAfterHistoryChange();
       return ok(undefined);
     } catch (error) {
-      await this.refreshAfterHistoryChange();
       return err(classifyRebaseError(error, await this.getConflictedPaths()));
     }
   }
@@ -387,7 +282,6 @@ export class GitCheckout implements IGitCheckout {
   async rebaseContinue(): Promise<Result<void, RebaseError>> {
     try {
       await this.exec.exec(['rebase', '--continue'], { env: { GIT_EDITOR: 'true' } });
-      await this.refreshAfterHistoryChange();
       return ok(undefined);
     } catch (error) {
       return err(classifyRebaseError(error, await this.getConflictedPaths()));
@@ -395,11 +289,11 @@ export class GitCheckout implements IGitCheckout {
   }
 
   async rebaseAbort(): Promise<Result<void, GitCommandError>> {
-    return this.historyMutation(() => this.exec.exec(['rebase', '--abort']));
+    return this.commandMutation(() => this.exec.exec(['rebase', '--abort']));
   }
 
   async rebaseSkip(): Promise<Result<void, GitCommandError>> {
-    return this.historyMutation(() =>
+    return this.commandMutation(() =>
       this.exec.exec(['rebase', '--skip'], { env: { GIT_EDITOR: 'true' } })
     );
   }
@@ -408,10 +302,8 @@ export class GitCheckout implements IGitCheckout {
     if (commits.length === 0) return ok(undefined);
     try {
       await this.exec.exec(['cherry-pick', ...(noCommit ? ['-n'] : []), ...commits]);
-      await this.refreshAfterHistoryChange();
       return ok(undefined);
     } catch (error) {
-      await this.refreshAfterHistoryChange();
       return err(classifyMergeError(error, await this.getConflictedPaths()));
     }
   }
@@ -419,10 +311,8 @@ export class GitCheckout implements IGitCheckout {
   async revertCommit(commit: string, noCommit = false): Promise<Result<void, MergeError>> {
     try {
       await this.exec.exec(['revert', '--no-edit', ...(noCommit ? ['-n'] : []), commit]);
-      await this.refreshAfterHistoryChange();
       return ok(undefined);
     } catch (error) {
-      await this.refreshAfterHistoryChange();
       return err(classifyMergeError(error, await this.getConflictedPaths()));
     }
   }
@@ -448,7 +338,6 @@ export class GitCheckout implements IGitCheckout {
         ],
         context
       );
-      await this.refreshAfterHistoryChange();
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
       if (context.signal?.aborted) throw error;
@@ -463,11 +352,9 @@ export class GitCheckout implements IGitCheckout {
         ['pull', '--progress'],
         context
       );
-      await this.refreshAfterHistoryChange();
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
       if (context.signal?.aborted) throw error;
-      await this.refreshAfterHistoryChange();
       return err(classifyPullError(error, await this.getConflictedPaths()));
     }
   }
@@ -494,7 +381,7 @@ export class GitCheckout implements IGitCheckout {
   // -- Stash --------------------------------------------------------------------
 
   async stashPush(options: StashPushOptions = {}): Promise<Result<void, GitCommandError>> {
-    return this.stashMutation(() =>
+    return this.commandMutation(() =>
       this.exec.exec([
         'stash',
         'push',
@@ -509,7 +396,7 @@ export class GitCheckout implements IGitCheckout {
   }
 
   async stashApply(stashIndex?: number): Promise<Result<void, GitCommandError>> {
-    return this.stashMutation(() =>
+    return this.commandMutation(() =>
       this.exec.exec([
         'stash',
         'apply',
@@ -519,7 +406,7 @@ export class GitCheckout implements IGitCheckout {
   }
 
   async stashPop(stashIndex?: number): Promise<Result<void, GitCommandError>> {
-    return this.stashMutation(() =>
+    return this.commandMutation(() =>
       this.exec.exec([
         'stash',
         'pop',
@@ -550,22 +437,6 @@ export class GitCheckout implements IGitCheckout {
     } catch (error) {
       return err(toGitCommandError(error));
     }
-  }
-
-  subscribeFileDiff(filePath: string, cb: (event: FileDiffStalenessEvent) => void): Unsubscribe {
-    const relativePath = this.toRelativePath(filePath);
-    let callbacks = this.diffSubscriptions.get(relativePath);
-    if (!callbacks) {
-      callbacks = new Set();
-      this.diffSubscriptions.set(relativePath, callbacks);
-    }
-    callbacks.add(cb);
-    return () => {
-      const current = this.diffSubscriptions.get(relativePath);
-      if (!current) return;
-      current.delete(cb);
-      if (current.size === 0) this.diffSubscriptions.delete(relativePath);
-    };
   }
 
   async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
@@ -634,47 +505,15 @@ export class GitCheckout implements IGitCheckout {
 
   // -- Internals --------------------------------------------------------------------
 
-  private async statusMutation(
+  private async commandMutation(
     run: () => Promise<unknown>
   ): Promise<Result<void, GitCommandError>> {
     try {
       await run();
-      await this.statusRefresh.refreshNow();
       return ok(undefined);
     } catch (error) {
       return err(toGitCommandError(error));
     }
-  }
-
-  private async historyMutation(
-    run: () => Promise<unknown>
-  ): Promise<Result<void, GitCommandError>> {
-    try {
-      await run();
-      await this.refreshAfterHistoryChange();
-      return ok(undefined);
-    } catch (error) {
-      return err(toGitCommandError(error));
-    }
-  }
-
-  private async stashMutation(run: () => Promise<unknown>): Promise<Result<void, GitCommandError>> {
-    try {
-      await run();
-      await this.statusRefresh.refreshNow();
-      await this.repository.onCheckoutMutation('stashes');
-      return ok(undefined);
-    } catch (error) {
-      return err(toGitCommandError(error));
-    }
-  }
-
-  private async refreshAfterHistoryChange(): Promise<void> {
-    await Promise.all([
-      this.statusRefresh.refreshNow(),
-      this.headRefresh.refreshNow(),
-      this.repository.onCheckoutMutation('refs'),
-    ]);
   }
 
   private async applyHunk(
@@ -709,7 +548,6 @@ export class GitCheckout implements IGitCheckout {
       } finally {
         await fs.rm(patchFile, { force: true });
       }
-      await this.statusRefresh.refreshNow();
       return ok(undefined);
     } catch (error) {
       return err(toGitCommandError(error));
@@ -744,21 +582,6 @@ export class GitCheckout implements IGitCheckout {
       return [...new Set(stdout.split('\0').filter(Boolean))];
     } catch {
       return [];
-    }
-  }
-
-  private notifyDiffStaleness(reason: FileDiffStalenessEvent['reason']): void {
-    for (const relativePath of this.diffSubscriptions.keys()) {
-      this.emitDiffStaleness(relativePath, reason);
-    }
-  }
-
-  private emitDiffStaleness(relativePath: string, reason: FileDiffStalenessEvent['reason']): void {
-    const callbacks = this.diffSubscriptions.get(relativePath);
-    if (!callbacks) return;
-    const absolutePath = this.toAbsolutePath(relativePath);
-    for (const cb of callbacks) {
-      cb({ path: absolutePath, reason });
     }
   }
 

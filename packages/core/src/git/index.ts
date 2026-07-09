@@ -1,11 +1,19 @@
 export { GitRuntime, type GitRuntimeOptions } from './git-runtime';
-export { createGitSessionJobs } from './jobs';
-export type { GitResourceAccessor, GitSessionJobs } from './jobs';
 export { classifyCloneRepositoryError, gitErrorMessage, toGitCommandError } from './errors';
 export { computeBaseRef } from './base-ref';
-export { gitRouter, serveGitPort } from './api/router';
-export type { GitMessagePort, GitRouter } from './api/router';
-export type { GitApiContext } from './api/middlewares';
+export { gitContract, type GitContract } from './api/contract';
+export { gitRepositoryContract, type GitRepositoryContract } from './repository/api/contract';
+export { gitCheckoutContract, type GitCheckoutContract } from './checkout/contract';
+export { createGitController, type GitControllerOptions } from './api/controller';
+export { GitWireResources } from './api/resources';
+export { repositoryKeySchema, type RepositoryKey } from './repository/api/key';
+export { checkoutKeySchema, type CheckoutKey } from './checkout/key';
+export {
+  fileDiffStalenessSchema,
+  fileDiffStalenessReasonSchema,
+  type FileDiffStaleness,
+  type FileDiffStalenessReason,
+} from './checkout/models/file-diff';
 export type { GitOpContext } from './transfer-progress';
 export type {
   CloneRepositoryJobInput,
@@ -52,7 +60,6 @@ export type {
   DiffTarget,
   FileChange,
   FileDiff,
-  FileDiffStalenessEvent,
   GitChange,
   GitChangeStatus,
   GitLogResult,

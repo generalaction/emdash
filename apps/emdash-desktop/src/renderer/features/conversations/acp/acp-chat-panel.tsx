@@ -158,7 +158,8 @@ async function uploadImageFile(
     ref = canReference
       ? await store.uploadAttachment({ originalPath, mimeType, name: file.name })
       : await store.uploadAttachment({
-          data: new Uint8Array(await file.arrayBuffer()),
+          source: file.stream(),
+          size: file.size,
           mimeType,
           name: file.name,
         });
@@ -679,6 +680,26 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       : undefined
   );
   const conversationSeen = conversationStore?.seen;
+  const { data: agents } = useAgents();
+  const providerId = conversationStore?.data.providerId ?? null;
+  const agent = agents?.find((candidate) => candidate.id === providerId) ?? null;
+  const cliAuthMethod =
+    agent?.capabilities.auth.kind === 'supported'
+      ? agent.capabilities.auth.methods.find((method) => method.kind === 'cli-login')
+      : undefined;
+
+  const openSignInModal = useCallback(() => {
+    if (!providerId || !cliAuthMethod || !store) return;
+    showModal('agentSignInModal', {
+      providerId,
+      methodId: cliAuthMethod.id,
+      providerName: agent?.name ?? providerId,
+      onSuccess: () => {
+        if (store.loadError?.kind === 'auth_required') store.retry();
+      },
+    });
+  }, [agent?.name, cliAuthMethod, providerId, store]);
+
   useEffect(() => {
     if (conversationStore && !conversationStore.seen) {
       conversationStore.markSeen();
@@ -786,19 +807,47 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         (store.loadError !== null || store.historyLoading) &&
         createPortal(
           <div
-            className={`absolute inset-0 flex items-center justify-center text-sm text-foreground-muted ${
+            // The library-owned overlay slot is pointer-events: none by design;
+            // opt back in so the Sign in / Retry buttons are clickable.
+            className={`pointer-events-auto absolute inset-0 flex items-center justify-center text-sm text-foreground-muted ${
               store.loadError !== null || store.historyLoading ? 'bg-background-secondary-1' : ''
             }`}
             aria-live="polite"
           >
             {store.loadError !== null ? (
-              <div className="flex max-w-md flex-col items-center gap-2 px-6 text-center">
-                <span className="text-foreground">Failed to load chat.</span>
-                <span className="text-xs text-foreground-muted">{store.loadError}</span>
-                <Button variant="outline" size="sm" className="mt-1" onClick={() => store.retry()}>
-                  Retry
-                </Button>
-              </div>
+              store.loadError.kind === 'auth_required' ? (
+                <div className="flex max-w-md flex-col items-center gap-2 px-6 text-center">
+                  <span className="text-foreground">
+                    {agent?.name ?? 'This agent'} needs you to sign in.
+                  </span>
+                  <span className="text-xs text-foreground-muted">
+                    {cliAuthMethod?.description ?? store.loadError.message}
+                  </span>
+                  <div className="mt-1 flex gap-2">
+                    {cliAuthMethod && (
+                      <Button variant="default" size="sm" onClick={openSignInModal}>
+                        Sign in
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => store.retry()}>
+                      Retry
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex max-w-md flex-col items-center gap-2 px-6 text-center">
+                  <span className="text-foreground">Failed to load chat.</span>
+                  <span className="text-xs text-foreground-muted">{store.loadError.message}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-1"
+                    onClick={() => store.retry()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )
             ) : (
               'Loading chat...'
             )}

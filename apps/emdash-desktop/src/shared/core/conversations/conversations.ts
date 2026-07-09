@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import type { AgentStatus } from '@shared/core/agents/agentEvents';
 
 export const MAX_CONVERSATION_TITLE_LENGTH = 100;

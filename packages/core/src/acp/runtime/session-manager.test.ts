@@ -13,6 +13,61 @@ async function startHarness(conversationId = 'conv-1') {
 }
 
 describe('AcpRuntime session manager', () => {
+  it('returns auth_required without spawning when cached auth status is unauthenticated', async () => {
+    const checkStatus = vi.fn().mockResolvedValue({ kind: 'unauthenticated' });
+    const h = makeAcpHarness({
+      resolveAuthProvider: () => ({
+        name: 'Claude Code',
+        auth: {
+          kind: 'supported',
+          methods: [{ kind: 'cli-login', id: 'login', name: 'Login', args: [] }],
+        },
+        behavior: { checkStatus },
+      }),
+    });
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-auth' }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.type).toBe('auth_required');
+    expect(checkStatus).toHaveBeenCalled();
+    expect(h.children).toHaveLength(0);
+  });
+
+  it('continues startup when cached auth status is unknown', async () => {
+    const h = makeAcpHarness({
+      resolveAuthProvider: () => ({
+        name: 'Claude Code',
+        auth: {
+          kind: 'supported',
+          methods: [{ kind: 'cli-login', id: 'login', name: 'Login', args: [] }],
+        },
+        behavior: { checkStatus: vi.fn().mockResolvedValue({ kind: 'unknown' }) },
+      }),
+    });
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-auth-unknown' }));
+
+    expect(isOk(result)).toBe(true);
+    expect(h.children).toHaveLength(1);
+  });
+
+  it('maps ACP auth_required JSON-RPC errors to auth_required and updates auth state', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    h.agent.newSession.mockRejectedValueOnce({ code: -32000, message: 'Authentication required' });
+
+    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-auth-required' }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.type).toBe('auth_required');
+    expect(
+      rt.auth.host.get({ providerId: 'claude' })?.states.status.snapshot().data.status
+    ).toEqual({ kind: 'unauthenticated', message: undefined });
+  });
+
   it('shares one process for conversations in the same provider/workspace and releases on last stop', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
@@ -42,7 +97,7 @@ describe('AcpRuntime session manager', () => {
     const live = rt.sessionLiveModels('conv-live');
     if (!live) throw new Error('expected live models');
     const updates: Array<{ delta: unknown }> = [];
-    const unsubscribe = live.activeTurn.subscribe((update) => updates.push(update));
+    const unsubscribe = live.states.activeTurn.subscribe((update) => updates.push(update));
 
     const prompt = rt.sendPrompt('conv-live', { text: 'hello' });
     updates.length = 0;
@@ -79,7 +134,7 @@ describe('AcpRuntime session manager', () => {
     const live = rt.sessionLiveModels('conv-usage');
     if (!live) throw new Error('expected live models');
     const updates: unknown[] = [];
-    const unsubscribe = live.usage.subscribe((update) => updates.push(update));
+    const unsubscribe = live.states.usage.subscribe((update) => updates.push(update));
 
     await client.sessionUpdate({
       sessionId,
@@ -92,7 +147,7 @@ describe('AcpRuntime session manager', () => {
       } as SessionUpdate,
     });
 
-    expect(live.usage.snapshot().data).toEqual({
+    expect(live.states.usage.snapshot().data).toEqual({
       contextUsed: 42_000,
       contextSize: 200_000,
       cost: { amount: 0.25, currency: 'USD' },
@@ -222,7 +277,7 @@ describe('AcpRuntime session manager', () => {
       cwd: '/tmp',
     });
 
-    expect(rt.terminalsLiveModel('conv-terminal').snapshot().data).toMatchObject([
+    expect(rt.sessionLiveModels('conv-terminal')?.states.terminals.snapshot().data).toMatchObject([
       { terminalId: created.terminalId, command: 'echo', exitStatus: null },
     ]);
 
@@ -239,7 +294,7 @@ describe('AcpRuntime session manager', () => {
     expect(updates.at(-1)).toMatchObject({ delta: { chunk: ' world' } });
 
     terminal.triggerExit({ exitCode: 0, signal: null });
-    expect(rt.terminalsLiveModel('conv-terminal').snapshot().data).toMatchObject([
+    expect(rt.sessionLiveModels('conv-terminal')?.states.terminals.snapshot().data).toMatchObject([
       { terminalId: created.terminalId, exitStatus: { exitCode: 0, signal: null } },
     ]);
     unsub();
@@ -252,6 +307,6 @@ describe('AcpRuntime session manager', () => {
 
     expect(rt.getSessionState('conv-close').lifecycle).toBe('closed');
     expect(rt.sessionLiveModels('conv-close')).toBeNull();
-    expect(rt.sessionsListLiveModel().snapshot().data).toEqual({});
+    expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
   });
 });

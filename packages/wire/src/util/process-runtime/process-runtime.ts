@@ -33,6 +33,7 @@ export type SpawnRuntimeOptions<Defs extends ContractDefinitions> = {
   scope?: Scope;
   readyTimeoutMs?: number;
   instrumentation?: WireInstrumentation;
+  onProcess?: (process: ManagedProcess) => void;
 };
 
 export type RuntimeHandle<Defs extends ContractDefinitions> = {
@@ -67,6 +68,7 @@ export async function spawnRuntime<Defs extends ContractDefinitions>(
 ): Promise<RuntimeHandle<Defs>> {
   const spec = withDefaultGracefulShutdown(options.spec);
   const managed = await options.host.spawn(spec);
+  options.onProcess?.(managed);
 
   try {
     await waitForReady(managed, options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS);

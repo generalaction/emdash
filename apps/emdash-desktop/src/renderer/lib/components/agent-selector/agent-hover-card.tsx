@@ -1,7 +1,7 @@
 import type { PopoverRootChangeEventDetails } from '@base-ui/react/popover';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Popover, PopoverContent } from '@renderer/lib/ui/popover';
-import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { AgentInfoCard } from './agent-info-card';
 
 const OPEN_DELAY_MS = 500;

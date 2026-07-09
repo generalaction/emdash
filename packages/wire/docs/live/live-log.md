@@ -37,8 +37,9 @@ server drops old bytes because `maxBufferBytes` was exceeded, `truncated` is
 `true`. The server keeps at least the newest chunk even if it exceeds the byte
 limit.
 
-`reseed()` starts a new generation, clears retained text, resets `baseOffset` to
-`0`, and resets sequence to `0`.
+`reseed()` starts a new generation and resets sequence to `0`. With no argument,
+it clears retained text and resets `baseOffset` to `0`; with retained snapshot
+data, it seeds the buffer from that data.
 
 ## Consumers
 
@@ -56,8 +57,16 @@ const detach = await output.attach((update) => {
 ```
 
 Use `createLiveLogReplica()` when a process wants a retained local buffer that can
-also be served downstream. The replica replaces rendered text after a resync and
-appends incremental chunks while attached.
+also be served downstream. Without a custom sink, the replica keeps an eager
+bounded `LiveLog` buffer and `text()` remains readable. With a custom `LogSink`,
+the sink owns storage; readable `LogStore`s add `text()`, while write-only sinks
+can stream directly into xterm without a duplicate text buffer.
+
+`LiveLogClient` tracks the followed generation/sequence plus the UTF-8 byte
+offset already written to its sink. On reconnect or explicit `refresh()`, it
+splices from the retained snapshot when the generation still matches, appending
+only missing bytes instead of resetting rendered output. Generation changes or
+evicted gaps still reset the sink from the retained snapshot.
 
 The underlying protocol follower resyncs on update-before-seed, generation
 mismatch, sequence gap, or invalid log delta. Resync events use the same `resync`

@@ -5,7 +5,7 @@ import type {
   HostDependencySelection,
   InstallOverride,
 } from '@emdash/core/deps/runtime';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { clearResolvedPathCache } from '../conversations/impl/resolve-agent-executable';

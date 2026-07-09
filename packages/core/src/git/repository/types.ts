@@ -1,8 +1,6 @@
-import type { IDisposable, Result, Unsubscribe } from '@emdash/shared';
+import type { IDisposable, Result } from '@emdash/shared';
 import type { BoundExec } from '../../exec';
 import type { KeyedMutex } from '../../lib';
-import type { LiveModelServer } from '../../live/model';
-import type { IWatchService } from '../../watch';
 import type {
   AddCheckoutOptions,
   CreateBranchOptions,
@@ -19,7 +17,6 @@ import type {
 } from '../api/errors';
 import type { CheckoutInfo } from '../api/queries';
 import type { GitOpContext } from '../transfer-progress';
-import type { WorktreeWatchEffects } from '../watch/classifier';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';
 import type { GitStashesModel } from './models/stashes';
@@ -28,32 +25,20 @@ export type GitRepositoryOptions = {
   gitCommonDir: string;
   objectStoreDir: string;
   exec: BoundExec;
-  watcher: IWatchService;
   objectStoreMutex: KeyedMutex;
   onError?: (context: string, error: unknown) => void;
-};
-
-export type CheckoutWatchRegistration = {
-  gitDir: string;
-  worktree: string;
-  onEffects: (effects: WorktreeWatchEffects) => void;
 };
 
 export interface IGitRepository extends IDisposable {
   readonly gitCommonDir: string;
 
-  // -- Live models (contract: git.repository.refs / remotes / stashes) --
-  readonly refs: LiveModelServer<GitRefsModel>;
-  readonly remotes: LiveModelServer<GitRemotesModel>;
-  readonly stashes: LiveModelServer<GitStashesModel>;
+  // -- Computed models --
+  getRefs(): Promise<GitRefsModel>;
+  getRemotes(): Promise<GitRemotesModel>;
+  getStashes(): Promise<GitStashesModel>;
 
-  /** Force an immediate recompute of all three models (bypasses debounce, joins single-flight). */
-  refresh(): Promise<void>;
-
-  // -- Checkout integration --
-  registerCheckout(id: string, registration: CheckoutWatchRegistration): Unsubscribe;
+  // -- Checkout integration reads --
   readBlobAtRef(ref: string, filePath: string): Promise<string | null>;
-  onCheckoutMutation(effect: 'refs' | 'stashes'): Promise<void> | void;
 
   // -- Checkouts --
   listCheckouts(): Promise<CheckoutInfo[]>;

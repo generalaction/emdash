@@ -1,7 +1,5 @@
-import type { IDisposable, Result, Unsubscribe } from '@emdash/shared';
+import type { IDisposable, Result } from '@emdash/shared';
 import type { BoundExec } from '../../exec';
-import type { LiveModelServer } from '../../live/model';
-import type { IWatchService } from '../../watch';
 import type {
   CommitOptions,
   MergeOptions,
@@ -28,7 +26,6 @@ import type {
   ConflictVersions,
   DiffTarget,
   FileDiff,
-  FileDiffStalenessEvent,
   GitChange,
   CommitFile,
   GitLogResult,
@@ -42,7 +39,7 @@ import type { CheckoutStatusModel } from './models/status';
 
 export type CheckoutRepository = Pick<
   IGitRepository,
-  'gitCommonDir' | 'registerCheckout' | 'readBlobAtRef' | 'onCheckoutMutation'
+  'gitCommonDir' | 'readBlobAtRef'
 >;
 
 export type GitCheckoutOptions = {
@@ -50,20 +47,16 @@ export type GitCheckoutOptions = {
   gitDir: string;
   repository: CheckoutRepository;
   exec: BoundExec;
-  watcher: IWatchService;
-  onError?: (context: string, error: unknown) => void;
 };
 
 export interface IGitCheckout extends IDisposable {
-  /** Absolute working-tree path; the routing key used by the runtime's ResourceMap. */
+  /** Absolute working-tree path; the key the runtime's managed source routes on. */
   readonly checkoutPath: string;
+  readonly gitDir: string;
 
-  // -- Live models (contract: git.checkout.status / git.checkout.head) --
-  readonly status: LiveModelServer<CheckoutStatusModel>;
-  readonly head: LiveModelServer<GitHeadModel>;
-
-  /** Force an immediate recompute of both models (bypasses debounce, joins single-flight). */
-  refresh(): Promise<void>;
+  // -- Computed models --
+  getStatus(): Promise<CheckoutStatusModel>;
+  getHead(): Promise<GitHeadModel>;
 
   // -- Staging --
   stage(paths: string[]): Promise<Result<void, GitCommandError>>;
@@ -106,7 +99,6 @@ export interface IGitCheckout extends IDisposable {
 
   // -- Diff / conflict reads --
   getFileDiff(path: string, base?: DiffTarget): Promise<Result<FileDiff, GitCommandError>>;
-  subscribeFileDiff(path: string, cb: (event: FileDiffStalenessEvent) => void): Unsubscribe;
   getChangedFiles(base: DiffTarget): Promise<GitChange[]>;
   getConflictVersions(path: string): Promise<Result<ConflictVersions, GitCommandError>>;
 

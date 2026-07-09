@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import { checkoutKeySchema } from '../checkout/key';
+import { repositoryKeySchema } from '../repository/api/key';
 import { fetchPrForReviewOptionsSchema, pushOptionsSchema } from './commands';
-import { gitCheckoutInputSchema, gitRepositoryInputSchema } from './live';
 
 export const transferProgressSchema = z.object({
   phase: z.string(),
@@ -26,29 +27,29 @@ export const cloneRepositoryJobInputSchema = z.object({
 });
 export type CloneRepositoryJobInput = z.infer<typeof cloneRepositoryJobInputSchema>;
 
-export const fetchJobInputSchema = gitRepositoryInputSchema.extend({
+export const fetchJobInputSchema = repositoryKeySchema.extend({
   remote: z.string().optional(),
 });
 export type FetchJobInput = z.infer<typeof fetchJobInputSchema>;
 
-export const publishBranchJobInputSchema = gitRepositoryInputSchema.extend({
+export const publishBranchJobInputSchema = repositoryKeySchema.extend({
   branchName: z.string(),
   remote: z.string().optional(),
 });
 export type PublishBranchJobInput = z.infer<typeof publishBranchJobInputSchema>;
 
-export const fetchPrForReviewJobInputSchema = gitRepositoryInputSchema.extend({
+export const fetchPrForReviewJobInputSchema = repositoryKeySchema.extend({
   options: fetchPrForReviewOptionsSchema,
 });
 export type FetchPrForReviewJobInput = z.infer<typeof fetchPrForReviewJobInputSchema>;
 
-export const pushJobInputSchema = gitCheckoutInputSchema.extend({
+export const pushJobInputSchema = checkoutKeySchema.extend({
   options: pushOptionsSchema.optional(),
 });
 export type PushJobInput = z.infer<typeof pushJobInputSchema>;
 
-export const pullJobInputSchema = gitCheckoutInputSchema;
+export const pullJobInputSchema = checkoutKeySchema;
 export type PullJobInput = z.infer<typeof pullJobInputSchema>;
 
-export const syncJobInputSchema = gitCheckoutInputSchema;
+export const syncJobInputSchema = checkoutKeySchema;
 export type SyncJobInput = z.infer<typeof syncJobInputSchema>;

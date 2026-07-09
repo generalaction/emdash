@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { attachmentMimeTypeSchema, attachmentRefSchema } from '../models/attachments';
+import { attachmentRefSchema } from '../models/attachments';
 import { permissionDecisionSchema } from '../models/permissions';
 import { promptDraftUpdateSchema, promptInputSchema, queuedPromptSchema } from '../models/prompt';
 
@@ -69,27 +69,11 @@ export const setPromptDraftCommandSchema = z.object({
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
 export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
 
-export const uploadAttachmentCommandSchema = z
-  .object({
-    data: z.instanceof(Uint8Array).optional(),
-    mimeType: attachmentMimeTypeSchema,
-    name: z.string().optional(),
-    originalPath: z.string().optional(),
-  })
-  .superRefine((input, ctx) => {
-    if (input.data || input.originalPath) return;
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Either data or originalPath must be provided.',
-      path: ['data'],
-    });
-  });
+export const uploadAttachmentCommandSchema = z.object({
+  originalPath: z.string().optional(),
+});
 export const uploadAttachmentResponseSchema = attachmentRefSchema;
 export const downloadAttachmentCommandSchema = z.object({ id: z.string() });
-export const downloadAttachmentResponseSchema = z.object({
-  ref: attachmentRefSchema,
-  data: z.instanceof(Uint8Array),
-});
 export const deleteAttachmentCommandSchema = z.object({ id: z.string() });
 
 export { queuedPromptSchema };

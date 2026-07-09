@@ -10,12 +10,15 @@ export {
 } from './instance';
 export {
   createLiveJobReplica,
+  createPlainJobStore,
   isLiveJobReplica,
   LiveJobCancelledError,
   LiveJobFailedError,
   ReplicaJob,
   type LiveJobReplica,
   type LiveJobReplicaOptions,
+  type JobStore,
+  type ReplicaJobState,
   type ReplicaJobOptions,
 } from './job';
 export {
@@ -24,6 +27,8 @@ export {
   ReplicaLog,
   type LiveLogReplica,
   type LiveLogReplicaOptions,
+  type LogSink,
+  type LogStore,
   type ReplicaLogOptions,
 } from './log';
 export { ReplicaState, type ReplicaStateOptions } from './state';
@@ -38,5 +43,5 @@ export {
   type LiveModelReplica,
   type LiveModelReplicaOptions,
 } from './replica';
-export { createPlainStore, type StateStore } from './store';
+export { createPlainStore, createStateMaterializer, type StateStore } from './store';
 export type { LiveChangeMeta } from '../state';

@@ -1,8 +1,11 @@
 import type { ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { AgentUiBadge } from '@renderer/lib/components/agent-ui-badge';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import {
   Combobox,
   ComboboxCollection,
@@ -15,7 +18,6 @@ import {
   ComboboxTrigger,
 } from '@renderer/lib/ui/combobox';
 import { cn } from '@renderer/utils/utils';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { AgentHoverCard, isEventInsideAgentHoverCard, useAgentHoverCard } from './agent-hover-card';
 import {
   canInstallAgentOption,
@@ -50,6 +52,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     const [open, setOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
     const hoverCard = useAgentHoverCard();
+    const chatUiFeatureEnabled = useFeatureFlag('chat-ui');
     const { groups } = useAgentAvailability({
       connectionId,
       value,
@@ -147,6 +150,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                         >
                           {item.label}
                         </span>
+                        {chatUiFeatureEnabled && item.supportsAcp && <AgentUiBadge />}
                       </ComboboxItem>
                     );
                   }}

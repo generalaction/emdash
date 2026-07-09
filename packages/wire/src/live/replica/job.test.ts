@@ -8,7 +8,8 @@ import { defineContract, liveJob } from '../../api/define';
 import { serve } from '../../api/serve';
 import { memoryTransportPair } from '../../api/transports';
 import { type LiveJobContext } from '../job';
-import { createLiveJobReplica } from './job';
+import { createLiveJobReplica, type ReplicaJobState } from './job';
+import { createPlainStore } from './store';
 
 const api = defineContract({
   build: liveJob({
@@ -50,6 +51,33 @@ describe('createLiveJobReplica', () => {
     });
 
     await retainedLease.release();
+    await jobs.dispose();
+  });
+
+  it('writes job state through to a custom store', async () => {
+    const { contractClient } = setup(async (input, ctx) => {
+      ctx.progress({ step: 'compile' });
+      return { artifact: `${input.name}.zip` };
+    });
+    const stores: Array<ReturnType<typeof createPlainStore<ReplicaJobState<typeof api.build>>>> =
+      [];
+    const jobs = createLiveJobReplica(api.build, contractClient.build, {
+      store: () => {
+        const store = createPlainStore<ReplicaJobState<typeof api.build>>();
+        stores.push(store);
+        return store;
+      },
+    });
+    const lease = await jobs.start({ name: 'stored' });
+    const running = await lease.ready();
+
+    await waitFor(() => running.getState()?.status === 'succeeded');
+    expect(stores[0]?.current()).toMatchObject({
+      status: 'succeeded',
+      result: { artifact: 'stored.zip' },
+    });
+
+    await lease.release();
     await jobs.dispose();
   });
 

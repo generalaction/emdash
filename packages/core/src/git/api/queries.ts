@@ -86,13 +86,6 @@ export const fileDiffSchema = z.object({
 });
 export type FileDiff = z.infer<typeof fileDiffSchema>;
 
-/** Returned by subscribeFileDiff — signals the diff is stale and should be re-fetched. */
-export const fileDiffStalenessEventSchema = z.object({
-  path: z.string(),
-  reason: z.enum(['content-changed', 'index-changed', 'ref-changed']),
-});
-export type FileDiffStalenessEvent = z.infer<typeof fileDiffStalenessEventSchema>;
-
 export const blameHunkSchema = z.object({
   oid: z.string(),
   author: z.string(),
