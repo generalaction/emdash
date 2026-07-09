@@ -1,5 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { deferred } from '../../testing';
 import type { WireMessage, WireTransport } from '../protocol';
 import { reconnectingTransport } from './reconnecting';
 
@@ -165,31 +166,4 @@ class FakeTransport implements WireTransport {
     this.messageListeners.clear();
     this.disconnectListeners.clear();
   }
-}
-
-function deferred<T>(): {
-  promise: Promise<T>;
-  resolve(value: T): void;
-  reject(error: unknown): void;
-  settled: boolean;
-} {
-  let resolve!: (value: T) => void;
-  let reject!: (error: unknown) => void;
-  const result = {
-    promise: Promise.resolve(undefined as never) as Promise<T>,
-    resolve(value: T) {
-      result.settled = true;
-      resolve(value);
-    },
-    reject(error: unknown) {
-      result.settled = true;
-      reject(error);
-    },
-    settled: false,
-  };
-  result.promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return result;
 }

@@ -1,39 +1,9 @@
-import type { LogFields, LogLevel, Logger } from '@emdash/shared/logger';
 import { describe, expect, it } from 'vitest';
 import type { Controller } from '../api/controller';
 import { loggingTransport, memoryTransportPair } from '../api/transports';
+import { createStubLogger } from '../testing';
 import { loggerInstrumentation } from './logger-instrumentation';
 import { withLogging } from './with-logging';
-
-type LogCall = {
-  level: LogLevel;
-  message: string;
-  fields?: LogFields;
-};
-
-function createStubLogger(
-  bindings: LogFields = {},
-  calls: LogCall[] = []
-): {
-  logger: Logger;
-  calls: LogCall[];
-} {
-  const logger: Logger = {
-    level: 'debug',
-    debug: (message, fields) => calls.push({ level: 'debug', message, fields: merge(fields) }),
-    info: (message, fields) => calls.push({ level: 'info', message, fields: merge(fields) }),
-    warn: (message, fields) => calls.push({ level: 'warn', message, fields: merge(fields) }),
-    error: (message, fields) => calls.push({ level: 'error', message, fields: merge(fields) }),
-    child: (childBindings) => createStubLogger({ ...bindings, ...childBindings }, calls).logger,
-  };
-
-  function merge(fields: LogFields | undefined): LogFields | undefined {
-    const merged = { ...bindings, ...fields };
-    return Object.keys(merged).length > 0 ? merged : undefined;
-  }
-
-  return { logger, calls };
-}
 
 describe('loggerInstrumentation', () => {
   it('logs call lifecycle events with redacted payloads', () => {

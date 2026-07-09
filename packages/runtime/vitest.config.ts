@@ -12,6 +12,7 @@ export default defineConfig({
       '@emdash/shared/logger': resolve(__dirname, '../shared/src/logger/index.ts'),
       '@emdash/shared/plugins': resolve(__dirname, '../shared/src/plugins/index.ts'),
       '@emdash/shared': resolve(__dirname, '../shared/src/index.ts'),
+      '@emdash/wire/testing': resolve(__dirname, '../wire/src/testing/index.ts'),
       '@emdash/wire': resolve(__dirname, '../wire/src/index.ts'),
     },
   },

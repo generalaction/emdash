@@ -1,13 +1,10 @@
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { createTestWire, waitFor } from '../testing';
 import { BLOB_CHUNK_SIZE, normalizeUploadFile, type UploadFileValue } from './blob-channel';
-import { client } from './client';
-import { connect } from './connect';
-import { createController } from './controller';
+import type { createController } from './controller';
 import { defineContract, downloadFile, uploadFile } from './define';
-import { serve } from './serve';
-import { memoryTransportPair } from './transports';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -186,10 +183,8 @@ describe('blob file endpoints', () => {
 function setup(
   impl: Pick<Parameters<typeof createController<typeof contract>>[1], 'download' | 'upload'>
 ) {
-  const pair = memoryTransportPair();
-  const controller = createController(contract, impl, { validate: 'full' });
-  serve(pair.right, controller);
-  return { api: client(contract, connect(pair.left)), pair };
+  const wire = createTestWire(contract, impl, { validate: 'full' });
+  return { api: wire.client, pair: wire.pair };
 }
 
 async function* chunks(data: Uint8Array, size = BLOB_CHUNK_SIZE): AsyncIterable<Uint8Array> {
@@ -202,12 +197,4 @@ function sequenceBytes(size: number): Uint8Array {
   const data = new Uint8Array(size);
   for (let i = 0; i < data.byteLength; i += 1) data[i] = i % 251;
   return data;
-}
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for condition');
 }
