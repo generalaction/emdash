@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/renderer/lib/editor/pdf-renderer.tsx
+  s_1e7d02e52c7dfc::t_b3f0df9c0c2b31 12,36
+  s_1d57bac52b5bc6::t_9ed09c7ba1e0bf 37-48,392-395,408-420
+  s_1d57bac52b5bc6::t_d95b30540af5aa 421-422
+apps/emdash-desktop/src/renderer/index.css
+  s_1d57bac52b5bc6::t_9ed09c7ba1e0bf 948-1017
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d988f741128abf3fa890b5f6ac58f326e3378d87",
+  "prompts": {},
+  "sessions": {
+    "s_1d57bac52b5bc6": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mSXhBfpBD1uLD4TJNSK",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_1e7d02e52c7dfc": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mSYoHpTPS0PwSfYPzs2",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
