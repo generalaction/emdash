@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-toolbar.tsx
+  s_3049ff312146d5::t_dcb7d24313c67f 12,33-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "47814d72f18d260608f845e17dda19448a2ece26",
+  "prompts": {},
+  "sessions": {
+    "s_3049ff312146d5": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mImMwk9tXJnx7xHMmgL",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
