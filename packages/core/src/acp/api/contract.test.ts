@@ -71,27 +71,16 @@ describe('ACP API contract schemas', () => {
     }
   });
 
-  it('accepts attachment uploads by bytes or original path', () => {
+  it('accepts attachment upload sidecar input with or without original path', () => {
     expect(() =>
       uploadAttachmentCommandSchema.parse({
-        data: new Uint8Array([1, 2, 3]),
-        mimeType: 'image/png',
-        name: 'image.png',
       })
     ).not.toThrow();
     expect(() =>
       uploadAttachmentCommandSchema.parse({
         originalPath: '/tmp/image.png',
-        mimeType: 'image/png',
-        name: 'image.png',
       })
     ).not.toThrow();
-    expect(() =>
-      uploadAttachmentCommandSchema.parse({
-        mimeType: 'image/png',
-        name: 'image.png',
-      })
-    ).toThrow();
   });
 
   it('accepts auth_required runtime errors', () => {

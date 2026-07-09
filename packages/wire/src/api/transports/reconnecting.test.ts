@@ -45,6 +45,21 @@ describe('reconnectingTransport', () => {
     transport.close();
   });
 
+  it('does not queue blob channel frames while disconnected', async () => {
+    const connected = deferred<WireTransport>();
+    const transport = reconnectingTransport(() => connected.promise);
+    const inner = new FakeTransport();
+
+    transport.post({ kind: 'blob-pull', channel: 'stale', credit: 1 });
+    transport.post({ kind: 'blob-close', channel: 'stale' });
+    transport.post({ kind: 'detach', topic: 'kept' });
+    connected.resolve(inner);
+
+    await vi.waitFor(() => expect(inner.sent).toEqual([{ kind: 'detach', topic: 'kept' }]));
+    transport.close();
+  });
+
+
   it('fires reconnect only for replacement connections after queued messages flush', async () => {
     const firstReady = deferred<WireTransport>();
     const secondReady = deferred<WireTransport>();

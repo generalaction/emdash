@@ -51,6 +51,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     server-side call helpers.
   - [Typed clients](./api/clients.md): `ContractClient` handles and forwarding
     through `createController()`.
+  - [File endpoints](./api/files.md): `downloadFile()`, `uploadFile()`, blob
+    channels, and binary stream transport framing.
   - [Wire errors](./api/errors.md): error planes, `WireErrorCode` meanings,
     origins, and retry guidance.
   - [Transports](./api/transports.md): memory, ports, Electron, streams,

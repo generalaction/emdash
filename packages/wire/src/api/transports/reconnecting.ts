@@ -96,6 +96,7 @@ export function reconnectingTransport(
   }
 
   function enqueue(message: WireMessage): void {
+    if (isBlobChannelMessage(message)) return;
     if (maxQueuedMessages === 0) return;
     queue.push(message);
     while (queue.length > maxQueuedMessages) queue.shift();
@@ -157,4 +158,8 @@ export function reconnectingTransport(
       reconnectListeners.clear();
     },
   };
+}
+
+function isBlobChannelMessage(message: WireMessage): boolean {
+  return message.kind.startsWith('blob-');
 }

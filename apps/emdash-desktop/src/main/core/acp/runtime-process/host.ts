@@ -4,6 +4,7 @@ import {
   acpApiContract,
   acpHostContract,
 } from '@emdash/core/acp';
+import { ok } from '@emdash/shared';
 import { createController, exposeWireToWindows, serve } from '@emdash/wire/api';
 import { processTransport, utilityProcessHost, type UtilityForkLike } from '@emdash/wire/process';
 import { spawnRuntime } from '@emdash/wire/util/process-runtime';
@@ -157,8 +158,12 @@ function installRendererWire(client: AcpRuntimeClient): void {
       setPromptDraft: (input, meta) => client.setPromptDraft(input, meta),
       exportACPTranscript: (input, meta) => client.exportACPTranscript(input, meta),
       exportRawAcpLog: (input, meta) => client.exportRawAcpLog(input, meta),
-      uploadAttachment: (input, meta) => client.uploadAttachment(input, meta),
-      downloadAttachment: (input, meta) => client.downloadAttachment(input, meta),
+      uploadAttachment: (input, file, meta) => client.uploadAttachment(input, file, meta),
+      downloadAttachment: async (input, meta) => {
+        const result = await client.downloadAttachment(input, meta);
+        if (!result.success) return result;
+        return ok({ meta: result.data.meta, source: result.data.chunks() });
+      },
       deleteAttachment: (input, meta) => client.deleteAttachment(input, meta),
       getHistory: (input, meta) => client.getHistory(input, meta),
       sessions: client.sessions,

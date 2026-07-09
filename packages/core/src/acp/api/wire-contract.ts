@@ -1,8 +1,18 @@
-import { defineContract, fallible, liveLog, liveModel, liveState, procedure } from '@emdash/wire';
+import {
+  defineContract,
+  downloadFile,
+  fallible,
+  liveLog,
+  liveModel,
+  liveState,
+  procedure,
+  uploadFile,
+} from '@emdash/wire';
 import { z } from 'zod';
 import { agentAuthStatusSchema } from '../../agents/plugins/capabilities/auth';
 import { terminalStateSchema } from '../models';
 import { agentStateSchema } from '../models/agents';
+import { attachmentMimeTypeSchema, attachmentRefSchema } from '../models/attachments';
 import { sessionConfigStateSchema, sessionUsageSchema } from '../models/config';
 import { planStateSchema } from '../models/plan';
 import { promptDraftSchema } from '../models/prompt';
@@ -14,7 +24,6 @@ import {
   deleteAttachmentCommandSchema,
   deleteQueuedPromptCommandSchema,
   downloadAttachmentCommandSchema,
-  downloadAttachmentResponseSchema,
   editQueuedPromptCommandSchema,
   exportAcpTranscriptCommandSchema,
   exportRawAcpLogCommandSchema,
@@ -114,14 +123,15 @@ export const acpApiContract = defineContract({
     data: z.string(),
     error: acpRuntimeErrorSchema,
   }),
-  uploadAttachment: fallible({
+  uploadAttachment: uploadFile({
     input: uploadAttachmentCommandSchema,
-    data: uploadAttachmentResponseSchema,
+    accept: attachmentMimeTypeSchema.options,
+    result: uploadAttachmentResponseSchema,
     error: acpRuntimeErrorSchema,
   }),
-  downloadAttachment: fallible({
+  downloadAttachment: downloadFile({
     input: downloadAttachmentCommandSchema,
-    data: downloadAttachmentResponseSchema,
+    meta: attachmentRefSchema,
     error: acpRuntimeErrorSchema,
   }),
   deleteAttachment: fallible({

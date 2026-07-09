@@ -8,6 +8,7 @@ import type {
   PromptInput,
   QueuedPrompt,
 } from '@emdash/core/acp/client';
+import type { BlobSource } from '@emdash/wire';
 import type {
   CommandItem,
   ComposerEffortOption,
@@ -234,6 +235,8 @@ export class AcpChatStore {
 
   async uploadAttachment(input: {
     data?: Uint8Array;
+    source?: BlobSource;
+    size?: number;
     mimeType: AttachmentMimeType;
     name?: string;
     originalPath?: string;

@@ -17,7 +17,7 @@ import {
 } from '@emdash/core/acp/client';
 import type { Result } from '@emdash/shared';
 import type { Unsubscribe } from '@emdash/shared';
-import { ReplicaLog, ReplicaState, type LiveClientHandle } from '@emdash/wire';
+import { ReplicaLog, ReplicaState, type BlobSource, type LiveClientHandle } from '@emdash/wire';
 import { createMobxLogStore, createMobxStore } from '@emdash/wire/util/mobx';
 import { z } from 'zod';
 import {
@@ -145,17 +145,36 @@ export class AcpLiveSession {
 
   uploadAttachment(input: {
     data?: Uint8Array;
+    source?: BlobSource;
+    size?: number;
     mimeType: AttachmentMimeType;
     name?: string;
     originalPath?: string;
   }): Promise<Result<AttachmentRef, unknown>> {
-    return this.client.uploadAttachment(input);
+    return this.client.uploadAttachment(
+      { originalPath: input.originalPath },
+      {
+        name: input.name ?? 'attachment',
+        mimeType: input.mimeType,
+        size: input.size ?? input.data?.byteLength,
+        source: input.source ?? (input.data ? singleChunk(input.data) : singleChunk(new Uint8Array())),
+      }
+    );
   }
 
   downloadAttachment(
     id: string
   ): Promise<Result<{ ref: AttachmentRef; data: Uint8Array }, unknown>> {
-    return this.client.downloadAttachment({ id });
+    return this.client.downloadAttachment({ id }).then(async (result) => {
+      if (!result.success) return result;
+      return {
+        success: true,
+        data: {
+          ref: result.data.meta,
+          data: await result.data.bytes(),
+        },
+      };
+    });
   }
 
   deleteAttachment(id: string): Promise<Result<void, unknown>> {
@@ -232,6 +251,10 @@ export class AcpLiveSession {
     }
     this.terminalLogs.clear();
   }
+}
+
+async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
+  yield data;
 }
 
 function createReplicaState<T>(handle: LiveClientHandle<T>, schema: z.ZodType<T>): ReplicaState<T> {

@@ -159,7 +159,8 @@ async function uploadImageFile(
     ref = canReference
       ? await store.uploadAttachment({ originalPath, mimeType, name: file.name })
       : await store.uploadAttachment({
-          data: new Uint8Array(await file.arrayBuffer()),
+          source: file.stream(),
+          size: file.size,
           mimeType,
           name: file.name,
         });
