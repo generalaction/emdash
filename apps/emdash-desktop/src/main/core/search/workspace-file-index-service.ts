@@ -46,6 +46,9 @@ export class WorkspaceFileIndexService {
   private pendingReindex = new Set<string>();
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private activeSources = new Map<string, WorkspaceFileIndexSource>();
+  // Cached extra excluded segments, shared across workspaces. Safe as a single
+  // field only because the `indexer` setting is global; if it ever becomes
+  // per-project, key this by workspaceId.
   private extraSegments: string[] = [];
 
   constructor(private readonly options: WorkspaceFileIndexServiceOptions = {}) {
@@ -182,6 +185,11 @@ export class WorkspaceFileIndexService {
   private applyChanges(workspaceId: string, changes: FileChange[]): void {
     let needsReindex = false;
     const rootPath = this.metaRootPath(workspaceId);
+    // Incremental changes are filtered only by the segment predicate, not by
+    // gitignore. A newly-created gitignored file (not under a new directory and
+    // not matching an excluded segment) can briefly enter the index; it
+    // self-heals on the next reindex. Directory creates set needsReindex below,
+    // so the expensive cases (e.g. .tox/ appearing) re-list via git and stay clean.
     const exclude = createSearchIndexExclusion(rootPath, {
       additionalSegments: this.extraSegments,
     });
