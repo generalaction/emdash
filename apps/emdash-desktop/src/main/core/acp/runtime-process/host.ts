@@ -1,9 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  acpApiContract,
-  acpHostContract,
-} from '@emdash/core/acp';
+import { acpApiContract, acpHostContract } from '@emdash/core/acp';
 import { ok } from '@emdash/shared';
 import { createController, exposeWireToWindows, serve } from '@emdash/wire/api';
 import { processTransport, utilityProcessHost, type UtilityForkLike } from '@emdash/wire/process';

@@ -157,7 +157,8 @@ export class AcpLiveSession {
         name: input.name ?? 'attachment',
         mimeType: input.mimeType,
         size: input.size ?? input.data?.byteLength,
-        source: input.source ?? (input.data ? singleChunk(input.data) : singleChunk(new Uint8Array())),
+        source:
+          input.source ?? (input.data ? singleChunk(input.data) : singleChunk(new Uint8Array())),
       }
     );
   }

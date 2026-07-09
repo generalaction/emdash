@@ -115,7 +115,10 @@ export function createBlobProducer(options: {
         error:
           error instanceof WireError
             ? { code: error.code, message: error.message }
-            : { code: 'HANDLER_ERROR', message: error instanceof Error ? error.message : String(error) },
+            : {
+                code: 'HANDLER_ERROR',
+                message: error instanceof Error ? error.message : String(error),
+              },
       });
       closeWithoutReturn();
     } finally {
@@ -195,7 +198,12 @@ export function createBlobConsumer(options: {
   function push(seq: number, data: Uint8Array): void {
     if (cancelled || done || error) return;
     if (seq !== expectedSeq) {
-      fail(new WireError('HANDLER_ERROR', `Blob channel '${options.channel}' received out-of-order chunk`));
+      fail(
+        new WireError(
+          'HANDLER_ERROR',
+          `Blob channel '${options.channel}' received out-of-order chunk`
+        )
+      );
       return;
     }
     expectedSeq += 1;
@@ -331,14 +339,18 @@ export function createWireFile(
   };
 }
 
-export function normalizeUploadFile(input: UploadFileValue): { meta: WireFileMeta; source: BlobSource } {
+export function normalizeUploadFile(input: UploadFileValue): {
+  meta: WireFileMeta;
+  source: BlobSource;
+} {
   if (isWireFile(input)) return { meta: fileMeta(input), source: input.stream() };
   if (hasSource(input)) return { meta: fileMeta(input), source: input.source };
   const maybeFile = input as FileLike;
   return {
     meta: {
       name: maybeFile.name,
-      mimeType: maybeFile.mimeType ?? (maybeFile as { type?: string }).type ?? 'application/octet-stream',
+      mimeType:
+        maybeFile.mimeType ?? (maybeFile as { type?: string }).type ?? 'application/octet-stream',
       size: maybeFile.size,
       lastModified: maybeFile.lastModified,
     },
@@ -438,16 +450,20 @@ function verifySize(meta: WireFileMeta, actualSize: number): void {
 }
 
 function makeFileLike(meta: WireFileMeta, data: Uint8Array): FileLike {
-  const blobCtor = (globalThis as unknown as {
-    Blob?: new (parts: Uint8Array[], opts?: { type?: string }) => unknown;
-  }).Blob;
-  const fileCtor = (globalThis as unknown as {
-    File?: new (
-      parts: Uint8Array[],
-      name: string,
-      opts?: { type?: string; lastModified?: number }
-    ) => FileLike;
-  }).File;
+  const blobCtor = (
+    globalThis as unknown as {
+      Blob?: new (parts: Uint8Array[], opts?: { type?: string }) => unknown;
+    }
+  ).Blob;
+  const fileCtor = (
+    globalThis as unknown as {
+      File?: new (
+        parts: Uint8Array[],
+        name: string,
+        opts?: { type?: string; lastModified?: number }
+      ) => FileLike;
+    }
+  ).File;
   if (fileCtor) {
     return new fileCtor([data], meta.name, {
       type: meta.mimeType,

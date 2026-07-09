@@ -1,6 +1,7 @@
-import { client, connect, memoryTransportPair, ReplicaState, serve } from '@emdash/wire';
 import { isOk } from '@emdash/shared';
+import { client, connect, memoryTransportPair, ReplicaState, serve } from '@emdash/wire';
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { makeAcpHarness, makeStartInput } from '../acp-test-support';
 import { sessionConfigStateSchema, sessionUsageSchema } from '../models/config';
 import { promptDraftSchema } from '../models/prompt';
@@ -11,7 +12,6 @@ import { uploadAttachmentCommandSchema } from './commands';
 import { createAcpController } from './controller';
 import { acpRuntimeErrorSchema } from './errors';
 import { acpApiContract } from './wire-contract';
-import { z } from 'zod';
 
 describe('ACP API contract schemas', () => {
   it('parses runtime live model snapshots with the public schemas', async () => {
@@ -26,11 +26,15 @@ describe('ACP API contract schemas', () => {
     expect(acpApiContract.session.id).toBe('session');
     expect(() => sessionStateSchema.parse(live.states.state.snapshot().data)).not.toThrow();
     expect(() => sessionConfigStateSchema.parse(live.states.config.snapshot().data)).not.toThrow();
-    expect(() => sessionUsageSchema.nullable().parse(live.states.usage.snapshot().data)).not.toThrow();
+    expect(() =>
+      sessionUsageSchema.nullable().parse(live.states.usage.snapshot().data)
+    ).not.toThrow();
     expect(() =>
       transcriptTurnSchema.nullable().parse(live.states.activeTurn.snapshot().data)
     ).not.toThrow();
-    expect(() => promptDraftSchema.nullable().parse(live.states.draft.snapshot().data)).not.toThrow();
+    expect(() =>
+      promptDraftSchema.nullable().parse(live.states.draft.snapshot().data)
+    ).not.toThrow();
   });
 
   it('round-trips procedures and live state over a wire transport', async () => {
@@ -72,10 +76,7 @@ describe('ACP API contract schemas', () => {
   });
 
   it('accepts attachment upload sidecar input with or without original path', () => {
-    expect(() =>
-      uploadAttachmentCommandSchema.parse({
-      })
-    ).not.toThrow();
+    expect(() => uploadAttachmentCommandSchema.parse({})).not.toThrow();
     expect(() =>
       uploadAttachmentCommandSchema.parse({
         originalPath: '/tmp/image.png',

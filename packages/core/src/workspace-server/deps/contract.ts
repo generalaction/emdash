@@ -12,29 +12,26 @@ import {
 
 export const depsContract = defineContract({
   probe: procedure({
-    input:
-      z.object({
-        descriptor: wireDependencyDescriptorSchema,
-        /** When true the server refreshes the shell environment before probing. */
-        refreshShellEnv: z.boolean().optional(),
-      }),
+    input: z.object({
+      descriptor: wireDependencyDescriptorSchema,
+      /** When true the server refreshes the shell environment before probing. */
+      refreshShellEnv: z.boolean().optional(),
+    }),
     output: probeResponseSchema,
   }),
   install: fallible({
-    input:
-      z.object({
-        descriptor: wireDependencyDescriptorSchema,
-        strategy: depsInstallStrategySchema,
-      }),
+    input: z.object({
+      descriptor: wireDependencyDescriptorSchema,
+      strategy: depsInstallStrategySchema,
+    }),
     data: dependencyStateSchema,
     error: dependencyInstallErrorSchema,
   }),
   uninstall: fallible({
-    input:
-      z.object({
-        descriptor: wireDependencyDescriptorSchema,
-        strategy: depsUninstallStrategySchema,
-      }),
+    input: z.object({
+      descriptor: wireDependencyDescriptorSchema,
+      strategy: depsUninstallStrategySchema,
+    }),
     data: dependencyStateSchema,
     error: dependencyUninstallErrorSchema,
   }),

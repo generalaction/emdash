@@ -6,13 +6,10 @@ import {
   type AcpRuntimeDeps,
 } from '@emdash/core/acp';
 import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
-import { client, connect, isWireMessage, type WireTransport } from '@emdash/wire';
-import {
-  serveProcessRuntime,
-  type ProcessRuntimePort,
-} from '@emdash/wire/util/process-runtime';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
+import { client, connect, isWireMessage, type WireTransport } from '@emdash/wire';
+import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
 import { ChildAcpProcessHost } from './child-process-host';
 import { LocalAttachmentStore } from './local-attachment-store';
 
@@ -114,10 +111,7 @@ function checkAuthWithTimeout(providerId: string): Promise<AgentAuthStatus> {
   });
 }
 
-function createParentLogger(
-  host: typeof hostClient,
-  bindings: LogFields = {}
-): Logger {
+function createParentLogger(host: typeof hostClient, bindings: LogFields = {}): Logger {
   const emit = (level: LogLevel, message: string, data?: LogFields): void => {
     void host.log({
       level,

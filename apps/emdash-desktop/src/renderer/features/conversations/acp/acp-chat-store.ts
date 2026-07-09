@@ -8,7 +8,6 @@ import type {
   PromptInput,
   QueuedPrompt,
 } from '@emdash/core/acp/client';
-import type { BlobSource } from '@emdash/wire';
 import type {
   CommandItem,
   ComposerEffortOption,
@@ -16,6 +15,7 @@ import type {
   ComposerPermissionModeOption,
   ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
+import type { BlobSource } from '@emdash/wire';
 import { action, computed, makeObservable, observable, runInAction, toJS } from 'mobx';
 // TODO(conversations-extraction): Inject task/workspace lookups instead of importing task stores.
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';

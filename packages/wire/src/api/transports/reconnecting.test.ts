@@ -59,7 +59,6 @@ describe('reconnectingTransport', () => {
     transport.close();
   });
 
-
   it('fires reconnect only for replacement connections after queued messages flush', async () => {
     const firstReady = deferred<WireTransport>();
     const secondReady = deferred<WireTransport>();

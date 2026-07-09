@@ -1,5 +1,6 @@
 import { toSerializedError, type Unsubscribe } from '@emdash/shared';
 import { getCurrentLogger, runWithLogger, type Logger } from '@emdash/shared/logger';
+import type { WireInstrumentation } from '../observability';
 import {
   createBlobConsumer,
   createBlobProducer,
@@ -7,7 +8,6 @@ import {
   type BlobConsumer,
   type BlobProducer,
 } from './blob-channel';
-import type { WireInstrumentation } from '../observability';
 import { isDownloadFileOpenResult, type Controller } from './controller';
 import { serializeWireError, WireError, type WireMessage, type WireTransport } from './protocol';
 
@@ -242,7 +242,9 @@ export function serve(
       case 'blob-error':
         blobConsumers
           .get(message.channel)
-          ?.fail(new WireError(message.error.code, message.error.message, { cause: message.error.cause }));
+          ?.fail(
+            new WireError(message.error.code, message.error.message, { cause: message.error.cause })
+          );
         blobConsumers.delete(message.channel);
         break;
       case 'blob-close':

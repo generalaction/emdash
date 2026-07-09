@@ -1,10 +1,6 @@
 import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire';
 import { z } from 'zod';
-import {
-  ptyAgentErrorSchema,
-  ptyAgentStartInputSchema,
-  ptySessionListSchema,
-} from './schemas';
+import { ptyAgentErrorSchema, ptyAgentStartInputSchema, ptySessionListSchema } from './schemas';
 
 const conv = z.object({ conversationId: z.string() });
 

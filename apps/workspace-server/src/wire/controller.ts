@@ -83,7 +83,9 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
   });
 }
 
-function unavailableLiveModel<Group extends LiveModelDef>(contract: Group): LiveModelProvider<Group> {
+function unavailableLiveModel<Group extends LiveModelDef>(
+  contract: Group
+): LiveModelProvider<Group> {
   return {
     kind: 'liveModelProvider',
     contract,

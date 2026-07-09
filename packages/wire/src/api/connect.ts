@@ -1,4 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
+import type { LiveSnapshot, LiveUpdate } from '../live/protocol';
+import type { WireInstrumentation } from '../observability';
 import {
   createBlobConsumer,
   createBlobProducer,
@@ -6,8 +8,6 @@ import {
   type BlobProducer,
   type BlobSource,
 } from './blob-channel';
-import type { LiveSnapshot, LiveUpdate } from '../live/protocol';
-import type { WireInstrumentation } from '../observability';
 import { WireError, type WireFileMeta, type WireMessage, type WireTransport } from './protocol';
 
 export type CallOptions = {
@@ -99,7 +99,9 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     if (message.kind === 'blob-error') {
       blobConsumers
         .get(message.channel)
-        ?.fail(new WireError(message.error.code, message.error.message, { cause: message.error.cause }));
+        ?.fail(
+          new WireError(message.error.code, message.error.message, { cause: message.error.cause })
+        );
       blobConsumers.delete(message.channel);
       return;
     }

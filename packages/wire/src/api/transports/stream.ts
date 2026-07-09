@@ -1,5 +1,5 @@
-import type { Unsubscribe } from '@emdash/shared';
 import { TextDecoder, TextEncoder } from 'node:util';
+import type { Unsubscribe } from '@emdash/shared';
 import { isWireMessage, type WireMessage, type WireTransport } from '../protocol';
 
 type ReadableLike = {
@@ -76,7 +76,9 @@ function encodeFrame(message: WireMessage): Uint8Array {
       seq: message.seq,
     });
     const body = message.data;
-    const frame = new Uint8Array(HEADER_BYTES + header.byteLength + BODY_LENGTH_BYTES + body.byteLength);
+    const frame = new Uint8Array(
+      HEADER_BYTES + header.byteLength + BODY_LENGTH_BYTES + body.byteLength
+    );
     frame[0] = FRAME_BINARY;
     writeU32(frame, 1, header.byteLength);
     frame.set(header, HEADER_BYTES);
@@ -130,7 +132,11 @@ function emitParsedFrames(
     const bodyStart = headerEnd + BODY_LENGTH_BYTES;
     const bodyEnd = bodyStart + bodyLength;
     if (input.byteLength < bodyEnd) break;
-    emitParsedMessage(input.subarray(headerStart, headerEnd), input.subarray(bodyStart, bodyEnd), listeners);
+    emitParsedMessage(
+      input.subarray(headerStart, headerEnd),
+      input.subarray(bodyStart, bodyEnd),
+      listeners
+    );
     offset = bodyEnd;
   }
   return input.subarray(offset);
@@ -142,7 +148,9 @@ function emitParsedMessage(
   listeners: Set<(message: WireMessage) => void>
 ): void {
   const parsed: unknown = JSON.parse(decoder.decode(headerBytes));
-  const message = body ? { ...(parsed as Record<string, unknown>), data: new Uint8Array(body) } : parsed;
+  const message = body
+    ? { ...(parsed as Record<string, unknown>), data: new Uint8Array(body) }
+    : parsed;
   if (!isWireMessage(message)) return;
   for (const listener of listeners) listener(message);
 }

@@ -17,6 +17,7 @@ import {
   type LiveLogReplica,
   type LiveModelProvider,
 } from '../live/replica';
+import type { BlobSource, WireFile } from './blob-channel';
 import {
   isLiveModelClientHandle,
   isLiveJobClientHandle,
@@ -25,7 +26,6 @@ import {
   type LiveJobClientHandle,
   type LiveLogClientHandle,
 } from './client';
-import type { BlobSource, WireFile } from './blob-channel';
 import type {
   Contract,
   ContractDefinitions,
@@ -132,11 +132,11 @@ type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
       ? GroupImpl<Def>
       : Def extends LiveJobEndpointDef
         ? JobImpl<Def> | LiveJobClientHandle<Def> | LiveJobReplica<Def>
-      : Def extends DownloadFileEndpointDef
-        ? DownloadFileImpl<Def>
-        : Def extends UploadFileEndpointDef
-          ? UploadFileImpl<Def>
-          : never;
+        : Def extends DownloadFileEndpointDef
+          ? DownloadFileImpl<Def>
+          : Def extends UploadFileEndpointDef
+            ? UploadFileImpl<Def>
+            : never;
 
 type JobImpl<Def extends LiveJobEndpointDef> = {
   run(
@@ -216,7 +216,8 @@ export function createController<Defs extends ContractDefinitions>(
                 ? { success: false, error: def.error.parse(output.error) }
                 : output;
             }
-            const parsedMeta = validate === 'none' ? output.data.meta : def.meta.parse(output.data.meta);
+            const parsedMeta =
+              validate === 'none' ? output.data.meta : def.meta.parse(output.data.meta);
             return {
               success: true,
               data: markDownloadFileOpen(parsedMeta as WireFileMeta, output.data.source),
@@ -230,11 +231,18 @@ export function createController<Defs extends ContractDefinitions>(
           procedureEntries.set(fullPath, async (input, meta) => {
             const uploadFile = meta.uploadFile;
             if (!uploadFile) {
-              throw new WireError('HANDLER_ERROR', `Upload file '${fullPath}' requires a file payload`);
+              throw new WireError(
+                'HANDLER_ERROR',
+                `Upload file '${fullPath}' requires a file payload`
+              );
             }
             const parsedInput = validate === 'none' ? input : def.input.parse(input);
             validateUploadFileEnvelope(def, uploadFile);
-            const output = await handler(parsedInput, limitUploadFile(uploadFile, def.maxSize), meta);
+            const output = await handler(
+              parsedInput,
+              limitUploadFile(uploadFile, def.maxSize),
+              meta
+            );
             if (validate !== 'full') return output;
             return resultSchema(def.result, def.error).parse(output) as Result<unknown, unknown>;
           });
