@@ -325,7 +325,9 @@ describe('pluginRegistry', () => {
     expect(ohMyPi.capabilities.hostDependency.binaryNames).toEqual(['omp']);
     expect(ohMyPi.capabilities.hostDependency.installDocs).toBe('https://omp.sh/docs/quickstart');
     expect(
-      ohMyPi.capabilities.hostDependency.installCommands.macos?.map((opt) => opt.method)
+      ohMyPi.capabilities.hostDependency.installCommands.macos?.map(
+        (opt: { method: string }) => opt.method
+      )
     ).toEqual(['curl', 'homebrew', 'other']);
     expect(ohMyPi.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
       'curl -fsSL https://omp.sh/install | sh'
