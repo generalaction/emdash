@@ -54,6 +54,21 @@ export const plugin = definePlugin(
     models: {
       kind: 'selectable',
       modelOptions: {
+        'gpt-5.6-sol': {
+          name: 'GPT-5.6 Sol',
+          description: 'Flagship GPT-5.6 model for the hardest agentic coding workflows.',
+          modelFeatures: { intelligence: 5, speed: 2 },
+        },
+        'gpt-5.6-terra': {
+          name: 'GPT-5.6 Terra',
+          description: 'Balanced GPT-5.6 model for everyday coding work with lower cost.',
+          modelFeatures: { intelligence: 5, speed: 4 },
+        },
+        'gpt-5.6-luna': {
+          name: 'GPT-5.6 Luna',
+          description: 'Fast and cost-efficient GPT-5.6 model for lighter coding tasks.',
+          modelFeatures: { intelligence: 4, speed: 5 },
+        },
         'gpt-5.5': {
           name: 'GPT-5.5',
           description: 'Recommended Codex model for complex coding and agentic workflows.',
