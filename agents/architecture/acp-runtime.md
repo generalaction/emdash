@@ -68,6 +68,11 @@ ACP callbacks, normalizes raw `SessionUpdate`s through the provider's enrich
 hook, and asks the `SessionManager` to route the event to a cell. The cell folds
 the event through the reducer and publishes changed slices through live models.
 
+Provider `sessionId` persistence is owned by the host that consumes the ACP API.
+The runtime returns the session id from `startSession` and `resumeSession`; desktop
+persists that returned value at the client boundary instead of using a child-to-host
+callback.
+
 `editCurrentPrompt` and `exportACPTranscript` are intentionally contract-only
 placeholders for now. Workspace-server stubs should keep typechecking against
 the contract, but core does not serve implementations until those workflows are

@@ -50,8 +50,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Serving and clients](./api/serving.md): `createController()`, `serve()`,
     `connect()`, cancellation, controller composition, session hubs, and
     server-side call helpers.
-  - [Typed clients](./api/clients.md): `ContractClient` handles and forwarding
-    through `createController()`.
+  - [Typed clients](./api/clients.md): `ContractClient` handles,
+    `forwardController()`, and selective forwarding through `createController()`.
   - [File endpoints](./api/files.md): `downloadFile()`, `uploadFile()`, blob
     channels, and binary stream transport framing.
   - [Wire errors](./api/errors.md): error planes, `WireErrorCode` meanings,

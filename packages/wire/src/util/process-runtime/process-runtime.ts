@@ -89,23 +89,19 @@ export async function spawnRuntime<Defs extends ContractDefinitions>(
     restartedEmitter.emit();
   });
 
-  const transport: WireTransport = {
-    post(message) {
-      managed.send(message);
+  const transport = createRuntimeTransport(
+    {
+      send: (message) => managed.send(message),
+      onMessage: (cb) => managed.onMessage(cb),
+      onDisconnect: (cb) => managed.onExit(() => cb()),
     },
-    onMessage(cb) {
-      return managed.onMessage((message) => {
-        if (isWireMessage(message)) cb(message);
-      });
-    },
-    onDisconnect(cb) {
-      return managed.onExit(() => cb());
-    },
-    onReconnect(cb) {
-      reconnectListeners.add(cb);
-      return () => reconnectListeners.delete(cb);
-    },
-  };
+    {
+      onReconnect(cb) {
+        reconnectListeners.add(cb);
+        return () => reconnectListeners.delete(cb);
+      },
+    }
+  );
 
   const connection = connect(transport, { instrumentation: options.instrumentation });
   const runtimeClient = client(options.contract, connection);
@@ -143,19 +139,7 @@ export async function serveProcessRuntime(
   const scope = createScope({ label: 'process-runtime', logger: options.logger });
   let exiting = false;
 
-  const transport: WireTransport = {
-    post(message) {
-      port.send(message);
-    },
-    onMessage(cb) {
-      return port.onMessage((message) => {
-        if (isWireMessage(message)) cb(message);
-      });
-    },
-    onDisconnect(cb) {
-      return port.onDisconnect(cb);
-    },
-  };
+  const transport = createRuntimeTransport(port);
 
   const shutdown = async (code: number): Promise<void> => {
     if (exiting) return;
@@ -211,6 +195,26 @@ export function forwardRuntimeLogs(
   return () => {
     unsubscribeStdio();
     unsubscribeExit();
+  };
+}
+
+function createRuntimeTransport(
+  port: ProcessRuntimePort,
+  options: Pick<WireTransport, 'onReconnect'> = {}
+): WireTransport {
+  return {
+    post(message) {
+      port.send(message);
+    },
+    onMessage(cb) {
+      return port.onMessage((message) => {
+        if (isWireMessage(message)) cb(message);
+      });
+    },
+    onDisconnect(cb) {
+      return port.onDisconnect(cb);
+    },
+    onReconnect: options.onReconnect,
   };
 }
 

@@ -6,7 +6,7 @@ import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { isAppFocused } from '@main/core/agent-hooks/notification';
 import { log } from '@main/lib/logger';
 import { deriveAcpAgentStatusActions, type AcpAgentStatusAction } from './agent-status-transition';
-import { getAcpRuntimeHandle } from './controller';
+import { initializeAcpRuntimeProcess } from './controller';
 
 type SessionSummaryList = Record<string, SessionSummary>;
 
@@ -35,7 +35,7 @@ class AcpAgentStatusBridge {
     this.attaching = true;
     try {
       this.detach();
-      const handle = await getAcpRuntimeHandle();
+      const handle = await initializeAcpRuntimeProcess();
       this.processExitUnsubscribe = handle.process.onExit((exit) => {
         if (exit.willRestart) return;
         void this.resetAll().catch((error) => {

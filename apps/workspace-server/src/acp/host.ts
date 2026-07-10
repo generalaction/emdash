@@ -6,15 +6,18 @@ import { log } from '@emdash/shared/logger';
 import { type ContractClient } from '@emdash/wire/api';
 import { type ManagedProcess } from '@emdash/wire/process';
 import { childProcessHost } from '@emdash/wire/process/node';
-import { forwardRuntimeLogs, spawnRuntime } from '@emdash/wire/util/process-runtime';
+import {
+  forwardRuntimeLogs,
+  spawnRuntime,
+  type RuntimeHandle,
+} from '@emdash/wire/util/process-runtime';
 import { daemonPaths } from '../daemon/paths';
 
 export type WorkspaceAcpRuntimeClient = ContractClient<AcpApiContract>;
 
-export async function spawnAcpWorkspaceRuntimeProcess(options: { socketPath?: string }): Promise<{
-  client: WorkspaceAcpRuntimeClient;
-  dispose(): Promise<void>;
-}> {
+export async function spawnAcpWorkspaceRuntimeProcess(options: {
+  socketPath?: string;
+}): Promise<RuntimeHandle<AcpApiContract>> {
   const paths = daemonPaths(options.socketPath);
   const entry = await resolveRuntimeEntry();
   log.info('ACP runtime child process entry resolved', { entry });
@@ -36,12 +39,7 @@ export async function spawnAcpWorkspaceRuntimeProcess(options: { socketPath?: st
     log.info('ACP runtime child process restarted');
   });
 
-  return {
-    client: handle.client,
-    async dispose() {
-      await handle.dispose();
-    },
-  };
+  return handle;
 }
 
 async function resolveRuntimeEntry(): Promise<string> {

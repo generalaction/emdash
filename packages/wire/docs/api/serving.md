@@ -218,6 +218,16 @@ Middle tiers compose by creating a typed client for the upstream contract and
 passing client handles, local handlers, or replicas into a new controller. This
 keeps forwarding typed and makes the chosen interception points explicit:
 
+If the middle tier should only relay the entire upstream contract, use
+`forwardController(contract, client)` instead of spelling out every endpoint:
+
+```ts
+const upstream = client(workspaceApi, connect(upstreamTransport));
+const controller = forwardController(workspaceApi, upstream);
+```
+
+Use explicit `createController()` composition when the hop needs local behavior:
+
 ```ts
 const upstreamConnection = connect(upstreamTransport);
 const upstream = client(workspaceApi, upstreamConnection);

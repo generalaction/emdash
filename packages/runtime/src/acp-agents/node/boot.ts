@@ -29,7 +29,6 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
     throw new Error('ACP runtime process started without EMDASH_ACP_ATTACHMENTS_DIR');
   }
 
-  const runtimePort = options.port ?? createNodeRuntimePort();
   const childHost = new ChildAcpProcessHost();
   const logger = initProcessLogging({ name: 'acp-agents-runtime', env });
   const attachmentStore = new LocalAttachmentStore(attachmentsDir);
@@ -74,37 +73,15 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
         runtimeWireValidationPolicy(env)
       );
     },
-    { port: runtimePort, exit: options.exit, logger }
+    { port: options.port, exit: options.exit, logger }
   ).catch((error: unknown) => {
-    logger.error('ACP runtime process failed', { error: errorMessage(error) });
+    logger.error('ACP runtime process failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     (options.exit ?? process.exit)(1);
   });
 }
 
 function runtimeWireValidationPolicy(env: NodeJS.ProcessEnv): ValidatePolicy {
   return env.NODE_ENV === 'production' ? 'inputs' : 'full';
-}
-
-function createNodeRuntimePort(): ProcessRuntimePort {
-  if (typeof process.send !== 'function') {
-    throw new Error('ACP runtime process requires an IPC channel to the parent process');
-  }
-
-  return {
-    send(message) {
-      process.send?.(message as Parameters<NonNullable<NodeJS.Process['send']>>[0]);
-    },
-    onMessage(cb) {
-      process.on('message', cb);
-      return () => process.off('message', cb);
-    },
-    onDisconnect(cb) {
-      process.on('disconnect', cb);
-      return () => process.off('disconnect', cb);
-    },
-  };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
