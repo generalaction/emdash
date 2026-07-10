@@ -1,5 +1,6 @@
-import { ExecError, type BoundExec } from '@emdash/core/exec';
+import type { BoundExec } from '@emdash/core/exec';
 import type { ImageReadResult } from '@emdash/core/git';
+import { gitFailure, isMissingObject } from '../../exec/errors';
 
 const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
 const LFS_POINTER_PREFIX = Buffer.from('version https://git-lfs.github.com/spec/');
@@ -29,11 +30,13 @@ export async function getImageBlob(
     });
     buffer = result.stdout;
   } catch (error) {
-    if (error instanceof ExecError && error.stderr.includes('maxBuffer')) {
+    const failure = gitFailure(error);
+    if (failure.stderr.includes('maxBuffer')) {
       return { kind: 'unavailable', reason: 'too-large' };
     }
-    const exitCode = error instanceof ExecError ? error.exitCode : null;
-    return exitCode === 128 ? { kind: 'missing' } : { kind: 'unavailable', reason: 'git-error' };
+    return isMissingObject(failure)
+      ? { kind: 'missing' }
+      : { kind: 'unavailable', reason: 'git-error' };
   }
 
   if (buffer.length === 0) {

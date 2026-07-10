@@ -180,7 +180,7 @@ describe('GitRuntime', () => {
         runtime.checkout.getLog({ checkout: { path: directory }, options: { limit: 1 } })
       ).resolves.toMatchObject({
         success: false,
-        error: { type: 'git_error' },
+        error: { type: 'resolution_failed', path: directory },
       });
     } finally {
       await runtime.dispose();

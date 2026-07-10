@@ -3,15 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { BoundExec } from '@emdash/core/exec';
 import {
-  classifyCommitError,
-  classifyMergeError,
-  classifyPullError,
-  classifyPushError,
-  classifyRebaseError,
-  classifySwitchError,
-  gitErrorMessage,
-  isUnbornHeadError,
-  toGitCommandError,
+  gitErr,
   type BlameResult,
   type CheckoutHeadState,
   type CheckoutStatusState,
@@ -41,14 +33,16 @@ import {
   type SwitchOptions,
   type SyncError,
 } from '@emdash/core/git';
-import { err, ok, type Result } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
 import type { CheckoutIdentity } from '../allocation/identity';
+import { pushFailed } from '../exec/errors';
 import type { GitOperationContext } from '../exec/operation-context';
 import {
   execGitWithProgress,
   syncStepProgress,
   throwIfGitOpAborted,
 } from '../exec/transfer-progress';
+import { checkoutFailures, InvalidCheckoutPathError } from './errors';
 import { blame as readBlame } from './ops/blame';
 import {
   extractHunkPatch,
@@ -99,10 +93,8 @@ export class GitCheckout {
     return computeStatusState(this.exec, this.gitDir, this.checkoutRoot);
   }
 
-  async getHead(): Promise<CheckoutHeadState> {
-    return computeHeadState(this.exec).catch(
-      (): CheckoutHeadState => ({ kind: 'unborn', name: 'unknown' })
-    );
+  getHead(): Promise<CheckoutHeadState> {
+    return computeHeadState(this.exec);
   }
 
   // -- Staging ----------------------------------------------------------------
@@ -130,9 +122,9 @@ export class GitCheckout {
       try {
         await this.exec.exec(['reset', 'HEAD']);
       } catch (error) {
-        if (!isUnbornHeadError(error)) throw error;
+        if (!checkoutFailures.isUnbornHead(error)) throw error;
         await this.exec.exec(['rm', '-r', '--cached', '--', '.']).catch((rmError) => {
-          if (!gitErrorMessage(rmError).includes('did not match any files')) throw rmError;
+          if (!checkoutFailures.isPathNotMatched(rmError)) throw rmError;
         });
       }
     });
@@ -140,8 +132,8 @@ export class GitCheckout {
 
   async revert(paths: string[]): Promise<Result<void, GitCommandError>> {
     if (paths.length === 0) return ok(undefined);
-    const relativePaths = this.toRelativePaths(paths);
     return this.commandMutation(async () => {
+      const relativePaths = this.toRelativePaths(paths);
       const indexedPaths = await this.getIndexedPaths(relativePaths);
       const headPaths = await this.getHeadPaths(relativePaths);
       const indexedPathSet = new Set(indexedPaths);
@@ -165,7 +157,7 @@ export class GitCheckout {
       try {
         await this.exec.exec(['reset', '--hard', 'HEAD']);
       } catch (error) {
-        if (!isUnbornHeadError(error)) throw error;
+        if (!checkoutFailures.isUnbornHead(error)) throw error;
       }
       await this.exec.exec(['clean', '-fd']);
     });
@@ -217,7 +209,7 @@ export class GitCheckout {
       const { stdout } = await this.exec.exec(['rev-parse', 'HEAD']);
       return ok({ hash: stdout.trim() });
     } catch (error) {
-      return err(classifyCommitError(error));
+      return checkoutFailures.commit(error);
     }
   }
 
@@ -231,7 +223,7 @@ export class GitCheckout {
       ]);
       return ok(undefined);
     } catch (error) {
-      return err(classifySwitchError(error, options.ref));
+      return checkoutFailures.switch(error, options.ref);
     }
   }
 
@@ -250,7 +242,7 @@ export class GitCheckout {
       ]);
       return ok(undefined);
     } catch (error) {
-      return err(classifyMergeError(error, await this.getConflictedPaths()));
+      return checkoutFailures.merge(error, await this.getConflictedPaths());
     }
   }
 
@@ -263,7 +255,7 @@ export class GitCheckout {
       }
       return ok(undefined);
     } catch (error) {
-      return err(classifyMergeError(error, await this.getConflictedPaths()));
+      return checkoutFailures.merge(error, await this.getConflictedPaths());
     }
   }
 
@@ -276,7 +268,7 @@ export class GitCheckout {
       await this.exec.exec(['rebase', options.onto], { env: { GIT_EDITOR: 'true' } });
       return ok(undefined);
     } catch (error) {
-      return err(classifyRebaseError(error, await this.getConflictedPaths()));
+      return checkoutFailures.rebase(error, await this.getConflictedPaths());
     }
   }
 
@@ -285,7 +277,7 @@ export class GitCheckout {
       await this.exec.exec(['rebase', '--continue'], { env: { GIT_EDITOR: 'true' } });
       return ok(undefined);
     } catch (error) {
-      return err(classifyRebaseError(error, await this.getConflictedPaths()));
+      return checkoutFailures.rebase(error, await this.getConflictedPaths());
     }
   }
 
@@ -305,7 +297,7 @@ export class GitCheckout {
       await this.exec.exec(['cherry-pick', ...(noCommit ? ['-n'] : []), ...commits]);
       return ok(undefined);
     } catch (error) {
-      return err(classifyMergeError(error, await this.getConflictedPaths()));
+      return checkoutFailures.merge(error, await this.getConflictedPaths());
     }
   }
 
@@ -314,7 +306,7 @@ export class GitCheckout {
       await this.exec.exec(['revert', '--no-edit', ...(noCommit ? ['-n'] : []), commit]);
       return ok(undefined);
     } catch (error) {
-      return err(classifyMergeError(error, await this.getConflictedPaths()));
+      return checkoutFailures.merge(error, await this.getConflictedPaths());
     }
   }
 
@@ -342,7 +334,7 @@ export class GitCheckout {
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
       if (context.signal?.aborted) throw error;
-      return err(classifyPushError(error));
+      return pushFailed(error);
     }
   }
 
@@ -356,7 +348,7 @@ export class GitCheckout {
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
       if (context.signal?.aborted) throw error;
-      return err(classifyPullError(error, await this.getConflictedPaths()));
+      return checkoutFailures.pull(error, await this.getConflictedPaths());
     }
   }
 
@@ -422,10 +414,10 @@ export class GitCheckout {
     filePath: string,
     base: DiffTarget = { kind: 'head' }
   ): Promise<Result<FileDiff, GitCommandError>> {
-    const relativePath = this.toRelativePath(filePath);
-    const absolutePath = this.toAbsolutePath(filePath);
-    const resolved = resolveDiffTarget(base);
     try {
+      const relativePath = this.toRelativePath(filePath);
+      const absolutePath = this.toAbsolutePath(filePath);
+      const resolved = resolveDiffTarget(base);
       const args = resolved.cached
         ? ['diff', '--no-color', '--cached', '--', relativePath]
         : ['diff', '--no-color', resolved.ref, '--', relativePath];
@@ -436,7 +428,7 @@ export class GitCheckout {
       const untrackedDiff = await getUntrackedFileDiff(this.exec, relativePath, absolutePath);
       return ok(untrackedDiff ?? parseUnifiedFileDiff(stdout, absolutePath));
     } catch (error) {
-      return err(toGitCommandError(error));
+      return checkoutFailures.command(error);
     }
   }
 
@@ -445,22 +437,27 @@ export class GitCheckout {
   }
 
   async getConflictVersions(filePath: string): Promise<Result<ConflictVersions, GitCommandError>> {
-    const relativePath = this.toRelativePath(filePath);
-    const readStage = async (stage: 1 | 2 | 3): Promise<string | undefined> => {
-      try {
-        const { stdout } = await this.exec.exec(['show', `:${stage}:${relativePath}`]);
-        return stdout;
-      } catch {
-        return undefined;
-      }
-    };
-    const [base, ours, theirs, working] = await Promise.all([
-      readStage(1),
-      readStage(2),
-      readStage(3),
-      fs.readFile(this.toAbsolutePath(relativePath), 'utf8').catch(() => undefined),
-    ]);
-    return ok({ base, ours, theirs, working });
+    try {
+      const relativePath = this.toRelativePath(filePath);
+      const readStage = async (stage: 1 | 2 | 3): Promise<string | undefined> => {
+        try {
+          const { stdout } = await this.exec.exec(['show', `:${stage}:${relativePath}`]);
+          return stdout;
+        } catch (error) {
+          if (!checkoutFailures.isMissingConflictStage(error)) throw error;
+          return undefined;
+        }
+      };
+      const [base, ours, theirs, working] = await Promise.all([
+        readStage(1),
+        readStage(2),
+        readStage(3),
+        readOptionalFile(this.toAbsolutePath(relativePath)),
+      ]);
+      return ok({ base, ours, theirs, working });
+    } catch (error) {
+      return checkoutFailures.command(error);
+    }
   }
 
   // -- Content / history reads ----------------------------------------------------
@@ -474,7 +471,8 @@ export class GitCheckout {
     try {
       const { stdout } = await this.exec.exec(['show', `:${relativePath}`]);
       return stdout;
-    } catch {
+    } catch (error) {
+      if (!checkoutFailures.isMissingIndexEntry(error)) throw error;
       return null;
     }
   }
@@ -502,7 +500,11 @@ export class GitCheckout {
   }
 
   async blame(filePath: string, ref?: string): Promise<Result<BlameResult, GitCommandError>> {
-    return readBlame(this.exec, this.toRelativePath(filePath), ref);
+    try {
+      return await readBlame(this.exec, this.toRelativePath(filePath), ref);
+    } catch (error) {
+      return checkoutFailures.command(error);
+    }
   }
 
   // -- Internals --------------------------------------------------------------------
@@ -514,7 +516,7 @@ export class GitCheckout {
       await run();
       return ok(undefined);
     } catch (error) {
-      return err(toGitCommandError(error));
+      return checkoutFailures.command(error);
     }
   }
 
@@ -532,7 +534,7 @@ export class GitCheckout {
       const { stdout } = await this.exec.exec(diffArgs);
       const patch = extractHunkPatch(stdout, hunkHeader);
       if (!patch) {
-        return err({ type: 'git_error', message: `Hunk not found for ${relativePath}` });
+        return gitErr.commandFailed(`Hunk not found for ${relativePath}`);
       }
 
       const patchFile = path.join(
@@ -552,18 +554,14 @@ export class GitCheckout {
       }
       return ok(undefined);
     } catch (error) {
-      return err(toGitCommandError(error));
+      return checkoutFailures.command(error);
     }
   }
 
   private async getConflictedPaths(): Promise<string[] | undefined> {
-    try {
-      const { stdout } = await this.exec.exec(['diff', '--name-only', '--diff-filter=U']);
-      const paths = stdout.trim().split('\n').filter(Boolean);
-      return paths.length > 0 ? paths : undefined;
-    } catch {
-      return undefined;
-    }
+    const { stdout } = await this.exec.exec(['diff', '--name-only', '--diff-filter=U']);
+    const paths = stdout.trim().split('\n').filter(Boolean);
+    return paths.length > 0 ? paths : undefined;
   }
 
   private async getIndexedPaths(paths: string[]): Promise<string[]> {
@@ -582,7 +580,8 @@ export class GitCheckout {
         ...paths,
       ]);
       return [...new Set(stdout.split('\0').filter(Boolean))];
-    } catch {
+    } catch (error) {
+      if (!checkoutFailures.isUnbornHead(error)) throw error;
       return [];
     }
   }
@@ -609,7 +608,20 @@ export class GitCheckout {
       relativePath.startsWith(`..${path.sep}`) ||
       path.isAbsolute(relativePath)
     ) {
-      throw new Error(`Path is outside checkout: ${absolutePath}`);
+      throw new InvalidCheckoutPathError(absolutePath);
     }
   }
+}
+
+async function readOptionalFile(filePath: string): Promise<string | undefined> {
+  try {
+    return await fs.readFile(filePath, 'utf8');
+  } catch (error) {
+    if (isNodeErrorCode(error, 'ENOENT')) return undefined;
+    throw error;
+  }
+}
+
+function isNodeErrorCode(error: unknown, code: string): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error && error.code === code;
 }

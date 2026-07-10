@@ -345,6 +345,25 @@ describe('createGitController', () => {
     }
   });
 
+  it('returns selector resolution failures through fallible procedures', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-git-controller-resolution-'));
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const { client: git, dispose } = makeClient(runtime);
+
+    try {
+      await expect(
+        git.checkout.getFileAtIndex({ checkout: { path: directory }, filePath: 'missing.txt' })
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'resolution_failed', path: directory },
+      });
+    } finally {
+      dispose();
+      await runtime.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('runs checkout push as a job and exposes the terminal result', async () => {
     const { repo, remote } = await makeRepoWithRemote();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });

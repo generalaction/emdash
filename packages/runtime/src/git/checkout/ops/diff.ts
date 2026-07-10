@@ -8,6 +8,7 @@ import {
   type FileDiff,
   type GitChange,
 } from '@emdash/core/git';
+import { checkoutFailures } from '../errors';
 import { parseNumstat } from './log';
 import { mapGitChangeStatus } from './status';
 
@@ -134,10 +135,13 @@ export async function getUntrackedFileDiff(
   relativePath: string,
   displayPath = relativePath
 ): Promise<FileDiff | null> {
-  const isTracked = await exec
-    .exec(['ls-files', '--error-unmatch', '--', relativePath])
-    .then(() => true)
-    .catch(() => false);
+  let isTracked = true;
+  try {
+    await exec.exec(['ls-files', '--error-unmatch', '--', relativePath]);
+  } catch (error) {
+    if (!checkoutFailures.isUntrackedPath(error)) throw error;
+    isTracked = false;
+  }
   if (isTracked) return null;
   try {
     const nullDevice = process.platform === 'win32' ? 'NUL' : '/dev/null';
@@ -164,10 +168,17 @@ export async function getChangedFiles(
     ? ['diff', '--name-status', '--cached']
     : ['diff', '--name-status', resolved.ref];
 
-  const [numstatResult, nameStatusResult] = await Promise.all([
-    exec.exec(diffArgs).catch(() => ({ stdout: '' })),
-    exec.exec(nameArgs).catch(() => ({ stdout: '' })),
-  ]);
+  let numstatResult: Awaited<ReturnType<BoundExec['exec']>>;
+  let nameStatusResult: Awaited<ReturnType<BoundExec['exec']>>;
+  try {
+    [numstatResult, nameStatusResult] = await Promise.all([
+      exec.exec(diffArgs),
+      exec.exec(nameArgs),
+    ]);
+  } catch (error) {
+    if ('kind' in base && base.kind === 'head' && checkoutFailures.isUnbornHead(error)) return [];
+    throw error;
+  }
   const numstat = parseNumstat(numstatResult.stdout);
   const changes: GitChange[] = [];
 
