@@ -1,5 +1,4 @@
 import type { IDisposable, Result } from '@emdash/shared';
-import type { BoundExec } from '../../exec';
 import type {
   CommitError,
   GitCommandError,
@@ -11,8 +10,7 @@ import type {
   SyncError,
 } from '../api/errors';
 import type { GitSyncProgress } from '../api/schemas';
-import type { GitOpContext } from '../exec/transfer-progress';
-import type { IGitRepository } from '../repository/types';
+import type { GitOpContext } from '../operation-context';
 import type { GitHeadModel } from './models/head';
 import type { CheckoutStatusModel } from './models/status';
 import type {
@@ -34,15 +32,6 @@ import type {
   StashPushOptions,
   SwitchOptions,
 } from './schemas';
-
-export type CheckoutRepository = Pick<IGitRepository, 'gitCommonDir' | 'readBlobAtRef'>;
-
-export type GitCheckoutOptions = {
-  checkoutPath: string;
-  gitDir: string;
-  repository: CheckoutRepository;
-  exec: BoundExec;
-};
 
 export interface IGitCheckout extends IDisposable {
   /** Absolute working-tree path; the key the runtime's managed source routes on. */

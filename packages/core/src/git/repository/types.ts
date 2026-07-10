@@ -1,6 +1,4 @@
 import type { IDisposable, Result } from '@emdash/shared';
-import type { BoundExec } from '../../exec';
-import type { KeyedMutex } from '../../lib';
 import type {
   CreateBranchError,
   DeleteBranchError,
@@ -10,7 +8,7 @@ import type {
   PushError,
 } from '../api/errors';
 import type { CheckoutInfo } from '../api/schemas';
-import type { GitOpContext } from '../exec/transfer-progress';
+import type { GitOpContext } from '../operation-context';
 import type { GitRefsModel } from './models/refs';
 import type { GitRemotesModel } from './models/remotes';
 import type { GitStashesModel } from './models/stashes';
@@ -20,14 +18,6 @@ import type {
   FetchPrForReviewOptions,
   TagOptions,
 } from './schemas';
-
-export type GitRepositoryOptions = {
-  gitCommonDir: string;
-  objectStoreDir: string;
-  exec: BoundExec;
-  objectStoreMutex: KeyedMutex;
-  onError?: (context: string, error: unknown) => void;
-};
 
 export interface IGitRepository extends IDisposable {
   readonly gitCommonDir: string;

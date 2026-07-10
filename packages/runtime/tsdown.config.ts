@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     acp: 'src/acp/index.ts',
     'acp-node': 'src/acp/node/index.ts',
+    git: 'src/git/index.ts',
   },
   format: ['esm'],
   dts: true,

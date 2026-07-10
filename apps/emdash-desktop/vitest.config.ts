@@ -19,13 +19,17 @@ const alias = {
     __dirname,
     '../../packages/core/src/agents/plugins/index.ts'
   ),
+  '@emdash/core/exec': resolve(__dirname, '../../packages/core/src/exec/index.ts'),
+  '@emdash/core/git': resolve(__dirname, '../../packages/core/src/git/index.ts'),
   '@emdash/core/lib': resolve(__dirname, '../../packages/core/src/lib/index.ts'),
   '@emdash/core/pty/node': resolve(__dirname, '../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve(__dirname, '../../packages/core/src/pty/index.ts'),
+  '@emdash/core/watch': resolve(__dirname, '../../packages/core/src/watch/index.ts'),
   '@emdash/plugins/agents/types': resolve(__dirname, '../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve(__dirname, '../../packages/plugins/src/agents/registry.ts'),
   '@emdash/runtime/acp/node': resolve(__dirname, '../../packages/runtime/src/acp/node/index.ts'),
   '@emdash/runtime/acp': resolve(__dirname, '../../packages/runtime/src/acp/index.ts'),
+  '@emdash/runtime/git': resolve(__dirname, '../../packages/runtime/src/git/index.ts'),
   '@emdash/shared/config': resolve(__dirname, '../../packages/shared/src/config/index.ts'),
   '@emdash/shared/logger/context-node': resolve(
     __dirname,
@@ -56,6 +60,7 @@ const alias = {
     __dirname,
     '../../packages/wire/src/util/process-runtime/index.ts'
   ),
+  '@emdash/wire/util': resolve(__dirname, '../../packages/wire/src/util/index.ts'),
   '@emdash/wire': resolve(__dirname, '../../packages/wire/src/index.ts'),
 };
 

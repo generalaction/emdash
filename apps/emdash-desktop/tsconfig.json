@@ -19,11 +19,15 @@
         "../../packages/core/src/agents/plugins/helpers/index.ts"
       ],
       "@emdash/core/agents/plugins": ["../../packages/core/src/agents/plugins/index.ts"],
+      "@emdash/core/exec": ["../../packages/core/src/exec/index.ts"],
+      "@emdash/core/git": ["../../packages/core/src/git/index.ts"],
       "@emdash/core/lib": ["../../packages/core/src/lib/index.ts"],
+      "@emdash/core/watch": ["../../packages/core/src/watch/index.ts"],
       "@emdash/plugins/agents/types": ["../../packages/plugins/src/agents/types.ts"],
       "@emdash/plugins/agents": ["../../packages/plugins/src/agents/registry.ts"],
       "@emdash/runtime/acp/node": ["../../packages/runtime/src/acp/node/index.ts"],
       "@emdash/runtime/acp": ["../../packages/runtime/src/acp/index.ts"],
+      "@emdash/runtime/git": ["../../packages/runtime/src/git/index.ts"],
       "@emdash/shared/config": ["../../packages/shared/src/config/index.ts"],
       "@emdash/shared/logger/context-node": ["../../packages/shared/src/logger/context-node.ts"],
       "@emdash/shared/logger/context": ["../../packages/shared/src/logger/context.ts"],
@@ -41,6 +45,7 @@
         "../../packages/wire/src/util/process-runtime/index.ts"
       ],
       "@emdash/wire/util/mobx": ["../../packages/wire/src/util/mobx/index.ts"],
+      "@emdash/wire/util": ["../../packages/wire/src/util/index.ts"],
       "@emdash/wire": ["../../packages/wire/src/index.ts"],
       "@root/*": ["./*"],
       "@/*": ["./src/*"],

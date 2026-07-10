@@ -1,7 +1,7 @@
 {
   "name": "@emdash/runtime",
   "version": "1.0.0",
-  "description": "Runtime implementations for Emdash agents",
+  "description": "Host-scoped runtime implementations for Emdash domains",
   "license": "Apache-2.0",
   "author": {
     "name": "Emdash Contributors",
@@ -20,6 +20,10 @@
     "./acp/node": {
       "types": "./dist/acp-node.d.mts",
       "default": "./dist/acp-node.mjs"
+    },
+    "./git": {
+      "types": "./dist/git.d.mts",
+      "default": "./dist/git.mjs"
     },
     "./package.json": "./package.json"
   },

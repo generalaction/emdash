@@ -10,13 +10,17 @@ const workspaceAliases = {
     '../../packages/core/src/agents/plugins/helpers/index.ts'
   ),
   '@emdash/core/agents/plugins': resolve('../../packages/core/src/agents/plugins/index.ts'),
+  '@emdash/core/exec': resolve('../../packages/core/src/exec/index.ts'),
+  '@emdash/core/git': resolve('../../packages/core/src/git/index.ts'),
   '@emdash/core/lib': resolve('../../packages/core/src/lib/index.ts'),
   '@emdash/core/pty/node': resolve('../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve('../../packages/core/src/pty/index.ts'),
+  '@emdash/core/watch': resolve('../../packages/core/src/watch/index.ts'),
   '@emdash/plugins/agents/types': resolve('../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve('../../packages/plugins/src/agents/registry.ts'),
   '@emdash/runtime/acp/node': resolve('../../packages/runtime/src/acp/node/index.ts'),
   '@emdash/runtime/acp': resolve('../../packages/runtime/src/acp/index.ts'),
+  '@emdash/runtime/git': resolve('../../packages/runtime/src/git/index.ts'),
   '@emdash/shared/config': resolve('../../packages/shared/src/config/index.ts'),
   '@emdash/shared/logger/context-node': resolve('../../packages/shared/src/logger/context-node.ts'),
   '@emdash/shared/logger/context': resolve('../../packages/shared/src/logger/context.ts'),
@@ -34,6 +38,7 @@ const workspaceAliases = {
   '@emdash/wire/util/process-runtime': resolve(
     '../../packages/wire/src/util/process-runtime/index.ts'
   ),
+  '@emdash/wire/util': resolve('../../packages/wire/src/util/index.ts'),
   '@emdash/wire': resolve('../../packages/wire/src/index.ts'),
 };
 
