@@ -26,7 +26,7 @@ describe('eventStream API', () => {
     const seen: Array<{ message: string }> = [];
 
     host.emit(key, { message: 'early' });
-    const unsubscribe = wire.client.events.subscribe(key, {
+    const unsubscribe = await wire.client.events.subscribe(key, {
       onEvent: (event) => seen.push(event),
     });
     await waitFor(() => host.resolve(key).subscriberCount === 1);
@@ -57,7 +57,7 @@ describe('eventStream API', () => {
     const contractClient = client(contract, connect(transport));
     const gaps: string[] = [];
     const seen: Array<{ message: string }> = [];
-    const unsubscribe = contractClient.events.subscribe(key, {
+    const unsubscribe = await contractClient.events.subscribe(key, {
       onEvent: (event) => seen.push(event),
       onGap: () => gaps.push('gap'),
     });

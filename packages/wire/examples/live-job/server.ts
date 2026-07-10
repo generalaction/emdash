@@ -72,12 +72,18 @@ export async function fetchCancellableSnapshot(
   return getSnapshot(cancellableJobs, jobId);
 }
 
-export function attachSuccessful(jobId: string, push: (update: LiveUpdate) => void): Unsubscribe {
-  return getSource(successfulJobs, jobId).subscribe(push);
+export async function attachSuccessful(
+  jobId: string,
+  push: (update: LiveUpdate) => void
+): Promise<Unsubscribe> {
+  return await getSource(successfulJobs, jobId).subscribe(push);
 }
 
-export function attachCancellable(jobId: string, push: (update: LiveUpdate) => void): Unsubscribe {
-  return getSource(cancellableJobs, jobId).subscribe(push);
+export async function attachCancellable(
+  jobId: string,
+  push: (update: LiveUpdate) => void
+): Promise<Unsubscribe> {
+  return await getSource(cancellableJobs, jobId).subscribe(push);
 }
 
 function getSource(server: LiveJob<Input, Progress, Result, ErrorState>, jobId: string) {

@@ -89,13 +89,17 @@ export type EventStreamSubscribeOptions<
 > = {
   onEvent(event: EventStreamEvent<Def>): void;
   onGap?(): void;
+  onError?: (error: WireError, context: { retrying: boolean }) => void;
 };
 
 export type EventStreamClientHandle<Def extends EventStreamEndpointDef = EventStreamEndpointDef> = {
   readonly kind: 'eventStreamClientHandle';
   readonly def: Def;
   handle(key: EventStreamKey<Def>): LiveClientHandle<EventStreamSnapshotData>;
-  subscribe(key: EventStreamKey<Def>, options: EventStreamSubscribeOptions<Def>): Unsubscribe;
+  subscribe(
+    key: EventStreamKey<Def>,
+    options: EventStreamSubscribeOptions<Def>
+  ): Promise<Unsubscribe>;
 };
 
 export type LiveModelClientHandle<Def extends LiveModelDef = LiveModelDef> =
@@ -299,21 +303,14 @@ function createEventStreamClientHandle<Def extends EventStreamEndpointDef>(
     def,
     handle: (key) => createLiveClientHandle(connection, encodeTopic(def.id, key)),
     subscribe(key, options) {
-      let disposed = false;
-      const attach = connection
-        .attach(
-          encodeTopic(def.id, key),
-          (update) => options.onEvent(eventFromUpdate<EventStreamEvent<Def>>(update)),
-          { onReattach: options.onGap }
-        )
-        .catch(() => () => {});
-      void attach.then((detach) => {
-        if (disposed) detach();
-      });
-      return () => {
-        disposed = true;
-        void attach.then((detach) => detach());
-      };
+      return connection.attach(
+        encodeTopic(def.id, key),
+        (update) => options.onEvent(eventFromUpdate<EventStreamEvent<Def>>(update)),
+        {
+          onReattach: options.onGap,
+          onReattachError: options.onError,
+        }
+      );
     },
   };
 }
@@ -375,17 +372,11 @@ function createLiveClientHandle<T>(connection: Connection, topic: string): LiveC
     asLiveSource() {
       return {
         snapshot: () => connection.snapshot(topic),
-        subscribe: (cb): Unsubscribe => {
-          let disposed = false;
-          const attach = connection.attach(topic, cb).catch(() => () => {});
-          void attach.then((detach) => {
-            if (disposed) detach();
-          });
-          return () => {
-            disposed = true;
-            void attach.then((detach) => detach());
-          };
-        },
+        subscribe: (cb, options) =>
+          connection.attach(topic, cb, {
+            onReattach: options?.onGap,
+            onReattachError: options?.onError,
+          }),
       };
     },
   };

@@ -73,11 +73,12 @@ describe('processWatchBackend', () => {
       await startChild(host.process(), restartedChildService);
 
       await eventually(() => (restartedChildService.watchCount === 1 ? true : undefined));
-      await eventually(() => (resyncs > 0 ? true : undefined));
+      await eventually(() => (resyncs === 1 ? true : undefined));
 
       restartedChildService.emit([{ kind: 'update', path: path.join(root, 'after-restart.txt') }]);
       await eventually(() => (events.length === 1 ? true : undefined));
 
+      expect(resyncs).toBe(1);
       await handle.release();
     } finally {
       await service.dispose();
@@ -102,6 +103,46 @@ describe('processWatchBackend', () => {
       await service.dispose();
     }
   });
+
+  it('surfaces terminal reattach errors from the child worker', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-fs-watch-reattach-error-'));
+    const host = new FakeProcessHost();
+    const errors: Array<{ context: string; message: string }> = [];
+    const backend = processWatchBackend({
+      entry: 'worker',
+      host,
+      onError: (context, error) => {
+        errors.push({
+          context,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      },
+    });
+    const service = createWatchService({ backend });
+    const childService = new ManualWatchService();
+
+    try {
+      const handle = service.watch(root, () => {});
+      await Promise.resolve();
+      await startChild(host.process(), childService);
+      await handle.ready();
+
+      host.process().emitExit({ code: 1, willRestart: true });
+      await startBrokenChild(host.process());
+
+      await eventually(() =>
+        errors.some((error) => error.context.includes('reattach terminal')) ? true : undefined
+      );
+      expect(errors).toContainEqual({
+        context: expect.stringContaining('reattach terminal'),
+        message: expect.stringContaining('Unknown live topic'),
+      });
+
+      await handle.release();
+    } finally {
+      await service.dispose();
+    }
+  });
 });
 
 async function startChild(process: FakeManagedProcess, service: IWatchService): Promise<void> {
@@ -111,6 +152,21 @@ async function startChild(process: FakeManagedProcess, service: IWatchService): 
         scope,
         service,
       }),
+    {
+      port: process.createChildPort(),
+      exit: (code) => process.emitExit({ code, willRestart: false }),
+    }
+  );
+}
+
+async function startBrokenChild(process: FakeManagedProcess): Promise<void> {
+  await serveWorkerProcess(
+    () => ({
+      call: () => {
+        throw new Error('not implemented');
+      },
+      resolveLive: () => null,
+    }),
     {
       port: process.createChildPort(),
       exit: (code) => process.emitExit({ code, willRestart: false }),

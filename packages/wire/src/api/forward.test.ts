@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createEventStreamHost } from '../live/event-stream';
 import { createLiveModelHost } from '../live/mutations';
-import type { LiveSource } from '../live/protocol';
+import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../live/protocol';
 import { createTestWire, waitFor } from '../testing';
 import {
   defineContract,
@@ -17,6 +17,7 @@ import {
   uploadFile,
 } from './define';
 import { forwardController } from './forward';
+import { WireError } from './protocol';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -126,7 +127,7 @@ describe('forwardController', () => {
         data: { text: 'forwarded log' },
       });
       const streamed: Array<{ message: string }> = [];
-      const unsubscribe = forwarded.client.events.subscribe(key, {
+      const unsubscribe = await forwarded.client.events.subscribe(key, {
         onEvent: (event) => streamed.push(event),
       });
       await waitFor(() => events.resolve(key).subscriberCount === 1);
@@ -155,6 +156,46 @@ describe('forwardController', () => {
       model.dispose();
     }
   });
+
+  it('forwards upstream event-stream gap and terminal error lifecycle', async () => {
+    const lifecycleContract = defineContract({
+      events: eventStream({
+        key: z.object({ id: z.string() }),
+        event: z.object({ message: z.string() }),
+      }),
+    });
+    const source = new LifecycleSource();
+    const upstream = createTestWire(lifecycleContract, { events: () => source });
+    const forwarded = createTestWire(
+      lifecycleContract,
+      forwardController(lifecycleContract, upstream.client)
+    );
+    const gaps: string[] = [];
+    const errors: Array<{ code: string; retrying: boolean }> = [];
+    const unsubscribe = await forwarded.client.events.subscribe(
+      { id: 'known' },
+      {
+        onEvent: () => {},
+        onGap: () => gaps.push('gap'),
+        onError: (error, context) => errors.push({ code: error.code, retrying: context.retrying }),
+      }
+    );
+
+    try {
+      source.gap();
+      await waitFor(() => gaps.length === 1);
+
+      source.error(false);
+      await waitFor(() => errors.length === 1);
+
+      expect(gaps).toEqual(['gap']);
+      expect(errors).toEqual([{ code: 'UNKNOWN_TOPIC', retrying: false }]);
+    } finally {
+      unsubscribe();
+      forwarded.dispose();
+      upstream.dispose();
+    }
+  });
 });
 
 function createLogSource(text: string): LiveSource {
@@ -169,6 +210,34 @@ function createLogSource(text: string): LiveSource {
       return () => {};
     },
   };
+}
+
+class LifecycleSource implements LiveSource {
+  private options: LiveSubscribeOptions | undefined;
+
+  snapshot() {
+    return {
+      generation: 1,
+      sequence: 0,
+      timestamp: 0,
+      data: {},
+    };
+  }
+
+  subscribe(_cb: (update: LiveUpdate) => void, options?: LiveSubscribeOptions): Unsubscribe {
+    this.options = options;
+    return () => {
+      this.options = undefined;
+    };
+  }
+
+  gap(): void {
+    this.options?.onGap?.();
+  }
+
+  error(retrying: boolean): void {
+    this.options?.onError?.(new WireError('UNKNOWN_TOPIC', 'upstream topic failed'), { retrying });
+  }
 }
 
 async function* chunks(data: Uint8Array): AsyncIterable<Uint8Array> {

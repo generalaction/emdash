@@ -30,35 +30,45 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
       const ready = createDeferred<void>();
       void ready.promise.catch(() => {});
       let awaitingInitialReady = true;
-      const detach = await handle.client.events.handle(key).attach((update) => {
-        const event = eventFromUpdate<FsWatchStreamEvent>(update);
-        switch (event.kind) {
-          case 'events':
-            sink.events(event.events);
-            break;
-          case 'resync':
-            sink.resync();
-            break;
-          case 'ready':
-            if (awaitingInitialReady) {
-              awaitingInitialReady = false;
-              ready.resolve();
-            } else {
+      const detach = await handle.client.events.handle(key).attach(
+        (update) => {
+          const event = eventFromUpdate<FsWatchStreamEvent>(update);
+          switch (event.kind) {
+            case 'events':
+              sink.events(event.events);
+              break;
+            case 'resync':
               sink.resync();
+              break;
+            case 'ready':
+              if (awaitingInitialReady) {
+                awaitingInitialReady = false;
+                ready.resolve();
+              } else {
+                sink.resync();
+              }
+              break;
+            case 'error': {
+              const error = new Error(event.message);
+              if (awaitingInitialReady) {
+                awaitingInitialReady = false;
+                ready.reject(error);
+              } else {
+                onError(`watch ${keyId(key)}`, error);
+              }
+              break;
             }
-            break;
-          case 'error': {
-            const error = new Error(event.message);
-            if (awaitingInitialReady) {
-              awaitingInitialReady = false;
-              ready.reject(error);
-            } else {
-              onError(`watch ${keyId(key)}`, error);
-            }
-            break;
           }
+        },
+        {
+          // Generic topic gaps fire after the parent has reattached, but fs-watch needs a
+          // stronger barrier: resync only after the child reports the native watcher is ready.
+          onReattachError: (error, context) => {
+            const mode = context.retrying ? 'retrying' : 'terminal';
+            onError(`watch ${keyId(key)} reattach ${mode}`, error);
+          },
         }
-      });
+      );
       scope.add(detach);
       scope.add(() => {
         if (awaitingInitialReady) {

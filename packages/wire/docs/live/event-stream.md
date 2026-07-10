@@ -76,7 +76,7 @@ createController(api, {
 ## Client
 
 ```ts
-const unsubscribe = client.fileEvents.subscribe(
+const unsubscribe = await client.fileEvents.subscribe(
   { rootPath: '/repo' },
   {
     onEvent(event) {
@@ -84,6 +84,9 @@ const unsubscribe = client.fileEvents.subscribe(
     },
     onGap() {
       void reloadFileTree();
+    },
+    onError(error, { retrying }) {
+      if (!retrying) showFileEventStreamError(error.message);
     },
   }
 );
@@ -96,13 +99,20 @@ consumers should refresh any derived state in that callback.
 Initial attachment does not call `onGap`; subscribers should perform their own
 initial load before or after subscribing.
 
+The `subscribe()` promise rejects if the initial attachment fails. After an
+attachment is established, `DISCONNECTED` reattach failures call `onError` with
+`retrying: true` and remain registered for a later reconnect. Non-retryable
+reattach errors call `onError` with `retrying: false` and terminate the
+attachment.
+
 ## Semantics
 
 - Events are at-most-once and only delivered to currently attached clients.
 - No historical events are retained for late subscribers.
 - Event stream keys are validated by `withValidation()`.
 - Event payloads are not validated on the push path, matching other live updates.
-- Forwarding preserves the same delivery and gap semantics.
+- Forwarding preserves upstream gaps and reattach errors even when the downstream
+  transport remains connected.
 
 ## Example
 

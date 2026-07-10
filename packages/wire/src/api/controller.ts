@@ -553,7 +553,7 @@ function missingLiveSource(message: string): LiveSource {
       throw new WireError('NOT_FOUND', message);
     },
     subscribe(): Unsubscribe {
-      return () => {};
+      throw new WireError('NOT_FOUND', message);
     },
   };
 }

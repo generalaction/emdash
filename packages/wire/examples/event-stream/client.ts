@@ -27,7 +27,7 @@ async function main(): Promise<void> {
   const stop = serve(pair.right, controller);
   const contractClient = client(api, connect(pair.left));
 
-  const unsubscribe = contractClient.fileEvents.subscribe(
+  const unsubscribe = await contractClient.fileEvents.subscribe(
     { rootPath: '/repo' },
     {
       onEvent: (event) => console.log('event:', event.kind, event.path),

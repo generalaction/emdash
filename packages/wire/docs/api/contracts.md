@@ -99,11 +99,11 @@ fileEvents: eventStream({
 
 Serve event streams with `createEventStreamHost(contract.fileEvents)` or a
 resolver that returns an `EventStreamSource`. Client handles expose
-`subscribe(key, { onEvent, onGap? })`. `onGap` runs after transport reattach so
-consumers can resync state that may have missed events. Use `eventStream` for
-loss-tolerant notifications and invalidation signals; use `liveLog` when callers
-need retained text output and `liveModel` when callers need convergent state. See
-[event streams](../live/event-stream.md).
+`await subscribe(key, { onEvent, onGap?, onError? })`. `onGap` runs after
+transport reattach so consumers can resync state that may have missed events.
+Use `eventStream` for loss-tolerant notifications and invalidation signals; use
+`liveLog` when callers need retained text output and `liveModel` when callers
+need convergent state. See [event streams](../live/event-stream.md).
 
 ### `liveJob`
 

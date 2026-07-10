@@ -47,9 +47,21 @@ export const liveUpdateSchema = z.object({
 
 export type LiveUpdate = z.infer<typeof liveUpdateSchema>;
 
+export type LiveAttachmentErrorContext = {
+  retrying: boolean;
+};
+
+export type LiveSubscribeOptions = {
+  onGap?: () => void;
+  onError?: (error: unknown, context: LiveAttachmentErrorContext) => void;
+};
+
 export interface LiveSource {
   snapshot(): LiveSnapshot<unknown> | Promise<LiveSnapshot<unknown>>;
-  subscribe(cb: (update: LiveUpdate) => void): Unsubscribe;
+  subscribe(
+    cb: (update: LiveUpdate) => void,
+    options?: LiveSubscribeOptions
+  ): Unsubscribe | Promise<Unsubscribe>;
 }
 
 export const liveLogSnapshotDataSchema = z.object({
