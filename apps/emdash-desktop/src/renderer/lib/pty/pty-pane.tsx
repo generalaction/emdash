@@ -15,6 +15,7 @@ import {
   clipboardDataMayContainImage,
   extractClipboardImageFiles,
   formatTerminalImagePaths,
+  getNativeClipboardImagePasteInput,
   isNearDuplicatePaste,
 } from './terminal-image-paths';
 import { type PasteFromClipboardHandler, usePty } from './use-pty';
@@ -31,6 +32,8 @@ type Props = {
   mapShiftEnterToCtrlJ?: boolean;
   /** SSH connection ID — used for remote file drag-and-drop and image paste. */
   remoteConnectionId?: string;
+  /** Agent provider ID, when this pane hosts an agent conversation. */
+  providerId?: string;
   workspaceId: string;
   themeOverride?: SessionTheme['override'];
   onActivity?: () => void;
@@ -79,6 +82,7 @@ async function pasteClipboardImageOrText(args: {
   focus: TerminalInputHelpers['focus'];
   fallbackText?: string;
   preferText?: boolean;
+  providerId?: string;
   // Re-checked right before injecting an image; the image branch resolves
   // asynchronously, so a competing paste path may have injected in the meantime.
   shouldInjectImage?: () => boolean;
@@ -99,6 +103,20 @@ async function pasteClipboardImageOrText(args: {
     const result = await rpc.pty.persistClipboardImage();
     if (result.success && result.data.path) {
       if (args.shouldInjectImage && !args.shouldInjectImage()) return false;
+      const platform =
+        args.providerId === 'amp' && !args.remoteConnectionId
+          ? ((await rpc.app.getPlatform()) as NodeJS.Platform)
+          : undefined;
+      const nativePasteInput = getNativeClipboardImagePasteInput(
+        args.providerId,
+        args.remoteConnectionId,
+        platform
+      );
+      if (nativePasteInput) {
+        args.sendInput(nativePasteInput, { track: false });
+        args.focus();
+        return true;
+      }
       await injectTerminalImagePaths({ ...args, paths: [result.data.path] });
       return true;
     }
@@ -129,6 +147,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       contentFilter,
       mapShiftEnterToCtrlJ,
       remoteConnectionId,
+      providerId,
       workspaceId,
       themeOverride,
       onActivity,
@@ -155,6 +174,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
             focus,
             sendInput,
             preferText: true,
+            providerId,
             shouldInjectImage: () => !isNearDuplicatePaste(lastDomImagePasteAtRef.current),
           });
           // Only guard the DOM image path against a system paste that actually
@@ -162,7 +182,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
           if (injectedImage) lastSystemPasteAtRef.current = Date.now();
         })();
       },
-      [remoteConnectionId, sessionId]
+      [providerId, remoteConnectionId, sessionId]
     );
 
     const { focus, sendInput } = usePty(
@@ -232,6 +252,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
                 focus,
                 sendInput,
                 fallbackText,
+                providerId,
               });
             } catch (error) {
               log.warn('Terminal image paste failed', { error });
@@ -253,9 +274,10 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
           focus,
           sendInput,
           fallbackText,
+          providerId,
         });
       },
-      [focus, injectImageFiles, remoteConnectionId, sendInput, sessionId]
+      [focus, injectImageFiles, providerId, remoteConnectionId, sendInput, sessionId]
     );
 
     const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {

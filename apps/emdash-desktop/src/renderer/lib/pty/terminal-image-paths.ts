@@ -87,9 +87,16 @@ export function wrapAsBracketedPaste(text: string): string {
 }
 
 export function buildTerminalImageInjection(paths: string[], platform: NodeJS.Platform): string {
-  // Bracketed paste already keeps a Windows path with spaces in one paste event.
-  // Literal quotes prevent clients such as Amp from recognizing it as an image.
-  const formatted =
-    platform === 'win32' ? paths.join(' ') : formatTerminalImagePaths(paths, platform);
+  const formatted = formatTerminalImagePaths(paths, platform);
   return wrapAsBracketedPaste(formatted);
+}
+
+export function getNativeClipboardImagePasteInput(
+  providerId: string | undefined,
+  remoteConnectionId: string | undefined,
+  platform: NodeJS.Platform | undefined
+): string | null {
+  // Amp's image attachment flow is bound to Ctrl+V and reads the local OS
+  // clipboard itself. A synthetic path paste only inserts visible prompt text.
+  return providerId === 'amp' && !remoteConnectionId && platform === 'win32' ? '\x16' : null;
 }

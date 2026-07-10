@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildTerminalImageInjection,
   escapePathForTerminal,
   escapeWindowsPathForTerminal,
   extractClipboardImageFiles,
   formatTerminalImagePaths,
+  getNativeClipboardImagePasteInput,
   isHeicLikeFile,
   isNearDuplicatePaste,
   isUnstableDropPath,
@@ -28,10 +28,11 @@ describe('terminal-image-injection', () => {
     );
   });
 
-  it('leaves Windows paths unquoted in bracketed paste so agent TUIs detect images', () => {
-    expect(buildTerminalImageInjection(['C:\\Users\\Jan Doe\\paste.png'], 'win32')).toBe(
-      '\x1b[200~C:\\Users\\Jan Doe\\paste.png\x1b[201~'
-    );
+  it('uses Amp native clipboard image paste only for local Windows conversations', () => {
+    expect(getNativeClipboardImagePasteInput('amp', undefined, 'win32')).toBe('\x16');
+    expect(getNativeClipboardImagePasteInput('amp', undefined, 'darwin')).toBeNull();
+    expect(getNativeClipboardImagePasteInput('amp', 'ssh-1', 'win32')).toBeNull();
+    expect(getNativeClipboardImagePasteInput('claude', undefined, 'win32')).toBeNull();
   });
 
   it('detects HEIC-like files without relying on image MIME types', () => {

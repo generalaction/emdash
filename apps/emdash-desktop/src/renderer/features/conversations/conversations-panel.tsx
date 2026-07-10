@@ -162,6 +162,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                     onInterruptPress={onInterruptPress}
                     mapShiftEnterToCtrlJ
                     remoteConnectionId={remoteConnectionId}
+                    providerId={activeConversation?.data.providerId}
                     workspaceId={workspaceId}
                   />
                 </div>
