@@ -1,0 +1,38 @@
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.test.ts
+  s_df85593e0e7550::t_502b628be39bf4 8,10-15
+  s_0be44ebdfb93ef::t_fa24d00f76d1a2 16-20
+packages/plugins/src/agents/impl/codex/hooks.test.ts
+  s_009923d66da9ff::t_c051fe48105088 31-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "20451d42ce5de58dd200668a1fed054bcad2cb6d",
+  "prompts": {},
+  "sessions": {
+    "s_009923d66da9ff": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n4DRj6FEA2ABUKDbjsV",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_0be44ebdfb93ef": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4bf5-9136-7521-a700-8de56ede7f06",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_df85593e0e7550": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n4CdZgDA4cYKLUFX1Kg",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
