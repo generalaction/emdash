@@ -1,0 +1,49 @@
+packages/core/src/agents/agent-env.ts
+  s_4d16ecf65247dc::t_ba4a54f311a394 2-95
+  s_9d19153c20ff56::t_6164a72b12e67d 1,96-149
+apps/emdash-desktop/tsconfig.json
+  s_bbeccf76f63132::t_8ffe2520b5918f 59
+  s_19e535a8de7852::t_8b030f065c8c01 18-19,24-31,35-40,44
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_9d19153c20ff56::t_270f8d955f28dc 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0507e05ab9874891196d9488ae9248c5237b60d8",
+  "prompts": {},
+  "sessions": {
+    "s_19e535a8de7852": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ddb22842-7109-4b1b-99d9-f880120f73a5",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_4d16ecf65247dc": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mt3lIX8MSxAuNFEqRWA",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_9d19153c20ff56": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d3322370-ff01-4066-9a89-185631f11cc2",
+        "model": "claude-4.5-haiku-thinking"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_bbeccf76f63132": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mtQp7p1zz9lBNHRPWQi",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
