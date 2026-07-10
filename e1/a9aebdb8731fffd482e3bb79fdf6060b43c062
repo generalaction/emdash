@@ -1,0 +1,29 @@
+packages/core/src/skills/skill-mirrors.test.ts
+  s_7be55541ca932d::t_141798bcf56772 6,127-155
+packages/core/src/skills/skill-mirrors.ts
+  s_149b15e76c3696::t_a8b327ce97909f 3,18-23,99,126-128,140,174,178-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e1a9aebdb8731fffd482e3bb79fdf6060b43c062",
+  "prompts": {},
+  "sessions": {
+    "s_149b15e76c3696": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4b3c-b222-7212-b32b-737a45793127",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_7be55541ca932d": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n2szCq7piNUMiRnKCAc",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
