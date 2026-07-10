@@ -8,7 +8,17 @@ export type {
   AcpStartInput,
   ResolveAcpProvider,
 } from './runtime/types';
-export { ConnectionPool } from './connection/pool';
+export {
+  createAcpConnectionSource,
+  makeAcpConnectionKey,
+  projectAcpConnectionEntry,
+} from './connection/source';
+export type {
+  AcpConnectionEntry,
+  AcpConnectionError,
+  AcpConnectionSource,
+  AcquireAcpConnectionInput,
+} from './connection/source';
 export { buildAgentClient } from './agent-ports/agent-client';
 export { SessionCell } from './session/cell';
 export { PermissionBroker } from './session/permission-broker';

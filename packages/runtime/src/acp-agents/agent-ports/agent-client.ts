@@ -19,22 +19,22 @@ import type {
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
 import type { NormalizedEvent } from '@emdash/core/acp';
-import type { ConnectionPoolEntry } from '../connection/pool';
+import type { AcpConnectionEntry } from '../connection/source';
 import type { FsPort } from './fs-port';
 import type { TerminalPort } from './terminal-port';
 
 export interface InboundRouter {
   onSessionUpdate(
-    connection: ConnectionPoolEntry,
+    connection: AcpConnectionEntry,
     params: SessionNotification,
     event: NormalizedEvent
   ): void;
   onPermissionRequest(
-    connection: ConnectionPoolEntry,
+    connection: AcpConnectionEntry,
     params: RequestPermissionRequest
   ): Promise<RequestPermissionResponse>;
   onCreateTerminal(
-    connection: ConnectionPoolEntry,
+    connection: AcpConnectionEntry,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse>;
 }
@@ -45,7 +45,7 @@ export interface AgentPorts {
 }
 
 export function buildAgentClient(
-  getConnection: () => ConnectionPoolEntry | null,
+  getConnection: () => AcpConnectionEntry | null,
   router: InboundRouter,
   ports: AgentPorts
 ): Client {

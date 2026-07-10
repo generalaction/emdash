@@ -84,6 +84,43 @@ describe('TuiAgentsRuntime', () => {
     }
   });
 
+  it('uses the start config as managed-source creation context', async () => {
+    const harness = createHarness();
+    const wire = createTestWire(tuiAgentsContract, createTuiAgentsController(harness.runtime));
+    const key = { conversationId: 'conv-context' };
+
+    try {
+      await wire.client.startSession({
+        input: startInput(key.conversationId, {
+          cwd: '/tmp/context-project',
+          cols: 100,
+          rows: 40,
+          providerVars: { PROVIDER_VAR: '1' },
+        }),
+      });
+
+      const detach = await wire.client.output.handle(key).attach(() => {});
+      await waitFor(() => harness.spawner.processes.length === 1);
+
+      expect(harness.spawner.processes[0]?.spec).toMatchObject({
+        command: 'agent',
+        args: ['start'],
+        cwd: '/tmp/context-project',
+        cols: 100,
+        rows: 40,
+        env: expect.objectContaining({
+          BASE_ENV: '1',
+          COMMAND_ENV: '1',
+          PROVIDER_VAR: '1',
+        }),
+      });
+      detach();
+    } finally {
+      wire.dispose();
+      harness.runtime.dispose();
+    }
+  });
+
   it('publishes hook session ids and notification states', async () => {
     const harness = createHarness();
     const wire = createTestWire(tuiAgentsContract, createTuiAgentsController(harness.runtime));

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { deferred } from '../testing';
-import { createManagedSource } from './managed-source';
+import { acquireAsResult, createManagedSource } from './managed-source';
 import type { Scope } from './scope';
 
 describe('createManagedSource', () => {
@@ -67,6 +67,58 @@ describe('createManagedSource', () => {
 
     expect(create).toHaveBeenCalledTimes(2);
     expect(onError).toHaveBeenCalledWith(error, 'same');
+  });
+
+  it('forwards creation context to the first acquire for a key', async () => {
+    const create = vi.fn(
+      async (key: string, context: { cwd: string }, _scope: Scope) => `${key}:${context.cwd}`
+    );
+    const source = createManagedSource<string, string, { cwd: string }>({
+      key: (key) => key,
+      create,
+    });
+
+    const lease = source.acquire('same', { cwd: '/tmp/one' });
+
+    await expect(lease.ready()).resolves.toBe('same:/tmp/one');
+    expect(create).toHaveBeenCalledWith('same', { cwd: '/tmp/one' }, expect.anything());
+    await lease.release();
+  });
+
+  it('uses the first context for concurrent acquires sharing one in-flight creation', async () => {
+    const gate = deferred<string>();
+    const create = vi.fn(
+      async (_key: string, context: { cwd: string }, _scope: Scope) => `${await gate.promise}:${context.cwd}`
+    );
+    const source = createManagedSource<string, string, { cwd: string }>({
+      key: (key) => key,
+      create,
+    });
+
+    const first = source.acquire('same', { cwd: '/tmp/one' });
+    const second = source.acquire('same', { cwd: '/tmp/two' });
+    gate.resolve('ready');
+
+    await expect(first.ready()).resolves.toBe('ready:/tmp/one');
+    await expect(second.ready()).resolves.toBe('ready:/tmp/one');
+    expect(create).toHaveBeenCalledTimes(1);
+    await first.release();
+    await second.release();
+  });
+
+  it('retries failed creation with a later context', async () => {
+    const create = vi
+      .fn<(key: string, context: { cwd: string }, scope: Scope) => Promise<string>>()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockImplementationOnce(async (_key, context) => context.cwd);
+    const source = createManagedSource<string, string, { cwd: string }>({
+      key: (key) => key,
+      create,
+    });
+
+    await expect(source.acquire('same', { cwd: '/tmp/one' }).ready()).rejects.toThrow('boom');
+    await expect(source.acquire('same', { cwd: '/tmp/two' }).ready()).resolves.toBe('/tmp/two');
+    expect(create).toHaveBeenCalledTimes(2);
   });
 
   it('waits for in-flight disposal before recreating a key', async () => {
@@ -155,6 +207,47 @@ describe('createManagedSource', () => {
     expect(source.peek('same')).toBeUndefined();
   });
 
+  it('acquires a lease as an ok result', async () => {
+    const source = createManagedSource({
+      key: (key: string) => key,
+      create: async (key: string) => key,
+    });
+
+    const result = await acquireAsResult(source, 'same', isTestError);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.value).toBe('same');
+    await result.data.release();
+  });
+
+  it('maps expected acquire errors to err results', async () => {
+    const expected = { type: 'test-error', message: 'boom' } as const;
+    const source = createManagedSource({
+      key: (key: string) => key,
+      create: async () => {
+        throw expected;
+      },
+    });
+
+    const result = await acquireAsResult(source, 'same', isTestError);
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toBe(expected);
+  });
+
+  it('rethrows unexpected acquire errors', async () => {
+    const source = createManagedSource({
+      key: (key: string) => key,
+      create: async () => {
+        throw new Error('boom');
+      },
+    });
+
+    await expect(acquireAsResult(source, 'same', isTestError)).rejects.toThrow('boom');
+  });
+
   it('rejects new acquires after disposal', async () => {
     const source = createManagedSource({
       key: (key: string) => key,
@@ -166,3 +259,13 @@ describe('createManagedSource', () => {
     await expect(source.acquire('same').ready()).rejects.toThrow('ManagedSource is disposed');
   });
 });
+
+type TestError = { type: 'test-error'; message: string };
+
+function isTestError(error: unknown): error is TestError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { type?: unknown }).type === 'test-error'
+  );
+}

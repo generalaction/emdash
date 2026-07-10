@@ -10,7 +10,7 @@ import type {
   TuiStartSessionError,
 } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
-import { LiveLog, managedLiveSource, type LiveSource } from '@emdash/wire';
+import { LiveLog, type LiveSource } from '@emdash/wire';
 import { createManagedSource, type ManagedSource } from '@emdash/wire/util';
 import {
   createTuiNotificationsLiveHost,
@@ -39,7 +39,11 @@ type TuiAgentSession = {
 
 export class TuiAgentsRuntime {
   private readonly registry: PtyRegistry;
-  private readonly sessionsSource: ManagedSource<{ conversationId: string }, TuiAgentSession>;
+  private readonly sessionsSource: ManagedSource<
+    { conversationId: string },
+    TuiAgentSession,
+    TuiSessionConfig | null
+  >;
   private readonly logs = new Map<string, LiveLog>();
   private readonly configs = new Map<string, TuiSessionConfig>();
   private readonly sessionsHost: TuiSessionsLiveHost;
@@ -55,12 +59,15 @@ export class TuiAgentsRuntime {
     this.sessionsList = createTuiSessionsListModel(this.sessionsHost);
     this.notificationsList = createTuiNotificationsListModel(this.notificationsHost);
     this.notifications = new TuiAgentNotifications(this.sessionsList, this.notificationsList);
-    this.sessionsSource = createManagedSource({
+    this.sessionsSource = createManagedSource<
+      { conversationId: string },
+      TuiAgentSession,
+      TuiSessionConfig | null
+    >({
       key: (key) => key.conversationId,
       graceMs: SESSION_GRACE_MS,
-      create: async (key, scope) => {
+      create: async (key, config, scope) => {
         const session = this.createRetainedSession(key.conversationId);
-        const config = this.configs.get(key.conversationId);
         if (config && config.intent !== 'stopped') {
           await this.spawnInto(session, config);
         }
@@ -166,7 +173,33 @@ export class TuiAgentsRuntime {
   }
 
   outputLog(key: { conversationId: string }): LiveSource {
-    return managedLiveSource(this.sessionsSource, key, (session) => session.output);
+    return {
+      snapshot: async () => {
+        const lease = this.sessionsSource.acquire(key, this.configs.get(key.conversationId) ?? null);
+        try {
+          return await (await lease.ready()).output.snapshot();
+        } finally {
+          await lease.release();
+        }
+      },
+      subscribe: (cb) => {
+        let disposed = false;
+        let unsubscribe: (() => void) | undefined;
+        const lease = this.sessionsSource.acquire(key, this.configs.get(key.conversationId) ?? null);
+        void lease.ready().then((session) => {
+          if (disposed) {
+            void lease.release();
+            return;
+          }
+          unsubscribe = session.output.subscribe(cb);
+        });
+        return () => {
+          disposed = true;
+          unsubscribe?.();
+          void lease.release();
+        };
+      },
+    };
   }
 
   sessionsLiveHost(): TuiSessionsLiveHost {

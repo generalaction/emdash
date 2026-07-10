@@ -32,7 +32,7 @@ import type { LiveLog } from '@emdash/wire';
 import { FsPort } from '../agent-ports/fs-port';
 import { AgentTerminalManager } from '../agent-ports/terminal-manager';
 import { TerminalPort } from '../agent-ports/terminal-port';
-import { ConnectionPool } from '../connection/pool';
+import { createAcpConnectionSource, type AcpConnectionSource } from '../connection/source';
 import type { SessionLiveModels, SessionsListModel } from '../state/live-models';
 import type { StoredAttachment } from './attachment-store';
 import { SessionManager, type HistoryPage } from './session-manager';
@@ -41,7 +41,7 @@ import type { AcpRuntimeDeps, AcpStartInput } from './types';
 
 export class AcpRuntime {
   readonly terminals: AgentTerminalManager;
-  readonly pool: ConnectionPool;
+  readonly connections: AcpConnectionSource;
   readonly manager: SessionManager;
   private readonly terminalLiveRegistry: TerminalLiveRegistry;
 
@@ -53,12 +53,12 @@ export class AcpRuntime {
     this.terminals = new AgentTerminalManager(deps.host, this.terminalLiveRegistry.hooks);
     const fs = new FsPort(deps.host);
     const terminalPort = new TerminalPort(this.terminals);
-    this.pool = new ConnectionPool({
+    this.connections = createAcpConnectionSource({
       host: deps.host,
       logger: deps.logger,
       onClosed: (key, exitCode) => manager?.onProcessClosed(key, exitCode),
     });
-    manager = new SessionManager(deps, this.pool, this.terminals, {
+    manager = new SessionManager(deps, this.connections, this.terminals, {
       fs,
       terminals: terminalPort,
     });
@@ -237,6 +237,6 @@ export class AcpRuntime {
 
   async dispose(): Promise<void> {
     this.killAllTerminals();
-    await this.pool.dispose();
+    await this.connections.dispose();
   }
 }

@@ -39,13 +39,21 @@ import type {
 } from '@emdash/core/acp';
 import { acpErr } from '@emdash/core/acp';
 import type { Lease, Result } from '@emdash/shared';
-import { isErr, ok, toSerializedError } from '@emdash/shared';
+import { ok, toSerializedError } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
+import { acquireAsResult } from '@emdash/wire/util';
 import { buildAgentClient, type InboundRouter } from '../agent-ports/agent-client';
 import type { FsPort } from '../agent-ports/fs-port';
 import type { AgentTerminalManager } from '../agent-ports/terminal-manager';
 import type { TerminalPort } from '../agent-ports/terminal-port';
-import type { ConnectionPool, ConnectionPoolEntry } from '../connection/pool';
+import {
+  isAcpConnectionError,
+  makeAcpConnectionKey,
+  projectAcpConnectionEntry,
+  type AcpConnectionEntry,
+  type AcpConnectionSource,
+  type PooledAcpProcess,
+} from '../connection/source';
 import { SessionCell, type AcpChatHistory } from '../session/cell';
 import type { SessionCellCallbacks } from '../session/cell-deps';
 import {
@@ -64,7 +72,7 @@ import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 interface SessionRecord {
   input: AcpStartInput;
   processKey: string;
-  connectionLease: Lease<ConnectionPoolEntry>;
+  connectionLease: Lease<PooledAcpProcess>;
   cell: SessionCell;
   live: SessionLiveModels;
   lastSynced: {
@@ -94,7 +102,7 @@ export class SessionManager implements InboundRouter {
 
   constructor(
     private readonly deps: AcpRuntimeDeps & { logger: Logger },
-    private readonly pool: ConnectionPool,
+    private readonly connections: AcpConnectionSource,
     private readonly terminals: AgentTerminalManager,
     private readonly ports: { fs: FsPort; terminals: TerminalPort }
   ) {}
@@ -117,26 +125,36 @@ export class SessionManager implements InboundRouter {
       return acpErr.providerUnsupported(input.providerId);
     }
 
-    const acquire = await this.pool.acquire({
-      providerId: input.providerId,
-      workspaceId: input.workspaceId,
-      cwd: input.cwd,
-      behavior: binding.behavior,
-      buildClient: (_agent, key): Client =>
-        buildAgentClient(() => this.pool.get(key), this, this.ports),
-    });
-    if (isErr(acquire)) {
+    const processKey = makeAcpConnectionKey(input.providerId, input.workspaceId);
+    const acquire = await acquireAsResult(
+      this.connections,
+      processKey,
+      {
+        providerId: input.providerId,
+        workspaceId: input.workspaceId,
+        cwd: input.cwd,
+        behavior: binding.behavior,
+        buildClient: (_agent, key): Client =>
+          buildAgentClient(
+            () => projectAcpConnectionEntry(this.connections.peek(key)),
+            this,
+            this.ports
+          ),
+      },
+      isAcpConnectionError
+    );
+    if (!acquire.success) {
       this.deleteSessionSummary(input.conversationId);
       return acquire;
     }
 
     const acquired = acquire.data;
-    const connection = acquired.entry;
+    const connection = projectAcpConnectionEntry(acquired.value);
     let record: SessionRecord | null = null;
 
     try {
       if (input.sessionId && connection.supportsLoadSession && connection.agent.loadSession) {
-        record = this.createRecord(input, connection, acquired.lease, input.sessionId);
+        record = this.createRecord(input, connection, acquired, input.sessionId);
         this.addLoading(connection.key, input.conversationId);
         this.registerRoute(connection.key, input.sessionId, input.conversationId);
         record.cell.beginReplay();
@@ -186,11 +204,11 @@ export class SessionManager implements InboundRouter {
         } catch (e) {
           if (isAuthRequiredError(e)) throw e;
           this.removeRecord(input.conversationId, false);
-          await acquired.lease.release();
+          await acquired.release();
           this.deleteSessionSummary(input.conversationId);
           return acpErr.newSessionFailed(toSerializedError(e));
         }
-        record = this.createRecord(input, connection, acquired.lease, response.sessionId);
+        record = this.createRecord(input, connection, acquired, response.sessionId);
         record.cell.applySessionMeta({
           modes: response.modes,
           configOptions: response.configOptions,
@@ -219,7 +237,7 @@ export class SessionManager implements InboundRouter {
       return ok({ sessionId: record.cell.acpSessionId });
     } catch (e) {
       if (record) this.removeRecord(record.input.conversationId, false);
-      await acquired.lease.release();
+      await acquired.release();
       this.deleteSessionSummary(input.conversationId);
       if (isAuthRequiredError(e)) {
         return acpErr.authRequired(toSerializedError(e));
@@ -389,7 +407,7 @@ export class SessionManager implements InboundRouter {
   }
 
   onSessionUpdate(
-    connection: ConnectionPoolEntry,
+    connection: AcpConnectionEntry,
     params: SessionNotification,
     event: NormalizedEvent
   ): void {
@@ -418,7 +436,7 @@ export class SessionManager implements InboundRouter {
   }
 
   onPermissionRequest(
-    connection: ConnectionPoolEntry,
+    connection: AcpConnectionEntry,
     params: RequestPermissionRequest
   ): Promise<RequestPermissionResponse> {
     const conversationId = this.resolveConversationForSession(connection.key, params.sessionId);
@@ -430,7 +448,7 @@ export class SessionManager implements InboundRouter {
   }
 
   onCreateTerminal(
-    connection: ConnectionPoolEntry,
+    connection: AcpConnectionEntry,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse> {
     const conversationId = this.resolveConversationForSession(connection.key, params.sessionId);
@@ -447,13 +465,13 @@ export class SessionManager implements InboundRouter {
       this.removeRecord(record.input.conversationId, false);
       this.deleteSessionSummary(record.input.conversationId);
     }
-    void this.pool.forgetClosed(processKey);
+    void this.connections.invalidate(processKey);
   }
 
   private createRecord(
     input: AcpStartInput,
-    connection: ConnectionPoolEntry,
-    connectionLease: Lease<ConnectionPoolEntry>,
+    connection: AcpConnectionEntry,
+    connectionLease: Lease<PooledAcpProcess>,
     acpSessionId: string
   ): SessionRecord {
     const record = {} as SessionRecord;

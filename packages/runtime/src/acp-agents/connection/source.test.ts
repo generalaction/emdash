@@ -2,9 +2,14 @@ import type { Client } from '@agentclientprotocol/sdk';
 import type { IAcpBehavior } from '@emdash/core/agents/plugins';
 import { isOk } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
+import { acquireAsResult } from '@emdash/wire/util';
 import { describe, expect, it, vi } from 'vitest';
 import { FakeAcpAgent, FakeAcpProcessHost } from '../acp-test-support';
-import { ConnectionPool } from './pool';
+import {
+  createAcpConnectionSource,
+  isAcpConnectionError,
+  makeAcpConnectionKey,
+} from './source';
 
 function makeBehavior(agent: FakeAcpAgent): IAcpBehavior {
   return {
@@ -27,66 +32,79 @@ function waitForTeardown(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-describe('ConnectionPool', () => {
+describe('createAcpConnectionSource', () => {
   it('dedupes acquisitions by provider/workspace and refcounts release', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
-    const pool = new ConnectionPool({ host, logger: noopLogger, onClosed: vi.fn() });
+    const source = createAcpConnectionSource({ host, logger: noopLogger, onClosed: vi.fn() });
+    const key = makeAcpConnectionKey('claude', 'ws-1');
 
-    const first = await pool.acquire(acquireInput(agent));
-    const second = await pool.acquire(acquireInput(agent));
+    const first = await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
+    const second = await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
 
     expect(isOk(first)).toBe(true);
     expect(isOk(second)).toBe(true);
     if (!isOk(first) || !isOk(second)) return;
     expect(host.allHandles).toHaveLength(1);
 
-    await first.data.lease.release();
+    await first.data.release();
     expect(host.lastHandle.kill).not.toHaveBeenCalled();
-    expect(pool.get('claude:ws-1')).not.toBeNull();
+    expect(source.peek(key)).not.toBeUndefined();
 
-    await second.data.lease.release();
+    await second.data.release();
     expect(host.lastHandle.kill).toHaveBeenCalledWith('SIGTERM');
     await waitForTeardown();
-    expect(pool.get('claude:ws-1')).toBeNull();
+    expect(source.peek(key)).toBeUndefined();
   });
 
   it('provisions separate workspaces independently', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
-    const pool = new ConnectionPool({ host, logger: noopLogger, onClosed: vi.fn() });
+    const source = createAcpConnectionSource({ host, logger: noopLogger, onClosed: vi.fn() });
 
-    await pool.acquire(acquireInput(agent, 'ws-1'));
-    await pool.acquire(acquireInput(agent, 'ws-2'));
+    await acquireAsResult(
+      source,
+      makeAcpConnectionKey('claude', 'ws-1'),
+      acquireInput(agent, 'ws-1'),
+      isAcpConnectionError
+    );
+    await acquireAsResult(
+      source,
+      makeAcpConnectionKey('claude', 'ws-2'),
+      acquireInput(agent, 'ws-2'),
+      isAcpConnectionError
+    );
 
     expect(host.allHandles).toHaveLength(2);
   });
 
-  it('forwards process close and forgets closed entries', async () => {
+  it('forwards process close and invalidates closed entries', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
     const onClosed = vi.fn();
-    const pool = new ConnectionPool({ host, logger: noopLogger, onClosed });
+    const source = createAcpConnectionSource({ host, logger: noopLogger, onClosed });
+    const key = makeAcpConnectionKey('claude', 'ws-1');
 
-    await pool.acquire(acquireInput(agent));
+    await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
     host.lastHandle.emitExit(7);
 
-    expect(onClosed).toHaveBeenCalledWith('claude:ws-1', 7);
-    await pool.forgetClosed('claude:ws-1');
+    expect(onClosed).toHaveBeenCalledWith(key, 7);
+    await source.invalidate(key);
     await waitForTeardown();
-    expect(pool.get('claude:ws-1')).toBeNull();
+    expect(source.peek(key)).toBeUndefined();
   });
 
   it('disposes all active pooled processes', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
-    const pool = new ConnectionPool({ host, logger: noopLogger, onClosed: vi.fn() });
+    const source = createAcpConnectionSource({ host, logger: noopLogger, onClosed: vi.fn() });
+    const key = makeAcpConnectionKey('claude', 'ws-1');
 
-    const acquired = await pool.acquire(acquireInput(agent));
+    const acquired = await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
     expect(isOk(acquired)).toBe(true);
-    await pool.dispose();
+    await source.dispose();
 
     expect(host.lastHandle.kill).toHaveBeenCalledWith('SIGTERM');
-    expect(pool.get('claude:ws-1')).toBeNull();
+    expect(source.peek(key)).toBeUndefined();
   });
 });
