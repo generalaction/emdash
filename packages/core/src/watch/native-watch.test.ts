@@ -136,7 +136,9 @@ describe('NativeWatch', () => {
 
     callbacks[1](new Error('Replacement failed immediately'), []);
     replacement.resolve({ unsubscribe: unsubscribes[1] });
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(249);
+    expect(watcherMock.subscribe).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
     await vi.waitFor(() => expect(watcherMock.subscribe).toHaveBeenCalledTimes(3));
 
     expect(unsubscribes[1]).toHaveBeenCalledOnce();
@@ -160,6 +162,20 @@ describe('NativeWatch', () => {
     expect(firstUnsubscribe).toHaveBeenCalledOnce();
     await watch.dispose();
     expect(finalUnsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('does not unsubscribe twice when stopping the previous subscription fails', async () => {
+    const unsubscribe = vi.fn().mockRejectedValue(new Error('Failed to stop watcher'));
+    queueSubscription({ unsubscribe });
+    const watch = await openWatch();
+
+    callbacks[0](new Error('Watcher failed'), []);
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.waitFor(() => expect(unsubscribe).toHaveBeenCalledOnce());
+
+    await expect(watch.dispose()).resolves.toBeUndefined();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(watcherMock.subscribe).toHaveBeenCalledOnce();
   });
 
   it('does not create a replacement when disposed during unsubscribe', async () => {

@@ -85,7 +85,6 @@ export class NativeWatch implements IDisposable {
           this.scheduleResubscribe();
           return;
         }
-        this.retryAttempts = 0;
         if (events.length === 0) return;
         this.deliver(events.map(toWatchEvent));
       },
@@ -141,14 +140,14 @@ export class NativeWatch implements IDisposable {
     this.activeGeneration = 0;
     const previous = await previousPromise?.catch(() => null);
     if (this.disposed) return false;
+    if (this.subscription === previousPromise) this.subscription = null;
 
     try {
       await previous?.unsubscribe();
     } catch (error) {
       this.onError(`unsubscribe ${this.root}`, error);
-      return !this.disposed;
+      return false;
     }
-    if (this.subscription === previousPromise) this.subscription = null;
     if (this.disposed) return false;
 
     const next = this.subscribe();
@@ -159,12 +158,17 @@ export class NativeWatch implements IDisposable {
       this.onError(`resubscribe ${this.root}`, error);
       return true;
     }
+    this.retryAttempts = 0;
     if (this.disposed) return false;
     this.signalResync();
     return false;
   }
 }
 
+/**
+ * Matches the FSEvents dropped-events error emitted by @parcel/watcher.
+ * Keep this in sync with the upstream message; Parcel exposes no structured error code.
+ */
 function requiresResync(error: Error): boolean {
   return error.message.includes('File system must be re-scanned');
 }
