@@ -1,0 +1,99 @@
+packages/core/src/skills/schemas.ts
+  s_724d78d70e5854::t_4df8051ea796e8 29
+packages/core/src/agents/plugins/helpers/local-plugin-fs.ts
+  s_724d78d70e5854::t_36b75ed66d7827 59-72
+packages/core/src/skills/types.ts
+  s_724d78d70e5854::t_000c8fb420c70a 27
+packages/core/src/skills/skill-mirrors.ts
+  s_724d78d70e5854::t_9f8db5ae2c82dd 1,3-27,33-35,44-48,50-52,58-65,68-70,72-75,78-99,118-135,137,144,177
+  s_724d78d70e5854::t_d78ee8ef965c54 36-43,100-109,111-113,117
+  s_724d78d70e5854::t_f64a4621da3906 2,145-146,156-160,162-167,169-176
+  s_724d78d70e5854::t_e08acf540b1b29 49,115
+  s_724d78d70e5854::t_1697aef807b965 77
+  s_724d78d70e5854::t_1a9b656d78e0f0 147-151,153-155
+  s_724d78d70e5854::t_f4a3570c577032 53-57,66-67,71,76,110,114,116,136,138-143
+  s_724d78d70e5854::t_b6ffcdce64d8fb 152,161,168
+  s_724d78d70e5854::t_e69795f2cefbbe 28-32
+packages/core/src/skills/skill-mirrors.test.ts
+  s_724d78d70e5854::t_264badf4400b91 1-3,5-24,27-35,44-45,47-80,106-122,131-132
+  s_724d78d70e5854::t_e08acf540b1b29 103
+  s_724d78d70e5854::t_6c2d73f5e7830f 123-130
+  s_724d78d70e5854::t_610d70b3ac44b8 81-102,104-105
+  s_724d78d70e5854::t_fc51ce723f6647 4,25-26,36-43,46
+apps/emdash-desktop/src/main/core/agents/remote-plugin-fs.ts
+  s_724d78d70e5854::t_db664ada1b248b 58
+  s_724d78d70e5854::t_20dbeceefd78da 74-90
+apps/emdash-desktop/src/renderer/features/skills/components/SkillCard.tsx
+  s_724d78d70e5854::t_55ba4c2a9dc041 31-53
+apps/emdash-desktop/src/renderer/features/skills/components/SkillDetailModal.tsx
+  s_724d78d70e5854::t_e3ca3d06dcac11 117-128
+apps/emdash-desktop/src/shared/core/skills/types.ts
+  s_724d78d70e5854::t_184a61d3694087 43-44
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_724d78d70e5854::t_795bc4ad477a1f 1079-1088
+  s_724d78d70e5854::t_7e6dab1bfc8a8e 351-354,356
+  s_724d78d70e5854::t_41c4daa2da9885 423-426,428-435,437,439-440,442
+  s_724d78d70e5854::t_052b77a2d4780c 575-582,584-592,599-607,610-612,614,631,634-639,645-646
+  s_724d78d70e5854::t_425823e335dfe4 593-598,608-609
+  s_724d78d70e5854::t_b82e664270dcb3 8,122
+  s_724d78d70e5854::t_e0ab320e5db838 613,615-630,632-633
+  s_724d78d70e5854::t_154f9c04e63548 12,18,106,118-121
+  s_724d78d70e5854::t_bf14d9843f1b6d 14,640-644
+  s_724d78d70e5854::t_f299a203bfeb84 1041-1059,1068-1078,1093-1099,1101-1102
+  s_724d78d70e5854::t_b6ffcdce64d8fb 583
+  s_724d78d70e5854::t_633e64e08cedb6 1040,1104,1107-1113,1131
+  s_724d78d70e5854::t_a309e8841fc2e1 262,404,485,1118
+  s_724d78d70e5854::t_050054d8a3ee96 206,241-242,245
+  s_724d78d70e5854::t_6cc90418ce5fdd 472
+  s_724d78d70e5854::t_aa20102b8712df 112,131-132
+  s_724d78d70e5854::t_78bc0f2cb11c94 10,15,355,463
+  s_724d78d70e5854::t_15805a463da0f6 392-394
+  s_724d78d70e5854::t_e69795f2cefbbe 441
+apps/emdash-desktop/src/main/core/skills/SkillsService.test.ts
+  s_724d78d70e5854::t_58732a1712a9be 115,136
+  s_724d78d70e5854::t_54fe984c6f50a2 130,135
+  s_724d78d70e5854::t_e69795f2cefbbe 117,139-144
+  s_724d78d70e5854::t_3a6c60d3c38b2c 116
+  s_724d78d70e5854::t_728de8dfb77d6b 185-203,208-211
+  s_724d78d70e5854::t_b6ffcdce64d8fb 204-207
+  s_724d78d70e5854::t_8fa729a2bf5430 4,10,109-114,118-124,128-129,131,138,145,148,152-184,219-220,226
+  s_724d78d70e5854::t_e620ecb0312428 137
+packages/core/src/agents/runtime/fs.ts
+  s_724d78d70e5854::t_2b88dcb450aa62 7-8
+packages/runtime/src/agent-config/runtime/runtime.test.ts
+  s_724d78d70e5854::t_bb8147ee66d4cd 185
+  s_724d78d70e5854::t_3f4a84e5f2162b 115-116,170-171,188,206-208
+  s_724d78d70e5854::t_a9b4c6d20c892a 186
+packages/core/src/skills/index.ts
+  s_724d78d70e5854::t_7b6015df2a4b42 5
+packages/runtime/src/agent-config/runtime/skills.ts
+  s_724d78d70e5854::t_b5f2d24e1fdbda 7,50,67,69,72-76,95-99,111-119,144-146,158-159,161-165,172-177,180,200-205,211
+  s_724d78d70e5854::t_19577de0d2f3df 5,9-10,70-71,141,160,206-210
+  s_724d78d70e5854::t_cce99b1a632797 182-193,197-199
+  s_724d78d70e5854::t_00c146b6d3f25e 120
+  s_724d78d70e5854::t_e61301f0271d08 166-171,178-179
+  s_724d78d70e5854::t_b6ffcdce64d8fb 181,194-196
+  s_724d78d70e5854::t_e7878626613b93 3,20
+  s_724d78d70e5854::t_d27bcaf2bdb0b2 221,231-232,234
+  s_724d78d70e5854::t_b63eb68ff7da5b 247
+packages/core/src/skills/locations.ts
+  s_724d78d70e5854::t_1265b298c190c9 10,32
+  s_724d78d70e5854::t_2471d1fc3e6511 8,38-39
+  s_724d78d70e5854::t_a8f3619c93e6df 6-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3777dd2f02533d7b7b7642a0be7ec98e37b8065d",
+  "prompts": {},
+  "sessions": {
+    "s_724d78d70e5854": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d930a7e3-37f4-450d-881d-48f59b0113db",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
