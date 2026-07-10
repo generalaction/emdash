@@ -25,6 +25,10 @@ const workspaceAliases = {
   '@emdash/core/exec': resolve('../../packages/core/src/exec/index.ts'),
   '@emdash/core/pty/node': resolve('../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve('../../packages/core/src/pty/index.ts'),
+  '@emdash/core/services/fs-watch/node': resolve(
+    '../../packages/core/src/services/fs-watch/node/index.ts'
+  ),
+  '@emdash/core/services/fs-watch': resolve('../../packages/core/src/services/fs-watch/index.ts'),
   '@emdash/plugins/agents/types': resolve('../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve('../../packages/plugins/src/agents/registry.ts'),
   '@emdash/runtime/agent-config/node': resolve(
@@ -65,6 +69,7 @@ export default defineConfig({
           index: resolve('src/main/index.ts'),
           'acp-runtime': resolve('src/main/core/acp/runtime-process/entry.ts'),
           'agent-config-runtime': resolve('src/main/core/agent-config/runtime-process/entry.ts'),
+          'fs-watch-runtime': resolve('src/main/core/fs-watch/runtime-process/entry.ts'),
         },
       },
     },

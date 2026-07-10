@@ -2,7 +2,12 @@ import path from 'node:path';
 import { err, ok, type Lease, type Result } from '@emdash/shared';
 import type { BoundExec } from '../exec';
 import { KeyedMutex, ResourceMap } from '../lib';
-import { WatchService, realpathOrResolve, type IWatchService } from '../watch';
+import {
+  createWatchService,
+  nativeWatchBackend,
+  realpathOrResolve,
+  type IWatchService,
+} from '../services/fs-watch';
 import {
   classifyCloneRepositoryError,
   gitErrorMessage,
@@ -60,7 +65,12 @@ export class GitRuntime implements IGitRuntime {
   constructor(options: GitRuntimeOptions = {}) {
     this.onError = options.onError ?? (() => {});
     this.ownsWatcher = !options.watcher;
-    this.watcher = options.watcher ?? new WatchService({ onError: this.onError });
+    this.watcher =
+      options.watcher ??
+      createWatchService({
+        backend: nativeWatchBackend({ onError: this.onError }),
+        onError: this.onError,
+      });
     this.mutex = new KeyedMutex();
     this.exec =
       options.exec ??

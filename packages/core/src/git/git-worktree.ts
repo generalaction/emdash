@@ -3,7 +3,7 @@ import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { ExecError, type BoundExec } from '../exec';
 import { LiveModel } from '../lib';
-import type { IWatchService, WatchHandle } from '../watch';
+import type { IWatchService, WatchHandle } from '../services/fs-watch';
 import {
   classifyCommitError,
   classifyPullError,

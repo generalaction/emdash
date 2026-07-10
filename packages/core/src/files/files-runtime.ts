@@ -1,6 +1,11 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { ResourceMap } from '../lib';
-import { WatchService, realpathOrResolve, type IWatchService } from '../watch';
+import {
+  createWatchService,
+  nativeWatchBackend,
+  realpathOrResolve,
+  type IWatchService,
+} from '../services/fs-watch';
 import { FileChanges } from './changes/changes';
 import type { FileError, FilesOnError } from './errors';
 import { FileSystem } from './fs/file-system';
@@ -30,7 +35,12 @@ export class FilesRuntime implements IFilesRuntime {
 
   constructor(private readonly options: FilesRuntimeOptions = {}) {
     this.ownsWatcher = !options.watcher;
-    this.watcher = options.watcher ?? new WatchService({ onError: options.onError });
+    this.watcher =
+      options.watcher ??
+      createWatchService({
+        backend: nativeWatchBackend({ onError: options.onError }),
+        onError: options.onError,
+      });
     this.trees = new ResourceMap<FileTree>({
       teardown: (_key, tree) => tree.dispose(),
       onError: options.onError,

@@ -14,8 +14,9 @@ export type WatchOptions = {
   ignore?: string[];
   debounceMs?: number;
   /**
-   * Called after the native watcher recovered from an error (resubscribe). Events may have
-   * been lost in the gap; consumers should treat all derived state as stale and resync.
+   * Called after the native watcher recovered from an error (resubscribe), or after a
+   * subprocess-backed watcher reconnects. Events may have been lost in the gap; consumers
+   * should treat all derived state as stale and resync.
    */
   onResync?: () => void;
 };

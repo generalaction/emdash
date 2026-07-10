@@ -5,7 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { ExecError, type BoundExec } from '../exec';
-import type { IWatchService } from '../watch';
+import type { IWatchService } from '../services/fs-watch';
 import { GitRuntime } from './index';
 
 const execFileAsync = promisify(execFile);

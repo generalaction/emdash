@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import nodePath from 'node:path';
 import {
   createBoundExec,
@@ -9,7 +10,9 @@ import {
 import { contains, FilesRuntime } from '@emdash/core/files';
 import { GitRuntime } from '@emdash/core/git';
 import { ResourceMap } from '@emdash/core/lib';
+import { createFsWatchService } from '@emdash/core/services/fs-watch';
 import type { Lease } from '@emdash/shared';
+import { forwardRuntimeLogs } from '@emdash/wire/util/process-runtime';
 import { getDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
@@ -34,6 +37,20 @@ const nativeRuntimePath: RuntimePath = {
   relative: (from, to) => nodePath.relative(from, to),
   contains,
 };
+
+function resolveFsWatchRuntimeEntry(): string {
+  const candidates = [
+    nodePath.join(__dirname, 'fs-watch-runtime.js'),
+    nodePath.join(__dirname, 'fs-watch-runtime.mjs'),
+  ];
+  const entry = candidates.find((candidate) => existsSync(candidate));
+  if (!entry) {
+    throw new Error(
+      `Fs-watch runtime child process entry is missing. Checked: ${candidates.join(', ')}`
+    );
+  }
+  return entry;
+}
 
 class DynamicGitExec implements BoundExec {
   readonly file = 'git';
@@ -81,8 +98,21 @@ class DynamicGitExec implements BoundExec {
 
 class LocalMachineRuntime implements MachineRuntime {
   readonly machine: MachineRef = { kind: 'local' };
+  private readonly watcher = createFsWatchService({
+    entry: process.env.EMDASH_DISABLE_FS_WATCH_PROCESS ? undefined : resolveFsWatchRuntimeEntry(),
+    env: process.env,
+    onProcess: (process) => {
+      forwardRuntimeLogs(process, log, { source: 'fs-watch-runtime' });
+      process.onExit((exit) => {
+        log.warn('Fs-watch runtime child process exited', exit);
+      });
+    },
+    onError: (context, error) =>
+      log.warn('File watching background error', { context, error: String(error) }),
+  });
   readonly files = Object.assign(
     new FilesRuntime({
+      watcher: this.watcher,
       onError: (context, error) =>
         log.warn('Local file runtime background error', { context, error: String(error) }),
     }),
@@ -90,6 +120,7 @@ class LocalMachineRuntime implements MachineRuntime {
   );
   readonly git = new GitRuntime({
     exec: new DynamicGitExec(process.cwd()),
+    watcher: this.watcher,
     onError: (context, error) =>
       log.warn('Local GitRuntime background error', { context, error: String(error) }),
   });
@@ -98,6 +129,7 @@ class LocalMachineRuntime implements MachineRuntime {
   async dispose(): Promise<void> {
     await this.files.dispose();
     await this.git.dispose();
+    await this.watcher.dispose();
   }
 }
 

@@ -49,9 +49,13 @@
       "types": "./dist/files.d.mts",
       "default": "./dist/files.mjs"
     },
-    "./watch": {
-      "types": "./dist/watch.d.mts",
-      "default": "./dist/watch.mjs"
+    "./services/fs-watch": {
+      "types": "./dist/services-fs-watch.d.mts",
+      "default": "./dist/services-fs-watch.mjs"
+    },
+    "./services/fs-watch/node": {
+      "types": "./dist/services-fs-watch-node.d.mts",
+      "default": "./dist/services-fs-watch-node.mjs"
     },
     "./git": {
       "types": "./dist/git.d.mts",

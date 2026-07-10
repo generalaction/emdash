@@ -15,6 +15,10 @@
       "@emdash/core/acp": ["../../packages/core/src/acp/index.ts"],
       "@emdash/core/pty/node": ["../../packages/core/src/pty/node/index.ts"],
       "@emdash/core/pty": ["../../packages/core/src/pty/index.ts"],
+      "@emdash/core/services/fs-watch/node": [
+        "../../packages/core/src/services/fs-watch/node/index.ts"
+      ],
+      "@emdash/core/services/fs-watch": ["../../packages/core/src/services/fs-watch/index.ts"],
       "@emdash/core/agents/agent-env": ["../../packages/core/src/agents/agent-env.ts"],
       "@emdash/core/agents/spawn-context": ["../../packages/core/src/agents/spawn-context.ts"],
       "@emdash/core/agents/plugins/helpers": [
