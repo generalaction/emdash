@@ -80,6 +80,44 @@ if (relative.success) {
 Batch and coalesce watcher events with resource keys derived from the resolved
 file refs, not by string-prefix comparisons.
 
+## Validate a Contract Model
+
+Use structured schemas for contracts instead of ad hoc `z.string()` path fields.
+
+```ts
+const readTextInputSchema = z.object({
+  file: scopedPathSchema,
+  options: readFileOptionsSchema.optional(),
+});
+```
+
+For root-scoped bulk APIs, keeping root and relative path separate is often more
+compact:
+
+```ts
+const treePathKeySchema = z.object({
+  root: hostFileRefSchema,
+  path: portableRelativePathSchema,
+  sessionId: z.string(),
+});
+```
+
+For durable UI state, use a resource URI:
+
+```ts
+const fileTabStateSchema = z.object({
+  resource: resourceUriSchema,
+});
+```
+
+Only use native absolute input schemas at ingress boundaries:
+
+```ts
+const nativePickerInputSchema = z.object({
+  path: absolutePathInputSchema({ profile: { style: 'posix' } }),
+});
+```
+
 ## Handle Errors
 
 All parsing helpers return `Result<T, PathError>`.
