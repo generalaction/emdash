@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildTerminalImageInjection,
   escapePathForTerminal,
   escapeWindowsPathForTerminal,
   extractClipboardImageFiles,
@@ -21,9 +22,15 @@ describe('terminal-image-injection', () => {
     expect(escapePathForTerminal('/tmp/my image.png')).toBe('/tmp/my\\ image.png');
   });
 
-  it('quotes Windows paths instead of POSIX-escaping spaces', () => {
+  it('quotes Windows paths for plain terminal text', () => {
     expect(escapeWindowsPathForTerminal('C:\\Users\\me\\my image.png')).toBe(
       '"C:\\Users\\me\\my image.png"'
+    );
+  });
+
+  it('leaves Windows paths unquoted in bracketed paste so agent TUIs detect images', () => {
+    expect(buildTerminalImageInjection(['C:\\Users\\Jan Doe\\paste.png'], 'win32')).toBe(
+      '\x1b[200~C:\\Users\\Jan Doe\\paste.png\x1b[201~'
     );
   });
 

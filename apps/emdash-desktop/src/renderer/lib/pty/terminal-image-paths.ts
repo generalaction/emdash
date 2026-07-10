@@ -87,6 +87,9 @@ export function wrapAsBracketedPaste(text: string): string {
 }
 
 export function buildTerminalImageInjection(paths: string[], platform: NodeJS.Platform): string {
-  const formatted = formatTerminalImagePaths(paths, platform);
+  // Bracketed paste already keeps a Windows path with spaces in one paste event.
+  // Literal quotes prevent clients such as Amp from recognizing it as an image.
+  const formatted =
+    platform === 'win32' ? paths.join(' ') : formatTerminalImagePaths(paths, platform);
   return wrapAsBracketedPaste(formatted);
 }
