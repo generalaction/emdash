@@ -46,6 +46,7 @@ export const plugin = definePlugin(
           {
             method: 'curl',
             command: 'curl -fsSL https://mimo.xiaomi.com/install | bash',
+            uninstallCommand: 'mimo uninstall --keep-config --keep-data --force',
             recommended: true,
           },
         ],
@@ -53,6 +54,7 @@ export const plugin = definePlugin(
           {
             method: 'curl',
             command: 'curl -fsSL https://mimo.xiaomi.com/install | bash',
+            uninstallCommand: 'mimo uninstall --keep-config --keep-data --force',
             recommended: true,
           },
         ],
@@ -60,6 +62,7 @@ export const plugin = definePlugin(
           {
             method: 'powershell',
             command: 'powershell -ep Bypass -c "irm https://mimo.xiaomi.com/install.ps1 | iex"',
+            uninstallCommand: 'mimo uninstall --keep-config --keep-data --force',
             recommended: true,
           },
         ],
