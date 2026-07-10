@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-loading.test.ts
+  s_4a01626cb61466::t_89ebd915feb981 55-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c5328468366dfd06cfb6a7f78171363d333b3f5b",
+  "prompts": {},
+  "sessions": {
+    "s_4a01626cb61466": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n2B03UvAknaMJPEOmFP",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
