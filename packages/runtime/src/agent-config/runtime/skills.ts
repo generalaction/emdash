@@ -1,8 +1,13 @@
 import type { PluginFs } from '@emdash/core/agents/plugins';
 import {
+  EMDASH_SKILLS_DIR,
   generateSkillMd,
+  getAvailableSkillMirrorDirs,
   isValidSkillName,
+  mirrorSkill,
   parseFrontmatter,
+  removeAllSkillMirrors,
+  skillEntryExists,
   type CatalogSkill,
   USER_SKILLS_DIRS,
 } from '@emdash/core/skills';
@@ -12,7 +17,7 @@ import type { AgentConfigSkillsModel } from '../state/live-models';
 import { publishLiveModelState } from '../state/live-models';
 import type { AgentConfigRuntimeDeps } from './types';
 
-const SKILLS_ROOT = USER_SKILLS_DIRS[0];
+const SKILLS_ROOT = EMDASH_SKILLS_DIR;
 const EMDASH_META = `${SKILLS_ROOT}/.emdash`;
 const SKILLSH_INSTALLS_PATH = `${EMDASH_META}/skillssh-installs.json`;
 
@@ -42,6 +47,7 @@ export class AgentSkillsManager {
   ) {}
 
   async initialize(): Promise<void> {
+    await this.syncCanonicalSkillsToAgents();
     await this.refresh();
   }
 
@@ -58,7 +64,16 @@ export class AgentSkillsManager {
     if (!isValidSkillName(installId)) {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${installId}"` });
     }
+    const { frontmatter } = parseFrontmatter(payload.skillMdContent);
     try {
+      if (
+        await skillEntryExists(
+          this.deps.pluginFs,
+          [installId, payload.id, frontmatter.name].filter(isValidSkillName)
+        )
+      ) {
+        return err({ type: 'invalid-state', message: `Skill "${payload.id}" already exists` });
+      }
       await this.deps.pluginFs.write(
         `${SKILLS_ROOT}/${installId}/SKILL.md`,
         payload.skillMdContent
@@ -77,6 +92,11 @@ export class AgentSkillsManager {
         };
         await writeSkillShInstalls(this.deps.pluginFs, installs);
       }
+      await this.mirrorSkillToAgents(
+        installId,
+        frontmatter.name || installId,
+        payload.skillMdContent
+      );
       return ok(await this.refresh());
     } catch (error) {
       return err(toIoError(error));
@@ -88,9 +108,16 @@ export class AgentSkillsManager {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${name}"` });
     }
     try {
-      await Promise.all(
-        USER_SKILLS_DIRS.map((skillsDir) => this.deps.pluginFs.delete(`${skillsDir}/${name}`))
-      );
+      const content = await this.deps.pluginFs.read(`${SKILLS_ROOT}/${name}/SKILL.md`);
+      if (!content) {
+        return err({
+          type: 'invalid-state',
+          message: `Skill "${name}" was installed outside Emdash and cannot be removed here`,
+        });
+      }
+      const { frontmatter } = parseFrontmatter(content);
+      await this.removeSkillMirrorsFromAgents(name, frontmatter.name || name);
+      await this.deps.pluginFs.delete(`${SKILLS_ROOT}/${name}`);
       const installs = await readSkillShInstalls(this.deps.pluginFs);
       if (installs[name]) {
         delete installs[name];
@@ -111,14 +138,12 @@ export class AgentSkillsManager {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${input.name}"` });
     }
     try {
-      const existing = await this.deps.pluginFs.exists(`${SKILLS_ROOT}/${input.name}/SKILL.md`);
-      if (existing) {
+      if (await skillEntryExists(this.deps.pluginFs, [input.name])) {
         return err({ type: 'invalid-state', message: `Skill "${input.name}" already exists` });
       }
-      await this.deps.pluginFs.write(
-        `${SKILLS_ROOT}/${input.name}/SKILL.md`,
-        generateSkillMd(input.name, input.description, input.content)
-      );
+      const skillContent = generateSkillMd(input.name, input.description, input.content);
+      await this.deps.pluginFs.write(`${SKILLS_ROOT}/${input.name}/SKILL.md`, skillContent);
+      await this.mirrorSkillToAgents(input.name, input.name, skillContent);
       return ok(await this.refresh());
     } catch (error) {
       return err(toIoError(error));
@@ -130,6 +155,60 @@ export class AgentSkillsManager {
     this.list = list;
     publishLiveModelState(this.model.states.list, list, previous);
   }
+
+  private async syncCanonicalSkillsToAgents(): Promise<void> {
+    const availableMirrorDirs = await getAvailableSkillMirrorDirs(this.deps.pluginFs);
+    for (const installName of await this.deps.pluginFs.list(SKILLS_ROOT)) {
+      if (installName === '.emdash') continue;
+      const content = await this.deps.pluginFs.read(`${SKILLS_ROOT}/${installName}/SKILL.md`);
+      if (!content) continue;
+      const { frontmatter } = parseFrontmatter(content);
+      await this.mirrorSkillToAgents(
+        installName,
+        frontmatter.name || installName,
+        content,
+        availableMirrorDirs
+      );
+    }
+  }
+
+  private async mirrorSkillToAgents(
+    installName: string,
+    frontmatterName: string,
+    content: string,
+    relativeDirs?: string[]
+  ): Promise<void> {
+    const targets = relativeDirs ?? (await getAvailableSkillMirrorDirs(this.deps.pluginFs));
+    await Promise.all(
+      targets.map(async (relativeDir) => {
+        try {
+          await mirrorSkill(this.deps.pluginFs, {
+            relativeDir,
+            installName,
+            frontmatterName,
+            content,
+            canonicalPath: `${this.deps.homeDir}/${SKILLS_ROOT}/${installName}`,
+            canonicalRoot: `${this.deps.homeDir}/${SKILLS_ROOT}`,
+          });
+        } catch (error) {
+          this.deps.logger.warn(`Failed to mirror skill "${installName}" to ${relativeDir}`, {
+            error,
+          });
+        }
+      })
+    );
+  }
+
+  private async removeSkillMirrorsFromAgents(
+    installName: string,
+    frontmatterName: string
+  ): Promise<void> {
+    await removeAllSkillMirrors(this.deps.pluginFs, {
+      installName,
+      frontmatterName,
+      canonicalRoot: `${this.deps.homeDir}/${SKILLS_ROOT}`,
+    });
+  }
 }
 
 function toIoError(error: unknown): AgentConfigSkillsError {
@@ -139,6 +218,7 @@ function toIoError(error: unknown): AgentConfigSkillsError {
 async function getInstalledSkills(fs: PluginFs, homeDir: string): Promise<CatalogSkill[]> {
   const provenance = await readSkillShInstalls(fs);
   const seen = new Set<string>();
+  const seenSkillNames = new Set<string>();
   const skills: CatalogSkill[] = [];
   for (const skillsDir of USER_SKILLS_DIRS) {
     const entries = await fs.list(skillsDir);
@@ -148,7 +228,10 @@ async function getInstalledSkills(fs: PluginFs, homeDir: string): Promise<Catalo
       if (!content) continue;
       const parsed = parseFrontmatter(content);
       const record = skillsDir === SKILLS_ROOT ? provenance[entry] : undefined;
+      const skillName = (parsed.frontmatter.name || record?.catalogSkillId || entry).toLowerCase();
+      if (seenSkillNames.has(skillName)) continue;
       seen.add(entry);
+      seenSkillNames.add(skillName);
       skills.push({
         id: record?.catalogSkillId ?? entry,
         installId: entry,
@@ -161,6 +244,7 @@ async function getInstalledSkills(fs: PluginFs, homeDir: string): Promise<Catalo
         skillMdContent: content,
         frontmatter: parsed.frontmatter,
         installed: true,
+        managedByEmdash: skillsDir === SKILLS_ROOT,
         localPath: `${homeDir}/${skillsDir}/${entry}`,
       });
     }

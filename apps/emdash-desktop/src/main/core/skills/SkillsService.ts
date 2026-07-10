@@ -5,11 +5,17 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CatalogIndex, CatalogSkill } from '@emdash/core/skills';
 import {
+  EMDASH_SKILLS_DIR,
   generateSkillMd,
+  getAvailableSkillMirrorDirs,
   isValidSkillName,
+  mirrorSkill,
   parseFrontmatter,
+  removeAllSkillMirrors,
+  skillEntryExists,
   USER_SKILLS_DIRS,
 } from '@emdash/core/skills';
+import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { log } from '@main/lib/logger';
 import bundledCatalog from './bundled-catalog.json';
 
@@ -97,19 +103,23 @@ function httpsGet(
 
 export class SkillsService {
   private static readonly CATALOG_VERSION = 2;
+  private readonly homeDir: string;
   private readonly skillsRoot: string;
   private readonly emdashMeta: string;
   private readonly catalogIndexPath: string;
   private readonly skillShInstallsPath: string;
   private readonly userSkillsRoots: string[];
+  private mirrorInitialization: Promise<void> | null = null;
   private catalogCache: CatalogIndex | null = null;
   private skillShSearchCache = new Map<string, { expiresAt: number; skills: CatalogSkill[] }>();
   private skillShSkillCache = new Map<string, CatalogSkill>();
 
   constructor(options: { homeDir?: string } = {}) {
-    const homeDir = options.homeDir ?? os.homedir();
-    this.userSkillsRoots = USER_SKILLS_DIRS.map((relativeDir) => path.join(homeDir, relativeDir));
-    this.skillsRoot = this.userSkillsRoots[0];
+    this.homeDir = options.homeDir ?? os.homedir();
+    this.userSkillsRoots = USER_SKILLS_DIRS.map((relativeDir) =>
+      path.join(this.homeDir, relativeDir)
+    );
+    this.skillsRoot = path.join(this.homeDir, EMDASH_SKILLS_DIR);
     this.emdashMeta = path.join(this.skillsRoot, '.emdash');
     this.catalogIndexPath = path.join(this.emdashMeta, 'catalog-index.json');
     this.skillShInstallsPath = path.join(this.emdashMeta, 'skillssh-installs.json');
@@ -118,6 +128,8 @@ export class SkillsService {
   async initialize(): Promise<void> {
     await fs.promises.mkdir(this.skillsRoot, { recursive: true });
     await fs.promises.mkdir(this.emdashMeta, { recursive: true });
+    this.mirrorInitialization ??= this.syncCanonicalSkillsToAgents();
+    await this.mirrorInitialization;
   }
 
   async getCatalogIndex(): Promise<CatalogIndex> {
@@ -191,6 +203,7 @@ export class SkillsService {
     await this.initialize();
     const seen = new Set<string>();
     const seenPaths = new Set<string>();
+    const seenSkillNames = new Set<string>();
     const skills: CatalogSkill[] = [];
     const skillShInstalls = await this.readPrunedSkillShInstalls();
 
@@ -225,8 +238,11 @@ export class SkillsService {
         try {
           const content = await fs.promises.readFile(skillMdPath, 'utf-8');
           const { frontmatter } = parseFrontmatter(content);
+          const skillName = (frontmatter.name || entry.name).toLowerCase();
+          if (seenSkillNames.has(skillName)) continue;
           seen.add(entry.name);
           seenPaths.add(skillDir);
+          seenSkillNames.add(skillName);
           const skillSh = dir === this.skillsRoot ? skillShInstalls[entry.name] : undefined;
           skills.push({
             id: skillSh ? this.toSkillShId(skillSh.sourceRef, skillSh.skillShPath) : entry.name,
@@ -243,6 +259,7 @@ export class SkillsService {
             iconUrl: skillSh ? this.getSkillShIconUrl(skillSh.sourceRef) : undefined,
             frontmatter,
             installed: true,
+            managedByEmdash: dir === this.skillsRoot,
             localPath: skillDir,
             skillMdContent: content,
           });
@@ -331,13 +348,12 @@ export class SkillsService {
     const tmpDir = `${skillDir}.tmp-${Date.now()}`;
     let finalDirCreated = false;
     try {
-      for (const candidateName of this.getInstallNameCandidates(skill)) {
-        try {
-          await fs.promises.access(path.resolve(this.skillsRoot, candidateName));
-          throw new Error(`Skill "${candidateName}" is already installed`);
-        } catch (err) {
-          if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-        }
+      const candidateNames = [
+        ...this.getInstallNameCandidates(skill),
+        skill.frontmatter.name,
+      ].filter(isValidSkillName);
+      if (await skillEntryExists(createPluginFs(this.homeDir), candidateNames)) {
+        throw new Error(`Skill "${skillId}" is already installed`);
       }
 
       await fs.promises.mkdir(tmpDir, { recursive: true });
@@ -373,6 +389,9 @@ export class SkillsService {
         });
       }
 
+      const { frontmatter } = parseFrontmatter(content);
+      await this.mirrorSkillToAgents(installName, frontmatter.name || installName, content);
+
       // Invalidate cache
       this.catalogCache = null;
       this.skillShSearchCache.clear();
@@ -382,6 +401,7 @@ export class SkillsService {
         ...skill,
         id: installName,
         installed: true,
+        managedByEmdash: true,
         localPath: skillDir,
         skillMdContent: content,
       };
@@ -400,30 +420,26 @@ export class SkillsService {
     if (!isValidSkillName(installName)) {
       throw new Error(`Invalid skill install name "${installName}"`);
     }
-
-    for (const skillsRoot of this.userSkillsRoots) {
-      const skillDir = path.resolve(skillsRoot, installName);
-      if (!this.isPathInsideRoot(skillDir, skillsRoot)) {
-        throw new Error(`Invalid skill install path for "${installName}"`);
-      }
-
-      try {
-        const stat = await fs.promises.lstat(skillDir);
-        if (stat.isSymbolicLink()) {
-          await fs.promises.unlink(skillDir);
-        } else if (stat.isDirectory()) {
-          await fs.promises.rm(skillDir, { recursive: true, force: true });
-        } else {
-          log.warn(`Unexpected entry type at ${skillDir} during uninstall — skipping`);
-        }
-      } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT') {
-          log.error(`Failed to remove skill directory ${skillDir}:`, error);
-          throw error;
-        }
-      }
+    const skillDir = path.resolve(this.skillsRoot, installName);
+    if (!this.isPathInsideSkillsRoot(skillDir)) {
+      throw new Error(`Invalid skill install path for "${installName}"`);
     }
+
+    let content: string;
+    try {
+      content = await fs.promises.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error(
+          `Skill "${skillId}" was installed outside Emdash and cannot be uninstalled here`
+        );
+      }
+      throw error;
+    }
+    const { frontmatter } = parseFrontmatter(content);
+
+    await this.removeSkillMirrorsFromAgents(installName, frontmatter.name || installName);
+    await fs.promises.rm(skillDir, { recursive: true, force: true });
 
     // Drop any persisted Skills.SH provenance for this install
     await this.removeSkillShInstall(installName);
@@ -444,11 +460,8 @@ export class SkillsService {
     await this.initialize();
     const skillDir = path.join(this.skillsRoot, name);
 
-    try {
-      await fs.promises.access(skillDir);
+    if (await skillEntryExists(createPluginFs(this.homeDir), [name])) {
       throw new Error(`Skill "${name}" already exists`);
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     }
 
     await fs.promises.mkdir(skillDir, { recursive: true });
@@ -456,6 +469,7 @@ export class SkillsService {
     const skillContent = generateSkillMd(name, description, content?.trim());
 
     await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), skillContent);
+    await this.mirrorSkillToAgents(name, name, skillContent);
 
     // Invalidate cache
     this.catalogCache = null;
@@ -468,6 +482,7 @@ export class SkillsService {
       source: 'local',
       frontmatter,
       installed: true,
+      managedByEmdash: true,
       localPath: skillDir,
       skillMdContent: skillContent,
     };
@@ -556,6 +571,78 @@ export class SkillsService {
   }
 
   // --- Private helpers ---
+
+  private async syncCanonicalSkillsToAgents(): Promise<void> {
+    let entries: fs.Dirent[];
+    try {
+      entries = await fs.promises.readdir(this.skillsRoot, { withFileTypes: true });
+    } catch (error) {
+      log.warn('Failed to scan canonical skills for agent mirroring', error);
+      return;
+    }
+    const availableMirrorDirs = await getAvailableSkillMirrorDirs(createPluginFs(this.homeDir));
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || !entry.isDirectory()) continue;
+      try {
+        const content = await fs.promises.readFile(
+          path.join(this.skillsRoot, entry.name, 'SKILL.md'),
+          'utf-8'
+        );
+        const { frontmatter } = parseFrontmatter(content);
+        await this.mirrorSkillToAgents(
+          entry.name,
+          frontmatter.name || entry.name,
+          content,
+          availableMirrorDirs
+        );
+      } catch (error) {
+        log.warn(`Failed to mirror canonical skill "${entry.name}"`, error);
+      }
+    }
+  }
+
+  private async mirrorSkillToAgents(
+    installName: string,
+    frontmatterName: string,
+    content: string,
+    relativeDirs?: string[]
+  ): Promise<void> {
+    const pluginFs = createPluginFs(this.homeDir);
+    const canonicalPath = path.join(this.skillsRoot, installName);
+    const targets = relativeDirs ?? (await getAvailableSkillMirrorDirs(pluginFs));
+
+    await Promise.all(
+      targets.map(async (relativeDir) => {
+        try {
+          const mirrored = await mirrorSkill(pluginFs, {
+            relativeDir,
+            installName,
+            frontmatterName,
+            content,
+            canonicalPath,
+            canonicalRoot: this.skillsRoot,
+          });
+          if (!mirrored) {
+            log.warn(`Skipped unmanaged skill conflict at ${path.join(this.homeDir, relativeDir)}`);
+          }
+        } catch (error) {
+          log.warn(`Failed to mirror skill "${installName}" to ${relativeDir}`, error);
+        }
+      })
+    );
+  }
+
+  private async removeSkillMirrorsFromAgents(
+    installName: string,
+    frontmatterName: string
+  ): Promise<void> {
+    await removeAllSkillMirrors(createPluginFs(this.homeDir), {
+      installName,
+      frontmatterName,
+      canonicalRoot: this.skillsRoot,
+    });
+  }
 
   private toSkillShId(sourceRef: string, skillPath: string): string {
     return `skillssh:${sourceRef}/${this.normalizeSkillShPath(skillPath)}`;
@@ -950,7 +1037,26 @@ export class SkillsService {
 
   private async mergeInstalledState(catalog: CatalogIndex): Promise<CatalogIndex> {
     const installed = await this.getInstalledSkills();
-    const installedMap = new Map(installed.map((s) => [s.id, s]));
+    const remainingInstalled = new Set(installed);
+    const normalizeKey = (value: string) => value.trim().toLowerCase();
+    const addToIndex = (
+      index: Map<string, CatalogSkill | null>,
+      value: string | undefined,
+      skill: CatalogSkill
+    ) => {
+      if (!value) return;
+      const key = normalizeKey(value);
+      const existing = index.get(key);
+      index.set(key, existing && existing !== skill ? null : skill);
+    };
+    const strongInstalledIndex = new Map<string, CatalogSkill | null>();
+    const weakInstalledIndex = new Map<string, CatalogSkill | null>();
+    for (const skill of installed) {
+      addToIndex(strongInstalledIndex, skill.id, skill);
+      addToIndex(strongInstalledIndex, skill.installId, skill);
+      addToIndex(weakInstalledIndex, skill.catalogSkillId, skill);
+      addToIndex(weakInstalledIndex, skill.frontmatter.name, skill);
+    }
 
     // Deduplicate catalog skills by id (first occurrence wins)
     const seen = new Set<string>();
@@ -959,22 +1065,57 @@ export class SkillsService {
       seen.add(s.id);
       return true;
     });
+    const weakCatalogKeyCounts = new Map<string, number>();
+    for (const skill of dedupedSkills) {
+      const keys = new Set(
+        [skill.catalogSkillId, skill.frontmatter.name]
+          .filter((value): value is string => Boolean(value))
+          .map(normalizeKey)
+      );
+      for (const key of keys) {
+        weakCatalogKeyCounts.set(key, (weakCatalogKeyCounts.get(key) ?? 0) + 1);
+      }
+    }
+    const findRemaining = (
+      keys: string[],
+      index: Map<string, CatalogSkill | null>
+    ): CatalogSkill | undefined => {
+      for (const key of keys) {
+        const candidate = index.get(key);
+        if (candidate && remainingInstalled.has(candidate)) return candidate;
+      }
+      return undefined;
+    };
 
     const mergedSkills: CatalogSkill[] = dedupedSkills.map((skill) => {
       const installNames = this.getInstallNameCandidates(skill);
       const installName = installNames[0] ?? skill.id;
+      const strongKeys = [skill.id, skill.installId, ...installNames]
+        .filter((value): value is string => Boolean(value))
+        .map(normalizeKey);
+      const weakKeys = [skill.catalogSkillId, skill.frontmatter.name]
+        .filter((value): value is string => Boolean(value))
+        .map(normalizeKey)
+        .filter((key) => weakCatalogKeyCounts.get(key) === 1);
       const local =
-        installedMap.get(skill.id) ??
-        installNames.map((name) => installedMap.get(name)).find(Boolean);
+        findRemaining(strongKeys, strongInstalledIndex) ??
+        findRemaining(weakKeys, weakInstalledIndex);
       if (local) {
-        installedMap.delete(local.id);
+        remainingInstalled.delete(local);
         return {
           ...skill,
-          installId: installName !== skill.id ? installName : skill.installId,
+          installId:
+            local.installId ??
+            (local.id !== skill.id
+              ? local.id
+              : installName !== skill.id
+                ? installName
+                : skill.installId),
           displayName: local.displayName || skill.displayName,
           description: local.description || skill.description,
           frontmatter: { ...skill.frontmatter, ...local.frontmatter },
           installed: true,
+          managedByEmdash: local.managedByEmdash,
           localPath: local.localPath,
           skillMdContent: local.skillMdContent,
         };
@@ -987,7 +1128,7 @@ export class SkillsService {
     });
 
     // Add locally-installed skills not in the catalog
-    for (const local of installedMap.values()) {
+    for (const local of remainingInstalled) {
       mergedSkills.push(local);
     }
 

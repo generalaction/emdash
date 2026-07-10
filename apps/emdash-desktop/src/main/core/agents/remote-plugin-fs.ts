@@ -55,7 +55,7 @@ export function createRemotePluginFs(
     },
 
     async delete(value: string): Promise<void> {
-      await ctx.exec('rm', ['-f', resolveSafe(value)]);
+      await ctx.exec('rm', ['-rf', resolveSafe(value)]);
     },
 
     async exists(value: string): Promise<boolean> {
@@ -69,6 +69,23 @@ export function createRemotePluginFs(
         return stdout.split('\n').filter(Boolean);
       } catch {
         return [];
+      }
+    },
+
+    async symlink(target: string, linkPath: string): Promise<void> {
+      const abs = resolveSafe(linkPath);
+      await ctx.exec('mkdir', ['-p', path.posix.dirname(abs)]);
+      await ctx.exec('ln', ['-s', target, abs]);
+    },
+
+    async readLink(value: string): Promise<string | null> {
+      const abs = resolveSafe(value);
+      try {
+        await ctx.exec('test', ['-L', abs]);
+        const { stdout } = await ctx.exec('readlink', [abs]);
+        return stdout.trim() || null;
+      } catch {
+        return null;
       }
     },
   };

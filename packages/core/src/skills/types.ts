@@ -24,6 +24,7 @@ export interface CatalogSkill {
   skillMdContent?: string;
   frontmatter: SkillFrontmatter;
   installed: boolean;
+  managedByEmdash?: boolean;
   localPath?: string;
 }
 

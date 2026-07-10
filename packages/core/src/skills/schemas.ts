@@ -26,6 +26,7 @@ export const catalogSkillSchema = z.object({
   skillMdContent: z.string().optional(),
   frontmatter: skillFrontmatterSchema,
   installed: z.boolean(),
+  managedByEmdash: z.boolean().optional(),
   localPath: z.string().optional(),
 });
 

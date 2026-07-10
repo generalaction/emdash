@@ -4,4 +4,6 @@ export interface PluginFs {
   delete(path: string): Promise<void>;
   exists(path: string): Promise<boolean>;
   list(path: string): Promise<string[]>;
+  symlink?(target: string, linkPath: string): Promise<void>;
+  readLink?(path: string): Promise<string | null>;
 }

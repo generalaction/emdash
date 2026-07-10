@@ -112,7 +112,8 @@ class MemoryPluginFs implements PluginFs {
   }
 
   async exists(path: string): Promise<boolean> {
-    return this.files.has(path);
+    const prefix = `${path}/`;
+    return this.files.has(path) || [...this.files.keys()].some((key) => key.startsWith(prefix));
   }
 
   async list(path: string): Promise<string[]> {
@@ -166,14 +167,14 @@ describe('AgentConfigRuntime', () => {
   });
 
   it('creates and removes local skills through plugin fs', async () => {
-    const { runtime } = makeRuntime();
+    const { runtime, fs } = makeRuntime();
+    await fs.write('.claude/settings.json', '{}');
 
     const created = await runtime.createSkill({
       name: 'reviewer',
       description: 'Review code changes',
       content: 'Check the diff carefully.',
     });
-    const removed = await runtime.removeSkill('reviewer');
 
     expect(created.success).toBe(true);
     if (created.success) {
@@ -181,7 +182,10 @@ describe('AgentConfigRuntime', () => {
       expect(created.data[0]?.installId).toBe('reviewer');
       expect(created.data[0]?.description).toBe('Review code changes');
     }
+    expect(await fs.read('.claude/skills/reviewer/SKILL.md')).toContain('name: "reviewer"');
+    const removed = await runtime.removeSkill('reviewer');
     expect(removed).toEqual(ok([]));
+    expect(await fs.read('.claude/skills/reviewer/SKILL.md')).toBeNull();
     runtime.dispose();
   });
 
@@ -199,14 +203,9 @@ describe('AgentConfigRuntime', () => {
 
     expect(installed.map((skill) => skill.id)).toEqual(['reviewer', 'planner']);
     expect(installed[0]?.localPath).toBe('/home/ada/.agents/skills/reviewer');
-    expect(await runtime.removeSkill('reviewer')).toEqual(
-      ok([
-        expect.objectContaining({
-          id: 'planner',
-          localPath: '/home/ada/.codex/skills/planner',
-        }),
-      ])
-    );
+    const removed = await runtime.removeSkill('reviewer');
+    expect(removed.success).toBe(false);
+    expect(await fs.read('.agents/skills/reviewer/SKILL.md')).toBe(sharedSkill);
     runtime.dispose();
   });
 

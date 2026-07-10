@@ -56,5 +56,19 @@ export function createLocalPluginFs(root: string): PluginFs {
         return [];
       }
     },
+
+    async symlink(target: string, linkPath: string): Promise<void> {
+      const absLinkPath = resolveSafe(linkPath);
+      await fs.mkdir(dirname(absLinkPath), { recursive: true });
+      await fs.symlink(target, absLinkPath, process.platform === 'win32' ? 'junction' : 'dir');
+    },
+
+    async readLink(path: string): Promise<string | null> {
+      try {
+        return await fs.readlink(resolveSafe(path));
+      } catch {
+        return null;
+      }
+    },
   };
 }

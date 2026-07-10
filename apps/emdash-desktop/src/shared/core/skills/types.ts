@@ -40,6 +40,8 @@ export interface CatalogSkill {
   frontmatter: SkillFrontmatter;
   /** Whether skill is installed locally */
   installed: boolean;
+  /** Whether Emdash owns the canonical skill and may uninstall it */
+  managedByEmdash?: boolean;
   /** Filesystem path if installed */
   localPath?: string;
 }

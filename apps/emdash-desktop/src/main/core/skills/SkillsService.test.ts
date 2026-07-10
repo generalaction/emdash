@@ -1,12 +1,13 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { isValidSkillName } from '@emdash/core/skills';
+import { isValidSkillName, type CatalogIndex } from '@emdash/core/skills';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SkillsService } from './SkillsService';
 
 type SkillsServiceInternals = {
   getSkillShInstallName(sourceRef: string, skillPath: string): string;
+  mergeInstalledState(catalog: CatalogIndex): Promise<CatalogIndex>;
 };
 
 describe('SkillsService Skills.SH install names', () => {
@@ -105,23 +106,109 @@ describe('SkillsService uninstall and sync safety', () => {
     );
   });
 
-  it('uninstalls a detected skill from every user skill directory', async () => {
+  it('does not uninstall a skill managed outside Emdash', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await writeSkill(homeDir, '.claude/skills', 'reviewer', 'Reviewer');
+    const service = new SkillsService({ homeDir });
+
+    expect((await service.getInstalledSkills())[0]?.managedByEmdash).toBe(false);
+    await expect(service.createSkill('reviewer', 'Duplicate')).rejects.toThrow('already exists');
+    await expect(service.uninstallSkill('reviewer')).rejects.toThrow('installed outside Emdash');
+
+    await expect(
+      fs.promises.readFile(path.join(homeDir, '.claude/skills/reviewer/SKILL.md'), 'utf-8')
+    ).resolves.toContain('name: reviewer');
+  });
+
+  it('mirrors created skills and removes only Emdash-managed links', async () => {
     const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
     tempDirs.push(homeDir);
     await Promise.all([
-      writeSkill(homeDir, '.agents/skills', 'reviewer', 'Reviewer'),
-      writeSkill(homeDir, '.claude/skills', 'reviewer', 'Reviewer'),
+      fs.promises.mkdir(path.join(homeDir, '.claude'), { recursive: true }),
+      fs.promises.mkdir(path.join(homeDir, '.codex'), { recursive: true }),
+      writeSkill(homeDir, '.agentskills', 'reviewer', 'Emdash reviewer'),
+      writeSkill(homeDir, '.cursor/skills', 'reviewer', 'Cursor-owned reviewer'),
     ]);
     const service = new SkillsService({ homeDir });
 
+    await service.initialize();
+    expect((await service.getInstalledSkills())[0]?.managedByEmdash).toBe(true);
+
+    const canonicalPath = path.join(homeDir, '.agentskills/reviewer');
+    await expect(fs.promises.readlink(path.join(homeDir, '.claude/skills/reviewer'))).resolves.toBe(
+      canonicalPath
+    );
+    await expect(fs.promises.readlink(path.join(homeDir, '.codex/skills/reviewer'))).resolves.toBe(
+      canonicalPath
+    );
+
     await service.uninstallSkill('reviewer');
 
-    await expect(
-      fs.promises.access(path.join(homeDir, '.agents/skills/reviewer'))
-    ).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.promises.access(canonicalPath)).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(
       fs.promises.access(path.join(homeDir, '.claude/skills/reviewer'))
     ).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(
+      fs.promises.readFile(path.join(homeDir, '.cursor/skills/reviewer/SKILL.md'), 'utf-8')
+    ).resolves.toContain('Cursor-owned reviewer');
+  });
+
+  it('matches catalog skills by their frontmatter name', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await writeSkill(homeDir, '.codex/skills', 'custom-directory', 'Reviewer', 'reviewer');
+    const service = new SkillsService({ homeDir }) as unknown as SkillsServiceInternals;
+
+    const merged = await service.mergeInstalledState({
+      version: 2,
+      lastUpdated: new Date(0).toISOString(),
+      skills: [
+        {
+          id: 'reviewer',
+          displayName: 'Reviewer',
+          description: 'Review changes',
+          source: 'openai',
+          frontmatter: { name: 'reviewer', description: 'Review changes' },
+          installed: false,
+        },
+      ],
+    });
+
+    expect(merged.skills).toHaveLength(1);
+    expect(merged.skills[0]).toMatchObject({
+      id: 'reviewer',
+      installId: 'custom-directory',
+      installed: true,
+    });
+  });
+
+  it('does not match ambiguous catalog skills by name alone', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await writeSkill(homeDir, '.codex/skills', 'custom-directory', 'Reviewer', 'reviewer');
+    const service = new SkillsService({ homeDir }) as unknown as SkillsServiceInternals;
+    const makeCatalogSkill = (id: string) => ({
+      id,
+      displayName: id,
+      description: 'Review changes',
+      source: 'skillssh' as const,
+      catalogSkillId: 'reviewer',
+      frontmatter: { name: 'reviewer', description: 'Review changes' },
+      installed: false,
+    });
+
+    const merged = await service.mergeInstalledState({
+      version: 2,
+      lastUpdated: new Date(0).toISOString(),
+      skills: [
+        makeCatalogSkill('skillssh:owner/one/reviewer'),
+        makeCatalogSkill('skillssh:two/two'),
+      ],
+    });
+
+    expect(merged.skills.filter((skill) => skill.installed)).toHaveLength(1);
+    expect(merged.skills.find((skill) => skill.installed)?.id).toBe('custom-directory');
   });
 });
 
@@ -129,12 +216,13 @@ async function writeSkill(
   homeDir: string,
   relativeRoot: string,
   name: string,
-  description: string
+  description: string,
+  frontmatterName = name
 ): Promise<void> {
   const skillDir = path.join(homeDir, relativeRoot, name);
   await fs.promises.mkdir(skillDir, { recursive: true });
   await fs.promises.writeFile(
     path.join(skillDir, 'SKILL.md'),
-    `---\nname: ${name}\ndescription: ${description}\n---\n`
+    `---\nname: ${frontmatterName}\ndescription: ${description}\n---\n`
   );
 }

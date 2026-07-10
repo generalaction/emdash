@@ -3,9 +3,11 @@
  * coding agents. Earlier entries take precedence when a skill is mirrored
  * into more than one directory.
  */
-export const USER_SKILLS_DIRS = [
-  '.agentskills',
+export const EMDASH_SKILLS_DIR = '.agentskills';
+
+export const AGENT_SKILLS_DIRS = [
   '.agents/skills',
+  '.agent/skills',
   '.claude/skills',
   '.cursor/skills',
   '.codex/skills',
@@ -27,8 +29,11 @@ export const USER_SKILLS_DIRS = [
   '.pi/agent/skills',
   '.config/devin/skills',
   '.rovodev/skills',
+  '.roo/skills',
   '.vibe/skills',
   '.gemini/antigravity/skills',
   '.config/agents/skills',
   '.config/mimocode/skills',
 ] as const;
+
+export const USER_SKILLS_DIRS = [EMDASH_SKILLS_DIR, ...AGENT_SKILLS_DIRS] as const;

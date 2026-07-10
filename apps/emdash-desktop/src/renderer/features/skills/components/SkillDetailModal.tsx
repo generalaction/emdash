@@ -114,16 +114,18 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
         <DialogFooter className="gap-2 sm:gap-2">
           {skill.installed && (
             <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleUninstall}
-                disabled={isProcessing}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Uninstall
-              </Button>
+              {skill.managedByEmdash && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleUninstall}
+                  disabled={isProcessing}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Uninstall
+                </Button>
+              )}
               {skill.localPath && onOpenTerminal && (
                 <Button variant="outline" size="sm" onClick={handleOpen}>
                   <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
