@@ -22,25 +22,7 @@ export {
   TooManyFilesChangedError,
   type FileStatus,
 } from './checkout/status-parser';
-export {
-  classifyCloneRepositoryError,
-  classifyCommitError,
-  classifyCreateBranchError,
-  classifyDeleteBranchError,
-  classifyFetchError,
-  classifyFetchPrForReviewError,
-  classifyMergeError,
-  classifyPullError,
-  classifyPushError,
-  classifyRebaseError,
-  classifySwitchError,
-  gitErr,
-  gitErrorMessage,
-  isMissingBlobError,
-  isNotRepositoryInspectionError,
-  isUnbornHeadError,
-  toGitCommandError,
-} from './errors';
+export { gitErr } from './errors';
 export { computeBaseRef } from './repository/ops/base-ref';
 export { gitRepositoryContract, type GitRepositoryContract } from './repository/contract';
 export type {
@@ -52,6 +34,9 @@ export type {
   FetchError,
   FetchPrForReviewError,
   GitCommandError,
+  GitExecError,
+  GitOperationError,
+  GitResolutionError,
   MergeError,
   PullError,
   PushError,

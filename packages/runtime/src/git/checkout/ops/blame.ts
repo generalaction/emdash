@@ -1,11 +1,7 @@
 import type { BoundExec } from '@emdash/core/exec';
-import {
-  toGitCommandError,
-  type BlameHunk,
-  type BlameResult,
-  type GitCommandError,
-} from '@emdash/core/git';
-import { err, ok, type Result } from '@emdash/shared';
+import { type BlameHunk, type BlameResult, type GitCommandError } from '@emdash/core/git';
+import { ok, type Result } from '@emdash/shared';
+import { commandFailed } from '../../exec/errors';
 
 const GROUP_HEADER_RE = /^([0-9a-f]{40}) (\d+) (\d+)(?: (\d+))?$/;
 
@@ -31,7 +27,7 @@ export async function blame(
     ]);
     return ok(parseBlamePorcelain(stdout));
   } catch (error) {
-    return err(toGitCommandError(error));
+    return commandFailed(error);
   }
 }
 

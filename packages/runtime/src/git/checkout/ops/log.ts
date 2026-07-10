@@ -6,6 +6,7 @@ import {
   type GitLogOptions,
   type GitLogResult,
 } from '@emdash/core/git';
+import { checkoutFailures } from '../errors';
 import { mapGitChangeStatus } from './status';
 
 export type Numstat = Map<string, { additions: number; deletions: number }>;
@@ -44,7 +45,8 @@ export async function getCommit(exec: BoundExec, hash: string): Promise<Commit |
     ]);
     const remoteReachable = await getRemoteReachableCommits(exec);
     return parseLogRecords(stdout, remoteReachable)[0] ?? null;
-  } catch {
+  } catch (error) {
+    if (!checkoutFailures.isUnknownRevision(error)) throw error;
     return null;
   }
 }
@@ -125,15 +127,11 @@ export function parseNumstat(stdout: string): Numstat {
 }
 
 async function getRemoteReachableCommits(exec: BoundExec): Promise<Set<string>> {
-  try {
-    const { stdout } = await exec.exec(['rev-list', '--remotes', '--max-count=10000']);
-    return new Set(
-      stdout
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-    );
-  } catch {
-    return new Set();
-  }
+  const { stdout } = await exec.exec(['rev-list', '--remotes', '--max-count=10000']);
+  return new Set(
+    stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+  );
 }

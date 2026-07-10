@@ -1,13 +1,13 @@
 import path from 'node:path';
 import type { BoundExec } from '@emdash/core/exec';
-import { gitErrorMessage, type GitSelector } from '@emdash/core/git';
+import { gitErr, type GitResolutionError, type GitSelector } from '@emdash/core/git';
 import { realpathOrResolve } from '@emdash/core/watch';
-import { err, ok, type Result } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
+import { gitFailure } from '../exec/errors';
 import type {
   CheckoutId,
   CheckoutIdentity,
   GitIdentityResolver,
-  GitResolutionError,
   ObjectStoreId,
   RepositoryId,
 } from './identity';
@@ -46,9 +46,12 @@ export class CanonicalGitIdentityResolver implements GitIdentityResolver {
     const entry: AliasEntry = { promise: this.resolveAlias(alias) };
     this.entries.set(alias, entry);
     this.armExpiry(alias, entry);
-    entry.promise.then((result) => {
-      if (!result.success && this.entries.get(alias) === entry) this.deleteEntry(alias, entry);
-    });
+    void entry.promise.then(
+      (result) => {
+        if (!result.success && this.entries.get(alias) === entry) this.deleteEntry(alias, entry);
+      },
+      () => this.deleteEntry(alias, entry)
+    );
     return entry.promise;
   }
 
@@ -77,7 +80,7 @@ export class CanonicalGitIdentityResolver implements GitIdentityResolver {
           .then(({ stdout }) => stdout.trim()),
       ]);
       if (!checkoutRoot || !gitDir || !gitCommonDir || !objectStoreDir) {
-        return err({ type: 'resolution-failed', path: alias, message: 'Incomplete Git identity' });
+        return gitErr.resolutionFailed(alias, 'Incomplete Git identity');
       }
 
       const canonicalCheckoutRoot = realpathOrResolve(checkoutRoot);
@@ -94,7 +97,7 @@ export class CanonicalGitIdentityResolver implements GitIdentityResolver {
         objectStoreDir: canonicalObjectStore,
       });
     } catch (error) {
-      return err({ type: 'resolution-failed', path: alias, message: gitErrorMessage(error) });
+      return gitErr.resolutionFailed(alias, gitFailure(error).message);
     }
   }
 

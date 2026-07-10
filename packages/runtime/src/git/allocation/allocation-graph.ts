@@ -1,5 +1,5 @@
 import type { BoundExec } from '@emdash/core/exec';
-import type { CheckoutSelector, RepositorySelector } from '@emdash/core/git';
+import type { CheckoutSelector, GitResolutionError, RepositorySelector } from '@emdash/core/git';
 import { KeyedMutex } from '@emdash/core/lib';
 import type { IWatchService } from '@emdash/core/watch';
 import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
@@ -13,7 +13,6 @@ import {
   repositoryIdentityOf,
   type CheckoutIdentity,
   type GitIdentityResolver,
-  type GitResolutionError,
   type RepositoryIdentity,
 } from './identity';
 import { CanonicalGitIdentityResolver } from './identity-resolver';
