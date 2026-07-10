@@ -10,7 +10,7 @@ import { withValidation, type ValidatePolicy } from '@emdash/wire';
 import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
 import { createAgentConfigController } from '../api/controller';
 import { AgentConfigRuntime } from '../runtime/runtime';
-import { createPtyInstallCommandRunner } from './install-command-runner';
+import { createExecInstallCommandRunner } from './install-command-runner';
 
 export type BootAgentConfigRuntimeProcessOptions = {
   pluginRegistry: PluginRegistry<CLIAgentPluginProvider>;
@@ -41,8 +41,7 @@ export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimePro
         agentHost,
         ptySpawner: spawner,
         logger,
-        installCommandRunner: createPtyInstallCommandRunner({
-          spawner,
+        installCommandRunner: createExecInstallCommandRunner({
           cwd: homeDir,
           env,
           shell: env.SHELL ?? '/bin/sh',

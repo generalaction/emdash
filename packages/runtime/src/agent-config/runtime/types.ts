@@ -10,7 +10,7 @@ export type AgentConfigSpawnContext = SpawnContext;
 
 export type AgentConfigInstallCommandRunner = (
   command: string,
-  ctx?: { signal?: AbortSignal; onOutput?: (chunk: string) => void }
+  ctx?: { signal?: AbortSignal }
 ) => Promise<Result<void, InstallCommandError>>;
 
 export interface AgentConfigRuntimeDeps {

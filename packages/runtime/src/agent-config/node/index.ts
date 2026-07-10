@@ -7,10 +7,10 @@ import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { createScope } from '@emdash/wire/util';
 import { AgentConfigRuntime } from '../runtime/runtime';
-import { createPtyInstallCommandRunner } from './install-command-runner';
+import { createExecInstallCommandRunner } from './install-command-runner';
 
 export { bootAgentConfigRuntimeProcess, type BootAgentConfigRuntimeProcessOptions } from './boot';
-export { createPtyInstallCommandRunner } from './install-command-runner';
+export { createExecInstallCommandRunner } from './install-command-runner';
 
 export type CreateNodeAgentConfigRuntimeOptions = {
   pluginRegistry: PluginRegistry<CLIAgentPluginProvider>;
@@ -39,8 +39,7 @@ export function createNodeAgentConfigRuntime(
     agentHost,
     ptySpawner: spawner,
     logger: options.logger,
-    installCommandRunner: createPtyInstallCommandRunner({
-      spawner,
+    installCommandRunner: createExecInstallCommandRunner({
       cwd: homeDir,
       env,
       shell: env.SHELL ?? '/bin/sh',

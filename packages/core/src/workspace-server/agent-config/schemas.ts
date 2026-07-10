@@ -145,7 +145,7 @@ export const agentConfigListSchema = z.record(z.string(), agentConfigEntrySchema
 
 export const agentInstallProgressSchema = z.object({
   providerId: z.string(),
-  output: z.string(),
+  phase: z.enum(['running-command', 'verifying']),
 });
 
 export const startLoginCommandSchema = z.object({

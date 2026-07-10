@@ -77,11 +77,12 @@ export class AgentInstallManager {
 
     try {
       if (strategy.kind === 'custom') {
+        ctx.progress({ providerId, phase: 'running-command' });
         const run = await this.deps.installCommandRunner(strategy.command, {
           signal: ctx.signal,
-          onOutput: (output) => ctx.progress({ providerId, output }),
         });
         if (!run.success) return err(run.error);
+        ctx.progress({ providerId, phase: 'verifying' });
         const state = await this.manager.probe(providerId);
         if (state.status !== 'available') {
           return err({ type: 'not-detected-after-install', providerId });
@@ -90,11 +91,14 @@ export class AgentInstallManager {
       }
 
       const result = await this.manager.install(providerId, strategy.method as never, {
-        run: (command) =>
-          this.deps.installCommandRunner(command, {
+        run: async (command) => {
+          ctx.progress({ providerId, phase: 'running-command' });
+          const run = await this.deps.installCommandRunner(command, {
             signal: ctx.signal,
-            onOutput: (output) => ctx.progress({ providerId, output }),
-          }),
+          });
+          if (run.success) ctx.progress({ providerId, phase: 'verifying' });
+          return run;
+        },
       });
       return mapInstallResult(providerId, result);
     } finally {
