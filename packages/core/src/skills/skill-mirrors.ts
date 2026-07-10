@@ -1,6 +1,6 @@
 import type { PluginFs } from '../agents/runtime/fs';
 import { AGENT_SKILLS_DIRS, USER_SKILLS_DIRS } from './locations';
-import { isValidSkillName } from './validation';
+import { isValidSkillName, parseFrontmatter } from './validation';
 
 const MANAGED_MARKER = '.emdash-managed.json';
 
@@ -12,14 +12,15 @@ export type MirrorSkillOptions = {
   frontmatterName: string;
   content: string;
   canonicalPath: string;
-  canonicalRoot: string;
   mode?: SkillMirrorMode;
 };
 
-export type RemoveSkillMirrorOptions = Pick<
-  MirrorSkillOptions,
-  'relativeDir' | 'installName' | 'frontmatterName' | 'canonicalRoot'
->;
+export type RemoveSkillMirrorOptions = {
+  relativeDir: string;
+  installName: string;
+  frontmatterName: string;
+  canonicalRoot: string;
+};
 
 function joinPath(dir: string, name: string): string {
   return `${dir.replace(/\/+$/, '')}/${name}`;
@@ -95,6 +96,7 @@ export async function mirrorSkill(
   fs: PluginFs,
   options: MirrorSkillOptions
 ): Promise<string | null> {
+  if (!isValidSkillName(options.installName)) return null;
   const mirrorName = preferredMirrorName(options);
   const mirrorPath = joinPath(options.relativeDir, mirrorName);
   const currentTarget = await readLink(fs, mirrorPath);
@@ -121,7 +123,9 @@ export async function mirrorSkill(
       await fs.symlink(options.canonicalPath, mirrorPath);
       return mirrorName;
     } catch {
-      // Symlinks can be unavailable on Windows or restricted filesystems.
+      if (!(await removeOwnedEntry(fs, mirrorPath, options.canonicalPath, options.installName))) {
+        return null;
+      }
     }
   }
 
@@ -133,6 +137,7 @@ export async function removeSkillMirrors(
   fs: PluginFs,
   options: RemoveSkillMirrorOptions
 ): Promise<void> {
+  if (!isValidSkillName(options.installName)) return;
   const canonicalPath = joinPath(options.canonicalRoot, options.installName);
   for (const name of candidateNames(options)) {
     await removeOwnedEntry(
@@ -166,11 +171,18 @@ export async function getAvailableSkillMirrorDirs(fs: PluginFs): Promise<string[
 }
 
 export async function skillEntryExists(fs: PluginFs, candidateNames: string[]): Promise<boolean> {
-  const candidateSet = new Set(candidateNames);
+  const candidateSet = new Set(candidateNames.map((name) => name.toLowerCase()));
   const matches = await Promise.all(
     USER_SKILLS_DIRS.map(async (skillsDir) => {
       const entries = await fs.list(skillsDir);
-      return entries.some((entry) => candidateSet.has(entry));
+      for (const entry of entries) {
+        if (candidateSet.has(entry.toLowerCase())) return true;
+        const content = await fs.read(joinPath(joinPath(skillsDir, entry), 'SKILL.md'));
+        if (!content) continue;
+        const { frontmatter } = parseFrontmatter(content);
+        if (frontmatter.name && candidateSet.has(frontmatter.name.toLowerCase())) return true;
+      }
+      return false;
     })
   );
   return matches.some(Boolean);

@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLocalPluginFs } from '../agents/plugins/helpers/local-plugin-fs';
-import { mirrorSkill, removeSkillMirrors } from './skill-mirrors';
+import { mirrorSkill, removeSkillMirrors, skillEntryExists } from './skill-mirrors';
 
 const content = '---\nname: reviewer\ndescription: Review changes\n---\n';
 
@@ -31,7 +31,6 @@ describe('skill mirrors', () => {
       frontmatterName: 'reviewer',
       content,
       canonicalPath,
-      canonicalRoot: path.join(homeDir, '.agentskills'),
     });
     await mirrorSkill(pluginFs, {
       relativeDir: '.claude/skills',
@@ -39,7 +38,6 @@ describe('skill mirrors', () => {
       frontmatterName: 'reviewer',
       content,
       canonicalPath,
-      canonicalRoot: path.join(homeDir, '.agentskills'),
     });
 
     expect(mirrored).toBe('reviewer');
@@ -65,7 +63,6 @@ describe('skill mirrors', () => {
       frontmatterName: 'reviewer',
       content,
       canonicalPath: path.join(homeDir, '.agentskills/reviewer'),
-      canonicalRoot: path.join(homeDir, '.agentskills'),
     });
     await removeSkillMirrors(pluginFs, {
       relativeDir: '.claude/skills',
@@ -90,7 +87,6 @@ describe('skill mirrors', () => {
       frontmatterName: 'reviewer',
       content,
       canonicalPath: path.join(homeDir, '.agentskills/reviewer'),
-      canonicalRoot: path.join(homeDir, '.agentskills'),
     });
     await removeSkillMirrors(pluginFs, {
       relativeDir: '.claude/skills',
@@ -112,7 +108,6 @@ describe('skill mirrors', () => {
       frontmatterName: 'reviewer',
       content,
       canonicalPath: path.join(homeDir, '.agentskills/reviewer'),
-      canonicalRoot: path.join(homeDir, '.agentskills'),
       mode: 'copy',
     });
 
@@ -128,5 +123,34 @@ describe('skill mirrors', () => {
       canonicalRoot: path.join(homeDir, '.agentskills'),
     });
     expect(await pluginFs.read('.claude/skills/reviewer/SKILL.md')).toBeNull();
+  });
+
+  it('does not copy over an unmanaged entry created after the ownership check', async () => {
+    const pluginFs = createLocalPluginFs(homeDir);
+    const canonicalPath = path.join(homeDir, '.agentskills/reviewer');
+    await pluginFs.write('.agentskills/reviewer/SKILL.md', content);
+    pluginFs.symlink = vi.fn(async () => {
+      await pluginFs.write('.claude/skills/reviewer/SKILL.md', 'unmanaged');
+      throw new Error('EEXIST');
+    });
+
+    const mirrored = await mirrorSkill(pluginFs, {
+      relativeDir: '.claude/skills',
+      installName: 'reviewer',
+      frontmatterName: 'reviewer',
+      content,
+      canonicalPath,
+    });
+
+    expect(mirrored).toBeNull();
+    expect(await pluginFs.read('.claude/skills/reviewer/SKILL.md')).toBe('unmanaged');
+    expect(await pluginFs.read('.claude/skills/reviewer/.emdash-managed.json')).toBeNull();
+  });
+
+  it('finds an existing skill by its frontmatter name', async () => {
+    const pluginFs = createLocalPluginFs(homeDir);
+    await pluginFs.write('.claude/skills/custom-directory/SKILL.md', content);
+
+    await expect(skillEntryExists(pluginFs, ['reviewer'])).resolves.toBe(true);
   });
 });
