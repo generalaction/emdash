@@ -1,18 +1,55 @@
-export { FilesRuntime, type FilesRuntimeOptions } from './files-runtime';
+export { filesContract, type FilesContract } from './api/contract';
+export { fsErrorSchema, type FsError } from './api/errors';
 export {
-  FILE_NOT_FOUND_ERROR_CODES,
-  classifyFileError,
-  isFileNotFoundCode,
-  isFileNotFoundError,
-  isFileNotFoundException,
-  type FileError,
-  type FileNotFoundErrorCode,
-  type FilesOnError,
-} from './errors';
-export { includeAllFiles, type FileExclusionPredicate } from './exclusions';
-export { FileSystem } from './fs';
-export { createRootPathPolicy, type RootPathPolicy } from './path-policy';
-export { validateAbsolutePath, contains, type AbsPath } from './paths';
-export { isExpandableFileNode } from './tree/models/tree';
-export { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './tree/errors';
-export type * from './types';
+  contentKeySchema,
+  copyInputSchema,
+  createDirectoryInputSchema,
+  createFileInputSchema,
+  deleteInputSchema,
+  fileEnumerationOptionsSchema,
+  fileGlobOptionsSchema,
+  fileStatSchema,
+  moveInputSchema,
+  pathBatchSchema,
+  pathKeySchema,
+  pathListSchema,
+  readBytesMetaSchema,
+  readFileOptionsSchema,
+  readTextResultSchema,
+  renameInputSchema,
+  rootKeySchema,
+  treeKeySchema,
+  writeFileInputSchema,
+  type ContentKey,
+  type CopyInput,
+  type CreateDirectoryInput,
+  type CreateFileInput,
+  type DeleteInput,
+  type FileEnumerationOptions,
+  type FileGlobOptions,
+  type FileStat,
+  type MoveInput,
+  type PathBatch,
+  type PathKey,
+  type PathList,
+  type ReadBytesMeta,
+  type ReadFileOptions,
+  type ReadTextResult,
+  type RenameInput,
+  type RootKey,
+  type TreeKey,
+  type WriteFileInput,
+} from './api/schemas';
+export { fileContentModelSchema, type FileContentModel } from './content/state';
+export {
+  fileEntryKindSchema,
+  fileEntrySchema,
+  fileTreeModelSchema,
+  isExpandableFileEntry,
+  isOpenableFileEntry,
+  symlinkTargetKindSchema,
+  type FileEntry,
+  type FileEntryKind,
+  type FileTreeModel,
+  type SymlinkTargetKind,
+} from './tree/state';

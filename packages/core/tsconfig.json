@@ -15,6 +15,7 @@
     "types": ["node"],
     "paths": {
       "@emdash/wire/testing": ["../wire/src/testing/index.ts"],
+      "@emdash/wire/util": ["../wire/src/util/index.ts"],
       "@emdash/wire": ["../wire/src/index.ts"]
     }
   },
