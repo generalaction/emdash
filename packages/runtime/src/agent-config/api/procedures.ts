@@ -78,6 +78,16 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
     removeSkill(input: { name: string }): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
       return runtime.removeSkill(input.name);
     },
+    setSkillTargets(
+      input: Parameters<AgentConfigRuntime['setSkillTargets']> extends [
+        infer InstallName,
+        infer Targets,
+      ]
+        ? { installName: InstallName; targets: Targets }
+        : never
+    ): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
+      return runtime.setSkillTargets(input.installName, input.targets);
+    },
     createSkill(
       input: Parameters<AgentConfigRuntime['createSkill']>[0]
     ): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {

@@ -1,6 +1,7 @@
 import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire';
 import { z } from 'zod';
 import { agentAuthStatusSchema } from '../../agents/plugins/capabilities/auth';
+import { skillTargetSelectionSchema } from '../../skills';
 import {
   agentConfigAuthErrorSchema,
   agentConfigInstallStrategySchema,
@@ -118,6 +119,14 @@ export const agentConfigContract = defineContract({
   }),
   removeSkill: fallible({
     input: z.object({ name: z.string() }),
+    data: installedSkillsSchema,
+    error: agentConfigSkillsErrorSchema,
+  }),
+  setSkillTargets: fallible({
+    input: z.object({
+      installName: z.string(),
+      targets: skillTargetSelectionSchema,
+    }),
     data: installedSkillsSchema,
     error: agentConfigSkillsErrorSchema,
   }),

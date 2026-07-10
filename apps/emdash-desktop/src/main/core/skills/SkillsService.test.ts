@@ -104,6 +104,19 @@ describe('SkillsService uninstall and sync safety', () => {
     expect(installed[0]?.localPath).toBe(
       await fs.promises.realpath(path.join(homeDir, '.agents/skills/reviewer'))
     );
+    expect(installed[0]?.locations).toEqual([
+      expect.objectContaining({ relativeDir: '.agents/skills', kind: 'shared' }),
+      expect.objectContaining({
+        relativeDir: '.claude/skills',
+        kind: 'provider',
+        providerIds: ['claude'],
+      }),
+      expect.objectContaining({
+        relativeDir: '.cursor/skills',
+        kind: 'provider',
+        providerIds: ['cursor'],
+      }),
+    ]);
   });
 
   it('does not uninstall a skill managed outside Emdash', async () => {
@@ -176,6 +189,45 @@ describe('SkillsService uninstall and sync safety', () => {
     await expect(
       fs.promises.readFile(path.join(homeDir, '.cursor/skills/reviewer/SKILL.md'), 'utf-8')
     ).resolves.toContain('Cursor-owned reviewer');
+  });
+
+  it('syncs managed skills only to selected agents and reconciles target changes', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await Promise.all([
+      fs.promises.mkdir(path.join(homeDir, '.claude'), { recursive: true }),
+      fs.promises.mkdir(path.join(homeDir, '.codex'), { recursive: true }),
+    ]);
+    const service = new SkillsService({ homeDir });
+
+    await service.createSkill('reviewer', 'Review changes', undefined, {
+      mode: 'providers',
+      providerIds: ['claude'],
+    });
+
+    const canonicalPath = path.join(homeDir, '.agentskills/reviewer');
+    await expect(fs.promises.readlink(path.join(homeDir, '.claude/skills/reviewer'))).resolves.toBe(
+      canonicalPath
+    );
+    await expect(
+      fs.promises.access(path.join(homeDir, '.codex/skills/reviewer'))
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+
+    await service.setTargets('reviewer', {
+      mode: 'providers',
+      providerIds: ['codex'],
+    });
+
+    await expect(
+      fs.promises.access(path.join(homeDir, '.claude/skills/reviewer'))
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.promises.readlink(path.join(homeDir, '.codex/skills/reviewer'))).resolves.toBe(
+      canonicalPath
+    );
+    expect((await service.getInstalledSkills())[0]?.targets).toEqual({
+      mode: 'providers',
+      providerIds: ['codex'],
+    });
   });
 
   it('matches catalog skills by their frontmatter name', async () => {

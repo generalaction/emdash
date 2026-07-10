@@ -174,6 +174,7 @@ describe('AgentConfigRuntime', () => {
       name: 'reviewer',
       description: 'Review code changes',
       content: 'Check the diff carefully.',
+      targets: { mode: 'providers', providerIds: [] },
     });
 
     expect(created.success).toBe(true);
@@ -182,6 +183,9 @@ describe('AgentConfigRuntime', () => {
       expect(created.data[0]?.installId).toBe('reviewer');
       expect(created.data[0]?.description).toBe('Review code changes');
     }
+    expect(await fs.read('.claude/skills/reviewer/SKILL.md')).toBeNull();
+    const synced = await runtime.setSkillTargets('reviewer', { mode: 'all' });
+    expect(synced.success).toBe(true);
     expect(await fs.read('.claude/skills/reviewer/SKILL.md')).toContain('name: "reviewer"');
     const removed = await runtime.removeSkill('reviewer');
     expect(removed).toEqual(ok([]));
@@ -336,6 +340,10 @@ function makeRuntime(
       plugins: { kind: 'none' },
       prompt: { kind: 'none' },
       sessions: { kind: 'none' },
+      skills: {
+        kind: 'supported',
+        locations: [{ relativeDir: '.claude/skills', isolation: 'provider' }],
+      },
       trust: { kind: 'none' },
     },
     assets: {},
