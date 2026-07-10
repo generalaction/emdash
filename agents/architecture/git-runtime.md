@@ -51,7 +51,9 @@ while retaining distinct checkout resources.
 
 `GitRepository` and `GitCheckout` are the low-level command drivers composed by those resources.
 They build commands, invoke `BoundExec`, parse output, and return typed operational results. They do
-not own Wire hosts, resource leases, or cross-state reconciliation.
+not own Wire hosts, resource leases, or cross-state reconciliation. `GitRepository` lazily keeps a
+repository-scoped `git cat-file --batch` process for repeated blob reads; process creation remains
+owned by `BoundExec`, so repository scoping and dynamic executable selection apply uniformly.
 
 ## Live Models
 
@@ -90,9 +92,9 @@ There is no operation classifier or global effect plan. Small shared methods suc
 ## Error Model
 
 Declared Git command failures and selector-resolution failures use contract `Result` channels.
-`runtime-error.ts` recognizes only `ExecError` and `GitResolutionException` at runtime boundaries.
-Programming errors, broken invariants, unexpected watcher failures, and callback bugs keep throwing
-and are recorded by Wire as causes.
+`api/errors.ts` recognizes only `ExecError` and `GitResolutionException` at runtime boundaries.
+Programming errors, broken invariants, unexpected watcher failures, and callback bugs keep
+throwing and are recorded by Wire as causes.
 
 ## Source Organization
 
@@ -104,8 +106,7 @@ and are recorded by Wire as causes.
   scheduler, watcher classifier, provisioner, and repository operations.
 - `checkout/` contains the checkout manager, canonical resource, command driver, file-diff registry,
   and checkout operations.
-- `exec/` contains Git process construction, repository binding, operation context, and transfer
-  progress.
+- `exec/` contains Git process construction and scoping, operation context, and transfer progress.
 
 Only runtime and transport composition are exported from `@emdash/runtime/git`. Allocation,
 resources, and command drivers remain implementation details.
