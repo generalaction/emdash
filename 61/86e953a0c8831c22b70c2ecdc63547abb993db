@@ -1,0 +1,40 @@
+packages/core/src/watch/native-watch.test.ts
+  s_f9604b66d8636b::t_ae0db24b25e2e7 139-141
+  s_ae0bf6f9960240::t_a52d56e286ba01 167-180
+packages/core/src/watch/native-watch.ts
+  s_f9604b66d8636b::t_ae0db24b25e2e7 161
+  s_bcae8fbe679667::t_3dd062b7aa9c4d 168-171
+  s_ae0bf6f9960240::t_a52d56e286ba01 143,149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "6186e953a0c8831c22b70c2ecdc63547abb993db",
+  "prompts": {},
+  "sessions": {
+    "s_ae0bf6f9960240": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n9vDkbITV4WF6roJBfC",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_bcae8fbe679667": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n9wToI7aktzEBRs7HW1",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f9604b66d8636b": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n9wo8u3yatZcxljMkGM",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
