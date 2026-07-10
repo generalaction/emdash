@@ -1,14 +1,8 @@
-import { resultSchema, type Result, type Unsubscribe } from '@emdash/shared';
+import type { Result, Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import { LiveJob, type LiveJobContext } from '../live/job';
-import {
-  isLiveModelHost,
-  type LiveModelHost,
-  createMutationId,
-  type LiveMutationResult,
-} from '../live/mutations';
+import { isLiveModelHost, type LiveModelHost, createMutationId } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
-import { liveCursorEntrySchema } from '../live/protocol';
 import {
   isLiveJobReplica,
   isLiveLogReplica,
@@ -43,7 +37,6 @@ import type {
   JobResult,
   JobError,
   LiveModelDef,
-  MutationDef,
   UploadFileEndpointDef,
   UploadFileError,
   UploadFileInput,
@@ -89,8 +82,6 @@ export type Controller = {
   resolveLive(topic: string): LiveSource | null;
   dispose?(): void;
 };
-
-export type ValidatePolicy = 'none' | 'inputs' | 'full';
 
 type ProcedureImpl<Def extends EndpointDef> = (
   input: EndpointInput<Def>,
@@ -154,12 +145,7 @@ export type ContractImpl<Defs extends ContractDefinitions> = {
       : never;
 };
 
-export type CreateControllerOptions = {
-  validate?: ValidatePolicy;
-};
-
 type LiveEntry = {
-  keySchema: z.ZodTypeAny;
   resolve(key: unknown): LiveSource | null | undefined;
 };
 
@@ -167,10 +153,8 @@ const jobKeySchema = z.object({ jobId: z.string() });
 
 export function createController<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
-  impl: ContractImpl<Defs>,
-  options: CreateControllerOptions = {}
+  impl: ContractImpl<Defs>
 ): Controller {
-  const validate = options.validate ?? 'none';
   const liveEntries = new Map<string, LiveEntry>();
   const procedureEntries = new Map<string, (input: unknown, meta: CallMeta) => Promise<unknown>>();
   const jobServers: Array<{ dispose(): void }> = [];
@@ -199,9 +183,7 @@ export function createController<Defs extends ContractDefinitions>(
           const handler = entryImpl as ((input: unknown, meta: CallMeta) => unknown) | undefined;
           if (!handler) break;
           procedureEntries.set(fullPath, async (input, meta) => {
-            const parsedInput = validate === 'none' ? input : def.input.parse(input);
-            const output = await handler(parsedInput, meta);
-            return validate === 'full' ? def.output.parse(output) : output;
+            return await handler(input, meta);
           });
           break;
         }
@@ -209,18 +191,13 @@ export function createController<Defs extends ContractDefinitions>(
           const handler = entryImpl as DownloadFileImpl<DownloadFileEndpointDef> | undefined;
           if (!handler) break;
           procedureEntries.set(fullPath, async (input, meta) => {
-            const parsedInput = validate === 'none' ? input : def.input.parse(input);
-            const output = await handler(parsedInput, meta);
+            const output = await handler(input, meta);
             if (!output.success) {
-              return validate === 'full'
-                ? { success: false, error: def.error.parse(output.error) }
-                : output;
+              return output;
             }
-            const parsedMeta =
-              validate === 'none' ? output.data.meta : def.meta.parse(output.data.meta);
             return {
               success: true,
-              data: markDownloadFileOpen(parsedMeta as WireFileMeta, output.data.source),
+              data: markDownloadFileOpen(output.data.meta as WireFileMeta, output.data.source),
             };
           });
           break;
@@ -236,15 +213,8 @@ export function createController<Defs extends ContractDefinitions>(
                 `Upload file '${fullPath}' requires a file payload`
               );
             }
-            const parsedInput = validate === 'none' ? input : def.input.parse(input);
             validateUploadFileEnvelope(def, uploadFile);
-            const output = await handler(
-              parsedInput,
-              limitUploadFile(uploadFile, def.maxSize),
-              meta
-            );
-            if (validate !== 'full') return output;
-            return resultSchema(def.result, def.error).parse(output) as Result<unknown, unknown>;
+            return await handler(input, limitUploadFile(uploadFile, def.maxSize), meta);
           });
           break;
         }
@@ -260,7 +230,6 @@ export function createController<Defs extends ContractDefinitions>(
             );
           }
           liveEntries.set(def.id, {
-            keySchema: def.keySchema,
             resolve: createLiveLogResolver(impl),
           });
           break;
@@ -277,12 +246,11 @@ export function createController<Defs extends ContractDefinitions>(
           if (isLiveJobClientHandle(impl)) {
             procedureEntries.set(`${fullPath}.start`, (input) => impl.start(input as never));
             procedureEntries.set(`${fullPath}.cancel`, async (input) => {
-              const parsed = z.object({ jobId: z.string() }).parse(input);
+              const parsed = jobKeySchema.parse(input);
               await impl.cancel(parsed.jobId);
               return undefined;
             });
             liveEntries.set(def.id, {
-              keySchema: jobKeySchema,
               resolve: (key) => impl.handle((key as { jobId: string }).jobId).asLiveSource(),
             });
             break;
@@ -304,29 +272,26 @@ export function createController<Defs extends ContractDefinitions>(
               }
             });
             procedureEntries.set(`${fullPath}.cancel`, async (input) => {
-              const parsed = z.object({ jobId: z.string() }).parse(input);
+              const parsed = jobKeySchema.parse(input);
               await impl.cancel(parsed.jobId);
               return undefined;
             });
             liveEntries.set(def.id, {
-              keySchema: jobKeySchema,
               resolve: (key) => impl.resolve((key as { jobId: string }).jobId),
             });
             break;
           }
-          const server = createLiveJob(def, impl, validate);
+          const server = createLiveJob(impl);
           jobServers.push(server);
           procedureEntries.set(`${fullPath}.start`, async (input) => {
-            const parsedInput = validate === 'none' ? input : def.input.parse(input);
-            return server.start(parsedInput);
+            return server.start(input);
           });
           procedureEntries.set(`${fullPath}.cancel`, async (input) => {
-            const parsed = z.object({ jobId: z.string() }).parse(input);
+            const parsed = jobKeySchema.parse(input);
             server.cancel(parsed.jobId);
             return undefined;
           });
           liveEntries.set(def.id, {
-            keySchema: jobKeySchema,
             resolve: (key) => server.source((key as { jobId: string }).jobId),
           });
           break;
@@ -335,15 +300,13 @@ export function createController<Defs extends ContractDefinitions>(
           const provider = createGroupProvider(def, entryImpl, fullPath);
           for (const [stateName, state] of Object.entries(def.states)) {
             liveEntries.set(state.id, {
-              keySchema: def.keySchema,
               resolve: (key) => provider.resolveState(key as never, stateName),
             });
           }
-          for (const [mutationName, mutationDef] of Object.entries(def.mutations)) {
+          for (const mutationName of Object.keys(def.mutations)) {
             procedureEntries.set(`${fullPath}.${mutationName}`, async (input) => {
-              const envelope = parseGroupMutationInput(def, mutationDef, input, validate);
-              const output = await provider.runMutation(mutationName, envelope as never);
-              return validateMutationOutput(mutationDef, output, validate);
+              const envelope = parseGroupMutationInput(input);
+              return await provider.runMutation(mutationName, envelope as never);
             });
           }
           break;
@@ -421,8 +384,7 @@ export function createController<Defs extends ContractDefinitions>(
       const { refId, rawKey } = splitTopic(topic);
       const entry = liveEntries.get(refId);
       if (!entry) return null;
-      const key = validate === 'none' ? rawKey : entry.keySchema.parse(rawKey);
-      return entry.resolve(key) ?? missingLiveSource(`Unknown live topic '${topic}'`);
+      return entry.resolve(rawKey) ?? missingLiveSource(`Unknown live topic '${topic}'`);
     },
     dispose() {
       for (const server of jobServers) server.dispose();
@@ -502,58 +464,33 @@ function createLiveLogResolver(
 }
 
 function createLiveJob(
-  def: LiveJobEndpointDef,
-  impl: JobImpl<LiveJobEndpointDef>,
-  validate: ValidatePolicy
+  impl: JobImpl<LiveJobEndpointDef>
 ): LiveJob<unknown, unknown, unknown, unknown> {
   return new LiveJob<unknown, unknown, unknown, unknown>(
     async (input, ctx) => {
-      const result = await impl.run(input, {
+      return await impl.run(input, {
         jobId: ctx.jobId,
         signal: ctx.signal,
-        progress: (progress) =>
-          ctx.progress(validate === 'full' ? def.progress.parse(progress) : progress),
+        progress: (progress) => ctx.progress(progress),
       });
-      if (validate !== 'full') return result;
-      return resultSchema(def.result, def.error).parse(result) as Result<unknown, unknown>;
     },
     {
-      toError: impl.toError
-        ? (error) => {
-            const mapped = impl.toError?.(error);
-            return validate === 'full' ? def.error.parse(mapped) : mapped;
-          }
-        : undefined,
+      toError: impl.toError,
     }
   );
 }
 
-function parseGroupMutationInput(
-  group: LiveModelDef,
-  def: MutationDef,
-  input: unknown,
-  validate: ValidatePolicy
-): { key: unknown; input: Record<string, unknown>; mutationId: string } {
+function parseGroupMutationInput(input: unknown): {
+  key: unknown;
+  input: Record<string, unknown>;
+  mutationId: string;
+} {
   const envelope = input as { key?: unknown; input?: unknown; mutationId?: unknown };
-  const key = validate === 'none' ? envelope.key : group.keySchema.parse(envelope.key);
-  const parsedInput = validate === 'none' ? envelope.input : def.input.parse(envelope.input);
   return {
-    key,
-    input: (parsedInput ?? {}) as Record<string, unknown>,
+    key: envelope.key,
+    input: (envelope.input ?? {}) as Record<string, unknown>,
     mutationId: typeof envelope.mutationId === 'string' ? envelope.mutationId : createMutationId(),
   };
-}
-
-function validateMutationOutput(
-  def: MutationDef,
-  output: LiveMutationResult<unknown, unknown>,
-  validate: ValidatePolicy
-): LiveMutationResult<unknown, unknown> {
-  if (validate !== 'full') return output;
-  return resultSchema(
-    z.object({ data: def.data, cursors: z.array(liveCursorEntrySchema) }),
-    def.error
-  ).parse(output) as LiveMutationResult<unknown, unknown>;
 }
 
 function missingLiveSource(message: string): LiveSource {

@@ -8,6 +8,7 @@ export default defineConfig({
     logger: 'src/logger/index.ts',
     'logger-context': 'src/logger/context.ts',
     'logger-context-node': 'src/logger/context-node.ts',
+    'logger-node': 'src/logger/node/index.ts',
     'logger-pino': 'src/logger/pino/index.ts',
     'logger-transport': 'src/logger/transport/index.ts',
     markdown: 'src/markdown/index.ts',

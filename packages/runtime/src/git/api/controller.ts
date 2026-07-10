@@ -16,10 +16,11 @@ import {
   createController,
   type ContractImpl,
   type Controller,
-  type CreateControllerOptions,
   type LiveModelDef,
   type LiveModelHost,
   type LiveModelProvider,
+  type ValidatePolicy,
+  withValidation,
 } from '@emdash/wire';
 import type { CheckoutResource } from '../checkout/resource';
 import type { GitRuntime } from '../git-runtime';
@@ -27,16 +28,18 @@ import type { RepositoryResource } from '../repository/resource';
 import type { GitSessionManager } from '../session/session-manager';
 
 export type GitControllerOptions = {
-  validate?: CreateControllerOptions['validate'];
+  validate?: ValidatePolicy;
 };
 
 export function createGitController(
   runtime: GitRuntime,
   options: GitControllerOptions = {}
 ): Controller {
-  return createController(gitContract, createGitContractImpl(runtime), {
-    validate: options.validate ?? 'inputs',
-  });
+  return withValidation(
+    gitContract,
+    createController(gitContract, createGitContractImpl(runtime)),
+    options.validate ?? 'inputs'
+  );
 }
 
 export function createGitContractImpl(

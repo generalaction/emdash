@@ -120,10 +120,11 @@ MobX-backed utilities intentionally live in their own export because they have a
 2. Create server-side `LiveState`, `LiveLog`, `LiveJob`, or
    `createLiveModelHost()` instances.
 3. Create and dispose keyed host instances as domain resources appear.
-4. Create a controller with `createController(contract, impl, options?)`.
-5. Serve the controller over a `WireTransport`.
-6. Connect from the client and create a typed `client()`.
-7. Use client handles directly for streaming, or create replicas when local state,
+4. Create a controller with `createController(contract, impl)`.
+5. Optionally wrap the controller with `withValidation(contract, controller, policy)`.
+6. Serve the controller over a `WireTransport`.
+7. Connect from the client and create a typed `client()`.
+8. Use client handles directly for streaming, or create replicas when local state,
    ref counting, or downstream serving is needed.
 
 For a complete example in one file, see [../examples/contract/client.ts](../examples/contract/client.ts).

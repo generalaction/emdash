@@ -3,13 +3,9 @@ import * as fs from 'node:fs';
 import * as https from 'node:https';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type { CatalogIndex, CatalogSkill } from '@emdash/core/skills';
+import { generateSkillMd, isValidSkillName, parseFrontmatter } from '@emdash/core/skills';
 import { log } from '@main/lib/logger';
-import type { CatalogIndex, CatalogSkill } from '@shared/core/skills/types';
-import {
-  generateSkillMd,
-  isValidSkillName,
-  parseFrontmatter,
-} from '@shared/core/skills/validation';
 import bundledCatalog from './bundled-catalog.json';
 
 const SKILLS_ROOT = path.join(os.homedir(), '.agentskills');

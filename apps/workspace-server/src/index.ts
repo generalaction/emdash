@@ -1,3 +1,6 @@
+import { workspaceWireContract } from '@emdash/core/workspace-server';
+import { initProcessLogging } from '@emdash/shared/logger/node';
+import { withValidation, type ValidatePolicy } from '@emdash/wire';
 import { spawnAcpWorkspaceRuntimeProcess } from './acp/host';
 import { createWorkspaceWireController } from './api/controller';
 import {
@@ -18,6 +21,7 @@ type Disposable = {
 };
 
 async function main(): Promise<void> {
+  initProcessLogging({ name: 'workspace-server' });
   const config = loadWorkspaceServerConfig();
   if (!config.success) {
     throw new Error(formatWorkspaceServerConfigError(config.error));
@@ -54,10 +58,14 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
       );
     }
 
-    const controller = createWorkspaceWireController({
-      appVersion: config.appVersion,
-      acp: acpRuntime?.client,
-    });
+    const controller = withValidation(
+      workspaceWireContract,
+      createWorkspaceWireController({
+        appVersion: config.appVersion,
+        acp: acpRuntime?.client,
+      }),
+      workspaceServerWireValidationPolicy()
+    );
     const handle = await serveSocket(controller, { socketPath: config.serve.path });
     const paths = daemonPaths(handle.socketPath);
     try {
@@ -77,10 +85,18 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
     };
   }
 
-  const controller = createWorkspaceWireController({ appVersion: config.appVersion });
+  const controller = withValidation(
+    workspaceWireContract,
+    createWorkspaceWireController({ appVersion: config.appVersion }),
+    workspaceServerWireValidationPolicy()
+  );
   const dispose = serveStdio(controller);
   process.stderr.write('workspace-server wire stdio listening\n');
   return { dispose };
+}
+
+function workspaceServerWireValidationPolicy(): ValidatePolicy {
+  return process.env.NODE_ENV === 'production' ? 'inputs' : 'full';
 }
 
 async function runStart(config: WorkspaceServerConfig): Promise<void> {

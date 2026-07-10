@@ -3,7 +3,7 @@
  *
  * Prerequisites (must be satisfied before running):
  *   1. Workspace packages built: run `pnpm build` from the repo root so that
- *      @emdash/core/acp, @emdash/runtime/acp, and @emdash/plugins resolve from dist.
+ *      @emdash/core/acp, @emdash/runtime/acp-agents, and @emdash/plugins resolve from dist.
  *   2. Target agent CLI installed and authenticated, e.g. `claude` on PATH.
  *   3. Network + API-token access (real model calls are made).
  *
@@ -22,7 +22,7 @@
 import { execSync, execFileSync } from 'node:child_process';
 import { resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createAcpAgentConnection } from '@emdash/runtime/acp';
+import { createAcpAgentConnection } from '@emdash/runtime/acp-agents';
 import { pluginRegistry } from '../../src/agents/registry';
 import { Recorder } from './acp/recorder';
 import { buildRecordingClient } from './acp/recording-client';

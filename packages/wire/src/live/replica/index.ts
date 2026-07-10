@@ -32,6 +32,7 @@ export {
   type ReplicaLogOptions,
 } from './log';
 export { ReplicaState, type ReplicaStateOptions } from './state';
+export { managedLiveSource } from './source';
 export {
   isLiveModelProvider,
   type GroupMutationEnvelope,

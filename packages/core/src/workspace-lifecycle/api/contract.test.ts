@@ -13,7 +13,7 @@ describe('workspaceLifecycleContract', () => {
     const repo = await createTestRepository();
     const manager = new WorkspaceLifecycleManager({ stepLogRetainMs: 10_000 });
     const controller = createWorkspaceLifecycleController(manager);
-    const wire = createTestWire(workspaceLifecycleContract, controller);
+    const wire = createTestWire(workspaceLifecycleContract, controller, { validate: 'full' });
     const contractClient = wire.client;
     try {
       const jobs = createLiveJobReplica(
@@ -114,7 +114,7 @@ describe('workspaceLifecycleContract', () => {
   it('returns a typed unsupported-step rejection', async () => {
     const manager = new WorkspaceLifecycleManager();
     const controller = createWorkspaceLifecycleController(manager);
-    const wire = createTestWire(workspaceLifecycleContract, controller);
+    const wire = createTestWire(workspaceLifecycleContract, controller, { validate: 'full' });
     const contractClient = wire.client;
 
     try {
