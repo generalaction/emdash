@@ -5,7 +5,12 @@ import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import type { CatalogIndex, CatalogSkill } from '@shared/core/skills/types';
+import type {
+  CatalogIndex,
+  CatalogSkill,
+  SkillProvider,
+  SkillTargetSelection,
+} from '@shared/core/skills/types';
 
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 
@@ -22,6 +27,14 @@ export function useSkills() {
       const result = await rpc.skills.getCatalog();
       if (result.success && result.data) return result.data;
       throw new Error(result.error ?? 'Failed to load catalog');
+    },
+  });
+
+  const { data: providers = [] } = useQuery({
+    queryKey: ['skills', 'providers'],
+    queryFn: async () => {
+      const result = await rpc.skills.getProviders();
+      return result.data as SkillProvider[];
     },
   });
 
@@ -42,8 +55,14 @@ export function useSkills() {
   const refresh = useCallback(() => refreshMutation.mutate(), [refreshMutation]);
 
   const installMutation = useMutation({
-    mutationFn: async (skillId: string) => {
-      const result = await rpc.skills.install({ skillId });
+    mutationFn: async ({
+      skillId,
+      targets,
+    }: {
+      skillId: string;
+      targets: SkillTargetSelection;
+    }) => {
+      const result = await rpc.skills.install({ skillId, targets });
       if (!result.success) throw new Error(result.error ?? 'Could not install skill');
       return skillId;
     },
@@ -62,7 +81,7 @@ export function useSkills() {
       captureTelemetry('skill_installed', { source: skill?.source });
       toast({
         title: 'Skill installed',
-        description: `${skillId} is now available across your agents`,
+        description: `${skillId} is ready to use`,
       });
       void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: ['skills', 'skillssh-search'] });
@@ -71,15 +90,51 @@ export function useSkills() {
   });
 
   const install = useCallback(
-    async (skillId: string): Promise<boolean> => {
+    async (skillId: string, targets: SkillTargetSelection = { mode: 'all' }): Promise<boolean> => {
       try {
-        await installMutation.mutateAsync(skillId);
+        await installMutation.mutateAsync({ skillId, targets });
         return true;
       } catch {
         return false;
       }
     },
     [installMutation]
+  );
+
+  const setTargetsMutation = useMutation({
+    mutationFn: async ({
+      installId,
+      targets,
+    }: {
+      installId: string;
+      targets: SkillTargetSelection;
+    }) => {
+      const result = await rpc.skills.setTargets({ installId, targets });
+      if (!result.success) throw new Error(result.error ?? 'Could not update skill targets');
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
+      queryClient.removeQueries({ queryKey: ['skills', 'detail'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Sync failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const setTargets = useCallback(
+    async (installId: string, targets: SkillTargetSelection): Promise<boolean> => {
+      try {
+        await setTargetsMutation.mutateAsync({ installId, targets });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [setTargetsMutation]
   );
 
   const uninstallMutation = useMutation({
@@ -199,6 +254,7 @@ export function useSkills() {
 
   return {
     catalog,
+    providers,
     isLoading,
     isRefreshing: refreshMutation.isPending,
     searchQuery,
@@ -213,6 +269,7 @@ export function useSkills() {
     isSearchingSkillSh,
     refresh,
     install,
+    setTargets,
     uninstall,
     openDetail,
     closeDetail,

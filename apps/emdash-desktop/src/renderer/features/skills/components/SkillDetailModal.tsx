@@ -11,9 +11,10 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
-import type { CatalogSkill } from '@shared/core/skills/types';
+import type { CatalogSkill, SkillProvider, SkillTargetSelection } from '@shared/core/skills/types';
 import { parseFrontmatter } from '@shared/core/skills/validation';
 import { SkillIconRenderer } from './SkillIconRenderer';
+import { SkillProviderSelect } from './SkillProviderSelect';
 
 const sourceMeta = {
   openai: { name: 'OpenAI', icon: 'https://github.com/openai.png' },
@@ -23,35 +24,53 @@ const sourceMeta = {
 
 interface SkillDetailModalProps {
   skill: CatalogSkill | null;
+  providers: SkillProvider[];
   isLoading: boolean;
   isOpen: boolean;
   onClose: () => void;
-  onInstall: (skillId: string) => Promise<boolean>;
+  onInstall: (skillId: string, targets: SkillTargetSelection) => Promise<boolean>;
+  onSetTargets: (installId: string, targets: SkillTargetSelection) => Promise<boolean>;
   onUninstall: (skillId: string) => void;
   onOpenTerminal?: (skillPath: string) => void;
 }
 
 export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   skill,
+  providers,
   isLoading,
   isOpen,
   onClose,
   onInstall,
+  onSetTargets,
   onUninstall,
   onOpenTerminal,
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [targets, setTargets] = useState<SkillTargetSelection>(skill?.targets ?? { mode: 'all' });
 
   const handleInstall = useCallback(async () => {
     if (!skill) return;
     setIsProcessing(true);
     try {
-      const success = await onInstall(skill.id);
+      const success = await onInstall(skill.id, targets);
       if (success) onClose();
     } finally {
       setIsProcessing(false);
     }
-  }, [skill, onInstall, onClose]);
+  }, [skill, targets, onInstall, onClose]);
+
+  const handleTargetsChange = useCallback(
+    async (next: SkillTargetSelection) => {
+      if (!skill) return;
+      setTargets(next);
+      if (!skill.installed || !skill.managedByEmdash) return;
+      setIsProcessing(true);
+      const success = await onSetTargets(skill.installId ?? skill.id, next);
+      if (!success) setTargets(targets);
+      setIsProcessing(false);
+    },
+    [skill, targets, onSetTargets]
+  );
 
   const handleUninstall = useCallback(() => {
     if (!skill) return;
@@ -108,6 +127,43 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
               variant="compact"
               className="bg-muted/20 text-muted-foreground rounded-md px-3 py-2 text-xs"
             />
+          )}
+
+          {!showLoadingContent &&
+            (!skill.installed || skill.managedByEmdash) &&
+            providers.some((provider) => provider.installed) && (
+              <SkillProviderSelect
+                providers={providers}
+                targets={targets}
+                disabled={isProcessing}
+                onChange={(next) => void handleTargetsChange(next)}
+              />
+            )}
+
+          {!showLoadingContent && (skill.locations?.length ?? 0) > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-muted-foreground text-xs font-medium">Found in</p>
+              <div className="flex flex-wrap gap-1.5">
+                {skill.locations?.map((location) => {
+                  const names = location.providerIds
+                    .map((id) => providers.find((provider) => provider.id === id)?.name ?? id)
+                    .join(', ');
+                  const label =
+                    location.kind === 'canonical'
+                      ? 'Emdash'
+                      : names || `Shared · ~/${location.relativeDir}`;
+                  return (
+                    <span
+                      key={`${location.relativeDir}:${location.ownership}`}
+                      className="text-muted-foreground rounded-md border border-border bg-background-1 px-2 py-1 text-xs"
+                    >
+                      {label}
+                      {location.ownership === 'external' ? ' · external' : ''}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </DialogContentArea>
 

@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -15,7 +15,9 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import type { SkillProvider, SkillTargetSelection } from '@shared/core/skills/types';
 import { isValidSkillName } from '@shared/core/skills/validation';
+import { SkillProviderSelect } from './SkillProviderSelect';
 
 type Props = BaseModalProps<void>;
 
@@ -24,8 +26,14 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
+  const [targets, setTargets] = useState<SkillTargetSelection>({ mode: 'all' });
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+
+  const { data: providers = [] } = useQuery({
+    queryKey: ['skills', 'providers'],
+    queryFn: async () => (await rpc.skills.getProviders()).data as SkillProvider[],
+  });
 
   useCloseGuard(isCreating);
 
@@ -48,6 +56,7 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
         name: trimmedName,
         description: description.trim(),
         content: content.trim(),
+        targets,
       });
 
       if (!result.success) {
@@ -128,6 +137,15 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
               Define what this skill does and how agents should use it
             </p>
           </div>
+
+          {providers.some((provider) => provider.installed) && (
+            <SkillProviderSelect
+              providers={providers}
+              targets={targets}
+              disabled={isCreating}
+              onChange={setTargets}
+            />
+          )}
 
           {createError && <p className="text-destructive text-xs">{createError}</p>}
         </div>
