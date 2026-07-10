@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
+import { desktopWorkerBuildInputs } from './src/main/worker-manifest';
 
 const workspaceAliases = {
   '@emdash/core/acp/client': resolve('../../packages/core/src/acp/client.ts'),
@@ -70,9 +71,10 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/main/index.ts'),
-          'acp-runtime': resolve('src/main/core/acp/runtime-process/entry.ts'),
-          'agent-config-runtime': resolve('src/main/core/agent-config/runtime-process/entry.ts'),
-          'fs-watch-runtime': resolve('src/main/core/fs-watch/runtime-process/entry.ts'),
+          ...desktopWorkerBuildInputs(),
+        },
+        output: {
+          entryFileNames: '[name].js',
         },
       },
     },

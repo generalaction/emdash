@@ -31,19 +31,21 @@ flowchart LR
 
 ## Parent Side
 
-Use `resolveWorkerEntry()` for packaged app entries that follow the
-`<name>-runtime.js` / `<name>-runtime.mjs` convention:
+Worker entry paths are owned by the host build. Apps should register worker
+entries in a host-local manifest, feed that manifest into their build config, and
+pass the emitted path to `spawnWorker()`:
 
 ```ts
-import { resolveWorkerEntry, spawnWorker } from '@emdash/wire/worker';
+import { spawnWorker } from '@emdash/wire/worker';
 import { createScope } from '@emdash/wire/util';
 import { api } from './contract';
+import { workerPath } from './worker-manifest';
 
 const scope = createScope({ label: 'main' });
 const worker = await spawnWorker({
   name: 'counter',
   contract: api,
-  entry: resolveWorkerEntry('counter', __dirname),
+  entry: workerPath('counter'),
   scope,
   env: process.env,
 });
@@ -84,7 +86,7 @@ const worker = lazyWorker(
   () => ({
     name: 'fs-watch',
     contract: fsWatchContract,
-    entry: resolveWorkerEntry('fs-watch', __dirname),
+    entry: workerPath('fs-watch'),
     scope,
   }),
   {

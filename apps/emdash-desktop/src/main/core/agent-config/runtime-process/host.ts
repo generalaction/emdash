@@ -5,8 +5,9 @@ import {
   withValidation,
   type ContractClient,
 } from '@emdash/wire/api';
-import { lazyWorker, resolveWorkerEntry, type WorkerHandle } from '@emdash/wire/worker';
+import { lazyWorker, type WorkerHandle } from '@emdash/wire/worker';
 import { app, ipcMain, MessageChannelMain } from 'electron';
+import { desktopWorkerPath } from '@main/worker-manifest';
 
 const AGENT_CONFIG_WIRE_CHANNEL = 'agent-config-wire';
 
@@ -14,7 +15,7 @@ const agentConfigWorker = lazyWorker(
   () => ({
     name: 'agent-config',
     contract: agentConfigContract,
-    entry: resolveWorkerEntry('agent-config', __dirname),
+    entry: desktopWorkerPath('agent-config'),
     env: process.env,
   }),
   {

@@ -11,12 +11,12 @@ import { GitRuntime } from '@emdash/core/git';
 import { ResourceMap } from '@emdash/core/lib';
 import { spawnFsWatchWorker } from '@emdash/core/services/fs-watch/worker';
 import type { Lease } from '@emdash/shared';
-import { resolveWorkerEntry } from '@emdash/wire/worker';
 import { getDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { getGitExecutable } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
+import { desktopWorkerPath } from '@main/worker-manifest';
 import { ConstantHealthSource } from './health';
 import { LegacySshFilesRuntime } from './legacy/ssh-files';
 import { LegacySshGitRuntime } from './legacy/ssh-git';
@@ -84,7 +84,7 @@ class DynamicGitExec implements BoundExec {
 class LocalMachineRuntime implements MachineRuntime {
   readonly machine: MachineRef = { kind: 'local' };
   private readonly watcher = spawnFsWatchWorker({
-    entry: resolveWorkerEntry('fs-watch', __dirname),
+    entry: desktopWorkerPath('fs-watch'),
     env: process.env,
     onError: (context, error) =>
       log.warn('File watching background error', { context, error: String(error) }),

@@ -6,10 +6,11 @@ import {
   withValidation,
   type ContractClient,
 } from '@emdash/wire/api';
-import { lazyWorker, resolveWorkerEntry, type WorkerHandle } from '@emdash/wire/worker';
+import { lazyWorker, type WorkerHandle } from '@emdash/wire/worker';
 import { app, ipcMain, MessageChannelMain } from 'electron';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
+import { desktopWorkerPath } from '@main/worker-manifest';
 
 const ACP_WIRE_CHANNEL = 'acp-wire';
 
@@ -20,7 +21,7 @@ const acpWorker = lazyWorker(
   () => ({
     name: 'acp',
     contract: acpApiContract,
-    entry: resolveWorkerEntry('acp', __dirname),
+    entry: desktopWorkerPath('acp'),
     env: {
       ...process.env,
       EMDASH_ACP_ATTACHMENTS_DIR: join(app.getPath('userData'), 'acp-attachments'),

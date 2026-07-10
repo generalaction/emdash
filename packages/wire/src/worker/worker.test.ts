@@ -1,9 +1,6 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { Emitter, type Unsubscribe } from '@emdash/shared';
 import type { LogFields, LogLevel, Logger } from '@emdash/shared/logger';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createController } from '../api/controller';
 import { defineContract, procedure } from '../api/define';
@@ -17,7 +14,6 @@ import type {
 import { createScope } from '../util';
 import { serveWorkerProcess, type ProcessRuntimePort } from '../util/process-runtime';
 import { lazyWorker } from './lazy-worker';
-import { resolveWorkerEntry } from './resolve-worker-entry';
 import { spawnWorker } from './spawn-worker';
 
 const api = defineContract({
@@ -25,22 +21,6 @@ const api = defineContract({
 });
 
 describe('worker utilities', () => {
-  let tempDirs: string[] = [];
-
-  afterEach(async () => {
-    await Promise.all(tempDirs.map((dir) => rm(dir, { recursive: true, force: true })));
-    tempDirs = [];
-  });
-
-  it('resolves worker entries from the runtime naming convention', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'wire-worker-'));
-    tempDirs.push(dir);
-    const entry = join(dir, 'fs-watch-runtime.mjs');
-    await writeFile(entry, '');
-
-    expect(resolveWorkerEntry('fs-watch', dir)).toBe(entry);
-  });
-
   it('spawns a scoped worker and forwards structured runtime logs', async () => {
     const host = new FakeProcessHost();
     const { logger, calls } = createRecordingLogger();
