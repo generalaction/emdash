@@ -1,0 +1,37 @@
+packages/core/src/skills/locations.ts
+  s_724d78d70e5854::t_0373145eaafb34 1-34
+packages/core/src/skills/index.ts
+  s_724d78d70e5854::t_bf11150ebd2d54 4
+packages/runtime/src/agent-config/runtime/runtime.test.ts
+  s_724d78d70e5854::t_3faffcc6086d8d 188-201,210-212,346
+  s_724d78d70e5854::t_4e67a3beda7499 202-209
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_724d78d70e5854::t_f565e16a8d1151 404-407,409-424,934-938
+  s_724d78d70e5854::t_a3b9c8e462d745 7-12,100-104,109-117,119-120,130,182,193,197,222,229,327,336,445,696,739,753-754,761,776,788
+  s_724d78d70e5854::t_0a295c2c09a6e9 230
+packages/runtime/src/agent-config/runtime/skills.ts
+  s_724d78d70e5854::t_27be8554501fca 7,15,141,143-166
+  s_724d78d70e5854::t_6f2122f735e96d 91-93
+  s_724d78d70e5854::t_0a82b9a0c1ece4 87-89
+apps/emdash-desktop/src/main/core/skills/SkillsService.test.ts
+  s_724d78d70e5854::t_10aff5768d357a 103,105
+  s_724d78d70e5854::t_e4436e9357ebcf 2-3,67-102,106,127-140
+  s_724d78d70e5854::t_bbe079921dd0d0 107-125
+  s_724d78d70e5854::t_c0300df6bdf285 104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "651f249a5e8e545c5b845beb94d6568c40292021",
+  "prompts": {},
+  "sessions": {
+    "s_724d78d70e5854": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d930a7e3-37f4-450d-881d-48f59b0113db",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
