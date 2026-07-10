@@ -63,18 +63,31 @@ export {
   resourceKeyFromScopedPath,
 } from './resource-key';
 export {
+  absolutePathInputSchema,
   drivePathRootSchema,
   hostAbsolutePathSchema,
   hostFileRefSchema,
   hostIdSchema,
   hostPathRootSchema,
   pathProfileSchema,
+  portableRelativePathInputSchema,
   portableRelativePathSchema,
   posixPathRootSchema,
   resourceKeySchema,
+  resourceRefFromUriSchema,
+  resultRefine,
+  resultTransform,
   resourceUriSchema,
   scopedPathSchema,
   uncPathRootSchema,
+} from './schemas';
+export type {
+  HostFileRefInput,
+  HostFileRefOutput,
+  ResourceUriInput,
+  ResourceUriOutput,
+  ScopedPathInput,
+  ScopedPathOutput,
 } from './schemas';
 export type {
   Brand,

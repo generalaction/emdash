@@ -60,6 +60,27 @@ emdash-file://remote-2/v1/unc/server/share/repo/src/index.ts
 Use it for serialization, persistence, Monaco model identity, and durable
 messages. Percent encoding is applied per path segment.
 
+## Contract Schemas
+
+Path schemas live next to the path primitives so Wire/RPC contracts and
+persisted models do not duplicate validation rules.
+
+Use:
+
+- `hostFileRefSchema` for a globally addressable file resource.
+- `scopedPathSchema` for a file under a known root.
+- `portableRelativePathSchema` for Git paths, file tree entry keys, and watcher
+  paths that are already scoped by another field.
+- `resourceUriSchema` for persisted or Monaco-style string identity.
+- `resourceRefFromUriSchema` when a boundary accepts a URI string but internal
+  code wants a decoded `HostFileRef`.
+- `absolutePathInputSchema(profile)` only at native/user/host ingress
+  boundaries.
+
+Schemas delegate to the canonical parsers. For example,
+`portableRelativePathSchema` transforms `src/./index.ts` into `src/index.ts`
+instead of merely branding the original string.
+
 ## Resource Keys
 
 `ResourceKey` is an opaque comparison key for maps and deduplication. It may be

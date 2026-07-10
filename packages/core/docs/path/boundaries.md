@@ -26,6 +26,23 @@ Convert at these boundaries:
 - Watcher and Git events should become `ScopedPath` values before crossing to
   renderer-facing models.
 
+## Contract Validation
+
+Contracts should import schemas from `@emdash/core/path` instead of introducing
+new `z.string()` path fields once they migrate to structured resources.
+
+Recommended boundary shapes:
+
+- `hostFileRefSchema` for one-off global file resources.
+- `scopedPathSchema` for a single file under a known root.
+- `{ root: hostFileRefSchema, path: portableRelativePathSchema }` for compact
+  root-scoped APIs, tree keys, watcher events, and Git paths.
+- `resourceUriSchema` for persisted string identity.
+- `absolutePathInputSchema(profile)` for native/user/host input only.
+
+The schemas delegate to the same parsers as internal code, so contract
+validation and local validation enforce the same invariants.
+
 ## Lexical Versus Physical Containment
 
 `containsAbsolute()` and `relativizeHostFileRef()` are lexical. They do not

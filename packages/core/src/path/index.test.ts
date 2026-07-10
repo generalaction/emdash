@@ -18,6 +18,8 @@ describe('@emdash/core/path public exports', () => {
     expect(exported.decodeResourceUri).toBeTypeOf('function');
     expect(exported.resourceKeyFromFileRef).toBeTypeOf('function');
     expect(exported.hostFileRefSchema).toBeTypeOf('object');
+    expect(exported.absolutePathInputSchema).toBeTypeOf('function');
+    expect(exported.resourceRefFromUriSchema).toBeTypeOf('object');
   });
 
   it('does not import Node APIs from implementation files', () => {
