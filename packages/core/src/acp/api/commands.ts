@@ -3,13 +3,6 @@ import { attachmentRefSchema } from '../models/attachments';
 import { permissionDecisionSchema } from '../models/permissions';
 import { promptDraftUpdateSchema, promptInputSchema, queuedPromptSchema } from '../models/prompt';
 
-export const sessionConfigInputSchema = z.object({
-  model: z.string().optional(),
-  effort: z.string().optional(),
-  mode: z.string().optional(),
-});
-export type SessionConfigInput = z.infer<typeof sessionConfigInputSchema>;
-
 export const acpStartInputSchema = z.object({
   conversationId: z.string(),
   projectId: z.string(),
@@ -17,10 +10,9 @@ export const acpStartInputSchema = z.object({
   providerId: z.string(),
   workspaceId: z.string(),
   cwd: z.string(),
-  sessionId: z.string().nullable().optional(),
-  model: z.string().nullable().optional(),
+  sessionId: z.string().nullable(),
+  model: z.string().nullable(),
   initialQueue: z.array(promptInputSchema).optional(),
-  sessionConfig: sessionConfigInputSchema.optional(),
 });
 export type AcpStartInputWire = z.infer<typeof acpStartInputSchema>;
 

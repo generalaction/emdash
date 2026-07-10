@@ -344,7 +344,10 @@ export function normalizeUploadFile(input: UploadFileValue): {
   source: BlobSource;
 } {
   if (isWireFile(input)) return { meta: fileMeta(input), source: input.stream() };
-  if (hasSource(input)) return { meta: fileMeta(input), source: input.source };
+  if (hasSource(input)) {
+    const { source, ...meta } = input;
+    return { meta: fileMeta(meta), source };
+  }
   const maybeFile = input as FileLike;
   return {
     meta: {
@@ -383,6 +386,10 @@ export function copyBytes(chunk: Uint8Array): Uint8Array {
   return new Uint8Array(chunk).slice();
 }
 
+export async function* blobSourceFromBytes(data: Uint8Array): AsyncIterable<Uint8Array> {
+  yield copyBytes(data);
+}
+
 function isWireFile(value: unknown): value is WireFile {
   return (
     typeof value === 'object' &&
@@ -394,8 +401,16 @@ function isWireFile(value: unknown): value is WireFile {
 }
 
 function fileMeta(value: WireFileMeta): WireFileMeta {
+  // The meta travels inside the `call` message envelope, so it must stay
+  // structured-clone-safe: drop functions (e.g. WireFile methods) while
+  // preserving extra custom meta keys.
+  const extras: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === 'function') continue;
+    extras[key] = entry;
+  }
   return {
-    ...value,
+    ...extras,
     name: value.name,
     mimeType: value.mimeType,
     size: value.size,
@@ -480,17 +495,13 @@ function makeFileLike(meta: WireFileMeta, data: Uint8Array): FileLike {
       ...meta,
       size: meta.size ?? blob.size,
       arrayBuffer: blob.arrayBuffer?.bind(blob),
-      stream: blob.stream ? () => blob.stream?.() as BlobSource : () => bytesToStream(data),
+      stream: blob.stream ? () => blob.stream?.() as BlobSource : () => blobSourceFromBytes(data),
     };
   }
   return {
     ...meta,
     size: meta.size ?? data.byteLength,
     arrayBuffer: async () => data.slice().buffer as ArrayBuffer,
-    stream: () => bytesToStream(data),
+    stream: () => blobSourceFromBytes(data),
   };
-}
-
-async function* bytesToStream(data: Uint8Array): AsyncIterable<Uint8Array> {
-  yield copyBytes(data);
 }

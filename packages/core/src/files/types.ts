@@ -35,6 +35,8 @@ export type {
   FileGlob,
   FileGlobOptions,
   FileStat,
+  FileUsage,
+  FileUsageError,
   IFileSystem,
   ReadBytesResult,
   ReadFileOptions,

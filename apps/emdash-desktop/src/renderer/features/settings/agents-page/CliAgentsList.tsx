@@ -19,7 +19,7 @@ const SectionLabel: React.FC<{ children: React.ReactNode; totalCount: number }> 
 
 export type AgentFilter = 'all' | 'installed' | 'uninstalled';
 
-const RECOMMENDED_IDS = new Set(['claude', 'codex', 'gemini', 'pi']);
+const RECOMMENDED_IDS = new Set(['claude', 'codex', 'pi']);
 
 type CliAgentsListProps = {
   searchQuery?: string;

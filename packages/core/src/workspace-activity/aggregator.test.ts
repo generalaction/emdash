@@ -1,11 +1,5 @@
-import {
-  client,
-  connect,
-  createController,
-  createLiveModelHost,
-  memoryTransportPair,
-  serve,
-} from '@emdash/wire';
+import { createController, createLiveModelHost } from '@emdash/wire';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it } from 'vitest';
 import { ActivityAggregator, providerFromClient, type ActivityProvider } from './aggregator';
 import { activityProviderContract } from './contract';
@@ -56,14 +50,9 @@ describe('ActivityAggregator', () => {
   it('can consume a runtime activity model through providerFromClient', async () => {
     const host = createLiveModelHost(activityProviderContract.activity);
     const cell = host.create({}, { sessions: [] });
-    const controller = createController(
-      activityProviderContract,
-      { activity: host },
-      { validate: 'full' }
-    );
-    const pair = memoryTransportPair();
-    const stop = serve(pair.right, controller);
-    const contractClient = client(activityProviderContract, connect(pair.left));
+    const controller = createController(activityProviderContract, { activity: host });
+    const wire = createTestWire(activityProviderContract, controller, { validate: 'full' });
+    const contractClient = wire.client;
     const aggregator = new ActivityAggregator([
       providerFromClient('acp', { activity: contractClient.activity }),
     ]);
@@ -80,8 +69,7 @@ describe('ActivityAggregator', () => {
       ).toEqual([session('acp', 'a', '/workspace/a')]);
     } finally {
       aggregator.dispose();
-      stop();
-      controller.dispose?.();
+      wire.dispose();
       host.dispose();
     }
   });

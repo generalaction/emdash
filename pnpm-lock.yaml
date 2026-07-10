@@ -26,6 +26,9 @@ importers:
       '@emdash/plugins':
         specifier: workspace:*
         version: link:../../packages/plugins
+      '@emdash/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       '@emdash/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -336,12 +339,21 @@ importers:
       '@emdash/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@emdash/plugins':
+        specifier: workspace:*
+        version: link:../../packages/plugins
+      '@emdash/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       '@emdash/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@emdash/wire':
         specifier: workspace:*
         version: link:../../packages/wire
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -522,6 +534,9 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260609.1
         version: 7.0.0-dev.20260609.1
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
       tsdown:
         specifier: ^0.22.2
         version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(oxc-resolver@11.20.0)(tsx@4.22.4)(typescript@6.0.3)
@@ -589,6 +604,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@emdash/runtime':
+        specifier: workspace:*
+        version: link:../runtime
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260609.1
         version: 7.0.0-dev.20260609.1
@@ -607,6 +625,40 @@ importers:
       vitest:
         specifier: ^3.1.4
         version: 3.2.6(@types/debug@4.1.13)(@types/node@20.19.42)(jiti@2.7.0)(jsdom@29.1.1(@noble/hashes@2.2.0))(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+
+  packages/runtime:
+    dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^1.1.0
+        version: 1.1.0(zod@4.4.3)
+      '@emdash/core':
+        specifier: workspace:*
+        version: link:../core
+      '@emdash/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@emdash/wire':
+        specifier: workspace:*
+        version: link:../wire
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.42
+        version: 20.19.42
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260609.1
+        version: 7.0.0-dev.20260609.1
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(oxc-resolver@11.20.0)(tsx@4.22.4)(typescript@6.0.3)
+      vitest:
+        specifier: ^4.1.0
+        version: 4.1.8(@types/node@20.19.42)(@vitest/browser-playwright@4.1.8)(@vitest/browser-preview@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/shared:
     dependencies:

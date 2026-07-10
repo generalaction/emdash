@@ -21,6 +21,10 @@
       "types": "./dist/result.d.mts",
       "default": "./dist/result.mjs"
     },
+    "./config": {
+      "types": "./dist/config.d.mts",
+      "default": "./dist/config.mjs"
+    },
     "./logger": {
       "types": "./dist/logger.d.mts",
       "default": "./dist/logger.mjs"
@@ -36,6 +40,10 @@
     "./logger/pino": {
       "types": "./dist/logger-pino.d.mts",
       "default": "./dist/logger-pino.mjs"
+    },
+    "./logger/node": {
+      "types": "./dist/logger-node.d.mts",
+      "default": "./dist/logger-node.mjs"
     },
     "./logger/transport": {
       "types": "./dist/logger-transport.d.mts",

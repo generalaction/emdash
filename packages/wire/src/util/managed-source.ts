@@ -1,23 +1,38 @@
-import type { Lease, PendingLease } from '@emdash/shared';
-import { toPendingLease } from '@emdash/shared';
+import type { Lease, PendingLease, Result } from '@emdash/shared';
+import { err, ok, toPendingLease } from '@emdash/shared';
 import { createScope, type Scope } from './scope';
 
-export interface ManagedSource<K, T> {
+export interface ManagedSource<K, T, C = void> {
   acquire(key: K): PendingLease<T>;
+  acquire(key: K, context: C): PendingLease<T>;
   peek(key: K): T | undefined;
+  invalidate(key: K): Promise<void>;
   dispose(): Promise<void>;
 }
 
-export type CreateManagedSourceOptions<K, T> = {
+type CreateManagedSourceOptionsBase<K> = {
   key: (key: K) => string;
-  create: (key: K, scope: Scope) => Promise<T>;
   graceMs?: number;
   onError?: (error: unknown, key: string) => void;
 };
 
-type Entry<K, T> = {
+export type CreateManagedSourceOptions<K, T, C = void> = [C] extends [void]
+  ? CreateManagedSourceOptionsBase<K> & {
+      create: (key: K, scope: Scope) => Promise<T>;
+    }
+  : CreateManagedSourceOptionsBase<K> & {
+      create: (key: K, context: C, scope: Scope) => Promise<T>;
+    };
+
+export type CreateManagedSourceWithContextOptions<K, T, C> = CreateManagedSourceOptionsBase<K> & {
+  create: (key: K, context: C, scope: Scope) => Promise<T>;
+};
+
+type Entry<K, T, C> = {
   key: K;
   keyId: string;
+  context: C;
+  hasContext: boolean;
   scope: Scope;
   refCount: number;
   hasValue: boolean;
@@ -29,18 +44,29 @@ type Entry<K, T> = {
 
 export function createManagedSource<K, T>(
   options: CreateManagedSourceOptions<K, T>
-): ManagedSource<K, T> {
-  const entries = new Map<string, Entry<K, T>>();
+): ManagedSource<K, T>;
+export function createManagedSource<K, T, C>(
+  options: CreateManagedSourceWithContextOptions<K, T, C>
+): ManagedSource<K, T, C>;
+export function createManagedSource<K, T, C = void>(
+  options: CreateManagedSourceOptions<K, T> | CreateManagedSourceWithContextOptions<K, T, C>
+): ManagedSource<K, T, C> {
+  const entries = new Map<string, Entry<K, T, C>>();
   const graceMs = options.graceMs ?? 0;
   let disposed = false;
 
   return {
-    acquire(key): PendingLease<T> {
-      return toPendingLease(acquireLease(key));
+    acquire(key: K, ...args: [context?: C]): PendingLease<T> {
+      return toPendingLease(acquireLease(key, args[0] as C, args.length > 0));
     },
     peek(key): T | undefined {
       const entry = entries.get(options.key(key));
       return entry?.hasValue === true ? entry.value : undefined;
+    },
+    async invalidate(key): Promise<void> {
+      const entry = entries.get(options.key(key));
+      if (!entry) return;
+      await disposeEntry(entry);
     },
     async dispose(): Promise<void> {
       if (disposed) return;
@@ -51,7 +77,7 @@ export function createManagedSource<K, T>(
     },
   };
 
-  async function acquireLease(key: K): Promise<Lease<T>> {
+  async function acquireLease(key: K, context: C, hasContext: boolean): Promise<Lease<T>> {
     if (disposed) throw new Error('ManagedSource is disposed');
 
     const keyId = options.key(key);
@@ -63,7 +89,7 @@ export function createManagedSource<K, T>(
     }
 
     if (!entry) {
-      entry = createEntry(key, keyId);
+      entry = createEntry(key, keyId, context, hasContext);
       entries.set(keyId, entry);
     }
 
@@ -86,10 +112,12 @@ export function createManagedSource<K, T>(
     }
   }
 
-  function createEntry(key: K, keyId: string): Entry<K, T> {
+  function createEntry(key: K, keyId: string, context: C, hasContext: boolean): Entry<K, T, C> {
     return {
       key,
       keyId,
+      context,
+      hasContext,
       scope: createScope({ label: `managed-source:${keyId}` }),
       refCount: 0,
       hasValue: false,
@@ -100,12 +128,11 @@ export function createManagedSource<K, T>(
     };
   }
 
-  function ensureCreated(entry: Entry<K, T>): Promise<T> {
+  function ensureCreated(entry: Entry<K, T, C>): Promise<T> {
     if (entry.hasValue) return Promise.resolve(entry.value as T);
     if (entry.createPromise) return entry.createPromise;
 
-    entry.createPromise = options
-      .create(entry.key, entry.scope)
+    entry.createPromise = createValue(entry)
       .then((value) => {
         entry.createPromise = undefined;
         if (disposed || entries.get(entry.keyId) !== entry || entry.scope.disposed) {
@@ -127,7 +154,7 @@ export function createManagedSource<K, T>(
     return entry.createPromise;
   }
 
-  function releaseEntry(entry: Entry<K, T>): Promise<void> {
+  function releaseEntry(entry: Entry<K, T, C>): Promise<void> {
     if (entries.get(entry.keyId) !== entry) return Promise.resolve();
     if (entry.refCount > 0) entry.refCount -= 1;
     if (entry.refCount > 0) return Promise.resolve();
@@ -135,7 +162,7 @@ export function createManagedSource<K, T>(
     return scheduleDispose(entry);
   }
 
-  function scheduleDispose(entry: Entry<K, T>): Promise<void> {
+  function scheduleDispose(entry: Entry<K, T, C>): Promise<void> {
     if (entry.disposePromise || entries.get(entry.keyId) !== entry) return Promise.resolve();
     clearGraceTimer(entry);
     if (graceMs <= 0) {
@@ -148,7 +175,7 @@ export function createManagedSource<K, T>(
     return Promise.resolve();
   }
 
-  async function disposeEntry(entry: Entry<K, T>): Promise<void> {
+  async function disposeEntry(entry: Entry<K, T, C>): Promise<void> {
     if (entry.disposePromise) return entry.disposePromise;
     clearGraceTimer(entry);
     entry.disposePromise = entry.scope.dispose().finally(() => {
@@ -157,9 +184,54 @@ export function createManagedSource<K, T>(
     return entry.disposePromise;
   }
 
-  function clearGraceTimer(entry: Entry<K, T>): void {
+  function clearGraceTimer(entry: Entry<K, T, C>): void {
     if (!entry.graceTimer) return;
     clearTimeout(entry.graceTimer);
     entry.graceTimer = undefined;
+  }
+
+  function createValue(entry: Entry<K, T, C>): Promise<T> {
+    if (entry.hasContext) {
+      return (options.create as (key: K, context: C, scope: Scope) => Promise<T>)(
+        entry.key,
+        entry.context,
+        entry.scope
+      );
+    }
+    return (options.create as (key: K, scope: Scope) => Promise<T>)(entry.key, entry.scope);
+  }
+}
+
+export function acquireAsResult<K, T, E>(
+  source: ManagedSource<K, T>,
+  key: K,
+  isExpectedError: (error: unknown) => error is E
+): Promise<Result<Lease<T>, E>>;
+export function acquireAsResult<K, T, C, E>(
+  source: ManagedSource<K, T, C>,
+  key: K,
+  context: C,
+  isExpectedError: (error: unknown) => error is E
+): Promise<Result<Lease<T>, E>>;
+export async function acquireAsResult<K, T, C, E>(
+  source: ManagedSource<K, T, C>,
+  key: K,
+  contextOrPredicate: C | ((error: unknown) => error is E),
+  maybePredicate?: (error: unknown) => error is E
+): Promise<Result<Lease<T>, E>> {
+  const hasContext = maybePredicate !== undefined;
+  const isExpectedError = (hasContext ? maybePredicate : contextOrPredicate) as (
+    error: unknown
+  ) => error is E;
+  const pending = hasContext
+    ? source.acquire(key, contextOrPredicate as C)
+    : (source as ManagedSource<K, T>).acquire(key);
+
+  try {
+    const value = await pending.ready();
+    return ok({ value, release: pending.release });
+  } catch (error) {
+    if (isExpectedError(error)) return err(error);
+    throw error;
   }
 }

@@ -21,6 +21,7 @@ import { action, computed, makeObservable, observable, runInAction, toJS } from 
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
 import { AcpLiveSession, AcpStartError, asValueSource } from '@renderer/lib/acp/acp-live-session';
+import { getAgentConfigRuntimeClient } from '@renderer/lib/agent-config/runtime-client';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
@@ -416,8 +417,10 @@ export class AcpChatStore {
   }
 
   private async _runBootstrap(): Promise<void> {
+    let providerId: string | undefined;
     try {
       const input = this._startInput();
+      providerId = input.providerId;
       const clientSession = await AcpLiveSession.create(this.conversationId, input);
 
       const history = await clientSession.getHistory(undefined, 100);
@@ -443,6 +446,27 @@ export class AcpChatStore {
       runInAction(() => {
         this.historyLoading = false;
         this.loadError = toLoadError(error);
+      });
+      if (this.loadError?.kind === 'auth_required' && providerId) {
+        void this._refreshAuthStatus(providerId);
+      }
+    }
+  }
+
+  private async _refreshAuthStatus(providerId: string): Promise<void> {
+    try {
+      const client = await getAgentConfigRuntimeClient();
+      const result = await client.refreshAuthStatus({ providerId });
+      if (!result.success) {
+        log.warn('Failed to refresh agent auth status after ACP auth error', {
+          providerId,
+          error: result.error,
+        });
+      }
+    } catch (error) {
+      log.warn('Failed to refresh agent auth status after ACP auth error', {
+        providerId,
+        error,
       });
     }
   }

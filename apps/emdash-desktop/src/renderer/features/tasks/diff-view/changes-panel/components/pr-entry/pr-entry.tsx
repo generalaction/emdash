@@ -136,8 +136,10 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           >
             <StatusIcon className="size-4" pr={pr} />
             <span className="min-w-0 flex-1 truncate text-sm font-normal">{pr.title}</span>
-            <PrNumberBadge number={getPrNumber(pr) ?? 0} />
-            <span className="absolute right-0 flex items-center bg-linear-to-r from-transparent to-background pr-0.5 pl-4 opacity-0 transition-opacity group-hover:opacity-100">
+            <div className="transition-opacity duration-200 group-hover:opacity-0">
+              <PrNumberBadge number={getPrNumber(pr) ?? 0} />
+            </div>
+            <span className="absolute right-0 flex items-center bg-linear-to-r from-transparent to-background pr-0.5 pl-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               <ExternalLink className="size-3.5 text-foreground-muted" />
             </span>
           </button>

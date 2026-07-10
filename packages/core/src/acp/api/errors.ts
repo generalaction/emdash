@@ -16,18 +16,68 @@ const failedErrorSchema = <T extends string>(type: T) =>
     cause: serializedErrorSchema.optional(),
   });
 
+export const providerUnsupportedErrorSchema = plainTagErrorSchema('provider_unsupported');
+export const conversationNotFoundErrorSchema = plainTagErrorSchema('conversation_not_found');
+export const invalidStateErrorSchema = plainTagErrorSchema('invalid_state');
+export const spawnFailedErrorSchema = failedErrorSchema('spawn_failed');
+export const initializeFailedErrorSchema = failedErrorSchema('initialize_failed');
+export const newSessionFailedErrorSchema = failedErrorSchema('new_session_failed');
+export const authRequiredErrorSchema = failedErrorSchema('auth_required');
+export const promptFailedErrorSchema = failedErrorSchema('prompt_failed');
+export const cancelFailedErrorSchema = failedErrorSchema('cancel_failed');
+export const setConfigFailedErrorSchema = failedErrorSchema('set_config_failed');
+export const setModeFailedErrorSchema = failedErrorSchema('set_mode_failed');
+
+export const acpStartSessionErrorSchema = z.union([
+  providerUnsupportedErrorSchema,
+  authRequiredErrorSchema,
+  spawnFailedErrorSchema,
+  initializeFailedErrorSchema,
+  newSessionFailedErrorSchema,
+  invalidStateErrorSchema,
+]);
+export const acpResumeSessionErrorSchema = acpStartSessionErrorSchema;
+export const acpStopSessionErrorSchema = z.never();
+export const acpSendPromptErrorSchema = z.union([
+  conversationNotFoundErrorSchema,
+  invalidStateErrorSchema,
+  promptFailedErrorSchema,
+]);
+export const acpQueuePromptErrorSchema = z.union([
+  conversationNotFoundErrorSchema,
+  invalidStateErrorSchema,
+]);
+export const acpEditQueuedPromptErrorSchema = acpQueuePromptErrorSchema;
+export const acpDeleteQueuedPromptErrorSchema = acpQueuePromptErrorSchema;
+export const acpChangeQueuePromptOrderErrorSchema = acpQueuePromptErrorSchema;
+export const acpResolvePermissionErrorSchema = acpQueuePromptErrorSchema;
+export const acpSetPromptDraftErrorSchema = conversationNotFoundErrorSchema;
+export const acpCancelTurnErrorSchema = z.union([invalidStateErrorSchema, cancelFailedErrorSchema]);
+export const acpSetModelOptionErrorSchema = z.union([
+  conversationNotFoundErrorSchema,
+  invalidStateErrorSchema,
+  setConfigFailedErrorSchema,
+]);
+export const acpSetModeOptionErrorSchema = z.union([
+  conversationNotFoundErrorSchema,
+  invalidStateErrorSchema,
+  setModeFailedErrorSchema,
+]);
+export const acpExportTranscriptErrorSchema = conversationNotFoundErrorSchema;
+export const acpExportRawLogErrorSchema = conversationNotFoundErrorSchema;
+export const acpAttachmentErrorSchema = invalidStateErrorSchema;
+export const acpGetHistoryErrorSchema = z.never();
+
 export const acpRuntimeErrorSchema = z.union([
-  plainTagErrorSchema('provider_unsupported'),
-  plainTagErrorSchema('conversation_not_found'),
-  plainTagErrorSchema('no_active_session'),
-  plainTagErrorSchema('invalid_state'),
-  failedErrorSchema('spawn_failed'),
-  failedErrorSchema('initialize_failed'),
-  failedErrorSchema('new_session_failed'),
-  failedErrorSchema('auth_required'),
-  failedErrorSchema('load_session_failed'),
-  failedErrorSchema('prompt_failed'),
-  failedErrorSchema('cancel_failed'),
-  failedErrorSchema('set_config_failed'),
-  failedErrorSchema('set_mode_failed'),
+  providerUnsupportedErrorSchema,
+  conversationNotFoundErrorSchema,
+  invalidStateErrorSchema,
+  spawnFailedErrorSchema,
+  initializeFailedErrorSchema,
+  newSessionFailedErrorSchema,
+  authRequiredErrorSchema,
+  promptFailedErrorSchema,
+  cancelFailedErrorSchema,
+  setConfigFailedErrorSchema,
+  setModeFailedErrorSchema,
 ]);

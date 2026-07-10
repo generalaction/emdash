@@ -2,18 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, unlink } from 'node:fs/promises';
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
-import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import type { Controller, WireTransport } from '@emdash/wire';
 import { createWireSessionHub, streamTransport } from '@emdash/wire';
-
-export const DEFAULT_WORKSPACE_SERVER_SOCKET_PATH = join(
-  homedir(),
-  '.emdash',
-  'workspace-server',
-  'run',
-  'workspace.sock'
-);
+import { DEFAULT_WORKSPACE_SERVER_SOCKET_PATH } from '../daemon/paths';
 
 export type SocketServeOptions = {
   socketPath?: string;

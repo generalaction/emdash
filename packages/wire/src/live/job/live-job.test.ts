@@ -1,6 +1,7 @@
 import { ok, type Unsubscribe } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { deferred } from '../../testing';
 import { liveJobStateSchema, type LiveSnapshot } from '../protocol';
 import { LiveJobCancelledError, LiveJobClient, LiveJobFailedError } from './client';
 import { LIVE_JOB_TERMINAL_RETAIN_MS, LiveJob, type LiveJobContext } from './server';
@@ -18,16 +19,6 @@ type ErrorState = z.infer<typeof errorSchema>;
 
 function toError(err: unknown): ErrorState {
   return { message: err instanceof Error ? err.message : String(err) };
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, resolve, reject };
 }
 
 function attach(server: LiveJob<Input, Progress, Result, ErrorState>, jobId: string) {

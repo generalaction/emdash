@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { deferred } from '../testing';
 import { deduplicateRequests } from './deduplicate-requests';
 
 describe('deduplicateRequests', () => {
@@ -70,14 +71,3 @@ describe('deduplicateRequests', () => {
     expect(handler).toHaveBeenCalledTimes(2);
   });
 });
-
-function deferred<T>(): {
-  promise: Promise<T>;
-  resolve(value: T): void;
-} {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}

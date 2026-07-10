@@ -14,11 +14,13 @@ import RepositorySettingsCard from './RepositorySettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import SidebarMetadataSettingsCard from './SidebarMetadataSettingsCard';
 import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
+import { StorageSettingsPage } from './StorageSettingsPage';
 import {
   AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
   AutoTrustWorktreesRow,
   CreateBranchAndWorktreeRow,
+  DeleteBranchByDefaultRow,
   EnableTmuxRow,
   IncludeIssueContextByDefaultRow,
   PreserveTaskNameCapitalizationRow,
@@ -36,6 +38,7 @@ export type SettingsPageTab =
   | 'connections'
   | 'browser'
   | 'repository'
+  | 'storage'
   | 'interface'
   | 'docs';
 
@@ -57,6 +60,7 @@ function GeneralSettingsPage() {
       <AutoApproveByDefaultRow />
       <AutoTrustWorktreesRow />
       <CreateBranchAndWorktreeRow />
+      <DeleteBranchByDefaultRow />
       <PreserveTaskNameCapitalizationRow />
       <IncludeIssueContextByDefaultRow />
       <EnableTmuxRow />
@@ -137,6 +141,19 @@ function InterfaceSettingsPage() {
   );
 }
 
+function StorageTabPage() {
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        sticky
+        title="Storage"
+        description="Review task worktree usage and remove stale task worktrees."
+      />
+      <StorageSettingsPage />
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // SettingsPage
 // ---------------------------------------------------------------------------
@@ -163,6 +180,7 @@ export function SettingsPage({
     { id: 'integrations', label: 'Integrations' },
     { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
+    { id: 'storage', label: 'Storage' },
     { id: 'interface', label: 'Interface' },
     { id: 'browser', label: 'Browser' },
     { id: 'docs', label: 'Docs', isExternal: true },
@@ -185,6 +203,7 @@ export function SettingsPage({
       </div>
     ),
     repository: <RepositorySettingsPage />,
+    storage: <StorageTabPage />,
     interface: <InterfaceSettingsPage />,
   };
 

@@ -1,7 +1,7 @@
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok } from '@emdash/shared';
-import { client, connect, memoryTransportPair, serve } from '@emdash/wire';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { ActivityAggregator, type ActivityProvider, type SessionInfo } from '../workspace-activity';
 import {
@@ -221,9 +221,8 @@ async function createComposition(providers: ActivityProvider[] = []) {
   const repo = await createTestRepository();
   const lifecycleManager = new WorkspaceLifecycleManager();
   const lifecycleController = createWorkspaceLifecycleController(lifecycleManager);
-  const pair = memoryTransportPair();
-  const stopServing = serve(pair.right, lifecycleController);
-  const lifecycle = client(workspaceLifecycleContract, connect(pair.left));
+  const lifecycleWire = createTestWire(workspaceLifecycleContract, lifecycleController);
+  const lifecycle = lifecycleWire.client;
   const activity = new ActivityAggregator(providers);
   const sessions = new FakeSessionRuntime();
   const coordinator = new WorkspaceCoordinator({
@@ -239,8 +238,7 @@ async function createComposition(providers: ActivityProvider[] = []) {
     coordinator,
     async dispose() {
       activity.dispose();
-      stopServing();
-      lifecycleController.dispose?.();
+      lifecycleWire.dispose();
       lifecycleManager.dispose();
       await repo.cleanup();
     },

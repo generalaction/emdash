@@ -1,4 +1,5 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
+import type { LogFields, LogLevel, Logger } from '@emdash/shared/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createController } from '../../api/controller';
@@ -12,9 +13,11 @@ import type {
   ProcessSpec,
   StdioStream,
 } from '../../process/types';
+import { waitFor } from '../../testing';
 import { createScope } from '../scope';
 import {
   RUNTIME_SHUTDOWN_SIGNAL,
+  forwardRuntimeLogs,
   serveProcessRuntime,
   spawnRuntime,
   type ProcessRuntimePort,
@@ -138,6 +141,38 @@ describe('process runtime utilities', () => {
 
     expect(host.process().disposed).toBe(true);
   });
+
+  it('forwards runtime stdio through a structured logger', () => {
+    const process = new FakeManagedProcess({ entry: 'worker' });
+    const { logger, calls } = createRecordingLogger();
+    const unsubscribe = forwardRuntimeLogs(process, logger, { source: 'acp-runtime' });
+
+    process.emitStdio('stderr', '{"level":"info","msg":"ready","runtimeId":"r1"');
+    process.emitStdio('stderr', '}\nraw stderr\n');
+    process.emitStdio('stdout', 'hello stdout');
+
+    expect(calls).toEqual([
+      {
+        level: 'info',
+        message: 'ready',
+        fields: { source: 'acp-runtime', runtimeId: 'r1' },
+      },
+      {
+        level: 'warn',
+        message: 'runtime stderr',
+        fields: { source: 'acp-runtime', chunk: 'raw stderr' },
+      },
+      {
+        level: 'debug',
+        message: 'runtime stdout',
+        fields: { source: 'acp-runtime', chunk: 'hello stdout' },
+      },
+    ]);
+
+    unsubscribe();
+    process.emitStdio('stderr', '{"level":"info","msg":"ignored"}\n');
+    expect(calls).toHaveLength(3);
+  });
 });
 
 async function startChild(
@@ -171,16 +206,27 @@ function waitForRestarted(runtime: { onRestarted(cb: () => void): Unsubscribe })
   });
 }
 
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for condition');
-}
-
 function attachCount(messages: unknown[]): number {
   return messages.filter((message) => (message as { kind?: unknown }).kind === 'attach').length;
+}
+
+type LogCall = {
+  level: LogLevel;
+  message: string;
+  fields?: LogFields;
+};
+
+function createRecordingLogger(): { logger: Logger; calls: LogCall[] } {
+  const calls: LogCall[] = [];
+  const logger: Logger = {
+    level: 'debug',
+    debug: (message, fields) => calls.push({ level: 'debug', message, fields }),
+    info: (message, fields) => calls.push({ level: 'info', message, fields }),
+    warn: (message, fields) => calls.push({ level: 'warn', message, fields }),
+    error: (message, fields) => calls.push({ level: 'error', message, fields }),
+    child: () => logger,
+  };
+  return { logger, calls };
 }
 
 class FakeProcessHost implements ProcessHost {
@@ -255,5 +301,9 @@ class FakeManagedProcess implements ManagedProcess {
   emitExit(exit: ManagedProcessExit): void {
     this.exited = true;
     this.exitEmitter.emit(exit);
+  }
+
+  emitStdio(stream: StdioStream, chunk: string): void {
+    this.stdioEmitter.emit({ stream, chunk });
   }
 }

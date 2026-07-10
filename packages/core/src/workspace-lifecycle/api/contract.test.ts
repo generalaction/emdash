@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { client, connect, createLiveJobReplica, memoryTransportPair, serve } from '@emdash/wire';
+import { createLiveJobReplica } from '@emdash/wire';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it } from 'vitest';
 import { createWorkspaceLifecycleController } from '../controller';
 import { WorkspaceLifecycleManager } from '../manager';
@@ -12,9 +13,8 @@ describe('workspaceLifecycleContract', () => {
     const repo = await createTestRepository();
     const manager = new WorkspaceLifecycleManager({ stepLogRetainMs: 10_000 });
     const controller = createWorkspaceLifecycleController(manager);
-    const pair = memoryTransportPair();
-    const stopServing = serve(pair.right, controller);
-    const contractClient = client(workspaceLifecycleContract, connect(pair.left));
+    const wire = createTestWire(workspaceLifecycleContract, controller, { validate: 'full' });
+    const contractClient = wire.client;
     try {
       const jobs = createLiveJobReplica(
         workspaceLifecycleContract.runPhase,
@@ -105,8 +105,7 @@ describe('workspaceLifecycleContract', () => {
       await lease.release();
       await jobs.dispose();
     } finally {
-      stopServing();
-      controller.dispose?.();
+      wire.dispose();
       manager.dispose();
       await repo.cleanup();
     }
@@ -115,9 +114,8 @@ describe('workspaceLifecycleContract', () => {
   it('returns a typed unsupported-step rejection', async () => {
     const manager = new WorkspaceLifecycleManager();
     const controller = createWorkspaceLifecycleController(manager);
-    const pair = memoryTransportPair();
-    const stopServing = serve(pair.right, controller);
-    const contractClient = client(workspaceLifecycleContract, connect(pair.left));
+    const wire = createTestWire(workspaceLifecycleContract, controller, { validate: 'full' });
+    const contractClient = wire.client;
 
     try {
       const result = await contractClient.validatePlan({
@@ -141,8 +139,7 @@ describe('workspaceLifecycleContract', () => {
         },
       });
     } finally {
-      stopServing();
-      controller.dispose?.();
+      wire.dispose();
       manager.dispose();
     }
   });
