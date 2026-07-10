@@ -52,5 +52,14 @@ describe('isFileTabLoading', () => {
         diskStatus: 'ready',
       })
     ).toBe(false);
+    // Model not yet tracked in the registry (initial open) should still spin.
+    expect(
+      isFileTabLoading({
+        isExternal: false,
+        isExternalLoading: false,
+        isMonacoFile: true,
+        diskStatus: undefined,
+      })
+    ).toBe(true);
   });
 });
