@@ -1,5 +1,6 @@
+import type { BoundExec } from '@emdash/core/exec';
 import { describe, expect, it } from 'vitest';
-import { gitEnv } from './git-exec';
+import { bindGitDir, gitEnv } from './git-exec';
 
 describe('gitEnv', () => {
   it('pins git output locale for stable parsing and error classification', () => {
@@ -16,5 +17,48 @@ describe('gitEnv', () => {
     expect(gitEnv({ GIT_SSH_COMMAND: 'ssh -F custom-config' }).GIT_SSH_COMMAND).toBe(
       'ssh -F custom-config'
     );
+  });
+});
+
+describe('bindGitDir', () => {
+  it('binds every execution mode to one Git directory', async () => {
+    const calls: string[][] = [];
+    const makeExec = (cwd: string): BoundExec => ({
+      file: 'git',
+      cwd,
+      async exec(args) {
+        calls.push(args);
+        return { stdout: '', stderr: '' };
+      },
+      async execStreaming(args) {
+        calls.push(args);
+      },
+      async execBuffer(args) {
+        calls.push(args);
+        return { stdout: Buffer.alloc(0), stderr: '' };
+      },
+      spawn(args) {
+        calls.push(args);
+        return {} as never;
+      },
+      withCwd: makeExec,
+    });
+    const exec = bindGitDir(makeExec('/runtime'), '/repo/.git');
+
+    await exec.exec(['status']);
+    await exec.execStreaming(['fetch'], () => {});
+    await exec.execBuffer(['cat-file', 'blob', 'HEAD:file']);
+    exec.spawn(['cat-file', '--batch']);
+    const moved = exec.withCwd('/other');
+    await moved.exec(['branch']);
+
+    expect(calls).toEqual([
+      ['--git-dir=/repo/.git', 'status'],
+      ['--git-dir=/repo/.git', 'fetch'],
+      ['--git-dir=/repo/.git', 'cat-file', 'blob', 'HEAD:file'],
+      ['--git-dir=/repo/.git', 'cat-file', '--batch'],
+      ['--git-dir=/repo/.git', 'branch'],
+    ]);
+    expect(moved.cwd).toBe('/other');
   });
 });

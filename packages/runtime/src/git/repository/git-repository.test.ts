@@ -3,9 +3,10 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { createBoundExec } from '@emdash/core/exec';
+import { createBoundExec, ExecError, type BoundExec } from '@emdash/core/exec';
 import { describe, expect, it } from 'vitest';
 import type { RepositoryIdentity } from '../allocation/identity';
+import { bindGitDir } from '../exec/git-exec';
 import { GitRepository } from './git-repository';
 
 const execFileAsync = promisify(execFile);
@@ -38,10 +39,10 @@ async function makeRepository() {
   } as RepositoryIdentity;
   const repository = new GitRepository({
     identity,
-    exec: createBoundExec({ file: 'git', cwd: repo }),
+    exec: bindGitDir(createBoundExec({ file: 'git', cwd: tmpdir() }), gitCommonDir),
   });
   const cleanup = async () => {
-    await repository.dispose();
+    repository.dispose();
     await rm(repo, { recursive: true, force: true });
   };
   return { repo, repository, cleanup };
@@ -210,6 +211,46 @@ describe('GitRepository', () => {
       await expect(repository.readBlobAtRef('HEAD', '../secret.txt')).rejects.toThrow(
         'Invalid repository file path'
       );
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('does not treat arbitrary Git failures as missing blobs', async () => {
+    const failure = new ExecError('git', ['cat-file'], 128, '', 'fatal: permission denied');
+    const exec: BoundExec = {
+      file: 'git',
+      cwd: tmpdir(),
+      async exec() {
+        throw failure;
+      },
+      async execStreaming() {
+        throw failure;
+      },
+      async execBuffer() {
+        throw failure;
+      },
+      spawn() {
+        throw failure;
+      },
+      withCwd() {
+        return this;
+      },
+    };
+    const repository = new GitRepository({ identity: {} as RepositoryIdentity, exec });
+
+    await expect(repository.readBlobAtRef('HEAD', 'file.txt')).rejects.toBe(failure);
+  });
+
+  it('reads multi-megabyte blobs without a persistent child process', async () => {
+    const { repo, repository, cleanup } = await makeRepository();
+    try {
+      const content = `${'x'.repeat(100)}\n`.repeat(40_000);
+      await writeFile(path.join(repo, 'large.txt'), content, 'utf8');
+      await git(repo, ['add', 'large.txt']);
+      await git(repo, ['commit', '-m', 'large blob']);
+
+      await expect(repository.readBlobAtRef('HEAD', 'large.txt')).resolves.toBe(content);
     } finally {
       await cleanup();
     }

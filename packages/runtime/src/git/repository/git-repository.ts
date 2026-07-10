@@ -6,6 +6,7 @@ import {
   classifyFetchError,
   classifyFetchPrForReviewError,
   classifyPushError,
+  isMissingBlobError,
   toGitCommandError,
   type AddWorktreeOptions,
   type CreateBranchError,
@@ -27,9 +28,8 @@ import { realpathOrResolve } from '@emdash/core/watch';
 import { err, ok, type Result } from '@emdash/shared';
 import type { RepositoryIdentity } from '../allocation/identity';
 import type { GitOperationContext } from '../exec/operation-context';
-import { bindRepositoryExec } from '../exec/repository-exec';
 import { execGitWithProgress, throwIfGitOpAborted } from '../exec/transfer-progress';
-import { CatFileBatch } from './ops/cat-file-batch';
+import { CatFileBatch, CatFileBatchProcessError } from './ops/cat-file-batch';
 import { computeRefsState } from './ops/refs';
 import { computeRemotesState, remoteNameForRepositoryUrl } from './ops/remotes';
 import { computeStashesState } from './ops/stashes';
@@ -51,7 +51,7 @@ export class GitRepository {
 
   constructor(options: GitRepositoryOptions) {
     this.identity = options.identity;
-    this.exec = bindRepositoryExec(options.exec, options.identity.gitCommonDir);
+    this.exec = options.exec;
   }
 
   get gitCommonDir(): string {
@@ -71,7 +71,7 @@ export class GitRepository {
     return computeStashesState(this.exec);
   }
 
-  async dispose(): Promise<void> {
+  dispose(): void {
     this.catFile?.dispose();
     this.catFile = null;
   }
@@ -80,16 +80,13 @@ export class GitRepository {
 
   async readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
     const treePath = normalizeTreePath(filePath);
+    const spec = `${ref}:${treePath}`;
     this.catFile ??= new CatFileBatch({ exec: this.exec });
     try {
-      return await this.catFile.readText(`${ref}:${treePath}`);
-    } catch {
-      try {
-        const { stdout } = await this.exec.exec(['show', `${ref}:${treePath}`]);
-        return stdout;
-      } catch {
-        return null;
-      }
+      return await this.catFile.readText(spec);
+    } catch (error) {
+      if (error instanceof CatFileBatchProcessError) return this.readBlobOnce(spec);
+      throw error;
     }
   }
 
@@ -394,6 +391,16 @@ export class GitRepository {
       return ok(undefined);
     } catch (error) {
       return err(toGitCommandError(error));
+    }
+  }
+
+  private async readBlobOnce(spec: string): Promise<string | null> {
+    try {
+      const { stdout } = await this.exec.exec(['cat-file', 'blob', spec]);
+      return stdout;
+    } catch (error) {
+      if (isMissingBlobError(error)) return null;
+      throw error;
     }
   }
 

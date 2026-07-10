@@ -1,3 +1,5 @@
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+
 export type ExecOptions = {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
@@ -6,6 +8,8 @@ export type ExecOptions = {
   signal?: AbortSignal;
   timeoutMs?: number;
 };
+
+export type ExecSpawnOptions = Pick<ExecOptions, 'cwd' | 'env' | 'signal'>;
 
 export type ExecResult = {
   stdout: string;
@@ -41,5 +45,6 @@ export type BoundExec = {
     options?: ExecOptions
   ): Promise<void>;
   execBuffer(args: string[], options?: ExecOptions): Promise<ExecBufferResult>;
+  spawn(args: string[], options?: ExecSpawnOptions): ChildProcessWithoutNullStreams;
   withCwd(cwd: string): BoundExec;
 };
