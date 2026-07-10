@@ -24,6 +24,7 @@ import {
   type ResolvedAuthProvider,
 } from '@emdash/core/agents/plugins';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@emdash/core/pty';
+import { ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AgentTerminalHooks } from './agent-ports/terminal-manager';
@@ -351,6 +352,10 @@ export function makeAcpHarness(options: AcpHarnessOptions = {}) {
         },
       }),
     host: fakeHost,
+    spawnContext: {
+      resolve: vi.fn().mockResolvedValue(ok({ cli: '/usr/local/bin/fake-agent', agentEnv: {} })),
+      invalidate: vi.fn(),
+    },
     persistSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
     logger: noopLogger,

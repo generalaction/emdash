@@ -25,6 +25,8 @@ describe('createWorkspaceWireController', () => {
           providerId: 'codex',
           workspaceId: 'workspace-1',
           cwd: '/tmp/project',
+          sessionId: null,
+          model: null,
         },
       });
 

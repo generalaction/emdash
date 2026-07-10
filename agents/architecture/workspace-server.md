@@ -6,11 +6,11 @@ The contract lives in `packages/core/src/workspace-server/`, shared by the serve
 
 The ACP domain is mounted under `workspaceWireContract.acp` and is served by a
 forked child process. The daemon parent forwards the ACP API contract to the child
-and serves the child-to-parent `acpHostContract` callbacks for provider binary
-resolution, session-id notifications, and logging. This mount was added before
-any workspace-server contract deployment, so the initial addition intentionally
-does not bump `PROTOCOL_VERSION`; future deployed additions must follow the rules
-below.
+and serves the child-to-parent `acpHostContract` callback for session-id
+notifications. Runtime spawn context is resolved inside the child runtime and
+structured child logs are forwarded from stderr. This mount was added before any
+workspace-server contract deployment, so the initial addition intentionally does
+not bump `PROTOCOL_VERSION`; future deployed additions must follow the rules below.
 
 ## Protocol Version
 

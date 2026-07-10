@@ -11,6 +11,7 @@ import {
   tuiNotificationListSchema,
   tuiSessionListSchema,
 } from '@emdash/core/workspace-server';
+import { ok } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
 import { createStubLogger, createTestWire, waitFor } from '@emdash/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -240,10 +241,10 @@ function createHarness(
   const deps: TuiAgentsRuntimeDeps = {
     pluginHost: new AgentPluginHost(registry),
     spawner,
-    resolveSpawnContext: async () => ({
-      cli: 'agent',
-      agentEnv: { BASE_ENV: '1' },
-    }),
+    spawnContext: {
+      resolve: async () => ok({ cli: 'agent', agentEnv: { BASE_ENV: '1' } }),
+      invalidate: () => {},
+    },
     logger,
   };
   return { runtime: new TuiAgentsRuntime(deps), spawner };

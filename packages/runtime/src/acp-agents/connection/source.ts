@@ -7,10 +7,13 @@ import type {
   SpawnFailedError,
 } from '@emdash/core/acp';
 import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
+import type { SpawnContextResolver } from '@emdash/core/agents/spawn-context';
 import { isErr } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { createManagedSource, type ManagedSource, type Scope } from '@emdash/wire/util';
 import { createAcpAgentConnection } from './acp-agent-connection';
+
+type AcpConnectionProcessHost = Pick<AcpProcessHost, 'spawn' | 'spawnTerminal'>;
 
 export interface AcpConnectionEntry {
   key: string;
@@ -29,7 +32,8 @@ export interface PooledAcpProcess extends AcpConnectionEntry {
 export type AcpConnectionError = SpawnFailedError | InitializeFailedError;
 
 export interface CreateAcpConnectionSourceDeps {
-  host: AcpProcessHost;
+  host: AcpConnectionProcessHost;
+  spawnContext: SpawnContextResolver;
   logger: Logger;
   onClosed: (key: string, exitCode: number | null) => void;
 }
@@ -101,7 +105,12 @@ async function provisionAcpConnection(
   scope: Scope
 ): Promise<PooledAcpProcess> {
   const connection = await createAcpAgentConnection(
-    { host: deps.host, behavior: input.behavior, logger: deps.logger },
+    {
+      host: deps.host,
+      spawnContext: deps.spawnContext,
+      behavior: input.behavior,
+      logger: deps.logger,
+    },
     {
       providerId: input.providerId,
       cwd: input.cwd,

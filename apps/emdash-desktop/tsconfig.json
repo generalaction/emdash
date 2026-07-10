@@ -16,6 +16,9 @@
       "@emdash/core/pty/node": ["../../packages/core/src/pty/node/index.ts"],
       "@emdash/core/pty": ["../../packages/core/src/pty/index.ts"],
       "@emdash/core/agents/agent-env": ["../../packages/core/src/agents/agent-env.ts"],
+      "@emdash/core/agents/spawn-context": [
+        "../../packages/core/src/agents/spawn-context.ts"
+      ],
       "@emdash/core/agents/plugins/helpers": [
         "../../packages/core/src/agents/plugins/helpers/index.ts"
       ],
@@ -40,6 +43,7 @@
       "@emdash/shared/config": ["../../packages/shared/src/config/index.ts"],
       "@emdash/shared/logger/context-node": ["../../packages/shared/src/logger/context-node.ts"],
       "@emdash/shared/logger/context": ["../../packages/shared/src/logger/context.ts"],
+      "@emdash/shared/logger/node": ["../../packages/shared/src/logger/node/index.ts"],
       "@emdash/shared/logger/pino": ["../../packages/shared/src/logger/pino/index.ts"],
       "@emdash/shared/logger/transport": ["../../packages/shared/src/logger/transport/index.ts"],
       "@emdash/shared/logger": ["../../packages/shared/src/logger/index.ts"],

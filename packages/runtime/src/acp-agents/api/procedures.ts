@@ -25,9 +25,8 @@ import type {
   ResumeResult,
 } from '@emdash/core/acp';
 import { ok, type Result } from '@emdash/shared';
-import type { WireFile } from '@emdash/wire';
+import { blobSourceFromBytes, type WireFile } from '@emdash/wire';
 import type { AcpRuntime } from '../runtime/runtime';
-import type { AcpStartInput } from '../runtime/types';
 
 export type StartSessionInput = AcpStartInputWire;
 
@@ -36,15 +35,12 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     startSession(input: {
       input: StartSessionInput;
     }): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
-      return runtime.startSession(toStartInput(input.input));
+      return runtime.startSession(input.input);
     },
     resumeSession(input: {
       input: StartSessionInput & { sessionId: string };
     }): Promise<Result<ResumeResult, AcpResumeSessionError>> {
-      return runtime.resumeSession({
-        ...toStartInput(input.input),
-        sessionId: input.input.sessionId,
-      });
+      return runtime.resumeSession(input.input);
     },
     stopSession(input: { conversationId: string }): Result<void, AcpStopSessionError> {
       return runtime.stopSession(input.conversationId);
@@ -138,7 +134,7 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       if (!result.success) return result;
       return ok({
         meta: result.data.ref,
-        source: singleChunk(result.data.data),
+        source: blobSourceFromBytes(result.data.data),
       });
     },
     deleteAttachment(input: { id: string }): Promise<Result<void, AcpAttachmentError>> {
@@ -154,22 +150,4 @@ export function createAcpProcedures(runtime: AcpRuntime) {
   };
 }
 
-async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
-  yield data;
-}
-
 export type AcpProcedures = ReturnType<typeof createAcpProcedures>;
-
-function toStartInput(input: StartSessionInput): AcpStartInput {
-  return {
-    conversationId: input.conversationId,
-    projectId: input.projectId,
-    taskId: input.taskId,
-    providerId: input.providerId,
-    workspaceId: input.workspaceId,
-    cwd: input.cwd,
-    sessionId: input.sessionId ?? null,
-    model: input.model ?? input.sessionConfig?.model ?? null,
-    initialQueue: input.initialQueue,
-  };
-}

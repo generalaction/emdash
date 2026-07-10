@@ -2,14 +2,12 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import type {
-  acpHostContract,
   AcpFs,
   AcpProcessHandle,
-  AcpProcessHost,
   AcpTerminalExit,
   AcpTerminalProcess,
 } from '@emdash/core/acp';
-import type { ContractClient } from '@emdash/wire/api';
+import type { AcpRuntimeProcessHost } from '../runtime/types';
 
 class ChildProcessHandle implements AcpProcessHandle {
   constructor(private readonly child: ReturnType<typeof spawn>) {}
@@ -89,16 +87,8 @@ const fsPort: AcpFs = {
   mkdir: (path, opts) => mkdir(path, opts),
 };
 
-export class ChildAcpProcessHost implements AcpProcessHost {
+export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
   readonly fs = fsPort;
-
-  constructor(private readonly host: ContractClient<typeof acpHostContract>) {}
-
-  resolveSpawnContext(
-    providerId: string
-  ): Promise<{ cli: string; agentEnv: Record<string, string> }> {
-    return this.host.resolveSpawnContext({ providerId });
-  }
 
   async spawn(spec: {
     command: string;

@@ -1,14 +1,12 @@
 import type { AgentPluginHost, PluginFs } from '@emdash/core/agents/plugins';
+import type { SpawnContext, SpawnContextResolver } from '@emdash/core/agents/spawn-context';
 import type { IExecutionContext } from '@emdash/core/exec';
 import type { InstallCommandError, Platform } from '@emdash/core/deps/runtime';
 import type { PtySpawner } from '@emdash/core/pty';
 import type { Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 
-export type AgentConfigSpawnContext = {
-  cli: string;
-  agentEnv: Record<string, string>;
-};
+export type AgentConfigSpawnContext = SpawnContext;
 
 export type AgentConfigInstallCommandRunner = (
   command: string,
@@ -25,6 +23,6 @@ export interface AgentConfigRuntimeDeps {
   platform?: Platform;
   env?: Record<string, string | undefined>;
   logger: Logger;
-  resolveSpawnContext?(providerId: string): Promise<AgentConfigSpawnContext>;
+  spawnContext?: SpawnContextResolver;
 }
 

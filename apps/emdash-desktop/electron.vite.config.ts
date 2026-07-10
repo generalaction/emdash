@@ -7,6 +7,7 @@ const workspaceAliases = {
   '@emdash/core/acp/client': resolve('../../packages/core/src/acp/client.ts'),
   '@emdash/core/acp': resolve('../../packages/core/src/acp/index.ts'),
   '@emdash/core/agents/agent-env': resolve('../../packages/core/src/agents/agent-env.ts'),
+  '@emdash/core/agents/spawn-context': resolve('../../packages/core/src/agents/spawn-context.ts'),
   '@emdash/core/agents/plugins/helpers': resolve(
     '../../packages/core/src/agents/plugins/helpers/index.ts'
   ),
@@ -33,6 +34,7 @@ const workspaceAliases = {
   '@emdash/shared/config': resolve('../../packages/shared/src/config/index.ts'),
   '@emdash/shared/logger/context-node': resolve('../../packages/shared/src/logger/context-node.ts'),
   '@emdash/shared/logger/context': resolve('../../packages/shared/src/logger/context.ts'),
+  '@emdash/shared/logger/node': resolve('../../packages/shared/src/logger/node/index.ts'),
   '@emdash/shared/logger/pino': resolve('../../packages/shared/src/logger/pino/index.ts'),
   '@emdash/shared/logger/transport': resolve('../../packages/shared/src/logger/transport/index.ts'),
   '@emdash/shared/logger': resolve('../../packages/shared/src/logger/index.ts'),

@@ -17,6 +17,7 @@ export default defineConfig({
     pty: 'src/pty/index.ts',
     'pty-node': 'src/pty/node/index.ts',
     'agents-agent-env': 'src/agents/agent-env.ts',
+    'agents-spawn-context': 'src/agents/spawn-context.ts',
     'agents-plugins': 'src/agents/plugins/index.ts',
     'agents-plugins-helpers': 'src/agents/plugins/helpers/index.ts',
     'workspace-server': 'src/workspace-server/index.ts',

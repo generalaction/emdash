@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { buildAllowlistedAgentEnv } from '@emdash/core/agents/agent-env';
 import type { AgentAuthMethod, AgentAuthStatus } from '@emdash/core/agents/plugins';
+import type { SpawnContext, SpawnContextResolver } from '@emdash/core/agents/spawn-context';
 import { PtyRegistry, type PtyExitInfo, type PtySession, type PtySpawner } from '@emdash/core/pty';
 import type { AgentConfigAuthError, AuthStatusModelState } from '@emdash/core/workspace-server';
 import { err, ok, type PendingLease, type Result } from '@emdash/shared';
@@ -39,7 +39,8 @@ export class AgentAuthManager {
 
   constructor(
     private readonly deps: AgentConfigRuntimeDeps,
-    private readonly install: AgentInstallManager
+    private readonly install: AgentInstallManager,
+    private readonly spawnContext: SpawnContextResolver
   ) {
     this.ptys = new PtyRegistry(assertPtySpawner(deps.ptySpawner), {
       onSessionChanged: (providerId) => this.publishLoginExit(providerId),
@@ -171,9 +172,14 @@ export class AgentAuthManager {
     context: LoginContext,
     scope: Scope
   ): Promise<LoginSession> {
-    const { command, args } = await this.resolveLoginCommand(providerId, context.methodId);
     const spawnContext = await this.resolveSpawnContext(providerId);
-    const env = this.buildLoginEnv(spawnContext.agentEnv);
+    if (!spawnContext.success) throw new Error(agentConfigAuthErrorMessage(spawnContext.error));
+    const { command, args } = await this.resolveLoginCommand(
+      providerId,
+      context.methodId,
+      spawnContext.data
+    );
+    const env = this.buildLoginEnv(spawnContext.data.agentEnv);
     const startedAt = Date.now();
     this.seenUrls.set(providerId, new Set());
     this.publish(providerId, (current) => ({
@@ -233,9 +239,16 @@ export class AgentAuthManager {
 
     try {
       const spawnContext = await this.resolveSpawnContext(providerId);
-      const env = this.buildLoginEnv(spawnContext.agentEnv);
+      if (!spawnContext.success) {
+        this.deps.logger.warn('AgentAuthManager: spawn context resolution failed', {
+          providerId,
+          error: agentConfigAuthErrorMessage(spawnContext.error),
+        });
+        return { kind: 'unknown' };
+      }
+      const env = this.buildLoginEnv(spawnContext.data.agentEnv);
       return await provider.behavior.checkStatus({
-        cli: spawnContext.cli,
+        cli: spawnContext.data.cli,
         exec: (command, args, opts) => this.deps.exec.exec(command, args, opts),
         fs: this.deps.pluginFs,
         env,
@@ -251,12 +264,12 @@ export class AgentAuthManager {
 
   private async resolveLoginCommand(
     providerId: string,
-    methodId: string
+    methodId: string,
+    spawnContext: SpawnContext
   ): Promise<{ command: string; args: string[]; method: AgentAuthMethod }> {
     const provider = this.deps.pluginHost.resolveAuthProvider(providerId);
     if (!provider) throw new Error(`Provider '${providerId}' was not found`);
 
-    const spawnContext = await this.resolveSpawnContext(providerId);
     if (provider.auth.kind === 'none') {
       if (methodId !== 'cli-login') {
         throw new Error(`Auth method '${methodId}' was not found for provider '${providerId}'`);
@@ -346,15 +359,13 @@ export class AgentAuthManager {
     return { ...agentEnv };
   }
 
-  private async resolveSpawnContext(providerId: string) {
-    if (this.deps.resolveSpawnContext) return this.deps.resolveSpawnContext(providerId);
-    return {
-      cli: await this.install.resolveCli(providerId),
-      agentEnv: buildAllowlistedAgentEnv(this.deps.env ?? {}, {
-        homeDir: this.deps.homeDir,
-        includeShellVar: true,
-      }),
-    };
+  private async resolveSpawnContext(
+    providerId: string
+  ): Promise<Result<SpawnContext, AgentConfigAuthError>> {
+    const result = await this.spawnContext.resolve(providerId);
+    if (result.success) return result;
+    if (result.error.type === 'unknown-provider') return err(result.error);
+    return err({ type: 'invalid-state', message: result.error.message });
   }
 
   private hasProvider(providerId: string): boolean {
@@ -377,5 +388,9 @@ function stripTrailingUrlPunctuation(url: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function agentConfigAuthErrorMessage(error: AgentConfigAuthError): string {
+  return 'message' in error ? error.message : error.type;
 }
 

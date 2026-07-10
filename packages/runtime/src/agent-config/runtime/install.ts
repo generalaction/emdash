@@ -5,6 +5,7 @@ import {
   type DependencyState,
   type DependencyUninstallError,
 } from '@emdash/core/deps/runtime';
+import type { SpawnContextResolver } from '@emdash/core/agents/spawn-context';
 import type {
   AgentConfigEntry,
   AgentConfigList,
@@ -33,7 +34,8 @@ export class AgentInstallManager {
 
   constructor(
     private readonly deps: AgentConfigRuntimeDeps,
-    private readonly agentsModel: AgentConfigAgentsModel
+    private readonly agentsModel: AgentConfigAgentsModel,
+    private readonly spawnContext?: SpawnContextResolver
   ) {
     const providers = deps.pluginHost.getAll();
     this.providersById = new Map(
@@ -53,6 +55,7 @@ export class AgentInstallManager {
       logger: deps.logger,
     });
     this.manager.onStatusUpdated.subscribe((event) => {
+      this.spawnContext?.invalidate(event.id);
       this.updateInstall(event.id, event.state);
     });
     this.seedProviders();
@@ -104,6 +107,7 @@ export class AgentInstallManager {
       const result = await this.manager.install(providerId, strategy.method as never);
       return mapInstallResult(providerId, result);
     } finally {
+      this.spawnContext?.invalidate(providerId);
       this.currentProgress.delete(ctx.jobId);
     }
   }
@@ -120,11 +124,13 @@ export class AgentInstallManager {
       const run = await this.deps.installCommandRunner(strategy.command);
       if (!run.success) return err(run.error);
       const state = await this.manager.probe(providerId);
+      this.spawnContext?.invalidate(providerId);
       if (state.status !== 'missing') return err({ type: 'still-present', providerId });
       return ok(state);
     }
 
     const result = await this.manager.uninstall(providerId, strategy?.method as never);
+    this.spawnContext?.invalidate(providerId);
     return mapUninstallResult(providerId, result);
   }
 

@@ -4,7 +4,7 @@ import { AgentPluginHost, type CLIAgentPluginProvider } from '@emdash/core/agent
 import { createLocalPluginFs } from '@emdash/core/agents/plugins/helpers';
 import { NodeExecutionContext } from '@emdash/core/exec';
 import { NodePtySpawner } from '@emdash/core/pty/node';
-import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
+import { initProcessLogging } from '@emdash/shared/logger/node';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { withValidation, type ValidatePolicy } from '@emdash/wire';
 import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
@@ -22,7 +22,7 @@ export type BootAgentConfigRuntimeProcessOptions = {
 export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimeProcessOptions): void {
   const env = options.env ?? process.env;
   const runtimePort = options.port ?? createNodeRuntimePort();
-  const logger = createStderrLogger();
+  const logger = initProcessLogging({ name: 'agent-config-runtime', env });
 
   void serveProcessRuntime(
     (scope) => {
@@ -52,11 +52,7 @@ export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimePro
     },
     { port: runtimePort, exit: options.exit, logger }
   ).catch((error: unknown) => {
-    process.stderr.write(
-      `Agent-config runtime process failed: ${
-        error instanceof Error ? error.message : String(error)
-      }\n`
-    );
+    logger.error('Agent-config runtime process failed', { error: errorMessage(error) });
     (options.exit ?? process.exit)(1);
   });
 }
@@ -85,23 +81,6 @@ function createNodeRuntimePort(): ProcessRuntimePort {
   };
 }
 
-function createStderrLogger(bindings: LogFields = {}): Logger {
-  const emit = (level: LogLevel, message: string, data?: LogFields): void => {
-    const payload = data ? { ...bindings, ...data } : bindings;
-    process.stderr.write(
-      JSON.stringify({
-        level,
-        message,
-        data: payload,
-      }) + '\n'
-    );
-  };
-  return {
-    level: 'debug',
-    debug: (message, data) => emit('debug', message, data),
-    info: (message, data) => emit('info', message, data),
-    warn: (message, data) => emit('warn', message, data),
-    error: (message, data) => emit('error', message, data),
-    child: (next) => createStderrLogger({ ...bindings, ...next }),
-  };
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

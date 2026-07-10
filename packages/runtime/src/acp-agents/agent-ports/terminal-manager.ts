@@ -1,6 +1,8 @@
 import type { AcpProcessHost, TerminalState } from '@emdash/core/acp';
 import { ManagedAgentTerminal } from './managed-terminal';
 
+type TerminalHost = Pick<AcpProcessHost, 'spawnTerminal'>;
+
 export interface AgentTerminalHooks {
   onTerminalCreated(e: {
     conversationId: string;
@@ -34,7 +36,7 @@ export class AgentTerminalManager {
   private readonly byConversation = new Map<string, Set<string>>();
 
   constructor(
-    private readonly host: AcpProcessHost,
+    private readonly host: TerminalHost,
     private readonly hooks: AgentTerminalHooks
   ) {}
 

@@ -55,6 +55,7 @@ export class AcpRuntime {
     const terminalPort = new TerminalPort(this.terminals);
     this.connections = createAcpConnectionSource({
       host: deps.host,
+      spawnContext: deps.spawnContext,
       logger: deps.logger,
       onClosed: (key, exitCode) => manager?.onProcessClosed(key, exitCode),
     });

@@ -1,24 +1,16 @@
-import type { AcpProcessHost, PromptAttachment, PromptInput } from '@emdash/core/acp';
+import type {
+  AcpProcessHost,
+  AcpStartInputWire,
+  PromptAttachment,
+  PromptInput,
+} from '@emdash/core/acp';
 import type { AgentPluginHost, ResolvedAcpProvider } from '@emdash/core/agents/plugins';
+import type { SpawnContextResolver } from '@emdash/core/agents/spawn-context';
 import type { Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { AttachmentStore } from './attachment-store';
 
-export interface AcpStartInput {
-  conversationId: string;
-  projectId: string;
-  taskId: string;
-  providerId: string;
-  workspaceId: string;
-  cwd: string;
-  sessionId: string | null;
-  model: string | null;
-  initialQueue?: PromptInput[];
-}
-
-export interface ResumeSessionInput extends AcpStartInput {
-  sessionId: string;
-}
+export type AcpStartInput = AcpStartInputWire;
 
 export type ResolveAcpProvider = (providerId: string) => ResolvedAcpProvider | null;
 
@@ -33,9 +25,12 @@ export type ResolvePromptAttachment = (
 
 export type SetSessionIdError = { type: string; message?: string };
 
+export type AcpRuntimeProcessHost = Omit<AcpProcessHost, 'resolveSpawnContext'>;
+
 export interface AcpRuntimeDeps {
   pluginHost: AgentPluginHost;
-  host: AcpProcessHost;
+  host: AcpRuntimeProcessHost;
+  spawnContext: SpawnContextResolver;
   persistSessionId: (
     conversationId: string,
     sessionId: string

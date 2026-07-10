@@ -231,7 +231,9 @@ export class TuiAgentsRuntime {
     if (!providerResult.success) throw new Error(JSON.stringify(providerResult.error));
 
     const provider = providerResult.data;
-    const spawnContext = await this.deps.resolveSpawnContext(config.input.providerId);
+    const spawnContextResult = await this.deps.spawnContext.resolve(config.input.providerId);
+    if (!spawnContextResult.success) throw new Error(JSON.stringify(spawnContextResult.error));
+    const spawnContext = spawnContextResult.data;
     const isResuming = config.intent === 'resume';
     const resumeState =
       isResuming ||

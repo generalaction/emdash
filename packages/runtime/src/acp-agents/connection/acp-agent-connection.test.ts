@@ -1,5 +1,5 @@
 import type { IAcpBehavior } from '@emdash/core/agents/plugins';
-import { isErr, isOk } from '@emdash/shared';
+import { err, isErr, isOk, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { FakeAcpAgent, FakeAcpProcessHost } from '../acp-test-support';
 import { createAcpAgentConnection } from './acp-agent-connection';
@@ -14,8 +14,12 @@ function makeBehavior(agent: FakeAcpAgent): IAcpBehavior {
 function makeCtx(agent?: FakeAcpAgent) {
   const fakeAgent = agent ?? new FakeAcpAgent();
   const host = new FakeAcpProcessHost();
+  const spawnContext = {
+    resolve: vi.fn().mockResolvedValue(ok({ cli: '/usr/local/bin/fake-agent', agentEnv: {} })),
+    invalidate: vi.fn(),
+  };
   const behavior = makeBehavior(fakeAgent);
-  return { host, fakeAgent, behavior };
+  return { host, spawnContext, fakeAgent, behavior };
 }
 
 const connArgs = (onClosed = vi.fn()) => ({
@@ -27,19 +31,19 @@ const connArgs = (onClosed = vi.fn()) => ({
 
 describe('createAcpAgentConnection()', () => {
   it('resolves spawn context, calls buildSpawn, and returns ok', async () => {
-    const { host, behavior } = makeCtx();
-    const result = await createAcpAgentConnection({ host, behavior }, connArgs());
+    const { host, spawnContext, behavior } = makeCtx();
+    const result = await createAcpAgentConnection({ host, spawnContext, behavior }, connArgs());
     expect(isOk(result)).toBe(true);
-    expect(host.resolveSpawnContext).toHaveBeenCalledWith('test-provider');
+    expect(spawnContext.resolve).toHaveBeenCalledWith('test-provider');
     expect(behavior.buildSpawn).toHaveBeenCalledWith(
       expect.objectContaining({ cwd: '/tmp/workspace', cli: '/usr/local/bin/fake-agent' })
     );
   });
 
   it('returns err(spawn_failed) when spawn throws', async () => {
-    const { host, behavior } = makeCtx();
-    host.resolveSpawnContext = vi.fn().mockRejectedValue(new Error('spawn-error'));
-    const result = await createAcpAgentConnection({ host, behavior }, connArgs());
+    const { host, spawnContext, behavior } = makeCtx();
+    spawnContext.resolve.mockResolvedValue(err({ type: 'cli-not-found', providerId: 'test-provider', message: 'spawn-error' }));
+    const result = await createAcpAgentConnection({ host, spawnContext, behavior }, connArgs());
     expect(isErr(result)).toBe(true);
     if (!isErr(result)) return;
     expect(result.error.type).toBe('spawn_failed');
@@ -47,9 +51,9 @@ describe('createAcpAgentConnection()', () => {
   });
 
   it('calls onClosed when the process exits', async () => {
-    const { host, behavior } = makeCtx();
+    const { host, spawnContext, behavior } = makeCtx();
     const onClosed = vi.fn();
-    await createAcpAgentConnection({ host, behavior }, connArgs(onClosed));
+    await createAcpAgentConnection({ host, spawnContext, behavior }, connArgs(onClosed));
     host.lastHandle.emitExit(0);
     expect(onClosed).toHaveBeenCalledTimes(1);
   });
@@ -61,8 +65,8 @@ describe('createAcpAgentConnection()', () => {
         protocolVersion: 1,
         agentCapabilities: { loadSession },
       });
-      const { host, behavior } = makeCtx(agent);
-      const result = await createAcpAgentConnection({ host, behavior }, connArgs());
+      const { host, spawnContext, behavior } = makeCtx(agent);
+      const result = await createAcpAgentConnection({ host, spawnContext, behavior }, connArgs());
       expect(isOk(result)).toBe(true);
       if (!isOk(result)) return;
       const caps = await result.data.initialized;
@@ -75,9 +79,9 @@ describe('createAcpAgentConnection()', () => {
   it('initialized resolves err and calls onClosed when initialize fails', async () => {
     const agent = new FakeAcpAgent();
     agent.initialize = vi.fn().mockRejectedValue(new Error('init-failed'));
-    const { host, behavior } = makeCtx(agent);
+    const { host, spawnContext, behavior } = makeCtx(agent);
     const onClosed = vi.fn();
-    const result = await createAcpAgentConnection({ host, behavior }, connArgs(onClosed));
+    const result = await createAcpAgentConnection({ host, spawnContext, behavior }, connArgs(onClosed));
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
     const caps = await result.data.initialized;
@@ -98,7 +102,11 @@ describe('createAcpAgentConnection()', () => {
     ] as const) {
       const agent = new FakeAcpAgent();
       const behavior = makeBehavior(agent);
-      await createAcpAgentConnection({ host, behavior }, connArgs());
+      const spawnContext = {
+        resolve: vi.fn().mockResolvedValue(ok({ cli: '/usr/local/bin/fake-agent', agentEnv: {} })),
+        invalidate: vi.fn(),
+      };
+      await createAcpAgentConnection({ host, spawnContext, behavior }, connArgs());
       const initCall = agent.initialize.mock.calls[0]?.[0];
       expect(initCall?.clientCapabilities?.terminal).toBe(expected);
     }
@@ -107,13 +115,17 @@ describe('createAcpAgentConnection()', () => {
   it('normalize applies behavior.enrich when present', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
+    const spawnContext = {
+      resolve: vi.fn().mockResolvedValue(ok({ cli: '/usr/local/bin/fake-agent', agentEnv: {} })),
+      invalidate: vi.fn(),
+    };
     const enrichSpy = vi.fn().mockImplementation((u) => ({ ...u, enriched: true }));
     const behavior: IAcpBehavior = {
       buildSpawn: vi.fn().mockReturnValue({ command: '/fake/agent', args: [], env: {} }),
       connect: agent.behavior.connect,
       enrich: enrichSpy,
     };
-    const result = await createAcpAgentConnection({ host, behavior }, connArgs());
+    const result = await createAcpAgentConnection({ host, spawnContext, behavior }, connArgs());
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
     const raw = { sessionUpdate: 'message_delta', delta: { type: 'text', text: 'hi' } } as never;

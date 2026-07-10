@@ -1,15 +1,19 @@
+import os from 'node:os';
 import { readFile } from 'node:fs/promises';
 import { acpApiContract, acpHostContract } from '@emdash/core/acp';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
+import { createSpawnContextResolver, type SpawnContextResolver } from '@emdash/core/agents/spawn-context';
+import { buildDescriptorFromProvider, HostDependencyManager } from '@emdash/core/deps/runtime';
+import { NodeExecutionContext } from '@emdash/core/exec';
 import { ok } from '@emdash/shared';
-import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
+import { initProcessLogging } from '@emdash/shared/logger/node';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import {
   client,
   connect,
   isWireMessage,
   withValidation,
-  type ContractClient,
   type ValidatePolicy,
   type WireTransport,
 } from '@emdash/wire';
@@ -38,8 +42,13 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
   const runtimePort = options.port ?? createNodeRuntimePort();
   const hostTransport = createHostTransport(runtimePort);
   const hostClient = client(acpHostContract, connect(hostTransport));
-  const childHost = new ChildAcpProcessHost(hostClient);
-  const logger = createParentLogger(hostClient);
+  const childHost = new ChildAcpProcessHost();
+  const logger = initProcessLogging({ name: 'acp-agents-runtime', env });
+  const spawnContext = createAcpSpawnContextResolver({
+    pluginRegistry: options.pluginRegistry,
+    env,
+    logger,
+  });
   const attachmentStore = new LocalAttachmentStore(attachmentsDir);
 
   void serveProcessRuntime(
@@ -47,6 +56,7 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
       const acp = new AcpRuntime({
         pluginHost: new AgentPluginHost(options.pluginRegistry),
         host: childHost,
+        spawnContext,
         persistSessionId: async (conversationId, sessionId) => {
           await hostClient.persistSessionId({ conversationId, sessionId });
           return ok(undefined);
@@ -75,9 +85,7 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
     },
     { port: runtimePort, exit: options.exit, logger }
   ).catch((error: unknown) => {
-    process.stderr.write(
-      `ACP runtime process failed: ${error instanceof Error ? error.message : String(error)}\n`
-    );
+    logger.error('ACP runtime process failed', { error: errorMessage(error) });
     (options.exit ?? process.exit)(1);
   });
 }
@@ -86,25 +94,36 @@ function runtimeWireValidationPolicy(env: NodeJS.ProcessEnv): ValidatePolicy {
   return env.NODE_ENV === 'production' ? 'inputs' : 'full';
 }
 
-function createParentLogger(
-  host: ContractClient<typeof acpHostContract>,
-  bindings: LogFields = {}
-): Logger {
-  const emit = (level: LogLevel, message: string, data?: LogFields): void => {
-    void host.log({
-      level,
-      message,
-      data: data ? { ...bindings, ...data } : bindings,
-    });
-  };
-  return {
-    level: 'debug',
-    debug: (message, data) => emit('debug', message, data),
-    info: (message, data) => emit('info', message, data),
-    warn: (message, data) => emit('warn', message, data),
-    error: (message, data) => emit('error', message, data),
-    child: (next) => createParentLogger(host, { ...bindings, ...next }),
-  };
+function createAcpSpawnContextResolver(options: {
+  pluginRegistry: PluginRegistry<CLIAgentPluginProvider>;
+  env: NodeJS.ProcessEnv;
+  logger: Logger;
+}): SpawnContextResolver {
+  const homeDir = os.homedir();
+  const descriptors = options.pluginRegistry.getAll().map(buildDescriptorFromProvider);
+  const manager = new HostDependencyManager(new NodeExecutionContext({ env: options.env }), {
+    dependencies: descriptors,
+    getDependencyDescriptor: (id) => descriptors.find((descriptor) => descriptor.id === id),
+    logger: options.logger,
+  });
+
+  return createSpawnContextResolver({
+    resolveCli: async (providerId: string) => {
+      if (!options.pluginRegistry.get(providerId)) {
+        throw new Error(`Provider '${providerId}' was not found`);
+      }
+      let state = manager.get(providerId);
+      if (!state?.path) state = await manager.probe(providerId);
+      if (state.path) return state.path;
+
+      const descriptor = descriptors.find((candidate) => candidate.id === providerId);
+      return descriptor?.commands[0] ?? providerId;
+    },
+    hasProvider: (providerId: string) => options.pluginRegistry.get(providerId) !== undefined,
+    env: options.env,
+    homeDir,
+    includeShellVar: true,
+  });
 }
 
 function createNodeRuntimePort(): ProcessRuntimePort {
@@ -125,6 +144,10 @@ function createNodeRuntimePort(): ProcessRuntimePort {
       return () => process.off('disconnect', cb);
     },
   };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function createHostTransport(port: ProcessRuntimePort): WireTransport {

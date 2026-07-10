@@ -184,25 +184,10 @@ export const acpApiContract = defineContract({
 });
 
 export const acpHostContract = defineContract({
-  resolveSpawnContext: procedure({
-    input: z.object({ providerId: z.string() }),
-    output: z.object({
-      cli: z.string(),
-      agentEnv: z.record(z.string(), z.string()),
-    }),
-  }),
   persistSessionId: procedure({
     input: z.object({
       conversationId: z.string(),
       sessionId: z.string(),
-    }),
-    output: z.void(),
-  }),
-  log: procedure({
-    input: z.object({
-      level: z.enum(['debug', 'info', 'warn', 'error']),
-      message: z.string(),
-      data: z.record(z.string(), z.unknown()).optional(),
     }),
     output: z.void(),
   }),

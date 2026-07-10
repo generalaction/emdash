@@ -4,7 +4,7 @@ import { agentConfigContract } from '@emdash/core/workspace-server';
 import { createController, exposeWireToWindows, withValidation } from '@emdash/wire/api';
 import { type ManagedProcess } from '@emdash/wire/process';
 import { childProcessHost } from '@emdash/wire/process/node';
-import { spawnRuntime } from '@emdash/wire/util/process-runtime';
+import { forwardRuntimeLogs, spawnRuntime } from '@emdash/wire/util/process-runtime';
 import { app, ipcMain, MessageChannelMain } from 'electron';
 import { log } from '@main/lib/logger';
 
@@ -64,13 +64,7 @@ async function spawnAgentConfigRuntime() {
 }
 
 function attachAgentConfigRuntimeLogging(process: ManagedProcess): void {
-  process.onStdio((stream, chunk) => {
-    if (stream === 'stderr') {
-      log.warn('Agent-config runtime stderr', { chunk });
-    } else {
-      log.debug('Agent-config runtime stdout', { chunk });
-    }
-  });
+  forwardRuntimeLogs(process, log, { source: 'agent-config-runtime' });
   process.onExit((exit) => {
     log.warn('Agent-config runtime child process exited', exit);
   });

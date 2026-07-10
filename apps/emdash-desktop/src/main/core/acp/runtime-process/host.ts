@@ -5,11 +5,10 @@ import { ok } from '@emdash/shared';
 import { createController, exposeWireToWindows, serve, withValidation } from '@emdash/wire/api';
 import { processTransport, type ManagedProcess } from '@emdash/wire/process';
 import { childProcessHost } from '@emdash/wire/process/node';
-import { spawnRuntime } from '@emdash/wire/util/process-runtime';
+import { forwardRuntimeLogs, spawnRuntime } from '@emdash/wire/util/process-runtime';
 import { app, ipcMain, MessageChannelMain } from 'electron';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
-import { resolveLocalAcpSpawnContext } from '../transport/local-acp-process-host';
 
 const ACP_WIRE_CHANNEL = 'acp-wire';
 
@@ -74,13 +73,7 @@ async function spawnAcpRuntime() {
 }
 
 function attachAcpRuntimeLogging(process: ManagedProcess): void {
-  process.onStdio((stream, chunk) => {
-    if (stream === 'stderr') {
-      log.warn('ACP runtime stderr', { chunk });
-    } else {
-      log.debug('ACP runtime stdout', { chunk });
-    }
-  });
+  forwardRuntimeLogs(process, log, { source: 'acp-runtime' });
   process.onExit((exit) => {
     log.warn('ACP runtime child process exited', exit);
   });
@@ -92,7 +85,6 @@ function installHostWire(handle: AcpRuntimeHandle): void {
   const controller = withValidation(
     acpHostContract,
     createController(acpHostContract, {
-      resolveSpawnContext: ({ providerId }) => resolveLocalAcpSpawnContext(providerId),
       persistSessionId: async ({ conversationId, sessionId }) => {
         const result = await setSessionId(conversationId, sessionId);
         if (!result.success) {
@@ -101,9 +93,6 @@ function installHostWire(handle: AcpRuntimeHandle): void {
             error: result.error,
           });
         }
-      },
-      log: ({ level, message, data }) => {
-        log[level](message, { source: 'acp-runtime', data });
       },
     }),
     runtimeWireValidationPolicy()

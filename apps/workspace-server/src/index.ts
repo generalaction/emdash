@@ -1,4 +1,5 @@
 import { workspaceWireContract } from '@emdash/core/workspace-server';
+import { initProcessLogging } from '@emdash/shared/logger/node';
 import { withValidation, type ValidatePolicy } from '@emdash/wire';
 import { spawnAcpWorkspaceRuntimeProcess } from './acp/host';
 import { createWorkspaceWireController } from './api/controller';
@@ -20,6 +21,7 @@ type Disposable = {
 };
 
 async function main(): Promise<void> {
+  initProcessLogging({ name: 'workspace-server' });
   const config = loadWorkspaceServerConfig();
   if (!config.success) {
     throw new Error(formatWorkspaceServerConfigError(config.error));

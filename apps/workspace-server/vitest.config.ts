@@ -13,6 +13,10 @@ export default defineConfig({
         __dirname,
         '../../packages/core/src/agents/plugins/index.ts'
       ),
+      '@emdash/core/agents/spawn-context': resolve(
+        __dirname,
+        '../../packages/core/src/agents/spawn-context.ts'
+      ),
       '@emdash/core/deps/runtime': resolve(
         __dirname,
         '../../packages/core/src/host-dependencies/runtime/index.ts'
@@ -37,6 +41,10 @@ export default defineConfig({
         '../../packages/runtime/src/acp-agents/index.ts'
       ),
       '@emdash/shared/config': resolve(__dirname, '../../packages/shared/src/config/index.ts'),
+      '@emdash/shared/logger/node': resolve(
+        __dirname,
+        '../../packages/shared/src/logger/node/index.ts'
+      ),
       '@emdash/shared/logger': resolve(__dirname, '../../packages/shared/src/logger/index.ts'),
       '@emdash/shared/plugins': resolve(__dirname, '../../packages/shared/src/plugins/index.ts'),
       '@emdash/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),

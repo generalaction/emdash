@@ -20,7 +20,7 @@ export type CreateNodeAgentConfigRuntimeOptions = {
   env?: NodeJS.ProcessEnv;
   homeDir?: string;
   logger: Logger;
-  resolveSpawnContext?: AgentConfigRuntimeDeps['resolveSpawnContext'];
+  spawnContext?: AgentConfigRuntimeDeps['spawnContext'];
 };
 
 export function createNodeAgentConfigRuntime(
@@ -37,7 +37,7 @@ export function createNodeAgentConfigRuntime(
     homeDir,
     env,
     logger: options.logger,
-    resolveSpawnContext: options.resolveSpawnContext,
+    spawnContext: options.spawnContext,
     installCommandRunner: createPtyInstallCommandRunner({
       spawner,
       cwd: homeDir,

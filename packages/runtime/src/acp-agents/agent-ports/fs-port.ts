@@ -6,8 +6,10 @@ import type {
 } from '@agentclientprotocol/sdk';
 import { readTextFile, writeTextFile, type AcpProcessHost } from '@emdash/core/acp';
 
+type FsHost = Pick<AcpProcessHost, 'fs'>;
+
 export class FsPort {
-  constructor(private readonly host: AcpProcessHost) {}
+  constructor(private readonly host: FsHost) {}
 
   async readTextFile(params: ReadTextFileRequest): Promise<ReadTextFileResponse> {
     const content = await readTextFile(this.host.fs, params.path);

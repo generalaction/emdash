@@ -12,6 +12,10 @@ const alias = {
   '@emdash/core/acp/client': resolve(__dirname, '../../packages/core/src/acp/client.ts'),
   '@emdash/core/acp': resolve(__dirname, '../../packages/core/src/acp/index.ts'),
   '@emdash/core/agents/agent-env': resolve(__dirname, '../../packages/core/src/agents/agent-env.ts'),
+  '@emdash/core/agents/spawn-context': resolve(
+    __dirname,
+    '../../packages/core/src/agents/spawn-context.ts'
+  ),
   '@emdash/core/agents/plugins/helpers': resolve(
     __dirname,
     '../../packages/core/src/agents/plugins/helpers/index.ts'
@@ -64,6 +68,10 @@ const alias = {
   '@emdash/shared/logger/context': resolve(
     __dirname,
     '../../packages/shared/src/logger/context.ts'
+  ),
+  '@emdash/shared/logger/node': resolve(
+    __dirname,
+    '../../packages/shared/src/logger/node/index.ts'
   ),
   '@emdash/shared/logger/pino': resolve(
     __dirname,

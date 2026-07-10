@@ -1,6 +1,6 @@
 import type { Client } from '@agentclientprotocol/sdk';
 import type { IAcpBehavior } from '@emdash/core/agents/plugins';
-import { isOk } from '@emdash/shared';
+import { isOk, ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
 import { acquireAsResult } from '@emdash/wire/util';
 import { describe, expect, it, vi } from 'vitest';
@@ -32,11 +32,23 @@ function waitForTeardown(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+function sourceDeps(host: FakeAcpProcessHost, onClosed = vi.fn()) {
+  return {
+    host,
+    spawnContext: {
+      resolve: vi.fn().mockResolvedValue(ok({ cli: '/usr/local/bin/fake-agent', agentEnv: {} })),
+      invalidate: vi.fn(),
+    },
+    logger: noopLogger,
+    onClosed,
+  };
+}
+
 describe('createAcpConnectionSource', () => {
   it('dedupes acquisitions by provider/workspace and refcounts release', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
-    const source = createAcpConnectionSource({ host, logger: noopLogger, onClosed: vi.fn() });
+    const source = createAcpConnectionSource(sourceDeps(host));
     const key = makeAcpConnectionKey('claude', 'ws-1');
 
     const first = await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
@@ -60,7 +72,7 @@ describe('createAcpConnectionSource', () => {
   it('provisions separate workspaces independently', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
-    const source = createAcpConnectionSource({ host, logger: noopLogger, onClosed: vi.fn() });
+    const source = createAcpConnectionSource(sourceDeps(host));
 
     await acquireAsResult(
       source,
@@ -82,7 +94,7 @@ describe('createAcpConnectionSource', () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
     const onClosed = vi.fn();
-    const source = createAcpConnectionSource({ host, logger: noopLogger, onClosed });
+    const source = createAcpConnectionSource(sourceDeps(host, onClosed));
     const key = makeAcpConnectionKey('claude', 'ws-1');
 
     await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
@@ -97,7 +109,7 @@ describe('createAcpConnectionSource', () => {
   it('disposes all active pooled processes', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
-    const source = createAcpConnectionSource({ host, logger: noopLogger, onClosed: vi.fn() });
+    const source = createAcpConnectionSource(sourceDeps(host));
     const key = makeAcpConnectionKey('claude', 'ws-1');
 
     const acquired = await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);

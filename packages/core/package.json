@@ -81,6 +81,10 @@
       "types": "./dist/agents-agent-env.d.mts",
       "default": "./dist/agents-agent-env.mjs"
     },
+    "./agents/spawn-context": {
+      "types": "./dist/agents-spawn-context.d.mts",
+      "default": "./dist/agents-spawn-context.mjs"
+    },
     "./workspace-server": {
       "types": "./dist/workspace-server.d.mts",
       "default": "./dist/workspace-server.mjs"

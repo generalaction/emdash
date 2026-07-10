@@ -8,9 +8,12 @@ import type {
 } from '@emdash/core/acp';
 import { acpErr, decodeSessionUpdate } from '@emdash/core/acp';
 import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
+import type { SpawnContextError, SpawnContextResolver } from '@emdash/core/agents/spawn-context';
 import { type Logger, noopLogger } from '@emdash/core/lib';
 import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
+
+type AcpAgentProcessHost = Pick<AcpProcessHost, 'spawn' | 'spawnTerminal'>;
 
 /** Live connection to one spawned agent process. */
 export interface AcpAgentConnection {
@@ -29,7 +32,8 @@ export interface AcpAgentConnection {
  */
 export async function createAcpAgentConnection(
   deps: {
-    host: AcpProcessHost;
+    host: AcpAgentProcessHost;
+    spawnContext: SpawnContextResolver;
     behavior: IAcpBehavior;
     logger?: Logger;
   },
@@ -43,11 +47,13 @@ export async function createAcpAgentConnection(
   }
 ): Promise<Result<AcpAgentConnection, SpawnFailedError>> {
   const { providerId, cwd, buildClient, onClosed } = args;
-  const { host, behavior, logger = noopLogger } = deps;
+  const { host, spawnContext, behavior, logger = noopLogger } = deps;
 
   let handle: AcpProcessHandle;
   try {
-    const { cli, agentEnv } = await host.resolveSpawnContext(providerId);
+    const contextResult = await spawnContext.resolve(providerId);
+    if (!contextResult.success) throw new Error(spawnContextErrorMessage(contextResult.error));
+    const { cli, agentEnv } = contextResult.data;
     const {
       command,
       args: spawnArgs,
@@ -107,4 +113,8 @@ export async function createAcpAgentConnection(
     });
 
   return ok({ handle, agent: connection, normalize, initialized });
+}
+
+function spawnContextErrorMessage(error: SpawnContextError): string {
+  return 'message' in error ? error.message : error.type;
 }
