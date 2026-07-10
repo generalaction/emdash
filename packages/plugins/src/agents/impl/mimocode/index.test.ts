@@ -3,19 +3,31 @@ import { describe, expect, it } from 'vitest';
 import { pluginRegistry } from '../../registry';
 
 const mimocode = pluginRegistry.get('mimocode')!;
+const hostDependency = mimocode.capabilities.hostDependency;
 
 function build(ctx: CommandContext) {
   return mimocode.behavior.prompt!.buildCommand(ctx);
 }
 
 describe('mimocode plugin', () => {
-  it('registers current install metadata and binary name', () => {
+  it.each([
+    ['macos', 'curl -fsSL https://mimo.xiaomi.com/install | bash'],
+    ['linux', 'curl -fsSL https://mimo.xiaomi.com/install | bash'],
+    ['windows', 'powershell -ep Bypass -c "irm https://mimo.xiaomi.com/install.ps1 | iex"'],
+  ] as const)('registers the native %s installer as recommended', (platform, command) => {
+    expect(
+      hostDependency.installCommands[platform]?.find((option) => option.recommended)
+    ).toMatchObject({
+      command,
+      uninstallCommand: 'mimo uninstall --keep-config --keep-data --force',
+    });
+  });
+
+  it('keeps npm as an install and update fallback', () => {
     expect(mimocode.metadata.websiteUrl).toBe('https://github.com/XiaomiMiMo/MiMo-Code');
-    expect(mimocode.capabilities.hostDependency.binaryNames).toEqual(['mimo']);
-    expect(mimocode.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
-      'npm install -g @mimo-ai/cli'
-    );
-    expect(mimocode.capabilities.hostDependency.updates).toMatchObject({
+    expect(hostDependency.binaryNames).toEqual(['mimo']);
+    expect(hostDependency.installCommands.macos?.[0]?.command).toBe('npm install -g @mimo-ai/cli');
+    expect(hostDependency.updates).toMatchObject({
       kind: 'supported',
       releaseSource: { kind: 'npm', package: '@mimo-ai/cli' },
     });
