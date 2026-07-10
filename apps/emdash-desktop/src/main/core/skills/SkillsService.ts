@@ -4,14 +4,14 @@ import * as https from 'node:https';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CatalogIndex, CatalogSkill } from '@emdash/core/skills';
-import { generateSkillMd, isValidSkillName, parseFrontmatter } from '@emdash/core/skills';
+import {
+  generateSkillMd,
+  isValidSkillName,
+  parseFrontmatter,
+  USER_SKILLS_DIRS,
+} from '@emdash/core/skills';
 import { log } from '@main/lib/logger';
 import bundledCatalog from './bundled-catalog.json';
-
-const SKILLS_ROOT = path.join(os.homedir(), '.agentskills');
-const EMDASH_META = path.join(SKILLS_ROOT, '.emdash');
-const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
-const SKILLSH_INSTALLS_PATH = path.join(EMDASH_META, 'skillssh-installs.json');
 
 /**
  * Persisted Skills.SH provenance, keyed by local install directory name.
@@ -97,13 +97,27 @@ function httpsGet(
 
 export class SkillsService {
   private static readonly CATALOG_VERSION = 2;
+  private readonly skillsRoot: string;
+  private readonly emdashMeta: string;
+  private readonly catalogIndexPath: string;
+  private readonly skillShInstallsPath: string;
+  private readonly userSkillsRoots: string[];
   private catalogCache: CatalogIndex | null = null;
   private skillShSearchCache = new Map<string, { expiresAt: number; skills: CatalogSkill[] }>();
   private skillShSkillCache = new Map<string, CatalogSkill>();
 
+  constructor(options: { homeDir?: string } = {}) {
+    const homeDir = options.homeDir ?? os.homedir();
+    this.userSkillsRoots = USER_SKILLS_DIRS.map((relativeDir) => path.join(homeDir, relativeDir));
+    this.skillsRoot = this.userSkillsRoots[0];
+    this.emdashMeta = path.join(this.skillsRoot, '.emdash');
+    this.catalogIndexPath = path.join(this.emdashMeta, 'catalog-index.json');
+    this.skillShInstallsPath = path.join(this.emdashMeta, 'skillssh-installs.json');
+  }
+
   async initialize(): Promise<void> {
-    await fs.promises.mkdir(SKILLS_ROOT, { recursive: true });
-    await fs.promises.mkdir(EMDASH_META, { recursive: true });
+    await fs.promises.mkdir(this.skillsRoot, { recursive: true });
+    await fs.promises.mkdir(this.emdashMeta, { recursive: true });
   }
 
   async getCatalogIndex(): Promise<CatalogIndex> {
@@ -113,7 +127,7 @@ export class SkillsService {
 
     // Try disk cache — only use if its version matches current
     try {
-      const data = await fs.promises.readFile(CATALOG_INDEX_PATH, 'utf-8');
+      const data = await fs.promises.readFile(this.catalogIndexPath, 'utf-8');
       const diskCache = JSON.parse(data) as CatalogIndex;
       if (diskCache.version >= SkillsService.CATALOG_VERSION) {
         this.catalogCache = diskCache;
@@ -165,7 +179,7 @@ export class SkillsService {
       };
 
       this.catalogCache = catalog;
-      await fs.promises.writeFile(CATALOG_INDEX_PATH, JSON.stringify(catalog, null, 2));
+      await fs.promises.writeFile(this.catalogIndexPath, JSON.stringify(catalog, null, 2));
       return this.mergeInstalledState(catalog);
     } catch (error) {
       log.error('Failed to refresh catalog:', error);
@@ -176,12 +190,11 @@ export class SkillsService {
   async getInstalledSkills(): Promise<CatalogSkill[]> {
     await this.initialize();
     const seen = new Set<string>();
+    const seenPaths = new Set<string>();
     const skills: CatalogSkill[] = [];
     const skillShInstalls = await this.readPrunedSkillShInstalls();
 
-    const dirsToScan = [SKILLS_ROOT];
-
-    for (const dir of dirsToScan) {
+    for (const dir of this.userSkillsRoots) {
       let entries: fs.Dirent[];
       try {
         entries = await fs.promises.readdir(dir, { withFileTypes: true });
@@ -206,13 +219,15 @@ export class SkillsService {
           log.warn(`Skipping skill "${entry.name}" in ${dir}: failed to resolve path`, err);
           continue;
         }
+        if (seenPaths.has(skillDir)) continue;
 
         const skillMdPath = path.join(skillDir, 'SKILL.md');
         try {
           const content = await fs.promises.readFile(skillMdPath, 'utf-8');
           const { frontmatter } = parseFrontmatter(content);
           seen.add(entry.name);
-          const skillSh = skillShInstalls[entry.name];
+          seenPaths.add(skillDir);
+          const skillSh = dir === this.skillsRoot ? skillShInstalls[entry.name] : undefined;
           skills.push({
             id: skillSh ? this.toSkillShId(skillSh.sourceRef, skillSh.skillShPath) : entry.name,
             installId: skillSh ? entry.name : undefined,
@@ -309,7 +324,7 @@ export class SkillsService {
     if (!isValidSkillName(installName)) {
       throw new Error(`Invalid skill install name "${installName}"`);
     }
-    const skillDir = path.resolve(SKILLS_ROOT, installName);
+    const skillDir = path.resolve(this.skillsRoot, installName);
     if (!this.isPathInsideSkillsRoot(skillDir)) {
       throw new Error(`Invalid skill install path for "${installName}"`);
     }
@@ -318,7 +333,7 @@ export class SkillsService {
     try {
       for (const candidateName of this.getInstallNameCandidates(skill)) {
         try {
-          await fs.promises.access(path.resolve(SKILLS_ROOT, candidateName));
+          await fs.promises.access(path.resolve(this.skillsRoot, candidateName));
           throw new Error(`Skill "${candidateName}" is already installed`);
         } catch (err) {
           if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
@@ -385,25 +400,28 @@ export class SkillsService {
     if (!isValidSkillName(installName)) {
       throw new Error(`Invalid skill install name "${installName}"`);
     }
-    const skillDir = path.resolve(SKILLS_ROOT, installName);
-    if (!this.isPathInsideSkillsRoot(skillDir)) {
-      throw new Error(`Invalid skill install path for "${installName}"`);
-    }
 
-    try {
-      const stat = await fs.promises.lstat(skillDir);
-      if (stat.isSymbolicLink()) {
-        await fs.promises.unlink(skillDir);
-      } else if (stat.isDirectory()) {
-        await fs.promises.rm(skillDir, { recursive: true, force: true });
-      } else {
-        log.warn(`Unexpected entry type at ${skillDir} during uninstall — skipping`);
+    for (const skillsRoot of this.userSkillsRoots) {
+      const skillDir = path.resolve(skillsRoot, installName);
+      if (!this.isPathInsideRoot(skillDir, skillsRoot)) {
+        throw new Error(`Invalid skill install path for "${installName}"`);
       }
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== 'ENOENT') {
-        log.error(`Failed to remove skill directory ${skillDir}:`, error);
-        throw error;
+
+      try {
+        const stat = await fs.promises.lstat(skillDir);
+        if (stat.isSymbolicLink()) {
+          await fs.promises.unlink(skillDir);
+        } else if (stat.isDirectory()) {
+          await fs.promises.rm(skillDir, { recursive: true, force: true });
+        } else {
+          log.warn(`Unexpected entry type at ${skillDir} during uninstall — skipping`);
+        }
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT') {
+          log.error(`Failed to remove skill directory ${skillDir}:`, error);
+          throw error;
+        }
       }
     }
 
@@ -424,7 +442,7 @@ export class SkillsService {
     }
 
     await this.initialize();
-    const skillDir = path.join(SKILLS_ROOT, name);
+    const skillDir = path.join(this.skillsRoot, name);
 
     try {
       await fs.promises.access(skillDir);
@@ -675,7 +693,7 @@ export class SkillsService {
     const installNames = this.getInstallNameCandidates(skill);
     for (const installName of installNames) {
       try {
-        await fs.promises.access(path.resolve(SKILLS_ROOT, installName));
+        await fs.promises.access(path.resolve(this.skillsRoot, installName));
         return installName;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
@@ -718,7 +736,7 @@ export class SkillsService {
 
   private async readSkillShInstalls(): Promise<Record<string, SkillShInstallRecord>> {
     try {
-      const data = await fs.promises.readFile(SKILLSH_INSTALLS_PATH, 'utf-8');
+      const data = await fs.promises.readFile(this.skillShInstallsPath, 'utf-8');
       const parsed = JSON.parse(data) as Record<string, SkillShInstallRecord>;
       return parsed && typeof parsed === 'object' ? parsed : {};
     } catch {
@@ -732,15 +750,15 @@ export class SkillsService {
   ): Promise<void> {
     const installs = await this.readSkillShInstalls();
     installs[installName] = record;
-    await fs.promises.mkdir(EMDASH_META, { recursive: true });
-    await fs.promises.writeFile(SKILLSH_INSTALLS_PATH, JSON.stringify(installs, null, 2));
+    await fs.promises.mkdir(this.emdashMeta, { recursive: true });
+    await fs.promises.writeFile(this.skillShInstallsPath, JSON.stringify(installs, null, 2));
   }
 
   private async removeSkillShInstall(installName: string): Promise<void> {
     const installs = await this.readSkillShInstalls();
     if (!(installName in installs)) return;
     delete installs[installName];
-    await fs.promises.writeFile(SKILLSH_INSTALLS_PATH, JSON.stringify(installs, null, 2));
+    await fs.promises.writeFile(this.skillShInstallsPath, JSON.stringify(installs, null, 2));
   }
 
   /**
@@ -755,7 +773,7 @@ export class SkillsService {
     let pruned = false;
     for (const [installName, record] of Object.entries(installs)) {
       try {
-        await fs.promises.access(path.resolve(SKILLS_ROOT, installName));
+        await fs.promises.access(path.resolve(this.skillsRoot, installName));
         live[installName] = record;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -767,7 +785,7 @@ export class SkillsService {
       }
     }
     if (pruned) {
-      await fs.promises.writeFile(SKILLSH_INSTALLS_PATH, JSON.stringify(live, null, 2));
+      await fs.promises.writeFile(this.skillShInstallsPath, JSON.stringify(live, null, 2));
     }
     return live;
   }
@@ -913,7 +931,11 @@ export class SkillsService {
   }
 
   private isPathInsideSkillsRoot(candidatePath: string): boolean {
-    const relativePath = path.relative(SKILLS_ROOT, candidatePath);
+    return this.isPathInsideRoot(candidatePath, this.skillsRoot);
+  }
+
+  private isPathInsideRoot(candidatePath: string, root: string): boolean {
+    const relativePath = path.relative(root, candidatePath);
     return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
   }
 

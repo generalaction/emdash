@@ -185,6 +185,31 @@ describe('AgentConfigRuntime', () => {
     runtime.dispose();
   });
 
+  it('discovers and deduplicates skills from shared and agent-specific directories', async () => {
+    const { runtime, fs } = makeRuntime();
+    const sharedSkill = '---\nname: reviewer\ndescription: Review changes\n---\n';
+    await fs.write('.agents/skills/reviewer/SKILL.md', sharedSkill);
+    await fs.write('.claude/skills/reviewer/SKILL.md', sharedSkill);
+    await fs.write(
+      '.codex/skills/planner/SKILL.md',
+      '---\nname: planner\ndescription: Plan changes\n---\n'
+    );
+
+    const installed = await runtime.skills.refresh();
+
+    expect(installed.map((skill) => skill.id)).toEqual(['reviewer', 'planner']);
+    expect(installed[0]?.localPath).toBe('/home/ada/.agents/skills/reviewer');
+    expect(await runtime.removeSkill('reviewer')).toEqual(
+      ok([
+        expect.objectContaining({
+          id: 'planner',
+          localPath: '/home/ada/.codex/skills/planner',
+        }),
+      ])
+    );
+    runtime.dispose();
+  });
+
   it('starts login through a managed PTY and exposes output', async () => {
     const ptySpawner = new FakePtySpawner();
     const { runtime } = makeRuntime({ ptySpawner });
@@ -318,6 +343,7 @@ function makeRuntime(
 
   return {
     exec,
+    fs,
     runtime: new AgentConfigRuntime({
       pluginHost: new AgentPluginHost(registry),
       ptySpawner: options.ptySpawner ?? new FakePtySpawner(),

@@ -1,4 +1,6 @@
 import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { isValidSkillName } from '@emdash/core/skills';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SkillsService } from './SkillsService';
@@ -62,4 +64,77 @@ describe('SkillsService uninstall and sync safety', () => {
       'Invalid skill install name'
     );
   });
+
+  it('discovers skills installed in shared and agent-specific user directories', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await Promise.all([
+      writeSkill(homeDir, '.agents/skills', 'shared-reviewer', 'Shared reviewer'),
+      writeSkill(homeDir, '.claude/skills', 'claude-reviewer', 'Claude reviewer'),
+      writeSkill(homeDir, '.codex/skills', 'codex-reviewer', 'Codex reviewer'),
+      writeSkill(homeDir, '.cursor/skills', 'cursor-reviewer', 'Cursor reviewer'),
+    ]);
+    const service = new SkillsService({ homeDir });
+
+    const installed = await service.getInstalledSkills();
+
+    expect(installed.map((skill) => skill.id).sort()).toEqual([
+      'claude-reviewer',
+      'codex-reviewer',
+      'cursor-reviewer',
+      'shared-reviewer',
+    ]);
+  });
+
+  it('deduplicates a skill mirrored into multiple agent directories', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await Promise.all([
+      writeSkill(homeDir, '.agents/skills', 'reviewer', 'Reviewer'),
+      writeSkill(homeDir, '.claude/skills', 'reviewer', 'Reviewer'),
+      writeSkill(homeDir, '.cursor/skills', 'reviewer', 'Reviewer'),
+    ]);
+    const service = new SkillsService({ homeDir });
+
+    const installed = await service.getInstalledSkills();
+
+    expect(installed).toHaveLength(1);
+    expect(installed[0]?.id).toBe('reviewer');
+    expect(installed[0]?.localPath).toBe(
+      await fs.promises.realpath(path.join(homeDir, '.agents/skills/reviewer'))
+    );
+  });
+
+  it('uninstalls a detected skill from every user skill directory', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await Promise.all([
+      writeSkill(homeDir, '.agents/skills', 'reviewer', 'Reviewer'),
+      writeSkill(homeDir, '.claude/skills', 'reviewer', 'Reviewer'),
+    ]);
+    const service = new SkillsService({ homeDir });
+
+    await service.uninstallSkill('reviewer');
+
+    await expect(
+      fs.promises.access(path.join(homeDir, '.agents/skills/reviewer'))
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(
+      fs.promises.access(path.join(homeDir, '.claude/skills/reviewer'))
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+  });
 });
+
+async function writeSkill(
+  homeDir: string,
+  relativeRoot: string,
+  name: string,
+  description: string
+): Promise<void> {
+  const skillDir = path.join(homeDir, relativeRoot, name);
+  await fs.promises.mkdir(skillDir, { recursive: true });
+  await fs.promises.writeFile(
+    path.join(skillDir, 'SKILL.md'),
+    `---\nname: ${name}\ndescription: ${description}\n---\n`
+  );
+}

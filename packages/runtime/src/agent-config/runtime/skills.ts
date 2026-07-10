@@ -4,6 +4,7 @@ import {
   isValidSkillName,
   parseFrontmatter,
   type CatalogSkill,
+  USER_SKILLS_DIRS,
 } from '@emdash/core/skills';
 import type { AgentConfigSkillsError } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
@@ -11,7 +12,7 @@ import type { AgentConfigSkillsModel } from '../state/live-models';
 import { publishLiveModelState } from '../state/live-models';
 import type { AgentConfigRuntimeDeps } from './types';
 
-const SKILLS_ROOT = '.agentskills';
+const SKILLS_ROOT = USER_SKILLS_DIRS[0];
 const EMDASH_META = `${SKILLS_ROOT}/.emdash`;
 const SKILLSH_INSTALLS_PATH = `${EMDASH_META}/skillssh-installs.json`;
 
@@ -83,8 +84,13 @@ export class AgentSkillsManager {
   }
 
   async removeSkill(name: string): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
+    if (!isValidSkillName(name)) {
+      return err({ type: 'invalid-state', message: `Invalid skill name: "${name}"` });
+    }
     try {
-      await this.deps.pluginFs.delete(`${SKILLS_ROOT}/${name}`);
+      await Promise.all(
+        USER_SKILLS_DIRS.map((skillsDir) => this.deps.pluginFs.delete(`${skillsDir}/${name}`))
+      );
       const installs = await readSkillShInstalls(this.deps.pluginFs);
       if (installs[name]) {
         delete installs[name];
@@ -131,30 +137,33 @@ function toIoError(error: unknown): AgentConfigSkillsError {
 }
 
 async function getInstalledSkills(fs: PluginFs, homeDir: string): Promise<CatalogSkill[]> {
-  const entries = await fs.list(SKILLS_ROOT);
   const provenance = await readSkillShInstalls(fs);
+  const seen = new Set<string>();
   const skills: CatalogSkill[] = [];
-  for (const entry of entries) {
-    if (entry === '.emdash') continue;
-    const content = await fs.read(`${SKILLS_ROOT}/${entry}/SKILL.md`);
-    if (!content) continue;
-    const parsed = parseFrontmatter(content);
-    const source = provenance[entry] ? 'skillssh' : 'local';
-    const record = provenance[entry];
-    skills.push({
-      id: record?.catalogSkillId ?? entry,
-      installId: entry,
-      displayName: parsed.frontmatter.name || entry,
-      description: parsed.frontmatter.description || '',
-      source,
-      sourceRef: record?.sourceRef,
-      catalogSkillId: record?.catalogSkillId,
-      skillShPath: record?.skillShPath,
-      skillMdContent: content,
-      frontmatter: parsed.frontmatter,
-      installed: true,
-      localPath: `${homeDir}/${SKILLS_ROOT}/${entry}`,
-    });
+  for (const skillsDir of USER_SKILLS_DIRS) {
+    const entries = await fs.list(skillsDir);
+    for (const entry of entries) {
+      if (entry === '.emdash' || seen.has(entry)) continue;
+      const content = await fs.read(`${skillsDir}/${entry}/SKILL.md`);
+      if (!content) continue;
+      const parsed = parseFrontmatter(content);
+      const record = skillsDir === SKILLS_ROOT ? provenance[entry] : undefined;
+      seen.add(entry);
+      skills.push({
+        id: record?.catalogSkillId ?? entry,
+        installId: entry,
+        displayName: parsed.frontmatter.name || entry,
+        description: parsed.frontmatter.description || '',
+        source: record ? 'skillssh' : 'local',
+        sourceRef: record?.sourceRef,
+        catalogSkillId: record?.catalogSkillId,
+        skillShPath: record?.skillShPath,
+        skillMdContent: content,
+        frontmatter: parsed.frontmatter,
+        installed: true,
+        localPath: `${homeDir}/${skillsDir}/${entry}`,
+      });
+    }
   }
   return skills;
 }
