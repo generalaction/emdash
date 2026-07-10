@@ -1,11 +1,11 @@
 import { createController, createLiveModelHost } from '../../src/index';
-import { serveProcessRuntime } from '../../src/util/process-runtime';
+import { serveWorkerProcess } from '../../src/util/process-runtime';
 import { processExampleApi } from './contract';
 
 const counters = createLiveModelHost(processExampleApi.counter);
 const counter = counters.create(undefined, { counter: { count: 0 } }).states.counter;
 
-void serveProcessRuntime(() =>
+void serveWorkerProcess(() =>
   createController(processExampleApi, {
     ping: (value) => `pong:${value}`,
     increment: () => {

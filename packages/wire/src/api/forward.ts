@@ -55,6 +55,7 @@ function createForwardEntry(def: EndpointDef, clientEntry: unknown): unknown {
       return createDownloadFileForward(clientEntry);
     case 'liveJob':
     case 'liveLog':
+    case 'eventStream':
     case 'liveModel':
       return clientEntry;
   }

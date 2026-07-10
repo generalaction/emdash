@@ -33,6 +33,17 @@ export type LiveLogEndpointDef<
   keySchema: KeySchema;
 };
 
+export type EventStreamEndpointDef<
+  Id extends string = string,
+  KeySchema extends z.ZodTypeAny = z.ZodTypeAny,
+  EventSchema extends z.ZodTypeAny = z.ZodTypeAny,
+> = {
+  kind: 'eventStream';
+  id: Id;
+  keySchema: KeySchema;
+  eventSchema: EventSchema;
+};
+
 export type LiveJobEndpointDef<
   Id extends string = string,
   InputSchema extends z.ZodTypeAny = z.ZodTypeAny,
@@ -121,6 +132,7 @@ export type LiveModelDef<
 export type EndpointDef =
   | ProcedureDef
   | LiveLogEndpointDef
+  | EventStreamEndpointDef
   | LiveJobEndpointDef
   | LiveModelDef
   | DownloadFileEndpointDef
@@ -157,6 +169,12 @@ export type LiveStateData<Def> =
 
 export type LiveLogKey<Def> =
   Def extends LiveLogEndpointDef<string, infer Key> ? z.infer<Key> : never;
+
+export type EventStreamKey<Def> =
+  Def extends EventStreamEndpointDef<string, infer Key, z.ZodTypeAny> ? z.infer<Key> : never;
+
+export type EventStreamEvent<Def> =
+  Def extends EventStreamEndpointDef<string, z.ZodTypeAny, infer Event> ? z.infer<Event> : never;
 
 export type JobInput<Def> =
   Def extends LiveJobEndpointDef<string, infer Input, z.ZodTypeAny, z.ZodTypeAny, z.ZodTypeAny>
@@ -258,6 +276,13 @@ export function liveLog<KeySchema extends z.ZodTypeAny>(def: {
   key: KeySchema;
 }): LiveLogEndpointDef<string, KeySchema> {
   return { kind: 'liveLog', id: '', keySchema: def.key };
+}
+
+export function eventStream<KeySchema extends z.ZodTypeAny, EventSchema extends z.ZodTypeAny>(def: {
+  key: KeySchema;
+  event: EventSchema;
+}): EventStreamEndpointDef<string, KeySchema, EventSchema> {
+  return { kind: 'eventStream', id: '', keySchema: def.key, eventSchema: def.event };
 }
 
 export function liveJob<
@@ -414,6 +439,8 @@ function finalizeEndpoint(path: string[], def: EndpointDef): EndpointDef {
   switch (def.kind) {
     case 'liveLog':
       return { ...def, id };
+    case 'eventStream':
+      return { ...def, id };
     case 'liveJob':
       return { ...def, id };
     case 'downloadFile':
@@ -459,6 +486,7 @@ export function isEndpointDef(value: ContractEntry): value is EndpointDef {
   const kind = (value as { kind?: unknown }).kind;
   switch (kind) {
     case 'liveLog':
+    case 'eventStream':
     case 'liveJob':
     case 'liveModel':
     case 'downloadFile':

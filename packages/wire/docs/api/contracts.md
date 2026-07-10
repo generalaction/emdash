@@ -81,6 +81,30 @@ long-running work.
 `LiveLog` resolver and consumed through a `LiveLogClientHandle` or a
 `LiveLogReplica`.
 
+### `eventStream`
+
+`eventStream({ key, event })` declares a keyed, fire-and-forget event channel.
+Events are delivered only while a client is attached; the server keeps no
+retained snapshot and late subscribers do not receive historical events.
+
+```ts
+fileEvents: eventStream({
+  key: z.object({ rootPath: z.string() }),
+  event: z.object({
+    kind: z.enum(['create', 'update', 'delete']),
+    path: z.string(),
+  }),
+});
+```
+
+Serve event streams with `createEventStreamHost(contract.fileEvents)` or a
+resolver that returns an `EventStreamSource`. Client handles expose
+`await subscribe(key, { onEvent, onGap?, onError? })`. `onGap` runs after
+transport reattach so consumers can resync state that may have missed events.
+Use `eventStream` for loss-tolerant notifications and invalidation signals; use
+`liveLog` when callers need retained text output and `liveModel` when callers
+need convergent state. See [event streams](../live/event-stream.md).
+
 ### `liveJob`
 
 `liveJob({ input, progress, result, error })` models long-running work with progress,

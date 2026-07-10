@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { WatchEvent } from '../../watch';
+import type { WatchEvent } from '../../services/fs-watch/api';
 
 export type RepoWatchEffects = {
   refs: boolean;

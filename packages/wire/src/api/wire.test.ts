@@ -9,7 +9,7 @@ import { client } from './client';
 import { connect } from './connect';
 import { createController, encodeTopic } from './controller';
 import { defineContract, liveModel, liveState, fallible, procedure } from './define';
-import { isWireError, WireError } from './protocol';
+import { isWireError, WireError, type WireMessage, type WireTransport } from './protocol';
 import { serve } from './serve';
 import { memoryTransportPair, reconnectingTransport } from './transports';
 
@@ -169,6 +169,118 @@ describe('wire serve/connect', () => {
     available = true;
     const detach = await connection.attach('dynamic.topic', () => {});
     expect(resolveCount).toBe(2);
+    detach();
+  });
+
+  it('reports retryable reattach failures and keeps the attachment durable', async () => {
+    const transport = new ControlledTransport();
+    const connection = connect(transport);
+    const updates: LiveUpdate[] = [];
+    const gaps: string[] = [];
+    const errors: Array<{ code: string; retrying: boolean }> = [];
+
+    const attached = connection.attach('live.topic', (update) => updates.push(update), {
+      onReattach: () => gaps.push('gap'),
+      onReattachError: (error, context) =>
+        errors.push({ code: error.code, retrying: context.retrying }),
+    });
+    transport.resolveAttach('live.topic');
+    const detach = await attached;
+
+    transport.reconnect();
+    transport.rejectAttach('live.topic', 'DISCONNECTED');
+    await waitFor(() => errors.length === 1);
+
+    transport.reconnect();
+    transport.resolveAttach('live.topic');
+    await waitFor(() => gaps.length === 1);
+    transport.emit({
+      kind: 'update',
+      topic: 'live.topic',
+      update: {
+        generation: 1,
+        baseSequence: 0,
+        sequence: 1,
+        timestamp: 0,
+        delta: {},
+      },
+    });
+
+    expect(errors).toEqual([{ code: 'DISCONNECTED', retrying: true }]);
+    expect(updates).toHaveLength(1);
+    detach();
+    expect(transport.sent).toContainEqual({ kind: 'detach', topic: 'live.topic' });
+  });
+
+  it('terminates attachments on non-retryable reattach failures', async () => {
+    const transport = new ControlledTransport();
+    const connection = connect(transport);
+    const updates: LiveUpdate[] = [];
+    const errors: Array<{ code: string; retrying: boolean }> = [];
+
+    const attached = connection.attach('live.topic', (update) => updates.push(update), {
+      onReattachError: (error, context) =>
+        errors.push({ code: error.code, retrying: context.retrying }),
+    });
+    transport.resolveAttach('live.topic');
+    const detach = await attached;
+
+    transport.reconnect();
+    transport.rejectAttach('live.topic', 'UNKNOWN_TOPIC');
+    await waitFor(() => errors.length === 1);
+    transport.emit({
+      kind: 'update',
+      topic: 'live.topic',
+      update: {
+        generation: 1,
+        baseSequence: 0,
+        sequence: 1,
+        timestamp: 0,
+        delta: {},
+      },
+    });
+    detach();
+
+    expect(errors).toEqual([{ code: 'UNKNOWN_TOPIC', retrying: false }]);
+    expect(updates).toEqual([]);
+    expect(transport.sent).not.toContainEqual({ kind: 'detach', topic: 'live.topic' });
+  });
+
+  it('ignores stale reattach failures from older attempts', async () => {
+    const transport = new ControlledTransport();
+    const connection = connect(transport);
+    const updates: LiveUpdate[] = [];
+    const gaps: string[] = [];
+    const errors: Array<{ code: string; retrying: boolean }> = [];
+
+    const attached = connection.attach('live.topic', (update) => updates.push(update), {
+      onReattach: () => gaps.push('gap'),
+      onReattachError: (error, context) =>
+        errors.push({ code: error.code, retrying: context.retrying }),
+    });
+    transport.resolveAttach('live.topic');
+    const detach = await attached;
+
+    transport.reconnect();
+    const staleAttachId = transport.latestAttachId('live.topic');
+    transport.reconnect();
+    transport.rejectAttach('live.topic', 'UNKNOWN_TOPIC', staleAttachId);
+    transport.resolveAttach('live.topic');
+    await waitFor(() => gaps.length === 1);
+    transport.emit({
+      kind: 'update',
+      topic: 'live.topic',
+      update: {
+        generation: 1,
+        baseSequence: 0,
+        sequence: 1,
+        timestamp: 0,
+        delta: {},
+      },
+    });
+
+    expect(errors).toEqual([]);
+    expect(updates).toHaveLength(1);
     detach();
   });
 
@@ -386,3 +498,53 @@ describe('wire serve/connect', () => {
     await Promise.resolve();
   });
 });
+
+class ControlledTransport implements WireTransport {
+  readonly sent: WireMessage[] = [];
+  private readonly messageListeners = new Set<(message: WireMessage) => void>();
+  private readonly disconnectListeners = new Set<() => void>();
+  private readonly reconnectListeners = new Set<() => void>();
+
+  post(message: WireMessage): void {
+    this.sent.push(message);
+  }
+
+  onMessage(cb: (message: WireMessage) => void): Unsubscribe {
+    this.messageListeners.add(cb);
+    return () => this.messageListeners.delete(cb);
+  }
+
+  onDisconnect(cb: () => void): Unsubscribe {
+    this.disconnectListeners.add(cb);
+    return () => this.disconnectListeners.delete(cb);
+  }
+
+  onReconnect(cb: () => void): Unsubscribe {
+    this.reconnectListeners.add(cb);
+    return () => this.reconnectListeners.delete(cb);
+  }
+
+  emit(message: WireMessage): void {
+    for (const listener of this.messageListeners) listener(message);
+  }
+
+  reconnect(): void {
+    for (const listener of this.reconnectListeners) listener();
+  }
+
+  resolveAttach(topic: string): void {
+    this.emit({ kind: 'result', id: this.latestAttachId(topic), ok: true, value: undefined });
+  }
+
+  rejectAttach(topic: string, code: WireError['code'], id = this.latestAttachId(topic)): void {
+    this.emit({ kind: 'result', id, ok: false, code, message: `${code} ${topic}` });
+  }
+
+  latestAttachId(topic: string): string {
+    for (let index = this.sent.length - 1; index >= 0; index -= 1) {
+      const message = this.sent[index];
+      if (message.kind === 'attach' && message.topic === topic) return message.id;
+    }
+    throw new Error(`No attach message sent for ${topic}`);
+  }
+}

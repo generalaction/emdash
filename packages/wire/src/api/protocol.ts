@@ -67,6 +67,18 @@ export type WireUpdateMessage = {
   update: LiveUpdate;
 };
 
+export type WireTopicGapMessage = {
+  kind: 'topic-gap';
+  topic: string;
+};
+
+export type WireTopicErrorMessage = {
+  kind: 'topic-error';
+  topic: string;
+  error: SerializedWireError;
+  retrying: boolean;
+};
+
 export type WireFileMeta = {
   name: string;
   mimeType: string;
@@ -112,6 +124,8 @@ export type WireMessage =
   | WireCancelMessage
   | WireResultMessage
   | WireUpdateMessage
+  | WireTopicGapMessage
+  | WireTopicErrorMessage
   | WireBlobPullMessage
   | WireBlobChunkMessage
   | WireBlobEndMessage
@@ -184,6 +198,14 @@ export function isWireMessage(value: unknown): value is WireMessage {
       );
     case 'update':
       return typeof message.topic === 'string' && typeof message.update === 'object';
+    case 'topic-gap':
+      return typeof message.topic === 'string';
+    case 'topic-error':
+      return (
+        typeof message.topic === 'string' &&
+        typeof message.error === 'object' &&
+        typeof message.retrying === 'boolean'
+      );
     case 'blob-pull':
       return typeof message.channel === 'string' && typeof message.credit === 'number';
     case 'blob-chunk':

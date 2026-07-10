@@ -1,11 +1,12 @@
 export {
   RUNTIME_SHUTDOWN_SIGNAL,
   forwardRuntimeLogs,
-  serveProcessRuntime,
+  serveWorkerProcess,
   spawnRuntime,
+  workerValidatePolicy,
   type ForwardRuntimeLogsOptions,
   type ProcessRuntimePort,
   type RuntimeHandle,
-  type ServeProcessRuntimeOptions,
+  type ServeWorkerProcessOptions,
   type SpawnRuntimeOptions,
 } from './process-runtime';

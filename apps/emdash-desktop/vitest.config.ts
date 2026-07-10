@@ -36,6 +36,14 @@ const alias = {
   '@emdash/core/mcp': resolve(__dirname, '../../packages/core/src/mcp/index.ts'),
   '@emdash/core/pty/node': resolve(__dirname, '../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve(__dirname, '../../packages/core/src/pty/index.ts'),
+  '@emdash/core/services/fs-watch/api': resolve(
+    __dirname,
+    '../../packages/core/src/services/fs-watch/api/index.ts'
+  ),
+  '@emdash/core/services/fs-watch/worker': resolve(
+    __dirname,
+    '../../packages/core/src/services/fs-watch/worker/index.ts'
+  ),
   '@emdash/core/skills': resolve(__dirname, '../../packages/core/src/skills/index.ts'),
   '@emdash/core/workspace-server/agent-config': resolve(
     __dirname,
@@ -98,6 +106,7 @@ const alias = {
     '../../packages/wire/src/util/process-runtime/index.ts'
   ),
   '@emdash/wire/util': resolve(__dirname, '../../packages/wire/src/util/index.ts'),
+  '@emdash/wire/worker': resolve(__dirname, '../../packages/wire/src/worker/index.ts'),
   '@emdash/wire': resolve(__dirname, '../../packages/wire/src/index.ts'),
 };
 
