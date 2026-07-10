@@ -239,14 +239,14 @@ export class SkillsService {
           const content = await fs.promises.readFile(skillMdPath, 'utf-8');
           const { frontmatter } = parseFrontmatter(content);
           const skillName = (frontmatter.name || entry.name).toLowerCase();
-          if (seenSkillNames.has(skillName)) continue;
           seen.add(entry.name);
           seenPaths.add(skillDir);
+          if (seenSkillNames.has(skillName)) continue;
           seenSkillNames.add(skillName);
           const skillSh = dir === this.skillsRoot ? skillShInstalls[entry.name] : undefined;
           skills.push({
             id: skillSh ? this.toSkillShId(skillSh.sourceRef, skillSh.skillShPath) : entry.name,
-            installId: skillSh ? entry.name : undefined,
+            installId: entry.name,
             displayName: frontmatter.name || entry.name,
             description: frontmatter.description || skillSh?.sourceRef || '',
             source: skillSh ? 'skillssh' : 'local',
@@ -416,6 +416,7 @@ export class SkillsService {
   }
 
   async uninstallSkill(skillId: string): Promise<void> {
+    await this.initialize();
     const installName = await this.getInstallNameForUninstall(skillId);
     if (!isValidSkillName(installName)) {
       throw new Error(`Invalid skill install name "${installName}"`);
@@ -583,7 +584,7 @@ export class SkillsService {
     const availableMirrorDirs = await getAvailableSkillMirrorDirs(createPluginFs(this.homeDir));
 
     for (const entry of entries) {
-      if (entry.name.startsWith('.') || !entry.isDirectory()) continue;
+      if (!isValidSkillName(entry.name) || !entry.isDirectory()) continue;
       try {
         const content = await fs.promises.readFile(
           path.join(this.skillsRoot, entry.name, 'SKILL.md'),
@@ -621,7 +622,6 @@ export class SkillsService {
             frontmatterName,
             content,
             canonicalPath,
-            canonicalRoot: this.skillsRoot,
           });
           if (!mirrored) {
             log.warn(`Skipped unmanaged skill conflict at ${path.join(this.homeDir, relativeDir)}`);

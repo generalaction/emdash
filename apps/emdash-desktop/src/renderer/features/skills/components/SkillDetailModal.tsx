@@ -55,7 +55,7 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
 
   const handleUninstall = useCallback(() => {
     if (!skill) return;
-    onUninstall(skill.id);
+    onUninstall(skill.installId ?? skill.id);
   }, [skill, onUninstall]);
 
   const handleOpen = useCallback(() => {

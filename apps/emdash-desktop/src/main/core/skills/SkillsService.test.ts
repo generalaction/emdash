@@ -121,6 +121,30 @@ describe('SkillsService uninstall and sync safety', () => {
     ).resolves.toContain('name: reviewer');
   });
 
+  it('rejects a duplicate whose directory has a different name', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await writeSkill(homeDir, '.claude/skills', 'custom-directory', 'Reviewer', 'reviewer');
+    const service = new SkillsService({ homeDir });
+
+    await expect(service.createSkill('reviewer', 'Duplicate')).rejects.toThrow('already exists');
+  });
+
+  it('uninstalls a managed skill by its install directory name', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await writeSkill(homeDir, '.agentskills', 'custom-directory', 'Reviewer', 'reviewer');
+    const service = new SkillsService({ homeDir });
+
+    const installed = await service.getInstalledSkills();
+    expect(installed[0]?.installId).toBe('custom-directory');
+    await service.uninstallSkill(installed[0]?.installId ?? installed[0]?.id ?? '');
+
+    await expect(
+      fs.promises.access(path.join(homeDir, '.agentskills/custom-directory'))
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('mirrors created skills and removes only Emdash-managed links', async () => {
     const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
     tempDirs.push(homeDir);

@@ -40,18 +40,29 @@ type SkillShInstallRecord = {
 
 export class AgentSkillsManager {
   private list: CatalogSkill[] = [];
+  private initialization: Promise<void> | null = null;
 
   constructor(
     private readonly deps: AgentConfigRuntimeDeps,
     private readonly model: AgentConfigSkillsModel
   ) {}
 
-  async initialize(): Promise<void> {
+  initialize(): Promise<void> {
+    this.initialization ??= this.initializeOnce();
+    return this.initialization;
+  }
+
+  private async initializeOnce(): Promise<void> {
     await this.syncCanonicalSkillsToAgents();
-    await this.refresh();
+    await this.refreshNow();
   }
 
   async refresh(): Promise<CatalogSkill[]> {
+    await this.initialize();
+    return this.refreshNow();
+  }
+
+  private async refreshNow(): Promise<CatalogSkill[]> {
     const installed = await getInstalledSkills(this.deps.pluginFs, this.deps.homeDir);
     this.publish(installed);
     return installed;
@@ -60,6 +71,7 @@ export class AgentSkillsManager {
   async installSkill(
     payload: SkillInstallPayload
   ): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
+    await this.initialize();
     const installId = payload.installId ?? payload.id;
     if (!isValidSkillName(installId)) {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${installId}"` });
@@ -104,6 +116,7 @@ export class AgentSkillsManager {
   }
 
   async removeSkill(name: string): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
+    await this.initialize();
     if (!isValidSkillName(name)) {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${name}"` });
     }
@@ -134,6 +147,7 @@ export class AgentSkillsManager {
     description: string;
     content?: string;
   }): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
+    await this.initialize();
     if (!isValidSkillName(input.name)) {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${input.name}"` });
     }
@@ -159,7 +173,7 @@ export class AgentSkillsManager {
   private async syncCanonicalSkillsToAgents(): Promise<void> {
     const availableMirrorDirs = await getAvailableSkillMirrorDirs(this.deps.pluginFs);
     for (const installName of await this.deps.pluginFs.list(SKILLS_ROOT)) {
-      if (installName === '.emdash') continue;
+      if (!isValidSkillName(installName)) continue;
       const content = await this.deps.pluginFs.read(`${SKILLS_ROOT}/${installName}/SKILL.md`);
       if (!content) continue;
       const { frontmatter } = parseFrontmatter(content);
@@ -188,7 +202,6 @@ export class AgentSkillsManager {
             frontmatterName,
             content,
             canonicalPath: `${this.deps.homeDir}/${SKILLS_ROOT}/${installName}`,
-            canonicalRoot: `${this.deps.homeDir}/${SKILLS_ROOT}`,
           });
         } catch (error) {
           this.deps.logger.warn(`Failed to mirror skill "${installName}" to ${relativeDir}`, {
@@ -229,8 +242,8 @@ async function getInstalledSkills(fs: PluginFs, homeDir: string): Promise<Catalo
       const parsed = parseFrontmatter(content);
       const record = skillsDir === SKILLS_ROOT ? provenance[entry] : undefined;
       const skillName = (parsed.frontmatter.name || record?.catalogSkillId || entry).toLowerCase();
-      if (seenSkillNames.has(skillName)) continue;
       seen.add(entry);
+      if (seenSkillNames.has(skillName)) continue;
       seenSkillNames.add(skillName);
       skills.push({
         id: record?.catalogSkillId ?? entry,

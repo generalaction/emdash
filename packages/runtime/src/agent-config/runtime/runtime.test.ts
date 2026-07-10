@@ -209,6 +209,23 @@ describe('AgentConfigRuntime', () => {
     runtime.dispose();
   });
 
+  it('rejects a duplicate whose directory has a different name', async () => {
+    const { runtime, fs } = makeRuntime();
+    await fs.write(
+      '.claude/skills/custom-directory/SKILL.md',
+      '---\nname: reviewer\ndescription: Review changes\n---\n'
+    );
+
+    const created = await runtime.createSkill({
+      name: 'reviewer',
+      description: 'Duplicate reviewer',
+    });
+
+    expect(created.success).toBe(false);
+    expect(await fs.read('.agentskills/reviewer/SKILL.md')).toBeNull();
+    runtime.dispose();
+  });
+
   it('starts login through a managed PTY and exposes output', async () => {
     const ptySpawner = new FakePtySpawner();
     const { runtime } = makeRuntime({ ptySpawner });

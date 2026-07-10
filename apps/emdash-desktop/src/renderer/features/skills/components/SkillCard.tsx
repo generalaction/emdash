@@ -38,7 +38,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isInstalled) {
-                    onUninstall(skill.id);
+                    onUninstall(skill.installId ?? skill.id);
                   } else {
                     onInstall(skill.id);
                   }
