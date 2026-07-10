@@ -1,8 +1,8 @@
 # @emdash/wire Docs
 
 `@emdash/wire` is the transport-agnostic runtime layer for typed API calls,
-live model subscriptions, live logs, jobs, mutations, and a small set of utilities
-that sit at the API boundary.
+live model subscriptions, live logs, event streams, jobs, mutations, and a small
+set of utilities that sit at the API boundary.
 
 The package has four layers:
 
@@ -21,6 +21,7 @@ flowchart TB
   subgraph live [Live primitives]
     model[LiveState and replicas]
     log[LiveLog]
+    eventStream[EventStream]
     job[LiveJob]
     mutations[Mutations and registries]
   end
@@ -33,12 +34,13 @@ flowchart TB
   processHost --> api
 ```
 
-The live layer owns the stateful primitives: `LiveState`, `LiveLog`, `LiveJob`,
-`LiveModelHost`, and consumer-instantiated replicas. Low-level `*Client` followers
-track cursors and resync, while materializers (`StateStore`, `LogSink`,
-`JobStore`) own values. Most consumers use client handles directly or wrap them
-in replicas. The API layer turns those primitives into a contract with typed
-procedure calls and live topic client handles.
+The live layer owns the stateful primitives: `LiveState`, `LiveLog`,
+`EventStreamSource`, `LiveJob`, `LiveModelHost`, and consumer-instantiated
+replicas. Low-level `*Client` followers track cursors and resync, while
+materializers (`StateStore`, `LogSink`, `JobStore`) own values. Most consumers use
+client handles directly or wrap them in replicas. The API layer turns those
+primitives into a contract with typed procedure calls and live topic client
+handles.
 The runtime layer owns lifecycle utilities and process supervision. Observability
 hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
 
@@ -63,6 +65,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     cursors, `LiveState`, replicas, and `BatchedLiveState`.
   - [Live logs](./live/live-log.md): retained terminal-style logs and client
     callbacks.
+  - [Event streams](./live/event-stream.md): keyed fire-and-forget events with
+    explicit gap callbacks after reattach.
   - [Live jobs](./live/live-job.md): progress, cancellation, terminal state,
     retention, and contract job handles.
   - [Mutations](./live/mutations.md): mutation ids, host contexts, cursor settling,
@@ -117,7 +121,7 @@ MobX-backed utilities intentionally live in their own export because they have a
 ## Typical Flow
 
 1. Define a contract with `defineContract({ ... })`.
-2. Create server-side `LiveState`, `LiveLog`, `LiveJob`, or
+2. Create server-side `LiveState`, `LiveLog`, `EventStreamSource`, `LiveJob`, or
    `createLiveModelHost()` instances.
 3. Create and dispose keyed host instances as domain resources appear.
 4. Create a controller with `createController(contract, impl)`.

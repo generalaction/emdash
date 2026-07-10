@@ -14,6 +14,14 @@ export {
 } from './state';
 export { LiveLog, type LiveLogOptions } from './log';
 export {
+  createEventStreamHost,
+  EventStreamSource,
+  eventFromUpdate,
+  isEventStreamHost,
+  type EventStreamHost,
+  type EventStreamSourceOptions,
+} from './event-stream';
+export {
   LIVE_JOB_TERMINAL_RETAIN_MS,
   LiveJob,
   LiveJobCancelledError,

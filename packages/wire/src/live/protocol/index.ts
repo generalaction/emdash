@@ -66,6 +66,16 @@ export const liveLogDeltaSchema = z.object({
 
 export type LiveLogDelta = z.infer<typeof liveLogDeltaSchema>;
 
+export const eventStreamSnapshotDataSchema = z.object({});
+
+export type EventStreamSnapshotData = z.infer<typeof eventStreamSnapshotDataSchema>;
+
+export const eventStreamDeltaSchema = z.object({
+  event: z.unknown(),
+});
+
+export type EventStreamDelta = z.infer<typeof eventStreamDeltaSchema>;
+
 export const serializedErrorSchema = z.object({
   name: z.string(),
   message: z.string(),

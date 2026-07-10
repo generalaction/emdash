@@ -1,0 +1,91 @@
+# Event Streams
+
+`eventStream({ key, event })` exposes a keyed server-to-client event channel for
+loss-tolerant notifications. It reuses the wire live attachment protocol but does
+not retain events or expose meaningful snapshots.
+
+Use event streams when subscribers can recover from missed events by resyncing
+from another source of truth, such as a file tree, cache, or database query. Use
+`liveLog` for retained append-only text and `liveModel` for convergent state.
+
+## Contract
+
+```ts
+const api = defineContract({
+  fileEvents: eventStream({
+    key: z.object({ rootPath: z.string() }),
+    event: z.object({
+      kind: z.enum(['create', 'update', 'delete']),
+      path: z.string(),
+    }),
+  }),
+});
+```
+
+The key addresses an event stream instance. The event schema types the
+client-side `onEvent` callback and documents the payload shape.
+
+## Server
+
+Most servers use `createEventStreamHost()`:
+
+```ts
+const fileEvents = createEventStreamHost(api.fileEvents);
+
+const controller = createController(api, {
+  fileEvents,
+});
+
+fileEvents.emit(
+  { rootPath: '/repo' },
+  { kind: 'update', path: '/repo/package.json' }
+);
+```
+
+`emit()` is fire-and-forget. If no client is attached to that key, the event is
+dropped. When the last subscriber detaches, the host discards the keyed source.
+
+You can also pass a resolver to `createController()` if another component owns
+the source:
+
+```ts
+createController(api, {
+  fileEvents: (key) => sources.get(key.rootPath),
+});
+```
+
+## Client
+
+```ts
+const unsubscribe = client.fileEvents.subscribe(
+  { rootPath: '/repo' },
+  {
+    onEvent(event) {
+      console.log(event.kind, event.path);
+    },
+    onGap() {
+      void reloadFileTree();
+    },
+  }
+);
+```
+
+`onGap` runs after the underlying transport reattaches. Events may have been lost
+while the link was disconnected or while a supervised subprocess restarted, so
+consumers should refresh any derived state in that callback.
+
+Initial attachment does not call `onGap`; subscribers should perform their own
+initial load before or after subscribing.
+
+## Semantics
+
+- Events are at-most-once and only delivered to currently attached clients.
+- No historical events are retained for late subscribers.
+- Event stream keys are validated by `withValidation()`.
+- Event payloads are not validated on the push path, matching other live updates.
+- Forwarding preserves the same delivery and gap semantics.
+
+## Example
+
+See [../../examples/event-stream/client.ts](../../examples/event-stream/client.ts)
+for a runnable in-process example.

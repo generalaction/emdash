@@ -1,12 +1,14 @@
 import { ok, type Unsubscribe } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { createEventStreamHost } from '../live/event-stream';
 import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
-import { createTestWire } from '../testing';
+import { createTestWire, waitFor } from '../testing';
 import {
   defineContract,
   downloadFile,
+  eventStream,
   liveJob,
   liveLog,
   liveModel,
@@ -32,6 +34,10 @@ const contract = defineContract({
   }),
   output: liveLog({
     key: z.object({ id: z.string() }),
+  }),
+  events: eventStream({
+    key: z.object({ id: z.string() }),
+    event: z.object({ message: z.string() }),
   }),
   task: liveJob({
     input: z.object({ name: z.string() }),
@@ -71,6 +77,7 @@ describe('forwardController', () => {
     const model = createLiveModelHost(contract.model);
     model.create(key, { state: { count: 1 } });
     const log = createLogSource('forwarded log');
+    const events = createEventStreamHost(contract.events);
     const upstream = createTestWire(
       contract,
       {
@@ -81,6 +88,7 @@ describe('forwardController', () => {
           }),
         upload: async ({ id }, file) => ok({ id, text: textDecoder.decode(await file.bytes()) }),
         output: () => log,
+        events,
         task: {
           run: async (input, ctx) => {
             ctx.progress({ step: 'package' });
@@ -117,6 +125,16 @@ describe('forwardController', () => {
       await expect(forwarded.client.output.handle(key).snapshot()).resolves.toMatchObject({
         data: { text: 'forwarded log' },
       });
+      const streamed: Array<{ message: string }> = [];
+      const unsubscribe = forwarded.client.events.subscribe(key, {
+        onEvent: (event) => streamed.push(event),
+      });
+      await waitFor(() => events.resolve(key).subscriberCount === 1);
+      events.emit(key, { message: 'forwarded event' });
+      await waitFor(() => streamed.length === 1);
+      unsubscribe();
+      expect(streamed).toEqual([{ message: 'forwarded event' }]);
+
       await expect(forwarded.client.model.state(key, 'state').snapshot()).resolves.toMatchObject({
         data: { count: 1 },
       });
@@ -133,6 +151,7 @@ describe('forwardController', () => {
     } finally {
       forwarded.dispose();
       upstream.dispose();
+      events.dispose();
       model.dispose();
     }
   });
