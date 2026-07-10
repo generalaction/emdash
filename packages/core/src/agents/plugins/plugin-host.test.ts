@@ -1,6 +1,6 @@
-import type { IExecutionContext } from '../../exec';
 import { createScope } from '@emdash/wire/util';
 import { describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '../../exec';
 import type { IAcpBehavior } from './capabilities/acp';
 import type { IAgentAuthBehavior } from './capabilities/auth';
 import type { CanonicalHookEvent } from './capabilities/hooks';
@@ -105,11 +105,13 @@ describe('AgentPluginHost', () => {
   });
 
   it('builds prompt commands with resolved cli and allowlisted env', async () => {
-    const buildCommand = vi.fn((ctx: CommandContext): AgentCommand => ({
-      command: ctx.cli,
-      args: [ctx.model],
-      env: { COMMAND_ENV: '1' },
-    }));
+    const buildCommand = vi.fn(
+      (ctx: CommandContext): AgentCommand => ({
+        command: ctx.cli,
+        args: [ctx.model],
+        env: { COMMAND_ENV: '1' },
+      })
+    );
     const host = createHost([
       plugin({
         behavior: { prompt: { buildCommand } },

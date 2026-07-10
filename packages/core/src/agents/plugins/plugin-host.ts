@@ -1,9 +1,9 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { deduplicateRequests, type Scope } from '@emdash/wire/util';
+import type { IExecutionContext } from '../../exec';
 import { buildDescriptorFromProvider } from '../../host-dependencies/descriptor-from-provider';
 import { HostDependencyManager, type Platform } from '../../host-dependencies/runtime';
-import type { IExecutionContext } from '../../exec';
 import type { PluginFs } from '../runtime/fs';
 import {
   createSpawnContextResolver,
@@ -198,7 +198,10 @@ export class AgentPluginHost {
       });
     }
 
-    const override = provider.behavior?.buildLoginCommand?.({ cli: spawnContext.data.cli }, methodId);
+    const override = provider.behavior?.buildLoginCommand?.(
+      { cli: spawnContext.data.cli },
+      methodId
+    );
     return ok({
       command: override?.command ?? spawnContext.data.cli,
       args: override?.args ?? method.args,

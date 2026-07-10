@@ -33,7 +33,10 @@ export function createExecInstallCommandRunner(options: {
     });
 }
 
-function classifyInstallCommandError(error: ExecFileException, output: string): InstallCommandError {
+function classifyInstallCommandError(
+  error: ExecFileException,
+  output: string
+): InstallCommandError {
   return classifyInstallCommandFailure({
     exitCode: typeof error.code === 'number' ? error.code : undefined,
     output: output || error.message,
