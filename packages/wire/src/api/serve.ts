@@ -16,12 +16,19 @@ export type ServeOptions = {
   logger?: Logger;
 };
 
+type ServerAttachment = {
+  ready: Promise<void>;
+  unsubscribe?: Unsubscribe;
+  release: () => Promise<void>;
+  disposed: boolean;
+};
+
 export function serve(
   transport: WireTransport,
   controller: Controller,
   options: ServeOptions = {}
 ): Unsubscribe {
-  const attached = new Map<string, { unsubscribe: Unsubscribe; release: () => Promise<void> }>();
+  const attached = new Map<string, ServerAttachment>();
   const calls = new Map<string, AbortController>();
   const blobProducers = new Map<string, BlobProducer>();
   const blobConsumers = new Map<string, BlobConsumer>();
@@ -180,11 +187,15 @@ export function serve(
   }
 
   function detachAll(): void {
-    for (const attachment of attached.values()) {
-      attachment.unsubscribe();
-      void attachment.release();
-    }
+    for (const attachment of attached.values()) disposeAttachment(attachment);
     attached.clear();
+  }
+
+  function disposeAttachment(attachment: ServerAttachment): void {
+    if (attachment.disposed) return;
+    attachment.disposed = true;
+    attachment.unsubscribe?.();
+    void attachment.release();
   }
 
   function closeAllBlobChannels(): void {
@@ -213,36 +224,84 @@ export function serve(
       case 'attach':
         replyRequest(message.id, async (signal) => {
           if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
-          if (attached.has(message.topic)) return undefined;
-          const lease = requireLiveLease(controller, message.topic);
-          const attachment = { unsubscribe: (() => {}) as Unsubscribe, release: lease.release };
-          attached.set(message.topic, attachment);
-          try {
-            const source = await lease.ready();
+          const existing = attached.get(message.topic);
+          if (existing) {
+            await existing.ready;
             if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
-            if (attached.get(message.topic) !== attachment) {
-              await lease.release();
-              return undefined;
-            }
-            attachment.unsubscribe = source.subscribe((update) =>
-              post({ kind: 'update', topic: message.topic, update })
-            );
-          } catch (error) {
-            if (attached.get(message.topic) === attachment) attached.delete(message.topic);
-            await lease.release();
-            throw error;
+            return undefined;
           }
-          instrumentation?.topicAttach?.({
-            topic: message.topic,
-            attachmentCount: attached.size,
-          });
+          const lease = requireLiveLease(controller, message.topic);
+          const attachment: ServerAttachment = {
+            ready: Promise.resolve(),
+            release: lease.release,
+            disposed: false,
+          };
+          attached.set(message.topic, attachment);
+          attachment.ready = (async () => {
+            try {
+              const source = await lease.ready();
+              if (
+                attachment.disposed ||
+                signal.aborted ||
+                attached.get(message.topic) !== attachment
+              ) {
+                return;
+              }
+
+              const unsubscribe = await source.subscribe(
+                (update) => post({ kind: 'update', topic: message.topic, update }),
+                {
+                  onGap: () => post({ kind: 'topic-gap', topic: message.topic }),
+                  onError: (error, context) => {
+                    post({
+                      kind: 'topic-error',
+                      topic: message.topic,
+                      error: serializeWireError(error),
+                      retrying: context.retrying,
+                    });
+                    if (!context.retrying && attached.get(message.topic) === attachment) {
+                      attached.delete(message.topic);
+                      disposeAttachment(attachment);
+                    }
+                  },
+                }
+              );
+              if (
+                attachment.disposed ||
+                signal.aborted ||
+                attached.get(message.topic) !== attachment
+              ) {
+                unsubscribe();
+                return;
+              }
+              attachment.unsubscribe = unsubscribe;
+              instrumentation?.topicAttach?.({
+                topic: message.topic,
+                attachmentCount: attached.size,
+              });
+            } catch (error) {
+              if (attached.get(message.topic) === attachment) attached.delete(message.topic);
+              disposeAttachment(attachment);
+              throw error;
+            }
+          })();
+          await attachment.ready;
+          if (signal.aborted) {
+            if (attached.get(message.topic) === attachment) attached.delete(message.topic);
+            disposeAttachment(attachment);
+            throw new WireError('CANCELLED', 'Wire attach cancelled');
+          }
           return undefined;
         });
         break;
       case 'detach':
-        attached.get(message.topic)?.unsubscribe();
-        void attached.get(message.topic)?.release();
-        attached.delete(message.topic);
+        {
+          const attachment = attached.get(message.topic);
+          if (attachment) {
+            attached.delete(message.topic);
+            disposeAttachment(attachment);
+          }
+        }
         instrumentation?.topicDetach?.({
           topic: message.topic,
           attachmentCount: attached.size,
@@ -280,6 +339,8 @@ export function serve(
         break;
       case 'result':
       case 'update':
+      case 'topic-gap':
+      case 'topic-error':
         break;
     }
   }

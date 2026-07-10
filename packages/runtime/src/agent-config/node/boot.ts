@@ -6,8 +6,12 @@ import { NodePtySpawner } from '@emdash/core/pty/node';
 import { agentConfigContract } from '@emdash/core/workspace-server';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { withValidation, type ValidatePolicy } from '@emdash/wire';
-import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
+import { withValidation } from '@emdash/wire';
+import {
+  serveWorkerProcess,
+  workerValidatePolicy,
+  type ProcessRuntimePort,
+} from '@emdash/wire/util/process-runtime';
 import { createAgentConfigController } from '../api/controller';
 import { AgentConfigRuntime } from '../runtime/runtime';
 import { createExecInstallCommandRunner } from './install-command-runner';
@@ -23,7 +27,7 @@ export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimePro
   const env = options.env ?? process.env;
   const logger = initProcessLogging({ name: 'agent-config-runtime', env });
 
-  void serveProcessRuntime(
+  void serveWorkerProcess(
     (scope) => {
       const homeDir = os.homedir();
       const spawner = new NodePtySpawner();
@@ -50,18 +54,9 @@ export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimePro
       return withValidation(
         agentConfigContract,
         createAgentConfigController(runtime),
-        runtimeWireValidationPolicy(env)
+        workerValidatePolicy(env)
       );
     },
     { port: options.port, exit: options.exit, logger }
-  ).catch((error: unknown) => {
-    logger.error('Agent-config runtime process failed', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    (options.exit ?? process.exit)(1);
-  });
-}
-
-function runtimeWireValidationPolicy(env: NodeJS.ProcessEnv): ValidatePolicy {
-  return env.NODE_ENV === 'production' ? 'inputs' : 'full';
+  );
 }

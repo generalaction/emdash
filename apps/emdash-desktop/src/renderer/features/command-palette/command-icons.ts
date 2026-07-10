@@ -1,4 +1,5 @@
 import {
+  Archive,
   ArrowDownToLine,
   ArrowLeft,
   ArrowRight,
@@ -62,6 +63,7 @@ export const COMMAND_ICONS = {
   'arrow-down-to-line': ArrowDownToLine,
   'arrow-up-to-line': ArrowUpToLine,
   pin: Pin,
+  archive: Archive,
   'chevron-down': ChevronDown,
   'chevron-up': ChevronUp,
 } satisfies Record<string, LucideIcon>;

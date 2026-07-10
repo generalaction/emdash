@@ -1,7 +1,6 @@
 import path from 'node:path';
 import type { BoundExec } from '@emdash/core/exec';
 import { gitErrorMessage, type GitSelector } from '@emdash/core/git';
-import { realpathOrResolve } from '@emdash/core/watch';
 import { err, ok, type Result } from '@emdash/shared';
 import type {
   CheckoutId,
@@ -11,6 +10,7 @@ import type {
   ObjectStoreId,
   RepositoryId,
 } from './identity';
+import { realpathOrResolve } from './paths';
 
 export type CanonicalGitIdentityResolverOptions = Readonly<{
   exec: BoundExec;

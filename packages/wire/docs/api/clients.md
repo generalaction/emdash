@@ -25,6 +25,8 @@ Each contract endpoint becomes a protocol client handle:
 
 - Procedures become typed functions: `contractClient.ping(input, { signal? })`.
 - Live logs become `LiveLogClientHandle`s: `contractClient.output.handle(key)`.
+- Event streams become `EventStreamClientHandle`s:
+  `await contractClient.events.subscribe(key, { onEvent, onGap?, onError? })`.
 - Live models become `LiveModelClientHandle`s:
   `contractClient.conversation.state(key, 'state')` and
   `contractClient.conversation.mutate('setTitle', envelope)`.
@@ -37,7 +39,13 @@ Each contract endpoint becomes a protocol client handle:
 type LiveClientHandle<T> = {
   topic: string;
   snapshot(): Promise<LiveSnapshot<T>>;
-  attach(push: (update: LiveUpdate) => void, options?: { onReattach?: () => void }): Promise<Unsubscribe>;
+  attach(
+    push: (update: LiveUpdate) => void,
+    options?: {
+      onReattach?: () => void;
+      onReattachError?: (error: WireError, context: { retrying: boolean }) => void;
+    }
+  ): Promise<Unsubscribe>;
   asLiveSource(): LiveSource;
 };
 ```
@@ -55,6 +63,9 @@ const detach = await output.attach((update) => {
   onReattach: async () => {
     term.reset();
     term.write((await output.snapshot()).data.text);
+  },
+  onReattachError: (error, { retrying }) => {
+    if (!retrying) showOutputError(error.message);
   },
 });
 ```
@@ -74,7 +85,12 @@ const controller = forwardController(api, upstream);
 
 No live state is created at that hop. The downstream client sees the same contract,
 while calls, snapshots, live attachments, jobs, and group mutations are forwarded to
-the upstream connection.
+the upstream connection. Event stream handles are forwarded as live attachments with
+the same at-most-once delivery semantics as the upstream connection.
+
+Forwarding also preserves upstream live lifecycle. A downstream subscriber receives
+`onGap` after the upstream attachment has reattached, and receives `onError` when
+an upstream reattach fails, even if the downstream transport never disconnected.
 
 This is the right shape for protocol relays and middle tiers that should not own or
 cache state. The hop does not create `ReplicaState`s, does not allocate local
@@ -89,7 +105,7 @@ controller's streamed download shape.
 
 Use `createController()` directly when forwarding should be selective. A procedure
 method can be passed as a procedure implementation, and live client handles can be
-passed as live model, live log, or live job implementations:
+passed as live model, live log, event stream, or live job implementations:
 
 ```ts
 const upstream = client(workspaceApi, connect(sshTransport));

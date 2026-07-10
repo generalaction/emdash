@@ -15,6 +15,15 @@
       "@emdash/core/acp": ["../../packages/core/src/acp/index.ts"],
       "@emdash/core/pty/node": ["../../packages/core/src/pty/node/index.ts"],
       "@emdash/core/pty": ["../../packages/core/src/pty/index.ts"],
+      "@emdash/core/services/fs-watch/api": [
+        "../../packages/core/src/services/fs-watch/api/index.ts"
+      ],
+      "@emdash/core/services/fs-watch/node": [
+        "../../packages/core/src/services/fs-watch/node/index.ts"
+      ],
+      "@emdash/core/services/fs-watch/worker": [
+        "../../packages/core/src/services/fs-watch/worker/index.ts"
+      ],
       "@emdash/core/agents/agent-env": ["../../packages/core/src/agents/agent-env.ts"],
       "@emdash/core/agents/spawn-context": ["../../packages/core/src/agents/spawn-context.ts"],
       "@emdash/core/agents/plugins/helpers": [
@@ -26,7 +35,6 @@
       "@emdash/core/git": ["../../packages/core/src/git/index.ts"],
       "@emdash/core/mcp": ["../../packages/core/src/mcp/index.ts"],
       "@emdash/core/skills": ["../../packages/core/src/skills/index.ts"],
-      "@emdash/core/watch": ["../../packages/core/src/watch/index.ts"],
       "@emdash/core/workspace-server/agent-config": [
         "../../packages/core/src/workspace-server/agent-config/index.ts"
       ],
@@ -55,11 +63,11 @@
       "@emdash/wire/api": ["../../packages/wire/src/api/index.ts"],
       "@emdash/wire/process/node": ["../../packages/wire/src/process/node/index.ts"],
       "@emdash/wire/process": ["../../packages/wire/src/process/index.ts"],
-      "@emdash/wire/util": ["../../packages/wire/src/util/index.ts"],
       "@emdash/wire/util/process-runtime": [
         "../../packages/wire/src/util/process-runtime/index.ts"
       ],
       "@emdash/wire/util/mobx": ["../../packages/wire/src/util/mobx/index.ts"],
+      "@emdash/wire/worker": ["../../packages/wire/src/worker/index.ts"],
       "@emdash/wire/util": ["../../packages/wire/src/util/index.ts"],
       "@emdash/wire": ["../../packages/wire/src/index.ts"],
       "@root/*": ["./*"],

@@ -56,7 +56,7 @@ describe('ComputedLiveState', () => {
     const compute = vi.fn(async () => ({ count: ++count }));
     const computed = new ComputedLiveState({ compute, debounceMs: 20 });
     const source = await computed.prepare();
-    const unsubscribe = source.subscribe(() => {});
+    const unsubscribe = await source.subscribe(() => {});
 
     computed.invalidate();
     await vi.advanceTimersByTimeAsync(19);
@@ -77,7 +77,7 @@ describe('ComputedLiveState', () => {
       .mockResolvedValueOnce({ count: 2 });
     const computed = new ComputedLiveState({ compute });
     const source = await computed.prepare();
-    const unsubscribe = source.subscribe(() => {});
+    const unsubscribe = await source.subscribe(() => {});
 
     const refresh = computed.refresh();
     computed.invalidate();
@@ -110,7 +110,7 @@ describe('ComputedLiveState', () => {
     const computed = new ComputedLiveState({ compute: async () => ({ count: ++count }) });
     const source = await computed.prepare();
     const updates: unknown[] = [];
-    const unsubscribe = source.subscribe((update) => updates.push(update));
+    const unsubscribe = await source.subscribe((update) => updates.push(update));
 
     await computed.refresh({ mutationId: 'mutation-1' });
     expect(updates).toMatchObject([{ mutationIds: ['mutation-1'] }]);

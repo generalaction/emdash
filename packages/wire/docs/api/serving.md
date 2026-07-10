@@ -26,7 +26,8 @@ const controller = createController(
 The `impl` object is keyed by the contract shape. Procedures receive
 `(input, meta)`. Jobs use `{ run, toError? }`, a `LiveJobClientHandle`, or a
 `LiveJobReplica`. Live logs use resolver functions, `LiveLogClientHandle`s, or
-`LiveLogReplica`. Live model contracts use a `createLiveModelHost()`,
+`LiveLogReplica`. Event streams use `createEventStreamHost()`, resolver functions,
+or `EventStreamClientHandle`s. Live model contracts use a `createLiveModelHost()`,
 `LiveModelClientHandle`, or `LiveModelReplica`.
 
 Mutation idempotency is configured on `createLiveModelHost()`, not on the
@@ -91,8 +92,8 @@ contract drift quickly.
 
 `withValidation()` validates request/response values that pass through
 `Controller.call()` and live topic keys passed to `Controller.resolveLive()`.
-Live job progress, result, and error values are emitted later as live updates and
-are not intercepted by the middleware.
+Live job progress, result, error values, and event stream payloads are emitted
+later as live updates and are not intercepted by the middleware.
 
 ## Connecting
 

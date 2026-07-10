@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { gitContract } from '@emdash/core/git';
-import type { IWatchService } from '@emdash/core/watch';
+import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import type { Result } from '@emdash/shared';
 import {
   client,

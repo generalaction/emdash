@@ -8,7 +8,13 @@ import {
   type BlobProducer,
   type BlobSource,
 } from './blob-channel';
-import { WireError, type WireFileMeta, type WireMessage, type WireTransport } from './protocol';
+import {
+  WireError,
+  type SerializedWireError,
+  type WireFileMeta,
+  type WireMessage,
+  type WireTransport,
+} from './protocol';
 
 export type CallOptions = {
   signal?: AbortSignal;
@@ -20,6 +26,7 @@ export type CallOptions = {
 
 export type AttachOptions = {
   onReattach?: () => void;
+  onReattachError?: (error: WireError, context: { retrying: boolean }) => void;
 };
 
 export type ConnectOptions = {
@@ -35,7 +42,9 @@ type PendingCall = {
 type Attachment = {
   pushes: Set<(update: LiveUpdate) => void>;
   onReattach: Set<() => void>;
+  onReattachError: Set<(error: WireError, context: { retrying: boolean }) => void>;
   established: Promise<void>;
+  attempt: object | null;
 };
 
 export type Connection = {
@@ -77,6 +86,19 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
 
     if (message.kind === 'update') {
       for (const push of attachments.get(message.topic)?.pushes ?? []) push(message.update);
+      return;
+    }
+
+    if (message.kind === 'topic-gap') {
+      notifyReattached(attachments.get(message.topic));
+      return;
+    }
+
+    if (message.kind === 'topic-error') {
+      const entry = attachments.get(message.topic);
+      const error = wireErrorFromSerialized(message.error);
+      notifyReattachError(entry, error, { retrying: message.retrying });
+      if (!message.retrying) attachments.delete(message.topic);
       return;
     }
 
@@ -276,12 +298,15 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       const entry = getOrCreateAttachment(topic);
       entry.pushes.add(push);
       if (attachOptions.onReattach) entry.onReattach.add(attachOptions.onReattach);
+      if (attachOptions.onReattachError) entry.onReattachError.add(attachOptions.onReattachError);
 
       try {
         await entry.established;
       } catch (error) {
         entry.pushes.delete(push);
         if (attachOptions.onReattach) entry.onReattach.delete(attachOptions.onReattach);
+        if (attachOptions.onReattachError)
+          entry.onReattachError.delete(attachOptions.onReattachError);
         throw error;
       }
 
@@ -290,6 +315,8 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
         if (current !== entry) return;
         current.pushes.delete(push);
         if (attachOptions.onReattach) current.onReattach.delete(attachOptions.onReattach);
+        if (attachOptions.onReattachError)
+          current.onReattachError.delete(attachOptions.onReattachError);
         if (current.pushes.size > 0) return;
         attachments.delete(topic);
         try {
@@ -311,7 +338,9 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     const created: Attachment = {
       pushes: new Set(),
       onReattach: new Set(),
+      onReattachError: new Set(),
       established: Promise.resolve(),
+      attempt: null,
     };
     attachments.set(topic, created);
     created.established = establishAttachment(topic, created, false);
@@ -323,23 +352,53 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     entry: Attachment,
     notifyReattach: boolean
   ): Promise<void> {
+    const attempt = {};
+    entry.attempt = attempt;
     const established = request({ kind: 'attach', id: createRequestId(), topic }).then(() => {});
     established.then(
       () => {
-        if (!notifyReattach || attachments.get(topic) !== entry) return;
-        for (const cb of entry.onReattach) {
-          try {
-            cb();
-          } catch {
-            // Reattach observers are best-effort and must not break the connection.
-          }
-        }
+        if (attachments.get(topic) !== entry || entry.attempt !== attempt) return;
+        if (notifyReattach) notifyReattached(entry);
       },
-      () => {
-        if (attachments.get(topic) === entry) attachments.delete(topic);
+      (error: unknown) => {
+        if (attachments.get(topic) !== entry || entry.attempt !== attempt) return;
+        const wireError = toWireError(error);
+        if (notifyReattach) {
+          const retrying = wireError.code === 'DISCONNECTED';
+          notifyReattachError(entry, wireError, { retrying });
+          if (!retrying) attachments.delete(topic);
+          return;
+        }
+        attachments.delete(topic);
       }
     );
     return established;
+  }
+
+  function notifyReattached(entry: Attachment | undefined): void {
+    if (!entry) return;
+    for (const cb of entry.onReattach) {
+      try {
+        cb();
+      } catch {
+        // Reattach observers are best-effort and must not break the connection.
+      }
+    }
+  }
+
+  function notifyReattachError(
+    entry: Attachment | undefined,
+    error: WireError,
+    context: { retrying: boolean }
+  ): void {
+    if (!entry) return;
+    for (const cb of entry.onReattachError) {
+      try {
+        cb(error, context);
+      } catch {
+        // Reattach observers are best-effort and must not break the connection.
+      }
+    }
   }
 }
 
@@ -350,4 +409,15 @@ function performanceNow(): number {
 function createRequestId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return `wire_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}
+
+function toWireError(error: unknown): WireError {
+  if (error instanceof WireError) return error;
+  return new WireError('HANDLER_ERROR', error instanceof Error ? error.message : String(error), {
+    cause: error,
+  });
+}
+
+function wireErrorFromSerialized(error: SerializedWireError): WireError {
+  return new WireError(error.code, error.message, { cause: error.cause });
 }

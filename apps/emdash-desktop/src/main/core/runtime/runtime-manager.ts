@@ -8,13 +8,16 @@ import {
 } from '@emdash/core/exec';
 import { contains, FilesRuntime } from '@emdash/core/files';
 import { ResourceMap } from '@emdash/core/lib';
+import { spawnFsWatchWorker } from '@emdash/core/services/fs-watch/worker';
 import { GitRuntime } from '@emdash/runtime/git';
 import type { Lease } from '@emdash/shared';
+import { appScope } from '@main/app/app-scope';
 import { getDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { getGitExecutable } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
+import { desktopWorkerPath } from '@main/worker-manifest';
 import { ConstantHealthSource } from './health';
 import { LegacySshFilesRuntime } from './legacy/ssh-files';
 import { LegacySshGitRuntime } from './legacy/ssh-git';
@@ -81,8 +84,17 @@ class DynamicGitExec implements BoundExec {
 
 class LocalMachineRuntime implements MachineRuntime {
   readonly machine: MachineRef = { kind: 'local' };
+  private readonly scope = appScope.child('local-machine-runtime');
+  private readonly watcher = spawnFsWatchWorker({
+    entry: desktopWorkerPath('fs-watch'),
+    scope: this.scope,
+    env: process.env,
+    onError: (context, error) =>
+      log.warn('File watching background error', { context, error: String(error) }),
+  });
   readonly files = Object.assign(
     new FilesRuntime({
+      watcher: this.watcher,
       onError: (context, error) =>
         log.warn('Local file runtime background error', { context, error: String(error) }),
     }),
@@ -90,6 +102,7 @@ class LocalMachineRuntime implements MachineRuntime {
   );
   readonly git = new GitRuntime({
     exec: new DynamicGitExec(process.cwd()),
+    watcher: this.watcher,
     onError: (context, error) =>
       log.warn('Local GitRuntime background error', { context, error: String(error) }),
   });
@@ -98,6 +111,8 @@ class LocalMachineRuntime implements MachineRuntime {
   async dispose(): Promise<void> {
     await this.files.dispose();
     await this.git.dispose();
+    await this.watcher.dispose();
+    await this.scope.dispose();
   }
 }
 

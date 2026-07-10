@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { acpApiContract, type AcpApiContract } from '@emdash/core/acp';
 import {
@@ -7,31 +6,39 @@ import {
   withValidation,
   type ContractClient,
 } from '@emdash/wire/api';
-import { type ManagedProcess } from '@emdash/wire/process';
-import { childProcessHost } from '@emdash/wire/process/node';
-import { forwardRuntimeLogs, spawnRuntime } from '@emdash/wire/util/process-runtime';
+import { lazyWorker, type WorkerHandle } from '@emdash/wire/worker';
 import { app, ipcMain, MessageChannelMain } from 'electron';
+import { appScope } from '@main/app/app-scope';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
+import { desktopWorkerPath } from '@main/worker-manifest';
 
 const ACP_WIRE_CHANNEL = 'acp-wire';
 
-type AcpRuntimeHandle = Awaited<ReturnType<typeof spawnAcpRuntime>>;
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
+type AcpRuntimeHandle = WorkerHandle<AcpApiContract> & { readonly client: AcpRuntimeClient };
 
-let handlePromise: Promise<AcpRuntimeHandle> | null = null;
+const acpRuntimeScope = appScope.child('acp-runtime-host');
+const acpWorker = lazyWorker(
+  () => ({
+    name: 'acp',
+    contract: acpApiContract,
+    entry: desktopWorkerPath('acp'),
+    scope: acpRuntimeScope,
+    env: {
+      ...process.env,
+      EMDASH_ACP_ATTACHMENTS_DIR: join(app.getPath('userData'), 'acp-attachments'),
+    },
+  }),
+  {
+    onSpawned: (handle) => installRendererWire(withSessionIdPersistence(handle.client)),
+  }
+);
+
 let rendererWireDispose: (() => void) | null = null;
 
-export function initializeAcpRuntimeProcess(): Promise<AcpRuntimeHandle> {
-  if (handlePromise) return handlePromise;
-  handlePromise = spawnAcpRuntime().then((handle) => {
-    installRendererWire(handle.client);
-    app.once('before-quit', () => {
-      void disposeAcpRuntimeProcess();
-    });
-    return handle;
-  });
-  return handlePromise;
+export async function initializeAcpRuntimeProcess(): Promise<AcpRuntimeHandle> {
+  return decorateAcpRuntimeHandle(await acpWorker.get());
 }
 
 export async function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
@@ -41,38 +48,11 @@ export async function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
 export async function disposeAcpRuntimeProcess(): Promise<void> {
   rendererWireDispose?.();
   rendererWireDispose = null;
-  const handle = await handlePromise;
-  handlePromise = null;
-  await handle?.dispose();
+  await acpWorker.dispose();
 }
 
-async function spawnAcpRuntime() {
-  const entry = resolveRuntimeEntry();
-  log.info('ACP runtime child process entry resolved', { entry });
-  const handle = await spawnRuntime({
-    host: childProcessHost(),
-    contract: acpApiContract,
-    spec: {
-      entry,
-      env: {
-        ...process.env,
-        EMDASH_ACP_ATTACHMENTS_DIR: join(app.getPath('userData'), 'acp-attachments'),
-      },
-      supervision: { restart: 'on-failure', backoffMs: [250, 1_000, 2_500], maxRestarts: 5 },
-    },
-    onProcess: attachAcpRuntimeLogging,
-  });
-  handle.onRestarted(() => {
-    log.info('ACP runtime child process restarted');
-  });
+function decorateAcpRuntimeHandle(handle: WorkerHandle<AcpApiContract>): AcpRuntimeHandle {
   return { ...handle, client: withSessionIdPersistence(handle.client) };
-}
-
-function attachAcpRuntimeLogging(process: ManagedProcess): void {
-  forwardRuntimeLogs(process, log, { source: 'acp-runtime' });
-  process.onExit((exit) => {
-    log.warn('ACP runtime child process exited', exit);
-  });
 }
 
 function withSessionIdPersistence(client: AcpRuntimeClient): AcpRuntimeClient {
@@ -127,15 +107,4 @@ function installRendererWire(client: AcpRuntimeClient): void {
 
 function runtimeWireValidationPolicy() {
   return import.meta.env.DEV ? 'full' : 'inputs';
-}
-
-function resolveRuntimeEntry(): string {
-  const candidates = [join(__dirname, 'acp-runtime.js'), join(__dirname, 'acp-runtime.mjs')];
-  const entry = candidates.find((candidate) => existsSync(candidate));
-  if (!entry) {
-    throw new Error(
-      `ACP runtime child process entry is missing. Checked: ${candidates.join(', ')}`
-    );
-  }
-  return entry;
 }

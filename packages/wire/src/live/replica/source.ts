@@ -1,6 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
 import type { ManagedSource } from '../../util/managed-source';
-import type { LiveSource, LiveUpdate } from '../protocol';
+import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../protocol';
 
 export function managedLiveSource<K, T>(
   source: ManagedSource<K, T>,
@@ -16,21 +16,20 @@ export function managedLiveSource<K, T>(
         await lease.release();
       }
     },
-    subscribe(cb: (update: LiveUpdate) => void): Unsubscribe {
-      let disposed = false;
+    async subscribe(cb: (update: LiveUpdate) => void, options?: LiveSubscribeOptions) {
+      const lease = source.acquire(key);
       let unsubscribe: Unsubscribe | undefined;
-      const leasePromise = source.acquire(key);
-      void leasePromise.ready().then((value) => {
-        if (disposed) {
-          void leasePromise.release();
-          return;
-        }
-        unsubscribe = getSource(value).subscribe(cb);
-      });
+      try {
+        const value = await lease.ready();
+        unsubscribe = await getSource(value).subscribe(cb, options);
+      } catch (error) {
+        await lease.release();
+        throw error;
+      }
+
       return () => {
-        disposed = true;
         unsubscribe?.();
-        void leasePromise.release();
+        void lease.release();
       };
     },
   };

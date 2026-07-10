@@ -49,9 +49,17 @@
       "types": "./dist/files.d.mts",
       "default": "./dist/files.mjs"
     },
-    "./watch": {
-      "types": "./dist/watch.d.mts",
-      "default": "./dist/watch.mjs"
+    "./services/fs-watch/api": {
+      "types": "./dist/services-fs-watch-api.d.mts",
+      "default": "./dist/services-fs-watch-api.mjs"
+    },
+    "./services/fs-watch/node": {
+      "types": "./dist/services-fs-watch-node.d.mts",
+      "default": "./dist/services-fs-watch-node.mjs"
+    },
+    "./services/fs-watch/worker": {
+      "types": "./dist/services-fs-watch-worker.d.mts",
+      "default": "./dist/services-fs-watch-worker.mjs"
     },
     "./git": {
       "types": "./dist/git.d.mts",

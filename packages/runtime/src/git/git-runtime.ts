@@ -9,7 +9,8 @@ import type {
   RepositorySelector,
 } from '@emdash/core/git';
 import { KeyedMutex } from '@emdash/core/lib';
-import { WatchService, type IWatchService } from '@emdash/core/watch';
+import type { IWatchService } from '@emdash/core/services/fs-watch/api';
+import { createNativeWatchService } from '@emdash/core/services/fs-watch/node';
 import type { PendingLease, Result } from '@emdash/shared';
 import { GitAllocationGraph } from './allocation/allocation-graph';
 import type { CheckoutHandle, RepositoryHandle } from './allocation/handles';
@@ -39,7 +40,7 @@ export class GitRuntime {
   constructor(options: GitRuntimeOptions = {}) {
     const onError = options.onError ?? (() => {});
     this.ownsWatcher = !options.watcher;
-    this.watcher = options.watcher ?? new WatchService({ onError });
+    this.watcher = options.watcher ?? createNativeWatchService({ onError });
     const exec =
       options.exec ??
       createGitExec({ cwd: process.cwd(), executable: options.executable, env: options.env });

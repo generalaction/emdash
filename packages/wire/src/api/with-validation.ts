@@ -104,6 +104,7 @@ export function withValidation<Defs extends ContractDefinitions>(
         });
         break;
       case 'liveLog':
+      case 'eventStream':
         liveKeys.set(def.id, def.keySchema);
         break;
       case 'liveJob':

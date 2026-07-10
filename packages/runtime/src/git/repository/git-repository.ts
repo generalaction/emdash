@@ -23,9 +23,9 @@ import {
   type PushError,
   type WorktreeSummary,
 } from '@emdash/core/git';
-import { realpathOrResolve } from '@emdash/core/watch';
 import { err, ok, type Result } from '@emdash/shared';
 import type { RepositoryIdentity } from '../allocation/identity';
+import { realpathOrResolve } from '../allocation/paths';
 import type { GitOperationContext } from '../exec/operation-context';
 import { bindRepositoryExec } from '../exec/repository-exec';
 import { execGitWithProgress, throwIfGitOpAborted } from '../exec/transfer-progress';

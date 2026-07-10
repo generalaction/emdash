@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { ExecError, type BoundExec } from '@emdash/core/exec';
-import type { IWatchService } from '@emdash/core/watch';
+import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { describe, expect, it } from 'vitest';
 import { GitRuntime } from './index';
 

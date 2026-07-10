@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   focusUrl: vi.fn(),
   getRegisteredTaskData: vi.fn(),
   getTaskGitWorktreeStore: vi.fn(),
+  getTaskManagerStore: vi.fn(),
   getTaskStore: vi.fn(),
   getTaskView: vi.fn(),
   goBack: vi.fn(),
@@ -74,6 +75,7 @@ vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
 vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
   getRegisteredTaskData: mocks.getRegisteredTaskData,
   getTaskGitWorktreeStore: mocks.getTaskGitWorktreeStore,
+  getTaskManagerStore: mocks.getTaskManagerStore,
   getTaskStore: mocks.getTaskStore,
   getTaskView: mocks.getTaskView,
 }));
@@ -139,6 +141,9 @@ describe('createTaskCommandProvider', () => {
     mocks.getTaskStore.mockReturnValue({
       state: 'provisioned',
       setPinned: vi.fn(),
+    });
+    mocks.getTaskManagerStore.mockReturnValue({
+      archiveTask: vi.fn(),
     });
     mocks.getTaskView.mockReturnValue({
       isSidebarCollapsed: false,
@@ -320,6 +325,54 @@ describe('createTaskCommandProvider', () => {
     expect(taskView.openNewTerminal).toHaveBeenCalledWith();
     expect(taskView.paneLayout.open).not.toHaveBeenCalled();
     expect(taskView.setTerminalDrawerOpen).not.toHaveBeenCalled();
+  });
+
+  it('archives the current task and returns to the project view', async () => {
+    const archiveTask = vi.fn(() => Promise.resolve());
+    mocks.getTaskManagerStore.mockReturnValue({ archiveTask });
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider.getCommands().find((candidate) => candidate.id === 'task.archive');
+
+    expect(command?.shortcutKey).toBe('archiveTask');
+    expect(command?.enabled).toBe(true);
+    command?.execute();
+    await Promise.resolve();
+
+    expect(mocks.navigate).toHaveBeenCalledWith('project', { projectId: 'project-1' });
+    expect(archiveTask).toHaveBeenCalledWith('task-1');
+  });
+
+  it('keeps archived tasks from running the archive command', () => {
+    mocks.getRegisteredTaskData.mockReturnValue({
+      id: 'task-1',
+      isPinned: false,
+      archivedAt: '2026-07-09T00:00:00.000Z',
+    });
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider.getCommands().find((candidate) => candidate.id === 'task.archive');
+
+    expect(command?.enabled).toBe(false);
+  });
+
+  it('shows an error and stays on the task when archiving fails', async () => {
+    const archiveTask = vi.fn(() => Promise.reject(new Error('archive failed')));
+    mocks.getTaskManagerStore.mockReturnValue({ archiveTask });
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider.getCommands().find((candidate) => candidate.id === 'task.archive');
+
+    command?.execute();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(archiveTask).toHaveBeenCalledWith('task-1');
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: 'Could not archive task',
+      variant: 'destructive',
+    });
   });
 
   it('navigates to the next visible task across project boundaries', () => {

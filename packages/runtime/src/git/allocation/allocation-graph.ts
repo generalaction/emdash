@@ -1,7 +1,7 @@
 import type { BoundExec } from '@emdash/core/exec';
 import type { CheckoutSelector, RepositorySelector } from '@emdash/core/git';
 import { KeyedMutex } from '@emdash/core/lib';
-import type { IWatchService } from '@emdash/core/watch';
+import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
 import { createManagedSource, type ManagedSource } from '@emdash/wire/util';
 import { GitCheckout } from '../checkout/git-checkout';

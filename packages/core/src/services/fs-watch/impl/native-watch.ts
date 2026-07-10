@@ -1,10 +1,12 @@
 import fs from 'node:fs/promises';
 import type { IDisposable } from '@emdash/shared';
 import parcelWatcher from '@parcel/watcher';
-import type { WatchEvent } from './types';
+import type { WatchEvent } from '../api';
 
 const RESUBSCRIBE_DELAY_MS = 250;
 const MAX_RESUBSCRIBE_DELAY_MS = 30_000;
+
+export type ParcelSubscribeFn = typeof parcelWatcher.subscribe;
 
 /**
  * One native subscription per (root, ignore set), shared across consumers.
@@ -17,6 +19,7 @@ export class NativeWatch implements IDisposable {
   private readonly deliver: (events: WatchEvent[]) => void;
   private readonly resync: () => void;
   private readonly onError: (context: string, error: unknown) => void;
+  private readonly subscribeFn: ParcelSubscribeFn;
   private subscription: Promise<parcelWatcher.AsyncSubscription> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private retryAttempts = 0;
@@ -27,13 +30,15 @@ export class NativeWatch implements IDisposable {
     ignore: string[],
     deliver: (events: WatchEvent[]) => void,
     resync: () => void,
-    onError: (context: string, error: unknown) => void
+    onError: (context: string, error: unknown) => void,
+    subscribeFn: ParcelSubscribeFn = parcelWatcher.subscribe
   ) {
     this.root = root;
     this.ignore = ignore;
     this.deliver = deliver;
     this.resync = resync;
     this.onError = onError;
+    this.subscribeFn = subscribeFn;
     this.subscription = this.subscribe();
     this.subscription.catch(() => {});
   }
@@ -54,7 +59,7 @@ export class NativeWatch implements IDisposable {
 
   private async subscribe(): Promise<parcelWatcher.AsyncSubscription> {
     await fs.stat(this.root);
-    return parcelWatcher.subscribe(
+    return this.subscribeFn(
       this.root,
       (err, events) => {
         if (err) {

@@ -6,7 +6,7 @@ import type {
   GitWorktreesState,
 } from '@emdash/core/git';
 import type { KeyedMutex } from '@emdash/core/lib';
-import type { IWatchService, WatchHandle } from '@emdash/core/watch';
+import type { IWatchService, WatchHandle } from '@emdash/core/services/fs-watch/api';
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { ComputedLiveState, type LiveSource } from '@emdash/wire';
 import type { GitRepository } from '../repository/git-repository';

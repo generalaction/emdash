@@ -1,5 +1,5 @@
 import type { BoundExec } from '@emdash/core/exec';
-import type { IWatchService } from '@emdash/core/watch';
+import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { ok } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GitAllocationGraph } from './allocation-graph';

@@ -81,14 +81,16 @@ designed.
 ## Process Hosting
 
 Desktop-local ACP and workspace-server ACP both use plain Node child processes via
-`childProcessHost()` and `spawnRuntime()`. The child process entry calls
+`spawnWorker()`. The child process entry calls
 `bootAcpRuntimeProcess()` from `@emdash/runtime/acp-agents/node`, which constructs
 `AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`,
 `LocalAttachmentStore`, and `NodePtySpawner`. The `AgentPluginHost` owns the
 runtime process's plugin registry, execution context, plugin filesystem, env, home
 directory, host dependency manager, and spawn-context cache; ACP-specific
 resources such as process handles, ACP ports, terminal management, attachment
-storage, and session cells stay inside the ACP runtime.
+storage, and session cells stay inside the ACP runtime. Each host owns a worker
+manifest that maps the ACP worker id to the emitted child-process entry path for
+that host's build.
 
 The concrete plugin registry is injected by each host entry (`emdash-desktop` and
 `workspace-server`) rather than imported by `@emdash/runtime`; this keeps runtime

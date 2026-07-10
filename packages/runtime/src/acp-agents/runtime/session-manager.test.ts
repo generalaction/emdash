@@ -263,7 +263,7 @@ describe('AcpRuntime session manager', () => {
 
     h.lastChild.emitExit(42);
 
-    expect(rt.getSessionState('conv-close').lifecycle).toBe('closed');
+    await vi.waitFor(() => expect(rt.getSessionState('conv-close').lifecycle).toBe('closed'));
     expect(rt.sessionLiveModels('conv-close')).toBeNull();
     expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
   });
@@ -281,8 +281,10 @@ describe('AcpRuntime session manager', () => {
 
     h.lastChild.emitExit(42);
 
-    expect(rt.getSessionState('conv-a').lifecycle).toBe('closed');
-    expect(rt.getSessionState('conv-b').lifecycle).toBe('closed');
+    await vi.waitFor(() => {
+      expect(rt.getSessionState('conv-a').lifecycle).toBe('closed');
+      expect(rt.getSessionState('conv-b').lifecycle).toBe('closed');
+    });
     expect(rt.sessionLiveModels('conv-a')).toBeNull();
     expect(rt.sessionLiveModels('conv-b')).toBeNull();
     expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});

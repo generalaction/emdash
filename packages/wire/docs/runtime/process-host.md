@@ -92,9 +92,13 @@ The host uses structural types and does not import `electron`.
 ## Serving Wire over a Process
 
 For subprocess runtimes that serve a wire controller, prefer
-[`spawnRuntime()` and `serveProcessRuntime()`](./process-runtimes.md). They add
+[`spawnRuntime()` and `serveWorkerProcess()`](./process-runtimes.md). They add
 the ready handshake, graceful shutdown signal, and reconnect handling needed for
 live attachments to resync after supervised restarts.
+
+For app-level workers, prefer [`spawnWorker()` and `lazyWorker()`](./workers.md)
+on the parent side. They layer default supervision, scope-owned logging, and
+entry resolution on top of process runtimes.
 
 The lower-level `processTransport(process)` adapter is still useful when the
 caller wants to manage readiness and reconnect behavior manually. It adapts a

@@ -11,8 +11,8 @@ import {
   type GitPathInspection,
   type GitRepositoryInfo,
 } from '@emdash/core/git';
-import { realpathOrResolve } from '@emdash/core/watch';
 import { err, ok, type Result } from '@emdash/shared';
+import { realpathOrResolve } from '../allocation/paths';
 import type { GitOperationContext } from '../exec/operation-context';
 import { execGitWithProgress } from '../exec/transfer-progress';
 

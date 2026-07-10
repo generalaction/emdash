@@ -85,3 +85,32 @@ of thrown.
 
 The serialized wire error includes the thrown value as a clone-safe cause. Treat
 this as a bug signal and fix the handler or validation logic.
+
+## Live Attachment Errors
+
+Live attachments use the same infrastructure error plane as calls and snapshots.
+They do not wrap startup or lifecycle failures in endpoint `Result` payloads.
+
+Initial attachment failures reject the `attach()` or event-stream `subscribe()`
+promise with a `WireError`. Common codes are `DISCONNECTED`, `UNKNOWN_TOPIC`,
+`NOT_FOUND`, and `HANDLER_ERROR`.
+
+Once an attachment is established, the client keeps it as durable intent across
+transport reconnects. Reattach failures are delivered to the subscription's
+`onReattachError` or `onError` callback with `{ retrying }`:
+
+- `DISCONNECTED` is reported with `retrying: true`; the attachment stays
+  registered and will try again on the next reconnect.
+- Other `WireError`s are reported with `retrying: false`; the attachment is
+  terminated because retrying the same topic would repeat the same failure.
+
+Forwarding preserves these lifecycle notifications. A downstream connection can
+remain healthy while an upstream live attachment reports a gap or terminal error.
+Forwarding sends those as live lifecycle messages rather than hiding them behind
+the downstream transport state.
+
+These errors are distinct from expected domain events carried by a stream. For
+example, fs-watch may emit `{ kind: 'error' }` as part of its event payload when a
+native watcher fails to start. That payload belongs to the fs-watch contract. A
+live attachment `WireError` means the wire topic itself could not attach or
+reattach.

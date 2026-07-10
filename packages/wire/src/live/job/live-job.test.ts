@@ -21,7 +21,7 @@ function toError(err: unknown): ErrorState {
   return { message: err instanceof Error ? err.message : String(err) };
 }
 
-function attach(server: LiveJob<Input, Progress, Result, ErrorState>, jobId: string) {
+async function attach(server: LiveJob<Input, Progress, Result, ErrorState>, jobId: string) {
   const source = server.source(jobId);
   if (!source) throw new Error(`Missing job ${jobId}`);
 
@@ -37,15 +37,15 @@ function attach(server: LiveJob<Input, Progress, Result, ErrorState>, jobId: str
 
   client.onProgress(onProgress);
   client.seed(server.snapshot(jobId)!);
-  let unsubscribe: Unsubscribe = source.subscribe((update) => client.applyUpdate(update));
+  let unsubscribe: Unsubscribe = await source.subscribe((update) => client.applyUpdate(update));
 
   return {
     client,
     onProgress,
     refetchSnapshot,
     unsubscribe: () => unsubscribe(),
-    resubscribe: () => {
-      unsubscribe = source.subscribe((update) => client.applyUpdate(update));
+    resubscribe: async () => {
+      unsubscribe = await source.subscribe((update) => client.applyUpdate(update));
     },
   };
 }
@@ -63,7 +63,7 @@ describe('LiveJob and LiveJobClient', () => {
       { toError }
     );
     const { jobId } = server.start({ name: 'success' });
-    const { client, onProgress } = attach(server, jobId);
+    const { client, onProgress } = await attach(server, jobId);
 
     begin.resolve();
 
@@ -86,7 +86,7 @@ describe('LiveJob and LiveJobClient', () => {
       }
     );
     const { jobId } = server.start({ name: 'context' });
-    const { client } = attach(server, jobId);
+    const { client } = await attach(server, jobId);
 
     await expect(client.result).resolves.toEqual({ ok: true });
   });
@@ -101,7 +101,7 @@ describe('LiveJob and LiveJobClient', () => {
       { toError }
     );
     const { jobId } = server.start({ name: 'failure' });
-    const { client } = attach(server, jobId);
+    const { client } = await attach(server, jobId);
     const result = client.result.catch((err: unknown) => err);
 
     begin.resolve();
@@ -124,7 +124,7 @@ describe('LiveJob and LiveJobClient', () => {
       { toError }
     );
     const { jobId } = server.start({ name: 'cancel' });
-    const { client } = attach(server, jobId);
+    const { client } = await attach(server, jobId);
     const result = client.result.catch((err: unknown) => err);
 
     server.cancel(jobId);
@@ -145,7 +145,10 @@ describe('LiveJob and LiveJobClient', () => {
       { toError }
     );
     const { jobId } = server.start({ name: 'resync' });
-    const { client, onProgress, refetchSnapshot, unsubscribe, resubscribe } = attach(server, jobId);
+    const { client, onProgress, refetchSnapshot, unsubscribe, resubscribe } = await attach(
+      server,
+      jobId
+    );
 
     await vi.waitFor(() => expect(ctx).toBeDefined());
     ctx?.progress({ step: 1 });
@@ -154,7 +157,7 @@ describe('LiveJob and LiveJobClient', () => {
     unsubscribe();
     ctx?.progress({ step: 2 });
     ctx?.progress({ step: 3 });
-    resubscribe();
+    await resubscribe();
     ctx?.progress({ step: 4 });
 
     await vi.waitFor(() => expect(refetchSnapshot).toHaveBeenCalledTimes(1));
@@ -265,7 +268,7 @@ describe('LiveJob and LiveJobClient', () => {
       { toError }
     );
     const { jobId } = server.start({ name: 'client' });
-    const { client } = attach(server, jobId);
+    const { client } = await attach(server, jobId);
 
     expect(client.cursor).toBeDefined();
     await vi.waitFor(() => expect(ctx).toBeDefined());

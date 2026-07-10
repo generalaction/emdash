@@ -1,5 +1,6 @@
 import type { PendingLease, Result, Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
+import { isEventStreamHost, type EventStreamHost } from '../live/event-stream';
 import { LiveJob, type LiveJobContext } from '../live/job';
 import { isLiveModelHost, type LiveModelHost, createMutationId } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
@@ -15,9 +16,11 @@ import {
 } from '../live/replica';
 import type { BlobSource, WireFile } from './blob-channel';
 import {
+  isEventStreamClientHandle,
   isLiveModelClientHandle,
   isLiveJobClientHandle,
   isLiveLogClientHandle,
+  type EventStreamClientHandle,
   type LiveModelClientHandle,
   type LiveJobClientHandle,
   type LiveLogClientHandle,
@@ -30,6 +33,8 @@ import type {
   DownloadFileInput,
   DownloadFileMeta,
   EndpointDef,
+  EventStreamEndpointDef,
+  EventStreamKey,
   EndpointInput,
   EndpointOutput,
   LiveLogKey,
@@ -113,6 +118,15 @@ type LiveLogEntryImpl<Def extends EndpointDef> =
   | LiveLogClientHandle
   | LiveLogReplica;
 
+type EventStreamImpl<Def extends EventStreamEndpointDef> = (
+  key: EventStreamKey<Def>
+) => LiveSource | null | undefined;
+
+type EventStreamEntryImpl<Def extends EventStreamEndpointDef> =
+  | EventStreamImpl<Def>
+  | EventStreamHost<Def>
+  | EventStreamClientHandle<Def>;
+
 type GroupImpl<Def extends LiveModelDef> =
   | LiveModelHost<Def>
   | LiveModelClientHandle<Def>
@@ -123,15 +137,17 @@ type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
   ? ProcedureImpl<Def>
   : Def extends { kind: 'liveLog' }
     ? LiveLogEntryImpl<Def>
-    : Def extends LiveModelDef
-      ? GroupImpl<Def>
-      : Def extends LiveJobEndpointDef
-        ? JobImpl<Def> | LiveJobClientHandle<Def> | LiveJobReplica<Def>
-        : Def extends DownloadFileEndpointDef
-          ? DownloadFileImpl<Def>
-          : Def extends UploadFileEndpointDef
-            ? UploadFileImpl<Def>
-            : never;
+    : Def extends EventStreamEndpointDef
+      ? EventStreamEntryImpl<Def>
+      : Def extends LiveModelDef
+        ? GroupImpl<Def>
+        : Def extends LiveJobEndpointDef
+          ? JobImpl<Def> | LiveJobClientHandle<Def> | LiveJobReplica<Def>
+          : Def extends DownloadFileEndpointDef
+            ? DownloadFileImpl<Def>
+            : Def extends UploadFileEndpointDef
+              ? UploadFileImpl<Def>
+              : never;
 
 type JobImpl<Def extends LiveJobEndpointDef> = {
   run(
@@ -236,6 +252,19 @@ export function createController<Defs extends ContractDefinitions>(
           }
           liveEntries.set(def.id, {
             resolve: createLiveLogResolver(impl),
+          });
+          break;
+        }
+        case 'eventStream': {
+          const impl = entryImpl as EventStreamEntryImpl<EventStreamEndpointDef> | undefined;
+          if (!impl) {
+            throw new WireError(
+              'MISSING_HANDLER',
+              `Event stream '${fullPath}' requires a resolver`
+            );
+          }
+          liveEntries.set(def.id, {
+            resolve: createEventStreamResolver(def, impl),
           });
           break;
         }
@@ -496,6 +525,31 @@ function createLiveLogResolver(
   return impl as (key: unknown) => LiveSource | null | undefined;
 }
 
+function createEventStreamResolver(
+  def: EventStreamEndpointDef,
+  impl: EventStreamEntryImpl<EventStreamEndpointDef>
+): (key: unknown) => LiveSource | null | undefined {
+  if (isEventStreamHost(impl)) {
+    if (impl.def.id !== def.id) {
+      throw new WireError(
+        'CONTRACT_MISMATCH',
+        `Event stream host for '${def.id}' was created for '${impl.def.id}'`
+      );
+    }
+    return (key) => impl.resolve(key as never);
+  }
+  if (isEventStreamClientHandle(impl)) {
+    if (impl.def.id !== def.id) {
+      throw new WireError(
+        'CONTRACT_MISMATCH',
+        `Event stream client handle for '${def.id}' was created for '${impl.def.id}'`
+      );
+    }
+    return (key) => impl.handle(key as never).asLiveSource();
+  }
+  return impl as (key: unknown) => LiveSource | null | undefined;
+}
+
 function createLiveJob(
   impl: JobImpl<LiveJobEndpointDef>
 ): LiveJob<unknown, unknown, unknown, unknown> {
@@ -532,7 +586,7 @@ function missingLiveSource(message: string): LiveSource {
       throw new WireError('NOT_FOUND', message);
     },
     subscribe(): Unsubscribe {
-      return () => {};
+      throw new WireError('NOT_FOUND', message);
     },
   };
 }

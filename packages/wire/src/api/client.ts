@@ -1,6 +1,13 @@
 import { ok, type Result, type SerializedError, type Unsubscribe } from '@emdash/shared';
+import { eventFromUpdate } from '../live/event-stream';
 import { createMutationId, type LiveMutationResult } from '../live/mutations';
-import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../live/protocol';
+import type {
+  EventStreamSnapshotData,
+  LiveLogSnapshotData,
+  LiveSnapshot,
+  LiveSource,
+  LiveUpdate,
+} from '../live/protocol';
 import {
   createSingleUseDownloadHandle,
   normalizeUploadFile,
@@ -16,6 +23,9 @@ import type {
   DownloadFileInput,
   DownloadFileMeta,
   EndpointDef,
+  EventStreamEndpointDef,
+  EventStreamEvent,
+  EventStreamKey,
   EndpointInput,
   LiveStateData,
   EndpointOutput,
@@ -72,6 +82,24 @@ export type LiveLogClientHandle<Def extends LiveLogEndpointDef = LiveLogEndpoint
   readonly kind: 'liveLogClientHandle';
   readonly def: Def;
   handle(key: LiveLogKey<Def>): LiveClientHandle<LiveLogSnapshotData>;
+};
+
+export type EventStreamSubscribeOptions<
+  Def extends EventStreamEndpointDef = EventStreamEndpointDef,
+> = {
+  onEvent(event: EventStreamEvent<Def>): void;
+  onGap?(): void;
+  onError?: (error: WireError, context: { retrying: boolean }) => void;
+};
+
+export type EventStreamClientHandle<Def extends EventStreamEndpointDef = EventStreamEndpointDef> = {
+  readonly kind: 'eventStreamClientHandle';
+  readonly def: Def;
+  handle(key: EventStreamKey<Def>): LiveClientHandle<EventStreamSnapshotData>;
+  subscribe(
+    key: EventStreamKey<Def>,
+    options: EventStreamSubscribeOptions<Def>
+  ): Promise<Unsubscribe>;
 };
 
 export type LiveModelClientHandle<Def extends LiveModelDef = LiveModelDef> =
@@ -141,22 +169,26 @@ type EndpointClient<Def> = Def extends { kind: 'procedure' }
   ? (input: EndpointInput<Def>, options?: ProcedureCallOptions) => Promise<EndpointOutput<Def>>
   : Def extends LiveJobEndpointDef
     ? LiveJobClientHandle<Def>
-    : Def extends LiveLogEndpointDef
-      ? LiveLogClientHandle<Def>
-      : Def extends LiveModelDef
-        ? LiveModelClientHandle<Def>
-        : Def extends DownloadFileEndpointDef
-          ? (
-              input: DownloadFileInput<Def>,
-              options?: ProcedureCallOptions
-            ) => Promise<Result<BlobDownloadHandle<DownloadFileMeta<Def>>, DownloadFileError<Def>>>
-          : Def extends UploadFileEndpointDef
+    : Def extends EventStreamEndpointDef
+      ? EventStreamClientHandle<Def>
+      : Def extends LiveLogEndpointDef
+        ? LiveLogClientHandle<Def>
+        : Def extends LiveModelDef
+          ? LiveModelClientHandle<Def>
+          : Def extends DownloadFileEndpointDef
             ? (
-                input: UploadFileInput<Def>,
-                file: UploadFileValue,
-                options?: FileUploadCallOptions
-              ) => Promise<Result<UploadFileResult<Def>, UploadFileError<Def>>>
-            : never;
+                input: DownloadFileInput<Def>,
+                options?: ProcedureCallOptions
+              ) => Promise<
+                Result<BlobDownloadHandle<DownloadFileMeta<Def>>, DownloadFileError<Def>>
+              >
+            : Def extends UploadFileEndpointDef
+              ? (
+                  input: UploadFileInput<Def>,
+                  file: UploadFileValue,
+                  options?: FileUploadCallOptions
+                ) => Promise<Result<UploadFileResult<Def>, UploadFileError<Def>>>
+              : never;
 
 type ContractEntryClient<Def> = Def extends EndpointDef
   ? EndpointClient<Def>
@@ -239,6 +271,9 @@ function buildContractClient(
       case 'liveLog':
         client[name] = createLiveLogClientHandle(connection, def);
         break;
+      case 'eventStream':
+        client[name] = createEventStreamClientHandle(connection, def);
+        break;
       case 'liveModel':
         client[name] = createLiveModelClientHandle(connection, fullPath, def);
         break;
@@ -256,6 +291,27 @@ function createLiveLogClientHandle<Def extends LiveLogEndpointDef>(
     kind: 'liveLogClientHandle',
     def,
     handle: (key) => createLiveClientHandle(connection, encodeTopic(def.id, key)),
+  };
+}
+
+function createEventStreamClientHandle<Def extends EventStreamEndpointDef>(
+  connection: Connection,
+  def: Def
+): EventStreamClientHandle<Def> {
+  return {
+    kind: 'eventStreamClientHandle',
+    def,
+    handle: (key) => createLiveClientHandle(connection, encodeTopic(def.id, key)),
+    subscribe(key, options) {
+      return connection.attach(
+        encodeTopic(def.id, key),
+        (update) => options.onEvent(eventFromUpdate<EventStreamEvent<Def>>(update)),
+        {
+          onReattach: options.onGap,
+          onReattachError: options.onError,
+        }
+      );
+    },
   };
 }
 
@@ -316,17 +372,11 @@ function createLiveClientHandle<T>(connection: Connection, topic: string): LiveC
     asLiveSource() {
       return {
         snapshot: () => connection.snapshot(topic),
-        subscribe: (cb): Unsubscribe => {
-          let disposed = false;
-          const attach = connection.attach(topic, cb).catch(() => () => {});
-          void attach.then((detach) => {
-            if (disposed) detach();
-          });
-          return () => {
-            disposed = true;
-            void attach.then((detach) => detach());
-          };
-        },
+        subscribe: (cb, options) =>
+          connection.attach(topic, cb, {
+            onReattach: options?.onGap,
+            onReattachError: options?.onError,
+          }),
       };
     },
   };
@@ -381,6 +431,10 @@ function addMutationId(input: unknown, mutationId: string): unknown {
 
 export function isLiveLogClientHandle(value: unknown): value is LiveLogClientHandle {
   return isTagged(value, 'liveLogClientHandle');
+}
+
+export function isEventStreamClientHandle(value: unknown): value is EventStreamClientHandle {
+  return isTagged(value, 'eventStreamClientHandle');
 }
 
 export function isLiveModelClientHandle(value: unknown): value is LiveModelClientHandle {
