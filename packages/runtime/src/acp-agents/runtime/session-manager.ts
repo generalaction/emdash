@@ -10,8 +10,22 @@ import type {
   SessionUpdate,
 } from '@agentclientprotocol/sdk';
 import type {
-  AcpRuntimeError,
+  AcpCancelTurnError,
+  AcpChangeQueuePromptOrderError,
+  AcpDeleteQueuedPromptError,
+  AcpEditQueuedPromptError,
+  AcpExportRawLogError,
+  AcpExportTranscriptError,
+  AcpQueuePromptError,
+  AcpResolvePermissionError,
+  AcpSendPromptError,
+  AcpSetModeOptionError,
+  AcpSetModelOptionError,
+  AcpSetPromptDraftError,
+  AcpStartSessionError,
+  AcpStopSessionError,
   AgentState,
+  InvalidStateError,
   NormalizedEvent,
   PlanState,
   PromptDraft,
@@ -24,12 +38,13 @@ import type {
   TranscriptTurn,
 } from '@emdash/core/acp';
 import { acpErr } from '@emdash/core/acp';
-import type { Result } from '@emdash/shared';
+import type { Lease, Result } from '@emdash/shared';
 import { isErr, ok, toSerializedError } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import type { AgentTerminalManager } from '../agent-terminal-manager';
-import type { FsPort, TerminalPort } from '../client-ports';
-import { buildClientHandler, type InboundRouter } from '../connection/client-handler';
+import { buildAgentClient, type InboundRouter } from '../agent-ports/agent-client';
+import type { FsPort } from '../agent-ports/fs-port';
+import type { AgentTerminalManager } from '../agent-ports/terminal-manager';
+import type { TerminalPort } from '../agent-ports/terminal-port';
 import type { ConnectionPool, ConnectionPoolEntry } from '../connection/pool';
 import { SessionCell, type AcpChatHistory } from '../session/cell';
 import type { SessionCellCallbacks } from '../session/cell-deps';
@@ -49,6 +64,7 @@ import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 interface SessionRecord {
   input: AcpStartInput;
   processKey: string;
+  connectionLease: Lease<ConnectionPoolEntry>;
   cell: SessionCell;
   live: SessionLiveModels;
   lastSynced: {
@@ -83,7 +99,7 @@ export class SessionManager implements InboundRouter {
     private readonly ports: { fs: FsPort; terminals: TerminalPort }
   ) {}
 
-  async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpRuntimeError>> {
+  async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
     const existing = this.cells.get(input.conversationId);
     if (existing) return ok({ sessionId: existing.cell.acpSessionId });
 
@@ -107,19 +123,20 @@ export class SessionManager implements InboundRouter {
       cwd: input.cwd,
       behavior: binding.behavior,
       buildClient: (_agent, key): Client =>
-        buildClientHandler(() => this.pool.get(key), this, this.ports),
+        buildAgentClient(() => this.pool.get(key), this, this.ports),
     });
     if (isErr(acquire)) {
       this.deleteSessionSummary(input.conversationId);
       return acquire;
     }
 
-    const connection = acquire.data;
+    const acquired = acquire.data;
+    const connection = acquired.entry;
     let record: SessionRecord | null = null;
 
     try {
       if (input.sessionId && connection.supportsLoadSession && connection.agent.loadSession) {
-        record = this.createRecord(input, connection, input.sessionId);
+        record = this.createRecord(input, connection, acquired.lease, input.sessionId);
         this.addLoading(connection.key, input.conversationId);
         this.registerRoute(connection.key, input.sessionId, input.conversationId);
         record.cell.beginReplay();
@@ -163,8 +180,17 @@ export class SessionManager implements InboundRouter {
       }
 
       if (!record) {
-        const response = await connection.agent.newSession(this.buildNewSessionRequest(input.cwd));
-        record = this.createRecord(input, connection, response.sessionId);
+        let response;
+        try {
+          response = await connection.agent.newSession(this.buildNewSessionRequest(input.cwd));
+        } catch (e) {
+          if (isAuthRequiredError(e)) throw e;
+          this.removeRecord(input.conversationId, false);
+          await acquired.lease.release();
+          this.deleteSessionSummary(input.conversationId);
+          return acpErr.newSessionFailed(toSerializedError(e));
+        }
+        record = this.createRecord(input, connection, acquired.lease, response.sessionId);
         record.cell.applySessionMeta({
           modes: response.modes,
           configOptions: response.configOptions,
@@ -193,7 +219,7 @@ export class SessionManager implements InboundRouter {
       return ok({ sessionId: record.cell.acpSessionId });
     } catch (e) {
       if (record) this.removeRecord(record.input.conversationId, false);
-      this.pool.release(connection.key);
+      await acquired.lease.release();
       this.deleteSessionSummary(input.conversationId);
       if (isAuthRequiredError(e)) {
         return acpErr.authRequired(toSerializedError(e));
@@ -202,13 +228,13 @@ export class SessionManager implements InboundRouter {
     }
   }
 
-  async prompt(input: SendPromptInput): Promise<Result<{ queued: boolean }, AcpRuntimeError>> {
+  async prompt(input: SendPromptInput): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
     const record = this.cells.get(input.conversationId);
     if (!record) return acpErr.conversationNotFound(input.conversationId);
     return record.cell.prompt(input.prompt);
   }
 
-  queuePrompt(input: SendPromptInput): Result<{ queued: boolean }, AcpRuntimeError> {
+  queuePrompt(input: SendPromptInput): Result<{ queued: boolean }, AcpQueuePromptError> {
     const record = this.cells.get(input.conversationId);
     if (!record) return acpErr.conversationNotFound(input.conversationId);
     const result = record.cell.queuePrompt(input.prompt);
@@ -220,37 +246,43 @@ export class SessionManager implements InboundRouter {
     conversationId: string,
     id: string,
     input: SendPromptInput['prompt']
-  ): Result<void, AcpRuntimeError> {
+  ): Result<void, AcpEditQueuedPromptError> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
     return record.cell.editQueuedPrompt(id, input);
   }
 
-  removeQueuedPrompt(conversationId: string, id: string): Result<void, AcpRuntimeError> {
+  removeQueuedPrompt(conversationId: string, id: string): Result<void, AcpDeleteQueuedPromptError> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
     return record.cell.removeQueuedPrompt(id);
   }
 
-  reorderQueue(conversationId: string, ids: readonly string[]): Result<void, AcpRuntimeError> {
+  reorderQueue(
+    conversationId: string,
+    ids: readonly string[]
+  ): Result<void, AcpChangeQueuePromptOrderError> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
     return record.cell.reorderQueue(ids);
   }
 
-  async cancel(conversationId: string): Promise<Result<void, AcpRuntimeError>> {
+  async cancel(conversationId: string): Promise<Result<void, AcpCancelTurnError>> {
     const record = this.cells.get(conversationId);
     if (!record) return ok();
     return record.cell.cancel();
   }
 
-  setPromptDraft(conversationId: string, draft: PromptDraftUpdate): Result<void, AcpRuntimeError> {
+  setPromptDraft(
+    conversationId: string,
+    draft: PromptDraftUpdate
+  ): Result<void, AcpSetPromptDraftError> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
     return record.cell.setPromptDraft(draft);
   }
 
-  stop(conversationId: string): Result<void, AcpRuntimeError> {
+  stop(conversationId: string): Result<void, AcpStopSessionError> {
     const record = this.cells.get(conversationId);
     if (!record) return ok();
     record.cell.closeSession().catch(() => {});
@@ -262,13 +294,16 @@ export class SessionManager implements InboundRouter {
     conversationId: string,
     requestId: string,
     optionId: string
-  ): Result<void, AcpRuntimeError> {
+  ): Result<void, AcpResolvePermissionError> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
     return record.cell.resolvePermission(requestId, optionId);
   }
 
-  async setMode(conversationId: string, modeId: string): Promise<Result<void, AcpRuntimeError>> {
+  async setMode(
+    conversationId: string,
+    modeId: string
+  ): Promise<Result<void, AcpSetModeOptionError>> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
     return record.cell.setMode(modeId);
@@ -278,7 +313,7 @@ export class SessionManager implements InboundRouter {
     conversationId: string,
     dimension: 'model' | 'effort',
     value: string
-  ): Promise<Result<void, AcpRuntimeError>> {
+  ): Promise<Result<void, AcpSetModelOptionError>> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
     return record.cell.setConfigOption(dimension, value);
@@ -292,13 +327,13 @@ export class SessionManager implements InboundRouter {
     return this.cells.get(conversationId)?.cell.history() ?? { committed: [], active: null };
   }
 
-  exportParsedTranscript(conversationId: string): Result<string, AcpRuntimeError> {
+  exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
     return ok(record.cell.exportParsedTranscript());
   }
 
-  exportRawAcpLog(conversationId: string): Result<string, AcpRuntimeError> {
+  exportRawAcpLog(conversationId: string): Result<string, AcpExportRawLogError> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
     return ok(record.cell.exportRawLog());
@@ -412,12 +447,13 @@ export class SessionManager implements InboundRouter {
       this.removeRecord(record.input.conversationId, false);
       this.deleteSessionSummary(record.input.conversationId);
     }
-    this.pool.forgetClosed(processKey);
+    void this.pool.forgetClosed(processKey);
   }
 
   private createRecord(
     input: AcpStartInput,
     connection: ConnectionPoolEntry,
+    connectionLease: Lease<ConnectionPoolEntry>,
     acpSessionId: string
   ): SessionRecord {
     const record = {} as SessionRecord;
@@ -442,6 +478,7 @@ export class SessionManager implements InboundRouter {
     Object.assign(record, {
       input,
       processKey: connection.key,
+      connectionLease,
       cell,
       live: createSessionLiveModels(this.sessionHost, input.conversationId, cell.sessionState),
       lastSynced: {
@@ -459,7 +496,7 @@ export class SessionManager implements InboundRouter {
     return record;
   }
 
-  private queueInitialPrompts(record: SessionRecord): Result<void, AcpRuntimeError> {
+  private queueInitialPrompts(record: SessionRecord): Result<void, InvalidStateError> {
     for (const prompt of record.input.initialQueue ?? []) {
       const result = record.cell.queuePrompt(prompt);
       if (!result.success) return result;
@@ -549,7 +586,7 @@ export class SessionManager implements InboundRouter {
     this.terminals.disposeConversation(conversationId);
     record.live.dispose();
     this.deleteSessionSummary(conversationId);
-    if (releaseConnection) this.pool.release(record.processKey);
+    if (releaseConnection) void record.connectionLease.release();
   }
 
   private resolveConversationForSession(processKey: string, acpSessionId: string): string | null {

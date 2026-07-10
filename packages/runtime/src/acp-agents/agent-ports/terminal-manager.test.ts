@@ -3,8 +3,8 @@ import {
   FakeAcpProcessHost,
   FakeAcpTerminalProcess,
   createRecordingListener,
-} from './acp-test-support';
-import { AgentTerminalManager } from './agent-terminal-manager';
+} from '../acp-test-support';
+import { AgentTerminalManager } from './terminal-manager';
 
 function makeManager() {
   const host = new FakeAcpProcessHost();

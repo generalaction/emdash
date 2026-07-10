@@ -7,8 +7,13 @@ import type {
   SetSessionModeRequest,
 } from '@agentclientprotocol/sdk';
 import type {
+  AcpCancelTurnError,
   AcpPermissionRequest,
   AcpRuntimeError,
+  AcpSendPromptError,
+  AcpSetModeOptionError,
+  AcpSetModelOptionError,
+  InvalidStateError,
   NormalizedEvent,
   PromptDraft,
   PromptDraftUpdate,
@@ -195,7 +200,7 @@ export class SessionCell {
     this.emitTranscriptChanged();
   }
 
-  async prompt(input: PromptInput): Promise<Result<SessionPromptResult, AcpRuntimeError>> {
+  async prompt(input: PromptInput): Promise<Result<SessionPromptResult, AcpSendPromptError>> {
     const now = Date.now();
     const result = await this.sendPromptInternal({
       id: crypto.randomUUID(),
@@ -207,23 +212,26 @@ export class SessionCell {
     return result;
   }
 
-  queuePrompt(input: PromptInput): Result<void, AcpRuntimeError> {
+  queuePrompt(input: PromptInput): Result<void, InvalidStateError> {
     const now = Date.now();
-    const result = this.dispatch({
-      type: 'QueuePrompt',
-      prompt: {
-        id: crypto.randomUUID(),
-        ...input,
-        createdAt: now,
-        updatedAt: now,
+    const result = this.dispatchFor<InvalidStateError>(
+      {
+        type: 'QueuePrompt',
+        prompt: {
+          id: crypto.randomUUID(),
+          ...input,
+          createdAt: now,
+          updatedAt: now,
+        },
       },
-    });
+      ['invalid_state']
+    );
     if (!result.success) return result;
     this.clearDraft();
     return ok();
   }
 
-  setPromptDraft(update: PromptDraftUpdate): Result<void, AcpRuntimeError> {
+  setPromptDraft(update: PromptDraftUpdate): Result<void, never> {
     if (update.rev <= this.draftRev) return ok();
     this.draftRev = update.rev;
 
@@ -240,31 +248,42 @@ export class SessionCell {
     return ok();
   }
 
-  editQueuedPrompt(id: string, input: PromptInput): Result<void, AcpRuntimeError> {
-    const result = this.dispatch({
-      type: 'EditQueuedPrompt',
-      id,
-      input,
-      updatedAt: Date.now(),
-    });
+  editQueuedPrompt(id: string, input: PromptInput): Result<void, InvalidStateError> {
+    const result = this.dispatchFor<InvalidStateError>(
+      {
+        type: 'EditQueuedPrompt',
+        id,
+        input,
+        updatedAt: Date.now(),
+      },
+      ['invalid_state']
+    );
     if (!result.success) return result;
     return ok();
   }
 
-  removeQueuedPrompt(id: string): Result<void, AcpRuntimeError> {
-    const result = this.dispatch({ type: 'RemoveQueuedPrompt', id });
+  removeQueuedPrompt(id: string): Result<void, InvalidStateError> {
+    const result = this.dispatchFor<InvalidStateError>(
+      { type: 'RemoveQueuedPrompt', id },
+      ['invalid_state']
+    );
     if (!result.success) return result;
     return ok();
   }
 
-  reorderQueue(ids: readonly string[]): Result<void, AcpRuntimeError> {
-    const result = this.dispatch({ type: 'ReorderQueue', ids });
+  reorderQueue(ids: readonly string[]): Result<void, InvalidStateError> {
+    const result = this.dispatchFor<InvalidStateError>(
+      { type: 'ReorderQueue', ids },
+      ['invalid_state']
+    );
     if (!result.success) return result;
     return ok();
   }
 
-  async cancel(): Promise<Result<void, AcpRuntimeError>> {
-    const dispatchResult = this.dispatch({ type: 'Cancel' });
+  async cancel(): Promise<Result<void, AcpCancelTurnError>> {
+    const dispatchResult = this.dispatchFor<AcpCancelTurnError>({ type: 'Cancel' }, [
+      'invalid_state',
+    ]);
     if (!dispatchResult.success) return dispatchResult;
     try {
       await this.deps.agent.cancel({ sessionId: this.acpSessionId });
@@ -279,11 +298,14 @@ export class SessionCell {
     await this.deps.agent.closeSession({ sessionId: this.acpSessionId });
   }
 
-  resolvePermission(requestId: string, optionId: string): Result<void, AcpRuntimeError> {
+  resolvePermission(requestId: string, optionId: string): Result<void, InvalidStateError> {
     if (!this.machine.pendingPermissions.some((p) => p.requestId === requestId)) {
       return acpErr.invalidState(`No resolver for requestId '${requestId}'`);
     }
-    const dispatchResult = this.dispatch({ type: 'ResolvePermission', requestId, optionId });
+    const dispatchResult = this.dispatchFor<InvalidStateError>(
+      { type: 'ResolvePermission', requestId, optionId },
+      ['invalid_state']
+    );
     if (!dispatchResult.success) return dispatchResult;
     this.rawLog.record({
       kind: 'permission_resolved',
@@ -315,8 +337,11 @@ export class SessionCell {
     return this.permissions.request(request);
   }
 
-  async setMode(modeId: string): Promise<Result<void, AcpRuntimeError>> {
-    const result = this.dispatch({ type: 'SetMode', modeId });
+  async setMode(modeId: string): Promise<Result<void, AcpSetModeOptionError>> {
+    const result = this.dispatchFor<AcpSetModeOptionError>({ type: 'SetMode', modeId }, [
+      'invalid_state',
+      'set_mode_failed',
+    ]);
     if (!result.success) return result;
     const configId = this.transcript.config.modeOptions?.configId ?? null;
     if (configId && this.deps.agent.setSessionConfigOption) {
@@ -352,7 +377,7 @@ export class SessionCell {
   async setConfigOption(
     dimension: ConfigDimension,
     value: string
-  ): Promise<Result<void, AcpRuntimeError>> {
+  ): Promise<Result<void, AcpSetModelOptionError>> {
     const configId = this.configIdForDimension(dimension);
     if (!configId) {
       return acpErr.setConfigFailed({
@@ -360,7 +385,10 @@ export class SessionCell {
         message: `Agent connection does not expose ${dimension} configuration`,
       });
     }
-    const result = this.dispatch({ type: 'SetConfigOption', configId, value });
+    const result = this.dispatchFor<AcpSetModelOptionError>(
+      { type: 'SetConfigOption', configId, value },
+      ['invalid_state', 'set_config_failed']
+    );
     if (!result.success) return result;
     if (!this.deps.agent.setSessionConfigOption) return ok();
     try {
@@ -399,6 +427,16 @@ export class SessionCell {
     if (!result.success) return result;
     this.interpretEffects(result.data);
     return result;
+  }
+
+  private dispatchFor<E extends AcpRuntimeError>(
+    command: Command,
+    expected: readonly E['type'][]
+  ): Result<Effect[], E> {
+    const result = this.dispatch(command);
+    if (result.success) return result;
+    if (expected.includes(result.error.type as E['type'])) return result as Result<Effect[], E>;
+    throw new Error(`Unexpected ACP dispatch error '${result.error.type}'`);
   }
 
   private applyEvent(event: DomainEvent): void {
@@ -458,8 +496,10 @@ export class SessionCell {
 
   private async sendPromptInternal(
     prompt: QueuedPrompt
-  ): Promise<Result<SessionPromptResult, AcpRuntimeError>> {
-    const decision = this.dispatch({ type: 'Prompt', prompt });
+  ): Promise<Result<SessionPromptResult, AcpSendPromptError>> {
+    const decision = this.dispatchFor<AcpSendPromptError>({ type: 'Prompt', prompt }, [
+      'invalid_state',
+    ]);
     if (!decision.success) return decision;
     const started = decision.data.some(
       (effect) => effect.type === 'agentEvent' && effect.phase === 'start'

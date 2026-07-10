@@ -38,7 +38,9 @@ describe('AcpRuntime session manager', () => {
     rt.stopSession('conv-a');
     expect(h.lastChild.kill).not.toHaveBeenCalled();
     rt.stopSession('conv-b');
-    expect(h.lastChild.kill).toHaveBeenCalledWith('SIGTERM');
+    await vi.waitFor(() => {
+      expect(h.lastChild.kill).toHaveBeenCalledWith('SIGTERM');
+    });
   });
 
   it('publishes activeTurn patches without root replacement during incremental text growth', async () => {

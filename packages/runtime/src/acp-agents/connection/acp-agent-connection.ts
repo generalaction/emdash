@@ -36,7 +36,7 @@ export async function createAcpAgentConnection(
   args: {
     providerId: string;
     cwd: string;
-    /** Factory called once; the runtime passes its buildClientHandler result here. */
+    /** Factory called once; the runtime passes its buildAgentClient result here. */
     buildClient: (agent: AcpAgentApi) => Client;
     /** Called when the process exits unexpectedly or initialize fails. */
     onClosed: () => void;

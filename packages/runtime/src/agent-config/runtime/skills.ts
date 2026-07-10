@@ -5,7 +5,7 @@ import {
   parseFrontmatter,
   type CatalogSkill,
 } from '@emdash/core/skills';
-import type { AgentConfigError } from '@emdash/core/workspace-server';
+import type { AgentConfigSkillsError } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import type { AgentConfigSkillsModel } from '../state/live-models';
 import { publishLiveModelState } from '../state/live-models';
@@ -50,51 +50,73 @@ export class AgentSkillsManager {
     return installed;
   }
 
-  async installSkill(payload: SkillInstallPayload): Promise<Result<CatalogSkill[], AgentConfigError>> {
+  async installSkill(
+    payload: SkillInstallPayload
+  ): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
     const installId = payload.installId ?? payload.id;
     if (!isValidSkillName(installId)) {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${installId}"` });
     }
-    await this.deps.pluginFs.write(`${SKILLS_ROOT}/${installId}/SKILL.md`, payload.skillMdContent);
-    if (payload.source === 'skillssh' && payload.sourceRef && payload.catalogSkillId && payload.skillShPath) {
-      const installs = await readSkillShInstalls(this.deps.pluginFs);
-      installs[installId] = {
-        sourceRef: payload.sourceRef,
-        catalogSkillId: payload.catalogSkillId,
-        skillShPath: payload.skillShPath,
-      };
-      await writeSkillShInstalls(this.deps.pluginFs, installs);
+    try {
+      await this.deps.pluginFs.write(
+        `${SKILLS_ROOT}/${installId}/SKILL.md`,
+        payload.skillMdContent
+      );
+      if (
+        payload.source === 'skillssh' &&
+        payload.sourceRef &&
+        payload.catalogSkillId &&
+        payload.skillShPath
+      ) {
+        const installs = await readSkillShInstalls(this.deps.pluginFs);
+        installs[installId] = {
+          sourceRef: payload.sourceRef,
+          catalogSkillId: payload.catalogSkillId,
+          skillShPath: payload.skillShPath,
+        };
+        await writeSkillShInstalls(this.deps.pluginFs, installs);
+      }
+      return ok(await this.refresh());
+    } catch (error) {
+      return err(toIoError(error));
     }
-    return ok(await this.refresh());
   }
 
-  async removeSkill(name: string): Promise<Result<CatalogSkill[], AgentConfigError>> {
-    await this.deps.pluginFs.delete(`${SKILLS_ROOT}/${name}`);
-    const installs = await readSkillShInstalls(this.deps.pluginFs);
-    if (installs[name]) {
-      delete installs[name];
-      await writeSkillShInstalls(this.deps.pluginFs, installs);
+  async removeSkill(name: string): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
+    try {
+      await this.deps.pluginFs.delete(`${SKILLS_ROOT}/${name}`);
+      const installs = await readSkillShInstalls(this.deps.pluginFs);
+      if (installs[name]) {
+        delete installs[name];
+        await writeSkillShInstalls(this.deps.pluginFs, installs);
+      }
+      return ok(await this.refresh());
+    } catch (error) {
+      return err(toIoError(error));
     }
-    return ok(await this.refresh());
   }
 
   async createSkill(input: {
     name: string;
     description: string;
     content?: string;
-  }): Promise<Result<CatalogSkill[], AgentConfigError>> {
+  }): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
     if (!isValidSkillName(input.name)) {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${input.name}"` });
     }
-    const existing = await this.deps.pluginFs.exists(`${SKILLS_ROOT}/${input.name}/SKILL.md`);
-    if (existing) {
-      return err({ type: 'invalid-state', message: `Skill "${input.name}" already exists` });
+    try {
+      const existing = await this.deps.pluginFs.exists(`${SKILLS_ROOT}/${input.name}/SKILL.md`);
+      if (existing) {
+        return err({ type: 'invalid-state', message: `Skill "${input.name}" already exists` });
+      }
+      await this.deps.pluginFs.write(
+        `${SKILLS_ROOT}/${input.name}/SKILL.md`,
+        generateSkillMd(input.name, input.description, input.content)
+      );
+      return ok(await this.refresh());
+    } catch (error) {
+      return err(toIoError(error));
     }
-    await this.deps.pluginFs.write(
-      `${SKILLS_ROOT}/${input.name}/SKILL.md`,
-      generateSkillMd(input.name, input.description, input.content)
-    );
-    return ok(await this.refresh());
   }
 
   private publish(list: CatalogSkill[]): void {
@@ -102,6 +124,10 @@ export class AgentSkillsManager {
     this.list = list;
     publishLiveModelState(this.model.states.list, list, previous);
   }
+}
+
+function toIoError(error: unknown): AgentConfigSkillsError {
+  return { type: 'io', message: error instanceof Error ? error.message : String(error) };
 }
 
 async function getInstalledSkills(fs: PluginFs, homeDir: string): Promise<CatalogSkill[]> {

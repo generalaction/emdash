@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { result } from '../shared/schemas';
+import { runtimeUnavailableErrorSchema } from '../shared/schemas';
 
 export const tuiAgentStartInputSchema = z.object({
   /** Logical session key — used as the PTY registry key and emitted on events. */
@@ -119,17 +120,43 @@ export const tuiHookEventInputSchema = z.object({
 
 export type TuiHookEventInput = z.infer<typeof tuiHookEventInputSchema>;
 
+export const tuiUnknownProviderErrorSchema = z.object({
+  type: z.literal('unknown-provider'),
+  providerId: z.string(),
+});
+/** Provider plugin has no TUI prompt capability. */
+export const tuiNoCommandErrorSchema = z.object({
+  type: z.literal('no-command'),
+  providerId: z.string(),
+});
+export const tuiNotFoundErrorSchema = z.object({
+  type: z.literal('not-found'),
+  conversationId: z.string(),
+});
+
+export const tuiStartSessionErrorSchema = z.discriminatedUnion('type', [
+  tuiUnknownProviderErrorSchema,
+  tuiNoCommandErrorSchema,
+  runtimeUnavailableErrorSchema,
+]);
+export const tuiResumeSessionErrorSchema = tuiStartSessionErrorSchema;
+export const tuiSessionControlErrorSchema = runtimeUnavailableErrorSchema;
+export const tuiInputErrorSchema = z.discriminatedUnion('type', [
+  tuiNotFoundErrorSchema,
+  runtimeUnavailableErrorSchema,
+]);
 export const tuiAgentErrorSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('unknown-provider'), providerId: z.string() }),
-  /** Provider plugin has no TUI prompt capability. */
-  z.object({ type: z.literal('no-command'), providerId: z.string() }),
-  z.object({ type: z.literal('already-running'), conversationId: z.string() }),
-  z.object({ type: z.literal('not-found'), conversationId: z.string() }),
-  z.object({ type: z.literal('resume-unsupported'), providerId: z.string() }),
-  z.object({ type: z.literal('spawn-failed'), message: z.string() }),
+  tuiUnknownProviderErrorSchema,
+  tuiNoCommandErrorSchema,
+  tuiNotFoundErrorSchema,
+  runtimeUnavailableErrorSchema,
 ]);
 
 export type TuiAgentError = z.infer<typeof tuiAgentErrorSchema>;
+export type TuiStartSessionError = z.infer<typeof tuiStartSessionErrorSchema>;
+export type TuiResumeSessionError = z.infer<typeof tuiResumeSessionErrorSchema>;
+export type TuiSessionControlError = z.infer<typeof tuiSessionControlErrorSchema>;
+export type TuiInputError = z.infer<typeof tuiInputErrorSchema>;
 
 export const tuiVoidResultSchema = result(z.void(), tuiAgentErrorSchema);
 export const tuiResumeResultSchema = result(

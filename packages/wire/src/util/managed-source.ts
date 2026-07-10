@@ -5,6 +5,7 @@ import { createScope, type Scope } from './scope';
 export interface ManagedSource<K, T> {
   acquire(key: K): PendingLease<T>;
   peek(key: K): T | undefined;
+  invalidate(key: K): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -41,6 +42,11 @@ export function createManagedSource<K, T>(
     peek(key): T | undefined {
       const entry = entries.get(options.key(key));
       return entry?.hasValue === true ? entry.value : undefined;
+    },
+    async invalidate(key): Promise<void> {
+      const entry = entries.get(options.key(key));
+      if (!entry) return;
+      await disposeEntry(entry);
     },
     async dispose(): Promise<void> {
       if (disposed) return;

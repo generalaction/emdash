@@ -10,6 +10,7 @@ import {
   createSkillInputSchema,
   skillInstallPayloadSchema,
 } from '../../skills';
+import { runtimeUnavailableErrorSchema } from '../shared/schemas';
 
 export const dependencyCategorySchema = z.enum(['core', 'agent']);
 export const dependencyStatusSchema = z.enum(['available', 'missing', 'error']);
@@ -42,26 +43,65 @@ export const installCommandErrorSchema = z.union([
   z.object({ type: z.literal('pty-open-failed'), message: z.string() }),
 ]);
 
+export const agentConfigUnknownProviderErrorSchema = z.object({
+  type: z.literal('unknown-provider'),
+  providerId: z.string(),
+});
+export const agentConfigInvalidStateErrorSchema = z.object({
+  type: z.literal('invalid-state'),
+  message: z.string(),
+});
+export const agentConfigIoErrorSchema = z.object({
+  type: z.literal('io'),
+  path: z.string().optional(),
+  message: z.string(),
+});
+
 export const agentConfigErrorSchema = z.union([
-  z.object({ type: z.literal('unknown-provider'), providerId: z.string() }),
-  z.object({ type: z.literal('invalid-state'), message: z.string() }),
-  z.object({ type: z.literal('io'), path: z.string().optional(), message: z.string() }),
+  agentConfigUnknownProviderErrorSchema,
+  agentConfigInvalidStateErrorSchema,
+  agentConfigIoErrorSchema,
   installCommandErrorSchema,
+  runtimeUnavailableErrorSchema,
 ]);
 
 export const agentInstallErrorSchema = z.union([
-  z.object({ type: z.literal('unknown-provider'), providerId: z.string() }),
+  agentConfigUnknownProviderErrorSchema,
   z.object({ type: z.literal('no-install-command'), providerId: z.string() }),
   installCommandErrorSchema,
   z.object({ type: z.literal('not-detected-after-install'), providerId: z.string() }),
+  runtimeUnavailableErrorSchema,
 ]);
 
 export const agentUninstallErrorSchema = z.union([
-  z.object({ type: z.literal('unknown-provider'), providerId: z.string() }),
+  agentConfigUnknownProviderErrorSchema,
   z.object({ type: z.literal('no-uninstall-strategy'), providerId: z.string() }),
   z.object({ type: z.literal('no-uninstall-command'), providerId: z.string() }),
   z.object({ type: z.literal('still-present'), providerId: z.string() }),
   installCommandErrorSchema,
+  runtimeUnavailableErrorSchema,
+]);
+
+export const agentConfigAuthErrorSchema = z.union([
+  agentConfigUnknownProviderErrorSchema,
+  agentConfigInvalidStateErrorSchema,
+  runtimeUnavailableErrorSchema,
+]);
+export const agentConfigMcpErrorSchema = z.union([
+  agentConfigUnknownProviderErrorSchema,
+  agentConfigInvalidStateErrorSchema,
+  agentConfigIoErrorSchema,
+  runtimeUnavailableErrorSchema,
+]);
+export const agentConfigSkillsErrorSchema = z.union([
+  agentConfigInvalidStateErrorSchema,
+  agentConfigIoErrorSchema,
+  runtimeUnavailableErrorSchema,
+]);
+export const agentConfigRefreshErrorSchema = z.union([
+  agentConfigUnknownProviderErrorSchema,
+  agentConfigInvalidStateErrorSchema,
+  runtimeUnavailableErrorSchema,
 ]);
 
 export const agentConfigInstallStrategySchema = z.discriminatedUnion('kind', [
@@ -131,6 +171,10 @@ export { createSkillInputSchema, mcpServerSchema, skillInstallPayloadSchema };
 export type AgentConfigError = z.infer<typeof agentConfigErrorSchema>;
 export type AgentInstallError = z.infer<typeof agentInstallErrorSchema>;
 export type AgentUninstallError = z.infer<typeof agentUninstallErrorSchema>;
+export type AgentConfigAuthError = z.infer<typeof agentConfigAuthErrorSchema>;
+export type AgentConfigMcpError = z.infer<typeof agentConfigMcpErrorSchema>;
+export type AgentConfigSkillsError = z.infer<typeof agentConfigSkillsErrorSchema>;
+export type AgentConfigRefreshError = z.infer<typeof agentConfigRefreshErrorSchema>;
 export type DependencyState = z.infer<typeof dependencyStateSchema>;
 export type AuthStatusModelState = z.infer<typeof authStatusModelStateSchema>;
 export type AuthLoginState = z.infer<typeof authLoginStateSchema>;

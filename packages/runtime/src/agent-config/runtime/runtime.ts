@@ -1,6 +1,9 @@
 import type { McpServer } from '@emdash/core/mcp';
 import type {
-  AgentConfigError,
+  AgentConfigAuthError,
+  AgentConfigMcpError,
+  AgentConfigRefreshError,
+  AgentConfigSkillsError,
   AgentInstallError,
   AgentInstallProgress,
   AgentUninstallError,
@@ -71,7 +74,7 @@ export class AgentConfigRuntime {
   refreshAgents(input: {
     providerId?: string;
     refreshShellEnv?: boolean;
-  }): Promise<Result<void, AgentConfigError>> {
+  }): Promise<Result<void, AgentConfigRefreshError>> {
     return this.install.refresh(input);
   }
 
@@ -90,27 +93,27 @@ export class AgentConfigRuntime {
     return this.install.uninstall(providerId, strategy);
   }
 
-  refreshAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AgentConfigError>> {
+  refreshAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {
     return this.auth.refreshAuthStatus(providerId);
   }
 
-  startLogin(providerId: string, methodId: string): Promise<Result<void, AgentConfigError>> {
+  startLogin(providerId: string, methodId: string): Promise<Result<void, AgentConfigAuthError>> {
     return this.auth.startLogin(providerId, methodId);
   }
 
-  cancelLogin(providerId: string): Result<void, AgentConfigError> {
+  cancelLogin(providerId: string): Result<void, AgentConfigAuthError> {
     return this.auth.cancelLogin(providerId);
   }
 
-  sendLoginInput(providerId: string, data: string): Result<void, AgentConfigError> {
+  sendLoginInput(providerId: string, data: string): Result<void, AgentConfigAuthError> {
     return this.auth.sendLoginInput(providerId, data);
   }
 
-  resizeLogin(providerId: string, cols: number, rows: number): Result<void, AgentConfigError> {
+  resizeLogin(providerId: string, cols: number, rows: number): Result<void, AgentConfigAuthError> {
     return this.auth.resizeLogin(providerId, cols, rows);
   }
 
-  markUrlHandled(providerId: string, urlId: string): Result<void, AgentConfigError> {
+  markUrlHandled(providerId: string, urlId: string): Result<void, AgentConfigAuthError> {
     return this.auth.markUrlHandled(providerId, urlId);
   }
 
@@ -118,15 +121,15 @@ export class AgentConfigRuntime {
     return this.auth.loginOutput(providerId);
   }
 
-  saveMcpServer(server: McpServer): Promise<Result<void, AgentConfigError>> {
+  saveMcpServer(server: McpServer): Promise<Result<void, AgentConfigMcpError>> {
     return this.mcp.saveServer(server);
   }
 
-  removeMcpServer(name: string): Promise<Result<void, AgentConfigError>> {
+  removeMcpServer(name: string): Promise<Result<void, AgentConfigMcpError>> {
     return this.mcp.removeServer(name);
   }
 
-  listMcpForAgent(providerId: string): Promise<Result<McpServer[], AgentConfigError>> {
+  listMcpForAgent(providerId: string): Promise<Result<McpServer[], AgentConfigMcpError>> {
     return this.mcp.listForAgent(providerId);
   }
 
@@ -141,11 +144,11 @@ export class AgentConfigRuntime {
       skillShPath?: string;
       iconUrl?: string;
     };
-  }): Promise<Result<CatalogSkill[], AgentConfigError>> {
+  }): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
     return this.skills.installSkill(input.skill);
   }
 
-  removeSkill(name: string): Promise<Result<CatalogSkill[], AgentConfigError>> {
+  removeSkill(name: string): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
     return this.skills.removeSkill(name);
   }
 
@@ -153,7 +156,7 @@ export class AgentConfigRuntime {
     name: string;
     description: string;
     content?: string;
-  }): Promise<Result<CatalogSkill[], AgentConfigError>> {
+  }): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
     return this.skills.createSkill(input);
   }
 

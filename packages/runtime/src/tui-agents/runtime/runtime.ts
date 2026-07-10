@@ -1,10 +1,13 @@
 import type { ResolvedTuiProvider } from '@emdash/core/agents/plugins';
 import { PtyRegistry, type PtyExitInfo, type PtySession } from '@emdash/core/pty';
 import type {
-  TuiAgentError,
   TuiAgentStartInput,
+  TuiInputError,
   TuiResumeOutcome,
+  TuiResumeSessionError,
+  TuiSessionControlError,
   TuiSessionState,
+  TuiStartSessionError,
 } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import { LiveLog, managedLiveSource, type LiveSource } from '@emdash/wire';
@@ -75,7 +78,7 @@ export class TuiAgentsRuntime {
     });
   }
 
-  startSession(input: TuiAgentStartInput): Result<void, TuiAgentError> {
+  startSession(input: TuiAgentStartInput): Result<void, TuiStartSessionError> {
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return provider;
 
@@ -85,7 +88,9 @@ export class TuiAgentsRuntime {
     return ok(undefined);
   }
 
-  resumeSession(input: TuiAgentStartInput): Result<{ outcome: TuiResumeOutcome }, TuiAgentError> {
+  resumeSession(
+    input: TuiAgentStartInput
+  ): Result<{ outcome: TuiResumeOutcome }, TuiResumeSessionError> {
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return provider;
 
@@ -106,7 +111,7 @@ export class TuiAgentsRuntime {
     return ok({ outcome: input.sessionId ? 'resumed' : 'fresh-fallback' });
   }
 
-  stopSession(conversationId: string): Result<void, TuiAgentError> {
+  stopSession(conversationId: string): Result<void, TuiSessionControlError> {
     const config = this.configs.get(conversationId);
     if (config) this.configs.set(conversationId, { ...config, intent: 'stopped' });
     this.registry.dispose(conversationId);
@@ -117,7 +122,7 @@ export class TuiAgentsRuntime {
     return ok(undefined);
   }
 
-  deleteSession(conversationId: string): Result<void, TuiAgentError> {
+  deleteSession(conversationId: string): Result<void, TuiSessionControlError> {
     this.registry.dispose(conversationId);
     this.configs.delete(conversationId);
     this.logs.delete(conversationId);
@@ -131,7 +136,7 @@ export class TuiAgentsRuntime {
     return ok(undefined);
   }
 
-  sendInput(conversationId: string, data: string): Result<void, TuiAgentError> {
+  sendInput(conversationId: string, data: string): Result<void, TuiInputError> {
     const active = this.sessionsSource.peek({ conversationId });
     if (!active?.pty) return err({ type: 'not-found', conversationId });
     active.pty.write(data);
@@ -139,7 +144,7 @@ export class TuiAgentsRuntime {
     return ok(undefined);
   }
 
-  resize(conversationId: string, cols: number, rows: number): Result<void, TuiAgentError> {
+  resize(conversationId: string, cols: number, rows: number): Result<void, TuiInputError> {
     const active = this.sessionsSource.peek({ conversationId });
     if (!active?.pty) return err({ type: 'not-found', conversationId });
     active.pty.resize(cols, rows);
@@ -151,7 +156,7 @@ export class TuiAgentsRuntime {
     conversationId: string;
     eventType: string;
     body: Record<string, unknown>;
-  }): Result<void, TuiAgentError> {
+  }): Result<void, TuiSessionControlError> {
     const config = this.configs.get(input.conversationId);
     const provider = config
       ? this.deps.pluginHost.resolveTuiProvider(config.input.providerId)
@@ -330,7 +335,7 @@ export class TuiAgentsRuntime {
     return log;
   }
 
-  private resolveProvider(providerId: string): Result<ResolvedTuiProvider, TuiAgentError> {
+  private resolveProvider(providerId: string): Result<ResolvedTuiProvider, TuiStartSessionError> {
     const provider = this.deps.pluginHost.resolveTuiProvider(providerId);
     if (provider) return ok(provider);
     return this.deps.pluginHost.get(providerId)

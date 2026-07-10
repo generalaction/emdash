@@ -1,5 +1,5 @@
 import type { AcpProcessHost, TerminalState } from '@emdash/core/acp';
-import { ManagedAgentTerminal } from './managed-agent-terminal';
+import { ManagedAgentTerminal } from './managed-terminal';
 
 export interface AgentTerminalHooks {
   onTerminalCreated(e: {

@@ -1,7 +1,7 @@
 /**
  * ACP Client implementation for fixture recording.
  *
- * Mirrors the wiring of AcpSessionRuntime.buildClientHandler, replacing:
+ * Mirrors the wiring of AcpSessionRuntime.buildAgentClient, replacing:
  *   - sessionUpdate   → records raw SessionNotification verbatim
  *   - requestPermission → auto-approves (first allow_once/allow_always option) + records
  *   - readTextFile    → proxies node fs/promises + records

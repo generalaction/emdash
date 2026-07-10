@@ -1,5 +1,21 @@
 import type {
-  AcpRuntimeError,
+  AcpAttachmentError,
+  AcpCancelTurnError,
+  AcpChangeQueuePromptOrderError,
+  AcpDeleteQueuedPromptError,
+  AcpEditQueuedPromptError,
+  AcpExportRawLogError,
+  AcpExportTranscriptError,
+  AcpGetHistoryError,
+  AcpQueuePromptError,
+  AcpResolvePermissionError,
+  AcpResumeSessionError,
+  AcpSendPromptError,
+  AcpSetModeOptionError,
+  AcpSetModelOptionError,
+  AcpSetPromptDraftError,
+  AcpStartSessionError,
+  AcpStopSessionError,
   AttachmentMimeType,
   AttachmentRef,
   PromptDraftUpdate,
@@ -13,8 +29,9 @@ import { acpErr } from '@emdash/core/acp';
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import type { LiveLog } from '@emdash/wire';
-import { AgentTerminalManager } from '../agent-terminal-manager';
-import { FsPort, TerminalPort } from '../client-ports';
+import { FsPort } from '../agent-ports/fs-port';
+import { AgentTerminalManager } from '../agent-ports/terminal-manager';
+import { TerminalPort } from '../agent-ports/terminal-port';
 import { ConnectionPool } from '../connection/pool';
 import type { SessionLiveModels, SessionsListModel } from '../state/live-models';
 import type { StoredAttachment } from './attachment-store';
@@ -48,35 +65,35 @@ export class AcpRuntime {
     this.manager = manager;
   }
 
-  startSession(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpRuntimeError>> {
+  startSession(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
     return this.manager.start(input);
   }
 
   async resumeSession(
     input: AcpStartInput & { sessionId: string },
     limit = 50
-  ): Promise<Result<ResumeResult, AcpRuntimeError>> {
+  ): Promise<Result<ResumeResult, AcpResumeSessionError>> {
     const result = await this.manager.start(input);
     if (!result.success) return result;
     const page = this.manager.getHistory(input.conversationId, undefined, limit);
     return ok({ sessionId: result.data.sessionId, ...page });
   }
 
-  stopSession(conversationId: string): Result<void, AcpRuntimeError> {
+  stopSession(conversationId: string): Result<void, AcpStopSessionError> {
     return this.manager.stop(conversationId);
   }
 
   sendPrompt(
     conversationId: string,
     prompt: PromptInput
-  ): Promise<Result<{ queued: boolean }, AcpRuntimeError>> {
+  ): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
     return this.manager.prompt({ conversationId, prompt });
   }
 
   queuePrompt(
     conversationId: string,
     prompt: PromptInput
-  ): Result<{ queued: boolean }, AcpRuntimeError> {
+  ): Result<{ queued: boolean }, AcpQueuePromptError> {
     return this.manager.queuePrompt({ conversationId, prompt });
   }
 
@@ -84,26 +101,32 @@ export class AcpRuntime {
     conversationId: string,
     id: string,
     prompt: PromptInput
-  ): Result<void, AcpRuntimeError> {
+  ): Result<void, AcpEditQueuedPromptError> {
     return this.manager.editQueuedPrompt(conversationId, id, prompt);
   }
 
-  deleteQueuedPrompt(conversationId: string, id: string): Result<void, AcpRuntimeError> {
+  deleteQueuedPrompt(
+    conversationId: string,
+    id: string
+  ): Result<void, AcpDeleteQueuedPromptError> {
     return this.manager.removeQueuedPrompt(conversationId, id);
   }
 
   changeQueuePromptOrder(
     conversationId: string,
     ids: readonly string[]
-  ): Result<void, AcpRuntimeError> {
+  ): Result<void, AcpChangeQueuePromptOrderError> {
     return this.manager.reorderQueue(conversationId, ids);
   }
 
-  cancelTurn(conversationId: string): Promise<Result<void, AcpRuntimeError>> {
+  cancelTurn(conversationId: string): Promise<Result<void, AcpCancelTurnError>> {
     return this.manager.cancel(conversationId);
   }
 
-  setPromptDraft(conversationId: string, draft: PromptDraftUpdate): Result<void, AcpRuntimeError> {
+  setPromptDraft(
+    conversationId: string,
+    draft: PromptDraftUpdate
+  ): Result<void, AcpSetPromptDraftError> {
     return this.manager.setPromptDraft(conversationId, draft);
   }
 
@@ -111,11 +134,14 @@ export class AcpRuntime {
     conversationId: string,
     requestId: string,
     optionId: string
-  ): Result<void, AcpRuntimeError> {
+  ): Result<void, AcpResolvePermissionError> {
     return this.manager.resolvePermission(conversationId, requestId, optionId);
   }
 
-  setModeOption(conversationId: string, modeId: string): Promise<Result<void, AcpRuntimeError>> {
+  setModeOption(
+    conversationId: string,
+    modeId: string
+  ): Promise<Result<void, AcpSetModeOptionError>> {
     return this.manager.setMode(conversationId, modeId);
   }
 
@@ -123,7 +149,7 @@ export class AcpRuntime {
     conversationId: string,
     dimension: 'model' | 'effort',
     value: string
-  ): Promise<Result<void, AcpRuntimeError>> {
+  ): Promise<Result<void, AcpSetModelOptionError>> {
     return this.manager.setConfigOption(conversationId, dimension, value);
   }
 
@@ -131,7 +157,7 @@ export class AcpRuntime {
     conversationId: string,
     before?: number,
     limit?: number
-  ): Result<HistoryPage, AcpRuntimeError> {
+  ): Result<HistoryPage, AcpGetHistoryError> {
     return ok(this.manager.getHistory(conversationId, before, limit));
   }
 
@@ -142,11 +168,11 @@ export class AcpRuntime {
     return this.manager.getChatHistory(conversationId);
   }
 
-  exportParsedTranscript(conversationId: string): Result<string, AcpRuntimeError> {
+  exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {
     return this.manager.exportParsedTranscript(conversationId);
   }
 
-  exportRawAcpLog(conversationId: string): Result<string, AcpRuntimeError> {
+  exportRawAcpLog(conversationId: string): Result<string, AcpExportRawLogError> {
     return this.manager.exportRawAcpLog(conversationId);
   }
 
@@ -171,19 +197,19 @@ export class AcpRuntime {
     mimeType: AttachmentMimeType;
     name?: string;
     originalPath?: string;
-  }): Promise<Result<AttachmentRef, AcpRuntimeError>> {
+  }): Promise<Result<AttachmentRef, AcpAttachmentError>> {
     if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
     return ok(await this.deps.attachmentStore.put(input));
   }
 
-  async downloadAttachment(id: string): Promise<Result<StoredAttachment, AcpRuntimeError>> {
+  async downloadAttachment(id: string): Promise<Result<StoredAttachment, AcpAttachmentError>> {
     if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
     const stored = await this.deps.attachmentStore.get(id);
     if (!stored) return acpErr.invalidState(`Attachment '${id}' not found`);
     return ok(stored);
   }
 
-  async deleteAttachment(id: string): Promise<Result<void, AcpRuntimeError>> {
+  async deleteAttachment(id: string): Promise<Result<void, AcpAttachmentError>> {
     if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
     await this.deps.attachmentStore.delete(id);
     return ok();
@@ -209,7 +235,8 @@ export class AcpRuntime {
     return this.terminalLiveRegistry.getTerminalLog(terminalId);
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.killAllTerminals();
+    await this.pool.dispose();
   }
 }

@@ -1080,7 +1080,7 @@ import type { Result } from '@emdash/shared';
 import { isErr, LifecycleMap, ok, toSerializedError } from '@emdash/shared';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import { createAcpAgentConnection } from './acp-agent-connection';
-import { AgentTerminalManager } from './agent-terminal-manager';
+import { AgentTerminalManager } from './agent-ports/terminal-manager';
 
 ===== session-machine.ts =====
 /**

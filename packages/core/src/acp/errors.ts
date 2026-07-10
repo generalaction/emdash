@@ -11,9 +11,6 @@ export type ProviderUnsupportedError = BaseError<'provider_unsupported'>;
 /** No conversation with the given id is tracked in the runtime. */
 export type ConversationNotFoundError = BaseError<'conversation_not_found'>;
 
-/** The conversation exists but no ACP session id has been assigned yet. */
-export type NoActiveSessionError = BaseError<'no_active_session'>;
-
 /**
  * A command was issued but the current lifecycle state does not allow it,
  * e.g. Prompt while already working.
@@ -32,9 +29,6 @@ export type NewSessionFailedError = BaseError<'new_session_failed', SerializedEr
 /** The agent requires authentication before a session can be started. */
 export type AuthRequiredError = BaseError<'auth_required', SerializedError>;
 
-/** The agent's loadSession call failed. */
-export type LoadSessionFailedError = BaseError<'load_session_failed', SerializedError>;
-
 /** A prompt() call to the agent failed. */
 export type PromptFailedError = BaseError<'prompt_failed', SerializedError>;
 
@@ -50,17 +44,48 @@ export type SetModeFailedError = BaseError<'set_mode_failed', SerializedError>;
 export type AcpRuntimeError =
   | ProviderUnsupportedError
   | ConversationNotFoundError
-  | NoActiveSessionError
   | InvalidStateError
   | SpawnFailedError
   | InitializeFailedError
   | NewSessionFailedError
   | AuthRequiredError
-  | LoadSessionFailedError
   | PromptFailedError
   | CancelFailedError
   | SetConfigFailedError
   | SetModeFailedError;
+
+export type AcpStartSessionError =
+  | ProviderUnsupportedError
+  | AuthRequiredError
+  | SpawnFailedError
+  | InitializeFailedError
+  | NewSessionFailedError
+  | InvalidStateError;
+export type AcpResumeSessionError = AcpStartSessionError;
+export type AcpStopSessionError = never;
+export type AcpSendPromptError =
+  | ConversationNotFoundError
+  | InvalidStateError
+  | PromptFailedError;
+export type AcpQueuePromptError = ConversationNotFoundError | InvalidStateError;
+export type AcpEditQueuedPromptError = AcpQueuePromptError;
+export type AcpDeleteQueuedPromptError = AcpQueuePromptError;
+export type AcpChangeQueuePromptOrderError = AcpQueuePromptError;
+export type AcpResolvePermissionError = AcpQueuePromptError;
+export type AcpSetPromptDraftError = ConversationNotFoundError;
+export type AcpCancelTurnError = InvalidStateError | CancelFailedError;
+export type AcpSetModelOptionError =
+  | ConversationNotFoundError
+  | InvalidStateError
+  | SetConfigFailedError;
+export type AcpSetModeOptionError =
+  | ConversationNotFoundError
+  | InvalidStateError
+  | SetModeFailedError;
+export type AcpExportTranscriptError = ConversationNotFoundError;
+export type AcpExportRawLogError = ConversationNotFoundError;
+export type AcpAttachmentError = InvalidStateError;
+export type AcpGetHistoryError = never;
 
 export const acpErr = {
   providerUnsupported: (providerId: string) =>
@@ -68,9 +93,6 @@ export const acpErr = {
 
   conversationNotFound: (conversationId: string) =>
     fail('conversation_not_found', { message: conversationId }),
-
-  noActiveSession: (conversationId: string) =>
-    fail('no_active_session', { message: conversationId }),
 
   invalidState: (message: string) => fail('invalid_state', { message }),
 
@@ -81,8 +103,6 @@ export const acpErr = {
   newSessionFailed: (cause: SerializedError) => fail('new_session_failed', { cause }),
 
   authRequired: (cause: SerializedError) => fail('auth_required', { cause }),
-
-  loadSessionFailed: (cause: SerializedError) => fail('load_session_failed', { cause }),
 
   promptFailed: (cause: SerializedError) => fail('prompt_failed', { cause }),
 

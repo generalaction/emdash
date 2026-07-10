@@ -111,6 +111,50 @@ describe('createManagedSource', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it('invalidates an active entry regardless of ref count', async () => {
+    const cleanup = vi.fn();
+    const create = vi.fn(async (key: string, scope: Scope) => {
+      scope.add(cleanup);
+      return { key, generation: create.mock.calls.length };
+    });
+    const source = createManagedSource({ key: (key: string) => key, create });
+
+    const first = source.acquire('same');
+    const firstValue = await first.ready();
+    await source.invalidate('same');
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(source.peek('same')).toBeUndefined();
+
+    const second = source.acquire('same');
+    await expect(second.ready()).resolves.toEqual({ key: 'same', generation: 2 });
+    expect(source.peek('same')).not.toBe(firstValue);
+    await first.release();
+    await second.release();
+  });
+
+  it('invalidates a grace-period entry immediately', async () => {
+    vi.useFakeTimers();
+    const cleanup = vi.fn();
+    const source = createManagedSource({
+      key: (key: string) => key,
+      graceMs: 100,
+      create: async (key: string, scope: Scope) => {
+        scope.add(cleanup);
+        return key;
+      },
+    });
+
+    const lease = source.acquire('same');
+    await lease.ready();
+    await lease.release();
+    await source.invalidate('same');
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(source.peek('same')).toBeUndefined();
+  });
+
   it('rejects new acquires after disposal', async () => {
     const source = createManagedSource({
       key: (key: string) => key,

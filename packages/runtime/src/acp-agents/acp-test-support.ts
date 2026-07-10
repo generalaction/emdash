@@ -26,7 +26,7 @@ import {
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@emdash/core/pty';
 import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
-import type { AgentTerminalHooks } from './agent-terminal-manager';
+import type { AgentTerminalHooks } from './agent-ports/terminal-manager';
 import type { AcpRuntimeDeps, AcpStartInput } from './runtime/types';
 
 /**

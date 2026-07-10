@@ -137,7 +137,8 @@ function createAcpProxy(
 function unavailableTuiAgents(): NonNullable<
   ContractImpl<typeof workspaceWireContract>['tuiAgents']
 > {
-  const unavailable = () => err({ type: 'spawn-failed' as const, message: notImplementedMessage });
+  const unavailable = () =>
+    err({ type: 'runtime-unavailable' as const, message: notImplementedMessage });
 
   return {
     startSession: unavailable,
@@ -156,21 +157,21 @@ function unavailableTuiAgents(): NonNullable<
 function unavailableAgentConfig(): NonNullable<
   ContractImpl<typeof workspaceWireContract>['agentConfig']
 > {
-  const unavailable = () => err({ type: 'invalid-state' as const, message: notImplementedMessage });
+  const unavailable = () =>
+    err({ type: 'runtime-unavailable' as const, message: notImplementedMessage });
   return {
     agents: unavailableLiveModel(workspaceWireContract.agentConfig.agents),
     refreshAgents: unavailable,
     installAgent: {
-      run: async (input) =>
-        err({ type: 'command-failed' as const, message: notImplementedMessage, output: input.providerId }),
+      run: async () =>
+        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
       toError: (error) => ({
         type: 'command-failed' as const,
         message: error instanceof Error ? error.message : String(error),
         output: '',
       }),
     },
-    uninstallAgent: (input) =>
-      err({ type: 'unknown-provider' as const, providerId: input.providerId }),
+    uninstallAgent: unavailable,
     startLogin: unavailable,
     cancelLogin: unavailable,
     sendLoginInput: unavailable,

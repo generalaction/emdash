@@ -2,9 +2,12 @@ import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from
 import { z } from 'zod';
 import { agentAuthStatusSchema } from '../../agents/plugins/capabilities/auth';
 import {
-  agentConfigErrorSchema,
+  agentConfigAuthErrorSchema,
   agentConfigInstallStrategySchema,
   agentConfigListSchema,
+  agentConfigMcpErrorSchema,
+  agentConfigRefreshErrorSchema,
+  agentConfigSkillsErrorSchema,
   agentConfigUninstallStrategySchema,
   agentInstallErrorSchema,
   agentInstallProgressSchema,
@@ -34,7 +37,7 @@ export const agentConfigContract = defineContract({
   refreshAgents: fallible({
     input: z.object({ providerId: z.string().optional(), refreshShellEnv: z.boolean().optional() }),
     data: z.void(),
-    error: agentConfigErrorSchema,
+    error: agentConfigRefreshErrorSchema,
   }),
   installAgent: liveJob({
     input: provider.extend({ strategy: agentConfigInstallStrategySchema }),
@@ -51,32 +54,32 @@ export const agentConfigContract = defineContract({
   startLogin: fallible({
     input: startLoginCommandSchema,
     data: z.void(),
-    error: agentConfigErrorSchema,
+    error: agentConfigAuthErrorSchema,
   }),
   cancelLogin: fallible({
     input: providerCommandSchema,
     data: z.void(),
-    error: agentConfigErrorSchema,
+    error: agentConfigAuthErrorSchema,
   }),
   sendLoginInput: fallible({
     input: sendLoginInputCommandSchema,
     data: z.void(),
-    error: agentConfigErrorSchema,
+    error: agentConfigAuthErrorSchema,
   }),
   resizeLogin: fallible({
     input: resizeLoginCommandSchema,
     data: z.void(),
-    error: agentConfigErrorSchema,
+    error: agentConfigAuthErrorSchema,
   }),
   markUrlHandled: fallible({
     input: markUrlHandledCommandSchema,
     data: z.void(),
-    error: agentConfigErrorSchema,
+    error: agentConfigAuthErrorSchema,
   }),
   refreshAuthStatus: fallible({
     input: providerCommandSchema,
     data: agentAuthStatusSchema,
-    error: agentConfigErrorSchema,
+    error: agentConfigAuthErrorSchema,
   }),
   loginOutput: liveLog({ key: providerCommandSchema }),
 
@@ -89,17 +92,17 @@ export const agentConfigContract = defineContract({
   saveMcpServer: fallible({
     input: z.object({ server: mcpServerSchema }),
     data: z.void(),
-    error: agentConfigErrorSchema,
+    error: agentConfigMcpErrorSchema,
   }),
   removeMcpServer: fallible({
     input: z.object({ name: z.string() }),
     data: z.void(),
-    error: agentConfigErrorSchema,
+    error: agentConfigMcpErrorSchema,
   }),
   listMcpForAgent: fallible({
     input: providerCommandSchema,
     data: mcpServerListSchema,
-    error: agentConfigErrorSchema,
+    error: agentConfigMcpErrorSchema,
   }),
 
   skills: liveModel({
@@ -111,17 +114,17 @@ export const agentConfigContract = defineContract({
   installSkill: fallible({
     input: z.object({ skill: skillInstallPayloadSchema }),
     data: installedSkillsSchema,
-    error: agentConfigErrorSchema,
+    error: agentConfigSkillsErrorSchema,
   }),
   removeSkill: fallible({
     input: z.object({ name: z.string() }),
     data: installedSkillsSchema,
-    error: agentConfigErrorSchema,
+    error: agentConfigSkillsErrorSchema,
   }),
   createSkill: fallible({
     input: createSkillInputSchema,
     data: installedSkillsSchema,
-    error: agentConfigErrorSchema,
+    error: agentConfigSkillsErrorSchema,
   }),
 });
 

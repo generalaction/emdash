@@ -4,7 +4,7 @@ import {
   registrationToMcpServer,
   type McpServer,
 } from '@emdash/core/mcp';
-import type { AgentConfigError } from '@emdash/core/workspace-server';
+import type { AgentConfigMcpError } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import type { AgentConfigMcpModel } from '../state/live-models';
 import { publishLiveModelState } from '../state/live-models';
@@ -29,51 +29,66 @@ export class AgentMcpConfigManager {
     return installed;
   }
 
-  async saveServer(server: McpServer): Promise<Result<void, AgentConfigError>> {
+  async saveServer(server: McpServer): Promise<Result<void, AgentConfigMcpError>> {
     if (!server.name || !/^[\w\-._]+$/.test(server.name)) {
       return err({ type: 'invalid-state', message: `Invalid server name: "${server.name}"` });
     }
-    return this.withWriteLock(async () => {
-      const selectedProviders = new Set(server.providers);
-      for (const provider of this.getMcpProviders()) {
-        const agentId = provider.metadata.id;
-        const behavior = provider.behavior.mcp;
-        if (!behavior) continue;
-        let regs = await behavior.readServers(this.deps.pluginFs).catch(() => []);
-        const idx = regs.findIndex((reg) => reg.name === server.name);
-        if (selectedProviders.has(agentId)) {
-          const next = mcpServerToRegistration(server);
-          if (idx >= 0) regs[idx] = next;
-          else regs = [...regs, next];
-        } else if (idx >= 0) {
-          regs.splice(idx, 1);
+    for (const providerId of server.providers) {
+      if (!this.deps.pluginHost.get(providerId)) return err({ type: 'unknown-provider', providerId });
+    }
+    try {
+      return await this.withWriteLock(async () => {
+        const selectedProviders = new Set(server.providers);
+        for (const provider of this.getMcpProviders()) {
+          const agentId = provider.metadata.id;
+          const behavior = provider.behavior.mcp;
+          if (!behavior) continue;
+          let regs = await behavior.readServers(this.deps.pluginFs).catch(() => []);
+          const idx = regs.findIndex((reg) => reg.name === server.name);
+          if (selectedProviders.has(agentId)) {
+            const next = mcpServerToRegistration(server);
+            if (idx >= 0) regs[idx] = next;
+            else regs = [...regs, next];
+          } else if (idx >= 0) {
+            regs.splice(idx, 1);
+          }
+          await behavior.writeServers?.(this.deps.pluginFs, regs);
         }
-        await behavior.writeServers?.(this.deps.pluginFs, regs);
-      }
-      await this.refresh();
-      return ok();
-    });
+        await this.refresh();
+        return ok();
+      });
+    } catch (error) {
+      return err(toIoError(error));
+    }
   }
 
-  async removeServer(name: string): Promise<Result<void, AgentConfigError>> {
-    return this.withWriteLock(async () => {
-      for (const provider of this.getMcpProviders()) {
-        const behavior = provider.behavior.mcp;
-        if (!behavior) continue;
-        await behavior.removeServer?.(this.deps.pluginFs, name);
-      }
-      await this.refresh();
-      return ok();
-    });
+  async removeServer(name: string): Promise<Result<void, AgentConfigMcpError>> {
+    try {
+      return await this.withWriteLock(async () => {
+        for (const provider of this.getMcpProviders()) {
+          const behavior = provider.behavior.mcp;
+          if (!behavior) continue;
+          await behavior.removeServer?.(this.deps.pluginFs, name);
+        }
+        await this.refresh();
+        return ok();
+      });
+    } catch (error) {
+      return err(toIoError(error));
+    }
   }
 
-  async listForAgent(providerId: string): Promise<Result<McpServer[], AgentConfigError>> {
+  async listForAgent(providerId: string): Promise<Result<McpServer[], AgentConfigMcpError>> {
     const provider = this.deps.pluginHost.get(providerId);
     if (!provider) return err({ type: 'unknown-provider', providerId });
     const behavior = provider.behavior.mcp;
     if (!behavior) return ok([]);
-    const regs = await behavior.readServers(this.deps.pluginFs);
-    return ok(regs.map((reg) => registrationToMcpServer(reg, [providerId])));
+    try {
+      const regs = await behavior.readServers(this.deps.pluginFs);
+      return ok(regs.map((reg) => registrationToMcpServer(reg, [providerId])));
+    } catch (error) {
+      return err(toIoError(error));
+    }
   }
 
   private async readAll(): Promise<McpServer[]> {
@@ -135,5 +150,9 @@ export class AgentMcpConfigManager {
     this.list = list;
     publishLiveModelState(this.model.states.list, list, previous);
   }
+}
+
+function toIoError(error: unknown): AgentConfigMcpError {
+  return { type: 'io', message: error instanceof Error ? error.message : String(error) };
 }
 

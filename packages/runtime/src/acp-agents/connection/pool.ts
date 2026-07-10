@@ -2,13 +2,15 @@ import type { Client, SessionUpdate } from '@agentclientprotocol/sdk';
 import type {
   AcpProcessHandle,
   AcpProcessHost,
-  AcpRuntimeError,
+  InitializeFailedError,
   NormalizedEvent,
+  SpawnFailedError,
 } from '@emdash/core/acp';
 import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
-import type { Result } from '@emdash/shared';
-import { isErr, LifecycleMap, ok } from '@emdash/shared';
+import type { Lease, Result } from '@emdash/shared';
+import { err, isErr, ok } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
+import { createManagedSource, type ManagedSource, type Scope } from '@emdash/wire/util';
 import { createAcpAgentConnection } from './acp-agent-connection';
 
 export interface ConnectionPoolEntry {
@@ -23,7 +25,13 @@ export interface ConnectionPoolEntry {
 
 interface PooledProcess extends ConnectionPoolEntry {
   handle: AcpProcessHandle;
-  refCount: number;
+}
+
+export type ConnectionPoolError = SpawnFailedError | InitializeFailedError;
+
+export interface AcquiredConnection {
+  entry: ConnectionPoolEntry;
+  lease: Lease<ConnectionPoolEntry>;
 }
 
 export interface ConnectionPoolDeps {
@@ -41,9 +49,25 @@ export interface AcquireConnectionInput {
 }
 
 export class ConnectionPool {
-  private readonly processes = new LifecycleMap<PooledProcess, AcpRuntimeError, void>();
+  private readonly source: ManagedSource<string, PooledProcess>;
+  private readonly inputs = new Map<string, AcquireConnectionInput>();
 
-  constructor(private readonly deps: ConnectionPoolDeps) {}
+  constructor(private readonly deps: ConnectionPoolDeps) {
+    this.source = createManagedSource({
+      key: (key: string) => key,
+      create: async (key, scope) => {
+        const input = this.inputs.get(key);
+        if (!input) throw new Error(`ConnectionPool: missing acquire input for '${key}'`);
+        return this.provision(key, input, scope);
+      },
+      onError: (error, key) => {
+        this.deps.logger.warn('ConnectionPool: provisioning failed', {
+          key,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      },
+    });
+  }
 
   makeKey(providerId: string, workspaceId: string): string {
     return `${providerId}:${workspaceId}`;
@@ -51,43 +75,43 @@ export class ConnectionPool {
 
   async acquire(
     input: AcquireConnectionInput
-  ): Promise<Result<ConnectionPoolEntry, AcpRuntimeError>> {
+  ): Promise<Result<AcquiredConnection, ConnectionPoolError>> {
     const key = this.makeKey(input.providerId, input.workspaceId);
-    const result = await this.processes.provision(key, () => this.provision(key, input));
-    if (isErr(result)) return result;
+    this.inputs.set(key, input);
 
-    result.data.refCount += 1;
-    return ok(this.entry(result.data));
+    try {
+      const pending = this.source.acquire(key);
+      const process = await pending.ready();
+      const entry = this.entry(process);
+      const lease: Lease<ConnectionPoolEntry> = {
+        value: entry,
+        release: pending.release,
+      };
+      return ok({ entry, lease });
+    } catch (error) {
+      if (isConnectionPoolError(error)) return err(error);
+      throw error;
+    }
   }
 
   get(key: string): ConnectionPoolEntry | null {
-    const process = this.processes.get(key);
+    const process = this.source.peek(key);
     return process ? this.entry(process) : null;
   }
 
-  release(key: string): void {
-    const process = this.processes.get(key);
-    if (!process) return;
-
-    process.refCount = Math.max(0, process.refCount - 1);
-    if (process.refCount > 0) return;
-    this.teardown(key, process);
+  forgetClosed(key: string): Promise<void> {
+    return this.source.invalidate(key);
   }
 
-  teardownNow(key: string): void {
-    const process = this.processes.get(key);
-    if (!process) return;
-    this.teardown(key, process);
-  }
-
-  forgetClosed(key: string): void {
-    this.processes.teardown(key, async () => ok());
+  dispose(): Promise<void> {
+    return this.source.dispose();
   }
 
   private async provision(
     key: string,
-    input: AcquireConnectionInput
-  ): Promise<Result<PooledProcess, AcpRuntimeError>> {
+    input: AcquireConnectionInput,
+    scope: Scope
+  ): Promise<PooledProcess> {
     const connection = await createAcpAgentConnection(
       { host: this.deps.host, behavior: input.behavior, logger: this.deps.logger },
       {
@@ -95,17 +119,25 @@ export class ConnectionPool {
         cwd: input.cwd,
         buildClient: (agent) => input.buildClient(agent, key),
         onClosed: () => {
-          const process = this.processes.get(key);
+          const process = this.source.peek(key);
           this.deps.onClosed(key, process?.handle.exitCode ?? null);
         },
       }
     );
-    if (isErr(connection)) return connection;
+    if (isErr(connection)) throw connection.error;
+
+    scope.add(() => {
+      try {
+        connection.data.handle.kill('SIGTERM');
+      } catch {
+        // ignore process teardown errors
+      }
+    });
 
     const capabilities = await connection.data.initialized;
-    if (isErr(capabilities)) return capabilities;
+    if (isErr(capabilities)) throw capabilities.error;
 
-    return ok({
+    return {
       key,
       providerId: input.providerId,
       workspaceId: input.workspaceId,
@@ -114,17 +146,7 @@ export class ConnectionPool {
       agent: connection.data.agent,
       normalize: connection.data.normalize,
       supportsLoadSession: capabilities.data.supportsLoadSession,
-      refCount: 0,
-    });
-  }
-
-  private teardown(key: string, process: PooledProcess): void {
-    try {
-      process.handle.kill('SIGTERM');
-    } catch {
-      // ignore process teardown errors
-    }
-    this.processes.teardown(key, async () => ok());
+    };
   }
 
   private entry(process: PooledProcess): ConnectionPoolEntry {
@@ -138,4 +160,10 @@ export class ConnectionPool {
       supportsLoadSession: process.supportsLoadSession,
     };
   }
+}
+
+function isConnectionPoolError(error: unknown): error is ConnectionPoolError {
+  if (typeof error !== 'object' || error === null) return false;
+  const type = (error as { type?: unknown }).type;
+  return type === 'spawn_failed' || type === 'initialize_failed';
 }

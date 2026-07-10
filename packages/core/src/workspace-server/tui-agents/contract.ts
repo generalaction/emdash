@@ -1,12 +1,15 @@
 import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire';
 import { z } from 'zod';
 import {
-  tuiAgentErrorSchema,
   tuiAgentStartInputSchema,
   tuiHookEventInputSchema,
+  tuiInputErrorSchema,
   tuiNotificationListSchema,
   tuiResumeOutcomeSchema,
+  tuiResumeSessionErrorSchema,
+  tuiSessionControlErrorSchema,
   tuiSessionListSchema,
+  tuiStartSessionErrorSchema,
 } from './schemas';
 
 const conv = z.object({ conversationId: z.string() });
@@ -21,7 +24,7 @@ export const tuiAgentsContract = defineContract({
   startSession: fallible({
     input: z.object({ input: tuiAgentStartInputSchema }),
     data: z.void(),
-    error: tuiAgentErrorSchema,
+    error: tuiStartSessionErrorSchema,
   }),
 
   /**
@@ -33,7 +36,7 @@ export const tuiAgentsContract = defineContract({
   resumeSession: fallible({
     input: z.object({ input: tuiAgentStartInputSchema }),
     data: z.object({ outcome: tuiResumeOutcomeSchema }),
-    error: tuiAgentErrorSchema,
+    error: tuiResumeSessionErrorSchema,
   }),
 
   /**
@@ -43,7 +46,7 @@ export const tuiAgentsContract = defineContract({
   stopSession: fallible({
     input: conv,
     data: z.void(),
-    error: tuiAgentErrorSchema,
+    error: tuiSessionControlErrorSchema,
   }),
 
   /**
@@ -52,7 +55,7 @@ export const tuiAgentsContract = defineContract({
   deleteSession: fallible({
     input: conv,
     data: z.void(),
-    error: tuiAgentErrorSchema,
+    error: tuiSessionControlErrorSchema,
   }),
 
   /**
@@ -61,7 +64,7 @@ export const tuiAgentsContract = defineContract({
   sendInput: fallible({
     input: conv.extend({ data: z.string() }),
     data: z.void(),
-    error: tuiAgentErrorSchema,
+    error: tuiInputErrorSchema,
   }),
 
   /**
@@ -70,7 +73,7 @@ export const tuiAgentsContract = defineContract({
   resize: fallible({
     input: conv.extend({ cols: z.number().int(), rows: z.number().int() }),
     data: z.void(),
-    error: tuiAgentErrorSchema,
+    error: tuiInputErrorSchema,
   }),
 
   /**
@@ -79,7 +82,7 @@ export const tuiAgentsContract = defineContract({
   emitHookEvent: fallible({
     input: tuiHookEventInputSchema,
     data: z.void(),
-    error: tuiAgentErrorSchema,
+    error: tuiSessionControlErrorSchema,
   }),
 
   /**

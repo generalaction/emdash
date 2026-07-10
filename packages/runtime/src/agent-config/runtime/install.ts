@@ -8,6 +8,7 @@ import {
 import type {
   AgentConfigEntry,
   AgentConfigList,
+  AgentConfigRefreshError,
   AgentInstallError,
   AgentInstallProgress,
   AgentUninstallError,
@@ -64,7 +65,7 @@ export class AgentInstallManager {
   async refresh(input: {
     providerId?: string;
     refreshShellEnv?: boolean;
-  }): Promise<Result<void, { type: 'unknown-provider'; providerId: string }>> {
+  }): Promise<Result<void, AgentConfigRefreshError>> {
     if (input.providerId) {
       if (!this.providersById.has(input.providerId)) {
         return err({ type: 'unknown-provider' as const, providerId: input.providerId });

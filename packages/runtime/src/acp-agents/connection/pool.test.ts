@@ -38,13 +38,14 @@ describe('ConnectionPool', () => {
 
     expect(isOk(first)).toBe(true);
     expect(isOk(second)).toBe(true);
+    if (!isOk(first) || !isOk(second)) return;
     expect(host.allHandles).toHaveLength(1);
 
-    pool.release('claude:ws-1');
+    await first.data.lease.release();
     expect(host.lastHandle.kill).not.toHaveBeenCalled();
     expect(pool.get('claude:ws-1')).not.toBeNull();
 
-    pool.release('claude:ws-1');
+    await second.data.lease.release();
     expect(host.lastHandle.kill).toHaveBeenCalledWith('SIGTERM');
     await waitForTeardown();
     expect(pool.get('claude:ws-1')).toBeNull();
@@ -71,8 +72,21 @@ describe('ConnectionPool', () => {
     host.lastHandle.emitExit(7);
 
     expect(onClosed).toHaveBeenCalledWith('claude:ws-1', 7);
-    pool.forgetClosed('claude:ws-1');
+    await pool.forgetClosed('claude:ws-1');
     await waitForTeardown();
+    expect(pool.get('claude:ws-1')).toBeNull();
+  });
+
+  it('disposes all active pooled processes', async () => {
+    const agent = new FakeAcpAgent();
+    const host = new FakeAcpProcessHost();
+    const pool = new ConnectionPool({ host, logger: noopLogger, onClosed: vi.fn() });
+
+    const acquired = await pool.acquire(acquireInput(agent));
+    expect(isOk(acquired)).toBe(true);
+    await pool.dispose();
+
+    expect(host.lastHandle.kill).toHaveBeenCalledWith('SIGTERM');
     expect(pool.get('claude:ws-1')).toBeNull();
   });
 });

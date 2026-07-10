@@ -19,8 +19,9 @@ import type {
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
 import type { NormalizedEvent } from '@emdash/core/acp';
-import type { FsPort, TerminalPort } from '../client-ports';
-import type { ConnectionPoolEntry } from './pool';
+import type { ConnectionPoolEntry } from '../connection/pool';
+import type { FsPort } from './fs-port';
+import type { TerminalPort } from './terminal-port';
 
 export interface InboundRouter {
   onSessionUpdate(
@@ -38,15 +39,15 @@ export interface InboundRouter {
   ): Promise<CreateTerminalResponse>;
 }
 
-export interface ClientHandlerPorts {
+export interface AgentPorts {
   fs: FsPort;
   terminals: TerminalPort;
 }
 
-export function buildClientHandler(
+export function buildAgentClient(
   getConnection: () => ConnectionPoolEntry | null,
   router: InboundRouter,
-  ports: ClientHandlerPorts
+  ports: AgentPorts
 ): Client {
   return {
     sessionUpdate: async (params: SessionNotification): Promise<void> => {

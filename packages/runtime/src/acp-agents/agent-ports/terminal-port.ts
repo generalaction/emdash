@@ -3,33 +3,14 @@ import type {
   CreateTerminalResponse,
   KillTerminalRequest,
   KillTerminalResponse,
-  ReadTextFileRequest,
-  ReadTextFileResponse,
   ReleaseTerminalRequest,
   ReleaseTerminalResponse,
   TerminalOutputRequest,
   TerminalOutputResponse,
   WaitForTerminalExitRequest,
   WaitForTerminalExitResponse,
-  WriteTextFileRequest,
-  WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
-import { readTextFile, writeTextFile, type AcpProcessHost } from '@emdash/core/acp';
-import type { AgentTerminalManager } from './agent-terminal-manager';
-
-export class FsPort {
-  constructor(private readonly host: AcpProcessHost) {}
-
-  async readTextFile(params: ReadTextFileRequest): Promise<ReadTextFileResponse> {
-    const content = await readTextFile(this.host.fs, params.path);
-    return { content };
-  }
-
-  async writeTextFile(params: WriteTextFileRequest): Promise<WriteTextFileResponse> {
-    await writeTextFile(this.host.fs, params.path, params.content);
-    return {};
-  }
-}
+import type { AgentTerminalManager } from './terminal-manager';
 
 export class TerminalPort {
   constructor(private readonly terminals: AgentTerminalManager) {}

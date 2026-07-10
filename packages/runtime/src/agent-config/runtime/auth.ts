@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { buildAllowlistedAgentEnv } from '@emdash/core/agents/agent-env';
 import type { AgentAuthMethod, AgentAuthStatus } from '@emdash/core/agents/plugins';
 import { PtyRegistry, type PtySpawner } from '@emdash/core/pty';
-import type { AgentConfigError, AuthStatusModelState } from '@emdash/core/workspace-server';
+import type { AgentConfigAuthError, AuthStatusModelState } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import type { LiveLog } from '@emdash/wire';
 import type { AgentInstallManager } from './install';
@@ -63,11 +63,15 @@ export class AgentAuthManager {
     return status;
   }
 
-  async refreshAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AgentConfigError>> {
+  async refreshAuthStatus(
+    providerId: string
+  ): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {
+    if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     return ok(await this.getStatus(providerId, { refresh: true }));
   }
 
-  async startLogin(providerId: string, methodId: string): Promise<Result<void, AgentConfigError>> {
+  async startLogin(providerId: string, methodId: string): Promise<Result<void, AgentConfigAuthError>> {
+    if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     try {
       const { command, args } = await this.resolveLoginCommand(providerId, methodId);
       const spawnContext = await this.resolveSpawnContext(providerId);
@@ -112,13 +116,15 @@ export class AgentAuthManager {
     }
   }
 
-  cancelLogin(providerId: string): Result<void, AgentConfigError> {
+  cancelLogin(providerId: string): Result<void, AgentConfigAuthError> {
+    if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     this.ptys.dispose(providerId);
     this.publish(providerId, (current) => ({ ...current, login: null }));
     return ok();
   }
 
-  sendLoginInput(providerId: string, data: string): Result<void, AgentConfigError> {
+  sendLoginInput(providerId: string, data: string): Result<void, AgentConfigAuthError> {
+    if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     if (!this.ptys.write(providerId, data)) {
       return err({
         type: 'invalid-state',
@@ -128,7 +134,12 @@ export class AgentAuthManager {
     return ok();
   }
 
-  resizeLogin(providerId: string, cols: number, rows: number): Result<void, AgentConfigError> {
+  resizeLogin(
+    providerId: string,
+    cols: number,
+    rows: number
+  ): Result<void, AgentConfigAuthError> {
+    if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     if (!this.ptys.resize(providerId, cols, rows)) {
       return err({
         type: 'invalid-state',
@@ -138,7 +149,8 @@ export class AgentAuthManager {
     return ok();
   }
 
-  markUrlHandled(providerId: string, urlId: string): Result<void, AgentConfigError> {
+  markUrlHandled(providerId: string, urlId: string): Result<void, AgentConfigAuthError> {
+    if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     this.publish(providerId, (current) => {
       if (current.login?.pendingUrl?.id !== urlId) return current;
       return {
@@ -288,6 +300,10 @@ export class AgentAuthManager {
         includeShellVar: true,
       }),
     };
+  }
+
+  private hasProvider(providerId: string): boolean {
+    return this.deps.pluginHost.get(providerId) !== undefined;
   }
 }
 

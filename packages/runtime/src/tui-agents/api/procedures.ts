@@ -1,7 +1,10 @@
 import type {
-  TuiAgentError,
   TuiAgentStartInput,
+  TuiInputError,
   TuiResumeOutcome,
+  TuiResumeSessionError,
+  TuiSessionControlError,
+  TuiStartSessionError,
 } from '@emdash/core/workspace-server';
 import type { Result } from '@emdash/shared';
 import type { TuiAgentsRuntime } from '../runtime/runtime';
@@ -10,35 +13,35 @@ export type StartTuiSessionInput = TuiAgentStartInput;
 
 export function createTuiAgentsProcedures(runtime: TuiAgentsRuntime) {
   return {
-    startSession(input: { input: StartTuiSessionInput }): Result<void, TuiAgentError> {
+    startSession(input: { input: StartTuiSessionInput }): Result<void, TuiStartSessionError> {
       return runtime.startSession(input.input);
     },
     resumeSession(input: {
       input: StartTuiSessionInput;
-    }): Result<{ outcome: TuiResumeOutcome }, TuiAgentError> {
+    }): Result<{ outcome: TuiResumeOutcome }, TuiResumeSessionError> {
       return runtime.resumeSession(input.input);
     },
-    stopSession(input: { conversationId: string }): Result<void, TuiAgentError> {
+    stopSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {
       return runtime.stopSession(input.conversationId);
     },
-    deleteSession(input: { conversationId: string }): Result<void, TuiAgentError> {
+    deleteSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {
       return runtime.deleteSession(input.conversationId);
     },
-    sendInput(input: { conversationId: string; data: string }): Result<void, TuiAgentError> {
+    sendInput(input: { conversationId: string; data: string }): Result<void, TuiInputError> {
       return runtime.sendInput(input.conversationId, input.data);
     },
     resize(input: {
       conversationId: string;
       cols: number;
       rows: number;
-    }): Result<void, TuiAgentError> {
+    }): Result<void, TuiInputError> {
       return runtime.resize(input.conversationId, input.cols, input.rows);
     },
     emitHookEvent(input: {
       conversationId: string;
       eventType: string;
       body: Record<string, unknown>;
-    }): Result<void, TuiAgentError> {
+    }): Result<void, TuiSessionControlError> {
       return runtime.emitHookEvent(input);
     },
   };

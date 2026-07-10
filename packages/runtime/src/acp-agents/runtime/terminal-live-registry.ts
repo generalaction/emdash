@@ -1,6 +1,6 @@
 import type { TerminalState } from '@emdash/core/acp';
 import { LiveLog } from '@emdash/wire';
-import type { AgentTerminalHooks } from '../agent-terminal-manager';
+import type { AgentTerminalHooks } from '../agent-ports/terminal-manager';
 
 type TerminalRecord = {
   conversationId: string;
