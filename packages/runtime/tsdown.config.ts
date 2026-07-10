@@ -6,6 +6,8 @@ export default defineConfig({
     'acp-agents-node': 'src/acp-agents/node/index.ts',
     'tui-agents': 'src/tui-agents/index.ts',
     'tui-agents-node': 'src/tui-agents/node/index.ts',
+    'agent-config': 'src/agent-config/index.ts',
+    'agent-config-node': 'src/agent-config/node/index.ts',
   },
   format: ['esm'],
   dts: true,

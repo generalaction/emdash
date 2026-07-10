@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
-import { isValidSkillName } from '@shared/core/skills/validation';
+import { isValidSkillName } from '@emdash/core/skills';
 import { SkillsService } from './SkillsService';
 
 type SkillsServiceInternals = {

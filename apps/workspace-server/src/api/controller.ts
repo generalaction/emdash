@@ -82,6 +82,7 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
       },
       content: unavailableLiveModel(workspaceWireContract.files.content),
     },
+    agentConfig: unavailableAgentConfig(),
     tuiAgents: unavailableTuiAgents(),
     acp: deps.acp ? createAcpProxy(deps.acp) : unavailableAcp(),
   });
@@ -127,17 +128,9 @@ function createAcpProxy(
     },
     deleteAttachment: (input, meta) => client.deleteAttachment(input, meta),
     getHistory: (input, meta) => client.getHistory(input, meta),
-    startLogin: (input, meta) => client.startLogin(input, meta),
-    cancelLogin: (input, meta) => client.cancelLogin(input, meta),
-    sendLoginInput: (input, meta) => client.sendLoginInput(input, meta),
-    resizeLogin: (input, meta) => client.resizeLogin(input, meta),
-    markUrlHandled: (input, meta) => client.markUrlHandled(input, meta),
-    refreshAuthStatus: (input, meta) => client.refreshAuthStatus(input, meta),
     sessions: client.sessions,
     session: client.session,
     terminalOutput: client.terminalOutput,
-    authStatus: client.authStatus,
-    loginOutput: client.loginOutput,
   };
 }
 
@@ -160,12 +153,46 @@ function unavailableTuiAgents(): NonNullable<
   };
 }
 
+function unavailableAgentConfig(): NonNullable<
+  ContractImpl<typeof workspaceWireContract>['agentConfig']
+> {
+  const unavailable = () => err({ type: 'invalid-state' as const, message: notImplementedMessage });
+  return {
+    agents: unavailableLiveModel(workspaceWireContract.agentConfig.agents),
+    refreshAgents: unavailable,
+    installAgent: {
+      run: async (input) =>
+        err({ type: 'command-failed' as const, message: notImplementedMessage, output: input.providerId }),
+      toError: (error) => ({
+        type: 'command-failed' as const,
+        message: error instanceof Error ? error.message : String(error),
+        output: '',
+      }),
+    },
+    uninstallAgent: (input) =>
+      err({ type: 'unknown-provider' as const, providerId: input.providerId }),
+    startLogin: unavailable,
+    cancelLogin: unavailable,
+    sendLoginInput: unavailable,
+    resizeLogin: unavailable,
+    markUrlHandled: unavailable,
+    refreshAuthStatus: unavailable,
+    loginOutput: () => null,
+    mcpServers: unavailableLiveModel(workspaceWireContract.agentConfig.mcpServers),
+    saveMcpServer: unavailable,
+    removeMcpServer: unavailable,
+    listMcpForAgent: unavailable,
+    skills: unavailableLiveModel(workspaceWireContract.agentConfig.skills),
+    installSkill: unavailable,
+    removeSkill: unavailable,
+    createSkill: unavailable,
+  };
+}
+
 function unavailableAcp(): NonNullable<ContractImpl<typeof workspaceWireContract>['acp']> {
   return {
     sessions: unavailableLiveModel(workspaceWireContract.acp.sessions),
     session: unavailableLiveModel(workspaceWireContract.acp.session),
     terminalOutput: () => null,
-    authStatus: unavailableLiveModel(workspaceWireContract.acp.authStatus),
-    loginOutput: () => null,
   };
 }

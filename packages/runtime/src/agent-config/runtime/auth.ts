@@ -1,56 +1,34 @@
-import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { promises as fs } from 'node:fs';
-import os from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
-import { promisify } from 'node:util';
-import type { AcpProcessHost, AcpRuntimeError, AuthStatusModelState } from '@emdash/core/acp';
-import { acpErr } from '@emdash/core/acp';
-import type { AgentAuthMethod, AgentAuthStatus, PluginFs } from '@emdash/core/agents/plugins';
-import { PtyRegistry } from '@emdash/core/pty';
-import type { PtySpawner } from '@emdash/core/pty';
-import type { Result } from '@emdash/shared';
-import { ok } from '@emdash/shared';
-import type { Logger } from '@emdash/shared/logger';
+import { buildAllowlistedAgentEnv } from '@emdash/core/agents/agent-env';
+import type { AgentAuthMethod, AgentAuthStatus } from '@emdash/core/agents/plugins';
+import { PtyRegistry, type PtySpawner } from '@emdash/core/pty';
+import type { AgentConfigError, AuthStatusModelState } from '@emdash/core/workspace-server';
+import { err, ok, type Result } from '@emdash/shared';
 import type { LiveLog } from '@emdash/wire';
-import {
-  createAcpAuthStatusLiveHost,
-  createAuthStatusModel,
-  publishLiveModelState,
-  type AcpAuthStatusLiveHost,
-  type AuthStatusModel,
-} from '../state/live-models';
-import type { ResolveAuthProvider } from './types';
+import type { AgentInstallManager } from './install';
+import type { AgentConfigRuntimeDeps } from './types';
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 30;
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/i;
-const execFileAsync = promisify(execFile);
 
 type CacheEntry = {
   status: AgentAuthStatus;
   checkedAt: number;
 };
 
-export interface AcpAuthManagerOptions {
-  resolveAuthProvider?: ResolveAuthProvider;
-  host: Pick<AcpProcessHost, 'resolveSpawnContext'>;
-  ptySpawner?: PtySpawner;
-  homeDir?: string;
-  env?: Record<string, string | undefined>;
-  logger: Logger;
-}
-
-export class AcpAuthManager {
-  readonly host: AcpAuthStatusLiveHost = createAcpAuthStatusLiveHost();
+export class AgentAuthManager {
   private readonly cache = new Map<string, CacheEntry>();
   private readonly pending = new Map<string, Promise<AgentAuthStatus>>();
   private readonly ptys: PtyRegistry;
   private readonly seenUrls = new Map<string, Set<string>>();
 
-  constructor(private readonly options: AcpAuthManagerOptions) {
-    this.ptys = new PtyRegistry(assertPtySpawner(options.ptySpawner), {
+  constructor(
+    private readonly deps: AgentConfigRuntimeDeps,
+    private readonly install: AgentInstallManager
+  ) {
+    this.ptys = new PtyRegistry(assertPtySpawner(deps.ptySpawner), {
       onSessionChanged: (providerId) => this.publishLoginExit(providerId),
     });
   }
@@ -59,7 +37,6 @@ export class AcpAuthManager {
     providerId: string,
     options: { refresh?: boolean } = {}
   ): Promise<AgentAuthStatus> {
-    this.ensureModel(providerId);
     if (!options.refresh) {
       const cached = this.cache.get(providerId);
       if (cached && Date.now() - cached.checkedAt < CACHE_TTL_MS) return cached.status;
@@ -86,14 +63,14 @@ export class AcpAuthManager {
     return status;
   }
 
-  async refreshAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AcpRuntimeError>> {
+  async refreshAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AgentConfigError>> {
     return ok(await this.getStatus(providerId, { refresh: true }));
   }
 
-  async startLogin(providerId: string, methodId: string): Promise<Result<void, AcpRuntimeError>> {
+  async startLogin(providerId: string, methodId: string): Promise<Result<void, AgentConfigError>> {
     try {
       const { command, args } = await this.resolveLoginCommand(providerId, methodId);
-      const spawnContext = await this.options.host.resolveSpawnContext(providerId);
+      const spawnContext = await this.resolveSpawnContext(providerId);
       const env = this.buildLoginEnv(spawnContext.agentEnv);
       const startedAt = Date.now();
       this.seenUrls.set(providerId, new Set());
@@ -112,7 +89,7 @@ export class AcpAuthManager {
         {
           command,
           args,
-          cwd: this.homeDir(),
+          cwd: this.deps.homeDir,
           env,
           cols: DEFAULT_COLS,
           rows: DEFAULT_ROWS,
@@ -121,7 +98,7 @@ export class AcpAuthManager {
           onData: (chunk) => this.detectUrl(providerId, chunk),
           onExit: () => {
             void this.getStatus(providerId, { refresh: true }).catch((error) => {
-              this.options.logger.warn('AcpAuthManager: failed to refresh auth after login exit', {
+              this.deps.logger.warn('AgentAuthManager: failed to refresh auth after login exit', {
                 providerId,
                 error: error instanceof Error ? error.message : String(error),
               });
@@ -131,31 +108,37 @@ export class AcpAuthManager {
       );
       return ok();
     } catch (error) {
-      return acpErr.invalidState(error instanceof Error ? error.message : String(error));
+      return err({ type: 'invalid-state', message: errorMessage(error) });
     }
   }
 
-  cancelLogin(providerId: string): Result<void, AcpRuntimeError> {
+  cancelLogin(providerId: string): Result<void, AgentConfigError> {
     this.ptys.dispose(providerId);
     this.publish(providerId, (current) => ({ ...current, login: null }));
     return ok();
   }
 
-  sendLoginInput(providerId: string, data: string): Result<void, AcpRuntimeError> {
+  sendLoginInput(providerId: string, data: string): Result<void, AgentConfigError> {
     if (!this.ptys.write(providerId, data)) {
-      return acpErr.invalidState(`No login PTY is active for provider '${providerId}'`);
+      return err({
+        type: 'invalid-state',
+        message: `No login PTY is active for provider '${providerId}'`,
+      });
     }
     return ok();
   }
 
-  resizeLogin(providerId: string, cols: number, rows: number): Result<void, AcpRuntimeError> {
+  resizeLogin(providerId: string, cols: number, rows: number): Result<void, AgentConfigError> {
     if (!this.ptys.resize(providerId, cols, rows)) {
-      return acpErr.invalidState(`No login PTY is active for provider '${providerId}'`);
+      return err({
+        type: 'invalid-state',
+        message: `No login PTY is active for provider '${providerId}'`,
+      });
     }
     return ok();
   }
 
-  markUrlHandled(providerId: string, urlId: string): Result<void, AcpRuntimeError> {
+  markUrlHandled(providerId: string, urlId: string): Result<void, AgentConfigError> {
     this.publish(providerId, (current) => {
       if (current.login?.pendingUrl?.id !== urlId) return current;
       return {
@@ -175,26 +158,25 @@ export class AcpAuthManager {
 
   dispose(): void {
     this.ptys.killAll();
-    this.host.dispose();
   }
 
   private async probe(providerId: string): Promise<AgentAuthStatus> {
-    const provider = this.options.resolveAuthProvider?.(providerId);
+    const provider = this.deps.pluginHost.resolveAuthProvider(providerId);
     if (!provider?.behavior || provider.auth.kind === 'none') return { kind: 'unknown' };
 
     try {
-      const spawnContext = await this.options.host.resolveSpawnContext(providerId);
+      const spawnContext = await this.resolveSpawnContext(providerId);
       const env = this.buildLoginEnv(spawnContext.agentEnv);
       return await provider.behavior.checkStatus({
         cli: spawnContext.cli,
-        exec: (command, args, opts) => execWithEnv(command, args, opts, env),
-        fs: createPluginFs(this.homeDir()),
+        exec: (command, args, opts) => this.deps.exec.exec(command, args, opts),
+        fs: this.deps.pluginFs,
         env,
       });
     } catch (error) {
-      this.options.logger.warn('AcpAuthManager: status probe failed', {
+      this.deps.logger.warn('AgentAuthManager: status probe failed', {
         providerId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
       return { kind: 'unknown' };
     }
@@ -204,12 +186,10 @@ export class AcpAuthManager {
     providerId: string,
     methodId: string
   ): Promise<{ command: string; args: string[]; method: AgentAuthMethod }> {
-    const provider = this.options.resolveAuthProvider?.(providerId);
-    if (!provider) {
-      throw new Error(`Provider '${providerId}' was not found`);
-    }
-    const spawnContext = await this.options.host.resolveSpawnContext(providerId);
+    const provider = this.deps.pluginHost.resolveAuthProvider(providerId);
+    if (!provider) throw new Error(`Provider '${providerId}' was not found`);
 
+    const spawnContext = await this.resolveSpawnContext(providerId);
     if (provider.auth.kind === 'none') {
       if (methodId !== 'cli-login') {
         throw new Error(`Auth method '${methodId}' was not found for provider '${providerId}'`);
@@ -287,125 +267,44 @@ export class AcpAuthManager {
     }));
   }
 
-  private ensureModel(providerId: string): AuthStatusModel {
-    const existing = this.host.get({ providerId });
-    if (existing) return existing;
-    return createAuthStatusModel(this.host, providerId);
-  }
-
   private publish(
     providerId: string,
     update: (current: AuthStatusModelState) => AuthStatusModelState
   ): void {
-    const model = this.ensureModel(providerId);
-    const current = model.states.status.snapshot().data;
-    const next = update(current);
-    publishLiveModelState(model.states.status, next, current);
+    const current = this.install.getAuth(providerId);
+    this.install.updateAuth(providerId, update(current));
   }
 
   private buildLoginEnv(agentEnv: Record<string, string>): Record<string, string> {
-    const env: Record<string, string> = {};
-    for (const [key, value] of Object.entries(this.options.env ?? process.env)) {
-      if (value !== undefined) env[key] = value;
-    }
-    return { ...env, ...agentEnv };
+    return { ...agentEnv };
   }
 
-  private homeDir(): string {
-    return this.options.homeDir ?? os.homedir();
+  private async resolveSpawnContext(providerId: string) {
+    if (this.deps.resolveSpawnContext) return this.deps.resolveSpawnContext(providerId);
+    return {
+      cli: await this.install.resolveCli(providerId),
+      agentEnv: buildAllowlistedAgentEnv(this.deps.env ?? {}, {
+        homeDir: this.deps.homeDir,
+        includeShellVar: true,
+      }),
+    };
   }
 }
 
 function assertPtySpawner(spawner: PtySpawner | undefined): PtySpawner {
   return {
     spawn(spec) {
-      if (!spawner) {
-        throw new Error('ACP auth login requires a PTY spawner');
-      }
+      if (!spawner) throw new Error('Agent auth login requires a PTY spawner');
       return spawner.spawn(spec);
     },
   };
 }
 
-async function execWithEnv(
-  command: string,
-  args: string[] = [],
-  opts: { timeout?: number; maxBuffer?: number; signal?: AbortSignal } = {},
-  env: Record<string, string>
-): Promise<{ stdout: string; stderr: string }> {
-  const result = await execFileAsync(command, args, {
-    env,
-    timeout: opts.timeout,
-    maxBuffer: opts.maxBuffer,
-    signal: opts.signal,
-  });
-  return {
-    stdout: String(result.stdout),
-    stderr: String(result.stderr),
-  };
-}
-
-function createPluginFs(root: string): PluginFs {
-  const absRoot = resolve(root);
-
-  function resolveSafe(path: string): string {
-    const abs = resolve(join(absRoot, path));
-    const rootWithSep = absRoot.endsWith(sep) ? absRoot : absRoot + sep;
-    const absWithSep = abs.endsWith(sep) ? abs : abs + sep;
-    if (!absWithSep.startsWith(rootWithSep) && abs !== absRoot) {
-      throw new Error(`Plugin fs: path escape attempt: ${path}`);
-    }
-    return abs;
-  }
-
-  return {
-    async read(path: string): Promise<string | null> {
-      try {
-        return await fs.readFile(resolveSafe(path), 'utf-8');
-      } catch (error: unknown) {
-        if (isFileNotFoundException(error)) return null;
-        throw error;
-      }
-    },
-    async write(path: string, content: string): Promise<void> {
-      const abs = resolveSafe(path);
-      await fs.mkdir(dirname(abs), { recursive: true });
-      const tmpPath = `${abs}.${randomUUID()}.tmp`;
-      try {
-        await fs.writeFile(tmpPath, content, 'utf-8');
-        await fs.rename(tmpPath, abs);
-      } catch (error: unknown) {
-        await fs.rm(tmpPath, { force: true }).catch(() => {});
-        throw error;
-      }
-    },
-    async delete(path: string): Promise<void> {
-      await fs.rm(resolveSafe(path), { force: true });
-    },
-    async exists(path: string): Promise<boolean> {
-      try {
-        await fs.access(resolveSafe(path));
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    async list(path: string): Promise<string[]> {
-      try {
-        return await fs.readdir(resolveSafe(path));
-      } catch {
-        return [];
-      }
-    },
-  };
-}
-
-function isFileNotFoundException(error: unknown): boolean {
-  return (
-    typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ENOENT'
-  );
-}
-
 function stripTrailingUrlPunctuation(url: string): string {
   return url.replace(/[),.;\]]+$/u, '');
 }
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+

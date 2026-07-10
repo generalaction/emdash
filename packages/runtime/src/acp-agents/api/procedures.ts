@@ -135,31 +135,6 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     }): Result<HistoryPage, AcpRuntimeError> {
       return runtime.getHistory(input.conversationId, input.before, input.limit);
     },
-    startLogin(input: {
-      providerId: string;
-      methodId: string;
-    }): Promise<Result<void, AcpRuntimeError>> {
-      return runtime.startLogin(input.providerId, input.methodId);
-    },
-    cancelLogin(input: { providerId: string }): Result<void, AcpRuntimeError> {
-      return runtime.cancelLogin(input.providerId);
-    },
-    sendLoginInput(input: { providerId: string; data: string }): Result<void, AcpRuntimeError> {
-      return runtime.sendLoginInput(input.providerId, input.data);
-    },
-    resizeLogin(input: {
-      providerId: string;
-      cols: number;
-      rows: number;
-    }): Result<void, AcpRuntimeError> {
-      return runtime.resizeLogin(input.providerId, input.cols, input.rows);
-    },
-    markUrlHandled(input: { providerId: string; urlId: string }): Result<void, AcpRuntimeError> {
-      return runtime.markUrlHandled(input.providerId, input.urlId);
-    },
-    refreshAuthStatus(input: { providerId: string }) {
-      return runtime.refreshAuthStatus(input.providerId);
-    },
   };
 }
 

@@ -29,6 +29,14 @@
       "types": "./dist/tui-agents-node.d.mts",
       "default": "./dist/tui-agents-node.mjs"
     },
+    "./agent-config": {
+      "types": "./dist/agent-config.d.mts",
+      "default": "./dist/agent-config.mjs"
+    },
+    "./agent-config/node": {
+      "types": "./dist/agent-config-node.d.mts",
+      "default": "./dist/agent-config-node.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

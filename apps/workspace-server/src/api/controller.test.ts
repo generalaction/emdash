@@ -81,17 +81,9 @@ function createFakeAcpClient(): WorkspaceAcpRuntimeClient {
     downloadAttachment: vi.fn(),
     deleteAttachment: vi.fn(),
     getHistory: vi.fn(),
-    startLogin: vi.fn(),
-    cancelLogin: vi.fn(),
-    sendLoginInput: vi.fn(),
-    resizeLogin: vi.fn(),
-    markUrlHandled: vi.fn(),
-    refreshAuthStatus: vi.fn(),
     sessions: liveModel(acpContract.sessions),
     session: liveModel(acpContract.session),
     terminalOutput: liveLog(acpContract.terminalOutput),
-    authStatus: liveModel(acpContract.authStatus),
-    loginOutput: liveLog(acpContract.loginOutput),
   } as unknown as WorkspaceAcpRuntimeClient;
 }
 

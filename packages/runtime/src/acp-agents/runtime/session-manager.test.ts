@@ -13,48 +13,7 @@ async function startHarness(conversationId = 'conv-1') {
 }
 
 describe('AcpRuntime session manager', () => {
-  it('returns auth_required without spawning when cached auth status is unauthenticated', async () => {
-    const checkStatus = vi.fn().mockResolvedValue({ kind: 'unauthenticated' });
-    const h = makeAcpHarness({
-      authProvider: {
-        name: 'Claude Code',
-        auth: {
-          kind: 'supported',
-          methods: [{ kind: 'cli-login', id: 'login', name: 'Login', args: [] }],
-        },
-        behavior: { checkStatus },
-      },
-    });
-    const rt = new AcpRuntime(h.deps);
-
-    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-auth' }));
-
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.error.type).toBe('auth_required');
-    expect(checkStatus).toHaveBeenCalled();
-    expect(h.children).toHaveLength(0);
-  });
-
-  it('continues startup when cached auth status is unknown', async () => {
-    const h = makeAcpHarness({
-      authProvider: {
-        name: 'Claude Code',
-        auth: {
-          kind: 'supported',
-          methods: [{ kind: 'cli-login', id: 'login', name: 'Login', args: [] }],
-        },
-        behavior: { checkStatus: vi.fn().mockResolvedValue({ kind: 'unknown' }) },
-      },
-    });
-    const rt = new AcpRuntime(h.deps);
-
-    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-auth-unknown' }));
-
-    expect(isOk(result)).toBe(true);
-    expect(h.children).toHaveLength(1);
-  });
-
-  it('maps ACP auth_required JSON-RPC errors to auth_required and updates auth state', async () => {
+  it('maps ACP auth_required JSON-RPC errors to auth_required', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
     h.agent.newSession.mockRejectedValueOnce({ code: -32000, message: 'Authentication required' });
@@ -63,9 +22,6 @@ describe('AcpRuntime session manager', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.type).toBe('auth_required');
-    expect(
-      rt.auth.host.get({ providerId: 'claude' })?.states.status.snapshot().data.status
-    ).toEqual({ kind: 'unauthenticated', message: undefined });
   });
 
   it('shares one process for conversations in the same provider/workspace and releases on last stop', async () => {

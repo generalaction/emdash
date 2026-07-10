@@ -1,7 +1,7 @@
 import { defineContract, fallible, procedure } from '@emdash/wire';
 import { z } from 'zod';
 import { acpApiContract } from '../../acp';
-import { depsContract } from '../deps/contract';
+import { agentConfigContract } from '../agent-config/contract';
 import { filesContract } from '../files/contract';
 import { gitContract } from '../git/contract';
 import { tuiAgentsContract } from '../tui-agents/contract';
@@ -21,7 +21,7 @@ export const workspaceWireContract = defineContract({
   }),
   git: gitContract,
   files: filesContract,
-  deps: depsContract,
+  agentConfig: agentConfigContract,
   tuiAgents: tuiAgentsContract,
   acp: acpApiContract,
 });

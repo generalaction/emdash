@@ -6,15 +6,28 @@ import { defineConfig } from 'electron-vite';
 const workspaceAliases = {
   '@emdash/core/acp/client': resolve('../../packages/core/src/acp/client.ts'),
   '@emdash/core/acp': resolve('../../packages/core/src/acp/index.ts'),
+  '@emdash/core/agents/agent-env': resolve('../../packages/core/src/agents/agent-env.ts'),
   '@emdash/core/agents/plugins/helpers': resolve(
     '../../packages/core/src/agents/plugins/helpers/index.ts'
   ),
   '@emdash/core/agents/plugins': resolve('../../packages/core/src/agents/plugins/index.ts'),
   '@emdash/core/lib': resolve('../../packages/core/src/lib/index.ts'),
+  '@emdash/core/mcp': resolve('../../packages/core/src/mcp/index.ts'),
+  '@emdash/core/skills': resolve('../../packages/core/src/skills/index.ts'),
+  '@emdash/core/workspace-server/agent-config': resolve(
+    '../../packages/core/src/workspace-server/agent-config/index.ts'
+  ),
+  '@emdash/core/workspace-server': resolve('../../packages/core/src/workspace-server/index.ts'),
+  '@emdash/core/deps/runtime': resolve('../../packages/core/src/host-dependencies/runtime/index.ts'),
+  '@emdash/core/exec': resolve('../../packages/core/src/exec/index.ts'),
   '@emdash/core/pty/node': resolve('../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve('../../packages/core/src/pty/index.ts'),
   '@emdash/plugins/agents/types': resolve('../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve('../../packages/plugins/src/agents/registry.ts'),
+  '@emdash/runtime/agent-config/node': resolve(
+    '../../packages/runtime/src/agent-config/node/index.ts'
+  ),
+  '@emdash/runtime/agent-config': resolve('../../packages/runtime/src/agent-config/index.ts'),
   '@emdash/runtime/acp-agents/node': resolve('../../packages/runtime/src/acp-agents/node/index.ts'),
   '@emdash/runtime/acp-agents': resolve('../../packages/runtime/src/acp-agents/index.ts'),
   '@emdash/shared/config': resolve('../../packages/shared/src/config/index.ts'),
@@ -46,6 +59,9 @@ export default defineConfig({
         input: {
           index: resolve('src/main/index.ts'),
           'acp-runtime': resolve('src/main/core/acp/runtime-process/entry.ts'),
+          'agent-config-runtime': resolve(
+            'src/main/core/agent-config/runtime-process/entry.ts'
+          ),
         },
       },
     },

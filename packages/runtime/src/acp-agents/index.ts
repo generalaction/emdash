@@ -1,14 +1,12 @@
 export { createAcpAgentConnection } from './connection/acp-agent-connection';
 export type { AcpAgentConnection } from './connection/acp-agent-connection';
 export { AcpRuntime } from './runtime/runtime';
-export { AcpAuthManager } from './runtime/auth-manager';
 export { SessionManager } from './runtime/session-manager';
 export type { AttachmentStore, StoredAttachment } from './runtime/attachment-store';
 export type {
   AcpRuntimeDeps,
   AcpStartInput,
   ResolveAcpProvider,
-  ResolveAuthProvider,
 } from './runtime/types';
 export { ConnectionPool } from './connection/pool';
 export { buildClientHandler } from './connection/client-handler';

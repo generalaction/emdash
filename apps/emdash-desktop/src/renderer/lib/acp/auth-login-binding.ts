@@ -1,19 +1,32 @@
-import { authStatusModelStateSchema, type AuthStatusModelState } from '@emdash/core/acp/client';
-import type { AcpRuntimeError } from '@emdash/core/acp/client';
+import {
+  agentConfigListSchema,
+  type AgentConfigError,
+  type AgentConfigList,
+  type AuthStatusModelState,
+} from '@emdash/core/workspace-server/agent-config';
 import type { Result } from '@emdash/shared';
 import { ReplicaLog, ReplicaState } from '@emdash/wire';
 import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 import type { Terminal } from '@xterm/xterm';
+import {
+  getAgentConfigRuntimeClient,
+  type AgentConfigRuntimeRpcClient,
+} from '../agent-config/runtime-client';
 import { createXtermLogSink } from '../pty/xterm-log-sink';
-import { getAcpRuntimeClient, type AcpRuntimeRpcClient } from './runtime-client';
+
+type AuthStatusHandle = {
+  readonly ready: Promise<void>;
+  current(): AuthStatusModelState;
+  dispose(): void;
+};
 
 export class AcpAuthLoginBinding {
   private disposed = false;
 
   private constructor(
-    private readonly client: AcpRuntimeRpcClient,
+    private readonly client: AgentConfigRuntimeRpcClient,
     readonly providerId: string,
-    readonly status: ReplicaState<AuthStatusModelState>,
+    readonly status: AuthStatusHandle,
     private readonly output: ReplicaLog
   ) {}
 
@@ -22,7 +35,7 @@ export class AcpAuthLoginBinding {
     methodId: string;
     terminal: Pick<Terminal, 'reset' | 'write'>;
   }): Promise<AcpAuthLoginBinding> {
-    const client = await getAcpRuntimeClient();
+    const client = await getAgentConfigRuntimeClient();
     const result = await client.startLogin({
       providerId: args.providerId,
       methodId: args.methodId,
@@ -30,10 +43,11 @@ export class AcpAuthLoginBinding {
     if (!result.success) throw new Error(errorMessage(result));
 
     const key = { providerId: args.providerId };
-    const status = new ReplicaState(client.authStatus.state(key, 'status'), {
-      schema: authStatusModelStateSchema,
+    const agents = new ReplicaState(client.agents.state(undefined, 'list'), {
+      schema: agentConfigListSchema,
       store: createImmutableMobxStore(),
     });
+    const status = createAuthStatusHandle(args.providerId, agents);
     const output = new ReplicaLog(client.loginOutput.handle(key), {
       store: createXtermLogSink(args.terminal),
     });
@@ -65,7 +79,20 @@ export class AcpAuthLoginBinding {
   }
 }
 
-function errorMessage(result: Result<unknown, AcpRuntimeError>): string {
+function createAuthStatusHandle(
+  providerId: string,
+  agents: ReplicaState<AgentConfigList>
+): AuthStatusHandle {
+  return {
+    ready: agents.ready,
+    current: () => agents.current()[providerId]?.auth ?? { status: { kind: 'unknown' }, login: null },
+    dispose: () => {
+      void agents.dispose();
+    },
+  };
+}
+
+function errorMessage(result: Result<unknown, AgentConfigError>): string {
   if (result.success) return '';
-  return result.error.message ?? result.error.cause?.message ?? result.error.type;
+  return 'message' in result.error ? result.error.message : result.error.type;
 }

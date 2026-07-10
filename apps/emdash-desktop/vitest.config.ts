@@ -11,6 +11,7 @@ const alias = {
   '@tooling': resolve(__dirname, 'tooling'),
   '@emdash/core/acp/client': resolve(__dirname, '../../packages/core/src/acp/client.ts'),
   '@emdash/core/acp': resolve(__dirname, '../../packages/core/src/acp/index.ts'),
+  '@emdash/core/agents/agent-env': resolve(__dirname, '../../packages/core/src/agents/agent-env.ts'),
   '@emdash/core/agents/plugins/helpers': resolve(
     __dirname,
     '../../packages/core/src/agents/plugins/helpers/index.ts'
@@ -19,11 +20,34 @@ const alias = {
     __dirname,
     '../../packages/core/src/agents/plugins/index.ts'
   ),
+  '@emdash/core/deps/runtime': resolve(
+    __dirname,
+    '../../packages/core/src/host-dependencies/runtime/index.ts'
+  ),
+  '@emdash/core/exec': resolve(__dirname, '../../packages/core/src/exec/index.ts'),
   '@emdash/core/lib': resolve(__dirname, '../../packages/core/src/lib/index.ts'),
+  '@emdash/core/mcp': resolve(__dirname, '../../packages/core/src/mcp/index.ts'),
   '@emdash/core/pty/node': resolve(__dirname, '../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve(__dirname, '../../packages/core/src/pty/index.ts'),
+  '@emdash/core/skills': resolve(__dirname, '../../packages/core/src/skills/index.ts'),
+  '@emdash/core/workspace-server/agent-config': resolve(
+    __dirname,
+    '../../packages/core/src/workspace-server/agent-config/index.ts'
+  ),
+  '@emdash/core/workspace-server': resolve(
+    __dirname,
+    '../../packages/core/src/workspace-server/index.ts'
+  ),
   '@emdash/plugins/agents/types': resolve(__dirname, '../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve(__dirname, '../../packages/plugins/src/agents/registry.ts'),
+  '@emdash/runtime/agent-config/node': resolve(
+    __dirname,
+    '../../packages/runtime/src/agent-config/node/index.ts'
+  ),
+  '@emdash/runtime/agent-config': resolve(
+    __dirname,
+    '../../packages/runtime/src/agent-config/index.ts'
+  ),
   '@emdash/runtime/acp-agents/node': resolve(
     __dirname,
     '../../packages/runtime/src/acp-agents/node/index.ts'

@@ -1,8 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import os from 'node:os';
 import { acpApiContract, acpHostContract } from '@emdash/core/acp';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
-import { NodePtySpawner } from '@emdash/core/pty/node';
 import { ok } from '@emdash/shared';
 import type { Logger, LogFields, LogLevel } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
@@ -46,12 +44,9 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
 
   void serveProcessRuntime(
     (scope) => {
-      const runtime = new AcpRuntime({
+      const acp = new AcpRuntime({
         pluginHost: new AgentPluginHost(options.pluginRegistry),
         host: childHost,
-        ptySpawner: new NodePtySpawner(),
-        authHomeDir: os.homedir(),
-        authEnv: env,
         persistSessionId: async (conversationId, sessionId) => {
           await hostClient.persistSessionId({ conversationId, sessionId });
           return ok(undefined);
@@ -59,9 +54,7 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
         resolveAttachment: async (attachment) => {
           if (attachment.type === 'attachment') {
             const stored = await attachmentStore.get(attachment.id);
-            if (!stored) {
-              throw new Error(`Attachment '${attachment.id}' could not be resolved`);
-            }
+            if (!stored) throw new Error(`Attachment '${attachment.id}' could not be resolved`);
             return {
               data: Buffer.from(stored.data).toString('base64'),
               mimeType: stored.ref.mimeType,
@@ -76,12 +69,9 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
         attachmentStore,
         logger,
       } satisfies AcpRuntimeDeps);
-      scope.add(() => runtime.dispose());
-      return withValidation(
-        acpApiContract,
-        createAcpController(runtime),
-        runtimeWireValidationPolicy(env)
-      );
+
+      scope.add(() => acp.dispose());
+      return withValidation(acpApiContract, createAcpController(acp), runtimeWireValidationPolicy(env));
     },
     { port: runtimePort, exit: options.exit, logger }
   ).catch((error: unknown) => {
@@ -152,3 +142,4 @@ function createHostTransport(port: ProcessRuntimePort): WireTransport {
     },
   };
 }
+

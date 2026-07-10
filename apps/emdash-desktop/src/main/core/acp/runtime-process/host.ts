@@ -143,17 +143,9 @@ function installRendererWire(client: AcpRuntimeClient): void {
       },
       deleteAttachment: (input, meta) => client.deleteAttachment(input, meta),
       getHistory: (input, meta) => client.getHistory(input, meta),
-      startLogin: (input, meta) => client.startLogin(input, meta),
-      cancelLogin: (input, meta) => client.cancelLogin(input, meta),
-      sendLoginInput: (input, meta) => client.sendLoginInput(input, meta),
-      resizeLogin: (input, meta) => client.resizeLogin(input, meta),
-      markUrlHandled: (input, meta) => client.markUrlHandled(input, meta),
-      refreshAuthStatus: (input, meta) => client.refreshAuthStatus(input, meta),
       sessions: client.sessions,
       session: client.session,
       terminalOutput: client.terminalOutput,
-      authStatus: client.authStatus,
-      loginOutput: client.loginOutput,
     }),
     runtimeWireValidationPolicy()
   );

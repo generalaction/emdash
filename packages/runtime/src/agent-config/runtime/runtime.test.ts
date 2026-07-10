@@ -1,0 +1,212 @@
+import type { AgentAuthContext, CLIAgentPluginProvider, McpServerRegistration, PluginFs } from '@emdash/core/agents/plugins';
+import { AgentPluginHost, createPluginRegistry } from '@emdash/core/agents/plugins';
+import type { ExecContextOptions, IExecutionContext } from '@emdash/core/exec';
+import type { McpServer } from '@emdash/core/mcp';
+import type { PtyProcess, PtySpawnSpec, PtySpawner } from '@emdash/core/pty';
+import { ok } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
+import { noopLogger } from '@emdash/shared/logger';
+import { describe, expect, it, vi } from 'vitest';
+import { AgentConfigRuntime } from './runtime';
+
+class FakeExecutionContext implements IExecutionContext {
+  readonly supportsLocalSpawn = true;
+  readonly exec = vi.fn(
+    async (command: string, args: string[] = [], _opts: ExecContextOptions = {}) => {
+      if (command === 'which' && args[0] === 'fake-agent') {
+        return { stdout: '/opt/fake-agent\n', stderr: '' };
+      }
+      if (command === 'which' && args[0] === '-a' && args[1] === 'fake-agent') {
+        return { stdout: '/opt/fake-agent\n', stderr: '' };
+      }
+      if (command === 'realpath' && args[0]) {
+        return { stdout: `${args[0]}\n`, stderr: '' };
+      }
+      return { stdout: '', stderr: '' };
+    }
+  );
+  readonly execStreaming = vi.fn(
+    async (
+      _command: string,
+      _args: string[],
+      _onChunk: (chunk: string) => boolean,
+      _opts: { signal?: AbortSignal } = {}
+    ) => {}
+  );
+  readonly dispose = vi.fn();
+}
+
+class FakePtySpawner implements PtySpawner {
+  readonly spawn = vi.fn((_spec: PtySpawnSpec): PtyProcess => {
+    throw new Error('PTY spawn is not expected in this test');
+  });
+}
+
+class MemoryPluginFs implements PluginFs {
+  private readonly files = new Map<string, string>();
+
+  async read(path: string): Promise<string | null> {
+    return this.files.get(path) ?? null;
+  }
+
+  async write(path: string, content: string): Promise<void> {
+    this.files.set(path, content);
+  }
+
+  async delete(path: string): Promise<void> {
+    const prefix = `${path}/`;
+    for (const key of [...this.files.keys()]) {
+      if (key === path || key.startsWith(prefix)) this.files.delete(key);
+    }
+  }
+
+  async exists(path: string): Promise<boolean> {
+    return this.files.has(path);
+  }
+
+  async list(path: string): Promise<string[]> {
+    const prefix = `${path}/`;
+    const entries = new Set<string>();
+    for (const key of this.files.keys()) {
+      if (!key.startsWith(prefix)) continue;
+      const entry = key.slice(prefix.length).split('/')[0];
+      if (entry) entries.add(entry);
+    }
+    return [...entries].sort();
+  }
+}
+
+describe('AgentConfigRuntime', () => {
+  it('resolves auth spawn context from embedded dependency state and allowlisted env', async () => {
+    const authCheckStatus = vi.fn(async (_ctx: AgentAuthContext) => ({ kind: 'authenticated' as const }));
+    const { runtime, exec } = makeRuntime({ authCheckStatus });
+
+    const result = await runtime.refreshAuthStatus('claude');
+
+    expect(result.success).toBe(true);
+    expect(authCheckStatus).toHaveBeenCalledTimes(1);
+    const ctx = authCheckStatus.mock.calls[0]?.[0];
+    expect(ctx?.cli).toBe('/opt/fake-agent');
+    expect(ctx?.env.ANTHROPIC_API_KEY).toBe('secret');
+    expect(ctx?.env.UNSAFE_ENV).toBeUndefined();
+    expect(ctx?.env.SHELL).toBe('/bin/zsh');
+    expect(exec.exec).toHaveBeenCalledWith('which', ['fake-agent'], expect.any(Object));
+    runtime.dispose();
+  });
+
+  it('saves and lists MCP servers through provider behavior', async () => {
+    const { runtime } = makeRuntime();
+    const server: McpServer = {
+      name: 'filesystem',
+      transport: 'stdio',
+      command: 'fs-mcp',
+      args: ['/tmp'],
+      providers: ['claude'],
+    };
+
+    const saved = await runtime.saveMcpServer(server);
+    const listed = await runtime.listMcpForAgent('claude');
+
+    expect(saved.success).toBe(true);
+    expect(listed).toEqual(ok([server]));
+    runtime.dispose();
+  });
+
+  it('creates and removes local skills through plugin fs', async () => {
+    const { runtime } = makeRuntime();
+
+    const created = await runtime.createSkill({
+      name: 'reviewer',
+      description: 'Review code changes',
+      content: 'Check the diff carefully.',
+    });
+    const removed = await runtime.removeSkill('reviewer');
+
+    expect(created.success).toBe(true);
+    if (created.success) {
+      expect(created.data).toHaveLength(1);
+      expect(created.data[0]?.installId).toBe('reviewer');
+      expect(created.data[0]?.description).toBe('Review code changes');
+    }
+    expect(removed).toEqual(ok([]));
+    runtime.dispose();
+  });
+});
+
+function makeRuntime(options: {
+  authCheckStatus?: (ctx: AgentAuthContext) => Promise<{ kind: 'authenticated' }>;
+  logger?: Logger;
+} = {}) {
+  const exec = new FakeExecutionContext();
+  const fs = new MemoryPluginFs();
+  const mcpServers: McpServerRegistration[] = [];
+  const registry = createPluginRegistry<CLIAgentPluginProvider>();
+  registry.register({
+    metadata: {
+      id: 'claude',
+      name: 'Claude Code',
+      description: 'Test provider',
+      websiteUrl: 'https://example.com',
+    },
+    capabilities: {
+      acp: { kind: 'none' },
+      auth: {
+        kind: 'supported',
+        methods: [{ kind: 'cli-login', id: 'login', name: 'Login', args: [] }],
+      },
+      autoApprove: { kind: 'none' },
+      effort: { kind: 'none' },
+      hooks: { kind: 'none' },
+      hostDependency: {
+        binaryNames: ['fake-agent'],
+        skipVersionProbe: true,
+        installCommands: {},
+        updates: { kind: 'none' },
+      },
+      mcp: { kind: 'supported', supportsHttp: true },
+      models: { kind: 'none' },
+      plugins: { kind: 'none' },
+      prompt: { kind: 'none' },
+      sessions: { kind: 'none' },
+      trust: { kind: 'none' },
+    },
+    assets: {},
+    validate: () => [],
+    behavior: {
+      auth: {
+        checkStatus: options.authCheckStatus ?? vi.fn(async () => ({ kind: 'unknown' as const })),
+      },
+      mcp: {
+        readServers: vi.fn(async () => [...mcpServers]),
+        writeServers: vi.fn(async (_pluginFs, servers) => {
+          mcpServers.splice(0, mcpServers.length, ...servers);
+        }),
+        removeServer: vi.fn(async (_pluginFs, name) => {
+          const index = mcpServers.findIndex((server) => server.name === name);
+          if (index >= 0) mcpServers.splice(index, 1);
+        }),
+      },
+    },
+  } as unknown as CLIAgentPluginProvider);
+
+  return {
+    exec,
+    runtime: new AgentConfigRuntime({
+      pluginHost: new AgentPluginHost(registry),
+      ptySpawner: new FakePtySpawner(),
+      exec,
+      pluginFs: fs,
+      homeDir: '/home/ada',
+      installCommandRunner: vi.fn(async () => ok(undefined)),
+      env: {
+        PATH: '/bin',
+        HOME: '/home/ada',
+        USER: 'ada',
+        SHELL: '/bin/zsh',
+        ANTHROPIC_API_KEY: 'secret',
+        UNSAFE_ENV: 'nope',
+      },
+      logger: options.logger ?? noopLogger,
+    }),
+  };
+}

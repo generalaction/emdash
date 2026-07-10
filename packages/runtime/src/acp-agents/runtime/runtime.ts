@@ -10,27 +10,20 @@ import type {
   TranscriptTurn,
 } from '@emdash/core/acp';
 import { acpErr } from '@emdash/core/acp';
-import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import type { LiveLog } from '@emdash/wire';
 import { AgentTerminalManager } from '../agent-terminal-manager';
 import { FsPort, TerminalPort } from '../client-ports';
 import { ConnectionPool } from '../connection/pool';
-import type {
-  AcpAuthStatusLiveHost,
-  SessionLiveModels,
-  SessionsListModel,
-} from '../state/live-models';
+import type { SessionLiveModels, SessionsListModel } from '../state/live-models';
 import type { StoredAttachment } from './attachment-store';
-import { AcpAuthManager } from './auth-manager';
 import { SessionManager, type HistoryPage } from './session-manager';
 import { TerminalLiveRegistry } from './terminal-live-registry';
 import type { AcpRuntimeDeps, AcpStartInput } from './types';
 
 export class AcpRuntime {
   readonly terminals: AgentTerminalManager;
-  readonly auth: AcpAuthManager;
   readonly pool: ConnectionPool;
   readonly manager: SessionManager;
   private readonly terminalLiveRegistry: TerminalLiveRegistry;
@@ -41,14 +34,6 @@ export class AcpRuntime {
       manager?.syncTerminals(conversationId)
     );
     this.terminals = new AgentTerminalManager(deps.host, this.terminalLiveRegistry.hooks);
-    this.auth = new AcpAuthManager({
-      resolveAuthProvider: (providerId) => deps.pluginHost.resolveAuthProvider(providerId),
-      host: deps.host,
-      ptySpawner: deps.ptySpawner,
-      homeDir: deps.authHomeDir,
-      env: deps.authEnv,
-      logger: deps.logger,
-    });
     const fs = new FsPort(deps.host);
     const terminalPort = new TerminalPort(this.terminals);
     this.pool = new ConnectionPool({
@@ -56,7 +41,7 @@ export class AcpRuntime {
       logger: deps.logger,
       onClosed: (key, exitCode) => manager?.onProcessClosed(key, exitCode),
     });
-    manager = new SessionManager(deps, this.pool, this.terminals, this.auth, {
+    manager = new SessionManager(deps, this.pool, this.terminals, {
       fs,
       terminals: terminalPort,
     });
@@ -224,40 +209,7 @@ export class AcpRuntime {
     return this.terminalLiveRegistry.getTerminalLog(terminalId);
   }
 
-  authStatusLiveHost(): AcpAuthStatusLiveHost {
-    return this.auth.host;
-  }
-
-  loginOutputLog(providerId: string): LiveLog | null {
-    return this.auth.loginOutput(providerId);
-  }
-
-  refreshAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AcpRuntimeError>> {
-    return this.auth.refreshAuthStatus(providerId);
-  }
-
-  startLogin(providerId: string, methodId: string): Promise<Result<void, AcpRuntimeError>> {
-    return this.auth.startLogin(providerId, methodId);
-  }
-
-  cancelLogin(providerId: string): Result<void, AcpRuntimeError> {
-    return this.auth.cancelLogin(providerId);
-  }
-
-  sendLoginInput(providerId: string, data: string): Result<void, AcpRuntimeError> {
-    return this.auth.sendLoginInput(providerId, data);
-  }
-
-  resizeLogin(providerId: string, cols: number, rows: number): Result<void, AcpRuntimeError> {
-    return this.auth.resizeLogin(providerId, cols, rows);
-  }
-
-  markUrlHandled(providerId: string, urlId: string): Result<void, AcpRuntimeError> {
-    return this.auth.markUrlHandled(providerId, urlId);
-  }
-
   dispose(): void {
     this.killAllTerminals();
-    this.auth.dispose();
   }
 }

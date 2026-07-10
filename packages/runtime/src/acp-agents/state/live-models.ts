@@ -2,7 +2,6 @@ import {
   acpApiContract,
   initialSessionConfigState,
   type AgentState,
-  type AuthStatusModelState,
   type PlanState,
   type PromptDraft,
   type SessionConfigState,
@@ -21,10 +20,8 @@ import {
 
 export type AcpSessionLiveHost = LiveModelHost<typeof acpApiContract.session>;
 export type AcpSessionsLiveHost = LiveModelHost<typeof acpApiContract.sessions>;
-export type AcpAuthStatusLiveHost = LiveModelHost<typeof acpApiContract.authStatus>;
 export type SessionLiveModels = LiveInstance<typeof acpApiContract.session>;
 export type SessionsListModel = LiveInstance<typeof acpApiContract.sessions>;
-export type AuthStatusModel = LiveInstance<typeof acpApiContract.authStatus>;
 
 export function createAcpSessionLiveHost(): AcpSessionLiveHost {
   return createLiveModelHost(acpApiContract.session);
@@ -32,21 +29,6 @@ export function createAcpSessionLiveHost(): AcpSessionLiveHost {
 
 export function createAcpSessionsLiveHost(): AcpSessionsLiveHost {
   return createLiveModelHost(acpApiContract.sessions);
-}
-
-export function createAcpAuthStatusLiveHost(): AcpAuthStatusLiveHost {
-  return createLiveModelHost(acpApiContract.authStatus);
-}
-
-export function createAuthStatusModel(
-  host: AcpAuthStatusLiveHost,
-  providerId: string,
-  initialState: AuthStatusModelState = {
-    status: { kind: 'unknown' },
-    login: null,
-  }
-): AuthStatusModel {
-  return host.create({ providerId }, { status: initialState });
 }
 
 export function createSessionLiveModels(

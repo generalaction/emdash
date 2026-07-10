@@ -5,6 +5,7 @@ export * from './file-drop';
 export * from './hierarchical';
 export * from './hook-config';
 export * from './hooks';
+export * from './local-plugin-fs';
 export * from './mcp';
 export * from './merge';
 export * from './parse-hook-event';

@@ -9,7 +9,6 @@ import {
   uploadFile,
 } from '@emdash/wire';
 import { z } from 'zod';
-import { agentAuthStatusSchema } from '../../agents/plugins/capabilities/auth';
 import { terminalStateSchema } from '../models';
 import { agentStateSchema } from '../models/agents';
 import { attachmentMimeTypeSchema, attachmentRefSchema } from '../models/attachments';
@@ -46,45 +45,6 @@ import { historyPageInputSchema, historyPageSchema, resumeResultSchema } from '.
 const startSessionResultSchema = z.object({ sessionId: z.string() });
 const sessionKeySchema = z.object({ conversationId: z.string() });
 const terminalOutputKeySchema = z.object({ terminalId: z.string() });
-const authStatusKeySchema = z.object({ providerId: z.string() });
-const loginOutputKeySchema = z.object({ providerId: z.string() });
-
-export const authPendingUrlSchema = z.object({
-  id: z.string(),
-  url: z.url(),
-});
-
-export const authLoginStateSchema = z.object({
-  methodId: z.string(),
-  startedAt: z.number(),
-  pendingUrl: authPendingUrlSchema.nullable(),
-  exit: z
-    .object({
-      exitCode: z.number().int().nullable(),
-      signal: z.string().nullable(),
-    })
-    .nullable(),
-});
-
-export const authStatusModelStateSchema = z.object({
-  status: agentAuthStatusSchema,
-  login: authLoginStateSchema.nullable(),
-});
-export type AuthStatusModelState = z.infer<typeof authStatusModelStateSchema>;
-export type AuthLoginState = z.infer<typeof authLoginStateSchema>;
-export type AuthPendingUrl = z.infer<typeof authPendingUrlSchema>;
-
-const startLoginCommandSchema = z.object({
-  providerId: z.string(),
-  methodId: z.string(),
-});
-const providerAuthCommandSchema = z.object({ providerId: z.string() });
-const sendLoginInputCommandSchema = providerAuthCommandSchema.extend({ data: z.string() });
-const resizeLoginCommandSchema = providerAuthCommandSchema.extend({
-  cols: z.number().int().positive(),
-  rows: z.number().int().positive(),
-});
-const markUrlHandledCommandSchema = providerAuthCommandSchema.extend({ urlId: z.string() });
 
 export const acpApiContract = defineContract({
   startSession: fallible({
@@ -183,36 +143,6 @@ export const acpApiContract = defineContract({
     data: historyPageSchema,
     error: acpRuntimeErrorSchema,
   }),
-  startLogin: fallible({
-    input: startLoginCommandSchema,
-    data: z.void(),
-    error: acpRuntimeErrorSchema,
-  }),
-  cancelLogin: fallible({
-    input: providerAuthCommandSchema,
-    data: z.void(),
-    error: acpRuntimeErrorSchema,
-  }),
-  sendLoginInput: fallible({
-    input: sendLoginInputCommandSchema,
-    data: z.void(),
-    error: acpRuntimeErrorSchema,
-  }),
-  resizeLogin: fallible({
-    input: resizeLoginCommandSchema,
-    data: z.void(),
-    error: acpRuntimeErrorSchema,
-  }),
-  markUrlHandled: fallible({
-    input: markUrlHandledCommandSchema,
-    data: z.void(),
-    error: acpRuntimeErrorSchema,
-  }),
-  refreshAuthStatus: fallible({
-    input: providerAuthCommandSchema,
-    data: agentAuthStatusSchema,
-    error: acpRuntimeErrorSchema,
-  }),
   sessions: liveModel({
     key: z.void(),
     states: {
@@ -233,13 +163,6 @@ export const acpApiContract = defineContract({
     },
   }),
   terminalOutput: liveLog({ key: terminalOutputKeySchema }),
-  authStatus: liveModel({
-    key: authStatusKeySchema,
-    states: {
-      status: liveState({ data: authStatusModelStateSchema }),
-    },
-  }),
-  loginOutput: liveLog({ key: loginOutputKeySchema }),
 });
 
 export const acpHostContract = defineContract({
