@@ -1,38 +1,56 @@
 # Git Runtime Architecture
 
-The Git domain is split between a shared contract package and a host-scoped runtime package.
-This lets renderer, desktop, and workspace-server code share one wire vocabulary without importing
-Git process execution, file watchers, or live resource ownership.
+Git is split into a transport contract and a host-scoped runtime. Renderer, desktop, and
+workspace-server code share the Wire vocabulary without importing Git execution, host paths,
+watchers, or lease ownership.
 
 ## Ownership
 
-- `packages/core/src/git/` owns the wire contracts, schemas, keys, serialized models and errors,
-  shared port interfaces, operation context, and client-used pure helpers.
-- `packages/runtime/src/git/` owns `GitRuntime`, repository and checkout sessions, live-model
-  hosts, resources, mutations, Git operations, watcher invalidation, and the wire implementation.
-- `@emdash/runtime` depends on `@emdash/core`; core must never import runtime.
-- `GitRuntime` is host-scoped. The process or daemon hosting it determines which machine owns its
-  paths and Git executable; the runtime does not branch on local versus SSH machines.
+- `packages/core/src/git/` owns selectors, contracts, serialized states, inputs, results, errors,
+  and client-used pure helpers.
+- `packages/runtime/src/git/` owns provisioning, identity resolution, Git execution, canonical
+  mounts, watchers, effect routing, leases, and the Wire adapter.
+- `packages/wire/` owns live-state publication, `ComputedLiveState`, leased live-model providers,
+  mutation cursors, jobs, replicas, and transport behavior.
+- Core never imports runtime. Canonical identities and canonical host paths are runtime-only.
 
-## Runtime Lifecycle
+## Layers
 
-- `GitRuntime` is the composition root. It owns the shared Git executor, watch service, object-store
-  mutex, and `GitSessionManager`.
-- `GitSessionManager` owns repository and checkout leases. Repository resources are keyed by their
-  common Git directory; checkout resources are keyed by their top-level working tree.
-- Opening a checkout retains its repository resource. Closing sessions releases their leases, and
-  disposing the runtime releases all sessions, live hosts, and an internally owned watcher.
+1. `GitRepositoryProvisioner` inspects, initializes, and clones paths before a mount exists.
+2. `GitRepository` and `GitCheckout` are execution capabilities. They run commands and fresh reads;
+   they do not own live states, watchers, or leases.
+3. `RepositoryMount` and `CheckoutMount` own computed live states and watcher invalidation. One
+   repository-family lane orders commands and authoritative refreshes.
+4. `GitAllocationGraph` resolves selectors, pools mounts by canonical identity, retains a parent
+   repository for every checkout, and disposes idle mounts after the configured TTL.
+5. `GitWireAdapter` acquires selector-bound handles for each call. State attachments and jobs hold
+   their leases for their full lifetime.
+
+Repository identity is the canonical common Git directory. Checkout identity combines the
+canonical checkout root and private Git directory. Linked worktrees therefore share one repository
+mount while retaining distinct checkout mounts.
+
+## Live State and Mutations
+
+Repository live states are `refs`, `remotes`, `stashes`, and `worktrees`. Checkout live states are
+`status` and `head`. File diffs remain on-demand queries; a bounded, target-aware staleness state
+lets consumers invalidate cached diff content cheaply.
+
+Watchers and commands feed the same Git-effect router. Mutations use three reconciliation classes:
+
+- settle: await an authoritative refresh and return the existing Wire success cursor;
+- eager: invalidate and refresh promptly when observed, without delaying the result;
+- background: mark dirty and converge while observed or on the next acquisition.
+
+Only stage and unstage operations settle `status` initially. Other commands return authoritative
+domain results without a generalized cross-model settlement protocol. Cross-domain effects, such
+as a checkout commit invalidating repository refs, are explicit background effects.
 
 ## Wire Composition
 
-`gitContract` is defined in core. Runtime exposes two server-side entry points:
+`gitContract` uses reconnect-stable path selectors and has no public open/close procedures.
+`LeasedLiveModelProvider` connects state acquisition to runtime leases. `createGitContractImpl()`
+mounts Git beneath a parent contract, while `createGitController()` serves the standalone contract.
 
-- `createGitContractImpl(runtime, contract)` returns a reusable implementation that can be mounted
-  at a nested contract path such as `workspaceWireContract.git`.
-- `createGitController(runtime)` serves the standalone `gitContract`.
-
-Contract nesting changes live-model IDs. The reusable implementation therefore adapts runtime live
-hosts to the mounted contract and rewrites mutation cursor model IDs at that boundary.
-
-Clients should import contracts, models, and errors from `@emdash/core/git`. Only a process that
-hosts Git execution should import `@emdash/runtime/git`.
+Clients import contracts, state types, and errors from `@emdash/core/git`. Only a process hosting Git
+execution imports `@emdash/runtime/git`.
