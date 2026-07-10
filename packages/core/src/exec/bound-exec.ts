@@ -1,11 +1,12 @@
-import { spawn } from 'node:child_process';
-import type { SpawnOptionsWithoutStdio } from 'node:child_process';
+import { spawn as spawnProcess } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import {
   ExecError,
   type BoundExec,
   type ExecBufferResult,
   type ExecOptions,
   type ExecResult,
+  type ExecSpawnOptions,
 } from './types';
 
 const DEFAULT_MAX_BUFFER = 10 * 1024 * 1024;
@@ -53,6 +54,15 @@ class ProcessBoundExec implements BoundExec {
     return { stdout: Buffer.concat(chunks), stderr };
   }
 
+  spawn(args: string[], options: ExecSpawnOptions = {}): ChildProcessWithoutNullStreams {
+    return spawnProcess(this.file, args, {
+      cwd: options.cwd ?? this.cwd,
+      env: composeEnv(this.env, options.env),
+      signal: options.signal,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  }
+
   withCwd(cwd: string): BoundExec {
     return new ProcessBoundExec(this.file, cwd, this.env);
   }
@@ -64,7 +74,7 @@ class ProcessBoundExec implements BoundExec {
         env: composeEnv(this.env, options.env),
         signal: options.signal,
       };
-      const child = spawn(this.file, args, spawnOptions);
+      const child = spawnProcess(this.file, args, spawnOptions);
       const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
       let stderr = '';
       let stdoutBytes = 0;
@@ -162,7 +172,7 @@ type TimeoutHandle = {
 };
 
 function createTimeout(
-  child: ReturnType<typeof spawn>,
+  child: ReturnType<typeof spawnProcess>,
   options: ExecOptions,
   onTimeout: () => void
 ): TimeoutHandle | undefined {

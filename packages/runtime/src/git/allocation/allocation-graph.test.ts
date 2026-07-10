@@ -32,6 +32,9 @@ const exec: BoundExec = {
   execBuffer: async () => {
     throw new Error('unexpected Git execution');
   },
+  spawn: () => {
+    throw new Error('unexpected Git execution');
+  },
   withCwd() {
     return this;
   },

@@ -15,7 +15,7 @@ import {
   type ResourceLiveModelHost,
 } from '@emdash/wire';
 import type { GitAllocationGraph } from '../allocation/allocation-graph';
-import { expectedGitCommandError } from '../runtime-error';
+import { expectedGitCommandError } from '../api/errors';
 import type { RepositoryResource } from './repository-resource';
 
 type RepositoryModel = typeof gitRepositoryContract.model;

@@ -258,7 +258,7 @@ export class RepositoryResource {
     await this.lane.drain();
     for (const state of Object.values(this.states)) state.dispose();
     this.checkouts.clear();
-    await this.commands.dispose();
+    this.commands.dispose();
   }
 
   private refsChanged(): void {

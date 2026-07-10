@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { chmod, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -7,6 +7,7 @@ import { ExecError, type BoundExec } from '@emdash/core/exec';
 import { gitContract } from '@emdash/core/git';
 import type { IWatchService } from '@emdash/core/watch';
 import { describe, expect, it } from 'vitest';
+import { createGitExec } from './exec/git-exec';
 import { GitRuntime } from './index';
 
 const execFileAsync = promisify(execFile);
@@ -68,6 +69,9 @@ function createFailingExec(error: unknown): BoundExec {
       throw error;
     },
     async execBuffer() {
+      throw error;
+    },
+    spawn() {
       throw error;
     },
     withCwd() {
@@ -293,6 +297,58 @@ describe('GitRuntime', () => {
     } finally {
       await runtime.dispose();
       await watcher.dispose();
+    }
+  });
+
+  it('targets repository reads independently of the runtime cwd', async () => {
+    const target = await makeRepo();
+    const runtimeCwd = await makeRepo();
+    await writeFile(path.join(target, 'INITIAL.md'), '# Target\n', 'utf8');
+    await execFileAsync('git', ['commit', '-am', 'target content'], { cwd: target });
+    await writeFile(path.join(runtimeCwd, 'INITIAL.md'), '# Other\n', 'utf8');
+    await execFileAsync('git', ['commit', '-am', 'other content'], { cwd: runtimeCwd });
+    const runtime = new GitRuntime({
+      exec: createGitExec({ cwd: runtimeCwd }),
+      watcher: createNoopWatcher(),
+    });
+
+    try {
+      await expect(
+        runtime.repository.readBlobAtRef({
+          repository: { path: target },
+          ref: 'HEAD',
+          filePath: 'INITIAL.md',
+        })
+      ).resolves.toEqual({ success: true, data: '# Target\n' });
+    } finally {
+      await runtime.dispose();
+      await rm(target, { recursive: true, force: true });
+      await rm(runtimeCwd, { recursive: true, force: true });
+    }
+  });
+
+  it('uses the configured executable for persistent repository reads', async () => {
+    const repo = await makeRepo();
+    const gitDir = await realpath(path.join(repo, '.git'));
+    const { executable, logPath } = await makeRecordingGitExecutable();
+    const runtime = new GitRuntime({ executable, watcher: createNoopWatcher() });
+
+    try {
+      await expect(
+        runtime.repository.readBlobAtRef({
+          repository: { path: repo },
+          ref: 'HEAD',
+          filePath: 'INITIAL.md',
+        })
+      ).resolves.toEqual({ success: true, data: '# Initial\n' });
+      await runtime.dispose();
+
+      const calls = (await readFile(logPath, 'utf8')).trim().split('\n').filter(Boolean);
+      expect(calls).toContain(`--git-dir=${gitDir} cat-file --batch`);
+    } finally {
+      await runtime.dispose();
+      await rm(repo, { recursive: true, force: true });
+      await rm(path.dirname(executable), { recursive: true, force: true });
     }
   });
 

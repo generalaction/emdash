@@ -6,6 +6,7 @@ import { toPendingLease, type Lease, type PendingLease, type Result } from '@emd
 import { createManagedSource, type ManagedSource } from '@emdash/wire/util';
 import { CheckoutResource } from '../checkout/checkout-resource';
 import { GitCheckout } from '../checkout/git-checkout';
+import { bindGitDir } from '../exec/git-exec';
 import { GitRepository } from '../repository/git-repository';
 import { RepositoryResource } from '../repository/repository-resource';
 import {
@@ -59,7 +60,10 @@ export class GitAllocationGraph {
       graceMs: idleTtlMs,
       onError: (error, id) => onError(`git repository ${id}`, error),
       create: async (identity, scope) => {
-        const commands = new GitRepository({ identity, exec: options.exec });
+        const commands = new GitRepository({
+          identity,
+          exec: bindGitDir(options.exec, identity.gitCommonDir),
+        });
         const resource = await RepositoryResource.create({
           identity,
           commands,

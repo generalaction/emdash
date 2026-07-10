@@ -36,6 +36,7 @@ export {
   classifySwitchError,
   gitErr,
   gitErrorMessage,
+  isMissingBlobError,
   isNotRepositoryInspectionError,
   isUnbornHeadError,
   toGitCommandError,

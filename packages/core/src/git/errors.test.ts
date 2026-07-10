@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { ExecError } from '../exec';
 import {
   classifyCloneRepositoryError,
   classifyFetchError,
   classifyFetchPrForReviewError,
   classifyPullError,
   classifyPushError,
+  isMissingBlobError,
 } from './errors';
 
 describe('git error classifiers', () => {
@@ -41,5 +43,19 @@ describe('git error classifiers', () => {
         stderr: 'fatal: unable to access url: The requested URL returned error: 403',
       })
     ).toMatchObject({ type: 'auth_required' });
+  });
+
+  it('distinguishes missing blobs from other command failures', () => {
+    const error = (stderr: string, exitCode = 128) =>
+      new ExecError('git', ['cat-file', 'blob', 'HEAD:file.txt'], exitCode, '', stderr);
+
+    expect(isMissingBlobError(error("fatal: path 'file.txt' does not exist in 'HEAD'"))).toBe(true);
+    expect(isMissingBlobError(error("fatal: invalid object name 'missing'."))).toBe(true);
+    expect(isMissingBlobError(error('fatal: Not a valid object name HEAD:file.txt'))).toBe(true);
+    expect(isMissingBlobError(error('fatal: permission denied'))).toBe(false);
+    expect(isMissingBlobError(error("fatal: path 'file.txt' does not exist in 'HEAD'", 1))).toBe(
+      false
+    );
+    expect(isMissingBlobError(new TypeError('executor bug'))).toBe(false);
   });
 });

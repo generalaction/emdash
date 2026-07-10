@@ -7,4 +7,5 @@ export {
   type ExecBufferResult,
   type ExecOptions,
   type ExecResult,
+  type ExecSpawnOptions,
 } from './types';

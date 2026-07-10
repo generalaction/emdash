@@ -343,6 +343,16 @@ export function isNotRepositoryInspectionError(error: unknown): boolean {
   );
 }
 
+export function isMissingBlobError(error: unknown): boolean {
+  if (!(error instanceof ExecError) || error.exitCode !== 128) return false;
+  const message = gitErrorMessage(error).toLowerCase();
+  return (
+    message.includes('does not exist in') ||
+    message.includes('invalid object name') ||
+    message.includes('not a valid object name')
+  );
+}
+
 export function isUnbornHeadError(error: unknown): boolean {
   const message = gitErrorMessage(error).toLowerCase();
   return (
