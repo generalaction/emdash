@@ -5,13 +5,19 @@ vi.mock('@main/core/agents/plugin-registry', () => ({
   getPlugin: vi.fn((id: string) => ({
     capabilities: {
       hooks:
-        id === 'amp' || id === 'codex'
+        id === 'amp'
           ? { kind: 'plugin', scope: 'workspace', supportedEvents: ['start', 'stop', 'session'] }
-          : {
-              kind: 'config',
-              scope: 'global',
-              supportedEvents: ['notification', 'stop', 'session'],
-            },
+          : id === 'codex'
+            ? {
+                kind: 'config',
+                scope: 'global',
+                supportedEvents: ['start', 'notification', 'stop', 'session'],
+              }
+            : {
+                kind: 'config',
+                scope: 'global',
+                supportedEvents: ['notification', 'stop', 'session'],
+              },
     },
   })),
   isValidProviderId: vi.fn((value: unknown) => typeof value === 'string'),
