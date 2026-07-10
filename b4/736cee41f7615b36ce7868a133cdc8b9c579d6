@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/main/core/tasks/operations/createTask.ts
+  s_9fc3185d838663::t_419092a157fd27 4-7,34-40
+packages/plugins/src/agents/impl/codex/index.ts
+  s_9fc3185d838663::t_419092a157fd27 92
+packages/plugins/src/agents/impl/codex/hooks.ts
+  s_9fc3185d838663::t_419092a157fd27 10,69,137,159
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.test.ts
+  s_9fc3185d838663::t_419092a157fd27 8,27,31
+packages/plugins/src/agents/impl/codex/hooks.test.ts
+  s_9fc3185d838663::t_419092a157fd27 70-71
+apps/emdash-desktop/src/main/core/conversations/createConversation.ts
+  s_9fc3185d838663::t_419092a157fd27 16-19,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b4736cee41f7615b36ce7868a133cdc8b9c579d6",
+  "prompts": {},
+  "sessions": {
+    "s_9fc3185d838663": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n36tuT3hWD89sSKFT4l",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
