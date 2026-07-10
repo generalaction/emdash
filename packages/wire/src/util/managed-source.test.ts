@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { deferred } from '../testing';
 import { acquireAsResult, createManagedSource } from './managed-source';
-import type { Scope } from './scope';
+import { createScope, describeScope, type Scope } from './scope';
 
 describe('createManagedSource', () => {
   afterEach(() => {
@@ -162,6 +162,58 @@ describe('createManagedSource', () => {
     await vi.advanceTimersByTimeAsync(100);
 
     expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('disposes entries when the parent scope is disposed', async () => {
+    const cleanup = vi.fn();
+    const parent = createScope({ label: 'parent' });
+    const source = createManagedSource({
+      key: (key: string) => key,
+      scope: parent,
+      label: 'sessions',
+      create: async (key: string, scope: Scope) => {
+        scope.add(cleanup);
+        return key;
+      },
+    });
+
+    await source.acquire('same').ready();
+    expect(describeScope(parent)).toMatchObject({
+      label: 'parent',
+      children: [
+        {
+          label: 'sessions',
+          labelPath: 'parent/sessions',
+          children: [{ label: 'same', labelPath: 'parent/sessions/same' }],
+        },
+      ],
+    });
+
+    await parent.dispose();
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(source.peek('same')).toBeUndefined();
+    await expect(source.acquire('same').ready()).rejects.toThrow('ManagedSource is disposed');
+  });
+
+  it('handles explicit and parent disposal idempotently', async () => {
+    const cleanup = vi.fn();
+    const parent = createScope({ label: 'parent' });
+    const source = createManagedSource({
+      key: (key: string) => key,
+      scope: parent,
+      create: async (key: string, scope: Scope) => {
+        scope.add(cleanup);
+        return key;
+      },
+    });
+
+    await source.acquire('same').ready();
+    await source.dispose();
+    await parent.dispose();
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    await expect(source.acquire('same').ready()).rejects.toThrow('ManagedSource is disposed');
   });
 
   it('invalidates an active entry regardless of ref count', async () => {

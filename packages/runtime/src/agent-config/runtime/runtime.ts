@@ -56,6 +56,13 @@ export class AgentConfigRuntime {
     this.auth = new AgentAuthManager(deps, this.install);
     this.mcp = new AgentMcpConfigManager(deps, this.mcpModel);
     this.skills = new AgentSkillsManager(deps, this.skillsModel);
+    this.deps.scope.add(async () => {
+      await this.auth.dispose();
+      this.install.dispose();
+      this.agentsHost.dispose();
+      this.mcpHost.dispose();
+      this.skillsHost.dispose();
+    });
     this.install.initialize();
     void this.mcp.initialize();
     void this.skills.initialize();
@@ -103,7 +110,7 @@ export class AgentConfigRuntime {
     return this.auth.startLogin(providerId, methodId);
   }
 
-  cancelLogin(providerId: string): Result<void, AgentConfigAuthError> {
+  cancelLogin(providerId: string): Promise<Result<void, AgentConfigAuthError>> {
     return this.auth.cancelLogin(providerId);
   }
 
@@ -171,12 +178,7 @@ export class AgentConfigRuntime {
     };
   }
 
-  dispose(): void {
-    this.auth.dispose();
-    this.install.dispose();
-    this.agentsHost.dispose();
-    this.mcpHost.dispose();
-    this.skillsHost.dispose();
-    void this.deps.agentHost.dispose();
+  dispose(): Promise<void> {
+    return this.deps.scope.dispose();
   }
 }

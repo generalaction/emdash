@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentAuthStatus, AgentHostError } from '@emdash/core/agents/plugins';
-import { PtyRegistry, type PtyExitInfo, type PtySession, type PtySpawner } from '@emdash/core/pty';
+import { PtyRegistry, type PtyExitInfo, type PtySession } from '@emdash/core/pty';
 import type { AgentConfigAuthError, AuthStatusModelState } from '@emdash/core/workspace-server';
 import { err, ok, type PendingLease, type Result } from '@emdash/shared';
 import type { LiveLog } from '@emdash/wire';
-import { createManagedSource, type ManagedSource, type Scope } from '@emdash/wire/util';
+import {
+  createManagedSource,
+  deduplicateRequests,
+  type ManagedSource,
+  type Scope,
+} from '@emdash/wire/util';
 import type { AgentInstallManager } from './install';
 import type { AgentConfigRuntimeDeps } from './types';
 
@@ -21,30 +26,40 @@ type CacheEntry = {
 type LoginContext = {
   providerId: string;
   methodId: string;
+  generation: string;
 };
 
 type LoginSession = {
   providerId: string;
+  generation: string;
   pty: PtySession;
+  seenUrls: Set<string>;
+};
+
+type LoginLease = {
+  generation: string;
+  lease: PendingLease<LoginSession>;
 };
 
 export class AgentAuthManager {
+  private readonly scope: Scope;
   private readonly cache = new Map<string, CacheEntry>();
-  private readonly pending = new Map<string, Promise<AgentAuthStatus>>();
+  private readonly statusGenerations = new Map<string, number>();
   private readonly ptys: PtyRegistry;
   private readonly loginSource: ManagedSource<string, LoginSession, LoginContext>;
-  private readonly loginLeases = new Map<string, PendingLease<LoginSession>>();
-  private readonly seenUrls = new Map<string, Set<string>>();
+  private readonly loginLeases = new Map<string, LoginLease>();
+  private readonly probeStatus: (providerId: string) => Promise<AgentAuthStatus>;
 
   constructor(
     private readonly deps: AgentConfigRuntimeDeps,
     private readonly install: AgentInstallManager
   ) {
-    this.ptys = new PtyRegistry(assertPtySpawner(deps.ptySpawner), {
-      onSessionChanged: (providerId) => this.publishLoginExit(providerId),
-    });
+    this.scope = deps.scope.child('auth');
+    this.ptys = new PtyRegistry(deps.ptySpawner);
     this.loginSource = createManagedSource<string, LoginSession, LoginContext>({
       key: (providerId) => providerId,
+      scope: this.scope,
+      label: 'login-source',
       create: (providerId, context, scope) => this.createLoginSession(providerId, context, scope),
       onError: (error, providerId) => {
         deps.logger.warn('AgentAuthManager: login PTY creation failed', {
@@ -52,6 +67,15 @@ export class AgentAuthManager {
           error: errorMessage(error),
         });
       },
+    });
+    this.probeStatus = deduplicateRequests(
+      (providerId: string) => this.probeAndUpdate(providerId),
+      { key: (providerId) => providerId }
+    );
+    this.scope.add(() => {
+      this.loginLeases.clear();
+      this.cache.clear();
+      this.statusGenerations.clear();
     });
   }
 
@@ -64,23 +88,12 @@ export class AgentAuthManager {
       if (cached && Date.now() - cached.checkedAt < CACHE_TTL_MS) return cached.status;
     }
 
-    const pending = this.pending.get(providerId);
-    if (pending) return pending;
-
-    const promise = this.probe(providerId)
-      .then((status) => {
-        this.updateStatus(providerId, status);
-        return status;
-      })
-      .finally(() => {
-        this.pending.delete(providerId);
-      });
-    this.pending.set(providerId, promise);
-    return promise;
+    return this.probeStatus(providerId);
   }
 
   markUnauthenticated(providerId: string, message?: string): AgentAuthStatus {
     const status: AgentAuthStatus = { kind: 'unauthenticated', message };
+    this.nextStatusGeneration(providerId);
     this.updateStatus(providerId, status);
     return status;
   }
@@ -97,45 +110,43 @@ export class AgentAuthManager {
     methodId: string
   ): Promise<Result<void, AgentConfigAuthError>> {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
-    await this.releaseLogin(providerId);
-    const lease = this.loginSource.acquire(providerId, { providerId, methodId });
-    this.loginLeases.set(providerId, lease);
+    await this.releaseLogin(providerId, undefined, { force: true });
+    const generation = randomUUID();
+    const lease = this.loginSource.acquire(providerId, { providerId, methodId, generation });
+    this.loginLeases.set(providerId, { generation, lease });
     try {
       await lease.ready();
+      if (!this.isCurrentLogin(providerId, generation)) {
+        return err({ type: 'invalid-state', message: 'Login was superseded while starting' });
+      }
       return ok();
     } catch (error) {
-      if (this.loginLeases.get(providerId) === lease) this.loginLeases.delete(providerId);
+      if (this.isCurrentLogin(providerId, generation)) this.loginLeases.delete(providerId);
       await lease.release();
       return err({ type: 'invalid-state', message: errorMessage(error) });
     }
   }
 
-  cancelLogin(providerId: string): Result<void, AgentConfigAuthError> {
+  async cancelLogin(providerId: string): Promise<Result<void, AgentConfigAuthError>> {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
-    void this.releaseLogin(providerId);
+    await this.releaseLogin(providerId, undefined, { force: true });
     this.publish(providerId, (current) => ({ ...current, login: null }));
     return ok();
   }
 
   sendLoginInput(providerId: string, data: string): Result<void, AgentConfigAuthError> {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
-    if (!this.ptys.write(providerId, data)) {
-      return err({
-        type: 'invalid-state',
-        message: `No login PTY is active for provider '${providerId}'`,
-      });
-    }
+    const session = this.currentLogin(providerId);
+    if (!session) return noLogin(providerId);
+    session.pty.write(data);
     return ok();
   }
 
   resizeLogin(providerId: string, cols: number, rows: number): Result<void, AgentConfigAuthError> {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
-    if (!this.ptys.resize(providerId, cols, rows)) {
-      return err({
-        type: 'invalid-state',
-        message: `No login PTY is active for provider '${providerId}'`,
-      });
-    }
+    const session = this.currentLogin(providerId);
+    if (!session) return noLogin(providerId);
+    session.pty.resize(cols, rows);
     return ok();
   }
 
@@ -155,13 +166,11 @@ export class AgentAuthManager {
   }
 
   loginOutput(providerId: string): LiveLog | null {
-    return this.ptys.getLog(providerId);
+    return this.currentLogin(providerId)?.pty.output ?? null;
   }
 
-  dispose(): void {
-    void this.loginSource.dispose();
-    this.loginLeases.clear();
-    this.ptys.killAll();
+  dispose(): Promise<void> {
+    return this.scope.dispose();
   }
 
   private async createLoginSession(
@@ -172,8 +181,11 @@ export class AgentAuthManager {
     const loginCommand = await this.deps.agentHost.buildLoginCommand(providerId, context.methodId);
     if (!loginCommand.success) throw new Error(agentConfigAuthErrorMessage(loginCommand.error));
     const { command, args, env } = loginCommand.data;
+    if (!this.isCurrentLogin(providerId, context.generation)) {
+      throw new Error('Login was superseded while resolving the login command');
+    }
     const startedAt = Date.now();
-    this.seenUrls.set(providerId, new Set());
+    const seenUrls = new Set<string>();
     this.publish(providerId, (current) => ({
       ...current,
       login: {
@@ -195,34 +207,60 @@ export class AgentAuthManager {
         rows: DEFAULT_ROWS,
       },
       {
-        onData: (chunk) => this.detectUrl(providerId, chunk),
+        replaceExisting: false,
+        onData: (chunk) => this.detectUrl(providerId, context.generation, seenUrls, chunk),
         onExit: (info) => {
-          this.publishLoginExit(providerId, info);
-          void this.getStatus(providerId, { refresh: true }).catch((error) => {
-            this.deps.logger.warn('AgentAuthManager: failed to refresh auth after login exit', {
-              providerId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          });
-          void this.releaseLogin(providerId);
+          void this.handleLoginExit(providerId, context.generation, info);
         },
       }
     );
     scope.add(() => {
-      this.ptys.dispose(providerId);
-      this.seenUrls.delete(providerId);
+      if (this.ptys.get(providerId) === pty) this.ptys.dispose(providerId);
     });
-    return { providerId, pty };
+    return { providerId, generation: context.generation, pty, seenUrls };
   }
 
-  private async releaseLogin(providerId: string): Promise<void> {
-    const lease = this.loginLeases.get(providerId);
-    this.loginLeases.delete(providerId);
-    if (lease) {
-      await lease.release();
+  private async handleLoginExit(
+    providerId: string,
+    generation: string,
+    info: PtyExitInfo
+  ): Promise<void> {
+    if (!this.isCurrentLogin(providerId, generation)) return;
+    this.publishLoginExit(providerId, generation, info);
+    await this.releaseLogin(providerId, generation);
+    if (this.scope.disposed) return;
+    await this.getStatus(providerId, { refresh: true }).catch((error) => {
+      this.deps.logger.warn('AgentAuthManager: failed to refresh auth after login exit', {
+        providerId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
+
+  private async releaseLogin(
+    providerId: string,
+    generation?: string,
+    options: { force?: boolean } = {}
+  ): Promise<void> {
+    const entry = this.loginLeases.get(providerId);
+    if (entry) {
+      if (generation && entry.generation !== generation) return;
+      this.loginLeases.delete(providerId);
+      if (options.force) await this.loginSource.invalidate(providerId);
+      await entry.lease.release();
       return;
     }
-    await this.loginSource.invalidate(providerId);
+
+    if (!generation || options.force) await this.loginSource.invalidate(providerId);
+  }
+
+  private async probeAndUpdate(providerId: string): Promise<AgentAuthStatus> {
+    const generation = this.nextStatusGeneration(providerId);
+    const status = await this.probe(providerId);
+    if (!this.scope.disposed && this.statusGenerations.get(providerId) === generation) {
+      this.updateStatus(providerId, status);
+    }
+    return status;
   }
 
   private async probe(providerId: string): Promise<AgentAuthStatus> {
@@ -245,15 +283,19 @@ export class AgentAuthManager {
     }
   }
 
-  private detectUrl(providerId: string, chunk: string): void {
+  private detectUrl(
+    providerId: string,
+    generation: string,
+    seenUrls: Set<string>,
+    chunk: string
+  ): void {
+    if (!this.isCurrentLogin(providerId, generation)) return;
     const match = URL_PATTERN.exec(chunk);
     if (!match) return;
 
     const url = stripTrailingUrlPunctuation(match[0]);
-    const seen = this.seenUrls.get(providerId) ?? new Set<string>();
-    if (seen.has(url)) return;
-    seen.add(url);
-    this.seenUrls.set(providerId, seen);
+    if (seenUrls.has(url)) return;
+    seenUrls.add(url);
 
     this.publish(providerId, (current) => {
       if (!current.login || current.login.pendingUrl) return current;
@@ -267,9 +309,8 @@ export class AgentAuthManager {
     });
   }
 
-  private publishLoginExit(providerId: string, exitStatus?: PtyExitInfo): void {
-    const exit = exitStatus ?? this.ptys.get(providerId)?.exitStatus;
-    if (!exit) return;
+  private publishLoginExit(providerId: string, generation: string, exit: PtyExitInfo): void {
+    if (!this.isCurrentLogin(providerId, generation)) return;
     this.publish(providerId, (current) => {
       if (!current.login) return current;
       return {
@@ -294,6 +335,7 @@ export class AgentAuthManager {
     providerId: string,
     update: (current: AuthStatusModelState) => AuthStatusModelState
   ): void {
+    if (this.scope.disposed) return;
     const current = this.install.getAuth(providerId);
     this.install.updateAuth(providerId, update(current));
   }
@@ -301,15 +343,22 @@ export class AgentAuthManager {
   private hasProvider(providerId: string): boolean {
     return this.deps.agentHost.get(providerId) !== undefined;
   }
-}
 
-function assertPtySpawner(spawner: PtySpawner | undefined): PtySpawner {
-  return {
-    spawn(spec) {
-      if (!spawner) throw new Error('Agent auth login requires a PTY spawner');
-      return spawner.spawn(spec);
-    },
-  };
+  private currentLogin(providerId: string): LoginSession | null {
+    const session = this.loginSource.peek(providerId);
+    if (!session || !this.isCurrentLogin(providerId, session.generation)) return null;
+    return session;
+  }
+
+  private isCurrentLogin(providerId: string, generation: string): boolean {
+    return this.loginLeases.get(providerId)?.generation === generation;
+  }
+
+  private nextStatusGeneration(providerId: string): number {
+    const next = (this.statusGenerations.get(providerId) ?? 0) + 1;
+    this.statusGenerations.set(providerId, next);
+    return next;
+  }
 }
 
 function stripTrailingUrlPunctuation(url: string): string {
@@ -322,4 +371,11 @@ function errorMessage(error: unknown): string {
 
 function agentConfigAuthErrorMessage(error: AgentConfigAuthError | AgentHostError): string {
   return 'message' in error ? error.message : error.type;
+}
+
+function noLogin(providerId: string): Result<void, AgentConfigAuthError> {
+  return err({
+    type: 'invalid-state',
+    message: `No login PTY is active for provider '${providerId}'`,
+  });
 }

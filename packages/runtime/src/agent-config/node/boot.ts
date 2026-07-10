@@ -27,8 +27,9 @@ export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimePro
     (scope) => {
       const homeDir = os.homedir();
       const spawner = new NodePtySpawner();
+      const runtimeScope = scope.child('agent-config-runtime');
       const agentHost = new AgentPluginHost({
-        scope,
+        scope: runtimeScope,
         registry: options.pluginRegistry,
         exec: new NodeExecutionContext({ env }),
         fs: createLocalPluginFs(homeDir),
@@ -36,6 +37,7 @@ export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimePro
         homeDir,
       });
       const runtime = new AgentConfigRuntime({
+        scope: runtimeScope,
         agentHost,
         ptySpawner: spawner,
         logger,
@@ -46,7 +48,6 @@ export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimePro
           shell: env.SHELL ?? '/bin/sh',
         }),
       });
-      scope.add(() => runtime.dispose());
       return withValidation(
         agentConfigContract,
         createAgentConfigController(runtime),

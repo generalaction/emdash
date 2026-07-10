@@ -145,7 +145,7 @@ describe('AgentConfigRuntime', () => {
     expect(ctx?.env.UNSAFE_ENV).toBeUndefined();
     expect(ctx?.env.SHELL).toBe('/bin/zsh');
     expect(exec.exec).toHaveBeenCalledWith('which', ['fake-agent'], expect.any(Object));
-    runtime.dispose();
+    await runtime.dispose();
   });
 
   it('saves and lists MCP servers through provider behavior', async () => {
@@ -163,7 +163,7 @@ describe('AgentConfigRuntime', () => {
 
     expect(saved.success).toBe(true);
     expect(listed).toEqual(ok([server]));
-    runtime.dispose();
+    await runtime.dispose();
   });
 
   it('creates and removes local skills through plugin fs', async () => {
@@ -183,7 +183,7 @@ describe('AgentConfigRuntime', () => {
       expect(created.data[0]?.description).toBe('Review code changes');
     }
     expect(removed).toEqual(ok([]));
-    runtime.dispose();
+    await runtime.dispose();
   });
 
   it('starts login through a managed PTY and exposes output', async () => {
@@ -209,7 +209,7 @@ describe('AgentConfigRuntime', () => {
 
     expect(runtime.sendLoginInput('claude', 'code\n')).toEqual(ok(undefined));
     expect(ptySpawner.processes[0]?.writes).toEqual(['code\n']);
-    runtime.dispose();
+    await runtime.dispose();
   });
 
   it('cancels login by releasing the managed PTY', async () => {
@@ -217,14 +217,12 @@ describe('AgentConfigRuntime', () => {
     const { runtime } = makeRuntime({ ptySpawner });
     await runtime.startLogin('claude', 'login');
 
-    expect(runtime.cancelLogin('claude')).toEqual(ok(undefined));
+    await expect(runtime.cancelLogin('claude')).resolves.toEqual(ok(undefined));
 
-    await vi.waitFor(() => {
-      expect(ptySpawner.processes[0]?.killed).toBe(true);
-    });
+    expect(ptySpawner.processes[0]?.killed).toBe(true);
     expect(runtime.loginOutputLog('claude')).toBeNull();
     expect(runtime.sendLoginInput('claude', 'code\n').success).toBe(false);
-    runtime.dispose();
+    await runtime.dispose();
   });
 
   it('restarts login for repeated starts on the same provider', async () => {
@@ -237,7 +235,32 @@ describe('AgentConfigRuntime', () => {
     expect(ptySpawner.processes).toHaveLength(2);
     expect(ptySpawner.processes[0]?.killed).toBe(true);
     expect(ptySpawner.processes[1]?.killed).toBe(false);
-    runtime.dispose();
+    await runtime.dispose();
+  });
+
+  it('ignores stale output and exit callbacks from a replaced login', async () => {
+    const ptySpawner = new FakePtySpawner();
+    const authCheckStatus = vi.fn(async () => ({ kind: 'unauthenticated' as const }));
+    const { runtime } = makeRuntime({ authCheckStatus, ptySpawner });
+
+    await runtime.startLogin('claude', 'login');
+    const first = ptySpawner.processes[0];
+    await runtime.startLogin('claude', 'login');
+    const second = ptySpawner.processes[1];
+
+    first?.emitData('Open https://example.com/old\n');
+    expect((await runtime.loginOutputLog('claude')?.snapshot())?.data.text).toBe('');
+
+    first?.emitExit({ exitCode: 0, signal: null });
+    expect(second?.killed).toBe(false);
+    expect(runtime.sendLoginInput('claude', 'code\n')).toEqual(ok(undefined));
+    expect(authCheckStatus).not.toHaveBeenCalled();
+
+    second?.emitData('Open https://example.com/current\n');
+    expect((await runtime.loginOutputLog('claude')?.snapshot())?.data.text).toBe(
+      'Open https://example.com/current\n'
+    );
+    await runtime.dispose();
   });
 
   it('refreshes auth and releases login when the PTY exits', async () => {
@@ -254,7 +277,59 @@ describe('AgentConfigRuntime', () => {
     await vi.waitFor(() => {
       expect(runtime.sendLoginInput('claude', 'code\n').success).toBe(false);
     });
-    runtime.dispose();
+    await runtime.dispose();
+  });
+
+  it('deduplicates concurrent auth status refreshes', async () => {
+    let resolveProbe!: () => void;
+    const probeGate = new Promise<void>((resolve) => {
+      resolveProbe = resolve;
+    });
+    const authCheckStatus = vi.fn(async () => {
+      await probeGate;
+      return { kind: 'authenticated' as const };
+    });
+    const { runtime } = makeRuntime({ authCheckStatus });
+
+    const first = runtime.refreshAuthStatus('claude');
+    const second = runtime.refreshAuthStatus('claude');
+
+    await vi.waitFor(() => {
+      expect(authCheckStatus).toHaveBeenCalledTimes(1);
+    });
+    resolveProbe();
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      ok({ kind: 'authenticated' }),
+      ok({ kind: 'authenticated' }),
+    ]);
+    await runtime.dispose();
+  });
+
+  it('does not let stale auth probes overwrite newer status updates', async () => {
+    let resolveProbe!: () => void;
+    const probeGate = new Promise<void>((resolve) => {
+      resolveProbe = resolve;
+    });
+    const authCheckStatus = vi.fn(async () => {
+      await probeGate;
+      return { kind: 'authenticated' as const };
+    });
+    const { runtime } = makeRuntime({ authCheckStatus });
+    const statusSource = runtime.authStatusSource();
+
+    const refresh = statusSource.getStatus('claude', { refresh: true });
+    await vi.waitFor(() => {
+      expect(authCheckStatus).toHaveBeenCalledTimes(1);
+    });
+    statusSource.markUnauthenticated('claude', 'expired');
+    resolveProbe();
+
+    await expect(refresh).resolves.toEqual({ kind: 'authenticated' });
+    await expect(statusSource.getStatus('claude')).resolves.toEqual({
+      kind: 'unauthenticated',
+      message: 'expired',
+    });
+    await runtime.dispose();
   });
 });
 
@@ -317,8 +392,9 @@ function makeRuntime(
     },
   } as unknown as CLIAgentPluginProvider);
   const logger = options.logger ?? noopLogger;
+  const scope = createScope({ label: 'test-agent-config', logger });
   const agentHost = new AgentPluginHost({
-    scope: createScope({ label: 'test-agent-config', logger }),
+    scope,
     registry,
     exec,
     fs,
@@ -336,6 +412,7 @@ function makeRuntime(
   return {
     exec,
     runtime: new AgentConfigRuntime({
+      scope,
       agentHost,
       ptySpawner: options.ptySpawner ?? new FakePtySpawner(),
       installCommandRunner: vi.fn(async () => ok(undefined)),

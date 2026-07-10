@@ -34,7 +34,8 @@ export function createNodeAgentConfigRuntime(
     env,
     homeDir,
   });
-  return new AgentConfigRuntime({
+  const runtime = new AgentConfigRuntime({
+    scope,
     agentHost,
     ptySpawner: spawner,
     logger: options.logger,
@@ -45,4 +46,5 @@ export function createNodeAgentConfigRuntime(
       shell: env.SHELL ?? '/bin/sh',
     }),
   });
+  return runtime;
 }
