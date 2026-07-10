@@ -5,8 +5,11 @@
     "jsx": "react-jsx",
     "noEmit": true,
     "lib": ["ES2022", "DOM"],
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@emdash/runtime/acp-agents": ["../runtime/src/acp-agents/index.ts"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tooling/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConversation } from '@main/core/conversations/createConversation';
+import { issueController } from '@main/core/issues/controller';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -20,6 +21,10 @@ import {
   markRunLaunchingTask,
 } from '../run-transitions';
 import { executeTaskCreate } from './taskCreate';
+
+const { mockAcpStartSession } = vi.hoisted(() => ({
+  mockAcpStartSession: vi.fn(),
+}));
 
 vi.mock('@main/core/conversations/createConversation', () => ({ createConversation: vi.fn() }));
 vi.mock('@main/core/projects/operations/ensure-repository-workspace', () => ({
@@ -57,7 +62,15 @@ vi.mock('@main/core/tasks/task-service', () => ({
   taskService: { notifyTaskCreated: vi.fn(), launch: vi.fn() },
 }));
 vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
-vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
+vi.mock('@main/lib/logger', () => ({
+  log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), child: vi.fn(() => ({ debug: vi.fn() })) },
+}));
+vi.mock('@main/core/acp/controller', () => ({
+  getAcpRuntimeClient: vi.fn(() => Promise.resolve({ startSession: mockAcpStartSession })),
+}));
+vi.mock('@main/core/issues/controller', () => ({
+  issueController: { getIssueContext: vi.fn() },
+}));
 vi.mock('../repo', () => ({ updateRun: vi.fn() }));
 vi.mock('../run-transitions', () => ({
   markRunLaunchingTask: vi.fn(),
@@ -138,6 +151,14 @@ describe('executeTaskCreate', () => {
       data: { path: '/tmp/task', workspaceId: 'workspace-1' },
     });
     vi.mocked(createConversation).mockResolvedValue({} as never);
+    mockAcpStartSession.mockResolvedValue({
+      success: true,
+      data: { sessionId: 'acp-session' },
+    });
+    vi.mocked(issueController.getIssueContext).mockResolvedValue({
+      success: false,
+      error: { type: 'generic', message: 'not found' },
+    });
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
     vi.mocked(markRunLaunchingTask).mockResolvedValue({
       ...run,
@@ -306,6 +327,46 @@ describe('executeTaskCreate', () => {
         isInitialConversation: true,
       })
     );
+  });
+
+  it('creates ACP conversations with an initial queue and eagerly starts the session', async () => {
+    await executeTaskCreate(
+      {
+        ...automation,
+        conversationConfig: {
+          prompt: 'Check things',
+          provider: 'claude',
+          autoApprove: false,
+          model: 'sonnet',
+          type: 'acp',
+        },
+      },
+      run,
+      noopStep
+    );
+
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'claude',
+        initialQueue: [{ text: 'Check things' }],
+        isInitialConversation: true,
+        type: 'acp',
+      })
+    );
+    expect(vi.mocked(createConversation).mock.calls[0]?.[0].initialPrompt).toBeUndefined();
+    expect(mockAcpStartSession).toHaveBeenCalledWith({
+      input: expect.objectContaining({
+        conversationId: expect.any(String),
+        projectId: 'project-1',
+        taskId: expect.any(String),
+        providerId: 'claude',
+        workspaceId: 'workspace-1',
+        cwd: '/tmp/task',
+        sessionId: null,
+        model: 'sonnet',
+        initialQueue: [{ text: 'Check things' }],
+      }),
+    });
   });
 
   it('opens the project when it is not loaded', async () => {

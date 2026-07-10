@@ -2,6 +2,7 @@ import type { GitObjectRef } from '@emdash/core/git';
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
 import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
@@ -9,12 +10,19 @@ import type { DiffTabResource } from '@renderer/features/tasks/diff-view/stores/
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import {
   useTaskViewContext,
+  useWorkspace,
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { HtmlContentRenderer } from '@renderer/lib/editor/html-renderer';
+import { resolveWorkspaceResourcePath } from '@renderer/lib/editor/workspace-resource-path';
+import { rpc } from '@renderer/lib/ipc';
+import { ModelStatusOverlay } from '@renderer/lib/monaco/model-status-overlay';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
+import { useModelStatus } from '@renderer/lib/monaco/use-model';
+import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
 import { gitRefToString } from '@shared/core/git/utils';
@@ -35,7 +43,7 @@ export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: Diff
 
   switch (tab.renderer.kind) {
     case 'text':
-      return <MonacoDiffRenderer tab={tab} />;
+      return <TextDiffRenderer tab={tab} />;
     case 'image': {
       const activeFile = tabToActiveFile(tab);
       return (
@@ -56,11 +64,8 @@ export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: Diff
   }
 });
 
-/**
- * Renders a text diff using the Monaco diff editor.
- * Owns model registration, URI computation, and draft comment wiring.
- */
-const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFileRendererProps) {
+/** Owns text diff model registration, preview rendering, and draft comment wiring. */
+const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRendererProps) {
   const { projectId, taskId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const diffView = useWorkspaceViewModel().diffView;
@@ -131,6 +136,8 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     }
     return uri;
   })();
+
+  const previewContentUri = modifiedUri;
 
   useEffect(() => {
     let disposed = false;
@@ -221,6 +228,16 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
 
   if (!diffView) return null;
 
+  if (tab.viewMode === 'preview' && tab.renderer.kind === 'text' && tab.renderer.previewKind) {
+    return (
+      <DiffContentPreview
+        tab={tab}
+        contentUri={previewContentUri}
+        previewKind={tab.renderer.previewKind}
+      />
+    );
+  }
+
   return (
     <div className="file-diff-view flex h-full flex-col">
       <div className="relative min-h-0 flex-1">
@@ -231,6 +248,81 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
           onEditorChange={setEditor}
         />
       </div>
+    </div>
+  );
+});
+
+interface DiffContentPreviewProps {
+  tab: DiffTabResource;
+  contentUri: string;
+  previewKind: 'markdown' | 'html';
+}
+
+const DiffContentPreview = observer(function DiffContentPreview({
+  tab,
+  contentUri,
+  previewKind,
+}: DiffContentPreviewProps) {
+  const { projectId } = useTaskViewContext();
+  const workspaceId = useWorkspaceId();
+  const workspacePath = useWorkspace().path;
+  const { pane } = usePaneContext();
+  const status = useModelStatus(contentUri);
+  void modelRegistry.bufferVersions.get(contentUri);
+
+  if (tab.status === 'deleted') {
+    return (
+      <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+        Deleted file — no preview available
+      </div>
+    );
+  }
+
+  if (status !== 'ready') {
+    return (
+      <div className="relative h-full bg-background-secondary-1">
+        <ModelStatusOverlay status={status} />
+      </div>
+    );
+  }
+
+  const content = modelRegistry.getModelByUri(contentUri)?.getValue() ?? '';
+
+  if (previewKind === 'html') {
+    return <HtmlContentRenderer filePath={tab.path} rawContent={content} />;
+  }
+
+  const resolveImage = async (src: string): Promise<string | null> => {
+    const imagePath = resolveWorkspaceResourcePath({
+      workspacePath,
+      containingFilePath: tab.path,
+      resourcePath: src,
+    });
+    if (!imagePath) return null;
+    const result = await rpc.workspace.files.readImage(projectId, workspaceId, imagePath);
+    return result.success && result.data?.success ? result.data.dataUrl : null;
+  };
+
+  const openWorkspaceLink = (href: string): boolean => {
+    const target = resolveWorkspaceResourcePath({
+      workspacePath,
+      containingFilePath: tab.path,
+      resourcePath: href,
+    });
+    if (!target) return false;
+    pane.open('file', { path: target }, { preview: false });
+    return true;
+  };
+
+  return (
+    <div className="relative h-full overflow-y-auto bg-background-secondary-1">
+      <MarkdownRenderer
+        content={content}
+        variant="full"
+        className="w-full max-w-3xl px-8 py-8"
+        resolveImage={resolveImage}
+        onOpenLink={openWorkspaceLink}
+      />
     </div>
   );
 });

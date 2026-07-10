@@ -1,29 +1,20 @@
 import { createRPCNamespace, createRPCRouter } from '../shared/lib/ipc/rpc';
 import { accountController } from './core/account/controller';
-import { acpController } from './core/acp/controller';
 import { agentsController } from './core/agents/controller';
 import { appController } from './core/app/controller';
-import { asanaController } from './core/asana/controller';
 import { automationsController } from './core/automations/controller';
 import { browserController } from './core/browser/controller';
 import { conversationController } from './core/conversations/controller';
 import { editorBufferController } from './core/editor/controller';
-import { featurebaseController } from './core/featurebase/controller';
 import { machineFilesController } from './core/files/controller';
 import { workspaceFileSystemController } from './core/files/file-system/controller';
 import { fileTreeController } from './core/files/file-tree/controller';
-import { forgejoController } from './core/forgejo/controller';
 import { gitRepositoryController } from './core/git/repository/controller';
 import { gitWorktreeController } from './core/git/worktree/controller';
 import { githubController } from './core/github/controller';
-import { gitlabController } from './core/gitlab/controller';
+import { integrationsController } from './core/integrations/controller';
 import { issueController } from './core/issues/controller';
-import { jiraController } from './core/jira/controller';
-import { linearController } from './core/linear/controller';
 import { mcpController } from './core/mcp/controller';
-import { mondayController } from './core/monday/controller';
-import { plainController } from './core/plain/controller';
-import { planeController } from './core/plane/controller';
 import { previewServersController } from './core/preview-servers/controller';
 import { projectSetupController } from './core/project-setup/controller';
 import { projectController } from './core/projects/controller';
@@ -36,10 +27,10 @@ import { appSettingsController } from './core/settings/controller';
 import { providerSettingsController } from './core/settings/provider-settings-controller';
 import { skillsController } from './core/skills/controller';
 import { sshController } from './core/ssh/controller';
+import { storageController } from './core/storage/controller';
 import { taskController } from './core/tasks/controller';
 import { telemetryController } from './core/telemetry/controller';
 import { terminalsController } from './core/terminals/controller';
-import { trelloController } from './core/trello/controller';
 import { updateController } from './core/updates/controller';
 import { viewStateController } from './core/view-state/controller';
 import { projectSettingsController } from './core/workspaces/project-settings-controller';
@@ -47,7 +38,6 @@ import { legacyPortController } from './db/legacy-port/controller';
 
 export const rpcRouter = createRPCRouter({
   account: accountController,
-  acp: acpController,
   agents: agentsController,
   legacyPort: legacyPortController,
   app: appController,
@@ -59,22 +49,14 @@ export const rpcRouter = createRPCRouter({
   update: updateController,
   pty: ptyController,
   resourceMonitor: resourceMonitorController,
-  asana: asanaController,
-  featurebase: featurebaseController,
-  forgejo: forgejoController,
   files: machineFilesController,
   github: githubController,
-  gitlab: gitlabController,
+  integrations: integrationsController,
   issues: issueController,
-  jira: jiraController,
-  linear: linearController,
-  monday: mondayController,
-  plane: planeController,
-  plain: plainController,
-  trello: trelloController,
   promptLibrary: promptLibraryController,
   skills: skillsController,
   ssh: sshController,
+  storage: storageController,
   projectSetup: projectSetupController,
   projects: projectController,
   previewServers: previewServersController,

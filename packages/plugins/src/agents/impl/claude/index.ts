@@ -1,13 +1,13 @@
 import { createRequire } from 'node:module';
-import { Readable, Writable } from 'node:stream';
-import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   homebrewOption,
   passthroughMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
+import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { enrichClaudeUpdate } from './acp-transform';
+import { claudeAuthStatus } from './auth';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
 import { buildClaudeTrustBehavior } from './trust';
@@ -32,6 +32,25 @@ export const plugin = definePlugin(
     },
     autoApprove: {
       kind: 'supported',
+    },
+    auth: {
+      kind: 'supported',
+      methods: [
+        {
+          kind: 'cli-login',
+          id: 'claude-login',
+          name: 'Sign in with Claude Code',
+          args: ['auth', 'login'],
+          description: 'Open the Claude Code CLI sign-in flow in a terminal.',
+        },
+        {
+          kind: 'api-key',
+          id: 'anthropic-api-key',
+          name: 'Use an Anthropic API key',
+          envVars: [{ name: 'ANTHROPIC_API_KEY', label: 'Anthropic API key' }],
+          helpUrl: 'https://docs.anthropic.com/en/api/admin-api/apikeys/get-api-key',
+        },
+      ],
     },
     models: {
       kind: 'selectable',
@@ -136,13 +155,12 @@ export const provider = registerPluginBehavior(plugin, {
       },
     }),
     connect: (io, toClient) => {
-      const stream = ndJsonStream(
-        Writable.toWeb(io.stdin) as WritableStream<Uint8Array>,
-        Readable.toWeb(io.stdout) as unknown as ReadableStream<Uint8Array>
-      );
-      return new ClientSideConnection((agent) => toClient(agent as never), stream);
+      return connectStdioAcp(io, toClient);
     },
     enrich: enrichClaudeUpdate,
+  },
+  auth: {
+    checkStatus: claudeAuthStatus,
   },
   prompt: {
     buildCommand: (ctx) =>

@@ -42,4 +42,24 @@ export const toolSummary = style([
   toolName,
 ]);
 
+export const toolStatusIcon = style({
+  marginLeft: 'auto',
+  display: 'inline-flex',
+  flexShrink: 0,
+});
+
+export const toolPermissionIcon = style([
+  toolStatusIcon,
+  {
+    color: '#eab308',
+  },
+]);
+
+export const toolErrorIcon = style([
+  toolStatusIcon,
+  {
+    color: vars.fgError,
+  },
+]);
+
 export { textShimmer };

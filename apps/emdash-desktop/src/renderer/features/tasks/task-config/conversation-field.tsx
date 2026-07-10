@@ -1,4 +1,4 @@
-import { InitialConversationField } from '@renderer/features/tasks/conversations/initial-conversation-section';
+import { InitialConversationField } from '@renderer/features/tasks/task-config/initial-conversation-section';
 import { useTaskState } from './task-state-context';
 
 interface ConversationFieldProps {

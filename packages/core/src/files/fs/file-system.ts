@@ -2,16 +2,18 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { globIterate } from 'glob';
-import { realpathOrResolve } from '../../watch';
+import { realpathOrResolve } from '../../services/fs-watch/impl/paths';
 import { enumerate as enumerateFiles } from '../enumerate';
 import { classifyFileError, isFileNotFoundCode, type FileError } from '../errors';
 import { validateAbsolutePath } from '../paths';
+import { measureUsage } from './measure-usage';
 import type {
   FileEnumeration,
   FileEnumerationOptions,
   FileGlob,
   FileGlobOptions,
   FileStat,
+  FileUsage,
   IFileSystem,
   ReadBytesResult,
   ReadFileOptions,
@@ -106,6 +108,17 @@ export class FileSystem implements IFileSystem {
         ctime: stat.ctime,
         mode: stat.mode,
       });
+    } catch (error) {
+      return err(classifyFileError(error, validated.data));
+    }
+  }
+
+  async measureUsage(absPath: string): Promise<Result<FileUsage, FileError>> {
+    const validated = validateAbsolutePath(absPath);
+    if (!validated.success) return validated;
+
+    try {
+      return ok(await measureUsage(validated.data));
     } catch (error) {
       return err(classifyFileError(error, validated.data));
     }

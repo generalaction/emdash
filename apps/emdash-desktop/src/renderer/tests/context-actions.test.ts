@@ -5,7 +5,7 @@ import {
   buildLinkedIssueContextAction,
   buildPromptLibraryContextActions,
   buildTaskContextActions,
-} from '@renderer/features/tasks/conversations/context-actions';
+} from '@renderer/features/tasks/context-bar/context-actions';
 import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
@@ -53,7 +53,7 @@ describe('buildIssueContextText', () => {
       makeIssue({ description: 'Line one.\nLine two.\n\nLine three.' })
     );
 
-    expect(text).toContain('Provider: GitHub');
+    expect(text).toContain('Provider: Github');
     expect(text).toContain('Identifier: EMD-123');
     expect(text).toContain('Title: Fix task context injection behavior');
     expect(text).toContain('URL: https://example.com/issues/EMD-123');

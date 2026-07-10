@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import {
   andThen,
   err,
@@ -12,6 +13,7 @@ import {
   ok,
   orElse,
   Result,
+  resultSchema,
   sequence,
   sequenceAll,
   tap,
@@ -48,6 +50,24 @@ describe('ok / err / isOk / isErr', () => {
     const r = ok();
     expect(r.success).toBe(true);
     expect(r.data).toBeUndefined();
+  });
+});
+
+describe('resultSchema', () => {
+  const schema = resultSchema(z.object({ id: z.string() }), z.object({ type: z.string() }));
+
+  it('parses success results', () => {
+    expect(schema.parse({ success: true, data: { id: 'ok' } })).toEqual({
+      success: true,
+      data: { id: 'ok' },
+    });
+  });
+
+  it('parses error results', () => {
+    expect(schema.parse({ success: false, error: { type: 'failed' } })).toEqual({
+      success: false,
+      error: { type: 'failed' },
+    });
   });
 });
 

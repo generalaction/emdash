@@ -21,13 +21,29 @@
       "types": "./dist/result.d.mts",
       "default": "./dist/result.mjs"
     },
+    "./config": {
+      "types": "./dist/config.d.mts",
+      "default": "./dist/config.mjs"
+    },
     "./logger": {
       "types": "./dist/logger.d.mts",
       "default": "./dist/logger.mjs"
     },
+    "./logger/context": {
+      "types": "./dist/logger-context.d.mts",
+      "default": "./dist/logger-context.mjs"
+    },
+    "./logger/context-node": {
+      "types": "./dist/logger-context-node.d.mts",
+      "default": "./dist/logger-context-node.mjs"
+    },
     "./logger/pino": {
       "types": "./dist/logger-pino.d.mts",
       "default": "./dist/logger-pino.mjs"
+    },
+    "./logger/node": {
+      "types": "./dist/logger-node.d.mts",
+      "default": "./dist/logger-node.mjs"
     },
     "./logger/transport": {
       "types": "./dist/logger-transport.d.mts",
@@ -36,6 +52,10 @@
     "./markdown": {
       "types": "./dist/markdown.d.mts",
       "default": "./dist/markdown.mjs"
+    },
+    "./plugins": {
+      "types": "./dist/plugins.d.mts",
+      "default": "./dist/plugins.mjs"
     },
     "./package.json": "./package.json"
   },
@@ -50,7 +70,8 @@
   },
   "dependencies": {
     "fast-redact": "^3.5.0",
-    "pino": "^9.14.0"
+    "pino": "^9.14.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.19.42",

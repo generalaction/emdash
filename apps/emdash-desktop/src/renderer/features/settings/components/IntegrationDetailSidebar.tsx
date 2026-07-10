@@ -1,12 +1,11 @@
 import { Loader2, Plus, Trash2, X } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { ISSUE_FEATURE_LABELS } from '@renderer/features/integrations/issue-provider-meta';
-import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
+import { ISSUE_FEATURE_LABELS } from '@renderer/features/integrations/integration-display';
+import { IntegrationIcon } from '@renderer/features/integrations/integration-icon';
 import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import type { GitHubAccountSummary } from '@shared/github';
-import type { IssueProviderType } from '@shared/issue-providers';
 import { GitHubAccountRows } from './GitHubAccountsSection';
 import type { IntegrationItem } from './IntegrationsCard';
 
@@ -19,7 +18,6 @@ export function IntegrationDetailSidebar({
   githubAccounts: GitHubAccountSummary[];
   onClose: () => void;
 }) {
-  const Icon = PROVIDER_ICON_COMPONENTS[integration.id];
   const accountLabel = integration.id === 'github' ? 'Accounts' : 'Account';
 
   return (
@@ -40,7 +38,7 @@ export function IntegrationDetailSidebar({
             <MicroLabel>Integration</MicroLabel>
             <div className="mt-3 flex items-center gap-3">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center">
-                <Icon size={36} />
+                <IntegrationIcon provider={integration.id} icon={integration.icon} size={36} />
               </span>
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -163,12 +161,10 @@ function AddAccountCard({
   );
 }
 
-function AccountIcon({ provider }: { provider: IssueProviderType }) {
-  const Icon = PROVIDER_ICON_COMPONENTS[provider];
-
+function AccountIcon({ provider }: { provider: string }) {
   return (
     <div className="flex h-9 w-9 shrink-0 items-center justify-center">
-      <Icon size={22} />
+      <IntegrationIcon provider={provider} size={22} />
     </div>
   );
 }

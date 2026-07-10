@@ -23,7 +23,7 @@ own Git worktree, so you can explore multiple fixes or features at once, review 
 diffs, and merge what works.
 
 It works with local projects and remote machines over SSH. Bring the CLI agents you
-already use: Claude Code, Codex, OpenCode, Gemini, Amp, and more.
+already use: Claude Code, Codex, OpenCode, Amp, and more.
 
 <img alt="Emdash product screenshot" src="https://emdash.sh/media/blog/public-v1-beta/v1beta.jpg" />
 
@@ -50,7 +50,7 @@ all desktop builds.
 ## Agents
 
 Emdash detects installed provider CLIs automatically. It supports agents like Claude
-Code, Codex, Cursor, OpenCode, Gemini, Amp, Devin, Qwen Code, Droid, and GitHub
+Code, Codex, Cursor, OpenCode, Amp, Devin, Qwen Code, Droid, and GitHub
 Copilot.
 
 See [Providers](https://emdash.sh/docs/providers) for the full list, setup commands,

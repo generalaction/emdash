@@ -1,11 +1,12 @@
 import { ExternalLink, Link, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { type ReactNode, useCallback, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import {
-  ISSUE_PROVIDER_META,
-  ISSUE_PROVIDER_ORDER,
-} from '@renderer/features/integrations/issue-provider-meta';
-import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
+  getIntegrationName,
+  isIssueIntegration,
+} from '@renderer/features/integrations/integration-display';
+import { IntegrationIcon } from '@renderer/features/integrations/integration-icon';
+import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
 import { InlineMarkdown } from '@renderer/lib/components/inline-markdown';
 import {
   IssueStatusIndicator,
@@ -27,20 +28,20 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import type { LinkedIssue } from '@shared/core/linked-issue';
+import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@shared/core/linked-issue';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
 export function IssueIdentifier({
-  identifier,
-  provider,
+  issue,
   className,
 }: {
-  identifier: string;
-  provider?: LinkedIssue['provider'];
+  issue: Pick<LinkedIssue, 'identifier' | 'displayIdentifier'>;
   className?: string;
 }) {
-  if (provider === 'asana') return null;
+  const identifier = linkedIssueDisplayIdentifier(issue);
+  if (!identifier) return null;
+
   return (
     <span
       className={cn(
@@ -56,22 +57,24 @@ export function IssueIdentifier({
 export function ProviderLogo({
   provider,
   className,
+  size = 14,
 }: {
   provider: LinkedIssue['provider'];
   className?: string;
+  size?: number;
 }) {
-  const Icon = PROVIDER_ICON_COMPONENTS[provider];
+  const { integrationById } = useIntegrationsContext();
 
   return (
     <span
       role="img"
-      aria-label={ISSUE_PROVIDER_META[provider].displayName}
+      aria-label={getIntegrationName(integrationById, provider)}
       className={cn(
         'inline-flex shrink-0 items-center justify-center overflow-visible align-middle leading-none',
         className ?? 'h-3.5 w-3.5'
       )}
     >
-      <Icon className="size-full" />
+      <IntegrationIcon provider={provider} size={size} />
     </span>
   );
 }
@@ -108,7 +111,7 @@ export function IssueRow({ issue, linkedTo }: { issue: LinkedIssue; linkedTo?: L
           {linkedTo ? <LinkedIssueIndicator linkedTo={linkedTo} /> : null}
         </span>
       </div>
-      <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
+      <IssueIdentifier issue={issue} />
     </span>
   );
 }
@@ -145,6 +148,11 @@ export const IssueSelector = observer(function IssueSelector({
   renderPlaceholder,
 }: IssueSelectorProps) {
   const linkedIssueMap = getLinkedIssueMap(projectId, excludeTaskId);
+  const { integrationById, integrations } = useIntegrationsContext();
+  const issueProviderOrder = useMemo(
+    () => integrations.filter(isIssueIntegration).map((integration) => integration.id),
+    [integrations]
+  );
   const {
     issues,
     error,
@@ -192,10 +200,10 @@ export const IssueSelector = observer(function IssueSelector({
           <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
         </SelectTrigger>
         <SelectContent>
-          {ISSUE_PROVIDER_ORDER.map((p) => (
+          {issueProviderOrder.map((p) => (
             <SelectItem key={p} value={p} disabled={isProviderDisabled(p)}>
               <ProviderLogo provider={p} className="h-3.5 w-3.5" />
-              <span>{ISSUE_PROVIDER_META[p].displayName}</span>
+              <span>{getIntegrationName(integrationById, p)}</span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -278,7 +286,9 @@ export const IssueSelector = observer(function IssueSelector({
               inputRef={inputRef}
               showClear={!!value}
               showTrigger={false}
-              placeholder={`Search ${issueProvider ?? 'issues'}…`}
+              placeholder={`Search ${
+                issueProvider ? getIntegrationName(integrationById, issueProvider) : 'issues'
+              }...`}
               disabled={!hasAnyIntegration}
             />
             <ComboboxEmpty>
@@ -334,7 +344,7 @@ export function SelectedIssueValue({ issue }: { issue: LinkedIssue }) {
               </span>
               <span className="flex items-center gap-1">
                 <ProviderLogo provider={issue.provider} className="size-3 opacity-40" />
-                <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
+                <IssueIdentifier issue={issue} />
               </span>
             </span>
             {issue.description ? (
@@ -352,11 +362,15 @@ export function SelectedIssueValue({ issue }: { issue: LinkedIssue }) {
 
 export function ConnectIssueIntegrationPlaceholder() {
   const { navigate } = useNavigate();
+  const { integrations } = useIntegrationsContext();
+  const issueProviderOrder = integrations
+    .filter(isIssueIntegration)
+    .map((integration) => integration.id);
 
   return (
     <div className="flex w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border p-4">
       <div className="flex items-center justify-center [&>span]:ring-2 [&>span]:ring-background-quaternary [&>span:not(:first-child)]:-ml-1.5">
-        {ISSUE_PROVIDER_ORDER.map((provider) => (
+        {issueProviderOrder.map((provider) => (
           <span
             key={provider}
             className="relative flex size-5 items-center justify-center overflow-hidden rounded-full bg-background-quaternary-2"

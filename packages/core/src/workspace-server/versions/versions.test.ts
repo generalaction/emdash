@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { negotiateProtocol, protocolUpgradeMessage } from '.';
+import { PROTOCOL_VERSION, negotiateProtocol, protocolUpgradeMessage } from '.';
 
 describe('negotiateProtocol', () => {
   describe('compatible cases', () => {
@@ -76,7 +76,7 @@ describe('negotiateProtocol', () => {
     it('accepts the current protocol version without a second argument', () => {
       // Re-importing PROTOCOL_VERSION directly avoids hardcoding the string.
       // This test will catch an unintentional default change.
-      const result = negotiateProtocol('1.0.0');
+      const result = negotiateProtocol(PROTOCOL_VERSION);
       expect(result.compatible).toBe(true);
     });
   });

@@ -25,6 +25,7 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
   } = formState;
 
   function buildConversationConfig(): ConversationConfig {
+    if (!provider) throw new Error('Cannot build automation conversation config without provider');
     const useChatUi = formState.initialConversation.useChatUi;
     return {
       prompt: prompt.trim(),
@@ -35,7 +36,7 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
   }
 
   function savePatch(overrideTrigger?: TriggerConfig) {
-    if (!effectiveProjectId) return;
+    if (!effectiveProjectId || !provider) return;
     const activeTrigger = overrideTrigger ?? triggerConfig;
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;

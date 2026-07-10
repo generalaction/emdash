@@ -101,7 +101,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
     >
       <PaneDimensionProvider sink={dimensionSink}>
         <PaneSizingContextProvider sessionIds={sessionIds}>
-          {!hasSessions ? (
+          {!hasSessions || !activeSession ? (
             emptyState
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">

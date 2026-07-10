@@ -15,13 +15,15 @@ import { createChatCaches } from '@core/caches';
 import { DEFAULT_THEME } from '@core/theme';
 import { bench, describe } from 'vitest';
 import { generateMockTranscript } from '@/mock-transcript';
-import type { ChatMessage } from '@/model';
+import type { ChatItem, ChatMessage } from '@/model';
 import { layoutBlockStack, measureBlockCached } from './block-stack';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
 const TRANSCRIPT = generateMockTranscript(2000, 42);
-const MESSAGE_ITEMS = TRANSCRIPT.filter((x): x is ChatMessage => x.kind === 'message');
+const MESSAGE_ITEMS = (TRANSCRIPT.flatMap((turn) => turn.items) as ChatItem[]).filter(
+  (x): x is ChatMessage => x.kind === 'message'
+);
 
 const REPRESENTATIVE_BODIES = [
   // Short prose

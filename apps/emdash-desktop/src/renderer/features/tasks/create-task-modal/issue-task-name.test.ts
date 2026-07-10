@@ -29,7 +29,7 @@ describe('getIssueTaskName', () => {
     ).toBe('jan-ENG-1368-allow-capital-letters-in-issue-titles');
   });
 
-  it('returns null for non-Linear issues', () => {
+  it('uses a branch name supplied by any provider', () => {
     expect(
       getIssueTaskName({
         provider: 'jira',
@@ -38,7 +38,7 @@ describe('getIssueTaskName', () => {
         identifier: 'APP-42',
         branchName: 'jona/app-42-fix-login-bug',
       })
-    ).toBeNull();
+    ).toBe('jona-app-42-fix-login-bug');
   });
 
   it('prefixes Plain task names with the synthesized thread ref branch name', () => {

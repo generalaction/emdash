@@ -1,0 +1,315 @@
+import { err, ok, type Result } from '@emdash/shared';
+import type { PluginRegistry } from '@emdash/shared/plugins';
+import { deduplicateRequests, type Scope } from '@emdash/wire/util';
+import type { IExecutionContext } from '../../exec';
+import { buildDescriptorFromProvider } from '../../host-dependencies/descriptor-from-provider';
+import { HostDependencyManager, type Platform } from '../../host-dependencies/runtime';
+import type { PluginFs } from '../runtime/fs';
+import {
+  createSpawnContextResolver,
+  type SpawnContext,
+  type SpawnContextError,
+  type SpawnContextResolver,
+} from '../spawn-context';
+import type { AcpSpawnResult, IAcpBehavior } from './capabilities/acp';
+import type { AgentAuthDescriptor, AgentAuthStatus, IAgentAuthBehavior } from './capabilities/auth';
+import type { McpServerRegistration } from './capabilities/mcp';
+import type { AgentCommand, CommandContext } from './capabilities/prompt';
+import type { CLIAgentPluginProvider } from './index';
+
+export type ResolvedAcpProvider = {
+  behavior: IAcpBehavior;
+};
+
+export type ResolvedAuthProvider = {
+  name: string;
+  auth: AgentAuthDescriptor;
+  behavior?: IAgentAuthBehavior;
+};
+
+export type ResolvedTuiProvider = {
+  name: string;
+  prompt: CLIAgentPluginProvider['capabilities']['prompt'];
+  hooks: CLIAgentPluginProvider['capabilities']['hooks'];
+  buildCommand: NonNullable<CLIAgentPluginProvider['behavior']['prompt']>['buildCommand'];
+  parseHookEvent?: NonNullable<CLIAgentPluginProvider['behavior']['hooks']>['parseHookEvent'];
+};
+
+export type AgentHostDeps = {
+  scope: Scope;
+  registry: PluginRegistry<CLIAgentPluginProvider>;
+  exec: IExecutionContext;
+  fs: PluginFs;
+  env: Record<string, string | undefined>;
+  homeDir: string;
+  platform?: Platform;
+};
+
+export type AgentHostError =
+  | SpawnContextError
+  | { type: 'capability-unsupported'; providerId: string; capability: string }
+  | { type: 'invalid-state'; message: string };
+
+export type AgentHostLoginCommand = {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+};
+
+export type AgentHostAcpSpawn = AcpSpawnResult & {
+  env: Record<string, string>;
+  cwd: string;
+};
+
+export class AgentPluginHost {
+  readonly dependencies: HostDependencyManager;
+
+  private readonly scope: Scope;
+  private readonly registry: PluginRegistry<CLIAgentPluginProvider>;
+  private readonly descriptors: ReturnType<typeof buildDescriptorFromProvider>[];
+  private readonly spawnContext: SpawnContextResolver;
+  private readonly checkAuthStatusOnce: (
+    providerId: string
+  ) => Promise<Result<AgentAuthStatus, AgentHostError>>;
+
+  constructor(private readonly deps: AgentHostDeps) {
+    this.scope = deps.scope.child('agent-host');
+    this.registry = deps.registry;
+    this.descriptors = deps.registry.getAll().map(buildDescriptorFromProvider);
+    this.dependencies = new HostDependencyManager(deps.exec, {
+      platform: deps.platform,
+      dependencies: this.descriptors,
+      getDependencyDescriptor: (id) => this.descriptors.find((descriptor) => descriptor.id === id),
+      logger: this.scope.log,
+    });
+    this.scope.use(deps.exec);
+    this.spawnContext = createSpawnContextResolver({
+      resolveCli: (providerId) => this.resolveCli(providerId),
+      hasProvider: (providerId) => this.registry.get(providerId) !== undefined,
+      env: deps.env,
+      homeDir: deps.homeDir,
+      includeShellVar: true,
+    });
+    this.scope.add(() => this.invalidateSpawnContext());
+    this.checkAuthStatusOnce = deduplicateRequests(
+      (providerId: string) => this.checkAuthStatusUncached(providerId),
+      { key: (providerId) => providerId }
+    );
+  }
+
+  get fs(): PluginFs {
+    return this.deps.fs;
+  }
+
+  get homeDir(): string {
+    return this.deps.homeDir;
+  }
+
+  get(providerId: string): CLIAgentPluginProvider | undefined {
+    return this.registry.get(providerId);
+  }
+
+  getAll(): CLIAgentPluginProvider[] {
+    return this.registry.getAll();
+  }
+
+  resolveAcp(providerId: string): ResolvedAcpProvider | null {
+    const plugin = this.registry.get(providerId);
+    if (!plugin || plugin.capabilities.acp.kind !== 'supported' || !plugin.behavior.acp) {
+      return null;
+    }
+
+    return { behavior: plugin.behavior.acp };
+  }
+
+  resolveAuthProvider(providerId: string): ResolvedAuthProvider | null {
+    const plugin = this.registry.get(providerId);
+    if (!plugin) return null;
+
+    return {
+      name: plugin.metadata.name,
+      auth: plugin.capabilities.auth,
+      behavior: plugin.behavior.auth,
+    };
+  }
+
+  resolveTuiProvider(providerId: string): ResolvedTuiProvider | null {
+    const plugin = this.registry.get(providerId);
+    const prompt = plugin?.behavior.prompt;
+    if (!plugin || !prompt) return null;
+
+    return {
+      name: plugin.metadata.name,
+      prompt: plugin.capabilities.prompt,
+      hooks: plugin.capabilities.hooks,
+      buildCommand: prompt.buildCommand,
+      parseHookEvent: plugin.behavior.hooks?.parseHookEvent,
+    };
+  }
+
+  resolveSpawnContext(providerId: string): Promise<Result<SpawnContext, SpawnContextError>> {
+    return this.spawnContext.resolve(providerId);
+  }
+
+  invalidateSpawnContext(providerId?: string): void {
+    this.spawnContext.invalidate(providerId);
+  }
+
+  dispose(): Promise<void> {
+    return this.scope.dispose();
+  }
+
+  checkAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AgentHostError>> {
+    return this.checkAuthStatusOnce(providerId);
+  }
+
+  async buildLoginCommand(
+    providerId: string,
+    methodId: string
+  ): Promise<Result<AgentHostLoginCommand, AgentHostError>> {
+    const provider = this.resolveAuthProvider(providerId);
+    if (!provider) return err({ type: 'unknown-provider', providerId });
+
+    const spawnContext = await this.resolveSpawnContext(providerId);
+    if (!spawnContext.success) return err(spawnContext.error);
+    const env = { ...spawnContext.data.agentEnv };
+
+    if (provider.auth.kind === 'none') {
+      if (methodId !== 'cli-login') {
+        return err({
+          type: 'invalid-state',
+          message: `Auth method '${methodId}' was not found for provider '${providerId}'`,
+        });
+      }
+      return ok({ command: spawnContext.data.cli, args: [], env });
+    }
+
+    const method = provider.auth.methods.find((candidate) => candidate.id === methodId);
+    if (!method) {
+      return err({
+        type: 'invalid-state',
+        message: `Auth method '${methodId}' was not found for provider '${providerId}'`,
+      });
+    }
+    if (method.kind !== 'cli-login') {
+      return err({
+        type: 'invalid-state',
+        message: `Auth method '${methodId}' is not a CLI login method`,
+      });
+    }
+
+    const override = provider.behavior?.buildLoginCommand?.(
+      { cli: spawnContext.data.cli },
+      methodId
+    );
+    return ok({
+      command: override?.command ?? spawnContext.data.cli,
+      args: override?.args ?? method.args,
+      env,
+    });
+  }
+
+  async readMcpServers(
+    providerId: string
+  ): Promise<Result<McpServerRegistration[], AgentHostError>> {
+    const behavior = this.resolveMcpBehavior(providerId);
+    if (!behavior.success) return behavior;
+    return ok(await behavior.data.readServers(this.fs));
+  }
+
+  async writeMcpServers(
+    providerId: string,
+    servers: McpServerRegistration[]
+  ): Promise<Result<void, AgentHostError>> {
+    const behavior = this.resolveMcpBehavior(providerId);
+    if (!behavior.success) return behavior;
+    await behavior.data.writeServers(this.fs, servers);
+    return ok();
+  }
+
+  async removeMcpServer(providerId: string, name: string): Promise<Result<void, AgentHostError>> {
+    const behavior = this.resolveMcpBehavior(providerId);
+    if (!behavior.success) return behavior;
+    await behavior.data.removeServer(this.fs, name);
+    return ok();
+  }
+
+  async buildPromptCommand(
+    providerId: string,
+    ctx: Omit<CommandContext, 'cli'>
+  ): Promise<Result<AgentCommand, AgentHostError>> {
+    const provider = this.resolveTuiProvider(providerId);
+    if (!provider) return err({ type: 'capability-unsupported', providerId, capability: 'prompt' });
+    const spawnContext = await this.resolveSpawnContext(providerId);
+    if (!spawnContext.success) return err(spawnContext.error);
+    const command = provider.buildCommand({ ...ctx, cli: spawnContext.data.cli });
+    return ok({
+      ...command,
+      env: { ...spawnContext.data.agentEnv, ...command.env },
+    });
+  }
+
+  async buildAcpSpawn(
+    providerId: string,
+    ctx: { cwd: string }
+  ): Promise<Result<AgentHostAcpSpawn, AgentHostError>> {
+    const provider = this.resolveAcp(providerId);
+    if (!provider) return err({ type: 'capability-unsupported', providerId, capability: 'acp' });
+    const spawnContext = await this.resolveSpawnContext(providerId);
+    if (!spawnContext.success) return err(spawnContext.error);
+    const spawn = provider.behavior.buildSpawn({
+      cwd: ctx.cwd,
+      env: spawnContext.data.agentEnv,
+      cli: spawnContext.data.cli,
+    });
+    return ok({
+      ...spawn,
+      env: { ...spawnContext.data.agentEnv, ...spawn.env },
+      cwd: ctx.cwd,
+    });
+  }
+
+  private async resolveCli(providerId: string): Promise<string> {
+    if (!this.registry.get(providerId)) {
+      throw new Error(`Provider '${providerId}' was not found`);
+    }
+
+    let state = this.dependencies.get(providerId);
+    if (!state?.path) state = await this.dependencies.probe(providerId);
+    if (state.path) return state.path;
+
+    const descriptor = this.descriptors.find((candidate) => candidate.id === providerId);
+    return descriptor?.commands[0] ?? providerId;
+  }
+
+  private async checkAuthStatusUncached(
+    providerId: string
+  ): Promise<Result<AgentAuthStatus, AgentHostError>> {
+    const provider = this.resolveAuthProvider(providerId);
+    if (!provider) return err({ type: 'unknown-provider', providerId });
+    if (!provider.behavior || provider.auth.kind === 'none') return ok({ kind: 'unknown' });
+
+    const spawnContext = await this.resolveSpawnContext(providerId);
+    if (!spawnContext.success) return err(spawnContext.error);
+
+    return ok(
+      await provider.behavior.checkStatus({
+        cli: spawnContext.data.cli,
+        exec: (command, args, opts) => this.deps.exec.exec(command, args, opts),
+        fs: this.fs,
+        env: { ...spawnContext.data.agentEnv },
+      })
+    );
+  }
+
+  private resolveMcpBehavior(
+    providerId: string
+  ): Result<NonNullable<CLIAgentPluginProvider['behavior']['mcp']>, AgentHostError> {
+    const provider = this.registry.get(providerId);
+    if (!provider) return err({ type: 'unknown-provider', providerId });
+    if (provider.capabilities.mcp.kind !== 'supported' || !provider.behavior.mcp) {
+      return err({ type: 'capability-unsupported', providerId, capability: 'mcp' });
+    }
+    return ok(provider.behavior.mcp);
+  }
+}

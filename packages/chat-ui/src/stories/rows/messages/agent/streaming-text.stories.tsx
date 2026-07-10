@@ -8,7 +8,6 @@
  * SlowMotion   — slow word cadence so the fade is easy to inspect.
  */
 
-import { createStreamSmoother } from '@state/stream-smoother';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, createMemo } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
@@ -73,11 +72,6 @@ function StreamingPlayground(args: PlaygroundArgs) {
         {() => (
           <ScriptedChat
             height={520}
-            wrapTranscript={
-              args.smoothed
-                ? (api) => createStreamSmoother(api, { wordsPerTick: 1, intervalMs: 40 })
-                : undefined
-            }
             script={streamMessage({
               id: 'msg-playground',
               role: 'assistant',
@@ -181,7 +175,6 @@ export const BurstySmoothed: Story = {
   render: () => (
     <ScriptedChat
       height={260}
-      wrapTranscript={(api) => createStreamSmoother(api, { wordsPerTick: 1, intervalMs: 40 })}
       script={streamMessage({
         id: 'msg-smooth',
         role: 'assistant',

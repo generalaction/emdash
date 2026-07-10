@@ -116,6 +116,16 @@ export const appController = createRPCController({
     appService.openSelectDirectoryDialog(args),
   openSelectAudioFileDialog: (args: { title: string; message: string }) =>
     appService.openSelectAudioFileDialog(args),
+  saveTextFile: async (args: { title: string; defaultPath: string; content: string }) => {
+    try {
+      return { success: true as const, path: await appService.saveTextFile(args) };
+    } catch (error) {
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
   readAudioFileDataUrl: async (filePath: string) => {
     try {
       return { success: true, dataUrl: await appService.readAudioFileDataUrl(filePath) };

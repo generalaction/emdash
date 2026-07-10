@@ -16,10 +16,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import { cn } from '@renderer/utils/utils';
 import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { PrChecksList } from './checks-list';
-import { PrCommitsList } from './commits-list';
+import { CommitRangeCommitsList } from './commits-list';
 import { PrFilesList } from './files-list';
 import { MergeFooter } from './merge-footer';
 import { computeMergeUiState } from './merge-ui-state';
+import { commitRangeForPullRequest } from './use-commits';
 
 export type MergeMode = 'merge' | 'squash' | 'rebase';
 
@@ -135,8 +136,10 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           >
             <StatusIcon className="size-4" pr={pr} />
             <span className="min-w-0 flex-1 truncate text-sm font-normal">{pr.title}</span>
-            <PrNumberBadge number={getPrNumber(pr) ?? 0} />
-            <span className="absolute right-0 flex items-center bg-linear-to-r from-transparent to-background pr-0.5 pl-4 opacity-0 transition-opacity group-hover:opacity-100">
+            <div className="transition-opacity duration-200 group-hover:opacity-0">
+              <PrNumberBadge number={getPrNumber(pr) ?? 0} />
+            </div>
+            <span className="absolute right-0 flex items-center bg-linear-to-r from-transparent to-background pr-0.5 pl-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               <ExternalLink className="size-3.5 text-foreground-muted" />
             </span>
           </button>
@@ -184,7 +187,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
         </ToggleGroup>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {tab === 'files' && <PrFilesList pr={pr} />}
-          {tab === 'commits' && <PrCommitsList />}
+          {tab === 'commits' && <CommitRangeCommitsList range={commitRangeForPullRequest(pr)} />}
           {tab === 'checks' && <PrChecksList projectId={projectId} pr={pr} />}
         </div>
       </div>

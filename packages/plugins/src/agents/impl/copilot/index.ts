@@ -4,6 +4,7 @@ import {
   copilotMcpAdapter,
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
+import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildCopilotHookConfig } from './hooks';
 import { icon } from './icon';
 import { buildCopilotTrustBehavior } from './trust';
@@ -17,6 +18,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -46,6 +50,9 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: createNativeAcpBehavior(() => ({
+    args: ['--acp'],
+  })),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

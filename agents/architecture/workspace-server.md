@@ -1,8 +1,16 @@
 # Workspace Server
 
-The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a remote machine and exposes workspace runtimes (git, files, deps, …) to Emdash clients over an oRPC API. Clients connect over an SSH-forwarded channel; the daemon is independently lived and can be running when clients upgrade, downgrade, or are absent entirely.
+The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a remote machine and exposes workspace runtimes (git, files, deps, ACP, …) to Emdash clients over the `@emdash/wire` protocol. Clients connect over an SSH-forwarded Unix socket; the daemon is independently lived and can be running when clients upgrade, downgrade, or are absent entirely.
 
 The contract lives in `packages/core/src/workspace-server/`, shared by the server and every client so TypeScript clients stay in sync at build time. Non-TypeScript clients (e.g. a future mobile app) use the negotiation handshake at runtime — compile-time sharing is a convenience, not the contract.
+
+The ACP domain is mounted under `workspaceWireContract.acp` and is served by a
+forked child process. The daemon parent forwards the ACP API contract to the child
+and receives ACP session ids through `startSession` / `resumeSession` return
+values. Runtime spawn context is resolved inside the child runtime and structured
+child logs are forwarded from stderr. This mount was added before any
+workspace-server contract deployment, so the initial addition intentionally does
+not bump `PROTOCOL_VERSION`; future deployed additions must follow the rules below.
 
 ## Protocol Version
 
@@ -137,8 +145,9 @@ if (session.agreedMinor >= 1) {
 
 | Path | Role |
 |------|------|
-| [`packages/core/src/workspace-server/versions.ts`](../../packages/core/src/workspace-server/versions.ts) | `PROTOCOL_VERSION`, `negotiateProtocol`, `protocolUpgradeMessage` |
-| [`packages/core/src/workspace-server/schemas.ts`](../../packages/core/src/workspace-server/schemas.ts) | `clientHelloSchema`, `serverHelloSchema`, inferred types |
-| [`packages/core/src/workspace-server/contract.ts`](../../packages/core/src/workspace-server/contract.ts) | oRPC contract (`health`, `initialize`, future domains) |
-| [`apps/workspace-server/src/router.ts`](../../apps/workspace-server/src/router.ts) | Server-side procedure handlers |
-| [`apps/workspace-server/src/index.ts`](../../apps/workspace-server/src/index.ts) | HTTP server entry point |
+| [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts) | `PROTOCOL_VERSION`, `negotiateProtocol`, `protocolUpgradeMessage` |
+| [`packages/core/src/workspace-server/wire/schemas.ts`](../../packages/core/src/workspace-server/wire/schemas.ts) | initialize/health schemas |
+| [`packages/core/src/workspace-server/wire/contract.ts`](../../packages/core/src/workspace-server/wire/contract.ts) | wire contract (`health`, `initialize`, `git`, `files`, `deps`, `tuiAgents`, `acp`) |
+| [`apps/workspace-server/src/api/controller.ts`](../../apps/workspace-server/src/api/controller.ts) | Server-side procedure and live-model handlers |
+| [`apps/workspace-server/src/acp/host.ts`](../../apps/workspace-server/src/acp/host.ts) | Parent-side ACP child process host and spawn-context resolution |
+| [`apps/workspace-server/src/index.ts`](../../apps/workspace-server/src/index.ts) | CLI and daemon entry point |

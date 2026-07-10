@@ -141,7 +141,7 @@ export function IssueStatusIndicator({
     case 'triage':
       return (
         <svg
-          viewBox="0 0 14 14"
+          viewBox="-0.5 -0.5 15 15"
           role="img"
           focusable="false"
           aria-hidden="true"

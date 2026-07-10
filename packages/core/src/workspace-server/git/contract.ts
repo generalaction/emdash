@@ -1,7 +1,5 @@
-import { eventIterator, oc } from '@orpc/contract';
+import { defineContract, fallible, liveModel, liveState, procedure } from '@emdash/wire';
 import { z } from 'zod';
-import { createLiveModelContract } from '../../live-model';
-import { result } from '../shared/schemas';
 import {
   addCheckoutOptionsSchema,
   blameResultSchema,
@@ -27,13 +25,11 @@ import {
   gitHeadModelSchema,
   gitLogOptionsSchema,
   gitLogResultSchema,
-  gitOutputResultSchema,
   gitPathInspectionSchema,
   gitRefsModelSchema,
   gitRemotesModelSchema,
   gitRepositoryInfoSchema,
   gitStashesModelSchema,
-  gitVoidResultSchema,
   imageReadResultSchema,
   mergeErrorSchema,
   mergeOptionsSchema,
@@ -52,268 +48,383 @@ import {
 
 const repoKey = z.object({ repositoryRoot: z.string() });
 const checkoutKey = z.object({ checkoutPath: z.string() });
+const fileDiffKey = checkoutKey.extend({ path: z.string(), base: diffTargetSchema.optional() });
 
-const repoModel = <T extends z.ZodTypeAny>(data: T) =>
-  createLiveModelContract(data, {
-    snapshotInput: repoKey,
-    subscribeInput: repoKey,
-    unsubscribeInput: repoKey,
-  });
-
-const checkoutModel = <T extends z.ZodTypeAny>(data: T) =>
-  createLiveModelContract(data, {
-    snapshotInput: checkoutKey,
-    subscribeInput: checkoutKey,
-    unsubscribeInput: checkoutKey,
-  });
+const fileDiffStalenessModelSchema = z.object({
+  revision: z.number().int(),
+  lastEvent: fileDiffStalenessEventSchema.nullable(),
+});
 
 const runtimeContract = {
-  inspectPath: oc.input(z.object({ path: z.string() })).output(gitPathInspectionSchema),
+  inspectPath: procedure({
+    input: z.object({ path: z.string() }),
+    output: gitPathInspectionSchema,
+  }),
 
-  ensureRepository: oc
-    .input(z.object({ path: z.string(), options: ensureRepositoryOptionsSchema.optional() }))
-    .output(result(gitRepositoryInfoSchema, ensureRepositoryErrorSchema)),
+  ensureRepository: fallible({
+    input: z.object({ path: z.string(), options: ensureRepositoryOptionsSchema.optional() }),
+    data: gitRepositoryInfoSchema,
+    error: ensureRepositoryErrorSchema,
+  }),
 
-  cloneRepository: oc
-    .input(z.object({ repositoryUrl: z.string(), targetPath: z.string() }))
-    .output(result(gitRepositoryInfoSchema, cloneRepositoryErrorSchema)),
+  cloneRepository: fallible({
+    input: z.object({ repositoryUrl: z.string(), targetPath: z.string() }),
+    data: gitRepositoryInfoSchema,
+    error: cloneRepositoryErrorSchema,
+  }),
 };
 
-const repositoryContract = {
-  /** Branches, tags — shared across all checkouts. */
-  refs: repoModel(gitRefsModelSchema),
+const repositoryContract = defineContract({
+  model: liveModel({
+    key: repoKey,
+    states: {
+      /** Branches, tags — shared across all checkouts. */
+      refs: liveState({ data: gitRefsModelSchema }),
+      /** Configured remotes for this repository. */
+      remotes: liveState({ data: gitRemotesModelSchema }),
+      /** Stash list — owned by the repository, not a specific checkout. */
+      stashes: liveState({ data: gitStashesModelSchema }),
+    },
+  }),
 
-  /** Configured remotes for this repository. */
-  remotes: repoModel(gitRemotesModelSchema),
+  listCheckouts: procedure({ input: repoKey, output: z.array(checkoutInfoSchema) }),
 
-  /** Stash list — owned by the repository, not a specific checkout. */
-  stashes: repoModel(gitStashesModelSchema),
+  addCheckout: fallible({
+    input: repoKey.extend({ options: addCheckoutOptionsSchema }),
+    data: checkoutInfoSchema,
+    error: gitCommandErrorSchema,
+  }),
 
-  listCheckouts: oc.input(repoKey).output(z.array(checkoutInfoSchema)),
+  removeCheckout: fallible({
+    input: repoKey.extend({ checkoutPath: z.string(), force: z.boolean().optional() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  addCheckout: oc
-    .input(repoKey.extend({ options: addCheckoutOptionsSchema }))
-    .output(result(checkoutInfoSchema, gitCommandErrorSchema)),
+  pruneCheckouts: fallible({ input: repoKey, data: z.void(), error: gitCommandErrorSchema }),
 
-  removeCheckout: oc
-    .input(repoKey.extend({ checkoutPath: z.string(), force: z.boolean().optional() }))
-    .output(gitVoidResultSchema),
+  createBranch: fallible({
+    input: repoKey.extend({ options: createBranchOptionsSchema }),
+    data: z.void(),
+    error: createBranchErrorSchema,
+  }),
 
-  pruneCheckouts: oc.input(repoKey).output(gitVoidResultSchema),
+  deleteBranch: fallible({
+    input: repoKey.extend({ branch: z.string(), force: z.boolean().optional() }),
+    data: z.void(),
+    error: deleteBranchErrorSchema,
+  }),
 
-  createBranch: oc
-    .input(repoKey.extend({ options: createBranchOptionsSchema }))
-    .output(result(z.void(), createBranchErrorSchema)),
+  renameBranch: fallible({
+    input: repoKey.extend({ oldName: z.string(), newName: z.string() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  deleteBranch: oc
-    .input(repoKey.extend({ branch: z.string(), force: z.boolean().optional() }))
-    .output(result(z.void(), deleteBranchErrorSchema)),
+  setUpstream: fallible({
+    input: repoKey.extend({ branch: z.string(), upstream: z.string().nullable() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  renameBranch: oc
-    .input(repoKey.extend({ oldName: z.string(), newName: z.string() }))
-    .output(gitVoidResultSchema),
+  createTag: fallible({
+    input: repoKey.extend({ options: tagOptionsSchema }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  setUpstream: oc
-    .input(repoKey.extend({ branch: z.string(), upstream: z.string().nullable() }))
-    .output(gitVoidResultSchema),
+  deleteTag: fallible({
+    input: repoKey.extend({ name: z.string() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  createTag: oc.input(repoKey.extend({ options: tagOptionsSchema })).output(gitVoidResultSchema),
+  addRemote: fallible({
+    input: repoKey.extend({ name: z.string(), url: z.string() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  deleteTag: oc.input(repoKey.extend({ name: z.string() })).output(gitVoidResultSchema),
+  removeRemote: fallible({
+    input: repoKey.extend({ name: z.string() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  addRemote: oc
-    .input(repoKey.extend({ name: z.string(), url: z.string() }))
-    .output(gitVoidResultSchema),
+  fetch: fallible({
+    input: repoKey.extend({ remote: z.string().optional() }),
+    data: z.void(),
+    error: fetchErrorSchema,
+  }),
 
-  removeRemote: oc.input(repoKey.extend({ name: z.string() })).output(gitVoidResultSchema),
+  publishBranch: fallible({
+    input: repoKey.extend({ branchName: z.string(), remote: z.string().optional() }),
+    data: z.object({ output: z.string() }),
+    error: pushErrorSchema,
+  }),
 
-  fetch: oc
-    .input(repoKey.extend({ remote: z.string().optional() }))
-    .output(result(z.void(), fetchErrorSchema)),
+  getDefaultBranch: procedure({
+    input: repoKey.extend({ remote: z.string().optional() }),
+    output: z.string(),
+  }),
 
-  publishBranch: oc
-    .input(repoKey.extend({ branchName: z.string(), remote: z.string().optional() }))
-    .output(gitOutputResultSchema),
+  fetchPrForReview: fallible({
+    input: repoKey.extend({ options: fetchPrForReviewOptionsSchema }),
+    data: z.void(),
+    error: fetchPrForReviewErrorSchema,
+  }),
 
-  getDefaultBranch: oc.input(repoKey.extend({ remote: z.string().optional() })).output(z.string()),
+  readBlobAtRef: procedure({
+    input: repoKey.extend({ ref: z.string(), filePath: z.string() }),
+    output: z.string().nullable(),
+  }),
 
-  fetchPrForReview: oc
-    .input(repoKey.extend({ options: fetchPrForReviewOptionsSchema }))
-    .output(result(z.void(), fetchPrForReviewErrorSchema)),
+  stashDrop: fallible({
+    input: repoKey.extend({ stashIndex: z.number().int().nonnegative() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
+});
 
-  readBlobAtRef: oc
-    .input(repoKey.extend({ ref: z.string(), filePath: z.string() }))
-    .output(z.string().nullable()),
+const checkoutContract = defineContract({
+  model: liveModel({
+    key: checkoutKey,
+    states: {
+      /** Normalized working-tree status (staged + unstaged, flat map by path). */
+      status: liveState({ data: checkoutStatusModelSchema }),
+      /** Current HEAD position (branch / detached / unborn). */
+      head: liveState({ data: gitHeadModelSchema }),
+    },
+  }),
 
-  stashDrop: oc
-    .input(repoKey.extend({ stashIndex: z.number().int().nonnegative() }))
-    .output(gitVoidResultSchema),
-};
+  stage: fallible({
+    input: checkoutKey.extend({ paths: z.array(z.string()) }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-const checkoutContract = {
-  /** Normalized working-tree status (staged + unstaged, flat map by path). */
-  status: checkoutModel(checkoutStatusModelSchema),
+  unstage: fallible({
+    input: checkoutKey.extend({ paths: z.array(z.string()) }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  /** Current HEAD position (branch / detached / unborn). */
-  head: checkoutModel(gitHeadModelSchema),
+  stageAll: fallible({ input: checkoutKey, data: z.void(), error: gitCommandErrorSchema }),
 
-  stage: oc.input(checkoutKey.extend({ paths: z.array(z.string()) })).output(gitVoidResultSchema),
+  unstageAll: fallible({ input: checkoutKey, data: z.void(), error: gitCommandErrorSchema }),
 
-  unstage: oc.input(checkoutKey.extend({ paths: z.array(z.string()) })).output(gitVoidResultSchema),
+  revert: fallible({
+    input: checkoutKey.extend({ paths: z.array(z.string()) }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  stageAll: oc.input(checkoutKey).output(gitVoidResultSchema),
-
-  unstageAll: oc.input(checkoutKey).output(gitVoidResultSchema),
-
-  revert: oc.input(checkoutKey.extend({ paths: z.array(z.string()) })).output(gitVoidResultSchema),
-
-  revertAll: oc.input(checkoutKey).output(gitVoidResultSchema),
+  revertAll: fallible({ input: checkoutKey, data: z.void(), error: gitCommandErrorSchema }),
 
   /** Discard all untracked and ignored files. */
-  clean: oc
-    .input(
-      checkoutKey.extend({ paths: z.array(z.string()).optional(), force: z.boolean().optional() })
-    )
-    .output(gitVoidResultSchema),
+  clean: fallible({
+    input: checkoutKey.extend({
+      paths: z.array(z.string()).optional(),
+      force: z.boolean().optional(),
+    }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
   /**
    * Stage a specific hunk within a file.
    * `hunkHeader` identifies the hunk (e.g. "@@ -1,4 +1,5 @@").
    */
-  stageHunk: oc
-    .input(checkoutKey.extend({ path: z.string(), hunkHeader: z.string() }))
-    .output(gitVoidResultSchema),
+  stageHunk: fallible({
+    input: checkoutKey.extend({ path: z.string(), hunkHeader: z.string() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  unstageHunk: oc
-    .input(checkoutKey.extend({ path: z.string(), hunkHeader: z.string() }))
-    .output(gitVoidResultSchema),
+  unstageHunk: fallible({
+    input: checkoutKey.extend({ path: z.string(), hunkHeader: z.string() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  discardHunk: oc
-    .input(checkoutKey.extend({ path: z.string(), hunkHeader: z.string() }))
-    .output(gitVoidResultSchema),
+  discardHunk: fallible({
+    input: checkoutKey.extend({ path: z.string(), hunkHeader: z.string() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  commit: oc
-    .input(checkoutKey.extend({ message: z.string(), options: commitOptionsSchema.optional() }))
-    .output(result(z.object({ hash: z.string() }), commitErrorSchema)),
+  commit: fallible({
+    input: checkoutKey.extend({ message: z.string(), options: commitOptionsSchema.optional() }),
+    data: z.object({ hash: z.string() }),
+    error: commitErrorSchema,
+  }),
 
-  switch: oc
-    .input(checkoutKey.extend({ options: switchOptionsSchema }))
-    .output(result(z.void(), switchErrorSchema)),
+  switch: fallible({
+    input: checkoutKey.extend({ options: switchOptionsSchema }),
+    data: z.void(),
+    error: switchErrorSchema,
+  }),
 
-  reset: oc
-    .input(checkoutKey.extend({ ref: z.string(), mode: resetModeSchema.optional() }))
-    .output(gitVoidResultSchema),
+  reset: fallible({
+    input: checkoutKey.extend({ ref: z.string(), mode: resetModeSchema.optional() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  merge: oc
-    .input(checkoutKey.extend({ options: mergeOptionsSchema }))
-    .output(result(z.void(), mergeErrorSchema)),
+  merge: fallible({
+    input: checkoutKey.extend({ options: mergeOptionsSchema }),
+    data: z.void(),
+    error: mergeErrorSchema,
+  }),
 
-  mergeContinue: oc
-    .input(checkoutKey.extend({ message: z.string().optional() }))
-    .output(result(z.void(), mergeErrorSchema)),
+  mergeContinue: fallible({
+    input: checkoutKey.extend({ message: z.string().optional() }),
+    data: z.void(),
+    error: mergeErrorSchema,
+  }),
 
-  mergeAbort: oc.input(checkoutKey).output(gitVoidResultSchema),
+  mergeAbort: fallible({ input: checkoutKey, data: z.void(), error: gitCommandErrorSchema }),
 
-  rebase: oc
-    .input(checkoutKey.extend({ options: rebaseOptionsSchema }))
-    .output(result(z.void(), rebaseErrorSchema)),
+  rebase: fallible({
+    input: checkoutKey.extend({ options: rebaseOptionsSchema }),
+    data: z.void(),
+    error: rebaseErrorSchema,
+  }),
 
-  rebaseContinue: oc.input(checkoutKey).output(result(z.void(), rebaseErrorSchema)),
+  rebaseContinue: fallible({ input: checkoutKey, data: z.void(), error: rebaseErrorSchema }),
 
-  rebaseAbort: oc.input(checkoutKey).output(gitVoidResultSchema),
+  rebaseAbort: fallible({ input: checkoutKey, data: z.void(), error: gitCommandErrorSchema }),
 
-  rebaseSkip: oc.input(checkoutKey).output(gitVoidResultSchema),
+  rebaseSkip: fallible({ input: checkoutKey, data: z.void(), error: gitCommandErrorSchema }),
 
-  cherryPick: oc
-    .input(checkoutKey.extend({ commits: z.array(z.string()), noCommit: z.boolean().optional() }))
-    .output(result(z.void(), mergeErrorSchema)),
+  cherryPick: fallible({
+    input: checkoutKey.extend({ commits: z.array(z.string()), noCommit: z.boolean().optional() }),
+    data: z.void(),
+    error: mergeErrorSchema,
+  }),
 
-  revertCommit: oc
-    .input(checkoutKey.extend({ commit: z.string(), noCommit: z.boolean().optional() }))
-    .output(result(z.void(), mergeErrorSchema)),
+  revertCommit: fallible({
+    input: checkoutKey.extend({ commit: z.string(), noCommit: z.boolean().optional() }),
+    data: z.void(),
+    error: mergeErrorSchema,
+  }),
 
-  push: oc
-    .input(checkoutKey.extend({ options: pushOptionsSchema.optional() }))
-    .output(result(z.object({ output: z.string() }), pushErrorSchema)),
+  push: fallible({
+    input: checkoutKey.extend({ options: pushOptionsSchema.optional() }),
+    data: z.object({ output: z.string() }),
+    error: pushErrorSchema,
+  }),
 
-  pull: oc.input(checkoutKey).output(result(z.object({ output: z.string() }), pullErrorSchema)),
+  pull: fallible({
+    input: checkoutKey,
+    data: z.object({ output: z.string() }),
+    error: pullErrorSchema,
+  }),
 
-  sync: oc.input(checkoutKey).output(result(z.object({ output: z.string() }), pushErrorSchema)),
+  sync: fallible({
+    input: checkoutKey,
+    data: z.object({ output: z.string() }),
+    error: pushErrorSchema,
+  }),
 
-  stashPush: oc
-    .input(checkoutKey.extend({ options: stashPushOptionsSchema.optional() }))
-    .output(gitVoidResultSchema),
+  stashPush: fallible({
+    input: checkoutKey.extend({ options: stashPushOptionsSchema.optional() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  stashApply: oc
-    .input(checkoutKey.extend({ stashIndex: z.number().int().nonnegative().optional() }))
-    .output(gitVoidResultSchema),
+  stashApply: fallible({
+    input: checkoutKey.extend({ stashIndex: z.number().int().nonnegative().optional() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  stashPop: oc
-    .input(checkoutKey.extend({ stashIndex: z.number().int().nonnegative().optional() }))
-    .output(gitVoidResultSchema),
+  stashPop: fallible({
+    input: checkoutKey.extend({ stashIndex: z.number().int().nonnegative().optional() }),
+    data: z.void(),
+    error: gitCommandErrorSchema,
+  }),
 
-  getFileDiff: oc
-    .input(checkoutKey.extend({ path: z.string(), base: diffTargetSchema.optional() }))
-    .output(result(fileDiffSchema, gitCommandErrorSchema)),
+  getFileDiff: fallible({
+    input: fileDiffKey,
+    data: fileDiffSchema,
+    error: gitCommandErrorSchema,
+  }),
 
   /**
-   * Subscribes to staleness events for a file diff.
-   * Emits whenever the diff would change (content, index, or ref change).
-   * Callers re-fetch via getFileDiff on each event.
+   * Reactive staleness state for a file diff. Callers re-fetch via getFileDiff
+   * whenever revision changes.
    */
-  subscribeFileDiff: oc
-    .input(checkoutKey.extend({ path: z.string(), base: diffTargetSchema.optional() }))
-    .output(eventIterator(fileDiffStalenessEventSchema)),
+  fileDiff: liveModel({
+    key: fileDiffKey,
+    states: {
+      staleness: liveState({ data: fileDiffStalenessModelSchema }),
+    },
+  }),
 
-  getChangedFiles: oc
-    .input(checkoutKey.extend({ base: diffTargetSchema }))
-    .output(z.array(gitChangeSchema)),
+  getChangedFiles: procedure({
+    input: checkoutKey.extend({ base: diffTargetSchema }),
+    output: z.array(gitChangeSchema),
+  }),
 
-  getConflictVersions: oc
-    .input(checkoutKey.extend({ path: z.string() }))
-    .output(result(conflictVersionsSchema, gitCommandErrorSchema)),
+  getConflictVersions: fallible({
+    input: checkoutKey.extend({ path: z.string() }),
+    data: conflictVersionsSchema,
+    error: gitCommandErrorSchema,
+  }),
 
   // -- Content / history reads --
 
-  getFileAtRef: oc
-    .input(checkoutKey.extend({ filePath: z.string(), ref: z.string() }))
-    .output(z.string().nullable()),
+  getFileAtRef: procedure({
+    input: checkoutKey.extend({ filePath: z.string(), ref: z.string() }),
+    output: z.string().nullable(),
+  }),
 
-  getFileAtIndex: oc
-    .input(checkoutKey.extend({ filePath: z.string() }))
-    .output(z.string().nullable()),
+  getFileAtIndex: procedure({
+    input: checkoutKey.extend({ filePath: z.string() }),
+    output: z.string().nullable(),
+  }),
 
-  getImageAtRef: oc
-    .input(checkoutKey.extend({ filePath: z.string(), ref: z.string() }))
-    .output(imageReadResultSchema),
+  getImageAtRef: procedure({
+    input: checkoutKey.extend({ filePath: z.string(), ref: z.string() }),
+    output: imageReadResultSchema,
+  }),
 
-  getImageAtIndex: oc
-    .input(checkoutKey.extend({ filePath: z.string() }))
-    .output(imageReadResultSchema),
+  getImageAtIndex: procedure({
+    input: checkoutKey.extend({ filePath: z.string() }),
+    output: imageReadResultSchema,
+  }),
 
-  getLog: oc
-    .input(checkoutKey.extend({ options: gitLogOptionsSchema.optional() }))
-    .output(gitLogResultSchema),
+  getLog: procedure({
+    input: checkoutKey.extend({ options: gitLogOptionsSchema.optional() }),
+    output: gitLogResultSchema,
+  }),
 
-  getCommit: oc.input(checkoutKey.extend({ hash: z.string() })).output(commitFileSchema.nullable()),
+  getCommit: procedure({
+    input: checkoutKey.extend({ hash: z.string() }),
+    output: commitFileSchema.nullable(),
+  }),
 
-  getCommitFiles: oc
-    .input(checkoutKey.extend({ hash: z.string() }))
-    .output(z.array(commitFileSchema)),
+  getCommitFiles: procedure({
+    input: checkoutKey.extend({ hash: z.string() }),
+    output: z.array(commitFileSchema),
+  }),
 
-  blame: oc
-    .input(checkoutKey.extend({ path: z.string(), ref: z.string().optional() }))
-    .output(result(blameResultSchema, gitCommandErrorSchema)),
-};
+  blame: fallible({
+    input: checkoutKey.extend({ path: z.string(), ref: z.string().optional() }),
+    data: blameResultSchema,
+    error: gitCommandErrorSchema,
+  }),
+});
 
 // ---------------------------------------------------------------------------
 // Top-level git contract (nested routers)
 // ---------------------------------------------------------------------------
 
-export const gitContract = {
+export const gitContract = defineContract({
   ...runtimeContract,
   repository: repositoryContract,
   checkout: checkoutContract,
-};
+});
 
 export type GitContract = typeof gitContract;

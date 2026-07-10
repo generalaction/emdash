@@ -194,6 +194,7 @@ export const ErrorSingle: Story = {
           id: 'fo-err-single',
           op: 'read',
           status: 'error',
+          error: 'Could not read packages/chat-ui/src/model.ts',
           ops: [{ path: 'packages/chat-ui/src/model.ts' }],
         },
       ]}
@@ -212,6 +213,7 @@ export const ErrorMulti: Story = {
           id: 'fo-err-multi',
           op: 'edit',
           status: 'error',
+          error: 'Failed to apply edits to 2 files',
           ops: [
             { path: 'packages/chat-ui/src/model.ts' },
             { path: 'packages/chat-ui/src/state/transcript.ts' },

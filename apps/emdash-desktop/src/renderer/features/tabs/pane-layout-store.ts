@@ -216,6 +216,9 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
    *
    * For single-mount providers, scans all panes for an existing dedupKey match
    * and focuses it (with optional state override) instead of opening a new tab.
+   * When callers provide an explicit pane target, the existing tab is moved
+   * there so drag/drop placement intent is preserved without reinitializing
+   * the resource.
    *
    * For multi providers, routes directly to the target pane.
    */
@@ -226,6 +229,10 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     const previewFlag = !!config?.preview;
     const overrideStateFlag = !!config?.overrideState;
     const resolvedTarget: OpenTarget = config?.target ?? 'active';
+    const explicitTargetPaneId =
+      typeof resolvedTarget === 'object' && 'paneId' in resolvedTarget
+        ? resolvedTarget.paneId
+        : undefined;
 
     if (!this._registry.has(kind)) {
       console.warn(`[PaneLayoutStore] Unknown tab kind: ${kind}`);
@@ -245,6 +252,16 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       for (const g of this.groups) {
         const existing = g.pane.findSingleMountEntry(kind, key);
         if (existing) {
+          const explicitTargetGroup = explicitTargetPaneId
+            ? this.groups.find((group) => group.paneId === explicitTargetPaneId)
+            : undefined;
+          if (explicitTargetGroup && explicitTargetGroup.paneId !== g.paneId) {
+            if (!previewFlag) existing.isPreview = false;
+            if (overrideStateFlag) existing.state = initialState;
+            this.moveTab(existing.tabId, g.paneId, explicitTargetGroup.paneId);
+            return;
+          }
+
           this.setActiveGroup(g.paneId);
           if (!previewFlag) existing.isPreview = false;
           if (overrideStateFlag) existing.state = initialState;

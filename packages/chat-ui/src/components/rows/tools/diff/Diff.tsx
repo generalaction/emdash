@@ -1,7 +1,7 @@
 import { useCaches } from '@components/contexts/CachesContext';
 import { useCommands } from '@components/contexts/CommandsContext';
 import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
-import { GenericFileIcon, IconError } from '@components/primitives/icons';
+import { GenericFileIcon, IconError, IconShieldAlert } from '@components/primitives/icons';
 import { applyTokensToElement } from '@core/highlight/apply-tokens';
 import type { CodeToken } from '@core/highlight/highlighter';
 import { resolveFileIconClass } from '@lib/file-icons';
@@ -15,16 +15,17 @@ import {
   diffBodyCard,
   diffCardVars,
   diffDelsCount,
+  diffErrorIcon,
   diffFileName,
   diffHeader,
   diffLineContent,
+  diffPermissionIcon,
   diffRowClasses,
   diffSpacer,
   pdiffBody,
   pdiffLine,
   textShimmer,
 } from './diff.css';
-import { vars } from '@styles/theme.css';
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ export type DiffHeaderProps = {
 export function DiffHeader(props: DiffHeaderProps) {
   const name = () => basename(props.item.path);
   const iconClass = () => resolveFileIconClass(name());
-  const running = () => props.item.status === 'running';
+  const running = () => props.item.status === 'running' && !props.item.awaitingPermission;
   // Stats are meaningless until a diff body exists; hide them while streaming
   // the header alone or when there are genuinely no changes.
   const showStats = () => props.hasBody && (props.adds > 0 || props.dels > 0);
@@ -78,9 +79,22 @@ export function DiffHeader(props: DiffHeaderProps) {
         <span class={diffDelsCount}>−{props.dels}</span>
       </Show>
       <span class={diffSpacer} />
-      <Show when={props.item.status === 'error'}>
-        <span style={{ display: 'flex', color: vars.fgError }} aria-label="error">
-          <IconError />
+      <Show
+        when={props.item.awaitingPermission}
+        fallback={
+          <Show when={props.item.status === 'error'}>
+            <span class={diffErrorIcon} title={props.item.error ?? 'Failed'} aria-label="error">
+              <IconError />
+            </span>
+          </Show>
+        }
+      >
+        <span
+          class={diffPermissionIcon}
+          title="Awaiting permission"
+          aria-label="awaiting permission"
+        >
+          <IconShieldAlert />
         </span>
       </Show>
     </div>

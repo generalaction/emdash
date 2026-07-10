@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { GitHubAccountReconciliationService } from './github-account-reconciliation';
-import type { GitHubAccount } from './github-account-registry';
+import type { GitHubAccount } from './github-accounts';
 
 function account(id: string, credentialSource: GitHubAccount['credentialSource']): GitHubAccount {
   return {
@@ -13,6 +13,19 @@ function account(id: string, credentialSource: GitHubAccount['credentialSource']
     connectedAt: 1,
     updatedAt: 1,
   };
+}
+
+class KvBackfill {
+  result: GitHubAccount[] = [];
+  error: Error | null = null;
+
+  constructor(private readonly calls: string[]) {}
+
+  async backfillFromKv() {
+    this.calls.push('kv');
+    if (this.error) throw this.error;
+    return this.result;
+  }
 }
 
 class LegacyBackfill {
@@ -31,13 +44,11 @@ class LegacyBackfill {
 class CliImporter {
   result: GitHubAccount[] = [account('github.com:42', 'cli'), account('github.com:84', 'cli')];
   error: Error | null = null;
-  options: unknown[] = [];
 
   constructor(private readonly calls: string[]) {}
 
-  async importAccounts(options?: unknown) {
+  async importAccounts() {
     this.calls.push('cli');
-    this.options.push(options);
     if (this.error) throw this.error;
     return this.result;
   }
@@ -52,6 +63,7 @@ class WarningLogger {
 }
 
 describe('GitHubAccountReconciliationService', () => {
+  let kvBackfill: KvBackfill;
   let legacyBackfill: LegacyBackfill;
   let cliImporter: CliImporter;
   let logger: WarningLogger;
@@ -60,26 +72,42 @@ describe('GitHubAccountReconciliationService', () => {
 
   beforeEach(() => {
     calls = [];
+    kvBackfill = new KvBackfill(calls);
     legacyBackfill = new LegacyBackfill(calls);
     cliImporter = new CliImporter(calls);
     logger = new WarningLogger();
     service = new GitHubAccountReconciliationService({
+      kvBackfill,
       legacyBackfill,
       cliImporter,
       logger,
     });
   });
 
-  it('backfills the legacy token before importing GitHub CLI accounts', async () => {
+  it('runs KV backfill, then legacy token backfill, then GitHub CLI import', async () => {
     const result = await service.reconcileAtStartup();
 
-    expect(calls).toEqual(['legacy', 'cli']);
+    expect(calls).toEqual(['kv', 'legacy', 'cli']);
     expect(result).toEqual({
       legacyAccountId: 'github.com:42',
       importedCliAccountIds: ['github.com:42', 'github.com:84'],
     });
-    expect(cliImporter.options).toEqual([{ skipRemovedAccounts: true }]);
     expect(logger.warnings).toEqual([]);
+  });
+
+  it('keeps startup running when the KV backfill fails', async () => {
+    kvBackfill.error = new Error('kv read failed');
+
+    await expect(service.reconcileAtStartup()).resolves.toEqual({
+      legacyAccountId: 'github.com:42',
+      importedCliAccountIds: ['github.com:42', 'github.com:84'],
+    });
+    expect(logger.warnings).toEqual([
+      {
+        message: 'Failed to backfill GitHub accounts from KV storage',
+        context: { error: 'kv read failed' },
+      },
+    ]);
   });
 
   it('still imports GitHub CLI accounts when legacy backfill fails', async () => {

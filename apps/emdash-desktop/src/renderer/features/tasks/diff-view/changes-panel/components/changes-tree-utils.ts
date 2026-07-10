@@ -27,11 +27,11 @@ export function buildChangesTree(changes: GitChange[], rootPath?: string): Chang
     const parts = displayPath.split('/').filter(Boolean);
     if (parts.length === 0) continue;
 
-    let prefix = '';
+    let prefix = displayPath.startsWith('/') ? '/' : '';
     let parentNode: NestedFileNode | null = null;
     for (let i = 0; i < parts.length; i++) {
       const segment = parts[i]!;
-      prefix = prefix ? `${prefix}/${segment}` : segment;
+      prefix = prefix === '/' ? `/${segment}` : prefix ? `${prefix}/${segment}` : segment;
       const isLeaf = i === parts.length - 1;
       const type = isLeaf ? 'file' : 'directory';
       const key = `${type}:${prefix}`;

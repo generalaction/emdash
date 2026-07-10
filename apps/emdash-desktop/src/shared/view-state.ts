@@ -17,6 +17,7 @@ export type TabDescriptor =
       session: BrowserSessionSnapshot;
       isPreview: boolean;
     }
+  | { kind: 'terminal'; tabId: string; terminalId: string; isPreview: boolean }
   | {
       kind: 'diff';
       tabId: string;

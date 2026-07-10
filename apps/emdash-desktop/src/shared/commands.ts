@@ -264,6 +264,15 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'pin',
   },
   {
+    id: 'task.archive',
+    label: 'Archive Task',
+    description: 'Archive the current task',
+    scope: 'task',
+    shortcutKey: 'archiveTask',
+    group: 'Task',
+    iconKey: 'archive',
+  },
+  {
     id: 'task.convertAutomation',
     label: 'Convert to Regular Task',
     description: 'Detach this task from its automation run',

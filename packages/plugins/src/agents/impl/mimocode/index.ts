@@ -5,6 +5,7 @@ import {
   mimocodeMcpAdapter,
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
+import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { icon } from './icon';
 import { MIMOCODE_PLUGIN_CONTENT } from './plugin-file';
 
@@ -24,6 +25,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/XiaomiMiMo/MiMo-Code',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -32,7 +36,38 @@ export const plugin = definePlugin(
       scope: 'workspace',
       supportedEvents: ['notification', 'stop', 'session'],
     },
-    hostDependency: npmDependency({ id: 'mimo', package: '@mimo-ai/cli' }),
+    hostDependency: npmDependency({
+      id: 'mimo',
+      package: '@mimo-ai/cli',
+      recommended: false,
+      installDocs: 'https://github.com/XiaomiMiMo/MiMo-Code#quick-start',
+      extraOptions: {
+        macos: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://mimo.xiaomi.com/install | bash',
+            uninstallCommand: 'mimo uninstall --keep-config --keep-data --force',
+            recommended: true,
+          },
+        ],
+        linux: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://mimo.xiaomi.com/install | bash',
+            uninstallCommand: 'mimo uninstall --keep-config --keep-data --force',
+            recommended: true,
+          },
+        ],
+        windows: [
+          {
+            method: 'powershell',
+            command: 'powershell -ep Bypass -c "irm https://mimo.xiaomi.com/install.ps1 | iex"',
+            uninstallCommand: 'mimo uninstall --keep-config --keep-data --force',
+            recommended: true,
+          },
+        ],
+      },
+    }),
     mcp: {
       kind: 'supported',
       scope: 'global',
@@ -54,6 +89,9 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: createNativeAcpBehavior(() => ({
+    args: ['acp'],
+  })),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

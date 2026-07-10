@@ -1,5 +1,14 @@
 export { createVariadicAdapter } from './variadic';
 export type { VariadicLogger } from './variadic';
+export {
+  getCurrentLogger,
+  log,
+  runWithLogger,
+  setLogContextStore,
+  setRootLogger,
+  withLogFields,
+  type LogContextStore,
+} from './context';
 export { formatMessage, serializeLogValue, stringifyLogValue } from './format';
 export { isLevelEnabled, LEVEL_ORDER, parseLogLevel, resolveLogLevel } from './level';
 export { noopLogger } from './noop';

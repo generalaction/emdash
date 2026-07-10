@@ -33,6 +33,7 @@ describe('pluginRegistry', () => {
     for (const d of pluginRegistry.getAll()) {
       const { capabilities } = d;
       expect(capabilities.hostDependency).toBeDefined();
+      expect(capabilities.auth).toBeDefined();
       expect(capabilities.hooks).toBeDefined();
       expect(capabilities.mcp).toBeDefined();
       expect(capabilities.plugins).toBeDefined();
@@ -40,6 +41,17 @@ describe('pluginRegistry', () => {
       expect(['supported', 'none']).toContain(capabilities.autoApprove.kind);
       expect(['resumable', 'stateless']).toContain(capabilities.sessions.kind);
     }
+  });
+
+  it('uses supported CLI login commands for providers with explicit auth commands', () => {
+    const claude = pluginRegistry.get('claude')!;
+    expect(cliLoginArgs(claude, 'claude-login')).toEqual(['auth', 'login']);
+
+    const codex = pluginRegistry.get('codex')!;
+    expect(cliLoginArgs(codex, 'codex-login')).toEqual(['login']);
+
+    const opencode = pluginRegistry.get('opencode')!;
+    expect(cliLoginArgs(opencode, 'opencode-login')).toEqual(['auth', 'login']);
   });
 
   it('each entry has hostDependency.updates with valid kind', () => {
@@ -246,6 +258,34 @@ describe('pluginRegistry', () => {
     expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'deep']);
   });
 
+  it('exposes Mistral Vibe models and passes the selected model through env', () => {
+    const mistral = pluginRegistry.get('mistral')!;
+
+    expect(mistral.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        'mistral-medium-3.5': { name: 'Mistral Medium 3.5' },
+        'devstral-small': { name: 'Devstral Small' },
+        local: { name: 'Local Devstral' },
+      },
+    });
+
+    const result = mistral.behavior.prompt!.buildCommand({
+      cli: 'vibe',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'mistral-medium-3.5',
+    });
+
+    expect(result).toEqual({
+      command: 'vibe',
+      args: ['--agent', 'auto-approve', 'Fix the bug'],
+      env: { VIBE_ACTIVE_MODEL: 'mistral-medium-3.5' },
+    });
+  });
+
   it('resumes Pi with the stored session file instead of the latest session', () => {
     const pi = pluginRegistry.get('pi')!;
 
@@ -274,6 +314,65 @@ describe('pluginRegistry', () => {
     expect(resumed.args).toEqual([
       '--session',
       '/Users/test/.pi/agent/sessions/project/session.jsonl',
+    ]);
+  });
+
+  it('registers Oh My Pi install, ACP, model, and session behavior', () => {
+    const ohMyPi = pluginRegistry.get('oh-my-pi')!;
+
+    expect(ohMyPi.metadata.name).toBe('Oh My Pi');
+    expect(ohMyPi.capabilities.acp.kind).toBe('supported');
+    expect(ohMyPi.capabilities.hostDependency.binaryNames).toEqual(['omp']);
+    expect(ohMyPi.capabilities.hostDependency.installDocs).toBe('https://omp.sh/docs/quickstart');
+    expect(
+      ohMyPi.capabilities.hostDependency.installCommands.macos?.map(
+        (opt: { method: string }) => opt.method
+      )
+    ).toEqual(['curl', 'homebrew', 'other']);
+    expect(ohMyPi.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'curl -fsSL https://omp.sh/install | sh'
+    );
+    expect(ohMyPi.capabilities.hostDependency.installCommands.macos?.[2]?.command).toBe(
+      'bun install -g @oh-my-pi/pi-coding-agent'
+    );
+    expect(ohMyPi.capabilities.hostDependency.updates).toMatchObject({
+      kind: 'supported',
+      releaseSource: { kind: 'github', repo: 'can1357/oh-my-pi' },
+      update: { kind: 'package-manager' },
+    });
+    expect(ohMyPi.capabilities.hostDependency.uninstall).toEqual({
+      kind: 'package-manager',
+    });
+
+    const fresh = ohMyPi.behavior.prompt!.buildCommand({
+      cli: 'omp',
+      autoApprove: false,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'openai-codex/gpt-5.5',
+    });
+    expect(fresh.args).toEqual([
+      '--extension',
+      './.omp/extensions/emdash-hook.ts',
+      '--model',
+      'openai-codex/gpt-5.5',
+      'Fix the bug',
+    ]);
+
+    const resumed = ohMyPi.behavior.prompt!.buildCommand({
+      cli: 'omp',
+      autoApprove: false,
+      sessionId: 'conv-1',
+      providerSessionId: '/Users/test/.omp/agent/sessions/project/session.jsonl',
+      isResuming: true,
+      model: '',
+    });
+    expect(resumed.args).toEqual([
+      '--extension',
+      './.omp/extensions/emdash-hook.ts',
+      '--session',
+      '/Users/test/.omp/agent/sessions/project/session.jsonl',
     ]);
   });
 
@@ -321,3 +420,13 @@ describe('pluginRegistry', () => {
     expect(resumed.args).toEqual(['-r', 'qoder-session-1', '--yolo']);
   });
 });
+
+function cliLoginArgs(
+  plugin: NonNullable<ReturnType<typeof pluginRegistry.get>>,
+  methodId: string
+): string[] | undefined {
+  if (plugin.capabilities.auth.kind !== 'supported') return undefined;
+  const method = plugin.capabilities.auth.methods.find((candidate) => candidate.id === methodId);
+  if (!method || method.kind !== 'cli-login') return undefined;
+  return method?.args;
+}

@@ -1,5 +1,5 @@
 import { CircleAlert } from 'lucide-react';
-import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
+import { IntegrationIcon } from '@renderer/features/integrations/integration-icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import type { IntegrationItem } from './IntegrationsCard';
@@ -13,8 +13,6 @@ export function IntegrationGridCard({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const Icon = PROVIDER_ICON_COMPONENTS[integration.id];
-
   return (
     <div className="flex h-full min-h-0">
       <button
@@ -26,7 +24,7 @@ export function IntegrationGridCard({
         )}
       >
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-background-2 transition-colors group-hover:bg-background-3">
-          <Icon size={32} />
+          <IntegrationIcon provider={integration.id} icon={integration.icon} size={32} />
         </span>
         <span
           className={cn(

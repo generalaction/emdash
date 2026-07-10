@@ -91,6 +91,7 @@ export const Error: Story = {
           id: 't3',
           name: 'web.run',
           status: 'error',
+          error: 'Search provider returned a 503 response',
           inputSummary: 'latest ACP protocol specification',
         },
       ]}

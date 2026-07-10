@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 // ---------------------------------------------------------------------------
 // Serializability primitives
 // ---------------------------------------------------------------------------
@@ -34,6 +36,17 @@ export type Result<T, E = string> = Ok<T> | Err<E>;
 
 export const ok = <T>(data: T = undefined as T): Ok<T> => ({ success: true, data });
 export const err = <E>(error: E): Err<E> => ({ success: false, error });
+
+/**
+ * Wraps a Result<T, E> on the wire as a discriminated union.
+ * Domain outcomes use this helper; transport-level failures should stay in
+ * the transport's error mechanism.
+ */
+export const resultSchema = <D extends z.ZodTypeAny, E extends z.ZodTypeAny>(data: D, error: E) =>
+  z.discriminatedUnion('success', [
+    z.object({ success: z.literal(true), data }),
+    z.object({ success: z.literal(false), error }),
+  ]);
 
 // ---------------------------------------------------------------------------
 // Tagged errors with a typed, serializable cause chain
@@ -224,9 +237,9 @@ export function gen<T, E>(body: () => Generator<Err<E>, T, any>): Result<T, E> {
   return step.done ? ok(step.value) : step.value;
 }
 
-// oxlint-disable-next-line typescript/no-explicit-any
 export async function* unwrapGenAsync<T, E>(
   r: Result<T, E> | Promise<Result<T, E>>
+  // oxlint-disable-next-line typescript/no-explicit-any
 ): AsyncGenerator<Err<E>, T, any> {
   const awaited = await r;
   if (awaited.success) return awaited.data;
@@ -234,9 +247,8 @@ export async function* unwrapGenAsync<T, E>(
   throw new Error('unreachable');
 }
 
-// oxlint-disable-next-line typescript/no-explicit-any
 export async function genAsync<T, E>(
-  body: () => AsyncGenerator<Err<E>, T, any>
+  body: () => AsyncGenerator<Err<E>, T, any> // oxlint-disable-line typescript/no-explicit-any
 ): Promise<Result<T, E>> {
   const it = body();
   const step = await it.next();

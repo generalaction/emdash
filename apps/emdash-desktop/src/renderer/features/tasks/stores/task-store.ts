@@ -1,5 +1,6 @@
 import { err, type Result } from '@emdash/shared';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
+import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import { rpc } from '@renderer/lib/ipc';
@@ -12,7 +13,6 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
-import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
 

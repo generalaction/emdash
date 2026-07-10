@@ -1,10 +1,15 @@
+import { asAgentProviderId } from '@emdash/plugins/agents/types';
 import { describe, expect, it } from 'vitest';
-import { resolveConversationProviderSelection } from '@renderer/features/tasks/conversations/provider-selection';
+import { resolveConversationProviderSelection } from '@renderer/features/conversations/provider-selection';
+
+const agent = asAgentProviderId;
+const orderedProviderIds = [agent('codex'), agent('claude'), agent('qwen')];
 
 describe('resolveConversationProviderSelection', () => {
   it('keeps default provider while availability is unknown', () => {
     const selection = resolveConversationProviderSelection({
-      defaultProviderId: 'claude',
+      orderedProviderIds,
+      defaultProviderId: agent('claude'),
       providerOverride: null,
       installedProviderIds: [],
       availabilityKnown: false,
@@ -16,9 +21,10 @@ describe('resolveConversationProviderSelection', () => {
 
   it('falls back to the first installed provider when default is unavailable', () => {
     const selection = resolveConversationProviderSelection({
-      defaultProviderId: 'claude',
+      orderedProviderIds,
+      defaultProviderId: agent('claude'),
       providerOverride: null,
-      installedProviderIds: ['codex', 'qwen'],
+      installedProviderIds: [agent('codex'), agent('qwen')],
       availabilityKnown: true,
     });
 
@@ -28,7 +34,8 @@ describe('resolveConversationProviderSelection', () => {
 
   it('disables creation when no agents are installed', () => {
     const selection = resolveConversationProviderSelection({
-      defaultProviderId: 'claude',
+      orderedProviderIds,
+      defaultProviderId: agent('claude'),
       providerOverride: null,
       installedProviderIds: [],
       availabilityKnown: true,
@@ -40,9 +47,10 @@ describe('resolveConversationProviderSelection', () => {
 
   it('honors an explicit provider override', () => {
     const selection = resolveConversationProviderSelection({
-      defaultProviderId: 'claude',
-      providerOverride: 'codex',
-      installedProviderIds: ['codex'],
+      orderedProviderIds,
+      defaultProviderId: agent('claude'),
+      providerOverride: agent('codex'),
+      installedProviderIds: [agent('codex')],
       availabilityKnown: true,
     });
 

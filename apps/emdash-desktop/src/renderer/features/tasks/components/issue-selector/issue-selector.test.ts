@@ -20,12 +20,37 @@ vi.mock('./use-linked-issue-urls', () => ({
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
+  events: {
+    on: vi.fn(() => () => {}),
+  },
   rpc: {
     app: {
       openExternal: vi.fn(),
     },
+    ssh: {
+      getConnections: vi.fn(async () => []),
+      getHealthStates: vi.fn(async () => ({})),
+    },
   },
 }));
+
+vi.mock('@renderer/features/integrations/integrations-provider', () => {
+  const integrations = [
+    {
+      id: 'github',
+      name: 'GitHub',
+      features: ['issues'],
+    },
+  ];
+  return {
+    useIntegrationsContext: () => ({
+      integrations,
+      integrationById: {
+        github: integrations[0],
+      },
+    }),
+  };
+});
 
 vi.mock('@renderer/lib/ui/combobox', async () => {
   const React = await import('react');
@@ -86,6 +111,18 @@ vi.mock('@renderer/lib/components/inline-markdown', async () => {
 
 vi.mock('@renderer/lib/layout/navigation-provider', () => ({
   useNavigate: () => vi.fn(),
+}));
+
+vi.mock('@renderer/features/conversations/acp/acp-chat-store', () => ({
+  AcpChatStore: class {
+    conversationId = '';
+    dispose() {}
+    bootstrap() {}
+  },
+}));
+
+vi.mock('@renderer/features/conversations/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
 }));
 
 describe('IssueSelector', () => {

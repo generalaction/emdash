@@ -22,6 +22,14 @@ export const executeLine = style({
   // so it cannot drift from the measured value via a CSS variable.
 });
 
+export const executeOutputLine = style({
+  color: vars.fgMuted,
+});
+
+export const executeSpacerLine = style({
+  userSelect: 'none',
+});
+
 globalStyle(`${executeLine} span`, {
   color: 'var(--shiki-light)',
 });

@@ -7,10 +7,10 @@ import type {
   TabContentProps,
 } from '@renderer/features/tabs/core/tab-provider';
 import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
+import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
-import type { TaskTabContext } from '../stores/task-tab-context';
 import { resolveWorkspacePath } from '../stores/workspace-path';
 import { EditorProvider } from './editor-provider';
 import { FileContentPreview } from './file-content-preview';

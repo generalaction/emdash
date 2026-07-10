@@ -5,7 +5,12 @@ import { getFileKind } from '@renderer/lib/editor/fileKind';
 import type { ActiveFile } from '@shared/view-state';
 import type { DiffTabManager } from './diff-tab-manager';
 
-export type DiffRendererData = { kind: 'text' } | { kind: 'image' } | { kind: 'binary' };
+export type DiffViewMode = 'diff' | 'preview';
+export type DiffPreviewKind = 'markdown' | 'html';
+export type DiffRendererData =
+  | { kind: 'text'; previewKind?: DiffPreviewKind }
+  | { kind: 'image' }
+  | { kind: 'binary' };
 
 export interface DiffPayload {
   path: string;
@@ -33,6 +38,7 @@ export class DiffTabResource implements TabResource {
   readonly tabId: string;
 
   path: string;
+  viewMode: DiffViewMode = 'diff';
   renderer: DiffRendererData;
   diffGroup: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;
@@ -65,6 +71,7 @@ export class DiffTabResource implements TabResource {
 
     makeObservable(this, {
       path: observable,
+      viewMode: observable,
       renderer: observable,
       diffGroup: observable,
       originalRef: observable,
@@ -75,6 +82,7 @@ export class DiffTabResource implements TabResource {
       commitOriginalSha: observable,
       commitModifiedSha: observable,
       status: observable,
+      setViewMode: action,
       transition: action,
       updateStatus: action,
     });
@@ -94,6 +102,10 @@ export class DiffTabResource implements TabResource {
 
   dispose(): void {
     this._manager?.release(this);
+  }
+
+  setViewMode(viewMode: DiffViewMode): void {
+    this.viewMode = viewMode;
   }
 
   /**
@@ -140,6 +152,7 @@ export class DiffTabResource implements TabResource {
 
 function resolveDiffRenderer(path: string): DiffRendererData {
   const kind = getFileKind(path);
+  if (kind === 'markdown' || kind === 'html') return { kind: 'text', previewKind: kind };
   if (kind === 'image' || kind === 'svg') return { kind: 'image' };
   if (kind === 'binary') return { kind: 'binary' };
   return { kind: 'text' };

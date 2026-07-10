@@ -29,7 +29,7 @@
  *   produces TWO ChatItems that share one `id` — one `kind:'thinking'` and one
  *   `kind:'message'`. Plans always use the constant id `'plan'`, so repeated plans
  *   across turns also duplicate. chat-ui keys per-row state by item id
- *   (RenderUnit.id = `${itemId}#self` heightmap, findIndexById, scroll anchorId,
+ *   (RenderUnit.id = `${itemId}#self` heightmap, findItemById, scroll anchorId,
  *   collapse map), so these duplicates collide.
  *
  * Use the `sharedMessageId` control to A/B test the hypothesis:
@@ -45,17 +45,17 @@
  */
 
 import { DEFAULT_THEME } from '@core/theme';
-import type { ActiveTurnEvent } from '@state/turn-reducer';
-import { applyTurnEvent, finalizeTurn } from '@state/turn-reducer';
 import { ErrorBoundary, For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { createChatContext } from '@/chat-context';
 import type { ChatView } from '@/chat-view';
 import { createChatView } from '@/chat-view';
 import { generateMockTranscript, mockMentionProvider } from '@/mock-transcript';
-import type { ChatItem, ChatMessage, ChatPlanEntry, ChatThinking } from '@/model';
+import type { ChatItem, ChatMessage, ChatPlanEntry, ChatThinking, TranscriptTurn } from '@/model';
 import { createChatState, pinTopMode, tailMode } from '@/state/chat-state';
 import { chunkText } from '@/stories/_harness/streaming/scenario';
+import type { ActiveTurnEvent } from '@/stories/_harness/turn-reducer';
+import { applyTurnEvent, finalizeTurn } from '@/stories/_harness/turn-reducer';
 import { storyViewport } from '@/stories/_harness/chat-host.css';
 
 // ── Representative markdown corpus ─────────────────────────────────────────────
@@ -66,12 +66,13 @@ import { storyViewport } from '@/stories/_harness/chat-host.css';
 // streamed/seeded message and reasoning text.
 
 const MOCK_CORPUS = generateMockTranscript(160, 7, { richProse: true });
+const MOCK_ITEMS = MOCK_CORPUS.flatMap((turn) => turn.items as ChatItem[]);
 
-const MARKDOWN_BODIES: string[] = MOCK_CORPUS.filter(
+const MARKDOWN_BODIES: string[] = MOCK_ITEMS.filter(
   (it): it is ChatMessage => it.kind === 'message' && it.role === 'assistant'
 ).map((it) => it.text);
 
-const THINKING_BODIES: string[] = MOCK_CORPUS.filter(
+const THINKING_BODIES: string[] = MOCK_ITEMS.filter(
   (it): it is ChatThinking => it.kind === 'thinking'
 ).map((it) => it.text);
 
@@ -163,13 +164,13 @@ function buildAgentTurnEvents(
   return events;
 }
 
-/** Fold a turn's events into finalized committed items (mirrors foldTurn). */
-function foldAgentTurn(convIdx: number, seq: number, sharedMessageId: boolean): ChatItem[] {
-  let items: ChatItem[] = [];
+/** Fold a turn's events into a finalized committed turn (mirrors foldTurn). */
+function foldAgentTurn(convIdx: number, seq: number, sharedMessageId: boolean): TranscriptTurn {
+  let turn: TranscriptTurn | null = null;
   for (const e of buildAgentTurnEvents(convIdx, seq, sharedMessageId)) {
-    items = applyTurnEvent(items, e);
+    turn = applyTurnEvent(turn, e);
   }
-  return finalizeTurn(items);
+  return finalizeTurn(turn!);
 }
 
 /**
@@ -177,16 +178,30 @@ function foldAgentTurn(convIdx: number, seq: number, sharedMessageId: boolean): 
  * by an agent turn whose thinking + message share an id. Repeated turns therefore
  * accumulate many duplicate ids (and multiple `'plan'` rows) in committed history.
  */
-function makeSeedItems(convIdx: number, turns: number, sharedMessageId: boolean): ChatItem[] {
-  const out: ChatItem[] = [];
+function makeSeedTurns(convIdx: number, turns: number, sharedMessageId: boolean): TranscriptTurn[] {
+  const out: TranscriptTurn[] = [];
   for (let t = 0; t < turns; t++) {
     out.push({
-      kind: 'message',
-      id: `s${convIdx}-u${t}`,
-      role: 'user',
-      text: pick(USER_PROMPTS, t + convIdx),
+      id: `s${convIdx}-user-turn-${t}`,
+      seq: t * 2,
+      initiator: 'user',
+      items: [
+        {
+          kind: 'message',
+          id: `s${convIdx}-u${t}`,
+          seq: 0,
+          role: 'user',
+          text: pick(USER_PROMPTS, t + convIdx),
+        },
+      ],
+      outcome: { kind: 'done' },
     });
-    out.push(...foldAgentTurn(convIdx, t, sharedMessageId));
+    out.push({
+      ...foldAgentTurn(convIdx, t, sharedMessageId),
+      id: `s${convIdx}-agent-turn-${t}`,
+      seq: t * 2 + 1,
+      outcome: { kind: 'done' },
+    });
   }
   return out;
 }
@@ -233,7 +248,7 @@ function TabSwitchHarness(args: HarnessArgs) {
 
   // Seed committed history with the real duplicate-id turn shape.
   states.forEach((state, i) =>
-    state.transcript.history.seed(makeSeedItems(i, 6, args.sharedMessageId))
+    state.transcript.history.seed(makeSeedTurns(i, 6, args.sharedMessageId))
   );
 
   // ── Detached streaming ───────────────────────────────────────────────────────
@@ -251,11 +266,14 @@ function TabSwitchHarness(args: HarnessArgs) {
       let step = 0;
 
       const intervalId = setInterval(() => {
-        let items: ChatItem[] = [];
+        let turn: TranscriptTurn | null = null;
         for (let i = 0; i <= step && i < events.length; i++) {
-          items = applyTurnEvent(items, events[i]);
+          turn = applyTurnEvent(turn, events[i]);
         }
-        state.transcript.activeTurn.set(items, 'generating');
+        state.transcript.activeTurn.set(
+          turn ? { ...turn, id: `s${convIdx}-active-turn-${seq}`, seq } : null,
+          'generating'
+        );
 
         step++;
         if (step >= events.length) {
@@ -609,7 +627,7 @@ function SendAndPinHarness() {
   onCleanup(() => state.dispose());
 
   // Seed a short committed history.
-  state.transcript.history.seed(makeSeedItems(0, 3, /* sharedMessageId */ false).slice(0, 6));
+  state.transcript.history.seed(makeSeedTurns(0, 3, /* sharedMessageId */ false).slice(0, 6));
 
   let viewport: HTMLElement | undefined;
   let currentView: ChatView | null = null;
@@ -642,10 +660,20 @@ function SendAndPinHarness() {
     const optimistic = {
       kind: 'message' as const,
       id: optimisticId,
+      seq: 0,
       role: 'user' as const,
       text: pick(USER_PROMPTS, n),
     };
-    state.transcript.activeTurn.set([optimistic], 'generating');
+    const activeTurnId = `send-pin-turn-${n}`;
+    state.transcript.activeTurn.set(
+      {
+        id: activeTurnId,
+        seq: n,
+        initiator: 'user',
+        items: [optimistic],
+      },
+      'generating'
+    );
 
     // Pin immediately via the declarative API.
     currentView?.setScrollMode(pinTopMode(optimisticId));
@@ -660,11 +688,20 @@ function SendAndPinHarness() {
       const response = {
         kind: 'message' as const,
         id: `agent-${n}`,
+        seq: 1,
         role: 'assistant' as const,
         text: chunks.slice(0, step + 1).join(''),
         streaming: step < chunks.length - 1,
       };
-      state.transcript.activeTurn.set([optimistic, response], 'generating');
+      state.transcript.activeTurn.set(
+        {
+          id: activeTurnId,
+          seq: n,
+          initiator: 'user',
+          items: [optimistic, response],
+        },
+        'generating'
+      );
       step++;
       if (step >= chunks.length) {
         clearInterval(interval);

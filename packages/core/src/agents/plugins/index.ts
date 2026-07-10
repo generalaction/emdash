@@ -1,8 +1,15 @@
+import {
+  createPluginFramework,
+  iconAsset,
+  type AssetDescriptors,
+  type CapabilityBehaviors,
+  type CapabilityDescriptors,
+  type ResolvedCapabilityDescriptors,
+} from '@emdash/shared/plugins';
 import z from 'zod';
 import { hostDependencyCapability } from '../../host-dependencies/capability';
-import { createPluginFramework } from '../../lib/plugins/framework';
-import { iconAsset } from './assets/icon';
 import { acpCapability } from './capabilities/acp';
+import { authCapability } from './capabilities/auth';
 import { autoApproveCapability } from './capabilities/auto-approve';
 import { effortCapability } from './capabilities/effort';
 import { hooksCapability } from './capabilities/hooks';
@@ -15,6 +22,7 @@ import { trustCapability } from './capabilities/trust';
 
 export const PLUGIN_CAPABILITIES = {
   acp: acpCapability,
+  auth: authCapability,
   autoApprove: autoApproveCapability,
   effort: effortCapability,
   hooks: hooksCapability,
@@ -45,16 +53,34 @@ const metadataSchema = z.object({
 
 export type CLIAgentPluginMetadata = z.infer<typeof metadataSchema>;
 
-export const { definePlugin, registerPluginBehavior } = createPluginFramework(
-  PLUGIN_CAPABILITIES,
-  metadataSchema,
-  PLUGIN_ASSETS
-);
+export type CLIAgentPluginDefinition = {
+  metadata: CLIAgentPluginMetadata;
+  capabilities: ResolvedCapabilityDescriptors<Capabilities>;
+  assets: AssetDescriptors<Assets>;
+  validate(): z.ZodError[];
+};
 
-export type CLIAgentPluginDefinition = ReturnType<typeof definePlugin>;
-export type CLIAgentPluginProvider = ReturnType<typeof registerPluginBehavior>;
+export type CLIAgentPluginProvider = CLIAgentPluginDefinition & {
+  behavior: CapabilityBehaviors<Capabilities>;
+};
 
-export type { AgentIconAsset, AgentIconVariant } from './assets/icon';
+const pluginFramework = createPluginFramework(PLUGIN_CAPABILITIES, metadataSchema, PLUGIN_ASSETS);
+
+export const definePlugin: (
+  metadata: CLIAgentPluginMetadata,
+  capabilities: CapabilityDescriptors<Capabilities>,
+  assets: AssetDescriptors<Assets>
+) => CLIAgentPluginDefinition = pluginFramework.definePlugin;
+
+export const registerPluginBehavior: (
+  plugin: CLIAgentPluginDefinition,
+  behavior: CapabilityBehaviors<Capabilities>
+) => CLIAgentPluginProvider = pluginFramework.registerPluginBehavior;
+
+export type {
+  PluginIconAsset as AgentIconAsset,
+  PluginIconVariant as AgentIconVariant,
+} from '@emdash/shared/plugins';
 
 // Convenience re-exports for impl packages
 export type { AgentCommand, CommandContext } from './capabilities/prompt';
@@ -74,12 +100,29 @@ export type {
   AcpAgentApi,
   AcpClientFactory,
 } from './capabilities/acp';
+export type {
+  AgentAuthContext,
+  AgentAuthDescriptor,
+  AgentAuthMethod,
+  AgentAuthStatus,
+  IAgentAuthBehavior,
+} from './capabilities/auth';
 export type { IHostDependencyBehavior } from '../../host-dependencies/capability';
 export type { IHooksBehavior } from './capabilities/hooks';
 export type { IMcpBehavior, McpServerRegistration } from './capabilities/mcp';
 export type { IPlugins } from './capabilities/plugins';
 export type { ISessionsBehavior } from './capabilities/sessions';
 export type { ITrustBehavior, TrustContext } from './capabilities/trust';
+export { AgentPluginHost } from './plugin-host';
+export type {
+  AgentHostAcpSpawn,
+  AgentHostDeps,
+  AgentHostError,
+  AgentHostLoginCommand,
+  ResolvedAcpProvider,
+  ResolvedAuthProvider,
+  ResolvedTuiProvider,
+} from './plugin-host';
 
 // Typed registry factory
-export { createPluginRegistry } from '../../lib/plugins/registry';
+export { createPluginRegistry, type PluginRegistry } from '@emdash/shared/plugins';

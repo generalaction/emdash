@@ -1,5 +1,5 @@
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
-import { definePluginCapability } from '../../../lib/plugins/capability';
 
 /**
  * autoApproveDescriptor is used to describe the auto-approve that an agent supports.

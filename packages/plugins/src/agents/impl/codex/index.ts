@@ -1,6 +1,4 @@
 import { createRequire } from 'node:module';
-import { Readable, Writable } from 'node:stream';
-import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
@@ -8,6 +6,8 @@ import {
   homebrewOption,
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
+import { connectStdioAcp } from '../../helpers/acp-stdio';
+import { authenticatedFromEnv, commandAuthStatus } from '../../helpers/auth';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -32,20 +32,57 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
+    auth: {
+      kind: 'supported',
+      methods: [
+        {
+          kind: 'cli-login',
+          id: 'codex-login',
+          name: 'Sign in with Codex',
+          args: ['login'],
+          description: 'Open the Codex CLI sign-in flow in a terminal.',
+        },
+        {
+          kind: 'api-key',
+          id: 'openai-api-key',
+          name: 'Use an OpenAI API key',
+          envVars: [{ name: 'OPENAI_API_KEY', label: 'OpenAI API key' }],
+          helpUrl: 'https://platform.openai.com/api-keys',
+        },
+      ],
+    },
     models: {
       kind: 'selectable',
       modelOptions: {
-        'codex-mini-latest': {
-          name: 'Codex Mini',
-          modelFeatures: { intelligence: 3, speed: 5 },
-        },
-        'o4-mini': {
-          name: 'o4-mini',
-          modelFeatures: { intelligence: 4, speed: 4 },
-        },
-        o3: {
-          name: 'o3',
+        'gpt-5.6-sol': {
+          name: 'GPT-5.6 Sol',
+          description: 'Flagship GPT-5.6 model for the hardest agentic coding workflows.',
           modelFeatures: { intelligence: 5, speed: 2 },
+        },
+        'gpt-5.6-terra': {
+          name: 'GPT-5.6 Terra',
+          description: 'Balanced GPT-5.6 model for everyday coding work with lower cost.',
+          modelFeatures: { intelligence: 5, speed: 4 },
+        },
+        'gpt-5.6-luna': {
+          name: 'GPT-5.6 Luna',
+          description: 'Fast and cost-efficient GPT-5.6 model for lighter coding tasks.',
+          modelFeatures: { intelligence: 4, speed: 5 },
+        },
+        'gpt-5.5': {
+          name: 'GPT-5.5',
+          description: 'Recommended Codex model for complex coding and agentic workflows.',
+          modelFeatures: { intelligence: 5, speed: 3 },
+        },
+        'gpt-5.4-mini': {
+          name: 'GPT-5.4 Mini',
+          description: 'Faster Codex model for lighter coding tasks and subagents.',
+          modelFeatures: { intelligence: 4, speed: 5 },
+        },
+        'gpt-5.3-codex-spark': {
+          name: 'GPT-5.3 Codex Spark',
+          description: 'Research-preview Codex model optimized for near-instant iteration.',
+          modelFeatures: { intelligence: 2, speed: 5 },
         },
       },
     },
@@ -98,11 +135,17 @@ export const provider = registerPluginBehavior(plugin, {
       },
     }),
     connect: (io, toClient) => {
-      const stream = ndJsonStream(
-        Writable.toWeb(io.stdin) as WritableStream<Uint8Array>,
-        Readable.toWeb(io.stdout) as unknown as ReadableStream<Uint8Array>
-      );
-      return new ClientSideConnection((agent) => toClient(agent as never), stream);
+      return connectStdioAcp(io, toClient);
+    },
+  },
+  auth: {
+    checkStatus: async (ctx) => {
+      const envStatus = authenticatedFromEnv(ctx, ['OPENAI_API_KEY']);
+      if (envStatus.kind === 'authenticated') return envStatus;
+      return commandAuthStatus(ctx, ['login', 'status'], {
+        authenticatedPattern: /authenticated|logged in|signed in/i,
+        unauthenticatedPattern: /not authenticated|not logged in|not signed in|login required/i,
+      });
     },
   },
   prompt: {
