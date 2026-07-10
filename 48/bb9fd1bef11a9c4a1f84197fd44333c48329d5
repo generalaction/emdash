@@ -1,0 +1,164 @@
+packages/plugins/src/agents/impl/pi/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 21-24
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-selector.test.ts
+  s_8fae12934ef035::t_be1b043a67fada 25
+apps/emdash-desktop/src/main/core/agents/agent-payload-builder.ts
+  s_fb1c04d65ee4b9::t_49951e643fb7a9 54
+packages/plugins/src/agents/impl/copilot/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 21-24
+apps/emdash-desktop/src/shared/core/agents/agent-payload.ts
+  s_fb1c04d65ee4b9::t_49951e643fb7a9 176-185,198
+packages/plugins/src/agents/impl/claude/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 30-33
+packages/plugins/src/agents/impl/qwen/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 20-23
+packages/plugins/src/agents/impl/goose/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 14-17
+packages/plugins/src/agents/impl/kiro/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 16-19
+packages/plugins/src/agents/impl/devin/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 16-19
+packages/core/src/skills/types.ts
+  s_109a7b75ef4b50::t_9a988702c04824 10-18,38-39
+packages/core/src/skills/skill-mirrors.ts
+  s_109a7b75ef4b50::t_9a988702c04824 61,64-80
+  s_bddda2acf40e6c::t_7a61ef260b9cbe 62-63
+packages/plugins/src/agents/impl/continue/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 14-17
+packages/plugins/src/agents/impl/autohand/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 14-17
+apps/emdash-desktop/src/main/core/agents/agent-payload-builder.test.ts
+  s_fb1c04d65ee4b9::t_49951e643fb7a9 63-66,125-128
+packages/core/src/agents/plugins/capabilities/skills.ts
+  s_fb1c04d65ee4b9::t_49951e643fb7a9 1-23
+packages/core/src/agents/plugins/index.ts
+  s_fb1c04d65ee4b9::t_49951e643fb7a9 21,36,117
+packages/plugins/src/agents/impl/hermes/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 15-18
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 22-25
+packages/plugins/src/agents/impl/codex/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 29-32
+packages/plugins/src/agents/impl/index.test.ts
+  s_6bc23d3d7e3fef::t_823092790855f8 40,47-81
+  s_4ccff929305770::t_8a8e5ba2cd49c0 82-84
+packages/plugins/src/agents/impl/rovo/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 15-18
+packages/plugins/src/agents/impl/auggie/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 16-19
+packages/plugins/src/agents/impl/cursor/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 16-19
+packages/core/src/skills/index.ts
+  s_109a7b75ef4b50::t_9a988702c04824 6
+packages/core/src/skills/skill-targets.ts
+  s_109a7b75ef4b50::t_9a988702c04824 1,3-15,26-53
+  s_669a7f7a811f0b::t_162804288dd81b 2,16-25
+packages/plugins/src/agents/impl/mimocode/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 28-31
+packages/plugins/src/agents/impl/commandcode/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 15-18
+packages/plugins/src/agents/impl/junie/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 15-18
+packages/plugins/src/agents/impl/qoder/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 16-19
+packages/core/src/skills/skill-mirrors.test.ts
+  s_c434f7aaf15fd4::t_ee198258851818 173-178
+  s_ac0a9086d0d3f3::t_6ac142320cd901 7,157-172
+  s_c434f7aaf15fd4::t_e85c7f25e99bb2 179
+packages/plugins/src/agents/impl/antigravity/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 14-17
+packages/plugins/src/agents/impl/opencode/index.ts
+  s_b4af5fcae2e541::t_e9bf2967466652 25-28
+packages/core/src/skills/schemas.ts
+  s_109a7b75ef4b50::t_9a988702c04824 12-23,43-44,62,69
+apps/emdash-desktop/src/shared/core/skills/types.ts
+  s_109a7b75ef4b50::t_9a988702c04824 10-24,62-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "48bb9fd1bef11a9c4a1f84197fd44333c48329d5",
+  "prompts": {},
+  "sessions": {
+    "s_109a7b75ef4b50": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3oRJZjawmNIH11EUbN",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_4ccff929305770": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4bda-76da-79a2-9e88-63c1fab4a396",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_669a7f7a811f0b": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n4MXQRwud6o1LSgP0u5",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_6bc23d3d7e3fef": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3ika6mieZkMzKlMmAU",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_8fae12934ef035": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3mYZmEwktNAN3ClrLU",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_ac0a9086d0d3f3": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n4JLHDwc3UuAvYs2P70",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_b4af5fcae2e541": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3hIvh90cKYIpLYVdmk",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_bddda2acf40e6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4bfc-40b2-7243-ac30-3d46ab8c86fc",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_c434f7aaf15fd4": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n4MtPbywkQETjRaMBR5",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_fb1c04d65ee4b9": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3gkdeijVWwz9JMOZ31",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
