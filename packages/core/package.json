@@ -121,7 +121,6 @@
     "@emdash/shared": "workspace:*",
     "@emdash/wire": "workspace:*",
     "@parcel/watcher": "^2.5.6",
-    "glob": "^13.0.6",
     "semver": "^7.8.4",
     "smol-toml": "^1.6.0",
     "zod": "^4.4.3"

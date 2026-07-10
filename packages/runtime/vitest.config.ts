@@ -21,6 +21,7 @@ export default defineConfig({
         '../core/src/host-dependencies/runtime/index.ts'
       ),
       '@emdash/core/exec': resolve(__dirname, '../core/src/exec/index.ts'),
+      '@emdash/core/files': resolve(__dirname, '../core/src/files/index.ts'),
       '@emdash/core/git': resolve(__dirname, '../core/src/git/index.ts'),
       '@emdash/core/lib': resolve(__dirname, '../core/src/lib/index.ts'),
       '@emdash/core/mcp': resolve(__dirname, '../core/src/mcp/index.ts'),

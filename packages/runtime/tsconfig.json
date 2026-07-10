@@ -21,6 +21,7 @@
       "@emdash/core/agents/plugins": ["../core/src/agents/plugins/index.ts"],
       "@emdash/core/deps/runtime": ["../core/src/host-dependencies/runtime/index.ts"],
       "@emdash/core/exec": ["../core/src/exec/index.ts"],
+      "@emdash/core/files": ["../core/src/files/index.ts"],
       "@emdash/core/git": ["../core/src/git/index.ts"],
       "@emdash/core/lib": ["../core/src/lib/index.ts"],
       "@emdash/core/mcp": ["../core/src/mcp/index.ts"],
