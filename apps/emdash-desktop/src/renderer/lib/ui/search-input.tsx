@@ -6,10 +6,12 @@ import { cn } from '@renderer/utils/utils';
 
 type SearchInputProps = React.ComponentProps<'input'> & {
   containerClassName?: string;
+  /** Focus this input on Mod+F. Disable when another SearchInput on the page owns the hotkey. */
+  focusHotkey?: boolean;
 };
 
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
-  { className, containerClassName, ...props },
+  { className, containerClassName, focusHotkey = true, ...props },
   forwardedRef
 ) {
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -21,7 +23,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
     () => {
       inputRef.current?.focus();
     },
-    { enabled: true }
+    { enabled: focusHotkey }
   );
   return (
     <div className={cn('relative flex min-w-0 items-center', containerClassName)}>

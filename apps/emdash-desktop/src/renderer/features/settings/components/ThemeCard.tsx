@@ -36,7 +36,7 @@ const ThemeCard: React.FC = () => {
           aria-label="Set theme to system preference"
         >
           <Monitor className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="text-centert">System</span>
+          <span className="text-center">System</span>
         </button>
         <button
           type="button"

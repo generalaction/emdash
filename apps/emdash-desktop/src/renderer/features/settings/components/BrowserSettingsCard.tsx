@@ -34,7 +34,8 @@ import {
   type BrowserProfile,
   type BrowsingDataKind,
 } from '@shared/browser';
-import { SettingRow, SettingTarget } from './SettingRow';
+import { SettingsSearchTarget } from '../search/settings-search-context';
+import { SettingRow } from './SettingRow';
 
 export function BrowserSettingsCard() {
   const {
@@ -180,7 +181,7 @@ export function BrowserSettingsCard() {
       />
 
       <SettingRow
-        settingId="disable-cors-localhost"
+        searchId="disable-cors-for-localhost"
         title="Disable CORS for localhost"
         description="Allows pages opened from localhost in Emdash browser tabs to call APIs that do not send matching CORS headers."
         control={
@@ -192,8 +193,8 @@ export function BrowserSettingsCard() {
         }
       />
 
-      <SettingTarget
-        settingId="browser-profiles"
+      <SettingsSearchTarget
+        id="browser-profiles"
         className="rounded-lg border border-border/70 bg-background-secondary-1 p-3"
       >
         <div className="flex flex-col gap-1">
@@ -348,9 +349,12 @@ export function BrowserSettingsCard() {
             </Button>
           )}
         </div>
-      </SettingTarget>
+      </SettingsSearchTarget>
 
-      <div className="rounded-lg border border-border/70 bg-background-secondary-1 p-3">
+      <SettingsSearchTarget
+        id="browsing-data"
+        className="rounded-lg border border-border/70 bg-background-secondary-1 p-3"
+      >
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex min-w-0 flex-1 basis-64 flex-col gap-0.5">
             <div className="text-sm text-foreground">Browsing data</div>
@@ -413,7 +417,7 @@ export function BrowserSettingsCard() {
             ))}
           </div>
         )}
-      </div>
+      </SettingsSearchTarget>
     </div>
   );
 }

@@ -1,17 +1,24 @@
 import { RefreshCw } from 'lucide-react';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { useSettingsSearch } from '../search/settings-search-context';
 import { CliAgentsList, type AgentFilter } from './CliAgentsList';
 
 export function AgentsSettingsPage() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const { query: settingsSearchQuery } = useSettingsSearch();
+  const [searchQuery, setSearchQuery] = useState(settingsSearchQuery);
   const [filter, setFilter] = useState<AgentFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const { probeAll } = useAgentInstallationStatuses();
+
+  // Mirror the sidebar settings search so this tab shows the matching agents.
+  useEffect(() => {
+    setSearchQuery(settingsSearchQuery);
+  }, [settingsSearchQuery]);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);

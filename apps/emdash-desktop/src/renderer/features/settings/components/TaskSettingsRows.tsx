@@ -11,15 +11,17 @@ function InfoTooltip({ label, content }: { label: string; content: React.ReactNo
   return (
     <TooltipProvider delay={150}>
       <Tooltip>
-        <TooltipTrigger>
-          <button
-            type="button"
-            className="text-muted-foreground inline-flex h-4 w-4 items-center justify-center hover:text-foreground"
-            aria-label={label}
-          >
-            <Info className="h-3.5 w-3.5" />
-          </button>
-        </TooltipTrigger>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              className="text-muted-foreground inline-flex h-4 w-4 items-center justify-center hover:text-foreground"
+              aria-label={label}
+            >
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          }
+        />
         <TooltipContent side="top" className="max-w-xs text-xs">
           {content}
         </TooltipContent>
@@ -87,7 +89,7 @@ export const AutoTrustWorktreesRow: React.FC = () => {
 
   return (
     <SettingRow
-      settingId="auto-trust-worktrees"
+      searchId="auto-trust-worktree-directories"
       title={
         <div className="flex items-center gap-1.5">
           Auto-trust worktree directories
@@ -122,7 +124,7 @@ export const CreateBranchAndWorktreeRow: React.FC = () => {
 
   return (
     <SettingRow
-      settingId="create-branch-and-worktree"
+      searchId="create-branch-and-worktree-by-default"
       title="Create branch and worktree by default"
       description="Start new From Branch tasks in a dedicated task branch and worktree unless changed in the task modal."
       control={
