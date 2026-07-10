@@ -28,6 +28,7 @@ export const SkillsView: React.FC = () => {
     refresh,
     install,
     setTargets,
+    adopt,
     uninstall,
     openDetail,
     closeDetail,
@@ -150,6 +151,7 @@ export const SkillsView: React.FC = () => {
         onClose={closeDetail}
         onInstall={install}
         onSetTargets={setTargets}
+        onAdopt={adopt}
         onUninstall={handleUninstallRequest}
         onOpenTerminal={handleOpenTerminal}
       />

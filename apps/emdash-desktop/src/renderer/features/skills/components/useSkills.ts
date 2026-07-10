@@ -137,6 +137,43 @@ export function useSkills() {
     [setTargetsMutation]
   );
 
+  const adoptMutation = useMutation({
+    mutationFn: async ({
+      installId,
+      targets,
+    }: {
+      installId: string;
+      targets: SkillTargetSelection;
+    }) => {
+      const result = await rpc.skills.adopt({ installId, targets });
+      if (!result.success) throw new Error(result.error ?? 'Could not sync skill');
+    },
+    onSuccess: () => {
+      captureTelemetry('skill_adopted');
+      void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
+      queryClient.removeQueries({ queryKey: ['skills', 'detail'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Sync failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const adopt = useCallback(
+    async (installId: string, targets: SkillTargetSelection): Promise<boolean> => {
+      try {
+        await adoptMutation.mutateAsync({ installId, targets });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [adoptMutation]
+  );
+
   const uninstallMutation = useMutation({
     mutationFn: async (skillId: string) => {
       const result = await rpc.skills.uninstall({ skillId });
@@ -270,6 +307,7 @@ export function useSkills() {
     refresh,
     install,
     setTargets,
+    adopt,
     uninstall,
     openDetail,
     closeDetail,

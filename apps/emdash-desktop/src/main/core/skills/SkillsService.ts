@@ -539,6 +539,77 @@ export class SkillsService {
     };
   }
 
+  /**
+   * Takes over management of a skill that was found installed outside Emdash
+   * (e.g. only in a single agent's skills dir) by copying its content into the
+   * canonical dir and mirroring it into the selected providers. The original
+   * external directory is left untouched — mirrorSkill/removeSkillMirrors
+   * never delete entries they don't own.
+   */
+  async adoptSkill(installId: string, targets: SkillTargetSelection): Promise<CatalogSkill> {
+    await this.initialize();
+    const installed = await this.getInstalledSkills();
+    const skill = installed.find((s) => (s.installId ?? s.id) === installId);
+    if (!skill) throw new Error(`Skill "${installId}" not found`);
+    if (skill.managedByEmdash) throw new Error(`Skill "${installId}" is already managed by Emdash`);
+    if (!skill.localPath) throw new Error(`Skill "${installId}" has no local content to sync`);
+
+    const installName = skill.installId ?? skill.id;
+    if (!isValidSkillName(installName)) {
+      throw new Error(`Invalid skill install name "${installName}"`);
+    }
+    const skillDir = path.resolve(this.skillsRoot, installName);
+    if (!this.isPathInsideSkillsRoot(skillDir)) {
+      throw new Error(`Invalid skill install path for "${installName}"`);
+    }
+    if (await this.pathExists(skillDir)) {
+      throw new Error(`Skill "${installName}" is already installed`);
+    }
+
+    const content = await fs.promises.readFile(path.join(skill.localPath, 'SKILL.md'), 'utf-8');
+    const { frontmatter } = parseFrontmatter(content);
+
+    const tmpDir = `${skillDir}.tmp-${Date.now()}`;
+    let finalDirCreated = false;
+    try {
+      await fs.promises.mkdir(tmpDir, { recursive: true });
+      await fs.promises.writeFile(path.join(tmpDir, 'SKILL.md'), content);
+      await fs.promises.rename(tmpDir, skillDir);
+      finalDirCreated = true;
+
+      await setSkillTargets(createPluginFs(this.homeDir), installName, targets);
+      await this.reconcileSkillMirrors(
+        installName,
+        frontmatter.name || installName,
+        content,
+        targets
+      );
+
+      // Invalidate cache
+      this.catalogCache = null;
+      this.skillShSearchCache.clear();
+      this.skillShSkillCache.clear();
+
+      return {
+        ...skill,
+        id: installName,
+        installId: installName,
+        installed: true,
+        managedByEmdash: true,
+        localPath: skillDir,
+        skillMdContent: content,
+        targets,
+      };
+    } catch (error) {
+      await removeSkillTargets(createPluginFs(this.homeDir), installName).catch(() => {});
+      await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      if (finalDirCreated) {
+        await fs.promises.rm(skillDir, { recursive: true, force: true }).catch(() => {});
+      }
+      throw error;
+    }
+  }
+
   async setTargets(installName: string, targets: SkillTargetSelection): Promise<void> {
     if (!isValidSkillName(installName)) {
       throw new Error(`Invalid skill install name "${installName}"`);
@@ -1139,6 +1210,15 @@ export class SkillsService {
     return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
   }
 
+  private async pathExists(candidatePath: string): Promise<boolean> {
+    try {
+      await fs.promises.access(candidatePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private isSafeSkillShPath(skillPath: string): boolean {
     if (!skillPath || path.posix.isAbsolute(skillPath)) return false;
     return !skillPath.split('/').some((part) => !part || part === '.' || part === '..');
@@ -1231,6 +1311,7 @@ export class SkillsService {
           managedByEmdash: local.managedByEmdash,
           localPath: local.localPath,
           skillMdContent: local.skillMdContent,
+          locations: local.locations,
         };
       }
       return {

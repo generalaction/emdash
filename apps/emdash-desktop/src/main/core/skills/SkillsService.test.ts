@@ -230,6 +230,53 @@ describe('SkillsService uninstall and sync safety', () => {
     });
   });
 
+  it('adopts a skill installed outside Emdash and syncs it to additional agents', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await Promise.all([
+      fs.promises.mkdir(path.join(homeDir, '.codex'), { recursive: true }),
+      writeSkill(homeDir, '.claude/skills', 'reviewer', 'Review changes'),
+    ]);
+    const service = new SkillsService({ homeDir });
+
+    expect((await service.getInstalledSkills())[0]?.managedByEmdash).toBe(false);
+
+    await service.adoptSkill('reviewer', { mode: 'providers', providerIds: ['codex'] });
+
+    const canonicalPath = path.join(homeDir, '.agentskills/reviewer');
+    await expect(
+      fs.promises.readFile(path.join(canonicalPath, 'SKILL.md'), 'utf-8')
+    ).resolves.toContain('Review changes');
+    await expect(fs.promises.readlink(path.join(homeDir, '.codex/skills/reviewer'))).resolves.toBe(
+      canonicalPath
+    );
+
+    // The original, unmanaged directory is never touched even though it wasn't a selected target.
+    await expect(
+      fs.promises.readFile(path.join(homeDir, '.claude/skills/reviewer/SKILL.md'), 'utf-8')
+    ).resolves.toContain('Review changes');
+
+    const installed = await service.getInstalledSkills();
+    expect(installed).toHaveLength(1);
+    expect(installed[0]?.managedByEmdash).toBe(true);
+    expect(installed[0]?.locations?.map((location) => location.relativeDir).sort()).toEqual([
+      '.agentskills',
+      '.claude/skills',
+      '.codex/skills',
+    ]);
+  });
+
+  it('rejects adopting a skill that is already managed by Emdash', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await writeSkill(homeDir, '.agentskills', 'reviewer', 'Review changes');
+    const service = new SkillsService({ homeDir });
+
+    await expect(
+      service.adoptSkill('reviewer', { mode: 'providers', providerIds: ['codex'] })
+    ).rejects.toThrow('already managed by Emdash');
+  });
+
   it('matches catalog skills by their frontmatter name', async () => {
     const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
     tempDirs.push(homeDir);

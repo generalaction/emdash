@@ -83,6 +83,16 @@ export const skillsController = createRPCController({
     }
   },
 
+  adopt: async (args: { installId: string; targets: SkillTargetSelection }) => {
+    try {
+      const skill = await skillsService.adoptSkill(args.installId, args.targets);
+      return { success: true, data: skill };
+    } catch (error) {
+      log.error('Failed to sync skill to more agents:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
   getDetail: async (args: { skillId: string }) => {
     try {
       const skill = await skillsService.getSkillDetail(args.skillId);

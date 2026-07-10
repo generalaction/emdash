@@ -8,6 +8,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import type { CatalogSkill, SkillProvider } from '@shared/core/skills/types';
 import { SkillIconRenderer } from './SkillIconRenderer';
 
+const MAX_VISIBLE_PROVIDERS = 5;
+
 interface SkillCardProps {
   skill: CatalogSkill;
   providers: SkillProvider[];
@@ -27,6 +29,8 @@ export const SkillCard: React.FC<SkillCardProps> = ({
     ...new Set(skill.locations?.flatMap((location) => location.providerIds) ?? []),
   ];
   const providerNames = new Map(providers.map((provider) => [provider.id, provider.name]));
+  const visibleProviderIds = providerIds.slice(0, MAX_VISIBLE_PROVIDERS);
+  const hiddenProviderCount = providerIds.length - visibleProviderIds.length;
 
   return (
     <CardGridItem
@@ -48,18 +52,23 @@ export const SkillCard: React.FC<SkillCardProps> = ({
         <p className="mt-0.5 line-clamp-1 text-xs text-foreground-muted">{skill.description}</p>
         {providerIds.length > 0 && (
           <div
-            className="mt-1 flex items-center -space-x-1"
+            className="mt-1.5 flex flex-wrap items-center gap-1"
             title={providerIds.map((id) => providerNames.get(id) ?? id).join(', ')}
             aria-label={`Found in ${providerIds.map((id) => providerNames.get(id) ?? id).join(', ')}`}
           >
-            {providerIds.slice(0, 4).map((providerId) => (
+            {visibleProviderIds.map((providerId) => (
               <AgentIcon
                 key={providerId}
                 id={providerId as AgentProviderId}
-                size={15}
-                className="rounded-sm ring-1 ring-background"
+                size={14}
+                className="rounded-sm"
               />
             ))}
+            {hiddenProviderCount > 0 && (
+              <span className="text-[10px] leading-none text-foreground-muted">
+                +{hiddenProviderCount}
+              </span>
+            )}
           </div>
         )}
       </div>
