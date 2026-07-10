@@ -3,8 +3,8 @@ import { eventFromUpdate } from '@emdash/wire';
 import type { ManagedProcess, ProcessHost } from '@emdash/wire/process';
 import { childProcessHost } from '@emdash/wire/process/node';
 import { spawnRuntime } from '@emdash/wire/util/process-runtime';
+import { fsWatchContract, type FsWatchStreamEvent } from '../api';
 import type { WatchBackend, WatchKey, WatchOnError, WatchSink } from './backend';
-import { fsWatchContract, type FsWatchStreamEvent } from './contract';
 
 export type ProcessWatchBackendOptions = {
   entry: string;

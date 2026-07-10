@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { createWatchService, nativeWatchBackend } from '../services/fs-watch';
+import { nativeWatchBackend } from '../services/fs-watch/impl/native-backend';
+import { createWatchService } from '../services/fs-watch/impl/watch-service';
 import { GitRuntime, type GitRepoUpdate, type GitWorktreeUpdate } from './index';
 
 const execFileAsync = promisify(execFile);

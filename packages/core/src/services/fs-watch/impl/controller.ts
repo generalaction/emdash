@@ -2,9 +2,9 @@ import { err, ok } from '@emdash/shared';
 import { createEventStreamHost } from '@emdash/wire';
 import { createController, type Controller } from '@emdash/wire/api';
 import type { Scope } from '@emdash/wire/util';
-import { nativeWatchBackend } from './backend';
-import { fsWatchContract, type FsWatchKey } from './contract';
-import type { IWatchService, WatchHandle } from './types';
+import { fsWatchContract, type FsWatchKey } from '../api';
+import type { IWatchService, WatchHandle } from '../api';
+import { nativeWatchBackend } from './native-backend';
 import { createWatchService } from './watch-service';
 
 export type CreateFsWatchControllerOptions = {

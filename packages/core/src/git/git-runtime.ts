@@ -2,12 +2,10 @@ import path from 'node:path';
 import { err, ok, type Lease, type Result } from '@emdash/shared';
 import type { BoundExec } from '../exec';
 import { KeyedMutex, ResourceMap } from '../lib';
-import {
-  createWatchService,
-  nativeWatchBackend,
-  realpathOrResolve,
-  type IWatchService,
-} from '../services/fs-watch';
+import type { IWatchService } from '../services/fs-watch/api';
+import { nativeWatchBackend } from '../services/fs-watch/impl/native-backend';
+import { realpathOrResolve } from '../services/fs-watch/impl/paths';
+import { createWatchService } from '../services/fs-watch/impl/watch-service';
 import {
   classifyCloneRepositoryError,
   gitErrorMessage,

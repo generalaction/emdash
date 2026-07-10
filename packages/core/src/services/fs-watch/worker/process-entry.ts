@@ -1,16 +1,16 @@
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import { withValidation, type ValidatePolicy } from '@emdash/wire/api';
 import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
-import { fsWatchContract } from '../contract';
-import { createFsWatchController } from '../controller';
+import { fsWatchContract } from '../api';
+import { createFsWatchController } from '../impl/controller';
 
-export type BootFsWatchProcessOptions = {
+export type RunFsWatchWorkerProcessOptions = {
   env?: NodeJS.ProcessEnv;
   port?: ProcessRuntimePort;
   exit?: (code: number) => void;
 };
 
-export function bootFsWatchProcess(options: BootFsWatchProcessOptions = {}): void {
+export function runFsWatchWorkerProcess(options: RunFsWatchWorkerProcessOptions = {}): void {
   const env = options.env ?? process.env;
   const logger = initProcessLogging({ name: 'fs-watch-runtime', env });
 

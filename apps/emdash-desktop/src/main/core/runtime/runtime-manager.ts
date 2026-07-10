@@ -10,7 +10,7 @@ import {
 import { contains, FilesRuntime } from '@emdash/core/files';
 import { GitRuntime } from '@emdash/core/git';
 import { ResourceMap } from '@emdash/core/lib';
-import { createFsWatchService } from '@emdash/core/services/fs-watch';
+import { spawnFsWatchWorker } from '@emdash/core/services/fs-watch/worker';
 import type { Lease } from '@emdash/shared';
 import { forwardRuntimeLogs } from '@emdash/wire/util/process-runtime';
 import { getDependencyManager } from '@main/core/dependencies/dependency-managers';
@@ -98,8 +98,8 @@ class DynamicGitExec implements BoundExec {
 
 class LocalMachineRuntime implements MachineRuntime {
   readonly machine: MachineRef = { kind: 'local' };
-  private readonly watcher = createFsWatchService({
-    entry: process.env.EMDASH_DISABLE_FS_WATCH_PROCESS ? undefined : resolveFsWatchRuntimeEntry(),
+  private readonly watcher = spawnFsWatchWorker({
+    entry: resolveFsWatchRuntimeEntry(),
     env: process.env,
     onProcess: (process) => {
       forwardRuntimeLogs(process, log, { source: 'fs-watch-runtime' });

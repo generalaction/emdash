@@ -25,10 +25,12 @@ const workspaceAliases = {
   '@emdash/core/exec': resolve('../../packages/core/src/exec/index.ts'),
   '@emdash/core/pty/node': resolve('../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve('../../packages/core/src/pty/index.ts'),
-  '@emdash/core/services/fs-watch/node': resolve(
-    '../../packages/core/src/services/fs-watch/node/index.ts'
+  '@emdash/core/services/fs-watch/api': resolve(
+    '../../packages/core/src/services/fs-watch/api/index.ts'
   ),
-  '@emdash/core/services/fs-watch': resolve('../../packages/core/src/services/fs-watch/index.ts'),
+  '@emdash/core/services/fs-watch/worker': resolve(
+    '../../packages/core/src/services/fs-watch/worker/index.ts'
+  ),
   '@emdash/plugins/agents/types': resolve('../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve('../../packages/plugins/src/agents/registry.ts'),
   '@emdash/runtime/agent-config/node': resolve(

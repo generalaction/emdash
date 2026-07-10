@@ -2,7 +2,12 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '../../services/fs-watch';
+import type {
+  IWatchService,
+  WatchEvent,
+  WatchHandle,
+  WatchOptions,
+} from '../../services/fs-watch/api';
 import { FileChanges } from './changes';
 import type { FileChangeUpdate } from './types';
 

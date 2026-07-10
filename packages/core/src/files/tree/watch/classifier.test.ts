@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, afterEach } from 'vitest';
-import type { WatchEvent } from '../../../services/fs-watch';
+import type { WatchEvent } from '../../../services/fs-watch/api';
 import { createRootPathPolicy } from '../../path-policy';
 import { createTreeDirectoryReader, type DevIno, type DirectoryEntry } from '../directory-reader';
 import type { NodeId } from '../models/tree';

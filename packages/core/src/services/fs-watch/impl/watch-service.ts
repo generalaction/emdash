@@ -1,8 +1,8 @@
 import { Emitter } from '@emdash/shared';
 import { createManagedSource, createScope, type Scope } from '@emdash/wire/util';
+import type { IWatchService, WatchEvent } from '../api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 import { realpathOrResolve } from './paths';
-import type { IWatchService, WatchEvent } from './types';
 
 export type CreateWatchServiceOptions = {
   backend: WatchBackend;
@@ -135,8 +135,3 @@ function withDebounce(
     }, debounceMs);
   };
 }
-
-export type { WatchBackend, WatchKey, WatchOnError, WatchSink } from './backend';
-export type { WatchEvent, WatchHandle, WatchOptions } from './types';
-export { nativeWatchBackend } from './backend';
-export { realpathOrResolve } from './paths';

@@ -1,6 +1,6 @@
 import { lstatSync } from 'node:fs';
 import { err, ok, type Result } from '@emdash/shared';
-import type { IWatchService, WatchEvent, WatchHandle } from '../../services/fs-watch';
+import type { IWatchService, WatchEvent, WatchHandle } from '../../services/fs-watch/api';
 import { classifyFileError, type FileError } from '../errors';
 import { includeAllFiles } from '../exclusions';
 import { createRootPathPolicy, type RootPathPolicy } from '../path-policy';

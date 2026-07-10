@@ -2,7 +2,12 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '../services/fs-watch';
+import type {
+  IWatchService,
+  WatchEvent,
+  WatchHandle,
+  WatchOptions,
+} from '../services/fs-watch/api';
 import { FilesRuntime } from './files-runtime';
 
 class RecordingWatchService implements IWatchService {

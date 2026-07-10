@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Scope } from '@emdash/wire/util';
 import { describe, expect, it, vi } from 'vitest';
-import { nativeWatchBackend, type WatchBackend, type WatchKey, type WatchSink } from './backend';
+import type { WatchEvent } from '../api';
+import type { WatchBackend, WatchKey, WatchSink } from './backend';
+import { nativeWatchBackend } from './native-backend';
 import { realpathOrResolve } from './paths';
-import type { WatchEvent } from './types';
 import { createWatchService } from './watch-service';
 
 async function eventually<T>(

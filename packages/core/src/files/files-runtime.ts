@@ -1,11 +1,9 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { ResourceMap } from '../lib';
-import {
-  createWatchService,
-  nativeWatchBackend,
-  realpathOrResolve,
-  type IWatchService,
-} from '../services/fs-watch';
+import type { IWatchService } from '../services/fs-watch/api';
+import { nativeWatchBackend } from '../services/fs-watch/impl/native-backend';
+import { realpathOrResolve } from '../services/fs-watch/impl/paths';
+import { createWatchService } from '../services/fs-watch/impl/watch-service';
 import { FileChanges } from './changes/changes';
 import type { FileError, FilesOnError } from './errors';
 import { FileSystem } from './fs/file-system';

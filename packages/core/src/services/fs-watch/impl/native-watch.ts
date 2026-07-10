@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import type { IDisposable } from '@emdash/shared';
 import parcelWatcher from '@parcel/watcher';
-import type { WatchEvent } from './types';
+import type { WatchEvent } from '../api';
 
 const RESUBSCRIBE_DELAY_MS = 250;
 const MAX_RESUBSCRIBE_DELAY_MS = 30_000;

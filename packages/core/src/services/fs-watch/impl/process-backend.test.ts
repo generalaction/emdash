@@ -11,9 +11,9 @@ import type {
 } from '@emdash/wire/process';
 import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
 import { describe, expect, it } from 'vitest';
+import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '../api';
 import { createFsWatchController } from './controller';
 import { processWatchBackend } from './process-backend';
-import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from './types';
 import { createWatchService } from './watch-service';
 
 describe('processWatchBackend', () => {
@@ -145,10 +145,6 @@ class ManualWatchService implements IWatchService {
 
   emit(events: WatchEvent[]): void {
     this.current?.onEvents(events);
-  }
-
-  resync(): void {
-    this.current?.onResync?.();
   }
 
   async dispose(): Promise<void> {

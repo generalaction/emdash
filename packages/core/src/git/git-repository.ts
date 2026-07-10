@@ -2,7 +2,8 @@ import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import type { BoundExec } from '../exec';
 import { LiveModel } from '../lib';
 import type { KeyedMutex } from '../lib';
-import { realpathOrResolve, type IWatchService, type WatchHandle } from '../services/fs-watch';
+import type { IWatchService, WatchHandle } from '../services/fs-watch/api';
+import { realpathOrResolve } from '../services/fs-watch/impl/paths';
 import { CatFileBatch } from './cat-file-batch';
 import {
   classifyCreateBranchError,

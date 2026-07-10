@@ -36,13 +36,13 @@ const alias = {
   '@emdash/core/mcp': resolve(__dirname, '../../packages/core/src/mcp/index.ts'),
   '@emdash/core/pty/node': resolve(__dirname, '../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve(__dirname, '../../packages/core/src/pty/index.ts'),
-  '@emdash/core/services/fs-watch/node': resolve(
+  '@emdash/core/services/fs-watch/api': resolve(
     __dirname,
-    '../../packages/core/src/services/fs-watch/node/index.ts'
+    '../../packages/core/src/services/fs-watch/api/index.ts'
   ),
-  '@emdash/core/services/fs-watch': resolve(
+  '@emdash/core/services/fs-watch/worker': resolve(
     __dirname,
-    '../../packages/core/src/services/fs-watch/index.ts'
+    '../../packages/core/src/services/fs-watch/worker/index.ts'
   ),
   '@emdash/core/skills': resolve(__dirname, '../../packages/core/src/skills/index.ts'),
   '@emdash/core/workspace-server/agent-config': resolve(

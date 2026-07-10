@@ -1,3 +1,3 @@
-import { bootFsWatchProcess } from '@emdash/core/services/fs-watch/node';
+import { runFsWatchWorkerProcess } from '@emdash/core/services/fs-watch/worker';
 
-bootFsWatchProcess();
+runFsWatchWorkerProcess();
