@@ -1,6 +1,6 @@
 import { ExecError } from '@emdash/core/exec';
 import { toGitCommandError, type GitCommandError } from '@emdash/core/git';
-import { GitResolutionException } from './allocation/allocation-graph';
+import { GitResolutionException } from '../allocation/allocation-graph';
 
 /** Converts only failures that the Git contract explicitly treats as operational errors. */
 export function expectedGitCommandError(error: unknown): GitCommandError | undefined {
