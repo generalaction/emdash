@@ -26,6 +26,7 @@ export class PtyRegistry {
     }
 
     const proc = await this.spawner.spawn(spec);
+    options.onProcess?.(proc);
     const session = new PtySession(key, spec, proc, {
       ...options,
       onExit: (info) => {

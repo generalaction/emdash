@@ -50,12 +50,8 @@ describe('ActivityAggregator', () => {
   it('can consume a runtime activity model through providerFromClient', async () => {
     const host = createLiveModelHost(activityProviderContract.activity);
     const cell = host.create({}, { sessions: [] });
-    const controller = createController(
-      activityProviderContract,
-      { activity: host },
-      { validate: 'full' }
-    );
-    const wire = createTestWire(activityProviderContract, controller);
+    const controller = createController(activityProviderContract, { activity: host });
+    const wire = createTestWire(activityProviderContract, controller, { validate: 'full' });
     const contractClient = wire.client;
     const aggregator = new ActivityAggregator([
       providerFromClient('acp', { activity: contractClient.activity }),

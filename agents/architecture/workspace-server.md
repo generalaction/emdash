@@ -6,11 +6,11 @@ The contract lives in `packages/core/src/workspace-server/`, shared by the serve
 
 The ACP domain is mounted under `workspaceWireContract.acp` and is served by a
 forked child process. The daemon parent forwards the ACP API contract to the child
-and serves the child-to-parent `acpHostContract` callbacks for provider binary
-resolution, session-id notifications, and logging. This mount was added before
-any workspace-server contract deployment, so the initial addition intentionally
-does not bump `PROTOCOL_VERSION`; future deployed additions must follow the rules
-below.
+and serves the child-to-parent `acpHostContract` callback for session-id
+notifications. Runtime spawn context is resolved inside the child runtime and
+structured child logs are forwarded from stderr. This mount was added before any
+workspace-server contract deployment, so the initial addition intentionally does
+not bump `PROTOCOL_VERSION`; future deployed additions must follow the rules below.
 
 ## Protocol Version
 
@@ -147,7 +147,7 @@ if (session.agreedMinor >= 1) {
 |------|------|
 | [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts) | `PROTOCOL_VERSION`, `negotiateProtocol`, `protocolUpgradeMessage` |
 | [`packages/core/src/workspace-server/wire/schemas.ts`](../../packages/core/src/workspace-server/wire/schemas.ts) | initialize/health schemas |
-| [`packages/core/src/workspace-server/wire/contract.ts`](../../packages/core/src/workspace-server/wire/contract.ts) | wire contract (`health`, `initialize`, `git`, `files`, `deps`, `ptyAgent`, `acp`) |
+| [`packages/core/src/workspace-server/wire/contract.ts`](../../packages/core/src/workspace-server/wire/contract.ts) | wire contract (`health`, `initialize`, `git`, `files`, `deps`, `tuiAgents`, `acp`) |
 | [`apps/workspace-server/src/api/controller.ts`](../../apps/workspace-server/src/api/controller.ts) | Server-side procedure and live-model handlers |
 | [`apps/workspace-server/src/acp/host.ts`](../../apps/workspace-server/src/acp/host.ts) | Parent-side ACP child process host and spawn-context resolution |
 | [`apps/workspace-server/src/index.ts`](../../apps/workspace-server/src/index.ts) | CLI and daemon entry point |

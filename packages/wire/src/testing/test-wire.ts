@@ -4,12 +4,13 @@ import {
   createController,
   memoryTransportPair,
   serve,
+  withValidation,
   type Connection,
   type ContractClient,
   type ContractImpl,
   type Controller,
-  type CreateControllerOptions,
   type MemoryTransportPair,
+  type ValidatePolicy,
 } from '../api';
 import type { Contract, ContractDefinitions } from '../api/define';
 
@@ -24,12 +25,13 @@ export type TestWire<Defs extends ContractDefinitions> = {
 export function createTestWire<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
   implOrController: ContractImpl<Defs> | Controller,
-  options: CreateControllerOptions = {}
+  options: { validate?: ValidatePolicy } = {}
 ): TestWire<Defs> {
   const pair = memoryTransportPair();
-  const controller = isController(implOrController)
+  const baseController = isController(implOrController)
     ? implOrController
-    : createController(contract, implOrController, options);
+    : createController(contract, implOrController);
+  const controller = withValidation(contract, baseController, options.validate ?? 'none');
   const stopServing = serve(pair.right, controller);
   const connection = connect(pair.left);
 

@@ -2,7 +2,13 @@ import { err, ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createTestWire, waitFor } from '../testing';
-import { BLOB_CHUNK_SIZE, normalizeUploadFile, type UploadFileValue } from './blob-channel';
+import {
+  BLOB_CHUNK_SIZE,
+  blobSourceFromBytes,
+  normalizeUploadFile,
+  type BlobSource,
+  type UploadFileValue,
+} from './blob-channel';
 import type { createController } from './controller';
 import { defineContract, downloadFile, uploadFile } from './define';
 
@@ -80,6 +86,19 @@ describe('blob file endpoints', () => {
         }
       )
     ).resolves.toEqual(ok({ id: 'up', bytes: payload.byteLength, text: 'hello from upload' }));
+  });
+
+  it('exposes copied byte sources as blob sources', async () => {
+    const data = new Uint8Array([1, 2, 3]);
+    const source = blobSourceFromBytes(data) satisfies BlobSource;
+    const iterator = source[Symbol.asyncIterator]();
+
+    const first = await iterator.next();
+    expect(first).toMatchObject({ done: false, value: new Uint8Array([1, 2, 3]) });
+    if (!first.done) first.value[0] = 9;
+
+    expect(data).toEqual(new Uint8Array([1, 2, 3]));
+    await expect(iterator.next()).resolves.toMatchObject({ done: true });
   });
 
   it('fails bytes() when declared download size does not match received bytes', async () => {

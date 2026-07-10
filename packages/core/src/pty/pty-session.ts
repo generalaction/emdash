@@ -4,6 +4,8 @@ import type { PtyExitInfo, PtyProcess, PtySpawnSpec } from './types';
 
 export interface PtySessionOptions {
   log?: LiveLogOptions;
+  output?: LiveLog;
+  onProcess?: (process: PtyProcess) => void;
   onData?: (chunk: string) => void;
   onExit?: (info: PtyExitInfo) => void;
   onStateChange?: () => void;
@@ -21,7 +23,7 @@ export class PtySession {
     private readonly process: PtyProcess,
     private readonly options: PtySessionOptions = {}
   ) {
-    this.output = new LiveLog(options.log);
+    this.output = options.output ?? new LiveLog(options.log);
     this.process.onData((chunk) => {
       this.output.append(chunk);
       this.options.onData?.(chunk);

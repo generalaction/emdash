@@ -1,9 +1,9 @@
 import os from 'node:os';
 import type { CLIAgentPluginProvider, McpServerRegistration } from '@emdash/core/agents/plugins';
+import type { McpLoadAllResponse, McpServer } from '@emdash/core/mcp';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { log } from '@main/lib/logger';
-import type { McpLoadAllResponse, McpServer } from '@shared/core/mcp/types';
 import { loadCatalog } from '../utils/catalog';
 import {
   mcpServerFieldCount,

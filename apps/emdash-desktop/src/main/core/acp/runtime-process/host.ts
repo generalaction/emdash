@@ -2,14 +2,13 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { acpApiContract, acpHostContract } from '@emdash/core/acp';
 import { ok } from '@emdash/shared';
-import { createController, exposeWireToWindows, serve } from '@emdash/wire/api';
+import { createController, exposeWireToWindows, serve, withValidation } from '@emdash/wire/api';
 import { processTransport, type ManagedProcess } from '@emdash/wire/process';
 import { childProcessHost } from '@emdash/wire/process/node';
-import { spawnRuntime } from '@emdash/wire/util/process-runtime';
+import { forwardRuntimeLogs, spawnRuntime } from '@emdash/wire/util/process-runtime';
 import { app, ipcMain, MessageChannelMain } from 'electron';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
-import { resolveLocalAcpSpawnContext } from '../transport/local-acp-process-host';
 
 const ACP_WIRE_CHANNEL = 'acp-wire';
 
@@ -74,13 +73,7 @@ async function spawnAcpRuntime() {
 }
 
 function attachAcpRuntimeLogging(process: ManagedProcess): void {
-  process.onStdio((stream, chunk) => {
-    if (stream === 'stderr') {
-      log.warn('ACP runtime stderr', { chunk });
-    } else {
-      log.debug('ACP runtime stdout', { chunk });
-    }
-  });
+  forwardRuntimeLogs(process, log, { source: 'acp-runtime' });
   process.onExit((exit) => {
     log.warn('ACP runtime child process exited', exit);
   });
@@ -89,10 +82,9 @@ function attachAcpRuntimeLogging(process: ManagedProcess): void {
 function installHostWire(handle: AcpRuntimeHandle): void {
   hostWireDispose?.();
   const transport = processTransport(handle.process);
-  const controller = createController(
+  const controller = withValidation(
     acpHostContract,
-    {
-      resolveSpawnContext: ({ providerId }) => resolveLocalAcpSpawnContext(providerId),
+    createController(acpHostContract, {
       persistSessionId: async ({ conversationId, sessionId }) => {
         const result = await setSessionId(conversationId, sessionId);
         if (!result.success) {
@@ -102,11 +94,8 @@ function installHostWire(handle: AcpRuntimeHandle): void {
           });
         }
       },
-      log: ({ level, message, data }) => {
-        log[level](message, { source: 'acp-runtime', data });
-      },
-    },
-    { validate: 'full' }
+    }),
+    runtimeWireValidationPolicy()
   );
   const disposeServer = serve(transport, controller);
   hostWireDispose = () => {
@@ -117,9 +106,9 @@ function installHostWire(handle: AcpRuntimeHandle): void {
 
 function installRendererWire(client: AcpRuntimeClient): void {
   rendererWireDispose?.();
-  const controller = createController(
+  const controller = withValidation(
     acpApiContract,
-    {
+    createController(acpApiContract, {
       startSession: (input, meta) => client.startSession(input, meta),
       resumeSession: (input, meta) => client.resumeSession(input, meta),
       stopSession: (input, meta) => client.stopSession(input, meta),
@@ -143,19 +132,11 @@ function installRendererWire(client: AcpRuntimeClient): void {
       },
       deleteAttachment: (input, meta) => client.deleteAttachment(input, meta),
       getHistory: (input, meta) => client.getHistory(input, meta),
-      startLogin: (input, meta) => client.startLogin(input, meta),
-      cancelLogin: (input, meta) => client.cancelLogin(input, meta),
-      sendLoginInput: (input, meta) => client.sendLoginInput(input, meta),
-      resizeLogin: (input, meta) => client.resizeLogin(input, meta),
-      markUrlHandled: (input, meta) => client.markUrlHandled(input, meta),
-      refreshAuthStatus: (input, meta) => client.refreshAuthStatus(input, meta),
       sessions: client.sessions,
       session: client.session,
       terminalOutput: client.terminalOutput,
-      authStatus: client.authStatus,
-      loginOutput: client.loginOutput,
-    },
-    { validate: 'full' }
+    }),
+    runtimeWireValidationPolicy()
   );
   rendererWireDispose = exposeWireToWindows(
     {
@@ -168,6 +149,10 @@ function installRendererWire(client: AcpRuntimeClient): void {
     controller,
     { channel: ACP_WIRE_CHANNEL }
   );
+}
+
+function runtimeWireValidationPolicy() {
+  return import.meta.env.DEV ? 'full' : 'inputs';
 }
 
 function resolveRuntimeEntry(): string {

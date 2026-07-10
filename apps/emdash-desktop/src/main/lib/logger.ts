@@ -1,11 +1,11 @@
 import { createVariadicAdapter } from '@emdash/shared/logger';
-import { createPinoLogger } from '@emdash/shared/logger/pino';
+import { initProcessLogging } from '@emdash/shared/logger/node';
 import { getLogFileDestination } from './file-logger';
 
-const inner = createPinoLogger({
-  envLevel: process.env.LOG_LEVEL,
+const inner = initProcessLogging({
+  name: 'emdash-main',
+  env: process.env,
   debugFlag: process.argv.includes('--debug-logs'),
-  bindings: { source: 'main' },
   destination: getLogFileDestination(),
 });
 

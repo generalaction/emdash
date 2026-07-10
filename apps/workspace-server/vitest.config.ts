@@ -13,6 +13,10 @@ export default defineConfig({
         __dirname,
         '../../packages/core/src/agents/plugins/index.ts'
       ),
+      '@emdash/core/agents/spawn-context': resolve(
+        __dirname,
+        '../../packages/core/src/agents/spawn-context.ts'
+      ),
       '@emdash/core/deps/runtime': resolve(
         __dirname,
         '../../packages/core/src/host-dependencies/runtime/index.ts'
@@ -28,12 +32,19 @@ export default defineConfig({
         __dirname,
         '../../packages/plugins/src/agents/types.ts'
       ),
-      '@emdash/runtime/acp/node': resolve(
+      '@emdash/runtime/acp-agents/node': resolve(
         __dirname,
-        '../../packages/runtime/src/acp/node/index.ts'
+        '../../packages/runtime/src/acp-agents/node/index.ts'
       ),
-      '@emdash/runtime/acp': resolve(__dirname, '../../packages/runtime/src/acp/index.ts'),
+      '@emdash/runtime/acp-agents': resolve(
+        __dirname,
+        '../../packages/runtime/src/acp-agents/index.ts'
+      ),
       '@emdash/shared/config': resolve(__dirname, '../../packages/shared/src/config/index.ts'),
+      '@emdash/shared/logger/node': resolve(
+        __dirname,
+        '../../packages/shared/src/logger/node/index.ts'
+      ),
       '@emdash/shared/logger': resolve(__dirname, '../../packages/shared/src/logger/index.ts'),
       '@emdash/shared/plugins': resolve(__dirname, '../../packages/shared/src/plugins/index.ts'),
       '@emdash/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),

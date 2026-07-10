@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { IAcpBehavior } from './capabilities/acp';
 import type { IAgentAuthBehavior } from './capabilities/auth';
+import type { CanonicalHookEvent } from './capabilities/hooks';
+import type { AgentCommand, CommandContext } from './capabilities/prompt';
 import { AgentPluginHost, createPluginRegistry, type CLIAgentPluginProvider } from './index';
 
 describe('AgentPluginHost', () => {
@@ -59,6 +61,45 @@ describe('AgentPluginHost', () => {
       behavior: authBehavior,
     });
   });
+
+  it('resolves TUI providers with prompt and hook behavior', () => {
+    const buildCommand = (_ctx: CommandContext): AgentCommand => ({
+      command: 'test',
+      args: [],
+      env: {},
+    });
+    const parseHookEvent = (): CanonicalHookEvent => ({ kind: 'ignore' });
+    const host = createHost([
+      plugin({
+        prompt: { kind: 'keystroke', submitSequence: '\r' },
+        hooks: { kind: 'config', scope: 'workspace', supportedEvents: ['start'] },
+        behavior: {
+          prompt: { buildCommand },
+          hooks: {
+            readHooks: async () => [],
+            writeHooks: async () => [],
+            deleteHooks: async () => {},
+            getHooksInstalled: async () => false,
+            parseHookEvent,
+          },
+        },
+      }),
+    ]);
+
+    expect(host.resolveTuiProvider('test')).toEqual({
+      name: 'Test Agent',
+      prompt: { kind: 'keystroke', submitSequence: '\r' },
+      hooks: { kind: 'config', scope: 'workspace', supportedEvents: ['start'] },
+      buildCommand,
+      parseHookEvent,
+    });
+  });
+
+  it('returns null when a provider has no TUI prompt behavior', () => {
+    const host = createHost([plugin()]);
+
+    expect(host.resolveTuiProvider('test')).toBeNull();
+  });
 });
 
 function createHost(plugins: CLIAgentPluginProvider[]): AgentPluginHost {
@@ -83,6 +124,8 @@ function plugin(
             },
           ];
         };
+    prompt?: CLIAgentPluginProvider['capabilities']['prompt'];
+    hooks?: CLIAgentPluginProvider['capabilities']['hooks'];
     behavior?: Partial<CLIAgentPluginProvider['behavior']>;
   } = {}
 ): CLIAgentPluginProvider {
@@ -96,6 +139,8 @@ function plugin(
     capabilities: {
       acp: overrides.acp ?? { kind: 'none' },
       auth: overrides.auth ?? { kind: 'none' },
+      prompt: overrides.prompt ?? { kind: 'argv' },
+      hooks: overrides.hooks ?? { kind: 'none' },
     },
     behavior: overrides.behavior ?? {},
   } as unknown as CLIAgentPluginProvider;
