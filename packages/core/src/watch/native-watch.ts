@@ -5,6 +5,7 @@ import type { WatchEvent } from './types';
 
 const RESUBSCRIBE_DELAY_MS = 250;
 const MAX_RESUBSCRIBE_DELAY_MS = 30_000;
+const RESYNC_DELAY_MS = 250;
 
 /**
  * One native subscription per (root, ignore set), shared across consumers.
@@ -19,6 +20,11 @@ export class NativeWatch implements IDisposable {
   private readonly onError: (context: string, error: unknown) => void;
   private subscription: Promise<parcelWatcher.AsyncSubscription> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private resyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private restartPromise: Promise<void> | null = null;
+  private generation = 0;
+  private activeGeneration = 0;
+  private retryRequested = false;
   private retryAttempts = 0;
   private disposed = false;
 
@@ -46,22 +52,40 @@ export class NativeWatch implements IDisposable {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.activeGeneration = 0;
+    this.retryRequested = false;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
+    if (this.resyncTimer) clearTimeout(this.resyncTimer);
+    this.resyncTimer = null;
+    await this.restartPromise;
     const subscription = await this.subscription?.catch(() => null);
+    this.subscription = null;
     await subscription?.unsubscribe();
   }
 
   private async subscribe(): Promise<parcelWatcher.AsyncSubscription> {
     await fs.stat(this.root);
+    const generation = ++this.generation;
+    this.activeGeneration = generation;
     return parcelWatcher.subscribe(
       this.root,
       (err, events) => {
+        if (this.disposed || generation !== this.activeGeneration) return;
         if (err) {
           this.onError(`watch ${this.root}`, err);
+          if (requiresResync(err)) {
+            this.scheduleResync();
+            return;
+          }
+          if (this.restartPromise) {
+            this.retryRequested = true;
+            return;
+          }
           this.scheduleResubscribe();
           return;
         }
+        this.retryAttempts = 0;
         if (events.length === 0) return;
         this.deliver(events.map(toWatchEvent));
       },
@@ -69,8 +93,29 @@ export class NativeWatch implements IDisposable {
     );
   }
 
+  private scheduleResync(): void {
+    if (this.resyncTimer || this.disposed) return;
+    this.resyncTimer = setTimeout(() => {
+      this.resyncTimer = null;
+      this.signalResync();
+    }, RESYNC_DELAY_MS);
+  }
+
+  private signalResync(): void {
+    if (this.disposed) return;
+    try {
+      this.resync();
+    } catch (error) {
+      this.onError(`resync ${this.root}`, error);
+    }
+  }
+
   private scheduleResubscribe(): void {
     if (this.retryTimer || this.disposed) return;
+    if (this.restartPromise) {
+      this.retryRequested = true;
+      return;
+    }
     const delay = Math.min(
       RESUBSCRIBE_DELAY_MS * 2 ** this.retryAttempts,
       MAX_RESUBSCRIBE_DELAY_MS
@@ -79,21 +124,49 @@ export class NativeWatch implements IDisposable {
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       if (this.disposed) return;
-      const previous = this.subscription;
-      this.subscription = this.subscribe();
-      this.subscription.then(
-        () => {
-          this.retryAttempts = 0;
-          this.resync();
-        },
-        (error) => {
-          this.onError(`resubscribe ${this.root}`, error);
-          this.scheduleResubscribe();
-        }
-      );
-      void previous?.then((subscription) => subscription.unsubscribe()).catch(() => {});
+      const restart = this.restart();
+      const tracked = restart.then((shouldRetry) => {
+        const retry = shouldRetry || this.retryRequested;
+        this.retryRequested = false;
+        if (this.restartPromise === tracked) this.restartPromise = null;
+        if (retry) this.scheduleResubscribe();
+      });
+      this.restartPromise = tracked;
+      void tracked;
     }, delay);
   }
+
+  private async restart(): Promise<boolean> {
+    const previousPromise = this.subscription;
+    this.activeGeneration = 0;
+    const previous = await previousPromise?.catch(() => null);
+    if (this.disposed) return false;
+
+    try {
+      await previous?.unsubscribe();
+    } catch (error) {
+      this.onError(`unsubscribe ${this.root}`, error);
+      return !this.disposed;
+    }
+    if (this.subscription === previousPromise) this.subscription = null;
+    if (this.disposed) return false;
+
+    const next = this.subscribe();
+    this.subscription = next;
+    try {
+      await next;
+    } catch (error) {
+      this.onError(`resubscribe ${this.root}`, error);
+      return true;
+    }
+    if (this.disposed) return false;
+    this.signalResync();
+    return false;
+  }
+}
+
+function requiresResync(error: Error): boolean {
+  return error.message.includes('File system must be re-scanned');
 }
 
 function toWatchEvent(event: parcelWatcher.Event): WatchEvent {
