@@ -1,10 +1,10 @@
 import type { Client } from '@agentclientprotocol/sdk';
 import type { IAcpBehavior } from '@emdash/core/agents/plugins';
-import { isOk, ok } from '@emdash/shared';
+import { isOk } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
 import { acquireAsResult } from '@emdash/wire/util';
 import { describe, expect, it, vi } from 'vitest';
-import { FakeAcpAgent, FakeAcpProcessHost } from '../acp-test-support';
+import { FakeAcpAgent, FakeAcpProcessHost, testPluginHost } from '../acp-test-support';
 import { createAcpConnectionSource, isAcpConnectionError, makeAcpConnectionKey } from './source';
 
 function makeBehavior(agent: FakeAcpAgent): IAcpBehavior {
@@ -31,10 +31,7 @@ function waitForTeardown(): Promise<void> {
 function sourceDeps(host: FakeAcpProcessHost, onClosed = vi.fn()) {
   return {
     host,
-    spawnContext: {
-      resolve: vi.fn().mockResolvedValue(ok({ cli: '/usr/local/bin/fake-agent', agentEnv: {} })),
-      invalidate: vi.fn(),
-    },
+    agentHost: testPluginHost({ acpBehavior: makeBehavior(new FakeAcpAgent()) }),
     logger: noopLogger,
     onClosed,
   };

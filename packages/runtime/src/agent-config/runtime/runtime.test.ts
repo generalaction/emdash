@@ -12,6 +12,7 @@ import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@emdash/
 import { ok } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { noopLogger } from '@emdash/shared/logger';
+import { createScope } from '@emdash/wire/util';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentConfigRuntime } from './runtime';
 
@@ -315,25 +316,30 @@ function makeRuntime(
       },
     },
   } as unknown as CLIAgentPluginProvider);
+  const logger = options.logger ?? noopLogger;
+  const agentHost = new AgentPluginHost({
+    scope: createScope({ label: 'test-agent-config', logger }),
+    registry,
+    exec,
+    fs,
+    env: {
+      PATH: '/bin',
+      HOME: '/home/ada',
+      USER: 'ada',
+      SHELL: '/bin/zsh',
+      ANTHROPIC_API_KEY: 'secret',
+      UNSAFE_ENV: 'nope',
+    },
+    homeDir: '/home/ada',
+  });
 
   return {
     exec,
     runtime: new AgentConfigRuntime({
-      pluginHost: new AgentPluginHost(registry),
+      agentHost,
       ptySpawner: options.ptySpawner ?? new FakePtySpawner(),
-      exec,
-      pluginFs: fs,
-      homeDir: '/home/ada',
       installCommandRunner: vi.fn(async () => ok(undefined)),
-      env: {
-        PATH: '/bin',
-        HOME: '/home/ada',
-        USER: 'ada',
-        SHELL: '/bin/zsh',
-        ANTHROPIC_API_KEY: 'secret',
-        UNSAFE_ENV: 'nope',
-      },
-      logger: options.logger ?? noopLogger,
+      logger,
     }),
   };
 }

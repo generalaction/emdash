@@ -28,13 +28,17 @@ export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimePro
     (scope) => {
       const homeDir = os.homedir();
       const spawner = new NodePtySpawner();
-      const runtime = new AgentConfigRuntime({
-        pluginHost: new AgentPluginHost(options.pluginRegistry),
-        ptySpawner: spawner,
+      const agentHost = new AgentPluginHost({
+        scope,
+        registry: options.pluginRegistry,
         exec: new NodeExecutionContext({ env }),
-        pluginFs: createLocalPluginFs(homeDir),
-        homeDir,
+        fs: createLocalPluginFs(homeDir),
         env,
+        homeDir,
+      });
+      const runtime = new AgentConfigRuntime({
+        agentHost,
+        ptySpawner: spawner,
         logger,
         installCommandRunner: createPtyInstallCommandRunner({
           spawner,

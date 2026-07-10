@@ -36,6 +36,7 @@ export {
 } from './types';
 export {
   HostDependencyManager,
+  type HostDependencyRunOptions,
   type HostDependencyManagerOptions,
   type InstallCommandRunner,
 } from './host-dependency-manager';

@@ -7,8 +7,7 @@ import type {
   SpawnFailedError,
 } from '@emdash/core/acp';
 import { acpErr, decodeSessionUpdate } from '@emdash/core/acp';
-import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
-import type { SpawnContextError, SpawnContextResolver } from '@emdash/core/agents/spawn-context';
+import type { AcpAgentApi, AgentHostError, AgentPluginHost, IAcpBehavior } from '@emdash/core/agents/plugins';
 import { type Logger, noopLogger } from '@emdash/core/lib';
 import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
@@ -33,7 +32,7 @@ export interface AcpAgentConnection {
 export async function createAcpAgentConnection(
   deps: {
     host: AcpAgentProcessHost;
-    spawnContext: SpawnContextResolver;
+    agentHost: AgentPluginHost;
     behavior: IAcpBehavior;
     logger?: Logger;
   },
@@ -47,24 +46,18 @@ export async function createAcpAgentConnection(
   }
 ): Promise<Result<AcpAgentConnection, SpawnFailedError>> {
   const { providerId, cwd, buildClient, onClosed } = args;
-  const { host, spawnContext, behavior, logger = noopLogger } = deps;
+  const { host, agentHost, behavior, logger = noopLogger } = deps;
 
   let handle: AcpProcessHandle;
   try {
-    const contextResult = await spawnContext.resolve(providerId);
-    if (!contextResult.success) throw new Error(spawnContextErrorMessage(contextResult.error));
-    const { cli, agentEnv } = contextResult.data;
-    const {
-      command,
-      args: spawnArgs,
-      env: envOverlay,
-    } = behavior.buildSpawn({ cwd, env: agentEnv, cli });
+    const spawn = await agentHost.buildAcpSpawn(providerId, { cwd });
+    if (!spawn.success) throw new Error(agentHostErrorMessage(spawn.error));
 
     handle = await host.spawn({
-      command,
-      args: spawnArgs,
-      env: { ...agentEnv, ...envOverlay },
-      cwd,
+      command: spawn.data.command,
+      args: spawn.data.args,
+      env: spawn.data.env,
+      cwd: spawn.data.cwd,
     });
   } catch (e) {
     return acpErr.spawnFailed(toSerializedError(e));
@@ -115,6 +108,6 @@ export async function createAcpAgentConnection(
   return ok({ handle, agent: connection, normalize, initialized });
 }
 
-function spawnContextErrorMessage(error: SpawnContextError): string {
+function agentHostErrorMessage(error: AgentHostError): string {
   return 'message' in error ? error.message : error.type;
 }

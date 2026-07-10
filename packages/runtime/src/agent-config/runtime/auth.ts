@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentAuthMethod, AgentAuthStatus } from '@emdash/core/agents/plugins';
-import type { SpawnContext, SpawnContextResolver } from '@emdash/core/agents/spawn-context';
+import type { AgentAuthStatus, AgentHostError } from '@emdash/core/agents/plugins';
 import { PtyRegistry, type PtyExitInfo, type PtySession, type PtySpawner } from '@emdash/core/pty';
 import type { AgentConfigAuthError, AuthStatusModelState } from '@emdash/core/workspace-server';
 import { err, ok, type PendingLease, type Result } from '@emdash/shared';
@@ -39,8 +38,7 @@ export class AgentAuthManager {
 
   constructor(
     private readonly deps: AgentConfigRuntimeDeps,
-    private readonly install: AgentInstallManager,
-    private readonly spawnContext: SpawnContextResolver
+    private readonly install: AgentInstallManager
   ) {
     this.ptys = new PtyRegistry(assertPtySpawner(deps.ptySpawner), {
       onSessionChanged: (providerId) => this.publishLoginExit(providerId),
@@ -171,14 +169,9 @@ export class AgentAuthManager {
     context: LoginContext,
     scope: Scope
   ): Promise<LoginSession> {
-    const spawnContext = await this.resolveSpawnContext(providerId);
-    if (!spawnContext.success) throw new Error(agentConfigAuthErrorMessage(spawnContext.error));
-    const { command, args } = await this.resolveLoginCommand(
-      providerId,
-      context.methodId,
-      spawnContext.data
-    );
-    const env = this.buildLoginEnv(spawnContext.data.agentEnv);
+    const loginCommand = await this.deps.agentHost.buildLoginCommand(providerId, context.methodId);
+    if (!loginCommand.success) throw new Error(agentConfigAuthErrorMessage(loginCommand.error));
+    const { command, args, env } = loginCommand.data;
     const startedAt = Date.now();
     this.seenUrls.set(providerId, new Set());
     this.publish(providerId, (current) => ({
@@ -196,7 +189,7 @@ export class AgentAuthManager {
       {
         command,
         args,
-        cwd: this.deps.homeDir,
+        cwd: this.deps.agentHost.homeDir,
         env,
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,
@@ -233,25 +226,16 @@ export class AgentAuthManager {
   }
 
   private async probe(providerId: string): Promise<AgentAuthStatus> {
-    const provider = this.deps.pluginHost.resolveAuthProvider(providerId);
-    if (!provider?.behavior || provider.auth.kind === 'none') return { kind: 'unknown' };
-
     try {
-      const spawnContext = await this.resolveSpawnContext(providerId);
-      if (!spawnContext.success) {
+      const status = await this.deps.agentHost.checkAuthStatus(providerId);
+      if (!status.success) {
         this.deps.logger.warn('AgentAuthManager: spawn context resolution failed', {
           providerId,
-          error: agentConfigAuthErrorMessage(spawnContext.error),
+          error: agentConfigAuthErrorMessage(status.error),
         });
         return { kind: 'unknown' };
       }
-      const env = this.buildLoginEnv(spawnContext.data.agentEnv);
-      return await provider.behavior.checkStatus({
-        cli: spawnContext.data.cli,
-        exec: (command, args, opts) => this.deps.exec.exec(command, args, opts),
-        fs: this.deps.pluginFs,
-        env,
-      });
+      return status.data;
     } catch (error) {
       this.deps.logger.warn('AgentAuthManager: status probe failed', {
         providerId,
@@ -259,46 +243,6 @@ export class AgentAuthManager {
       });
       return { kind: 'unknown' };
     }
-  }
-
-  private async resolveLoginCommand(
-    providerId: string,
-    methodId: string,
-    spawnContext: SpawnContext
-  ): Promise<{ command: string; args: string[]; method: AgentAuthMethod }> {
-    const provider = this.deps.pluginHost.resolveAuthProvider(providerId);
-    if (!provider) throw new Error(`Provider '${providerId}' was not found`);
-
-    if (provider.auth.kind === 'none') {
-      if (methodId !== 'cli-login') {
-        throw new Error(`Auth method '${methodId}' was not found for provider '${providerId}'`);
-      }
-      return {
-        command: spawnContext.cli,
-        args: [],
-        method: {
-          kind: 'cli-login',
-          id: 'cli-login',
-          name: `Sign in with ${provider.name}`,
-          args: [],
-        },
-      };
-    }
-
-    const method = provider.auth.methods.find((candidate) => candidate.id === methodId);
-    if (!method) {
-      throw new Error(`Auth method '${methodId}' was not found for provider '${providerId}'`);
-    }
-    if (method.kind !== 'cli-login') {
-      throw new Error(`Auth method '${methodId}' is not a CLI login method`);
-    }
-
-    const override = provider.behavior?.buildLoginCommand?.({ cli: spawnContext.cli }, methodId);
-    return {
-      command: override?.command ?? spawnContext.cli,
-      args: override?.args ?? method.args,
-      method,
-    };
   }
 
   private detectUrl(providerId: string, chunk: string): void {
@@ -354,21 +298,8 @@ export class AgentAuthManager {
     this.install.updateAuth(providerId, update(current));
   }
 
-  private buildLoginEnv(agentEnv: Record<string, string>): Record<string, string> {
-    return { ...agentEnv };
-  }
-
-  private async resolveSpawnContext(
-    providerId: string
-  ): Promise<Result<SpawnContext, AgentConfigAuthError>> {
-    const result = await this.spawnContext.resolve(providerId);
-    if (result.success) return result;
-    if (result.error.type === 'unknown-provider') return err(result.error);
-    return err({ type: 'invalid-state', message: result.error.message });
-  }
-
   private hasProvider(providerId: string): boolean {
-    return this.deps.pluginHost.get(providerId) !== undefined;
+    return this.deps.agentHost.get(providerId) !== undefined;
   }
 }
 
@@ -389,6 +320,6 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function agentConfigAuthErrorMessage(error: AgentConfigAuthError): string {
+function agentConfigAuthErrorMessage(error: AgentConfigAuthError | AgentHostError): string {
   return 'message' in error ? error.message : error.type;
 }

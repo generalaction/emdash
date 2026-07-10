@@ -5,7 +5,6 @@ import type {
   PromptInput,
 } from '@emdash/core/acp';
 import type { AgentPluginHost, ResolvedAcpProvider } from '@emdash/core/agents/plugins';
-import type { SpawnContextResolver } from '@emdash/core/agents/spawn-context';
 import type { Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { AttachmentStore } from './attachment-store';
@@ -28,9 +27,8 @@ export type SetSessionIdError = { type: string; message?: string };
 export type AcpRuntimeProcessHost = Omit<AcpProcessHost, 'resolveSpawnContext'>;
 
 export interface AcpRuntimeDeps {
-  pluginHost: AgentPluginHost;
+  agentHost: AgentPluginHost;
   host: AcpRuntimeProcessHost;
-  spawnContext: SpawnContextResolver;
   persistSessionId: (
     conversationId: string,
     sessionId: string

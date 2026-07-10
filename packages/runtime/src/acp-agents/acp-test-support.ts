@@ -23,9 +23,10 @@ import {
   type IAcpBehavior,
   type ResolvedAuthProvider,
 } from '@emdash/core/agents/plugins';
+import type { IExecutionContext } from '@emdash/core/exec';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@emdash/core/pty';
-import { ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
+import { createScope } from '@emdash/wire/util';
 import { vi } from 'vitest';
 import type { AgentTerminalHooks } from './agent-ports/terminal-manager';
 import type { AcpRuntimeDeps, AcpStartInput } from './runtime/types';
@@ -322,6 +323,11 @@ export function testPluginHost(
     capabilities: {
       acp: options.acpBehavior ? { kind: 'supported' } : { kind: 'none' },
       auth: options.authProvider?.auth ?? { kind: 'none' },
+      hostDependency: {
+        binaryNames: [providerId],
+        installCommands: {},
+        updates: { kind: 'none' },
+      },
     },
     behavior: {
       acp: options.acpBehavior,
@@ -329,7 +335,14 @@ export function testPluginHost(
     },
   } as unknown as CLIAgentPluginProvider);
 
-  return new AgentPluginHost(registry);
+  return new AgentPluginHost({
+    scope: createScope({ label: 'test-acp' }),
+    registry,
+    exec: fakeExec(),
+    fs: fakePluginFs(),
+    env: { PATH: '/bin', HOME: '/home/test' },
+    homeDir: '/home/test',
+  });
 }
 
 export function makeAcpHarness(options: AcpHarnessOptions = {}) {
@@ -339,8 +352,8 @@ export function makeAcpHarness(options: AcpHarnessOptions = {}) {
   const ptySpawner = new FakePtySpawner();
 
   const deps: AcpRuntimeDeps = {
-    pluginHost:
-      depOverrides.pluginHost ??
+    agentHost:
+      depOverrides.agentHost ??
       testPluginHost({
         acpBehavior: acpBehavior ?? {
           buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
@@ -352,10 +365,6 @@ export function makeAcpHarness(options: AcpHarnessOptions = {}) {
         },
       }),
     host: fakeHost,
-    spawnContext: {
-      resolve: vi.fn().mockResolvedValue(ok({ cli: '/usr/local/bin/fake-agent', agentEnv: {} })),
-      invalidate: vi.fn(),
-    },
     persistSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
     logger: noopLogger,
@@ -378,6 +387,33 @@ export function makeAcpHarness(options: AcpHarnessOptions = {}) {
         throw new Error('capturedClient is null — has startSession() been called?');
       }
       return agent.capturedClient;
+    },
+  };
+}
+
+function fakeExec(): IExecutionContext {
+  return {
+    supportsLocalSpawn: false,
+    async exec() {
+      throw new Error('missing');
+    },
+    async execStreaming() {},
+    dispose() {},
+  };
+}
+
+function fakePluginFs() {
+  return {
+    async read() {
+      return null;
+    },
+    async write() {},
+    async delete() {},
+    async exists() {
+      return false;
+    },
+    async list() {
+      return [];
     },
   };
 }

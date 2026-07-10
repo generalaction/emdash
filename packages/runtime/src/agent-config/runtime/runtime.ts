@@ -1,8 +1,4 @@
 import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
-import {
-  createSpawnContextResolver,
-  type SpawnContextResolver,
-} from '@emdash/core/agents/spawn-context';
 import type { McpServer } from '@emdash/core/mcp';
 import type { CatalogSkill } from '@emdash/core/skills';
 import type {
@@ -49,7 +45,6 @@ export class AgentConfigRuntime {
   private readonly agentsModel = createAgentConfigAgentsModel(this.agentsHost);
   private readonly mcpModel = createAgentConfigMcpModel(this.mcpHost);
   private readonly skillsModel = createAgentConfigSkillsModel(this.skillsHost);
-  private readonly spawnContext: SpawnContextResolver;
 
   readonly install: AgentInstallManager;
   readonly auth: AgentAuthManager;
@@ -57,17 +52,8 @@ export class AgentConfigRuntime {
   readonly skills: AgentSkillsManager;
 
   constructor(private readonly deps: AgentConfigRuntimeDeps) {
-    this.spawnContext =
-      deps.spawnContext ??
-      createSpawnContextResolver({
-        resolveCli: (providerId: string) => this.install.resolveCli(providerId),
-        hasProvider: (providerId: string) => deps.pluginHost.get(providerId) !== undefined,
-        env: deps.env ?? {},
-        homeDir: deps.homeDir,
-        includeShellVar: true,
-      });
-    this.install = new AgentInstallManager(deps, this.agentsModel, this.spawnContext);
-    this.auth = new AgentAuthManager(deps, this.install, this.spawnContext);
+    this.install = new AgentInstallManager(deps, this.agentsModel);
+    this.auth = new AgentAuthManager(deps, this.install);
     this.mcp = new AgentMcpConfigManager(deps, this.mcpModel);
     this.skills = new AgentSkillsManager(deps, this.skillsModel);
     this.install.initialize();
@@ -191,6 +177,6 @@ export class AgentConfigRuntime {
     this.agentsHost.dispose();
     this.mcpHost.dispose();
     this.skillsHost.dispose();
-    this.deps.exec.dispose();
+    void this.deps.agentHost.dispose();
   }
 }

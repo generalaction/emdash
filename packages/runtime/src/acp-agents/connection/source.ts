@@ -6,8 +6,7 @@ import type {
   NormalizedEvent,
   SpawnFailedError,
 } from '@emdash/core/acp';
-import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
-import type { SpawnContextResolver } from '@emdash/core/agents/spawn-context';
+import type { AcpAgentApi, AgentPluginHost, IAcpBehavior } from '@emdash/core/agents/plugins';
 import { isErr } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { createManagedSource, type ManagedSource, type Scope } from '@emdash/wire/util';
@@ -33,7 +32,7 @@ export type AcpConnectionError = SpawnFailedError | InitializeFailedError;
 
 export interface CreateAcpConnectionSourceDeps {
   host: AcpConnectionProcessHost;
-  spawnContext: SpawnContextResolver;
+  agentHost: AgentPluginHost;
   logger: Logger;
   onClosed: (key: string, exitCode: number | null) => void;
 }
@@ -111,7 +110,7 @@ async function provisionAcpConnection(
   const connection = await createAcpAgentConnection(
     {
       host: deps.host,
-      spawnContext: deps.spawnContext,
+      agentHost: deps.agentHost,
       behavior: input.behavior,
       logger: deps.logger,
     },

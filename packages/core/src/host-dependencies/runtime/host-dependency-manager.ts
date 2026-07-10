@@ -38,6 +38,9 @@ import { resolveActiveInstallation, resolveSelectedSource } from './types';
  * classified into InstallCommandError instead of thrown.
  */
 export type InstallCommandRunner = (command: string) => Promise<Result<void, InstallCommandError>>;
+export type HostDependencyRunOptions = {
+  run?: InstallCommandRunner;
+};
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
 
@@ -661,7 +664,11 @@ export class HostDependencyManager {
    * After a successful install, invalidates the detector cache so re-probe picks up
    * the new binary's provenance correctly.
    */
-  async install(id: DependencyId, method?: InstallMethod): Promise<DependencyInstallResult> {
+  async install(
+    id: DependencyId,
+    method?: InstallMethod,
+    options: HostDependencyRunOptions = {}
+  ): Promise<DependencyInstallResult> {
     const descriptor = this._getDependencyDescriptor(id);
     if (!descriptor) {
       return err({ type: 'unknown-dependency', id });
@@ -677,7 +684,8 @@ export class HostDependencyManager {
 
     await this.ctx.refreshShellEnv?.();
 
-    const installResult = await this.runInstallCommand(command);
+    const runInstallCommand = options.run ?? this.runInstallCommand;
+    const installResult = await runInstallCommand(command);
     if (!installResult.success) {
       return err(installResult.error);
     }
@@ -700,7 +708,11 @@ export class HostDependencyManager {
    * uses PM commands, unknown/manual sources fall back to CLI self-update.
    * When `method` is explicitly passed it overrides the provenance-based routing.
    */
-  async update(id: DependencyId, method?: InstallMethod): Promise<DependencyUpdateResult> {
+  async update(
+    id: DependencyId,
+    method?: InstallMethod,
+    options: HostDependencyRunOptions = {}
+  ): Promise<DependencyUpdateResult> {
     const descriptor = this._getDependencyDescriptor(id);
     if (!descriptor) {
       return err({ type: 'unknown-dependency', id });
@@ -747,8 +759,10 @@ export class HostDependencyManager {
 
     const plan = this.resolveUpdatePlan(effectiveMethod, descriptor, 'update');
 
+    const runInstallCommand = options.run ?? this.runInstallCommand;
+
     if (plan.kind === 'package-manager') {
-      const runResult = await this.runInstallCommand(plan.command);
+      const runResult = await runInstallCommand(plan.command);
       if (!runResult.success) return err(runResult.error);
     } else if (plan.kind === 'cli') {
       const resolvedPath = await this.resolveFirstPath(descriptor);
@@ -763,7 +777,7 @@ export class HostDependencyManager {
       }
 
       const commandLine = [command, ...args].join(' ');
-      const runResult = await this.runInstallCommand(commandLine);
+      const runResult = await runInstallCommand(commandLine);
       if (!runResult.success) return err(runResult.error);
     } else {
       return err({ type: 'no-update-strategy', id });
@@ -791,7 +805,11 @@ export class HostDependencyManager {
    * A `status: 'missing'` result after the command is the success condition.
    * Returns a 'still-present' error when the binary is still found after the command completes.
    */
-  async uninstall(id: DependencyId, method?: InstallMethod): Promise<DependencyUninstallResult> {
+  async uninstall(
+    id: DependencyId,
+    method?: InstallMethod,
+    options: HostDependencyRunOptions = {}
+  ): Promise<DependencyUninstallResult> {
     const descriptor = this._getDependencyDescriptor(id);
     if (!descriptor) {
       return err({ type: 'unknown-dependency', id });
@@ -829,8 +847,10 @@ export class HostDependencyManager {
 
     const plan = this.resolveUpdatePlan(effectiveMethod, descriptor, 'uninstall');
 
+    const runInstallCommand = options.run ?? this.runInstallCommand;
+
     if (plan.kind === 'package-manager') {
-      const runResult = await this.runInstallCommand(plan.command);
+      const runResult = await runInstallCommand(plan.command);
       if (!runResult.success) return err(runResult.error);
     } else if (plan.kind === 'cli') {
       const resolvedPath = await this.resolveFirstPath(descriptor);
@@ -845,7 +865,7 @@ export class HostDependencyManager {
       }
 
       const commandLine = [command, ...args].join(' ');
-      const runResult = await this.runInstallCommand(commandLine);
+      const runResult = await runInstallCommand(commandLine);
       if (!runResult.success) return err(runResult.error);
     } else {
       return err({ type: 'no-uninstall-command', id });

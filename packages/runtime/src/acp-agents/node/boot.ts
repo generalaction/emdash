@@ -2,14 +2,9 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import { acpApiContract, acpHostContract } from '@emdash/core/acp';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
-import {
-  createSpawnContextResolver,
-  type SpawnContextResolver,
-} from '@emdash/core/agents/spawn-context';
-import { buildDescriptorFromProvider, HostDependencyManager } from '@emdash/core/deps/runtime';
+import { createLocalPluginFs } from '@emdash/core/agents/plugins/helpers';
 import { NodeExecutionContext } from '@emdash/core/exec';
 import { ok } from '@emdash/shared';
-import type { Logger } from '@emdash/shared/logger';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import {
@@ -47,19 +42,22 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
   const hostClient = client(acpHostContract, connect(hostTransport));
   const childHost = new ChildAcpProcessHost();
   const logger = initProcessLogging({ name: 'acp-agents-runtime', env });
-  const spawnContext = createAcpSpawnContextResolver({
-    pluginRegistry: options.pluginRegistry,
-    env,
-    logger,
-  });
   const attachmentStore = new LocalAttachmentStore(attachmentsDir);
 
   void serveProcessRuntime(
     (scope) => {
+      const homeDir = os.homedir();
+      const agentHost = new AgentPluginHost({
+        scope,
+        registry: options.pluginRegistry,
+        exec: new NodeExecutionContext({ env }),
+        fs: createLocalPluginFs(homeDir),
+        env,
+        homeDir,
+      });
       const acp = new AcpRuntime({
-        pluginHost: new AgentPluginHost(options.pluginRegistry),
+        agentHost,
         host: childHost,
-        spawnContext,
         persistSessionId: async (conversationId, sessionId) => {
           await hostClient.persistSessionId({ conversationId, sessionId });
           return ok(undefined);
@@ -99,38 +97,6 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
 
 function runtimeWireValidationPolicy(env: NodeJS.ProcessEnv): ValidatePolicy {
   return env.NODE_ENV === 'production' ? 'inputs' : 'full';
-}
-
-function createAcpSpawnContextResolver(options: {
-  pluginRegistry: PluginRegistry<CLIAgentPluginProvider>;
-  env: NodeJS.ProcessEnv;
-  logger: Logger;
-}): SpawnContextResolver {
-  const homeDir = os.homedir();
-  const descriptors = options.pluginRegistry.getAll().map(buildDescriptorFromProvider);
-  const manager = new HostDependencyManager(new NodeExecutionContext({ env: options.env }), {
-    dependencies: descriptors,
-    getDependencyDescriptor: (id) => descriptors.find((descriptor) => descriptor.id === id),
-    logger: options.logger,
-  });
-
-  return createSpawnContextResolver({
-    resolveCli: async (providerId: string) => {
-      if (!options.pluginRegistry.get(providerId)) {
-        throw new Error(`Provider '${providerId}' was not found`);
-      }
-      let state = manager.get(providerId);
-      if (!state?.path) state = await manager.probe(providerId);
-      if (state.path) return state.path;
-
-      const descriptor = descriptors.find((candidate) => candidate.id === providerId);
-      return descriptor?.commands[0] ?? providerId;
-    },
-    hasProvider: (providerId: string) => options.pluginRegistry.get(providerId) !== undefined,
-    env: options.env,
-    homeDir,
-    includeShellVar: true,
-  });
 }
 
 function createNodeRuntimePort(): ProcessRuntimePort {

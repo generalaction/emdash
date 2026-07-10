@@ -5,8 +5,8 @@ import { NodeExecutionContext } from '@emdash/core/exec';
 import { NodePtySpawner } from '@emdash/core/pty/node';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
+import { createScope } from '@emdash/wire/util';
 import { AgentConfigRuntime } from '../runtime/runtime';
-import type { AgentConfigRuntimeDeps } from '../runtime/types';
 import { createPtyInstallCommandRunner } from './install-command-runner';
 
 export { bootAgentConfigRuntimeProcess, type BootAgentConfigRuntimeProcessOptions } from './boot';
@@ -17,7 +17,6 @@ export type CreateNodeAgentConfigRuntimeOptions = {
   env?: NodeJS.ProcessEnv;
   homeDir?: string;
   logger: Logger;
-  spawnContext?: AgentConfigRuntimeDeps['spawnContext'];
 };
 
 export function createNodeAgentConfigRuntime(
@@ -25,16 +24,20 @@ export function createNodeAgentConfigRuntime(
 ): AgentConfigRuntime {
   const env = options.env ?? process.env;
   const homeDir = options.homeDir ?? os.homedir();
+  const scope = createScope({ label: 'agent-config-runtime', logger: options.logger });
   const spawner = new NodePtySpawner();
-  return new AgentConfigRuntime({
-    pluginHost: new AgentPluginHost(options.pluginRegistry),
-    ptySpawner: spawner,
+  const agentHost = new AgentPluginHost({
+    scope,
+    registry: options.pluginRegistry,
     exec: new NodeExecutionContext({ env }),
-    pluginFs: createLocalPluginFs(homeDir),
-    homeDir,
+    fs: createLocalPluginFs(homeDir),
     env,
+    homeDir,
+  });
+  return new AgentConfigRuntime({
+    agentHost,
+    ptySpawner: spawner,
     logger: options.logger,
-    spawnContext: options.spawnContext,
     installCommandRunner: createPtyInstallCommandRunner({
       spawner,
       cwd: homeDir,
