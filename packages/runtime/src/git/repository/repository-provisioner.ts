@@ -13,8 +13,8 @@ import {
 } from '@emdash/core/git';
 import { realpathOrResolve } from '@emdash/core/watch';
 import { err, ok, type Result } from '@emdash/shared';
+import type { GitOperationContext } from '../exec/operation-context';
 import { execGitWithProgress } from '../exec/transfer-progress';
-import type { GitOperationContext } from '../operation-context';
 
 /** Executes Git operations that happen before a canonical repository mount exists. */
 export class GitRepositoryProvisioner {

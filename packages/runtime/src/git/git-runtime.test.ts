@@ -82,11 +82,11 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      await expect(runtime.provisioner.inspectPath(directory)).resolves.toEqual({
+      await expect(runtime.inspectPath(directory)).resolves.toEqual({
         kind: 'not-repository',
         path: directory,
       });
-      await expect(runtime.provisioner.inspectPath(repo)).resolves.toMatchObject({
+      await expect(runtime.inspectPath(repo)).resolves.toMatchObject({
         kind: 'repository',
         rootPath: await realpath(repo),
         baseRef: 'main',
@@ -102,7 +102,7 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime({ executable });
 
     try {
-      await expect(runtime.provisioner.inspectPath(repo)).resolves.toMatchObject({
+      await expect(runtime.inspectPath(repo)).resolves.toMatchObject({
         kind: 'repository',
         rootPath: await realpath(repo),
       });
@@ -129,7 +129,7 @@ describe('GitRuntime', () => {
     });
 
     try {
-      await expect(runtime.provisioner.inspectPath(targetPath)).resolves.toEqual({
+      await expect(runtime.inspectPath(targetPath)).resolves.toEqual({
         kind: 'inspect-failed',
         path: targetPath,
         message: `fatal: cannot change to '${targetPath}': Permission denied`,
@@ -145,7 +145,7 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      await expect(runtime.provisioner.inspectPath(directory)).resolves.toEqual({
+      await expect(runtime.inspectPath(directory)).resolves.toEqual({
         kind: 'not-repository',
         path: directory,
       });
@@ -159,12 +159,12 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      await expect(runtime.provisioner.ensureRepository(directory)).resolves.toEqual({
+      await expect(runtime.ensureRepository(directory)).resolves.toEqual({
         success: false,
         error: { type: 'not-repository', path: directory },
       });
 
-      const ensured = await runtime.provisioner.ensureRepository(directory, {
+      const ensured = await runtime.ensureRepository(directory, {
         initIfMissing: true,
       });
 
@@ -175,7 +175,7 @@ describe('GitRuntime', () => {
           rootPath: await realpath(directory),
         },
       });
-      await expect(runtime.provisioner.inspectPath(directory)).resolves.toMatchObject({
+      await expect(runtime.inspectPath(directory)).resolves.toMatchObject({
         kind: 'repository',
         rootPath: await realpath(directory),
       });
@@ -195,7 +195,7 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      const result = await runtime.provisioner.cloneRepository(source, target);
+      const result = await runtime.cloneRepository(source, target);
 
       expect(result).toMatchObject({
         success: true,

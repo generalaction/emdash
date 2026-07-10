@@ -5,7 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { createBoundExec } from '@emdash/core/exec';
 import { describe, expect, it } from 'vitest';
-import type { RepositoryIdentity } from '../identity/types';
+import type { RepositoryIdentity } from '../allocation/identity';
 import { GitRepository } from './git-repository';
 
 const execFileAsync = promisify(execFile);
@@ -36,7 +36,7 @@ async function makeRepository() {
     gitCommonDir,
     objectStoreDir,
   } as RepositoryIdentity;
-  const repository = await GitRepository.create({
+  const repository = new GitRepository({
     identity,
     exec: createBoundExec({ file: 'git', cwd: repo }),
   });

@@ -42,13 +42,13 @@ import {
   type SyncError,
 } from '@emdash/core/git';
 import { err, ok, type Result } from '@emdash/shared';
+import type { CheckoutIdentity } from '../allocation/identity';
+import type { GitOperationContext } from '../exec/operation-context';
 import {
   execGitWithProgress,
   syncStepProgress,
   throwIfGitOpAborted,
 } from '../exec/transfer-progress';
-import type { CheckoutIdentity } from '../identity/types';
-import type { GitOperationContext } from '../operation-context';
 import { blame as readBlame } from './ops/blame';
 import {
   extractHunkPatch,
@@ -65,18 +65,23 @@ import {
   getLog as readLog,
 } from './ops/log';
 import { computeStatusState } from './ops/status';
-import type { GitCheckoutOptions, GitObjectReader } from './types';
+
+export type GitObjectReader = {
+  readBlobAtRef(ref: string, filePath: string): Promise<string | null>;
+};
+
+type GitCheckoutOptions = {
+  identity: CheckoutIdentity;
+  objectReader: GitObjectReader;
+  exec: BoundExec;
+};
 
 export class GitCheckout {
   readonly identity: CheckoutIdentity;
   private readonly objectReader: GitObjectReader;
   private readonly exec: BoundExec;
 
-  static async create(options: GitCheckoutOptions): Promise<GitCheckout> {
-    return new GitCheckout(options);
-  }
-
-  private constructor(options: GitCheckoutOptions) {
+  constructor(options: GitCheckoutOptions) {
     this.identity = options.identity;
     this.objectReader = options.objectReader;
     this.exec = options.exec;
@@ -84,11 +89,6 @@ export class GitCheckout {
 
   get checkoutRoot(): string {
     return this.identity.checkoutRoot;
-  }
-
-  /** @deprecated Use checkoutRoot. */
-  get checkoutPath(): string {
-    return this.checkoutRoot;
   }
 
   get gitDir(): string {
@@ -104,8 +104,6 @@ export class GitCheckout {
       (): CheckoutHeadState => ({ kind: 'unborn', name: 'unknown' })
     );
   }
-
-  async dispose(): Promise<void> {}
 
   // -- Staging ----------------------------------------------------------------
 

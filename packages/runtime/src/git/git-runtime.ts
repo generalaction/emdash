@@ -1,11 +1,20 @@
 import type { BoundExec } from '@emdash/core/exec';
-import type { CheckoutSelector, RepositorySelector } from '@emdash/core/git';
+import type {
+  CheckoutSelector,
+  CloneRepositoryError,
+  EnsureRepositoryError,
+  EnsureRepositoryOptions,
+  GitPathInspection,
+  GitRepositoryInfo,
+  RepositorySelector,
+} from '@emdash/core/git';
 import { KeyedMutex } from '@emdash/core/lib';
 import { WatchService, type IWatchService } from '@emdash/core/watch';
-import type { PendingLease } from '@emdash/shared';
-import { createGitExec } from './exec/git-env';
-import { GitAllocationGraph } from './live/allocation-graph';
-import type { CheckoutHandle, RepositoryHandle } from './live/allocation-graph';
+import type { PendingLease, Result } from '@emdash/shared';
+import { GitAllocationGraph } from './allocation/allocation-graph';
+import type { CheckoutHandle, RepositoryHandle } from './allocation/handles';
+import { createGitExec } from './exec/git-exec';
+import type { GitOperationContext } from './exec/operation-context';
 import { GitRepositoryProvisioner } from './repository/repository-provisioner';
 
 export type GitRuntimeOptions = Readonly<{
@@ -21,9 +30,8 @@ export type GitRuntimeOptions = Readonly<{
 
 /** Host-scoped composition root for canonical Git mounts and selector-bound leases. */
 export class GitRuntime {
-  readonly provisioner: GitRepositoryProvisioner;
-  readonly allocations: GitAllocationGraph;
-
+  private readonly provisioner: GitRepositoryProvisioner;
+  private readonly allocations: GitAllocationGraph;
   private readonly watcher: IWatchService;
   private readonly ownsWatcher: boolean;
   private disposed = false;
@@ -45,6 +53,25 @@ export class GitRuntime {
       maxFileDiffStates: options.maxFileDiffStates,
       onError,
     });
+  }
+
+  inspectPath(path: string): Promise<GitPathInspection> {
+    return this.provisioner.inspectPath(path);
+  }
+
+  ensureRepository(
+    path: string,
+    options?: EnsureRepositoryOptions
+  ): Promise<Result<GitRepositoryInfo, EnsureRepositoryError>> {
+    return this.provisioner.ensureRepository(path, options);
+  }
+
+  cloneRepository(
+    repositoryUrl: string,
+    targetPath: string,
+    context?: GitOperationContext
+  ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>> {
+    return this.provisioner.cloneRepository(repositoryUrl, targetPath, context);
   }
 
   acquireRepository(selector: RepositorySelector): PendingLease<RepositoryHandle> {

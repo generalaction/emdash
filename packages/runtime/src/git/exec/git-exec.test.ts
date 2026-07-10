@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gitEnv } from './git-env';
+import { gitEnv } from './git-exec';
 
 describe('gitEnv', () => {
   it('pins git output locale for stable parsing and error classification', () => {

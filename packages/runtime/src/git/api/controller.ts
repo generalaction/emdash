@@ -1,13 +1,12 @@
-import { gitContract, type GitContract } from '@emdash/core/git';
+import { gitContract } from '@emdash/core/git';
 import {
   createController,
   withValidation,
-  type ContractImpl,
   type Controller,
   type ValidatePolicy,
 } from '@emdash/wire';
 import type { GitRuntime } from '../git-runtime';
-import { GitWireAdapter } from '../wire/contract-adapter';
+import { createGitContractAdapter } from './contract-adapter';
 
 export type GitControllerOptions = {
   validate?: ValidatePolicy;
@@ -17,7 +16,7 @@ export function createGitController(
   runtime: GitRuntime,
   options: GitControllerOptions = {}
 ): Controller {
-  const adapter = new GitWireAdapter(runtime);
+  const adapter = createGitContractAdapter(runtime);
   const controller = withValidation(
     gitContract,
     createController(gitContract, adapter.implementation),
@@ -32,11 +31,4 @@ export function createGitController(
       void adapter.dispose();
     },
   };
-}
-
-export function createGitContractImpl(
-  runtime: GitRuntime,
-  contract: GitContract = gitContract
-): ContractImpl<GitContract> {
-  return new GitWireAdapter(runtime, contract).implementation;
 }

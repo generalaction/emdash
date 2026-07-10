@@ -1,6 +1,6 @@
 import { gitRepositoryContract, type gitCheckoutContract } from '@emdash/core/git';
-import type { CheckoutId, RepositoryId } from '../identity/types';
-import type { GitEffect, GitEffectPlan } from './effects';
+import type { LiveCursor } from '@emdash/wire';
+import type { CheckoutId, RepositoryId } from './identity';
 
 type RepositoryMutationOperation = Extract<
   keyof typeof gitRepositoryContract.model.mutations,
@@ -22,6 +22,26 @@ export type GitEffectContext = Readonly<{
   checkoutId?: CheckoutId;
   activeCheckoutIds?: readonly CheckoutId[];
   paths?: 'all' | readonly string[];
+}>;
+
+export type GitEffect =
+  | { kind: 'repository-refs'; repositoryId: RepositoryId }
+  | { kind: 'repository-remotes'; repositoryId: RepositoryId }
+  | { kind: 'repository-stashes'; repositoryId: RepositoryId }
+  | { kind: 'repository-worktrees'; repositoryId: RepositoryId }
+  | { kind: 'checkout-head'; checkoutId: CheckoutId }
+  | { kind: 'checkout-status'; checkoutId: CheckoutId }
+  | { kind: 'file-diff'; checkoutId: CheckoutId; paths: 'all' | readonly string[] };
+
+export type GitEffectPlan = Readonly<{
+  settle: readonly GitEffect[];
+  eager: readonly GitEffect[];
+  background: readonly GitEffect[];
+}>;
+
+export type GitSettledState = Readonly<{
+  name: 'refs' | 'remotes' | 'stashes' | 'worktrees' | 'status' | 'head';
+  cursor: LiveCursor;
 }>;
 
 export function effectPlanFor(

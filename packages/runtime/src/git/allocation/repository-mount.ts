@@ -9,13 +9,19 @@ import type { KeyedMutex } from '@emdash/core/lib';
 import type { IWatchService, WatchHandle } from '@emdash/core/watch';
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { ComputedLiveState, type LiveSource } from '@emdash/wire';
-import type { CheckoutId, RepositoryIdentity } from '../identity/types';
 import type { GitRepository } from '../repository/git-repository';
-import { classifyGitWatchEvents, type WorktreeWatchEffects } from '../watch/classifier';
 import type { CheckoutMount } from './checkout-mount';
-import { effectPlanFor, type CheckoutOperation, type RepositoryOperation } from './effect-policy';
-import type { GitEffect, GitEffectPlan, GitSettledState } from './effects';
-import { RepositoryFamilyLane } from './family-lane';
+import {
+  effectPlanFor,
+  type CheckoutOperation,
+  type GitEffect,
+  type GitEffectPlan,
+  type GitSettledState,
+  type RepositoryOperation,
+} from './effect-plan';
+import type { CheckoutId, RepositoryIdentity } from './identity';
+import { RepositoryFamilyLane } from './repository-family-lane';
+import { classifyGitWatchEvents, type WorktreeWatchEffects } from './watch-classifier';
 
 const WATCH_DEBOUNCE_MS = 100;
 const REVALIDATE_INTERVAL_MS = 5 * 60_000;

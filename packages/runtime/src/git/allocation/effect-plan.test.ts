@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { CheckoutId, RepositoryId } from '../identity/types';
-import { effectPlanFor } from './effect-policy';
+import { effectPlanFor } from './effect-plan';
+import type { CheckoutId, RepositoryId } from './identity';
 
 const repositoryId = '/repo/.git' as RepositoryId;
 const checkoutId = '["/repo","/repo/.git"]' as CheckoutId;

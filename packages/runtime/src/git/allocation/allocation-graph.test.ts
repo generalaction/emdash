@@ -2,8 +2,8 @@ import type { BoundExec } from '@emdash/core/exec';
 import type { IWatchService } from '@emdash/core/watch';
 import { ok } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CheckoutIdentity, GitIdentityResolver } from '../identity/types';
 import { GitAllocationGraph } from './allocation-graph';
+import type { CheckoutIdentity, GitIdentityResolver } from './identity';
 
 const identity = {
   repositoryId: '/repo/.git',
@@ -17,7 +17,6 @@ const identity = {
 
 const resolver: GitIdentityResolver = {
   resolve: async () => ok(identity),
-  invalidate: () => {},
   dispose: () => {},
 };
 

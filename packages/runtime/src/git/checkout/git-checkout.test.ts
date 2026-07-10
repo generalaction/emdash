@@ -4,11 +4,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { createBoundExec } from '@emdash/core/exec';
-import type { CheckoutStatusModel } from '@emdash/core/git';
+import type { CheckoutStatusState } from '@emdash/core/git';
 import { describe, expect, it } from 'vitest';
-import type { CheckoutIdentity } from '../identity/types';
-import { GitCheckout } from './git-checkout';
-import type { GitObjectReader } from './types';
+import type { CheckoutIdentity } from '../allocation/identity';
+import { GitCheckout, type GitObjectReader } from './git-checkout';
 
 const execFileAsync = promisify(execFile);
 
@@ -51,19 +50,18 @@ async function makeCheckout() {
     gitCommonDir: gitDir,
     objectStoreDir: path.join(gitDir, 'objects'),
   } as CheckoutIdentity;
-  const checkout = await GitCheckout.create({
+  const checkout = new GitCheckout({
     identity,
     objectReader: new TestRepository(repo),
     exec: createBoundExec({ file: 'git', cwd: repo }),
   });
   const cleanup = async () => {
-    await checkout.dispose();
     await rm(repo, { recursive: true, force: true });
   };
   return { repo, checkout, cleanup };
 }
 
-function okStatus(model: CheckoutStatusModel): Extract<CheckoutStatusModel, { kind: 'ok' }> {
+function okStatus(model: CheckoutStatusState): Extract<CheckoutStatusState, { kind: 'ok' }> {
   expect(model.kind).toBe('ok');
   if (model.kind !== 'ok') throw new Error(`expected ok status, got ${model.kind}`);
   return model;

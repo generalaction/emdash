@@ -25,16 +25,20 @@ import {
 } from '@emdash/core/git';
 import { realpathOrResolve } from '@emdash/core/watch';
 import { err, ok, type Result } from '@emdash/shared';
+import type { RepositoryIdentity } from '../allocation/identity';
+import type { GitOperationContext } from '../exec/operation-context';
 import { bindRepositoryExec } from '../exec/repository-exec';
 import { execGitWithProgress, throwIfGitOpAborted } from '../exec/transfer-progress';
-import type { RepositoryIdentity } from '../identity/types';
-import type { GitOperationContext } from '../operation-context';
 import { CatFileBatch } from './ops/cat-file-batch';
 import { computeRefsState } from './ops/refs';
 import { computeRemotesState, remoteNameForRepositoryUrl } from './ops/remotes';
 import { computeStashesState } from './ops/stashes';
 import { parseWorktreeList } from './ops/worktrees';
-import type { GitRepositoryOptions } from './types';
+
+type GitRepositoryOptions = {
+  identity: RepositoryIdentity;
+  exec: BoundExec;
+};
 
 /**
  * A repository (shared `.git` directory) capability. It knows Git commands and
@@ -45,11 +49,7 @@ export class GitRepository {
   private readonly exec: BoundExec;
   private catFile: CatFileBatch | null = null;
 
-  static async create(options: GitRepositoryOptions): Promise<GitRepository> {
-    return new GitRepository(options);
-  }
-
-  private constructor(options: GitRepositoryOptions) {
+  constructor(options: GitRepositoryOptions) {
     this.identity = options.identity;
     this.exec = bindRepositoryExec(options.exec, options.identity.gitCommonDir);
   }
@@ -179,14 +179,14 @@ export class GitRepository {
   }
 
   async renameBranch(oldName: string, newName: string): Promise<Result<void, GitCommandError>> {
-    return this.refsMutation(() => this.exec.exec(['branch', '-m', '--', oldName, newName]));
+    return this.commandMutation(() => this.exec.exec(['branch', '-m', '--', oldName, newName]));
   }
 
   async setUpstream(
     branch: string,
     upstream: string | null
   ): Promise<Result<void, GitCommandError>> {
-    return this.refsMutation(() =>
+    return this.commandMutation(() =>
       this.exec.exec(
         upstream === null
           ? ['branch', '--unset-upstream', '--', branch]
@@ -196,7 +196,7 @@ export class GitRepository {
   }
 
   async createTag(options: ExplicitTagOptions): Promise<Result<void, GitCommandError>> {
-    return this.refsMutation(() =>
+    return this.commandMutation(() =>
       this.exec.exec([
         'tag',
         ...(options.force ? ['--force'] : []),
@@ -208,17 +208,17 @@ export class GitRepository {
   }
 
   async deleteTag(name: string): Promise<Result<void, GitCommandError>> {
-    return this.refsMutation(() => this.exec.exec(['tag', '-d', name]));
+    return this.commandMutation(() => this.exec.exec(['tag', '-d', name]));
   }
 
   // -- Remotes and network ----------------------------------------------------------
 
   async addRemote(name: string, url: string): Promise<Result<void, GitCommandError>> {
-    return this.remotesMutation(() => this.exec.exec(['remote', 'add', name, url]));
+    return this.commandMutation(() => this.exec.exec(['remote', 'add', name, url]));
   }
 
   async removeRemote(name: string): Promise<Result<void, GitCommandError>> {
-    return this.remotesMutation(() => this.exec.exec(['remote', 'remove', name]));
+    return this.commandMutation(() => this.exec.exec(['remote', 'remove', name]));
   }
 
   async fetch(
@@ -385,26 +385,6 @@ export class GitRepository {
   }
 
   // -- Internals ----------------------------------------------------------------------
-
-  private async refsMutation(run: () => Promise<unknown>): Promise<Result<void, GitCommandError>> {
-    try {
-      await run();
-      return ok(undefined);
-    } catch (error) {
-      return err(toGitCommandError(error));
-    }
-  }
-
-  private async remotesMutation(
-    run: () => Promise<unknown>
-  ): Promise<Result<void, GitCommandError>> {
-    try {
-      await run();
-      return ok(undefined);
-    } catch (error) {
-      return err(toGitCommandError(error));
-    }
-  }
 
   private async commandMutation(
     run: () => Promise<unknown>

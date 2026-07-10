@@ -10,7 +10,7 @@ import type {
   GitResolutionError,
   ObjectStoreId,
   RepositoryId,
-} from './types';
+} from './identity';
 
 export type CanonicalGitIdentityResolverOptions = Readonly<{
   exec: BoundExec;
@@ -50,12 +50,6 @@ export class CanonicalGitIdentityResolver implements GitIdentityResolver {
       if (!result.success && this.entries.get(alias) === entry) this.deleteEntry(alias, entry);
     });
     return entry.promise;
-  }
-
-  invalidate(selector: GitSelector): void {
-    const alias = selectorPath(selector);
-    const entry = this.entries.get(alias);
-    if (entry) this.deleteEntry(alias, entry);
   }
 
   dispose(): void {

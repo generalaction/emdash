@@ -1,6 +1,6 @@
 import type { BoundExec, ExecResult } from '@emdash/core/exec';
 import type { GitSyncProgress, GitTransferProgress } from '@emdash/core/git';
-import type { GitOperationContext } from '../operation-context';
+import type { GitOperationContext } from './operation-context';
 
 const DEFAULT_THROTTLE_MS = 250;
 const PROGRESS_PHASES = new Set([

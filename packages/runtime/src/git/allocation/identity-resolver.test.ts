@@ -5,7 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { createBoundExec } from '@emdash/core/exec';
 import { describe, expect, it } from 'vitest';
-import { CanonicalGitIdentityResolver } from './resolver';
+import { CanonicalGitIdentityResolver } from './identity-resolver';
 
 const execFileAsync = promisify(execFile);
 

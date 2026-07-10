@@ -18,7 +18,8 @@ import {
 } from '@emdash/wire';
 import { describe, expect, it } from 'vitest';
 import { GitRuntime } from '../git-runtime';
-import { createGitContractImpl, createGitController } from './controller';
+import { createGitContractAdapter } from './contract-adapter';
+import { createGitController } from './controller';
 
 const execFileAsync = promisify(execFile);
 
@@ -85,8 +86,9 @@ describe('createGitController', () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const workspaceContract = defineContract({ git: gitContract });
+    const adapter = createGitContractAdapter(runtime, workspaceContract.git);
     const controller = createController(workspaceContract, {
-      git: createGitContractImpl(runtime, workspaceContract.git),
+      git: adapter.implementation,
     });
     const pair = memoryTransportPair();
     const stop = serve(pair.right, controller);
@@ -115,6 +117,7 @@ describe('createGitController', () => {
     } finally {
       stop();
       controller.dispose?.();
+      await adapter.dispose();
       await runtime.dispose();
       await rm(repo, { recursive: true, force: true });
     }

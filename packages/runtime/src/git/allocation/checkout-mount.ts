@@ -9,12 +9,12 @@ import type { IWatchService, WatchHandle } from '@emdash/core/watch';
 import type { PendingLease, Result, Unsubscribe } from '@emdash/shared';
 import { ComputedLiveState, type LiveCursor, type LiveSource } from '@emdash/wire';
 import type { GitCheckout } from '../checkout/git-checkout';
-import type { CheckoutIdentity } from '../identity/types';
-import type { WorktreeWatchEffects } from '../watch/classifier';
-import type { CheckoutOperation } from './effect-policy';
+import type { CheckoutOperation } from './effect-plan';
 import { FileDiffRegistry } from './file-diff-registry';
+import type { CheckoutIdentity } from './identity';
 import type { GitExecution } from './repository-mount';
 import type { RepositoryMount } from './repository-mount';
+import type { WorktreeWatchEffects } from './watch-classifier';
 
 const WATCH_DEBOUNCE_MS = 100;
 const REVALIDATE_INTERVAL_MS = 5 * 60_000;
@@ -150,7 +150,6 @@ export class CheckoutMount {
     this.status.dispose();
     this.head.dispose();
     this.fileDiffs.dispose();
-    await this.checkout.dispose();
   }
 
   private onWorktreeEvents(events: { path: string }[]): void {

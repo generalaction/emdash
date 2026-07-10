@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { createGitExec } from '../../exec/git-env';
+import { createGitExec } from '../../exec/git-exec';
 import { CatFileBatch } from './cat-file-batch';
 
 const execFileAsync = promisify(execFile);

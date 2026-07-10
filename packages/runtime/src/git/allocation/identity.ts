@@ -29,7 +29,6 @@ export type GitResolutionError = Readonly<{
 
 export type GitIdentityResolver = {
   resolve(selector: GitSelector): Promise<Result<CheckoutIdentity, GitResolutionError>>;
-  invalidate(selector: GitSelector): void;
   dispose(): void;
 };
 

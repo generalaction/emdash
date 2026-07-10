@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { classifyGitWatchEvents } from './classifier';
+import { classifyGitWatchEvents } from './watch-classifier';
 
 describe('classifyGitWatchEvents', () => {
   it('treats config changes as refs and remotes staleness', () => {
