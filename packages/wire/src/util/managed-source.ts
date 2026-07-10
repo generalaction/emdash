@@ -172,6 +172,7 @@ export function createManagedSource<K, T, C = void>(
       entry.graceTimer = undefined;
       void disposeEntry(entry);
     }, graceMs);
+    entry.graceTimer.unref?.();
     return Promise.resolve();
   }
 

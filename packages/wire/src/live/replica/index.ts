@@ -21,6 +21,7 @@ export {
   type ReplicaJobState,
   type ReplicaJobOptions,
 } from './job';
+export { isLeasedLiveModelProvider, type LeasedLiveModelProvider } from './leased-provider';
 export {
   createLiveLogReplica,
   isLiveLogReplica,

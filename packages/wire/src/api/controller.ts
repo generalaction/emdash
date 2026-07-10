@@ -1,13 +1,15 @@
-import type { Result, Unsubscribe } from '@emdash/shared';
+import type { PendingLease, Result, Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import { LiveJob, type LiveJobContext } from '../live/job';
 import { isLiveModelHost, type LiveModelHost, createMutationId } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
 import {
   isLiveJobReplica,
+  isLeasedLiveModelProvider,
   isLiveLogReplica,
   isLiveModelProvider,
   type LiveJobReplica,
+  type LeasedLiveModelProvider,
   type LiveLogReplica,
   type LiveModelProvider,
 } from '../live/replica';
@@ -80,6 +82,7 @@ export function isDownloadFileOpenResult(
 export type Controller = {
   call(path: string, input: unknown, meta?: CallMeta): Promise<unknown>;
   resolveLive(topic: string): LiveSource | null;
+  acquireLive(topic: string): PendingLease<LiveSource> | null;
   dispose?(): void;
 };
 
@@ -113,7 +116,8 @@ type LiveLogEntryImpl<Def extends EndpointDef> =
 type GroupImpl<Def extends LiveModelDef> =
   | LiveModelHost<Def>
   | LiveModelClientHandle<Def>
-  | LiveModelProvider<Def>;
+  | LiveModelProvider<Def>
+  | LeasedLiveModelProvider<Def>;
 
 type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
   ? ProcedureImpl<Def>
@@ -146,7 +150,8 @@ export type ContractImpl<Defs extends ContractDefinitions> = {
 };
 
 type LiveEntry = {
-  resolve(key: unknown): LiveSource | null | undefined;
+  resolve?(key: unknown): LiveSource | null | undefined;
+  acquire?(key: unknown): PendingLease<LiveSource>;
 };
 
 const jobKeySchema = z.object({ jobId: z.string() });
@@ -299,9 +304,12 @@ export function createController<Defs extends ContractDefinitions>(
         case 'liveModel': {
           const provider = createGroupProvider(def, entryImpl, fullPath);
           for (const [stateName, state] of Object.entries(def.states)) {
-            liveEntries.set(state.id, {
-              resolve: (key) => provider.resolveState(key as never, stateName),
-            });
+            liveEntries.set(
+              state.id,
+              provider.kind === 'leasedLiveModelProvider'
+                ? { acquire: (key) => provider.acquireState(key as never, stateName) }
+                : { resolve: (key) => provider.resolveState(key as never, stateName) }
+            );
           }
           for (const mutationName of Object.keys(def.mutations)) {
             procedureEntries.set(`${fullPath}.${mutationName}`, async (input) => {
@@ -319,7 +327,17 @@ export function createController<Defs extends ContractDefinitions>(
     def: LiveModelDef,
     entryImpl: unknown,
     fullPath: string
-  ): LiveModelProvider {
+  ): LiveModelProvider | LeasedLiveModelProvider {
+    if (isLeasedLiveModelProvider(entryImpl)) {
+      if (entryImpl.contract.id !== def.id) {
+        throw new WireError(
+          'CONTRACT_MISMATCH',
+          `Leased live model provider for '${fullPath}' was created for '${entryImpl.contract.id}'`
+        );
+      }
+      return entryImpl;
+    }
+
     if (isLiveModelProvider(entryImpl)) {
       if (entryImpl.contract.id !== def.id) {
         throw new WireError(
@@ -383,12 +401,27 @@ export function createController<Defs extends ContractDefinitions>(
     resolveLive(topic) {
       const { refId, rawKey } = splitTopic(topic);
       const entry = liveEntries.get(refId);
-      if (!entry) return null;
+      if (!entry?.resolve) return null;
       return entry.resolve(rawKey) ?? missingLiveSource(`Unknown live topic '${topic}'`);
+    },
+    acquireLive(topic) {
+      const { refId, rawKey } = splitTopic(topic);
+      const entry = liveEntries.get(refId);
+      if (!entry) return null;
+      if (entry.acquire) return entry.acquire(rawKey);
+      const source = entry.resolve?.(rawKey) ?? missingLiveSource(`Unknown live topic '${topic}'`);
+      return immediateLiveSourceLease(source);
     },
     dispose() {
       for (const server of jobServers) server.dispose();
     },
+  };
+}
+
+function immediateLiveSourceLease(source: LiveSource): PendingLease<LiveSource> {
+  return {
+    ready: async () => source,
+    release: async () => {},
   };
 }
 

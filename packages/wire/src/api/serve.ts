@@ -21,7 +21,7 @@ export function serve(
   controller: Controller,
   options: ServeOptions = {}
 ): Unsubscribe {
-  const attached = new Map<string, Unsubscribe>();
+  const attached = new Map<string, { unsubscribe: Unsubscribe; release: () => Promise<void> }>();
   const calls = new Map<string, AbortController>();
   const blobProducers = new Map<string, BlobProducer>();
   const blobConsumers = new Map<string, BlobConsumer>();
@@ -152,14 +152,20 @@ export function serve(
     replyRequest(id, async (signal) => {
       if (signal.aborted) throw new WireError('CANCELLED', 'Wire snapshot cancelled');
       try {
-        const snapshot = await requireLiveSource(controller, topic).snapshot();
-        instrumentation?.snapshot?.({
-          requestId: id,
-          topic,
-          durationMs: performanceNow() - start,
-          ok: true,
-        });
-        return snapshot;
+        const lease = requireLiveLease(controller, topic);
+        try {
+          const source = await lease.ready();
+          const snapshot = await source.snapshot();
+          instrumentation?.snapshot?.({
+            requestId: id,
+            topic,
+            durationMs: performanceNow() - start,
+            ok: true,
+          });
+          return snapshot;
+        } finally {
+          await lease.release();
+        }
       } catch (error) {
         instrumentation?.snapshot?.({
           requestId: id,
@@ -174,7 +180,10 @@ export function serve(
   }
 
   function detachAll(): void {
-    for (const detach of attached.values()) detach();
+    for (const attachment of attached.values()) {
+      attachment.unsubscribe();
+      void attachment.release();
+    }
     attached.clear();
   }
 
@@ -202,14 +211,27 @@ export function serve(
         replySnapshot(message.id, message.topic);
         break;
       case 'attach':
-        replyRequest(message.id, (signal) => {
+        replyRequest(message.id, async (signal) => {
           if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
           if (attached.has(message.topic)) return undefined;
-          const source = requireLiveSource(controller, message.topic);
-          attached.set(
-            message.topic,
-            source.subscribe((update) => post({ kind: 'update', topic: message.topic, update }))
-          );
+          const lease = requireLiveLease(controller, message.topic);
+          const attachment = { unsubscribe: (() => {}) as Unsubscribe, release: lease.release };
+          attached.set(message.topic, attachment);
+          try {
+            const source = await lease.ready();
+            if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
+            if (attached.get(message.topic) !== attachment) {
+              await lease.release();
+              return undefined;
+            }
+            attachment.unsubscribe = source.subscribe((update) =>
+              post({ kind: 'update', topic: message.topic, update })
+            );
+          } catch (error) {
+            if (attached.get(message.topic) === attachment) attached.delete(message.topic);
+            await lease.release();
+            throw error;
+          }
           instrumentation?.topicAttach?.({
             topic: message.topic,
             attachmentCount: attached.size,
@@ -218,7 +240,8 @@ export function serve(
         });
         break;
       case 'detach':
-        attached.get(message.topic)?.();
+        attached.get(message.topic)?.unsubscribe();
+        void attached.get(message.topic)?.release();
         attached.delete(message.topic);
         instrumentation?.topicDetach?.({
           topic: message.topic,
@@ -286,8 +309,8 @@ function createChannelId(): string {
   return `blob_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
-function requireLiveSource(controller: Controller, topic: string) {
-  const source = controller.resolveLive(topic);
-  if (!source) throw new WireError('UNKNOWN_TOPIC', `Unknown live topic '${topic}'`);
-  return source;
+function requireLiveLease(controller: Controller, topic: string) {
+  const lease = controller.acquireLive(topic);
+  if (!lease) throw new WireError('UNKNOWN_TOPIC', `Unknown live topic '${topic}'`);
+  return lease;
 }

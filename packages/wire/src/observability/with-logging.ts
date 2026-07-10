@@ -50,6 +50,9 @@ export function withLogging(
     resolveLive(topic) {
       return controller.resolveLive(topic);
     },
+    acquireLive(topic) {
+      return controller.acquireLive(topic);
+    },
     dispose() {
       logger.debug('wire api controller disposing');
       controller.dispose?.();

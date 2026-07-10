@@ -34,6 +34,7 @@ describe('withLogging', () => {
     const controller: Controller = {
       call: async (_path, input) => input,
       resolveLive: () => null,
+      acquireLive: () => null,
     };
     const logged = withLogging(controller, logger, { level: 'debug', payloads: true });
 

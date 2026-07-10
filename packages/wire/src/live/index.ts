@@ -3,10 +3,12 @@ export * from './mutations';
 export * from './replica';
 export {
   BatchedLiveState,
+  ComputedLiveState,
   LiveState,
   microtaskScheduler,
   timerScheduler,
   type BatchedLiveStateOptions,
+  type ComputedLiveStateOptions,
   type FlushScheduler,
   type LiveChangeMeta,
   type LiveStateProduceOptions,
