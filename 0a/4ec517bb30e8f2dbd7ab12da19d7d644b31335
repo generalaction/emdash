@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/mimocode/index.ts
+  s_462b215a9b3b89::t_8e06c350744cf7 39-67
+packages/plugins/src/agents/impl/mimocode/index.test.ts
+  s_462b215a9b3b89::t_8e06c350744cf7 12,15-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a4ec517bb30e8f2dbd7ab12da19d7d644b31335",
+  "prompts": {},
+  "sessions": {
+    "s_462b215a9b3b89": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n2kDF3pqjHnmQrE1H7I",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
