@@ -127,20 +127,19 @@ Socket mode mounts the ACP runtime as a child process. The parent daemon uses
 `childProcessHost()` from `@emdash/wire/process/node` and `spawnRuntime()` from
 `@emdash/wire/util/process-runtime` to fork `acp-runtime.mjs` in production or
 `src/acp/runtime-entry.ts` in development. The child calls the shared
-`bootAcpRuntimeProcess()` helper from `@emdash/runtime/acp/node`.
+`bootAcpRuntimeProcess()` helper from `@emdash/runtime/acp-agents/node`.
 
 Two wire contracts share the process IPC channel:
 
 - Parent to child: `acpApiContract`, exposed to desktop clients as
   `workspaceWireContract.acp`.
-- Child to parent: `acpHostContract`, used for `resolveSpawnContext`, logging, and
-  session-id notifications.
+- Child to parent: `acpHostContract`, used for session-id notifications.
 
-The daemon resolves provider binaries from the plugin registry's first
-`hostDependency.binaryNames` entry and searches the remote `PATH`. The environment
-passed to provider CLIs is intentionally allowlisted: terminal identity, home/user
-fields, shell/locale basics, proxy variables, and known provider API-key variables.
-The full daemon environment is not forwarded.
+The runtime resolves provider binaries from host dependency descriptors derived
+from the plugin registry. The environment passed to provider CLIs is intentionally
+allowlisted via the shared spawn-context resolver; the full daemon environment is
+not forwarded. Runtime logs are emitted as structured stderr lines and forwarded by
+the parent process.
 
 `startSession` already returns `{ sessionId }` through the ACP API. The workspace
 server logs `persistSessionId` callbacks but does not store them; the connected

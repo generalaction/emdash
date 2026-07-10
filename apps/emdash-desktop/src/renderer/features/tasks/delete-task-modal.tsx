@@ -1,5 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { TriangleAlert } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -11,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
-import type { TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
+import { useTaskSettings } from './hooks/useTaskSettings';
 
 export type DeleteTaskModalArgs = {
   projectId: string;
@@ -26,23 +27,26 @@ export type DeleteTaskModalResult = {
 type Props = BaseModalProps<DeleteTaskModalResult> & DeleteTaskModalArgs;
 
 export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props) {
-  const [preflight, setPreflight] = useState<TaskDeletePreflightItem[] | null>(null);
+  const { deleteBranchByDefault } = useTaskSettings();
   const [deleteWorktree, setDeleteWorktree] = useState(true);
-  const [deleteBranch, setDeleteBranch] = useState(false);
+  const [deleteBranchOverride, setDeleteBranchOverride] = useState<boolean>();
 
   const count = tasks.length;
   const isBulk = count > 1;
 
-  // Stable taskIds string — props don't change after modal opens.
   const taskIds = useMemo(() => tasks.map((t) => t.taskId), [tasks]);
 
-  useEffect(() => {
-    rpc.tasks.getDeletePreflight(projectId, taskIds).then(
-      (result) => setPreflight(result.tasks),
-      // On error, allow the modal to proceed without preflight info (no checkboxes shown).
-      () => setPreflight([])
-    );
-  }, [projectId, taskIds]);
+  const { data: preflight = null } = useQuery({
+    queryKey: ['deleteTaskPreflight', projectId, taskIds],
+    staleTime: Infinity,
+    queryFn: async () => {
+      try {
+        return (await rpc.tasks.getDeletePreflight(projectId, taskIds)).tasks;
+      } catch {
+        return [];
+      }
+    },
+  });
 
   const isLoading = preflight === null;
 
@@ -52,10 +56,12 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
 
   const showWorktreeCheckbox = !isLoading && worktreeTasks.length > 0;
   const showBranchCheckbox = !isLoading && branchTasks.length > 0;
+  const effectiveDeleteBranch = deleteBranchOverride ?? deleteBranchByDefault;
+  const shouldDeleteBranch = deleteWorktree && effectiveDeleteBranch;
 
   const handleWorktreeChange = (checked: boolean) => {
     setDeleteWorktree(checked);
-    if (!checked) setDeleteBranch(false);
+    if (!checked) setDeleteBranchOverride(undefined);
   };
 
   const title = isBulk ? `Delete ${count} tasks` : 'Delete task';
@@ -117,8 +123,8 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
                 aria-disabled={!deleteWorktree}
               >
                 <Checkbox
-                  checked={deleteBranch}
-                  onCheckedChange={(checked) => setDeleteBranch(Boolean(checked))}
+                  checked={shouldDeleteBranch}
+                  onCheckedChange={(checked) => setDeleteBranchOverride(Boolean(checked))}
                   disabled={!deleteWorktree}
                 />
                 {branchLabel}
@@ -134,7 +140,12 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
         <ConfirmButton
           variant="destructive"
           disabled={isLoading}
-          onClick={() => onSuccess({ deleteWorktree, deleteBranch })}
+          onClick={() =>
+            onSuccess({
+              deleteWorktree,
+              deleteBranch: showBranchCheckbox && shouldDeleteBranch,
+            })
+          }
         >
           {isLoading ? 'Loading...' : isBulk ? `Delete ${count} tasks` : 'Delete'}
         </ConfirmButton>

@@ -386,6 +386,10 @@ export function copyBytes(chunk: Uint8Array): Uint8Array {
   return new Uint8Array(chunk).slice();
 }
 
+export async function* blobSourceFromBytes(data: Uint8Array): AsyncIterable<Uint8Array> {
+  yield copyBytes(data);
+}
+
 function isWireFile(value: unknown): value is WireFile {
   return (
     typeof value === 'object' &&
@@ -491,17 +495,13 @@ function makeFileLike(meta: WireFileMeta, data: Uint8Array): FileLike {
       ...meta,
       size: meta.size ?? blob.size,
       arrayBuffer: blob.arrayBuffer?.bind(blob),
-      stream: blob.stream ? () => blob.stream?.() as BlobSource : () => bytesToStream(data),
+      stream: blob.stream ? () => blob.stream?.() as BlobSource : () => blobSourceFromBytes(data),
     };
   }
   return {
     ...meta,
     size: meta.size ?? data.byteLength,
     arrayBuffer: async () => data.slice().buffer as ArrayBuffer,
-    stream: () => bytesToStream(data),
+    stream: () => blobSourceFromBytes(data),
   };
-}
-
-async function* bytesToStream(data: Uint8Array): AsyncIterable<Uint8Array> {
-  yield copyBytes(data);
 }

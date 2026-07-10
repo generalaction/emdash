@@ -8,3 +8,4 @@ export * from './serve';
 export * from './sessions';
 export * from './topics';
 export * from './transports';
+export * from './with-validation';

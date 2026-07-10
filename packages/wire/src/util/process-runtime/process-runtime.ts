@@ -1,5 +1,5 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
-import type { Logger } from '@emdash/shared/logger';
+import type { LogFields, LogLevel, Logger } from '@emdash/shared/logger';
 import { client, type ContractClient } from '../../api/client';
 import { connect, type Connection } from '../../api/connect';
 import type { Controller } from '../../api/controller';
@@ -61,6 +61,10 @@ export type ServeProcessRuntimeOptions = ServeOptions & {
    * Test seam for observing shutdown without terminating the test worker.
    */
   exit?: (code: number) => void;
+};
+
+export type ForwardRuntimeLogsOptions = {
+  source?: string;
 };
 
 export async function spawnRuntime<Defs extends ContractDefinitions>(
@@ -178,6 +182,38 @@ export async function serveProcessRuntime(
   }
 }
 
+export function forwardRuntimeLogs(
+  process: ManagedProcess,
+  logger: Logger,
+  options: ForwardRuntimeLogsOptions = {}
+): Unsubscribe {
+  let stderrBuffer = '';
+  const unsubscribeStdio = process.onStdio((stream, chunk) => {
+    if (stream === 'stdout') {
+      logger.debug('runtime stdout', { source: options.source, chunk });
+      return;
+    }
+
+    stderrBuffer += chunk;
+    let newline = stderrBuffer.indexOf('\n');
+    while (newline !== -1) {
+      const line = stderrBuffer.slice(0, newline);
+      stderrBuffer = stderrBuffer.slice(newline + 1);
+      forwardRuntimeLogLine(logger, line, options);
+      newline = stderrBuffer.indexOf('\n');
+    }
+  });
+  const unsubscribeExit = process.onExit(() => {
+    if (stderrBuffer.trim()) forwardRuntimeLogLine(logger, stderrBuffer, options);
+    stderrBuffer = '';
+  });
+
+  return () => {
+    unsubscribeStdio();
+    unsubscribeExit();
+  };
+}
+
 function withDefaultGracefulShutdown(spec: ProcessSpec): ProcessSpec {
   if (spec.gracefulShutdown) return spec;
   return {
@@ -187,6 +223,48 @@ function withDefaultGracefulShutdown(spec: ProcessSpec): ProcessSpec {
       graceMs: DEFAULT_SHUTDOWN_GRACE_MS,
     },
   };
+}
+
+function forwardRuntimeLogLine(
+  logger: Logger,
+  line: string,
+  options: ForwardRuntimeLogsOptions
+): void {
+  if (!line.trim()) return;
+
+  const parsed = parseRuntimeLogLine(line);
+  if (!parsed) {
+    logger.warn('runtime stderr', { source: options.source, chunk: line });
+    return;
+  }
+
+  const { level, message, fields } = parsed;
+  logger[level](message, { source: options.source, ...fields });
+}
+
+function parseRuntimeLogLine(
+  line: string
+): { level: LogLevel; message: string; fields: LogFields } | null {
+  try {
+    const record = JSON.parse(line) as Record<string, unknown>;
+    const level = parseRuntimeLogLevel(record.level);
+    if (!level) return null;
+    const message = typeof record.msg === 'string' ? record.msg : 'runtime log';
+    const fields: LogFields = { ...record };
+    delete fields.level;
+    delete fields.msg;
+    return { level, message, fields };
+  } catch {
+    return null;
+  }
+}
+
+function parseRuntimeLogLevel(value: unknown): LogLevel | null {
+  if (value === 'debug' || value === 20) return 'debug';
+  if (value === 'info' || value === 30) return 'info';
+  if (value === 'warn' || value === 40) return 'warn';
+  if (value === 'error' || value === 50 || value === 60) return 'error';
+  return null;
 }
 
 function waitForReady(managed: ManagedProcess, timeoutMs: number): Promise<void> {

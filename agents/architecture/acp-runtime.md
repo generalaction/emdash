@@ -7,21 +7,21 @@ not mix cross-session routing with per-session state projection.
 ## Ownership
 
 - `AcpRuntime` is the composition root. It wires the ACP API contract to shared
-  ports, the connection pool, and the session manager.
+  ports, the managed connection source, and the session manager.
 - `SessionManager` owns cross-session lifecycle: session creation, routing ACP
   `sessionId`s to conversation cells, process cleanup, and the sessions-list live
   model.
 - `SessionCell` owns one conversation: the state machine, transcript reducer,
   per-session live models, permission broker, prompt queue effects, and turn
   quiescence.
-- `ConnectionPool` owns provider processes. Processes are keyed by provider and
-  workspace and can host multiple ACP sessions.
+- The ACP connection source owns provider processes through `createManagedSource`.
+  Processes are keyed by provider and workspace and can host multiple ACP sessions.
 - Models under `packages/core/src/acp/models/` are the shared vocabulary for
   reducer output, live model state, and the public ACP API contract.
-- Runtime implementation code lives under `packages/runtime/src/acp/`; core keeps
+- Runtime implementation code lives under `packages/runtime/src/acp-agents/`; core keeps
   the contract, models, reducer vocabulary, errors, and transport ports.
 - Node host adapters live behind explicit Node-only subpaths:
-  `@emdash/runtime/acp/node` for the ACP child-process bootstrap and attachment
+  `@emdash/runtime/acp-agents/node` for the ACP child-process bootstrap and attachment
   store, and `@emdash/core/pty/node` for the lazy `node-pty` spawner.
 
 ```mermaid
@@ -41,14 +41,14 @@ flowchart TD
     state[Per-session LiveModels]
   end
   subgraph connection [Connection]
-    pool[ConnectionPool]
-    handler[ACP Client Handler]
+    source[ConnectionSource]
+    ports[AgentPorts]
   end
   agent[ACP Agent]
 
   commands --> root --> manager --> machine
-  machine --> pool --> agent
-  agent --> handler --> reducer
+  machine --> source --> agent
+  agent --> ports --> reducer
   reducer --> state --> liveModels
   manager --> liveModels
   reducer --> queries
@@ -77,7 +77,7 @@ designed.
 
 Desktop-local ACP and workspace-server ACP both use plain Node child processes via
 `childProcessHost()` and `spawnRuntime()`. The child process entry calls
-`bootAcpRuntimeProcess()` from `@emdash/runtime/acp/node`, which constructs
+`bootAcpRuntimeProcess()` from `@emdash/runtime/acp-agents/node`, which constructs
 `AcpRuntime`, `AgentPluginHost`, `ChildAcpProcessHost`, `LocalAttachmentStore`,
 and `NodePtySpawner`.
 
