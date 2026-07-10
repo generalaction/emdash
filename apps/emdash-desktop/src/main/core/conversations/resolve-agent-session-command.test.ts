@@ -140,6 +140,21 @@ describe('resolveAgentSessionCommandArgs', () => {
     });
   });
 
+  it('uses stored Oh My Pi session file when resuming', () => {
+    expect(
+      resolveAgentSessionCommandArgs(
+        makeConversation({
+          providerId: 'oh-my-pi',
+          sessionId: '/Users/test/.omp/agent/sessions/project/session.jsonl',
+        }),
+        true
+      )
+    ).toEqual({
+      sessionId: '/Users/test/.omp/agent/sessions/project/session.jsonl',
+      isResuming: true,
+    });
+  });
+
   it('keeps resume enabled when provider session ids are unavailable', () => {
     expect(
       resolveAgentSessionCommandArgs(makeConversation(), true, { requireProviderSessionId: false })
