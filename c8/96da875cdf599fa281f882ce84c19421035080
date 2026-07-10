@@ -1,0 +1,47 @@
+apps/emdash-desktop/src/renderer/features/skills/components/SkillDetailModal.tsx
+  s_5de2bfad034e1a::t_b043d48b8bded4 59,64
+  s_5de2bfad034e1a::t_e79ca5ab14d99b 81,83-85,89
+  s_5de2bfad034e1a::t_653db6e94d90b6 154-163,167,169-181,183-185
+  s_5de2bfad034e1a::t_e49fb3a74d9fcf 195-230,232,235-236,238-239
+  s_5de2bfad034e1a::t_73b46846ac0818 35,40-48
+  s_5de2bfad034e1a::t_21442f4ca5db53 1-2,4
+  s_5de2bfad034e1a::t_43ba56e6085d52 19
+  s_5de2bfad034e1a::t_4ac5e0efb3bc57 49-50
+apps/emdash-desktop/src/renderer/features/skills/components/SkillCard.tsx
+  s_5de2bfad034e1a::t_7eafb9d58e38c3 11-12,32-33
+  s_5de2bfad034e1a::t_765f24054d4b5d 55,59,63-64,67-71
+apps/emdash-desktop/src/renderer/features/skills/components/SkillsView.tsx
+  s_5de2bfad034e1a::t_692ba78b8bccc8 31
+  s_5de2bfad034e1a::t_ccce31e49d04c3 154
+apps/emdash-desktop/src/main/core/skills/controller.ts
+  s_5de2bfad034e1a::t_3fd6772bee6282 86-95
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_5de2bfad034e1a::t_182972ccfb11b4 1314
+  s_5de2bfad034e1a::t_53b7e3afd23a53 542-612
+  s_5de2bfad034e1a::t_4d7acd76a94d08 1213-1221
+apps/emdash-desktop/src/renderer/features/skills/components/useSkills.ts
+  s_5de2bfad034e1a::t_a2240ca76973bf 310
+  s_5de2bfad034e1a::t_00b9357ff4ba0d 140-176
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_5de2bfad034e1a::t_c55d037b895f64 158
+apps/emdash-desktop/src/renderer/features/skills/components/SkillSyncPopover.tsx
+  s_5de2bfad034e1a::t_6b294ee3e76f4d 1-81
+apps/emdash-desktop/src/main/core/skills/SkillsService.test.ts
+  s_5de2bfad034e1a::t_7ec950161f9c35 233-279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "c896da875cdf599fa281f882ce84c19421035080",
+  "prompts": {},
+  "sessions": {
+    "s_5de2bfad034e1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3eba6d04-ed96-4047-a37a-c3f3283f3e87",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
