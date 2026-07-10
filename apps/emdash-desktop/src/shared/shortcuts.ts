@@ -146,7 +146,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Navigation',
   },
   archiveTask: {
-    defaultHotkey: 'Mod+Shift+Backspace',
+    defaultHotkey: 'Mod+Shift+E',
     label: 'Archive Task',
     description: 'Archive the current task',
     category: 'Task View',
