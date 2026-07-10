@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-loading.ts
+  s_19e535a8de7852::t_f6d568e7d63592 16
+  s_19e535a8de7852::t_815033882dc2b4 1-15,17-18
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-loading.test.ts
+  s_19e535a8de7852::t_9badafc9efa844 1-26,38-56
+  s_19e535a8de7852::t_bac5794eecedb1 27-37
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-item.tsx
+  s_19e535a8de7852::t_0579674928f438 11,41,43-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c9dc77ddea656d659eab4f99071812e35840f959",
+  "prompts": {},
+  "sessions": {
+    "s_19e535a8de7852": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ddb22842-7109-4b1b-99d9-f880120f73a5",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
