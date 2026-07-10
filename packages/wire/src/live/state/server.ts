@@ -82,6 +82,24 @@ export class LiveState<T> {
     return this.cursor;
   }
 
+  /** Replaces the complete value while retaining normal patch and no-op semantics. */
+  replace(next: T, options: LiveStateProduceOptions = {}): LiveCursor {
+    const [value, patches] = produceWithPatches(this.current, () => next) as [T, Patch[], Patch[]];
+    if (patches.length === 0) return this.cursor;
+    this.current = value;
+    const baseSequence = this.sequence;
+    this.sequence += 1;
+    this.emitter.emit({
+      generation: this.generation,
+      baseSequence,
+      sequence: this.sequence,
+      timestamp: Date.now(),
+      delta: patches,
+      mutationIds: options.mutationIds,
+    });
+    return this.cursor;
+  }
+
   /**
    * Resets the generation (and optionally the state) to force all connected
    * clients to resync from scratch. Sequence resets to 0. Does NOT emit —
@@ -96,5 +114,9 @@ export class LiveState<T> {
 
   subscribe(cb: (update: LiveUpdate) => void): Unsubscribe {
     return this.emitter.subscribe(cb);
+  }
+
+  dispose(): void {
+    this.emitter.clear();
   }
 }

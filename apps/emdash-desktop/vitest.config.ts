@@ -32,10 +32,12 @@ const alias = {
     '../../packages/core/src/host-dependencies/runtime/index.ts'
   ),
   '@emdash/core/exec': resolve(__dirname, '../../packages/core/src/exec/index.ts'),
+  '@emdash/core/git': resolve(__dirname, '../../packages/core/src/git/index.ts'),
   '@emdash/core/lib': resolve(__dirname, '../../packages/core/src/lib/index.ts'),
   '@emdash/core/mcp': resolve(__dirname, '../../packages/core/src/mcp/index.ts'),
   '@emdash/core/pty/node': resolve(__dirname, '../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve(__dirname, '../../packages/core/src/pty/index.ts'),
+  '@emdash/core/watch': resolve(__dirname, '../../packages/core/src/watch/index.ts'),
   '@emdash/core/skills': resolve(__dirname, '../../packages/core/src/skills/index.ts'),
   '@emdash/core/workspace-server/agent-config': resolve(
     __dirname,
@@ -63,6 +65,7 @@ const alias = {
     __dirname,
     '../../packages/runtime/src/acp-agents/index.ts'
   ),
+  '@emdash/runtime/git': resolve(__dirname, '../../packages/runtime/src/git/index.ts'),
   '@emdash/shared/config': resolve(__dirname, '../../packages/shared/src/config/index.ts'),
   '@emdash/shared/logger/context-node': resolve(
     __dirname,

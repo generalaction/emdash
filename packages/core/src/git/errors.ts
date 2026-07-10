@@ -1,63 +1,29 @@
 import { ExecError } from '../exec';
+import type {
+  CloneRepositoryError,
+  CommitError,
+  CreateBranchError,
+  DeleteBranchError,
+  FetchError,
+  FetchPrForReviewError,
+  GitCommandError,
+  MergeError,
+  PullError,
+  PushError,
+  RebaseError,
+  SwitchError,
+} from './api/errors';
 
-export type GitCommandError = {
-  type: 'git_error';
-  message: string;
-  stderr?: string;
+export const gitErr = {
+  notOpen(resource: 'repository' | 'checkout', key: string): GitCommandError {
+    return {
+      type: 'not_open',
+      resource,
+      key,
+      message: `Git ${resource} session is not open: ${key}`,
+    };
+  },
 };
-
-export type CloneRepositoryError =
-  | { type: 'target_exists'; path: string; message: string }
-  | { type: 'auth_failed'; message: string }
-  | { type: 'remote_not_found'; message: string }
-  | GitCommandError;
-
-export type FetchError =
-  | { type: 'no_remote'; message?: string }
-  | { type: 'remote_not_found'; remote?: string; message: string }
-  | { type: 'auth_failed'; message: string }
-  | { type: 'network_error'; message: string }
-  | GitCommandError;
-
-export type CommitError =
-  | { type: 'nothing_to_commit'; message: string }
-  | { type: 'empty_message'; message: string }
-  | { type: 'hook_failed'; message: string }
-  | GitCommandError;
-
-export type PushError =
-  | { type: 'no_remote'; message?: string }
-  | { type: 'no_upstream'; message: string }
-  | { type: 'rejected'; message: string }
-  | { type: 'auth_failed'; message: string }
-  | { type: 'network_error'; message: string }
-  | { type: 'hook_rejected'; message: string }
-  | GitCommandError;
-
-export type PullError =
-  | { type: 'conflict'; message: string; conflictedFiles?: string[] }
-  | { type: 'no_upstream'; message: string }
-  | { type: 'diverged'; message: string }
-  | { type: 'auth_failed'; message: string }
-  | { type: 'network_error'; message: string }
-  | GitCommandError;
-
-export type CreateBranchError =
-  | { type: 'already_exists'; branch: string; message: string }
-  | { type: 'invalid_name'; branch: string; message: string }
-  | { type: 'invalid_base'; branch: string; from: string; message: string }
-  | { type: 'fetch_failed'; remote: string; branch: string; error: FetchError }
-  | GitCommandError;
-
-export type FetchPrForReviewError =
-  | { type: 'not_found'; prNumber: number; message: string }
-  | GitCommandError;
-
-export type DeleteBranchError =
-  | { type: 'not_found'; branch: string; message: string }
-  | { type: 'not_merged'; branch: string; message: string }
-  | { type: 'is_current'; branch: string; message: string }
-  | GitCommandError;
 
 function errorStringProperty(error: unknown, property: 'stdout' | 'stderr' | 'message'): string {
   if (!error || typeof error !== 'object' || !(property in error)) return '';
@@ -96,6 +62,9 @@ export function classifyCloneRepositoryError(
   ) {
     return { type: 'target_exists', path: targetPath, message: commandError.message };
   }
+  if (isAuthRequiredMessage(message)) {
+    return { type: 'auth_required', message: commandError.message };
+  }
   if (message.includes('authentication') || message.includes('permission denied')) {
     return { type: 'auth_failed', message: commandError.message };
   }
@@ -117,6 +86,9 @@ export function classifyFetchError(error: unknown, remote: string | undefined): 
     message.includes('no remote configured')
   ) {
     return { type: 'no_remote', message: commandError.message };
+  }
+  if (isAuthRequiredMessage(message)) {
+    return { type: 'auth_required', message: commandError.message };
   }
   if (message.includes('authentication') || message.includes('permission denied')) {
     return { type: 'auth_failed', message: commandError.message };
@@ -148,6 +120,9 @@ export function classifyFetchPrForReviewError(
 ): FetchPrForReviewError {
   const commandError = toGitCommandError(error);
   const message = commandError.message.toLowerCase();
+  if (isAuthRequiredMessage(message)) {
+    return { type: 'auth_required', message: commandError.message };
+  }
   if (
     message.includes('not found') ||
     message.includes("couldn't find remote ref") ||
@@ -189,6 +164,9 @@ export function classifyPushError(error: unknown): PushError {
   if (message.includes('rejected') || message.includes('non-fast-forward')) {
     return { type: 'rejected', message: commandError.message };
   }
+  if (isAuthRequiredMessage(message)) {
+    return { type: 'auth_required', message: commandError.message };
+  }
   if (message.includes('authentication') || message.includes('permission denied')) {
     return { type: 'auth_failed', message: commandError.message };
   }
@@ -207,10 +185,12 @@ export function classifyPushError(error: unknown): PushError {
   return commandError;
 }
 
-export function classifyPullError(error: unknown): PullError {
+export function classifyPullError(error: unknown, conflictedFiles?: string[]): PullError {
   const commandError = toGitCommandError(error);
   const message = commandError.message.toLowerCase();
-  if (message.includes('conflict')) return { type: 'conflict', message: commandError.message };
+  if (message.includes('conflict')) {
+    return { type: 'conflict', message: commandError.message, conflictedFiles };
+  }
   if (
     message.includes('there is no tracking information') ||
     message.includes('no tracking information') ||
@@ -224,6 +204,9 @@ export function classifyPullError(error: unknown): PullError {
     message.includes('you have divergent branches')
   ) {
     return { type: 'diverged', message: commandError.message };
+  }
+  if (isAuthRequiredMessage(message)) {
+    return { type: 'auth_required', message: commandError.message };
   }
   if (message.includes('authentication') || message.includes('permission denied')) {
     return { type: 'auth_failed', message: commandError.message };
@@ -240,13 +223,28 @@ export function classifyPullError(error: unknown): PullError {
   return commandError;
 }
 
+function isAuthRequiredMessage(message: string): boolean {
+  return (
+    message.includes('could not read username') ||
+    message.includes('authentication failed') ||
+    message.includes('permission denied (publickey') ||
+    message.includes('terminal prompts disabled') ||
+    message.includes('the requested url returned error: 401') ||
+    message.includes('the requested url returned error: 403') ||
+    /\bhttp\s+(401|403)\b/.test(message)
+  );
+}
+
 export function classifyCreateBranchError(
   error: unknown,
   branch: string,
   from: string
 ): CreateBranchError {
   const commandError = toGitCommandError(error);
-  const stderr = commandError.stderr ?? commandError.message;
+  const stderr =
+    commandError.type === 'git_error'
+      ? (commandError.stderr ?? commandError.message)
+      : commandError.message;
   if (stderr.includes('already exists')) {
     return { type: 'already_exists', branch, message: commandError.message };
   }
@@ -263,9 +261,63 @@ export function classifyCreateBranchError(
   return commandError;
 }
 
+export function classifyMergeError(error: unknown, conflictedFiles?: string[]): MergeError {
+  const commandError = toGitCommandError(error);
+  const message = commandError.message.toLowerCase();
+  if (message.includes('conflict')) {
+    return { type: 'conflict', message: commandError.message, conflictedFiles };
+  }
+  if (message.includes('already up to date') || message.includes('already up-to-date')) {
+    return { type: 'already_up_to_date', message: commandError.message };
+  }
+  return commandError;
+}
+
+export function classifyRebaseError(error: unknown, conflictedFiles?: string[]): RebaseError {
+  const commandError = toGitCommandError(error);
+  const message = commandError.message.toLowerCase();
+  if (message.includes('conflict') || message.includes('could not apply')) {
+    return { type: 'conflict', message: commandError.message, conflictedFiles };
+  }
+  if (
+    message.includes('nothing to rebase') ||
+    message.includes('no rebase in progress') ||
+    message.includes('is up to date')
+  ) {
+    return { type: 'nothing_to_rebase', message: commandError.message };
+  }
+  return commandError;
+}
+
+export function classifySwitchError(error: unknown, ref: string): SwitchError {
+  const commandError = toGitCommandError(error);
+  const message = commandError.message.toLowerCase();
+  if (
+    message.includes('would be overwritten') ||
+    message.includes('local changes') ||
+    message.includes('commit your changes or stash them')
+  ) {
+    return { type: 'local_changes', message: commandError.message };
+  }
+  if (
+    message.includes('invalid reference') ||
+    message.includes('did not match any') ||
+    message.includes('unknown revision') ||
+    message.includes('pathspec') ||
+    message.includes('not a valid object name')
+  ) {
+    return { type: 'not_found', ref, message: commandError.message };
+  }
+  return commandError;
+}
+
 export function classifyDeleteBranchError(error: unknown, branch: string): DeleteBranchError {
   const commandError = toGitCommandError(error);
-  const stderr = (commandError.stderr ?? commandError.message).toLowerCase();
+  const stderr = (
+    commandError.type === 'git_error'
+      ? (commandError.stderr ?? commandError.message)
+      : commandError.message
+  ).toLowerCase();
   if (
     stderr.includes('checked out') ||
     stderr.includes('currently checked out') ||
@@ -288,5 +340,14 @@ export function isNotRepositoryInspectionError(error: unknown): boolean {
     message.includes('not a git repository') ||
     message.includes('not a git directory') ||
     message.includes('must be run in a work tree')
+  );
+}
+
+export function isUnbornHeadError(error: unknown): boolean {
+  const message = gitErrorMessage(error).toLowerCase();
+  return (
+    message.includes("ambiguous argument 'head'") ||
+    message.includes('unknown revision') ||
+    message.includes('does not have any commits yet')
   );
 }

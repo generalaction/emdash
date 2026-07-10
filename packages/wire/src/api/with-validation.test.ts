@@ -174,6 +174,9 @@ describe('withValidation', () => {
         resolveLive(topic) {
           return topic === 'dynamic.topic' ? source : null;
         },
+        acquireLive() {
+          return null;
+        },
       },
       'full'
     );

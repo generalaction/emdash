@@ -12,7 +12,11 @@
     "forceConsistentCasingInFileNames": true,
     "jsx": "react",
     "lib": ["ES2022"],
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@emdash/wire/testing": ["../wire/src/testing/index.ts"],
+      "@emdash/wire": ["../wire/src/index.ts"]
+    }
   },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "dist"]

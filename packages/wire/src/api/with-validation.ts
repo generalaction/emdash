@@ -58,6 +58,14 @@ export function withValidation<Defs extends ContractDefinitions>(
       const parsedKey = keySchema.parse(rawKey);
       return controller.resolveLive(encodeTopic(refId, parsedKey));
     },
+    acquireLive(topic: string) {
+      const { refId, rawKey } = splitTopic(topic);
+      const keySchema = liveKeys.get(refId);
+      if (!keySchema) return controller.acquireLive(topic);
+
+      const parsedKey = keySchema.parse(rawKey);
+      return controller.acquireLive(encodeTopic(refId, parsedKey));
+    },
     dispose() {
       controller.dispose?.();
     },

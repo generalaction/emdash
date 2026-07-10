@@ -58,12 +58,40 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
       });
     },
     git: {
+      inspectPath: ({ path }) => ({
+        kind: 'inspect-failed' as const,
+        path,
+        message: notImplementedMessage,
+      }),
+      ensureRepository: ({ path }) =>
+        err({ type: 'inspect-failed' as const, path, message: notImplementedMessage }),
+      cloneRepository: unavailableGitJob(),
       repository: {
         model: unavailableLiveModel(workspaceWireContract.git.repository.model),
+        listWorktrees: unavailableGitResult,
+        getDefaultBranch: unavailableGitResult,
+        readBlobAtRef: unavailableGitResult,
+        fetch: unavailableGitJob(),
+        publishBranch: unavailableGitJob(),
+        fetchPrForReview: unavailableGitJob(),
       },
       checkout: {
         model: unavailableLiveModel(workspaceWireContract.git.checkout.model),
         fileDiff: unavailableLiveModel(workspaceWireContract.git.checkout.fileDiff),
+        getFileDiff: unavailableGitResult,
+        getChangedFiles: unavailableGitResult,
+        getConflictVersions: unavailableGitResult,
+        getFileAtRef: unavailableGitResult,
+        getFileAtIndex: unavailableGitResult,
+        getImageAtRef: unavailableGitResult,
+        getImageAtIndex: unavailableGitResult,
+        getLog: unavailableGitResult,
+        getCommit: unavailableGitResult,
+        getCommitFiles: unavailableGitResult,
+        blame: unavailableGitResult,
+        push: unavailableGitJob(),
+        pull: unavailableGitJob(),
+        sync: unavailableGitJob(),
       },
     },
     files: {
@@ -86,6 +114,16 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
     tuiAgents: unavailableTuiAgents(),
     acp: deps.acp ? createAcpProxy(deps.acp) : unavailableAcp(),
   });
+}
+
+const unavailableGitResult = () =>
+  err({ type: 'git_error' as const, message: notImplementedMessage });
+
+function unavailableGitJob() {
+  return {
+    run: async () => unavailableGitResult(),
+    toError: () => ({ type: 'git_error' as const, message: notImplementedMessage }),
+  };
 }
 
 function unavailableLiveModel<Group extends LiveModelDef>(

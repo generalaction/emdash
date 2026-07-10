@@ -2,11 +2,33 @@ import { describe, expect, it } from 'vitest';
 import * as git from './index';
 
 describe('@emdash/core/git public exports', () => {
-  it('does not export concrete repository or worktree classes', () => {
+  it('exposes wire contracts and shared pure helpers', () => {
     const exported = git as Record<string, unknown>;
 
-    expect(exported.GitRuntime).toBeTypeOf('function');
+    expect(exported.gitContract).toBeTypeOf('object');
+    expect(exported.gitRepositoryContract).toBeTypeOf('object');
+    expect(exported.gitCheckoutContract).toBeTypeOf('object');
+    expect(exported.computeBaseRef).toBeTypeOf('function');
+    expect(exported.StatusParser).toBeTypeOf('function');
+    expect(exported.TooManyFilesChangedError).toBeTypeOf('function');
+    expect(exported.MAX_STATUS_FILES).toBeTypeOf('number');
+  });
+
+  it('does not export runtime implementations or the removed oRPC surface', () => {
+    const exported = git as Record<string, unknown>;
+
+    expect(exported.GitRuntime).toBeUndefined();
+    expect(exported.createGitContractImpl).toBeUndefined();
+    expect(exported.createGitController).toBeUndefined();
+    expect(exported.GitSessionManager).toBeUndefined();
+    expect(exported.createRepositoryLiveHost).toBeUndefined();
+    expect(exported.RepositoryResource).toBeUndefined();
+    expect(exported.createCheckoutLiveHost).toBeUndefined();
+    expect(exported.CheckoutResource).toBeUndefined();
     expect(exported.GitRepository).toBeUndefined();
-    expect(exported.GitWorktree).toBeUndefined();
+    expect(exported.GitCheckout).toBeUndefined();
+    expect(exported.gitRouter).toBeUndefined();
+    expect(exported.serveGitPort).toBeUndefined();
+    expect(exported.createGitSessionJobs).toBeUndefined();
   });
 });

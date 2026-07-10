@@ -2,8 +2,6 @@ export * from './versions/schemas';
 export * from './versions';
 export * from './wire';
 export * from './shared/schemas';
-export * from './git/schemas';
-export * from './git/contract';
 export * from './files/schemas';
 export * from './files/contract';
 export * from './agent-config/schemas';

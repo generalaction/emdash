@@ -21,16 +21,23 @@ export default defineConfig({
         '../core/src/host-dependencies/runtime/index.ts'
       ),
       '@emdash/core/exec': resolve(__dirname, '../core/src/exec/index.ts'),
+      '@emdash/core/git': resolve(__dirname, '../core/src/git/index.ts'),
       '@emdash/core/lib': resolve(__dirname, '../core/src/lib/index.ts'),
       '@emdash/core/mcp': resolve(__dirname, '../core/src/mcp/index.ts'),
       '@emdash/core/pty/node': resolve(__dirname, '../core/src/pty/node/index.ts'),
       '@emdash/core/pty': resolve(__dirname, '../core/src/pty/index.ts'),
       '@emdash/core/skills': resolve(__dirname, '../core/src/skills/index.ts'),
+      '@emdash/core/watch': resolve(__dirname, '../core/src/watch/index.ts'),
       '@emdash/shared/logger/node': resolve(__dirname, '../shared/src/logger/node/index.ts'),
       '@emdash/shared/logger': resolve(__dirname, '../shared/src/logger/index.ts'),
       '@emdash/shared/plugins': resolve(__dirname, '../shared/src/plugins/index.ts'),
       '@emdash/shared': resolve(__dirname, '../shared/src/index.ts'),
+      '@emdash/wire/api': resolve(__dirname, '../wire/src/api/index.ts'),
       '@emdash/wire/testing': resolve(__dirname, '../wire/src/testing/index.ts'),
+      '@emdash/wire/util/process-runtime': resolve(
+        __dirname,
+        '../wire/src/util/process-runtime/index.ts'
+      ),
       '@emdash/wire/util': resolve(__dirname, '../wire/src/util/index.ts'),
       '@emdash/wire': resolve(__dirname, '../wire/src/index.ts'),
     },

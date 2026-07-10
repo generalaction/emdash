@@ -7,8 +7,8 @@ import {
   type ExecResult,
 } from '@emdash/core/exec';
 import { contains, FilesRuntime } from '@emdash/core/files';
-import { GitRuntime } from '@emdash/core/git';
 import { ResourceMap } from '@emdash/core/lib';
+import { GitRuntime } from '@emdash/runtime/git';
 import type { Lease } from '@emdash/shared';
 import { getDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';

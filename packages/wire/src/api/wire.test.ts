@@ -158,6 +158,14 @@ describe('wire serve/connect', () => {
         resolveCount += 1;
         return available && topic === 'dynamic.topic' ? source : null;
       },
+      acquireLive(topic: string) {
+        const resolved = this.resolveLive(topic);
+        if (!resolved) return null;
+        return {
+          ready: async () => resolved,
+          release: async () => {},
+        };
+      },
     };
     serve(pair.right, controller);
     const connection = connect(pair.left);

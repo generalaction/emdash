@@ -8,6 +8,7 @@ export default defineConfig({
     'tui-agents-node': 'src/tui-agents/node/index.ts',
     'agent-config': 'src/agent-config/index.ts',
     'agent-config-node': 'src/agent-config/node/index.ts',
+    git: 'src/git/index.ts',
   },
   format: ['esm'],
   dts: true,
