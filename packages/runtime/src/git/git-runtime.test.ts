@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { ExecError, type BoundExec } from '@emdash/core/exec';
+import { gitContract } from '@emdash/core/git';
 import type { IWatchService } from '@emdash/core/watch';
 import { describe, expect, it } from 'vitest';
 import { GitRuntime } from './index';
@@ -76,17 +77,29 @@ function createFailingExec(error: unknown): BoundExec {
 }
 
 describe('GitRuntime', () => {
+  it('owns the live-model hosts served by the standard Git contract', async () => {
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+
+    try {
+      expect(runtime.repository.model.contract.id).toBe(gitContract.repository.model.id);
+      expect(runtime.checkout.model.contract.id).toBe(gitContract.checkout.model.id);
+      expect(runtime.checkout.fileDiffModel.contract.id).toBe(gitContract.checkout.fileDiff.id);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('inspects repository and non-repository paths without opening live models', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-plain-'));
     const repo = await makeRepo();
     const runtime = new GitRuntime();
 
     try {
-      await expect(runtime.inspectPath(directory)).resolves.toEqual({
+      await expect(runtime.provisioning.inspectPath(directory)).resolves.toEqual({
         kind: 'not-repository',
         path: directory,
       });
-      await expect(runtime.inspectPath(repo)).resolves.toMatchObject({
+      await expect(runtime.provisioning.inspectPath(repo)).resolves.toMatchObject({
         kind: 'repository',
         rootPath: await realpath(repo),
         baseRef: 'main',
@@ -102,7 +115,7 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime({ executable });
 
     try {
-      await expect(runtime.inspectPath(repo)).resolves.toMatchObject({
+      await expect(runtime.provisioning.inspectPath(repo)).resolves.toMatchObject({
         kind: 'repository',
         rootPath: await realpath(repo),
       });
@@ -129,7 +142,7 @@ describe('GitRuntime', () => {
     });
 
     try {
-      await expect(runtime.inspectPath(targetPath)).resolves.toEqual({
+      await expect(runtime.provisioning.inspectPath(targetPath)).resolves.toEqual({
         kind: 'inspect-failed',
         path: targetPath,
         message: `fatal: cannot change to '${targetPath}': Permission denied`,
@@ -145,10 +158,46 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      await expect(runtime.inspectPath(directory)).resolves.toEqual({
+      await expect(runtime.provisioning.inspectPath(directory)).resolves.toEqual({
         kind: 'not-repository',
         path: directory,
       });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('returns selector resolution failures through the declared result channel', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-non-repo-'));
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+
+    try {
+      await expect(
+        runtime.checkout.getLog({ checkout: { path: directory }, options: { limit: 1 } })
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'git_error' },
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('keeps unexpected resource construction failures thrown', async () => {
+    const repo = await makeRepo();
+    const failure = new TypeError('watch construction bug');
+    const watcher: IWatchService = {
+      watch: () => {
+        throw failure;
+      },
+      dispose: async () => {},
+    };
+    const runtime = new GitRuntime({ watcher });
+
+    try {
+      await expect(
+        runtime.checkout.getLog({ checkout: { path: repo }, options: { limit: 1 } })
+      ).rejects.toBe(failure);
     } finally {
       await runtime.dispose();
     }
@@ -159,12 +208,12 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      await expect(runtime.ensureRepository(directory)).resolves.toEqual({
+      await expect(runtime.provisioning.ensureRepository(directory)).resolves.toEqual({
         success: false,
         error: { type: 'not-repository', path: directory },
       });
 
-      const ensured = await runtime.ensureRepository(directory, {
+      const ensured = await runtime.provisioning.ensureRepository(directory, {
         initIfMissing: true,
       });
 
@@ -175,7 +224,7 @@ describe('GitRuntime', () => {
           rootPath: await realpath(directory),
         },
       });
-      await expect(runtime.inspectPath(directory)).resolves.toMatchObject({
+      await expect(runtime.provisioning.inspectPath(directory)).resolves.toMatchObject({
         kind: 'repository',
         rootPath: await realpath(directory),
       });
@@ -195,7 +244,7 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      const result = await runtime.cloneRepository(source, target);
+      const result = await runtime.provisioning.cloneRepository(source, target);
 
       expect(result).toMatchObject({
         success: true,
@@ -218,19 +267,25 @@ describe('GitRuntime', () => {
     const watcher = createNoopWatcher();
     const runtime = new GitRuntime({ watcher });
     try {
-      const mainRepositoryLease = runtime.acquireRepository({ repository: { path: repo } });
-      const linkedRepositoryLease = runtime.acquireRepository({ repository: { path: linked } });
-      const linkedCheckoutLease = runtime.acquireCheckout({ checkout: { path: linked } });
-      const [mainRepository, linkedRepository, linkedCheckout] = await Promise.all([
+      const mainRepositoryLease = runtime.repository.model.acquireState(
+        { repository: { path: repo } },
+        'refs'
+      );
+      const linkedRepositoryLease = runtime.repository.model.acquireState(
+        { repository: { path: linked } },
+        'refs'
+      );
+      const linkedCheckoutLease = runtime.checkout.model.acquireState(
+        { checkout: { path: linked } },
+        'head'
+      );
+      const [mainRepository, linkedRepository] = await Promise.all([
         mainRepositoryLease.ready(),
         linkedRepositoryLease.ready(),
         linkedCheckoutLease.ready(),
       ]);
-      const commonDir = await realpath(path.join(repo, '.git'));
 
-      expect(mainRepository.id).toBe(commonDir);
-      expect(linkedRepository.id).toBe(mainRepository.id);
-      expect(linkedCheckout.repositoryId).toBe(mainRepository.id);
+      expect(linkedRepository).toBe(mainRepository);
 
       await linkedCheckoutLease.release();
       await linkedRepositoryLease.release();
@@ -257,7 +312,7 @@ describe('GitRuntime', () => {
     };
     const runtime = new GitRuntime({ watcher });
 
-    const lease = runtime.acquireRepository({ repository: { path: repo } });
+    const lease = runtime.repository.model.acquireState({ repository: { path: repo } }, 'refs');
     await lease.ready();
 
     const dispose = runtime.dispose();
@@ -282,7 +337,7 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime({ executable, watcher: createNoopWatcher() });
 
     try {
-      const lease = runtime.acquireCheckout({ checkout: { path: repo } });
+      const lease = runtime.checkout.model.acquireState({ checkout: { path: repo } }, 'head');
       await lease.ready();
       await lease.release();
     } finally {

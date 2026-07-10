@@ -5,8 +5,8 @@ describe('@emdash/runtime/git public exports', () => {
   it('exposes only runtime and transport composition', () => {
     expect(Object.keys(gitRuntime).sort()).toEqual([
       'GitRuntime',
-      'createGitContractAdapter',
       'createGitController',
+      'createGitProcedures',
     ]);
   });
 });

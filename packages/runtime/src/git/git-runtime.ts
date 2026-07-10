@@ -1,21 +1,11 @@
 import type { BoundExec } from '@emdash/core/exec';
-import type {
-  CheckoutSelector,
-  CloneRepositoryError,
-  EnsureRepositoryError,
-  EnsureRepositoryOptions,
-  GitPathInspection,
-  GitRepositoryInfo,
-  RepositorySelector,
-} from '@emdash/core/git';
 import { KeyedMutex } from '@emdash/core/lib';
 import { WatchService, type IWatchService } from '@emdash/core/watch';
-import type { PendingLease, Result } from '@emdash/shared';
 import { GitAllocationGraph } from './allocation/allocation-graph';
-import type { CheckoutHandle, RepositoryHandle } from './allocation/handles';
+import { GitCheckoutRuntime } from './checkout/checkout-runtime';
 import { createGitExec } from './exec/git-exec';
-import type { GitOperationContext } from './exec/operation-context';
 import { GitRepositoryProvisioner } from './repository/repository-provisioner';
+import { GitRepositoryRuntime } from './repository/repository-runtime';
 
 export type GitRuntimeOptions = Readonly<{
   watcher?: IWatchService;
@@ -28,9 +18,12 @@ export type GitRuntimeOptions = Readonly<{
   onError?: (context: string, error: unknown) => void;
 }>;
 
-/** Host-scoped composition root for canonical Git mounts and selector-bound leases. */
+/** Host-scoped composition root for Git provisioning and canonical resource runtimes. */
 export class GitRuntime {
-  private readonly provisioner: GitRepositoryProvisioner;
+  readonly provisioning: GitRepositoryProvisioner;
+  readonly repository: GitRepositoryRuntime;
+  readonly checkout: GitCheckoutRuntime;
+
   private readonly allocations: GitAllocationGraph;
   private readonly watcher: IWatchService;
   private readonly ownsWatcher: boolean;
@@ -43,7 +36,7 @@ export class GitRuntime {
     const exec =
       options.exec ??
       createGitExec({ cwd: process.cwd(), executable: options.executable, env: options.env });
-    this.provisioner = new GitRepositoryProvisioner(exec);
+    this.provisioning = new GitRepositoryProvisioner(exec);
     this.allocations = new GitAllocationGraph({
       exec,
       watcher: this.watcher,
@@ -53,38 +46,14 @@ export class GitRuntime {
       maxFileDiffStates: options.maxFileDiffStates,
       onError,
     });
-  }
-
-  inspectPath(path: string): Promise<GitPathInspection> {
-    return this.provisioner.inspectPath(path);
-  }
-
-  ensureRepository(
-    path: string,
-    options?: EnsureRepositoryOptions
-  ): Promise<Result<GitRepositoryInfo, EnsureRepositoryError>> {
-    return this.provisioner.ensureRepository(path, options);
-  }
-
-  cloneRepository(
-    repositoryUrl: string,
-    targetPath: string,
-    context?: GitOperationContext
-  ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>> {
-    return this.provisioner.cloneRepository(repositoryUrl, targetPath, context);
-  }
-
-  acquireRepository(selector: RepositorySelector): PendingLease<RepositoryHandle> {
-    return this.allocations.acquireRepository(selector);
-  }
-
-  acquireCheckout(selector: CheckoutSelector): PendingLease<CheckoutHandle> {
-    return this.allocations.acquireCheckout(selector);
+    this.repository = new GitRepositoryRuntime(this.allocations);
+    this.checkout = new GitCheckoutRuntime(this.allocations);
   }
 
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    await Promise.all([this.repository.dispose(), this.checkout.dispose()]);
     await this.allocations.dispose();
     if (this.ownsWatcher) await this.watcher.dispose();
   }

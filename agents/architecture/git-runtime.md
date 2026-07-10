@@ -1,71 +1,111 @@
 # Git Runtime Architecture
 
 Git is split into a transport contract and a host-scoped runtime. Renderer, desktop, and
-workspace-server code share the Wire vocabulary without importing Git execution, host paths,
-watchers, or lease ownership.
+workspace-server code share the Wire vocabulary without importing Git execution, canonical host
+paths, watchers, or lease ownership.
 
 ## Ownership
 
 - `packages/core/src/git/` owns selectors, contracts, serialized states, inputs, results, errors,
   and client-used pure helpers.
-- `packages/runtime/src/git/` owns provisioning, identity resolution, Git execution, canonical
-  mounts, watchers, effect routing, leases, and the contract adapter.
-- `packages/wire/` owns live-state publication, `ComputedLiveState`, leased live-model providers,
-  mutation cursors, jobs, replicas, and transport behavior.
+- `packages/runtime/src/git/` owns provisioning, identity resolution, canonical resources,
+  watchers, reconciliation, and Git execution.
+- `packages/wire/` owns live-state publication, `ComputedLiveState`, resource-backed live-model
+  hosts, mutation cursors, jobs, replicas, and transport behavior.
 - Core never imports runtime. Canonical identities and canonical host paths are runtime-only.
 
-## Layers
+## Runtime Shape
 
-1. `GitRepositoryProvisioner` inspects, initializes, and clones paths before a mount exists.
-2. `GitRepository` and `GitCheckout` are execution capabilities. They run commands and fresh reads;
-   they do not own live states, watchers, or leases.
-3. `RepositoryMount` and `CheckoutMount` own computed live states and watcher invalidation. One
-   repository-family lane orders commands and authoritative refreshes.
-4. `GitAllocationGraph` resolves selectors, pools mounts by canonical identity, retains a parent
-   repository for every checkout, and disposes idle mounts after the configured TTL.
-5. `GitContractAdapter` acquires selector-bound handles for each call. State attachments and jobs
-   hold their leases for their full lifetime.
+`GitRuntime` is the host-scoped composition root. It exposes three deep entry points:
+
+- `provisioning` inspects, initializes, and clones paths before a canonical resource exists;
+- `repository` resolves repository selectors and serves repository procedures, jobs, and live
+  models;
+- `checkout` resolves checkout selectors and serves checkout procedures, jobs, and live models.
+
+The API layer delegates directly to these entry points:
+
+```ts
+getLog: (input) => runtime.checkout.getLog(input)
+```
+
+It does not acquire leases, classify effects, dispatch mutation names, or translate cursors.
+
+## Canonical Resources
+
+`GitAllocationGraph` is a private resource registry. It resolves path aliases, pools resources by
+canonical identity, retains a repository for every checkout, applies the idle TTL, and disposes
+failed or idle resources.
+
+The pooled values are deep resource objects:
+
+1. `RepositoryResource` represents one canonical common Git directory. It owns repository live
+   states, the common-directory watcher, repository-family command ordering, object-store locking,
+   active checkout registration, explicit repository operations, and their reconciliation.
+2. `CheckoutResource` represents one canonical worktree. It owns checkout live states, the
+   worktree watcher, file-diff staleness, explicit checkout operations, and their reconciliation.
 
 Repository identity is the canonical common Git directory. Checkout identity combines the
-canonical checkout root and private Git directory. Linked worktrees therefore share one repository
-mount while retaining distinct checkout mounts.
+canonical checkout root and private Git directory. Linked worktrees share one repository resource
+while retaining distinct checkout resources.
 
-## Live State and Mutations
+`GitRepository` and `GitCheckout` are the low-level command drivers composed by those resources.
+They build commands, invoke `BoundExec`, parse output, and return typed operational results. They do
+not own Wire hosts, resource leases, or cross-state reconciliation.
 
-Repository live states are `refs`, `remotes`, `stashes`, and `worktrees`. Checkout live states are
-`status` and `head`. File diffs remain on-demand queries; a bounded, target-aware staleness state
-lets consumers invalidate cached diff content cheaply.
+## Live Models
 
-Watchers and commands feed the same Git-effect router. Mutations use three reconciliation classes:
+Wire's `ResourceLiveModelHost` adapts keyed, externally authoritative resources to live models. It
+owns generic resource acquisition, nested state leases, mutation idempotency, typed handler
+dispatch, and settled cursor construction.
 
-- settle: await an authoritative refresh and return the existing Wire success cursor;
-- eager: invalidate and refresh promptly when observed, without delaying the result;
-- background: mark dirty and converge while observed or on the next acquisition.
+Git supplies exhaustive mutation-handler maps:
 
-Only stage and unstage operations settle `status` initially. Other commands return authoritative
-domain results without a generalized cross-model settlement protocol. Cross-domain effects, such
-as a checkout commit invalidating repository refs, are explicit background effects.
+```ts
+mutations: {
+  stage: (context) => context.resource.stage(context),
+  commit: (context) => context.resource.commit(context),
+}
+```
+
+Each resource method receives its exact contract input. There is no untyped envelope, mutation-name
+switch, or Git-side input cast. Mutation-free file-diff models use the same host without a fake
+mutation implementation.
+
+## Reconciliation
+
+Reconciliation is local to the operation that changes external Git state:
+
+- staging operations synchronously refresh and settle checkout status, then invalidate affected
+  file diffs;
+- history-changing operations invalidate checkout status, head, mutable-ref file diffs, and
+  repository refs as appropriate;
+- repository ref operations invalidate active linked checkouts;
+- jobs reconcile immediately after success or partial failure according to their own semantics;
+- filesystem watchers call the same direct resource invalidation methods.
+
+There is no operation classifier or global effect plan. Small shared methods such as
+`historyChanged()` express repeated domain effects without redispatching on operation names.
+
+## Error Model
+
+Declared Git command failures and selector-resolution failures use contract `Result` channels.
+`runtime-error.ts` recognizes only `ExecError` and `GitResolutionException` at runtime boundaries.
+Programming errors, broken invariants, unexpected watcher failures, and callback bugs keep throwing
+and are recorded by Wire as causes.
 
 ## Source Organization
 
-- `git-runtime.ts` is the host-facing facade and composition root.
-- `api/` adapts the Git contract to runtime operations, grouped by repository, checkout, and file
-  diff ownership.
-- `allocation/` owns canonical identities, handles, mounts, effect planning, watcher
-  classification, ordering, and idle disposal.
-- `exec/` owns Git process construction, operation context, repository binding, and transfer
+- `git-runtime.ts` is the host-facing composition root.
+- `api/` contains controller composition and thin procedure delegates.
+- `allocation/` contains canonical identities, selector resolution, pooling, parent retention, and
+  idle disposal.
+- `repository/` contains the repository manager, canonical resource, command driver, family
+  scheduler, watcher classifier, provisioner, and repository operations.
+- `checkout/` contains the checkout manager, canonical resource, command driver, file-diff registry,
+  and checkout operations.
+- `exec/` contains Git process construction, repository binding, operation context, and transfer
   progress.
-- `repository/` and `checkout/` own command execution capabilities and their parsing helpers.
 
 Only runtime and transport composition are exported from `@emdash/runtime/git`. Allocation,
-execution capabilities, and mounts remain implementation details.
-
-## Wire Composition
-
-`gitContract` uses reconnect-stable path selectors and has no public open/close procedures.
-`LeasedLiveModelProvider` connects state acquisition to runtime leases.
-`createGitContractAdapter()` returns an implementation plus explicit disposal for mounting Git
-beneath a parent contract, while `createGitController()` serves the standalone contract.
-
-Clients import contracts, state types, and errors from `@emdash/core/git`. Only a process hosting Git
-execution imports `@emdash/runtime/git`.
+resources, and command drivers remain implementation details.
