@@ -1,20 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
-import { acpApiContract, acpHostContract } from '@emdash/core/acp';
+import { acpApiContract } from '@emdash/core/acp';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
 import { createLocalPluginFs } from '@emdash/core/agents/plugins/helpers';
 import { NodeExecutionContext } from '@emdash/core/exec';
-import { ok } from '@emdash/shared';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import {
-  client,
-  connect,
-  isWireMessage,
-  withValidation,
-  type ValidatePolicy,
-  type WireTransport,
-} from '@emdash/wire';
+import { withValidation, type ValidatePolicy } from '@emdash/wire';
 import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
 import { createAcpController } from '../api/controller';
 import { AcpRuntime } from '../runtime/runtime';
@@ -38,8 +30,6 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
   }
 
   const runtimePort = options.port ?? createNodeRuntimePort();
-  const hostTransport = createHostTransport(runtimePort);
-  const hostClient = client(acpHostContract, connect(hostTransport));
   const childHost = new ChildAcpProcessHost();
   const logger = initProcessLogging({ name: 'acp-agents-runtime', env });
   const attachmentStore = new LocalAttachmentStore(attachmentsDir);
@@ -58,10 +48,6 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
       const acp = new AcpRuntime({
         agentHost,
         host: childHost,
-        persistSessionId: async (conversationId, sessionId) => {
-          await hostClient.persistSessionId({ conversationId, sessionId });
-          return ok(undefined);
-        },
         resolveAttachment: async (attachment) => {
           if (attachment.type === 'attachment') {
             const stored = await attachmentStore.get(attachment.id);
@@ -121,20 +107,4 @@ function createNodeRuntimePort(): ProcessRuntimePort {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function createHostTransport(port: ProcessRuntimePort): WireTransport {
-  return {
-    post(message) {
-      port.send(message);
-    },
-    onMessage(cb) {
-      return port.onMessage((message) => {
-        if (isWireMessage(message)) cb(message);
-      });
-    },
-    onDisconnect(cb) {
-      return port.onDisconnect(cb);
-    },
-  };
 }

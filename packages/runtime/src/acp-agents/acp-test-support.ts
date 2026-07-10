@@ -365,7 +365,6 @@ export function makeAcpHarness(options: AcpHarnessOptions = {}) {
         },
       }),
     host: fakeHost,
-    persistSessionId: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
     logger: noopLogger,
     ...depOverrides,

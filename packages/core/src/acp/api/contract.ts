@@ -5,7 +5,6 @@ import {
   liveLog,
   liveModel,
   liveState,
-  procedure,
   uploadFile,
 } from '@emdash/wire';
 import { z } from 'zod';
@@ -183,16 +182,5 @@ export const acpApiContract = defineContract({
   terminalOutput: liveLog({ key: terminalOutputKeySchema }),
 });
 
-export const acpHostContract = defineContract({
-  persistSessionId: procedure({
-    input: z.object({
-      conversationId: z.string(),
-      sessionId: z.string(),
-    }),
-    output: z.void(),
-  }),
-});
-
 export type AcpApiContract = typeof acpApiContract;
-export type AcpHostContract = typeof acpHostContract;
 export type StartSessionInput = z.infer<typeof startSessionCommandSchema>['input'];

@@ -51,6 +51,7 @@ const workspaceAliases = {
   '@emdash/wire/util/process-runtime': resolve(
     '../../packages/wire/src/util/process-runtime/index.ts'
   ),
+  '@emdash/wire/util': resolve('../../packages/wire/src/util/index.ts'),
   '@emdash/wire': resolve('../../packages/wire/src/index.ts'),
 };
 

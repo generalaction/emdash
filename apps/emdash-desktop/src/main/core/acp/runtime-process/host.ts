@@ -1,9 +1,14 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { acpApiContract, acpHostContract } from '@emdash/core/acp';
+import { acpApiContract, type AcpApiContract } from '@emdash/core/acp';
 import { ok } from '@emdash/shared';
-import { createController, exposeWireToWindows, serve, withValidation } from '@emdash/wire/api';
-import { processTransport, type ManagedProcess } from '@emdash/wire/process';
+import {
+  createController,
+  exposeWireToWindows,
+  withValidation,
+  type ContractClient,
+} from '@emdash/wire/api';
+import { type ManagedProcess } from '@emdash/wire/process';
 import { childProcessHost } from '@emdash/wire/process/node';
 import { forwardRuntimeLogs, spawnRuntime } from '@emdash/wire/util/process-runtime';
 import { app, ipcMain, MessageChannelMain } from 'electron';
@@ -13,16 +18,14 @@ import { log } from '@main/lib/logger';
 const ACP_WIRE_CHANNEL = 'acp-wire';
 
 type AcpRuntimeHandle = Awaited<ReturnType<typeof spawnAcpRuntime>>;
-export type AcpRuntimeClient = AcpRuntimeHandle['client'];
+export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 
 let handlePromise: Promise<AcpRuntimeHandle> | null = null;
 let rendererWireDispose: (() => void) | null = null;
-let hostWireDispose: (() => void) | null = null;
 
 export function initializeAcpRuntimeProcess(): Promise<AcpRuntimeHandle> {
   if (handlePromise) return handlePromise;
   handlePromise = spawnAcpRuntime().then((handle) => {
-    installHostWire(handle);
     installRendererWire(handle.client);
     app.once('before-quit', () => {
       void disposeAcpRuntimeProcess();
@@ -43,8 +46,6 @@ export async function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
 export async function disposeAcpRuntimeProcess(): Promise<void> {
   rendererWireDispose?.();
   rendererWireDispose = null;
-  hostWireDispose?.();
-  hostWireDispose = null;
   const handle = await handlePromise;
   handlePromise = null;
   await handle?.dispose();
@@ -69,7 +70,7 @@ async function spawnAcpRuntime() {
   handle.onRestarted(() => {
     log.info('ACP runtime child process restarted');
   });
-  return handle;
+  return { ...handle, client: withSessionIdPersistence(handle.client) };
 }
 
 function attachAcpRuntimeLogging(process: ManagedProcess): void {
@@ -79,29 +80,34 @@ function attachAcpRuntimeLogging(process: ManagedProcess): void {
   });
 }
 
-function installHostWire(handle: AcpRuntimeHandle): void {
-  hostWireDispose?.();
-  const transport = processTransport(handle.process);
-  const controller = withValidation(
-    acpHostContract,
-    createController(acpHostContract, {
-      persistSessionId: async ({ conversationId, sessionId }) => {
-        const result = await setSessionId(conversationId, sessionId);
-        if (!result.success) {
-          log.warn('ACP runtime failed to persist session id', {
-            conversationId,
-            error: result.error,
-          });
-        }
-      },
-    }),
-    runtimeWireValidationPolicy()
-  );
-  const disposeServer = serve(transport, controller);
-  hostWireDispose = () => {
-    disposeServer();
-    transport.close?.();
+function withSessionIdPersistence(client: AcpRuntimeClient): AcpRuntimeClient {
+  return {
+    ...client,
+    startSession: async (input, meta) => {
+      const result = await client.startSession(input, meta);
+      if (result.success) {
+        await persistReturnedSessionId(input.input.conversationId, result.data.sessionId);
+      }
+      return result;
+    },
+    resumeSession: async (input, meta) => {
+      const result = await client.resumeSession(input, meta);
+      if (result.success) {
+        await persistReturnedSessionId(input.input.conversationId, result.data.sessionId);
+      }
+      return result;
+    },
   };
+}
+
+async function persistReturnedSessionId(conversationId: string, sessionId: string): Promise<void> {
+  const result = await setSessionId(conversationId, sessionId);
+  if (!result.success) {
+    log.warn('ACP runtime failed to persist returned session id', {
+      conversationId,
+      error: result.error,
+    });
+  }
 }
 
 function installRendererWire(client: AcpRuntimeClient): void {

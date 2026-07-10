@@ -129,11 +129,10 @@ Socket mode mounts the ACP runtime as a child process. The parent daemon uses
 `src/acp/runtime-entry.ts` in development. The child calls the shared
 `bootAcpRuntimeProcess()` helper from `@emdash/runtime/acp-agents/node`.
 
-Two wire contracts share the process IPC channel:
+One wire contract uses the process IPC channel:
 
 - Parent to child: `acpApiContract`, exposed to desktop clients as
   `workspaceWireContract.acp`.
-- Child to parent: `acpHostContract`, used for session-id notifications.
 
 The runtime resolves provider binaries from host dependency descriptors derived
 from the plugin registry. The environment passed to provider CLIs is intentionally
@@ -141,9 +140,9 @@ allowlisted via the shared spawn-context resolver; the full daemon environment i
 not forwarded. Runtime logs are emitted as structured stderr lines and forwarded by
 the parent process.
 
-`startSession` already returns `{ sessionId }` through the ACP API. The workspace
-server logs `persistSessionId` callbacks but does not store them; the connected
-desktop client owns persistence when remote ACP consumption is added.
+`startSession` and `resumeSession` return `{ sessionId }` through the ACP API. The
+connected desktop client owns persistence for those returned ids when remote ACP
+consumption is added.
 
 ## Stop Flow
 

@@ -229,9 +229,6 @@ export class SessionManager implements InboundRouter {
       }
 
       this.registerRoute(connection.key, record.cell.acpSessionId, input.conversationId);
-      void this.deps
-        .persistSessionId(input.conversationId, record.cell.acpSessionId)
-        .catch(() => {});
 
       this.syncRecord(record);
       return ok({ sessionId: record.cell.acpSessionId });
