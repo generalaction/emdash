@@ -10,7 +10,7 @@ import { withValidation, type ValidatePolicy } from '@emdash/wire';
 import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
 import { createAgentConfigController } from '../api/controller';
 import { AgentConfigRuntime } from '../runtime/runtime';
-import { createPtyInstallCommandRunner } from './install-command-runner';
+import { createExecInstallCommandRunner } from './install-command-runner';
 
 export type BootAgentConfigRuntimeProcessOptions = {
   pluginRegistry: PluginRegistry<CLIAgentPluginProvider>;
@@ -21,66 +21,47 @@ export type BootAgentConfigRuntimeProcessOptions = {
 
 export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimeProcessOptions): void {
   const env = options.env ?? process.env;
-  const runtimePort = options.port ?? createNodeRuntimePort();
   const logger = initProcessLogging({ name: 'agent-config-runtime', env });
 
   void serveProcessRuntime(
     (scope) => {
       const homeDir = os.homedir();
       const spawner = new NodePtySpawner();
-      const runtime = new AgentConfigRuntime({
-        pluginHost: new AgentPluginHost(options.pluginRegistry),
-        ptySpawner: spawner,
+      const runtimeScope = scope.child('agent-config-runtime');
+      const agentHost = new AgentPluginHost({
+        scope: runtimeScope,
+        registry: options.pluginRegistry,
         exec: new NodeExecutionContext({ env }),
-        pluginFs: createLocalPluginFs(homeDir),
-        homeDir,
+        fs: createLocalPluginFs(homeDir),
         env,
+        homeDir,
+      });
+      const runtime = new AgentConfigRuntime({
+        scope: runtimeScope,
+        agentHost,
+        ptySpawner: spawner,
         logger,
-        installCommandRunner: createPtyInstallCommandRunner({
-          spawner,
+        installCommandRunner: createExecInstallCommandRunner({
           cwd: homeDir,
           env,
           shell: env.SHELL ?? '/bin/sh',
         }),
       });
-      scope.add(() => runtime.dispose());
       return withValidation(
         agentConfigContract,
         createAgentConfigController(runtime),
         runtimeWireValidationPolicy(env)
       );
     },
-    { port: runtimePort, exit: options.exit, logger }
+    { port: options.port, exit: options.exit, logger }
   ).catch((error: unknown) => {
-    logger.error('Agent-config runtime process failed', { error: errorMessage(error) });
+    logger.error('Agent-config runtime process failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     (options.exit ?? process.exit)(1);
   });
 }
 
 function runtimeWireValidationPolicy(env: NodeJS.ProcessEnv): ValidatePolicy {
   return env.NODE_ENV === 'production' ? 'inputs' : 'full';
-}
-
-function createNodeRuntimePort(): ProcessRuntimePort {
-  if (typeof process.send !== 'function') {
-    throw new Error('Agent-config runtime process requires an IPC channel to the parent process');
-  }
-
-  return {
-    send(message) {
-      process.send?.(message as Parameters<NonNullable<NodeJS.Process['send']>>[0]);
-    },
-    onMessage(cb) {
-      process.on('message', cb);
-      return () => process.off('message', cb);
-    },
-    onDisconnect(cb) {
-      process.on('disconnect', cb);
-      return () => process.off('disconnect', cb);
-    },
-  };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

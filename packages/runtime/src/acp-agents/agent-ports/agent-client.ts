@@ -19,22 +19,22 @@ import type {
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
 import type { NormalizedEvent } from '@emdash/core/acp';
-import type { AcpConnectionEntry } from '../connection/source';
+import type { AcpConnectionContext } from '../connection/source';
 import type { FsPort } from './fs-port';
 import type { TerminalPort } from './terminal-port';
 
 export interface InboundRouter {
   onSessionUpdate(
-    connection: AcpConnectionEntry,
+    connection: AcpConnectionContext,
     params: SessionNotification,
     event: NormalizedEvent
   ): void;
   onPermissionRequest(
-    connection: AcpConnectionEntry,
+    connection: AcpConnectionContext,
     params: RequestPermissionRequest
   ): Promise<RequestPermissionResponse>;
   onCreateTerminal(
-    connection: AcpConnectionEntry,
+    connection: AcpConnectionContext,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse>;
 }
@@ -45,20 +45,16 @@ export interface AgentPorts {
 }
 
 export function buildAgentClient(
-  getConnection: () => AcpConnectionEntry | null,
+  connection: AcpConnectionContext,
   router: InboundRouter,
   ports: AgentPorts
 ): Client {
   return {
     sessionUpdate: async (params: SessionNotification): Promise<void> => {
-      const connection = getConnection();
-      if (!connection) return;
       router.onSessionUpdate(connection, params, connection.normalize(params.update));
     },
 
     requestPermission: (params: RequestPermissionRequest): Promise<RequestPermissionResponse> => {
-      const connection = getConnection();
-      if (!connection) return Promise.resolve({ outcome: { outcome: 'cancelled' } });
       return router.onPermissionRequest(connection, params);
     },
 
@@ -71,8 +67,6 @@ export function buildAgentClient(
     },
 
     createTerminal: async (params: CreateTerminalRequest): Promise<CreateTerminalResponse> => {
-      const connection = getConnection();
-      if (!connection) throw new Error('ACP connection not found for createTerminal');
       return router.onCreateTerminal(connection, params);
     },
 

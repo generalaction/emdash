@@ -62,6 +62,7 @@
   },
   "devDependencies": {
     "@emdash/runtime": "workspace:*",
+    "@emdash/wire": "workspace:*",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.69.0",

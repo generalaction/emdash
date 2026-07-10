@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentConfigContract } from '@emdash/core/workspace-server';
-import { createController, exposeWireToWindows, withValidation } from '@emdash/wire/api';
+import { exposeWireToWindows, forwardController, withValidation } from '@emdash/wire/api';
 import { type ManagedProcess } from '@emdash/wire/process';
 import { childProcessHost } from '@emdash/wire/process/node';
 import { forwardRuntimeLogs, spawnRuntime } from '@emdash/wire/util/process-runtime';
@@ -74,27 +74,7 @@ function installRendererWire(client: AgentConfigRuntimeClient): void {
   rendererWireDispose?.();
   const controller = withValidation(
     agentConfigContract,
-    createController(agentConfigContract, {
-      agents: client.agents,
-      refreshAgents: (input, meta) => client.refreshAgents(input, meta),
-      installAgent: client.installAgent,
-      uninstallAgent: (input, meta) => client.uninstallAgent(input, meta),
-      startLogin: (input, meta) => client.startLogin(input, meta),
-      cancelLogin: (input, meta) => client.cancelLogin(input, meta),
-      sendLoginInput: (input, meta) => client.sendLoginInput(input, meta),
-      resizeLogin: (input, meta) => client.resizeLogin(input, meta),
-      markUrlHandled: (input, meta) => client.markUrlHandled(input, meta),
-      refreshAuthStatus: (input, meta) => client.refreshAuthStatus(input, meta),
-      loginOutput: client.loginOutput,
-      mcpServers: client.mcpServers,
-      saveMcpServer: (input, meta) => client.saveMcpServer(input, meta),
-      removeMcpServer: (input, meta) => client.removeMcpServer(input, meta),
-      listMcpForAgent: (input, meta) => client.listMcpForAgent(input, meta),
-      skills: client.skills,
-      installSkill: (input, meta) => client.installSkill(input, meta),
-      removeSkill: (input, meta) => client.removeSkill(input, meta),
-      createSkill: (input, meta) => client.createSkill(input, meta),
-    }),
+    forwardController(agentConfigContract, client),
     runtimeWireValidationPolicy()
   );
   rendererWireDispose = exposeWireToWindows(

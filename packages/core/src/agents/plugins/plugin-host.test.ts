@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { createScope } from '@emdash/wire/util';
+import { describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '../../exec';
 import type { IAcpBehavior } from './capabilities/acp';
 import type { IAgentAuthBehavior } from './capabilities/auth';
 import type { CanonicalHookEvent } from './capabilities/hooks';
+import type { McpServerRegistration } from './capabilities/mcp';
 import type { AgentCommand, CommandContext } from './capabilities/prompt';
 import { AgentPluginHost, createPluginRegistry, type CLIAgentPluginProvider } from './index';
 
@@ -100,12 +103,106 @@ describe('AgentPluginHost', () => {
 
     expect(host.resolveTuiProvider('test')).toBeNull();
   });
+
+  it('builds prompt commands with resolved cli and allowlisted env', async () => {
+    const buildCommand = vi.fn(
+      (ctx: CommandContext): AgentCommand => ({
+        command: ctx.cli,
+        args: [ctx.model],
+        env: { COMMAND_ENV: '1' },
+      })
+    );
+    const host = createHost([
+      plugin({
+        behavior: { prompt: { buildCommand } },
+      }),
+    ]);
+
+    const result = await host.buildPromptCommand('test', {
+      autoApprove: false,
+      model: 'sonnet',
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        command: 'test',
+        args: ['sonnet'],
+        env: expect.objectContaining({
+          HOME: '/home/test',
+          PATH: '/bin',
+          COMMAND_ENV: '1',
+        }),
+      },
+    });
+  });
+
+  it('binds machine dependencies for auth status checks', async () => {
+    const checkStatus = vi.fn(async () => ({ kind: 'authenticated' as const, account: 'ada' }));
+    const host = createHost([
+      plugin({
+        auth: {
+          kind: 'supported',
+          methods: [
+            {
+              kind: 'api-key',
+              id: 'api-key',
+              name: 'API Key',
+              envVars: [{ name: 'TEST_API_KEY', label: 'API key' }],
+            },
+          ],
+        },
+        behavior: { auth: { checkStatus } },
+      }),
+    ]);
+
+    await expect(host.checkAuthStatus('test')).resolves.toEqual({
+      success: true,
+      data: { kind: 'authenticated', account: 'ada' },
+    });
+    expect(checkStatus).toHaveBeenCalledWith({
+      cli: 'test',
+      exec: expect.any(Function),
+      fs: expect.any(Object),
+      env: expect.objectContaining({
+        HOME: '/home/test',
+        PATH: '/bin',
+      }),
+    });
+  });
+
+  it('binds plugin fs for MCP server reads', async () => {
+    const servers: McpServerRegistration[] = [{ name: 'server', command: 'node' }];
+    const readServers = vi.fn(async () => servers);
+    const host = createHost([
+      plugin({
+        mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio'] },
+        behavior: {
+          mcp: {
+            readServers,
+            writeServers: async () => {},
+            removeServer: async () => {},
+          },
+        },
+      }),
+    ]);
+
+    await expect(host.readMcpServers('test')).resolves.toEqual({ success: true, data: servers });
+    expect(readServers).toHaveBeenCalledWith(expect.any(Object));
+  });
 });
 
 function createHost(plugins: CLIAgentPluginProvider[]): AgentPluginHost {
   const registry = createPluginRegistry<CLIAgentPluginProvider>();
   for (const item of plugins) registry.register(item);
-  return new AgentPluginHost(registry);
+  return new AgentPluginHost({
+    scope: createScope({ label: 'test' }),
+    registry,
+    exec: fakeExec(),
+    fs: memoryFs(),
+    env: { HOME: '/home/test', PATH: '/bin', UNSAFE_ENV: 'nope' },
+    homeDir: '/home/test',
+  });
 }
 
 function plugin(
@@ -126,6 +223,7 @@ function plugin(
         };
     prompt?: CLIAgentPluginProvider['capabilities']['prompt'];
     hooks?: CLIAgentPluginProvider['capabilities']['hooks'];
+    mcp?: CLIAgentPluginProvider['capabilities']['mcp'];
     behavior?: Partial<CLIAgentPluginProvider['behavior']>;
   } = {}
 ): CLIAgentPluginProvider {
@@ -141,7 +239,40 @@ function plugin(
       auth: overrides.auth ?? { kind: 'none' },
       prompt: overrides.prompt ?? { kind: 'argv' },
       hooks: overrides.hooks ?? { kind: 'none' },
+      mcp: overrides.mcp ?? { kind: 'none' },
+      hostDependency: {
+        binaryNames: ['test'],
+        installCommands: {},
+        updates: { kind: 'none' },
+      },
     },
     behavior: overrides.behavior ?? {},
   } as unknown as CLIAgentPluginProvider;
+}
+
+function fakeExec(): IExecutionContext {
+  return {
+    supportsLocalSpawn: false,
+    async exec() {
+      throw new Error('missing');
+    },
+    async execStreaming() {},
+    dispose() {},
+  };
+}
+
+function memoryFs() {
+  return {
+    async read() {
+      return null;
+    },
+    async write() {},
+    async delete() {},
+    async exists() {
+      return false;
+    },
+    async list() {
+      return [];
+    },
+  };
 }

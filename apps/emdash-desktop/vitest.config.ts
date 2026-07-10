@@ -97,6 +97,7 @@ const alias = {
     __dirname,
     '../../packages/wire/src/util/process-runtime/index.ts'
   ),
+  '@emdash/wire/util': resolve(__dirname, '../../packages/wire/src/util/index.ts'),
   '@emdash/wire': resolve(__dirname, '../../packages/wire/src/index.ts'),
 };
 

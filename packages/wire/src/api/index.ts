@@ -3,6 +3,7 @@ export * from './blob-channel';
 export * from './connect';
 export * from './controller';
 export * from './define';
+export * from './forward';
 export * from './protocol';
 export * from './serve';
 export * from './sessions';

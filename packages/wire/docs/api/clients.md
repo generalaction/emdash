@@ -63,17 +63,13 @@ When a process wants local state, pass the client handle to a replica wrapper in
 
 ## Forwarding
 
-Contract clients are intentionally forwardable. A procedure method can be passed
-to `createController()` as a procedure implementation, and a live model client handle
-can be passed as the group implementation:
+Contract clients are intentionally forwardable. Use `forwardController(contract, client)`
+when a hop should serve the same contract without owning state or intercepting
+individual endpoints:
 
 ```ts
 const upstream = client(api, connect(sshTransport));
-
-const controller = createController(api, {
-  ping: upstream.ping,
-  conversation: upstream.conversation,
-});
+const controller = forwardController(api, upstream);
 ```
 
 No live state is created at that hop. The downstream client sees the same contract,
@@ -85,7 +81,15 @@ cache state. The hop does not create `ReplicaState`s, does not allocate local
 cursor spaces, and does not run mutation settling. It just preserves the contract
 surface while delegating to the upstream connection.
 
-Forwarding also works selectively:
+`forwardController()` is the preferred shape for full protocol relays because it
+derives the controller implementation from the contract. Adding a new endpoint to
+the contract does not require a hand-written forwarding entry at each relay. File
+downloads are adapted internally from the client download handle back into the
+controller's streamed download shape.
+
+Use `createController()` directly when forwarding should be selective. A procedure
+method can be passed as a procedure implementation, and live client handles can be
+passed as live model, live log, or live job implementations:
 
 ```ts
 const upstream = client(workspaceApi, connect(sshTransport));
@@ -106,9 +110,9 @@ const controller = createController(workspaceApi, {
 });
 ```
 
-Prefer contract-client forwarding for protocol relays and middle tiers because
-`createController()` keeps the implementation typed and can mix local handlers
-with forwarded subtrees.
+Use this composition style for middle tiers that need local handlers, auditing,
+authorization checks, replicas, or other endpoint-specific behavior. The explicit
+controller implementation makes the interception points visible.
 
 ## When to Use Replicas
 

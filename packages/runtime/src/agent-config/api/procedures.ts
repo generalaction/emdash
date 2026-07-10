@@ -32,7 +32,7 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
     }): Promise<Result<void, AgentConfigAuthError>> {
       return runtime.startLogin(input.providerId, input.methodId);
     },
-    cancelLogin(input: { providerId: string }): Result<void, AgentConfigAuthError> {
+    cancelLogin(input: { providerId: string }): Promise<Result<void, AgentConfigAuthError>> {
       return runtime.cancelLogin(input.providerId);
     },
     sendLoginInput(input: {

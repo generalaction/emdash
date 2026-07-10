@@ -1,26 +1,23 @@
 import { access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { acpApiContract, acpHostContract, type AcpApiContract } from '@emdash/core/acp';
+import { acpApiContract, type AcpApiContract } from '@emdash/core/acp';
 import { log } from '@emdash/shared/logger';
-import {
-  createController,
-  serve,
-  withValidation,
-  type ContractClient,
-  type ValidatePolicy,
-} from '@emdash/wire/api';
-import { processTransport, type ManagedProcess } from '@emdash/wire/process';
+import { type ContractClient } from '@emdash/wire/api';
+import { type ManagedProcess } from '@emdash/wire/process';
 import { childProcessHost } from '@emdash/wire/process/node';
-import { forwardRuntimeLogs, spawnRuntime } from '@emdash/wire/util/process-runtime';
+import {
+  forwardRuntimeLogs,
+  spawnRuntime,
+  type RuntimeHandle,
+} from '@emdash/wire/util/process-runtime';
 import { daemonPaths } from '../daemon/paths';
 
 export type WorkspaceAcpRuntimeClient = ContractClient<AcpApiContract>;
 
-export async function spawnAcpWorkspaceRuntimeProcess(options: { socketPath?: string }): Promise<{
-  client: WorkspaceAcpRuntimeClient;
-  dispose(): Promise<void>;
-}> {
+export async function spawnAcpWorkspaceRuntimeProcess(options: {
+  socketPath?: string;
+}): Promise<RuntimeHandle<AcpApiContract>> {
   const paths = daemonPaths(options.socketPath);
   const entry = await resolveRuntimeEntry();
   log.info('ACP runtime child process entry resolved', { entry });
@@ -38,36 +35,11 @@ export async function spawnAcpWorkspaceRuntimeProcess(options: { socketPath?: st
     onProcess: attachAcpRuntimeLogging,
   });
 
-  const transport = processTransport(handle.process);
-  const controller = withValidation(
-    acpHostContract,
-    createController(acpHostContract, {
-      persistSessionId: ({ conversationId, sessionId }) => {
-        log.debug('ACP runtime returned session id for client persistence', {
-          conversationId,
-          sessionId,
-        });
-      },
-    }),
-    workspaceServerWireValidationPolicy()
-  );
-  const disposeServer = serve(transport, controller);
   handle.onRestarted(() => {
     log.info('ACP runtime child process restarted');
   });
 
-  return {
-    client: handle.client,
-    async dispose() {
-      disposeServer();
-      transport.close?.();
-      await handle.dispose();
-    },
-  };
-}
-
-function workspaceServerWireValidationPolicy(): ValidatePolicy {
-  return process.env.NODE_ENV === 'production' ? 'inputs' : 'full';
+  return handle;
 }
 
 async function resolveRuntimeEntry(): Promise<string> {

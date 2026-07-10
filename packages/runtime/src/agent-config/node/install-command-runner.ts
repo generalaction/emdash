@@ -1,60 +1,46 @@
+import { execFile, type ExecFileException } from 'node:child_process';
 import type { InstallCommandError } from '@emdash/core/deps/runtime';
-import type { NodePtySpawner } from '@emdash/core/pty/node';
 import { err, ok, type Result } from '@emdash/shared';
 import type { AgentConfigInstallCommandRunner } from '../runtime/types';
 
 const ANSI_RE = /\u001b\[[0-?]*[ -/]*[@-~]/g;
+const MAX_INSTALL_OUTPUT_BUFFER = 10 * 1024 * 1024;
 
-export function createPtyInstallCommandRunner(options: {
-  spawner: NodePtySpawner;
+export function createExecInstallCommandRunner(options: {
   cwd: string;
   env: NodeJS.ProcessEnv;
   shell: string;
 }): AgentConfigInstallCommandRunner {
-  return async (command, ctx = {}) => {
-    let proc;
-    try {
-      proc = await options.spawner.spawn({
-        command: options.shell,
-        args: ['-lc', command],
-        cwd: options.cwd,
-        env: Object.fromEntries(
-          Object.entries(options.env).filter(
-            (entry): entry is [string, string] => entry[1] !== undefined
-          )
-        ),
-        cols: 80,
-        rows: 24,
-      });
-    } catch (error) {
-      return err({ type: 'pty-open-failed', message: errorMessage(error) });
-    }
-
-    return await new Promise<Result<void, InstallCommandError>>((resolve) => {
-      const chunks: string[] = [];
-      const abort = () => proc.kill();
-      ctx.signal?.addEventListener('abort', abort, { once: true });
-      proc.onData((chunk) => {
-        chunks.push(chunk);
-        ctx.onOutput?.(chunk);
-      });
-      proc.onExit(({ exitCode }) => {
-        ctx.signal?.removeEventListener('abort', abort);
-        if (exitCode === 0) {
-          resolve(ok());
-          return;
+  return (command, ctx = {}) =>
+    new Promise<Result<void, InstallCommandError>>((resolve) => {
+      execFile(
+        options.shell,
+        ['-lc', command],
+        {
+          cwd: options.cwd,
+          env: options.env,
+          maxBuffer: MAX_INSTALL_OUTPUT_BUFFER,
+          signal: ctx.signal,
+        },
+        (error, stdout, stderr) => {
+          if (!error) {
+            resolve(ok());
+            return;
+          }
+          resolve(err(classifyInstallCommandError(error, `${stdout}${stderr}`)));
         }
-        resolve(
-          err(
-            classifyInstallCommandFailure({
-              exitCode: exitCode ?? undefined,
-              output: chunks.join(''),
-            })
-          )
-        );
-      });
+      );
     });
-  };
+}
+
+function classifyInstallCommandError(
+  error: ExecFileException,
+  output: string
+): InstallCommandError {
+  return classifyInstallCommandFailure({
+    exitCode: typeof error.code === 'number' ? error.code : undefined,
+    output: output || error.message,
+  });
 }
 
 function classifyInstallCommandFailure({
@@ -80,8 +66,4 @@ function classifyInstallCommandFailure({
     output: cleanOutput,
     message: 'Install command failed.',
   };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
