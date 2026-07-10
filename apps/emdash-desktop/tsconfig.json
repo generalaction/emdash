@@ -63,6 +63,7 @@
         "../../packages/wire/src/util/process-runtime/index.ts"
       ],
       "@emdash/wire/util/mobx": ["../../packages/wire/src/util/mobx/index.ts"],
+      "@emdash/wire/worker": ["../../packages/wire/src/worker/index.ts"],
       "@emdash/wire": ["../../packages/wire/src/index.ts"],
       "@root/*": ["./*"],
       "@/*": ["./src/*"],

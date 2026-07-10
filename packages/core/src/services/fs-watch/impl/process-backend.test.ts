@@ -9,7 +9,7 @@ import type {
   ProcessSpec,
   StdioStream,
 } from '@emdash/wire/process';
-import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
+import { serveWorkerProcess, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
 import { describe, expect, it } from 'vitest';
 import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '../api';
 import { createFsWatchController } from './controller';
@@ -86,7 +86,7 @@ describe('processWatchBackend', () => {
 });
 
 async function startChild(process: FakeManagedProcess, service: IWatchService): Promise<void> {
-  await serveProcessRuntime(
+  await serveWorkerProcess(
     (scope) =>
       createFsWatchController({
         scope,

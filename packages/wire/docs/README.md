@@ -82,6 +82,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     and process-backed wire transports.
   - [Process runtimes](./runtime/process-runtimes.md): subprocess-hosted
     controllers with ready handshakes, graceful shutdown, and reconnect resync.
+  - [Workers](./runtime/workers.md): worker lifecycle helpers, lazy spawning,
+    ambient logging, and process-hosted contract examples.
 - [Observability](./observability.md): ambient logger context, instrumentation
   hooks, controller logging, transport debug logging, and scope loggers.
 
@@ -110,6 +112,8 @@ Use narrower subpath exports at app boundaries:
   and optimistic group utilities.
 - `@emdash/wire/util/process-runtime`: helpers for serving and consuming
   process-hosted wire controllers.
+- `@emdash/wire/worker`: worker helpers for resolving runtime entries,
+  supervised spawning, and lazy process lifecycle.
 - `@emdash/wire/process`: process supervision types, `utilityProcessHost()`,
   and `processTransport()`.
 - `@emdash/wire/process/node`: Node `childProcessHost()`.

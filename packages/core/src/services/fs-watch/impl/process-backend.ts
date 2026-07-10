@@ -1,17 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { eventFromUpdate } from '@emdash/wire';
-import type { ManagedProcess, ProcessHost } from '@emdash/wire/process';
-import { childProcessHost } from '@emdash/wire/process/node';
-import { spawnRuntime } from '@emdash/wire/util/process-runtime';
+import type { ProcessHost } from '@emdash/wire/process';
+import type { Scope } from '@emdash/wire/util';
+import { lazyWorker } from '@emdash/wire/worker';
 import { fsWatchContract, type FsWatchStreamEvent } from '../api';
 import type { WatchBackend, WatchKey, WatchOnError, WatchSink } from './backend';
 
 export type ProcessWatchBackendOptions = {
   entry: string;
+  scope?: Scope;
   host?: ProcessHost;
   env?: Record<string, string | undefined>;
   onError?: WatchOnError;
-  onProcess?: (process: ManagedProcess) => void;
 };
 
 type ActiveLease = {
@@ -23,12 +23,29 @@ type ActiveLease = {
 export function processWatchBackend(options: ProcessWatchBackendOptions): WatchBackend {
   const onError = options.onError ?? (() => {});
   const activeLeases = new Map<string, ActiveLease>();
-  type FsWatchRuntimeHandle = Awaited<ReturnType<typeof spawnFsWatchRuntime>>;
-  let handlePromise: Promise<FsWatchRuntimeHandle> | null = null;
+  const worker = lazyWorker(
+    {
+      name: 'fs-watch',
+      contract: fsWatchContract,
+      entry: options.entry,
+      scope: options.scope,
+      host: options.host,
+      env: options.env,
+    },
+    {
+      onSpawned(handle) {
+        handle.onRestarted(() => {
+          void replayLeases(handle).catch((error) =>
+            onError('replay fs watch leases after restart', error)
+          );
+        });
+      },
+    }
+  );
 
   return {
     async subscribe(key, sink, scope) {
-      const handle = await ensureSpawned();
+      const handle = await worker.get();
       const detach = await handle.client.events.handle(key).attach(
         (update) => {
           const event = eventFromUpdate<FsWatchStreamEvent>(update);
@@ -54,43 +71,11 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
     },
     async dispose() {
       activeLeases.clear();
-      const handle = await handlePromise?.catch(() => null);
-      handlePromise = null;
-      await handle?.dispose();
+      await worker.dispose();
     },
   };
 
-  function ensureSpawned(): Promise<FsWatchRuntimeHandle> {
-    if (handlePromise) return handlePromise;
-
-    handlePromise = spawnFsWatchRuntime(options).catch((error) => {
-      handlePromise = null;
-      throw error;
-    });
-    return handlePromise;
-  }
-
-  async function spawnFsWatchRuntime(spawnOptions: ProcessWatchBackendOptions) {
-    const handle = await spawnRuntime({
-      host: spawnOptions.host ?? childProcessHost(),
-      contract: fsWatchContract,
-      spec: {
-        entry: spawnOptions.entry,
-        env: spawnOptions.env,
-        supervision: { restart: 'on-failure', backoffMs: [250, 1_000, 2_500], maxRestarts: 5 },
-      },
-      onProcess: spawnOptions.onProcess,
-    });
-
-    handle.onRestarted(() => {
-      void replayLeases(handle).catch((error) =>
-        onError('replay fs watch leases after restart', error)
-      );
-    });
-    return handle;
-  }
-
-  async function replayLeases(handle: FsWatchRuntimeHandle): Promise<void> {
+  async function replayLeases(handle: Awaited<ReturnType<typeof worker.get>>): Promise<void> {
     await Promise.all(
       [...activeLeases.values()].map(async (lease) => {
         const result = await handle.client.watch({ leaseId: lease.leaseId, key: lease.key });
@@ -103,7 +88,10 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
     );
   }
 
-  async function unwatch(handle: FsWatchRuntimeHandle, leaseId: string): Promise<void> {
+  async function unwatch(
+    handle: Awaited<ReturnType<typeof worker.get>>,
+    leaseId: string
+  ): Promise<void> {
     try {
       const result = await handle.client.unwatch({ leaseId });
       if (!result.success) {

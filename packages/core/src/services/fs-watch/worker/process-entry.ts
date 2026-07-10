@@ -1,6 +1,10 @@
 import { initProcessLogging } from '@emdash/shared/logger/node';
-import { withValidation, type ValidatePolicy } from '@emdash/wire/api';
-import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
+import { withValidation } from '@emdash/wire/api';
+import {
+  serveWorkerProcess,
+  workerValidatePolicy,
+  type ProcessRuntimePort,
+} from '@emdash/wire/util/process-runtime';
 import { fsWatchContract } from '../api';
 import { createFsWatchController } from '../impl/controller';
 
@@ -14,7 +18,7 @@ export function runFsWatchWorkerProcess(options: RunFsWatchWorkerProcessOptions 
   const env = options.env ?? process.env;
   const logger = initProcessLogging({ name: 'fs-watch-runtime', env });
 
-  void serveProcessRuntime(
+  void serveWorkerProcess(
     (scope) =>
       withValidation(
         fsWatchContract,
@@ -22,17 +26,8 @@ export function runFsWatchWorkerProcess(options: RunFsWatchWorkerProcessOptions 
           scope: scope.child('fs-watch-runtime'),
           onError: (context, error) => logger.warn(context, { error }),
         }),
-        runtimeWireValidationPolicy(env)
+        workerValidatePolicy(env)
       ),
     { port: options.port, exit: options.exit, logger }
-  ).catch((error: unknown) => {
-    logger.error('Fs-watch runtime process failed', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    (options.exit ?? process.exit)(1);
-  });
-}
-
-function runtimeWireValidationPolicy(env: NodeJS.ProcessEnv): ValidatePolicy {
-  return env.NODE_ENV === 'production' ? 'inputs' : 'full';
+  );
 }

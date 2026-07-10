@@ -81,7 +81,7 @@ designed.
 ## Process Hosting
 
 Desktop-local ACP and workspace-server ACP both use plain Node child processes via
-`childProcessHost()` and `spawnRuntime()`. The child process entry calls
+`spawnWorker()`. The child process entry calls
 `bootAcpRuntimeProcess()` from `@emdash/runtime/acp-agents/node`, which constructs
 `AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`,
 `LocalAttachmentStore`, and `NodePtySpawner`. The `AgentPluginHost` owns the

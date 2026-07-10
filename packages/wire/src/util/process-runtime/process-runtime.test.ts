@@ -18,8 +18,9 @@ import { createScope } from '../scope';
 import {
   RUNTIME_SHUTDOWN_SIGNAL,
   forwardRuntimeLogs,
-  serveProcessRuntime,
+  serveWorkerProcess,
   spawnRuntime,
+  workerValidatePolicy,
   type ProcessRuntimePort,
 } from './process-runtime';
 
@@ -173,6 +174,35 @@ describe('process runtime utilities', () => {
     process.emitStdio('stderr', '{"level":"info","msg":"ignored"}\n');
     expect(calls).toHaveLength(3);
   });
+
+  it('logs and exits when worker process initialization fails', async () => {
+    const process = new FakeManagedProcess({ entry: 'worker' });
+    const { logger, calls } = createRecordingLogger();
+    const exits: number[] = [];
+
+    await serveWorkerProcess(
+      () => {
+        throw new Error('boom');
+      },
+      {
+        port: process.createChildPort(),
+        exit: (code) => exits.push(code),
+        logger,
+      }
+    );
+
+    expect(exits).toEqual([1]);
+    expect(calls).toContainEqual({
+      level: 'error',
+      message: 'worker process failed to start',
+      fields: { error: 'boom' },
+    });
+  });
+
+  it('selects the worker validation policy from NODE_ENV', () => {
+    expect(workerValidatePolicy({ NODE_ENV: 'production' } as NodeJS.ProcessEnv)).toBe('inputs');
+    expect(workerValidatePolicy({ NODE_ENV: 'development' } as NodeJS.ProcessEnv)).toBe('full');
+  });
 });
 
 async function startChild(
@@ -182,7 +212,7 @@ async function startChild(
 ): Promise<void> {
   const host = createLiveModelHost(api.counter);
   host.create({ id: 'task' }, { state });
-  await serveProcessRuntime(
+  await serveWorkerProcess(
     async (scope) => {
       if (onDispose) scope.add(onDispose);
       return createController(api, {

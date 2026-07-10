@@ -45,6 +45,10 @@
       "types": "./dist/process-runtime.d.mts",
       "default": "./dist/process-runtime.mjs"
     },
+    "./worker": {
+      "types": "./dist/worker.d.mts",
+      "default": "./dist/worker.mjs"
+    },
     "./process": {
       "types": "./dist/process.d.mts",
       "default": "./dist/process.mjs"

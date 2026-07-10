@@ -6,8 +6,12 @@ import { createLocalPluginFs } from '@emdash/core/agents/plugins/helpers';
 import { NodeExecutionContext } from '@emdash/core/exec';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { withValidation, type ValidatePolicy } from '@emdash/wire';
-import { serveProcessRuntime, type ProcessRuntimePort } from '@emdash/wire/util/process-runtime';
+import { withValidation } from '@emdash/wire';
+import {
+  serveWorkerProcess,
+  workerValidatePolicy,
+  type ProcessRuntimePort,
+} from '@emdash/wire/util/process-runtime';
 import { createAcpController } from '../api/controller';
 import { AcpRuntime } from '../runtime/runtime';
 import type { AcpRuntimeDeps } from '../runtime/types';
@@ -23,18 +27,17 @@ export type BootAcpRuntimeProcessOptions = {
 
 export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): void {
   const env = options.env ?? process.env;
-  const attachmentsDir = env.EMDASH_ACP_ATTACHMENTS_DIR;
-
-  if (!attachmentsDir) {
-    throw new Error('ACP runtime process started without EMDASH_ACP_ATTACHMENTS_DIR');
-  }
-
-  const childHost = new ChildAcpProcessHost();
   const logger = initProcessLogging({ name: 'acp-agents-runtime', env });
-  const attachmentStore = new LocalAttachmentStore(attachmentsDir);
 
-  void serveProcessRuntime(
+  void serveWorkerProcess(
     (scope) => {
+      const attachmentsDir = env.EMDASH_ACP_ATTACHMENTS_DIR;
+      if (!attachmentsDir) {
+        throw new Error('ACP runtime process started without EMDASH_ACP_ATTACHMENTS_DIR');
+      }
+
+      const childHost = new ChildAcpProcessHost();
+      const attachmentStore = new LocalAttachmentStore(attachmentsDir);
       const homeDir = os.homedir();
       const agentHost = new AgentPluginHost({
         scope,
@@ -67,21 +70,8 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
       } satisfies AcpRuntimeDeps);
 
       scope.add(() => acp.dispose());
-      return withValidation(
-        acpApiContract,
-        createAcpController(acp),
-        runtimeWireValidationPolicy(env)
-      );
+      return withValidation(acpApiContract, createAcpController(acp), workerValidatePolicy(env));
     },
     { port: options.port, exit: options.exit, logger }
-  ).catch((error: unknown) => {
-    logger.error('ACP runtime process failed', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    (options.exit ?? process.exit)(1);
-  });
-}
-
-function runtimeWireValidationPolicy(env: NodeJS.ProcessEnv): ValidatePolicy {
-  return env.NODE_ENV === 'production' ? 'inputs' : 'full';
+  );
 }

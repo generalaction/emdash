@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import nodePath from 'node:path';
 import {
   createBoundExec,
@@ -12,7 +11,7 @@ import { GitRuntime } from '@emdash/core/git';
 import { ResourceMap } from '@emdash/core/lib';
 import { spawnFsWatchWorker } from '@emdash/core/services/fs-watch/worker';
 import type { Lease } from '@emdash/shared';
-import { forwardRuntimeLogs } from '@emdash/wire/util/process-runtime';
+import { resolveWorkerEntry } from '@emdash/wire/worker';
 import { getDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
@@ -37,20 +36,6 @@ const nativeRuntimePath: RuntimePath = {
   relative: (from, to) => nodePath.relative(from, to),
   contains,
 };
-
-function resolveFsWatchRuntimeEntry(): string {
-  const candidates = [
-    nodePath.join(__dirname, 'fs-watch-runtime.js'),
-    nodePath.join(__dirname, 'fs-watch-runtime.mjs'),
-  ];
-  const entry = candidates.find((candidate) => existsSync(candidate));
-  if (!entry) {
-    throw new Error(
-      `Fs-watch runtime child process entry is missing. Checked: ${candidates.join(', ')}`
-    );
-  }
-  return entry;
-}
 
 class DynamicGitExec implements BoundExec {
   readonly file = 'git';
@@ -99,14 +84,8 @@ class DynamicGitExec implements BoundExec {
 class LocalMachineRuntime implements MachineRuntime {
   readonly machine: MachineRef = { kind: 'local' };
   private readonly watcher = spawnFsWatchWorker({
-    entry: resolveFsWatchRuntimeEntry(),
+    entry: resolveWorkerEntry('fs-watch', __dirname),
     env: process.env,
-    onProcess: (process) => {
-      forwardRuntimeLogs(process, log, { source: 'fs-watch-runtime' });
-      process.onExit((exit) => {
-        log.warn('Fs-watch runtime child process exited', exit);
-      });
-    },
     onError: (context, error) =>
       log.warn('File watching background error', { context, error: String(error) }),
   });
