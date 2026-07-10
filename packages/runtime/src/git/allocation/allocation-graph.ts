@@ -4,10 +4,10 @@ import { KeyedMutex } from '@emdash/core/lib';
 import type { IWatchService } from '@emdash/core/watch';
 import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
 import { createManagedSource, type ManagedSource } from '@emdash/wire/util';
+import { CheckoutResource } from '../checkout/checkout-resource';
 import { GitCheckout } from '../checkout/git-checkout';
 import { GitRepository } from '../repository/git-repository';
-import { CheckoutMount } from './checkout-mount';
-import { CheckoutHandle, RepositoryHandle } from './handles';
+import { RepositoryResource } from '../repository/repository-resource';
 import {
   repositoryIdentityOf,
   type CheckoutIdentity,
@@ -16,7 +16,6 @@ import {
   type RepositoryIdentity,
 } from './identity';
 import { CanonicalGitIdentityResolver } from './identity-resolver';
-import { RepositoryMount } from './repository-mount';
 
 const DEFAULT_IDLE_TTL_MS = 30_000;
 
@@ -38,12 +37,12 @@ export class GitResolutionException extends Error {
   }
 }
 
-/** Canonical repository -> checkout allocation graph with parent retention and idle TTL. */
+/** Private registry for canonical repository and checkout resources. */
 export class GitAllocationGraph {
   private readonly resolver: GitIdentityResolver;
   private readonly ownsResolver: boolean;
-  private readonly repositories: ManagedSource<RepositoryIdentity, RepositoryMount>;
-  private readonly checkouts: ManagedSource<CheckoutIdentity, CheckoutMount>;
+  private readonly repositories: ManagedSource<RepositoryIdentity, RepositoryResource>;
+  private readonly checkouts: ManagedSource<CheckoutIdentity, CheckoutResource>;
   private disposed = false;
 
   constructor(private readonly options: GitAllocationGraphOptions) {
@@ -60,16 +59,16 @@ export class GitAllocationGraph {
       graceMs: idleTtlMs,
       onError: (error, id) => onError(`git repository ${id}`, error),
       create: async (identity, scope) => {
-        const repository = new GitRepository({ identity, exec: options.exec });
-        const mount = await RepositoryMount.create({
+        const commands = new GitRepository({ identity, exec: options.exec });
+        const resource = await RepositoryResource.create({
           identity,
-          repository,
+          commands,
           watcher: options.watcher,
           objectStoreMutex,
           onError,
         });
-        scope.add(() => mount.dispose());
-        return mount;
+        scope.add(() => resource.dispose());
+        return resource;
       },
     });
 
@@ -81,39 +80,49 @@ export class GitAllocationGraph {
         const repositoryLease = this.repositories.acquire(repositoryIdentityOf(identity));
         scope.add(() => repositoryLease.release());
         const repository = await repositoryLease.ready();
-        const checkout = new GitCheckout({
+        const commands = new GitCheckout({
           identity,
-          objectReader: repository.repository,
+          objectReader: repository,
           exec: options.exec.withCwd(identity.checkoutRoot),
         });
-        const mount = await CheckoutMount.create({
+        const resource = await CheckoutResource.create({
           identity,
-          checkout,
+          commands,
           repository,
           watcher: options.watcher,
           maxFileDiffStates: options.maxFileDiffStates,
           onError,
         });
-        scope.add(() => mount.dispose());
-        return mount;
+        scope.add(() => resource.dispose());
+        return resource;
       },
     });
   }
 
-  acquireRepository(selector: RepositorySelector): PendingLease<RepositoryHandle> {
-    return this.acquireResolved(
-      this.resolver.resolve(selector),
-      (identity) => this.repositories.acquire(repositoryIdentityOf(identity)),
-      (mount) => new RepositoryHandle(selector, mount)
+  acquireRepository(selector: RepositorySelector): PendingLease<RepositoryResource> {
+    return this.acquireResolved(this.resolver.resolve(selector), (identity) =>
+      this.repositories.acquire(repositoryIdentityOf(identity))
     );
   }
 
-  acquireCheckout(selector: CheckoutSelector): PendingLease<CheckoutHandle> {
-    return this.acquireResolved(
-      this.resolver.resolve(selector),
-      (identity) => this.checkouts.acquire(identity),
-      (mount) => new CheckoutHandle(selector, mount)
+  acquireCheckout(selector: CheckoutSelector): PendingLease<CheckoutResource> {
+    return this.acquireResolved(this.resolver.resolve(selector), (identity) =>
+      this.checkouts.acquire(identity)
     );
+  }
+
+  async useRepository<T>(
+    selector: RepositorySelector,
+    run: (resource: RepositoryResource) => Promise<T>
+  ): Promise<T> {
+    return this.use(this.acquireRepository(selector), run);
+  }
+
+  async useCheckout<T>(
+    selector: CheckoutSelector,
+    run: (resource: CheckoutResource) => Promise<T>
+  ): Promise<T> {
+    return this.use(this.acquireCheckout(selector), run);
   }
 
   async dispose(): Promise<void> {
@@ -124,20 +133,37 @@ export class GitAllocationGraph {
     if (this.ownsResolver) this.resolver.dispose();
   }
 
-  private acquireResolved<Mount, Handle>(
+  private acquireResolved<Resource>(
     resolved: Promise<Result<CheckoutIdentity, GitResolutionError>>,
-    acquire: (identity: CheckoutIdentity) => PendingLease<Mount>,
-    handle: (mount: Mount) => Handle
-  ): PendingLease<Handle> {
+    acquire: (identity: CheckoutIdentity) => PendingLease<Resource>
+  ): PendingLease<Resource> {
     this.assertActive();
     return toPendingLease(
-      resolved.then(async (result): Promise<Lease<Handle>> => {
+      resolved.then(async (result): Promise<Lease<Resource>> => {
         if (!result.success) throw new GitResolutionException(result.error);
-        const mountLease = acquire(result.data);
-        const mount = await mountLease.ready();
-        return { value: handle(mount), release: () => mountLease.release() };
+        const resourceLease = acquire(result.data);
+        try {
+          return {
+            value: await resourceLease.ready(),
+            release: () => resourceLease.release(),
+          };
+        } catch (error) {
+          await resourceLease.release();
+          throw error;
+        }
       })
     );
+  }
+
+  private async use<Resource, T>(
+    lease: PendingLease<Resource>,
+    run: (resource: Resource) => Promise<T>
+  ): Promise<T> {
+    try {
+      return await run(await lease.ready());
+    } finally {
+      await lease.release();
+    }
   }
 
   private assertActive(): void {
