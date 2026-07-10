@@ -57,7 +57,7 @@ export function createSpawnContextResolver(
     const cachedCli = cliCache.get(providerId);
     if (cachedCli) return ok({ cli: cachedCli, agentEnv: buildAgentEnv() });
 
-    const cliResult = await resolveCli(providerId);
+    const cliResult = await resolveCliOnce({ providerId, generation });
     if (!cliResult.success) return cliResult;
     return ok({ cli: cliResult.data, agentEnv: buildAgentEnv() });
   };
@@ -78,9 +78,5 @@ export function createSpawnContextResolver(
       homeDir: options.homeDir,
       includeShellVar: options.includeShellVar,
     });
-  }
-
-  async function resolveCli(providerId: string): Promise<Result<string, SpawnContextError>> {
-    return resolveCliOnce({ providerId, generation });
   }
 }
