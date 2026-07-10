@@ -1,9 +1,6 @@
 import { z } from 'zod';
 import { agentAuthStatusSchema } from '../../agents/plugins/capabilities/auth';
-import {
-  INSTALL_METHODS,
-  installOptionSchema,
-} from '../../host-dependencies/capability';
+import { INSTALL_METHODS, installOptionSchema } from '../../host-dependencies/capability';
 import { mcpServerSchema } from '../../mcp';
 import {
   catalogSkillSchema,
@@ -182,4 +179,3 @@ export type AuthPendingUrl = z.infer<typeof authPendingUrlSchema>;
 export type AgentConfigEntry = z.infer<typeof agentConfigEntrySchema>;
 export type AgentConfigList = z.infer<typeof agentConfigListSchema>;
 export type AgentInstallProgress = z.infer<typeof agentInstallProgressSchema>;
-

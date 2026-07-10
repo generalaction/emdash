@@ -85,7 +85,8 @@ function createAuthStatusHandle(
 ): AuthStatusHandle {
   return {
     ready: agents.ready,
-    current: () => agents.current()[providerId]?.auth ?? { status: { kind: 'unknown' }, login: null },
+    current: () =>
+      agents.current()[providerId]?.auth ?? { status: { kind: 'unknown' }, login: null },
     dispose: () => {
       void agents.dispose();
     },

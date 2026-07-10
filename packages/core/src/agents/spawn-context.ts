@@ -1,5 +1,5 @@
-import { buildAllowlistedAgentEnv } from './agent-env';
 import { err, ok, type Result } from '@emdash/shared';
+import { buildAllowlistedAgentEnv } from './agent-env';
 
 export type SpawnContext = {
   cli: string;

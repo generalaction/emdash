@@ -46,7 +46,11 @@ export interface AcquireAcpConnectionInput {
   buildClient: (agent: AcpAgentApi, key: string) => Client;
 }
 
-export type AcpConnectionSource = ManagedSource<string, PooledAcpProcess, AcquireAcpConnectionInput>;
+export type AcpConnectionSource = ManagedSource<
+  string,
+  PooledAcpProcess,
+  AcquireAcpConnectionInput
+>;
 
 export function createAcpConnectionSource(
   deps: CreateAcpConnectionSourceDeps

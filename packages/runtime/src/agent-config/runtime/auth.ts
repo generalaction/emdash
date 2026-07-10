@@ -94,7 +94,10 @@ export class AgentAuthManager {
     return ok(await this.getStatus(providerId, { refresh: true }));
   }
 
-  async startLogin(providerId: string, methodId: string): Promise<Result<void, AgentConfigAuthError>> {
+  async startLogin(
+    providerId: string,
+    methodId: string
+  ): Promise<Result<void, AgentConfigAuthError>> {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     await this.releaseLogin(providerId);
     const lease = this.loginSource.acquire(providerId, { providerId, methodId });
@@ -127,11 +130,7 @@ export class AgentAuthManager {
     return ok();
   }
 
-  resizeLogin(
-    providerId: string,
-    cols: number,
-    rows: number
-  ): Result<void, AgentConfigAuthError> {
+  resizeLogin(providerId: string, cols: number, rows: number): Result<void, AgentConfigAuthError> {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     if (!this.ptys.resize(providerId, cols, rows)) {
       return err({
@@ -393,4 +392,3 @@ function errorMessage(error: unknown): string {
 function agentConfigAuthErrorMessage(error: AgentConfigAuthError): string {
   return 'message' in error ? error.message : error.type;
 }
-

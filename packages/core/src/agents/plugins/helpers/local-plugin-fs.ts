@@ -58,4 +58,3 @@ export function createLocalPluginFs(root: string): PluginFs {
     },
   };
 }
-

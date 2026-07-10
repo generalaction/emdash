@@ -84,7 +84,8 @@ export class NodeExecutionContext implements IExecutionContext {
   }
 
   private signal(callerSignal?: AbortSignal): AbortSignal {
-    return callerSignal ? AbortSignal.any([this.lifetime.signal, callerSignal]) : this.lifetime.signal;
+    return callerSignal
+      ? AbortSignal.any([this.lifetime.signal, callerSignal])
+      : this.lifetime.signal;
   }
 }
-

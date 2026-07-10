@@ -119,4 +119,3 @@ function unquoteYamlValue(value: string): string {
 function escapeYamlDoubleQuoted(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
-

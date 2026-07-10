@@ -263,19 +263,17 @@ export class SessionCell {
   }
 
   removeQueuedPrompt(id: string): Result<void, InvalidStateError> {
-    const result = this.dispatchFor<InvalidStateError>(
-      { type: 'RemoveQueuedPrompt', id },
-      ['invalid_state']
-    );
+    const result = this.dispatchFor<InvalidStateError>({ type: 'RemoveQueuedPrompt', id }, [
+      'invalid_state',
+    ]);
     if (!result.success) return result;
     return ok();
   }
 
   reorderQueue(ids: readonly string[]): Result<void, InvalidStateError> {
-    const result = this.dispatchFor<InvalidStateError>(
-      { type: 'ReorderQueue', ids },
-      ['invalid_state']
-    );
+    const result = this.dispatchFor<InvalidStateError>({ type: 'ReorderQueue', ids }, [
+      'invalid_state',
+    ]);
     if (!result.success) return result;
     return ok();
   }

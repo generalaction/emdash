@@ -9,10 +9,7 @@ import { AgentConfigRuntime } from '../runtime/runtime';
 import type { AgentConfigRuntimeDeps } from '../runtime/types';
 import { createPtyInstallCommandRunner } from './install-command-runner';
 
-export {
-  bootAgentConfigRuntimeProcess,
-  type BootAgentConfigRuntimeProcessOptions,
-} from './boot';
+export { bootAgentConfigRuntimeProcess, type BootAgentConfigRuntimeProcessOptions } from './boot';
 export { createPtyInstallCommandRunner } from './install-command-runner';
 
 export type CreateNodeAgentConfigRuntimeOptions = {
@@ -46,4 +43,3 @@ export function createNodeAgentConfigRuntime(
     }),
   });
 }
-

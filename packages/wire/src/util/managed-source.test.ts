@@ -88,7 +88,8 @@ describe('createManagedSource', () => {
   it('uses the first context for concurrent acquires sharing one in-flight creation', async () => {
     const gate = deferred<string>();
     const create = vi.fn(
-      async (_key: string, context: { cwd: string }, _scope: Scope) => `${await gate.promise}:${context.cwd}`
+      async (_key: string, context: { cwd: string }, _scope: Scope) =>
+        `${await gate.promise}:${context.cwd}`
     );
     const source = createManagedSource<string, string, { cwd: string }>({
       key: (key) => key,

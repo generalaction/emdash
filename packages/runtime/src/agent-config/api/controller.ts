@@ -21,4 +21,3 @@ export function createAgentConfigController(runtime: AgentConfigRuntime) {
     skills: runtime.skillsLiveHost(),
   });
 }
-

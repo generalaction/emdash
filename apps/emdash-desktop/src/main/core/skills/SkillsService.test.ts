@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
-import { afterEach, describe, expect, it } from 'vitest';
 import { isValidSkillName } from '@emdash/core/skills';
+import { afterEach, describe, expect, it } from 'vitest';
 import { SkillsService } from './SkillsService';
 
 type SkillsServiceInternals = {

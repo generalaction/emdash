@@ -44,4 +44,3 @@ export interface McpProvidersResponse {
   installed: boolean;
   supportsHttp: boolean;
 }
-

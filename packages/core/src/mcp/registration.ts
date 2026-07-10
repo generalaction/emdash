@@ -66,4 +66,3 @@ export function mcpServerFieldCount(server: McpServer): number {
   if (server.oauth !== undefined) n++;
   return n;
 }
-

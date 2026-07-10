@@ -51,4 +51,3 @@ export const createSkillInputSchema = z.object({
   description: z.string(),
   content: z.string().optional(),
 });
-

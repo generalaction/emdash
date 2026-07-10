@@ -1,7 +1,4 @@
-import {
-  agentConfigContract,
-  type AgentConfigList,
-} from '@emdash/core/workspace-server';
+import { agentConfigContract, type AgentConfigList } from '@emdash/core/workspace-server';
 import {
   createLiveModelHost,
   type LiveInstance,
@@ -88,4 +85,3 @@ function assignDraftValue(current: unknown, incoming: unknown): unknown | undefi
 function isObjectLike(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
-

@@ -5,11 +5,7 @@ import { noopLogger } from '@emdash/shared/logger';
 import { acquireAsResult } from '@emdash/wire/util';
 import { describe, expect, it, vi } from 'vitest';
 import { FakeAcpAgent, FakeAcpProcessHost } from '../acp-test-support';
-import {
-  createAcpConnectionSource,
-  isAcpConnectionError,
-  makeAcpConnectionKey,
-} from './source';
+import { createAcpConnectionSource, isAcpConnectionError, makeAcpConnectionKey } from './source';
 
 function makeBehavior(agent: FakeAcpAgent): IAcpBehavior {
   return {

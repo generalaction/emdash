@@ -106,10 +106,7 @@ export class AcpRuntime {
     return this.manager.editQueuedPrompt(conversationId, id, prompt);
   }
 
-  deleteQueuedPrompt(
-    conversationId: string,
-    id: string
-  ): Result<void, AcpDeleteQueuedPromptError> {
+  deleteQueuedPrompt(conversationId: string, id: string): Result<void, AcpDeleteQueuedPromptError> {
     return this.manager.removeQueuedPrompt(conversationId, id);
   }
 

@@ -11,9 +11,7 @@
         "../../packages/core/src/agents/plugins/helpers/index.ts"
       ],
       "@emdash/core/agents/plugins": ["../../packages/core/src/agents/plugins/index.ts"],
-      "@emdash/core/agents/spawn-context": [
-        "../../packages/core/src/agents/spawn-context.ts"
-      ],
+      "@emdash/core/agents/spawn-context": ["../../packages/core/src/agents/spawn-context.ts"],
       "@emdash/core/deps/runtime": ["../../packages/core/src/host-dependencies/runtime/index.ts"],
       "@emdash/core/pty/node": ["../../packages/core/src/pty/node/index.ts"],
       "@emdash/core/pty": ["../../packages/core/src/pty/index.ts"],

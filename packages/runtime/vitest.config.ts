@@ -16,7 +16,10 @@ export default defineConfig({
         '../core/src/agents/plugins/helpers/index.ts'
       ),
       '@emdash/core/agents/plugins': resolve(__dirname, '../core/src/agents/plugins/index.ts'),
-      '@emdash/core/deps/runtime': resolve(__dirname, '../core/src/host-dependencies/runtime/index.ts'),
+      '@emdash/core/deps/runtime': resolve(
+        __dirname,
+        '../core/src/host-dependencies/runtime/index.ts'
+      ),
       '@emdash/core/exec': resolve(__dirname, '../core/src/exec/index.ts'),
       '@emdash/core/lib': resolve(__dirname, '../core/src/lib/index.ts'),
       '@emdash/core/mcp': resolve(__dirname, '../core/src/mcp/index.ts'),

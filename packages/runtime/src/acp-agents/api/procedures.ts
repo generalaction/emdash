@@ -105,7 +105,9 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     }): Result<void, AcpResolvePermissionError> {
       return runtime.resolvePermission(input.conversationId, input.requestId, input.optionId);
     },
-    exportACPTranscript(input: { conversationId: string }): Result<string, AcpExportTranscriptError> {
+    exportACPTranscript(input: {
+      conversationId: string;
+    }): Result<string, AcpExportTranscriptError> {
       return runtime.exportParsedTranscript(input.conversationId);
     },
     exportRawAcpLog(input: { conversationId: string }): Result<string, AcpExportRawLogError> {

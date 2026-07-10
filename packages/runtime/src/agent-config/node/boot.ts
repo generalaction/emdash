@@ -1,9 +1,9 @@
 import os from 'node:os';
-import { agentConfigContract } from '@emdash/core/workspace-server';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
 import { createLocalPluginFs } from '@emdash/core/agents/plugins/helpers';
 import { NodeExecutionContext } from '@emdash/core/exec';
 import { NodePtySpawner } from '@emdash/core/pty/node';
+import { agentConfigContract } from '@emdash/core/workspace-server';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { withValidation, type ValidatePolicy } from '@emdash/wire';

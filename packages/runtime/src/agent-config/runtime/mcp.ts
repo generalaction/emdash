@@ -34,7 +34,8 @@ export class AgentMcpConfigManager {
       return err({ type: 'invalid-state', message: `Invalid server name: "${server.name}"` });
     }
     for (const providerId of server.providers) {
-      if (!this.deps.pluginHost.get(providerId)) return err({ type: 'unknown-provider', providerId });
+      if (!this.deps.pluginHost.get(providerId))
+        return err({ type: 'unknown-provider', providerId });
     }
     try {
       return await this.withWriteLock(async () => {
@@ -128,7 +129,9 @@ export class AgentMcpConfigManager {
   private getMcpProviders() {
     return this.deps.pluginHost
       .getAll()
-      .filter((provider) => provider.capabilities.mcp.kind === 'supported' && provider.behavior.mcp);
+      .filter(
+        (provider) => provider.capabilities.mcp.kind === 'supported' && provider.behavior.mcp
+      );
   }
 
   private async withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -155,4 +158,3 @@ export class AgentMcpConfigManager {
 function toIoError(error: unknown): AgentConfigMcpError {
   return { type: 'io', message: error instanceof Error ? error.message : String(error) };
 }
-

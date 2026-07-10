@@ -1,5 +1,10 @@
+import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
+import {
+  createSpawnContextResolver,
+  type SpawnContextResolver,
+} from '@emdash/core/agents/spawn-context';
 import type { McpServer } from '@emdash/core/mcp';
-import { createSpawnContextResolver, type SpawnContextResolver } from '@emdash/core/agents/spawn-context';
+import type { CatalogSkill } from '@emdash/core/skills';
 import type {
   AgentConfigAuthError,
   AgentConfigMcpError,
@@ -10,10 +15,8 @@ import type {
   AgentUninstallError,
   DependencyState,
 } from '@emdash/core/workspace-server';
-import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
 import type { Result } from '@emdash/shared';
 import type { LiveJobContext } from '@emdash/wire';
-import type { CatalogSkill } from '@emdash/core/skills';
 import type { LiveLog } from '@emdash/wire';
 import {
   createAgentConfigAgentsLiveHost,
@@ -32,7 +35,9 @@ import { AgentMcpConfigManager } from './mcp';
 import { AgentSkillsManager } from './skills';
 import type { AgentConfigRuntimeDeps } from './types';
 
-type InstallStrategy = { kind: 'package-manager'; method?: string } | { kind: 'custom'; command: string };
+type InstallStrategy =
+  | { kind: 'package-manager'; method?: string }
+  | { kind: 'custom'; command: string };
 type UninstallStrategy =
   | { kind: 'package-manager'; method?: string }
   | { kind: 'custom'; command: string };
@@ -189,4 +194,3 @@ export class AgentConfigRuntime {
     this.deps.exec.dispose();
   }
 }
-

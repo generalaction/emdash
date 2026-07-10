@@ -129,7 +129,9 @@ class MemoryPluginFs implements PluginFs {
 
 describe('AgentConfigRuntime', () => {
   it('resolves auth spawn context from embedded dependency state and allowlisted env', async () => {
-    const authCheckStatus = vi.fn(async (_ctx: AgentAuthContext) => ({ kind: 'authenticated' as const }));
+    const authCheckStatus = vi.fn(async (_ctx: AgentAuthContext) => ({
+      kind: 'authenticated' as const,
+    }));
     const { runtime, exec } = makeRuntime({ authCheckStatus });
 
     const result = await runtime.refreshAuthStatus('claude');
@@ -255,11 +257,13 @@ describe('AgentConfigRuntime', () => {
   });
 });
 
-function makeRuntime(options: {
-  authCheckStatus?: (ctx: AgentAuthContext) => Promise<AgentAuthStatus>;
-  logger?: Logger;
-  ptySpawner?: PtySpawner;
-} = {}) {
+function makeRuntime(
+  options: {
+    authCheckStatus?: (ctx: AgentAuthContext) => Promise<AgentAuthStatus>;
+    logger?: Logger;
+    ptySpawner?: PtySpawner;
+  } = {}
+) {
   const exec = new FakeExecutionContext();
   const fs = new MemoryPluginFs();
   const mcpServers: McpServerRegistration[] = [];

@@ -1,3 +1,4 @@
+import type { SpawnContextResolver } from '@emdash/core/agents/spawn-context';
 import {
   buildDescriptorFromProvider,
   HostDependencyManager,
@@ -5,7 +6,6 @@ import {
   type DependencyState,
   type DependencyUninstallError,
 } from '@emdash/core/deps/runtime';
-import type { SpawnContextResolver } from '@emdash/core/agents/spawn-context';
 import type {
   AgentConfigEntry,
   AgentConfigList,
@@ -20,14 +20,19 @@ import type { AgentConfigAgentsModel } from '../state/live-models';
 import { publishLiveModelState } from '../state/live-models';
 import type { AgentConfigRuntimeDeps } from './types';
 
-type InstallStrategy = { kind: 'package-manager'; method?: string } | { kind: 'custom'; command: string };
+type InstallStrategy =
+  | { kind: 'package-manager'; method?: string }
+  | { kind: 'custom'; command: string };
 type UninstallStrategy =
   | { kind: 'package-manager'; method?: string }
   | { kind: 'custom'; command: string };
 
 export class AgentInstallManager {
   private readonly manager: HostDependencyManager;
-  private readonly providersById: Map<string, ReturnType<AgentConfigRuntimeDeps['pluginHost']['getAll']>[number]>;
+  private readonly providersById: Map<
+    string,
+    ReturnType<AgentConfigRuntimeDeps['pluginHost']['getAll']>[number]
+  >;
   private readonly descriptors: ReturnType<typeof buildDescriptorFromProvider>[];
   private readonly currentProgress = new Map<string, (chunk: string) => void>();
   private list: AgentConfigList = {};
@@ -38,9 +43,7 @@ export class AgentInstallManager {
     private readonly spawnContext?: SpawnContextResolver
   ) {
     const providers = deps.pluginHost.getAll();
-    this.providersById = new Map(
-      providers.map((provider) => [provider.metadata.id, provider])
-    );
+    this.providersById = new Map(providers.map((provider) => [provider.metadata.id, provider]));
     this.descriptors = providers.map(buildDescriptorFromProvider);
     this.manager = new HostDependencyManager(deps.exec, {
       runInstallCommand: (command) =>
@@ -267,4 +270,3 @@ function mapUninstallError(
       return error;
   }
 }
-

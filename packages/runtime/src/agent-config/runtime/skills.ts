@@ -175,4 +175,3 @@ async function writeSkillShInstalls(
 ): Promise<void> {
   await fs.write(SKILLSH_INSTALLS_PATH, JSON.stringify(records, null, 2));
 }
-

@@ -1,8 +1,11 @@
-import os from 'node:os';
 import { readFile } from 'node:fs/promises';
+import os from 'node:os';
 import { acpApiContract, acpHostContract } from '@emdash/core/acp';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
-import { createSpawnContextResolver, type SpawnContextResolver } from '@emdash/core/agents/spawn-context';
+import {
+  createSpawnContextResolver,
+  type SpawnContextResolver,
+} from '@emdash/core/agents/spawn-context';
 import { buildDescriptorFromProvider, HostDependencyManager } from '@emdash/core/deps/runtime';
 import { NodeExecutionContext } from '@emdash/core/exec';
 import { ok } from '@emdash/shared';
@@ -81,7 +84,11 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
       } satisfies AcpRuntimeDeps);
 
       scope.add(() => acp.dispose());
-      return withValidation(acpApiContract, createAcpController(acp), runtimeWireValidationPolicy(env));
+      return withValidation(
+        acpApiContract,
+        createAcpController(acp),
+        runtimeWireValidationPolicy(env)
+      );
     },
     { port: runtimePort, exit: options.exit, logger }
   ).catch((error: unknown) => {
@@ -165,4 +172,3 @@ function createHostTransport(port: ProcessRuntimePort): WireTransport {
     },
   };
 }
-

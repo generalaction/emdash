@@ -78,7 +78,10 @@ describe('createSpawnContextResolver', () => {
     resolve('/bin/test-agent');
 
     await expect(first).resolves.toMatchObject({ success: true, data: { cli: '/bin/test-agent' } });
-    await expect(second).resolves.toMatchObject({ success: true, data: { cli: '/bin/test-agent' } });
+    await expect(second).resolves.toMatchObject({
+      success: true,
+      data: { cli: '/bin/test-agent' },
+    });
     expect(resolveCli).toHaveBeenCalledTimes(1);
   });
 

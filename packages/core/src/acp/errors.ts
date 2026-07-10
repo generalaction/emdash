@@ -63,10 +63,7 @@ export type AcpStartSessionError =
   | InvalidStateError;
 export type AcpResumeSessionError = AcpStartSessionError;
 export type AcpStopSessionError = never;
-export type AcpSendPromptError =
-  | ConversationNotFoundError
-  | InvalidStateError
-  | PromptFailedError;
+export type AcpSendPromptError = ConversationNotFoundError | InvalidStateError | PromptFailedError;
 export type AcpQueuePromptError = ConversationNotFoundError | InvalidStateError;
 export type AcpEditQueuedPromptError = AcpQueuePromptError;
 export type AcpDeleteQueuedPromptError = AcpQueuePromptError;

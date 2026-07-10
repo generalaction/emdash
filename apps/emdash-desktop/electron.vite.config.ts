@@ -19,7 +19,9 @@ const workspaceAliases = {
     '../../packages/core/src/workspace-server/agent-config/index.ts'
   ),
   '@emdash/core/workspace-server': resolve('../../packages/core/src/workspace-server/index.ts'),
-  '@emdash/core/deps/runtime': resolve('../../packages/core/src/host-dependencies/runtime/index.ts'),
+  '@emdash/core/deps/runtime': resolve(
+    '../../packages/core/src/host-dependencies/runtime/index.ts'
+  ),
   '@emdash/core/exec': resolve('../../packages/core/src/exec/index.ts'),
   '@emdash/core/pty/node': resolve('../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve('../../packages/core/src/pty/index.ts'),
@@ -61,9 +63,7 @@ export default defineConfig({
         input: {
           index: resolve('src/main/index.ts'),
           'acp-runtime': resolve('src/main/core/acp/runtime-process/entry.ts'),
-          'agent-config-runtime': resolve(
-            'src/main/core/agent-config/runtime-process/entry.ts'
-          ),
+          'agent-config-runtime': resolve('src/main/core/agent-config/runtime-process/entry.ts'),
         },
       },
     },

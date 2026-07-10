@@ -175,7 +175,10 @@ export class TuiAgentsRuntime {
   outputLog(key: { conversationId: string }): LiveSource {
     return {
       snapshot: async () => {
-        const lease = this.sessionsSource.acquire(key, this.configs.get(key.conversationId) ?? null);
+        const lease = this.sessionsSource.acquire(
+          key,
+          this.configs.get(key.conversationId) ?? null
+        );
         try {
           return await (await lease.ready()).output.snapshot();
         } finally {
@@ -185,7 +188,10 @@ export class TuiAgentsRuntime {
       subscribe: (cb) => {
         let disposed = false;
         let unsubscribe: (() => void) | undefined;
-        const lease = this.sessionsSource.acquire(key, this.configs.get(key.conversationId) ?? null);
+        const lease = this.sessionsSource.acquire(
+          key,
+          this.configs.get(key.conversationId) ?? null
+        );
         void lease.ready().then((session) => {
           if (disposed) {
             void lease.release();

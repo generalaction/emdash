@@ -129,4 +129,3 @@ export const agentConfigContract = defineContract({
 });
 
 export type AgentConfigContract = typeof agentConfigContract;
-

@@ -32,4 +32,3 @@ export interface CatalogIndex {
   lastUpdated: string;
   skills: CatalogSkill[];
 }
-

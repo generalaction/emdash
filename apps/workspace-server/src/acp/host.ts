@@ -98,4 +98,3 @@ async function canRead(path: string): Promise<boolean> {
     return false;
   }
 }
-

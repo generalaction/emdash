@@ -87,4 +87,3 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
 }
 
 export type AgentConfigProcedures = ReturnType<typeof createAgentConfigProcedures>;
-

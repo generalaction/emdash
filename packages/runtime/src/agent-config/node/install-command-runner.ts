@@ -19,7 +19,9 @@ export function createPtyInstallCommandRunner(options: {
         args: ['-lc', command],
         cwd: options.cwd,
         env: Object.fromEntries(
-          Object.entries(options.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+          Object.entries(options.env).filter(
+            (entry): entry is [string, string] => entry[1] !== undefined
+          )
         ),
         cols: 80,
         rows: 24,
@@ -42,7 +44,14 @@ export function createPtyInstallCommandRunner(options: {
           resolve(ok());
           return;
         }
-        resolve(err(classifyInstallCommandFailure({ exitCode: exitCode ?? undefined, output: chunks.join('') })));
+        resolve(
+          err(
+            classifyInstallCommandFailure({
+              exitCode: exitCode ?? undefined,
+              output: chunks.join(''),
+            })
+          )
+        );
       });
     });
   };

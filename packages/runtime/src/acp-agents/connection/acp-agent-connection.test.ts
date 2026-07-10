@@ -42,7 +42,9 @@ describe('createAcpAgentConnection()', () => {
 
   it('returns err(spawn_failed) when spawn throws', async () => {
     const { host, spawnContext, behavior } = makeCtx();
-    spawnContext.resolve.mockResolvedValue(err({ type: 'cli-not-found', providerId: 'test-provider', message: 'spawn-error' }));
+    spawnContext.resolve.mockResolvedValue(
+      err({ type: 'cli-not-found', providerId: 'test-provider', message: 'spawn-error' })
+    );
     const result = await createAcpAgentConnection({ host, spawnContext, behavior }, connArgs());
     expect(isErr(result)).toBe(true);
     if (!isErr(result)) return;
@@ -81,7 +83,10 @@ describe('createAcpAgentConnection()', () => {
     agent.initialize = vi.fn().mockRejectedValue(new Error('init-failed'));
     const { host, spawnContext, behavior } = makeCtx(agent);
     const onClosed = vi.fn();
-    const result = await createAcpAgentConnection({ host, spawnContext, behavior }, connArgs(onClosed));
+    const result = await createAcpAgentConnection(
+      { host, spawnContext, behavior },
+      connArgs(onClosed)
+    );
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
     const caps = await result.data.initialized;

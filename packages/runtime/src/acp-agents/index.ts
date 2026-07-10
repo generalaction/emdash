@@ -3,11 +3,7 @@ export type { AcpAgentConnection } from './connection/acp-agent-connection';
 export { AcpRuntime } from './runtime/runtime';
 export { SessionManager } from './runtime/session-manager';
 export type { AttachmentStore, StoredAttachment } from './runtime/attachment-store';
-export type {
-  AcpRuntimeDeps,
-  AcpStartInput,
-  ResolveAcpProvider,
-} from './runtime/types';
+export type { AcpRuntimeDeps, AcpStartInput, ResolveAcpProvider } from './runtime/types';
 export {
   createAcpConnectionSource,
   makeAcpConnectionKey,
