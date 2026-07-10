@@ -27,7 +27,10 @@ const IndexerSettingsCard: React.FC = () => {
         text
           .split('\n')
           .map((line) => line.trim())
-          .filter((line) => line.length > 0)
+          // Segments are matched per path component, so a value containing a
+          // separator would never match; drop them so the field self-heals
+          // instead of tripping the schema's refine on save.
+          .filter((line) => line.length > 0 && !line.includes('/') && !line.includes('\\'))
       )
     );
     update({ additionalExcludedSegments: parsed });

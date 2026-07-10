@@ -12,4 +12,13 @@ describe('indexerSettingsSchema', () => {
     });
     expect(() => indexerSettingsSchema.parse({ additionalExcludedSegments: [''] })).toThrow();
   });
+
+  it('rejects segments containing path separators', () => {
+    expect(() =>
+      indexerSettingsSchema.parse({ additionalExcludedSegments: ['some/folder'] })
+    ).toThrow();
+    expect(() =>
+      indexerSettingsSchema.parse({ additionalExcludedSegments: ['some\\folder'] })
+    ).toThrow();
+  });
 });
