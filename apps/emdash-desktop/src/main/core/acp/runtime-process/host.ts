@@ -8,6 +8,7 @@ import {
 } from '@emdash/wire/api';
 import { lazyWorker, type WorkerHandle } from '@emdash/wire/worker';
 import { app, ipcMain, MessageChannelMain } from 'electron';
+import { appScope } from '@main/app/app-scope';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
 import { desktopWorkerPath } from '@main/worker-manifest';
@@ -17,11 +18,13 @@ const ACP_WIRE_CHANNEL = 'acp-wire';
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 type AcpRuntimeHandle = WorkerHandle<AcpApiContract> & { readonly client: AcpRuntimeClient };
 
+const acpRuntimeScope = appScope.child('acp-runtime-host');
 const acpWorker = lazyWorker(
   () => ({
     name: 'acp',
     contract: acpApiContract,
     entry: desktopWorkerPath('acp'),
+    scope: acpRuntimeScope,
     env: {
       ...process.env,
       EMDASH_ACP_ATTACHMENTS_DIR: join(app.getPath('userData'), 'acp-attachments'),
@@ -32,20 +35,10 @@ const acpWorker = lazyWorker(
   }
 );
 
-let beforeQuitRegistered = false;
 let rendererWireDispose: (() => void) | null = null;
 
 export async function initializeAcpRuntimeProcess(): Promise<AcpRuntimeHandle> {
-  registerBeforeQuit();
   return decorateAcpRuntimeHandle(await acpWorker.get());
-}
-
-function registerBeforeQuit(): void {
-  if (beforeQuitRegistered) return;
-  beforeQuitRegistered = true;
-  app.once('before-quit', () => {
-    void disposeAcpRuntimeProcess();
-  });
 }
 
 export async function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {

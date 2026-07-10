@@ -6,16 +6,19 @@ import {
   type ContractClient,
 } from '@emdash/wire/api';
 import { lazyWorker, type WorkerHandle } from '@emdash/wire/worker';
-import { app, ipcMain, MessageChannelMain } from 'electron';
+import { ipcMain, MessageChannelMain } from 'electron';
+import { appScope } from '@main/app/app-scope';
 import { desktopWorkerPath } from '@main/worker-manifest';
 
 const AGENT_CONFIG_WIRE_CHANNEL = 'agent-config-wire';
 
+const agentConfigRuntimeScope = appScope.child('agent-config-runtime-host');
 const agentConfigWorker = lazyWorker(
   () => ({
     name: 'agent-config',
     contract: agentConfigContract,
     entry: desktopWorkerPath('agent-config'),
+    scope: agentConfigRuntimeScope,
     env: process.env,
   }),
   {
@@ -26,20 +29,10 @@ const agentConfigWorker = lazyWorker(
 type AgentConfigRuntimeHandle = WorkerHandle<AgentConfigContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
 
-let beforeQuitRegistered = false;
 let rendererWireDispose: (() => void) | null = null;
 
 export async function initializeAgentConfigRuntimeProcess(): Promise<AgentConfigRuntimeHandle> {
-  registerBeforeQuit();
   return agentConfigWorker.get();
-}
-
-function registerBeforeQuit(): void {
-  if (beforeQuitRegistered) return;
-  beforeQuitRegistered = true;
-  app.once('before-quit', () => {
-    void disposeAgentConfigRuntimeProcess();
-  });
 }
 
 export async function getAgentConfigRuntimeHandle(): Promise<AgentConfigRuntimeHandle> {

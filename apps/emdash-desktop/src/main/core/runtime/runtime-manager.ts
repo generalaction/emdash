@@ -11,6 +11,7 @@ import { GitRuntime } from '@emdash/core/git';
 import { ResourceMap } from '@emdash/core/lib';
 import { spawnFsWatchWorker } from '@emdash/core/services/fs-watch/worker';
 import type { Lease } from '@emdash/shared';
+import { appScope } from '@main/app/app-scope';
 import { getDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
@@ -83,8 +84,10 @@ class DynamicGitExec implements BoundExec {
 
 class LocalMachineRuntime implements MachineRuntime {
   readonly machine: MachineRef = { kind: 'local' };
+  private readonly scope = appScope.child('local-machine-runtime');
   private readonly watcher = spawnFsWatchWorker({
     entry: desktopWorkerPath('fs-watch'),
+    scope: this.scope,
     env: process.env,
     onError: (context, error) =>
       log.warn('File watching background error', { context, error: String(error) }),
@@ -109,6 +112,7 @@ class LocalMachineRuntime implements MachineRuntime {
     await this.files.dispose();
     await this.git.dispose();
     await this.watcher.dispose();
+    await this.scope.dispose();
   }
 }
 
