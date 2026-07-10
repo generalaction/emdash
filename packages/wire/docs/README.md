@@ -1,8 +1,8 @@
 # @emdash/wire Docs
 
 `@emdash/wire` is the transport-agnostic runtime layer for typed API calls,
-live model subscriptions, live logs, jobs, mutations, and a small set of utilities
-that sit at the API boundary.
+live model subscriptions, live logs, event streams, jobs, mutations, and a small
+set of utilities that sit at the API boundary.
 
 The package has four layers:
 
@@ -21,6 +21,7 @@ flowchart TB
   subgraph live [Live primitives]
     model[LiveState and replicas]
     log[LiveLog]
+    eventStream[EventStream]
     job[LiveJob]
     mutations[Mutations and registries]
   end
@@ -33,12 +34,13 @@ flowchart TB
   processHost --> api
 ```
 
-The live layer owns the stateful primitives: `LiveState`, `LiveLog`, `LiveJob`,
-`LiveModelHost`, and consumer-instantiated replicas. Low-level `*Client` followers
-track cursors and resync, while materializers (`StateStore`, `LogSink`,
-`JobStore`) own values. Most consumers use client handles directly or wrap them
-in replicas. The API layer turns those primitives into a contract with typed
-procedure calls and live topic client handles.
+The live layer owns the stateful primitives: `LiveState`, `LiveLog`,
+`EventStreamSource`, `LiveJob`, `LiveModelHost`, and consumer-instantiated
+replicas. Low-level `*Client` followers track cursors and resync, while
+materializers (`StateStore`, `LogSink`, `JobStore`) own values. Most consumers use
+client handles directly or wrap them in replicas. The API layer turns those
+primitives into a contract with typed procedure calls and live topic client
+handles.
 The runtime layer owns lifecycle utilities and process supervision. Observability
 hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
 
@@ -50,8 +52,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Serving and clients](./api/serving.md): `createController()`, `serve()`,
     `connect()`, cancellation, controller composition, session hubs, and
     server-side call helpers.
-  - [Typed clients](./api/clients.md): `ContractClient` handles and forwarding
-    through `createController()`.
+  - [Typed clients](./api/clients.md): `ContractClient` handles,
+    `forwardController()`, and selective forwarding through `createController()`.
   - [File endpoints](./api/files.md): `downloadFile()`, `uploadFile()`, blob
     channels, and binary stream transport framing.
   - [Wire errors](./api/errors.md): error planes, `WireErrorCode` meanings,
@@ -63,6 +65,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     cursors, `LiveState`, replicas, and `BatchedLiveState`.
   - [Live logs](./live/live-log.md): retained terminal-style logs and client
     callbacks.
+  - [Event streams](./live/event-stream.md): keyed fire-and-forget events with
+    explicit gap callbacks after reattach.
   - [Live jobs](./live/live-job.md): progress, cancellation, terminal state,
     retention, and contract job handles.
   - [Mutations](./live/mutations.md): mutation ids, host contexts, cursor settling,
@@ -78,6 +82,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     and process-backed wire transports.
   - [Process runtimes](./runtime/process-runtimes.md): subprocess-hosted
     controllers with ready handshakes, graceful shutdown, and reconnect resync.
+  - [Workers](./runtime/workers.md): worker lifecycle helpers, lazy spawning,
+    ambient logging, and process-hosted contract examples.
 - [Observability](./observability.md): ambient logger context, instrumentation
   hooks, controller logging, transport debug logging, and scope loggers.
 
@@ -106,6 +112,8 @@ Use narrower subpath exports at app boundaries:
   and optimistic group utilities.
 - `@emdash/wire/util/process-runtime`: helpers for serving and consuming
   process-hosted wire controllers.
+- `@emdash/wire/worker`: worker helpers for resolving runtime entries,
+  supervised spawning, and lazy process lifecycle.
 - `@emdash/wire/process`: process supervision types, `utilityProcessHost()`,
   and `processTransport()`.
 - `@emdash/wire/process/node`: Node `childProcessHost()`.
@@ -117,7 +125,7 @@ MobX-backed utilities intentionally live in their own export because they have a
 ## Typical Flow
 
 1. Define a contract with `defineContract({ ... })`.
-2. Create server-side `LiveState`, `LiveLog`, `LiveJob`, or
+2. Create server-side `LiveState`, `LiveLog`, `EventStreamSource`, `LiveJob`, or
    `createLiveModelHost()` instances.
 3. Create and dispose keyed host instances as domain resources appear.
 4. Create a controller with `createController(contract, impl)`.

@@ -1,4 +1,5 @@
 import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -18,6 +19,7 @@ export function confirmOpenExternalLink(url: string, onError?: (error: unknown) 
   showModal('confirmExternalLinkModal', {
     url: normalizedUrl,
     canOpenInEmdashBrowser: taskView !== undefined,
+    onCopy: () => copyExternalLink(normalizedUrl),
     onSuccess: (choice) => {
       if (choice === 'emdash-browser') {
         taskView?.paneLayout.open('browser', { initialUrl: normalizedUrl });
@@ -28,6 +30,29 @@ export function confirmOpenExternalLink(url: string, onError?: (error: unknown) 
         onError?.(error);
       });
     },
+  });
+}
+
+async function copyExternalLink(url: string): Promise<boolean> {
+  try {
+    const result = await rpc.app.clipboardWriteText(url);
+    if (!result.success) {
+      showCopyFailure();
+      return false;
+    }
+    toast({ title: 'Link copied' });
+    return true;
+  } catch {
+    showCopyFailure();
+    return false;
+  }
+}
+
+function showCopyFailure(): void {
+  toast({
+    title: 'Copy failed',
+    description: 'The link could not be copied to the clipboard.',
+    variant: 'destructive',
   });
 }
 

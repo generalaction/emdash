@@ -1,4 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { deduplicateRequests } from '@emdash/wire/util';
 import { buildAllowlistedAgentEnv } from './agent-env';
 
 export type SpawnContext = {
@@ -27,7 +28,26 @@ export function createSpawnContextResolver(
   options: CreateSpawnContextResolverOptions
 ): SpawnContextResolver {
   const cliCache = new Map<string, string>();
-  const pending = new Map<string, Promise<Result<string, SpawnContextError>>>();
+  let generation = 0;
+  const resolveCliOnce = deduplicateRequests(
+    async (input: {
+      providerId: string;
+      generation: number;
+    }): Promise<Result<string, SpawnContextError>> => {
+      try {
+        const cli = await options.resolveCli(input.providerId);
+        if (input.generation === generation) cliCache.set(input.providerId, cli);
+        return ok(cli) as Result<string, SpawnContextError>;
+      } catch (error: unknown) {
+        return err({
+          type: 'cli-not-found',
+          providerId: input.providerId,
+          message: error instanceof Error ? error.message : String(error),
+        } satisfies SpawnContextError);
+      }
+    },
+    { key: (input) => `${input.providerId}:${input.generation}` }
+  );
 
   const resolve = async (providerId: string): Promise<Result<SpawnContext, SpawnContextError>> => {
     if (options.hasProvider && !options.hasProvider(providerId)) {
@@ -37,19 +57,18 @@ export function createSpawnContextResolver(
     const cachedCli = cliCache.get(providerId);
     if (cachedCli) return ok({ cli: cachedCli, agentEnv: buildAgentEnv() });
 
-    const cliResult = await resolveCli(providerId);
+    const cliResult = await resolveCliOnce({ providerId, generation });
     if (!cliResult.success) return cliResult;
     return ok({ cli: cliResult.data, agentEnv: buildAgentEnv() });
   };
 
   const invalidate = (providerId?: string): void => {
+    generation++;
     if (providerId) {
       cliCache.delete(providerId);
-      pending.delete(providerId);
       return;
     }
     cliCache.clear();
-    pending.clear();
   };
 
   return { resolve, invalidate };
@@ -59,29 +78,5 @@ export function createSpawnContextResolver(
       homeDir: options.homeDir,
       includeShellVar: options.includeShellVar,
     });
-  }
-
-  async function resolveCli(providerId: string): Promise<Result<string, SpawnContextError>> {
-    const active = pending.get(providerId);
-    if (active) return active;
-
-    const promise = options
-      .resolveCli(providerId)
-      .then((cli) => {
-        cliCache.set(providerId, cli);
-        return ok(cli) as Result<string, SpawnContextError>;
-      })
-      .catch((error: unknown) =>
-        err({
-          type: 'cli-not-found',
-          providerId,
-          message: error instanceof Error ? error.message : String(error),
-        } satisfies SpawnContextError)
-      )
-      .finally(() => {
-        pending.delete(providerId);
-      });
-    pending.set(providerId, promise);
-    return promise;
   }
 }

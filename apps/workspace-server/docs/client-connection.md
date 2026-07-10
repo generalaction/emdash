@@ -137,12 +137,9 @@ calls `health`.
 
 ## ACP Session IDs
 
-ACP `startSession` returns `{ sessionId }` directly to the desktop client through
-the workspace wire connection. The runtime still calls the host-side
-`persistSessionId` hook for consistency with desktop-local ACP hosting, but the
-workspace server currently logs that callback instead of writing a local database.
-The desktop side should persist the returned session id when remote ACP session
-resume is wired.
+ACP `startSession` and `resumeSession` return `{ sessionId }` directly to the
+desktop client through the workspace wire connection. The desktop side should
+persist the returned session id when remote ACP session resume is wired.
 
 Stdio mode:
 

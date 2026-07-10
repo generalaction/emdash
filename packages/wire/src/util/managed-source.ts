@@ -12,6 +12,8 @@ export interface ManagedSource<K, T, C = void> {
 
 type CreateManagedSourceOptionsBase<K> = {
   key: (key: K) => string;
+  scope?: Scope;
+  label?: string;
   graceMs?: number;
   onError?: (error: unknown, key: string) => void;
 };
@@ -51,9 +53,16 @@ export function createManagedSource<K, T, C>(
 export function createManagedSource<K, T, C = void>(
   options: CreateManagedSourceOptions<K, T> | CreateManagedSourceWithContextOptions<K, T, C>
 ): ManagedSource<K, T, C> {
+  const sourceScope = options.scope
+    ? options.scope.child(options.label ?? 'managed-source')
+    : createScope({ label: options.label });
   const entries = new Map<string, Entry<K, T, C>>();
   const graceMs = options.graceMs ?? 0;
   let disposed = false;
+  let disposePromise: Promise<void> | undefined;
+  let disposeEntriesPromise: Promise<void> | undefined;
+
+  sourceScope.add(() => disposeEntries());
 
   return {
     acquire(key: K, ...args: [context?: C]): PendingLease<T> {
@@ -69,22 +78,21 @@ export function createManagedSource<K, T, C = void>(
       await disposeEntry(entry);
     },
     async dispose(): Promise<void> {
-      if (disposed) return;
+      if (disposePromise) return disposePromise;
       disposed = true;
-      const current = [...entries.values()];
-      await Promise.all(current.map((entry) => disposeEntry(entry)));
-      entries.clear();
+      disposePromise = sourceScope.dispose();
+      return disposePromise;
     },
   };
 
   async function acquireLease(key: K, context: C, hasContext: boolean): Promise<Lease<T>> {
-    if (disposed) throw new Error('ManagedSource is disposed');
+    if (disposed || sourceScope.disposed) throw new Error('ManagedSource is disposed');
 
     const keyId = options.key(key);
     let entry = entries.get(keyId);
     if (entry?.disposePromise) {
       await entry.disposePromise;
-      if (disposed) throw new Error('ManagedSource is disposed');
+      if (disposed || sourceScope.disposed) throw new Error('ManagedSource is disposed');
       entry = entries.get(keyId);
     }
 
@@ -118,7 +126,7 @@ export function createManagedSource<K, T, C = void>(
       keyId,
       context,
       hasContext,
-      scope: createScope({ label: `managed-source:${keyId}` }),
+      scope: sourceScope.child(entryScopeLabel(keyId)),
       refCount: 0,
       hasValue: false,
       value: undefined,
@@ -126,6 +134,21 @@ export function createManagedSource<K, T, C = void>(
       disposePromise: undefined,
       graceTimer: undefined,
     };
+  }
+
+  function entryScopeLabel(keyId: string): string {
+    return options.scope || options.label ? keyId : `managed-source:${keyId}`;
+  }
+
+  async function disposeEntries(): Promise<void> {
+    if (disposeEntriesPromise) return disposeEntriesPromise;
+    disposed = true;
+    disposeEntriesPromise = (async () => {
+      const current = [...entries.values()];
+      await Promise.all(current.map((entry) => disposeEntry(entry)));
+      entries.clear();
+    })();
+    return disposeEntriesPromise;
   }
 
   function ensureCreated(entry: Entry<K, T, C>): Promise<T> {

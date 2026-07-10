@@ -1,5 +1,5 @@
 export { TuiAgentsRuntime } from './runtime/runtime';
-export type { TuiAgentsRuntimeDeps, TuiSpawnContext } from './runtime/types';
+export type { TuiAgentsRuntimeDeps } from './runtime/types';
 export { createTuiAgentsController } from './api/controller';
 export { createTuiAgentsProcedures } from './api/procedures';
 export type { StartTuiSessionInput, TuiAgentsProcedures } from './api/procedures';

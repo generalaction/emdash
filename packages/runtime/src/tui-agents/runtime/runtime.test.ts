@@ -5,15 +5,16 @@ import {
   type CLIAgentPluginProvider,
   type CommandContext,
 } from '@emdash/core/agents/plugins';
+import type { IExecutionContext } from '@emdash/core/exec';
 import type { PtyExitInfo, PtyProcess, PtySpawner, PtySpawnSpec } from '@emdash/core/pty';
 import {
   tuiAgentsContract,
   tuiNotificationListSchema,
   tuiSessionListSchema,
 } from '@emdash/core/workspace-server';
-import { ok } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
 import { createStubLogger, createTestWire, waitFor } from '@emdash/wire/testing';
+import { createScope } from '@emdash/wire/util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTuiAgentsController } from '../api/controller';
 import { TuiAgentsRuntime } from './runtime';
@@ -110,7 +111,8 @@ describe('TuiAgentsRuntime', () => {
         cols: 100,
         rows: 40,
         env: expect.objectContaining({
-          BASE_ENV: '1',
+          HOME: '/home/test',
+          PATH: '/bin',
           COMMAND_ENV: '1',
           PROVIDER_VAR: '1',
         }),
@@ -238,13 +240,17 @@ function createHarness(
   const registry = createPluginRegistry<CLIAgentPluginProvider>();
   registry.register(plugin(overrides));
   const { logger } = createStubLogger();
+  const agentHost = new AgentPluginHost({
+    scope: createScope({ label: 'test-tui', logger }),
+    registry,
+    exec: fakeExec(),
+    fs: fakePluginFs(),
+    env: { HOME: '/home/test', PATH: '/bin' },
+    homeDir: '/home/test',
+  });
   const deps: TuiAgentsRuntimeDeps = {
-    pluginHost: new AgentPluginHost(registry),
+    agentHost,
     spawner,
-    spawnContext: {
-      resolve: async () => ok({ cli: 'agent', agentEnv: { BASE_ENV: '1' } }),
-      invalidate: () => {},
-    },
     logger,
   };
   return { runtime: new TuiAgentsRuntime(deps), spawner };
@@ -283,6 +289,11 @@ function plugin(
     capabilities: {
       acp: { kind: 'none' },
       auth: { kind: 'none' },
+      hostDependency: {
+        binaryNames: ['agent'],
+        installCommands: {},
+        updates: { kind: 'none' },
+      },
       prompt: overrides.prompt ?? { kind: 'argv' },
       hooks: { kind: 'none' },
     },
@@ -296,6 +307,33 @@ function plugin(
       },
     },
   } as unknown as CLIAgentPluginProvider;
+}
+
+function fakeExec(): IExecutionContext {
+  return {
+    supportsLocalSpawn: false,
+    async exec() {
+      throw new Error('missing');
+    },
+    async execStreaming() {},
+    dispose() {},
+  };
+}
+
+function fakePluginFs() {
+  return {
+    async read() {
+      return null;
+    },
+    async write() {},
+    async delete() {},
+    async exists() {
+      return false;
+    },
+    async list() {
+      return [];
+    },
+  };
 }
 
 class FakePtySpawner implements PtySpawner {

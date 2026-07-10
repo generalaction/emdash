@@ -8,6 +8,7 @@ import {
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
+import { isFileTabLoading } from './file-tab-loading';
 import type { FileTabResource } from './stores/file-tab-resource';
 
 function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | undefined {
@@ -37,9 +38,17 @@ export const FileTabBarItem = observer(function FileTabBarItem({
 
   const bufferUri = resource.bufferUri;
   const diskUri = bufferUri ? modelRegistry.toDiskUri(bufferUri) : '';
-  const diskStatus = diskUri ? (modelRegistry.modelStatus.get(diskUri) ?? 'loading') : 'loading';
+  const diskStatus = diskUri ? modelRegistry.modelStatus.get(diskUri) : undefined;
   const hasFileIssue = diskStatus === 'error' || diskStatus === 'too-large';
-  const showSpinner = useDelayedBoolean(isMonacoFile && diskStatus === 'loading', 200);
+  const showSpinner = useDelayedBoolean(
+    isFileTabLoading({
+      isExternal: resource.isExternal,
+      isExternalLoading: resource.isLoading,
+      isMonacoFile,
+      diskStatus,
+    }),
+    200
+  );
 
   const errorTooltip = hasFileIssue ? fileTabErrorTooltip(diskStatus, diskUri) : undefined;
   const tooltip = errorTooltip ? `${resource.path} — ${errorTooltip}` : resource.path;

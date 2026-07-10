@@ -28,9 +28,11 @@
       "@emdash/wire/api": ["../../packages/wire/src/api/index.ts"],
       "@emdash/wire/process/node": ["../../packages/wire/src/process/node/index.ts"],
       "@emdash/wire/process": ["../../packages/wire/src/process/index.ts"],
+      "@emdash/wire/util": ["../../packages/wire/src/util/index.ts"],
       "@emdash/wire/util/process-runtime": [
         "../../packages/wire/src/util/process-runtime/index.ts"
       ],
+      "@emdash/wire/worker": ["../../packages/wire/src/worker/index.ts"],
       "@emdash/wire": ["../../packages/wire/src/index.ts"]
     }
   },

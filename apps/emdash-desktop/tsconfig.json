@@ -15,6 +15,12 @@
       "@emdash/core/acp": ["../../packages/core/src/acp/index.ts"],
       "@emdash/core/pty/node": ["../../packages/core/src/pty/node/index.ts"],
       "@emdash/core/pty": ["../../packages/core/src/pty/index.ts"],
+      "@emdash/core/services/fs-watch/api": [
+        "../../packages/core/src/services/fs-watch/api/index.ts"
+      ],
+      "@emdash/core/services/fs-watch/worker": [
+        "../../packages/core/src/services/fs-watch/worker/index.ts"
+      ],
       "@emdash/core/agents/agent-env": ["../../packages/core/src/agents/agent-env.ts"],
       "@emdash/core/agents/spawn-context": ["../../packages/core/src/agents/spawn-context.ts"],
       "@emdash/core/agents/plugins/helpers": [
@@ -56,6 +62,8 @@
         "../../packages/wire/src/util/process-runtime/index.ts"
       ],
       "@emdash/wire/util/mobx": ["../../packages/wire/src/util/mobx/index.ts"],
+      "@emdash/wire/worker": ["../../packages/wire/src/worker/index.ts"],
+      "@emdash/wire/util": ["../../packages/wire/src/util/index.ts"],
       "@emdash/wire": ["../../packages/wire/src/index.ts"],
       "@root/*": ["./*"],
       "@/*": ["./src/*"],

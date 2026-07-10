@@ -68,6 +68,11 @@ ACP callbacks, normalizes raw `SessionUpdate`s through the provider's enrich
 hook, and asks the `SessionManager` to route the event to a cell. The cell folds
 the event through the reducer and publishes changed slices through live models.
 
+Provider `sessionId` persistence is owned by the host that consumes the ACP API.
+The runtime returns the session id from `startSession` and `resumeSession`; desktop
+persists that returned value at the client boundary instead of using a child-to-host
+callback.
+
 `editCurrentPrompt` and `exportACPTranscript` are intentionally contract-only
 placeholders for now. Workspace-server stubs should keep typechecking against
 the contract, but core does not serve implementations until those workflows are
@@ -76,10 +81,16 @@ designed.
 ## Process Hosting
 
 Desktop-local ACP and workspace-server ACP both use plain Node child processes via
-`childProcessHost()` and `spawnRuntime()`. The child process entry calls
+`spawnWorker()`. The child process entry calls
 `bootAcpRuntimeProcess()` from `@emdash/runtime/acp-agents/node`, which constructs
-`AcpRuntime`, `AgentPluginHost`, `ChildAcpProcessHost`, `LocalAttachmentStore`,
-and `NodePtySpawner`.
+`AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`,
+`LocalAttachmentStore`, and `NodePtySpawner`. The `AgentPluginHost` owns the
+runtime process's plugin registry, execution context, plugin filesystem, env, home
+directory, host dependency manager, and spawn-context cache; ACP-specific
+resources such as process handles, ACP ports, terminal management, attachment
+storage, and session cells stay inside the ACP runtime. Each host owns a worker
+manifest that maps the ACP worker id to the emitted child-process entry path for
+that host's build.
 
 The concrete plugin registry is injected by each host entry (`emdash-desktop` and
 `workspace-server`) rather than imported by `@emdash/runtime`; this keeps runtime

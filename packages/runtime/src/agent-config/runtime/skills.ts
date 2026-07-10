@@ -45,7 +45,7 @@ export class AgentSkillsManager {
   }
 
   async refresh(): Promise<CatalogSkill[]> {
-    const installed = await getInstalledSkills(this.deps.pluginFs, this.deps.homeDir);
+    const installed = await getInstalledSkills(this.deps.agentHost.fs, this.deps.agentHost.homeDir);
     this.publish(installed);
     return installed;
   }
@@ -58,7 +58,7 @@ export class AgentSkillsManager {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${installId}"` });
     }
     try {
-      await this.deps.pluginFs.write(
+      await this.deps.agentHost.fs.write(
         `${SKILLS_ROOT}/${installId}/SKILL.md`,
         payload.skillMdContent
       );
@@ -68,13 +68,13 @@ export class AgentSkillsManager {
         payload.catalogSkillId &&
         payload.skillShPath
       ) {
-        const installs = await readSkillShInstalls(this.deps.pluginFs);
+        const installs = await readSkillShInstalls(this.deps.agentHost.fs);
         installs[installId] = {
           sourceRef: payload.sourceRef,
           catalogSkillId: payload.catalogSkillId,
           skillShPath: payload.skillShPath,
         };
-        await writeSkillShInstalls(this.deps.pluginFs, installs);
+        await writeSkillShInstalls(this.deps.agentHost.fs, installs);
       }
       return ok(await this.refresh());
     } catch (error) {
@@ -84,11 +84,11 @@ export class AgentSkillsManager {
 
   async removeSkill(name: string): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
     try {
-      await this.deps.pluginFs.delete(`${SKILLS_ROOT}/${name}`);
-      const installs = await readSkillShInstalls(this.deps.pluginFs);
+      await this.deps.agentHost.fs.delete(`${SKILLS_ROOT}/${name}`);
+      const installs = await readSkillShInstalls(this.deps.agentHost.fs);
       if (installs[name]) {
         delete installs[name];
-        await writeSkillShInstalls(this.deps.pluginFs, installs);
+        await writeSkillShInstalls(this.deps.agentHost.fs, installs);
       }
       return ok(await this.refresh());
     } catch (error) {
@@ -105,11 +105,11 @@ export class AgentSkillsManager {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${input.name}"` });
     }
     try {
-      const existing = await this.deps.pluginFs.exists(`${SKILLS_ROOT}/${input.name}/SKILL.md`);
+      const existing = await this.deps.agentHost.fs.exists(`${SKILLS_ROOT}/${input.name}/SKILL.md`);
       if (existing) {
         return err({ type: 'invalid-state', message: `Skill "${input.name}" already exists` });
       }
-      await this.deps.pluginFs.write(
+      await this.deps.agentHost.fs.write(
         `${SKILLS_ROOT}/${input.name}/SKILL.md`,
         generateSkillMd(input.name, input.description, input.content)
       );

@@ -23,6 +23,7 @@ import { execSync, execFileSync } from 'node:child_process';
 import { resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createAcpAgentConnection } from '@emdash/runtime/acp-agents';
+import { createScope } from '@emdash/wire/util';
 import { pluginRegistry } from '../../src/agents/registry';
 import { Recorder } from './acp/recorder';
 import { buildRecordingClient } from './acp/recording-client';
@@ -111,33 +112,41 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
 
   let sessionId: string | null = null;
   const { client, dispose: disposeClient } = buildRecordingClient(recorder, host, () => sessionId);
+  const scope = createScope({ label: `acp-fixture:${opts.providerId}` });
+  const spawnContext = await host.resolveSpawnContext(opts.providerId);
+  const spawn = behavior.buildSpawn({
+    cwd,
+    env: spawnContext.agentEnv,
+    cli: spawnContext.cli,
+  });
 
   const connResult = await createAcpAgentConnection(
     { host, behavior },
     {
       providerId: opts.providerId,
-      cwd,
+      spawn: {
+        ...spawn,
+        env: { ...spawnContext.agentEnv, ...spawn.env },
+        cwd,
+      },
+      scope,
       buildClient: () => client,
-      onClosed: () => {
-        console.log('[fixture] Agent process closed.');
+      onClosed: (exitCode) => {
+        console.log(`[fixture] Agent process closed (code ${exitCode ?? 'null'}).`);
       },
     }
   );
 
   if (!connResult.success) {
+    await scope.dispose();
     if (worktreePath) removeWorktree(worktreePath);
-    throw new Error(`[fixture] Spawn failed: ${JSON.stringify(connResult.error)}`);
+    throw new Error(`[fixture] Connection failed: ${JSON.stringify(connResult.error)}`);
   }
 
-  const { handle, agent, initialized } = connResult.data;
+  const { agent, supportsLoadSession } = connResult.data;
 
   try {
-    console.log('[fixture] Awaiting initialize…');
-    const initResult = await initialized;
-    if (!initResult.success) {
-      throw new Error(`[fixture] Initialize failed: ${JSON.stringify(initResult.error)}`);
-    }
-    console.log('[fixture] Initialized.', initResult.data);
+    console.log('[fixture] Initialized.', { supportsLoadSession });
 
     console.log('[fixture] Calling newSession…');
     const sessionResp = await agent.newSession({ cwd, mcpServers: [] });
@@ -261,11 +270,7 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
     }
   } finally {
     disposeClient();
-    try {
-      handle.kill();
-    } catch {
-      // ignore if already exited
-    }
+    await scope.dispose();
     if (worktreePath) removeWorktree(worktreePath);
 
     console.log(`\n[fixture] Saving transcript to ${outPath}…`);

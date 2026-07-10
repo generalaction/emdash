@@ -355,6 +355,65 @@ describe('pluginRegistry', () => {
     ]);
   });
 
+  it('registers Oh My Pi install, ACP, model, and session behavior', () => {
+    const ohMyPi = pluginRegistry.get('oh-my-pi')!;
+
+    expect(ohMyPi.metadata.name).toBe('Oh My Pi');
+    expect(ohMyPi.capabilities.acp.kind).toBe('supported');
+    expect(ohMyPi.capabilities.hostDependency.binaryNames).toEqual(['omp']);
+    expect(ohMyPi.capabilities.hostDependency.installDocs).toBe('https://omp.sh/docs/quickstart');
+    expect(
+      ohMyPi.capabilities.hostDependency.installCommands.macos?.map(
+        (opt: { method: string }) => opt.method
+      )
+    ).toEqual(['curl', 'homebrew', 'other']);
+    expect(ohMyPi.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'curl -fsSL https://omp.sh/install | sh'
+    );
+    expect(ohMyPi.capabilities.hostDependency.installCommands.macos?.[2]?.command).toBe(
+      'bun install -g @oh-my-pi/pi-coding-agent'
+    );
+    expect(ohMyPi.capabilities.hostDependency.updates).toMatchObject({
+      kind: 'supported',
+      releaseSource: { kind: 'github', repo: 'can1357/oh-my-pi' },
+      update: { kind: 'package-manager' },
+    });
+    expect(ohMyPi.capabilities.hostDependency.uninstall).toEqual({
+      kind: 'package-manager',
+    });
+
+    const fresh = ohMyPi.behavior.prompt!.buildCommand({
+      cli: 'omp',
+      autoApprove: false,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'openai-codex/gpt-5.5',
+    });
+    expect(fresh.args).toEqual([
+      '--extension',
+      './.omp/extensions/emdash-hook.ts',
+      '--model',
+      'openai-codex/gpt-5.5',
+      'Fix the bug',
+    ]);
+
+    const resumed = ohMyPi.behavior.prompt!.buildCommand({
+      cli: 'omp',
+      autoApprove: false,
+      sessionId: 'conv-1',
+      providerSessionId: '/Users/test/.omp/agent/sessions/project/session.jsonl',
+      isResuming: true,
+      model: '',
+    });
+    expect(resumed.args).toEqual([
+      '--extension',
+      './.omp/extensions/emdash-hook.ts',
+      '--session',
+      '/Users/test/.omp/agent/sessions/project/session.jsonl',
+    ]);
+  });
+
   it('registers Qoder CLI install metadata and interactive command args', () => {
     const qoder = pluginRegistry.get('qoder')!;
 

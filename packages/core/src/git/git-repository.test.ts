@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { WatchService } from '../watch';
+import { nativeWatchBackend } from '../services/fs-watch/impl/native-backend';
+import { createWatchService } from '../services/fs-watch/impl/watch-service';
 import { GitRuntime, type GitRefsModel, type GitRepoUpdate } from './index';
 
 const execFileAsync = promisify(execFile);
@@ -60,10 +61,14 @@ async function eventually<T>(
   throw new Error('Timed out waiting for condition');
 }
 
+function createNativeWatchService() {
+  return createWatchService({ backend: nativeWatchBackend() });
+}
+
 describe('GitRepository', () => {
   it('reads repository facts and emits updates after real git mutations', async () => {
     const { repo, remote } = await makeRepoWithRemote();
-    const watcher = new WatchService();
+    const watcher = createNativeWatchService();
     const runtime = new GitRuntime({ watcher });
     const updates: GitRepoUpdate[] = [];
 
@@ -138,7 +143,7 @@ describe('GitRepository', () => {
 
   it('emits refs updates for external git mutations under the common dir', async () => {
     const { repo } = await makeRepoWithRemote();
-    const watcher = new WatchService();
+    const watcher = createNativeWatchService();
     const runtime = new GitRuntime({ watcher });
     const updates: GitRepoUpdate[] = [];
 

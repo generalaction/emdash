@@ -133,6 +133,31 @@ describe('HostDependencyManager install', () => {
     });
   });
 
+  it('uses a per-call install runner when provided', async () => {
+    const defaultRunner = vi.fn(async () =>
+      err({
+        type: 'command-failed' as const,
+        message: 'default runner should not be called',
+        output: '',
+        exitCode: 1,
+      })
+    );
+    const perCallRunner = vi.fn(async () => ok<void>());
+    const manager = new HostDependencyManager(missingCtx, {
+      dependencies: TEST_DEPENDENCIES,
+      runInstallCommand: defaultRunner,
+    });
+
+    const result = await manager.install('codex', undefined, { run: perCallRunner });
+
+    expect(perCallRunner).toHaveBeenCalledWith('npm install -g @openai/codex');
+    expect(defaultRunner).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'not-detected-after-install', id: 'codex' },
+    });
+  });
+
   it('returns an error result for unknown dependency ids', async () => {
     const manager = new HostDependencyManager(missingCtx, { dependencies: TEST_DEPENDENCIES });
 

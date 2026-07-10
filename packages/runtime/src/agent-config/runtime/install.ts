@@ -1,10 +1,8 @@
-import type { SpawnContextResolver } from '@emdash/core/agents/spawn-context';
 import {
-  buildDescriptorFromProvider,
-  HostDependencyManager,
   type DependencyInstallError,
   type DependencyState,
   type DependencyUninstallError,
+  type HostDependencyManager,
 } from '@emdash/core/deps/runtime';
 import type {
   AgentConfigEntry,
@@ -31,34 +29,19 @@ export class AgentInstallManager {
   private readonly manager: HostDependencyManager;
   private readonly providersById: Map<
     string,
-    ReturnType<AgentConfigRuntimeDeps['pluginHost']['getAll']>[number]
+    ReturnType<AgentConfigRuntimeDeps['agentHost']['getAll']>[number]
   >;
-  private readonly descriptors: ReturnType<typeof buildDescriptorFromProvider>[];
-  private readonly currentProgress = new Map<string, (chunk: string) => void>();
   private list: AgentConfigList = {};
 
   constructor(
     private readonly deps: AgentConfigRuntimeDeps,
-    private readonly agentsModel: AgentConfigAgentsModel,
-    private readonly spawnContext?: SpawnContextResolver
+    private readonly agentsModel: AgentConfigAgentsModel
   ) {
-    const providers = deps.pluginHost.getAll();
+    const providers = deps.agentHost.getAll();
     this.providersById = new Map(providers.map((provider) => [provider.metadata.id, provider]));
-    this.descriptors = providers.map(buildDescriptorFromProvider);
-    this.manager = new HostDependencyManager(deps.exec, {
-      runInstallCommand: (command) =>
-        deps.installCommandRunner(command, {
-          onOutput: (chunk) => {
-            for (const progress of this.currentProgress.values()) progress(chunk);
-          },
-        }),
-      platform: deps.platform,
-      dependencies: this.descriptors,
-      getDependencyDescriptor: (id) => this.descriptors.find((descriptor) => descriptor.id === id),
-      logger: deps.logger,
-    });
+    this.manager = deps.agentHost.dependencies;
     this.manager.onStatusUpdated.subscribe((event) => {
-      this.spawnContext?.invalidate(event.id);
+      deps.agentHost.invalidateSpawnContext(event.id);
       this.updateInstall(event.id, event.state);
     });
     this.seedProviders();
@@ -92,14 +75,14 @@ export class AgentInstallManager {
       return err({ type: 'unknown-provider', providerId });
     }
 
-    this.currentProgress.set(ctx.jobId, (output) => ctx.progress({ providerId, output }));
     try {
       if (strategy.kind === 'custom') {
+        ctx.progress({ providerId, phase: 'running-command' });
         const run = await this.deps.installCommandRunner(strategy.command, {
           signal: ctx.signal,
-          onOutput: (output) => ctx.progress({ providerId, output }),
         });
         if (!run.success) return err(run.error);
+        ctx.progress({ providerId, phase: 'verifying' });
         const state = await this.manager.probe(providerId);
         if (state.status !== 'available') {
           return err({ type: 'not-detected-after-install', providerId });
@@ -107,11 +90,19 @@ export class AgentInstallManager {
         return ok(state);
       }
 
-      const result = await this.manager.install(providerId, strategy.method as never);
+      const result = await this.manager.install(providerId, strategy.method as never, {
+        run: async (command) => {
+          ctx.progress({ providerId, phase: 'running-command' });
+          const run = await this.deps.installCommandRunner(command, {
+            signal: ctx.signal,
+          });
+          if (run.success) ctx.progress({ providerId, phase: 'verifying' });
+          return run;
+        },
+      });
       return mapInstallResult(providerId, result);
     } finally {
-      this.spawnContext?.invalidate(providerId);
-      this.currentProgress.delete(ctx.jobId);
+      this.deps.agentHost.invalidateSpawnContext(providerId);
     }
   }
 
@@ -127,27 +118,16 @@ export class AgentInstallManager {
       const run = await this.deps.installCommandRunner(strategy.command);
       if (!run.success) return err(run.error);
       const state = await this.manager.probe(providerId);
-      this.spawnContext?.invalidate(providerId);
+      this.deps.agentHost.invalidateSpawnContext(providerId);
       if (state.status !== 'missing') return err({ type: 'still-present', providerId });
       return ok(state);
     }
 
-    const result = await this.manager.uninstall(providerId, strategy?.method as never);
-    this.spawnContext?.invalidate(providerId);
+    const result = await this.manager.uninstall(providerId, strategy?.method as never, {
+      run: (command) => this.deps.installCommandRunner(command),
+    });
+    this.deps.agentHost.invalidateSpawnContext(providerId);
     return mapUninstallResult(providerId, result);
-  }
-
-  async resolveCli(providerId: string): Promise<string> {
-    if (!this.providersById.has(providerId)) {
-      throw new Error(`Provider '${providerId}' was not found`);
-    }
-
-    let state = this.manager.get(providerId);
-    if (!state?.path) state = await this.manager.probe(providerId);
-    if (state.path) return state.path;
-
-    const descriptor = this.descriptors.find((candidate) => candidate.id === providerId);
-    return descriptor?.commands[0] ?? providerId;
   }
 
   updateAuth(providerId: string, auth: AgentConfigEntry['auth']): void {
@@ -163,13 +143,13 @@ export class AgentInstallManager {
   }
 
   dispose(): void {
-    this.deps.exec.dispose();
+    // The machine-scoped AgentPluginHost owns execution-context disposal through its scope.
   }
 
   private seedProviders(): void {
     const now = Date.now();
     const list: AgentConfigList = {};
-    for (const provider of this.deps.pluginHost.getAll()) {
+    for (const provider of this.deps.agentHost.getAll()) {
       const id = provider.metadata.id;
       list[id] = {
         providerId: id,

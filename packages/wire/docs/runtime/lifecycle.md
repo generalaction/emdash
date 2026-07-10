@@ -118,6 +118,8 @@ process-backed session.
 import { createManagedSource } from '@emdash/wire/util';
 
 const sessions = createManagedSource({
+  scope: runtimeScope,
+  label: 'sessions',
   key: (input: { conversationId: string }) => input.conversationId,
   graceMs: 30_000,
   create: async ({ conversationId }, scope) => {
@@ -144,6 +146,9 @@ Behavior:
 - Failed creation is not cached; the next acquire retries.
 - `peek(key)` returns the active value if creation has completed.
 - `dispose()` force-disposes every active or retained entry.
+- Passing `scope` attaches the source and all keyed entries to a parent scope.
+  Disposing that parent scope force-disposes the source and rejects later
+  acquisitions. `label` names the source node in `describeScope()` output.
 
 Usage:
 
@@ -153,6 +158,24 @@ const session = await lease.ready();
 
 await lease.release();
 await sessions.dispose();
+```
+
+Parent scopes are useful for runtimes with several keyed resources:
+
+```ts
+const authScope = runtimeScope.child('auth');
+const logins = createManagedSource({
+  scope: authScope,
+  label: 'login-source',
+  key: (providerId: string) => providerId,
+  create: async (providerId, scope) => {
+    const login = await startLoginPty(providerId);
+    scope.add(() => login.dispose());
+    return login;
+  },
+});
+
+await authScope.dispose(); // also disposes every active login entry
 ```
 
 ## Grace Windows

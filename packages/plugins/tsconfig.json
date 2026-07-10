@@ -10,6 +10,6 @@
       "@emdash/runtime/acp-agents": ["../runtime/src/acp-agents/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tooling/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
