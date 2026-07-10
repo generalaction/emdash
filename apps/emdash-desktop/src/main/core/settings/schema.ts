@@ -38,6 +38,7 @@ export const taskSettingsSchema = z.object({
   autoApproveByDefault: z.boolean(),
   autoTrustWorktrees: z.boolean(),
   createBranchAndWorktree: z.boolean(),
+  deleteBranchByDefault: z.boolean(),
   preserveNameCapitalization: z.boolean(),
   includeIssueContextByDefault: z.boolean(),
 });
