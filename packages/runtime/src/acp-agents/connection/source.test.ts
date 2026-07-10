@@ -97,7 +97,7 @@ describe('createAcpConnectionSource', () => {
     await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
     host.lastHandle.emitExit(7);
 
-    expect(onClosed).toHaveBeenCalledWith(key, 7);
+    await vi.waitFor(() => expect(onClosed).toHaveBeenCalledWith(key, 7));
     await source.invalidate(key);
     await waitForTeardown();
     expect(source.peek(key)).toBeUndefined();

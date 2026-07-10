@@ -67,7 +67,7 @@ describe('createAcpAgentConnection()', () => {
 
     host.lastHandle.emitExit(7);
 
-    expect(onClosed).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(onClosed).toHaveBeenCalledOnce());
     expect(onClosed).toHaveBeenCalledWith(7);
   });
 
@@ -126,7 +126,7 @@ describe('createAcpAgentConnection()', () => {
     host.lastHandle.emitError(new Error('boom'));
     host.lastHandle.emitExit(1);
 
-    expect(onClosed).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(onClosed).toHaveBeenCalledOnce());
     expect(onClosed).toHaveBeenCalledWith(null);
   });
 
