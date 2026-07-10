@@ -1,0 +1,45 @@
+packages/runtime/src/agent-config/runtime/skills.ts
+  s_852c984e5cb520::t_bba097ab1387d8 43,50-55,57,61-65,74,119,150,176,246
+apps/emdash-desktop/src/renderer/features/skills/components/SkillDetailModal.tsx
+  s_7be55541ca932d::t_141798bcf56772 58
+apps/emdash-desktop/src/renderer/features/skills/components/SkillCard.tsx
+  s_7be55541ca932d::t_141798bcf56772 41
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_7be55541ca932d::t_141798bcf56772 244,249,419,587
+apps/emdash-desktop/src/main/core/skills/SkillsService.test.ts
+  s_852c984e5cb520::t_bba097ab1387d8 124-147
+packages/runtime/src/agent-config/runtime/runtime.test.ts
+  s_149b15e76c3696::t_75009d3c71d1b2 212-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9ee14c8fbfe1f26906ef214870345944c59500b6",
+  "prompts": {},
+  "sessions": {
+    "s_149b15e76c3696": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4b3c-b222-7212-b32b-737a45793127",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_7be55541ca932d": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n2szCq7piNUMiRnKCAc",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_852c984e5cb520": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n2u0WSiMTcXIdiAve9m",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
