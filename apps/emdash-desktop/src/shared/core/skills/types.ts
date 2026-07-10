@@ -7,6 +7,21 @@ export interface SkillFrontmatter {
   'allowed-tools'?: string;
 }
 
+export type SkillTargetSelection = { mode: 'all' } | { mode: 'providers'; providerIds: string[] };
+
+export interface SkillLocation {
+  relativeDir: string;
+  kind: 'canonical' | 'provider' | 'shared';
+  providerIds: string[];
+  ownership: 'emdash' | 'external';
+}
+
+export interface SkillProvider {
+  id: string;
+  name: string;
+  installed: boolean;
+}
+
 export interface CatalogSkill {
   /** Skill directory name */
   id: string;
@@ -44,6 +59,10 @@ export interface CatalogSkill {
   managedByEmdash?: boolean;
   /** Filesystem path if installed */
   localPath?: string;
+  /** Filesystem locations where the skill was discovered */
+  locations?: SkillLocation[];
+  /** Desired sync targets for Emdash-managed skills */
+  targets?: SkillTargetSelection;
 }
 
 export interface CatalogIndex {

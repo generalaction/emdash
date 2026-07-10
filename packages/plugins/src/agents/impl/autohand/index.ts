@@ -11,6 +11,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://autohand.ai/code/',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.autohand/skills', isolation: 'provider' }],
+    },
     autoApprove: {
       kind: 'supported',
     },

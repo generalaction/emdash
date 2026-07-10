@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLocalPluginFs } from '../agents/plugins/helpers/local-plugin-fs';
 import { mirrorSkill, removeSkillMirrors, skillEntryExists } from './skill-mirrors';
+import { getSkillTargets, removeSkillTargets, setSkillTargets } from './skill-targets';
 
 const content = '---\nname: reviewer\ndescription: Review changes\n---\n';
 
@@ -152,5 +153,28 @@ describe('skill mirrors', () => {
     await pluginFs.write('.claude/skills/custom-directory/SKILL.md', content);
 
     await expect(skillEntryExists(pluginFs, ['reviewer'])).resolves.toBe(true);
+  });
+
+  it('persists and removes per-skill sync targets', async () => {
+    const pluginFs = createLocalPluginFs(homeDir);
+
+    await expect(getSkillTargets(pluginFs, 'reviewer')).resolves.toEqual({ mode: 'all' });
+    await setSkillTargets(pluginFs, 'reviewer', {
+      mode: 'providers',
+      providerIds: ['claude', 'codex'],
+    });
+    await expect(getSkillTargets(pluginFs, 'reviewer')).resolves.toEqual({
+      mode: 'providers',
+      providerIds: ['claude', 'codex'],
+    });
+
+    await removeSkillTargets(pluginFs, 'reviewer');
+    await expect(getSkillTargets(pluginFs, 'reviewer')).resolves.toEqual({ mode: 'all' });
+
+    await pluginFs.write(
+      '.agentskills/.emdash/skill-targets.json',
+      JSON.stringify({ version: 1, skills: { reviewer: { mode: 'providers' } } })
+    );
+    await expect(getSkillTargets(pluginFs, 'reviewer')).resolves.toEqual({ mode: 'all' });
   });
 });

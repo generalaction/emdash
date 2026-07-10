@@ -7,6 +7,15 @@ export interface SkillFrontmatter {
   'allowed-tools'?: string;
 }
 
+export type SkillTargetSelection = { mode: 'all' } | { mode: 'providers'; providerIds: string[] };
+
+export interface SkillLocation {
+  relativeDir: string;
+  kind: 'canonical' | 'provider' | 'shared';
+  providerIds: string[];
+  ownership: 'emdash' | 'external';
+}
+
 export interface CatalogSkill {
   id: string;
   installId?: string;
@@ -26,6 +35,8 @@ export interface CatalogSkill {
   installed: boolean;
   managedByEmdash?: boolean;
   localPath?: string;
+  locations?: SkillLocation[];
+  targets?: SkillTargetSelection;
 }
 
 export interface CatalogIndex {

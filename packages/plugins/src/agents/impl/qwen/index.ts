@@ -17,6 +17,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/QwenLM/qwen-code',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.qwen/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

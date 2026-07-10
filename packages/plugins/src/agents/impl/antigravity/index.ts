@@ -11,6 +11,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://antigravity.google/docs/cli-overview',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.gemini/antigravity/skills', isolation: 'provider' }],
+    },
     autoApprove: {
       kind: 'supported',
     },

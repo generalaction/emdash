@@ -12,6 +12,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://junie.jetbrains.com/docs/junie-cli.html',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.junie/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

@@ -9,6 +9,18 @@ export const skillFrontmatterSchema = z.object({
   'allowed-tools': z.string().optional(),
 });
 
+export const skillTargetSelectionSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('all') }),
+  z.object({ mode: z.literal('providers'), providerIds: z.array(z.string()) }),
+]);
+
+export const skillLocationSchema = z.object({
+  relativeDir: z.string(),
+  kind: z.enum(['canonical', 'provider', 'shared']),
+  providerIds: z.array(z.string()),
+  ownership: z.enum(['emdash', 'external']),
+});
+
 export const catalogSkillSchema = z.object({
   id: z.string(),
   installId: z.string().optional(),
@@ -28,6 +40,8 @@ export const catalogSkillSchema = z.object({
   installed: z.boolean(),
   managedByEmdash: z.boolean().optional(),
   localPath: z.string().optional(),
+  locations: z.array(skillLocationSchema).optional(),
+  targets: skillTargetSelectionSchema.optional(),
 });
 
 export const catalogIndexSchema = z.object({
@@ -45,10 +59,12 @@ export const skillInstallPayloadSchema = z.object({
   catalogSkillId: z.string().optional(),
   skillShPath: z.string().optional(),
   iconUrl: z.string().optional(),
+  targets: skillTargetSelectionSchema.optional(),
 });
 
 export const createSkillInputSchema = z.object({
   name: z.string(),
   description: z.string(),
   content: z.string().optional(),
+  targets: skillTargetSelectionSchema.optional(),
 });

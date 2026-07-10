@@ -19,6 +19,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://kilo.ai/docs/cli',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.kilocode/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

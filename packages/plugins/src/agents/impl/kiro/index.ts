@@ -13,6 +13,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://kiro.dev/docs/cli/',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.kiro/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

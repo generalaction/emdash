@@ -61,6 +61,26 @@ async function isManagedCopy(fs: PluginFs, dirPath: string, installName: string)
   }
 }
 
+export async function isManagedSkillEntry(
+  fs: PluginFs,
+  entryPath: string,
+  canonicalRoot: string
+): Promise<boolean> {
+  const target = await readLink(fs, entryPath);
+  if (target !== null) {
+    const normalizedTarget = normalizePath(target);
+    const normalizedRoot = normalizePath(canonicalRoot);
+    return normalizedTarget.startsWith(`${normalizedRoot}/`);
+  }
+  const marker = await fs.read(joinPath(entryPath, MANAGED_MARKER));
+  if (!marker) return false;
+  try {
+    return (JSON.parse(marker) as { managedBy?: string }).managedBy === 'emdash';
+  } catch {
+    return false;
+  }
+}
+
 async function removeOwnedEntry(
   fs: PluginFs,
   entryPath: string,
