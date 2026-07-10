@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, nativeTheme } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import {
@@ -12,10 +12,15 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
 import { PRODUCT_NAME } from '@shared/app-identity';
+import type { Theme } from '@shared/core/app-settings';
 import { windowMaximizeChangedChannel } from '@shared/events/appEvents';
 import { APP_ORIGIN } from './protocol';
 
 let mainWindow: BrowserWindow | null = null;
+
+export function applyNativeTheme(theme: Theme): void {
+  nativeTheme.themeSource = theme === 'emdark' ? 'dark' : theme === 'emlight' ? 'light' : 'system';
+}
 
 export function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
