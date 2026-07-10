@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_f531691310823b::t_a7ffa0650ce10d 149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "81ef93302d3fa0dc19ee4db4525587468d2610d9",
+  "prompts": {},
+  "sessions": {
+    "s_f531691310823b": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033mrlenLfzjWcJSPOPzzV",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
