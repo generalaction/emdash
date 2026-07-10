@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { BoundExec } from '@emdash/core/exec';
 import {
   classifyCreateBranchError,
@@ -6,44 +7,42 @@ import {
   classifyFetchPrForReviewError,
   classifyPushError,
   toGitCommandError,
-  type AddCheckoutOptions,
-  type CheckoutInfo,
+  type AddWorktreeOptions,
   type CreateBranchError,
-  type CreateBranchOptions,
   type DeleteBranchError,
+  type ExplicitCreateBranchOptions,
+  type ExplicitTagOptions,
   type FetchError,
   type FetchPrForReviewError,
   type FetchPrForReviewOptions,
   type GitCommandError,
-  type GitOpContext,
-  type GitRefsModel,
-  type GitRemotesModel,
-  type GitStashesModel,
-  type IGitRepository,
+  type GitRefsState,
+  type GitRemotesState,
+  type GitStashesState,
+  type GitWorktreesState,
   type PushError,
-  type TagOptions,
+  type WorktreeSummary,
 } from '@emdash/core/git';
-import type { KeyedMutex } from '@emdash/core/lib';
 import { realpathOrResolve } from '@emdash/core/watch';
 import { err, ok, type Result } from '@emdash/shared';
+import { bindRepositoryExec } from '../exec/repository-exec';
 import { execGitWithProgress, throwIfGitOpAborted } from '../exec/transfer-progress';
+import type { RepositoryIdentity } from '../identity/types';
+import type { GitOperationContext } from '../operation-context';
 import { CatFileBatch } from './ops/cat-file-batch';
-import { parseWorktreeList } from './ops/checkouts';
-import { computeRefsModel } from './ops/refs';
-import { computeRemotesModel, remoteNameForRepositoryUrl } from './ops/remotes';
-import { computeStashesModel } from './ops/stashes';
+import { computeRefsState } from './ops/refs';
+import { computeRemotesState, remoteNameForRepositoryUrl } from './ops/remotes';
+import { computeStashesState } from './ops/stashes';
+import { parseWorktreeList } from './ops/worktrees';
 import type { GitRepositoryOptions } from './types';
 
 /**
  * A repository (shared `.git` directory) capability. It knows Git commands and
  * fresh reads; live-state ownership lives in the repository live-model runtime.
  */
-export class GitRepository implements IGitRepository {
-  readonly gitCommonDir: string;
-
-  private readonly objectStoreDir: string;
+export class GitRepository {
+  readonly identity: RepositoryIdentity;
   private readonly exec: BoundExec;
-  private readonly objectStoreMutex: KeyedMutex;
   private catFile: CatFileBatch | null = null;
 
   static async create(options: GitRepositoryOptions): Promise<GitRepository> {
@@ -51,23 +50,25 @@ export class GitRepository implements IGitRepository {
   }
 
   private constructor(options: GitRepositoryOptions) {
-    this.gitCommonDir = options.gitCommonDir;
-    this.objectStoreDir = options.objectStoreDir;
-    this.exec = options.exec;
-    this.objectStoreMutex = options.objectStoreMutex;
+    this.identity = options.identity;
+    this.exec = bindRepositoryExec(options.exec, options.identity.gitCommonDir);
   }
 
-  async getRefs(): Promise<GitRefsModel> {
-    const remotes = await this.getRemotes().catch((): GitRemotesModel => ({ remotes: [] }));
-    return computeRefsModel(this.exec, remotes.remotes);
+  get gitCommonDir(): string {
+    return this.identity.gitCommonDir;
   }
 
-  getRemotes(): Promise<GitRemotesModel> {
-    return computeRemotesModel(this.exec);
+  async getRefs(): Promise<GitRefsState> {
+    const remotes = await this.getRemotes().catch((): GitRemotesState => ({ remotes: [] }));
+    return computeRefsState(this.exec, remotes.remotes);
   }
 
-  getStashes(): Promise<GitStashesModel> {
-    return computeStashesModel(this.exec);
+  getRemotes(): Promise<GitRemotesState> {
+    return computeRemotesState(this.exec);
+  }
+
+  getStashes(): Promise<GitStashesState> {
+    return computeStashesState(this.exec);
   }
 
   async dispose(): Promise<void> {
@@ -78,12 +79,13 @@ export class GitRepository implements IGitRepository {
   // -- Checkout integration -----------------------------------------------------
 
   async readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
+    const treePath = normalizeTreePath(filePath);
     this.catFile ??= new CatFileBatch({ exec: this.exec });
     try {
-      return await this.catFile.readText(`${ref}:${filePath}`);
+      return await this.catFile.readText(`${ref}:${treePath}`);
     } catch {
       try {
-        const { stdout } = await this.exec.exec(['show', `${ref}:${filePath}`]);
+        const { stdout } = await this.exec.exec(['show', `${ref}:${treePath}`]);
         return stdout;
       } catch {
         return null;
@@ -93,30 +95,33 @@ export class GitRepository implements IGitRepository {
 
   // -- Checkouts (worktrees) ------------------------------------------------------
 
-  async listCheckouts(): Promise<CheckoutInfo[]> {
+  async listWorktrees(): Promise<GitWorktreesState> {
     const { stdout } = await this.exec.exec(['worktree', 'list', '--porcelain']);
     return parseWorktreeList(stdout);
   }
 
-  async addCheckout(options: AddCheckoutOptions): Promise<Result<CheckoutInfo, GitCommandError>> {
+  async addWorktree(
+    options: AddWorktreeOptions
+  ): Promise<Result<WorktreeSummary, GitCommandError>> {
     try {
+      const targetPath = path.resolve(options.path);
       await this.exec.exec([
         'worktree',
         'add',
         ...(options.force ? ['--force'] : []),
         ...(options.newBranch ? ['-b', options.newBranch] : []),
-        options.path,
-        ...(options.ref ? [options.ref] : []),
+        targetPath,
+        options.ref,
       ]);
-      const target = realpathOrResolve(options.path);
-      const checkouts = await this.listCheckouts();
-      const info = checkouts.find(
-        (checkout) => realpathOrResolve(checkout.checkoutPath) === target
+      const target = realpathOrResolve(targetPath);
+      const worktrees = await this.listWorktrees();
+      const info = worktrees.find(
+        (worktree) => realpathOrResolve(worktree.worktreePath) === target
       );
       if (!info) {
         return err({
           type: 'git_error',
-          message: `worktree added but not listed: ${options.path}`,
+          message: `worktree added but not listed: ${targetPath}`,
         });
       }
       return ok(info);
@@ -125,24 +130,26 @@ export class GitRepository implements IGitRepository {
     }
   }
 
-  async removeCheckout(
-    checkoutPath: string,
+  async removeWorktree(
+    worktreePath: string,
     force = false
   ): Promise<Result<void, GitCommandError>> {
     return this.commandMutation(() =>
-      this.exec.exec(['worktree', 'remove', ...(force ? ['--force'] : []), checkoutPath])
+      this.exec.exec(['worktree', 'remove', ...(force ? ['--force'] : []), worktreePath])
     );
   }
 
-  async pruneCheckouts(): Promise<Result<void, GitCommandError>> {
+  async pruneWorktrees(): Promise<Result<void, GitCommandError>> {
     return this.commandMutation(() => this.exec.exec(['worktree', 'prune']));
   }
 
   // -- Branches and tags ----------------------------------------------------------
 
-  async createBranch(options: CreateBranchOptions): Promise<Result<void, CreateBranchError>> {
+  async createBranch(
+    options: ExplicitCreateBranchOptions
+  ): Promise<Result<void, CreateBranchError>> {
     const name = options.name;
-    const from = options.from ?? 'HEAD';
+    const from = options.from;
 
     if (options.syncWithRemote) {
       const remote = options.remote ?? 'origin';
@@ -188,14 +195,14 @@ export class GitRepository implements IGitRepository {
     );
   }
 
-  async createTag(options: TagOptions): Promise<Result<void, GitCommandError>> {
+  async createTag(options: ExplicitTagOptions): Promise<Result<void, GitCommandError>> {
     return this.refsMutation(() =>
       this.exec.exec([
         'tag',
         ...(options.force ? ['--force'] : []),
         ...(options.message !== undefined ? ['-a', '-m', options.message] : []),
         options.name,
-        ...(options.ref ? [options.ref] : []),
+        options.ref,
       ])
     );
   }
@@ -214,18 +221,17 @@ export class GitRepository implements IGitRepository {
     return this.remotesMutation(() => this.exec.exec(['remote', 'remove', name]));
   }
 
-  async fetch(remote?: string, context: GitOpContext = {}): Promise<Result<void, FetchError>> {
+  async fetch(
+    remote?: string,
+    context: GitOperationContext = {}
+  ): Promise<Result<void, FetchError>> {
     try {
       throwIfGitOpAborted(context.signal);
-      const key = realpathOrResolve(this.objectStoreDir);
-      await this.objectStoreMutex.runExclusive(key, async () => {
-        throwIfGitOpAborted(context.signal);
-        await execGitWithProgress(
-          this.exec,
-          ['fetch', '--progress', ...(remote ? [remote] : [])],
-          context
-        );
-      });
+      await execGitWithProgress(
+        this.exec,
+        ['fetch', '--progress', ...(remote ? [remote] : [])],
+        context
+      );
       return ok(undefined);
     } catch (error) {
       if (context.signal?.aborted) throw error;
@@ -236,7 +242,7 @@ export class GitRepository implements IGitRepository {
   async publishBranch(
     branchName: string,
     remote = 'origin',
-    context: GitOpContext = {}
+    context: GitOperationContext = {}
   ): Promise<Result<{ output: string }, PushError>> {
     try {
       const { stdout, stderr } = await execGitWithProgress(
@@ -280,7 +286,7 @@ export class GitRepository implements IGitRepository {
 
   async fetchPrForReview(
     options: FetchPrForReviewOptions,
-    context: GitOpContext = {}
+    context: GitOperationContext = {}
   ): Promise<Result<void, FetchPrForReviewError>> {
     try {
       if (options.isFork) {
@@ -425,4 +431,19 @@ export class GitRepository implements IGitRepository {
       await this.exec.exec(['config', `branch.${branchName}.base`, baseRef]);
     } catch {}
   }
+}
+
+function normalizeTreePath(filePath: string): string {
+  const normalized = path.posix.normalize(filePath.replace(/\\/g, '/'));
+  if (
+    !filePath ||
+    normalized === '.' ||
+    path.posix.isAbsolute(normalized) ||
+    /^[A-Za-z]:\//.test(normalized) ||
+    normalized === '..' ||
+    normalized.startsWith('../')
+  ) {
+    throw new Error(`Invalid repository file path: ${filePath}`);
+  }
+  return path.posix.normalize(normalized);
 }

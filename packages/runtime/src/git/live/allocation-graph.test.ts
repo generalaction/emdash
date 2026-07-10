@@ -1,0 +1,96 @@
+import type { BoundExec } from '@emdash/core/exec';
+import type { IWatchService } from '@emdash/core/watch';
+import { ok } from '@emdash/shared';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { CheckoutIdentity, GitIdentityResolver } from '../identity/types';
+import { GitAllocationGraph } from './allocation-graph';
+
+const identity = {
+  repositoryId: '/repo/.git',
+  objectStoreId: '/repo/.git/objects',
+  checkoutId: '["/repo","/repo/.git"]',
+  checkoutRoot: '/repo',
+  gitDir: '/repo/.git',
+  gitCommonDir: '/repo/.git',
+  objectStoreDir: '/repo/.git/objects',
+} as CheckoutIdentity;
+
+const resolver: GitIdentityResolver = {
+  resolve: async () => ok(identity),
+  invalidate: () => {},
+  dispose: () => {},
+};
+
+const exec: BoundExec = {
+  file: 'git',
+  cwd: '/',
+  exec: async () => {
+    throw new Error('unexpected Git execution');
+  },
+  execStreaming: async () => {
+    throw new Error('unexpected Git execution');
+  },
+  execBuffer: async () => {
+    throw new Error('unexpected Git execution');
+  },
+  withCwd() {
+    return this;
+  },
+};
+
+describe('GitAllocationGraph', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('evicts failed mount creation so the same selector can retry', async () => {
+    let fail = true;
+    const watcher: IWatchService = {
+      watch: () => {
+        if (fail) throw new Error('watch failed');
+        return { ready: async () => {}, release: async () => {} };
+      },
+      dispose: async () => {},
+    };
+    const graph = new GitAllocationGraph({ exec, watcher, identityResolver: resolver });
+    const selector = { repository: { path: '/repo' } };
+
+    await expect(graph.acquireRepository(selector).ready()).rejects.toThrow('watch failed');
+    fail = false;
+    const retry = graph.acquireRepository(selector);
+    await expect(retry.ready()).resolves.toMatchObject({
+      id: identity.repositoryId,
+    });
+    await retry.release();
+    await graph.dispose();
+  });
+
+  it('retains the parent repository until an idle checkout is disposed', async () => {
+    vi.useFakeTimers();
+    const released: string[] = [];
+    const watcher: IWatchService = {
+      watch: (root) => ({
+        ready: async () => {},
+        release: async () => {
+          released.push(root);
+        },
+      }),
+      dispose: async () => {},
+    };
+    const graph = new GitAllocationGraph({
+      exec,
+      watcher,
+      identityResolver: resolver,
+      idleTtlMs: 50,
+    });
+    const lease = graph.acquireCheckout({ checkout: { path: '/repo' } });
+    await lease.ready();
+    await lease.release();
+
+    await vi.advanceTimersByTimeAsync(49);
+    expect(released).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(released).toEqual(['/repo']);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(released).toEqual(['/repo', '/repo/.git']);
+    await graph.dispose();
+  });
+});

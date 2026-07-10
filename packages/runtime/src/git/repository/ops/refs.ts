@@ -1,12 +1,12 @@
 import type { BoundExec } from '@emdash/core/exec';
-import type { GitBranch, GitRefsModel, GitRemote, GitTag } from '@emdash/core/git';
+import type { GitBranch, GitRefsState, GitRemote, GitTag } from '@emdash/core/git';
 
 const FIELD_SEPARATOR = '\u0000';
 
-export async function computeRefsModel(
+export async function computeRefsState(
   exec: BoundExec,
   remotes: GitRemote[]
-): Promise<GitRefsModel> {
+): Promise<GitRefsState> {
   const [branches, tags] = await Promise.all([computeBranches(exec, remotes), computeTags(exec)]);
   return { branches, tags };
 }

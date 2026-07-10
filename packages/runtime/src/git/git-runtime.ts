@@ -1,180 +1,64 @@
-import path from 'node:path';
 import type { BoundExec } from '@emdash/core/exec';
-import {
-  classifyCloneRepositoryError,
-  computeBaseRef,
-  gitErrorMessage,
-  isNotRepositoryInspectionError,
-  type CloneRepositoryError,
-  type EnsureRepositoryError,
-  type EnsureRepositoryOptions,
-  type GitOpContext,
-  type GitPathInspection,
-  type GitRepositoryInfo,
-} from '@emdash/core/git';
+import type { CheckoutSelector, RepositorySelector } from '@emdash/core/git';
 import { KeyedMutex } from '@emdash/core/lib';
-import { WatchService, realpathOrResolve, type IWatchService } from '@emdash/core/watch';
-import { err, ok, type Result } from '@emdash/shared';
+import { WatchService, type IWatchService } from '@emdash/core/watch';
+import type { PendingLease } from '@emdash/shared';
 import { createGitExec } from './exec/git-env';
-import { execGitWithProgress } from './exec/transfer-progress';
-import type { GitOnError } from './session/identity';
-import { GitSessionManager } from './session/session-manager';
+import { GitAllocationGraph } from './live/allocation-graph';
+import type { CheckoutHandle, RepositoryHandle } from './live/allocation-graph';
+import { GitRepositoryProvisioner } from './repository/repository-provisioner';
 
-export type GitRuntimeOptions = {
+export type GitRuntimeOptions = Readonly<{
   watcher?: IWatchService;
   executable?: string;
   env?: NodeJS.ProcessEnv;
   exec?: BoundExec;
-  onError?: GitOnError;
-};
+  idleTtlMs?: number;
+  aliasTtlMs?: number;
+  maxFileDiffStates?: number;
+  onError?: (context: string, error: unknown) => void;
+}>;
 
+/** Host-scoped composition root for canonical Git mounts and selector-bound leases. */
 export class GitRuntime {
-  readonly sessions: GitSessionManager;
+  readonly provisioner: GitRepositoryProvisioner;
+  readonly allocations: GitAllocationGraph;
 
-  private readonly exec: BoundExec;
   private readonly watcher: IWatchService;
   private readonly ownsWatcher: boolean;
+  private disposed = false;
 
   constructor(options: GitRuntimeOptions = {}) {
     const onError = options.onError ?? (() => {});
     this.ownsWatcher = !options.watcher;
     this.watcher = options.watcher ?? new WatchService({ onError });
-    this.exec =
+    const exec =
       options.exec ??
-      createGitExec({
-        cwd: process.cwd(),
-        executable: options.executable,
-        env: options.env,
-      });
-    this.sessions = new GitSessionManager({
-      exec: this.exec,
+      createGitExec({ cwd: process.cwd(), executable: options.executable, env: options.env });
+    this.provisioner = new GitRepositoryProvisioner(exec);
+    this.allocations = new GitAllocationGraph({
+      exec,
       watcher: this.watcher,
       objectStoreMutex: new KeyedMutex(),
+      idleTtlMs: options.idleTtlMs,
+      aliasTtlMs: options.aliasTtlMs,
+      maxFileDiffStates: options.maxFileDiffStates,
       onError,
     });
   }
 
-  async inspectPath(pathToInspect: string): Promise<GitPathInspection> {
-    return this.inspectResolvedPath(path.resolve(pathToInspect));
+  acquireRepository(selector: RepositorySelector): PendingLease<RepositoryHandle> {
+    return this.allocations.acquireRepository(selector);
   }
 
-  async ensureRepository(
-    pathToInspect: string,
-    options: EnsureRepositoryOptions = {}
-  ): Promise<Result<GitRepositoryInfo, EnsureRepositoryError>> {
-    const resolvedPath = path.resolve(pathToInspect);
-    const inspected = await this.inspectResolvedPath(resolvedPath);
-    if (inspected.kind === 'repository') return ok(inspected);
-    if (inspected.kind === 'inspect-failed') {
-      return err({ type: 'inspect-failed', path: inspected.path, message: inspected.message });
-    }
-    if (!options.initIfMissing) {
-      return err({ type: 'not-repository', path: inspected.path });
-    }
-
-    try {
-      await this.exec.withCwd(resolvedPath).exec(['init']);
-    } catch (error) {
-      return err({ type: 'init-failed', path: resolvedPath, message: gitErrorMessage(error) });
-    }
-
-    const initialized = await this.inspectResolvedPath(resolvedPath);
-    if (initialized.kind === 'repository') return ok(initialized);
-    if (initialized.kind === 'inspect-failed') {
-      return err({
-        type: 'inspect-failed',
-        path: initialized.path,
-        message: initialized.message,
-      });
-    }
-    return err({
-      type: 'init-failed',
-      path: resolvedPath,
-      message: 'Failed to initialize git repository',
-    });
-  }
-
-  async cloneRepository(
-    repositoryUrl: string,
-    targetPath: string,
-    context: GitOpContext = {}
-  ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>> {
-    const resolvedTargetPath = path.resolve(targetPath);
-    try {
-      await execGitWithProgress(
-        this.exec.withCwd(path.dirname(resolvedTargetPath)),
-        ['clone', '--progress', repositoryUrl, resolvedTargetPath],
-        context
-      );
-    } catch (error) {
-      if (context.signal?.aborted) throw error;
-      return err(classifyCloneRepositoryError(error, resolvedTargetPath));
-    }
-
-    const inspected = await this.inspectResolvedPath(resolvedTargetPath);
-    if (inspected.kind === 'repository') return ok(inspected);
-    if (inspected.kind === 'inspect-failed') {
-      return err({ type: 'git_error', message: inspected.message });
-    }
-    return err({
-      type: 'git_error',
-      message: `Cloned path is not a git repository: ${resolvedTargetPath}`,
-    });
+  acquireCheckout(selector: CheckoutSelector): PendingLease<CheckoutHandle> {
+    return this.allocations.acquireCheckout(selector);
   }
 
   async dispose(): Promise<void> {
-    await this.sessions.dispose();
+    if (this.disposed) return;
+    this.disposed = true;
+    await this.allocations.dispose();
     if (this.ownsWatcher) await this.watcher.dispose();
-  }
-
-  private async inspectResolvedPath(resolvedPath: string): Promise<GitPathInspection> {
-    const exec = (args: string[]) => this.exec.exec(['-C', resolvedPath, ...args]);
-    try {
-      const { stdout } = await exec(['rev-parse', '--is-inside-work-tree']);
-      if (stdout.trim() !== 'true') return { kind: 'not-repository', path: resolvedPath };
-    } catch (error) {
-      if (isNotRepositoryInspectionError(error)) {
-        return { kind: 'not-repository', path: resolvedPath };
-      }
-      return {
-        kind: 'inspect-failed',
-        path: resolvedPath,
-        message: gitErrorMessage(error),
-      };
-    }
-
-    let remoteName: string | undefined;
-    try {
-      const { stdout } = await exec(['remote']);
-      const remotes = stdout.trim().split('\n').filter(Boolean);
-      remoteName = remotes.includes('origin') ? 'origin' : remotes[0];
-    } catch {}
-
-    let branch: string | undefined;
-    try {
-      const { stdout } = await exec(['branch', '--show-current']);
-      branch = stdout.trim() || undefined;
-    } catch {}
-
-    if (!branch && remoteName) {
-      try {
-        const { stdout } = await exec(['remote', 'show', remoteName]);
-        const match = /HEAD branch:\s*(\S+)/.exec(stdout);
-        branch = match?.[1] ?? undefined;
-      } catch {}
-    }
-
-    let rootPath = resolvedPath;
-    try {
-      const { stdout } = await exec(['rev-parse', '--show-toplevel']);
-      const trimmed = stdout.trim();
-      if (trimmed) rootPath = realpathOrResolve(trimmed);
-    } catch {}
-
-    return {
-      kind: 'repository',
-      rootPath,
-      baseRef: computeBaseRef(undefined, remoteName, branch),
-    };
   }
 }

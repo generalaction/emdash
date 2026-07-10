@@ -15,7 +15,7 @@ describe('classifyGitWatchEvents', () => {
       refs: true,
       remotes: true,
       stashes: false,
-      checkouts: false,
+      worktrees: false,
     });
   });
 
@@ -31,7 +31,7 @@ describe('classifyGitWatchEvents', () => {
       refs: false,
       remotes: false,
       stashes: false,
-      checkouts: false,
+      worktrees: false,
     });
   });
 
@@ -48,7 +48,7 @@ describe('classifyGitWatchEvents', () => {
       refs: true,
       remotes: false,
       stashes: false,
-      checkouts: false,
+      worktrees: false,
     });
     expect(classification.worktrees.get('main')).toEqual({ status: true, head: true });
   });
@@ -66,7 +66,7 @@ describe('classifyGitWatchEvents', () => {
       refs: true,
       remotes: false,
       stashes: false,
-      checkouts: false,
+      worktrees: false,
     });
     expect(classification.worktrees.size).toBe(0);
   });
@@ -87,7 +87,7 @@ describe('classifyGitWatchEvents', () => {
       refs: false,
       remotes: false,
       stashes: false,
-      checkouts: false,
+      worktrees: false,
     });
     expect(classification.worktrees.size).toBe(0);
   });
@@ -116,7 +116,7 @@ describe('classifyGitWatchEvents', () => {
       refs: false,
       remotes: false,
       stashes: false,
-      checkouts: true,
+      worktrees: true,
     });
   });
 });

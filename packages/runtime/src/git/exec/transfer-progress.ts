@@ -1,5 +1,6 @@
 import type { BoundExec, ExecResult } from '@emdash/core/exec';
-import type { GitOpContext, GitSyncProgress, GitTransferProgress } from '@emdash/core/git';
+import type { GitSyncProgress, GitTransferProgress } from '@emdash/core/git';
+import type { GitOperationContext } from '../operation-context';
 
 const DEFAULT_THROTTLE_MS = 250;
 const PROGRESS_PHASES = new Set([
@@ -113,7 +114,7 @@ export function parseGitTransferProgress(line: string): GitTransferProgress | un
 export async function execGitWithProgress(
   exec: BoundExec,
   args: string[],
-  context: GitOpContext<GitTransferProgress> = {}
+  context: GitOperationContext<GitTransferProgress> = {}
 ): Promise<ExecResult> {
   const parser = context.onProgress ? new GitTransferProgressParser(context.onProgress) : undefined;
   try {
@@ -136,8 +137,8 @@ export function throwIfGitOpAborted(signal?: AbortSignal): void {
 
 export function syncStepProgress(
   step: GitSyncProgress['step'],
-  onProgress: GitOpContext<GitSyncProgress>['onProgress']
-): GitOpContext<GitTransferProgress>['onProgress'] {
+  onProgress: GitOperationContext<GitSyncProgress>['onProgress']
+): GitOperationContext<GitTransferProgress>['onProgress'] {
   if (!onProgress) return undefined;
   return (progress) => onProgress({ ...progress, step });
 }

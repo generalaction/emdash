@@ -6,8 +6,9 @@ import { promisify } from 'node:util';
 import { createBoundExec } from '@emdash/core/exec';
 import type { CheckoutStatusModel } from '@emdash/core/git';
 import { describe, expect, it } from 'vitest';
+import type { CheckoutIdentity } from '../identity/types';
 import { GitCheckout } from './git-checkout';
-import type { CheckoutRepository } from './types';
+import type { GitObjectReader } from './types';
 
 const execFileAsync = promisify(execFile);
 
@@ -22,15 +23,11 @@ async function makeRepo(): Promise<string> {
   return realpath(repo);
 }
 
-class TestRepository implements CheckoutRepository {
-  readonly gitCommonDir: string;
-
+class TestRepository implements GitObjectReader {
   constructor(
     repoPath: string,
     private readonly exec = createBoundExec({ file: 'git', cwd: repoPath })
-  ) {
-    this.gitCommonDir = path.join(repoPath, '.git');
-  }
+  ) {}
 
   async readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
     try {
@@ -44,10 +41,19 @@ class TestRepository implements CheckoutRepository {
 
 async function makeCheckout() {
   const repo = await makeRepo();
+  const gitDir = path.join(repo, '.git');
+  const identity = {
+    repositoryId: gitDir,
+    objectStoreId: path.join(gitDir, 'objects'),
+    checkoutId: JSON.stringify([repo, gitDir]),
+    checkoutRoot: repo,
+    gitDir,
+    gitCommonDir: gitDir,
+    objectStoreDir: path.join(gitDir, 'objects'),
+  } as CheckoutIdentity;
   const checkout = await GitCheckout.create({
-    checkoutPath: repo,
-    gitDir: path.join(repo, '.git'),
-    repository: new TestRepository(repo),
+    identity,
+    objectReader: new TestRepository(repo),
     exec: createBoundExec({ file: 'git', cwd: repo }),
   });
   const cleanup = async () => {
@@ -145,6 +151,19 @@ describe('GitCheckout', () => {
       expect(untrackedDiff.success).toBe(true);
       if (!untrackedDiff.success) throw new Error('untracked diff failed');
       expect(untrackedDiff.data).toMatchObject({ additions: 2, deletions: 0 });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('rejects paths outside its checkout root', async () => {
+    const { checkout, cleanup } = await makeCheckout();
+    try {
+      await expect(checkout.getFileAtIndex('../secret.txt')).rejects.toThrow('outside checkout');
+      await expect(checkout.stage(['../secret.txt'])).resolves.toMatchObject({
+        success: false,
+        error: { type: 'git_error', message: expect.stringContaining('outside checkout') },
+      });
     } finally {
       await cleanup();
     }

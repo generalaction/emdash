@@ -6,7 +6,7 @@ import {
   MAX_STATUS_FILES,
   StatusParser,
   type CheckoutOperation,
-  type CheckoutStatusModel,
+  type CheckoutStatusState,
   type FileGitStatus,
   type FileStatus,
   type GitChangeStatus,
@@ -14,18 +14,18 @@ import {
 } from '@emdash/core/git';
 
 /**
- * Computes the checkout status model from `git status --porcelain=v2`.
- * Total: expected failures are encoded as the model's `error` variant so
+ * Computes checkout status from `git status --porcelain=v2`.
+ * Total: expected failures are encoded as the state's `error` variant so
  * subscribers always see the latest truth.
  *
- * Git reports checkout-relative paths; the model exposes absolute paths
+ * Git reports checkout-relative paths; the state exposes absolute paths
  * (joined onto `checkoutPath`) per the repo-wide path convention.
  */
-export async function computeStatusModel(
+export async function computeStatusState(
   exec: BoundExec,
   gitDir: string,
   checkoutPath: string
-): Promise<CheckoutStatusModel> {
+): Promise<CheckoutStatusState> {
   try {
     const parser = new StatusParser();
     await exec.execStreaming(
@@ -39,17 +39,17 @@ export async function computeStatusModel(
       return { kind: 'too-many-files' };
     }
     const operation = await detectOperation(gitDir);
-    return buildStatusModel(parser.status, operation, checkoutPath);
+    return buildStatusState(parser.status, operation, checkoutPath);
   } catch (error) {
     return { kind: 'error', message: gitErrorMessage(error) };
   }
 }
 
-export function buildStatusModel(
+export function buildStatusState(
   entries: FileStatus[],
   operation: CheckoutOperation,
   checkoutPath: string
-): CheckoutStatusModel {
+): CheckoutStatusState {
   const record: Record<string, FileGitStatus> = {};
   const summary = { staged: 0, unstaged: 0, conflicted: 0, untracked: 0 };
 

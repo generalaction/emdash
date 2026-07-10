@@ -1,11 +1,15 @@
 import type { BoundExec } from '@emdash/core/exec';
-import type { IGitRepository } from '@emdash/core/git';
+import type { CheckoutIdentity } from '../identity/types';
 
-export type CheckoutRepository = Pick<IGitRepository, 'gitCommonDir' | 'readBlobAtRef'>;
+export type GitObjectReader = {
+  readBlobAtRef(ref: string, filePath: string): Promise<string | null>;
+};
+
+/** @deprecated Use GitObjectReader. */
+export type CheckoutRepository = GitObjectReader;
 
 export type GitCheckoutOptions = {
-  checkoutPath: string;
-  gitDir: string;
-  repository: CheckoutRepository;
+  identity: CheckoutIdentity;
+  objectReader: GitObjectReader;
   exec: BoundExec;
 };

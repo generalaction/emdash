@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { createBoundExec } from '@emdash/core/exec';
-import { KeyedMutex } from '@emdash/core/lib';
 import { describe, expect, it } from 'vitest';
+import type { RepositoryIdentity } from '../identity/types';
 import { GitRepository } from './git-repository';
 
 const execFileAsync = promisify(execFile);
@@ -28,12 +28,17 @@ async function makeRepo(): Promise<string> {
 
 async function makeRepository() {
   const repo = await makeRepo();
-  const gitCommonDir = path.join(repo, '.git');
-  const repository = await GitRepository.create({
+  const gitCommonDir = await realpath(path.join(repo, '.git'));
+  const objectStoreDir = await realpath(path.join(gitCommonDir, 'objects'));
+  const identity = {
+    repositoryId: gitCommonDir,
+    objectStoreId: objectStoreDir,
     gitCommonDir,
-    objectStoreDir: gitCommonDir,
+    objectStoreDir,
+  } as RepositoryIdentity;
+  const repository = await GitRepository.create({
+    identity,
     exec: createBoundExec({ file: 'git', cwd: repo }),
-    objectStoreMutex: new KeyedMutex(),
   });
   const cleanup = async () => {
     await repository.dispose();
@@ -60,7 +65,9 @@ describe('GitRepository', () => {
   it('runs branch mutations and exposes fresh refs on demand', async () => {
     const { repository, cleanup } = await makeRepository();
     try {
-      await expect(repository.createBranch({ name: 'feature' })).resolves.toMatchObject({
+      await expect(
+        repository.createBranch({ name: 'feature', from: 'main' })
+      ).resolves.toMatchObject({
         success: true,
       });
       expect((await repository.getRefs()).branches).toContainEqual(
@@ -100,11 +107,11 @@ describe('GitRepository', () => {
   it('models tags including annotated tag messages', async () => {
     const { repository, cleanup } = await makeRepository();
     try {
-      await expect(repository.createTag({ name: 'v1' })).resolves.toMatchObject({
+      await expect(repository.createTag({ name: 'v1', ref: 'main' })).resolves.toMatchObject({
         success: true,
       });
       await expect(
-        repository.createTag({ name: 'v2', message: 'release two' })
+        repository.createTag({ name: 'v2', ref: 'main', message: 'release two' })
       ).resolves.toMatchObject({ success: true });
 
       const tags = (await repository.getRefs()).tags;
@@ -155,34 +162,39 @@ describe('GitRepository', () => {
     }
   });
 
-  it('lists, adds, and removes checkouts', async () => {
+  it('lists, adds, and removes worktrees without embedding checkout OIDs', async () => {
     const { repo, repository, cleanup } = await makeRepository();
     try {
-      const initial = await repository.listCheckouts();
+      const initial = await repository.listWorktrees();
       expect(initial).toEqual([
         expect.objectContaining({
-          checkoutPath: repo,
+          worktreePath: repo,
           isMain: true,
           head: expect.objectContaining({ kind: 'branch', name: 'main' }),
         }),
       ]);
 
       const linkedPath = path.join(path.dirname(repo), `${path.basename(repo)}-linked`);
-      const added = await repository.addCheckout({ path: linkedPath, newBranch: 'linked' });
+      const added = await repository.addWorktree({
+        path: linkedPath,
+        ref: 'main',
+        newBranch: 'linked',
+      });
       expect(added.success).toBe(true);
-      if (!added.success) throw new Error('addCheckout failed');
+      if (!added.success) throw new Error('addWorktree failed');
       expect(added.data).toMatchObject({
         isMain: false,
-        head: expect.objectContaining({ kind: 'branch', name: 'linked' }),
+        head: { kind: 'branch', name: 'linked' },
       });
+      expect(added.data.head).not.toHaveProperty('oid');
       expect((await repository.getRefs()).branches).toContainEqual(
         expect.objectContaining({ type: 'local', branch: 'linked' })
       );
 
-      await expect(repository.removeCheckout(added.data.checkoutPath)).resolves.toMatchObject({
+      await expect(repository.removeWorktree(added.data.worktreePath)).resolves.toMatchObject({
         success: true,
       });
-      expect(await repository.listCheckouts()).toHaveLength(1);
+      expect(await repository.listWorktrees()).toHaveLength(1);
 
       await rm(linkedPath, { recursive: true, force: true });
     } finally {
@@ -195,6 +207,9 @@ describe('GitRepository', () => {
     try {
       await expect(repository.readBlobAtRef('HEAD', 'tracked.txt')).resolves.toBe('before\n');
       await expect(repository.readBlobAtRef('HEAD', 'missing.txt')).resolves.toBeNull();
+      await expect(repository.readBlobAtRef('HEAD', '../secret.txt')).rejects.toThrow(
+        'Invalid repository file path'
+      );
     } finally {
       await cleanup();
     }

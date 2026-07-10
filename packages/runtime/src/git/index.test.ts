@@ -8,20 +8,22 @@ describe('@emdash/runtime/git public exports', () => {
     expect(exported.GitRuntime).toBeTypeOf('function');
     expect(exported.createGitContractImpl).toBeTypeOf('function');
     expect(exported.createGitController).toBeTypeOf('function');
-    expect(exported.GitSessionManager).toBeTypeOf('function');
-    expect(exported.createRepositoryLiveHost).toBeTypeOf('function');
-    expect(exported.RepositoryResource).toBeTypeOf('function');
-    expect(exported.createCheckoutLiveHost).toBeTypeOf('function');
-    expect(exported.CheckoutResource).toBeTypeOf('function');
+    expect(exported.GitWireAdapter).toBeTypeOf('function');
+    expect(exported.GitAllocationGraph).toBeTypeOf('function');
+    expect(exported.RepositoryMount).toBeTypeOf('function');
+    expect(exported.CheckoutMount).toBeTypeOf('function');
   });
 
-  it('does not re-export core vocabulary or concrete Git capabilities', () => {
+  it('exports host execution capabilities without re-exporting core contracts', () => {
     const exported = gitRuntime as Record<string, unknown>;
 
     expect(exported.gitContract).toBeUndefined();
     expect(exported.StatusParser).toBeUndefined();
     expect(exported.computeBaseRef).toBeUndefined();
-    expect(exported.GitRepository).toBeUndefined();
-    expect(exported.GitCheckout).toBeUndefined();
+    expect(exported.GitRepository).toBeTypeOf('function');
+    expect(exported.GitCheckout).toBeTypeOf('function');
+    expect(exported.GitRepositoryProvisioner).toBeTypeOf('function');
+    expect(exported.GitSessionManager).toBeUndefined();
+    expect(exported.createRepositoryLiveHost).toBeUndefined();
   });
 });

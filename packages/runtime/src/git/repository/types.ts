@@ -1,10 +1,7 @@
 import type { BoundExec } from '@emdash/core/exec';
-import type { KeyedMutex } from '@emdash/core/lib';
+import type { RepositoryIdentity } from '../identity/types';
 
 export type GitRepositoryOptions = {
-  gitCommonDir: string;
-  objectStoreDir: string;
+  identity: RepositoryIdentity;
   exec: BoundExec;
-  objectStoreMutex: KeyedMutex;
-  onError?: (context: string, error: unknown) => void;
 };

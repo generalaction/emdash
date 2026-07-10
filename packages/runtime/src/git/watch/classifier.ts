@@ -5,7 +5,7 @@ export type RepoWatchEffects = {
   refs: boolean;
   remotes: boolean;
   stashes: boolean;
-  checkouts: boolean;
+  worktrees: boolean;
 };
 
 export type WorktreeWatchEffects = {
@@ -27,7 +27,7 @@ export function classifyGitWatchEvents(
   events: WatchEvent[],
   layout: GitLayout
 ): GitWatchClassification {
-  const repo: RepoWatchEffects = { refs: false, remotes: false, stashes: false, checkouts: false };
+  const repo: RepoWatchEffects = { refs: false, remotes: false, stashes: false, worktrees: false };
   const worktrees = new Map<string, WorktreeWatchEffects>();
   const gitCommonDir = normalize(layout.gitCommonDir);
   const normalizedWorktrees = layout.worktrees.map((worktree) => ({
@@ -57,8 +57,6 @@ export function classifyGitWatchEvents(
     if (commonRel !== null) {
       classifyCommonGitPath(commonRel, repo);
       if (commonGitPathAffectsWorktreeHead(commonRel)) {
-        // Shared branch refs do not identify which registered worktree is on that branch.
-        // Fan out conservatively until GitLayout carries current-branch metadata.
         addAllWorktreeEffects({ status: true, head: true });
       }
     }
@@ -97,7 +95,7 @@ function classifyCommonGitPath(rel: string, repo: RepoWatchEffects): void {
     repo.stashes = true;
   }
   if (rel.startsWith('worktrees/')) {
-    repo.checkouts = true;
+    repo.worktrees = true;
   }
   if (rel === 'config') {
     repo.refs = true;

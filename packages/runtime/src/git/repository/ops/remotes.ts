@@ -1,7 +1,7 @@
 import type { BoundExec } from '@emdash/core/exec';
-import type { GitRemote, GitRemotesModel } from '@emdash/core/git';
+import type { GitRemote, GitRemotesState } from '@emdash/core/git';
 
-export async function computeRemotesModel(exec: BoundExec): Promise<GitRemotesModel> {
+export async function computeRemotesState(exec: BoundExec): Promise<GitRemotesState> {
   const { stdout } = await exec.exec(['remote', '-v']);
   const seen = new Set<string>();
   const remotes: GitRemote[] = [];

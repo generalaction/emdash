@@ -94,16 +94,16 @@ describe('createGitController', () => {
 
     try {
       expect(workspaceContract.git.repository.model.id).toBe('git.repository.model');
-      const repoKey = unwrap(await git.repository.open({ path: repo }));
-      const refs = await git.repository.model.state(repoKey, 'refs').snapshot();
+      const repository = { repository: { path: repo } };
+      const refs = await git.repository.model.state(repository, 'refs').snapshot();
       expect(refs.data.branches).toEqual([
         expect.objectContaining({ type: 'local', branch: 'main' }),
       ]);
 
-      const checkoutKey = unwrap(await git.checkout.open({ path: repo }));
+      const checkout = { checkout: { path: repo } };
       await writeFile(path.join(repo, 'tracked.txt'), 'after\n', 'utf8');
       const staged = await git.checkout.model.mutate('stage', {
-        key: checkoutKey,
+        key: checkout,
         input: { paths: ['tracked.txt'] },
       });
       expect(staged.success).toBe(true);
@@ -112,9 +112,6 @@ describe('createGitController', () => {
           expect.arrayContaining([expect.objectContaining({ model: 'git.checkout.model.status' })])
         );
       }
-
-      await git.checkout.close(checkoutKey);
-      await git.repository.close(repoKey);
     } finally {
       stop();
       controller.dispose?.();
@@ -129,29 +126,29 @@ describe('createGitController', () => {
     const { client: git, dispose } = makeClient(runtime);
 
     try {
-      const repoKey = unwrap(await git.repository.open({ path: repo }));
-      const refs = await git.repository.model.state(repoKey, 'refs').snapshot();
+      const repository = { repository: { path: repo } };
+      const refs = await git.repository.model.state(repository, 'refs').snapshot();
       expect(refs.data.branches).toEqual([
         expect.objectContaining({ type: 'local', branch: 'main' }),
       ]);
 
-      const checkoutKey = unwrap(await git.checkout.open({ path: repo }));
+      const checkout = { checkout: { path: repo } };
       await writeFile(path.join(repo, 'tracked.txt'), 'after\n', 'utf8');
 
       const updates: LiveUpdate[] = [];
       const detach = await git.checkout.model
-        .state(checkoutKey, 'status')
+        .state(checkout, 'status')
         .attach((update) => updates.push(update));
 
       const stageResult = await git.checkout.model.mutate('stage', {
-        key: checkoutKey,
+        key: checkout,
         input: { paths: ['tracked.txt'] },
       });
       expect(stageResult.success).toBe(true);
 
       await waitFor(() => updates.length > 0, 'expected a status update after staging');
 
-      const status = await git.checkout.model.state(checkoutKey, 'status').snapshot();
+      const status = await git.checkout.model.state(checkout, 'status').snapshot();
       expect(status.data.kind).toBe('ok');
       if (status.data.kind !== 'ok') throw new Error(`Expected ok status, got ${status.data.kind}`);
       expect(status.data.entries[path.join(repo, 'tracked.txt')]).toMatchObject({
@@ -160,8 +157,6 @@ describe('createGitController', () => {
       });
 
       await detach();
-      await git.checkout.close(checkoutKey);
-      await git.repository.close(repoKey);
     } finally {
       dispose();
       await runtime.dispose();
@@ -175,14 +170,48 @@ describe('createGitController', () => {
     const { client: git, dispose } = makeClient(runtime);
 
     try {
-      const checkoutKey = unwrap(await git.checkout.open({ path: repo }));
-      const log = unwrap(await git.checkout.getLog({ ...checkoutKey, options: { limit: 1 } }));
+      const log = unwrap(
+        await git.checkout.getLog({ checkout: { path: repo }, options: { limit: 1 } })
+      );
       expect(log.commits).toHaveLength(1);
       expect(log.commits[0]?.subject).toBe('initial');
-      await git.checkout.close(checkoutKey);
     } finally {
       dispose();
       await runtime.dispose();
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('routes repository mutation effects into active linked checkouts', async () => {
+    const repo = await makeRepo();
+    const linked = await mkdtemp(path.join(tmpdir(), 'emdash-git-controller-linked-'));
+    await execFileAsync('git', ['worktree', 'add', linked, '-b', 'feature'], { cwd: repo });
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const { client: git, dispose } = makeClient(runtime);
+    const checkout = { checkout: { path: linked } };
+
+    try {
+      const updates: LiveUpdate[] = [];
+      const detach = await git.checkout.model
+        .state(checkout, 'head')
+        .attach((update) => updates.push(update));
+      await git.checkout.model.state(checkout, 'head').snapshot();
+
+      const renamed = await git.repository.model.mutate('renameBranch', {
+        key: { repository: { path: repo } },
+        input: { oldName: 'feature', newName: 'renamed' },
+      });
+
+      expect(renamed).toMatchObject({ success: true, data: { cursors: [] } });
+      await waitFor(() => updates.length > 0, 'expected linked checkout head refresh');
+      await expect(git.checkout.model.state(checkout, 'head').snapshot()).resolves.toMatchObject({
+        data: { kind: 'branch', name: 'renamed' },
+      });
+      await detach();
+    } finally {
+      dispose();
+      await runtime.dispose();
+      await rm(linked, { recursive: true, force: true });
       await rm(repo, { recursive: true, force: true });
     }
   });
@@ -198,8 +227,8 @@ describe('createGitController', () => {
     const { client: git, dispose } = makeClient(runtime);
 
     try {
-      unwrap(await git.repository.open({ path: repo }));
-      unwrap(await git.checkout.open({ path: repo }));
+      await git.repository.model.state({ repository: { path: repo } }, 'refs').snapshot();
+      await git.checkout.model.state({ checkout: { path: repo } }, 'status').snapshot();
 
       await runtime.dispose();
 
@@ -213,21 +242,22 @@ describe('createGitController', () => {
     }
   });
 
-  it('evicts failed opens so a later request retries the same key', async () => {
+  it('evicts failed acquisitions so a later request retries the same selector', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'emdash-git-controller-non-repo-'));
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const { client: git, dispose } = makeClient(runtime);
 
     try {
-      const failed = await git.checkout.open({ path: directory });
-      expect(failed.success).toBe(false);
+      const state = git.checkout.model.state({ checkout: { path: directory } }, 'head');
+      await expect(state.snapshot()).rejects.toBeTruthy();
 
       await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
       await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: directory });
       await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: directory });
 
-      const opened = await git.checkout.open({ path: directory });
-      expect(opened.success).toBe(true);
+      await expect(state.snapshot()).resolves.toMatchObject({
+        data: { kind: 'unborn', name: expect.any(String) },
+      });
     } finally {
       dispose();
       await runtime.dispose();
@@ -242,9 +272,8 @@ describe('createGitController', () => {
     const jobs = createLiveJobReplica(gitContract.checkout.push, git.checkout.push);
 
     try {
-      const checkoutKey = unwrap(await git.checkout.open({ path: repo }));
       const lease = await jobs.start({
-        checkoutPath: checkoutKey.checkoutPath,
+        checkout: { path: repo },
         options: { remote: 'origin', setUpstream: true },
       });
       const handle = await lease.ready();
@@ -255,7 +284,6 @@ describe('createGitController', () => {
       ).resolves.toMatchObject({ stdout: expect.stringMatching(/[a-f0-9]{40}/) });
 
       await lease.release();
-      await git.checkout.close(checkoutKey);
     } finally {
       await jobs.dispose();
       dispose();
@@ -265,13 +293,13 @@ describe('createGitController', () => {
     }
   });
 
-  it('fails checkout jobs fast when the session is not open', async () => {
+  it('fails checkout jobs fast when the selector cannot be resolved', async () => {
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const { client: git, dispose } = makeClient(runtime);
     const jobs = createLiveJobReplica(gitContract.checkout.pull, git.checkout.pull);
 
     try {
-      const lease = await jobs.start({ checkoutPath: '/repo' });
+      const lease = await jobs.start({ checkout: { path: '/repo' } });
       const handle = await lease.ready();
       await expect(handle.result).rejects.toBeTruthy();
       await lease.release();

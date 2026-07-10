@@ -1,8 +1,8 @@
 import type { BoundExec } from '@emdash/core/exec';
-import type { GitHeadModel } from '@emdash/core/git';
+import type { CheckoutHeadState } from '@emdash/core/git';
 
-/** Throws when the path is not a git repository; callers keep the previous model. */
-export async function computeHeadModel(exec: BoundExec): Promise<GitHeadModel> {
+/** Throws when the path is not a git repository; callers keep the previous state. */
+export async function computeHeadState(exec: BoundExec): Promise<CheckoutHeadState> {
   try {
     const { stdout } = await exec.exec(['symbolic-ref', '--short', 'HEAD']);
     const name = stdout.trim();

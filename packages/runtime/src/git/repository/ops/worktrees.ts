@@ -1,9 +1,9 @@
-import type { CheckoutInfo, GitHeadModel } from '@emdash/core/git';
+import type { WorktreeHeadSummary, WorktreeSummary } from '@emdash/core/git';
 
 const UNBORN_OID = /^0+$/;
 
-export function parseWorktreeList(stdout: string): CheckoutInfo[] {
-  const checkouts: CheckoutInfo[] = [];
+export function parseWorktreeList(stdout: string): WorktreeSummary[] {
+  const worktrees: WorktreeSummary[] = [];
   let current: Partial<{
     path: string;
     oid: string;
@@ -15,10 +15,10 @@ export function parseWorktreeList(stdout: string): CheckoutInfo[] {
 
   const flush = () => {
     if (!current.path) return;
-    checkouts.push({
-      checkoutPath: current.path,
-      isMain: checkouts.length === 0,
-      head: toHeadModel(current),
+    worktrees.push({
+      worktreePath: current.path,
+      isMain: worktrees.length === 0,
+      head: toWorktreeHead(current),
       ...(current.locked ? { locked: true } : {}),
       ...(current.prunable ? { prunable: true } : {}),
     });
@@ -40,18 +40,18 @@ export function parseWorktreeList(stdout: string): CheckoutInfo[] {
   }
   flush();
 
-  return checkouts;
+  return worktrees;
 }
 
-export function toHeadModel(entry: {
+export function toWorktreeHead(entry: {
   oid?: string;
   branch?: string;
   detached?: boolean;
-}): GitHeadModel {
+}): WorktreeHeadSummary {
   const oid = entry.oid ?? '';
   if (entry.branch && (!oid || UNBORN_OID.test(oid))) {
     return { kind: 'unborn', name: entry.branch };
   }
-  if (entry.branch) return { kind: 'branch', name: entry.branch, oid };
-  return { kind: 'detached', shortHash: oid.slice(0, 7), oid };
+  if (entry.branch) return { kind: 'branch', name: entry.branch };
+  return { kind: 'detached' };
 }

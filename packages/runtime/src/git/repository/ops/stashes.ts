@@ -1,9 +1,9 @@
 import type { BoundExec } from '@emdash/core/exec';
-import type { GitStash, GitStashesModel } from '@emdash/core/git';
+import type { GitStash, GitStashesState } from '@emdash/core/git';
 
 const FIELD_SEPARATOR = '\u0000';
 
-export async function computeStashesModel(exec: BoundExec): Promise<GitStashesModel> {
+export async function computeStashesState(exec: BoundExec): Promise<GitStashesState> {
   const { stdout } = await exec.exec(['stash', 'list', '--format=%gd%x00%H%x00%ct%x00%gs']);
   const stashes: GitStash[] = [];
 

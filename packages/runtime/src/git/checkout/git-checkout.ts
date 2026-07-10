@@ -13,7 +13,8 @@ import {
   isUnbornHeadError,
   toGitCommandError,
   type BlameResult,
-  type CheckoutStatusModel,
+  type CheckoutHeadState,
+  type CheckoutStatusState,
   type Commit,
   type CommitError,
   type CommitFile,
@@ -23,12 +24,9 @@ import {
   type FileDiff,
   type GitChange,
   type GitCommandError,
-  type GitHeadModel,
   type GitLogOptions,
   type GitLogResult,
-  type GitOpContext,
   type GitSyncProgress,
-  type IGitCheckout,
   type ImageReadResult,
   type MergeError,
   type MergeOptions,
@@ -49,6 +47,8 @@ import {
   syncStepProgress,
   throwIfGitOpAborted,
 } from '../exec/transfer-progress';
+import type { CheckoutIdentity } from '../identity/types';
+import type { GitOperationContext } from '../operation-context';
 import { blame as readBlame } from './ops/blame';
 import {
   extractHunkPatch,
@@ -57,21 +57,19 @@ import {
   parseUnifiedFileDiff,
   resolveDiffTarget,
 } from './ops/diff';
-import { computeHeadModel } from './ops/head';
+import { computeHeadState } from './ops/head';
 import { getImageBlob } from './ops/images';
 import {
   getCommit as readCommit,
   getCommitFiles as readCommitFiles,
   getLog as readLog,
 } from './ops/log';
-import { computeStatusModel } from './ops/status';
-import type { CheckoutRepository, GitCheckoutOptions } from './types';
+import { computeStatusState } from './ops/status';
+import type { GitCheckoutOptions, GitObjectReader } from './types';
 
-export class GitCheckout implements IGitCheckout {
-  readonly checkoutPath: string;
-  readonly gitDir: string;
-
-  private readonly repository: CheckoutRepository;
+export class GitCheckout {
+  readonly identity: CheckoutIdentity;
+  private readonly objectReader: GitObjectReader;
   private readonly exec: BoundExec;
 
   static async create(options: GitCheckoutOptions): Promise<GitCheckout> {
@@ -79,19 +77,31 @@ export class GitCheckout implements IGitCheckout {
   }
 
   private constructor(options: GitCheckoutOptions) {
-    this.checkoutPath = options.checkoutPath;
-    this.gitDir = options.gitDir;
-    this.repository = options.repository;
+    this.identity = options.identity;
+    this.objectReader = options.objectReader;
     this.exec = options.exec;
   }
 
-  getStatus(): Promise<CheckoutStatusModel> {
-    return computeStatusModel(this.exec, this.gitDir, this.checkoutPath);
+  get checkoutRoot(): string {
+    return this.identity.checkoutRoot;
   }
 
-  async getHead(): Promise<GitHeadModel> {
-    return computeHeadModel(this.exec).catch(
-      (): GitHeadModel => ({ kind: 'unborn', name: 'unknown' })
+  /** @deprecated Use checkoutRoot. */
+  get checkoutPath(): string {
+    return this.checkoutRoot;
+  }
+
+  get gitDir(): string {
+    return this.identity.gitDir;
+  }
+
+  getStatus(): Promise<CheckoutStatusState> {
+    return computeStatusState(this.exec, this.gitDir, this.checkoutRoot);
+  }
+
+  async getHead(): Promise<CheckoutHeadState> {
+    return computeHeadState(this.exec).catch(
+      (): CheckoutHeadState => ({ kind: 'unborn', name: 'unknown' })
     );
   }
 
@@ -314,7 +324,7 @@ export class GitCheckout implements IGitCheckout {
 
   async push(
     options: PushOptions = {},
-    context: GitOpContext = {}
+    context: GitOperationContext = {}
   ): Promise<Result<{ output: string }, PushError>> {
     try {
       const { stdout, stderr } = await execGitWithProgress(
@@ -338,7 +348,7 @@ export class GitCheckout implements IGitCheckout {
     }
   }
 
-  async pull(context: GitOpContext = {}): Promise<Result<{ output: string }, PullError>> {
+  async pull(context: GitOperationContext = {}): Promise<Result<{ output: string }, PullError>> {
     try {
       const { stdout, stderr } = await execGitWithProgress(
         this.exec,
@@ -353,7 +363,7 @@ export class GitCheckout implements IGitCheckout {
   }
 
   async sync(
-    context: GitOpContext<GitSyncProgress> = {}
+    context: GitOperationContext<GitSyncProgress> = {}
   ): Promise<Result<{ output: string }, SyncError>> {
     throwIfGitOpAborted(context.signal);
     const pullResult = await this.pull({
@@ -458,12 +468,13 @@ export class GitCheckout implements IGitCheckout {
   // -- Content / history reads ----------------------------------------------------
 
   async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
-    return this.repository.readBlobAtRef(ref, this.toRelativePath(filePath));
+    return this.objectReader.readBlobAtRef(ref, this.toRelativePath(filePath));
   }
 
   async getFileAtIndex(filePath: string): Promise<string | null> {
+    const relativePath = this.toRelativePath(filePath);
     try {
-      const { stdout } = await this.exec.exec(['show', `:${this.toRelativePath(filePath)}`]);
+      const { stdout } = await this.exec.exec(['show', `:${relativePath}`]);
       return stdout;
     } catch {
       return null;
@@ -579,17 +590,28 @@ export class GitCheckout implements IGitCheckout {
   }
 
   private toAbsolutePath(filePath: string): string {
-    if (path.isAbsolute(filePath) || path.win32.isAbsolute(filePath))
-      return path.normalize(filePath);
-    return path.join(this.checkoutPath, filePath);
+    const absolutePath = path.resolve(this.checkoutRoot, filePath);
+    this.assertInsideCheckout(absolutePath);
+    return absolutePath;
   }
 
   private toRelativePath(filePath: string): string {
-    if (!path.isAbsolute(filePath) && !path.win32.isAbsolute(filePath)) return filePath;
-    return path.relative(this.checkoutPath, filePath).replace(/\\/g, '/');
+    const absolutePath = this.toAbsolutePath(filePath);
+    return path.relative(this.checkoutRoot, absolutePath).replace(/\\/g, '/');
   }
 
   private toRelativePaths(paths: string[]): string[] {
     return paths.map((filePath) => this.toRelativePath(filePath));
+  }
+
+  private assertInsideCheckout(absolutePath: string): void {
+    const relativePath = path.relative(this.checkoutRoot, absolutePath);
+    if (
+      relativePath === '..' ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativePath)
+    ) {
+      throw new Error(`Path is outside checkout: ${absolutePath}`);
+    }
   }
 }
