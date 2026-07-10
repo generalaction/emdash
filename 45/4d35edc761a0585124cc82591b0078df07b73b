@@ -1,0 +1,103 @@
+apps/emdash-desktop/src/main/core/skills/SkillsService.test.ts
+  s_d31c3950ffa9aa::t_69ddfd97fce908 107-119,194-230
+  s_149b15e76c3696::t_6a0ae0f919c367 231-232
+packages/runtime/src/agent-config/runtime/skills.ts
+  s_b24a1f5b271976::t_2f71234fbf1fdf 3,7,9,13-15,18-19,41,120-122,125-126,150,166,178-210
+  s_e42434a177e64e::t_54a9c06cbfe819 229-230,234,239,243,245-259,279-305,330-331,335,341-342,344-345,348-358,372-376
+  s_683f2bf3a46a59::t_1b98ce413b72b5 75-79,323-327,343,346-347
+  s_bddda2acf40e6c::t_5cce9a258817ef 306
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_d667d96edaba94::t_e9e03e8f577b73 6-11,13,17,19,23-25,29,217,219-220,222-224,254-272,274,292-296,363-366,427-433,447,451,486,497-502,521-522,538,542-562,663-664,668,676,680,684-699,721-748
+packages/runtime/src/agent-config/runtime/runtime.ts
+  s_683f2bf3a46a59::t_1b98ce413b72b5 7,162,172-178,183
+packages/core/src/workspace-server/agent-config/contract.ts
+  s_b24a1f5b271976::t_2f71234fbf1fdf 4
+  s_149b15e76c3696::t_3956452ffdabaa 125-132
+apps/emdash-desktop/src/main/core/skills/controller.ts
+  s_315818c9a65524::t_a2abdb8480b93a 1-5,11-25,56,58,76-85,96-101,103-108
+packages/runtime/src/agent-config/api/procedures.ts
+  s_683f2bf3a46a59::t_1b98ce413b72b5 81-90
+packages/runtime/src/agent-config/runtime/runtime.test.ts
+  s_d31c3950ffa9aa::t_69ddfd97fce908 177,186-188
+  s_36581e2e6974a9::t_ffd990e94467a4 343-346
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "454d35edc761a0585124cc82591b0078df07b73b",
+  "prompts": {},
+  "sessions": {
+    "s_149b15e76c3696": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4b3c-b222-7212-b32b-737a45793127",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_315818c9a65524": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3riiBjZjrvgj3h6KCf",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_36581e2e6974a9": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n42zFuudWVWuhe3sRAo",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_683f2bf3a46a59": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3vN1ldkPFYFS05C9CE",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_b24a1f5b271976": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3tV2x7xJJxNXD0ENYe",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_bddda2acf40e6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4bfc-40b2-7243-ac30-3d46ab8c86fc",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_d31c3950ffa9aa": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n45NhP7IIS4WexiDRmr",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_d667d96edaba94": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3plqtGut5ipfF90GLl",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e42434a177e64e": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3uSrmEh6To7uAWIB08",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
