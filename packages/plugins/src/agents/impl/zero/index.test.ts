@@ -22,9 +22,10 @@ describe('zero plugin', () => {
     });
     expect(zero.capabilities.mcp.kind).toBe('none');
     expect(zero.capabilities.sessions.kind).toBe('stateless');
+    expect(zero.capabilities.autoApprove.kind).toBe('supported');
   });
 
-  it('starts the TUI and leaves prompt delivery to keystroke injection', () => {
+  it('starts the TUI in unsafe mode and leaves prompt delivery to keystroke injection', () => {
     expect(zero.capabilities.prompt.kind).toBe('keystroke');
 
     const result = build({
@@ -37,7 +38,20 @@ describe('zero plugin', () => {
     });
 
     expect(result.command).toBe('zero');
-    expect(result.args).toEqual([]);
+    expect(result.args).toEqual(['--skip-permissions-unsafe']);
     expect(result.env).toEqual({});
+  });
+
+  it('does not enable unsafe mode when auto-approve is disabled', () => {
+    const result = build({
+      cli: 'zero',
+      autoApprove: false,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+
+    expect(result.args).toEqual([]);
   });
 });

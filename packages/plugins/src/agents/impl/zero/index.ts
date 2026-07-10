@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://zero.gitlawb.com/',
   },
   {
+    autoApprove: {
+      kind: 'supported',
+    },
     hostDependency: npmDependency({ id: 'zero', package: '@gitlawb/zero' }),
     prompt: {
       kind: 'keystroke',
@@ -24,6 +27,9 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
-    buildCommand: (ctx) => buildStandardCommand(ctx, {}),
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        autoApproveFlag: '--skip-permissions-unsafe',
+      }),
   },
 });

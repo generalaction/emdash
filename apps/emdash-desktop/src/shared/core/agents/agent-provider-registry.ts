@@ -743,6 +743,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['zero'],
     versionArgs: ['--version'],
     cli: 'zero',
+    autoApproveFlag: '--skip-permissions-unsafe',
     useKeystrokeInjection: true,
     icon: 'zero.svg',
     alt: 'Zero CLI',
