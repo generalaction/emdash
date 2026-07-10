@@ -1,10 +1,4 @@
 export { KeyedMutex } from './keyed-mutex';
-export {
-  createComputedState,
-  type ComputedState,
-  type ComputedStateApply,
-  type ComputedStateOptions,
-} from './computed-state';
 export { LifecycleMap, type LifecycleHooks, type LifecycleStatus } from '@emdash/shared';
 export {
   LiveCollection,
