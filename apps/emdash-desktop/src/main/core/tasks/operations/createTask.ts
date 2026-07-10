@@ -1,7 +1,10 @@
 import crypto from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
-import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
+import {
+  agentHookService,
+  providerSupportsNativeStartHook,
+} from '@main/core/agent-hooks/agent-hook-service';
 import { isAppFocused } from '@main/core/agent-hooks/notification';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -28,7 +31,13 @@ function emitInitialPtyPromptStarted(
   prepared: PreparedCreateTask
 ): void {
   const initialConversation = prepared.params.taskConfig.initialConversation;
-  if (conversation.type !== 'pty' || !initialConversation?.initialPrompt?.trim()) return;
+  if (
+    conversation.type !== 'pty' ||
+    !initialConversation?.initialPrompt?.trim() ||
+    providerSupportsNativeStartHook(conversation.providerId)
+  ) {
+    return;
+  }
 
   const agentEvent: AgentEvent = {
     type: 'start',

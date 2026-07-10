@@ -67,6 +67,8 @@ describe('buildCodexHookConfig', () => {
     expect(config).toContain('model = "gpt-5"');
     expect(config).toContain('echo user-stop');
     expect(config).toContain('echo user-prompt');
+    expect(config).toContain('UserPromptSubmit');
+    expect(config).toContain('X-Emdash-Event-Type: start');
     expect(config).toContain('notification_type');
     expect(config).toContain('session-start');
   });

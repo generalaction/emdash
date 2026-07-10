@@ -13,7 +13,10 @@ import {
   type Conversation,
   type CreateConversationParams,
 } from '@shared/core/conversations/conversations';
-import { agentHookService } from '../agent-hooks/agent-hook-service';
+import {
+  agentHookService,
+  providerSupportsNativeStartHook,
+} from '../agent-hooks/agent-hook-service';
 import { isAppFocused } from '../agent-hooks/notification';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
@@ -25,7 +28,7 @@ function emitInitialPromptStarted(
   conversation: Conversation,
   params: CreateConversationParams
 ): void {
-  if (!params.initialPrompt?.trim()) return;
+  if (!params.initialPrompt?.trim() || providerSupportsNativeStartHook(params.provider)) return;
 
   const agentEvent: AgentEvent = {
     type: 'start',

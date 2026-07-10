@@ -5,7 +5,7 @@ vi.mock('@main/core/agents/plugin-registry', () => ({
   getPlugin: vi.fn((id: string) => ({
     capabilities: {
       hooks:
-        id === 'amp'
+        id === 'amp' || id === 'codex'
           ? { kind: 'plugin', scope: 'workspace', supportedEvents: ['start', 'stop', 'session'] }
           : {
               kind: 'config',
@@ -24,9 +24,10 @@ vi.mock('@main/db/client', () => ({
 describe('providerSupportsNativeStartHook', () => {
   it('detects providers that emit native start hooks', () => {
     expect(providerSupportsNativeStartHook('amp')).toBe(true);
+    expect(providerSupportsNativeStartHook('codex')).toBe(true);
   });
 
   it('does not treat other hook support as native start support', () => {
-    expect(providerSupportsNativeStartHook('codex')).toBe(false);
+    expect(providerSupportsNativeStartHook('other')).toBe(false);
   });
 });

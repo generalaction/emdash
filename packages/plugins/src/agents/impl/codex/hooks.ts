@@ -7,6 +7,7 @@ import {
   filterUserHooks,
   makeHookPostCommand,
   makeNotificationHookCommand,
+  makeStdinHookCommand,
   readJsonConfig,
   readTomlConfig,
   writeJsonConfig,
@@ -65,7 +66,7 @@ function getHooks(config: Record<string, unknown>): Record<string, unknown[]> {
 }
 
 function hasCodexEmdashHooks(hooks: Record<string, unknown[]>): boolean {
-  return ['Stop', 'PermissionRequest', 'SessionStart'].some((k) => {
+  return ['UserPromptSubmit', 'Stop', 'PermissionRequest', 'SessionStart'].some((k) => {
     const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
     return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
   });
@@ -133,6 +134,7 @@ function parseCodexHookEvent(eventType: string, body: Record<string, unknown>): 
 }
 
 export function buildCodexHookConfig() {
+  const startCmd = makeStdinHookCommand('start');
   const stopCmd = makeNotificationHookCommand('idle_prompt');
   const permCmd = makeNotificationHookCommand('permission_prompt');
   const sessionCmd = makeCodexSessionStartCommand();
@@ -154,6 +156,7 @@ export function buildCodexHookConfig() {
       const cleanupLegacy = await migrateLegacyHooks(fs, hooks);
 
       for (const [key, cmd] of [
+        ['UserPromptSubmit', startCmd],
         ['Stop', stopCmd],
         ['PermissionRequest', permCmd],
         ['SessionStart', sessionCmd],
