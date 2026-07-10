@@ -1,0 +1,19 @@
+packages/core/src/watch/native-watch.test.ts
+  s_ace63d68c0403b::t_de97cf420de320 20-22,24-25,42-56,63,66,87-88,90,110-112,126,128-131,138,149-152,168,170,184,186-187,189,195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "a837bb7bf1aa121dc8257f53ce906b808141a999",
+  "prompts": {},
+  "sessions": {
+    "s_ace63d68c0403b": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n9aCrf5niz6GZhtpKu2",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
