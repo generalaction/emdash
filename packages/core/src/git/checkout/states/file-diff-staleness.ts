@@ -7,8 +7,8 @@ export const fileDiffStalenessReasonSchema = z.enum([
 ]);
 export type FileDiffStalenessReason = z.infer<typeof fileDiffStalenessReasonSchema>;
 
-export const fileDiffStalenessSchema = z.object({
+export const fileDiffStalenessStateSchema = z.object({
   revision: z.number().int().nonnegative(),
   lastReason: fileDiffStalenessReasonSchema.optional(),
 });
-export type FileDiffStaleness = z.infer<typeof fileDiffStalenessSchema>;
+export type FileDiffStalenessState = z.infer<typeof fileDiffStalenessStateSchema>;

@@ -50,8 +50,8 @@ export const gitTagSchema = z.object({
 });
 export type GitTag = z.infer<typeof gitTagSchema>;
 
-export const gitRefsModelSchema = z.object({
+export const gitRefsStateSchema = z.object({
   branches: z.array(gitBranchSchema),
   tags: z.array(gitTagSchema),
 });
-export type GitRefsModel = z.infer<typeof gitRefsModelSchema>;
+export type GitRefsState = z.infer<typeof gitRefsStateSchema>;

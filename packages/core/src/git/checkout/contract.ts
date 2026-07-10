@@ -1,12 +1,4 @@
-import {
-  defineContract,
-  fallible,
-  liveJob,
-  liveModel,
-  liveState,
-  mutation,
-  procedure,
-} from '@emdash/wire';
+import { defineContract, fallible, liveJob, liveModel, liveState, mutation } from '@emdash/wire';
 import { z } from 'zod';
 import {
   commitErrorSchema,
@@ -19,23 +11,21 @@ import {
   syncErrorSchema,
 } from '../api/errors';
 import { syncProgressSchema, transferProgressSchema } from '../api/schemas';
-import { checkoutKeySchema } from './key';
-import { fileDiffStalenessSchema } from './models/file-diff';
-import { gitHeadModelSchema } from './models/head';
-import { checkoutStatusModelSchema } from './models/status';
+import { checkoutSelectorSchema } from '../api/selectors';
+import { fileDiffKeySchema } from './file-diff-key';
 import {
   blameResultSchema,
   commitFileSchema,
   commitOptionsSchema,
   commitSchema,
   conflictVersionsSchema,
-  diffTargetSchema,
   fileDiffSchema,
   gitChangeSchema,
   gitLogOptionsSchema,
   gitLogResultSchema,
   imageReadResultSchema,
   mergeOptionsSchema,
+  normalizedDiffTargetSchema,
   pullJobInputSchema,
   pushJobInputSchema,
   rebaseOptionsSchema,
@@ -44,13 +34,16 @@ import {
   switchOptionsSchema,
   syncJobInputSchema,
 } from './schemas';
+import { fileDiffStalenessStateSchema } from './states/file-diff-staleness';
+import { checkoutHeadStateSchema } from './states/head';
+import { checkoutStatusStateSchema } from './states/status';
 
 export const gitCheckoutContract = defineContract({
   model: liveModel({
-    key: checkoutKeySchema,
+    key: checkoutSelectorSchema,
     states: {
-      status: liveState({ data: checkoutStatusModelSchema }),
-      head: liveState({ data: gitHeadModelSchema }),
+      status: liveState({ data: checkoutStatusStateSchema }),
+      head: liveState({ data: checkoutHeadStateSchema }),
     },
     mutations: {
       stage: mutation({
@@ -154,71 +147,67 @@ export const gitCheckoutContract = defineContract({
   }),
 
   fileDiff: liveModel({
-    key: checkoutKeySchema.extend({ path: z.string() }),
+    key: fileDiffKeySchema,
     states: {
-      staleness: liveState({ data: fileDiffStalenessSchema }),
+      staleness: liveState({ data: fileDiffStalenessStateSchema }),
     },
   }),
 
-  open: fallible({
-    input: z.object({ path: z.string() }),
-    data: checkoutKeySchema,
-    error: gitCommandErrorSchema,
-  }),
-  close: procedure({ input: checkoutKeySchema, output: z.void() }),
-
   getFileDiff: fallible({
-    input: checkoutKeySchema.extend({ path: z.string(), base: diffTargetSchema.optional() }),
+    input: checkoutSelectorSchema.extend({
+      path: z.string(),
+      target: normalizedDiffTargetSchema.optional(),
+    }),
     data: fileDiffSchema,
     error: gitCommandErrorSchema,
   }),
   getChangedFiles: fallible({
-    input: checkoutKeySchema.extend({ base: diffTargetSchema }),
+    input: checkoutSelectorSchema.extend({ target: normalizedDiffTargetSchema }),
     data: z.array(gitChangeSchema),
     error: gitCommandErrorSchema,
   }),
   getConflictVersions: fallible({
-    input: checkoutKeySchema.extend({ path: z.string() }),
+    input: checkoutSelectorSchema.extend({ path: z.string() }),
     data: conflictVersionsSchema,
     error: gitCommandErrorSchema,
   }),
   getFileAtRef: fallible({
-    input: checkoutKeySchema.extend({ filePath: z.string(), ref: z.string() }),
+    input: checkoutSelectorSchema.extend({ filePath: z.string(), ref: z.string() }),
     data: z.string().nullable(),
     error: gitCommandErrorSchema,
   }),
   getFileAtIndex: fallible({
-    input: checkoutKeySchema.extend({ filePath: z.string() }),
+    input: checkoutSelectorSchema.extend({ filePath: z.string() }),
     data: z.string().nullable(),
     error: gitCommandErrorSchema,
   }),
   getImageAtRef: fallible({
-    input: checkoutKeySchema.extend({ filePath: z.string(), ref: z.string() }),
+    input: checkoutSelectorSchema.extend({ filePath: z.string(), ref: z.string() }),
     data: imageReadResultSchema,
     error: gitCommandErrorSchema,
   }),
   getImageAtIndex: fallible({
-    input: checkoutKeySchema.extend({ filePath: z.string() }),
+    input: checkoutSelectorSchema.extend({ filePath: z.string() }),
     data: imageReadResultSchema,
     error: gitCommandErrorSchema,
   }),
   getLog: fallible({
-    input: checkoutKeySchema.extend({ options: gitLogOptionsSchema.optional() }),
+    input: checkoutSelectorSchema.extend({ options: gitLogOptionsSchema.optional() }),
     data: gitLogResultSchema,
     error: gitCommandErrorSchema,
   }),
   getCommit: fallible({
-    input: checkoutKeySchema.extend({ hash: z.string() }),
+    input: checkoutSelectorSchema.extend({ hash: z.string() }),
     data: commitSchema.nullable(),
     error: gitCommandErrorSchema,
   }),
   getCommitFiles: fallible({
-    input: checkoutKeySchema.extend({ hash: z.string() }),
+    input: checkoutSelectorSchema.extend({ hash: z.string() }),
     data: z.array(commitFileSchema),
     error: gitCommandErrorSchema,
   }),
   blame: fallible({
-    input: checkoutKeySchema.extend({ path: z.string(), ref: z.string().optional() }),
+    input: checkoutSelectorSchema.extend({ path: z.string(), ref: z.string().optional() }),
     data: blameResultSchema,
     error: gitCommandErrorSchema,
   }),

@@ -1,19 +1,27 @@
 export { gitContract, type GitContract } from './api/contract';
-export { gitCheckoutContract, type GitCheckoutContract } from './checkout/contract';
-export { checkoutKeySchema, type CheckoutKey } from './checkout/key';
 export {
-  fileDiffStalenessSchema,
-  fileDiffStalenessReasonSchema,
-  type FileDiffStaleness,
-  type FileDiffStalenessReason,
-} from './checkout/models/file-diff';
+  boundFileDiffKeySchema,
+  fileDiffKeySchema,
+  type BoundFileDiffKey,
+  type FileDiffKey,
+} from './checkout/file-diff-key';
+export {
+  checkoutSelectorSchema,
+  gitPathSelectorSchema,
+  gitSelectorSchema,
+  repositorySelectorSchema,
+  type CheckoutSelector,
+  type GitPathSelector,
+  type GitSelector,
+  type RepositorySelector,
+} from './api/selectors';
+export { gitCheckoutContract, type GitCheckoutContract } from './checkout/contract';
 export {
   MAX_STATUS_FILES,
   StatusParser,
   TooManyFilesChangedError,
   type FileStatus,
 } from './checkout/status-parser';
-export type { IGitCheckout } from './checkout/types';
 export {
   classifyCloneRepositoryError,
   classifyCommitError,
@@ -32,11 +40,8 @@ export {
   isUnbornHeadError,
   toGitCommandError,
 } from './errors';
-export type { GitOpContext } from './operation-context';
 export { computeBaseRef } from './repository/ops/base-ref';
 export { gitRepositoryContract, type GitRepositoryContract } from './repository/contract';
-export { repositoryKeySchema, type RepositoryKey } from './repository/key';
-export type { IGitRepository } from './repository/types';
 export type {
   CloneRepositoryError,
   CommitError,
@@ -54,7 +59,6 @@ export type {
   SyncError,
 } from './api/errors';
 export type {
-  CheckoutInfo,
   CloneRepositoryJobInput,
   EnsureRepositoryOptions,
   GitPathInspection,
@@ -85,6 +89,7 @@ export type {
   ImageUnavailableReason,
   MergeBaseRange,
   MergeOptions,
+  NormalizedDiffTarget,
   PullJobInput,
   PushJobInput,
   PushOptions,
@@ -94,35 +99,70 @@ export type {
   SwitchOptions,
   SyncJobInput,
 } from './checkout/schemas';
-export { toRangeString, toRefString } from './checkout/schemas';
+export {
+  denormalizeDiffTarget,
+  normalizeDiffTarget,
+  toRangeString,
+  toRefString,
+} from './checkout/schemas';
 export type {
-  AddCheckoutOptions,
-  CreateBranchOptions,
+  AddWorktreeOptions,
+  ExplicitCreateBranchOptions,
+  ExplicitTagOptions,
   FetchJobInput,
   FetchPrForReviewJobInput,
   FetchPrForReviewOptions,
   PublishBranchJobInput,
-  TagOptions,
 } from './repository/schemas';
-export type {
-  GitBranch,
-  GitBranchRef,
-  GitLocalBranchRef,
-  GitRefsModel,
-  GitRemote,
-  GitRemoteBranchRef,
-  GitTag,
-  LocalBranch,
-  RemoteBranch,
-} from './repository/models/refs';
-export type { GitRemotesModel } from './repository/models/remotes';
-export type { GitStash, GitStashesModel } from './repository/models/stashes';
-export type { GitCheckoutsModel } from './repository/models/checkouts';
-export type { GitHeadModel } from './checkout/models/head';
-export type {
-  CheckoutOperation,
-  CheckoutStatusModel,
-  CheckoutStatusSummary,
-  FileGitStatus,
-  GitStatusCode,
-} from './checkout/models/status';
+export { checkoutHeadStateSchema, type CheckoutHeadState } from './checkout/states/head';
+export {
+  checkoutOperationSchema,
+  checkoutStatusStateSchema,
+  checkoutStatusSummarySchema,
+  fileGitStatusSchema,
+  gitStatusCodeSchema,
+  type CheckoutOperation,
+  type CheckoutStatusState,
+  type CheckoutStatusSummary,
+  type FileGitStatus,
+  type GitStatusCode,
+} from './checkout/states/status';
+export {
+  fileDiffStalenessReasonSchema,
+  fileDiffStalenessStateSchema,
+  type FileDiffStalenessReason,
+  type FileDiffStalenessState,
+} from './checkout/states/file-diff-staleness';
+export {
+  gitBranchRefSchema,
+  gitBranchSchema,
+  gitLocalBranchRefSchema,
+  gitRefsStateSchema,
+  gitRemoteBranchRefSchema,
+  gitRemoteSchema,
+  gitTagSchema,
+  type GitBranch,
+  type GitBranchRef,
+  type GitLocalBranchRef,
+  type GitRefsState,
+  type GitRemote,
+  type GitRemoteBranchRef,
+  type GitTag,
+  type LocalBranch,
+  type RemoteBranch,
+} from './repository/states/refs';
+export { gitRemotesStateSchema, type GitRemotesState } from './repository/states/remotes';
+export {
+  gitStashSchema,
+  gitStashesStateSchema,
+  type GitStash,
+  type GitStashesState,
+} from './repository/states/stashes';
+export {
+  gitWorktreesStateSchema,
+  worktreeHeadSummarySchema,
+  worktreeSummarySchema,
+  type GitWorktreesState,
+  type WorktreeHeadSummary,
+  type WorktreeSummary,
+} from './repository/states/worktrees';

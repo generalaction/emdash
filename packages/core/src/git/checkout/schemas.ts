@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { gitBranchRefSchema } from '../repository/models/refs';
-import { checkoutKeySchema } from './key';
+import { checkoutSelectorSchema } from '../api/selectors';
+import { gitBranchRefSchema } from '../repository/states/refs';
 
 /**
  * Checkout subdomain schemas: the read/diff/history vocabulary and the option
@@ -155,6 +155,34 @@ export type MergeBaseRange = z.infer<typeof mergeBaseRangeSchema>;
 export const diffTargetSchema = z.union([diffModeSchema, gitObjectRefSchema, mergeBaseRangeSchema]);
 export type DiffTarget = z.infer<typeof diffTargetSchema>;
 
+export const normalizedDiffTargetSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('working-vs-head') }),
+  z.object({ kind: z.literal('staged-vs-head') }),
+  z.object({ kind: z.literal('working-vs-ref'), ref: gitObjectRefSchema }),
+  z.object({ kind: z.literal('merge-base'), base: gitObjectRefSchema, head: gitObjectRefSchema }),
+]);
+export type NormalizedDiffTarget = z.infer<typeof normalizedDiffTargetSchema>;
+
+export function normalizeDiffTarget(target: DiffTarget = { kind: 'head' }): NormalizedDiffTarget {
+  if ('base' in target) return { kind: 'merge-base', base: target.base, head: target.head };
+  if (target.kind === 'head') return { kind: 'working-vs-head' };
+  if (target.kind === 'staged') return { kind: 'staged-vs-head' };
+  return { kind: 'working-vs-ref', ref: target };
+}
+
+export function denormalizeDiffTarget(target: NormalizedDiffTarget): DiffTarget {
+  switch (target.kind) {
+    case 'working-vs-head':
+      return { kind: 'head' };
+    case 'staged-vs-head':
+      return { kind: 'staged' };
+    case 'working-vs-ref':
+      return target.ref;
+    case 'merge-base':
+      return { base: target.base, head: target.head };
+  }
+}
+
 export function toRefString(ref: GitObjectRef): string {
   switch (ref.kind) {
     case 'branch':
@@ -238,13 +266,13 @@ export type StashPushOptions = z.infer<typeof stashPushOptionsSchema>;
 
 // -- Job inputs --
 
-export const pushJobInputSchema = checkoutKeySchema.extend({
+export const pushJobInputSchema = checkoutSelectorSchema.extend({
   options: pushOptionsSchema.optional(),
 });
 export type PushJobInput = z.infer<typeof pushJobInputSchema>;
 
-export const pullJobInputSchema = checkoutKeySchema;
+export const pullJobInputSchema = checkoutSelectorSchema;
 export type PullJobInput = z.infer<typeof pullJobInputSchema>;
 
-export const syncJobInputSchema = checkoutKeySchema;
+export const syncJobInputSchema = checkoutSelectorSchema;
 export type SyncJobInput = z.infer<typeof syncJobInputSchema>;

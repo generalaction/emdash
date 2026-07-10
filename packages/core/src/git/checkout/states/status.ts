@@ -14,10 +14,6 @@ export const gitStatusCodeSchema = z.enum([
 ]);
 export type GitStatusCode = z.infer<typeof gitStatusCodeSchema>;
 
-/**
- * Per-side status code from git porcelain v2 (XY format).
- * Each file entry carries an `index` code and a `worktree` code independently.
- */
 export const fileGitStatusSchema = z.object({
   path: z.string(),
   index: gitStatusCodeSchema,
@@ -45,12 +41,8 @@ export const checkoutStatusSummarySchema = z.object({
 });
 export type CheckoutStatusSummary = z.infer<typeof checkoutStatusSummarySchema>;
 
-/**
- * Normalized checkout status model.
- * `entries` is a flat map keyed by absolute path — each file appears once
- * regardless of whether it is staged, unstaged, both, or conflicted.
- */
-export const checkoutStatusModelSchema = z.discriminatedUnion('kind', [
+/** Flat absolute-path status snapshot for one checkout. */
+export const checkoutStatusStateSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('ok'),
     entries: z.record(z.string(), fileGitStatusSchema),
@@ -61,4 +53,4 @@ export const checkoutStatusModelSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('error'), message: z.string() }),
 ]);
 
-export type CheckoutStatusModel = z.infer<typeof checkoutStatusModelSchema>;
+export type CheckoutStatusState = z.infer<typeof checkoutStatusStateSchema>;

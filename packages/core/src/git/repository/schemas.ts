@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { repositoryKeySchema } from './key';
+import { repositorySelectorSchema } from '../api/selectors';
 
 /**
  * Repository subdomain schemas: option shapes for branch / tag / worktree
@@ -8,13 +8,14 @@ import { repositoryKeySchema } from './key';
  * lives in `../api/schemas`.
  */
 
-export const createBranchOptionsSchema = z.object({
+export const explicitCreateBranchOptionsSchema = z.object({
   name: z.string(),
-  from: z.string().optional(),
+  /** Explicit start ref. Repository execution never inherits a checkout's HEAD. */
+  from: z.string(),
   syncWithRemote: z.boolean().optional(),
   remote: z.string().optional(),
 });
-export type CreateBranchOptions = z.infer<typeof createBranchOptionsSchema>;
+export type ExplicitCreateBranchOptions = z.infer<typeof explicitCreateBranchOptionsSchema>;
 
 export const fetchPrForReviewOptionsSchema = z.object({
   prNumber: z.number().int(),
@@ -26,39 +27,40 @@ export const fetchPrForReviewOptionsSchema = z.object({
 });
 export type FetchPrForReviewOptions = z.infer<typeof fetchPrForReviewOptionsSchema>;
 
-export const addCheckoutOptionsSchema = z.object({
+export const addWorktreeOptionsSchema = z.object({
   /** Destination path for the new worktree. */
   path: z.string(),
-  /** Branch to check out; creates it if combined with `newBranch`. */
-  ref: z.string().optional(),
+  /** Explicit ref to check out; creates `newBranch` from this ref when supplied. */
+  ref: z.string(),
   /** Name for a new branch created at this worktree. */
   newBranch: z.string().optional(),
   force: z.boolean().optional(),
 });
-export type AddCheckoutOptions = z.infer<typeof addCheckoutOptionsSchema>;
+export type AddWorktreeOptions = z.infer<typeof addWorktreeOptionsSchema>;
 
-export const tagOptionsSchema = z.object({
+export const explicitTagOptionsSchema = z.object({
   name: z.string(),
-  ref: z.string().optional(),
+  /** Explicit target ref. Repository execution never inherits a checkout's HEAD. */
+  ref: z.string(),
   message: z.string().optional(),
   force: z.boolean().optional(),
 });
-export type TagOptions = z.infer<typeof tagOptionsSchema>;
+export type ExplicitTagOptions = z.infer<typeof explicitTagOptionsSchema>;
 
 // -- Job inputs --
 
-export const fetchJobInputSchema = repositoryKeySchema.extend({
+export const fetchJobInputSchema = repositorySelectorSchema.extend({
   remote: z.string().optional(),
 });
 export type FetchJobInput = z.infer<typeof fetchJobInputSchema>;
 
-export const publishBranchJobInputSchema = repositoryKeySchema.extend({
+export const publishBranchJobInputSchema = repositorySelectorSchema.extend({
   branchName: z.string(),
   remote: z.string().optional(),
 });
 export type PublishBranchJobInput = z.infer<typeof publishBranchJobInputSchema>;
 
-export const fetchPrForReviewJobInputSchema = repositoryKeySchema.extend({
+export const fetchPrForReviewJobInputSchema = repositorySelectorSchema.extend({
   options: fetchPrForReviewOptionsSchema,
 });
 export type FetchPrForReviewJobInput = z.infer<typeof fetchPrForReviewJobInputSchema>;

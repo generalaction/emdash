@@ -1,12 +1,4 @@
-import {
-  defineContract,
-  fallible,
-  liveJob,
-  liveModel,
-  liveState,
-  mutation,
-  procedure,
-} from '@emdash/wire';
+import { defineContract, fallible, liveJob, liveModel, liveState, mutation } from '@emdash/wire';
 import { z } from 'zod';
 import {
   createBranchErrorSchema,
@@ -16,33 +8,33 @@ import {
   gitCommandErrorSchema,
   pushErrorSchema,
 } from '../api/errors';
-import { checkoutInfoSchema, transferProgressSchema } from '../api/schemas';
-import { repositoryKeySchema } from './key';
-import { gitCheckoutsModelSchema } from './models/checkouts';
-import { gitRefsModelSchema } from './models/refs';
-import { gitRemotesModelSchema } from './models/remotes';
-import { gitStashesModelSchema } from './models/stashes';
+import { transferProgressSchema } from '../api/schemas';
+import { repositorySelectorSchema } from '../api/selectors';
 import {
-  addCheckoutOptionsSchema,
-  createBranchOptionsSchema,
+  addWorktreeOptionsSchema,
+  explicitCreateBranchOptionsSchema,
+  explicitTagOptionsSchema,
   fetchJobInputSchema,
   fetchPrForReviewJobInputSchema,
   publishBranchJobInputSchema,
-  tagOptionsSchema,
 } from './schemas';
+import { gitRefsStateSchema } from './states/refs';
+import { gitRemotesStateSchema } from './states/remotes';
+import { gitStashesStateSchema } from './states/stashes';
+import { gitWorktreesStateSchema, worktreeSummarySchema } from './states/worktrees';
 
 export const gitRepositoryContract = defineContract({
   model: liveModel({
-    key: repositoryKeySchema,
+    key: repositorySelectorSchema,
     states: {
-      refs: liveState({ data: gitRefsModelSchema }),
-      remotes: liveState({ data: gitRemotesModelSchema }),
-      stashes: liveState({ data: gitStashesModelSchema }),
-      checkouts: liveState({ data: gitCheckoutsModelSchema }),
+      refs: liveState({ data: gitRefsStateSchema }),
+      remotes: liveState({ data: gitRemotesStateSchema }),
+      stashes: liveState({ data: gitStashesStateSchema }),
+      worktrees: liveState({ data: gitWorktreesStateSchema }),
     },
     mutations: {
       createBranch: mutation({
-        input: z.object({ options: createBranchOptionsSchema }),
+        input: z.object({ options: explicitCreateBranchOptionsSchema }),
         data: z.void(),
         error: createBranchErrorSchema,
       }),
@@ -62,7 +54,7 @@ export const gitRepositoryContract = defineContract({
         error: gitCommandErrorSchema,
       }),
       createTag: mutation({
-        input: z.object({ options: tagOptionsSchema }),
+        input: z.object({ options: explicitTagOptionsSchema }),
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
@@ -86,17 +78,17 @@ export const gitRepositoryContract = defineContract({
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
-      addCheckout: mutation({
-        input: z.object({ options: addCheckoutOptionsSchema }),
-        data: checkoutInfoSchema,
+      addWorktree: mutation({
+        input: z.object({ options: addWorktreeOptionsSchema }),
+        data: worktreeSummarySchema,
         error: gitCommandErrorSchema,
       }),
-      removeCheckout: mutation({
-        input: z.object({ checkoutPath: z.string(), force: z.boolean().optional() }),
+      removeWorktree: mutation({
+        input: z.object({ worktreePath: z.string(), force: z.boolean().optional() }),
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
-      pruneCheckouts: mutation({
+      pruneWorktrees: mutation({
         input: z.object({}),
         data: z.void(),
         error: gitCommandErrorSchema,
@@ -104,25 +96,18 @@ export const gitRepositoryContract = defineContract({
     },
   }),
 
-  open: fallible({
-    input: z.object({ path: z.string() }),
-    data: repositoryKeySchema,
-    error: gitCommandErrorSchema,
-  }),
-  close: procedure({ input: repositoryKeySchema, output: z.void() }),
-
-  listCheckouts: fallible({
-    input: repositoryKeySchema,
-    data: z.array(checkoutInfoSchema),
+  listWorktrees: fallible({
+    input: repositorySelectorSchema,
+    data: gitWorktreesStateSchema,
     error: gitCommandErrorSchema,
   }),
   getDefaultBranch: fallible({
-    input: repositoryKeySchema.extend({ remote: z.string().optional() }),
+    input: repositorySelectorSchema.extend({ remote: z.string().optional() }),
     data: z.string(),
     error: gitCommandErrorSchema,
   }),
   readBlobAtRef: fallible({
-    input: repositoryKeySchema.extend({ ref: z.string(), filePath: z.string() }),
+    input: repositorySelectorSchema.extend({ ref: z.string(), filePath: z.string() }),
     data: z.string().nullable(),
     error: gitCommandErrorSchema,
   }),

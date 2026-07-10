@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { gitHeadModelSchema } from '../checkout/models/head';
 
 export const ensureRepositoryOptionsSchema = z.object({
   initIfMissing: z.boolean().optional(),
@@ -43,12 +42,3 @@ export const syncProgressSchema = transferProgressSchema.extend({
   step: z.enum(['pull', 'push']),
 });
 export type GitSyncProgress = z.infer<typeof syncProgressSchema>;
-
-export const checkoutInfoSchema = z.object({
-  checkoutPath: z.string(),
-  isMain: z.boolean(),
-  head: gitHeadModelSchema,
-  locked: z.boolean().optional(),
-  prunable: z.boolean().optional(),
-});
-export type CheckoutInfo = z.infer<typeof checkoutInfoSchema>;
