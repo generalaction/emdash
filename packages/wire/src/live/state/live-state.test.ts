@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { waitFor } from '../../testing';
 import { LiveStateClient, type LiveChangeMeta } from './client';
 import { LiveState } from './server';
 
@@ -172,13 +173,3 @@ describe('LiveState and LiveStateClient', () => {
     }
   });
 });
-
-async function waitFor(predicate: () => boolean, timeoutMs = 1000): Promise<void> {
-  const startedAt = Date.now();
-  while (!predicate()) {
-    if (Date.now() - startedAt > timeoutMs) {
-      throw new Error('Timed out waiting for condition');
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1));
-  }
-}

@@ -2,8 +2,8 @@ import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost, createLiveModelReplica, type LiveModelReplicaOptions } from '../live';
-import { client, type LiveModelClientHandle } from './client';
-import { connect } from './connect';
+import { createTestWire } from '../testing';
+import type { LiveModelClientHandle } from './client';
 import { createController, encodeTopic } from './controller';
 import {
   defineContract,
@@ -13,8 +13,6 @@ import {
   type LiveModelKey,
   type LiveModelDef,
 } from './define';
-import { serve } from './serve';
-import { memoryTransportPair } from './transports';
 
 const keySchema = z.object({ conversationId: z.string() });
 const stateSchema = z.object({ title: z.string() });
@@ -55,10 +53,8 @@ function setup() {
     state: { title: 'Initial' },
     usage: { tokens: 0 },
   });
-  const pair = memoryTransportPair();
-  const controller = createController(contract, { conversation: host });
-  serve(pair.right, controller);
-  return { client: client(contract, connect(pair.left)), controller, key, instance };
+  const wire = createTestWire(contract, { conversation: host });
+  return { client: wire.client, controller: wire.controller, key, instance };
 }
 
 describe('liveModel', () => {
@@ -152,9 +148,7 @@ describe('liveModel', () => {
       },
     });
     host.create(key, { state: { title: 'Initial' } });
-    const pair = memoryTransportPair();
-    serve(pair.right, createController(schemaOnly, { conversation: host }));
-    const contractClient = client(schemaOnly, connect(pair.left));
+    const { client: contractClient } = createTestWire(schemaOnly, { conversation: host });
 
     const { instance: conversation, dispose } = await acquireConversation(
       contractClient.conversation,
@@ -196,10 +190,7 @@ describe('liveModel', () => {
       state: { title: 'Initial' },
       usage: { tokens: 0 },
     });
-    const pair = memoryTransportPair();
-    const controller = createController(nested, { child: { conversation: host } });
-    serve(pair.right, controller);
-    const contractClient = client(nested, connect(pair.left));
+    const { client: contractClient } = createTestWire(nested, { child: { conversation: host } });
 
     expect(nested.child.conversation.states.state.id).toBe('child.conversation.state');
     const { instance: conversation, dispose } = await acquireConversation(

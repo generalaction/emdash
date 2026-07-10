@@ -1,12 +1,8 @@
 import { ok } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { client } from '../../api/client';
-import { connect } from '../../api/connect';
-import { createController } from '../../api/controller';
 import { defineContract, liveModel, liveState, mutation } from '../../api/define';
-import { serve } from '../../api/serve';
-import { memoryTransportPair } from '../../api/transports';
+import { createTestWire } from '../../testing';
 import { createLiveModelHost } from '../mutations';
 import { createLiveModelReplica } from './replica';
 
@@ -49,10 +45,7 @@ describe('createLiveModelReplica', () => {
     const key = { id: 'local' };
     const host = createLiveModelHost(api.counter);
     host.create(key, { state: { count: 0 } });
-    const upstreamPair = memoryTransportPair();
-    serve(upstreamPair.right, createController(api, { counter: host }));
-
-    const upstream = client(api, connect(upstreamPair.left));
+    const upstream = createTestWire(api, { counter: host }).client;
     const replica = createLiveModelReplica(api.counter, upstream.counter);
 
     expect(replica.peek(key)).toBeUndefined();
@@ -71,15 +64,9 @@ describe('createLiveModelReplica', () => {
     const key = { id: 'demo' };
     const host = createLiveModelHost(api.counter);
     const authoritative = host.create(key, { state: { count: 0 } });
-    const upstreamPair = memoryTransportPair();
-    serve(upstreamPair.right, createController(api, { counter: host }));
-
-    const upstream = client(api, connect(upstreamPair.left));
+    const upstream = createTestWire(api, { counter: host }).client;
     const replica = createLiveModelReplica(api.counter, upstream.counter, { retentionMs: 100 });
-    const downstreamPair = memoryTransportPair();
-    serve(downstreamPair.right, createController(api, { counter: replica }));
-
-    const downstream = client(api, connect(downstreamPair.left));
+    const downstream = createTestWire(api, { counter: replica }).client;
     const downstreamReplica = createLiveModelReplica(api.counter, downstream.counter);
     const downstreamLease = downstreamReplica.acquire(key);
     const counter = await downstreamLease.ready();
@@ -100,10 +87,7 @@ describe('createLiveModelReplica', () => {
     const key = { id: 'retained' };
     const host = createLiveModelHost(api.counter);
     host.create(key, { state: { count: 0 } });
-    const upstreamPair = memoryTransportPair();
-    serve(upstreamPair.right, createController(api, { counter: host }));
-
-    const upstream = client(api, connect(upstreamPair.left));
+    const upstream = createTestWire(api, { counter: host }).client;
     const replica = createLiveModelReplica(api.counter, upstream.counter, { retentionMs: 50 });
     const lease = replica.acquire(key);
     const instance = await lease.ready();

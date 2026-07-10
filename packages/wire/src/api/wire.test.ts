@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { ReplicaState } from '../live/replica';
+import { createTestWire, deferred, waitFor } from '../testing';
 import { client } from './client';
 import { connect } from './connect';
 import { createController, encodeTopic } from './controller';
@@ -22,20 +23,17 @@ const contract = defineContract({
 });
 
 function setup() {
-  const pair = memoryTransportPair();
   const host = createLiveModelHost(contract.state);
   const instance = host.create({ id: 'known' }, { state: { count: 0 } });
   const model = instance.states.state;
-  const controller = createController(contract, {
+  const wire = createTestWire(contract, {
     greet: ({ name }) => `hello ${name}`,
     fail: () => {
       throw new WireError('NOT_FOUND', 'expected failure');
     },
     state: host,
   });
-  const disposeServer = serve(pair.right, controller);
-  const connection = connect(pair.left);
-  return { pair, connection, model, disposeServer };
+  return { pair: wire.pair, connection: wire.connection, model };
 }
 
 describe('wire serve/connect', () => {
@@ -46,17 +44,14 @@ describe('wire serve/connect', () => {
   });
 
   it('round-trips uncaught handler errors as HANDLER_ERROR with a serialized cause', async () => {
-    const pair = memoryTransportPair();
     const failingContract = defineContract({
       fail: procedure({ input: z.void().optional(), output: z.void() }),
     });
-    const controller = createController(failingContract, {
+    const { connection } = createTestWire(failingContract, {
       fail: () => {
         throw new TypeError('boom');
       },
     });
-    serve(pair.right, controller);
-    const connection = connect(pair.left);
 
     await expect(connection.call('fail', undefined)).rejects.toMatchObject({
       code: 'HANDLER_ERROR',
@@ -69,18 +64,15 @@ describe('wire serve/connect', () => {
   });
 
   it('preserves serialized causes on thrown wire errors', async () => {
-    const pair = memoryTransportPair();
     const failingContract = defineContract({
       fail: procedure({ input: z.void().optional(), output: z.void() }),
     });
     const cause = new Error('root cause');
-    const controller = createController(failingContract, {
+    const { connection } = createTestWire(failingContract, {
       fail: () => {
         throw new WireError('NOT_FOUND', 'missing resource', { cause });
       },
     });
-    serve(pair.right, controller);
-    const connection = connect(pair.left);
 
     await expect(connection.call('fail', undefined)).rejects.toMatchObject({
       code: 'NOT_FOUND',
@@ -102,7 +94,6 @@ describe('wire serve/connect', () => {
   });
 
   it('supports fallible procedures that return typed Result payloads', async () => {
-    const pair = memoryTransportPair();
     const fallibleContract = defineContract({
       load: fallible({
         input: z.object({ id: z.string() }),
@@ -110,7 +101,7 @@ describe('wire serve/connect', () => {
         error: z.object({ type: z.literal('missing') }),
       }),
     });
-    const controller = createController(
+    const { connection } = createTestWire(
       fallibleContract,
       {
         load: ({ id }) =>
@@ -118,8 +109,6 @@ describe('wire serve/connect', () => {
       },
       { validate: 'full' }
     );
-    serve(pair.right, controller);
-    const connection = connect(pair.left);
 
     await expect(connection.call('load', { id: 'known' })).resolves.toEqual(ok({ value: 'found' }));
     await expect(connection.call('load', { id: 'missing' })).resolves.toEqual(
@@ -397,25 +386,3 @@ describe('wire serve/connect', () => {
     await Promise.resolve();
   });
 });
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for condition');
-}
-
-function deferred<T>(): {
-  promise: Promise<T>;
-  resolve(value: T): void;
-  reject(error: unknown): void;
-} {
-  let resolve!: (value: T) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return { promise, resolve, reject };
-}

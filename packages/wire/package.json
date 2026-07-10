@@ -29,6 +29,10 @@
       "types": "./dist/observability.d.mts",
       "default": "./dist/observability.mjs"
     },
+    "./testing": {
+      "types": "./dist/testing.d.mts",
+      "default": "./dist/testing.mjs"
+    },
     "./util": {
       "types": "./dist/util.d.mts",
       "default": "./dist/util.mjs"

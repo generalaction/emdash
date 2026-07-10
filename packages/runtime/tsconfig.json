@@ -25,6 +25,7 @@
       "@emdash/shared/plugins": ["../shared/src/plugins/index.ts"],
       "@emdash/shared": ["../shared/src/index.ts"],
       "@emdash/wire/api": ["../wire/src/api/index.ts"],
+      "@emdash/wire/testing": ["../wire/src/testing/index.ts"],
       "@emdash/wire/util/process-runtime": ["../wire/src/util/process-runtime/index.ts"],
       "@emdash/wire/util": ["../wire/src/util/index.ts"],
       "@emdash/wire": ["../wire/src/index.ts"]

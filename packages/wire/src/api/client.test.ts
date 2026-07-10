@@ -4,12 +4,8 @@ import { z } from 'zod';
 import { LiveLog } from '../live/log';
 import { createLiveModelHost } from '../live/mutations';
 import { createLiveModelReplica, ReplicaState } from '../live/replica';
-import { client } from './client';
-import { connect } from './connect';
-import { createController } from './controller';
+import { createTestWire, waitFor } from '../testing';
 import { defineContract, liveModel, liveState, liveLog, mutation, procedure } from './define';
-import { serve } from './serve';
-import { memoryTransportPair } from './transports';
 
 const stateSchema = z.object({ count: z.number() });
 const keySchema = z.object({ id: z.string() });
@@ -22,11 +18,10 @@ const contract = defineContract({
 
 describe('client', () => {
   it('calls typed procedures and exposes live client handles', async () => {
-    const pair = memoryTransportPair();
     const host = createLiveModelHost(contract.state);
     const instance = host.create({ id: 'task' }, { state: { count: 0 } });
     const log = new LiveLog({ generation: 2000 });
-    const controller = createController(contract, {
+    const { client: contractClient } = createTestWire(contract, {
       increment: () => {
         instance.states.state.produce((draft) => {
           draft.count += 1;
@@ -37,8 +32,6 @@ describe('client', () => {
       state: host,
       output: () => log,
     });
-    serve(pair.right, controller);
-    const contractClient = client(contract, connect(pair.left));
 
     const seenStates: Array<{ count: number }> = [];
     const state = new ReplicaState(contractClient.state.state({ id: 'task' }, 'state'), {
@@ -68,11 +61,10 @@ describe('client', () => {
 
   it('builds nested clients using object keys as call paths', async () => {
     const nested = defineContract({ child: contract });
-    const pair = memoryTransportPair();
     const host = createLiveModelHost(nested.child.state);
     const instance = host.create({ id: 'task' }, { state: { count: 0 } });
     const log = new LiveLog({ generation: 2000 });
-    const controller = createController(nested, {
+    const { client: contractClient } = createTestWire(nested, {
       child: {
         increment: () => {
           instance.states.state.produce((draft) => {
@@ -85,8 +77,6 @@ describe('client', () => {
         output: () => log,
       },
     });
-    serve(pair.right, controller);
-    const contractClient = client(nested, connect(pair.left));
 
     const state = new ReplicaState(contractClient.child.state.state({ id: 'task' }, 'state'), {
       schema: stateSchema,
@@ -122,10 +112,7 @@ describe('client', () => {
     const updates: unknown[] = [];
     instance.states.state.subscribe((update) => updates.push(update));
 
-    const pair = memoryTransportPair();
-    const controller = createController(groupContract, { conversation: host });
-    serve(pair.right, controller);
-    const contractClient = client(groupContract, connect(pair.left));
+    const { client: contractClient } = createTestWire(groupContract, { conversation: host });
     const replica = createLiveModelReplica(
       contractClient.conversation.def,
       contractClient.conversation
@@ -142,11 +129,3 @@ describe('client', () => {
     await replica.dispose();
   });
 });
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for condition');
-}

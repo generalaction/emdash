@@ -2,19 +2,15 @@ import { err, ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
-  createController,
-  client,
-  connect,
   createLiveModelReplica,
   createLiveModelHost,
   defineContract,
   liveModel,
   liveState,
-  memoryTransportPair,
   mutation,
-  serve,
 } from '../../index';
 import type { LiveModelReplica } from '../../live/replica';
+import { createTestWire, deferred, type Deferred, waitFor } from '../../testing';
 import { OptimisticLiveModel } from './optimistic-live-model';
 
 const keySchema = z.object({ id: z.string() });
@@ -226,32 +222,8 @@ function setup(api: TestApi): {
     usage: { tokens: 0 },
   });
 
-  const pair = memoryTransportPair();
-  const controller = createController(api, { conversation: conversations });
-  serve(pair.right, controller);
-  const contractClient = client(api, connect(pair.left));
+  const contractClient = createTestWire(api, { conversation: conversations }).client;
   const replica = createLiveModelReplica(api.conversation, contractClient.conversation);
   const group = new OptimisticLiveModel(api.conversation, key, replica);
   return { group, replica, key };
-}
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error('Timed out waiting for condition');
-}
-
-type Deferred<T> = {
-  promise: Promise<T>;
-  resolve(value: T): void;
-};
-
-function deferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
 }
