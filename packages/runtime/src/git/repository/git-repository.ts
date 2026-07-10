@@ -1,12 +1,7 @@
 import path from 'node:path';
 import type { BoundExec } from '@emdash/core/exec';
 import {
-  classifyCreateBranchError,
-  classifyDeleteBranchError,
-  classifyFetchError,
-  classifyFetchPrForReviewError,
-  classifyPushError,
-  toGitCommandError,
+  gitErr,
   type AddWorktreeOptions,
   type CreateBranchError,
   type DeleteBranchError,
@@ -23,13 +18,14 @@ import {
   type PushError,
   type WorktreeSummary,
 } from '@emdash/core/git';
-import { err, ok, type Result } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
 import type { RepositoryIdentity } from '../allocation/identity';
 import { realpathOrResolve } from '../allocation/paths';
+import { commandFailed, pushFailed } from '../exec/errors';
 import type { GitOperationContext } from '../exec/operation-context';
-import { bindRepositoryExec } from '../exec/repository-exec';
 import { execGitWithProgress, throwIfGitOpAborted } from '../exec/transfer-progress';
-import { CatFileBatch } from './ops/cat-file-batch';
+import { repositoryFailures } from './errors';
+import { CatFileBatch, CatFileBatchProcessError } from './ops/cat-file-batch';
 import { computeRefsState } from './ops/refs';
 import { computeRemotesState, remoteNameForRepositoryUrl } from './ops/remotes';
 import { computeStashesState } from './ops/stashes';
@@ -51,7 +47,7 @@ export class GitRepository {
 
   constructor(options: GitRepositoryOptions) {
     this.identity = options.identity;
-    this.exec = bindRepositoryExec(options.exec, options.identity.gitCommonDir);
+    this.exec = options.exec;
   }
 
   get gitCommonDir(): string {
@@ -59,7 +55,7 @@ export class GitRepository {
   }
 
   async getRefs(): Promise<GitRefsState> {
-    const remotes = await this.getRemotes().catch((): GitRemotesState => ({ remotes: [] }));
+    const remotes = await this.getRemotes();
     return computeRefsState(this.exec, remotes.remotes);
   }
 
@@ -71,7 +67,7 @@ export class GitRepository {
     return computeStashesState(this.exec);
   }
 
-  async dispose(): Promise<void> {
+  dispose(): void {
     this.catFile?.dispose();
     this.catFile = null;
   }
@@ -80,16 +76,13 @@ export class GitRepository {
 
   async readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
     const treePath = normalizeTreePath(filePath);
+    const spec = `${ref}:${treePath}`;
     this.catFile ??= new CatFileBatch({ exec: this.exec });
     try {
-      return await this.catFile.readText(`${ref}:${treePath}`);
-    } catch {
-      try {
-        const { stdout } = await this.exec.exec(['show', `${ref}:${treePath}`]);
-        return stdout;
-      } catch {
-        return null;
-      }
+      return await this.catFile.readText(spec);
+    } catch (error) {
+      if (error instanceof CatFileBatchProcessError) return this.readBlobOnce(spec);
+      throw error;
     }
   }
 
@@ -119,14 +112,11 @@ export class GitRepository {
         (worktree) => realpathOrResolve(worktree.worktreePath) === target
       );
       if (!info) {
-        return err({
-          type: 'git_error',
-          message: `worktree added but not listed: ${targetPath}`,
-        });
+        return gitErr.commandFailed(`worktree added but not listed: ${targetPath}`);
       }
       return ok(info);
     } catch (error) {
-      return err(toGitCommandError(error));
+      return commandFailed(error);
     }
   }
 
@@ -155,7 +145,7 @@ export class GitRepository {
       const remote = options.remote ?? 'origin';
       const fetchResult = await this.fetch(remote);
       if (!fetchResult.success) {
-        return err({ type: 'fetch_failed', remote, branch: from, error: fetchResult.error });
+        return gitErr.fetchFailed(remote, from, fetchResult.error);
       }
     }
 
@@ -165,7 +155,7 @@ export class GitRepository {
       await this.setBranchBaseConfig(name, base);
       return ok(undefined);
     } catch (error) {
-      return err(classifyCreateBranchError(error, name, from));
+      return repositoryFailures.createBranch(error, name, from);
     }
   }
 
@@ -174,7 +164,7 @@ export class GitRepository {
       await this.exec.exec(['branch', force ? '-D' : '-d', '--', branch]);
       return ok(undefined);
     } catch (error) {
-      return err(classifyDeleteBranchError(error, branch));
+      return repositoryFailures.deleteBranch(error, branch);
     }
   }
 
@@ -235,7 +225,7 @@ export class GitRepository {
       return ok(undefined);
     } catch (error) {
       if (context.signal?.aborted) throw error;
-      return err(classifyFetchError(error, remote));
+      return repositoryFailures.fetch(error, remote);
     }
   }
 
@@ -253,7 +243,7 @@ export class GitRepository {
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
       if (context.signal?.aborted) throw error;
-      return err(classifyPushError(error));
+      return pushFailed(error);
     }
   }
 
@@ -269,13 +259,17 @@ export class GitRepository {
         const slash = ref.indexOf('/');
         return slash === -1 ? ref : ref.slice(slash + 1);
       }
-    } catch {}
+    } catch (error) {
+      if (!repositoryFailures.isMissingSymbolicRef(error)) throw error;
+    }
 
     try {
       const { stdout } = await this.exec.exec(['remote', 'show', remote]);
       const match = /HEAD branch:\s*(\S+)/.exec(stdout);
       if (match?.[1] && match[1] !== '(unknown)') return match[1];
-    } catch {}
+    } catch (error) {
+      if (!repositoryFailures.isRemoteUnavailable(error)) throw error;
+    }
 
     for (const candidate of ['main', 'master', 'develop', 'trunk']) {
       if (await this.branchExistsLocally(candidate)) return candidate;
@@ -291,12 +285,7 @@ export class GitRepository {
     try {
       if (options.isFork) {
         const forkRemote = remoteNameForRepositoryUrl(options.headRepositoryUrl);
-        const remotes = await this.exec
-          .exec(['remote'], { signal: context.signal })
-          .catch((error) => {
-            if (context.signal?.aborted) throw error;
-            return { stdout: '' };
-          });
+        const remotes = await this.exec.exec(['remote'], { signal: context.signal });
         const names = remotes.stdout
           .split('\n')
           .map((line) => line.trim())
@@ -334,6 +323,7 @@ export class GitRepository {
           )
           .catch((error) => {
             if (context.signal?.aborted) throw error;
+            if (!repositoryFailures.isMissingUpstream(error)) throw error;
             return { stdout: '', stderr: '' };
           });
         return ok(undefined);
@@ -364,12 +354,13 @@ export class GitRepository {
         )
         .catch((error) => {
           if (context.signal?.aborted) throw error;
+          if (!repositoryFailures.isMissingUpstream(error)) throw error;
           return { stdout: '', stderr: '' };
         });
       return ok(undefined);
     } catch (error) {
       if (context.signal?.aborted) throw error;
-      return err(classifyFetchPrForReviewError(error, options.prNumber));
+      return repositoryFailures.fetchPrForReview(error, options.prNumber);
     }
   }
 
@@ -380,7 +371,7 @@ export class GitRepository {
       await this.exec.exec(['stash', 'drop', `stash@{${stashIndex}}`]);
       return ok(undefined);
     } catch (error) {
-      return err(toGitCommandError(error));
+      return commandFailed(error);
     }
   }
 
@@ -393,7 +384,17 @@ export class GitRepository {
       await run();
       return ok(undefined);
     } catch (error) {
-      return err(toGitCommandError(error));
+      return commandFailed(error);
+    }
+  }
+
+  private async readBlobOnce(spec: string): Promise<string | null> {
+    try {
+      const { stdout } = await this.exec.exec(['cat-file', 'blob', spec]);
+      return stdout;
+    } catch (error) {
+      if (repositoryFailures.isMissingBlob(error)) return null;
+      throw error;
     }
   }
 
@@ -401,15 +402,14 @@ export class GitRepository {
     try {
       await this.exec.exec(['rev-parse', '--verify', `refs/heads/${branch}`]);
       return true;
-    } catch {
+    } catch (error) {
+      if (!repositoryFailures.isMissingRef(error)) throw error;
       return false;
     }
   }
 
   private async setBranchBaseConfig(branchName: string, baseRef: string): Promise<void> {
-    try {
-      await this.exec.exec(['config', `branch.${branchName}.base`, baseRef]);
-    } catch {}
+    await this.exec.exec(['config', `branch.${branchName}.base`, baseRef]);
   }
 }
 

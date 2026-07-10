@@ -32,6 +32,9 @@ const exec: BoundExec = {
   execBuffer: async () => {
     throw new Error('unexpected Git execution');
   },
+  spawn: () => {
+    throw new Error('unexpected Git execution');
+  },
   withCwd() {
     return this;
   },
@@ -56,7 +59,7 @@ describe('GitAllocationGraph', () => {
     fail = false;
     const retry = graph.acquireRepository(selector);
     await expect(retry.ready()).resolves.toMatchObject({
-      id: identity.repositoryId,
+      identity: { repositoryId: identity.repositoryId },
     });
     await retry.release();
     await graph.dispose();

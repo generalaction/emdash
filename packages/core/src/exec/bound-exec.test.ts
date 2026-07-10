@@ -1,3 +1,4 @@
+import { once } from 'node:events';
 import { chmod, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -29,6 +30,37 @@ describe('BoundExec', () => {
     );
 
     expect(chunks.join('')).toContain('one');
+  });
+
+  it('opens a piped child with the bound cwd and environment', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-spawn-'));
+    const child = createBoundExec({
+      file: process.execPath,
+      cwd,
+      env: { ...process.env, EMDASH_EXEC_TEST: 'configured' },
+    }).spawn([
+      '-e',
+      [
+        "process.stdin.setEncoding('utf8');",
+        "let input = '';",
+        "process.stdin.on('data', (chunk) => { input += chunk; });",
+        "process.stdin.on('end', () => console.log(JSON.stringify({ cwd: process.cwd(), env: process.env.EMDASH_EXEC_TEST, input })));",
+      ].join(' '),
+    ]);
+    let stdout = '';
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stdin.end('payload');
+
+    const [exitCode] = await once(child, 'close');
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      cwd: await realpath(cwd),
+      env: 'configured',
+      input: 'payload',
+    });
   });
 
   it('throws ExecError with serializable process details on non-zero exit', async () => {

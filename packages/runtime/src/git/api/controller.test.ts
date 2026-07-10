@@ -18,8 +18,8 @@ import {
 } from '@emdash/wire';
 import { describe, expect, it } from 'vitest';
 import { GitRuntime } from '../git-runtime';
-import { createGitContractAdapter } from './contract-adapter';
 import { createGitController } from './controller';
+import { createGitProcedures } from './procedures';
 
 const execFileAsync = promisify(execFile);
 
@@ -86,9 +86,9 @@ describe('createGitController', () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const workspaceContract = defineContract({ git: gitContract });
-    const adapter = createGitContractAdapter(runtime, workspaceContract.git);
+    const procedures = createGitProcedures(runtime, workspaceContract.git);
     const controller = createController(workspaceContract, {
-      git: adapter.implementation,
+      git: procedures,
     });
     const pair = memoryTransportPair();
     const stop = serve(pair.right, controller);
@@ -117,7 +117,6 @@ describe('createGitController', () => {
     } finally {
       stop();
       controller.dispose?.();
-      await adapter.dispose();
       await runtime.dispose();
       await rm(repo, { recursive: true, force: true });
     }
@@ -160,6 +159,84 @@ describe('createGitController', () => {
       });
 
       await detach();
+    } finally {
+      dispose();
+      await runtime.dispose();
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('reconciles file-diff staleness beside the staging mutation', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const { client: git, dispose } = makeClient(runtime);
+    const checkout = { checkout: { path: repo } };
+    const diffKey = {
+      ...checkout,
+      filePath: 'tracked.txt',
+      target: { kind: 'staged-vs-head' as const },
+    };
+
+    try {
+      await expect(
+        git.checkout.fileDiff.state(diffKey, 'staleness').snapshot()
+      ).resolves.toMatchObject({ data: { revision: 0 } });
+      await writeFile(path.join(repo, 'tracked.txt'), 'after\n', 'utf8');
+
+      await expect(
+        git.checkout.model.mutate('stage', {
+          key: checkout,
+          input: { paths: ['tracked.txt'] },
+        })
+      ).resolves.toMatchObject({ success: true });
+
+      await expect(
+        git.checkout.fileDiff.state(diffKey, 'staleness').snapshot()
+      ).resolves.toMatchObject({ data: { revision: 1, lastReason: 'index-changed' } });
+    } finally {
+      dispose();
+      await runtime.dispose();
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('reconciles checkout head and repository refs beside commit', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const { client: git, dispose } = makeClient(runtime);
+    const checkout = { checkout: { path: repo } };
+    const repository = { repository: { path: repo } };
+
+    try {
+      const headUpdates: LiveUpdate[] = [];
+      const refUpdates: LiveUpdate[] = [];
+      const detachHead = await git.checkout.model
+        .state(checkout, 'head')
+        .attach((update) => headUpdates.push(update));
+      const detachRefs = await git.repository.model
+        .state(repository, 'refs')
+        .attach((update) => refUpdates.push(update));
+      const before = await git.checkout.model.state(checkout, 'head').snapshot();
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'committed\n', 'utf8');
+      await git.checkout.model.mutate('stage', {
+        key: checkout,
+        input: { paths: ['tracked.txt'] },
+      });
+      const committed = await git.checkout.model.mutate('commit', {
+        key: checkout,
+        input: { message: 'second' },
+      });
+      expect(committed).toMatchObject({ success: true });
+
+      await waitFor(() => headUpdates.length > 0, 'expected checkout head reconciliation');
+      await waitFor(() => refUpdates.length > 0, 'expected repository refs reconciliation');
+      const after = await git.checkout.model.state(checkout, 'head').snapshot();
+      expect(after.data).toMatchObject({ kind: 'branch', name: 'main' });
+      expect(after.data).not.toEqual(before.data);
+
+      await detachRefs();
+      await detachHead();
     } finally {
       dispose();
       await runtime.dispose();
@@ -260,6 +337,25 @@ describe('createGitController', () => {
 
       await expect(state.snapshot()).resolves.toMatchObject({
         data: { kind: 'unborn', name: expect.any(String) },
+      });
+    } finally {
+      dispose();
+      await runtime.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('returns selector resolution failures through fallible procedures', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-git-controller-resolution-'));
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const { client: git, dispose } = makeClient(runtime);
+
+    try {
+      await expect(
+        git.checkout.getFileAtIndex({ checkout: { path: directory }, filePath: 'missing.txt' })
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'resolution_failed', path: directory },
       });
     } finally {
       dispose();

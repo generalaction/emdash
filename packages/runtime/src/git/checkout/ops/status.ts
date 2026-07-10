@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { BoundExec } from '@emdash/core/exec';
 import {
-  gitErrorMessage,
   MAX_STATUS_FILES,
   StatusParser,
   type CheckoutOperation,
@@ -12,6 +11,7 @@ import {
   type GitChangeStatus,
   type GitStatusCode,
 } from '@emdash/core/git';
+import { gitFailure } from '../../exec/errors';
 
 /**
  * Computes checkout status from `git status --porcelain=v2`.
@@ -41,7 +41,7 @@ export async function computeStatusState(
     const operation = await detectOperation(gitDir);
     return buildStatusState(parser.status, operation, checkoutPath);
   } catch (error) {
-    return { kind: 'error', message: gitErrorMessage(error) };
+    return { kind: 'error', message: gitFailure(error).message };
   }
 }
 
@@ -138,7 +138,16 @@ async function exists(filePath: string): Promise<boolean> {
   try {
     await fs.access(filePath);
     return true;
-  } catch {
+  } catch (error) {
+    if (!isMissingPath(error)) throw error;
     return false;
   }
+}
+
+function isMissingPath(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+  );
 }

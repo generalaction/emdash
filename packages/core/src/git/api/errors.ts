@@ -1,25 +1,45 @@
 import { resultSchema as result } from '@emdash/shared';
 import { z } from 'zod';
 
+const messageError = <Type extends string>(type: Type) =>
+  z.object({ type: z.literal(type), message: z.string() });
+
 export const gitExecErrorSchema = z.object({
   type: z.literal('git_error'),
   message: z.string(),
   stderr: z.string().optional(),
 });
-export const gitNotOpenErrorSchema = z.object({
-  type: z.literal('not_open'),
-  resource: z.enum(['repository', 'checkout']),
-  key: z.string(),
+export type GitExecError = z.infer<typeof gitExecErrorSchema>;
+
+export const gitResolutionErrorSchema = z.object({
+  type: z.literal('resolution_failed'),
+  path: z.string(),
   message: z.string(),
 });
-export const gitCommandErrorSchema = z.union([gitExecErrorSchema, gitNotOpenErrorSchema]);
+export type GitResolutionError = z.infer<typeof gitResolutionErrorSchema>;
+
+export const gitCommandErrorSchema = z.union([gitExecErrorSchema, gitResolutionErrorSchema]);
 export type GitCommandError = z.infer<typeof gitCommandErrorSchema>;
+
+export const authRequiredErrorSchema = messageError('auth_required');
+export const authFailedErrorSchema = messageError('auth_failed');
+export const networkErrorSchema = messageError('network_error');
+export const noRemoteErrorSchema = z.object({
+  type: z.literal('no_remote'),
+  message: z.string().optional(),
+});
+export const noUpstreamErrorSchema = messageError('no_upstream');
+export const conflictErrorSchema = z.object({
+  type: z.literal('conflict'),
+  message: z.string(),
+  conflictedFiles: z.array(z.string()).optional(),
+});
 
 export const cloneRepositoryErrorSchema = z.union([
   z.object({ type: z.literal('target_exists'), path: z.string(), message: z.string() }),
-  z.object({ type: z.literal('auth_required'), message: z.string() }),
-  z.object({ type: z.literal('auth_failed'), message: z.string() }),
-  z.object({ type: z.literal('remote_not_found'), message: z.string() }),
+  authRequiredErrorSchema,
+  authFailedErrorSchema,
+  messageError('remote_not_found'),
   gitCommandErrorSchema,
 ]);
 export type CloneRepositoryError = z.infer<typeof cloneRepositoryErrorSchema>;
@@ -32,50 +52,46 @@ export const ensureRepositoryErrorSchema = z.union([
 export type EnsureRepositoryError = z.infer<typeof ensureRepositoryErrorSchema>;
 
 export const fetchErrorSchema = z.union([
-  z.object({ type: z.literal('no_remote'), message: z.string().optional() }),
+  noRemoteErrorSchema,
   z.object({
     type: z.literal('remote_not_found'),
     remote: z.string().optional(),
     message: z.string(),
   }),
-  z.object({ type: z.literal('auth_required'), message: z.string() }),
-  z.object({ type: z.literal('auth_failed'), message: z.string() }),
-  z.object({ type: z.literal('network_error'), message: z.string() }),
+  authRequiredErrorSchema,
+  authFailedErrorSchema,
+  networkErrorSchema,
   gitCommandErrorSchema,
 ]);
 export type FetchError = z.infer<typeof fetchErrorSchema>;
 
 export const commitErrorSchema = z.union([
-  z.object({ type: z.literal('nothing_to_commit'), message: z.string() }),
-  z.object({ type: z.literal('empty_message'), message: z.string() }),
-  z.object({ type: z.literal('hook_failed'), message: z.string() }),
+  messageError('nothing_to_commit'),
+  messageError('empty_message'),
+  messageError('hook_failed'),
   gitCommandErrorSchema,
 ]);
 export type CommitError = z.infer<typeof commitErrorSchema>;
 
 export const pushErrorSchema = z.union([
-  z.object({ type: z.literal('no_remote'), message: z.string().optional() }),
-  z.object({ type: z.literal('no_upstream'), message: z.string() }),
-  z.object({ type: z.literal('rejected'), message: z.string() }),
-  z.object({ type: z.literal('auth_required'), message: z.string() }),
-  z.object({ type: z.literal('auth_failed'), message: z.string() }),
-  z.object({ type: z.literal('network_error'), message: z.string() }),
-  z.object({ type: z.literal('hook_rejected'), message: z.string() }),
+  noRemoteErrorSchema,
+  noUpstreamErrorSchema,
+  messageError('rejected'),
+  authRequiredErrorSchema,
+  authFailedErrorSchema,
+  networkErrorSchema,
+  messageError('hook_rejected'),
   gitCommandErrorSchema,
 ]);
 export type PushError = z.infer<typeof pushErrorSchema>;
 
 export const pullErrorSchema = z.union([
-  z.object({
-    type: z.literal('conflict'),
-    message: z.string(),
-    conflictedFiles: z.array(z.string()).optional(),
-  }),
-  z.object({ type: z.literal('no_upstream'), message: z.string() }),
-  z.object({ type: z.literal('diverged'), message: z.string() }),
-  z.object({ type: z.literal('auth_required'), message: z.string() }),
-  z.object({ type: z.literal('auth_failed'), message: z.string() }),
-  z.object({ type: z.literal('network_error'), message: z.string() }),
+  conflictErrorSchema,
+  noUpstreamErrorSchema,
+  messageError('diverged'),
+  authRequiredErrorSchema,
+  authFailedErrorSchema,
+  networkErrorSchema,
   gitCommandErrorSchema,
 ]);
 export type PullError = z.infer<typeof pullErrorSchema>;
@@ -83,7 +99,6 @@ export type PullError = z.infer<typeof pullErrorSchema>;
 export const syncErrorSchema = z.union([pullErrorSchema, pushErrorSchema]);
 export type SyncError = z.infer<typeof syncErrorSchema>;
 
-// createBranchError nests fetchError recursively
 export const createBranchErrorSchema = z.union([
   z.object({ type: z.literal('already_exists'), branch: z.string(), message: z.string() }),
   z.object({ type: z.literal('invalid_name'), branch: z.string(), message: z.string() }),
@@ -105,7 +120,7 @@ export type CreateBranchError = z.infer<typeof createBranchErrorSchema>;
 
 export const fetchPrForReviewErrorSchema = z.union([
   z.object({ type: z.literal('not_found'), prNumber: z.number().int(), message: z.string() }),
-  z.object({ type: z.literal('auth_required'), message: z.string() }),
+  authRequiredErrorSchema,
   gitCommandErrorSchema,
 ]);
 export type FetchPrForReviewError = z.infer<typeof fetchPrForReviewErrorSchema>;
@@ -119,36 +134,39 @@ export const deleteBranchErrorSchema = z.union([
 export type DeleteBranchError = z.infer<typeof deleteBranchErrorSchema>;
 
 export const mergeErrorSchema = z.union([
-  z.object({
-    type: z.literal('conflict'),
-    message: z.string(),
-    conflictedFiles: z.array(z.string()).optional(),
-  }),
-  z.object({ type: z.literal('already_up_to_date'), message: z.string() }),
+  conflictErrorSchema,
+  messageError('already_up_to_date'),
   gitCommandErrorSchema,
 ]);
 export type MergeError = z.infer<typeof mergeErrorSchema>;
 
 export const rebaseErrorSchema = z.union([
-  z.object({
-    type: z.literal('conflict'),
-    message: z.string(),
-    conflictedFiles: z.array(z.string()).optional(),
-  }),
-  z.object({ type: z.literal('nothing_to_rebase'), message: z.string() }),
+  conflictErrorSchema,
+  messageError('nothing_to_rebase'),
   gitCommandErrorSchema,
 ]);
 export type RebaseError = z.infer<typeof rebaseErrorSchema>;
 
 export const switchErrorSchema = z.union([
-  z.object({ type: z.literal('local_changes'), message: z.string() }),
+  messageError('local_changes'),
   z.object({ type: z.literal('not_found'), ref: z.string(), message: z.string() }),
   gitCommandErrorSchema,
 ]);
 export type SwitchError = z.infer<typeof switchErrorSchema>;
 
-/** result(void, gitCommandError) — for mutations with no payload on success. */
-export const gitVoidResultSchema = result(z.void(), gitCommandErrorSchema);
+export type GitOperationError =
+  | CloneRepositoryError
+  | EnsureRepositoryError
+  | FetchError
+  | CommitError
+  | PushError
+  | PullError
+  | CreateBranchError
+  | FetchPrForReviewError
+  | DeleteBranchError
+  | MergeError
+  | RebaseError
+  | SwitchError;
 
-/** result({ output }, pushError) — for push/publishBranch where stdout matters. */
+export const gitVoidResultSchema = result(z.void(), gitCommandErrorSchema);
 export const gitOutputResultSchema = result(z.object({ output: z.string() }), pushErrorSchema);

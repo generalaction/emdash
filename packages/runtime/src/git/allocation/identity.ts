@@ -1,4 +1,4 @@
-import type { GitSelector } from '@emdash/core/git';
+import type { GitResolutionError, GitSelector } from '@emdash/core/git';
 import type { Result } from '@emdash/shared';
 
 type Brand<Value, Name extends string> = Value & { readonly __brand: Name };
@@ -20,12 +20,6 @@ export type CheckoutIdentity = RepositoryIdentity &
     checkoutRoot: string;
     gitDir: string;
   }>;
-
-export type GitResolutionError = Readonly<{
-  type: 'resolution-failed';
-  path: string;
-  message: string;
-}>;
 
 export type GitIdentityResolver = {
   resolve(selector: GitSelector): Promise<Result<CheckoutIdentity, GitResolutionError>>;

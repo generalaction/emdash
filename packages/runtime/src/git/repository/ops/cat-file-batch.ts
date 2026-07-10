@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { BoundExec } from '@emdash/core/exec';
 import type { IDisposable } from '@emdash/shared';
 
@@ -14,6 +14,11 @@ export type CatFileBatchOptions = {
   exec: BoundExec;
 };
 
+export class CatFileBatchProcessError extends Error {
+  override readonly name = 'CatFileBatchProcessError';
+}
+
+/** Persistent `git cat-file --batch` process with a strictly serialized request queue. */
 export class CatFileBatch implements IDisposable {
   private readonly exec: BoundExec;
   private disposed = false;
@@ -57,9 +62,7 @@ export class CatFileBatch implements IDisposable {
     this.processing = false;
     const queue = this.queue;
     this.queue = [];
-    for (const item of queue) {
-      item.reject(this.readAborted);
-    }
+    for (const item of queue) item.reject(this.readAborted);
   }
 
   private ensureProc(): ChildProcessWithoutNullStreams {
@@ -67,11 +70,7 @@ export class CatFileBatch implements IDisposable {
     if (this.proc) return this.proc;
 
     this.readAborted = null;
-    const child = spawn(this.exec.file, ['cat-file', '--batch'], {
-      cwd: this.exec.cwd,
-      env: this.exec.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const child = this.exec.spawn(['cat-file', '--batch']);
     child.stderr.resume();
 
     child.stdout.on('data', (chunk: Buffer) => {
@@ -80,18 +79,18 @@ export class CatFileBatch implements IDisposable {
       this.wake?.();
     });
     child.stdout.on('end', () => {
-      this.readAborted = new Error('git cat-file stdout ended');
+      this.readAborted = new CatFileBatchProcessError('git cat-file stdout ended');
       this.wake?.();
     });
     child.on('error', () => {
-      this.recordProcDeath(new Error('git cat-file process error'));
+      this.recordProcDeath(new CatFileBatchProcessError('git cat-file process error'));
     });
     child.on('close', () => {
-      this.recordProcDeath(new Error('git cat-file process exited'));
+      this.recordProcDeath(new CatFileBatchProcessError('git cat-file process exited'));
     });
 
     this.proc = child;
-    return this.proc;
+    return child;
   }
 
   private async next(): Promise<void> {
@@ -131,8 +130,7 @@ export class CatFileBatch implements IDisposable {
         item.resolve(body.subarray(0, -1).toString('utf8'));
       }
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      item.reject(err);
+      item.reject(error instanceof Error ? error : new Error(String(error)));
       try {
         this.proc?.kill();
       } catch {}

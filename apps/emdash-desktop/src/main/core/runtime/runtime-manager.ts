@@ -1,3 +1,4 @@
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import nodePath from 'node:path';
 import {
   createBoundExec,
@@ -5,6 +6,7 @@ import {
   type ExecBufferResult,
   type ExecOptions,
   type ExecResult,
+  type ExecSpawnOptions,
 } from '@emdash/core/exec';
 import { contains, FilesRuntime } from '@emdash/core/files';
 import { ResourceMap } from '@emdash/core/lib';
@@ -67,6 +69,10 @@ class DynamicGitExec implements BoundExec {
 
   execBuffer(args: string[], options?: ExecOptions): Promise<ExecBufferResult> {
     return this.current().execBuffer(args, options);
+  }
+
+  spawn(args: string[], options?: ExecSpawnOptions): ChildProcessWithoutNullStreams {
+    return this.current().spawn(args, options);
   }
 
   withCwd(cwd: string): BoundExec {

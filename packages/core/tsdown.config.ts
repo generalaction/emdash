@@ -15,7 +15,6 @@ export default defineConfig({
     'services-fs-watch-node': 'src/services/fs-watch/node/index.ts',
     'services-fs-watch-worker': 'src/services/fs-watch/worker/index.ts',
     path: 'src/path/index.ts',
-    watch: 'src/watch/index.ts',
     git: 'src/git/index.ts',
     lib: 'src/lib/index.ts',
     pty: 'src/pty/index.ts',

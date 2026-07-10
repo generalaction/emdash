@@ -41,6 +41,14 @@
       "types": "./dist/git.d.mts",
       "default": "./dist/git.mjs"
     },
+    "./files": {
+      "types": "./dist/files.d.mts",
+      "default": "./dist/files.mjs"
+    },
+    "./files/node": {
+      "types": "./dist/files-node.d.mts",
+      "default": "./dist/files-node.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -57,6 +65,7 @@
     "@emdash/core": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/wire": "workspace:*",
+    "glob": "^13.0.6",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -1,8 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
-import { isFileNotFoundException } from '../../../files';
 import type { PluginFs } from '../../runtime/fs';
+
+function isFileNotFoundException(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || !('code' in error)) return false;
+  const code = (error as { code?: unknown }).code;
+  return code === 'ENOENT' || code === 'ENOTDIR';
+}
 
 export function createLocalPluginFs(root: string): PluginFs {
   const absRoot = resolve(root);

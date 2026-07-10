@@ -1,353 +1,121 @@
-import { ExecError } from '../exec';
+import { err, type Err } from '@emdash/shared';
 import type {
-  CloneRepositoryError,
-  CommitError,
   CreateBranchError,
   DeleteBranchError,
   FetchError,
   FetchPrForReviewError,
-  GitCommandError,
-  MergeError,
-  PullError,
-  PushError,
-  RebaseError,
+  GitExecError,
+  GitOperationError,
+  GitResolutionError,
   SwitchError,
 } from './api/errors';
 
+type TaggedError<Type extends GitOperationError['type']> = Extract<
+  GitOperationError,
+  { type: Type }
+>;
+
+const failure = <E>(error: E): Err<E> => err(error);
+
+/** Constructors for declared Git domain failures. */
 export const gitErr = {
-  notOpen(resource: 'repository' | 'checkout', key: string): GitCommandError {
-    return {
-      type: 'not_open',
-      resource,
-      key,
-      message: `Git ${resource} session is not open: ${key}`,
-    };
+  commandFailed(message: string, stderr?: string): Err<GitExecError> {
+    return failure({ type: 'git_error', message, ...(stderr ? { stderr } : {}) });
   },
-};
-
-function errorStringProperty(error: unknown, property: 'stdout' | 'stderr' | 'message'): string {
-  if (!error || typeof error !== 'object' || !(property in error)) return '';
-  return String((error as Record<typeof property, unknown>)[property] ?? '').trim();
-}
-
-export function gitErrorMessage(error: unknown): string {
-  if (error instanceof ExecError) {
-    return error.stderr.trim() || error.stdout.trim() || error.message;
-  }
-  const stderr = errorStringProperty(error, 'stderr');
-  const stdout = errorStringProperty(error, 'stdout');
-  const message = errorStringProperty(error, 'message');
-  if (stderr || stdout || message) return stderr || stdout || message;
-  return error instanceof Error ? error.message : String(error);
-}
-
-export function toGitCommandError(error: unknown): GitCommandError {
-  return {
-    type: 'git_error',
-    message: gitErrorMessage(error),
-    stderr:
-      error instanceof ExecError ? error.stderr : errorStringProperty(error, 'stderr') || undefined,
-  };
-}
-
-export function classifyCloneRepositoryError(
-  error: unknown,
-  targetPath: string
-): CloneRepositoryError {
-  const commandError = toGitCommandError(error);
-  const message = commandError.message.toLowerCase();
-  if (
-    message.includes('already exists and is not an empty directory') ||
-    (message.includes('destination path') && message.includes('already exists'))
-  ) {
-    return { type: 'target_exists', path: targetPath, message: commandError.message };
-  }
-  if (isAuthRequiredMessage(message)) {
-    return { type: 'auth_required', message: commandError.message };
-  }
-  if (message.includes('authentication') || message.includes('permission denied')) {
-    return { type: 'auth_failed', message: commandError.message };
-  }
-  if (
-    message.includes('repository not found') ||
-    message.includes('does not appear to be a git repository') ||
-    message.includes('not found')
-  ) {
-    return { type: 'remote_not_found', message: commandError.message };
-  }
-  return commandError;
-}
-
-export function classifyFetchError(error: unknown, remote: string | undefined): FetchError {
-  const commandError = toGitCommandError(error);
-  const message = commandError.message.toLowerCase();
-  if (
-    message.includes('no remote repository specified') ||
-    message.includes('no remote configured')
-  ) {
-    return { type: 'no_remote', message: commandError.message };
-  }
-  if (isAuthRequiredMessage(message)) {
-    return { type: 'auth_required', message: commandError.message };
-  }
-  if (message.includes('authentication') || message.includes('permission denied')) {
-    return { type: 'auth_failed', message: commandError.message };
-  }
-  if (
-    message.includes('could not resolve host') ||
-    message.includes('network is unreachable') ||
-    message.includes('connection refused') ||
-    message.includes('connection timed out') ||
-    message.includes('no route to host') ||
-    message.includes('network is down') ||
-    message.includes('could not resolve hostname') ||
-    message.includes('temporary failure in name resolution') ||
-    message.includes('name or service not known') ||
-    message.includes('ssh: connect to host') ||
-    message.includes('unable to connect')
-  ) {
-    return { type: 'network_error', message: commandError.message };
-  }
-  if (message.includes('does not appear to be a git repository') || message.includes('not found')) {
-    return { type: 'remote_not_found', remote, message: commandError.message };
-  }
-  return commandError;
-}
-
-export function classifyFetchPrForReviewError(
-  error: unknown,
-  prNumber: number
-): FetchPrForReviewError {
-  const commandError = toGitCommandError(error);
-  const message = commandError.message.toLowerCase();
-  if (isAuthRequiredMessage(message)) {
-    return { type: 'auth_required', message: commandError.message };
-  }
-  if (
-    message.includes('not found') ||
-    message.includes("couldn't find remote ref") ||
-    message.includes('unknown revision')
-  ) {
-    return { type: 'not_found', prNumber, message: commandError.message };
-  }
-  return commandError;
-}
-
-export function classifyCommitError(error: unknown): CommitError {
-  const commandError = toGitCommandError(error);
-  const message = commandError.message.toLowerCase();
-  if (message.includes('nothing to commit')) {
-    return { type: 'nothing_to_commit', message: commandError.message };
-  }
-  if (message.includes('empty commit message')) {
-    return { type: 'empty_message', message: commandError.message };
-  }
-  if (message.includes('hook')) {
-    return { type: 'hook_failed', message: commandError.message };
-  }
-  return commandError;
-}
-
-export function classifyPushError(error: unknown): PushError {
-  const commandError = toGitCommandError(error);
-  const message = commandError.message.toLowerCase();
-  if (message.includes('no upstream')) {
-    return { type: 'no_upstream', message: commandError.message };
-  }
-  if (
-    message.includes('no configured push destination') ||
-    message.includes('no remote configured') ||
-    message.includes('no remote')
-  ) {
-    return { type: 'no_remote', message: commandError.message };
-  }
-  if (message.includes('rejected') || message.includes('non-fast-forward')) {
-    return { type: 'rejected', message: commandError.message };
-  }
-  if (isAuthRequiredMessage(message)) {
-    return { type: 'auth_required', message: commandError.message };
-  }
-  if (message.includes('authentication') || message.includes('permission denied')) {
-    return { type: 'auth_failed', message: commandError.message };
-  }
-  if (
-    message.includes('could not resolve host') ||
-    message.includes('network is unreachable') ||
-    message.includes('connection refused') ||
-    message.includes('connection timed out') ||
-    message.includes('unable to connect')
-  ) {
-    return { type: 'network_error', message: commandError.message };
-  }
-  if (message.includes('hook declined') || message.includes('pre-receive hook')) {
-    return { type: 'hook_rejected', message: commandError.message };
-  }
-  return commandError;
-}
-
-export function classifyPullError(error: unknown, conflictedFiles?: string[]): PullError {
-  const commandError = toGitCommandError(error);
-  const message = commandError.message.toLowerCase();
-  if (message.includes('conflict')) {
-    return { type: 'conflict', message: commandError.message, conflictedFiles };
-  }
-  if (
-    message.includes('there is no tracking information') ||
-    message.includes('no tracking information') ||
-    message.includes('has no upstream branch') ||
-    message.includes('no upstream configured')
-  ) {
-    return { type: 'no_upstream', message: commandError.message };
-  }
-  if (
-    message.includes('need to specify how to reconcile') ||
-    message.includes('you have divergent branches')
-  ) {
-    return { type: 'diverged', message: commandError.message };
-  }
-  if (isAuthRequiredMessage(message)) {
-    return { type: 'auth_required', message: commandError.message };
-  }
-  if (message.includes('authentication') || message.includes('permission denied')) {
-    return { type: 'auth_failed', message: commandError.message };
-  }
-  if (
-    message.includes('could not resolve host') ||
-    message.includes('network is unreachable') ||
-    message.includes('connection refused') ||
-    message.includes('connection timed out') ||
-    message.includes('unable to connect')
-  ) {
-    return { type: 'network_error', message: commandError.message };
-  }
-  return commandError;
-}
-
-function isAuthRequiredMessage(message: string): boolean {
-  return (
-    message.includes('could not read username') ||
-    message.includes('authentication failed') ||
-    message.includes('permission denied (publickey') ||
-    message.includes('terminal prompts disabled') ||
-    message.includes('the requested url returned error: 401') ||
-    message.includes('the requested url returned error: 403') ||
-    /\bhttp\s+(401|403)\b/.test(message)
-  );
-}
-
-export function classifyCreateBranchError(
-  error: unknown,
-  branch: string,
-  from: string
-): CreateBranchError {
-  const commandError = toGitCommandError(error);
-  const stderr =
-    commandError.type === 'git_error'
-      ? (commandError.stderr ?? commandError.message)
-      : commandError.message;
-  if (stderr.includes('already exists')) {
-    return { type: 'already_exists', branch, message: commandError.message };
-  }
-  if (
-    stderr.includes('not a valid object name') ||
-    stderr.includes('Not a valid object name') ||
-    stderr.includes('invalid reference')
-  ) {
-    return { type: 'invalid_base', branch, from, message: commandError.message };
-  }
-  if (stderr.includes('not a valid branch name')) {
-    return { type: 'invalid_name', branch, message: commandError.message };
-  }
-  return commandError;
-}
-
-export function classifyMergeError(error: unknown, conflictedFiles?: string[]): MergeError {
-  const commandError = toGitCommandError(error);
-  const message = commandError.message.toLowerCase();
-  if (message.includes('conflict')) {
-    return { type: 'conflict', message: commandError.message, conflictedFiles };
-  }
-  if (message.includes('already up to date') || message.includes('already up-to-date')) {
-    return { type: 'already_up_to_date', message: commandError.message };
-  }
-  return commandError;
-}
-
-export function classifyRebaseError(error: unknown, conflictedFiles?: string[]): RebaseError {
-  const commandError = toGitCommandError(error);
-  const message = commandError.message.toLowerCase();
-  if (message.includes('conflict') || message.includes('could not apply')) {
-    return { type: 'conflict', message: commandError.message, conflictedFiles };
-  }
-  if (
-    message.includes('nothing to rebase') ||
-    message.includes('no rebase in progress') ||
-    message.includes('is up to date')
-  ) {
-    return { type: 'nothing_to_rebase', message: commandError.message };
-  }
-  return commandError;
-}
-
-export function classifySwitchError(error: unknown, ref: string): SwitchError {
-  const commandError = toGitCommandError(error);
-  const message = commandError.message.toLowerCase();
-  if (
-    message.includes('would be overwritten') ||
-    message.includes('local changes') ||
-    message.includes('commit your changes or stash them')
-  ) {
-    return { type: 'local_changes', message: commandError.message };
-  }
-  if (
-    message.includes('invalid reference') ||
-    message.includes('did not match any') ||
-    message.includes('unknown revision') ||
-    message.includes('pathspec') ||
-    message.includes('not a valid object name')
-  ) {
-    return { type: 'not_found', ref, message: commandError.message };
-  }
-  return commandError;
-}
-
-export function classifyDeleteBranchError(error: unknown, branch: string): DeleteBranchError {
-  const commandError = toGitCommandError(error);
-  const stderr = (
-    commandError.type === 'git_error'
-      ? (commandError.stderr ?? commandError.message)
-      : commandError.message
-  ).toLowerCase();
-  if (
-    stderr.includes('checked out') ||
-    stderr.includes('currently checked out') ||
-    stderr.includes('cannot delete branch')
-  ) {
-    return { type: 'is_current', branch, message: commandError.message };
-  }
-  if (stderr.includes('not found')) {
-    return { type: 'not_found', branch, message: commandError.message };
-  }
-  if (stderr.includes('not fully merged')) {
-    return { type: 'not_merged', branch, message: commandError.message };
-  }
-  return commandError;
-}
-
-export function isNotRepositoryInspectionError(error: unknown): boolean {
-  const message = gitErrorMessage(error).toLowerCase();
-  return (
-    message.includes('not a git repository') ||
-    message.includes('not a git directory') ||
-    message.includes('must be run in a work tree')
-  );
-}
-
-export function isUnbornHeadError(error: unknown): boolean {
-  const message = gitErrorMessage(error).toLowerCase();
-  return (
-    message.includes("ambiguous argument 'head'") ||
-    message.includes('unknown revision') ||
-    message.includes('does not have any commits yet')
-  );
-}
+  resolutionFailed(path: string, message: string): Err<GitResolutionError> {
+    return failure({ type: 'resolution_failed', path, message });
+  },
+  targetExists(path: string, message: string): Err<TaggedError<'target_exists'>> {
+    return failure({ type: 'target_exists', path, message });
+  },
+  authRequired(message: string): Err<TaggedError<'auth_required'>> {
+    return failure({ type: 'auth_required', message });
+  },
+  authFailed(message: string): Err<TaggedError<'auth_failed'>> {
+    return failure({ type: 'auth_failed', message });
+  },
+  remoteNotFound(message: string, remote?: string): Err<TaggedError<'remote_not_found'>> {
+    return failure({ type: 'remote_not_found', message, ...(remote ? { remote } : {}) });
+  },
+  noRemote(message?: string): Err<TaggedError<'no_remote'>> {
+    return failure({ type: 'no_remote', ...(message ? { message } : {}) });
+  },
+  networkError(message: string): Err<TaggedError<'network_error'>> {
+    return failure({ type: 'network_error', message });
+  },
+  nothingToCommit(message: string): Err<TaggedError<'nothing_to_commit'>> {
+    return failure({ type: 'nothing_to_commit', message });
+  },
+  emptyMessage(message: string): Err<TaggedError<'empty_message'>> {
+    return failure({ type: 'empty_message', message });
+  },
+  hookFailed(message: string): Err<TaggedError<'hook_failed'>> {
+    return failure({ type: 'hook_failed', message });
+  },
+  noUpstream(message: string): Err<TaggedError<'no_upstream'>> {
+    return failure({ type: 'no_upstream', message });
+  },
+  rejected(message: string): Err<TaggedError<'rejected'>> {
+    return failure({ type: 'rejected', message });
+  },
+  hookRejected(message: string): Err<TaggedError<'hook_rejected'>> {
+    return failure({ type: 'hook_rejected', message });
+  },
+  conflict(message: string, conflictedFiles?: string[]): Err<TaggedError<'conflict'>> {
+    return failure({ type: 'conflict', message, conflictedFiles });
+  },
+  diverged(message: string): Err<TaggedError<'diverged'>> {
+    return failure({ type: 'diverged', message });
+  },
+  alreadyExists(branch: string, message: string): Err<TaggedError<'already_exists'>> {
+    return failure({ type: 'already_exists', branch, message });
+  },
+  invalidName(branch: string, message: string): Err<TaggedError<'invalid_name'>> {
+    return failure({ type: 'invalid_name', branch, message });
+  },
+  invalidBase(branch: string, from: string, message: string): Err<TaggedError<'invalid_base'>> {
+    return failure({ type: 'invalid_base', branch, from, message });
+  },
+  fetchFailed(remote: string, branch: string, error: FetchError): Err<CreateBranchError> {
+    return failure({ type: 'fetch_failed', remote, branch, error });
+  },
+  prNotFound(
+    prNumber: number,
+    message: string
+  ): Err<Extract<FetchPrForReviewError, { type: 'not_found' }>> {
+    return failure({ type: 'not_found', prNumber, message });
+  },
+  branchNotFound(
+    branch: string,
+    message: string
+  ): Err<Extract<DeleteBranchError, { type: 'not_found' }>> {
+    return failure({ type: 'not_found', branch, message });
+  },
+  branchNotMerged(branch: string, message: string): Err<TaggedError<'not_merged'>> {
+    return failure({ type: 'not_merged', branch, message });
+  },
+  branchIsCurrent(branch: string, message: string): Err<TaggedError<'is_current'>> {
+    return failure({ type: 'is_current', branch, message });
+  },
+  alreadyUpToDate(message: string): Err<TaggedError<'already_up_to_date'>> {
+    return failure({ type: 'already_up_to_date', message });
+  },
+  nothingToRebase(message: string): Err<TaggedError<'nothing_to_rebase'>> {
+    return failure({ type: 'nothing_to_rebase', message });
+  },
+  localChanges(message: string): Err<TaggedError<'local_changes'>> {
+    return failure({ type: 'local_changes', message });
+  },
+  refNotFound(ref: string, message: string): Err<Extract<SwitchError, { type: 'not_found' }>> {
+    return failure({ type: 'not_found', ref, message });
+  },
+  notRepository(path: string): Err<TaggedError<'not-repository'>> {
+    return failure({ type: 'not-repository', path });
+  },
+  inspectFailed(path: string, message: string): Err<TaggedError<'inspect-failed'>> {
+    return failure({ type: 'inspect-failed', path, message });
+  },
+  initFailed(path: string, message: string): Err<TaggedError<'init-failed'>> {
+    return failure({ type: 'init-failed', path, message });
+  },
+} as const;

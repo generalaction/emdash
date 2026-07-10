@@ -151,6 +151,7 @@ export const gitCheckoutContract = defineContract({
     states: {
       staleness: liveState({ data: fileDiffStalenessStateSchema }),
     },
+    mutations: {},
   }),
 
   getFileDiff: fallible({

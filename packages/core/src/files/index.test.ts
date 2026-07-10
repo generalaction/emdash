@@ -2,14 +2,21 @@ import { describe, expect, it } from 'vitest';
 import * as files from './index';
 
 describe('@emdash/core/files public exports', () => {
-  it('exports the files runtime and shared file-domain primitives', () => {
+  it('exports the Wire contract, schemas, and pure entry helpers', () => {
     const exported = files as Record<string, unknown>;
 
-    expect(exported.FilesRuntime).toBeTypeOf('function');
-    expect(exported.includeAllFiles).toBeTypeOf('function');
-    expect(exported.createRootPathPolicy).toBeTypeOf('function');
-    expect(exported.validateAbsolutePath).toBeTypeOf('function');
-    expect(exported.isIgnored).toBeUndefined();
-    expect(exported.watchIgnoreGlobs).toBeUndefined();
+    expect(exported.filesContract).toBeTypeOf('object');
+    expect(exported.fileTreeModelSchema).toBeTypeOf('object');
+    expect(exported.fileContentModelSchema).toBeTypeOf('object');
+    expect(exported.isExpandableFileEntry).toBeTypeOf('function');
+  });
+
+  it('does not expose host runtime implementations', () => {
+    const exported = files as Record<string, unknown>;
+
+    expect(exported.FilesRuntime).toBeUndefined();
+    expect(exported.FileSystem).toBeUndefined();
+    expect(exported.createRootPathPolicy).toBeUndefined();
+    expect(exported.LiveCollection).toBeUndefined();
   });
 });
