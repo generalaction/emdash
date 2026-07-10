@@ -10,6 +10,7 @@ import type {
 
 export type EventStreamSourceOptions = {
   generation?: number;
+  onFirst?: () => void;
   onEmpty?: () => void;
 };
 
@@ -18,12 +19,14 @@ export type EventStreamSourceOptions = {
  */
 export class EventStreamSource<Event = unknown> {
   private readonly emitter = new Emitter<LiveUpdate>();
+  private readonly onFirst: (() => void) | undefined;
   private readonly onEmpty: (() => void) | undefined;
   private readonly generation: number;
   private sequence = 0;
 
   constructor(options: EventStreamSourceOptions = {}) {
     this.generation = options.generation ?? Date.now();
+    this.onFirst = options.onFirst;
     this.onEmpty = options.onEmpty;
   }
 
@@ -56,8 +59,13 @@ export class EventStreamSource<Event = unknown> {
   }
 
   subscribe(cb: (update: LiveUpdate) => void): Unsubscribe {
+    const wasEmpty = this.emitter.size === 0;
     const unsubscribe = this.emitter.subscribe(cb);
+    if (wasEmpty && this.emitter.size > 0) this.onFirst?.();
+    let active = true;
     return () => {
+      if (!active) return;
+      active = false;
       unsubscribe();
       if (this.emitter.size === 0) this.onEmpty?.();
     };
@@ -72,8 +80,14 @@ export type EventStreamHost<Def extends EventStreamEndpointDef = EventStreamEndp
   dispose(): void;
 };
 
+export type EventStreamHostOptions<Def extends EventStreamEndpointDef = EventStreamEndpointDef> = {
+  onActive?: (key: EventStreamKey<Def>) => void;
+  onIdle?: (key: EventStreamKey<Def>) => void;
+};
+
 export function createEventStreamHost<Def extends EventStreamEndpointDef>(
-  def: Def
+  def: Def,
+  options: EventStreamHostOptions<Def> = {}
 ): EventStreamHost<Def> {
   const sources = new Map<string, EventStreamSource<EventStreamEvent<Def>>>();
 
@@ -81,9 +95,14 @@ export function createEventStreamHost<Def extends EventStreamEndpointDef>(
     return stableStringify(key);
   }
 
-  function removeIfEmpty(keyId: string, source: EventStreamSource<EventStreamEvent<Def>>): void {
+  function removeIfEmpty(
+    key: EventStreamKey<Def>,
+    keyId: string,
+    source: EventStreamSource<EventStreamEvent<Def>>
+  ): void {
     if (source.subscriberCount === 0 && sources.get(keyId) === source) {
       sources.delete(keyId);
+      options.onIdle?.(key);
     }
   }
 
@@ -97,8 +116,10 @@ export function createEventStreamHost<Def extends EventStreamEndpointDef>(
       const keyId = keyOf(key);
       let source = sources.get(keyId);
       if (!source) {
+        const sourceKey = key;
         const created = new EventStreamSource<EventStreamEvent<Def>>({
-          onEmpty: () => removeIfEmpty(keyId, created),
+          onFirst: () => options.onActive?.(sourceKey),
+          onEmpty: () => removeIfEmpty(sourceKey, keyId, created),
         });
         source = created;
         sources.set(keyId, created);

@@ -45,6 +45,25 @@ fileEvents.emit(
 `emit()` is fire-and-forget. If no client is attached to that key, the event is
 dropped. When the last subscriber detaches, the host discards the keyed source.
 
+If attachment presence owns an external resource, pass lifecycle hooks to the
+host. `onActive` runs when the first subscriber attaches to a key, and `onIdle`
+runs when the last subscriber detaches:
+
+```ts
+const fileEvents = createEventStreamHost(api.fileEvents, {
+  onActive(key) {
+    void startWatcher(key);
+  },
+  onIdle(key) {
+    void stopWatcher(key);
+  },
+});
+```
+
+This is useful for resources that should be recreated after reconnect. The wire
+client automatically reattaches live topics after reconnect, so `onActive` runs
+again in the new server process.
+
 You can also pass a resolver to `createController()` if another component owns
 the source:
 

@@ -36,6 +36,24 @@ describe('EventStreamSource', () => {
     expect(eventFromUpdate<{ message: string }>(updates[0] as never)).toEqual({ message: 'late' });
     expect(source.snapshot().sequence).toBe(1);
   });
+
+  it('calls lifecycle hooks on first subscriber and last detach', () => {
+    const onFirst = vi.fn();
+    const onEmpty = vi.fn();
+    const source = new EventStreamSource({ onFirst, onEmpty });
+    const first = source.subscribe(() => {});
+    const second = source.subscribe(() => {});
+
+    expect(onFirst).toHaveBeenCalledOnce();
+
+    first();
+    expect(onEmpty).not.toHaveBeenCalled();
+
+    second();
+    second();
+
+    expect(onEmpty).toHaveBeenCalledOnce();
+  });
 });
 
 describe('createEventStreamHost', () => {
@@ -76,5 +94,31 @@ describe('createEventStreamHost', () => {
     unsubscribe();
 
     expect(onEmpty).toHaveBeenCalledOnce();
+  });
+
+  it('calls host lifecycle hooks for first attach and last detach per key', () => {
+    const activeKeys: Array<{ id: string }> = [];
+    const idleKeys: Array<{ id: string }> = [];
+    const host = createEventStreamHost(contract, {
+      onActive: (key) => activeKeys.push(key),
+      onIdle: (key) => idleKeys.push(key),
+    });
+    const source = host.resolve({ id: 'known' });
+    const first = source.subscribe(() => {});
+    const second = source.subscribe(() => {});
+
+    expect(activeKeys).toEqual([{ id: 'known' }]);
+    expect(idleKeys).toEqual([]);
+
+    first();
+    expect(idleKeys).toEqual([]);
+
+    second();
+    expect(idleKeys).toEqual([{ id: 'known' }]);
+
+    host.resolve({ id: 'known' }).subscribe(() => {})();
+
+    expect(activeKeys).toEqual([{ id: 'known' }, { id: 'known' }]);
+    expect(idleKeys).toEqual([{ id: 'known' }, { id: 'known' }]);
   });
 });

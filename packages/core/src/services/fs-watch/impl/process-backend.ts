@@ -1,10 +1,9 @@
-import { randomUUID } from 'node:crypto';
-import { eventFromUpdate } from '@emdash/wire';
+import { eventFromUpdate, stableStringify } from '@emdash/wire';
 import type { ProcessHost } from '@emdash/wire/process';
 import type { Scope } from '@emdash/wire/util';
 import { lazyWorker } from '@emdash/wire/worker';
 import { fsWatchContract, type FsWatchStreamEvent } from '../api';
-import type { WatchBackend, WatchKey, WatchOnError, WatchSink } from './backend';
+import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 
 export type ProcessWatchBackendOptions = {
   entry: string;
@@ -14,95 +13,87 @@ export type ProcessWatchBackendOptions = {
   onError?: WatchOnError;
 };
 
-type ActiveLease = {
-  leaseId: string;
-  key: WatchKey;
-  sink: WatchSink;
-};
-
 export function processWatchBackend(options: ProcessWatchBackendOptions): WatchBackend {
   const onError = options.onError ?? (() => {});
-  const activeLeases = new Map<string, ActiveLease>();
-  const worker = lazyWorker(
-    {
-      name: 'fs-watch',
-      contract: fsWatchContract,
-      entry: options.entry,
-      scope: options.scope,
-      host: options.host,
-      env: options.env,
-    },
-    {
-      onSpawned(handle) {
-        handle.onRestarted(() => {
-          void replayLeases(handle).catch((error) =>
-            onError('replay fs watch leases after restart', error)
-          );
-        });
-      },
-    }
-  );
+  const worker = lazyWorker({
+    name: 'fs-watch',
+    contract: fsWatchContract,
+    entry: options.entry,
+    scope: options.scope,
+    host: options.host,
+    env: options.env,
+  });
 
   return {
     async subscribe(key, sink, scope) {
       const handle = await worker.get();
-      const detach = await handle.client.events.handle(key).attach(
-        (update) => {
-          const event = eventFromUpdate<FsWatchStreamEvent>(update);
-          if (event.kind === 'events') {
+      const ready = createDeferred<void>();
+      void ready.promise.catch(() => {});
+      let awaitingInitialReady = true;
+      const detach = await handle.client.events.handle(key).attach((update) => {
+        const event = eventFromUpdate<FsWatchStreamEvent>(update);
+        switch (event.kind) {
+          case 'events':
             sink.events(event.events);
-          } else {
+            break;
+          case 'resync':
             sink.resync();
+            break;
+          case 'ready':
+            if (awaitingInitialReady) {
+              awaitingInitialReady = false;
+              ready.resolve();
+            } else {
+              sink.resync();
+            }
+            break;
+          case 'error': {
+            const error = new Error(event.message);
+            if (awaitingInitialReady) {
+              awaitingInitialReady = false;
+              ready.reject(error);
+            } else {
+              onError(`watch ${keyId(key)}`, error);
+            }
+            break;
           }
-        },
-        { onReattach: sink.resync }
-      );
-      scope.add(detach);
-
-      const leaseId = randomUUID();
-      const result = await handle.client.watch({ leaseId, key });
-      if (!result.success) throw new Error(result.error.message);
-
-      activeLeases.set(leaseId, { leaseId, key, sink });
-      scope.add(async () => {
-        activeLeases.delete(leaseId);
-        await unwatch(handle, leaseId);
+        }
       });
+      scope.add(detach);
+      scope.add(() => {
+        if (awaitingInitialReady) {
+          awaitingInitialReady = false;
+          ready.reject(new Error(`Fs watch ${keyId(key)} disposed before ready`));
+        }
+      });
+
+      try {
+        await ready.promise;
+      } catch (error) {
+        detach();
+        throw error;
+      }
     },
     async dispose() {
-      activeLeases.clear();
       await worker.dispose();
     },
   };
-
-  async function replayLeases(handle: Awaited<ReturnType<typeof worker.get>>): Promise<void> {
-    await Promise.all(
-      [...activeLeases.values()].map(async (lease) => {
-        const result = await handle.client.watch({ leaseId: lease.leaseId, key: lease.key });
-        if (!result.success) {
-          onError(`replay fs watch ${keyId(lease.key)}`, new Error(result.error.message));
-          return;
-        }
-        lease.sink.resync();
-      })
-    );
-  }
-
-  async function unwatch(
-    handle: Awaited<ReturnType<typeof worker.get>>,
-    leaseId: string
-  ): Promise<void> {
-    try {
-      const result = await handle.client.unwatch({ leaseId });
-      if (!result.success) {
-        onError(`unwatch fs watch ${leaseId}`, new Error(result.error.message));
-      }
-    } catch (error) {
-      onError(`unwatch fs watch ${leaseId}`, error);
-    }
-  }
 }
 
 function keyId(key: WatchKey): string {
-  return JSON.stringify(key);
+  return stableStringify(key);
+}
+
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  resolve(value: T | PromiseLike<T>): void;
+  reject(error: unknown): void;
+} {
+  let resolve: (value: T | PromiseLike<T>) => void = () => {};
+  let reject: (error: unknown) => void = () => {};
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
 }

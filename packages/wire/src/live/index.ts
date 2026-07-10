@@ -19,6 +19,7 @@ export {
   eventFromUpdate,
   isEventStreamHost,
   type EventStreamHost,
+  type EventStreamHostOptions,
   type EventStreamSourceOptions,
 } from './event-stream';
 export {

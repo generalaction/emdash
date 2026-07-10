@@ -1,5 +1,4 @@
-import { err, ok } from '@emdash/shared';
-import { createEventStreamHost } from '@emdash/wire';
+import { createEventStreamHost, stableStringify } from '@emdash/wire';
 import { createController, type Controller } from '@emdash/wire/api';
 import type { Scope } from '@emdash/wire/util';
 import { fsWatchContract, type FsWatchKey } from '../api';
@@ -13,8 +12,20 @@ export type CreateFsWatchControllerOptions = {
   service?: IWatchService;
 };
 
+type ActiveWatch = {
+  handle: WatchHandle;
+};
+
 export function createFsWatchController(options: CreateFsWatchControllerOptions): Controller {
-  const events = createEventStreamHost(fsWatchContract.events);
+  const activeWatches = new Map<string, ActiveWatch>();
+  const events = createEventStreamHost(fsWatchContract.events, {
+    onActive: (key) => {
+      void activateWatch(key);
+    },
+    onIdle: (key) => {
+      void releaseWatch(key);
+    },
+  });
   const service =
     options.service ??
     createWatchService({
@@ -22,17 +33,24 @@ export function createFsWatchController(options: CreateFsWatchControllerOptions)
       scope: options.scope,
       onError: options.onError,
     });
-  const leases = new Map<string, WatchHandle>();
 
-  options.scope.add(() => {
+  options.scope.add(async () => {
     events.dispose();
-    return service.dispose();
+    await Promise.allSettled([...activeWatches.values()].map((watch) => watch.handle.release()));
+    activeWatches.clear();
+    await service.dispose();
   });
 
   return createController(fsWatchContract, {
     events,
-    watch: async ({ leaseId, key }) => {
-      await releaseLease(leaseId);
+  });
+
+  async function activateWatch(key: FsWatchKey): Promise<void> {
+    const id = keyId(key);
+    if (activeWatches.has(id)) return;
+
+    let watch: ActiveWatch | undefined;
+    try {
       const handle = service.watch(
         key.root,
         (batch) => events.emit(key, { kind: 'events', events: batch }),
@@ -41,29 +59,40 @@ export function createFsWatchController(options: CreateFsWatchControllerOptions)
           onResync: () => events.emit(key, { kind: 'resync' }),
         }
       );
-      leases.set(leaseId, handle);
+      watch = { handle };
+      activeWatches.set(id, watch);
 
-      try {
-        await handle.ready();
-        return ok(undefined);
-      } catch (error) {
-        leases.delete(leaseId);
-        await handle.release();
-        return err({ message: errorMessage(error, key) });
+      await handle.ready();
+      if (activeWatches.get(id) === watch) events.emit(key, { kind: 'ready' });
+    } catch (error) {
+      if (!watch || activeWatches.get(id) === watch) {
+        if (watch) activeWatches.delete(id);
+        events.emit(key, { kind: 'error', message: errorMessage(error, key) });
       }
-    },
-    unwatch: async ({ leaseId }) => {
-      await releaseLease(leaseId);
-      return ok(undefined);
-    },
-  });
-
-  async function releaseLease(leaseId: string): Promise<void> {
-    const handle = leases.get(leaseId);
-    if (!handle) return;
-    leases.delete(leaseId);
-    await handle.release();
+      try {
+        await watch?.handle.release();
+      } catch (releaseError) {
+        options.onError?.(`release failed watch ${id}`, releaseError);
+      }
+      options.onError?.(`watch ${keyId(key)}`, error);
+    }
   }
+
+  async function releaseWatch(key: FsWatchKey): Promise<void> {
+    const id = keyId(key);
+    const watch = activeWatches.get(id);
+    if (!watch) return;
+    activeWatches.delete(id);
+    try {
+      await watch.handle.release();
+    } catch (error) {
+      options.onError?.(`release watch ${id}`, error);
+    }
+  }
+}
+
+function keyId(key: FsWatchKey): string {
+  return stableStringify(key);
 }
 
 function errorMessage(error: unknown, key: FsWatchKey): string {

@@ -4,6 +4,7 @@ export {
   watchEventSchema,
   watchEventsBatchSchema,
   watchKeySchema,
+  watchReadySchema,
   watchResyncSchema,
   type FsWatchEvent,
   type FsWatchKey,

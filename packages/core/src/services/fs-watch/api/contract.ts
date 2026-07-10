@@ -1,4 +1,4 @@
-import { defineContract, eventStream, fallible } from '@emdash/wire/api';
+import { defineContract, eventStream } from '@emdash/wire/api';
 import { z } from 'zod';
 
 export const watchKeySchema = z.object({
@@ -20,29 +20,19 @@ export const watchResyncSchema = z.object({
   kind: z.literal('resync'),
 });
 
+export const watchReadySchema = z.object({
+  kind: z.literal('ready'),
+});
+
 export const watchErrorSchema = z.object({
+  kind: z.literal('error'),
   message: z.string(),
 });
 
 export const fsWatchContract = defineContract({
-  watch: fallible({
-    input: z.object({
-      leaseId: z.string(),
-      key: watchKeySchema,
-    }),
-    data: z.void(),
-    error: watchErrorSchema,
-  }),
-  unwatch: fallible({
-    input: z.object({
-      leaseId: z.string(),
-    }),
-    data: z.void(),
-    error: watchErrorSchema,
-  }),
   events: eventStream({
     key: watchKeySchema,
-    event: z.union([watchEventsBatchSchema, watchResyncSchema]),
+    event: z.union([watchEventsBatchSchema, watchResyncSchema, watchReadySchema, watchErrorSchema]),
   }),
 });
 
@@ -50,4 +40,6 @@ export type FsWatchKey = z.infer<typeof watchKeySchema>;
 export type FsWatchEvent = z.infer<typeof watchEventSchema>;
 export type FsWatchStreamEvent =
   | z.infer<typeof watchEventsBatchSchema>
-  | z.infer<typeof watchResyncSchema>;
+  | z.infer<typeof watchResyncSchema>
+  | z.infer<typeof watchReadySchema>
+  | z.infer<typeof watchErrorSchema>;

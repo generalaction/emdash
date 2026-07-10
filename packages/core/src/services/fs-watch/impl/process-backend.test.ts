@@ -49,7 +49,7 @@ describe('processWatchBackend', () => {
     }
   });
 
-  it('replays active watches and signals resync after child restart', async () => {
+  it('reattaches active watches and signals resync after child restart', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'emdash-fs-watch-restart-'));
     const host = new FakeProcessHost();
     const backend = processWatchBackend({ entry: 'worker', host });
@@ -79,6 +79,25 @@ describe('processWatchBackend', () => {
       await eventually(() => (events.length === 1 ? true : undefined));
 
       await handle.release();
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it('rejects ready when the child watcher fails to start', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-fs-watch-failure-'));
+    const host = new FakeProcessHost();
+    const backend = processWatchBackend({ entry: 'worker', host });
+    const service = createWatchService({ backend });
+    const childService = new ManualWatchService({ readyError: new Error('watch failed') });
+
+    try {
+      const handle = service.watch(root, () => {});
+      await Promise.resolve();
+      await startChild(host.process(), childService);
+
+      await expect(handle.ready()).rejects.toThrow('watch failed');
+      await eventually(() => (childService.releaseCount === 1 ? true : undefined));
     } finally {
       await service.dispose();
     }
@@ -124,6 +143,8 @@ class ManualWatchService implements IWatchService {
       }
     | undefined;
 
+  constructor(private readonly options: { readyError?: Error } = {}) {}
+
   watch(
     _root: string,
     onEvents: (events: WatchEvent[]) => void,
@@ -133,7 +154,9 @@ class ManualWatchService implements IWatchService {
     const current = { onEvents, onResync: options.onResync, released: false };
     this.current = current;
     return {
-      ready: async () => {},
+      ready: async () => {
+        if (this.options.readyError) throw this.options.readyError;
+      },
       release: async () => {
         if (current.released) return;
         current.released = true;

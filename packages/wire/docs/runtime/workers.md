@@ -84,20 +84,20 @@ Use `lazyWorker()` when the process should start on first use:
 ```ts
 const worker = lazyWorker(
   () => ({
-    name: 'fs-watch',
-    contract: fsWatchContract,
-    entry: workerPath('fs-watch'),
+    name: 'indexer',
+    contract: indexerContract,
+    entry: workerPath('indexer'),
     scope,
   }),
   {
     onSpawned: (handle) => {
-      handle.onRestarted(() => replayLeases(handle));
+      handle.onRestarted(() => markIndexStale());
     },
   }
 );
 
 const handle = await worker.get();
-await handle.client.watch({ leaseId, key });
+await handle.client.rebuild({ root });
 await worker.dispose();
 ```
 
