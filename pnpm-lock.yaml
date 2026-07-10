@@ -607,6 +607,9 @@ importers:
       '@emdash/runtime':
         specifier: workspace:*
         version: link:../runtime
+      '@emdash/wire':
+        specifier: workspace:*
+        version: link:../wire
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260609.1
         version: 7.0.0-dev.20260609.1

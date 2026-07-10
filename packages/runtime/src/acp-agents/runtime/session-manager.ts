@@ -49,8 +49,8 @@ import type { TerminalPort } from '../agent-ports/terminal-port';
 import {
   isAcpConnectionError,
   makeAcpConnectionKey,
-  projectAcpConnectionEntry,
   type AcpConnectionEntry,
+  type AcpConnectionContext,
   type AcpConnectionSource,
   type PooledAcpProcess,
 } from '../connection/source';
@@ -134,12 +134,7 @@ export class SessionManager implements InboundRouter {
         workspaceId: input.workspaceId,
         cwd: input.cwd,
         behavior: binding.behavior,
-        buildClient: (_agent, key): Client =>
-          buildAgentClient(
-            () => projectAcpConnectionEntry(this.connections.peek(key)),
-            this,
-            this.ports
-          ),
+        buildClient: (_agent, context): Client => buildAgentClient(context, this, this.ports),
       },
       isAcpConnectionError
     );
@@ -149,7 +144,7 @@ export class SessionManager implements InboundRouter {
     }
 
     const acquired = acquire.data;
-    const connection = projectAcpConnectionEntry(acquired.value);
+    const connection = acquired.value;
     let record: SessionRecord | null = null;
 
     try {
@@ -404,7 +399,7 @@ export class SessionManager implements InboundRouter {
   }
 
   onSessionUpdate(
-    connection: AcpConnectionEntry,
+    connection: AcpConnectionContext,
     params: SessionNotification,
     event: NormalizedEvent
   ): void {
@@ -433,7 +428,7 @@ export class SessionManager implements InboundRouter {
   }
 
   onPermissionRequest(
-    connection: AcpConnectionEntry,
+    connection: AcpConnectionContext,
     params: RequestPermissionRequest
   ): Promise<RequestPermissionResponse> {
     const conversationId = this.resolveConversationForSession(connection.key, params.sessionId);
@@ -445,7 +440,7 @@ export class SessionManager implements InboundRouter {
   }
 
   onCreateTerminal(
-    connection: AcpConnectionEntry,
+    connection: AcpConnectionContext,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse> {
     const conversationId = this.resolveConversationForSession(connection.key, params.sessionId);

@@ -267,4 +267,24 @@ describe('AcpRuntime session manager', () => {
     expect(rt.sessionLiveModels('conv-close')).toBeNull();
     expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
   });
+
+  it('removes all sessions sharing a process when that process closes', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    h.agent.newSession
+      .mockResolvedValueOnce({ sessionId: 'session-a' })
+      .mockResolvedValueOnce({ sessionId: 'session-b' });
+
+    await rt.startSession(makeStartInput({ conversationId: 'conv-a', workspaceId: 'ws-1' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-b', workspaceId: 'ws-1' }));
+    expect(h.children).toHaveLength(1);
+
+    h.lastChild.emitExit(42);
+
+    expect(rt.getSessionState('conv-a').lifecycle).toBe('closed');
+    expect(rt.getSessionState('conv-b').lifecycle).toBe('closed');
+    expect(rt.sessionLiveModels('conv-a')).toBeNull();
+    expect(rt.sessionLiveModels('conv-b')).toBeNull();
+    expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
+  });
 });
