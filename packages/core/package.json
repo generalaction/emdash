@@ -61,6 +61,14 @@
       "types": "./dist/services-fs-watch-worker.d.mts",
       "default": "./dist/services-fs-watch-worker.mjs"
     },
+    "./path": {
+      "types": "./dist/path.d.mts",
+      "default": "./dist/path.mjs"
+    },
+    "./watch": {
+      "types": "./dist/watch.d.mts",
+      "default": "./dist/watch.mjs"
+    },
     "./git": {
       "types": "./dist/git.d.mts",
       "default": "./dist/git.mjs"
