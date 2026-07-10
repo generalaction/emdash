@@ -1,0 +1,525 @@
+agents/integrations/providers.md
+  s_8c60d311bbafa5::t_e28846ddcf2d1e 10,12
+README.md
+  s_1bd7cded2d6d91::t_44dc5513e56230 26,53
+agents/architecture/acp-runtime.md
+  s_1bd7cded2d6d91::t_ca175cfe2c0e77 10,17-18,21-25,44-45,50-51,76-94
+agents/architecture/workspace-server.md
+  s_1bd7cded2d6d91::t_177698f15ffb9b 3,7-14,148-153
+apps/emdash-desktop/electron.vite.config.ts
+  s_1bd7cded2d6d91::t_699ad75eb32e1e 9-10,15-27,30-46,48,66
+apps/emdash-desktop/package.json
+  s_1bd7cded2d6d91::t_c90c6f2c2e95bd 56
+apps/emdash-desktop/src/main/core/acp/runtime-process/entry.ts
+  s_1bd7cded2d6d91::t_df2f01f2f54e2a 2,4
+apps/emdash-desktop/src/main/core/acp/runtime-process/host.ts
+  s_1bd7cded2d6d91::t_a36057324ae121 5-9,55,57,70,76,78,85,87,97-98,109,111,138-139,154-157,163
+apps/emdash-desktop/src/main/core/agent-config/controller.ts
+  s_1bd7cded2d6d91::t_3d5fc959a3894b 1-7
+apps/emdash-desktop/src/main/core/agent-config/runtime-process/entry.ts
+  s_1bd7cded2d6d91::t_50f9dc0b5ad172 1-4
+apps/emdash-desktop/src/main/core/agent-config/runtime-process/host.ts
+  s_1bd7cded2d6d91::t_40da07bdea3ed9 1-129
+apps/emdash-desktop/src/main/core/agents/plugin-fs.ts
+  s_1bd7cded2d6d91::t_9de6fd1fc1631f 1
+apps/emdash-desktop/src/main/core/dependencies/registry.ts
+  s_1bd7cded2d6d91::t_d09f9fcfbbc7b0 4,8
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_1bd7cded2d6d91::t_354068076a174a 3
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_1bd7cded2d6d91::t_1c8a2230857c7f 3
+apps/emdash-desktop/src/main/core/mcp/utils/registration.ts
+  s_1bd7cded2d6d91::t_a3c250790c5f50 1-5
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_1bd7cded2d6d91::t_9c6e3de10bdd4a 2
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-file-system.ts
+  s_1bd7cded2d6d91::t_c055ee8557e17d 8,127-135
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_1bd7cded2d6d91::t_378fdf397c5fc8 41
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_1bd7cded2d6d91::t_546c3e7ebe02cb 33
+apps/emdash-desktop/src/main/core/skills/SkillsService.test.ts
+  s_1bd7cded2d6d91::t_2d37c21e14bc6f 2
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_1bd7cded2d6d91::t_a3fd9bb80c6242 6-7
+apps/emdash-desktop/src/main/core/storage/controller.ts
+  s_1bd7cded2d6d91::t_3005d3118fd258 1-12
+apps/emdash-desktop/src/main/core/storage/operations/delete-storage-tasks.ts
+  s_1bd7cded2d6d91::t_778ee5628c3edd 1-92
+apps/emdash-desktop/src/main/core/storage/operations/list-task-storage-usage.ts
+  s_1bd7cded2d6d91::t_94a07cdee537ce 1-163
+apps/emdash-desktop/src/main/core/storage/task-storage-rows.ts
+  s_1bd7cded2d6d91::t_0b35b8a5dd7948 1-79
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.test.ts
+  s_1bd7cded2d6d91::t_3e1abd2835d639 1-3,12-13,15,20-23,45-48,77-78,80,105-152
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.ts
+  s_1bd7cded2d6d91::t_f7eb55488c9db7 2,13-17,46,48-49,69-95,97
+apps/emdash-desktop/src/main/core/tasks/operations/task-lifecycle-utils.test.ts
+  s_1bd7cded2d6d91::t_5d973ada10139f 1-4,6-12,16-17,22-25,48-50,53-59,134-187
+apps/emdash-desktop/src/main/core/tasks/operations/task-lifecycle-utils.ts
+  s_1bd7cded2d6d91::t_89cd112bdc8fd2 1-4,6,8-9,15,18-144,167
+apps/emdash-desktop/src/main/core/tasks/task-service.ts
+  s_1bd7cded2d6d91::t_925a858bc88b10 15-19,174-177,179,187-198
+apps/emdash-desktop/src/main/index.ts
+  s_1bd7cded2d6d91::t_749df6e6183b1d 19,161-163
+apps/emdash-desktop/src/main/lib/logger.ts
+  s_1bd7cded2d6d91::t_a1ebd38a97787e 2,5-7
+apps/emdash-desktop/src/main/rpc.ts
+  s_1bd7cded2d6d91::t_c071c85b381221 30,59
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-store.ts
+  s_1bd7cded2d6d91::t_7e54ada19caef0 24,420,423,450-470
+apps/emdash-desktop/src/renderer/features/settings/agents-page/CliAgentsList.tsx
+  s_1bd7cded2d6d91::t_66e165e092f983 22
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_1bd7cded2d6d91::t_e7a8adc5ebaff5 17,23,41,63,144-156,183,206
+apps/emdash-desktop/src/renderer/features/settings/components/StorageSettingsPage.tsx
+  s_1bd7cded2d6d91::t_93f37a09eb7157 1-404
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_1bd7cded2d6d91::t_3393e97fea6356 143-168
+apps/emdash-desktop/src/renderer/features/tasks/delete-task-modal.tsx
+  s_1bd7cded2d6d91::t_823b1bc5101ef9 1,3,15,30,32,39-49,59-60,64,126-127,143-148
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/pr-entry.tsx
+  s_1bd7cded2d6d91::t_f933ee00dc643d 139-142
+apps/emdash-desktop/src/renderer/features/tasks/hooks/useTaskSettings.ts
+  s_1bd7cded2d6d91::t_9101615e580439 8,19,27,34,54,64,71
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_1bd7cded2d6d91::t_d9f97bcad7ec1f 21,117-120,130,164-171,296-305,645-651,671-676,679-680,687-688
+apps/emdash-desktop/src/renderer/lib/acp/auth-login-binding.ts
+  s_1bd7cded2d6d91::t_3aed1af252185d 1-6,11-14,16-21,27,29,38,46-47,50,82-96,98
+apps/emdash-desktop/src/renderer/lib/agent-config/runtime-client.ts
+  s_1bd7cded2d6d91::t_f4497d80caf840 1-29
+apps/emdash-desktop/src/shared/core/storage/storage.ts
+  s_1bd7cded2d6d91::t_c415fc1658a53a 1-71
+apps/emdash-desktop/src/shared/core/tasks/taskEvents.ts
+  s_1bd7cded2d6d91::t_2b3002ad5b62e0 7-11
+apps/emdash-desktop/tooling/docker-ssh/dockerfile
+  s_1bd7cded2d6d91::t_8b1333652a1aa1 6
+apps/emdash-desktop/tsconfig.json
+  s_1bd7cded2d6d91::t_d1cfcdc2dc39f7 16,18-19,24-32,35-51,53
+apps/emdash-desktop/vitest.config.ts
+  s_1bd7cded2d6d91::t_ee44c08ba496dd 14-21,30-47,50-91,93
+apps/workspace-server/docs/client-connection.md
+  s_1bd7cded2d6d91::t_7629d225999e1e 20,28,36-43,75-78,105-106,113-146,150,159
+apps/workspace-server/docs/daemon.md
+  s_1bd7cded2d6d91::t_76ec05ecf70c46 1-194
+apps/workspace-server/package.json
+  s_1bd7cded2d6d91::t_cd977d5869a998 25-26,29
+apps/workspace-server/src/acp/host.ts
+  s_1bd7cded2d6d91::t_37d800f9a0c231 1-100
+apps/workspace-server/src/acp/runtime-entry.ts
+  s_1bd7cded2d6d91::t_24f1aa9a3b23b5 1-4
+apps/workspace-server/src/api/controller.test.ts
+  s_1bd7cded2d6d91::t_2084f5b88f552d 1-6,9-91
+apps/workspace-server/src/api/controller.ts
+  s_1bd7cded2d6d91::t_425d5684ac61b8 8-14,20,28,85-87,103-199
+apps/workspace-server/src/config.test.ts
+  s_1bd7cded2d6d91::t_c423c981382f36 1-2,4-7,9-11,13-18,20-21,23-27,30-31,33-37,40-41,43-49,52-53,55-61,64-70
+apps/workspace-server/src/config.ts
+  s_1bd7cded2d6d91::t_ae21d7eef15767 1-129
+apps/workspace-server/src/daemon/lock.ts
+  s_1bd7cded2d6d91::t_96a468717b5dcb 1-63
+apps/workspace-server/src/daemon/paths.ts
+  s_1bd7cded2d6d91::t_5589e1ed4a9882 1-26
+apps/workspace-server/src/daemon/pid-file.ts
+  s_1bd7cded2d6d91::t_ae78b7d70de8d4 1-57
+apps/workspace-server/src/daemon/probe.test.ts
+  s_1bd7cded2d6d91::t_82bab79089c3f0 1-49
+apps/workspace-server/src/daemon/probe.ts
+  s_1bd7cded2d6d91::t_f1e80ef91fa088 1-97
+apps/workspace-server/src/daemon/start.test.ts
+  s_1bd7cded2d6d91::t_1b254acd3f072b 1-97
+apps/workspace-server/src/daemon/start.ts
+  s_1bd7cded2d6d91::t_792d3fa8d24953 1-160
+apps/workspace-server/src/daemon/status.ts
+  s_1bd7cded2d6d91::t_455697f380ff99 1-34
+apps/workspace-server/src/daemon/stop.test.ts
+  s_1bd7cded2d6d91::t_6d1c66de76fae6 1-74
+apps/workspace-server/src/daemon/stop.ts
+  s_1bd7cded2d6d91::t_ca03cd1fbc01e0 1-88
+apps/workspace-server/src/index.ts
+  s_1bd7cded2d6d91::t_676cf1dacf9307 1-15,24-45,48-77,79-85,88-93,98-130,132-135
+apps/workspace-server/src/wire/serve-socket.ts
+  s_1bd7cded2d6d91::t_ecb9c230b19452 5,8
+apps/workspace-server/src/wire/serve.test.ts
+  s_1bd7cded2d6d91::t_d4c1003cf138e0 9
+apps/workspace-server/tsconfig.json
+  s_1bd7cded2d6d91::t_432b4f4a02c7f3 7-35
+apps/workspace-server/tsdown.config.ts
+  s_1bd7cded2d6d91::t_21cd873f3b7925 6,13
+apps/workspace-server/vitest.config.ts
+  s_1bd7cded2d6d91::t_47ee252fd723bb 1-68
+packages/core/package.json
+  s_1bd7cded2d6d91::t_503d5501cb072c 36-43,68-71,80-87,92-95,134,137-144
+packages/core/src/acp/api/commands.ts
+  s_1bd7cded2d6d91::t_dff433e561c5de 13-14
+packages/core/src/acp/api/contract.ts
+  s_1bd7cded2d6d91::t_9ca295f9e5186e 42-60,71,76,81,86,91,96,101,106,111,116,121,126,131,136,141,147,152,157,162
+packages/core/src/acp/api/errors.ts
+  s_1bd7cded2d6d91::t_cbb7bb37b7096e 19-70,72-82
+packages/core/src/acp/client.ts
+  s_1bd7cded2d6d91::t_9118c8b25fb8aa 1,3
+packages/core/src/acp/errors.ts
+  s_1bd7cded2d6d91::t_da4488f63fe459 57-86
+packages/core/src/acp/index.ts
+  s_1bd7cded2d6d91::t_aedefd053099a3 1-5,7-8
+packages/core/src/agents/agent-env.ts
+  s_1bd7cded2d6d91::t_91e3162530e7e9 1-137
+packages/core/src/agents/plugins/capabilities/acp.ts
+  s_1bd7cded2d6d91::t_f8d528b79d650c 104-107
+packages/core/src/agents/plugins/capabilities/auth.ts
+  s_1bd7cded2d6d91::t_9779f2faa22b1c 83-86
+packages/core/src/agents/plugins/helpers/index.ts
+  s_1bd7cded2d6d91::t_d4951716c4f89c 8,12
+packages/core/src/agents/plugins/helpers/local-plugin-fs.ts
+  s_1bd7cded2d6d91::t_f833159fd72d87 1-60
+packages/core/src/agents/plugins/helpers/prompt-injection.ts
+  s_1bd7cded2d6d91::t_b2cafe81353d9b 1-12
+packages/core/src/agents/plugins/index.ts
+  s_1bd7cded2d6d91::t_cfe5a9efbfdead 1-8,56-73,75-78,116-117,120
+packages/core/src/agents/plugins/plugin-host.test.ts
+  s_1bd7cded2d6d91::t_7862435dac1868 1-147
+packages/core/src/agents/plugins/plugin-host.ts
+  s_1bd7cded2d6d91::t_1aa89bf42f5538 1-68
+packages/core/src/agents/spawn-context.test.ts
+  s_1bd7cded2d6d91::t_32845393ddbd28 1-118
+packages/core/src/agents/spawn-context.ts
+  s_1bd7cded2d6d91::t_9c416940c3699c 1-87
+packages/core/src/exec/index.ts
+  s_1bd7cded2d6d91::t_000a5910ac714b 3
+packages/core/src/exec/node-execution-context.ts
+  s_1bd7cded2d6d91::t_cca31fc211d6c6 1-91
+packages/core/src/files/fs/file-system.ts
+  s_1bd7cded2d6d91::t_dd972dc30aea3b 9,16,116-126
+packages/core/src/files/fs/index.ts
+  s_1bd7cded2d6d91::t_bb77c8a8da661e 8-9
+packages/core/src/files/fs/measure-usage.test.ts
+  s_1bd7cded2d6d91::t_36a10e1aa58a4d 1-90
+packages/core/src/files/fs/measure-usage.ts
+  s_1bd7cded2d6d91::t_f9d01abd458cfc 1-137
+packages/core/src/files/fs/types.ts
+  s_1bd7cded2d6d91::t_a5d44e1bcb1926 34-52,73
+packages/core/src/files/types.ts
+  s_1bd7cded2d6d91::t_a4fb88f4f4d9b6 38-39
+packages/core/src/host-dependencies/descriptor-from-provider.ts
+  s_1bd7cded2d6d91::t_af8b4573f1b5b4 1-47
+packages/core/src/host-dependencies/runtime/index.ts
+  s_1bd7cded2d6d91::t_52c279969a8c56 2,48
+packages/core/src/mcp/index.ts
+  s_1bd7cded2d6d91::t_15af79475fb926 1-2
+packages/core/src/mcp/registration.ts
+  s_1bd7cded2d6d91::t_142ea4b8839b18 1-68
+packages/core/src/mcp/schemas.ts
+  s_1bd7cded2d6d91::t_5b3477002fdf53 1-46
+packages/core/src/pty/node/index.ts
+  s_1bd7cded2d6d91::t_ddfab27edc4f54 1
+packages/core/src/pty/node/node-pty-spawner.test.ts
+  s_1bd7cded2d6d91::t_9dc9ef6ad0fde4 2-20,22-30,33-38,40-43
+packages/core/src/pty/node/node-pty-spawner.ts
+  s_1bd7cded2d6d91::t_780a607f263031 8,13-40,42,44,65,123-126,129,133
+packages/core/src/pty/pty-registry.ts
+  s_1bd7cded2d6d91::t_cd52d46a11f59f 29
+packages/core/src/pty/pty-session.ts
+  s_1bd7cded2d6d91::t_cf481ce49de3f8 7-8,26
+packages/core/src/skills/index.ts
+  s_1bd7cded2d6d91::t_edb66897542c37 1-3
+packages/core/src/skills/schemas.ts
+  s_1bd7cded2d6d91::t_c455f58cd39bab 1-53
+packages/core/src/skills/types.ts
+  s_1bd7cded2d6d91::t_5c2e72a4c14716 1-34
+packages/core/src/skills/validation.ts
+  s_1bd7cded2d6d91::t_0cc6b97c2f53fe 1-121
+packages/core/src/workspace-activity/aggregator.test.ts
+  s_1bd7cded2d6d91::t_b433ff8a02375e 1-2,53-55,72
+packages/core/src/workspace-coordinator/controller.ts
+  s_1bd7cded2d6d91::t_283107c43922bc 7-10,12-20
+packages/core/src/workspace-coordinator/coordinator.test.ts
+  s_1bd7cded2d6d91::t_cc07eed538ca5a 4,224-225,241
+packages/core/src/workspace-lifecycle/api/contract.test.ts
+  s_1bd7cded2d6d91::t_c79225b85f7f3b 2-3,16-17,108,117-118,142
+packages/core/src/workspace-lifecycle/controller.ts
+  s_1bd7cded2d6d91::t_bba2096b544674 10-18,20-28
+packages/core/src/workspace-server/agent-config/contract.ts
+  s_1bd7cded2d6d91::t_70408442298a42 1,3,5-15,17-25,28-40,42-49,51-127,131
+packages/core/src/workspace-server/agent-config/index.ts
+  s_1bd7cded2d6d91::t_05b136eb5ddbb5 1-2
+packages/core/src/workspace-server/agent-config/schemas.ts
+  s_1bd7cded2d6d91::t_7ab9df4786f54e 2-4,6-10,43-60,62,65-67,69-70,73-80,82-102,104,109,113-181
+packages/core/src/workspace-server/index.ts
+  s_1bd7cded2d6d91::t_d505c81b9fdf1d 9-12
+packages/core/src/workspace-server/shared/schemas.ts
+  s_1bd7cded2d6d91::t_7f4c05b54c62a4 15-21
+packages/core/src/workspace-server/tui-agents/contract.ts
+  s_1bd7cded2d6d91::t_09fdfbe2d7fa8d 3-13,17,19-22,25-39,43-44,49-58,67,76-85,101-111,116
+packages/core/src/workspace-server/tui-agents/schemas.ts
+  s_1bd7cded2d6d91::t_5df4a485e8746a 3,5,16,23,25-29,49-57,59,62-63,70,81-113,115-119,121,123-152,155-159,161-164
+packages/core/src/workspace-server/wire/contract.test.ts
+  s_1bd7cded2d6d91::t_c5fcd092bbbbe3 1-23
+packages/core/src/workspace-server/wire/contract.ts
+  s_1bd7cded2d6d91::t_ff29017aa34cff 3-4,7,24-26
+packages/core/tsdown.config.ts
+  s_1bd7cded2d6d91::t_2f5fb4143fbc65 10-11,18-20,24,32-40
+packages/plugins/package.json
+  s_1bd7cded2d6d91::t_92e3d1ff9966dc 64
+packages/plugins/src/agents/impl/codex/index.ts
+  s_1bd7cded2d6d91::t_f25793bd3ff9fd 57-71
+packages/plugins/tooling/fixtures/acp/recording-client.ts
+  s_1bd7cded2d6d91::t_324553bdf46dc2 4,38
+packages/plugins/tooling/fixtures/create-acp-transcript.ts
+  s_1bd7cded2d6d91::t_ed84888b04e285 6,25
+packages/plugins/tsconfig.json
+  s_1bd7cded2d6d91::t_bdddea6033a617 8-11
+packages/runtime/package.json
+  s_1bd7cded2d6d91::t_3c17dfb5b83bb7 1-8,10-18,20-22,24-26,28-30,32-34,36-38,40,42-49,51-56,58-72
+packages/runtime/src/acp-agents/acp-test-support.ts
+  s_1bd7cded2d6d91::t_e18e23fb6b5493 12,17-31,300-336,342-353,355-358
+packages/runtime/src/acp-agents/agent-ports/agent-client.ts
+  s_1bd7cded2d6d91::t_4c1d70b569ef69 21-24,28,33,37,42,47-48,50
+packages/runtime/src/acp-agents/agent-ports/fs-port.ts
+  s_1bd7cded2d6d91::t_72ff167e470092 1-23
+packages/runtime/src/acp-agents/agent-ports/managed-terminal.ts
+  s_1bd7cded2d6d91::t_896086107fc1f9 2
+packages/runtime/src/acp-agents/agent-ports/terminal-manager.test.ts
+  s_1bd7cded2d6d91::t_0087e4225097a3 6-7
+packages/runtime/src/acp-agents/agent-ports/terminal-manager.ts
+  s_1bd7cded2d6d91::t_d5d7bb15ad3c0d 1-4,39
+packages/runtime/src/acp-agents/agent-ports/terminal-port.ts
+  s_1bd7cded2d6d91::t_21a87496d936dc 13
+packages/runtime/src/acp-agents/api/contract.test.ts
+  s_1bd7cded2d6d91::t_3ba2284339b04f 1-11,13-14,48-49,76
+packages/runtime/src/acp-agents/api/controller.ts
+  s_1bd7cded2d6d91::t_9c8ab957199c43 1,8-13
+packages/runtime/src/acp-agents/api/procedures.ts
+  s_1bd7cded2d6d91::t_20be3f6f03e29e 1-26,28,37-38,42-43,45,51,57,64,70,76,79,85,92,98,105,108-110,113,121,133,139,142,149
+packages/runtime/src/acp-agents/connection/acp-agent-connection.test.ts
+  s_1bd7cded2d6d91::t_38e1fbca0da176 1-2,17-20,22,34-35,37,44-48,56,58,70-71,84,86-89,110-114,123-126,133
+packages/runtime/src/acp-agents/connection/acp-agent-connection.ts
+  s_1bd7cded2d6d91::t_75dc83bb7fdb2e 2-12,15-16,35-36,43,50,54-56,117-120
+packages/runtime/src/acp-agents/connection/source.test.ts
+  s_1bd7cded2d6d91::t_5d5b81eecf215f 2-3,5,8,31-43,47-48,50-51,55,58,60,62,65,71,73-84,89,93-94,96,99-100,102-116
+packages/runtime/src/acp-agents/connection/source.ts
+  s_1bd7cded2d6d91::t_f359ec0ddceb80 2-11,13,16-18,28,32-36,41,49-73,75-77,79-96,98-102,104-118,121-128,130,132,136-150
+packages/runtime/src/acp-agents/index.ts
+  s_1bd7cded2d6d91::t_0d405cb13483b0 1-28
+packages/runtime/src/acp-agents/machine/machine.test.ts
+  s_1bd7cded2d6d91::t_c9567775294fe2 1
+packages/runtime/src/acp-agents/machine/machine.ts
+  s_1bd7cded2d6d91::t_ff999584e66aa2 1-10
+packages/runtime/src/acp-agents/node/boot.ts
+  s_1bd7cded2d6d91::t_dbe2a40ada56c2 1-174
+packages/runtime/src/acp-agents/node/child-process-host.ts
+  s_1bd7cded2d6d91::t_ac9e57420bbca5 10,90
+packages/runtime/src/acp-agents/node/index.ts
+  s_1bd7cded2d6d91::t_576c0719e1ea95 1-3
+packages/runtime/src/acp-agents/node/local-attachment-store.ts
+  s_1bd7cded2d6d91::t_6e8b6167e7800b 3-4
+packages/runtime/src/acp-agents/runtime/attachment-store.ts
+  s_1bd7cded2d6d91::t_d7b404ba021890 1
+packages/runtime/src/acp-agents/runtime/runtime.ts
+  s_1bd7cded2d6d91::t_9c6b05d8f7a6c4 1-28,32-36,44,56,58,62,69,76,83,90,97,105,109,116,120,124-127,135,139-142,150,158,169,173,198,203,210,236,238
+packages/runtime/src/acp-agents/runtime/session-manager.test.ts
+  s_1bd7cded2d6d91::t_5f28febc13d2cb 16,41-43
+packages/runtime/src/acp-agents/runtime/session-manager.ts
+  s_1bd7cded2d6d91::t_056f837b143598 12-42,44-56,75,105,110,122,128-146,151-152,157,201-211,240,249,255,267,273,279-282,288,294-297,303,315,321-324,334,348,354,410,439,451,468,473-474,499,517,607
+packages/runtime/src/acp-agents/runtime/terminal-live-registry.ts
+  s_1bd7cded2d6d91::t_c851b0d9c5fd68 1,3
+packages/runtime/src/acp-agents/runtime/types.ts
+  s_1bd7cded2d6d91::t_970d5a62327972 1-8,13,15,28-29,31-33
+packages/runtime/src/acp-agents/session/cell-deps.ts
+  s_1bd7cded2d6d91::t_14c4fb3d2c9432 1-2
+packages/runtime/src/acp-agents/session/cell.ts
+  s_1bd7cded2d6d91::t_587f6c27a8cc04 9-37,203,215,217-225,227-228,234,251-260,265-268,273-276,281-284,299,303-306,338-342,378,386-389,430-439,497-500
+packages/runtime/src/acp-agents/session/permission-broker.ts
+  s_1bd7cded2d6d91::t_9035fa67227b87 2
+packages/runtime/src/acp-agents/state/live-models.ts
+  s_1bd7cded2d6d91::t_8ac7c98f531c38 1-13
+packages/runtime/src/agent-config/api/controller.ts
+  s_1bd7cded2d6d91::t_b326bdae2cb792 1-23
+packages/runtime/src/agent-config/api/procedures.ts
+  s_1bd7cded2d6d91::t_9a53c5ad105266 1-89
+packages/runtime/src/agent-config/index.ts
+  s_1bd7cded2d6d91::t_9d6ff6c45bbf4b 1-8
+packages/runtime/src/agent-config/node/boot.ts
+  s_1bd7cded2d6d91::t_ded7790de25fe7 1-86
+packages/runtime/src/agent-config/node/index.ts
+  s_1bd7cded2d6d91::t_42915635f1f3b8 1-45
+packages/runtime/src/agent-config/node/install-command-runner.ts
+  s_1bd7cded2d6d91::t_934dd7c86afb28 1-87
+packages/runtime/src/agent-config/runtime/auth.ts
+  s_1bd7cded2d6d91::t_dd8765f3aa6d25 2-6,8-10,22-30,32,36-37,40-45,48-57,90-93,97-104,106,109-111,115-117,122-123,125-128,133-134,136-139,144-145,164-165,167-232,236,240-248,250-252,256,258,266-267,269-270,326-328,335,353-354,358-367,370-371,378,384-385,388-389,392-393
+packages/runtime/src/agent-config/runtime/install.ts
+  s_1bd7cded2d6d91::t_bbbc80a672dae8 1-272
+packages/runtime/src/agent-config/runtime/mcp.ts
+  s_1bd7cded2d6d91::t_bd1bd01cd3cd15 1-160
+packages/runtime/src/agent-config/runtime/runtime.test.ts
+  s_1bd7cded2d6d91::t_bfe35be67531f6 1-13,16,18-174,176,178-190,192-199,203-206,208-211,214,216-217,219,221-226,229,231,233-234,236-239,242,244-246,248,251,253-256,260-273,275-279,284-336,338
+packages/runtime/src/agent-config/runtime/runtime.ts
+  s_1bd7cded2d6d91::t_22889df36bef93 1-196
+packages/runtime/src/agent-config/runtime/skills.ts
+  s_1bd7cded2d6d91::t_0ecd46ec02ac3c 1-177
+packages/runtime/src/agent-config/runtime/types.ts
+  s_1bd7cded2d6d91::t_d18bc9484e22dd 1-27
+packages/runtime/src/agent-config/state/live-models.ts
+  s_1bd7cded2d6d91::t_428946215d998f 1-87
+packages/runtime/src/tui-agents/api/controller.ts
+  s_1bd7cded2d6d91::t_cee94754c44137 1-14
+packages/runtime/src/tui-agents/api/procedures.ts
+  s_1bd7cded2d6d91::t_78747f0b897ebc 1-50
+packages/runtime/src/tui-agents/index.ts
+  s_1bd7cded2d6d91::t_a40d2310fd2830 1-7
+packages/runtime/src/tui-agents/node/index.ts
+  s_1bd7cded2d6d91::t_035fb90d539a91 1-17
+packages/runtime/src/tui-agents/runtime/keystroke-injection.ts
+  s_1bd7cded2d6d91::t_d18fc630a0c0d8 1-76
+packages/runtime/src/tui-agents/runtime/notifications.ts
+  s_1bd7cded2d6d91::t_bfafcacdd961c5 1-120
+packages/runtime/src/tui-agents/runtime/runtime.test.ts
+  s_1bd7cded2d6d91::t_114a10b1e42d23 1-351
+packages/runtime/src/tui-agents/runtime/runtime.ts
+  s_1bd7cded2d6d91::t_938545a57f551f 1-462
+packages/runtime/src/tui-agents/runtime/types.ts
+  s_1bd7cded2d6d91::t_79d4a7f6749af5 1-27
+packages/runtime/src/tui-agents/state/live-models.ts
+  s_1bd7cded2d6d91::t_041c1cd0720a19 1-29
+packages/runtime/tsconfig.json
+  s_1bd7cded2d6d91::t_2c8bf69e7f78b0 1-40
+packages/runtime/tsdown.config.ts
+  s_1bd7cded2d6d91::t_9a01b9e26a7b6a 1-26
+packages/runtime/vitest.config.ts
+  s_1bd7cded2d6d91::t_6784c304230c2b 1-42
+packages/shared/package.json
+  s_1bd7cded2d6d91::t_c14dc53af3aeaf 24-27,44-47
+packages/shared/src/config/index.test.ts
+  s_1bd7cded2d6d91::t_e2746d0b6af964 1-138
+packages/shared/src/config/index.ts
+  s_1bd7cded2d6d91::t_66c03606fb96e8 1-248
+packages/shared/src/logger/node/index.test.ts
+  s_1bd7cded2d6d91::t_311dd44a3f3d5c 1-47
+packages/shared/src/logger/node/index.ts
+  s_1bd7cded2d6d91::t_972cec144e2f7e 1-36
+packages/shared/src/plugins/capability.ts
+  s_1bd7cded2d6d91::t_575cc191177ee6 28-31,36,49
+packages/shared/src/plugins/framework.test.ts
+  s_1bd7cded2d6d91::t_d213c8f7a24160 1-56
+packages/shared/src/plugins/framework.ts
+  s_1bd7cded2d6d91::t_28cf285f2e2abc 63-77
+packages/shared/src/plugins/index.ts
+  s_1bd7cded2d6d91::t_6dc3c08fb22e27 19
+packages/shared/src/plugins/registry.ts
+  s_1bd7cded2d6d91::t_ae0873bf1caeca 1-10
+packages/shared/tsdown.config.ts
+  s_1bd7cded2d6d91::t_74b12472662849 7,11
+packages/ui/src/react/components/chat-composer/context-usage-indicator.tsx
+  s_1bd7cded2d6d91::t_74959c1b8c7118 87
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_1bd7cded2d6d91::t_4514034ddc838c 716
+packages/wire/docs/README.md
+  s_1bd7cded2d6d91::t_7c4bfc3a294e28 123-127
+packages/wire/docs/api/serving.md
+  s_1bd7cded2d6d91::t_12057f296c1dd7 8,26-30,64-96
+packages/wire/package.json
+  s_1bd7cded2d6d91::t_fe7ffff8dc5583 32-35
+packages/wire/src/api/blob-channel.ts
+  s_1bd7cded2d6d91::t_eb8ac6635fd57a 347-350,389-392,404-411,413,498,505
+packages/wire/src/api/blob.test.ts
+  s_1bd7cded2d6d91::t_f6a56e7fd17aab 4-12,91-103,157-181,205-206
+packages/wire/src/api/client.test.ts
+  s_1bd7cded2d6d91::t_0308075f1d2cc6 7,24,67,115
+packages/wire/src/api/controller.test.ts
+  s_1bd7cded2d6d91::t_6f0c986a7bef22 6,23,25,29-30
+packages/wire/src/api/controller.ts
+  s_1bd7cded2d6d91::t_6fda84a756fc1b 1,4,156,186,194,196,200,217,249,275,284,287,290,306,308-309,387,467,471,474,478,483-487,490-491
+packages/wire/src/api/group.test.ts
+  s_1bd7cded2d6d91::t_fa446aea6890d7 5-6,56-57,151,193
+packages/wire/src/api/index.ts
+  s_1bd7cded2d6d91::t_a85a970dffd58c 11
+packages/wire/src/api/job.test.ts
+  s_1bd7cded2d6d91::t_cee7741799d049 6,134,146
+packages/wire/src/api/mutations.test.ts
+  s_1bd7cded2d6d91::t_c1fdb637d22697 6,48,50
+packages/wire/src/api/transports/reconnecting.test.ts
+  s_1bd7cded2d6d91::t_f3e2f1e1c72387 3
+packages/wire/src/api/wire.test.ts
+  s_1bd7cded2d6d91::t_25862ad3496107 7,29,36,50,71,104
+packages/wire/src/api/with-validation.test.ts
+  s_1bd7cded2d6d91::t_a33a4b5a9f265a 1-191
+packages/wire/src/api/with-validation.ts
+  s_1bd7cded2d6d91::t_959b850d345211 1-172
+packages/wire/src/live/job/live-job.test.ts
+  s_1bd7cded2d6d91::t_dc25c6a292dce7 4
+packages/wire/src/live/mutations/result-cache.test.ts
+  s_1bd7cded2d6d91::t_56559f40338599 3
+packages/wire/src/live/replica/index.ts
+  s_1bd7cded2d6d91::t_10c5bc4bbf780c 35
+packages/wire/src/live/replica/job.test.ts
+  s_1bd7cded2d6d91::t_7bf5a84d36313a 5,83,88,101,109
+packages/wire/src/live/replica/log.test.ts
+  s_1bd7cded2d6d91::t_727f067ed63e5c 4,17,40,69,97,99
+packages/wire/src/live/replica/replica.test.ts
+  s_1bd7cded2d6d91::t_5a4c1388be3efc 5,48,67,69,90
+packages/wire/src/live/state/live-state.test.ts
+  s_1bd7cded2d6d91::t_94500509070535 3
+packages/wire/src/observability/observability.test.ts
+  s_1bd7cded2d6d91::t_0894d2aa1b2508 4
+packages/wire/src/process/node/child-process-host.test.ts
+  s_1bd7cded2d6d91::t_17544c27723c4c 24-38
+packages/wire/src/process/node/child-process-host.ts
+  s_1bd7cded2d6d91::t_f7abea6700cd89 21-25
+packages/wire/src/process/node/fixtures/echo-child.mjs
+  s_1bd7cded2d6d91::t_4a32cc3a1ddbe5 3
+packages/wire/src/testing/deferred.ts
+  s_1bd7cded2d6d91::t_aec00e724045d9 1-28
+packages/wire/src/testing/index.ts
+  s_1bd7cded2d6d91::t_2a2d4ed89a381a 1-4
+packages/wire/src/testing/stub-logger.ts
+  s_1bd7cded2d6d91::t_f5cf9db8151f76 1-31
+packages/wire/src/testing/test-wire.ts
+  s_1bd7cded2d6d91::t_6be98c036ab094 1-59
+packages/wire/src/testing/wait-for.ts
+  s_1bd7cded2d6d91::t_2dd6fac84a7740 1-21
+packages/wire/src/util/deduplicate-requests.test.ts
+  s_1bd7cded2d6d91::t_e0d8edabc24009 2
+packages/wire/src/util/index.ts
+  s_1bd7cded2d6d91::t_75a6bfc8ce6b8b 3,6
+packages/wire/src/util/managed-source.test.ts
+  s_1bd7cded2d6d91::t_c2b0b51979493c 2-3,72-124,167-251,264-271
+packages/wire/src/util/managed-source.ts
+  s_1bd7cded2d6d91::t_42cc0713221ef8 1-2,5,7,9,13,19-31,34-35,47-54,59-60,66-70,80,92,115,119-120,131,135,157,165,178,187,192-236
+packages/wire/src/util/mobx/optimistic-live-model.test.ts
+  s_1bd7cded2d6d91::t_6298a84b66242d 13,225
+packages/wire/src/util/process-runtime/index.ts
+  s_1bd7cded2d6d91::t_79bca533724421 3,6
+packages/wire/src/util/process-runtime/process-runtime.test.ts
+  s_1bd7cded2d6d91::t_c0783acdbc9615 2,16,20,144-175,213-231,305-308
+packages/wire/src/util/process-runtime/process-runtime.ts
+  s_1bd7cded2d6d91::t_cce24b906900da 2,66-69,185-216,228-269
+packages/wire/src/util/scope.test.ts
+  s_1bd7cded2d6d91::t_8d08a3d7e413a3 2
+packages/wire/tsdown.config.ts
+  s_1bd7cded2d6d91::t_35c703d8f1511b 9
+pnpm-lock.yaml
+  s_1bd7cded2d6d91::t_3f6aa345d68462 29-31,342-347,354-356,537-539,607-609,629-662
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9c8a2f8b752727f1758f510578194d6fec838214",
+  "prompts": {},
+  "sessions": {
+    "s_1bd7cded2d6d91": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "5cb7e597-5959-40ff-ba46-939b1118c9f6",
+        "model": "composer-2.5-fast"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_8c60d311bbafa5": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033msFjNLfWXaa4dn7kyG5",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
