@@ -9,11 +9,37 @@ function build(ctx: CommandContext) {
 }
 
 describe('mimocode plugin', () => {
-  it('registers current install metadata and binary name', () => {
+  it('registers the native installer as recommended with npm as a fallback', () => {
     expect(mimocode.metadata.websiteUrl).toBe('https://github.com/XiaomiMiMo/MiMo-Code');
     expect(mimocode.capabilities.hostDependency.binaryNames).toEqual(['mimo']);
-    expect(mimocode.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
-      'npm install -g @mimo-ai/cli'
+    expect(mimocode.capabilities.hostDependency.installCommands).toMatchObject({
+      macos: [
+        { method: 'npm', command: 'npm install -g @mimo-ai/cli' },
+        {
+          method: 'curl',
+          command: 'curl -fsSL https://mimo.xiaomi.com/install | bash',
+          recommended: true,
+        },
+      ],
+      linux: [
+        { method: 'npm', command: 'npm install -g @mimo-ai/cli' },
+        {
+          method: 'curl',
+          command: 'curl -fsSL https://mimo.xiaomi.com/install | bash',
+          recommended: true,
+        },
+      ],
+      windows: [
+        { method: 'npm', command: 'npm install -g @mimo-ai/cli' },
+        {
+          method: 'powershell',
+          command: 'powershell -ep Bypass -c "irm https://mimo.xiaomi.com/install.ps1 | iex"',
+          recommended: true,
+        },
+      ],
+    });
+    expect(mimocode.capabilities.hostDependency.installCommands.macos?.[0]?.recommended).toBe(
+      undefined
     );
     expect(mimocode.capabilities.hostDependency.updates).toMatchObject({
       kind: 'supported',

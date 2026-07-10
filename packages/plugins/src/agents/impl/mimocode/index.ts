@@ -36,7 +36,35 @@ export const plugin = definePlugin(
       scope: 'workspace',
       supportedEvents: ['notification', 'stop', 'session'],
     },
-    hostDependency: npmDependency({ id: 'mimo', package: '@mimo-ai/cli' }),
+    hostDependency: npmDependency({
+      id: 'mimo',
+      package: '@mimo-ai/cli',
+      recommended: false,
+      installDocs: 'https://github.com/XiaomiMiMo/MiMo-Code#quick-start',
+      extraOptions: {
+        macos: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://mimo.xiaomi.com/install | bash',
+            recommended: true,
+          },
+        ],
+        linux: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://mimo.xiaomi.com/install | bash',
+            recommended: true,
+          },
+        ],
+        windows: [
+          {
+            method: 'powershell',
+            command: 'powershell -ep Bypass -c "irm https://mimo.xiaomi.com/install.ps1 | iex"',
+            recommended: true,
+          },
+        ],
+      },
+    }),
     mcp: {
       kind: 'supported',
       scope: 'global',
