@@ -1,0 +1,29 @@
+packages/plugins/src/agents/impl/mimocode/index.ts
+  s_c3487aeae7f7e8::t_231f0f2f682aa5 49,57,65
+packages/plugins/src/agents/impl/mimocode/index.test.ts
+  s_c4e6c8c51b41ab::t_aad576800265f7 6,13-17,19-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f3d0ac405876a3ea46d9a96c5ad199320c949ef",
+  "prompts": {},
+  "sessions": {
+    "s_c3487aeae7f7e8": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3Pvs1JGm2HSAzSFkdS",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_c4e6c8c51b41ab": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033n3R8CyZNfzvA1rHbcGl",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
