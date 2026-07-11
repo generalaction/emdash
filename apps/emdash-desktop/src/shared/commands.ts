@@ -266,7 +266,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
   {
     id: 'task.archive',
     label: 'Archive Task',
-    description: 'Archive the current task',
+    description: 'Stop running agents and hide the task while keeping its worktree and branch',
     scope: 'task',
     shortcutKey: 'archiveTask',
     group: 'Task',

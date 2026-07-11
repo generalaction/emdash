@@ -67,8 +67,8 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
   const title = isBulk ? `Delete ${count} tasks` : 'Delete task';
 
   const description = isBulk
-    ? `${count} tasks will be permanently deleted. This action cannot be undone.`
-    : `"${tasks[0]!.taskName}" will be permanently deleted. This action cannot be undone.`;
+    ? `${count} tasks will be permanently removed from Emdash. This cannot be undone. Choose whether to also delete their local Git assets.`
+    : `"${tasks[0]!.taskName}" will be permanently removed from Emdash. This cannot be undone. Choose whether to also delete its local Git assets.`;
 
   const worktreeLabel = isBulk
     ? `Delete worktrees (${worktreeTasks.length} of ${count} tasks)`
@@ -106,7 +106,13 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
                     checked={deleteWorktree}
                     onCheckedChange={(checked) => handleWorktreeChange(Boolean(checked))}
                   />
-                  {worktreeLabel}
+                  <span className="flex flex-col gap-0.5">
+                    <span>{worktreeLabel}</span>
+                    <span className="text-xs font-normal text-foreground-muted">
+                      Removes the local worktree and its files. Leave unchecked to keep them on
+                      disk.
+                    </span>
+                  </span>
                 </label>
                 {deleteWorktree && dirtyWarning && (
                   <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
@@ -127,7 +133,12 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
                   onCheckedChange={(checked) => setDeleteBranchOverride(Boolean(checked))}
                   disabled={!deleteWorktree}
                 />
-                {branchLabel}
+                <span className="flex flex-col gap-0.5">
+                  <span>{branchLabel}</span>
+                  <span className="text-xs font-normal text-foreground-muted">
+                    Deletes the local branch after removing its worktree. The remote branch is kept.
+                  </span>
+                </span>
               </label>
             )}
           </div>
