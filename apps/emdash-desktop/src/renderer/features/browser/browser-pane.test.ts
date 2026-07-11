@@ -9,6 +9,7 @@ const browserRpc = vi.hoisted(() => ({
   bindWebContents: vi.fn(),
   registerSession: vi.fn(),
   setActiveBrowser: vi.fn(),
+  unregisterSession: vi.fn(),
 }));
 
 vi.mock('@renderer/features/tasks/task-view-context', () => ({
@@ -53,6 +54,8 @@ describe('BrowserPane', () => {
     root = createRoot(container);
     browserSessionStore.clear();
     browserRpc.registerSession.mockResolvedValue({ success: true });
+    browserRpc.bindWebContents.mockResolvedValue({ success: true });
+    browserRpc.unregisterSession.mockResolvedValue({ success: true });
   });
 
   afterEach(() => {

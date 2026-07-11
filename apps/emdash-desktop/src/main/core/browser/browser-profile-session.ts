@@ -22,6 +22,9 @@ const ALLOWED_BROWSER_PERMISSIONS: ReadonlySet<string> = new Set([
 ]);
 
 const configuredPartitions = new Set<string>();
+const verificationOrigins = new Map<string, string>();
+const retiredVerificationPartitions = new Set<string>();
+const MAX_RETIRED_VERIFICATION_PARTITIONS = 256;
 let relaxCorsForLocalDevelopment = false;
 
 export function setBrowserCorsRelaxationSettings(browser: AppSettings['browser']): void {
@@ -36,6 +39,7 @@ export function setBrowserCorsRelaxationSettings(browser: AppSettings['browser']
  */
 export function configureBrowserProfileSession(partition: string): Session {
   const ses = session.fromPartition(partition);
+  if (retiredVerificationPartitions.has(partition)) return ses;
   if (configuredPartitions.has(partition)) return ses;
   configuredPartitions.add(partition);
 
@@ -89,4 +93,74 @@ export function configureBrowserProfileSession(partition: string): Session {
   );
 
   return ses;
+}
+
+/**
+ * Configures a disposable Loop verification partition before its webview is mounted.
+ * Verification partitions never receive page permissions, and top-level or subframe
+ * navigation cannot leave the immutable preview origin.
+ */
+export function configureBrowserVerificationSession(
+  partition: string,
+  allowedOrigin: string
+): boolean {
+  if (!isExactHttpOrigin(allowedOrigin)) return false;
+  if (retiredVerificationPartitions.has(partition)) return false;
+  const existing = verificationOrigins.get(partition);
+  if (existing !== undefined) return existing === allowedOrigin;
+
+  const ses = configureBrowserProfileSession(partition);
+  verificationOrigins.set(partition, allowedOrigin);
+  ses.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  ses.setPermissionCheckHandler(() => false);
+  ses.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (details, callback) => {
+    const isFrameNavigation =
+      details.resourceType === 'mainFrame' || details.resourceType === 'subFrame';
+    callback({ cancel: isFrameNavigation && !urlMatchesOrigin(details.url, allowedOrigin) });
+  });
+  return true;
+}
+
+export function releaseBrowserVerificationSession(
+  partition: string,
+  allowedOrigin: string
+): boolean {
+  if (verificationOrigins.get(partition) !== allowedOrigin) return false;
+  const ses = session.fromPartition(partition);
+  ses.webRequest.onBeforeRequest(null);
+  ses.webRequest.onBeforeSendHeaders(null);
+  ses.webRequest.onHeadersReceived(null);
+  ses.webRequest.onCompleted(null);
+  ses.webRequest.onErrorOccurred(null);
+  ses.setPermissionRequestHandler(null);
+  ses.setPermissionCheckHandler(null);
+  verificationOrigins.delete(partition);
+  configuredPartitions.delete(partition);
+  retiredVerificationPartitions.add(partition);
+  while (retiredVerificationPartitions.size > MAX_RETIRED_VERIFICATION_PARTITIONS) {
+    retiredVerificationPartitions.delete(retiredVerificationPartitions.values().next().value!);
+  }
+  return true;
+}
+
+function isExactHttpOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      url.origin === value &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+function urlMatchesOrigin(value: string, allowedOrigin: string): boolean {
+  try {
+    return new URL(value).origin === allowedOrigin;
+  } catch {
+    return false;
+  }
 }
