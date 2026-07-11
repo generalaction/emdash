@@ -126,6 +126,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Show or hide the right sidebar',
     category: 'View',
   },
+  zenMode: {
+    defaultHotkey: 'Control+Z',
+    label: 'Zen Mode',
+    description: 'Hide both sidebars',
+    category: 'View',
+  },
   closeModal: {
     defaultHotkey: 'Escape',
     label: 'Close Modal',

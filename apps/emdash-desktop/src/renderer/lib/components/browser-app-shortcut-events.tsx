@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { ViewId } from '@renderer/app/view-registry';
-import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
+import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
 import { events } from '@renderer/lib/ipc';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
@@ -18,7 +18,7 @@ import type { ShortcutSettingsKey } from '@shared/shortcuts';
 
 export function BrowserAppShortcutEvents() {
   const showCommandPalette = useShowModal('commandPaletteModal');
-  const { toggleLeft } = useWorkspaceLayoutContext();
+  const { setCollapsed, toggleLeft } = useWorkspaceLayoutContext();
   const { navigate } = useNavigate();
   const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
@@ -42,6 +42,7 @@ export function BrowserAppShortcutEvents() {
         currentView,
         lastNonSettingsView,
         navigate,
+        setCollapsed,
         showCommandPalette,
         toggleLeft,
       });
@@ -52,6 +53,7 @@ export function BrowserAppShortcutEvents() {
     currentView,
     lastNonSettingsView,
     navigate,
+    setCollapsed,
     showCommandPalette,
     toggleLeft,
   ]);
@@ -67,6 +69,7 @@ function dispatchAppOnlyShortcut(
     currentView: ViewId;
     lastNonSettingsView: NonSettingsViewId;
     navigate: NavigateFnTyped;
+    setCollapsed: (side: 'left', collapsed: boolean) => void;
     showCommandPalette: (input: {
       projectId?: string;
       taskId?: string;
@@ -92,6 +95,12 @@ function dispatchAppOnlyShortcut(
     }
     case 'toggleLeftSidebar':
       context.toggleLeft();
+      break;
+    case 'zenMode':
+      context.setCollapsed('left', true);
+      if (context.currentProjectId && context.currentTaskId) {
+        getTaskView(context.currentProjectId, context.currentTaskId)?.setSidebarCollapsed(true);
+      }
       break;
     case 'closeModal':
       if (context.currentView === 'settings' && !modalStore.isOpen) {

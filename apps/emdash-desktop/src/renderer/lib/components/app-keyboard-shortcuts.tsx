@@ -1,7 +1,7 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useObserver } from 'mobx-react-lite';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
+import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -18,12 +18,13 @@ import { modalStore } from '@renderer/lib/modal/modal-store';
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const showCommandPalette = useShowModal('commandPaletteModal');
-  const { toggleLeft } = useWorkspaceLayoutContext();
+  const { setCollapsed, toggleLeft } = useWorkspaceLayoutContext();
   const { navigate } = useNavigate();
 
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
   const closeModalHotkey = getEffectiveHotkey('closeModal', keyboard);
   const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
+  const zenModeHotkey = getEffectiveHotkey('zenMode', keyboard);
 
   const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
@@ -66,6 +67,17 @@ export function AppKeyboardShortcuts() {
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
     enabled: toggleLeftSidebarHotkey !== null,
   });
+
+  useHotkey(
+    getHotkeyRegistration('zenMode', keyboard),
+    () => {
+      setCollapsed('left', true);
+      if (currentProjectId && currentTaskId) {
+        getTaskView(currentProjectId, currentTaskId)?.setSidebarCollapsed(true);
+      }
+    },
+    { enabled: zenModeHotkey !== null }
+  );
 
   return null;
 }
