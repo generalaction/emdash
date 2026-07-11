@@ -18,7 +18,9 @@ import { conversationConfig } from '@shared/core/conversations/conversation-conf
 import { linkedIssue } from '@shared/core/linked-issue';
 import { loopConfig } from '@shared/core/loops/loop-config';
 import { loopPhaseCriteria } from '@shared/core/loops/loop-phase-criteria';
-import type { LoopStatus, PhaseStatus } from '@shared/core/loops/loops';
+import { loopPhaseState } from '@shared/core/loops/loop-phase-state';
+import { loopState } from '@shared/core/loops/loop-state';
+import type { LoopPhaseKind, LoopStatus, PhaseStatus } from '@shared/core/loops/loops';
 import { providerAccountMeta } from '@shared/core/provider-accounts/provider-account-meta';
 import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
 import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
@@ -414,6 +416,8 @@ export const loops = sqliteTable(
     status: text('status').$type<LoopStatus>().notNull().default('draft'),
     currentPhaseIndex: integer('current_phase_index').notNull().default(0),
     config: versionedJsonColumn(loopConfig)('config'),
+    isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(false),
+    state: versionedJsonColumn(loopState)('state'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -424,6 +428,9 @@ export const loops = sqliteTable(
   (table) => ({
     projectIdIdx: index('idx_loops_project_id').on(table.projectId),
     taskIdIdx: index('idx_loops_task_id').on(table.taskId),
+    primaryTaskIdx: uniqueIndex('idx_loops_primary_task')
+      .on(table.taskId)
+      .where(sql`${table.isPrimary} = 1`),
   })
 );
 
@@ -437,12 +444,14 @@ export const loopPhases = sqliteTable(
     idx: integer('idx').notNull(),
     name: text('name').notNull(),
     goal: text('goal').notNull(),
+    kind: text('kind').$type<LoopPhaseKind>().notNull().default('work'),
     status: text('status').$type<PhaseStatus>().notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
     conversationId: text('conversation_id').references(() => conversations.id, {
       onDelete: 'set null',
     }),
     criteria: versionedJsonColumn(loopPhaseCriteria)('criteria'),
+    state: versionedJsonColumn(loopPhaseState)('state'),
     lastError: text('last_error'),
     createdAt: text('created_at')
       .notNull()
