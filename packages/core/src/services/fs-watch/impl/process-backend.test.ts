@@ -29,6 +29,7 @@ describe('processWatchBackend', () => {
     try {
       const first = service.watch(root, (events) => firstEvents.push(...events));
       await Promise.resolve();
+      await Promise.resolve();
       await startChild(host.process(), childService);
       await first.ready();
       const second = service.watch(root, (events) => secondEvents.push(...events));
@@ -65,6 +66,7 @@ describe('processWatchBackend', () => {
         },
       });
       await Promise.resolve();
+      await Promise.resolve();
       await startChild(host.process(), firstChildService);
       await handle.ready();
 
@@ -95,6 +97,7 @@ describe('processWatchBackend', () => {
     try {
       const handle = service.watch(root, () => {});
       await Promise.resolve();
+      await Promise.resolve();
       await startChild(host.process(), childService);
 
       await expect(handle.ready()).rejects.toThrow('watch failed');
@@ -123,6 +126,7 @@ describe('processWatchBackend', () => {
 
     try {
       const handle = service.watch(root, () => {});
+      await Promise.resolve();
       await Promise.resolve();
       await startChild(host.process(), childService);
       await handle.ready();

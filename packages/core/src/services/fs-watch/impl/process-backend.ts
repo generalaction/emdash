@@ -30,6 +30,14 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
       const ready = createDeferred<void>();
       void ready.promise.catch(() => {});
       let awaitingInitialReady = true;
+      const abortReady = () => {
+        if (!awaitingInitialReady) return;
+        awaitingInitialReady = false;
+        ready.reject(
+          scope.signal.reason ?? new Error(`Fs watch ${keyId(key)} disposed before ready`)
+        );
+      };
+      scope.signal.addEventListener('abort', abortReady, { once: true });
       const detach = await handle.client.events.handle(key).attach(
         (update) => {
           const event = eventFromUpdate<FsWatchStreamEvent>(update);
@@ -71,10 +79,7 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
       );
       scope.add(detach);
       scope.add(() => {
-        if (awaitingInitialReady) {
-          awaitingInitialReady = false;
-          ready.reject(new Error(`Fs watch ${keyId(key)} disposed before ready`));
-        }
+        scope.signal.removeEventListener('abort', abortReady);
       });
 
       try {

@@ -61,7 +61,7 @@ export function createAsyncCache<K, T>(options: CreateAsyncCacheOptions<K, T>): 
       assertOpen();
       const keyId = options.key(key);
       const existing = entries.get(keyId);
-      if (existing?.run) existing.run.cancel(new Error(`AsyncCache refresh '${keyId}'`));
+      if (existing?.promise) return existing.promise;
       return load(keyId, key, existing);
     },
     peek(key): T | undefined {
@@ -79,7 +79,6 @@ export function createAsyncCache<K, T>(options: CreateAsyncCacheOptions<K, T>): 
       assertOpen();
       const keyId = options.key(key);
       const existing = entries.get(keyId);
-      existing?.run?.cancel(new Error(`AsyncCache set '${keyId}'`));
       const entry: Entry<K, T> = {
         key,
         generation: (existing?.generation ?? 0) + 1,
@@ -128,9 +127,8 @@ export function createAsyncCache<K, T>(options: CreateAsyncCacheOptions<K, T>): 
     entry.promise = run
       .value()
       .then((value) => {
-        if (disposed || entries.get(keyId) !== entry || entry.generation !== generation) {
-          throw new Error('AsyncCache entry was invalidated during load');
-        }
+        if (disposed) throw new Error('AsyncCache is disposed');
+        if (entries.get(keyId) !== entry || entry.generation !== generation) return value;
         entry.value = value;
         entry.hasValue = true;
         entry.expiresAt = expiresAt();
