@@ -1,5 +1,12 @@
 # Loops: autonomous phased plan execution in emdash (ACP-first, experimental)
 
+> **Historical v1 plan.** The authoritative resolved product and multi-agent execution plan is
+> [`acp-loops-v2-codex-orchestration.md`](./acp-loops-v2-codex-orchestration.md). This file retains
+> earlier design history, including now-superseded Agent Browser, local-`cwd`, per-phase review,
+> separate modal/sidebar, and Summario acceptance assumptions. Do not execute it as the current plan.
+> Start execution from the concise
+> [`acp-loops-v2-codex-handoff.md`](./acp-loops-v2-codex-handoff.md).
+
 ## Overview
 
 Port the executr/ralphex workflow into emdash as a first-class experimental feature called
