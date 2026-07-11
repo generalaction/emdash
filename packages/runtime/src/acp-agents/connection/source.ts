@@ -5,11 +5,10 @@ import type {
   AcpAgentApi,
   AgentHostError,
   AgentPluginHost,
-  IAcpBehavior,
 } from '@emdash/core/agents/plugins';
 import { isErr, toSerializedError } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import { createManagedSource, type ManagedSource, type Scope } from '@emdash/wire/util';
+import { createResourceCache, type ResourceCache, type Scope } from '@emdash/wire/util';
 import {
   createAcpAgentConnection,
   type AcpConnectionError,
@@ -37,36 +36,27 @@ export interface CreateAcpConnectionSourceDeps {
   host: AcpConnectionProcessHost;
   agentHost: AgentPluginHost;
   logger: Logger;
+  buildClient: (agent: AcpAgentApi, context: AcpConnectionContext) => Client;
   onClosed: (key: string, exitCode: number | null) => void;
 }
 
-export interface AcquireAcpConnectionInput {
+export interface AcpConnectionKey {
   providerId: string;
   workspaceId: string;
   cwd: string;
-  behavior: IAcpBehavior;
-  buildClient: (agent: AcpAgentApi, context: AcpConnectionContext) => Client;
 }
 
-export type AcpConnectionSource = ManagedSource<
-  string,
-  PooledAcpProcess,
-  AcquireAcpConnectionInput
->;
+export type AcpConnectionSource = ResourceCache<AcpConnectionKey, PooledAcpProcess>;
 
 export function createAcpConnectionSource(
   deps: CreateAcpConnectionSourceDeps
 ): AcpConnectionSource {
-  const source: AcpConnectionSource = createManagedSource<
-    string,
-    PooledAcpProcess,
-    AcquireAcpConnectionInput
-  >({
-    key: (key) => key,
-    create: (key, input, scope) => provisionAcpConnection(deps, key, input, scope),
-    onError: (error, key) => {
+  const source: AcpConnectionSource = createResourceCache<AcpConnectionKey, PooledAcpProcess>({
+    key: acpConnectionCacheKey,
+    create: (key, scope) => provisionAcpConnection(deps, key, scope),
+    onError: (error, keyId) => {
       deps.logger.warn('AcpConnectionSource: provisioning failed', {
-        key,
+        key: keyId,
         error: error instanceof Error ? error.message : String(error),
       });
     },
@@ -78,6 +68,10 @@ export function makeAcpConnectionKey(providerId: string, workspaceId: string): s
   return `${providerId}:${workspaceId}`;
 }
 
+export function acpConnectionCacheKey(key: AcpConnectionKey): string {
+  return `${makeAcpConnectionKey(key.providerId, key.workspaceId)}:${key.cwd}`;
+}
+
 export function isAcpConnectionError(error: unknown): error is AcpConnectionError {
   if (typeof error !== 'object' || error === null) return false;
   const type = (error as { type?: unknown }).type;
@@ -86,11 +80,18 @@ export function isAcpConnectionError(error: unknown): error is AcpConnectionErro
 
 async function provisionAcpConnection(
   deps: CreateAcpConnectionSourceDeps,
-  key: string,
-  input: AcquireAcpConnectionInput,
+  key: AcpConnectionKey,
   scope: Scope
 ): Promise<PooledAcpProcess> {
-  const spawn = await deps.agentHost.buildAcpSpawn(input.providerId, { cwd: input.cwd });
+  const binding = deps.agentHost.resolveAcp(key.providerId);
+  if (!binding) {
+    throw acpErr.spawnFailed(
+      toSerializedError(new Error(`Provider '${key.providerId}' does not support ACP`))
+    ).error;
+  }
+
+  const routeKey = makeAcpConnectionKey(key.providerId, key.workspaceId);
+  const spawn = await deps.agentHost.buildAcpSpawn(key.providerId, { cwd: key.cwd });
   if (!spawn.success) {
     throw acpErr.spawnFailed(toSerializedError(new Error(agentHostErrorMessage(spawn.error))))
       .error;
@@ -99,31 +100,31 @@ async function provisionAcpConnection(
   const connection = await createAcpAgentConnection(
     {
       host: deps.host,
-      behavior: input.behavior,
+      behavior: binding.behavior,
       logger: deps.logger,
     },
     {
-      providerId: input.providerId,
+      providerId: key.providerId,
       spawn: spawn.data,
       scope,
       buildClient: (agent, normalize) =>
-        input.buildClient(agent, {
-          key,
-          providerId: input.providerId,
-          workspaceId: input.workspaceId,
-          cwd: input.cwd,
+        deps.buildClient(agent, {
+          key: routeKey,
+          providerId: key.providerId,
+          workspaceId: key.workspaceId,
+          cwd: key.cwd,
           normalize,
         }),
-      onClosed: (exitCode) => deps.onClosed(key, exitCode),
+      onClosed: (exitCode) => deps.onClosed(routeKey, exitCode),
     }
   );
   if (isErr(connection)) throw connection.error;
 
   return {
-    key,
-    providerId: input.providerId,
-    workspaceId: input.workspaceId,
-    cwd: input.cwd,
+    key: routeKey,
+    providerId: key.providerId,
+    workspaceId: key.workspaceId,
+    cwd: key.cwd,
     agent: connection.data.agent,
     normalize: connection.data.normalize,
     supportsLoadSession: connection.data.supportsLoadSession,

@@ -9,10 +9,10 @@ import {
   type ExecSpawnOptions,
 } from '@emdash/core/exec';
 import { contains, FilesRuntime } from '@emdash/core/files';
-import { ResourceMap } from '@emdash/core/lib';
 import { spawnFsWatchWorker } from '@emdash/core/services/fs-watch/worker';
 import { GitRuntime } from '@emdash/runtime/git';
 import type { Lease } from '@emdash/shared';
+import { createResourceCache } from '@emdash/wire/util';
 import { appScope } from '@main/app/app-scope';
 import { getDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
@@ -158,19 +158,29 @@ async function probeGitDependency(machine: MachineRef): Promise<void> {
 }
 
 class DefaultRuntimeManager implements RuntimeManager {
-  private readonly runtimes = new ResourceMap<MachineRuntime>({
-    teardown: (_key, runtime) => runtime.dispose(),
-    onError: (context, error) =>
-      log.warn('RuntimeManager: runtime teardown failed', { context, error: String(error) }),
+  private readonly runtimes = createResourceCache<MachineRef, MachineRuntime>({
+    key: machineKey,
+    scope: appScope,
+    label: 'machine-runtimes',
+    onError: (error, key) =>
+      log.warn('RuntimeManager: runtime creation failed', { key, error: String(error) }),
+    create: async (machine, scope) => {
+      await probeGitDependency(machine);
+      const runtime =
+        machine.kind === 'local'
+          ? new LocalMachineRuntime()
+          : new SshMachineRuntime(
+              machine.connectionId,
+              await sshConnectionManager.connect(machine.connectionId)
+            );
+      scope.add(() => runtime.dispose());
+      return runtime;
+    },
   });
 
   acquire(machine: MachineRef): Promise<Lease<MachineRuntime>> {
-    return this.runtimes.acquire(machineKey(machine), async () => {
-      await probeGitDependency(machine);
-      if (machine.kind === 'local') return new LocalMachineRuntime();
-      const proxy = await sshConnectionManager.connect(machine.connectionId);
-      return new SshMachineRuntime(machine.connectionId, proxy);
-    });
+    const lease = this.runtimes.acquire(machine);
+    return lease.ready().then((runtime) => ({ value: runtime, release: lease.release }));
   }
 
   async dispose(): Promise<void> {

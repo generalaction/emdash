@@ -9,13 +9,13 @@ import type {
   JobResult,
 } from '../../api/define';
 import type { WireInstrumentation } from '../../observability';
-import { createManagedSource } from '../../util/managed-source';
+import { createResourceCache } from '../../util/resource-cache';
 import { LiveJobCancelledError, LiveJobClient, LiveJobFailedError } from '../job';
 import { stableStringify } from '../mutations';
 import { liveJobStateSchema } from '../protocol';
 import type { LiveJobState, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
 import { LiveState } from '../state';
-import { managedLiveSource } from './source';
+import { resourceCachedLiveSource } from './source';
 
 export type ReplicaJobState<Def extends LiveJobEndpointDef> = LiveJobState<
   JobProgress<Def>,
@@ -175,9 +175,9 @@ export function createLiveJobReplica<Def extends LiveJobEndpointDef>(
   job: LiveJobClientHandle<Def>,
   options: LiveJobReplicaOptions<Def> = {}
 ): LiveJobReplica<Def> {
-  const source = createManagedSource<string, ReplicaJob<Def>>({
+  const source = createResourceCache<string, ReplicaJob<Def>>({
     key: stableStringify,
-    graceMs: options.retentionMs,
+    idleTtlMs: options.retentionMs,
     async create(jobId, scope) {
       const { store, ...replicaOptions } = options;
       const replica = new ReplicaJob(job, jobId, { ...replicaOptions, store: store?.() });
@@ -201,7 +201,7 @@ export function createLiveJobReplica<Def extends LiveJobEndpointDef>(
       return source.peek(jobId);
     },
     resolve(jobId) {
-      return managedLiveSource(source, jobId, (replica) => replica);
+      return resourceCachedLiveSource(source, jobId, (replica) => replica);
     },
     cancel(jobId) {
       return job.cancel(jobId);

@@ -100,6 +100,30 @@ describe('worker utilities', () => {
     await worker.dispose();
     expect(host.process().disposed).toBe(true);
   });
+
+  it('disposes a lazy worker when onSpawned rejects', async () => {
+    const host = new FakeProcessHost();
+    const worker = lazyWorker(
+      {
+        name: 'demo',
+        contract: api,
+        entry: 'worker',
+        host,
+      },
+      {
+        onSpawned: async () => {
+          throw new Error('hook failed');
+        },
+      }
+    );
+
+    const pending = worker.get();
+    await Promise.resolve();
+    await startChild(host.process());
+
+    await expect(pending).rejects.toThrow('hook failed');
+    expect(host.process().disposed).toBe(true);
+  });
 });
 
 async function startChild(process: FakeManagedProcess): Promise<void> {

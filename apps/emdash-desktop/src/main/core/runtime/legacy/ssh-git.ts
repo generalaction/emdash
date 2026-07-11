@@ -45,9 +45,10 @@ import type {
   GitStatusModel,
   GitStatusUntrackedMode,
 } from '@emdash/core/git';
-import { LiveModel, ResourceMap } from '@emdash/core/lib';
+import { LiveModel } from '@emdash/core/lib';
 import { err, ok, type Lease, type Result, type Unsubscribe } from '@emdash/shared';
 import { Result as ResultUtil } from '@emdash/shared/result';
+import { createResourceCache, type ResourceCache } from '@emdash/wire/util';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { GitService } from '@main/core/git/legacy/git-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
@@ -67,7 +68,6 @@ type LegacyRepositoryResource = {
 
 type LegacyWorktreeResource = {
   worktree: LegacySshGitWorktree;
-  repositoryLease: Lease<LegacySshGitRepository>;
 };
 
 /**
@@ -75,27 +75,48 @@ type LegacyWorktreeResource = {
  * process until the shared Git runtime can run on the remote machine.
  */
 export class LegacySshGitRuntime implements IGitRuntime {
-  private readonly repositories = new ResourceMap<LegacyRepositoryResource>({
-    teardown: (_key, resource) => resource.repository.dispose(),
-    onError: (context, error) =>
-      log.warn('LegacySshGitRuntime: repository teardown failed', {
-        context,
-        error: String(error),
-      }),
-  });
-  private readonly worktrees = new ResourceMap<LegacyWorktreeResource>({
-    teardown: async (_key, resource) => {
-      await resource.worktree.dispose();
-      await resource.repositoryLease.release();
-    },
-    onError: (context, error) =>
-      log.warn('LegacySshGitRuntime: worktree teardown failed', { context, error: String(error) }),
-  });
+  private readonly repositories: ResourceCache<string, LegacyRepositoryResource>;
+  private readonly worktrees: ResourceCache<string, LegacyWorktreeResource>;
 
   constructor(
     private readonly proxy: SshClientProxy,
     private readonly connectionId: string
-  ) {}
+  ) {
+    this.repositories = createResourceCache({
+      key: (key: string) => key,
+      label: 'legacy-ssh-git-repositories',
+      onError: (error, key) =>
+        log.warn('LegacySshGitRuntime: repository provisioning failed', {
+          key,
+          error: String(error),
+        }),
+      create: async (gitCommonDir, scope) => {
+        const repository = new LegacySshGitRepository(this.createGit(gitCommonDir), gitCommonDir);
+        scope.add(() => repository.dispose());
+        return { repository };
+      },
+    });
+    this.worktrees = createResourceCache({
+      key: (key: string) => key,
+      label: 'legacy-ssh-git-worktrees',
+      onError: (error, key) =>
+        log.warn('LegacySshGitRuntime: worktree provisioning failed', {
+          key,
+          error: String(error),
+        }),
+      create: async (worktreePath, scope) => {
+        const repositoryLease = await this.acquireRepository(worktreePath);
+        scope.add(() => repositoryLease.release());
+        const worktree = new LegacySshGitWorktree(
+          this.createGit(worktreePath),
+          worktreePath,
+          repositoryLease.value.repository
+        );
+        scope.add(() => worktree.dispose());
+        return { worktree };
+      },
+    });
+  }
 
   async openRepository(pathInsideRepo: string): Promise<Lease<IGitRepository>> {
     const lease = await this.acquireRepository(pathInsideRepo);
@@ -176,24 +197,11 @@ export class LegacySshGitRuntime implements IGitRuntime {
   }
 
   async openWorktree(worktreePath: string): Promise<Lease<IGitWorktree>> {
-    const lease = await this.worktrees.acquire(worktreePath, async () => {
-      const repositoryLease = await this.acquireRepository(worktreePath);
-      const worktree = new LegacySshGitWorktree(
-        this.createGit(worktreePath),
-        worktreePath,
-        repositoryLease.value.repository
-      );
-      return {
-        worktree,
-        repositoryLease: {
-          value: repositoryLease.value.repository,
-          release: repositoryLease.release,
-        },
-      };
-    });
+    const pending = this.worktrees.acquire(worktreePath);
+    const resource = await pending.ready();
     return {
-      value: lease.value.worktree,
-      release: lease.release,
+      value: resource.worktree,
+      release: pending.release,
     };
   }
 
@@ -213,9 +221,12 @@ export class LegacySshGitRuntime implements IGitRuntime {
     pathInsideRepo: string
   ): Promise<Lease<LegacyRepositoryResource>> {
     const gitCommonDir = await this.resolveGitCommonDir(pathInsideRepo);
-    return this.repositories.acquire(gitCommonDir, async () => ({
-      repository: new LegacySshGitRepository(this.createGit(pathInsideRepo), gitCommonDir),
-    }));
+    const pending = this.repositories.acquire(gitCommonDir);
+    const resource = await pending.ready();
+    return {
+      value: resource,
+      release: pending.release,
+    };
   }
 
   private async resolveGitCommonDir(root: string): Promise<string> {

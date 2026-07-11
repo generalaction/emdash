@@ -1,0 +1,213 @@
+import type { Lease, PendingLease, Result } from '@emdash/shared';
+import { err, ok, toPendingLease } from '@emdash/shared';
+import { createScope, type Scope } from './scope';
+
+export interface ResourceCache<K, T> {
+  acquire(key: K): PendingLease<T>;
+  peek(key: K): T | undefined;
+  invalidate(key: K): Promise<void>;
+  dispose(): Promise<void>;
+}
+
+export type CreateResourceCacheOptions<K, T> = {
+  key: (key: K) => string;
+  scope?: Scope;
+  label?: string;
+  idleTtlMs?: number;
+  create: (key: K, scope: Scope) => Promise<T> | T;
+  onError?: (error: unknown, key: string) => void;
+};
+
+type Entry<K, T> = {
+  key: K;
+  keyId: string;
+  scope: Scope;
+  refCount: number;
+  hasValue: boolean;
+  value: T | undefined;
+  createPromise: Promise<T> | undefined;
+  disposePromise: Promise<void> | undefined;
+  idleTimer: ReturnType<typeof setTimeout> | undefined;
+};
+
+export function createResourceCache<K, T>(
+  options: CreateResourceCacheOptions<K, T>
+): ResourceCache<K, T> {
+  const cacheScope = options.scope
+    ? options.scope.child(options.label ?? 'resource-cache')
+    : createScope({ label: options.label });
+  const entries = new Map<string, Entry<K, T>>();
+  const idleTtlMs = options.idleTtlMs ?? 0;
+  let disposed = false;
+  let disposePromise: Promise<void> | undefined;
+  let disposeEntriesPromise: Promise<void> | undefined;
+
+  cacheScope.add(() => disposeEntries());
+
+  return {
+    acquire(key): PendingLease<T> {
+      return toPendingLease(acquireLease(key));
+    },
+    peek(key): T | undefined {
+      const entry = entries.get(options.key(key));
+      return entry?.hasValue === true ? entry.value : undefined;
+    },
+    async invalidate(key): Promise<void> {
+      const entry = entries.get(options.key(key));
+      if (!entry) return;
+      await disposeEntry(entry);
+    },
+    async dispose(): Promise<void> {
+      if (disposePromise) return disposePromise;
+      disposed = true;
+      disposePromise = cacheScope.dispose();
+      return disposePromise;
+    },
+  };
+
+  async function acquireLease(key: K): Promise<Lease<T>> {
+    if (disposed || cacheScope.disposed) throw new Error('ResourceCache is disposed');
+
+    const keyId = options.key(key);
+    let entry = entries.get(keyId);
+    if (entry?.disposePromise) {
+      await entry.disposePromise;
+      if (disposed || cacheScope.disposed) throw new Error('ResourceCache is disposed');
+      entry = entries.get(keyId);
+    }
+
+    if (!entry) {
+      entry = createEntry(key, keyId);
+      entries.set(keyId, entry);
+    }
+
+    clearIdleTimer(entry);
+    entry.refCount += 1;
+
+    let released = false;
+    const release = async (): Promise<void> => {
+      if (released) return;
+      released = true;
+      await releaseEntry(entry);
+    };
+
+    try {
+      const value = await ensureCreated(entry);
+      return { value, release };
+    } catch (error) {
+      await release();
+      throw error;
+    }
+  }
+
+  function createEntry(key: K, keyId: string): Entry<K, T> {
+    return {
+      key,
+      keyId,
+      scope: cacheScope.child(entryScopeLabel(keyId)),
+      refCount: 0,
+      hasValue: false,
+      value: undefined,
+      createPromise: undefined,
+      disposePromise: undefined,
+      idleTimer: undefined,
+    };
+  }
+
+  function entryScopeLabel(keyId: string): string {
+    return options.scope || options.label ? keyId : `resource-cache:${keyId}`;
+  }
+
+  async function disposeEntries(): Promise<void> {
+    if (disposeEntriesPromise) return disposeEntriesPromise;
+    disposed = true;
+    disposeEntriesPromise = (async () => {
+      const current = [...entries.values()];
+      await Promise.all(current.map((entry) => disposeEntry(entry)));
+      entries.clear();
+    })();
+    return disposeEntriesPromise;
+  }
+
+  function ensureCreated(entry: Entry<K, T>): Promise<T> {
+    if (entry.hasValue) return Promise.resolve(entry.value as T);
+    if (entry.createPromise) return entry.createPromise;
+
+    const createRun = entry.scope.run('create', () => options.create(entry.key, entry.scope));
+    entry.createPromise = createRun
+      .value()
+      .then((value) => {
+        entry.createPromise = undefined;
+        if (disposed || entries.get(entry.keyId) !== entry || entry.scope.disposed) {
+          throw new Error('ResourceCache entry was disposed during creation');
+        }
+        entry.hasValue = true;
+        entry.value = value;
+        if (entry.refCount === 0) scheduleDispose(entry);
+        return value;
+      })
+      .catch(async (error: unknown) => {
+        entry.createPromise = undefined;
+        if (entries.get(entry.keyId) === entry) entries.delete(entry.keyId);
+        options.onError?.(error, entry.keyId);
+        await entry.scope.dispose(error);
+        throw error;
+      });
+
+    return entry.createPromise;
+  }
+
+  function releaseEntry(entry: Entry<K, T>): Promise<void> {
+    if (entries.get(entry.keyId) !== entry) return Promise.resolve();
+    if (entry.refCount > 0) entry.refCount -= 1;
+    if (entry.refCount > 0) return Promise.resolve();
+    if (entry.createPromise && !entry.hasValue) return Promise.resolve();
+    return scheduleDispose(entry);
+  }
+
+  function scheduleDispose(entry: Entry<K, T>): Promise<void> {
+    if (entry.disposePromise || entries.get(entry.keyId) !== entry) return Promise.resolve();
+    clearIdleTimer(entry);
+    if (idleTtlMs <= 0) {
+      return disposeEntry(entry);
+    }
+    entry.idleTimer = setTimeout(() => {
+      entry.idleTimer = undefined;
+      void disposeEntry(entry);
+    }, idleTtlMs);
+    entry.idleTimer.unref?.();
+    entry.scope.add(() => clearIdleTimer(entry));
+    return Promise.resolve();
+  }
+
+  async function disposeEntry(entry: Entry<K, T>): Promise<void> {
+    if (entry.disposePromise) return entry.disposePromise;
+    clearIdleTimer(entry);
+    entry.disposePromise = entry.scope.dispose().finally(() => {
+      if (entries.get(entry.keyId) === entry) entries.delete(entry.keyId);
+    });
+    return entry.disposePromise;
+  }
+
+  function clearIdleTimer(entry: Entry<K, T>): void {
+    if (!entry.idleTimer) return;
+    clearTimeout(entry.idleTimer);
+    entry.idleTimer = undefined;
+  }
+}
+
+export async function acquireResourceAsResult<K, T, E>(
+  cache: ResourceCache<K, T>,
+  key: K,
+  isExpectedError: (error: unknown) => error is E
+): Promise<Result<Lease<T>, E>> {
+  const pending = cache.acquire(key);
+
+  try {
+    const value = await pending.ready();
+    return ok({ value, release: pending.release });
+  } catch (error) {
+    if (isExpectedError(error)) return err(error);
+    throw error;
+  }
+}

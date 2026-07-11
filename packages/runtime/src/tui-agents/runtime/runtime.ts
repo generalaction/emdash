@@ -11,7 +11,7 @@ import type {
 } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import { LiveLog, type LiveSource } from '@emdash/wire';
-import { createManagedSource, type ManagedSource } from '@emdash/wire/util';
+import { createResourceCache, type ResourceCache } from '@emdash/wire/util';
 import {
   createTuiNotificationsLiveHost,
   createTuiNotificationsListModel,
@@ -39,11 +39,7 @@ type TuiAgentSession = {
 
 export class TuiAgentsRuntime {
   private readonly registry: PtyRegistry;
-  private readonly sessionsSource: ManagedSource<
-    { conversationId: string },
-    TuiAgentSession,
-    TuiSessionConfig | null
-  >;
+  private readonly sessionsSource: ResourceCache<{ conversationId: string }, TuiAgentSession>;
   private readonly logs = new Map<string, LiveLog>();
   private readonly configs = new Map<string, TuiSessionConfig>();
   private readonly sessionsHost: TuiSessionsLiveHost;
@@ -59,14 +55,11 @@ export class TuiAgentsRuntime {
     this.sessionsList = createTuiSessionsListModel(this.sessionsHost);
     this.notificationsList = createTuiNotificationsListModel(this.notificationsHost);
     this.notifications = new TuiAgentNotifications(this.sessionsList, this.notificationsList);
-    this.sessionsSource = createManagedSource<
-      { conversationId: string },
-      TuiAgentSession,
-      TuiSessionConfig | null
-    >({
+    this.sessionsSource = createResourceCache<{ conversationId: string }, TuiAgentSession>({
       key: (key) => key.conversationId,
-      graceMs: SESSION_GRACE_MS,
-      create: async (key, config, scope) => {
+      idleTtlMs: SESSION_GRACE_MS,
+      create: async (key, scope) => {
+        const config = this.configs.get(key.conversationId) ?? null;
         const session = this.createRetainedSession(key.conversationId);
         if (config && config.intent !== 'stopped') {
           await this.spawnInto(session, config);
@@ -175,10 +168,7 @@ export class TuiAgentsRuntime {
   outputLog(key: { conversationId: string }): LiveSource {
     return {
       snapshot: async () => {
-        const lease = this.sessionsSource.acquire(
-          key,
-          this.configs.get(key.conversationId) ?? null
-        );
+        const lease = this.sessionsSource.acquire(key);
         try {
           return await (await lease.ready()).output.snapshot();
         } finally {
@@ -188,10 +178,7 @@ export class TuiAgentsRuntime {
       subscribe: (cb) => {
         let disposed = false;
         let unsubscribe: (() => void) | undefined;
-        const lease = this.sessionsSource.acquire(
-          key,
-          this.configs.get(key.conversationId) ?? null
-        );
+        const lease = this.sessionsSource.acquire(key);
         void lease.ready().then((session) => {
           if (disposed) {
             void lease.release();
@@ -216,8 +203,8 @@ export class TuiAgentsRuntime {
     return this.notificationsHost;
   }
 
-  dispose(): void {
-    void this.sessionsSource.dispose();
+  async dispose(): Promise<void> {
+    await this.sessionsSource.dispose();
     this.registry.killAll();
     this.logs.clear();
     this.configs.clear();

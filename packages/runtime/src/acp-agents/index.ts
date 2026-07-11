@@ -4,12 +4,12 @@ export { AcpRuntime } from './runtime/runtime';
 export { SessionManager } from './runtime/session-manager';
 export type { AttachmentStore, StoredAttachment } from './runtime/attachment-store';
 export type { AcpRuntimeDeps, AcpStartInput, ResolveAcpProvider } from './runtime/types';
-export { createAcpConnectionSource, makeAcpConnectionKey } from './connection/source';
+export { acpConnectionCacheKey, createAcpConnectionSource, makeAcpConnectionKey } from './connection/source';
 export type {
   AcpConnectionContext,
   AcpConnectionEntry,
+  AcpConnectionKey,
   AcpConnectionSource,
-  AcquireAcpConnectionInput,
 } from './connection/source';
 export { buildAgentClient } from './agent-ports/agent-client';
 export { SessionCell } from './session/cell';

@@ -1,7 +1,7 @@
 import type { ContentKey, FsError, TreeKey } from '@emdash/core/files';
 import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
-import { createManagedSource, type ManagedSource } from '@emdash/wire/util';
+import { createResourceCache, type ResourceCache } from '@emdash/wire/util';
 import { FsException } from '../api/errors';
 import { ContentResource } from '../content/content-resource';
 import { RootResource, type RootChange } from '../root/root-resource';
@@ -25,17 +25,17 @@ export type FilesAllocationGraphOptions = {
 };
 
 export class FilesAllocationGraph {
-  private readonly roots: ManagedSource<RootIdentity, RootResource>;
-  private readonly trees: ManagedSource<TreeIdentity, TreeResource>;
-  private readonly contents: ManagedSource<ContentIdentity, ContentResource>;
+  private readonly roots: ResourceCache<RootIdentity, RootResource>;
+  private readonly trees: ResourceCache<TreeIdentity, TreeResource>;
+  private readonly contents: ResourceCache<ContentIdentity, ContentResource>;
   private disposed = false;
 
   constructor(options: FilesAllocationGraphOptions) {
-    const graceMs = options.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
+    const idleTtlMs = options.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
     const onError = options.onError ?? (() => {});
-    this.roots = createManagedSource({
+    this.roots = createResourceCache({
       key: (identity: RootIdentity) => identity.rootId,
-      graceMs,
+      idleTtlMs,
       onError: (error, id) => onError(`files root ${id}`, error),
       create: async (identity, scope) => {
         const resource = await RootResource.create({ identity, watcher: options.watcher });
@@ -43,9 +43,9 @@ export class FilesAllocationGraph {
         return resource;
       },
     });
-    this.trees = createManagedSource({
+    this.trees = createResourceCache({
       key: (identity: TreeIdentity) => identity.treeId,
-      graceMs,
+      idleTtlMs,
       onError: (error, id) => onError(`files tree ${id}`, error),
       create: async (identity, scope) => {
         const rootLease = this.roots.acquire(identity.root);
@@ -59,9 +59,9 @@ export class FilesAllocationGraph {
         return resource;
       },
     });
-    this.contents = createManagedSource({
+    this.contents = createResourceCache({
       key: (identity: ContentIdentity) => identity.contentId,
-      graceMs,
+      idleTtlMs,
       onError: (error, id) => onError(`files content ${id}`, error),
       create: async (identity, scope) => {
         const rootLease = this.roots.acquire(identity.root);

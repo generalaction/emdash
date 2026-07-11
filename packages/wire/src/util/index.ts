@@ -1,6 +1,6 @@
 export { deduplicateRequests, type DeduplicateRequestsOptions } from './deduplicate-requests';
+export { createAsyncCache, type AsyncCache, type CreateAsyncCacheOptions } from './async-cache';
 export {
-  acquireAsResult,
   createManagedSource,
   type CreateManagedSourceOptions,
   type CreateManagedSourceWithContextOptions,
@@ -19,3 +19,14 @@ export {
   type ScopeDescription,
   type ScopeState,
 } from './scope';
+export {
+  acquireResourceAsResult,
+  createResourceCache,
+  type CreateResourceCacheOptions,
+  type ResourceCache,
+} from './resource-cache';
+export {
+  createSharedResource,
+  type CreateSharedResourceOptions,
+  type SharedResource,
+} from './shared-resource';

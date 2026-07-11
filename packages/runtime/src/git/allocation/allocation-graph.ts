@@ -3,7 +3,7 @@ import type { CheckoutSelector, GitResolutionError, RepositorySelector } from '@
 import { KeyedMutex } from '@emdash/core/lib';
 import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
-import { createManagedSource, type ManagedSource } from '@emdash/wire/util';
+import { createResourceCache, type ResourceCache } from '@emdash/wire/util';
 import { CheckoutResource } from '../checkout/checkout-resource';
 import { GitCheckout } from '../checkout/git-checkout';
 import { bindGitDir } from '../exec/git-exec';
@@ -41,8 +41,8 @@ export class GitResolutionException extends Error {
 export class GitAllocationGraph {
   private readonly resolver: GitIdentityResolver;
   private readonly ownsResolver: boolean;
-  private readonly repositories: ManagedSource<RepositoryIdentity, RepositoryResource>;
-  private readonly checkouts: ManagedSource<CheckoutIdentity, CheckoutResource>;
+  private readonly repositories: ResourceCache<RepositoryIdentity, RepositoryResource>;
+  private readonly checkouts: ResourceCache<CheckoutIdentity, CheckoutResource>;
   private disposed = false;
 
   constructor(private readonly options: GitAllocationGraphOptions) {
@@ -54,9 +54,9 @@ export class GitAllocationGraph {
       options.identityResolver ??
       new CanonicalGitIdentityResolver({ exec: options.exec, aliasTtlMs: options.aliasTtlMs });
 
-    this.repositories = createManagedSource({
+    this.repositories = createResourceCache({
       key: (identity: RepositoryIdentity) => identity.repositoryId,
-      graceMs: idleTtlMs,
+      idleTtlMs,
       onError: (error, id) => onError(`git repository ${id}`, error),
       create: async (identity, scope) => {
         const commands = new GitRepository({
@@ -75,9 +75,9 @@ export class GitAllocationGraph {
       },
     });
 
-    this.checkouts = createManagedSource({
+    this.checkouts = createResourceCache({
       key: (identity: CheckoutIdentity) => identity.checkoutId,
-      graceMs: idleTtlMs,
+      idleTtlMs,
       onError: (error, id) => onError(`git checkout ${id}`, error),
       create: async (identity, scope) => {
         const repositoryLease = this.repositories.acquire(repositoryIdentityOf(identity));
