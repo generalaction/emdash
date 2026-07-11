@@ -1,6 +1,16 @@
 export { deduplicateRequests, type DeduplicateRequestsOptions } from './deduplicate-requests';
 export { createAsyncCache, type AsyncCache, type CreateAsyncCacheOptions } from './async-cache';
 export {
+  createMailbox,
+  MailboxClosedError,
+  MailboxConsumerError,
+  type CreateMailboxOptions,
+  type Mailbox,
+  type MailboxOfferResult,
+  type MailboxOverflow,
+  type MailboxState,
+} from './mailbox';
+export {
   createManagedSource,
   type CreateManagedSourceOptions,
   type CreateManagedSourceWithContextOptions,

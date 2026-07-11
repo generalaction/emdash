@@ -69,6 +69,7 @@
     "example:event-stream": "tsx examples/event-stream/client.ts",
     "example:live-job": "tsx examples/live-job/client.ts",
     "example:scope": "tsx examples/scope/client.ts",
+    "example:mailbox": "tsx examples/mailbox/client.ts",
     "example:resource-cache": "tsx examples/resource-cache/client.ts",
     "example:cancellation": "tsx examples/cancellation/client.ts",
     "example:contract": "tsx examples/contract/client.ts",

@@ -1,3 +1,4 @@
+import { createMailbox, MailboxClosedError } from '../util/mailbox';
 import { WireError, type WireFileMeta, type WireTransport } from './protocol';
 
 export const BLOB_CHUNK_SIZE = 64 * 1024;
@@ -160,13 +161,10 @@ export function createBlobConsumer(options: {
   maxSize?: number;
   onMaxSizeExceeded?: () => void;
 }): BlobConsumer {
-  const queue: Uint8Array[] = [];
-  const waiters: Array<() => void> = [];
+  const chunks = createMailbox<Uint8Array>({ capacity: BLOB_MAX_CREDIT, overflow: 'reject' });
   let expectedSeq = 0;
   let receivedBytes = 0;
-  let done = false;
   let cancelled = false;
-  let error: Error | undefined;
   let started = false;
   let consumedSincePull = 0;
 
@@ -176,10 +174,6 @@ export function createBlobConsumer(options: {
     } catch {
       fail(new WireError('DISCONNECTED', 'Wire transport disconnected'));
     }
-  }
-
-  function notify(): void {
-    for (const waiter of waiters.splice(0)) waiter();
   }
 
   function requestInitialCredit(): void {
@@ -196,7 +190,7 @@ export function createBlobConsumer(options: {
   }
 
   function push(seq: number, data: Uint8Array): void {
-    if (cancelled || done || error) return;
+    if (cancelled || chunks.state !== 'open') return;
     if (seq !== expectedSeq) {
       fail(
         new WireError(
@@ -213,49 +207,46 @@ export function createBlobConsumer(options: {
       fail(new WireError('HANDLER_ERROR', 'Blob exceeded maximum size'));
       return;
     }
-    queue.push(copyBytes(data));
-    notify();
+    const result = chunks.tryOffer(copyBytes(data));
+    if (result.kind !== 'accepted') {
+      fail(new WireError('HANDLER_ERROR', `Blob channel '${options.channel}' exceeded credit`));
+    }
   }
 
   function end(): void {
-    if (cancelled || done || error) return;
-    done = true;
-    notify();
+    if (cancelled || chunks.state !== 'open') return;
+    chunks.close();
   }
 
   function fail(nextError: Error): void {
-    if (cancelled || done || error) return;
-    error = nextError;
-    notify();
+    if (cancelled || chunks.state !== 'open') return;
+    chunks.fail(nextError);
   }
 
   function cancel(): void {
     if (cancelled) return;
     cancelled = true;
-    queue.length = 0;
+    chunks.dispose();
     safePost({ kind: 'blob-close', channel: options.channel });
-    notify();
   }
 
   async function* stream(): AsyncIterable<Uint8Array> {
     requestInitialCredit();
     try {
       for (;;) {
-        if (queue.length > 0) {
-          const chunk = queue.shift();
-          if (chunk) {
-            topUp();
-            yield chunk;
-          }
-          continue;
+        let chunk: Uint8Array;
+        try {
+          chunk = await chunks.take();
+        } catch (error) {
+          if (cancelled) throw new WireError('CANCELLED', 'Blob stream cancelled');
+          if (error instanceof MailboxClosedError) return;
+          throw error;
         }
-        if (error) throw error;
-        if (done) return;
-        if (cancelled) throw new WireError('CANCELLED', 'Blob stream cancelled');
-        await new Promise<void>((resolve) => waiters.push(resolve));
+        topUp();
+        yield chunk;
       }
     } finally {
-      if (!done && !error && !cancelled) cancel();
+      if (chunks.state === 'open' && !cancelled) cancel();
     }
   }
 

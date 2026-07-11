@@ -129,7 +129,10 @@ const transport = reconnectingTransport(
 
 Messages posted while no inner transport is connected are queued. When an inner
 transport disconnects, listeners are notified and reconnection starts. The queue
-is bounded with drop-oldest semantics; `maxQueuedMessages` defaults to `1000`.
+uses the shared bounded-buffer core with drop-oldest semantics;
+`maxQueuedMessages` defaults to `1000`. Blob-channel frames are never queued
+across reconnects because stale credit, chunks, or close frames cannot be safely
+replayed.
 
 `onReconnect` fires after a replacement inner transport is connected and queued
 messages are flushed. `Connection` listens for that signal and re-issues active

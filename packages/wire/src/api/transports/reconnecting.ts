@@ -1,4 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
+import { createBoundedBuffer } from '../../util/bounded-buffer';
 import type { WireMessage, WireTransport } from '../protocol';
 
 export type ReconnectingTransportOptions = {
@@ -18,9 +19,12 @@ export function reconnectingTransport(
   const messageListeners = new Set<(message: WireMessage) => void>();
   const disconnectListeners = new Set<() => void>();
   const reconnectListeners = new Set<() => void>();
-  const queue: WireMessage[] = [];
   const backoffMs = options.backoffMs ?? [100, 250, 500, 1000, 2000];
   const maxQueuedMessages = Math.max(0, options.maxQueuedMessages ?? 1000);
+  const queue = createBoundedBuffer<WireMessage>({
+    capacity: maxQueuedMessages,
+    overflow: 'drop-oldest',
+  });
   let inner: WireTransport | null = null;
   let reconnecting = false;
   let closed = false;
@@ -81,13 +85,13 @@ export function reconnectingTransport(
   function flushQueue(): void {
     const current = inner;
     if (!current) return;
-    while (queue.length > 0) {
-      const message = queue.shift();
+    while (queue.size > 0) {
+      const message = queue.take();
       if (!message) return;
       try {
         current.post(message);
       } catch {
-        queue.unshift(message);
+        queue.requeueFront(message);
         inner = null;
         void reconnect();
         return;
@@ -97,9 +101,7 @@ export function reconnectingTransport(
 
   function enqueue(message: WireMessage): void {
     if (isBlobChannelMessage(message)) return;
-    if (maxQueuedMessages === 0) return;
-    queue.push(message);
-    while (queue.length > maxQueuedMessages) queue.shift();
+    queue.offer(message);
   }
 
   function notifyReconnect(): void {
@@ -152,7 +154,7 @@ export function reconnectingTransport(
       for (const cleanup of cleanupInner.splice(0)) cleanup();
       inner?.close?.();
       inner = null;
-      queue.length = 0;
+      queue.clear();
       messageListeners.clear();
       disconnectListeners.clear();
       reconnectListeners.clear();

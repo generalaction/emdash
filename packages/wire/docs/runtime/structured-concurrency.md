@@ -95,6 +95,26 @@ Use `ResourceCache` for keyed, ref-counted resources. Its creation runs under
 the entry scope, so invalidating an entry or disposing the parent scope cancels
 and joins in-flight creation before finalizers run.
 
+Use `Mailbox` for bounded asynchronous handoff between producers and one logical
+consumer. The mailbox owns buffering and terminal-state wakeups; run the consumer
+loop under `scope.run()` when it must not outlive the feature:
+
+```ts
+const mailbox = scope.use(createMailbox<Message>({ capacity: 128 }));
+
+scope.run('drain messages', async () => {
+  for await (const message of mailbox) {
+    await handleMessage(message);
+  }
+});
+```
+
+`Broadcast<T>` is documented as a future local fan-out primitive for multiple
+asynchronous consumers with independent backpressure. Do not use Mailbox or
+Broadcast to replace live-state snapshots, retained logs, event streams, replica
+cursors, or reconnect attachment logic; those protocols carry generation,
+sequence, retention, or resync semantics.
+
 Do not use `run()` as:
 
 - a mutex or serialization primitive;

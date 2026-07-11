@@ -7,6 +7,7 @@ from `@emdash/wire/util`.
 - `ResourceCache` turns keyed demand into retained resources with ref-counted leases.
 - `SharedResource` is the unkeyed form for one lazily created resource.
 - `AsyncCache` caches async values that do not have finalizers.
+- `Mailbox` is a bounded async handoff queue for one logical consumer.
 
 They do not define wire messages and can run in browser, renderer, main process,
 or tests.
@@ -123,6 +124,28 @@ renderer bindings, and async setup. Use `add()` or `use()` for finalizers. Use
 
 For the full lifecycle model and invariants, see
 [Structured concurrency](./structured-concurrency.md).
+
+## Mailbox Ownership
+
+Use `Mailbox` when local producers and one consumer need an explicit bounded
+handoff. Register it with the owning scope, then run the consumer loop under the
+same scope:
+
+```ts
+import { createMailbox } from '@emdash/wire/util';
+
+const mailbox = sessionScope.use(createMailbox<Event>({ capacity: 256 }));
+
+sessionScope.run('drain-events', async () => {
+  for await (const event of mailbox) {
+    await handleEvent(event);
+  }
+});
+```
+
+Disposing `sessionScope` disposes the mailbox and unblocks pending producers or
+consumers. For state machines, overflow guarantees, and the deferred Broadcast
+contract, see [Mailbox and Broadcast](./mailbox-and-broadcast.md).
 
 ## Child Scopes
 

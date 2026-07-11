@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Emitter } from './emitter';
 
 describe('Emitter', () => {
@@ -45,5 +45,51 @@ describe('Emitter', () => {
 
     expect(seen).toEqual([]);
     expect(emitter.size).toBe(0);
+  });
+
+  it('isolates subscriber failures and continues delivery', () => {
+    const error = new Error('boom');
+    const onSubscriberError = vi.fn();
+    const emitter = new Emitter<number>({ onSubscriberError });
+    const seen: number[] = [];
+    emitter.subscribe(() => {
+      throw error;
+    });
+    emitter.subscribe((value) => seen.push(value));
+
+    expect(() => emitter.emit(1)).not.toThrow();
+
+    expect(seen).toEqual([1]);
+    expect(onSubscriberError).toHaveBeenCalledWith({ error });
+  });
+
+  it('does not expose emitted values to the subscriber error reporter', () => {
+    const onSubscriberError = vi.fn();
+    const emitter = new Emitter<{ secret: string }>({ onSubscriberError });
+    emitter.subscribe(() => {
+      throw new Error('boom');
+    });
+
+    emitter.emit({ secret: 'do-not-report' });
+
+    expect(onSubscriberError).toHaveBeenCalledTimes(1);
+    expect(onSubscriberError.mock.calls[0]?.[0]).not.toHaveProperty('value');
+  });
+
+  it('isolates subscriber error reporter failures', () => {
+    const emitter = new Emitter<number>({
+      onSubscriberError() {
+        throw new Error('report failed');
+      },
+    });
+    const seen: number[] = [];
+    emitter.subscribe(() => {
+      throw new Error('boom');
+    });
+    emitter.subscribe((value) => seen.push(value));
+
+    expect(() => emitter.emit(1)).not.toThrow();
+
+    expect(seen).toEqual([1]);
   });
 });

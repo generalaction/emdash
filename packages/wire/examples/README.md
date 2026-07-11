@@ -16,6 +16,7 @@ pnpm --filter @emdash/wire run example:live-state
 pnpm --filter @emdash/wire run example:batched-state
 pnpm --filter @emdash/wire run example:live-log
 pnpm --filter @emdash/wire run example:live-job
+pnpm --filter @emdash/wire run example:mailbox
 pnpm --filter @emdash/wire run example:cancellation
 pnpm --filter @emdash/wire run example:contract
 pnpm --filter @emdash/wire run example:api-definition
@@ -41,6 +42,8 @@ Examples:
   with retained tail snapshots.
 - `live-job/` demonstrates progress, terminal state, result promises, and
   cancellation errors.
+- `mailbox/` demonstrates bounded local producer/consumer handoff, graceful close,
+  and explicit overflow.
 - `cancellation/` demonstrates procedure cancellation with `AbortSignal` and
   server-side abort on disconnect.
 - `contract/` demonstrates the full API flow in one file: contract definition,

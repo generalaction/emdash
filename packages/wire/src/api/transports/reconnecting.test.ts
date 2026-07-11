@@ -60,6 +60,47 @@ describe('reconnectingTransport', () => {
     transport.close();
   });
 
+  it('drops queued messages when maxQueuedMessages is zero', async () => {
+    const connected = deferred<WireTransport>();
+    const transport = reconnectingTransport(() => connected.promise, { maxQueuedMessages: 0 });
+    const inner = new FakeTransport();
+
+    transport.post({ kind: 'detach', topic: 'dropped' });
+    connected.resolve(inner);
+
+    await vi.waitFor(() => expect(inner.disconnectSubscriberCount).toBe(1));
+    expect(inner.sent).toEqual([]);
+
+    transport.post({ kind: 'cancel', id: 'after-connect' });
+    expect(inner.sent).toEqual([{ kind: 'cancel', id: 'after-connect' }]);
+    transport.close();
+  });
+
+  it('restores a failed flush message at the front of the queue', async () => {
+    const firstReady = deferred<WireTransport>();
+    const secondReady = deferred<WireTransport>();
+    const first = new FakeTransport();
+    const second = new FakeTransport();
+    first.failPostCount = 1;
+    const transport = reconnectingTransport(() =>
+      firstReady.settled ? secondReady.promise : firstReady.promise
+    );
+
+    transport.post({ kind: 'detach', topic: 'first' });
+    transport.post({ kind: 'cancel', id: 'second' });
+    firstReady.resolve(first);
+    await vi.waitFor(() => expect(first.failPostCount).toBe(0));
+    secondReady.resolve(second);
+
+    await vi.waitFor(() =>
+      expect(second.sent).toEqual([
+        { kind: 'detach', topic: 'first' },
+        { kind: 'cancel', id: 'second' },
+      ])
+    );
+    transport.close();
+  });
+
   it('fires reconnect only for replacement connections after queued messages flush', async () => {
     const firstReady = deferred<WireTransport>();
     const secondReady = deferred<WireTransport>();
@@ -132,6 +173,7 @@ describe('reconnectingTransport', () => {
 
 class FakeTransport implements WireTransport {
   readonly sent: WireMessage[] = [];
+  failPostCount = 0;
   private readonly messageListeners = new Set<(message: WireMessage) => void>();
   private readonly disconnectListeners = new Set<() => void>();
   private closed = false;
@@ -142,6 +184,10 @@ class FakeTransport implements WireTransport {
 
   post(message: WireMessage): void {
     if (this.closed) throw new Error('Fake transport closed');
+    if (this.failPostCount > 0) {
+      this.failPostCount -= 1;
+      throw new Error('Fake transport post failed');
+    }
     this.sent.push(message);
   }
 

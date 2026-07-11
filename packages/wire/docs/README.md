@@ -10,6 +10,7 @@ The package has four layers:
 flowchart TB
   subgraph runtime [Runtime utilities]
     scope[Scope and ResourceCache]
+    mailbox[Mailbox]
     processHost[ProcessHost supervision]
   end
   subgraph api [API layer]
@@ -82,6 +83,9 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     run cancellation, lifecycle invariants, and diagnostics.
   - [Resource caches](./runtime/resource-cache.md): `ResourceCache`,
     `SharedResource`, `AsyncCache`, identity rules, and lease behavior.
+  - [Mailbox and Broadcast](./runtime/mailbox-and-broadcast.md): bounded local
+    async handoff, overflow policy, guarantees, and the deferred Broadcast
+    contract.
   - [ProcessHost](./runtime/process-host.md): supervised child/utility processes
     and process-backed wire transports.
   - [Process runtimes](./runtime/process-runtimes.md): subprocess-hosted
@@ -110,8 +114,8 @@ Use narrower subpath exports at app boundaries:
 - `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
   controller logging middleware.
 - `@emdash/wire/util`: dependency-free utilities: `Scope`, `Run`,
-  `ResourceCache`, `SharedResource`, `AsyncCache`, deprecated `ManagedSource`,
-  and `deduplicateRequests`.
+  `Mailbox`, `ResourceCache`, `SharedResource`, `AsyncCache`, deprecated
+  `ManagedSource`, and `deduplicateRequests`.
 - `@emdash/wire/util/mobx`: MobX-backed replica stores
   (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)
   and optimistic group utilities.
