@@ -1,0 +1,35 @@
+apps/emdash-desktop/src/shared/commands.ts
+  s_e2c2f4b38b0630::t_343e7617971b45 269
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-list.tsx
+  s_e2c2f4b38b0630::t_343e7617971b45 111
+apps/emdash-desktop/src/renderer/features/tasks/delete-task-modal.tsx
+  s_7df5d6fc606872::t_470170e52dd5b6 70-71
+  s_e2c2f4b38b0630::t_343e7617971b45 109-115,136-140
+  s_e2c2f4b38b0630::t_26b0152b72169a 141
+apps/emdash-desktop/src/renderer/features/tasks/components/task-context-menu.tsx
+  s_e2c2f4b38b0630::t_343e7617971b45 93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "0fafcd7d8599e01886834ec3d36f1ed0a1807e57",
+  "prompts": {},
+  "sessions": {
+    "s_7df5d6fc606872": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033nR0C6juM7mQgrpGvbUN",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e2c2f4b38b0630": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033nQzG9QWacQxVgp2r2LG",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
