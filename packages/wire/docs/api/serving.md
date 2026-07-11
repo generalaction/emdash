@@ -295,6 +295,9 @@ See [../../examples/multi-window/client.ts](../../examples/multi-window/client.t
 
 ## Server-Side Call Helpers
 
+For the full middleware pattern, including handler middleware versus controller
+middleware, see [composable middleware](./middleware.md).
+
 `compose(target, middlewares)` applies target-first middleware arrays to handlers
 or controllers. The first array entry is outermost: it sees the request first and
 settles last.
@@ -320,14 +323,17 @@ shape. Procedure handlers receive `(input, meta)` and middleware should preserve
 all `meta` fields while deriving a replacement `meta.signal` when it needs
 cooperative cancellation.
 
-`deduplicateRequests(fn, options?)` wraps procedure implementations to share one
-in-flight promise for identical inputs:
+`deduplicate(options?)` wraps procedure implementations to share one in-flight
+promise for identical inputs:
 
 ```ts
 const controller = createController(api, {
-  expensiveStats: deduplicateRequests(async (input) => {
-    return await loadStats(input.repo, input.branch);
-  }),
+  expensiveStats: compose(
+    async (input, meta) => {
+      return await loadStats(input.repo, input.branch, { signal: meta.signal });
+    },
+    [deduplicate({ key: (input) => `${input.repo}:${input.branch}` })]
+  ),
 });
 ```
 
@@ -339,7 +345,6 @@ Behavior:
 - Rejections are not cached.
 - `meta.signal` is not part of the key and shared execution is not aborted by
   one caller.
-- `deduplicate(options?)` exposes the same behavior as `compose()` middleware.
 - Do not wrap mutations; mutation idempotency is handled by `mutationId`.
 
 See [../../examples/dedupe/server.ts](../../examples/dedupe/server.ts).

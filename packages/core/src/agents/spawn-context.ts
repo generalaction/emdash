@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { deduplicateRequests } from '@emdash/wire/util';
+import { compose, deduplicate } from '@emdash/wire/util';
 import { buildAllowlistedAgentEnv } from './agent-env';
 
 export type SpawnContext = {
@@ -29,11 +29,11 @@ export function createSpawnContextResolver(
 ): SpawnContextResolver {
   const cliCache = new Map<string, string>();
   let generation = 0;
-  const resolveCliOnce = deduplicateRequests(
+  const resolveCliOnce = compose(
     async (input: {
       providerId: string;
       generation: number;
-    }): Promise<Result<string, SpawnContextError>> => {
+    }, _context: { signal?: AbortSignal }): Promise<Result<string, SpawnContextError>> => {
       try {
         const cli = await options.resolveCli(input.providerId);
         if (input.generation === generation) cliCache.set(input.providerId, cli);
@@ -46,7 +46,7 @@ export function createSpawnContextResolver(
         } satisfies SpawnContextError);
       }
     },
-    { key: (input) => `${input.providerId}:${input.generation}` }
+    [deduplicate({ key: (input) => `${input.providerId}:${input.generation}` })]
   );
 
   const resolve = async (providerId: string): Promise<Result<SpawnContext, SpawnContextError>> => {
@@ -57,7 +57,7 @@ export function createSpawnContextResolver(
     const cachedCli = cliCache.get(providerId);
     if (cachedCli) return ok({ cli: cachedCli, agentEnv: buildAgentEnv() });
 
-    const cliResult = await resolveCliOnce({ providerId, generation });
+    const cliResult = await resolveCliOnce({ providerId, generation }, {});
     if (!cliResult.success) return cliResult;
     return ok({ cli: cliResult.data, agentEnv: buildAgentEnv() });
   };

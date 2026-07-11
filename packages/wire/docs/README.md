@@ -54,6 +54,9 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Serving and clients](./api/serving.md): `createController()`, `serve()`,
     `connect()`, cancellation, controller composition, session hubs, and
     server-side call helpers.
+  - [Composable middleware](./api/middleware.md): target-first `compose()`,
+    handler middleware, controller middleware, timeout, retry, and
+    deduplication.
   - [Typed clients](./api/clients.md): `ContractClient` handles,
     `forwardController()`, and selective forwarding through `createController()`.
   - [File endpoints](./api/files.md): `downloadFile()`, `uploadFile()`, blob
@@ -121,7 +124,7 @@ Use narrower subpath exports at app boundaries:
   and `retry()`.
 - `@emdash/wire/util`: dependency-free utilities: `Scope`, `Run`,
   `Mailbox`, `ResourceCache`, `SharedResource`, `AsyncCache`, deprecated
-  `ManagedSource`, `compose()`, and `deduplicateRequests`.
+  `ManagedSource`, `compose()`, and `deduplicate()`.
 - `@emdash/wire/util/mobx`: MobX-backed replica stores
   (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)
   and optimistic group utilities.

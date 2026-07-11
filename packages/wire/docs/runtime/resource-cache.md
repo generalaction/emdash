@@ -11,7 +11,7 @@ primitives for shared lifetimes and cached async values.
   semantics: a lazy worker, singleton client, or shared runtime helper.
 - Use `AsyncCache<K, T>` for data without finalizers: auth status probes,
   metadata lookups, or other retryable reads.
-- Use `deduplicateRequests()` only when you want in-flight sharing without
+- Use `deduplicate()` middleware only when you want in-flight sharing without
   retaining successful values.
 
 ## Resource Identity

@@ -1,75 +1,102 @@
 import { describe, expect, it, vi } from 'vitest';
 import { deferred } from '../testing';
 import { compose } from './compose';
-import { deduplicate, deduplicateRequests } from './deduplicate-requests';
+import { deduplicate } from './deduplicate';
 
-describe('deduplicateRequests', () => {
+describe('deduplicate', () => {
   it('shares one in-flight execution for identical inputs', async () => {
     const gate = deferred<number>();
-    const handler = vi.fn(async () => gate.promise);
-    const deduped = deduplicateRequests(handler);
+    const spy = vi.fn();
+    const handler = async (_input: { id: string }, _meta: { signal?: AbortSignal }) => {
+      spy();
+      return await gate.promise;
+    };
+    const deduped = compose(handler, [deduplicate()]);
 
-    const first = deduped({ id: 'same' });
-    const second = deduped({ id: 'same' });
+    const first = deduped({ id: 'same' }, {});
+    const second = deduped({ id: 'same' }, {});
 
-    expect(handler).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledTimes(1);
     gate.resolve(42);
     await expect(first).resolves.toBe(42);
     await expect(second).resolves.toBe(42);
   });
 
   it('uses stable JSON identity for object keys', async () => {
-    const handler = vi.fn(async () => 'ok');
-    const deduped = deduplicateRequests(handler);
+    const spy = vi.fn();
+    const handler = async (_input: { a?: number; b?: number }, _meta: { signal?: AbortSignal }) => {
+      spy();
+      return 'ok';
+    };
+    const deduped = compose(handler, [deduplicate()]);
 
-    const first = deduped({ a: 1, b: 2 });
-    const second = deduped({ b: 2, a: 1 });
+    const first = deduped({ a: 1, b: 2 }, {});
+    const second = deduped({ b: 2, a: 1 }, {});
 
     await expect(first).resolves.toBe('ok');
     await expect(second).resolves.toBe('ok');
-    expect(handler).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('does not deduplicate different inputs', async () => {
-    const handler = vi.fn(async (input: { id: string }) => input.id);
-    const deduped = deduplicateRequests(handler);
+    const spy = vi.fn();
+    const handler = async (input: { id: string }, _meta: { signal?: AbortSignal }) => {
+      spy();
+      return input.id;
+    };
+    const deduped = compose(handler, [deduplicate()]);
 
-    await expect(Promise.all([deduped({ id: 'a' }), deduped({ id: 'b' })])).resolves.toEqual([
-      'a',
-      'b',
-    ]);
-    expect(handler).toHaveBeenCalledTimes(2);
+    await expect(
+      Promise.all([deduped({ id: 'a' }, {}), deduped({ id: 'b' }, {})])
+    ).resolves.toEqual(['a', 'b']);
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 
   it('does not cache rejections', async () => {
-    const handler = vi
-      .fn<() => Promise<string>>()
-      .mockRejectedValueOnce(new Error('boom'))
-      .mockResolvedValueOnce('ok');
-    const deduped = deduplicateRequests(handler);
+    const spy = vi.fn();
+    const handler = async (_input: { id: string }, _meta: { signal?: AbortSignal }) => {
+      spy();
+      if (spy.mock.calls.length === 1) throw new Error('boom');
+      return 'ok';
+    };
+    const deduped = compose(handler, [deduplicate()]);
 
-    await expect(deduped({ id: 'same' })).rejects.toThrow('boom');
-    await expect(deduped({ id: 'same' })).resolves.toBe('ok');
-    expect(handler).toHaveBeenCalledTimes(2);
+    await expect(deduped({ id: 'same' }, {})).rejects.toThrow('boom');
+    await expect(deduped({ id: 'same' }, {})).resolves.toBe('ok');
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 
   it('supports custom keys', async () => {
-    const handler = vi.fn(async (input: { id: string; version: number }) => input.id);
-    const deduped = deduplicateRequests(handler, { key: (input) => input.id });
+    const spy = vi.fn();
+    const handler = async (
+      input: { id: string; version: number },
+      _meta: { signal?: AbortSignal }
+    ) => {
+      spy();
+      return input.id;
+    };
+    const deduped = compose(handler, [deduplicate({ key: (input) => input.id })]);
 
     await expect(
-      Promise.all([deduped({ id: 'same', version: 1 }), deduped({ id: 'same', version: 2 })])
+      Promise.all([
+        deduped({ id: 'same', version: 1 }, {}),
+        deduped({ id: 'same', version: 2 }, {}),
+      ])
     ).resolves.toEqual(['same', 'same']);
-    expect(handler).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('re-executes after a completed in-flight request clears', async () => {
-    const handler = vi.fn(async (input: { id: string }) => input.id);
-    const deduped = deduplicateRequests(handler);
+    const spy = vi.fn();
+    const handler = async (input: { id: string }, _meta: { signal?: AbortSignal }) => {
+      spy();
+      return input.id;
+    };
+    const deduped = compose(handler, [deduplicate()]);
 
-    await expect(deduped({ id: 'same' })).resolves.toBe('same');
-    await expect(deduped({ id: 'same' })).resolves.toBe('same');
-    expect(handler).toHaveBeenCalledTimes(2);
+    await expect(deduped({ id: 'same' }, {})).resolves.toBe('same');
+    await expect(deduped({ id: 'same' }, {})).resolves.toBe('same');
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 
   it('can be used as compose middleware', async () => {

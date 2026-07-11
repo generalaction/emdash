@@ -1,8 +1,7 @@
-import type { CallMeta } from '../api/controller';
 import { stableStringify } from '../live/mutations';
 import { abortReason } from '../scheduling';
 
-export type DeduplicateRequestsOptions<I> = {
+export type DeduplicateOptions<I> = {
   key?: (input: I) => string;
   cancelWhenUnused?: boolean;
 };
@@ -20,22 +19,13 @@ type Entry<O> = {
   waiters: number;
 };
 
-export function deduplicateRequests<I, O>(
-  fn: (input: I, meta?: CallMeta) => Promise<O> | O,
-  options: DeduplicateRequestsOptions<I> = {}
-): (input: I, meta?: CallMeta) => Promise<O> {
-  const middleware = deduplicate<I>(options);
-  const handler = middleware(async (input: I, meta: CallMeta) => await fn(input, meta));
-  return (input, meta) => handler(input, meta ?? {});
-}
-
 export function deduplicate(): <I, O, C extends SignalContext>(
   next: SignalHandler<I, O, C>
 ) => SignalHandler<I, O, C>;
 export function deduplicate<I>(
-  options: DeduplicateRequestsOptions<I>
+  options: DeduplicateOptions<I>
 ): <O, C extends SignalContext>(next: SignalHandler<I, O, C>) => SignalHandler<I, O, C>;
-export function deduplicate<I>(options: DeduplicateRequestsOptions<I> = {}) {
+export function deduplicate<I>(options: DeduplicateOptions<I> = {}) {
   return function <O, C extends SignalContext>(
     next: SignalHandler<I, O, C>
   ): SignalHandler<I, O, C> {
