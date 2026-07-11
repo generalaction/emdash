@@ -91,6 +91,9 @@ type ActiveRecord = {
   actionTail: Promise<void>;
   replays: Map<string, ReplayEntry>;
   closePromise?: Promise<LoopBrowserClosedMessage>;
+  reconcilePromise?: Promise<NativeBrowserResult<NativeBrowserReconcileResult>>;
+  reconcileAbort?: AbortController;
+  reconcileCancelled: boolean;
 };
 
 type PreviewSelection = { server: PreviewServer; url: string };
@@ -99,6 +102,7 @@ const MAX_ACTION_REPLAYS = 256;
 
 export class NativeBrowserVerificationService {
   private readonly active = new Map<string, ActiveRecord>();
+  private readonly starting = new Set<string>();
   private readonly completedClose = new Map<string, LoopBrowserClosedMessage>();
   private readonly previewServers: {
     listForWorkspace(input: { projectId: string; workspaceId: string }): PreviewServer[];
@@ -152,19 +156,35 @@ export class NativeBrowserVerificationService {
     input: NativeBrowserVerificationStartInput
   ): Promise<NativeBrowserResult<NativeBrowserVerificationSession>> {
     if (input.signal?.aborted) return failure('cancelled', 'Browser verification was cancelled');
-    if (this.active.has(input.verificationRunId)) {
+    if (this.active.has(input.verificationRunId) || this.starting.has(input.verificationRunId)) {
       return failure('session-collision', 'Browser verification run is already active');
     }
+    this.starting.add(input.verificationRunId);
+    try {
+      return await this.startReserved(input);
+    } finally {
+      this.starting.delete(input.verificationRunId);
+    }
+  }
 
+  private async startReserved(
+    input: NativeBrowserVerificationStartInput
+  ): Promise<NativeBrowserResult<NativeBrowserVerificationSession>> {
     const selection = await this.waitForPreview(input);
     if (!selection.success) return selection;
 
     const lease = this.createLease(input, selection.data.url);
-    if (this.configurePartition(lease.partition, lease.allowedPreviewOrigin) === false) {
-      return failure('session-collision', 'Browser verification partition is already owned');
-    }
     if (!this.registry.registerVerificationSession(lease)) {
       return failure('session-collision', 'Browser verification identity is already owned');
+    }
+    try {
+      if (this.configurePartition(lease.partition, lease.allowedPreviewOrigin) === false) {
+        await this.registry.forceCleanupVerificationSession(lease);
+        return failure('session-collision', 'Browser verification partition is already owned');
+      }
+    } catch {
+      await this.registry.forceCleanupVerificationSession(lease);
+      return failure('session-collision', 'Browser verification partition could not be configured');
     }
 
     const session: NativeBrowserVerificationSession = {
@@ -177,6 +197,7 @@ export class NativeBrowserVerificationService {
       state: 'preparing',
       actionTail: Promise.resolve(),
       replays: new Map(),
+      reconcileCancelled: false,
     };
     this.active.set(lease.verificationRunId, record);
 
@@ -226,7 +247,11 @@ export class NativeBrowserVerificationService {
       }
       return await replay.promise;
     }
+    if (record.replays.size >= MAX_ACTION_REPLAYS) {
+      return actionFailure('invalid-action', 'Browser action replay limit was reached');
+    }
 
+    const actionLease = record.session.lease;
     const promise = record.actionTail.then(async () => {
       if (record.state !== 'ready') {
         return actionFailure('lease-closed', 'Browser verification lease is closed');
@@ -241,6 +266,9 @@ export class NativeBrowserVerificationService {
       } catch {
         execution = actionFailure('action-failed', 'Browser action failed');
       }
+      if (record.state !== 'ready' || !sameLease(record.session.lease, actionLease)) {
+        return actionFailure('lease-closed', 'Browser verification lease is closed');
+      }
       this.transport.emitResult({
         type: 'result',
         ...record.session.lease,
@@ -253,10 +281,12 @@ export class NativeBrowserVerificationService {
       () => undefined,
       () => undefined
     );
-    if (record.replays.size >= MAX_ACTION_REPLAYS) {
-      record.replays.delete(record.replays.keys().next().value!);
-    }
-    record.replays.set(parsed.data.actionId, { fingerprint, promise });
+    const replayEntry = { fingerprint, promise };
+    record.replays.set(parsed.data.actionId, replayEntry);
+    void promise.then((execution) => {
+      if (record.replays.get(parsed.data.actionId) !== replayEntry) return;
+      replayEntry.promise = Promise.resolve({ result: execution.result });
+    });
     return await promise;
   }
 
@@ -275,8 +305,35 @@ export class NativeBrowserVerificationService {
     if (!record || !sameLease(record.session.lease, lease)) {
       return failure('identity-mismatch', 'Browser verification lease identity does not match');
     }
+    if (record.reconcilePromise) return await record.reconcilePromise;
     if (record.state !== 'reconnecting') {
       return failure('lease-closed', 'Browser verification is not reconnecting');
+    }
+    record.reconcileCancelled = false;
+    const controller = new AbortController();
+    record.reconcileAbort = controller;
+    const promise = this.reconcileRecord(record, lease, controller.signal);
+    record.reconcilePromise = promise;
+    try {
+      return await promise;
+    } finally {
+      if (record.reconcilePromise === promise) record.reconcilePromise = undefined;
+      if (record.reconcileAbort === controller) record.reconcileAbort = undefined;
+      controller.abort();
+    }
+  }
+
+  private async reconcileRecord(
+    record: ActiveRecord,
+    lease: LoopBrowserLease,
+    signal: AbortSignal
+  ): Promise<NativeBrowserResult<NativeBrowserReconcileResult>> {
+    const drained = await waitForSettlement(record.actionTail, this.closeTimeoutMs);
+    if (!drained) {
+      return failure('preview-unavailable', 'Timed out waiting for the active browser action');
+    }
+    if (!this.isCurrentReconcile(record, lease)) {
+      return failure('lease-closed', 'Browser verification is no longer reconnecting');
     }
 
     const selected = await this.waitForPreview({
@@ -285,8 +342,12 @@ export class NativeBrowserVerificationService {
       taskId: lease.taskId,
       workspaceId: lease.workspaceId,
       previewServerId: record.session.previewServerId,
+      signal,
     });
     if (!selected.success) return selected;
+    if (!this.isCurrentReconcile(record, lease)) {
+      return failure('lease-closed', 'Browser verification lease closed while reconnecting');
+    }
 
     if (selected.data.url === record.session.previewUrl) {
       record.state = 'ready';
@@ -301,12 +362,18 @@ export class NativeBrowserVerificationService {
       if (!navigation.result.ok) {
         return failure('preview-unavailable', 'Reconnected preview could not be loaded');
       }
+      if (!this.isCurrentReconcile(record, lease)) {
+        return failure('lease-closed', 'Browser verification lease closed while reconnecting');
+      }
       record.session = { ...record.session, previewUrl: selected.data.url };
       record.state = 'ready';
       return { success: true, data: { kind: 'resumed', session: record.session } };
     }
 
-    await this.close(lease, 'origin-changed');
+    const closed = await this.close(lease, 'origin-changed');
+    if (record.reconcileCancelled || closed.reason !== 'origin-changed') {
+      return failure('lease-closed', 'Browser verification lease closed while reconnecting');
+    }
     const rotated = await this.start({
       verificationRunId: this.idFactory(),
       projectId: lease.projectId,
@@ -316,6 +383,15 @@ export class NativeBrowserVerificationService {
     });
     if (!rotated.success) return rotated;
     return { success: true, data: { kind: 'rotated', session: rotated.data } };
+  }
+
+  private isCurrentReconcile(record: ActiveRecord, lease: LoopBrowserLease): boolean {
+    return (
+      this.active.get(lease.verificationRunId) === record &&
+      record.state === 'reconnecting' &&
+      !record.reconcileCancelled &&
+      sameLease(record.session.lease, lease)
+    );
   }
 
   async close(
@@ -337,6 +413,10 @@ export class NativeBrowserVerificationService {
         this.now()
       );
     }
+    if (reason !== 'origin-changed') {
+      record.reconcileCancelled = true;
+      record.reconcileAbort?.abort();
+    }
     if (record.closePromise) return await record.closePromise;
 
     record.closePromise = this.closeRecord(record, reason);
@@ -355,9 +435,11 @@ export class NativeBrowserVerificationService {
     const { lease } = record.session;
     record.state = 'closing';
     this.registry.revokeVerificationSession(lease);
+    const actionDrain = waitForSettlement(record.actionTail, this.closeTimeoutMs);
     const closedAck = this.waitForClosed(lease, reason);
     this.transport.emitClose({ type: 'close', ...lease, reason });
-    await closedAck;
+    await Promise.all([closedAck, actionDrain]);
+    record.replays.clear();
     const cleanup = await this.registry.forceCleanupVerificationSession(lease);
     if (this.active.get(lease.verificationRunId) === record) {
       this.active.delete(lease.verificationRunId);
@@ -566,5 +648,22 @@ async function delay(ms: number, signal?: AbortSignal): Promise<void> {
     const timeout = setTimeout(finish, ms);
     signal?.addEventListener('abort', finish, { once: true });
     if (signal?.aborted) finish();
+  });
+}
+
+function waitForSettlement(promise: Promise<void>, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (completed: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(completed);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    void promise.then(
+      () => finish(true),
+      () => finish(true)
+    );
   });
 }

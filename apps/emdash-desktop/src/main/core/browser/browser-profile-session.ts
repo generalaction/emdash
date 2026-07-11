@@ -116,7 +116,11 @@ export function configureBrowserVerificationSession(
   ses.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (details, callback) => {
     const isFrameNavigation =
       details.resourceType === 'mainFrame' || details.resourceType === 'subFrame';
-    callback({ cancel: isFrameNavigation && !urlMatchesOrigin(details.url, allowedOrigin) });
+    callback({
+      cancel:
+        !hasSafeHttpCredentials(details.url) ||
+        (isFrameNavigation && !urlMatchesOrigin(details.url, allowedOrigin)),
+    });
   });
   return true;
 }
@@ -159,7 +163,17 @@ function isExactHttpOrigin(value: string): boolean {
 
 function urlMatchesOrigin(value: string, allowedOrigin: string): boolean {
   try {
-    return new URL(value).origin === allowedOrigin;
+    const url = new URL(value);
+    return url.username.length === 0 && url.password.length === 0 && url.origin === allowedOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function hasSafeHttpCredentials(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.username.length === 0 && url.password.length === 0;
   } catch {
     return false;
   }

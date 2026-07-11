@@ -39,6 +39,7 @@ const PROFILE_PARTITION = 'persist:emdash-browser-profile';
 type FakeWebContents = WebContents & {
   windowOpenHandler: Parameters<WebContents['setWindowOpenHandler']>[0] | null;
   currentUrl: string;
+  currentTitle: string;
   destroy(): void;
   emitEvent(event: string, ...args: unknown[]): void;
 };
@@ -51,11 +52,12 @@ function fakeWebContents(partition: string = PROFILE_PARTITION): FakeWebContents
     id: nextWebContentsId++,
     session: sessionFor(partition),
     currentUrl: 'https://example.com',
+    currentTitle: 'Preview',
     windowOpenHandler: null as FakeWebContents['windowOpenHandler'],
     close: vi.fn(),
     isDestroyed: () => false,
     getURL: () => fake.currentUrl,
-    getTitle: () => 'Preview',
+    getTitle: () => fake.currentTitle,
     getUserAgent: () => 'base-ua',
     setUserAgent: vi.fn(),
     openDevTools: vi.fn(),
@@ -491,6 +493,22 @@ describe('BrowserWebContentsRegistry', () => {
       expect(navigation.preventDefault).toHaveBeenCalledOnce();
     });
 
+    it('closes pending guests on revoke and rejects guests attached after revocation', () => {
+      const registry = new BrowserWebContentsRegistry();
+      expect(registry.registerVerificationSession(lease)).toBe(true);
+      const pending = fakeWebContents(lease.partition);
+      pending.currentUrl = 'http://127.0.0.1:4173/';
+
+      expect(registry.handleWebviewAttached(pending)).toBe(true);
+      expect(registry.revokeVerificationSession(lease)).toBe(true);
+      expect(pending.close).toHaveBeenCalledOnce();
+
+      const late = fakeWebContents(lease.partition);
+      late.currentUrl = 'http://127.0.0.1:4173/';
+      expect(registry.handleWebviewAttached(late)).toBe(false);
+      expect(late.close).toHaveBeenCalledOnce();
+    });
+
     it('attests ready only for the exact bound lease URL', () => {
       const registry = new BrowserWebContentsRegistry();
       registry.registerVerificationSession(lease);
@@ -540,6 +558,18 @@ describe('BrowserWebContentsRegistry', () => {
         ok: false,
         error: { kind: 'origin-rejected' },
       });
+
+      webContents.currentUrl = 'http://user:password@127.0.0.1:4173/settings';
+      const credentialsRejected = await registry.performVerificationAction(lease, {
+        kind: 'keypress',
+        key: 'Enter',
+      });
+      expect(credentialsRejected.result).toMatchObject({
+        ok: false,
+        error: { kind: 'origin-rejected' },
+      });
+      expect(JSON.stringify(credentialsRejected.result)).not.toContain('password');
+      webContents.currentUrl = 'http://127.0.0.1:4173/settings';
 
       const screenshot = await registry.performVerificationAction(lease, {
         kind: 'screenshot',
@@ -611,6 +641,7 @@ describe('BrowserWebContentsRegistry', () => {
       registry.registerVerificationSession(lease);
       const webContents = fakeWebContents(lease.partition);
       webContents.currentUrl = 'http://127.0.0.1:4173/';
+      webContents.currentTitle = 'Preview token=super-secret';
       registry.handleWebviewAttached(webContents);
       registry.bindWebContents(lease.browserId, webContents);
 
@@ -643,6 +674,31 @@ describe('BrowserWebContentsRegistry', () => {
       expect(JSON.stringify(query.result)).not.toContain('secret-name');
       expect(JSON.stringify(query.result)).not.toContain('secret-value');
       expect(JSON.stringify(query.result)).toContain('[REDACTED]');
+
+      const navigation = await registry.performVerificationAction(lease, {
+        kind: 'navigate',
+        url: 'http://127.0.0.1:4173/settings?token=super-secret#access_token=secret-fragment',
+      });
+      expect(JSON.stringify(navigation.result)).not.toContain('super-secret');
+      expect(JSON.stringify(navigation.result)).not.toContain('secret-fragment');
+      expect(JSON.stringify(navigation.result)).toContain('[REDACTED]');
+      expect(navigation.result).toMatchObject({
+        ok: true,
+        observation: { currentUrl: 'http://127.0.0.1:4173/settings' },
+      });
+
+      webContents.currentUrl =
+        'http://127.0.0.1:4173/callback?code=super-secret#access_token=secret-fragment';
+      const keypress = await registry.performVerificationAction(lease, {
+        kind: 'keypress',
+        key: 'Enter',
+      });
+      expect(JSON.stringify(keypress.result)).not.toContain('super-secret');
+      expect(JSON.stringify(keypress.result)).not.toContain('secret-fragment');
+      expect(keypress.result).toMatchObject({
+        ok: true,
+        observation: { currentUrl: 'http://127.0.0.1:4173/callback' },
+      });
     });
 
     it('fills controlled inputs through the native value setter', async () => {
@@ -713,7 +769,7 @@ describe('BrowserWebContentsRegistry', () => {
           'console-message',
           {},
           3,
-          `request failed token=super-secret-${index} ${'x'.repeat(3_000)}`
+          `request failed token=super-secret-${index} ${'x'.repeat(100_000)}`
         );
       }
       const diagnostics = await registry.performVerificationAction(lease, {
@@ -747,6 +803,41 @@ describe('BrowserWebContentsRegistry', () => {
         cleanupError: 'Invalid browser verification lease',
       });
       expect(sessionsByPartition.has(PROFILE_PARTITION)).toBe(false);
+    });
+
+    it('refuses cleanup when another verification lease owns the partition', async () => {
+      const registry = new BrowserWebContentsRegistry();
+      registry.registerVerificationSession(lease);
+      const partitionSession = sessionFor(lease.partition) as {
+        clearData: ReturnType<typeof vi.fn>;
+      };
+
+      const result = await registry.forceCleanupVerificationSession({
+        ...lease,
+        verificationRunId: 'forged-run',
+        browserId: 'forged-browser',
+      });
+
+      expect(result).toEqual({
+        partitionDataCleared: false,
+        cleanupError: 'Browser verification partition belongs to another lease',
+      });
+      expect(partitionSession.clearData).not.toHaveBeenCalled();
+      expect(
+        await registry.performVerificationAction(lease, { kind: 'accessibility-snapshot' })
+      ).toMatchObject({ result: { ok: false, error: { kind: 'not-ready' } } });
+    });
+
+    it('allows exact orphan partition cleanup for restart recovery', async () => {
+      const registry = new BrowserWebContentsRegistry();
+      const partitionSession = sessionFor(lease.partition) as {
+        clearData: ReturnType<typeof vi.fn>;
+      };
+
+      await expect(registry.forceCleanupVerificationSession(lease)).resolves.toEqual({
+        partitionDataCleared: true,
+      });
+      expect(partitionSession.clearData).toHaveBeenCalledOnce();
     });
   });
 });

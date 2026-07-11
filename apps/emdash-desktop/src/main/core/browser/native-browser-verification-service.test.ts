@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type {
   LoopBrowserActionMessage,
   LoopBrowserActionResult,
@@ -10,6 +10,7 @@ import type {
   LoopBrowserResultMessage,
 } from '@shared/core/loops/loop-browser-contracts';
 import type { PreviewServer } from '@shared/core/preview-servers/types';
+import type { VerificationActionExecution } from './browser-webcontents-registry';
 import {
   NativeBrowserVerificationService,
   type NativeBrowserRegistryPort,
@@ -125,12 +126,14 @@ describe('NativeBrowserVerificationService', () => {
   let registry: NativeBrowserRegistryPort;
   let service: NativeBrowserVerificationService;
   let ids: string[];
+  let configurePartition: Mock<(partition: string, allowedOrigin: string) => boolean | void>;
 
   beforeEach(() => {
     vi.useRealTimers();
     previews = [directPreview];
     transport = new FakeTransport();
     ids = ['browser-1', 'partition-1', 'rotated-run', 'browser-2', 'partition-2'];
+    configurePartition = vi.fn();
     registry = {
       registerVerificationSession: vi.fn(() => true),
       isVerificationSessionReady: vi.fn(() => true),
@@ -152,7 +155,7 @@ describe('NativeBrowserVerificationService', () => {
       },
       registry,
       transport,
-      configurePartition: vi.fn(),
+      configurePartition,
       idFactory: () => ids.shift() ?? 'fallback-id',
       now: () => '2026-07-11T12:00:00.000Z',
       previewPollIntervalMs: 5,
@@ -199,6 +202,30 @@ describe('NativeBrowserVerificationService', () => {
     });
   });
 
+  it('closes and cleans up after browser readiness times out', async () => {
+    const timedService = new NativeBrowserVerificationService({
+      previewServers: { listForWorkspace: () => previews },
+      registry,
+      transport,
+      configurePartition,
+      idFactory: () => ids.shift() ?? 'fallback-id',
+      readyTimeoutMs: 5,
+      closeTimeoutMs: 5,
+    });
+
+    await expect(
+      timedService.start({
+        verificationRunId: 'run-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        workspaceId: 'workspace-1',
+      })
+    ).resolves.toMatchObject({ success: false, error: { kind: 'ready-timeout' } });
+
+    expect(transport.closes).toHaveLength(1);
+    expect(registry.forceCleanupVerificationSession).toHaveBeenCalledOnce();
+  });
+
   it('requires an exact preview id when multiple ready previews exist', async () => {
     previews = [directPreview, { ...directPreview, id: 'preview-2', port: 5173 }];
     await expect(
@@ -212,6 +239,59 @@ describe('NativeBrowserVerificationService', () => {
       success: false,
       error: { kind: 'preview-ambiguous', previewServerIds: ['preview-direct', 'preview-2'] },
     });
+  });
+
+  it('does not configure a partition when registry ownership collides', async () => {
+    vi.mocked(registry.registerVerificationSession).mockReturnValue(false);
+
+    await expect(
+      service.start({
+        verificationRunId: 'run-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        workspaceId: 'workspace-1',
+      })
+    ).resolves.toMatchObject({ success: false, error: { kind: 'session-collision' } });
+
+    expect(configurePartition).not.toHaveBeenCalled();
+  });
+
+  it('reserves a verification run before preview selection across concurrent starts', async () => {
+    const input = {
+      verificationRunId: 'run-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'workspace-1',
+    };
+
+    const first = service.start(input);
+    const second = service.start(input);
+    await vi.waitFor(() => expect(transport.requests.length).toBeGreaterThan(0));
+    for (const request of transport.requests) transport.ready(readyFor(request));
+    await expect(second).resolves.toMatchObject({
+      success: false,
+      error: { kind: 'session-collision' },
+    });
+
+    await expect(first).resolves.toMatchObject({ success: true });
+    expect(transport.requests).toHaveLength(1);
+    expect(registry.registerVerificationSession).toHaveBeenCalledOnce();
+  });
+
+  it('rolls back registry ownership when partition configuration fails', async () => {
+    configurePartition.mockReturnValue(false);
+
+    await expect(
+      service.start({
+        verificationRunId: 'run-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        workspaceId: 'workspace-1',
+      })
+    ).resolves.toMatchObject({ success: false, error: { kind: 'session-collision' } });
+
+    expect(registry.registerVerificationSession).toHaveBeenCalledOnce();
+    expect(registry.forceCleanupVerificationSession).toHaveBeenCalledOnce();
   });
 
   it('ignores forged ready messages and serializes replay-safe actions', async () => {
@@ -286,7 +366,29 @@ describe('NativeBrowserVerificationService', () => {
     );
   });
 
-  it('bounds completed action replay entries', async () => {
+  it('forces cleanup after the renderer close acknowledgement times out', async () => {
+    const pending = service.start({
+      verificationRunId: 'run-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'workspace-1',
+    });
+    await vi.waitFor(() => expect(transport.requests).toHaveLength(1));
+    transport.ready(readyFor(transport.requests[0]!));
+    const started = await pending;
+    expect(started.success).toBe(true);
+    if (!started.success) return;
+    vi.useFakeTimers();
+
+    const closing = service.close(started.data.lease, 'cancelled');
+    expect(transport.closes).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(closing).resolves.toMatchObject({ partitionDataCleared: true });
+    expect(registry.forceCleanupVerificationSession).toHaveBeenCalledOnce();
+  });
+
+  it('bounds action tombstones without re-executing evicted action IDs', async () => {
     const pending = service.start({
       verificationRunId: 'run-1',
       projectId: 'project-1',
@@ -299,7 +401,7 @@ describe('NativeBrowserVerificationService', () => {
     expect(started.success).toBe(true);
     if (!started.success) return;
 
-    for (let index = 0; index <= 256; index += 1) {
+    for (let index = 0; index < 256; index += 1) {
       await service.performAction({
         type: 'action',
         ...started.data.lease,
@@ -307,14 +409,230 @@ describe('NativeBrowserVerificationService', () => {
         action: { kind: 'accessibility-snapshot' },
       });
     }
-    await service.performAction({
+
+    await expect(
+      service.performAction({
+        type: 'action',
+        ...started.data.lease,
+        actionId: 'action-256',
+        action: { kind: 'accessibility-snapshot' },
+      })
+    ).resolves.toMatchObject({
+      result: { ok: false, error: { kind: 'invalid-action' } },
+    });
+    await expect(
+      service.performAction({
+        type: 'action',
+        ...started.data.lease,
+        actionId: 'action-0',
+        action: { kind: 'accessibility-snapshot' },
+      })
+    ).resolves.toMatchObject({ result: { ok: true } });
+
+    expect(registry.performVerificationAction).toHaveBeenCalledTimes(256);
+  });
+
+  it('drops sensitive screenshot bytes from completed replay entries', async () => {
+    const pending = service.start({
+      verificationRunId: 'run-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'workspace-1',
+    });
+    await vi.waitFor(() => expect(transport.requests).toHaveLength(1));
+    transport.ready(readyFor(transport.requests[0]!));
+    const started = await pending;
+    expect(started.success).toBe(true);
+    if (!started.success) return;
+    vi.mocked(registry.performVerificationAction).mockResolvedValue({
+      result: {
+        ok: true,
+        observation: {
+          kind: 'screenshot',
+          artifact: { artifactId: 'artifact-1', mimeType: 'image/png', byteLength: 3 },
+        },
+      },
+      screenshot: { artifactId: 'artifact-1', mimeType: 'image/png', data: Buffer.from('png') },
+    });
+    const message: LoopBrowserActionMessage = {
       type: 'action',
       ...started.data.lease,
-      actionId: 'action-0',
-      action: { kind: 'accessibility-snapshot' },
+      actionId: 'screenshot-1',
+      action: { kind: 'screenshot' },
+    };
+
+    const first = await service.performAction(message);
+    await Promise.resolve();
+    const replay = await service.performAction(message);
+
+    expect(first.screenshot?.data).toEqual(Buffer.from('png'));
+    expect(replay.screenshot).toBeUndefined();
+    expect(replay.result).toEqual(first.result);
+    expect(registry.performVerificationAction).toHaveBeenCalledOnce();
+  });
+
+  it('suppresses an in-flight action result and drains it before close cleanup', async () => {
+    let finishAction!: (result: VerificationActionExecution) => void;
+    vi.mocked(registry.performVerificationAction).mockReturnValue(
+      new Promise((resolve) => {
+        finishAction = resolve;
+      })
+    );
+    const pending = service.start({
+      verificationRunId: 'run-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'workspace-1',
+    });
+    await vi.waitFor(() => expect(transport.requests).toHaveLength(1));
+    transport.ready(readyFor(transport.requests[0]!));
+    const started = await pending;
+    expect(started.success).toBe(true);
+    if (!started.success) return;
+
+    const action = service.performAction({
+      type: 'action',
+      ...started.data.lease,
+      actionId: 'action-in-flight',
+      action: { kind: 'screenshot' },
+    });
+    await vi.waitFor(() => expect(registry.performVerificationAction).toHaveBeenCalledOnce());
+    const closing = service.close(started.data.lease, 'cancelled');
+    await vi.waitFor(() => expect(transport.closes).toHaveLength(1));
+    transport.closed(closedFor(started.data.lease, 'cancelled'));
+    await Promise.resolve();
+    expect(registry.forceCleanupVerificationSession).not.toHaveBeenCalled();
+
+    finishAction({
+      result: {
+        ok: true,
+        observation: {
+          kind: 'screenshot',
+          artifact: { artifactId: 'late', mimeType: 'image/png', byteLength: 3 },
+        },
+      },
+      screenshot: { artifactId: 'late', mimeType: 'image/png', data: Buffer.from('png') },
     });
 
-    expect(registry.performVerificationAction).toHaveBeenCalledTimes(258);
+    await expect(action).resolves.toMatchObject({
+      result: { ok: false, error: { kind: 'lease-closed' } },
+    });
+    await closing;
+    expect(transport.results).toHaveLength(0);
+    expect(registry.forceCleanupVerificationSession).toHaveBeenCalledOnce();
+  });
+
+  it('drains an in-flight action before same-origin reconnect navigation', async () => {
+    let finishAction!: (result: VerificationActionExecution) => void;
+    vi.mocked(registry.performVerificationAction)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishAction = resolve;
+        })
+      )
+      .mockResolvedValueOnce({
+        result: {
+          ok: true,
+          observation: {
+            kind: 'navigation',
+            currentUrl: 'http://127.0.0.1:4173/reconnected',
+          },
+        },
+      });
+    const pending = service.start({
+      verificationRunId: 'run-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'workspace-1',
+    });
+    await vi.waitFor(() => expect(transport.requests).toHaveLength(1));
+    transport.ready(readyFor(transport.requests[0]!));
+    const started = await pending;
+    expect(started.success).toBe(true);
+    if (!started.success) return;
+
+    const action = service.performAction({
+      type: 'action',
+      ...started.data.lease,
+      actionId: 'action-in-flight',
+      action: { kind: 'accessibility-snapshot' },
+    });
+    await vi.waitFor(() => expect(registry.performVerificationAction).toHaveBeenCalledOnce());
+    expect(service.pauseForReconnect(started.data.lease)).toBe(true);
+    previews = [{ ...directPreview, urlPath: '/reconnected' }];
+    const reconciling = service.reconcilePreview(started.data.lease);
+    await Promise.resolve();
+    expect(registry.performVerificationAction).toHaveBeenCalledOnce();
+
+    finishAction({
+      result: {
+        ok: true,
+        observation: { kind: 'accessibility-snapshot', snapshot: 'late', truncated: false },
+      },
+    });
+    await action;
+
+    await expect(reconciling).resolves.toMatchObject({
+      success: true,
+      data: { kind: 'resumed', session: { previewUrl: 'http://127.0.0.1:4173/reconnected' } },
+    });
+    expect(registry.performVerificationAction).toHaveBeenCalledTimes(2);
+    expect(transport.results).toHaveLength(0);
+  });
+
+  it('does not resume or rotate after the lease closes during preview polling', async () => {
+    const pending = service.start({
+      verificationRunId: 'run-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'workspace-1',
+    });
+    await vi.waitFor(() => expect(transport.requests).toHaveLength(1));
+    transport.ready(readyFor(transport.requests[0]!));
+    const started = await pending;
+    expect(started.success).toBe(true);
+    if (!started.success) return;
+
+    expect(service.pauseForReconnect(started.data.lease)).toBe(true);
+    previews = [];
+    const reconciling = service.reconcilePreview(started.data.lease);
+    const closing = service.close(started.data.lease, 'cancelled');
+    expect(transport.closes).toHaveLength(1);
+    transport.closed(closedFor(started.data.lease, 'cancelled'));
+    previews = [directPreview];
+    await closing;
+
+    await expect(reconciling).resolves.toMatchObject({ success: false });
+    expect(transport.requests).toHaveLength(1);
+  });
+
+  it('coalesces concurrent reconnects into one rotated lease', async () => {
+    const pending = service.start({
+      verificationRunId: 'run-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'workspace-1',
+    });
+    await vi.waitFor(() => expect(transport.requests).toHaveLength(1));
+    transport.ready(readyFor(transport.requests[0]!));
+    const started = await pending;
+    expect(started.success).toBe(true);
+    if (!started.success) return;
+
+    expect(service.pauseForReconnect(started.data.lease)).toBe(true);
+    previews = [{ ...directPreview, port: 5173 }];
+    const first = service.reconcilePreview(started.data.lease);
+    const second = service.reconcilePreview(started.data.lease);
+    await vi.waitFor(() => expect(transport.closes).toHaveLength(1));
+    transport.closed(closedFor(started.data.lease, 'origin-changed'));
+    await vi.waitFor(() => expect(transport.requests.length).toBeGreaterThanOrEqual(2));
+    for (const request of transport.requests.slice(1)) transport.ready(readyFor(request));
+
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(firstResult).toEqual(secondResult);
+    expect(firstResult).toMatchObject({ success: true, data: { kind: 'rotated' } });
+    expect(transport.requests).toHaveLength(2);
+    expect(registry.registerVerificationSession).toHaveBeenCalledTimes(2);
   });
 
   it('revokes before close acknowledgement and forces idempotent cleanup', async () => {

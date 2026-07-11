@@ -67,6 +67,16 @@ describe('configureBrowserVerificationSession', () => {
       allowed
     );
     expect(allowed).toHaveBeenLastCalledWith({ cancel: false });
+    state.beforeRequest?.(
+      { url: 'http://user:password@127.0.0.1:4173/settings', resourceType: 'mainFrame' },
+      allowed
+    );
+    expect(allowed).toHaveBeenLastCalledWith({ cancel: true });
+    state.beforeRequest?.(
+      { url: 'https://user:password@backend.example.com/query', resourceType: 'xhr' },
+      allowed
+    );
+    expect(allowed).toHaveBeenLastCalledWith({ cancel: true });
 
     const permission = vi.fn();
     state.permissionRequest?.({}, 'clipboard-sanitized-write', permission);

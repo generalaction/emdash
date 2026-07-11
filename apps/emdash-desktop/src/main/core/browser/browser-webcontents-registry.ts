@@ -106,7 +106,7 @@ export class BrowserWebContentsRegistry {
   private readonly sessionsByBrowserId = new Map<string, RegisteredBrowserSession>();
   private readonly webContentsByBrowserId = new Map<string, WebContents>();
   private readonly browserIdByWebContentsId = new Map<number, string>();
-  private readonly pendingWebContentsIds = new Set<number>();
+  private readonly pendingWebContentsById = new Map<number, WebContents>();
   private activeBrowserId: string | null = null;
   private browserShortcuts = getBrowserShortcuts();
 
@@ -194,9 +194,13 @@ export class BrowserWebContentsRegistry {
       webContents.close();
       return false;
     }
+    if (registered.owner.kind === 'loop-verification' && registered.owner.revoked) {
+      webContents.close();
+      return false;
+    }
 
     const webContentsId = webContents.id;
-    this.pendingWebContentsIds.add(webContentsId);
+    this.pendingWebContentsById.set(webContentsId, webContents);
     if (registered.owner.kind === 'loop-verification') {
       this.hardenVerificationWebContents(webContents, registered.owner);
     } else {
@@ -204,7 +208,7 @@ export class BrowserWebContentsRegistry {
     }
 
     webContents.once('destroyed', () => {
-      this.pendingWebContentsIds.delete(webContentsId);
+      this.pendingWebContentsById.delete(webContentsId);
       const boundBrowserId = this.browserIdByWebContentsId.get(webContentsId);
       if (boundBrowserId === undefined) return;
       this.browserIdByWebContentsId.delete(webContentsId);
@@ -232,11 +236,11 @@ export class BrowserWebContentsRegistry {
     }
     const alreadyBoundTo = this.browserIdByWebContentsId.get(webContents.id);
     if (alreadyBoundTo === browserId) return true;
-    if (alreadyBoundTo !== undefined || !this.pendingWebContentsIds.has(webContents.id)) {
+    if (alreadyBoundTo !== undefined || !this.pendingWebContentsById.has(webContents.id)) {
       return false;
     }
 
-    this.pendingWebContentsIds.delete(webContents.id);
+    this.pendingWebContentsById.delete(webContents.id);
     const previous = this.webContentsByBrowserId.get(browserId);
     if (previous && previous.id !== webContents.id) {
       if (registered.owner.kind === 'loop-verification' && !previous.isDestroyed()) return false;
@@ -286,6 +290,12 @@ export class BrowserWebContentsRegistry {
     const registered = this.sessionsByBrowserId.get(lease.browserId);
     if (!registered || !isExactVerificationSession(registered, lease)) return false;
     registered.owner.revoked = true;
+    const partitionSession = session.fromPartition(lease.partition);
+    for (const [webContentsId, pending] of this.pendingWebContentsById) {
+      if (pending.session !== partitionSession) continue;
+      this.pendingWebContentsById.delete(webContentsId);
+      if (!pending.isDestroyed()) pending.close();
+    }
     const webContents = this.webContentsByBrowserId.get(lease.browserId);
     if (webContents && !webContents.isDestroyed()) webContents.close();
     if (webContents) this.browserIdByWebContentsId.delete(webContents.id);
@@ -365,8 +375,21 @@ export class BrowserWebContentsRegistry {
     }
 
     const registered = this.sessionsByBrowserId.get(parsed.data.browserId);
+    const partitionOwner = [...this.sessionsByBrowserId.values()].find(
+      (candidate) => candidate.partition === parsed.data.partition
+    );
+    if (
+      (registered && !isExactVerificationSession(registered, parsed.data)) ||
+      (partitionOwner && !isExactVerificationSession(partitionOwner, parsed.data))
+    ) {
+      return {
+        partitionDataCleared: false,
+        cleanupError: 'Browser verification partition belongs to another lease',
+      };
+    }
     const ownsVerificationSession =
-      registered !== undefined && isExactVerificationSession(registered, parsed.data);
+      (registered !== undefined && isExactVerificationSession(registered, parsed.data)) ||
+      (partitionOwner !== undefined && isExactVerificationSession(partitionOwner, parsed.data));
     if (ownsVerificationSession) {
       this.revokeVerificationSession(parsed.data);
       this.removeSession(parsed.data.browserId);
@@ -381,9 +404,7 @@ export class BrowserWebContentsRegistry {
         cleanupError: 'Browser partition cleanup failed',
       };
     } finally {
-      if (ownsVerificationSession) {
-        releaseBrowserVerificationSession(parsed.data.partition, parsed.data.allowedPreviewOrigin);
-      }
+      releaseBrowserVerificationSession(parsed.data.partition, parsed.data.allowedPreviewOrigin);
     }
   }
 
@@ -607,8 +628,8 @@ export class BrowserWebContentsRegistry {
             ok: true,
             observation: {
               kind: 'navigation',
-              currentUrl: webContents.getURL(),
-              title: boundedString(webContents.getTitle(), 512) || undefined,
+              currentUrl: observedUrl(webContents.getURL(), lease.allowedPreviewOrigin),
+              title: redactBoundedString(webContents.getTitle(), 512) || undefined,
             },
           },
         };
@@ -653,7 +674,13 @@ export class BrowserWebContentsRegistry {
           return actionFailure('origin-rejected', 'Interaction left the allowed preview origin');
         }
         return {
-          result: { ok: true, observation: { kind: 'interaction', currentUrl } },
+          result: {
+            ok: true,
+            observation: {
+              kind: 'interaction',
+              currentUrl: observedUrl(currentUrl, lease.allowedPreviewOrigin),
+            },
+          },
         };
       }
       case 'keypress': {
@@ -666,7 +693,13 @@ export class BrowserWebContentsRegistry {
           return actionFailure('origin-rejected', 'Keypress left the allowed preview origin');
         }
         return {
-          result: { ok: true, observation: { kind: 'interaction', currentUrl } },
+          result: {
+            ok: true,
+            observation: {
+              kind: 'interaction',
+              currentUrl: observedUrl(currentUrl, lease.allowedPreviewOrigin),
+            },
+          },
         };
       }
       case 'screenshot': {
@@ -737,9 +770,28 @@ function isExactVerificationSession(
 
 function urlMatchesOrigin(url: string, allowedOrigin: string): boolean {
   try {
-    return new URL(url).origin === allowedOrigin;
+    const parsed = new URL(url);
+    return (
+      parsed.username.length === 0 &&
+      parsed.password.length === 0 &&
+      parsed.origin === allowedOrigin
+    );
   } catch {
     return false;
+  }
+}
+
+function observedUrl(value: string, allowedOrigin: string): string {
+  try {
+    const url = new URL(value);
+    if (url.username.length > 0 || url.password.length > 0 || url.origin !== allowedOrigin) {
+      return allowedOrigin;
+    }
+    url.search = '';
+    url.hash = '';
+    return boundedString(url.toString(), 2048);
+  } catch {
+    return allowedOrigin;
   }
 }
 
@@ -756,7 +808,7 @@ function appendVerificationDiagnostic(
 ): void {
   diagnostics.push({
     ...entry,
-    message: boundedString(redactAll(entry.message), 2048),
+    message: redactBoundedString(entry.message, 2048, 8192),
     redacted: true,
   });
   if (diagnostics.length > 200) diagnostics.splice(0, diagnostics.length - 200);
@@ -766,11 +818,16 @@ function boundedString(value: unknown, limit: number): string {
   return typeof value === 'string' ? value.slice(0, limit) : '';
 }
 
+function redactBoundedString(value: unknown, limit: number, inputLimit = limit * 4): string {
+  return boundedString(redactAll(boundedString(value, inputLimit)), limit);
+}
+
 function accessibilitySnapshotResult(raw: unknown): { snapshot: string; truncated: boolean } {
   if (typeof raw !== 'object' || raw === null) return { snapshot: '', truncated: false };
   const value = raw as { snapshot?: unknown; truncated?: unknown };
   const snapshot = typeof value.snapshot === 'string' ? value.snapshot : '';
-  const redacted = redactAll(snapshot);
+  const bounded = boundedString(snapshot, 131_072);
+  const redacted = redactAll(bounded);
   return {
     snapshot: boundedString(redacted, 65_536),
     truncated: Boolean(value.truncated) || snapshot.length > 65_536 || redacted.length > 65_536,
@@ -798,11 +855,11 @@ function accessibilityQueryResult(raw: unknown): {
         if (typeof item.nodeId !== 'string') return [];
         return [
           {
-            nodeId: boundedString(redactAll(item.nodeId), 256),
+            nodeId: redactBoundedString(item.nodeId, 256),
             role: boundedString(item.role, 64),
-            name: boundedString(redactAll(boundedString(item.name, 512)), 512),
+            name: redactBoundedString(item.name, 512),
             ...(typeof item.value === 'string'
-              ? { value: boundedString(redactAll(item.value), 2048) }
+              ? { value: redactBoundedString(item.value, 2048) }
               : {}),
             ...(typeof item.disabled === 'boolean' ? { disabled: item.disabled } : {}),
           },
