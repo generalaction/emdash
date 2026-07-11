@@ -1,5 +1,5 @@
 import type { Lease, PendingLease, Result } from '@emdash/shared';
-import { err, ok, toPendingLease } from '@emdash/shared';
+import { err, ok, once } from '@emdash/shared';
 import { createScope, type Scope } from './scope';
 
 export interface ResourceCache<K, T> {
@@ -46,7 +46,7 @@ export function createResourceCache<K, T>(
 
   return {
     acquire(key): PendingLease<T> {
-      return toPendingLease(acquireLease(key));
+      return acquirePendingLease(key);
     },
     peek(key): T | undefined {
       const entry = entries.get(options.key(key));
@@ -65,39 +65,48 @@ export function createResourceCache<K, T>(
     },
   };
 
-  async function acquireLease(key: K): Promise<Lease<T>> {
-    if (disposed || cacheScope.disposed) throw new Error('ResourceCache is disposed');
-
-    const keyId = options.key(key);
-    let entry = entries.get(keyId);
-    if (entry?.disposePromise) {
-      await entry.disposePromise;
-      if (disposed || cacheScope.disposed) throw new Error('ResourceCache is disposed');
-      entry = entries.get(keyId);
-    }
-
-    if (!entry) {
-      entry = createEntry(key, keyId);
-      entries.set(keyId, entry);
-    }
-
-    clearIdleTimer(entry);
-    entry.refCount += 1;
-
+  function acquirePendingLease(key: K): PendingLease<T> {
+    let entry: Entry<K, T> | undefined;
     let released = false;
-    const release = async (): Promise<void> => {
-      if (released) return;
-      released = true;
-      await releaseEntry(entry);
-    };
 
-    try {
-      const value = await ensureCreated(entry);
-      return { value, release };
-    } catch (error) {
-      await release();
-      throw error;
-    }
+    const ready = (async (): Promise<T> => {
+      if (disposed || cacheScope.disposed) throw new Error('ResourceCache is disposed');
+
+      const keyId = options.key(key);
+      let current = entries.get(keyId);
+      if (current?.disposePromise) {
+        await current.disposePromise;
+        if (disposed || cacheScope.disposed) throw new Error('ResourceCache is disposed');
+        current = entries.get(keyId);
+      }
+
+      if (released) throw new Error('ResourceCache lease was released before ready');
+
+      if (!current) {
+        current = createEntry(key, keyId);
+        entries.set(keyId, current);
+      }
+
+      entry = current;
+      clearIdleTimer(current);
+      current.refCount += 1;
+
+      try {
+        return await ensureCreated(current);
+      } catch (error) {
+        if (!released) await releaseEntry(current);
+        throw error;
+      }
+    })();
+    ready.catch(() => {});
+
+    return {
+      ready: () => ready,
+      release: once(async () => {
+        released = true;
+        if (entry) await releaseEntry(entry);
+      }),
+    };
   }
 
   function createEntry(key: K, keyId: string): Entry<K, T> {
