@@ -7,15 +7,16 @@ not mix cross-session routing with per-session state projection.
 ## Ownership
 
 - `AcpRuntime` is the composition root. It wires the ACP API contract to shared
-  ports, the managed connection source, and the session manager.
+  ports, the resource-cached connection source, and the session manager.
 - `SessionManager` owns cross-session lifecycle: session creation, routing ACP
   `sessionId`s to conversation cells, process cleanup, and the sessions-list live
   model.
 - `SessionCell` owns one conversation: the state machine, transcript reducer,
   per-session live models, permission broker, prompt queue effects, and turn
   quiescence.
-- The ACP connection source owns provider processes through `createManagedSource`.
-  Processes are keyed by provider and workspace and can host multiple ACP sessions.
+- The ACP connection source owns provider processes through `createResourceCache`.
+  Cache identity includes provider, workspace, and cwd; the process route id stays
+  provider/workspace and can host multiple ACP sessions.
 - Models under `packages/core/src/acp/models/` are the shared vocabulary for
   reducer output, live model state, and the public ACP API contract.
 - Runtime implementation code lives under `packages/runtime/src/acp-agents/`; core keeps

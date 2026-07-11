@@ -45,7 +45,6 @@ import type {
   GitStatusModel,
   GitStatusUntrackedMode,
 } from '@emdash/core/git';
-import { LiveModel } from '@emdash/core/lib';
 import { err, ok, type Lease, type Result, type Unsubscribe } from '@emdash/shared';
 import { Result as ResultUtil } from '@emdash/shared/result';
 import { createResourceCache, type ResourceCache } from '@emdash/wire/util';
@@ -66,6 +65,11 @@ type LegacyRepositoryResource = {
   repository: LegacySshGitRepository;
 };
 
+type LegacyRepositoryKey = {
+  gitCommonDir: string;
+  pathInsideRepo: string;
+};
+
 type LegacyWorktreeResource = {
   worktree: LegacySshGitWorktree;
 };
@@ -75,7 +79,7 @@ type LegacyWorktreeResource = {
  * process until the shared Git runtime can run on the remote machine.
  */
 export class LegacySshGitRuntime implements IGitRuntime {
-  private readonly repositories: ResourceCache<string, LegacyRepositoryResource>;
+  private readonly repositories: ResourceCache<LegacyRepositoryKey, LegacyRepositoryResource>;
   private readonly worktrees: ResourceCache<string, LegacyWorktreeResource>;
 
   constructor(
@@ -83,15 +87,18 @@ export class LegacySshGitRuntime implements IGitRuntime {
     private readonly connectionId: string
   ) {
     this.repositories = createResourceCache({
-      key: (key: string) => key,
+      key: (key: LegacyRepositoryKey) => key.gitCommonDir,
       label: 'legacy-ssh-git-repositories',
       onError: (error, key) =>
         log.warn('LegacySshGitRuntime: repository provisioning failed', {
           key,
           error: String(error),
         }),
-      create: async (gitCommonDir, scope) => {
-        const repository = new LegacySshGitRepository(this.createGit(gitCommonDir), gitCommonDir);
+      create: async (key, scope) => {
+        const repository = new LegacySshGitRepository(
+          this.createGit(key.pathInsideRepo),
+          key.gitCommonDir
+        );
         scope.add(() => repository.dispose());
         return { repository };
       },
@@ -221,7 +228,7 @@ export class LegacySshGitRuntime implements IGitRuntime {
     pathInsideRepo: string
   ): Promise<Lease<LegacyRepositoryResource>> {
     const gitCommonDir = await this.resolveGitCommonDir(pathInsideRepo);
-    const pending = this.repositories.acquire(gitCommonDir);
+    const pending = this.repositories.acquire({ gitCommonDir, pathInsideRepo });
     const resource = await pending.ready();
     return {
       value: resource,
@@ -252,8 +259,8 @@ class LegacySshGitRepository implements IGitRepository {
   readonly gitCommonDir: string;
   readonly objectStoreDir: string;
 
-  private readonly refsModel: LiveModel<GitRefsModel>;
-  private readonly remotesModel: LiveModel<GitRemotesModel>;
+  private readonly refsModel: LegacyLiveModel<GitRefsModel>;
+  private readonly remotesModel: LegacyLiveModel<GitRemotesModel>;
   private readonly timers: ReturnType<typeof setInterval>[];
 
   constructor(
@@ -262,13 +269,13 @@ class LegacySshGitRepository implements IGitRepository {
   ) {
     this.gitCommonDir = gitCommonDir;
     this.objectStoreDir = `${gitCommonDir}/objects`;
-    this.refsModel = new LiveModel<GitRefsModel>({
+    this.refsModel = new LegacyLiveModel<GitRefsModel>({
       compute: async () => ok(await this.computeRefs()),
       onError: (error) => log.warn('LegacySshGitRepository: refs refresh failed', { error }),
       onUnexpectedError: (error) =>
         log.warn('LegacySshGitRepository: refs refresh failed', { error }),
     });
-    this.remotesModel = new LiveModel<GitRemotesModel>({
+    this.remotesModel = new LegacyLiveModel<GitRemotesModel>({
       compute: async () => ok(await this.computeRemotes()),
       onError: (error) => log.warn('LegacySshGitRepository: remotes refresh failed', { error }),
       onUnexpectedError: (error) =>
@@ -425,12 +432,85 @@ class LegacySshGitRepository implements IGitRepository {
   }
 }
 
+type LegacyLiveModelSnapshot<T> = {
+  value: T;
+  sequence: number;
+  generation: number;
+};
+
+class LegacyLiveModel<T> {
+  private cached: LegacyLiveModelSnapshot<T> | undefined;
+  private dirty = true;
+  private sequence = 0;
+  private generation = 0;
+  private readonly subscribers = new Set<(snapshot: LegacyLiveModelSnapshot<T>) => void>();
+
+  constructor(
+    private readonly options: {
+      compute: () => Promise<Result<T, unknown>>;
+      onError?: (error: unknown) => void;
+      onUnexpectedError?: (error: unknown) => void;
+    }
+  ) {}
+
+  async get(): Promise<LegacyLiveModelSnapshot<T>> {
+    if (!this.cached || this.dirty) return this.refresh();
+    return this.cached;
+  }
+
+  async refresh(): Promise<LegacyLiveModelSnapshot<T>> {
+    try {
+      const result = await this.options.compute();
+      if (!result.success) {
+        this.options.onError?.(result.error);
+        throw result.error;
+      }
+      this.sequence += 1;
+      this.generation += 1;
+      this.dirty = false;
+      const snapshot = {
+        value: result.data,
+        sequence: this.sequence,
+        generation: this.generation,
+      };
+      this.cached = snapshot;
+      for (const subscriber of this.subscribers) subscriber(snapshot);
+      return snapshot;
+    } catch (error) {
+      this.options.onUnexpectedError?.(error);
+      throw error;
+    }
+  }
+
+  invalidate(): void {
+    this.dirty = true;
+    if (this.cached) {
+      void this.refresh().catch((error) => this.options.onUnexpectedError?.(error));
+    }
+  }
+
+  getCached(): LegacyLiveModelSnapshot<T> | undefined {
+    return this.cached;
+  }
+
+  subscribe(cb: (snapshot: LegacyLiveModelSnapshot<T>) => void): Unsubscribe {
+    this.subscribers.add(cb);
+    return () => {
+      this.subscribers.delete(cb);
+    };
+  }
+
+  dispose(): void {
+    this.subscribers.clear();
+  }
+}
+
 class LegacySshGitWorktree implements IGitWorktree {
   readonly worktree: string;
   readonly repository: LegacySshGitRepository;
 
-  private readonly statusModel: LiveModel<GitStatusModel>;
-  private readonly headModel: LiveModel<GitHeadModel>;
+  private readonly statusModel: LegacyLiveModel<GitStatusModel>;
+  private readonly headModel: LegacyLiveModel<GitHeadModel>;
   private readonly timers: ReturnType<typeof setInterval>[];
   private fingerprints: Partial<Record<GitStatusUntrackedMode, string>> = {};
 
@@ -441,13 +521,13 @@ class LegacySshGitWorktree implements IGitWorktree {
   ) {
     this.worktree = worktreePath;
     this.repository = repository;
-    this.statusModel = new LiveModel<GitStatusModel>({
+    this.statusModel = new LegacyLiveModel<GitStatusModel>({
       compute: async () => ok(await this.computeStatus()),
       onError: (error) => log.warn('LegacySshGitWorktree: status refresh failed', { error }),
       onUnexpectedError: (error) =>
         log.warn('LegacySshGitWorktree: status refresh failed', { error }),
     });
-    this.headModel = new LiveModel<GitHeadModel>({
+    this.headModel = new LegacyLiveModel<GitHeadModel>({
       compute: async () => ok(await this.computeHead()),
       onError: (error) => log.warn('LegacySshGitWorktree: head refresh failed', { error }),
       onUnexpectedError: (error) =>

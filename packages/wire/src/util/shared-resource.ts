@@ -19,7 +19,9 @@ export type CreateSharedResourceOptions<T> = {
   onError?: (error: unknown) => void;
 };
 
-export function createSharedResource<T>(options: CreateSharedResourceOptions<T>): SharedResource<T> {
+export function createSharedResource<T>(
+  options: CreateSharedResourceOptions<T>
+): SharedResource<T> {
   const cache: ResourceCache<typeof sharedKey, T> = createResourceCache({
     key: () => 'shared',
     scope: options.scope,

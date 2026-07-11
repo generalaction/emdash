@@ -1,4 +1,4 @@
-import { createManagedSource } from '../../src/util';
+import { createResourceCache } from '../../src/util';
 
 type Session = {
   id: string;
@@ -9,9 +9,9 @@ type Session = {
 async function main(): Promise<void> {
   let generation = 0;
   const stopped: string[] = [];
-  const sessions = createManagedSource({
+  const sessions = createResourceCache({
     key: (key: { id: string }) => key.id,
-    graceMs: 20,
+    idleTtlMs: 20,
     create: async ({ id }, scope): Promise<Session> => {
       generation += 1;
       const sessionGeneration = generation;
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
   await second.release();
 
   const reused = sessions.acquire({ id: 'conversation-one' });
-  console.log('reused during grace:', (await reused.ready()) === firstValue);
+  console.log('reused during idle ttl:', (await reused.ready()) === firstValue);
   await reused.release();
 
   await delay(25);

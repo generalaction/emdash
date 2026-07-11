@@ -1,10 +1,12 @@
 # Lifecycle Utilities
 
-`Scope` and `ManagedSource` are dependency-light lifecycle utilities exported
+`Scope` and the resource cache primitives are dependency-light lifecycle utilities exported
 from `@emdash/wire/util`.
 
 - `Scope` owns cleanup and async work for a tree of resources.
-- `ManagedSource` turns demand into a retained resource with ref-counted leases.
+- `ResourceCache` turns keyed demand into retained resources with ref-counted leases.
+- `SharedResource` is the unkeyed form for one lazily created resource.
+- `AsyncCache` caches async values that do not have finalizers.
 
 They do not define wire messages and can run in browser, renderer, main process,
 or tests.
@@ -117,7 +119,7 @@ operation that can wait, sleep, perform I/O, or subscribe.
 
 Use `run()` for background jobs, process transitions, replica attachment,
 renderer bindings, and async setup. Use `add()` or `use()` for finalizers. Use
-`ManagedSource` when a keyed resource should be shared by leases.
+`ResourceCache` when a keyed resource should be shared by leases.
 
 For the full lifecycle model and invariants, see
 [Structured concurrency](./structured-concurrency.md).
@@ -140,20 +142,20 @@ Disposing `runtimeScope` disposes `sessionScope` first, then `stopRuntime()`.
 Disposing `sessionScope` directly deregisters it from the parent so it does not
 dispose twice later.
 
-## ManagedSource
+## ResourceCache
 
-`ManagedSource` is useful when a resource should exist only while somebody is
+`ResourceCache` is useful when a resource should exist only while somebody is
 using it: a live topic binding, a renderer view model, a preview server, or a
 process-backed session.
 
 ```ts
-import { createManagedSource } from '@emdash/wire/util';
+import { createResourceCache } from '@emdash/wire/util';
 
-const sessions = createManagedSource({
+const sessions = createResourceCache({
   scope: runtimeScope,
   label: 'sessions',
   key: (input: { conversationId: string }) => input.conversationId,
-  graceMs: 30_000,
+  idleTtlMs: 30_000,
   create: async ({ conversationId }, scope) => {
     const session = await startSession(conversationId);
     scope.add(() => session.stop());
@@ -180,12 +182,11 @@ Behavior:
 - Failed creation is not cached; the next acquire retries.
 - `peek(key)` returns the active value if creation has completed.
 - `dispose()` force-disposes every active or retained entry.
-- If using the context overload, concurrent acquires for the same key use the
-  first context while creation is in flight. Put identity-affecting data in the
-  key, not the context.
 - Passing `scope` attaches the source and all keyed entries to a parent scope.
   Disposing that parent scope force-disposes the source and rejects later
   acquisitions. `label` names the source node in `describeScope()` output.
+- Every input that affects provisioning must be in `K` or fixed in the factory
+  closure. There is no acquire-time creation context.
 
 Usage:
 
@@ -201,12 +202,13 @@ Parent scopes are useful for runtimes with several keyed resources:
 
 ```ts
 const authScope = runtimeScope.child('auth');
-const logins = createManagedSource({
+const logins = createResourceCache({
   scope: authScope,
   label: 'login-source',
-  key: (providerId: string) => providerId,
-  create: async (providerId, scope) => {
-    const login = await startLoginPty(providerId);
+  key: (key: { providerId: string; methodId: string; generation: string }) =>
+    `${key.providerId}:${key.methodId}:${key.generation}`,
+  create: async (key, scope) => {
+    const login = await startLoginPty(key.providerId, key.methodId);
     scope.add(() => login.dispose());
     return login;
   },
@@ -217,15 +219,15 @@ await authScope.dispose(); // also disposes every active login entry
 
 ## Grace Windows
 
-Use `graceMs` for resources whose demand can flap briefly. For example, a window
+Use `idleTtlMs` for resources whose demand can flap briefly. For example, a window
 reload may detach and reattach live model bindings within a few hundred
 milliseconds. A short grace window avoids tearing down the underlying resource
 only to recreate it immediately.
 
 ```ts
-const bindings = createManagedSource({
+const bindings = createResourceCache({
   key: (key: { taskId: string }) => key.taskId,
-  graceMs: 5_000,
+  idleTtlMs: 5_000,
   create: async (key, scope) => {
     const binding = client.task.transcript(key, (state) => render(state));
     scope.add(() => binding.dispose());
@@ -235,5 +237,8 @@ const bindings = createManagedSource({
 });
 ```
 
+`ManagedSource` remains exported as a deprecated compatibility adapter. New code
+should use `ResourceCache`, `SharedResource`, or `AsyncCache`.
+
 See [../../examples/scope/client.ts](../../examples/scope/client.ts) and
-[../../examples/managed-source/client.ts](../../examples/managed-source/client.ts).
+[../../examples/resource-cache/client.ts](../../examples/resource-cache/client.ts).

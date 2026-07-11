@@ -1,11 +1,7 @@
 import type { Client } from '@agentclientprotocol/sdk';
 import type { AcpProcessHost } from '@emdash/core/acp';
 import { acpErr } from '@emdash/core/acp';
-import type {
-  AcpAgentApi,
-  AgentHostError,
-  AgentPluginHost,
-} from '@emdash/core/agents/plugins';
+import type { AcpAgentApi, AgentHostError, AgentPluginHost } from '@emdash/core/agents/plugins';
 import { isErr, toSerializedError } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { createResourceCache, type ResourceCache, type Scope } from '@emdash/wire/util';

@@ -503,9 +503,9 @@ flowchart TD
   Controller["Files controller"]
   Runtime["FilesRuntime"]
   Graph["FilesAllocationGraph"]
-  Roots["ManagedSource: RootResource"]
-  Trees["ManagedSource: TreeResource"]
-  Contents["ManagedSource: ContentResource"]
+  Roots["ResourceCache: RootResource"]
+  Trees["ResourceCache: TreeResource"]
+  Contents["ResourceCache: ContentResource"]
   Root["RootResource<br/>canonical root + one watcher"]
   Tree["TreeResource<br/>LiveState<FileTreeModel>"]
   Content["ContentResource<br/>ComputedLiveState<FileContentModel>"]
@@ -911,8 +911,8 @@ than copied mechanically.
 | `packages/core/src/lib/reconcile.ts` | Legacy live helper with no remaining owner |
 | Matching legacy tests | Test surface is replaced with the new interface |
 
-`KeyedMutex`, `ResourceMap`, and unrelated `@emdash/core/lib` exports are not deleted by this
-change. `ResourceMap` is not used by the new files runtime.
+`KeyedMutex` and unrelated `@emdash/core/lib` exports are not deleted by this
+change. Keyed resource ownership uses `ResourceCache` from `@emdash/wire/util`.
 
 ### Existing Files Modified
 
@@ -1102,7 +1102,7 @@ Exit condition: the same runtime works through memory, stream, and process trans
 5. Run focused core and runtime gates.
 
 Exit condition: no new files-domain code imports `LiveCollection`, legacy `LiveModel`,
-`LiveValue`, or `ResourceMap`.
+`LiveValue`, or removed core keyed-resource helpers.
 
 ## Risks and Mitigations
 
@@ -1115,7 +1115,7 @@ Exit condition: no new files-domain code imports `LiveCollection`, legacy `LiveM
 | Non-JSON state causes replica resync loops | JSON round-trip tests and full Wire validation |
 | Child and parent live IDs differ | Pass the exact finalized mounted contract to both sides |
 | File deletion leaves stale editor content | Publish the unavailable content variant |
-| Resource leak after disconnect | Wire state leases plus managed-source idle disposal tests |
+| Resource leak after disconnect | Wire state leases plus resource-cache idle disposal tests |
 | Tree patches become too large | Normalized entries and targeted parent refreshes |
 | Rename logic regains inode complexity | Treat path as identity and collapse renamed subtrees |
 

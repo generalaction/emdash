@@ -22,7 +22,8 @@ await scope.dispose();
 - `Run<A>` is one async operation owned by a scope.
 - `Run.exit` never rejects. It resolves to `success`, `failure`, or `cancelled`.
 - `Run.value()` converts the exit back to normal promise semantics.
-- `Lease<A>` is temporary use of a shared resource, usually from `ManagedSource`.
+- `Lease<A>` is temporary use of a shared resource, usually from `ResourceCache`
+  or `SharedResource`.
 
 ```mermaid
 flowchart TD
@@ -90,7 +91,7 @@ Use child scopes for:
 - per-consumer resources under a shared cache;
 - modal or view-local lifetimes.
 
-Use `ManagedSource` for keyed, ref-counted resources. Its creation runs under
+Use `ResourceCache` for keyed, ref-counted resources. Its creation runs under
 the entry scope, so invalidating an entry or disposing the parent scope cancels
 and joins in-flight creation before finalizers run.
 

@@ -86,7 +86,7 @@ describe('TuiAgentsRuntime', () => {
     }
   });
 
-  it('uses the start config as managed-source creation context', async () => {
+  it('uses the start config available during resource-cache creation', async () => {
     const harness = createHarness();
     const wire = createTestWire(tuiAgentsContract, createTuiAgentsController(harness.runtime));
     const key = { conversationId: 'conv-context' };

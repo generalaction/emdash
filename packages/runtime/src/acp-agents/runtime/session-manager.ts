@@ -47,7 +47,6 @@ import type { AgentTerminalManager } from '../agent-ports/terminal-manager';
 import type { TerminalPort } from '../agent-ports/terminal-port';
 import {
   isAcpConnectionError,
-  makeAcpConnectionKey,
   type AcpConnectionEntry,
   type AcpConnectionContext,
   type AcpConnectionKey,
@@ -125,7 +124,6 @@ export class SessionManager implements InboundRouter {
       return acpErr.providerUnsupported(input.providerId);
     }
 
-    const processKey = makeAcpConnectionKey(input.providerId, input.workspaceId);
     const connectionKey: AcpConnectionKey = {
       providerId: input.providerId,
       workspaceId: input.workspaceId,
@@ -454,8 +452,12 @@ export class SessionManager implements InboundRouter {
       record.cell.processClosed(exitCode);
       this.removeRecord(record.input.conversationId, false);
       this.deleteSessionSummary(record.input.conversationId);
+      void this.connections.invalidate({
+        providerId: record.input.providerId,
+        workspaceId: record.input.workspaceId,
+        cwd: record.input.cwd,
+      });
     }
-    void this.connections.invalidate(processKey);
   }
 
   private createRecord(

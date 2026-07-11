@@ -9,7 +9,7 @@ The package has four layers:
 ```mermaid
 flowchart TB
   subgraph runtime [Runtime utilities]
-    scope[Scope and ManagedSource]
+    scope[Scope and ResourceCache]
     processHost[ProcessHost supervision]
   end
   subgraph api [API layer]
@@ -77,9 +77,11 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     optimistic previews for live model contract mutations.
 - Runtime:
   - [Lifecycle utilities](./runtime/lifecycle.md): `Scope`, scope loggers,
-    `describeScope()`, and `ManagedSource`.
+    `describeScope()`, and resource ownership.
   - [Structured concurrency](./runtime/structured-concurrency.md): `Scope.run()`,
     run cancellation, lifecycle invariants, and diagnostics.
+  - [Resource caches](./runtime/resource-cache.md): `ResourceCache`,
+    `SharedResource`, `AsyncCache`, identity rules, and lease behavior.
   - [ProcessHost](./runtime/process-host.md): supervised child/utility processes
     and process-backed wire transports.
   - [Process runtimes](./runtime/process-runtimes.md): subprocess-hosted
@@ -107,7 +109,8 @@ Use narrower subpath exports at app boundaries:
 - `@emdash/wire/api`: contract definition, controller creation, client creation, and transports.
 - `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
   controller logging middleware.
-- `@emdash/wire/util`: dependency-free utilities: `Scope`, `Run`, `ManagedSource`,
+- `@emdash/wire/util`: dependency-free utilities: `Scope`, `Run`,
+  `ResourceCache`, `SharedResource`, `AsyncCache`, deprecated `ManagedSource`,
   and `deduplicateRequests`.
 - `@emdash/wire/util/mobx`: MobX-backed replica stores
   (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)

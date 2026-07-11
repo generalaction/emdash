@@ -18,8 +18,8 @@ import {
   type NodeId,
   type SubscribedSnapshot,
 } from '@emdash/core/files';
-import { LiveCollection, ResourceMap, type KeyedOp } from '@emdash/core/lib';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
+import { createResourceCache, type ResourceCache } from '@emdash/wire/util';
 import type { ClientChannel } from 'ssh2';
 import type { IFilesRuntime } from '@main/core/runtime/types';
 import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
@@ -61,6 +61,17 @@ type LegacySshSnapshotEntry = {
   mtime: string;
 };
 
+type KeyedOp<K, V> =
+  | {
+      op: 'put';
+      key: K;
+      value: V;
+    }
+  | {
+      op: 'del';
+      key: K;
+    };
+
 /**
  * Transitional SSH file-domain adapter.
  *
@@ -70,18 +81,29 @@ type LegacySshSnapshotEntry = {
 export class LegacySshFilesRuntime implements IFilesRuntime {
   readonly path: IFilesRuntime['path'] = posixMachinePath;
 
-  private readonly trees: ResourceMap<LegacySshFileTree>;
+  private readonly trees: ResourceCache<string, LegacySshFileTree>;
   private readonly changeFeeds = new Set<ChangeFeedHandle>();
   private disposeRequested = false;
 
   constructor(private readonly proxy: SshClientProxy) {
-    this.trees = new ResourceMap<LegacySshFileTree>({
-      teardown: (_rootPath, tree) => tree.dispose(),
-      onError: (context, error) =>
-        log.warn('LegacySshFilesRuntime: teardown failed', {
-          context,
+    this.trees = createResourceCache({
+      key: (key: string) => key,
+      label: 'legacy-ssh-file-trees',
+      onError: (error, key) =>
+        log.warn('LegacySshFilesRuntime: tree provisioning failed', {
+          key,
           error: String(error),
         }),
+      create: (rootPath, scope) => {
+        const tree = new LegacySshFileTree(this.proxy, rootPath, (context, error) =>
+          log.warn('LegacySshFilesRuntime: background error', {
+            context,
+            error: String(error),
+          })
+        );
+        scope.add(() => tree.dispose());
+        return tree;
+      },
     });
   }
 
@@ -96,22 +118,16 @@ export class LegacySshFilesRuntime implements IFilesRuntime {
       });
     }
 
-    const lease = await this.trees.acquire(normalizedRoot.data, async () => {
-      return new LegacySshFileTree(this.proxy, normalizedRoot.data, (context, error) =>
-        log.warn('LegacySshFilesRuntime: background error', {
-          context,
-          error: String(error),
-        })
-      );
-    });
+    const lease = this.trees.acquire(normalizedRoot.data);
 
     try {
-      const ready = await lease.value.ready();
+      const tree = await lease.ready();
+      const ready = await tree.ready();
       if (!ready.success) {
         await lease.release();
         return err(ready.error);
       }
-      return ok(lease);
+      return ok({ value: tree, release: lease.release });
     } catch (error) {
       await lease.release();
       throw error;
@@ -308,7 +324,7 @@ class LegacySshRecursiveChangeFeed implements ChangeFeedHandle {
 
 class LegacySshFileTree implements IFileTree {
   readonly rootPath: string;
-  private readonly collection = new LiveCollection<NodeId, FileNode, FileTreeError>({
+  private readonly collection = new LegacyLiveCollection<NodeId, FileNode, FileTreeError>({
     scopeOf: (node) => node.parentId,
   });
   private readonly fs: SshFileSystem;
@@ -667,6 +683,84 @@ class LegacySshFileTree implements IFileTree {
     if (!children) return;
     children.delete(id);
     if (children.size === 0) this.childrenByParent.delete(parentId);
+  }
+}
+
+class LegacyLiveCollection<K, V, E> {
+  private readonly values = new Map<K, V>();
+  private readonly loaded = new Set<K | null>();
+  private readonly subscribers = new Set<(update: { value: V; sequence: number }) => void>();
+  private sequence = 0;
+
+  constructor(private readonly options: { scopeOf: (value: V) => K | null }) {}
+
+  get subscriberCount(): number {
+    return this.subscribers.size;
+  }
+
+  getCached(): Map<K, V> {
+    return new Map(this.values);
+  }
+
+  subscribe(cb: (update: { value: V; sequence: number }) => void): Unsubscribe {
+    this.subscribers.add(cb);
+    return () => {
+      this.subscribers.delete(cb);
+    };
+  }
+
+  isScopeLoaded(scope: K | null): boolean {
+    return this.loaded.has(scope);
+  }
+
+  loadedScopes(): Array<K | null> {
+    return [...this.loaded];
+  }
+
+  async loadScope(loaderScope: K | null, load: () => Promise<Result<Array<readonly [K, V]>, E>>) {
+    const result = await load();
+    if (!result.success) return result;
+    for (const [key, value] of result.data) {
+      this.values.set(key, value);
+    }
+    this.loaded.add(loaderScope);
+    return ok(this.bump());
+  }
+
+  unloadScope(scope: K): number {
+    if (!this.loaded.delete(scope)) return 0;
+    for (const [key, value] of this.values) {
+      if (this.options.scopeOf(value) === scope) this.values.delete(key);
+    }
+    return this.bump();
+  }
+
+  put(key: K, value: V): number {
+    this.values.set(key, value);
+    return this.bump();
+  }
+
+  apply(ops: Array<KeyedOp<K, V>>): number {
+    if (ops.length === 0) return 0;
+    for (const op of ops) {
+      if (op.op === 'put') this.values.set(op.key, op.value);
+      else this.values.delete(op.key);
+    }
+    return this.bump();
+  }
+
+  dispose(): void {
+    this.values.clear();
+    this.loaded.clear();
+    this.subscribers.clear();
+  }
+
+  private bump(): number {
+    this.sequence += 1;
+    for (const value of this.values.values()) {
+      for (const subscriber of this.subscribers) subscriber({ value, sequence: this.sequence });
+    }
+    return this.sequence;
   }
 }
 

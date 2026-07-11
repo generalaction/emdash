@@ -87,7 +87,9 @@ export class AgentAuthManager {
     providerId: string,
     options: { refresh?: boolean } = {}
   ): Promise<AgentAuthStatus> {
-    return options.refresh ? this.statusCache.refresh(providerId) : this.statusCache.get(providerId);
+    return options.refresh
+      ? this.statusCache.refresh(providerId)
+      : this.statusCache.get(providerId);
   }
 
   markUnauthenticated(providerId: string, message?: string): AgentAuthStatus {
@@ -173,10 +175,7 @@ export class AgentAuthManager {
     return this.scope.dispose();
   }
 
-  private async createLoginSession(
-    key: LoginKey,
-    scope: Scope
-  ): Promise<LoginSession> {
+  private async createLoginSession(key: LoginKey, scope: Scope): Promise<LoginSession> {
     const { providerId, methodId, generation } = key;
     const loginCommand = await this.deps.agentHost.buildLoginCommand(providerId, methodId);
     if (!loginCommand.success) throw new Error(agentConfigAuthErrorMessage(loginCommand.error));

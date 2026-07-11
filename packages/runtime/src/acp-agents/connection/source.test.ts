@@ -1,3 +1,4 @@
+import type { Client } from '@agentclientprotocol/sdk';
 import type { AgentPluginHost, IAcpBehavior } from '@emdash/core/agents/plugins';
 import { err, isErr, isOk } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
@@ -35,7 +36,7 @@ function sourceDeps(
     host,
     agentHost,
     logger: noopLogger,
-    buildClient: vi.fn(() => ({})),
+    buildClient: vi.fn(() => ({}) as Client),
     onClosed,
   };
 }
