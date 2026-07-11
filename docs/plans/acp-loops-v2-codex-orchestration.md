@@ -1166,6 +1166,13 @@ fresh recreated green run becomes the final success report.
   packages have been built; otherwise Vite cannot resolve `@emdash/shared` package exports.
   Evidence: the initial focused run had 27 passing schema/UI tests but six import-failed suites;
   after the dependency-package build, all 56 focused Loops tests passed unchanged.
+- Observation: the current public Gist still renders several superseded prototype details: a
+  second machine picker, Claude/default-model labels, CDP wording, install buttons, a standalone
+  checks screen, and PR creation inside the Loop.
+  Evidence: fetched Gist `24c72963acc96c4011dd1afed95646a4` during execution preflight. Lane U
+  may reuse only the Create Task Loop toggle, editable review journey, pinned Loop tab, grouped
+  phase/evidence presentation, and native spacing intent; this plan's workspace/model/browser/no-PR
+  contracts override the stale details.
 - Observation: ACP phase sessions already route through the task machine, but current Loop
   validation, Git diff, and verifiers reduce the target to a local `cwd`.
   Evidence: `loop-service.ts` calls `resolveTaskWorkspaceTarget` and retains only `.path`; verifier
