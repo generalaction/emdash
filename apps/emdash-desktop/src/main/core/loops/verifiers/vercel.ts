@@ -38,18 +38,19 @@ export const vercelVerifier: LoopVerifier = {
   id,
   label,
 
-  checkAvailability(cwd) {
-    return checkCliAvailability(id, 'vercel', ['--version'], cwd);
+  checkAvailability(cwd, executionTarget) {
+    return checkCliAvailability(id, 'vercel', ['--version'], cwd, executionTarget);
   },
 
   async run(ctx) {
     try {
       const result = await runExecFile('vercel', ['ls', '--json'], {
         cwd: ctx.cwd,
+        executionTarget: ctx.executionTarget,
         signal: ctx.signal,
         timeoutMs: 120_000,
       });
-      const deployment = latestDeploymentIsReady(result.stdoutTail);
+      const deployment = latestDeploymentIsReady(result.stdout);
       if (!deployment.ready) {
         return err({
           kind: 'command-failed',

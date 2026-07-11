@@ -43,8 +43,8 @@ export const ghVerifier: LoopVerifier = {
   id,
   label,
 
-  checkAvailability(cwd) {
-    return checkCliAvailability(id, 'gh', ['--version'], cwd);
+  checkAvailability(cwd, executionTarget) {
+    return checkCliAvailability(id, 'gh', ['--version'], cwd, executionTarget);
   },
 
   async run(ctx) {
@@ -54,11 +54,12 @@ export const ghVerifier: LoopVerifier = {
         ['pr', 'checks', '--json', 'name,state,conclusion,link'],
         {
           cwd: ctx.cwd,
+          executionTarget: ctx.executionTarget,
           signal: ctx.signal,
           timeoutMs: 120_000,
         }
       );
-      const checks = checksAreGreen(result.stdoutTail);
+      const checks = checksAreGreen(result.stdout);
       if (!checks.green) {
         return err({
           kind: 'command-failed',
@@ -73,7 +74,15 @@ export const ghVerifier: LoopVerifier = {
         });
       }
       return ok(evidenceFromExec(id, label, result, checks.summary));
-    } catch {
+    } catch (failure) {
+      const firstFailure = errorFromExec(
+        id,
+        failure as ExecFileFailure,
+        'GitHub pull request checks failed'
+      );
+      if (firstFailure.kind === 'aborted' || firstFailure.kind === 'timed-out') {
+        return err(firstFailure);
+      }
       // Some branches do not have an associated PR yet; fall back to the latest workflow run.
     }
 
@@ -83,11 +92,12 @@ export const ghVerifier: LoopVerifier = {
         ['run', 'list', '--limit', '1', '--json', 'status,conclusion,name,databaseId,url'],
         {
           cwd: ctx.cwd,
+          executionTarget: ctx.executionTarget,
           signal: ctx.signal,
           timeoutMs: 120_000,
         }
       );
-      const checks = checksAreGreen(result.stdoutTail);
+      const checks = checksAreGreen(result.stdout);
       if (!checks.green) {
         return err({
           kind: 'command-failed',

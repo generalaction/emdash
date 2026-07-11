@@ -1,50 +1,27 @@
-import { execFile } from 'node:child_process';
-import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import {
+  DEFAULT_LOOP_COMMAND_TIMEOUT_MS,
+  OUTPUT_TAIL_MAX,
+  runLoopCommand,
+  tail,
+  type LoopCommandFailure,
+  type LoopCommandResult,
+} from '../runtime/loop-command-runner';
+import type { LoopExecutionTarget } from '../runtime/loop-execution-target';
 
-export const OUTPUT_TAIL_MAX = 8_000;
-export const DEFAULT_VERIFIER_TIMEOUT_MS = 120_000;
+export { OUTPUT_TAIL_MAX, tail };
+export const DEFAULT_VERIFIER_TIMEOUT_MS = DEFAULT_LOOP_COMMAND_TIMEOUT_MS;
 
 export type ParsedCommand = {
   file: string;
   args: string[];
-  env: NodeJS.ProcessEnv;
+  env: Record<string, string>;
 };
 
-export type ExecFileResult = {
-  file: string;
-  args: string[];
-  command: string;
-  cwd: string;
-  durationMs: number;
-  stdoutTail: string;
-  stderrTail: string;
-  exitCode: number;
-};
-
-export type ExecFileFailure = {
-  file: string;
-  args: string[];
-  command: string;
-  cwd: string;
-  durationMs: number;
-  stdoutTail: string;
-  stderrTail: string;
-  exitCode: number | null;
-  timedOut: boolean;
-  aborted: boolean;
-  message: string;
-};
+export type ExecFileResult = LoopCommandResult;
+export type ExecFileFailure = LoopCommandFailure;
 
 export class CommandParseError extends Error {}
-
-function commandDisplay(file: string, args: string[]): string {
-  return [file, ...args].join(' ');
-}
-
-export function tail(value: string | Buffer | undefined | null, max = OUTPUT_TAIL_MAX): string {
-  const text = Buffer.isBuffer(value) ? value.toString('utf8') : (value ?? '');
-  return text.length > max ? text.slice(text.length - max) : text;
-}
 
 export function parseCommandLine(command: string): ParsedCommand {
   const tokens: string[] = [];
@@ -90,7 +67,7 @@ export function parseCommandLine(command: string): ParsedCommand {
   if (current) tokens.push(current);
   if (tokens.length === 0) throw new CommandParseError('Command is empty');
 
-  const env = buildExternalToolEnv();
+  const env: Record<string, string> = {};
   let commandIndex = 0;
   for (; commandIndex < tokens.length; commandIndex += 1) {
     const token = tokens[commandIndex]!;
@@ -109,66 +86,34 @@ export function parseCommandLine(command: string): ParsedCommand {
   };
 }
 
-export function runExecFile(
+export async function runExecFile(
   file: string,
   args: string[],
   options: {
     cwd: string;
     timeoutMs?: number;
     signal?: AbortSignal;
-    env?: NodeJS.ProcessEnv;
+    env?: Readonly<Record<string, string | undefined>>;
     maxBuffer?: number;
+    executionTarget?: LoopExecutionTarget;
   }
 ): Promise<ExecFileResult> {
-  const startedAt = Date.now();
-  const command = commandDisplay(file, args);
+  if (options.executionTarget) {
+    return runLoopCommand(options.executionTarget, file, args, options);
+  }
 
-  return new Promise((resolve, reject: (error: ExecFileFailure) => void) => {
-    execFile(
-      file,
-      args,
-      {
-        cwd: options.cwd,
-        env: options.env ?? buildExternalToolEnv(),
-        timeout: options.timeoutMs ?? DEFAULT_VERIFIER_TIMEOUT_MS,
-        maxBuffer: options.maxBuffer ?? 4 * 1024 * 1024,
-        signal: options.signal,
-      },
-      (error, stdout, stderr) => {
-        const durationMs = Date.now() - startedAt;
-        if (error) {
-          const nodeError = error as NodeJS.ErrnoException & {
-            code?: number | string;
-            killed?: boolean;
-            signal?: NodeJS.Signals;
-          };
-          reject({
-            file,
-            args,
-            command,
-            cwd: options.cwd,
-            durationMs,
-            stdoutTail: tail(stdout),
-            stderrTail: tail(stderr),
-            exitCode: typeof nodeError.code === 'number' ? nodeError.code : null,
-            timedOut: nodeError.killed === true && nodeError.signal === 'SIGTERM',
-            aborted: nodeError.name === 'AbortError',
-            message: nodeError.message,
-          });
-          return;
-        }
-
-        resolve({
-          file,
-          args,
-          command,
-          cwd: options.cwd,
-          durationMs,
-          stdoutTail: tail(stdout),
-          stderrTail: tail(stderr),
-          exitCode: 0,
-        });
-      }
-    );
-  });
+  const executionContext = new LocalExecutionContext({ root: options.cwd });
+  const legacyTarget: LoopExecutionTarget = {
+    workspaceId: 'legacy-local-loop-command',
+    path: options.cwd,
+    machine: { kind: 'local' },
+    executionContext,
+    taskEnv: {},
+    dispose: () => executionContext.dispose(),
+  };
+  try {
+    return await runLoopCommand(legacyTarget, file, args, options);
+  } finally {
+    legacyTarget.dispose();
+  }
 }

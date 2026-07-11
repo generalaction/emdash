@@ -1,6 +1,7 @@
 import type { Result } from '@main/lib/result';
 import type { Loop, LoopPhase, LoopPhaseCriterion, VerifierId } from '@shared/core/loops/loops';
 import type { LoopSessionDriver } from '../drivers/session-driver';
+import type { LoopExecutionTarget } from '../runtime/loop-execution-target';
 
 export type BuiltInVerifierId = 'unit-tests' | VerifierId;
 
@@ -45,6 +46,8 @@ export type VerifierRunContext = {
   loop: Loop;
   phase: LoopPhase;
   cwd: string;
+  /** Target-bound execution supplied by the v2 engine. Optional until serial integration lands. */
+  executionTarget?: LoopExecutionTarget;
   validationCommands: string[];
   criteria: LoopPhaseCriterion[];
   signal?: AbortSignal;
@@ -59,6 +62,9 @@ export type VerifierRunContext = {
 export type LoopVerifier = {
   id: BuiltInVerifierId;
   label: string;
-  checkAvailability(cwd: string): Promise<Result<VerifierAvailability, VerifierError>>;
+  checkAvailability(
+    cwd: string,
+    executionTarget?: LoopExecutionTarget
+  ): Promise<Result<VerifierAvailability, VerifierError>>;
   run(ctx: VerifierRunContext): Promise<Result<VerifierEvidence, VerifierError>>;
 };

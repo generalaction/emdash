@@ -11,6 +11,8 @@ export type ExecContextOptions = {
   timeout?: number;
   maxBuffer?: number;
   signal?: AbortSignal;
+  /** Per-command environment overlay. Implementations merge it onto their approved host env. */
+  env?: Readonly<Record<string, string | undefined>>;
 };
 
 /**

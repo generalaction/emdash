@@ -1,6 +1,12 @@
 import { err, ok, type Result } from '@main/lib/result';
 import { errorFromExec } from './common';
-import { CommandParseError, parseCommandLine, runExecFile, type ExecFileFailure } from './exec';
+import {
+  CommandParseError,
+  parseCommandLine,
+  runExecFile,
+  tail,
+  type ExecFileFailure,
+} from './exec';
 import type { LoopVerifier, VerifierAvailability, VerifierError, VerifierEvidence } from './types';
 
 const id = 'unit-tests' as const;
@@ -43,26 +49,23 @@ export const unitTestsVerifier: LoopVerifier = {
           kind: 'invalid-config',
           verifierId: id,
           message: error instanceof CommandParseError ? error.message : String(error),
-          command,
           cwd: ctx.cwd,
         });
       }
 
-      commands.push(command);
-
       try {
         const result = await runExecFile(parsed.file, parsed.args, {
           cwd: ctx.cwd,
+          executionTarget: ctx.executionTarget,
           env: parsed.env,
           signal: ctx.signal,
           timeoutMs: 10 * 60_000,
         });
+        commands.push(result.command);
         stdoutTails.push(result.stdoutTail);
         stderrTails.push(result.stderrTail);
       } catch (failure) {
-        return err(
-          errorFromExec(id, failure as ExecFileFailure, `Validation command failed: ${command}`)
-        );
+        return err(errorFromExec(id, failure as ExecFileFailure, 'Validation command failed'));
       }
     }
 
@@ -72,8 +75,8 @@ export const unitTestsVerifier: LoopVerifier = {
       command: commands.join(' && '),
       cwd: ctx.cwd,
       durationMs: Date.now() - startedAt,
-      stdoutTail: stdoutTails.filter(Boolean).join('\n'),
-      stderrTail: stderrTails.filter(Boolean).join('\n'),
+      stdoutTail: tail(stdoutTails.filter(Boolean).join('\n')),
+      stderrTail: tail(stderrTails.filter(Boolean).join('\n')),
       exitCode: 0,
       summary: 'Validation commands passed.',
     });

@@ -10,14 +10,15 @@ export const convexVerifier: LoopVerifier = {
   id,
   label,
 
-  checkAvailability(cwd) {
-    return checkCliAvailability(id, 'npx', ['convex', '--version'], cwd);
+  checkAvailability(cwd, executionTarget) {
+    return checkCliAvailability(id, 'npx', ['convex', '--version'], cwd, executionTarget);
   },
 
   async run(ctx) {
     try {
       const result = await runExecFile('npx', ['convex', 'deploy', '--dry-run'], {
         cwd: ctx.cwd,
+        executionTarget: ctx.executionTarget,
         signal: ctx.signal,
         timeoutMs: 5 * 60_000,
       });

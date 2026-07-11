@@ -1,4 +1,5 @@
 import { err, ok, type Result } from '@main/lib/result';
+import type { LoopExecutionTarget } from '../runtime/loop-execution-target';
 import { runExecFile, type ExecFileFailure, type ExecFileResult } from './exec';
 import type {
   BuiltInVerifierId,
@@ -42,7 +43,13 @@ export function errorFromExec(
   fallbackMessage: string
 ): VerifierError {
   return {
-    kind: failure.aborted ? 'aborted' : failure.timedOut ? 'timed-out' : 'command-failed',
+    kind: failure.aborted
+      ? 'aborted'
+      : failure.timedOut
+        ? 'timed-out'
+        : failure.executionError
+          ? 'execution-error'
+          : 'command-failed',
     verifierId,
     message: failure.stderrTail.trim() || failure.stdoutTail.trim() || fallbackMessage,
     command: failure.command,
@@ -58,10 +65,11 @@ export async function checkCliAvailability(
   verifierId: BuiltInVerifierId,
   file: string,
   args: string[],
-  cwd: string
+  cwd: string,
+  executionTarget?: LoopExecutionTarget
 ): Promise<Result<VerifierAvailability, VerifierError>> {
   try {
-    await runExecFile(file, args, { cwd, timeoutMs: 15_000 });
+    await runExecFile(file, args, { cwd, executionTarget, timeoutMs: 15_000 });
     return ok({ available: true });
   } catch (failure) {
     return err({
