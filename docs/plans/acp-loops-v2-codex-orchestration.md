@@ -1161,7 +1161,26 @@ fresh recreated green run becomes the final success report.
   tests and both typechecks after cherry-pick. Local and SSH commands now share the existing
   execution-context path with target retention, trusted task variables, quoted SSH executables,
   early abort, timeout, bounded buffers, exit metadata, and cleanup.
-- [ ] Complete, review, and merge Wave 1 lanes B/U.
+- [x] 2026-07-11: Closed Lane R's independent-review findings at `f25cdfe30`: GitHub fallback now
+  occurs only for a recognized missing-PR result and is scoped to the current branch; malformed
+  GitHub/Vercel JSON fails closed; evidence messages remain bounded; pending-profile abort and the
+  production SSH target path are covered. The focused remediation matrix passed 42/42.
+- [x] 2026-07-11: Completed and merged Wave 1 Lane U at `e49f3621f` (lane commit `34890dd7d`),
+  then closed its independent-review findings at `441a17769`. The flag-gated, default-off Create
+  Task section now has deterministic fenced-Markdown parsing, editable accessible validation, and
+  fixed Review/E2E order. The injected Loop tab resource preserves newer event/load state across
+  stale responses and exposes handoffs, evidence, browser state, pause/resume, and retry. Its
+  expanded focused matrix passed 26/26.
+- [x] 2026-07-11: Completed and merged Wave 1 Lane B at `f69123b67` (lane commit `42653b0e1`),
+  then closed two independent security/lifecycle reviews at `62f43bcd3`. The native Electron slice
+  now enforces exact lease/origin/profile ownership, closes bound and pending guests, drains or
+  suppresses in-flight actions, reserves concurrent starts, single-flights reconnect rotation,
+  prevents destructive action replay, releases partition handlers, bounds/redacts observations,
+  and removes credential/query/hash material from ACP-visible URLs. The independently approved
+  browser matrix passed 59/59.
+- [x] 2026-07-11: Passed the integrated Wave 1 gate at `62f43bcd3`: 15 focused files and 127 tests,
+  desktop typecheck, focused lint/format, and `git diff --check` all passed under Node `24.14.0` and
+  `pnpm@10.28.2`.
 - [ ] Complete, review, and merge Wave 2A lanes W/P.
 - [ ] Complete and merge Wave 2B lanes V/N, then Wave 2C Lane E.
 - [ ] Complete serial main-engine and final renderer integration.
@@ -1201,6 +1220,15 @@ fresh recreated green run becomes the final success report.
 - Observation: the v1 Loop provider default is Claude, so a GPT-5.6 Sol model ID alone is invalid.
   Evidence: freeze and test Codex provider plus resolved model as one config invariant while
   preserving historical v1 resolution during migration.
+- Observation: the inherited GitHub verifier requested an unsupported `conclusion` field and
+  treated every failed PR-check command as permission to inspect an unscoped workflow run.
+  Evidence: the installed `gh pr checks --help` exposes `bucket` rather than `conclusion`; the
+  independent runtime audit reproduced the unrelated-green-run false-pass path before remediation.
+- Observation: native browser teardown requires ownership of attached-but-unbound Electron guests,
+  not only numeric IDs and the finally bound guest.
+  Evidence: independent review reproduced a revoke/close-timeout path that could release session
+  handlers while a pending guest survived; failing-first registry tests now cover pending and late
+  attachments, cross-owner cleanup, action drain, concurrent start/reconcile, and credential URLs.
 
 ## Decision Log
 
@@ -1238,7 +1266,9 @@ fresh recreated green run becomes the final success report.
 
 ## Outcomes & Retrospective
 
-Planning is complete; implementation has not started under this plan. At each major merge wave, the
-lead records what shipped, proof obtained, deviations, and cleanup. At final completion, compare the
-observable result with `Purpose and observable outcome`, list exact validation evidence, and state
-any remaining blocker without claiming success for an unverified path.
+Implementation is complete through the reviewed Wave 1 foundations on the isolated integration
+branch. Wave 2 clean-room/prompt work, terminal gates, serial engine/renderer wiring, native Electron
+harness, full independent review, and both Summario acceptance Loops remain. At each major merge
+wave, the lead records what shipped, proof obtained, deviations, and cleanup. At final completion,
+compare the observable result with `Purpose and observable outcome`, list exact validation evidence,
+and state any remaining blocker without claiming success for an unverified path.
