@@ -1,5 +1,5 @@
 import { err, ok } from '@main/lib/result';
-import { checkCliAvailability, errorFromExec, evidenceFromExec, jsonSummary } from './common';
+import { checkCliAvailability, errorFromExec, evidenceFromExec } from './common';
 import { runExecFile, type ExecFileFailure } from './exec';
 import type { LoopVerifier } from './types';
 
@@ -11,7 +11,7 @@ function latestDeploymentIsReady(raw: string): { ready: boolean; summary: string
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { ready: true, summary: raw.trim() || 'Vercel command completed.' };
+    return { ready: false, summary: 'Vercel returned malformed JSON.' };
   }
 
   const deployments = Array.isArray(parsed)
@@ -59,7 +59,7 @@ export const vercelVerifier: LoopVerifier = {
           command: result.command,
           cwd: ctx.cwd,
           durationMs: result.durationMs,
-          stdoutTail: jsonSummary(result.stdoutTail),
+          stdoutTail: result.stdoutTail,
           stderrTail: result.stderrTail,
           exitCode: result.exitCode,
         });

@@ -107,6 +107,18 @@ describe('runLoopCommand', () => {
       file: 'tool',
     });
   });
+
+  it('bounds execution error messages before they can enter Loop evidence', async () => {
+    const target = makeTarget(
+      vi.fn(async () => {
+        throw new Error(`remote command failed: ${'x'.repeat(16_000)}`);
+      })
+    );
+
+    await expect(runLoopCommand(target, 'tool', [])).rejects.toMatchObject({
+      message: 'x'.repeat(8_000),
+    });
+  });
 });
 
 describe('runLoopGitDiff', () => {

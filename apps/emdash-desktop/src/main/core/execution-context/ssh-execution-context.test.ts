@@ -155,6 +155,28 @@ describe('SshExecutionContext.exec', () => {
     expect(channel.destroy).toHaveBeenCalledOnce();
   });
 
+  it('rejects an abort while the remote shell profile is still pending', async () => {
+    let resolveProfile!: (profile: RemoteShellProfile) => void;
+    const profile = new Promise<RemoteShellProfile>((resolve) => {
+      resolveProfile = resolve;
+    });
+    const proxy = makeProxy(vi.fn());
+    vi.mocked(proxy.getRemoteShellProfile).mockImplementation(() => profile);
+    const controller = new AbortController();
+    const ctx = new SshExecutionContext(proxy, { root: '/remote/repo' });
+    const observed = observe(ctx.exec('node', [], { signal: controller.signal }));
+
+    controller.abort();
+    await expect(observed).resolves.toMatchObject({
+      kind: 'rejected',
+      error: { name: 'AbortError' },
+    });
+    resolveProfile({ shell: '/bin/sh', env: {} });
+    await Promise.resolve();
+
+    expect(proxy.exec).not.toHaveBeenCalled();
+  });
+
   it('destroys the active channel and ignores late events after abort', async () => {
     const channel = new FakeChannel();
     const proxy = makeProxy((_command, callback) => callback(undefined, channel));

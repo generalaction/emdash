@@ -94,7 +94,7 @@ function normalizeFailure(
     timedOut,
     aborted,
     executionError: !timedOut && !aborted && exitCode === null,
-    message: error instanceof Error ? error.message : String(error),
+    message: tail(error instanceof Error ? error.message : String(error)),
   };
 }
 

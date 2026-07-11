@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
+import { resolveTaskWorkspaceTarget } from '@main/core/workspaces/resolve-task-workspace-target';
 import { getTaskEnvVars } from '@main/core/workspaces/workspace-env';
 import { err, ok } from '@main/lib/result';
 import {
@@ -101,5 +104,30 @@ describe('resolveLoopExecutionTarget', () => {
     expect(result).toEqual(err(failure));
     expect(deps.createLocalExecutionContext).not.toHaveBeenCalled();
     expect(deps.createSshExecutionContext).not.toHaveBeenCalled();
+  });
+
+  it('uses the production target resolver and SSH connection manager by default', async () => {
+    const target = {
+      workspaceId: 'workspace-production-ssh',
+      path: '/remote/worktrees/task-production',
+      machine: { kind: 'ssh' as const, connectionId: 'connection-production' },
+    };
+    const proxy = {
+      exec: vi.fn(),
+      getRemoteShellProfile: vi.fn(),
+      refreshRemoteShellProfile: vi.fn(),
+    } as unknown as SshClientProxy;
+    vi.mocked(resolveTaskWorkspaceTarget).mockResolvedValue(ok(target));
+    vi.mocked(sshConnectionManager.connect).mockResolvedValue(proxy);
+
+    const result = await resolveLoopExecutionTarget('task-production', taskEnvironment);
+
+    expect(result.success).toBe(true);
+    expect(resolveTaskWorkspaceTarget).toHaveBeenCalledWith('task-production');
+    expect(sshConnectionManager.connect).toHaveBeenCalledWith('connection-production');
+    if (!result.success) return;
+    expect(result.data).toMatchObject(target);
+    expect(result.data.executionContext.root).toBe(target.path);
+    result.data.dispose();
   });
 });
