@@ -40,7 +40,9 @@ export function CreateTaskLoopSection({ value, onChange }: CreateTaskLoopSection
 
   const goalInvalid = errors.includes('Add a goal for this Loop.');
   const update = (patch: Partial<LoopPlanDraft>): void => {
-    onChange({ ...value, ...patch });
+    const next = { ...value, ...patch };
+    if (errors.length > 0) setErrors(validateLoopPlanDraft(next));
+    onChange(next);
   };
 
   const updatePhase = (phaseId: string, patch: Partial<LoopWorkPhaseDraft>): void => {
@@ -144,41 +146,51 @@ export function CreateTaskLoopSection({ value, onChange }: CreateTaskLoopSection
           </div>
 
           <div className="grid gap-3">
-            {value.workPhases.map((phase, index) => (
-              <div
-                key={phase.id}
-                className="flex flex-col gap-2 rounded-md border border-border bg-background p-3"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-foreground-passive">{index + 1}</span>
-                  <Input
-                    aria-label={`Phase ${index + 1} name`}
-                    value={phase.name}
-                    onInput={(event) => updatePhase(phase.id, { name: event.currentTarget.value })}
+            {value.workPhases.map((phase, index) => {
+              const phaseNameInvalid = errors.length > 0 && !phase.name.trim();
+              const phaseGoalInvalid = errors.length > 0 && !phase.goal.trim();
+              return (
+                <div
+                  key={phase.id}
+                  className="flex flex-col gap-2 rounded-md border border-border bg-background p-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-foreground-passive">{index + 1}</span>
+                    <Input
+                      aria-label={`Phase ${index + 1} name`}
+                      aria-invalid={phaseNameInvalid}
+                      aria-describedby={phaseNameInvalid ? 'loop-plan-errors' : undefined}
+                      value={phase.name}
+                      onInput={(event) =>
+                        updatePhase(phase.id, { name: event.currentTarget.value })
+                      }
+                    />
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Remove ${phase.name || `Phase ${index + 1}`}`}
+                      disabled={value.workPhases.length === 1}
+                      onClick={() =>
+                        update({
+                          workPhases: value.workPhases.filter((item) => item.id !== phase.id),
+                        })
+                      }
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                  <Textarea
+                    aria-label={`Phase ${index + 1} goal`}
+                    aria-invalid={phaseGoalInvalid}
+                    aria-describedby={phaseGoalInvalid ? 'loop-plan-errors' : undefined}
+                    value={phase.goal}
+                    placeholder="Describe what this phase should complete"
+                    onInput={(event) => updatePhase(phase.id, { goal: event.currentTarget.value })}
                   />
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label={`Remove ${phase.name || `Phase ${index + 1}`}`}
-                    disabled={value.workPhases.length === 1}
-                    onClick={() =>
-                      update({
-                        workPhases: value.workPhases.filter((item) => item.id !== phase.id),
-                      })
-                    }
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
                 </div>
-                <Textarea
-                  aria-label={`Phase ${index + 1} goal`}
-                  value={phase.goal}
-                  placeholder="Describe what this phase should complete"
-                  onInput={(event) => updatePhase(phase.id, { goal: event.currentTarget.value })}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div role="group" aria-label="Terminal gates" className="grid gap-3">

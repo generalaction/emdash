@@ -94,6 +94,36 @@ describe('loop plan model', () => {
     ]);
   });
 
+  it('preserves heading text ending in a literal hash', () => {
+    const draft = normalizeLoopPlan({
+      goal: 'Document the language examples',
+      planSource: '## Learn C#\nKeep the literal language name.',
+    });
+
+    expect(draft.workPhases[0]?.name).toBe('Learn C#');
+  });
+
+  it('requires a matching fence length and a bare closing fence', () => {
+    const draft = normalizeLoopPlan({
+      goal: 'Keep examples out of the phase list',
+      planSource: [
+        '## Real phase',
+        '````md',
+        '## Inside four ticks',
+        '```',
+        '## Still inside four ticks',
+        '````',
+        '```md',
+        '```oops',
+        '## Still inside the info fence',
+        '```',
+        '## Final phase',
+      ].join('\n'),
+    });
+
+    expect(draft.workPhases.map((phase) => phase.name)).toEqual(['Real phase', 'Final phase']);
+  });
+
   it('uses source order when headings, numbered items, and nested checkboxes are mixed', () => {
     const draft = normalizeLoopPlan({
       goal: 'Ship the release',

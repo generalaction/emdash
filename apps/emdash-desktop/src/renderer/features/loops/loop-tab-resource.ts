@@ -28,6 +28,7 @@ export class LoopTabResource implements TabResource {
   private activated = false;
   private disposed = false;
   private eventVersion = 0;
+  private loadGeneration = 0;
 
   constructor(
     readonly loopId: string,
@@ -51,18 +52,31 @@ export class LoopTabResource implements TabResource {
     if (this.disposed) return Promise.resolve();
     this.ensureSubscribed();
     const versionAtStart = this.eventVersion;
+    const generation = ++this.loadGeneration;
     this.state = { kind: 'loading' };
 
     const request = this.port
       .loadLoop(this.loopId)
       .then((snapshot) => {
-        if (this.disposed || this.eventVersion !== versionAtStart) return;
+        if (
+          this.disposed ||
+          generation !== this.loadGeneration ||
+          this.eventVersion !== versionAtStart
+        ) {
+          return;
+        }
         runInAction(() => {
           this.state = { kind: 'ready', snapshot };
         });
       })
       .catch((error: unknown) => {
-        if (this.disposed || this.eventVersion !== versionAtStart) return;
+        if (
+          this.disposed ||
+          generation !== this.loadGeneration ||
+          this.eventVersion !== versionAtStart
+        ) {
+          return;
+        }
         runInAction(() => {
           this.state = { kind: 'error', message: messageFromUnknown(error) };
         });
@@ -87,6 +101,7 @@ export class LoopTabResource implements TabResource {
     if (this.disposed) return;
     this.disposed = true;
     this.eventVersion += 1;
+    this.loadGeneration += 1;
     this.unsubscribe?.();
     this.unsubscribe = undefined;
   }
@@ -113,19 +128,26 @@ export class LoopTabResource implements TabResource {
     request: () => Promise<LoopTabSnapshot>
   ): Promise<void> {
     if (this.disposed || this.action.kind === 'pending') return;
+    const versionAtStart = this.eventVersion;
     this.action = { kind: 'pending', action };
     try {
       const snapshot = await request();
       if (this.disposed) return;
       runInAction(() => {
-        this.eventVersion += 1;
-        this.state = { kind: 'ready', snapshot };
+        if (this.eventVersion === versionAtStart) {
+          this.eventVersion += 1;
+          this.state = { kind: 'ready', snapshot };
+        }
         this.action = { kind: 'idle' };
       });
     } catch (error) {
       if (this.disposed) return;
       const verb = action === 'retry' ? 'retry the phase' : `${action} the Loop`;
       runInAction(() => {
+        if (this.eventVersion !== versionAtStart) {
+          this.action = { kind: 'idle' };
+          return;
+        }
         this.action = {
           kind: 'error',
           action,

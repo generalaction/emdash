@@ -140,6 +140,24 @@ describe('CreateTaskLoopSection', () => {
 
     await act(async () => setNativeValue(goal, 'Ship a resilient Loop authoring flow'));
     expect(goal.value).toBe('Ship a resilient Loop authoring flow');
+    expect(goal.getAttribute('aria-invalid')).toBe('false');
+    expect(goal.hasAttribute('aria-describedby')).toBe(false);
+    expect(container.querySelector('[role="alert"]')?.textContent).not.toContain(
+      'Add a goal for this Loop.'
+    );
+
+    const phaseName = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Phase 1 name"]'
+    )!;
+    const phaseGoal = container.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Phase 1 goal"]'
+    )!;
+    expect(phaseGoal.getAttribute('aria-invalid')).toBe('true');
+    expect(phaseGoal.getAttribute('aria-describedby')).toBe('loop-plan-errors');
+
+    await act(async () => setNativeValue(phaseName, ''));
+    expect(phaseName.getAttribute('aria-invalid')).toBe('true');
+    expect(phaseName.getAttribute('aria-describedby')).toBe('loop-plan-errors');
   });
 
   it('shows Review before E2E and allows each terminal gate to be toggled independently', async () => {

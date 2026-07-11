@@ -78,7 +78,11 @@ function browserMeta(browser: LoopTabBrowserState): { label: string; tone: Statu
 function BrowserState({ browser }: { browser: LoopTabBrowserState }) {
   const meta = browserMeta(browser);
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background p-3">
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background p-3"
+    >
       <StatusChip {...meta} />
       {browser.kind !== 'disabled' ? (
         <span className="text-sm text-foreground-muted">{browser.message}</span>

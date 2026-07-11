@@ -35,6 +35,11 @@ type ParsedPhase = {
   body: string[];
 };
 
+type MarkdownFence = {
+  marker: '`' | '~';
+  length: number;
+};
+
 const defaultTerminalGates: LoopTerminalGates = { review: false, e2e: false };
 
 function workPhase(id: number, name: string, goal: string): LoopWorkPhaseDraft {
@@ -57,7 +62,7 @@ export function createDefaultLoopPlanDraft(): LoopPlanDraft {
 }
 
 function markerText(line: string): string | null {
-  const heading = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line);
+  const heading = /^\s{0,3}#{1,6}[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/.exec(line);
   if (heading?.[1]?.trim()) return heading[1].trim();
 
   const numbered = /^\s*\d+[.)]\s+(.+?)\s*$/.exec(line);
@@ -67,10 +72,23 @@ function markerText(line: string): string | null {
   return checkbox?.[1]?.trim() || null;
 }
 
+function openingFence(line: string): MarkdownFence | null {
+  const match = /^\s{0,3}(`{3,}|~{3,}).*$/.exec(line);
+  const sequence = match?.[1];
+  if (!sequence) return null;
+  return { marker: sequence[0] as '`' | '~', length: sequence.length };
+}
+
+function closesFence(line: string, fence: MarkdownFence): boolean {
+  const match = /^\s{0,3}(`+|~+)[ \t]*$/.exec(line);
+  const sequence = match?.[1];
+  return Boolean(sequence && sequence[0] === fence.marker && sequence.length >= fence.length);
+}
+
 function parseStructuredPhases(planSource: string): LoopWorkPhaseDraft[] {
   const parsed: ParsedPhase[] = [];
   let current: ParsedPhase | null = null;
-  let fence: '```' | '~~~' | null = null;
+  let fence: MarkdownFence | null = null;
 
   const finishCurrent = (): void => {
     if (!current) return;
@@ -80,20 +98,20 @@ function parseStructuredPhases(planSource: string): LoopWorkPhaseDraft[] {
 
   for (const rawLine of planSource.split(/\r?\n/)) {
     const line = rawLine.replace(/\r$/, '');
-    const trimmed = line.trim();
-    const fenceMarker = trimmed.startsWith('```')
-      ? '```'
-      : trimmed.startsWith('~~~')
-        ? '~~~'
-        : null;
-
-    if (fenceMarker) {
+    if (fence) {
       if (current) current.body.push(line.trimEnd());
-      fence = fence === fenceMarker ? null : (fence ?? fenceMarker);
+      if (closesFence(line, fence)) fence = null;
       continue;
     }
 
-    const name = fence ? null : markerText(line);
+    const nextFence = openingFence(line);
+    if (nextFence) {
+      if (current) current.body.push(line.trimEnd());
+      fence = nextFence;
+      continue;
+    }
+
+    const name = markerText(line);
     if (name) {
       finishCurrent();
       current = { name, body: [] };
