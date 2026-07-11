@@ -1,6 +1,7 @@
 import { resultSchema } from '@emdash/shared';
 import { z } from 'zod';
 import { liveCursorEntrySchema } from '../live/protocol';
+import type { Middleware } from '../util';
 import {
   isDownloadFileOpenResult,
   markDownloadFileOpen,
@@ -135,6 +136,13 @@ export function withValidation<Defs extends ContractDefinitions>(
       });
     }
   }
+}
+
+export function validation<Defs extends ContractDefinitions>(
+  contract: Contract<Defs>,
+  policy: ValidatePolicy
+): Middleware<Controller> {
+  return (controller) => withValidation(contract, controller, policy);
 }
 
 function parseDownloadFileOutput(def: DownloadFileEndpointDef, output: unknown): unknown {

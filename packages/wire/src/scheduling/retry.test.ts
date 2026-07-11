@@ -38,6 +38,7 @@ describe('retry', () => {
     const result = retry(({ attempt }) => operation({ attempt }), {
       clock,
       schedule: retrySchedules.fixed(10, 1),
+      shouldRetry: () => true,
     });
 
     await Promise.resolve();
@@ -74,6 +75,7 @@ describe('retry', () => {
       clock,
       signal: abort.signal,
       schedule: retrySchedules.fixed(10, 2),
+      shouldRetry: () => true,
     });
 
     await Promise.resolve();

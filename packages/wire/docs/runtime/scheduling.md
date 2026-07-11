@@ -43,6 +43,26 @@ scope.add(() => handle.dispose());
 `TimerHandle.dispose()` is idempotent. The `active` flag becomes false before the
 callback runs, so callback and disposal races remain at-most-once.
 
+## Timeouts
+
+`runWithTimeout(work, { timeoutMs, signal, clock })` derives a child
+`AbortSignal`, schedules a deadline on the provided `Clock`, and disposes its
+timer in every terminal path. The returned promise rejects with `TimeoutError`
+when the deadline expires, but parent cancellation still rejects with the
+parent's abort reason.
+
+```ts
+const result = await runWithTimeout(
+  (signal) => loadWorkspace({ signal }),
+  { timeoutMs: 5_000, signal: parentSignal, clock }
+);
+```
+
+The timeout rejects promptly even when work ignores the derived signal, but the
+underlying JavaScript work can only stop cooperatively. Pass the derived signal
+into sleeps, process waits, transports, and any helper that can observe
+cancellation.
+
 ## ManualClock
 
 Tests should import `ManualClock` from `@emdash/wire/testing`. It preserves FIFO

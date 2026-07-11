@@ -1,5 +1,10 @@
-export { deduplicateRequests, type DeduplicateRequestsOptions } from './deduplicate-requests';
+export {
+  deduplicate,
+  deduplicateRequests,
+  type DeduplicateRequestsOptions,
+} from './deduplicate-requests';
 export { createAsyncCache, type AsyncCache, type CreateAsyncCacheOptions } from './async-cache';
+export { compose, type Middleware } from './compose';
 export {
   createMailbox,
   MailboxClosedError,

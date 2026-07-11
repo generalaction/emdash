@@ -1,6 +1,7 @@
 import type { LogFields, Logger, LogLevel } from '@emdash/shared/logger';
 import type { Controller } from '../api/controller';
 import { serializeWireError } from '../api/protocol';
+import type { Middleware } from '../util';
 import { summarizePayload, type PayloadSummaryOptions } from './payload';
 
 export type WithLoggingOptions = PayloadSummaryOptions & {
@@ -58,6 +59,10 @@ export function withLogging(
       await controller.dispose?.();
     },
   };
+}
+
+export function logging(logger: Logger, options: WithLoggingOptions = {}): Middleware<Controller> {
+  return (controller) => withLogging(controller, logger, options);
 }
 
 function logAt(

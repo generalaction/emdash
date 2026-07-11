@@ -10,6 +10,7 @@ export type WireErrorCode =
   | 'MISSING_HANDLER'
   | 'CONTRACT_MISMATCH'
   | 'ALREADY_EXISTS'
+  | 'TIMEOUT'
   | 'HANDLER_ERROR';
 
 export type WireCallMessage = {

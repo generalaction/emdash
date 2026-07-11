@@ -10,7 +10,7 @@ export type RetryOptions = {
   clock?: Clock;
   schedule: RetrySchedule;
   signal?: AbortSignal;
-  shouldRetry?: (error: unknown, context: RetryAttempt) => boolean;
+  shouldRetry: (error: unknown, context: RetryAttempt) => boolean;
   onRetry?: (event: {
     error: unknown;
     attempt: number;
@@ -24,7 +24,6 @@ export async function retry<T>(
   options: RetryOptions
 ): Promise<T> {
   const clock = options.clock ?? systemClock;
-  const shouldRetry = options.shouldRetry ?? (() => true);
   let attempt = 0;
 
   for (;;) {
@@ -36,7 +35,7 @@ export async function retry<T>(
       return value;
     } catch (error) {
       if (options.signal?.aborted) throw abortReason(options.signal);
-      if (!shouldRetry(error, { attempt, signal: options.signal })) throw error;
+      if (!options.shouldRetry(error, { attempt, signal: options.signal })) throw error;
 
       const retryIndex = attempt;
       const delayMs = options.schedule.delayFor(retryIndex);

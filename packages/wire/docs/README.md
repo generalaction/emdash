@@ -117,10 +117,11 @@ Use narrower subpath exports at app boundaries:
 - `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
   controller logging middleware.
 - `@emdash/wire/scheduling`: `Clock`, `systemClock`, `TimerHandle`,
-  `RetrySchedule`, retry schedule builders, and `retry()`.
+  `TimeoutError`, `runWithTimeout()`, `RetrySchedule`, retry schedule builders,
+  and `retry()`.
 - `@emdash/wire/util`: dependency-free utilities: `Scope`, `Run`,
   `Mailbox`, `ResourceCache`, `SharedResource`, `AsyncCache`, deprecated
-  `ManagedSource`, and `deduplicateRequests`.
+  `ManagedSource`, `compose()`, and `deduplicateRequests`.
 - `@emdash/wire/util/mobx`: MobX-backed replica stores
   (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)
   and optimistic group utilities.

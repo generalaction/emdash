@@ -44,6 +44,7 @@ import type {
   JobResult,
   JobError,
   LiveModelDef,
+  ProcedureDef,
   UploadFileEndpointDef,
   UploadFileError,
   UploadFileInput,
@@ -91,7 +92,7 @@ export type Controller = {
   dispose?(): Promise<void>;
 };
 
-type ProcedureImpl<Def extends EndpointDef> = (
+export type ProcedureHandler<Def extends ProcedureDef = ProcedureDef> = (
   input: EndpointInput<Def>,
   meta: CallMeta
 ) => Promise<EndpointOutput<Def>> | EndpointOutput<Def>;
@@ -133,8 +134,8 @@ type GroupImpl<Def extends LiveModelDef> =
   | LiveModelProvider<Def>
   | LeasedLiveModelProvider<Def>;
 
-type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
-  ? ProcedureImpl<Def>
+type EndpointImpl<Def extends EndpointDef> = Def extends ProcedureDef
+  ? ProcedureHandler<Def>
   : Def extends { kind: 'liveLog' }
     ? LiveLogEntryImpl<Def>
     : Def extends EventStreamEndpointDef

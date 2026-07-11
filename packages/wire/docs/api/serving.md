@@ -295,6 +295,31 @@ See [../../examples/multi-window/client.ts](../../examples/multi-window/client.t
 
 ## Server-Side Call Helpers
 
+`compose(target, middlewares)` applies target-first middleware arrays to handlers
+or controllers. The first array entry is outermost: it sees the request first and
+settles last.
+
+```ts
+const loadStats = compose(
+  async (input, meta) => {
+    return await fetchStats(input.repo, { signal: meta.signal });
+  },
+  [
+    withTimeout({ timeoutMs: 20_000 }),
+    withRetry({ schedule, shouldRetry: isTransient }),
+    withTimeout({ timeoutMs: 5_000 }),
+  ]
+);
+
+const controller = createController(api, { loadStats });
+```
+
+In this example the outer timeout bounds the complete retry program, while the
+inner timeout bounds each attempt. Handler middleware must preserve the handler's
+shape. Procedure handlers receive `(input, meta)` and middleware should preserve
+all `meta` fields while deriving a replacement `meta.signal` when it needs
+cooperative cancellation.
+
 `deduplicateRequests(fn, options?)` wraps procedure implementations to share one
 in-flight promise for identical inputs:
 
@@ -314,6 +339,7 @@ Behavior:
 - Rejections are not cached.
 - `meta.signal` is not part of the key and shared execution is not aborted by
   one caller.
+- `deduplicate(options?)` exposes the same behavior as `compose()` middleware.
 - Do not wrap mutations; mutation idempotency is handled by `mutationId`.
 
 See [../../examples/dedupe/server.ts](../../examples/dedupe/server.ts).

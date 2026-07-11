@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { deferred } from '../testing';
-import { deduplicateRequests } from './deduplicate-requests';
+import { compose } from './compose';
+import { deduplicate, deduplicateRequests } from './deduplicate-requests';
 
 describe('deduplicateRequests', () => {
   it('shares one in-flight execution for identical inputs', async () => {
@@ -69,5 +70,63 @@ describe('deduplicateRequests', () => {
     await expect(deduped({ id: 'same' })).resolves.toBe('same');
     await expect(deduped({ id: 'same' })).resolves.toBe('same');
     expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it('can be used as compose middleware', async () => {
+    const gate = deferred<string>();
+    const spy = vi.fn();
+    const handler = async (input: { id: string }, _meta: { signal?: AbortSignal }) => {
+      spy();
+      await gate.promise;
+      return input.id;
+    };
+    const deduped = compose(handler, [deduplicate()]);
+
+    const first = deduped({ id: 'same' }, {});
+    const second = deduped({ id: 'same' }, {});
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    gate.resolve('done');
+    await expect(Promise.all([first, second])).resolves.toEqual(['same', 'same']);
+  });
+
+  it('lets one waiting caller cancel without aborting shared work', async () => {
+    const gate = deferred<string>();
+    let sharedSignalAborted = false;
+    const handler = async (_input: { id: string }, meta: { signal?: AbortSignal }) => {
+      meta.signal?.addEventListener('abort', () => {
+        sharedSignalAborted = true;
+      });
+      return gate.promise;
+    };
+    const deduped = compose(handler, [deduplicate()]);
+    const abort = new AbortController();
+
+    const first = deduped({ id: 'same' }, { signal: abort.signal });
+    const second = deduped({ id: 'same' }, {});
+    abort.abort(new Error('caller cancelled'));
+
+    await expect(first).rejects.toThrow('caller cancelled');
+    expect(sharedSignalAborted).toBe(false);
+    gate.resolve('ok');
+    await expect(second).resolves.toBe('ok');
+  });
+
+  it('can abort shared work when the final waiter leaves', async () => {
+    let sharedSignalAborted = false;
+    const handler = async (_input: { id: string }, meta: { signal?: AbortSignal }) => {
+      meta.signal?.addEventListener('abort', () => {
+        sharedSignalAborted = true;
+      });
+      await new Promise<never>(() => {});
+    };
+    const deduped = compose(handler, [deduplicate({ cancelWhenUnused: true })]);
+    const abort = new AbortController();
+
+    const pending = deduped({ id: 'same' }, { signal: abort.signal });
+    abort.abort(new Error('gone'));
+
+    await expect(pending).rejects.toThrow('gone');
+    expect(sharedSignalAborted).toBe(true);
   });
 });
