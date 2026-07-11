@@ -155,7 +155,9 @@ export function createManagedSource<K, T, C = void>(
     if (entry.hasValue) return Promise.resolve(entry.value as T);
     if (entry.createPromise) return entry.createPromise;
 
-    entry.createPromise = createValue(entry)
+    const createRun = entry.scope.run('create', () => createValue(entry));
+    entry.createPromise = createRun
+      .value()
       .then((value) => {
         entry.createPromise = undefined;
         if (disposed || entries.get(entry.keyId) !== entry || entry.scope.disposed) {

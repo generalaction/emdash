@@ -53,9 +53,9 @@ export function withLogging(
     acquireLive(topic) {
       return controller.acquireLive(topic);
     },
-    dispose() {
+    async dispose() {
       logger.debug('wire api controller disposing');
-      controller.dispose?.();
+      await controller.dispose?.();
     },
   };
 }

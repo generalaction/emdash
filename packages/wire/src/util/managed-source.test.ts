@@ -196,6 +196,31 @@ describe('createManagedSource', () => {
     await expect(source.acquire('same').ready()).rejects.toThrow('ManagedSource is disposed');
   });
 
+  it('cancels in-flight creation when the parent scope is disposed', async () => {
+    const parent = createScope({ label: 'parent' });
+    const started = deferred<void>();
+    const source = createManagedSource({
+      key: (key: string) => key,
+      scope: parent,
+      create: async (_key: string, scope: Scope) => {
+        started.resolve();
+        await new Promise<never>((_resolve, reject) => {
+          scope.signal.addEventListener('abort', () => reject(new Error('aborted')), {
+            once: true,
+          });
+        });
+      },
+    });
+
+    const lease = source.acquire('same');
+    await started.promise;
+    const dispose = parent.dispose('parent closed');
+
+    await expect(lease.ready()).rejects.toThrow('parent closed');
+    await dispose;
+    expect(source.peek('same')).toBeUndefined();
+  });
+
   it('handles explicit and parent disposal idempotently', async () => {
     const cleanup = vi.fn();
     const parent = createScope({ label: 'parent' });
@@ -236,6 +261,29 @@ describe('createManagedSource', () => {
     expect(source.peek('same')).not.toBe(firstValue);
     await first.release();
     await second.release();
+  });
+
+  it('cancels in-flight creation when an entry is invalidated', async () => {
+    const started = deferred<void>();
+    const source = createManagedSource({
+      key: (key: string) => key,
+      create: async (_key: string, scope: Scope) => {
+        started.resolve();
+        await new Promise<never>((_resolve, reject) => {
+          scope.signal.addEventListener('abort', () => reject(new Error('aborted')), {
+            once: true,
+          });
+        });
+      },
+    });
+
+    const lease = source.acquire('same');
+    await started.promise;
+    const invalidate = source.invalidate('same');
+
+    await expect(lease.ready()).rejects.toThrow('Scope disposed');
+    await invalidate;
+    expect(source.peek('same')).toBeUndefined();
   });
 
   it('invalidates a grace-period entry immediately', async () => {

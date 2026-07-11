@@ -19,7 +19,7 @@ export type TestWire<Defs extends ContractDefinitions> = {
   connection: Connection;
   controller: Controller;
   pair: MemoryTransportPair;
-  dispose(): void;
+  dispose(): Promise<void>;
 };
 
 export function createTestWire<Defs extends ContractDefinitions>(
@@ -40,9 +40,9 @@ export function createTestWire<Defs extends ContractDefinitions>(
     connection,
     controller,
     pair,
-    dispose() {
+    async dispose() {
       stopServing();
-      controller.dispose?.();
+      await controller.dispose?.();
       pair.left.close();
       pair.right.close();
     },

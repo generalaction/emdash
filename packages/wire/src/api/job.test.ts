@@ -106,7 +106,7 @@ describe('contract jobs', () => {
     const jobs = createLiveJobReplica(jobContract.build, client.build);
     const lease = await jobs.start({ name: 'dispose' });
     const handle = await lease.ready();
-    controller.dispose?.();
+    await controller.dispose?.();
 
     await expect(handle.result).rejects.toBeInstanceOf(LiveJobCancelledError);
     await lease.release();

@@ -1,5 +1,5 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
-import { createScope, type Scope } from '../util';
+import { createScope, type Run, type Scope } from '../util';
 import type {
   ChildHandle,
   ManagedProcess,
@@ -32,7 +32,7 @@ class SupervisedProcess implements ManagedProcess {
   private readonly exitEmitter = new Emitter<ManagedProcessExit>();
   private readonly stdioEmitter = new Emitter<{ stream: StdioStream; chunk: string }>();
   private current: CurrentChild | undefined;
-  private restartTimer: ReturnType<typeof setTimeout> | undefined;
+  private restartRun: Run<void> | undefined;
   private restartAttempts = 0;
   private disposed = false;
   private disposePromise: Promise<void> | undefined;
@@ -49,7 +49,7 @@ class SupervisedProcess implements ManagedProcess {
   }
 
   async start(): Promise<void> {
-    await this.spawnAttempt();
+    await this.scope.run('spawn', () => this.spawnAttempt()).value();
   }
 
   send(message: unknown): void {
@@ -92,7 +92,7 @@ class SupervisedProcess implements ManagedProcess {
     attemptScope.add(handle.onStdio((stream, chunk) => this.stdioEmitter.emit({ stream, chunk })));
     attemptScope.add(
       handle.onExit((exit) => {
-        void this.handleExit(handle, exit);
+        this.scope.run('child-exit', () => this.handleExit(handle, exit));
       })
     );
   }
@@ -123,17 +123,18 @@ class SupervisedProcess implements ManagedProcess {
     const backoffMs = supervision.backoffMs ?? [0];
     const delay = backoffMs[Math.min(this.restartAttempts, backoffMs.length - 1)] ?? 0;
     this.restartAttempts += 1;
-    this.restartTimer = setTimeout(() => {
-      this.restartTimer = undefined;
-      void this.spawnAttempt();
-    }, delay);
+    this.restartRun?.cancel(new Error('Restart replaced'));
+    this.restartRun = this.scope.run('restart-backoff', async (signal) => {
+      await waitForTimeout(delay, signal);
+      if (signal.aborted) return;
+      this.restartRun = undefined;
+      await this.spawnAttempt();
+    });
   }
 
   private async disposeAll(): Promise<void> {
-    if (this.restartTimer) {
-      clearTimeout(this.restartTimer);
-      this.restartTimer = undefined;
-    }
+    this.restartRun?.cancel(new Error('Process disposed'));
+    this.restartRun = undefined;
 
     await this.stopCurrentChild();
     await this.scope.dispose();
@@ -175,4 +176,19 @@ async function waitForExitOrTimeout(exitPromise: Promise<void>, ms: number): Pro
       setTimeout(resolve, ms);
     }),
   ]);
+}
+
+function waitForTimeout(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted || ms <= 0) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(done, ms);
+    const onAbort = (): void => done();
+    signal.addEventListener('abort', onAbort, { once: true });
+
+    function done(): void {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }
+  });
 }

@@ -10,8 +10,12 @@ export {
   createScope,
   describeScope,
   type CreateScopeOptions,
+  type Run,
+  type RunDescription,
+  type RunExit,
   type Scope,
   type ScopeCleanup,
   type ScopeCleanupErrorContext,
   type ScopeDescription,
+  type ScopeState,
 } from './scope';

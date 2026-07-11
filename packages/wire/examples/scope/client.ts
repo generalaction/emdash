@@ -1,4 +1,4 @@
-import { createScope } from '../../src/util';
+import { createScope, describeScope } from '../../src/util';
 
 async function main(): Promise<void> {
   const events: string[] = [];
@@ -21,6 +21,30 @@ async function main(): Promise<void> {
       events.push('session resource dispose');
     },
   });
+  const run = session.run('background refresh', async (signal) => {
+    signal.addEventListener('abort', () => {
+      events.push('run aborted');
+    });
+    await delay(0);
+    if (signal.aborted) return;
+    events.push('run completed');
+  });
+
+  console.log('active runs:', describeScope(root).children[0]?.runs);
+  await run.exit;
+
+  const cancelled = root.child('cancelled-session');
+  const cancelledRun = cancelled.run('slow refresh', async (signal) => {
+    signal.addEventListener('abort', () => {
+      events.push('slow run aborted');
+    });
+    await delay(10);
+  });
+  await Promise.resolve();
+  const dispose = cancelled.dispose('example cancellation');
+  await cancelledRun.exit;
+  await dispose;
+  console.log('cancelled run:', await cancelledRun.exit);
 
   await root.dispose();
 
@@ -33,3 +57,7 @@ async function main(): Promise<void> {
 }
 
 void main();
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

@@ -2,6 +2,36 @@ import type { IDisposable } from '@emdash/shared';
 import { log as ambientLog, type Logger } from '@emdash/shared/logger';
 
 export type ScopeCleanup = () => void | Promise<void>;
+export type ScopeState = 'open' | 'closing' | 'closed';
+
+export type RunExit<A> =
+  | {
+      kind: 'success';
+      value: A;
+    }
+  | {
+      kind: 'failure';
+      error: unknown;
+    }
+  | {
+      kind: 'cancelled';
+      reason: unknown;
+    };
+
+export type RunDescription = {
+  label: string;
+  startedAt: number;
+  cancelled: boolean;
+};
+
+export interface Run<A> {
+  readonly label: string;
+  readonly startedAt: number;
+  readonly signal: AbortSignal;
+  readonly exit: Promise<RunExit<A>>;
+  cancel(reason?: unknown): void;
+  value(): Promise<A>;
+}
 
 export type ScopeCleanupErrorContext = {
   label: string | undefined;
@@ -10,12 +40,19 @@ export type ScopeCleanupErrorContext = {
 };
 
 export interface Scope {
+  readonly state: ScopeState;
   readonly disposed: boolean;
+  readonly signal: AbortSignal;
   readonly log: Logger;
   add(cleanup: ScopeCleanup): void;
   use<T extends IDisposable>(resource: T): T;
   child(label?: string): Scope;
-  dispose(): Promise<void>;
+  run<A>(
+    label: string,
+    operation: (signal: AbortSignal) => A | Promise<A>,
+    options?: { onFailure?: 'report' | 'close-scope' }
+  ): Run<A>;
+  dispose(reason?: unknown): Promise<void>;
 }
 
 export type CreateScopeOptions = {
@@ -27,18 +64,22 @@ export type CreateScopeOptions = {
 export type ScopeDescription = {
   label: string | undefined;
   labelPath: string | undefined;
+  state: ScopeState;
   disposed: boolean;
+  runs: RunDescription[];
   children: ScopeDescription[];
 };
 
-type ScopeState = {
+type ScopeData = {
   label: string | undefined;
   labelPath: string | undefined;
   logger: Logger;
   cleanups: ScopeCleanup[];
   children: Set<ScopeImpl>;
+  runs: Set<RunImpl<unknown>>;
   onCleanupError: (error: unknown, scope: ScopeCleanupErrorContext) => void;
-  disposed: boolean;
+  controller: AbortController;
+  state: ScopeState;
   disposePromise: Promise<void> | undefined;
 };
 
@@ -50,29 +91,39 @@ export function createScope(options: CreateScopeOptions = {}): Scope {
     logger,
     cleanups: [],
     children: new Set(),
+    runs: new Set(),
     onCleanupError: options.onCleanupError ?? defaultCleanupErrorHandler,
-    disposed: false,
+    controller: new AbortController(),
+    state: 'open',
     disposePromise: undefined,
   });
 }
 
 class ScopeImpl implements Scope {
-  constructor(readonly state: ScopeState) {}
+  constructor(readonly data: ScopeData) {}
+
+  get state(): ScopeState {
+    return this.data.state;
+  }
 
   get disposed(): boolean {
-    return this.state.disposed;
+    return this.data.state !== 'open';
+  }
+
+  get signal(): AbortSignal {
+    return this.data.controller.signal;
   }
 
   get log(): Logger {
-    return this.state.logger;
+    return this.data.logger;
   }
 
   add(cleanup: ScopeCleanup): void {
-    if (this.state.disposed) {
+    if (this.data.state === 'closed') {
       void this.runCleanup(cleanup);
       return;
     }
-    this.state.cleanups.push(cleanup);
+    this.data.cleanups.push(cleanup);
   }
 
   use<T extends IDisposable>(resource: T): T {
@@ -81,62 +132,195 @@ class ScopeImpl implements Scope {
   }
 
   child(label?: string): Scope {
-    const labelPath = joinScopePath(this.state.labelPath, label);
+    const labelPath = joinScopePath(this.data.labelPath, label);
     const child = new ScopeImpl({
       label,
       labelPath,
       cleanups: [],
       children: new Set(),
-      onCleanupError: this.state.onCleanupError,
-      logger: createScopeLogger(this.state.logger, labelPath),
-      disposed: false,
+      runs: new Set(),
+      onCleanupError: this.data.onCleanupError,
+      logger: createScopeLogger(this.data.logger, labelPath),
+      controller: new AbortController(),
+      state: 'open',
       disposePromise: undefined,
     });
 
-    if (this.state.disposed) {
+    if (this.data.state !== 'open') {
       void child.dispose();
       return child;
     }
 
-    this.state.children.add(child);
+    this.data.children.add(child);
     child.add(() => {
-      this.state.children.delete(child);
+      this.data.children.delete(child);
     });
     return child;
   }
 
-  dispose(): Promise<void> {
-    if (this.state.disposePromise) return this.state.disposePromise;
-    this.state.disposed = true;
-    this.state.disposePromise = this.disposeAll();
-    return this.state.disposePromise;
+  run<A>(
+    label: string,
+    operation: (signal: AbortSignal) => A | Promise<A>,
+    options: { onFailure?: 'report' | 'close-scope' } = {}
+  ): Run<A> {
+    if (this.data.state !== 'open') {
+      return cancelledRun(label, this.abortReason() ?? new Error('Scope is closed'));
+    }
+
+    const run = new RunImpl<A>(label, this.data.logger, options.onFailure ?? 'report');
+    this.data.runs.add(run as RunImpl<unknown>);
+    run.start(operation, (exit) => {
+      this.data.runs.delete(run as RunImpl<unknown>);
+      if (exit.kind === 'failure' && options.onFailure === 'close-scope') {
+        void this.dispose(exit.error);
+      }
+    });
+    return run;
+  }
+
+  dispose(reason?: unknown): Promise<void> {
+    if (this.data.disposePromise) return this.data.disposePromise;
+    this.data.state = 'closing';
+    this.abort(reason ?? new Error('Scope disposed'));
+    this.data.disposePromise = this.disposeAll().finally(() => {
+      this.data.state = 'closed';
+    });
+    return this.data.disposePromise;
   }
 
   private async disposeAll(): Promise<void> {
-    const children = [...this.state.children].reverse();
-    this.state.children.clear();
-    for (const child of children) {
-      await child.dispose();
+    const children = [...this.data.children].reverse();
+    this.data.children.clear();
+    const runs = [...this.data.runs];
+
+    for (const run of runs) {
+      run.cancel(this.abortReason());
     }
 
-    const cleanups = [...this.state.cleanups].reverse();
-    this.state.cleanups.length = 0;
-    for (const cleanup of cleanups) {
+    const childDisposals = children.map((child) => child.dispose(this.abortReason()));
+    await Promise.all(childDisposals);
+    await Promise.all(runs.map((run) => run.exit));
+
+    while (this.data.cleanups.length > 0) {
+      const cleanup = this.data.cleanups.pop();
+      if (!cleanup) continue;
       await this.runCleanup(cleanup);
     }
+  }
+
+  private abort(reason: unknown): void {
+    if (!this.data.controller.signal.aborted) this.data.controller.abort(reason);
+  }
+
+  private abortReason(): unknown {
+    return this.data.controller.signal.reason;
   }
 
   private async runCleanup(cleanup: ScopeCleanup): Promise<void> {
     try {
       await cleanup();
     } catch (error) {
-      this.state.onCleanupError(error, {
-        label: this.state.label,
-        labelPath: this.state.labelPath,
-        logger: this.state.logger,
+      this.data.onCleanupError(error, {
+        label: this.data.label,
+        labelPath: this.data.labelPath,
+        logger: this.data.logger,
       });
     }
   }
+}
+
+class RunImpl<A> implements Run<A> {
+  readonly startedAt = Date.now();
+  readonly controller = new AbortController();
+  private readonly exitPromise: Promise<RunExit<A>>;
+  private resolveExit!: (exit: RunExit<A>) => void;
+
+  constructor(
+    readonly label: string,
+    private readonly logger: Logger,
+    private readonly onFailure: 'report' | 'close-scope'
+  ) {
+    this.exitPromise = new Promise<RunExit<A>>((resolve) => {
+      this.resolveExit = resolve;
+    });
+  }
+
+  get signal(): AbortSignal {
+    return this.controller.signal;
+  }
+
+  get exit(): Promise<RunExit<A>> {
+    return this.exitPromise;
+  }
+
+  start(
+    operation: (signal: AbortSignal) => A | Promise<A>,
+    onSettled: (exit: RunExit<A>) => void
+  ): void {
+    void (async () => {
+      let exit: RunExit<A>;
+      try {
+        await Promise.resolve();
+        if (this.signal.aborted) throw cancellationError(this.cancelReason());
+        const value = await operation(this.signal);
+        exit = this.signal.aborted
+          ? { kind: 'cancelled', reason: this.cancelReason() }
+          : { kind: 'success', value };
+      } catch (error) {
+        exit = this.signal.aborted
+          ? { kind: 'cancelled', reason: this.cancelReason() }
+          : { kind: 'failure', error };
+      }
+
+      if (exit.kind === 'failure') this.reportFailure(exit.error);
+      onSettled(exit);
+      this.resolveExit(exit);
+    })();
+  }
+
+  cancel(reason: unknown = new Error('Run cancelled')): void {
+    if (!this.signal.aborted) this.controller.abort(reason);
+  }
+
+  async value(): Promise<A> {
+    const exit = await this.exit;
+    switch (exit.kind) {
+      case 'success':
+        return exit.value;
+      case 'failure':
+        throw exit.error;
+      case 'cancelled':
+        throw cancellationError(exit.reason);
+    }
+  }
+
+  private cancelReason(): unknown {
+    return this.signal.reason;
+  }
+
+  private reportFailure(error: unknown): void {
+    this.logger.warn('wire scope run failed', {
+      label: this.label,
+      error,
+      closeScope: this.onFailure === 'close-scope',
+    });
+  }
+}
+
+function cancelledRun<A>(label: string, reason: unknown): Run<A> {
+  const controller = new AbortController();
+  controller.abort(reason);
+  const exit: Promise<RunExit<A>> = Promise.resolve({ kind: 'cancelled', reason });
+  return {
+    label,
+    startedAt: Date.now(),
+    signal: controller.signal,
+    exit,
+    cancel() {},
+    async value(): Promise<A> {
+      throw cancellationError(reason);
+    },
+  };
 }
 
 function defaultCleanupErrorHandler(error: unknown, scope: ScopeCleanupErrorContext): void {
@@ -152,7 +336,9 @@ export function describeScope(scope: Scope): ScopeDescription {
     return {
       label: undefined,
       labelPath: undefined,
+      state: scope.state,
       disposed: scope.disposed,
+      runs: [],
       children: [],
     };
   }
@@ -161,10 +347,16 @@ export function describeScope(scope: Scope): ScopeDescription {
 
 function describeScopeImpl(scope: ScopeImpl): ScopeDescription {
   return {
-    label: scope.state.label,
-    labelPath: scope.state.labelPath,
-    disposed: scope.state.disposed,
-    children: [...scope.state.children].map((child) => describeScopeImpl(child)),
+    label: scope.data.label,
+    labelPath: scope.data.labelPath,
+    state: scope.data.state,
+    disposed: scope.disposed,
+    runs: [...scope.data.runs].map((run) => ({
+      label: run.label,
+      startedAt: run.startedAt,
+      cancelled: run.signal.aborted,
+    })),
+    children: [...scope.data.children].map((child) => describeScopeImpl(child)),
   };
 }
 
@@ -175,4 +367,8 @@ function createScopeLogger(logger: Logger, labelPath: string | undefined): Logge
 function joinScopePath(parent: string | undefined, label: string | undefined): string | undefined {
   if (!label) return parent;
   return parent ? `${parent}/${label}` : label;
+}
+
+function cancellationError(reason: unknown): unknown {
+  return reason instanceof Error ? reason : new Error(String(reason ?? 'Run cancelled'));
 }

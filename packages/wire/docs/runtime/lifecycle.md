@@ -3,7 +3,7 @@
 `Scope` and `ManagedSource` are dependency-light lifecycle utilities exported
 from `@emdash/wire/util`.
 
-- `Scope` owns cleanup for a tree of resources.
+- `Scope` owns cleanup and async work for a tree of resources.
 - `ManagedSource` turns demand into a retained resource with ref-counted leases.
 
 They do not define wire messages and can run in browser, renderer, main process,
@@ -22,18 +22,26 @@ const scope = createScope({ label: 'conversation:abc', logger });
 scope.add(() => detachLiveState());
 scope.add(() => removeWindowListener());
 scope.use({ dispose: () => runtime.dispose() });
+scope.run('refresh', async (signal) => {
+  await refreshVisibleState({ signal });
+});
 
 await scope.dispose();
 ```
 
 Semantics:
 
+- `state` is `open`, `closing`, or `closed`.
+- `signal` aborts synchronously when disposal begins.
+- `run(label, fn)` starts a tracked async operation with its own abort signal.
 - Cleanups run in reverse registration order.
-- Child scopes dispose before the parent's own cleanups.
+- Child scopes and active runs settle before the parent's own cleanups.
 - Cleanup errors are reported through `onCleanupError` and do not stop later
   cleanups.
 - `dispose()` is idempotent.
 - `add()` on an already disposed scope runs the cleanup immediately.
+- `Run.exit` never rejects; use `Run.value()` when ordinary promise rejection is
+  desired.
 
 That last rule makes async attach/dispose races easier to handle:
 
@@ -87,8 +95,32 @@ Use `describeScope(scope)` to inspect the live label tree:
 console.log(describeScope(runtimeScope));
 ```
 
-The description contains labels, label paths, disposed state, and child
-descriptions. It does not expose cleanup callbacks.
+The description contains labels, label paths, lifecycle state, active runs, and
+child descriptions. It does not expose cleanup callbacks.
+
+## Scope Runs
+
+Use `run()` when async work must not outlive the scope:
+
+```ts
+const run = sessionScope.run('attach-transcript', async (signal) => {
+  const detach = await transcript.attach(updateView, { signal });
+  sessionScope.add(detach);
+});
+
+await run.exit;
+```
+
+Disposing `sessionScope` cancels the run and waits for it before running the
+scope's cleanups. Cancellation is cooperative: pass the provided signal to any
+operation that can wait, sleep, perform I/O, or subscribe.
+
+Use `run()` for background jobs, process transitions, replica attachment,
+renderer bindings, and async setup. Use `add()` or `use()` for finalizers. Use
+`ManagedSource` when a keyed resource should be shared by leases.
+
+For the full lifecycle model and invariants, see
+[Structured concurrency](./structured-concurrency.md).
 
 ## Child Scopes
 
@@ -139,6 +171,8 @@ Behavior:
 
 - The first `acquire()` for a key calls `create()`.
 - Concurrent acquires for the same key share the in-flight creation.
+- In-flight creation is tracked as a scope run and is cancelled when the entry is
+  invalidated or the parent scope closes.
 - Each lease increments the refcount.
 - `release()` is idempotent.
 - The last release starts the grace timer.
@@ -146,6 +180,9 @@ Behavior:
 - Failed creation is not cached; the next acquire retries.
 - `peek(key)` returns the active value if creation has completed.
 - `dispose()` force-disposes every active or retained entry.
+- If using the context overload, concurrent acquires for the same key use the
+  first context while creation is in flight. Put identity-affecting data in the
+  key, not the context.
 - Passing `scope` attaches the source and all keyed entries to a parent scope.
   Disposing that parent scope force-disposes the source and rejects later
   acquisitions. `label` names the source node in `describeScope()` output.

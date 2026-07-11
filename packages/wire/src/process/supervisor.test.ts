@@ -96,6 +96,28 @@ describe('createSupervisedProcess', () => {
     expect(spawnChild).toHaveBeenCalledTimes(1);
   });
 
+  it('suppresses restart backoff runs when disposed after a failed exit', async () => {
+    vi.useFakeTimers();
+    const { children, spawnChild } = fakeSpawner();
+    const process = await createSupervisedProcess(
+      {
+        entry: 'worker',
+        supervision: { restart: 'on-failure', backoffMs: [50], maxRestarts: 1 },
+      },
+      spawnChild
+    );
+
+    children[0].exit({ code: 1 });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const dispose = process.dispose();
+    await vi.advanceTimersByTimeAsync(50);
+    await dispose;
+
+    expect(spawnChild).toHaveBeenCalledTimes(1);
+  });
+
   it('sends graceful shutdown messages before hard kill', async () => {
     vi.useFakeTimers();
     const { children, spawnChild } = fakeSpawner();

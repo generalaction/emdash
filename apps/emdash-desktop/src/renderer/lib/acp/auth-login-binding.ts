@@ -6,6 +6,7 @@ import {
 } from '@emdash/core/workspace-server/agent-config';
 import type { Result } from '@emdash/shared';
 import { ReplicaLog, ReplicaState } from '@emdash/wire';
+import { createScope, type Scope } from '@emdash/wire/util';
 import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 import type { Terminal } from '@xterm/xterm';
 import {
@@ -21,13 +22,12 @@ type AuthStatusHandle = {
 };
 
 export class AcpAuthLoginBinding {
-  private disposed = false;
-
   private constructor(
+    private readonly scope: Scope,
     private readonly client: AgentConfigRuntimeRpcClient,
     readonly providerId: string,
     readonly status: AuthStatusHandle,
-    private readonly output: ReplicaLog
+    private readonly cancellation: { cancelOnDispose: boolean }
   ) {}
 
   static async create(args: {
@@ -35,47 +35,73 @@ export class AcpAuthLoginBinding {
     methodId: string;
     terminal: Pick<Terminal, 'reset' | 'write'>;
   }): Promise<AcpAuthLoginBinding> {
+    const scope = createScope({ label: `auth-login:${args.providerId}` });
+    const cancellation = { cancelOnDispose: true };
     const client = await getAgentConfigRuntimeClient();
-    const result = await client.startLogin({
-      providerId: args.providerId,
-      methodId: args.methodId,
-    });
-    if (!result.success) throw new Error(errorMessage(result));
+    try {
+      const result = await client.startLogin(
+        {
+          providerId: args.providerId,
+          methodId: args.methodId,
+        },
+        { signal: scope.signal }
+      );
+      if (!result.success) throw new Error(errorMessage(result));
 
-    const key = { providerId: args.providerId };
-    const agents = new ReplicaState(client.agents.state(undefined, 'list'), {
-      schema: agentConfigListSchema,
-      store: createImmutableMobxStore(),
-    });
-    const status = createAuthStatusHandle(args.providerId, agents);
-    const output = new ReplicaLog(client.loginOutput.handle(key), {
-      store: createXtermLogSink(args.terminal),
-    });
-    await Promise.all([status.ready, output.ready]);
-    return new AcpAuthLoginBinding(client, args.providerId, status, output);
+      scope.add(() => {
+        if (!cancellation.cancelOnDispose) return;
+        return client.cancelLogin({ providerId: args.providerId }).then(() => undefined);
+      });
+
+      const key = { providerId: args.providerId };
+      const agents = new ReplicaState(client.agents.state(undefined, 'list'), {
+        schema: agentConfigListSchema,
+        store: createImmutableMobxStore(),
+      });
+      scope.add(() => agents.dispose());
+      const status = createAuthStatusHandle(args.providerId, agents);
+      const output = new ReplicaLog(client.loginOutput.handle(key), {
+        store: createXtermLogSink(args.terminal),
+      });
+      scope.add(() => output.dispose());
+
+      await scope
+        .run('attach-replicas', async () => {
+          await Promise.all([status.ready, output.ready]);
+        })
+        .value();
+
+      return new AcpAuthLoginBinding(scope, client, args.providerId, status, cancellation);
+    } catch (error) {
+      await scope.dispose(error);
+      throw error;
+    }
   }
 
   sendInput(data: string): void {
-    if (this.disposed) return;
-    void this.client.sendLoginInput({ providerId: this.providerId, data });
+    if (this.scope.disposed) return;
+    this.scope.run('send-login-input', (signal) =>
+      this.client.sendLoginInput({ providerId: this.providerId, data }, { signal })
+    );
   }
 
   resize(cols: number, rows: number): void {
-    if (this.disposed) return;
-    void this.client.resizeLogin({ providerId: this.providerId, cols, rows });
+    if (this.scope.disposed) return;
+    this.scope.run('resize-login', (signal) =>
+      this.client.resizeLogin({ providerId: this.providerId, cols, rows }, { signal })
+    );
   }
 
   markUrlHandled(urlId: string): void {
-    if (this.disposed) return;
-    void this.client.markUrlHandled({ providerId: this.providerId, urlId });
+    if (this.scope.disposed) return;
+    this.scope.run('mark-url-handled', (signal) =>
+      this.client.markUrlHandled({ providerId: this.providerId, urlId }, { signal })
+    );
   }
 
-  dispose(cancel = true): void {
-    if (this.disposed) return;
-    this.disposed = true;
-    void this.status.dispose();
-    void this.output.dispose();
-    if (cancel) void this.client.cancelLogin({ providerId: this.providerId });
+  dispose(cancel = true): Promise<void> {
+    this.cancellation.cancelOnDispose = cancel;
+    return this.scope.dispose();
   }
 }
 

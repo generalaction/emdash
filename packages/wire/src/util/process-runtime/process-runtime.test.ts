@@ -127,7 +127,7 @@ describe('process runtime utilities', () => {
     await runtime.dispose();
 
     expect(host.process().sentMessages).toContainEqual(RUNTIME_SHUTDOWN_SIGNAL);
-    expect(childDisposed).toBe(true);
+    await waitFor(() => childDisposed);
   });
 
   it('disposes the runtime when the parent scope is disposed', async () => {

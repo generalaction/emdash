@@ -284,7 +284,7 @@ const contractClient = client(api, connect(pair.left));
 
 Opening the same session id closes the previous transport. `close(id)` closes
 one session and calls `transport.close?.()` after disposing the serve loop.
-`dispose()` closes all sessions and calls `controller.dispose?.()`.
+`dispose()` is async: it closes all sessions and awaits `controller.dispose?.()`.
 
 See [../../examples/multi-window/client.ts](../../examples/multi-window/client.ts).
 

@@ -55,9 +55,9 @@ export function cancelCancellableJob(jobId: string): void {
   cancellableJobs.cancel(jobId);
 }
 
-export function disposeJobServers(): void {
-  successfulJobs.dispose();
-  cancellableJobs.dispose();
+export async function disposeJobServers(): Promise<void> {
+  await successfulJobs.dispose();
+  await cancellableJobs.dispose();
 }
 
 export async function fetchSuccessfulSnapshot(

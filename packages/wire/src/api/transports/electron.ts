@@ -88,7 +88,7 @@ export function exposeWireToWindows(
 
   return () => {
     deps.ipcMain.removeHandler?.(connectChannel);
-    hub.dispose();
+    void hub.dispose();
     for (const record of ports.values()) record.disposeMapCleanup();
     ports.clear();
   };
