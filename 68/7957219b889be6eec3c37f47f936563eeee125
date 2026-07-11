@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-list.tsx
+  s_56da37d41867bf::t_929f1b0bb3afcc 111
+apps/emdash-desktop/src/renderer/features/tasks/components/task-context-menu.tsx
+  s_56da37d41867bf::t_929f1b0bb3afcc 93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "687957219b889be6eec3c37f47f936563eeee125",
+  "prompts": {},
+  "sessions": {
+    "s_56da37d41867bf": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033nnWs0SVP36PODgLrUUw",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
