@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_b1288d50ea4c36::t_3b8e177ad89365 129-134
+apps/emdash-desktop/src/renderer/lib/components/browser-app-shortcut-events.tsx
+  s_b1288d50ea4c36::t_3b8e177ad89365 3,21,45,56,72,99-103
+  s_b1288d50ea4c36::t_6cfeab27b52f31 104
+apps/emdash-desktop/src/renderer/lib/components/app-keyboard-shortcuts.tsx
+  s_b1288d50ea4c36::t_3b8e177ad89365 21,27,71-80
+  s_b1288d50ea4c36::t_7ac9e341ff55a0 81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "47c906066c20b196440167773bc07629c2c8545e",
+  "prompts": {},
+  "sessions": {
+    "s_b1288d50ea4c36": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033nQyvPAy2t645oUarIrW",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
