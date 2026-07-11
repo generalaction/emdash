@@ -1149,7 +1149,12 @@ fresh recreated green run becomes the final success report.
 - [x] 2026-07-11: Installed the pinned Node `24.14.0` toolchain and `pnpm@10.28.2`, built all
   workspace dependency packages, and established a green v1 Loops baseline: 10 focused files,
   56 tests passed; the full seven-project workspace typecheck also passed.
-- [ ] Complete and merge Wave 0 contracts.
+- [x] 2026-07-11: Completed and merged Wave 0 contracts at `dc8892f29` (lane commit
+  `ff672baf6`). The lane first proved the missing contract surface with two import-failing suites,
+  then passed 23 shared/browser contract tests, 27 migration tests, fixture generation, focused
+  lint/format, app typecheck, and the full seven-project workspace typecheck. The lead reran the
+  same 23 focused tests, all 27 migration tests, fixture generation, and the full workspace
+  typecheck after cherry-pick.
 - [ ] Complete, review, and merge Wave 1 lanes R/B/U.
 - [ ] Complete, review, and merge Wave 2A lanes W/P.
 - [ ] Complete and merge Wave 2B lanes V/N, then Wave 2C Lane E.
