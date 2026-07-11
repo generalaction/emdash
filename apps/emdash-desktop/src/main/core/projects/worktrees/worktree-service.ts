@@ -11,6 +11,7 @@ import {
 import type { IFilesRuntime } from '@main/core/runtime/types';
 import { log } from '@main/lib/logger';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
+import { shareableProjectSettingsSchema } from '@shared/core/project-settings/project-settings';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import {
   isSafePreservePattern,
@@ -22,6 +23,23 @@ import type { ProjectSettingsProvider } from '../settings/provider';
 export type ServeWorktreeError =
   | { type: 'worktree-setup-failed'; cause: SerializedError }
   | { type: 'branch-not-found'; branch: string };
+
+export type CreateWorktreeAtCommitError =
+  | { type: 'invalid-commit'; commit: string }
+  | { type: 'commit-not-found'; commit: string }
+  | { type: 'branch-exists'; branch: string }
+  | { type: 'worktree-setup-failed'; cause: SerializedError };
+
+export type CopyPreservedFilesError =
+  | { type: 'preserve-config-unavailable'; message: string }
+  | { type: 'preserve-glob-failed'; pattern: string; message: string }
+  | { type: 'preserve-source-failed'; pattern: string; message: string }
+  | { type: 'preserve-copy-failed'; pattern: string; message: string };
+
+export type RemoveGeneratedWorktreeError = {
+  type: 'worktree-remove-failed';
+  message: string;
+};
 
 function fileErrorCause(error: { type?: string; message: string }): SerializedError {
   return { name: error.type ?? 'FileError', message: error.message };
@@ -256,10 +274,126 @@ export class WorktreeService {
     options: { copyPreservedFiles?: boolean } = {}
   ): Promise<Result<string, ServeWorktreeError>> {
     const poolDir = await this.ensureWorktreePoolDirExists();
-    if (!poolDir.success) return poolDir;
+    if (!poolDir.success) {
+      return poolDir.error.type === 'worktree-setup-failed'
+        ? err(poolDir.error)
+        : err({
+            type: 'worktree-setup-failed',
+            cause: { name: 'WorktreePoolError', message: 'Worktree pool could not be prepared.' },
+          });
+    }
     return this.enqueueGitOp(() =>
       this.doCheckoutBranchWorktree(sourceBranch, branchName, options)
     );
+  }
+
+  async createWorktreeAtCommit(
+    commit: string,
+    branchName: string
+  ): Promise<Result<string, CreateWorktreeAtCommitError>> {
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(commit)) {
+      return err({ type: 'invalid-commit', commit });
+    }
+
+    const poolDir = await this.ensureWorktreePoolDirExists();
+    if (!poolDir.success) {
+      return poolDir.error.type === 'worktree-setup-failed'
+        ? err(poolDir.error)
+        : err({
+            type: 'worktree-setup-failed',
+            cause: { name: 'WorktreePoolError', message: 'Worktree pool could not be prepared.' },
+          });
+    }
+    return this.enqueueGitOp(() => this.doCreateWorktreeAtCommit(commit, branchName));
+  }
+
+  private async doCreateWorktreeAtCommit(
+    commit: string,
+    branchName: string
+  ): Promise<Result<string, CreateWorktreeAtCommitError>> {
+    try {
+      await this.ctx.exec('git', ['cat-file', '-e', `${commit}^{commit}`]);
+    } catch {
+      return err({ type: 'commit-not-found', commit });
+    }
+
+    try {
+      await this.ctx.exec('git', ['check-ref-format', '--branch', branchName]);
+    } catch (cause) {
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+    }
+
+    try {
+      const ref = `refs/heads/${branchName}`;
+      const listed = await this.ctx.exec('git', ['for-each-ref', '--format=%(refname)', ref]);
+      if (listed.stdout.trim() === ref) return err({ type: 'branch-exists', branch: branchName });
+    } catch (cause) {
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+    }
+
+    const targetPath = this.files.path.join(await this.resolveWorktreePoolPath(), branchName);
+    if (await this.existsAbsolute(targetPath)) {
+      try {
+        if (await this.isValidWorktree(targetPath)) {
+          return err({ type: 'branch-exists', branch: branchName });
+        }
+        await this.removePathForReuse(targetPath);
+        await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      } catch (cause) {
+        return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+      }
+    }
+
+    try {
+      const parentDir = await ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath));
+      if (!parentDir.success) {
+        return err({ type: 'worktree-setup-failed', cause: fileErrorCause(parentDir.error) });
+      }
+      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      await this.ctx.exec('git', ['worktree', 'add', '-b', branchName, targetPath, commit]);
+      const { stdout } = await this.ctx.exec('git', ['-C', targetPath, 'rev-parse', 'HEAD']);
+      if (stdout.trim().toLowerCase() !== commit.toLowerCase()) {
+        throw new Error('Created worktree did not resolve to the requested immutable commit');
+      }
+      return ok(targetPath);
+    } catch (cause) {
+      const rollback = await this.rollbackGeneratedWorktree(targetPath, branchName);
+      if (!rollback.success) {
+        return err({
+          type: 'worktree-setup-failed',
+          cause: {
+            name: 'WorktreeRollbackError',
+            message: 'Generated worktree creation failed and rollback was incomplete.',
+          },
+        });
+      }
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+    }
+  }
+
+  private async rollbackGeneratedWorktree(
+    targetPath: string,
+    branchName: string
+  ): Promise<Result<void, { message: string }>> {
+    let failed = false;
+    if (await this.existsAbsolute(targetPath)) {
+      await this.removePathForReuse(targetPath).catch(() => {
+        failed = true;
+      });
+    }
+    await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {
+      failed = true;
+    });
+    try {
+      const ref = `refs/heads/${branchName}`;
+      const listed = await this.ctx.exec('git', ['for-each-ref', '--format=%(refname)', ref]);
+      if (listed.stdout.trim() === ref) {
+        await this.ctx.exec('git', ['branch', '--delete', '--force', branchName]);
+      }
+    } catch {
+      failed = true;
+    }
+    return failed ? err({ message: 'Generated worktree rollback was incomplete.' }) : ok();
   }
 
   private async doCheckoutBranchWorktree(
@@ -438,6 +572,50 @@ export class WorktreeService {
     });
   }
 
+  async removeGeneratedWorktreeIfPresent(
+    worktreePath: string
+  ): Promise<Result<{ removed: boolean }, RemoveGeneratedWorktreeError>> {
+    if (!this.files.path.isAbsolute(worktreePath)) {
+      return err({
+        type: 'worktree-remove-failed',
+        message: 'Generated worktree path could not be validated.',
+      });
+    }
+    const fs = openFileSystem(this.files);
+    if (!fs.success) {
+      return err({
+        type: 'worktree-remove-failed',
+        message: 'Generated worktree filesystem could not be opened.',
+      });
+    }
+    const exists = await fs.data.exists(worktreePath);
+    if (!exists.success) {
+      return err({
+        type: 'worktree-remove-failed',
+        message: 'Generated worktree presence could not be verified.',
+      });
+    }
+    if (exists.data) {
+      try {
+        await this.removePathForReuse(worktreePath);
+      } catch {
+        return err({
+          type: 'worktree-remove-failed',
+          message: 'Generated worktree could not be removed safely.',
+        });
+      }
+    }
+    try {
+      await this.ctx.exec('git', ['worktree', 'prune']);
+    } catch {
+      return err({
+        type: 'worktree-remove-failed',
+        message: 'Generated worktree metadata could not be pruned.',
+      });
+    }
+    return ok({ removed: exists.data });
+  }
+
   private taskConfigFs(): IFileSystem | null {
     const opened = this.files.fileSystem();
     if (opened.success) return opened.data;
@@ -445,67 +623,186 @@ export class WorktreeService {
     return null;
   }
 
-  private async isTrackedSourcePath(absPath: string): Promise<boolean> {
+  private async inspectTrackedSourcePath(
+    absPath: string
+  ): Promise<Result<boolean, { message: string }>> {
     try {
       const relPath = this.files.path.relative(this.repoPath, absPath);
-      await this.ctx.exec('git', ['ls-files', '--error-unmatch', '--', relPath]);
-      return true;
+      const result = await this.ctx.exec('git', ['ls-files', '--cached', '-z', '--', relPath]);
+      return ok(result.stdout.length > 0);
     } catch {
-      return false;
+      return err({ message: 'Tracked status could not be verified.' });
     }
   }
 
   private async copyPreservedFiles(targetPath: string): Promise<void> {
-    const taskFs = this.taskConfigFs();
-    if (!taskFs) return;
+    const result = await this.copyPreservedFilesToWorktree(targetPath, { strict: false });
+    if (!result.success) {
+      log.warn('WorktreeService: failed to copy preserved files', result.error);
+    }
+  }
 
-    const settings = await getEffectiveTaskSettings({
-      projectSettings: this.projectSettings,
-      taskFs,
-      taskConfigPath: this.files.path.join(targetPath, '.emdash.json'),
-    });
+  async copyPreservedFilesToWorktree(
+    targetPath: string,
+    options: { strict?: boolean } = {}
+  ): Promise<Result<{ copied: string[] }, CopyPreservedFilesError>> {
+    const strict = options.strict ?? true;
+    const taskFs = this.taskConfigFs();
+    if (!taskFs) {
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Required preserve settings could not be resolved.',
+      });
+    }
+
+    const taskConfigPath = this.files.path.join(targetPath, '.emdash.json');
+    if (strict) {
+      const validConfig = await this.validateFeatureConfig(taskFs, taskConfigPath);
+      if (!validConfig.success) return validConfig;
+    }
+    let settings: Awaited<ReturnType<typeof getEffectiveTaskSettings>>;
+    try {
+      settings = await getEffectiveTaskSettings({
+        projectSettings: this.projectSettings,
+        taskFs,
+        taskConfigPath,
+      });
+    } catch {
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Required preserve settings could not be resolved.',
+      });
+    }
     const patterns = settings.preservePatterns ?? [];
     const repoFs = this.files.fileSystem();
     if (!repoFs.success) {
-      log.warn('WorktreeService: failed to open repo filesystem for preserved files', repoFs.error);
-      return;
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Required preserve source could not be opened.',
+      });
     }
+    const copied: string[] = [];
     for (const pattern of patterns) {
       if (!isSafePreservePattern(this.files.path, pattern)) {
-        log.warn('WorktreeService: skipping unsafe preserve pattern', { pattern });
         continue;
       }
       const matches = repoFs.data.glob([pattern], { cwd: this.repoPath, dot: true });
       if (!matches.success) {
-        log.warn('WorktreeService: failed to match preserve pattern', {
+        if (!strict) continue;
+        return err({
+          type: 'preserve-glob-failed',
           pattern,
-          error: matches.error,
+          message: 'Required preserve pattern could not be matched.',
         });
-        continue;
       }
-      for await (const absPath of matches.data) {
-        const relPath = preservedRepoRelativePath(this.files.path, this.repoPath, absPath);
-        if (!relPath || (await this.isTrackedSourcePath(absPath))) continue;
-        const stat = await repoFs.data.stat(absPath);
-        if (!stat.success || stat.data.type !== 'file') continue;
-        const destPath = preservedDestinationPath(this.files.path, targetPath, relPath);
-        if (!destPath) continue;
-        const contained = await isRealPathContained(this.files, targetPath, destPath);
-        if (!contained.success || !contained.data) {
-          log.warn('WorktreeService: skipping preserved file with out-of-worktree destination', {
-            destPath,
+      let matchedSource = false;
+      try {
+        for await (const absPath of matches.data) {
+          matchedSource = true;
+          const sourceContained = await isRealPathContained(this.files, this.repoPath, absPath, {
+            candidateMustExist: true,
           });
-          continue;
+          if (!sourceContained.success) {
+            if (!strict) continue;
+            return err({
+              type: 'preserve-source-failed',
+              pattern,
+              message: 'Required preserve source could not be validated.',
+            });
+          }
+          if (!sourceContained.data) continue;
+
+          const relPath = preservedRepoRelativePath(this.files.path, this.repoPath, absPath);
+          if (!relPath) continue;
+          const tracked = await this.inspectTrackedSourcePath(absPath);
+          if (!tracked.success) {
+            if (!strict) continue;
+            return err({
+              type: 'preserve-source-failed',
+              pattern,
+              message: 'Required preserve source tracking status could not be verified.',
+            });
+          }
+          if (tracked.data) continue;
+          const stat = await repoFs.data.stat(absPath);
+          if (!stat.success) {
+            if (!strict) continue;
+            return err({
+              type: 'preserve-source-failed',
+              pattern,
+              message: 'Required preserve source could not be read.',
+            });
+          }
+          if (stat.data.type !== 'file') continue;
+          const destPath = preservedDestinationPath(this.files.path, targetPath, relPath);
+          if (!destPath) continue;
+          const contained = await isRealPathContained(this.files, targetPath, destPath);
+          if (!contained.success) {
+            if (!strict) continue;
+            return err({
+              type: 'preserve-copy-failed',
+              pattern,
+              message: 'Required preserve destination could not be validated.',
+            });
+          }
+          if (!contained.data) continue;
+          const copyResult = await repoFs.data.copyFile(absPath, destPath);
+          if (!copyResult.success) {
+            if (!strict) continue;
+            return err({
+              type: 'preserve-copy-failed',
+              pattern,
+              message: 'Required preserve pattern could not be copied.',
+            });
+          }
+          copied.push(relPath);
         }
-        const copied = await repoFs.data.copyFile(absPath, destPath);
-        if (!copied.success) {
-          log.warn('WorktreeService: failed to copy preserved file', {
-            sourcePath: absPath,
-            destPath,
-            error: copied.error,
-          });
-        }
+      } catch {
+        if (!strict) continue;
+        return err({
+          type: 'preserve-source-failed',
+          pattern,
+          message: 'Required preserve source could not be enumerated.',
+        });
       }
+      if (strict && !matchedSource) {
+        return err({
+          type: 'preserve-source-failed',
+          pattern,
+          message: 'Required preserve pattern did not match a source file.',
+        });
+      }
+    }
+    return ok({ copied });
+  }
+
+  private async validateFeatureConfig(
+    taskFs: Pick<IFileSystem, 'exists' | 'readText'>,
+    taskConfigPath: string
+  ): Promise<Result<void, CopyPreservedFilesError>> {
+    const exists = await taskFs.exists(taskConfigPath);
+    if (!exists.success) {
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Feature .emdash.json could not be read safely.',
+      });
+    }
+    if (!exists.data) return ok();
+    const content = await taskFs.readText(taskConfigPath);
+    if (!content.success || content.data.truncated) {
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Feature .emdash.json could not be read safely.',
+      });
+    }
+    try {
+      shareableProjectSettingsSchema.parse(JSON.parse(content.data.content));
+      return ok();
+    } catch {
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Feature .emdash.json could not be read safely.',
+      });
     }
   }
 }

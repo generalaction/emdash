@@ -47,6 +47,9 @@ const originRemote = (url = 'ssh://example.com/repo.git'): GitRemote => ({ name:
 type FakeFilesRuntimeOptions = {
   pathApi?: RuntimePath;
   existsAbsolute?: (absPath: string) => Promise<boolean>;
+  existsAbsoluteResult?: (
+    absPath: string
+  ) => Promise<Result<boolean, { type: 'fs-error'; path: string; message: string }>>;
   mkdirAbsolute?: (absPath: string, options?: { recursive?: boolean }) => Promise<void>;
   removeAbsolute?: (
     absPath: string,
@@ -63,7 +66,10 @@ function makeFakeFilesRuntime(options: FakeFilesRuntimeOptions = {}): IFilesRunt
     watchChanges: vi.fn(),
     fileSystem: vi.fn(() =>
       ok({
-        exists: async (absPath: string) => ok(await (options.existsAbsolute?.(absPath) ?? false)),
+        exists: async (absPath: string) =>
+          options.existsAbsoluteResult
+            ? options.existsAbsoluteResult(absPath)
+            : ok(await (options.existsAbsolute?.(absPath) ?? false)),
         mkdir: async (absPath: string, mkdirOptions?: { recursive?: boolean }) => {
           await options.mkdirAbsolute?.(absPath, mkdirOptions);
           return ok();
@@ -141,6 +147,421 @@ describe('WorktreeService', () => {
       resolveWorktreePoolPath: overrides.resolveWorktreePoolPath ?? (async () => worktreePoolPath),
     });
   }
+
+  function makeServiceWithFileSystemOverride(
+    projectSettings: ProjectSettingsProvider,
+    overrides: Partial<Pick<IFileSystem, 'glob' | 'copyFile'>>,
+    ctx: IExecutionContext = new LocalExecutionContext({ root: repoDir })
+  ): WorktreeService {
+    const runtime = Object.assign(new FilesRuntime(), { path: nativeMachinePath });
+    const opened = runtime.fileSystem();
+    if (!opened.success) throw new Error('expected local file system');
+    const fileSystem = new Proxy(opened.data, {
+      get(target, property, receiver) {
+        const overridden = overrides[property as keyof typeof overrides];
+        if (overridden) return overridden;
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }) as IFileSystem;
+    const files = Object.assign(runtime, { fileSystem: () => ok(fileSystem) });
+    return new WorktreeService({
+      repoPath: repoDir,
+      ctx,
+      files,
+      projectSettings,
+      resolveWorktreePoolPath: async () => poolDir,
+    });
+  }
+
+  describe('createWorktreeAtCommit', () => {
+    it('pins a generated worktree to the exact immutable commit when the source branch moves', async () => {
+      fs.writeFileSync(path.join(repoDir, 'feature.txt'), 'base');
+      await git(['add', 'feature.txt'], { cwd: repoDir });
+      await git(['commit', '-m', 'base'], { cwd: repoDir });
+      const baseCommit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+
+      fs.writeFileSync(path.join(repoDir, 'feature.txt'), 'moved');
+      await git(['commit', '-am', 'move source'], { cwd: repoDir });
+
+      const result = await makeService().createWorktreeAtCommit(
+        baseCommit,
+        'emdash/loop-verify-exact'
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(path.join(poolDir, 'emdash', 'loop-verify-exact'));
+      await expect(git(['rev-parse', 'HEAD'], { cwd: result.data })).resolves.toMatchObject({
+        stdout: `${baseCommit}\n`,
+      });
+      expect(fs.readFileSync(path.join(result.data, 'feature.txt'), 'utf8')).toBe('base');
+    });
+
+    it('fails closed for an invalid or missing full commit without creating a branch', async () => {
+      const missingCommit = 'f'.repeat(40);
+
+      const result = await makeService().createWorktreeAtCommit(
+        missingCommit,
+        'emdash/loop-verify-missing'
+      );
+
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'commit-not-found',
+          commit: missingCommit,
+        },
+      });
+      await expect(
+        git(['show-ref', '--verify', 'refs/heads/emdash/loop-verify-missing'], { cwd: repoDir })
+      ).rejects.toBeDefined();
+    });
+
+    it('uses machine path algebra and argument-array git for remote worktree creation', async () => {
+      const stripHost = (value: string) => value.replace(/^host:/, '');
+      const remotePathApi: RuntimePath = {
+        join: (...segments: string[]) =>
+          `host:${path.posix.join(...segments.map((segment) => stripHost(segment)))}`,
+        dirname: (input: string) => `host:${path.posix.dirname(stripHost(input))}`,
+        basename: (input: string) => path.posix.basename(stripHost(input)),
+        isAbsolute: (input: string) => input.startsWith('host:/') || path.posix.isAbsolute(input),
+        relative: (from: string, to: string) => path.posix.relative(stripHost(from), stripHost(to)),
+        contains: (parent: string, child: string) => {
+          const rel = path.posix.relative(stripHost(parent), stripHost(child));
+          return rel === '' || (rel !== '..' && !rel.startsWith('../'));
+        },
+      };
+      const commit = 'a'.repeat(40);
+      const exec = vi.fn(async (_command: string, args: string[] = []) => {
+        if (args[0] === 'show-ref') throw new Error('missing branch');
+        if (args[0] === '-C' && args[2] === 'rev-parse') {
+          return { stdout: `${commit}\n`, stderr: '' };
+        }
+        return { stdout: '', stderr: '' };
+      });
+      const service = new WorktreeService({
+        repoPath: '/remote/repo',
+        ctx: {
+          root: '/remote/repo',
+          supportsLocalSpawn: false,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({
+          pathApi: remotePathApi,
+          mkdirAbsolute: async () => {},
+        }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => '/remote/worktrees/project',
+      });
+      exec.mockClear();
+
+      const result = await service.createWorktreeAtCommit(commit, 'emdash/loop-verify-remote');
+
+      expect(result.success).toBe(true);
+      expect(exec).toHaveBeenCalledWith('git', ['cat-file', '-e', `${commit}^{commit}`]);
+      expect(exec).toHaveBeenCalledWith('git', [
+        'worktree',
+        'add',
+        '-b',
+        'emdash/loop-verify-remote',
+        'host:/remote/worktrees/project/emdash/loop-verify-remote',
+        commit,
+      ]);
+    });
+
+    it('rolls back the generated worktree and branch when exact HEAD verification fails', async () => {
+      const commit = 'b'.repeat(40);
+      const targetPath = path.join(poolDir, 'emdash', 'loop-verify-rollback');
+      let targetExists = false;
+      let branchExists = false;
+      const removeAbsolute = vi.fn(async () => {
+        targetExists = false;
+        return ok<void>();
+      });
+      const exec = vi.fn(async (_command: string, args: string[] = []) => {
+        if (args[0] === 'for-each-ref') {
+          return {
+            stdout: branchExists ? 'refs/heads/emdash/loop-verify-rollback\n' : '',
+            stderr: '',
+          };
+        }
+        if (args.slice(0, 2).join(' ') === 'worktree add') {
+          targetExists = true;
+          branchExists = true;
+        }
+        if (args[0] === 'branch') branchExists = false;
+        if (args[0] === '-C' && args[2] === 'rev-parse') {
+          return { stdout: `${'c'.repeat(40)}\n`, stderr: '' };
+        }
+        return { stdout: '', stderr: '' };
+      });
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx: {
+          root: repoDir,
+          supportsLocalSpawn: true,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({
+          existsAbsolute: async (candidate) => targetExists && candidate === targetPath,
+          removeAbsolute,
+          realPathAbsolute: async (candidate) => candidate,
+        }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+      exec.mockClear();
+
+      const result = await service.createWorktreeAtCommit(commit, 'emdash/loop-verify-rollback');
+
+      expect(result.success).toBe(false);
+      expect(removeAbsolute).toHaveBeenCalledWith(targetPath, { recursive: true });
+      expect(exec).toHaveBeenCalledWith('git', [
+        'branch',
+        '--delete',
+        '--force',
+        'emdash/loop-verify-rollback',
+      ]);
+    });
+
+    it('surfaces an incomplete generated-worktree rollback without exposing paths', async () => {
+      const commit = 'd'.repeat(40);
+      const targetPath = path.join(poolDir, 'emdash', 'loop-verify-rollback-fails');
+      let targetExists = false;
+      let branchExists = false;
+      const exec = vi.fn(async (_command: string, args: string[] = []) => {
+        if (args.slice(0, 2).join(' ') === 'worktree add') {
+          targetExists = true;
+          branchExists = true;
+        }
+        if (args[0] === '-C' && args[2] === 'rev-parse') {
+          return { stdout: `${'e'.repeat(40)}\n`, stderr: '' };
+        }
+        if (args[0] === 'for-each-ref') {
+          return {
+            stdout: branchExists ? 'refs/heads/emdash/loop-verify-rollback-fails\n' : '',
+            stderr: '',
+          };
+        }
+        if (args[0] === 'branch') throw new Error('branch still checked out');
+        return { stdout: '', stderr: '' };
+      });
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx: {
+          root: repoDir,
+          supportsLocalSpawn: true,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({
+          existsAbsolute: async (candidate) => targetExists && candidate === targetPath,
+          removeAbsolute: async () => err({ message: 'busy' }),
+          realPathAbsolute: async (candidate) => candidate,
+        }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const result = await service.createWorktreeAtCommit(
+        commit,
+        'emdash/loop-verify-rollback-fails'
+      );
+
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'worktree-setup-failed',
+          cause: {
+            name: 'WorktreeRollbackError',
+            message: 'Generated worktree creation failed and rollback was incomplete.',
+          },
+        },
+      });
+      expect(JSON.stringify(result)).not.toContain(targetPath);
+    });
+  });
+
+  describe('copyPreservedFilesToWorktree', () => {
+    it('resolves feature-version preserve rules after replay and copies only untracked files', async () => {
+      fs.writeFileSync(path.join(repoDir, '.env.local'), 'SECRET=abc');
+      fs.writeFileSync(path.join(repoDir, 'tracked.txt'), 'tracked');
+      await git(['add', 'tracked.txt'], { cwd: repoDir });
+      await git(['commit', '-m', 'tracked'], { cwd: repoDir });
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const settings = makeSettings();
+      settings.get = async () => ({});
+      const service = makeService({ projectSettings: settings });
+      const created = await service.createWorktreeAtCommit(commit, 'emdash/loop-preserve');
+      if (!created.success) throw new Error('expected worktree');
+      fs.writeFileSync(
+        path.join(created.data, '.emdash.json'),
+        JSON.stringify({ preservePatterns: ['.env.local', 'tracked.txt'] })
+      );
+
+      const copied = await service.copyPreservedFilesToWorktree(created.data);
+
+      expect(copied).toEqual({ success: true, data: { copied: ['.env.local'] } });
+      expect(fs.readFileSync(path.join(created.data, '.env.local'), 'utf8')).toBe('SECRET=abc');
+    });
+
+    it('safely excludes a preserved symlink whose real source escapes the repository', async () => {
+      const external = path.join(os.tmpdir(), `loop-preserve-${Date.now()}.txt`);
+      fs.writeFileSync(external, 'outside');
+      fs.symlinkSync(external, path.join(repoDir, '.env.local'));
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const service = makeService({ projectSettings: makeSettings(['.env.local']) });
+      const created = await service.createWorktreeAtCommit(commit, 'emdash/loop-symlink');
+      if (!created.success) throw new Error('expected worktree');
+
+      try {
+        await expect(service.copyPreservedFilesToWorktree(created.data)).resolves.toEqual({
+          success: true,
+          data: { copied: [] },
+        });
+        expect(fs.existsSync(path.join(created.data, '.env.local'))).toBe(false);
+      } finally {
+        fs.rmSync(external, { force: true });
+      }
+    });
+
+    it('fails closed when a required preserve pattern has no source matches', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const service = makeService({ projectSettings: makeSettings(['missing.env']) });
+      const created = await service.createWorktreeAtCommit(commit, 'emdash/loop-missing-preserve');
+      if (!created.success) throw new Error('expected worktree');
+
+      await expect(service.copyPreservedFilesToWorktree(created.data)).resolves.toEqual({
+        success: false,
+        error: {
+          type: 'preserve-source-failed',
+          pattern: 'missing.env',
+          message: 'Required preserve pattern did not match a source file.',
+        },
+      });
+    });
+
+    it('fails closed for malformed feature-version .emdash.json instead of falling back', async () => {
+      fs.writeFileSync(path.join(repoDir, '.env.local'), 'SECRET=abc');
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const service = makeService({ projectSettings: makeSettings(['.env.local']) });
+      const created = await service.createWorktreeAtCommit(commit, 'emdash/loop-bad-config');
+      if (!created.success) throw new Error('expected worktree');
+      fs.writeFileSync(path.join(created.data, '.emdash.json'), '{not-json');
+
+      await expect(service.copyPreservedFilesToWorktree(created.data)).resolves.toEqual({
+        success: false,
+        error: {
+          type: 'preserve-config-unavailable',
+          message: 'Feature .emdash.json could not be read safely.',
+        },
+      });
+    });
+
+    it('returns a typed config failure when project settings reject', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const settings = makeSettings(['.env.local']);
+      settings.get = async () => {
+        throw new Error('settings unavailable');
+      };
+      const service = makeService({ projectSettings: settings });
+      const created = await service.createWorktreeAtCommit(commit, 'emdash/loop-settings-failure');
+      if (!created.success) throw new Error('expected worktree');
+
+      await expect(service.copyPreservedFilesToWorktree(created.data)).resolves.toEqual({
+        success: false,
+        error: {
+          type: 'preserve-config-unavailable',
+          message: 'Required preserve settings could not be resolved.',
+        },
+      });
+    });
+
+    it('returns a typed failure when the preserve glob cannot be evaluated', async () => {
+      fs.writeFileSync(path.join(repoDir, '.env.local'), 'SECRET=abc');
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const service = makeServiceWithFileSystemOverride(makeSettings(['.env.local']), {
+        glob: () =>
+          err({
+            type: 'fs-error',
+            path: repoDir,
+            message: 'glob unavailable',
+          }),
+      });
+      const created = await service.createWorktreeAtCommit(commit, 'emdash/loop-glob-failure');
+      if (!created.success) throw new Error('expected worktree');
+
+      await expect(service.copyPreservedFilesToWorktree(created.data)).resolves.toEqual({
+        success: false,
+        error: {
+          type: 'preserve-glob-failed',
+          pattern: '.env.local',
+          message: 'Required preserve pattern could not be matched.',
+        },
+      });
+    });
+
+    it('returns a typed failure when a required preserved file cannot be copied', async () => {
+      fs.writeFileSync(path.join(repoDir, '.env.local'), 'SECRET=abc');
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const service = makeServiceWithFileSystemOverride(makeSettings(['.env.local']), {
+        copyFile: async (_source, destination) =>
+          err({
+            type: 'fs-error',
+            path: destination,
+            message: 'copy unavailable',
+          }),
+      });
+      const created = await service.createWorktreeAtCommit(commit, 'emdash/loop-copy-failure');
+      if (!created.success) throw new Error('expected worktree');
+
+      await expect(service.copyPreservedFilesToWorktree(created.data)).resolves.toEqual({
+        success: false,
+        error: {
+          type: 'preserve-copy-failed',
+          pattern: '.env.local',
+          message: 'Required preserve pattern could not be copied.',
+        },
+      });
+    });
+
+    it('fails closed when Git cannot prove a preserve source is untracked', async () => {
+      fs.writeFileSync(path.join(repoDir, '.env.local'), 'SECRET=abc');
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const delegate = new LocalExecutionContext({ root: repoDir });
+      const ctx: IExecutionContext = {
+        root: repoDir,
+        supportsLocalSpawn: true,
+        exec: (command, args = [], options) => {
+          if (command === 'git' && args[0] === 'ls-files') {
+            return Promise.reject(new Error('Git transport unavailable'));
+          }
+          return delegate.exec(command, args, options);
+        },
+        execStreaming: (command, args, onChunk, options) =>
+          delegate.execStreaming(command, args, onChunk, options),
+        dispose: () => delegate.dispose(),
+      };
+      const service = makeServiceWithFileSystemOverride(makeSettings(['.env.local']), {}, ctx);
+      const created = await service.createWorktreeAtCommit(commit, 'emdash/loop-tracked-failure');
+      if (!created.success) throw new Error('expected worktree');
+
+      await expect(service.copyPreservedFilesToWorktree(created.data)).resolves.toEqual({
+        success: false,
+        error: {
+          type: 'preserve-source-failed',
+          pattern: '.env.local',
+          message: 'Required preserve source tracking status could not be verified.',
+        },
+      });
+    });
+  });
 
   it('uses the runtime path API for worktree paths', async () => {
     const stripHost = (value: string) => value.replace(/^host:/, '');
@@ -534,6 +955,65 @@ describe('WorktreeService', () => {
       );
 
       expect(exec).toHaveBeenCalledWith('git', ['worktree', 'prune']);
+    });
+
+    it('treats an already absent generated worktree as success and still prunes metadata', async () => {
+      const exec = vi.fn(async () => ({ stdout: '', stderr: '' }));
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx: {
+          root: repoDir,
+          supportsLocalSpawn: false,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({ existsAbsolute: async () => false }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+      exec.mockClear();
+
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(path.join(poolDir, 'missing'))
+      ).resolves.toEqual({ success: true, data: { removed: false } });
+      expect(exec).toHaveBeenCalledWith('git', ['worktree', 'prune']);
+    });
+
+    it('fails closed when remote filesystem presence cannot be determined', async () => {
+      const exec = vi.fn(async () => ({ stdout: '', stderr: '' }));
+      const service = new WorktreeService({
+        repoPath: '/remote/repo',
+        ctx: {
+          root: '/remote/repo',
+          supportsLocalSpawn: false,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({
+          existsAbsoluteResult: async (absPath) =>
+            err({
+              type: 'fs-error',
+              path: absPath,
+              message: 'SSH filesystem unavailable',
+            }),
+        }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => '/remote/worktrees/project',
+      });
+      exec.mockClear();
+
+      await expect(
+        service.removeGeneratedWorktreeIfPresent('/remote/worktrees/project/loop')
+      ).resolves.toEqual({
+        success: false,
+        error: {
+          type: 'worktree-remove-failed',
+          message: 'Generated worktree presence could not be verified.',
+        },
+      });
+      expect(exec).not.toHaveBeenCalledWith('git', ['worktree', 'prune']);
     });
   });
 

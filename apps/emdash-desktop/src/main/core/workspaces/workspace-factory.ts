@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -20,13 +21,18 @@ import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-prov
 import { runLifecycleScriptWithPolicy } from '@main/core/terminals/lifecycle-script-coordinator';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
-import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
+import {
+  LifecycleScriptService,
+  type LifecyclePreviewStartupError,
+  type RequiredLifecycleStartup,
+} from '@main/core/workspaces/workspace-lifecycle-service';
 import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
 import { handleGitWorktreeUpdate } from '@main/core/workspaces/workspace-worktree-update';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { fileChangesChannel, fileTreeProjectionChannel } from '@shared/core/fs/fsEvents';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
+import { previewServerUrl } from '@shared/core/preview-servers/types';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
@@ -37,7 +43,7 @@ export type WorkspaceType =
   | { kind: 'local' }
   | { kind: 'ssh'; proxy: SshClientProxy; connectionId: string };
 
-type WorkspaceFactoryContext = {
+export type WorkspaceFactoryContext = {
   task: Pick<Task, 'id' | 'name'>;
   workDir: string;
   projectId: string;
@@ -57,6 +63,13 @@ type WorkspaceFactoryContext = {
     onCreate?: (ws: Workspace) => Promise<void>;
     onDestroy?: (ws: Workspace) => Promise<void>;
     onDetach?: (ws: Workspace) => Promise<void>;
+  };
+  strictStartup?: {
+    requirePreview: boolean;
+    signal?: AbortSignal;
+    previewTimeoutMs?: number;
+    previewPollIntervalMs?: number;
+    runStartupGraceMs?: number;
   };
 };
 
@@ -236,48 +249,70 @@ export function createWorkspaceFactory(
         if (ownsFetchService) {
           gitRepositoryFetchService.start();
         }
-        void (async () => {
-          if (scripts?.setup && (projectSettings.autoRunSetupScriptOnTaskCreation ?? true)) {
-            const setupResult = await runLifecycleScriptWithPolicy({
-              workspace: ws,
-              projectId: context.projectId,
-              taskId: context.task.id,
-              workspaceId,
-              type: 'setup',
-              script: scripts.setup,
-              shellSetup,
-              origin: 'auto-setup',
-              policy: {
-                respawnAfterExit: true,
-                logFailure: true,
-                surfaceFailure: true,
-                continueOnFailure: true,
-              },
-              logPrefix,
-            });
-            if (setupResult.kind !== 'succeeded') return;
-          }
+        dispatchWorkspaceLifecycleStartup({
+          strict: context.strictStartup !== undefined,
+          lifecycleService,
+          required: {
+            setup: scripts?.setup
+              ? { type: 'setup', script: scripts.setup, shellSetup }
+              : undefined,
+            run: scripts?.run ? { type: 'run', script: scripts.run, shellSetup } : undefined,
+            signal: context.strictStartup?.signal,
+            runStartupGraceMs: context.strictStartup?.runStartupGraceMs,
+            waitForPreview: context.strictStartup?.requirePreview
+              ? ({ signal }) =>
+                  waitForWorkspacePreview({
+                    projectId: context.projectId,
+                    workspaceId,
+                    signal,
+                    timeoutMs: context.strictStartup?.previewTimeoutMs,
+                    pollIntervalMs: context.strictStartup?.previewPollIntervalMs,
+                  })
+              : undefined,
+          },
+          startNormal: async () => {
+            if (scripts?.setup && (projectSettings.autoRunSetupScriptOnTaskCreation ?? true)) {
+              const setupResult = await runLifecycleScriptWithPolicy({
+                workspace: ws,
+                projectId: context.projectId,
+                taskId: context.task.id,
+                workspaceId,
+                type: 'setup',
+                script: scripts.setup,
+                shellSetup,
+                origin: 'auto-setup',
+                policy: {
+                  respawnAfterExit: true,
+                  logFailure: true,
+                  surfaceFailure: true,
+                  continueOnFailure: true,
+                },
+                logPrefix,
+              });
+              if (setupResult.kind !== 'succeeded') return;
+            }
 
-          if (scripts?.run && (projectSettings.autoRunRunScriptOnTaskCreation ?? false)) {
-            await runLifecycleScriptWithPolicy({
-              workspace: ws,
-              projectId: context.projectId,
-              taskId: context.task.id,
-              workspaceId,
-              type: 'run',
-              script: scripts.run,
-              shellSetup,
-              origin: 'auto-run',
-              policy: {
-                respawnAfterExit: true,
-                logFailure: true,
-                surfaceFailure: true,
-                continueOnFailure: true,
-              },
-              logPrefix,
-            });
-          }
-        })();
+            if (scripts?.run && (projectSettings.autoRunRunScriptOnTaskCreation ?? false)) {
+              await runLifecycleScriptWithPolicy({
+                workspace: ws,
+                projectId: context.projectId,
+                taskId: context.task.id,
+                workspaceId,
+                type: 'run',
+                script: scripts.run,
+                shellSetup,
+                origin: 'auto-run',
+                policy: {
+                  respawnAfterExit: true,
+                  logFailure: true,
+                  surfaceFailure: true,
+                  continueOnFailure: true,
+                },
+                logPrefix,
+              });
+            }
+          },
+        });
       },
 
       onCreate: context.extraHooks?.onCreate,
@@ -325,6 +360,98 @@ export function createWorkspaceFactory(
       },
     };
   };
+}
+
+export function dispatchWorkspaceLifecycleStartup({
+  strict,
+  lifecycleService,
+  required,
+  startNormal,
+}: {
+  strict: boolean;
+  lifecycleService: Pick<LifecycleScriptService, 'startRequiredStartup'>;
+  required: RequiredLifecycleStartup;
+  startNormal(): Promise<void>;
+}): void {
+  if (strict) {
+    lifecycleService.startRequiredStartup(required);
+    return;
+  }
+  void startNormal();
+}
+
+export async function waitForWorkspacePreview({
+  projectId,
+  workspaceId,
+  signal,
+  timeoutMs = 60_000,
+  pollIntervalMs = 100,
+  previewServers = previewServerService,
+}: {
+  projectId: string;
+  workspaceId: string;
+  signal: AbortSignal;
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+  previewServers?: Pick<typeof previewServerService, 'listForWorkspace'>;
+}): Promise<Result<void, LifecyclePreviewStartupError>> {
+  const deadline = Date.now() + timeoutMs;
+  while (!signal.aborted) {
+    const previews = previewServers.listForWorkspace({ projectId, workspaceId });
+    if (previews.length > 1) {
+      return err({
+        type: 'preview-ambiguous',
+        stage: 'preview',
+        message: 'Multiple previews were detected; select one before clean-room verification.',
+      });
+    }
+    const preview = previews[0];
+    if (preview?.status.kind === 'failed') {
+      return err({
+        type: 'preview-failed',
+        stage: 'preview',
+        message: 'The required preview failed to start.',
+      });
+    }
+    if (preview?.status.kind === 'ready' && previewServerUrl(preview)) {
+      return ok();
+    }
+    if (Date.now() >= deadline) {
+      return err({
+        type: 'preview-timeout',
+        stage: 'preview',
+        message: 'Preview did not become ready before the timeout.',
+      });
+    }
+    try {
+      await abortableDelay(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())), signal);
+    } catch {
+      break;
+    }
+  }
+  return err({
+    type: 'preview-failed',
+    stage: 'preview',
+    message: 'Preview readiness was cancelled.',
+  });
+}
+
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 async function acquireWorkspaceRuntime(
