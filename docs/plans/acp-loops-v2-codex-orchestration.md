@@ -1146,6 +1146,9 @@ fresh recreated green run becomes the final success report.
   `9345a707521583a02e778718c0e94ebe863ec67d`, and created the clean lead worktree
   `/tmp/emdash-loops-v2-integration` on `codex/loops-v2-integration`. The unrelated main and
   settings-search worktrees remain untouched.
+- [x] 2026-07-11: Installed the pinned Node `24.14.0` toolchain and `pnpm@10.28.2`, built all
+  workspace dependency packages, and established a green v1 Loops baseline: 10 focused files,
+  56 tests passed; the full seven-project workspace typecheck also passed.
 - [ ] Complete and merge Wave 0 contracts.
 - [ ] Complete, review, and merge Wave 1 lanes R/B/U.
 - [ ] Complete, review, and merge Wave 2A lanes W/P.
@@ -1159,6 +1162,10 @@ fresh recreated green run becomes the final success report.
 
 ## Surprises & Discoveries
 
+- Observation: a newly installed worktree cannot run app tests until the internal workspace
+  packages have been built; otherwise Vite cannot resolve `@emdash/shared` package exports.
+  Evidence: the initial focused run had 27 passing schema/UI tests but six import-failed suites;
+  after the dependency-package build, all 56 focused Loops tests passed unchanged.
 - Observation: ACP phase sessions already route through the task machine, but current Loop
   validation, Git diff, and verifiers reduce the target to a local `cwd`.
   Evidence: `loop-service.ts` calls `resolveTaskWorkspaceTarget` and retains only `.path`; verifier
@@ -1201,6 +1208,15 @@ fresh recreated green run becomes the final success report.
   Rationale: deleting the local verification worktree removes its database and file storage;
   importing empty tables cannot prove equivalent cleanup.
   Date/author: 2026-07-11, planning pass.
+- Decision: Generate the structural Loop migration normally, then use Drizzle Kit's explicit
+  `generate --custom` workflow for the deterministic primary-row/provider/phase backfill; do not
+  edit the generated structural migration. Primary selection orders eligible rows by
+  `updated_at DESC, id DESC`.
+  Rationale: schema generation cannot infer the data-preserving backfill, while the installed
+  Drizzle CLI exposes a purpose-built custom-SQL migration path. Freezing descending ID order makes
+  the plan's stable tie-breaker testable without weakening the no-hand-edit rule for generated
+  structural migrations.
+  Date/author: 2026-07-11, execution preflight.
 
 ## Outcomes & Retrospective
 
