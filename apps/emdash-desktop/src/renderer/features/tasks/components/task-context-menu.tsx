@@ -90,7 +90,7 @@ export function TaskContextMenu({
         {!isArchived && (
           <ContextMenuItem onClick={onArchive}>
             <Archive className="size-4" />
-            Archive task (keeps worktree)
+            Archive
           </ContextMenuItem>
         )}
         {isArchived && onRestore && (

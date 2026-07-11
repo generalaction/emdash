@@ -108,7 +108,7 @@ function SelectionBar({
         {tab === 'active' && (
           <Button variant="outline" size="sm" onClick={onArchive}>
             <Archive className="size-3.5" />
-            Archive (keep worktrees)
+            Archive
           </Button>
         )}
         {tab === 'archived' && (
