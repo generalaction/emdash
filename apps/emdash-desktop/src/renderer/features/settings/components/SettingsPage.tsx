@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { PageContent, PageLayout, PageSidebarMenu } from '@renderer/lib/components/page-layout';
 import { rpc } from '@renderer/lib/ipc';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { AgentsSettingsPage } from '../agents-page/AgentsSettingsPage';
-import { SettingsSearchProvider, SettingsSearchTarget } from '../search/settings-search-context';
 import { matchedTabsForQuery, searchSettings } from '../search/settings-search';
+import { SettingsSearchProvider } from '../search/settings-search-context';
 import { SETTINGS_TABS, type SettingsPageTab } from '../settings-tabs';
 import { AccountTab } from './AccountTab';
 import { BrowserSettingsCard } from './BrowserSettingsCard';
@@ -61,9 +61,7 @@ function AccountSettingsPage() {
   return (
     <div className="space-y-8">
       <PageHeader sticky title="Account" description="Manage your Emdash account." />
-      <SettingsSearchTarget id="emdash-account">
-        <AccountTab />
-      </SettingsSearchTarget>
+      <AccountTab />
     </div>
   );
 }
@@ -85,9 +83,7 @@ function ConnectionsSettingsPage() {
         title="Connections"
         description="Manage reusable SSH connections for remote projects."
       />
-      <SettingsSearchTarget id="ssh-connections">
-        <SshConnectionsSettingsCard />
-      </SettingsSearchTarget>
+      <SshConnectionsSettingsCard />
     </div>
   );
 }
@@ -116,21 +112,19 @@ function InterfaceSettingsPage() {
         title="Interface"
         description="Customize the appearance and behavior of the app."
       />
-      <SettingsSearchTarget id="color-mode">
-        <ThemeCard />
-      </SettingsSearchTarget>
+      <ThemeCard />
       <TerminalSettingsCard />
       <SidebarMetadataSettingsCard />
       <ResourceMonitorSettingsCard />
       <InterfaceSettingsCard />
-      <SettingsSearchTarget id="keyboard-shortcuts" className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3">
         <h3 className="text-sm font-normal text-foreground">Keyboard shortcuts</h3>
         <KeyboardSettingsCard />
-      </SettingsSearchTarget>
-      <SettingsSearchTarget id="open-in-tools" className="flex flex-col gap-3">
+      </div>
+      <div className="flex flex-col gap-3">
         <h3 className="text-sm font-normal text-foreground">Tools</h3>
         <HiddenToolsSettingsCard />
-      </SettingsSearchTarget>
+      </div>
     </div>
   );
 }
@@ -143,9 +137,7 @@ function StorageTabPage() {
         title="Storage"
         description="Review task worktree usage and remove stale task worktrees."
       />
-      <SettingsSearchTarget id="task-worktree-storage">
-        <StorageSettingsPage />
-      </SettingsSearchTarget>
+      <StorageSettingsPage />
     </div>
   );
 }
@@ -185,7 +177,6 @@ export function SettingsPage({
   onTabChange: (tab: SettingsPageTab) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const contentRef = useRef<HTMLDivElement>(null);
   const query = searchQuery.trim();
   const isSearching = query.length > 0;
 
@@ -213,16 +204,6 @@ export function SettingsPage({
     }
   }, [isSearching, visibleTabs, activeTab, onTabChange]);
 
-  useEffect(() => {
-    if (!isSearching) return;
-    const frame = requestAnimationFrame(() => {
-      contentRef.current
-        ?.querySelector('[data-highlighted="true"]')
-        ?.scrollIntoView({ block: 'nearest' });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [isSearching, query, activeTab]);
-
   const Content =
     (activeTab !== 'docs' ? TAB_CONTENT[activeTab] : undefined) ?? GeneralSettingsPage;
 
@@ -234,6 +215,8 @@ export function SettingsPage({
             <SearchInput
               placeholder="Search settings"
               aria-label="Search settings"
+              aria-keyshortcuts="Meta+F Control+F /"
+              shortcutHotkey="Mod+F"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               onKeyDown={(event) => {
@@ -242,7 +225,7 @@ export function SettingsPage({
                   setSearchQuery('');
                 }
               }}
-              focusHotkey={false}
+              focusSlashHotkey
             />
           }
           emptyMessage="No matching settings"
@@ -260,9 +243,7 @@ export function SettingsPage({
     >
       <PageContent>
         <SettingsSearchProvider query={query}>
-          <div ref={contentRef}>
-            <Content />
-          </div>
+          <Content />
         </SettingsSearchProvider>
       </PageContent>
     </PageLayout>

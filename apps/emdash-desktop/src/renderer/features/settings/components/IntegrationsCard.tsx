@@ -8,7 +8,6 @@ import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import { TooltipProvider } from '@renderer/lib/ui/tooltip';
 import type { AgentIconAsset } from '@shared/core/agents/agent-payload';
 import type { ConnectionStatus, IssueProviderType } from '@shared/issue-providers';
-import { SettingsSearchTarget } from '../search/settings-search-context';
 import { IntegrationDetailSidebar } from './IntegrationDetailSidebar';
 import { IntegrationGridCard } from './IntegrationGridCard';
 
@@ -139,26 +138,24 @@ const IntegrationsCard: React.FC = () => {
         {connectedIntegrations.length > 0 && (
           <IntegrationSection title="Connected">
             {connectedIntegrations.map((integration) => (
-              <SettingsSearchTarget key={integration.id} id={`integration-${integration.id}`}>
-                <IntegrationGridCard
-                  integration={integration}
-                  selected={integration.id === selectedProvider}
-                  onSelect={() => setSelectedProvider(integration.id)}
-                />
-              </SettingsSearchTarget>
+              <IntegrationGridCard
+                key={integration.id}
+                integration={integration}
+                selected={integration.id === selectedProvider}
+                onSelect={() => setSelectedProvider(integration.id)}
+              />
             ))}
           </IntegrationSection>
         )}
 
         <IntegrationSection title="Available">
           {availableIntegrations.map((integration) => (
-            <SettingsSearchTarget key={integration.id} id={`integration-${integration.id}`}>
-              <IntegrationGridCard
-                integration={integration}
-                selected={integration.id === selectedProvider}
-                onSelect={() => setSelectedProvider(integration.id)}
-              />
-            </SettingsSearchTarget>
+            <IntegrationGridCard
+              key={integration.id}
+              integration={integration}
+              selected={integration.id === selectedProvider}
+              onSelect={() => setSelectedProvider(integration.id)}
+            />
           ))}
         </IntegrationSection>
       </div>

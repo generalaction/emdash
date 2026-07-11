@@ -1,7 +1,6 @@
 import { FolderOpen, Play } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -60,7 +59,6 @@ function PreviewSoundButton({
 const NotificationSettingsCard: React.FC = () => {
   const {
     value: notifications,
-    defaults,
     update,
     isLoading: loading,
     isFieldOverridden,
@@ -83,32 +81,23 @@ const NotificationSettingsCard: React.FC = () => {
 
   const resetNotificationField = <K extends keyof NotificationSettings>(
     field: K,
-    fallback: NotificationSettings[K]
+    value: NotificationSettings[K]
   ) => {
-    configureSoundPlayer({ ...currentNotifications, [field]: defaults?.[field] ?? fallback });
+    configureSoundPlayer({ ...currentNotifications, [field]: value });
     resetField(field);
   };
 
   const chooseCustomSound = async () => {
-    try {
-      const result = await rpc.app.openSelectAudioFileDialog({
-        title: 'Choose custom sound',
-        message: 'Select an audio file to play for agent events',
-      });
-      if (result) updateNotifications({ customSoundPath: result });
-    } catch (err) {
-      toast({
-        title: 'Unable to choose custom sound',
-        description: err instanceof Error ? err.message : 'Please try again.',
-        variant: 'destructive',
-      });
-    }
+    const result = await rpc.app.openSelectAudioFileDialog({
+      title: 'Choose custom sound',
+      message: 'Select an audio file to play for agent events',
+    });
+    if (result) updateNotifications({ customSoundPath: result });
   };
 
   return (
     <div className="flex flex-col gap-4">
       <SettingRow
-        settingId="notifications"
         title="Notifications"
         description="Get notified when agents need your attention."
         control={
@@ -116,7 +105,7 @@ const NotificationSettingsCard: React.FC = () => {
             <ResetToDefaultButton
               visible={isFieldOverridden('enabled')}
               defaultLabel="on"
-              onReset={() => resetNotificationField('enabled', true)}
+              onReset={() => resetField('enabled')}
               disabled={loading}
             />
             <Switch
@@ -134,7 +123,6 @@ const NotificationSettingsCard: React.FC = () => {
         )}
       >
         <SettingRow
-          searchId="sound"
           title="Sound"
           description="Play audio cues for agent events."
           control={
@@ -156,7 +144,6 @@ const NotificationSettingsCard: React.FC = () => {
         />
 
         <SettingRow
-          searchId="custom-sound"
           title="Custom sound"
           description="Use an audio file instead of the built-in cue."
           control={
@@ -199,7 +186,6 @@ const NotificationSettingsCard: React.FC = () => {
         />
 
         <SettingRow
-          searchId="sound-timing"
           title="Sound timing"
           description="When to play sounds."
           control={
@@ -229,7 +215,6 @@ const NotificationSettingsCard: React.FC = () => {
         />
 
         <SettingRow
-          settingId="os-notifications"
           title="OS notifications"
           description="Show system banners when agents need attention or finish (while Emdash is unfocused)."
           control={

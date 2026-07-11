@@ -1,5 +1,3 @@
-import { ISSUE_PROVIDER_META } from '@renderer/features/integrations/issue-provider-meta';
-import { listDetectableProviders } from '@shared/core/agents/agent-provider-registry';
 import { SETTINGS_TABS, type SettingsPageTab } from '../settings-tabs';
 
 export type SettingsSearchEntry = {
@@ -13,31 +11,13 @@ export type SettingsSearchEntry = {
   keywords?: string[];
 };
 
-/** Derives the data-setting-id used by SettingRow from a visible label. */
+/** Derives a stable search-entry id from a visible label. */
 export function slugifySettingLabel(label: string): string {
   return label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
-
-const integrationEntries: SettingsSearchEntry[] = Object.entries(ISSUE_PROVIDER_META).map(
-  ([id, meta]) => ({
-    id: `integration-${id}`,
-    label: meta.displayName,
-    tab: 'integrations',
-    description: meta.description,
-    keywords: ['integration', 'issues', 'connect'],
-  })
-);
-
-// Match on the agent name only: the Agents tab filters its list by name, so a
-// broader match here would open the tab with an empty agent list.
-const agentEntries: SettingsSearchEntry[] = listDetectableProviders().map((provider) => ({
-  id: `agent-${provider.id}`,
-  label: provider.name,
-  tab: 'clis-models',
-}));
 
 export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   // General
@@ -145,6 +125,24 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     tab: 'account',
     description: 'Create an Emdash account to automatically connect GitHub using OAuth2.',
     keywords: ['sign in', 'sign out', 'login', 'logout', 'oauth'],
+  },
+
+  // Agents
+  {
+    id: 'agents',
+    label: 'Agents',
+    tab: 'clis-models',
+    description: 'Manage installed CLI agents and their configuration.',
+    keywords: ['claude', 'codex', 'copilot', 'cursor', 'gemini', 'cli'],
+  },
+
+  // Integrations
+  {
+    id: 'integrations',
+    label: 'Integrations',
+    tab: 'integrations',
+    description: 'Connect issue trackers and source control providers.',
+    keywords: ['github', 'gitlab', 'linear', 'jira', 'issues', 'connect'],
   },
 
   // Connections
@@ -315,9 +313,6 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     description: 'Clear cookies, cached files, and site data from the in-app browser.',
     keywords: ['cookies', 'cache', 'clear', 'site data'],
   },
-
-  ...integrationEntries,
-  ...agentEntries,
 ];
 
 function normalizeQuery(query: string): string[] {
@@ -348,12 +343,4 @@ export function matchedTabsForQuery(
 ): SettingsPageTab[] {
   const matchedTabs = new Set(searchSettings(query, index).map((entry) => entry.tab));
   return SETTINGS_TABS.filter((tab) => matchedTabs.has(tab.id)).map((tab) => tab.id);
-}
-
-/** Ids of matching entries, used to highlight setting rows. */
-export function matchedIdsForQuery(
-  query: string,
-  index: SettingsSearchEntry[] = SETTINGS_SEARCH_INDEX
-): ReadonlySet<string> {
-  return new Set(searchSettings(query, index).map((entry) => entry.id));
 }

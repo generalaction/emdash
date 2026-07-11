@@ -19,7 +19,6 @@ const InterfaceSettingsCard: React.FC = () => {
   return (
     <div className="flex flex-col gap-4">
       <SettingRow
-        settingId="context-bar"
         title="Context bar"
         description="Hide the on-screen context trigger. The keyboard shortcut still works."
         control={

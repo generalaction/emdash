@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SETTINGS_TABS } from '../settings-tabs';
 import {
-  matchedIdsForQuery,
   matchedTabsForQuery,
   searchSettings,
   SETTINGS_SEARCH_INDEX,
@@ -97,20 +96,6 @@ describe('matchedTabsForQuery', () => {
   });
 });
 
-describe('matchedIdsForQuery', () => {
-  it('returns the ids of all matching entries', () => {
-    expect([...matchedIdsForQuery('terminal', FIXTURE_INDEX)].sort()).toEqual([
-      'enable-tmux',
-      'terminal-font-size',
-    ]);
-  });
-
-  it('is empty for empty and no-result queries', () => {
-    expect(matchedIdsForQuery('', FIXTURE_INDEX).size).toBe(0);
-    expect(matchedIdsForQuery('zzz', FIXTURE_INDEX).size).toBe(0);
-  });
-});
-
 describe('SETTINGS_SEARCH_INDEX integrity', () => {
   it('has unique ids', () => {
     const ids = SETTINGS_SEARCH_INDEX.map((entry) => entry.id);
@@ -150,7 +135,7 @@ describe('SETTINGS_SEARCH_INDEX integrity', () => {
 
   it('resolves SettingRow auto-derived ids: slugified labels match entry ids for row-backed settings', () => {
     // These entries correspond to SettingRow titles rendered as plain strings,
-    // so their id must equal slugifySettingLabel(label) for highlighting to work.
+    // so their id must equal slugifySettingLabel(label) for stable search targets.
     const rowBackedIds = [
       'privacy-telemetry',
       'auto-generate-task-names',

@@ -5,7 +5,6 @@ import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';
 import { PRODUCT_NAME } from '@shared/app-identity';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { SettingRow } from './SettingRow';
 
 const TelemetryCard: React.FC = () => {
@@ -14,7 +13,6 @@ const TelemetryCard: React.FC = () => {
 
   return (
     <SettingRow
-      settingId="privacy-telemetry"
       title="Privacy & Telemetry"
       description={
         <div>
@@ -41,8 +39,10 @@ const TelemetryCard: React.FC = () => {
         <div className="flex flex-col items-end gap-1">
           <Switch
             checked={prefEnabled}
-            onCheckedChange={(checked) => {
-              captureTelemetry('setting_changed', { setting: 'telemetry' });
+            onCheckedChange={async (checked) => {
+              void import('../../../utils/telemetryClient').then(({ captureTelemetry }) => {
+                captureTelemetry('setting_changed', { setting: 'telemetry' });
+              });
               void setTelemetryEnabled(checked);
             }}
             disabled={loading || envDisabled}

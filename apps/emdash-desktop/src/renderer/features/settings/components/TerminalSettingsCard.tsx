@@ -199,7 +199,6 @@ const TerminalSettingsCard: React.FC = () => {
   return (
     <div className="flex flex-col gap-4">
       <SettingRow
-        settingId="default-terminal-shell"
         title="Default terminal shell"
         description="Used for new local terminals. Remote terminals use the remote system shell."
         control={
@@ -229,7 +228,6 @@ const TerminalSettingsCard: React.FC = () => {
         }
       />
       <SettingRow
-        settingId="terminal-font"
         title="Terminal font"
         description="Choose the font family for the terminal."
         control={
@@ -314,7 +312,6 @@ const TerminalSettingsCard: React.FC = () => {
         }
       />
       <SettingRow
-        settingId="terminal-font-size"
         title="Terminal font size"
         description="Adjust the font size used by terminal sessions and CLI agents."
         control={
@@ -347,7 +344,6 @@ const TerminalSettingsCard: React.FC = () => {
         }
       />
       <SettingRow
-        settingId="auto-copy-selected-text"
         title="Auto-copy selected text"
         description="Automatically copy text to clipboard when you select it in the terminal."
         control={
@@ -360,7 +356,6 @@ const TerminalSettingsCard: React.FC = () => {
       />
       {isMac ? (
         <SettingRow
-          settingId="use-option-as-meta-key"
           title="Use Option as Meta key"
           description="Treat the Option key as the Meta key in the terminal."
           control={

@@ -3,7 +3,6 @@ import React from 'react';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import type { Theme } from '@shared/core/app-settings';
-import { SettingTarget } from './SettingRow';
 
 const ThemeCard: React.FC = () => {
   const { theme, setTheme } = useTheme();
@@ -22,7 +21,7 @@ const ThemeCard: React.FC = () => {
     'border-border/60 bg-background text-foreground-muted hover:bg-background-1';
 
   return (
-    <SettingTarget settingId="color-mode" className="grid gap-3 text-sm">
+    <div className="grid gap-3 text-sm">
       <div>
         <div className="font-medium text-foreground">Color mode</div>
         <div className="text-foreground-muted">Choose how Emdash looks.</div>
@@ -36,7 +35,7 @@ const ThemeCard: React.FC = () => {
           aria-label="Set theme to system preference"
         >
           <Monitor className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="text-center">System</span>
+          <span className="text-centert">System</span>
         </button>
         <button
           type="button"
@@ -59,7 +58,7 @@ const ThemeCard: React.FC = () => {
           <span className="text-center">Emdash Dark</span>
         </button>
       </div>
-    </SettingTarget>
+    </div>
   );
 };
 

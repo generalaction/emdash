@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import { SettingsPage } from '@renderer/features/settings/components/SettingsPage';
 import type { SettingsPageTab } from '@renderer/features/settings/settings-tabs';
+import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 
 const SettingsTabContext = createContext<{
   tab: SettingsPageTab;
   onTabChange: (tab: SettingsPageTab) => void;
-} | null>(null);
+}>({ tab: 'general', onTabChange: () => {} });
 
 /** Minimal passthrough — exists so the registry can infer WrapParams<'settings'>. */
 export function SettingsViewWrapper({
@@ -31,11 +32,22 @@ export function SettingsViewWrapper({
 }
 
 export function useSettingsTab() {
-  const context = useContext(SettingsTabContext);
-  if (!context) {
+  if (!useContext(SettingsTabContext)) {
     throw new Error('useSettingsTab must be used within a SettingsViewWrapper');
   }
-  return context;
+  return useContext(SettingsTabContext);
+}
+
+export function SettingsTitlebar() {
+  return (
+    <Titlebar
+      leftSlot={
+        <div className="flex items-center px-2">
+          <span className="text-sm text-foreground-muted">Settings</span>
+        </div>
+      }
+    />
+  );
 }
 
 export function SettingsMainPanel() {

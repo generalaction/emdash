@@ -49,6 +49,7 @@ export function AgentsSettingsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               containerClassName="w-56"
+              focusHotkey={false}
             />
             <Button
               variant="outline"
