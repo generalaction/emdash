@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { BoundExec } from '@emdash/core/exec';
+import { ExecError, type BoundExec } from '@emdash/core/exec';
 import {
   computeBaseRef,
   gitErr,
@@ -9,8 +9,9 @@ import {
   type GitPathInspection,
   type GitRepositoryInfo,
 } from '@emdash/core/git';
+import type { HostAbsolutePath } from '@emdash/core/path';
 import { ok, type Result } from '@emdash/shared';
-import { realpathOrResolve } from '../allocation/paths';
+import { toHostAbsolutePath, toNativeAbsolutePath } from '../allocation/paths';
 import { gitFailure } from '../exec/errors';
 import type { GitOperationContext } from '../exec/operation-context';
 import { execGitWithProgress } from '../exec/transfer-progress';
@@ -20,67 +21,89 @@ import { repositoryFailures } from './errors';
 export class GitRepositoryProvisioner {
   constructor(private readonly exec: BoundExec) {}
 
-  inspectPath(pathToInspect: string): Promise<GitPathInspection> {
-    return this.inspectResolvedPath(path.resolve(pathToInspect));
+  inspectPath(pathToInspect: HostAbsolutePath): Promise<GitPathInspection> {
+    try {
+      return this.inspectResolvedPath(toNativeAbsolutePath(pathToInspect), pathToInspect);
+    } catch (error) {
+      return Promise.resolve({
+        kind: 'inspect-failed',
+        path: pathToInspect,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   async ensureRepository(
-    pathToInspect: string,
+    pathToInspect: HostAbsolutePath,
     options: EnsureRepositoryOptions = {}
   ): Promise<Result<GitRepositoryInfo, EnsureRepositoryError>> {
-    const resolvedPath = path.resolve(pathToInspect);
-    const inspected = await this.inspectResolvedPath(resolvedPath);
+    const inspected = await this.inspectPath(pathToInspect);
     if (inspected.kind === 'repository') return ok(inspected);
     if (inspected.kind === 'inspect-failed') {
       return gitErr.inspectFailed(inspected.path, inspected.message);
     }
     if (!options.initIfMissing) return gitErr.notRepository(inspected.path);
 
+    let nativePath: string;
     try {
-      await this.exec.exec(['-C', resolvedPath, 'init']);
+      nativePath = toNativeAbsolutePath(pathToInspect);
+      await this.exec.exec(['-C', nativePath, 'init']);
     } catch (error) {
-      return gitErr.initFailed(resolvedPath, gitFailure(error).message);
+      const message =
+        error instanceof ExecError
+          ? gitFailure(error).message
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      return gitErr.initFailed(pathToInspect, message);
     }
 
-    const initialized = await this.inspectResolvedPath(resolvedPath);
+    const initialized = await this.inspectResolvedPath(nativePath, pathToInspect);
     if (initialized.kind === 'repository') return ok(initialized);
     if (initialized.kind === 'inspect-failed') {
       return gitErr.inspectFailed(initialized.path, initialized.message);
     }
-    return gitErr.initFailed(resolvedPath, 'Failed to initialize git repository');
+    return gitErr.initFailed(pathToInspect, 'Failed to initialize git repository');
   }
 
   async cloneRepository(
     repositoryUrl: string,
-    targetPath: string,
+    targetPath: HostAbsolutePath,
     context: GitOperationContext = {}
   ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>> {
-    const resolvedTargetPath = path.resolve(targetPath);
+    let nativeTargetPath: string;
     try {
+      nativeTargetPath = toNativeAbsolutePath(targetPath);
       await execGitWithProgress(
-        this.exec.withCwd(path.dirname(resolvedTargetPath)),
-        ['clone', '--progress', repositoryUrl, resolvedTargetPath],
+        this.exec.withCwd(path.dirname(nativeTargetPath)),
+        ['clone', '--progress', repositoryUrl, nativeTargetPath],
         context
       );
     } catch (error) {
       if (context.signal?.aborted) throw error;
-      return repositoryFailures.clone(error, resolvedTargetPath);
+      if (!(error instanceof ExecError)) {
+        return gitErr.commandFailed(error instanceof Error ? error.message : String(error));
+      }
+      return repositoryFailures.clone(error, targetPath);
     }
 
-    const inspected = await this.inspectResolvedPath(resolvedTargetPath);
+    const inspected = await this.inspectResolvedPath(nativeTargetPath, targetPath);
     if (inspected.kind === 'repository') return ok(inspected);
     if (inspected.kind === 'inspect-failed') {
       return gitErr.commandFailed(inspected.message);
     }
-    return gitErr.commandFailed(`Cloned path is not a git repository: ${resolvedTargetPath}`);
+    return gitErr.commandFailed(`Cloned path is not a git repository: ${nativeTargetPath}`);
   }
 
-  private async inspectResolvedPath(resolvedPath: string): Promise<GitPathInspection> {
-    const exec = (args: string[]) => this.exec.exec(['-C', resolvedPath, ...args]);
+  private async inspectResolvedPath(
+    nativePath: string,
+    requestedPath: HostAbsolutePath
+  ): Promise<GitPathInspection> {
+    const exec = (args: string[]) => this.exec.exec(['-C', nativePath, ...args]);
     try {
       const { stdout: insideWorkTree } = await exec(['rev-parse', '--is-inside-work-tree']);
       if (insideWorkTree.trim() !== 'true') {
-        return { kind: 'not-repository', path: resolvedPath };
+        return { kind: 'not-repository', path: requestedPath };
       }
 
       const { stdout: remoteOutput } = await exec(['remote']);
@@ -104,7 +127,7 @@ export class GitRepositoryProvisioner {
       }
 
       const { stdout: rootOutput } = await exec(['rev-parse', '--show-toplevel']);
-      const rootPath = rootOutput.trim() ? realpathOrResolve(rootOutput.trim()) : resolvedPath;
+      const rootPath = toHostAbsolutePath(rootOutput.trim() || nativePath);
 
       return {
         kind: 'repository',
@@ -112,10 +135,19 @@ export class GitRepositoryProvisioner {
         baseRef: computeBaseRef(undefined, remoteName, branch),
       };
     } catch (error) {
-      if (repositoryFailures.isNotRepository(error)) {
-        return { kind: 'not-repository', path: resolvedPath };
+      if (error instanceof ExecError && repositoryFailures.isNotRepository(error)) {
+        return { kind: 'not-repository', path: requestedPath };
       }
-      return { kind: 'inspect-failed', path: resolvedPath, message: gitFailure(error).message };
+      return {
+        kind: 'inspect-failed',
+        path: requestedPath,
+        message:
+          error instanceof ExecError
+            ? gitFailure(error).message
+            : error instanceof Error
+              ? error.message
+              : String(error),
+      };
     }
   }
 }

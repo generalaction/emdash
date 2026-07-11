@@ -7,6 +7,7 @@ import {
   type RebaseError,
   type SwitchError,
 } from '@emdash/core/git';
+import type { PortableRelativePath } from '@emdash/core/path';
 import type { Err } from '@emdash/shared';
 import {
   commandFailed,
@@ -64,7 +65,7 @@ export const checkoutFailures = {
     return commandFailure(failure);
   },
 
-  merge(error: unknown, conflictedFiles?: string[]): Err<MergeError> {
+  merge(error: unknown, conflictedFiles?: PortableRelativePath[]): Err<MergeError> {
     const failure = gitFailure(error);
     const message = failure.message.toLowerCase();
     if (message.includes('conflict')) return gitErr.conflict(failure.message, conflictedFiles);
@@ -74,7 +75,7 @@ export const checkoutFailures = {
     return commandFailure(failure);
   },
 
-  rebase(error: unknown, conflictedFiles?: string[]): Err<RebaseError> {
+  rebase(error: unknown, conflictedFiles?: PortableRelativePath[]): Err<RebaseError> {
     const failure = gitFailure(error);
     const message = failure.message.toLowerCase();
     if (message.includes('conflict') || message.includes('could not apply')) {
@@ -90,7 +91,7 @@ export const checkoutFailures = {
     return commandFailure(failure);
   },
 
-  pull(error: unknown, conflictedFiles?: string[]): Err<PullError> {
+  pull(error: unknown, conflictedFiles?: PortableRelativePath[]): Err<PullError> {
     const failure = gitFailure(error);
     const message = failure.message.toLowerCase();
     if (message.includes('conflict')) return gitErr.conflict(failure.message, conflictedFiles);

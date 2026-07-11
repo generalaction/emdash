@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hostAbsolutePathSchema } from '../../path';
 import { repositorySelectorSchema } from '../api/selectors';
 
 /**
@@ -29,7 +30,7 @@ export type FetchPrForReviewOptions = z.infer<typeof fetchPrForReviewOptionsSche
 
 export const addWorktreeOptionsSchema = z.object({
   /** Destination path for the new worktree. */
-  path: z.string(),
+  path: hostAbsolutePathSchema,
   /** Explicit ref to check out; creates `newBranch` from this ref when supplied. */
   ref: z.string(),
   /** Name for a new branch created at this worktree. */

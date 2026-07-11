@@ -16,6 +16,8 @@ import {
   type FileDiff,
   type GitChange,
   type GitCommandError,
+  type BoundGitFileContentKey,
+  type GitFileContentState,
   type GitLogOptions,
   type GitLogResult,
   type GitSyncProgress,
@@ -33,6 +35,7 @@ import {
   type SwitchOptions,
   type SyncError,
 } from '@emdash/core/git';
+import { parsePortableRelativePath, type PortableRelativePath } from '@emdash/core/path';
 import { ok, type Result } from '@emdash/shared';
 import type { CheckoutIdentity } from '../allocation/identity';
 import { pushFailed } from '../exec/errors';
@@ -44,6 +47,7 @@ import {
 } from '../exec/transfer-progress';
 import { checkoutFailures, InvalidCheckoutPathError } from './errors';
 import { blame as readBlame } from './ops/blame';
+import { readGitFileContent } from './ops/content';
 import {
   extractHunkPatch,
   getChangedFiles as readChangedFiles,
@@ -61,7 +65,7 @@ import {
 import { computeStatusState } from './ops/status';
 
 export type GitObjectReader = {
-  readBlobAtRef(ref: string, filePath: string): Promise<string | null>;
+  readBlobAtRef(ref: string, filePath: PortableRelativePath): Promise<string | null>;
 };
 
 type GitCheckoutOptions = {
@@ -90,7 +94,7 @@ export class GitCheckout {
   }
 
   getStatus(): Promise<CheckoutStatusState> {
-    return computeStatusState(this.exec, this.gitDir, this.checkoutRoot);
+    return computeStatusState(this.exec, this.gitDir);
   }
 
   getHead(): Promise<CheckoutHeadState> {
@@ -416,24 +420,23 @@ export class GitCheckout {
   ): Promise<Result<FileDiff, GitCommandError>> {
     try {
       const relativePath = this.toRelativePath(filePath);
-      const absolutePath = this.toAbsolutePath(filePath);
       const resolved = resolveDiffTarget(base);
       const args = resolved.cached
         ? ['diff', '--no-color', '--cached', '--', relativePath]
         : ['diff', '--no-color', resolved.ref, '--', relativePath];
       const { stdout } = await this.exec.exec(args);
       if (stdout.trim().length > 0 || resolved.cached) {
-        return ok(parseUnifiedFileDiff(stdout, absolutePath));
+        return ok(parseUnifiedFileDiff(stdout, relativePath));
       }
-      const untrackedDiff = await getUntrackedFileDiff(this.exec, relativePath, absolutePath);
-      return ok(untrackedDiff ?? parseUnifiedFileDiff(stdout, absolutePath));
+      const untrackedDiff = await getUntrackedFileDiff(this.exec, relativePath);
+      return ok(untrackedDiff ?? parseUnifiedFileDiff(stdout, relativePath));
     } catch (error) {
       return checkoutFailures.command(error);
     }
   }
 
   async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
-    return readChangedFiles(this.exec, base, (filePath) => this.toAbsolutePath(filePath));
+    return readChangedFiles(this.exec, base, (filePath) => this.toRelativePath(filePath));
   }
 
   async getConflictVersions(filePath: string): Promise<Result<ConflictVersions, GitCommandError>> {
@@ -477,6 +480,10 @@ export class GitCheckout {
     }
   }
 
+  getFileContent(key: BoundGitFileContentKey): Promise<GitFileContentState> {
+    return readGitFileContent(this.exec, this.toRelativePath(key.path), key.source);
+  }
+
   async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
     const relativePath = this.toRelativePath(filePath);
     return getImageBlob(this.exec, relativePath, `${ref}:${relativePath}`);
@@ -496,7 +503,7 @@ export class GitCheckout {
   }
 
   async getCommitFiles(hash: string): Promise<CommitFile[]> {
-    return readCommitFiles(this.exec, hash, (filePath) => this.toAbsolutePath(filePath));
+    return readCommitFiles(this.exec, hash, (filePath) => this.toRelativePath(filePath));
   }
 
   async blame(filePath: string, ref?: string): Promise<Result<BlameResult, GitCommandError>> {
@@ -558,9 +565,13 @@ export class GitCheckout {
     }
   }
 
-  private async getConflictedPaths(): Promise<string[] | undefined> {
+  private async getConflictedPaths(): Promise<PortableRelativePath[] | undefined> {
     const { stdout } = await this.exec.exec(['diff', '--name-only', '--diff-filter=U']);
-    const paths = stdout.trim().split('\n').filter(Boolean);
+    const paths = stdout
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((filePath) => this.toRelativePath(filePath));
     return paths.length > 0 ? paths : undefined;
   }
 
@@ -592,12 +603,15 @@ export class GitCheckout {
     return absolutePath;
   }
 
-  private toRelativePath(filePath: string): string {
-    const absolutePath = this.toAbsolutePath(filePath);
-    return path.relative(this.checkoutRoot, absolutePath).replace(/\\/g, '/');
+  private toRelativePath(filePath: string): PortableRelativePath {
+    const parsed = parsePortableRelativePath(filePath, { unicodeNormalization: 'preserve' });
+    if (!parsed.success || !parsed.data || (path.sep === '\\' && parsed.data.includes('\\'))) {
+      throw new InvalidCheckoutPathError(filePath);
+    }
+    return parsed.data;
   }
 
-  private toRelativePaths(paths: string[]): string[] {
+  private toRelativePaths(paths: string[]): PortableRelativePath[] {
     return paths.map((filePath) => this.toRelativePath(filePath));
   }
 

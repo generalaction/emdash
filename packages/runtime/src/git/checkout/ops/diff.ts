@@ -8,6 +8,7 @@ import {
   type FileDiff,
   type GitChange,
 } from '@emdash/core/git';
+import type { PortableRelativePath } from '@emdash/core/path';
 import { checkoutFailures } from '../errors';
 import { parseNumstat } from './log';
 import { mapGitChangeStatus } from './status';
@@ -18,7 +19,7 @@ const HUNK_HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
  * Parses `git diff` unified output for a single file into a FileDiff.
  * Expects output produced with `--no-color`; multi-file output is not supported.
  */
-export function parseUnifiedFileDiff(output: string, filePath: string): FileDiff {
+export function parseUnifiedFileDiff(output: string, filePath: PortableRelativePath): FileDiff {
   const diff: FileDiff = {
     path: filePath,
     binary: false,
@@ -132,7 +133,7 @@ export function extractHunkPatch(diffText: string, hunkHeader: string): string |
 
 export async function getUntrackedFileDiff(
   exec: BoundExec,
-  relativePath: string,
+  relativePath: PortableRelativePath,
   displayPath = relativePath
 ): Promise<FileDiff | null> {
   let isTracked = true;
@@ -158,7 +159,7 @@ export async function getUntrackedFileDiff(
 export async function getChangedFiles(
   exec: BoundExec,
   base: DiffTarget,
-  toAbsolutePath: (filePath: string) => string
+  toPortablePath: (filePath: string) => PortableRelativePath
 ): Promise<GitChange[]> {
   const resolved = resolveDiffTarget(base);
   const diffArgs = resolved.cached
@@ -188,7 +189,7 @@ export async function getChangedFiles(
     if (!filePath) continue;
     const stat = numstat.get(filePath);
     changes.push({
-      path: toAbsolutePath(filePath),
+      path: toPortablePath(filePath),
       status: mapGitChangeStatus(code),
       additions: stat?.additions ?? 0,
       deletions: stat?.deletions ?? 0,

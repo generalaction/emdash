@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { checkoutSelectorSchema } from '../api/selectors';
-import { normalizedDiffTargetSchema } from './schemas';
+import { gitFilePathSchema, normalizedDiffTargetSchema } from './schemas';
 
 export const boundFileDiffKeySchema = z.object({
-  filePath: z.string(),
+  filePath: gitFilePathSchema,
   target: normalizedDiffTargetSchema,
 });
 export type BoundFileDiffKey = z.infer<typeof boundFileDiffKeySchema>;

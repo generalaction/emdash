@@ -12,6 +12,7 @@ import {
 } from '../api/errors';
 import { syncProgressSchema, transferProgressSchema } from '../api/schemas';
 import { checkoutSelectorSchema } from '../api/selectors';
+import { gitFileContentKeySchema } from './file-content-key';
 import { fileDiffKeySchema } from './file-diff-key';
 import {
   blameResultSchema,
@@ -21,6 +22,7 @@ import {
   conflictVersionsSchema,
   fileDiffSchema,
   gitChangeSchema,
+  gitFilePathSchema,
   gitLogOptionsSchema,
   gitLogResultSchema,
   imageReadResultSchema,
@@ -34,6 +36,7 @@ import {
   switchOptionsSchema,
   syncJobInputSchema,
 } from './schemas';
+import { gitFileContentStateSchema } from './states/content';
 import { fileDiffStalenessStateSchema } from './states/file-diff-staleness';
 import { checkoutHeadStateSchema } from './states/head';
 import { checkoutStatusStateSchema } from './states/status';
@@ -47,40 +50,43 @@ export const gitCheckoutContract = defineContract({
     },
     mutations: {
       stage: mutation({
-        input: z.object({ paths: z.array(z.string()) }),
+        input: z.object({ paths: z.array(gitFilePathSchema) }),
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
       unstage: mutation({
-        input: z.object({ paths: z.array(z.string()) }),
+        input: z.object({ paths: z.array(gitFilePathSchema) }),
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
       stageAll: mutation({ input: z.object({}), data: z.void(), error: gitCommandErrorSchema }),
       unstageAll: mutation({ input: z.object({}), data: z.void(), error: gitCommandErrorSchema }),
       revert: mutation({
-        input: z.object({ paths: z.array(z.string()) }),
+        input: z.object({ paths: z.array(gitFilePathSchema) }),
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
       revertAll: mutation({ input: z.object({}), data: z.void(), error: gitCommandErrorSchema }),
       clean: mutation({
-        input: z.object({ paths: z.array(z.string()).optional(), force: z.boolean().optional() }),
+        input: z.object({
+          paths: z.array(gitFilePathSchema).optional(),
+          force: z.boolean().optional(),
+        }),
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
       stageHunk: mutation({
-        input: z.object({ path: z.string(), hunkHeader: z.string() }),
+        input: z.object({ path: gitFilePathSchema, hunkHeader: z.string() }),
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
       unstageHunk: mutation({
-        input: z.object({ path: z.string(), hunkHeader: z.string() }),
+        input: z.object({ path: gitFilePathSchema, hunkHeader: z.string() }),
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
       discardHunk: mutation({
-        input: z.object({ path: z.string(), hunkHeader: z.string() }),
+        input: z.object({ path: gitFilePathSchema, hunkHeader: z.string() }),
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
@@ -154,9 +160,17 @@ export const gitCheckoutContract = defineContract({
     mutations: {},
   }),
 
+  content: liveModel({
+    key: gitFileContentKeySchema,
+    states: {
+      content: liveState({ data: gitFileContentStateSchema }),
+    },
+    mutations: {},
+  }),
+
   getFileDiff: fallible({
     input: checkoutSelectorSchema.extend({
-      path: z.string(),
+      path: gitFilePathSchema,
       target: normalizedDiffTargetSchema.optional(),
     }),
     data: fileDiffSchema,
@@ -168,27 +182,33 @@ export const gitCheckoutContract = defineContract({
     error: gitCommandErrorSchema,
   }),
   getConflictVersions: fallible({
-    input: checkoutSelectorSchema.extend({ path: z.string() }),
+    input: checkoutSelectorSchema.extend({ path: gitFilePathSchema }),
     data: conflictVersionsSchema,
     error: gitCommandErrorSchema,
   }),
   getFileAtRef: fallible({
-    input: checkoutSelectorSchema.extend({ filePath: z.string(), ref: z.string() }),
+    input: checkoutSelectorSchema.extend({
+      filePath: gitFilePathSchema,
+      ref: z.string(),
+    }),
     data: z.string().nullable(),
     error: gitCommandErrorSchema,
   }),
   getFileAtIndex: fallible({
-    input: checkoutSelectorSchema.extend({ filePath: z.string() }),
+    input: checkoutSelectorSchema.extend({ filePath: gitFilePathSchema }),
     data: z.string().nullable(),
     error: gitCommandErrorSchema,
   }),
   getImageAtRef: fallible({
-    input: checkoutSelectorSchema.extend({ filePath: z.string(), ref: z.string() }),
+    input: checkoutSelectorSchema.extend({
+      filePath: gitFilePathSchema,
+      ref: z.string(),
+    }),
     data: imageReadResultSchema,
     error: gitCommandErrorSchema,
   }),
   getImageAtIndex: fallible({
-    input: checkoutSelectorSchema.extend({ filePath: z.string() }),
+    input: checkoutSelectorSchema.extend({ filePath: gitFilePathSchema }),
     data: imageReadResultSchema,
     error: gitCommandErrorSchema,
   }),
@@ -208,7 +228,10 @@ export const gitCheckoutContract = defineContract({
     error: gitCommandErrorSchema,
   }),
   blame: fallible({
-    input: checkoutSelectorSchema.extend({ path: z.string(), ref: z.string().optional() }),
+    input: checkoutSelectorSchema.extend({
+      path: gitFilePathSchema,
+      ref: z.string().optional(),
+    }),
     data: blameResultSchema,
     error: gitCommandErrorSchema,
   }),

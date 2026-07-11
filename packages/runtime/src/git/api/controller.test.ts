@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { gitContract } from '@emdash/core/git';
-import type { IWatchService } from '@emdash/core/services/fs-watch/api';
+import type { IWatchService, WatchEvent, WatchOptions } from '@emdash/core/services/fs-watch/api';
 import type { Result } from '@emdash/shared';
 import {
   client,
@@ -18,6 +18,7 @@ import {
 } from '@emdash/wire';
 import { describe, expect, it } from 'vitest';
 import { GitRuntime } from '../git-runtime';
+import { gitPath, hostPath } from '../testing/paths';
 import { createGitController } from './controller';
 import { createGitProcedures } from './procedures';
 
@@ -27,6 +28,9 @@ function unwrap<T, E>(result: Result<T, E>): T {
   if (!result.success) throw result.error;
   return result.data;
 }
+
+const checkoutSelector = (root: string) => ({ checkout: hostPath(root) });
+const repositorySelector = (root: string) => ({ repository: hostPath(root) });
 
 function makeClient(runtime: GitRuntime) {
   const pair = memoryTransportPair();
@@ -96,17 +100,17 @@ describe('createGitController', () => {
 
     try {
       expect(workspaceContract.git.repository.model.id).toBe('git.repository.model');
-      const repository = { repository: { path: repo } };
+      const repository = repositorySelector(repo);
       const refs = await git.repository.model.state(repository, 'refs').snapshot();
       expect(refs.data.branches).toEqual([
         expect.objectContaining({ type: 'local', branch: 'main' }),
       ]);
 
-      const checkout = { checkout: { path: repo } };
+      const checkout = checkoutSelector(repo);
       await writeFile(path.join(repo, 'tracked.txt'), 'after\n', 'utf8');
       const staged = await git.checkout.model.mutate('stage', {
         key: checkout,
-        input: { paths: ['tracked.txt'] },
+        input: { paths: [gitPath('tracked.txt')] },
       });
       expect(staged.success).toBe(true);
       if (staged.success) {
@@ -128,13 +132,13 @@ describe('createGitController', () => {
     const { client: git, dispose } = makeClient(runtime);
 
     try {
-      const repository = { repository: { path: repo } };
+      const repository = repositorySelector(repo);
       const refs = await git.repository.model.state(repository, 'refs').snapshot();
       expect(refs.data.branches).toEqual([
         expect.objectContaining({ type: 'local', branch: 'main' }),
       ]);
 
-      const checkout = { checkout: { path: repo } };
+      const checkout = checkoutSelector(repo);
       await writeFile(path.join(repo, 'tracked.txt'), 'after\n', 'utf8');
 
       const updates: LiveUpdate[] = [];
@@ -144,7 +148,7 @@ describe('createGitController', () => {
 
       const stageResult = await git.checkout.model.mutate('stage', {
         key: checkout,
-        input: { paths: ['tracked.txt'] },
+        input: { paths: [gitPath('tracked.txt')] },
       });
       expect(stageResult.success).toBe(true);
 
@@ -153,7 +157,7 @@ describe('createGitController', () => {
       const status = await git.checkout.model.state(checkout, 'status').snapshot();
       expect(status.data.kind).toBe('ok');
       if (status.data.kind !== 'ok') throw new Error(`Expected ok status, got ${status.data.kind}`);
-      expect(status.data.entries[path.join(repo, 'tracked.txt')]).toMatchObject({
+      expect(status.data.entries[gitPath('tracked.txt')]).toMatchObject({
         index: 'modified',
         worktree: 'unmodified',
       });
@@ -170,10 +174,10 @@ describe('createGitController', () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const { client: git, dispose } = makeClient(runtime);
-    const checkout = { checkout: { path: repo } };
+    const checkout = checkoutSelector(repo);
     const diffKey = {
       ...checkout,
-      filePath: 'tracked.txt',
+      filePath: gitPath('tracked.txt'),
       target: { kind: 'staged-vs-head' as const },
     };
 
@@ -186,7 +190,7 @@ describe('createGitController', () => {
       await expect(
         git.checkout.model.mutate('stage', {
           key: checkout,
-          input: { paths: ['tracked.txt'] },
+          input: { paths: [gitPath('tracked.txt')] },
         })
       ).resolves.toMatchObject({ success: true });
 
@@ -200,12 +204,98 @@ describe('createGitController', () => {
     }
   });
 
+  it('streams Git-owned file content for the index and mutable refs', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const { client: git, dispose } = makeClient(runtime);
+    const checkout = checkoutSelector(repo);
+    const filePath = gitPath('tracked.txt');
+    const headKey = { ...checkout, path: filePath, source: { kind: 'head' as const } };
+    const indexKey = { ...checkout, path: filePath, source: { kind: 'index' as const } };
+
+    try {
+      await expect(
+        git.checkout.content.state(headKey, 'content').snapshot()
+      ).resolves.toMatchObject({ data: { kind: 'text', content: 'before\n' } });
+
+      await writeFile(path.join(repo, filePath), 'after\n', 'utf8');
+      await expect(
+        git.checkout.model.mutate('stage', {
+          key: checkout,
+          input: { paths: [filePath] },
+        })
+      ).resolves.toMatchObject({ success: true });
+      await expect(
+        git.checkout.content.state(indexKey, 'content').snapshot()
+      ).resolves.toMatchObject({ data: { kind: 'text', content: 'after\n' } });
+      await expect(
+        git.checkout.content.state(headKey, 'content').snapshot()
+      ).resolves.toMatchObject({ data: { kind: 'text', content: 'before\n' } });
+
+      await expect(
+        git.checkout.model.mutate('commit', {
+          key: checkout,
+          input: { message: 'update content' },
+        })
+      ).resolves.toMatchObject({ success: true });
+      await expect(
+        git.checkout.content.state(headKey, 'content').snapshot()
+      ).resolves.toMatchObject({ data: { kind: 'text', content: 'after\n' } });
+    } finally {
+      dispose();
+      await runtime.dispose();
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('refreshes live content when an externally updated tag moves', async () => {
+    const repo = await makeRepo();
+    await execFileAsync('git', ['tag', 'v1'], { cwd: repo });
+    const watcher = new ManualWatcher();
+    const runtime = new GitRuntime({ watcher });
+    const { client: git, dispose } = makeClient(runtime);
+    const key = {
+      ...checkoutSelector(repo),
+      path: gitPath('tracked.txt'),
+      source: {
+        kind: 'revision' as const,
+        revision: { kind: 'tag' as const, name: 'v1' },
+      },
+    };
+
+    try {
+      const state = git.checkout.content.state(key, 'content');
+      await expect(state.snapshot()).resolves.toMatchObject({
+        data: { kind: 'text', content: 'before\n' },
+      });
+      const updates: LiveUpdate[] = [];
+      const detach = await state.attach((update) => updates.push(update));
+      updates.length = 0;
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'after tag\n');
+      await execFileAsync('git', ['commit', '-am', 'move tag'], { cwd: repo });
+      await execFileAsync('git', ['tag', '-f', 'v1'], { cwd: repo });
+      const gitDir = await realpath(path.join(repo, '.git'));
+      watcher.emit(gitDir, [{ kind: 'update', path: path.join(gitDir, 'refs/tags/v1') }]);
+
+      await waitFor(() => updates.length > 0, 'expected moved tag content reconciliation');
+      await expect(state.snapshot()).resolves.toMatchObject({
+        data: { kind: 'text', content: 'after tag\n' },
+      });
+      await detach();
+    } finally {
+      dispose();
+      await runtime.dispose();
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it('reconciles checkout head and repository refs beside commit', async () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const { client: git, dispose } = makeClient(runtime);
-    const checkout = { checkout: { path: repo } };
-    const repository = { repository: { path: repo } };
+    const checkout = checkoutSelector(repo);
+    const repository = repositorySelector(repo);
 
     try {
       const headUpdates: LiveUpdate[] = [];
@@ -221,7 +311,7 @@ describe('createGitController', () => {
       await writeFile(path.join(repo, 'tracked.txt'), 'committed\n', 'utf8');
       await git.checkout.model.mutate('stage', {
         key: checkout,
-        input: { paths: ['tracked.txt'] },
+        input: { paths: [gitPath('tracked.txt')] },
       });
       const committed = await git.checkout.model.mutate('commit', {
         key: checkout,
@@ -251,7 +341,7 @@ describe('createGitController', () => {
 
     try {
       const log = unwrap(
-        await git.checkout.getLog({ checkout: { path: repo }, options: { limit: 1 } })
+        await git.checkout.getLog({ ...checkoutSelector(repo), options: { limit: 1 } })
       );
       expect(log.commits).toHaveLength(1);
       expect(log.commits[0]?.subject).toBe('initial');
@@ -268,7 +358,7 @@ describe('createGitController', () => {
     await execFileAsync('git', ['worktree', 'add', linked, '-b', 'feature'], { cwd: repo });
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const { client: git, dispose } = makeClient(runtime);
-    const checkout = { checkout: { path: linked } };
+    const checkout = checkoutSelector(linked);
 
     try {
       const updates: LiveUpdate[] = [];
@@ -278,7 +368,7 @@ describe('createGitController', () => {
       await git.checkout.model.state(checkout, 'head').snapshot();
 
       const renamed = await git.repository.model.mutate('renameBranch', {
-        key: { repository: { path: repo } },
+        key: repositorySelector(repo),
         input: { oldName: 'feature', newName: 'renamed' },
       });
 
@@ -307,8 +397,8 @@ describe('createGitController', () => {
     const { client: git, dispose } = makeClient(runtime);
 
     try {
-      await git.repository.model.state({ repository: { path: repo } }, 'refs').snapshot();
-      await git.checkout.model.state({ checkout: { path: repo } }, 'status').snapshot();
+      await git.repository.model.state(repositorySelector(repo), 'refs').snapshot();
+      await git.checkout.model.state(checkoutSelector(repo), 'status').snapshot();
 
       await runtime.dispose();
 
@@ -328,7 +418,7 @@ describe('createGitController', () => {
     const { client: git, dispose } = makeClient(runtime);
 
     try {
-      const state = git.checkout.model.state({ checkout: { path: directory } }, 'head');
+      const state = git.checkout.model.state(checkoutSelector(directory), 'head');
       await expect(state.snapshot()).rejects.toBeTruthy();
 
       await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
@@ -352,10 +442,13 @@ describe('createGitController', () => {
 
     try {
       await expect(
-        git.checkout.getFileAtIndex({ checkout: { path: directory }, filePath: 'missing.txt' })
+        git.checkout.getFileAtIndex({
+          ...checkoutSelector(directory),
+          filePath: gitPath('missing.txt'),
+        })
       ).resolves.toMatchObject({
         success: false,
-        error: { type: 'resolution_failed', path: directory },
+        error: { type: 'resolution_failed', path: hostPath(directory) },
       });
     } finally {
       dispose();
@@ -372,7 +465,7 @@ describe('createGitController', () => {
 
     try {
       const lease = await jobs.start({
-        checkout: { path: repo },
+        ...checkoutSelector(repo),
         options: { remote: 'origin', setUpstream: true },
       });
       const handle = await lease.ready();
@@ -398,7 +491,7 @@ describe('createGitController', () => {
     const jobs = createLiveJobReplica(gitContract.checkout.pull, git.checkout.pull);
 
     try {
-      const lease = await jobs.start({ checkout: { path: '/repo' } });
+      const lease = await jobs.start(checkoutSelector('/repo'));
       const handle = await lease.ready();
       await expect(handle.result).rejects.toBeTruthy();
       await lease.release();
@@ -409,3 +502,25 @@ describe('createGitController', () => {
     }
   });
 });
+
+class ManualWatcher implements IWatchService {
+  private readonly entries = new Map<string, (events: WatchEvent[]) => void>();
+
+  watch(root: string, onEvents: (events: WatchEvent[]) => void, _options: WatchOptions = {}) {
+    this.entries.set(root, onEvents);
+    return {
+      ready: async () => {},
+      release: async () => {
+        this.entries.delete(root);
+      },
+    };
+  }
+
+  emit(root: string, events: WatchEvent[]): void {
+    this.entries.get(root)?.(events);
+  }
+
+  async dispose(): Promise<void> {
+    this.entries.clear();
+  }
+}

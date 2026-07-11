@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gitFilePathSchema } from '../schemas';
 
 export const gitStatusCodeSchema = z.enum([
   'unmodified',
@@ -15,10 +16,10 @@ export const gitStatusCodeSchema = z.enum([
 export type GitStatusCode = z.infer<typeof gitStatusCodeSchema>;
 
 export const fileGitStatusSchema = z.object({
-  path: z.string(),
+  path: gitFilePathSchema,
   index: gitStatusCodeSchema,
   worktree: gitStatusCodeSchema,
-  origPath: z.string().optional(),
+  origPath: gitFilePathSchema.optional(),
   isConflicted: z.boolean(),
 });
 export type FileGitStatus = z.infer<typeof fileGitStatusSchema>;
@@ -41,11 +42,11 @@ export const checkoutStatusSummarySchema = z.object({
 });
 export type CheckoutStatusSummary = z.infer<typeof checkoutStatusSummarySchema>;
 
-/** Flat absolute-path status snapshot for one checkout. */
+/** Flat checkout-relative status snapshot for one checkout. */
 export const checkoutStatusStateSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('ok'),
-    entries: z.record(z.string(), fileGitStatusSchema),
+    entries: z.record(gitFilePathSchema, fileGitStatusSchema),
     summary: checkoutStatusSummarySchema,
     operation: checkoutOperationSchema,
   }),

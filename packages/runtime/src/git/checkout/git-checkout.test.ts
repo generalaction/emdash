@@ -7,6 +7,7 @@ import { createBoundExec } from '@emdash/core/exec';
 import type { CheckoutStatusState } from '@emdash/core/git';
 import { describe, expect, it } from 'vitest';
 import type { CheckoutIdentity } from '../allocation/identity';
+import { gitPath } from '../testing/paths';
 import { GitCheckout, type GitObjectReader } from './git-checkout';
 
 const execFileAsync = promisify(execFile);
@@ -76,12 +77,12 @@ describe('GitCheckout', () => {
       expect(initialStatus.operation).toBe('none');
       expect(await checkout.getHead()).toMatchObject({ kind: 'branch', name: 'main' });
 
-      const trackedPath = path.join(repo, 'tracked.txt');
-      await writeFile(trackedPath, 'after\n', 'utf8');
+      const trackedPath = gitPath('tracked.txt');
+      await writeFile(path.join(repo, trackedPath), 'after\n', 'utf8');
       const dirty = okStatus(await checkout.getStatus());
       expect(dirty.entries[trackedPath]?.worktree).toBe('modified');
 
-      const stageResult = await checkout.stage(['tracked.txt']);
+      const stageResult = await checkout.stage([trackedPath]);
       expect(stageResult.success).toBe(true);
       const staged = okStatus(await checkout.getStatus());
       expect(staged.entries[trackedPath]).toMatchObject({
@@ -115,7 +116,7 @@ describe('GitCheckout', () => {
     try {
       await writeFile(path.join(repo, 'fresh.txt'), 'hello\n', 'utf8');
       const model = okStatus(await checkout.getStatus());
-      expect(model.entries[path.join(repo, 'fresh.txt')]).toMatchObject({
+      expect(model.entries[gitPath('fresh.txt')]).toMatchObject({
         index: 'untracked',
         worktree: 'untracked',
         isConflicted: false,
@@ -134,7 +135,7 @@ describe('GitCheckout', () => {
       expect(diffResult.success).toBe(true);
       if (!diffResult.success) throw new Error('diff failed');
       expect(diffResult.data).toMatchObject({
-        path: path.join(repo, 'tracked.txt'),
+        path: gitPath('tracked.txt'),
         binary: false,
         additions: 1,
         deletions: 1,
@@ -176,7 +177,7 @@ describe('GitCheckout', () => {
       const header = diffResult.data.hunks[0]?.header;
       expect(header).toBeDefined();
 
-      const trackedPath = path.join(repo, 'tracked.txt');
+      const trackedPath = gitPath('tracked.txt');
       const stageResult = await checkout.stageHunk('tracked.txt', header!);
       expect(stageResult.success).toBe(true);
       let model = okStatus(await checkout.getStatus());
@@ -213,7 +214,7 @@ describe('GitCheckout', () => {
       const files = await checkout.getCommitFiles(commitResult.data.hash);
       expect(files).toEqual([
         expect.objectContaining({
-          path: path.join(repo, 'tracked.txt'),
+          path: gitPath('tracked.txt'),
           additions: 1,
           deletions: 1,
         }),
@@ -232,6 +233,34 @@ describe('GitCheckout', () => {
           lineCount: 1,
         }),
       ]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('classifies live Git file content as text, binary, or missing', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    try {
+      await expect(
+        checkout.getFileContent({ path: gitPath('tracked.txt'), source: { kind: 'head' } })
+      ).resolves.toMatchObject({
+        kind: 'text',
+        content: 'before\n',
+        oid: expect.stringMatching(/^[0-9a-f]{40}$/u),
+      });
+      await expect(
+        checkout.getFileContent({ path: gitPath('missing.txt'), source: { kind: 'head' } })
+      ).resolves.toEqual({
+        kind: 'missing',
+        path: 'missing.txt',
+        source: { kind: 'head' },
+      });
+
+      await writeFile(path.join(repo, 'binary.bin'), Buffer.from([0, 1, 2]));
+      await execFileAsync('git', ['add', 'binary.bin'], { cwd: repo });
+      await expect(
+        checkout.getFileContent({ path: gitPath('binary.bin'), source: { kind: 'index' } })
+      ).resolves.toMatchObject({ kind: 'binary', byteSize: 3 });
     } finally {
       await cleanup();
     }

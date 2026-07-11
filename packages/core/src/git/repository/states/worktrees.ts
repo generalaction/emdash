@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hostAbsolutePathSchema } from '../../../path';
 
 export const worktreeHeadSummarySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('branch'), name: z.string() }),
@@ -8,7 +9,7 @@ export const worktreeHeadSummarySchema = z.discriminatedUnion('kind', [
 export type WorktreeHeadSummary = z.infer<typeof worktreeHeadSummarySchema>;
 
 export const worktreeSummarySchema = z.object({
-  worktreePath: z.string(),
+  worktreePath: hostAbsolutePathSchema,
   isMain: z.boolean(),
   head: worktreeHeadSummarySchema,
   locked: z.boolean().optional(),

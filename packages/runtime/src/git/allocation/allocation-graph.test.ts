@@ -2,6 +2,7 @@ import type { BoundExec } from '@emdash/core/exec';
 import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { ok } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { hostPath } from '../testing/paths';
 import { GitAllocationGraph } from './allocation-graph';
 import type { CheckoutIdentity, GitIdentityResolver } from './identity';
 
@@ -53,7 +54,7 @@ describe('GitAllocationGraph', () => {
       dispose: async () => {},
     };
     const graph = new GitAllocationGraph({ exec, watcher, identityResolver: resolver });
-    const selector = { repository: { path: '/repo' } };
+    const selector = { repository: hostPath('/repo') };
 
     await expect(graph.acquireRepository(selector).ready()).rejects.toThrow('watch failed');
     fail = false;
@@ -83,7 +84,7 @@ describe('GitAllocationGraph', () => {
       identityResolver: resolver,
       idleTtlMs: 50,
     });
-    const lease = graph.acquireCheckout({ checkout: { path: '/repo' } });
+    const lease = graph.acquireCheckout({ checkout: hostPath('/repo') });
     await lease.ready();
     await lease.release();
 

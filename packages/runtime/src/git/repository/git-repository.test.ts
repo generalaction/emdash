@@ -4,9 +4,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { createBoundExec, ExecError, type BoundExec } from '@emdash/core/exec';
+import type { PortableRelativePath } from '@emdash/core/path';
 import { describe, expect, it } from 'vitest';
 import type { RepositoryIdentity } from '../allocation/identity';
 import { bindGitDir } from '../exec/git-exec';
+import { gitPath, hostPath } from '../testing/paths';
 import { GitRepository } from './git-repository';
 
 const execFileAsync = promisify(execFile);
@@ -169,7 +171,7 @@ describe('GitRepository', () => {
       const initial = await repository.listWorktrees();
       expect(initial).toEqual([
         expect.objectContaining({
-          worktreePath: repo,
+          worktreePath: hostPath(repo),
           isMain: true,
           head: expect.objectContaining({ kind: 'branch', name: 'main' }),
         }),
@@ -177,7 +179,7 @@ describe('GitRepository', () => {
 
       const linkedPath = path.join(path.dirname(repo), `${path.basename(repo)}-linked`);
       const added = await repository.addWorktree({
-        path: linkedPath,
+        path: hostPath(linkedPath),
         ref: 'main',
         newBranch: 'linked',
       });
@@ -204,13 +206,25 @@ describe('GitRepository', () => {
   });
 
   it('reads blobs at refs and falls back to null for unknown paths', async () => {
-    const { repository, cleanup } = await makeRepository();
+    const { repo, repository, cleanup } = await makeRepository();
     try {
-      await expect(repository.readBlobAtRef('HEAD', 'tracked.txt')).resolves.toBe('before\n');
-      await expect(repository.readBlobAtRef('HEAD', 'missing.txt')).resolves.toBeNull();
-      await expect(repository.readBlobAtRef('HEAD', '../secret.txt')).rejects.toThrow(
-        'Invalid repository file path'
+      await expect(repository.readBlobAtRef('HEAD', gitPath('tracked.txt'))).resolves.toBe(
+        'before\n'
       );
+      await expect(repository.readBlobAtRef('HEAD', gitPath('missing.txt'))).resolves.toBeNull();
+      await expect(
+        repository.readBlobAtRef('HEAD', '../secret.txt' as PortableRelativePath)
+      ).rejects.toThrow('Invalid repository file path');
+
+      if (process.platform !== 'win32') {
+        const backslashPath = 'back\\slash.txt';
+        await writeFile(path.join(repo, backslashPath), 'backslash\n');
+        await git(repo, ['add', '--', backslashPath]);
+        await git(repo, ['commit', '-m', 'backslash path']);
+        await expect(repository.readBlobAtRef('HEAD', gitPath(backslashPath))).resolves.toBe(
+          'backslash\n'
+        );
+      }
     } finally {
       await cleanup();
     }
@@ -239,7 +253,7 @@ describe('GitRepository', () => {
     };
     const repository = new GitRepository({ identity: {} as RepositoryIdentity, exec });
 
-    await expect(repository.readBlobAtRef('HEAD', 'file.txt')).rejects.toBe(failure);
+    await expect(repository.readBlobAtRef('HEAD', gitPath('file.txt'))).rejects.toBe(failure);
   });
 
   it('reads multi-megabyte blobs without a persistent child process', async () => {
@@ -250,7 +264,7 @@ describe('GitRepository', () => {
       await git(repo, ['add', 'large.txt']);
       await git(repo, ['commit', '-m', 'large blob']);
 
-      await expect(repository.readBlobAtRef('HEAD', 'large.txt')).resolves.toBe(content);
+      await expect(repository.readBlobAtRef('HEAD', gitPath('large.txt'))).resolves.toBe(content);
     } finally {
       await cleanup();
     }

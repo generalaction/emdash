@@ -1,5 +1,6 @@
 import { defineContract, fallible, liveJob, liveModel, liveState, mutation } from '@emdash/wire';
 import { z } from 'zod';
+import { hostAbsolutePathSchema } from '../../path';
 import {
   createBranchErrorSchema,
   deleteBranchErrorSchema,
@@ -10,6 +11,7 @@ import {
 } from '../api/errors';
 import { transferProgressSchema } from '../api/schemas';
 import { repositorySelectorSchema } from '../api/selectors';
+import { gitFilePathSchema } from '../checkout/schemas';
 import {
   addWorktreeOptionsSchema,
   explicitCreateBranchOptionsSchema,
@@ -84,7 +86,10 @@ export const gitRepositoryContract = defineContract({
         error: gitCommandErrorSchema,
       }),
       removeWorktree: mutation({
-        input: z.object({ worktreePath: z.string(), force: z.boolean().optional() }),
+        input: z.object({
+          worktreePath: hostAbsolutePathSchema,
+          force: z.boolean().optional(),
+        }),
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
@@ -107,7 +112,10 @@ export const gitRepositoryContract = defineContract({
     error: gitCommandErrorSchema,
   }),
   readBlobAtRef: fallible({
-    input: repositorySelectorSchema.extend({ ref: z.string(), filePath: z.string() }),
+    input: repositorySelectorSchema.extend({
+      ref: z.string(),
+      filePath: gitFilePathSchema,
+    }),
     data: z.string().nullable(),
     error: gitCommandErrorSchema,
   }),

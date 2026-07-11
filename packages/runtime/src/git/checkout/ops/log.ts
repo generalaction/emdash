@@ -6,6 +6,7 @@ import {
   type GitLogOptions,
   type GitLogResult,
 } from '@emdash/core/git';
+import type { PortableRelativePath } from '@emdash/core/path';
 import { checkoutFailures } from '../errors';
 import { mapGitChangeStatus } from './status';
 
@@ -54,7 +55,7 @@ export async function getCommit(exec: BoundExec, hash: string): Promise<Commit |
 export async function getCommitFiles(
   exec: BoundExec,
   hash: string,
-  toAbsolutePath: (filePath: string) => string
+  toPortablePath: (filePath: string) => PortableRelativePath
 ): Promise<CommitFile[]> {
   const [numstatRes, nameStatusRes] = await Promise.all([
     exec.exec(['diff-tree', '--root', '--no-commit-id', '--numstat', '-r', hash]),
@@ -68,7 +69,7 @@ export async function getCommitFiles(
     if (filePath) statusByPath.set(filePath, mapGitChangeStatus(code));
   }
   return [...numstat.entries()].map(([filePath, stat]) => ({
-    path: toAbsolutePath(filePath),
+    path: toPortablePath(filePath),
     status: statusByPath.get(filePath) ?? 'modified',
     additions: stat.additions,
     deletions: stat.deletions,

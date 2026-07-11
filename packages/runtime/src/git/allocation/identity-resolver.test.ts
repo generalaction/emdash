@@ -5,6 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { createBoundExec } from '@emdash/core/exec';
 import { describe, expect, it } from 'vitest';
+import { hostPath } from '../testing/paths';
 import { CanonicalGitIdentityResolver } from './identity-resolver';
 
 const execFileAsync = promisify(execFile);
@@ -31,8 +32,8 @@ describe('CanonicalGitIdentityResolver', () => {
 
     try {
       const [mainResult, linkedResult] = await Promise.all([
-        resolver.resolve({ checkout: { path: repo } }),
-        resolver.resolve({ checkout: { path: linked } }),
+        resolver.resolve({ checkout: hostPath(repo) }),
+        resolver.resolve({ checkout: hostPath(linked) }),
       ]);
       expect(mainResult.success).toBe(true);
       expect(linkedResult.success).toBe(true);
@@ -52,7 +53,7 @@ describe('CanonicalGitIdentityResolver', () => {
     const resolver = new CanonicalGitIdentityResolver({
       exec: createBoundExec({ file: 'git', cwd: process.cwd(), env: process.env }),
     });
-    const selector = { checkout: { path: directory } } as const;
+    const selector = { checkout: hostPath(directory) } as const;
 
     try {
       const [first, second] = await Promise.all([

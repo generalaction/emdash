@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseAbsolute } from '../path';
 import {
   createBranchErrorSchema,
   deleteBranchErrorSchema,
@@ -42,7 +43,9 @@ describe('gitErr', () => {
   });
 
   it('keeps selector resolution failures distinct from Git process failures', () => {
-    const result = gitErr.resolutionFailed('/workspace', 'not a Git checkout');
+    const path = parseAbsolute('/workspace');
+    if (!path.success) throw new Error(path.error.message);
+    const result = gitErr.resolutionFailed(path.data, 'not a Git checkout');
 
     expect(gitResolutionErrorSchema.parse(result.error)).toEqual(result.error);
     expect(gitCommandErrorSchema.parse(result.error)).toEqual(result.error);

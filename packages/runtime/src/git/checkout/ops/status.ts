@@ -11,6 +11,7 @@ import {
   type GitChangeStatus,
   type GitStatusCode,
 } from '@emdash/core/git';
+import { parsePortableRelativePath, type PortableRelativePath } from '@emdash/core/path';
 import { gitFailure } from '../../exec/errors';
 
 /**
@@ -18,13 +19,11 @@ import { gitFailure } from '../../exec/errors';
  * Total: expected failures are encoded as the state's `error` variant so
  * subscribers always see the latest truth.
  *
- * Git reports checkout-relative paths; the state exposes absolute paths
- * (joined onto `checkoutPath`) per the repo-wide path convention.
+ * Git reports checkout-relative paths, which are preserved as portable paths.
  */
 export async function computeStatusState(
   exec: BoundExec,
-  gitDir: string,
-  checkoutPath: string
+  gitDir: string
 ): Promise<CheckoutStatusState> {
   try {
     const parser = new StatusParser();
@@ -39,7 +38,7 @@ export async function computeStatusState(
       return { kind: 'too-many-files' };
     }
     const operation = await detectOperation(gitDir);
-    return buildStatusState(parser.status, operation, checkoutPath);
+    return buildStatusState(parser.status, operation);
   } catch (error) {
     return { kind: 'error', message: gitFailure(error).message };
   }
@@ -47,15 +46,14 @@ export async function computeStatusState(
 
 export function buildStatusState(
   entries: FileStatus[],
-  operation: CheckoutOperation,
-  checkoutPath: string
+  operation: CheckoutOperation
 ): CheckoutStatusState {
-  const record: Record<string, FileGitStatus> = {};
+  const record: Record<PortableRelativePath, FileGitStatus> = {};
   const summary = { staged: 0, unstaged: 0, conflicted: 0, untracked: 0 };
 
   for (const entry of entries) {
     // For renames the parser puts the new path in `rename` and the original in `path`.
-    const currentPath = path.join(checkoutPath, entry.rename ?? entry.path);
+    const currentPath = toPortablePath(entry.rename ?? entry.path);
     const isConflicted = isConflictCode(entry.x, entry.y);
     const fileStatus: FileGitStatus = {
       path: currentPath,
@@ -63,7 +61,7 @@ export function buildStatusState(
       worktree: codeToStatus(entry.y),
       isConflicted,
     };
-    if (entry.rename) fileStatus.origPath = path.join(checkoutPath, entry.path);
+    if (entry.rename) fileStatus.origPath = toPortablePath(entry.path);
     record[currentPath] = fileStatus;
 
     if (isConflicted) {
@@ -79,6 +77,14 @@ export function buildStatusState(
   }
 
   return { kind: 'ok', entries: record, summary, operation };
+}
+
+function toPortablePath(filePath: string): PortableRelativePath {
+  const parsed = parsePortableRelativePath(filePath, { unicodeNormalization: 'preserve' });
+  if (!parsed.success || !parsed.data) {
+    throw new Error(parsed.success ? 'Git returned an empty file path' : parsed.error.message);
+  }
+  return parsed.data;
 }
 
 /** In-progress operation detection via the worktree git dir's state files. */

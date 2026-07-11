@@ -9,6 +9,7 @@ import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { describe, expect, it } from 'vitest';
 import { createGitExec } from './exec/git-exec';
 import { GitRuntime } from './index';
+import { gitPath, hostPath } from './testing/paths';
 
 const execFileAsync = promisify(execFile);
 
@@ -47,6 +48,9 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
+
+const checkoutSelector = (root: string) => ({ checkout: hostPath(root) });
+const repositorySelector = (root: string) => ({ repository: hostPath(root) });
 
 function createNoopWatcher(): IWatchService {
   return {
@@ -88,6 +92,7 @@ describe('GitRuntime', () => {
       expect(runtime.repository.model.contract.id).toBe(gitContract.repository.model.id);
       expect(runtime.checkout.model.contract.id).toBe(gitContract.checkout.model.id);
       expect(runtime.checkout.fileDiffModel.contract.id).toBe(gitContract.checkout.fileDiff.id);
+      expect(runtime.checkout.fileContentModel.contract.id).toBe(gitContract.checkout.content.id);
     } finally {
       await runtime.dispose();
     }
@@ -99,13 +104,13 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      await expect(runtime.provisioning.inspectPath(directory)).resolves.toEqual({
+      await expect(runtime.provisioning.inspectPath(hostPath(directory))).resolves.toEqual({
         kind: 'not-repository',
-        path: directory,
+        path: hostPath(directory),
       });
-      await expect(runtime.provisioning.inspectPath(repo)).resolves.toMatchObject({
+      await expect(runtime.provisioning.inspectPath(hostPath(repo))).resolves.toMatchObject({
         kind: 'repository',
-        rootPath: await realpath(repo),
+        rootPath: hostPath(await realpath(repo)),
         baseRef: 'main',
       });
     } finally {
@@ -119,9 +124,9 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime({ executable });
 
     try {
-      await expect(runtime.provisioning.inspectPath(repo)).resolves.toMatchObject({
+      await expect(runtime.provisioning.inspectPath(hostPath(repo))).resolves.toMatchObject({
         kind: 'repository',
-        rootPath: await realpath(repo),
+        rootPath: hostPath(await realpath(repo)),
       });
     } finally {
       await runtime.dispose();
@@ -146,9 +151,9 @@ describe('GitRuntime', () => {
     });
 
     try {
-      await expect(runtime.provisioning.inspectPath(targetPath)).resolves.toEqual({
+      await expect(runtime.provisioning.inspectPath(hostPath(targetPath))).resolves.toEqual({
         kind: 'inspect-failed',
-        path: targetPath,
+        path: hostPath(targetPath),
         message: `fatal: cannot change to '${targetPath}': Permission denied`,
       });
     } finally {
@@ -162,9 +167,9 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      await expect(runtime.provisioning.inspectPath(directory)).resolves.toEqual({
+      await expect(runtime.provisioning.inspectPath(hostPath(directory))).resolves.toEqual({
         kind: 'not-repository',
-        path: directory,
+        path: hostPath(directory),
       });
     } finally {
       await runtime.dispose();
@@ -177,10 +182,10 @@ describe('GitRuntime', () => {
 
     try {
       await expect(
-        runtime.checkout.getLog({ checkout: { path: directory }, options: { limit: 1 } })
+        runtime.checkout.getLog({ ...checkoutSelector(directory), options: { limit: 1 } })
       ).resolves.toMatchObject({
         success: false,
-        error: { type: 'resolution_failed', path: directory },
+        error: { type: 'resolution_failed', path: hostPath(directory) },
       });
     } finally {
       await runtime.dispose();
@@ -200,7 +205,7 @@ describe('GitRuntime', () => {
 
     try {
       await expect(
-        runtime.checkout.getLog({ checkout: { path: repo }, options: { limit: 1 } })
+        runtime.checkout.getLog({ ...checkoutSelector(repo), options: { limit: 1 } })
       ).rejects.toBe(failure);
     } finally {
       await runtime.dispose();
@@ -212,12 +217,12 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      await expect(runtime.provisioning.ensureRepository(directory)).resolves.toEqual({
+      await expect(runtime.provisioning.ensureRepository(hostPath(directory))).resolves.toEqual({
         success: false,
-        error: { type: 'not-repository', path: directory },
+        error: { type: 'not-repository', path: hostPath(directory) },
       });
 
-      const ensured = await runtime.provisioning.ensureRepository(directory, {
+      const ensured = await runtime.provisioning.ensureRepository(hostPath(directory), {
         initIfMissing: true,
       });
 
@@ -225,12 +230,12 @@ describe('GitRuntime', () => {
         success: true,
         data: {
           kind: 'repository',
-          rootPath: await realpath(directory),
+          rootPath: hostPath(await realpath(directory)),
         },
       });
-      await expect(runtime.provisioning.inspectPath(directory)).resolves.toMatchObject({
+      await expect(runtime.provisioning.inspectPath(hostPath(directory))).resolves.toMatchObject({
         kind: 'repository',
-        rootPath: await realpath(directory),
+        rootPath: hostPath(await realpath(directory)),
       });
     } finally {
       await runtime.dispose();
@@ -248,13 +253,13 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime();
 
     try {
-      const result = await runtime.provisioning.cloneRepository(source, target);
+      const result = await runtime.provisioning.cloneRepository(source, hostPath(target));
 
       expect(result).toMatchObject({
         success: true,
         data: {
           kind: 'repository',
-          rootPath: await realpath(target),
+          rootPath: hostPath(await realpath(target)),
           baseRef: 'origin/main',
         },
       });
@@ -272,15 +277,15 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime({ watcher });
     try {
       const mainRepositoryLease = runtime.repository.model.acquireState(
-        { repository: { path: repo } },
+        repositorySelector(repo),
         'refs'
       );
       const linkedRepositoryLease = runtime.repository.model.acquireState(
-        { repository: { path: linked } },
+        repositorySelector(linked),
         'refs'
       );
       const linkedCheckoutLease = runtime.checkout.model.acquireState(
-        { checkout: { path: linked } },
+        checkoutSelector(linked),
         'head'
       );
       const [mainRepository, linkedRepository] = await Promise.all([
@@ -315,9 +320,9 @@ describe('GitRuntime', () => {
     try {
       await expect(
         runtime.repository.readBlobAtRef({
-          repository: { path: target },
+          ...repositorySelector(target),
           ref: 'HEAD',
-          filePath: 'INITIAL.md',
+          filePath: gitPath('INITIAL.md'),
         })
       ).resolves.toEqual({ success: true, data: '# Target\n' });
     } finally {
@@ -336,9 +341,9 @@ describe('GitRuntime', () => {
     try {
       await expect(
         runtime.repository.readBlobAtRef({
-          repository: { path: repo },
+          ...repositorySelector(repo),
           ref: 'HEAD',
-          filePath: 'INITIAL.md',
+          filePath: gitPath('INITIAL.md'),
         })
       ).resolves.toEqual({ success: true, data: '# Initial\n' });
       await runtime.dispose();
@@ -368,7 +373,7 @@ describe('GitRuntime', () => {
     };
     const runtime = new GitRuntime({ watcher });
 
-    const lease = runtime.repository.model.acquireState({ repository: { path: repo } }, 'refs');
+    const lease = runtime.repository.model.acquireState(repositorySelector(repo), 'refs');
     await lease.ready();
 
     const dispose = runtime.dispose();
@@ -393,7 +398,7 @@ describe('GitRuntime', () => {
     const runtime = new GitRuntime({ executable, watcher: createNoopWatcher() });
 
     try {
-      const lease = runtime.checkout.model.acquireState({ checkout: { path: repo } }, 'head');
+      const lease = runtime.checkout.model.acquireState(checkoutSelector(repo), 'head');
       await lease.ready();
       await lease.release();
     } finally {

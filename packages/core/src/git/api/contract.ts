@@ -1,5 +1,6 @@
 import { defineContract, fallible, liveJob, procedure } from '@emdash/wire';
 import { z } from 'zod';
+import { hostAbsolutePathSchema } from '../../path';
 import { gitCheckoutContract } from '../checkout/contract';
 import { gitRepositoryContract } from '../repository/contract';
 import { cloneRepositoryErrorSchema, ensureRepositoryErrorSchema } from './errors';
@@ -13,11 +14,14 @@ import {
 
 export const gitContract = defineContract({
   inspectPath: procedure({
-    input: z.object({ path: z.string() }),
+    input: z.object({ path: hostAbsolutePathSchema }),
     output: gitPathInspectionSchema,
   }),
   ensureRepository: fallible({
-    input: z.object({ path: z.string(), options: ensureRepositoryOptionsSchema.optional() }),
+    input: z.object({
+      path: hostAbsolutePathSchema,
+      options: ensureRepositoryOptionsSchema.optional(),
+    }),
     data: gitRepositoryInfoSchema,
     error: ensureRepositoryErrorSchema,
   }),

@@ -1,4 +1,5 @@
 import { err, type Err } from '@emdash/shared';
+import type { HostAbsolutePath, PortableRelativePath } from '../path';
 import type {
   CreateBranchError,
   DeleteBranchError,
@@ -22,10 +23,10 @@ export const gitErr = {
   commandFailed(message: string, stderr?: string): Err<GitExecError> {
     return failure({ type: 'git_error', message, ...(stderr ? { stderr } : {}) });
   },
-  resolutionFailed(path: string, message: string): Err<GitResolutionError> {
+  resolutionFailed(path: HostAbsolutePath, message: string): Err<GitResolutionError> {
     return failure({ type: 'resolution_failed', path, message });
   },
-  targetExists(path: string, message: string): Err<TaggedError<'target_exists'>> {
+  targetExists(path: HostAbsolutePath, message: string): Err<TaggedError<'target_exists'>> {
     return failure({ type: 'target_exists', path, message });
   },
   authRequired(message: string): Err<TaggedError<'auth_required'>> {
@@ -61,7 +62,10 @@ export const gitErr = {
   hookRejected(message: string): Err<TaggedError<'hook_rejected'>> {
     return failure({ type: 'hook_rejected', message });
   },
-  conflict(message: string, conflictedFiles?: string[]): Err<TaggedError<'conflict'>> {
+  conflict(
+    message: string,
+    conflictedFiles?: PortableRelativePath[]
+  ): Err<TaggedError<'conflict'>> {
     return failure({ type: 'conflict', message, conflictedFiles });
   },
   diverged(message: string): Err<TaggedError<'diverged'>> {
@@ -109,13 +113,13 @@ export const gitErr = {
   refNotFound(ref: string, message: string): Err<Extract<SwitchError, { type: 'not_found' }>> {
     return failure({ type: 'not_found', ref, message });
   },
-  notRepository(path: string): Err<TaggedError<'not-repository'>> {
+  notRepository(path: HostAbsolutePath): Err<TaggedError<'not-repository'>> {
     return failure({ type: 'not-repository', path });
   },
-  inspectFailed(path: string, message: string): Err<TaggedError<'inspect-failed'>> {
+  inspectFailed(path: HostAbsolutePath, message: string): Err<TaggedError<'inspect-failed'>> {
     return failure({ type: 'inspect-failed', path, message });
   },
-  initFailed(path: string, message: string): Err<TaggedError<'init-failed'>> {
+  initFailed(path: HostAbsolutePath, message: string): Err<TaggedError<'init-failed'>> {
     return failure({ type: 'init-failed', path, message });
   },
 } as const;

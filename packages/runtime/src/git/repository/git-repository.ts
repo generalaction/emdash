@@ -1,4 +1,3 @@
-import path from 'node:path';
 import type { BoundExec } from '@emdash/core/exec';
 import {
   gitErr,
@@ -18,9 +17,14 @@ import {
   type PushError,
   type WorktreeSummary,
 } from '@emdash/core/git';
+import {
+  parsePortableRelativePath,
+  type HostAbsolutePath,
+  type PortableRelativePath,
+} from '@emdash/core/path';
 import { ok, type Result } from '@emdash/shared';
 import type { RepositoryIdentity } from '../allocation/identity';
-import { realpathOrResolve } from '../allocation/paths';
+import { realpathOrResolve, toHostAbsolutePath, toNativeAbsolutePath } from '../allocation/paths';
 import { commandFailed, pushFailed } from '../exec/errors';
 import type { GitOperationContext } from '../exec/operation-context';
 import { execGitWithProgress, throwIfGitOpAborted } from '../exec/transfer-progress';
@@ -74,7 +78,7 @@ export class GitRepository {
 
   // -- Checkout integration -----------------------------------------------------
 
-  async readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
+  async readBlobAtRef(ref: string, filePath: PortableRelativePath): Promise<string | null> {
     const treePath = normalizeTreePath(filePath);
     const spec = `${ref}:${treePath}`;
     this.catFile ??= new CatFileBatch({ exec: this.exec });
@@ -90,14 +94,14 @@ export class GitRepository {
 
   async listWorktrees(): Promise<GitWorktreesState> {
     const { stdout } = await this.exec.exec(['worktree', 'list', '--porcelain']);
-    return parseWorktreeList(stdout);
+    return parseWorktreeList(stdout, toHostAbsolutePath);
   }
 
   async addWorktree(
     options: AddWorktreeOptions
   ): Promise<Result<WorktreeSummary, GitCommandError>> {
     try {
-      const targetPath = path.resolve(options.path);
+      const targetPath = toNativeAbsolutePath(options.path);
       await this.exec.exec([
         'worktree',
         'add',
@@ -109,7 +113,7 @@ export class GitRepository {
       const target = realpathOrResolve(targetPath);
       const worktrees = await this.listWorktrees();
       const info = worktrees.find(
-        (worktree) => realpathOrResolve(worktree.worktreePath) === target
+        (worktree) => realpathOrResolve(toNativeAbsolutePath(worktree.worktreePath)) === target
       );
       if (!info) {
         return gitErr.commandFailed(`worktree added but not listed: ${targetPath}`);
@@ -121,11 +125,16 @@ export class GitRepository {
   }
 
   async removeWorktree(
-    worktreePath: string,
+    worktreePath: HostAbsolutePath,
     force = false
   ): Promise<Result<void, GitCommandError>> {
     return this.commandMutation(() =>
-      this.exec.exec(['worktree', 'remove', ...(force ? ['--force'] : []), worktreePath])
+      this.exec.exec([
+        'worktree',
+        'remove',
+        ...(force ? ['--force'] : []),
+        toNativeAbsolutePath(worktreePath),
+      ])
     );
   }
 
@@ -413,17 +422,14 @@ export class GitRepository {
   }
 }
 
-function normalizeTreePath(filePath: string): string {
-  const normalized = path.posix.normalize(filePath.replace(/\\/g, '/'));
+function normalizeTreePath(filePath: PortableRelativePath): PortableRelativePath {
+  const parsed = parsePortableRelativePath(filePath, { unicodeNormalization: 'preserve' });
   if (
-    !filePath ||
-    normalized === '.' ||
-    path.posix.isAbsolute(normalized) ||
-    /^[A-Za-z]:\//.test(normalized) ||
-    normalized === '..' ||
-    normalized.startsWith('../')
+    !parsed.success ||
+    !parsed.data ||
+    (process.platform === 'win32' && parsed.data.includes('\\'))
   ) {
     throw new Error(`Invalid repository file path: ${filePath}`);
   }
-  return path.posix.normalize(normalized);
+  return parsed.data;
 }

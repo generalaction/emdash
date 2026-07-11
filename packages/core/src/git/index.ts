@@ -6,6 +6,12 @@ export {
   type FileDiffKey,
 } from './checkout/file-diff-key';
 export {
+  boundGitFileContentKeySchema,
+  gitFileContentKeySchema,
+  type BoundGitFileContentKey,
+  type GitFileContentKey,
+} from './checkout/file-content-key';
+export {
   checkoutSelectorSchema,
   gitPathSelectorSchema,
   gitSelectorSchema,
@@ -67,6 +73,8 @@ export type {
   FileDiff,
   GitChange,
   GitChangeStatus,
+  GitFileSource,
+  GitFilePath,
   GitLogOptions,
   GitLogResult,
   GitObjectRef,
@@ -87,10 +95,13 @@ export type {
 } from './checkout/schemas';
 export {
   denormalizeDiffTarget,
+  gitFilePathSchema,
+  gitFileSourceSchema,
   normalizeDiffTarget,
   toRangeString,
   toRefString,
 } from './checkout/schemas';
+export { gitFileContentStateSchema, type GitFileContentState } from './checkout/states/content';
 export type {
   AddWorktreeOptions,
   ExplicitCreateBranchOptions,

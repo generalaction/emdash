@@ -1,6 +1,6 @@
-import path from 'node:path';
 import type { BoundExec } from '@emdash/core/exec';
 import { gitErr, type GitResolutionError, type GitSelector } from '@emdash/core/git';
+import type { HostAbsolutePath } from '@emdash/core/path';
 import { ok, type Result } from '@emdash/shared';
 import { gitFailure } from '../exec/errors';
 import type {
@@ -10,7 +10,7 @@ import type {
   ObjectStoreId,
   RepositoryId,
 } from './identity';
-import { realpathOrResolve } from './paths';
+import { realpathOrResolve, toNativeAbsolutePath } from './paths';
 
 export type CanonicalGitIdentityResolverOptions = Readonly<{
   exec: BoundExec;
@@ -36,14 +36,25 @@ export class CanonicalGitIdentityResolver implements GitIdentityResolver {
 
   resolve(selector: GitSelector): Promise<Result<CheckoutIdentity, GitResolutionError>> {
     if (this.disposed) return Promise.reject(new Error('GitIdentityResolver is disposed'));
-    const alias = selectorPath(selector);
+    const requestedPath = selectorPath(selector);
+    let alias: string;
+    try {
+      alias = toNativeAbsolutePath(requestedPath);
+    } catch (error) {
+      return Promise.resolve(
+        gitErr.resolutionFailed(
+          requestedPath,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    }
     const existing = this.entries.get(alias);
     if (existing) {
       this.armExpiry(alias, existing);
       return existing.promise;
     }
 
-    const entry: AliasEntry = { promise: this.resolveAlias(alias) };
+    const entry: AliasEntry = { promise: this.resolveAlias(alias, requestedPath) };
     this.entries.set(alias, entry);
     this.armExpiry(alias, entry);
     void entry.promise.then(
@@ -64,7 +75,10 @@ export class CanonicalGitIdentityResolver implements GitIdentityResolver {
     this.entries.clear();
   }
 
-  private async resolveAlias(alias: string): Promise<Result<CheckoutIdentity, GitResolutionError>> {
+  private async resolveAlias(
+    alias: string,
+    requestedPath: HostAbsolutePath
+  ): Promise<Result<CheckoutIdentity, GitResolutionError>> {
     const exec = this.options.exec.withCwd(alias);
     try {
       const [checkoutRoot, gitDir, gitCommonDir, objectStoreDir] = await Promise.all([
@@ -80,7 +94,7 @@ export class CanonicalGitIdentityResolver implements GitIdentityResolver {
           .then(({ stdout }) => stdout.trim()),
       ]);
       if (!checkoutRoot || !gitDir || !gitCommonDir || !objectStoreDir) {
-        return gitErr.resolutionFailed(alias, 'Incomplete Git identity');
+        return gitErr.resolutionFailed(requestedPath, 'Incomplete Git identity');
       }
 
       const canonicalCheckoutRoot = realpathOrResolve(checkoutRoot);
@@ -97,7 +111,7 @@ export class CanonicalGitIdentityResolver implements GitIdentityResolver {
         objectStoreDir: canonicalObjectStore,
       });
     } catch (error) {
-      return gitErr.resolutionFailed(alias, gitFailure(error).message);
+      return gitErr.resolutionFailed(requestedPath, gitFailure(error).message);
     }
   }
 
@@ -115,6 +129,6 @@ export class CanonicalGitIdentityResolver implements GitIdentityResolver {
   }
 }
 
-function selectorPath(selector: GitSelector): string {
-  return path.resolve('repository' in selector ? selector.repository.path : selector.checkout.path);
+function selectorPath(selector: GitSelector): HostAbsolutePath {
+  return 'repository' in selector ? selector.repository : selector.checkout;
 }

@@ -1,5 +1,6 @@
 import { ExecError } from '@emdash/core/exec';
 import { describe, expect, it } from 'vitest';
+import { hostPath } from '../testing/paths';
 import { repositoryFailures } from './errors';
 
 function execError(stderr: string, exitCode = 128): ExecError {
@@ -11,9 +12,12 @@ describe('repository failures', () => {
     expect(
       repositoryFailures.clone(
         execError("fatal: destination path 'repo' already exists and is not an empty directory."),
-        '/tmp/repo'
+        hostPath('/tmp/repo')
       )
-    ).toMatchObject({ success: false, error: { type: 'target_exists', path: '/tmp/repo' } });
+    ).toMatchObject({
+      success: false,
+      error: { type: 'target_exists', path: hostPath('/tmp/repo') },
+    });
 
     expect(
       repositoryFailures.fetch(

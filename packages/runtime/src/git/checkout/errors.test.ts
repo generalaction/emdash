@@ -1,5 +1,6 @@
 import { ExecError } from '@emdash/core/exec';
 import { describe, expect, it } from 'vitest';
+import { gitPath } from '../testing/paths';
 import { checkoutFailures } from './errors';
 
 function execError(stderr: string, exitCode = 128): ExecError {
@@ -21,7 +22,7 @@ describe('checkout failures', () => {
       )
     ).toMatchObject({ success: false, error: { type: 'not_found', ref: 'missing' } });
     expect(
-      checkoutFailures.merge(execError('CONFLICT (content): merge conflict'), ['file'])
+      checkoutFailures.merge(execError('CONFLICT (content): merge conflict'), [gitPath('file')])
     ).toMatchObject({
       success: false,
       error: { type: 'conflict', conflictedFiles: ['file'] },

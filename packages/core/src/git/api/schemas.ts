@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hostAbsolutePathSchema } from '../../path';
 
 export const ensureRepositoryOptionsSchema = z.object({
   initIfMissing: z.boolean().optional(),
@@ -7,21 +8,25 @@ export type EnsureRepositoryOptions = z.infer<typeof ensureRepositoryOptionsSche
 
 export const gitRepositoryInfoSchema = z.object({
   kind: z.literal('repository'),
-  rootPath: z.string(),
+  rootPath: hostAbsolutePathSchema,
   baseRef: z.string(),
 });
 export type GitRepositoryInfo = z.infer<typeof gitRepositoryInfoSchema>;
 
 export const gitPathInspectionSchema = z.union([
   gitRepositoryInfoSchema,
-  z.object({ kind: z.literal('not-repository'), path: z.string() }),
-  z.object({ kind: z.literal('inspect-failed'), path: z.string(), message: z.string() }),
+  z.object({ kind: z.literal('not-repository'), path: hostAbsolutePathSchema }),
+  z.object({
+    kind: z.literal('inspect-failed'),
+    path: hostAbsolutePathSchema,
+    message: z.string(),
+  }),
 ]);
 export type GitPathInspection = z.infer<typeof gitPathInspectionSchema>;
 
 export const cloneRepositoryJobInputSchema = z.object({
   repositoryUrl: z.string(),
-  targetPath: z.string(),
+  targetPath: hostAbsolutePathSchema,
 });
 export type CloneRepositoryJobInput = z.infer<typeof cloneRepositoryJobInputSchema>;
 

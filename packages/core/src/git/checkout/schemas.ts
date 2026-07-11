@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { portableRelativePathSchema } from '../../path';
 import { checkoutSelectorSchema } from '../api/selectors';
 import { gitBranchRefSchema } from '../repository/states/refs';
 
@@ -17,13 +18,15 @@ export const gitChangeStatusSchema = z.enum([
 ]);
 export type GitChangeStatus = z.infer<typeof gitChangeStatusSchema>;
 
-/**
- * Path convention: all paths returned by the git domain are absolute.
- * Path inputs accept absolute paths (checkout-relative paths are tolerated
- * and normalized internally before reaching git).
- */
+export const gitFilePathSchema = portableRelativePathSchema.refine(
+  (path) => path.length > 0,
+  'Git file path must not be empty'
+);
+export type GitFilePath = z.infer<typeof gitFilePathSchema>;
+
+/** Paths within a checkout use the portable, checkout-relative path vocabulary. */
 export const fileChangeSchema = z.object({
-  path: z.string(),
+  path: gitFilePathSchema,
   status: gitChangeStatusSchema,
   additions: z.number().int(),
   deletions: z.number().int(),
@@ -73,7 +76,7 @@ export const diffHunkSchema = z.object({
 export type DiffHunk = z.infer<typeof diffHunkSchema>;
 
 export const fileDiffSchema = z.object({
-  path: z.string(),
+  path: gitFilePathSchema,
   oldOid: z.string().optional(),
   newOid: z.string().optional(),
   binary: z.boolean(),
@@ -145,6 +148,13 @@ export const gitObjectRefSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tag'), name: z.string() }),
 ]);
 export type GitObjectRef = z.infer<typeof gitObjectRefSchema>;
+
+export const gitFileSourceSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('head') }),
+  z.object({ kind: z.literal('index') }),
+  z.object({ kind: z.literal('revision'), revision: gitObjectRefSchema }),
+]);
+export type GitFileSource = z.infer<typeof gitFileSourceSchema>;
 
 export const mergeBaseRangeSchema = z.object({
   base: gitObjectRefSchema,
@@ -260,7 +270,7 @@ export const stashPushOptionsSchema = z.object({
   message: z.string().optional(),
   includeUntracked: z.boolean().optional(),
   keepIndex: z.boolean().optional(),
-  paths: z.array(z.string()).optional(),
+  paths: z.array(gitFilePathSchema).optional(),
 });
 export type StashPushOptions = z.infer<typeof stashPushOptionsSchema>;
 

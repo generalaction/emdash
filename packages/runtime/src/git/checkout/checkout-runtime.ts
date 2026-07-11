@@ -12,6 +12,7 @@ import {
   type PushJobInput,
   type SyncJobInput,
 } from '@emdash/core/git';
+import type { PortableRelativePath } from '@emdash/core/path';
 import { err, ok, type Result } from '@emdash/shared';
 import {
   createResourceLiveModelHost,
@@ -24,17 +25,21 @@ import type { CheckoutResource } from './checkout-resource';
 
 type CheckoutModel = typeof gitCheckoutContract.model;
 type FileDiffModel = typeof gitCheckoutContract.fileDiff;
+type FileContentModel = typeof gitCheckoutContract.content;
 
 export class GitCheckoutRuntime {
   readonly model: ResourceLiveModelHost<CheckoutModel>;
   readonly fileDiffModel: ResourceLiveModelHost<FileDiffModel>;
+  readonly fileContentModel: ResourceLiveModelHost<FileContentModel>;
 
   private readonly modelHosts = new Map<string, ResourceLiveModelHost<CheckoutModel>>();
   private readonly fileDiffHosts = new Map<string, ResourceLiveModelHost<FileDiffModel>>();
+  private readonly fileContentHosts = new Map<string, ResourceLiveModelHost<FileContentModel>>();
 
   constructor(private readonly allocations: GitAllocationGraph) {
     this.model = this.modelHost(gitContract.checkout.model);
     this.fileDiffModel = this.fileDiffHost(gitContract.checkout.fileDiff);
+    this.fileContentModel = this.fileContentHost(gitContract.checkout.content);
   }
 
   modelHost(contract: CheckoutModel = gitContract.checkout.model) {
@@ -96,7 +101,26 @@ export class GitCheckoutRuntime {
     return host;
   }
 
-  getFileDiff(input: CheckoutSelector & { path: string; target?: NormalizedDiffTarget }) {
+  fileContentHost(contract: FileContentModel = gitContract.checkout.content) {
+    const existing = this.fileContentHosts.get(contract.id);
+    if (existing) return existing;
+    const host = createResourceLiveModelHost(contract, {
+      acquire: (key) => this.allocations.acquireCheckout(key),
+      states: {
+        content: ({ resource, key }) =>
+          resource.acquireFileContent({ path: key.path, source: key.source }),
+      },
+    });
+    this.fileContentHosts.set(contract.id, host);
+    return host;
+  }
+
+  getFileDiff(
+    input: CheckoutSelector & {
+      path: PortableRelativePath;
+      target?: NormalizedDiffTarget;
+    }
+  ) {
     return this.run(input, (checkout) =>
       checkout.getFileDiff(
         input.path,
@@ -111,23 +135,23 @@ export class GitCheckoutRuntime {
     );
   }
 
-  getConflictVersions(input: CheckoutSelector & { path: string }) {
+  getConflictVersions(input: CheckoutSelector & { path: PortableRelativePath }) {
     return this.run(input, (checkout) => checkout.getConflictVersions(input.path));
   }
 
-  getFileAtRef(input: CheckoutSelector & { filePath: string; ref: string }) {
+  getFileAtRef(input: CheckoutSelector & { filePath: PortableRelativePath; ref: string }) {
     return this.read(input, (checkout) => checkout.getFileAtRef(input.filePath, input.ref));
   }
 
-  getFileAtIndex(input: CheckoutSelector & { filePath: string }) {
+  getFileAtIndex(input: CheckoutSelector & { filePath: PortableRelativePath }) {
     return this.read(input, (checkout) => checkout.getFileAtIndex(input.filePath));
   }
 
-  getImageAtRef(input: CheckoutSelector & { filePath: string; ref: string }) {
+  getImageAtRef(input: CheckoutSelector & { filePath: PortableRelativePath; ref: string }) {
     return this.read(input, (checkout) => checkout.getImageAtRef(input.filePath, input.ref));
   }
 
-  getImageAtIndex(input: CheckoutSelector & { filePath: string }) {
+  getImageAtIndex(input: CheckoutSelector & { filePath: PortableRelativePath }) {
     return this.read(input, (checkout) => checkout.getImageAtIndex(input.filePath));
   }
 
@@ -143,7 +167,7 @@ export class GitCheckoutRuntime {
     return this.read(input, (checkout) => checkout.getCommitFiles(input.hash));
   }
 
-  blame(input: CheckoutSelector & { path: string; ref?: string }) {
+  blame(input: CheckoutSelector & { path: PortableRelativePath; ref?: string }) {
     return this.run(input, (checkout) => checkout.blame(input.path, input.ref));
   }
 
@@ -172,9 +196,11 @@ export class GitCheckoutRuntime {
     await Promise.all([
       ...[...this.modelHosts.values()].map((host) => host.dispose()),
       ...[...this.fileDiffHosts.values()].map((host) => host.dispose()),
+      ...[...this.fileContentHosts.values()].map((host) => host.dispose()),
     ]);
     this.modelHosts.clear();
     this.fileDiffHosts.clear();
+    this.fileContentHosts.clear();
   }
 
   private read<T>(selector: CheckoutSelector, read: (resource: CheckoutResource) => Promise<T>) {

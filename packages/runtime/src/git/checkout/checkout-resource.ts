@@ -3,6 +3,7 @@ import {
   type gitCheckoutContract,
   type BlameResult,
   type BoundFileDiffKey,
+  type BoundGitFileContentKey,
   type CheckoutHeadState,
   type CheckoutStatusState,
   type Commit,
@@ -16,6 +17,7 @@ import {
   type GitLogResult,
   type ImageReadResult,
 } from '@emdash/core/git';
+import { parsePortableRelativePath, type PortableRelativePath } from '@emdash/core/path';
 import type { IWatchService, WatchHandle } from '@emdash/core/services/fs-watch/api';
 import type { PendingLease, Result, Unsubscribe } from '@emdash/shared';
 import {
@@ -28,6 +30,7 @@ import type { CheckoutIdentity } from '../allocation/identity';
 import type { GitOperationContext } from '../exec/operation-context';
 import type { RepositoryResource } from '../repository/repository-resource';
 import type { WorktreeWatchEffects } from '../repository/watch-classifier';
+import { GitFileContentRegistry } from './file-content-registry';
 import { FileDiffRegistry } from './file-diff-registry';
 import type { GitCheckout } from './git-checkout';
 
@@ -50,6 +53,7 @@ export type CheckoutResourceOptions = Readonly<{
   watcher: IWatchService;
   onError?: (context: string, error: unknown) => void;
   maxFileDiffStates?: number;
+  maxFileContentStates?: number;
 }>;
 
 /** One canonical checkout, including commands, live state, ordering, and reconciliation. */
@@ -63,6 +67,7 @@ export class CheckoutResource {
     head: ComputedLiveState<CheckoutHeadState>;
   };
   private readonly fileDiffs: FileDiffRegistry;
+  private readonly fileContents: GitFileContentRegistry;
   private readonly worktreeWatch: WatchHandle;
   private readonly unregister: Unsubscribe;
   private readonly onError: (context: string, error: unknown) => void;
@@ -89,8 +94,13 @@ export class CheckoutResource {
       head: this.computed('head', () => this.commands.getHead()),
     };
     this.fileDiffs = new FileDiffRegistry({
-      checkoutRoot: this.identity.checkoutRoot,
       maxEntries: options.maxFileDiffStates,
+    });
+    this.fileContents = new GitFileContentRegistry({
+      commands: this.commands,
+      execute: (run) => this.repository.execute(run),
+      maxEntries: options.maxFileContentStates,
+      onError: this.onError,
     });
     this.worktreeWatch = options.watcher.watch(
       this.identity.checkoutRoot,
@@ -118,6 +128,11 @@ export class CheckoutResource {
   acquireFileDiffStaleness(key: BoundFileDiffKey): PendingLease<LiveSource> {
     this.assertActive();
     return this.fileDiffs.acquire(key);
+  }
+
+  acquireFileContent(key: BoundGitFileContentKey): PendingLease<LiveSource> {
+    this.assertActive();
+    return this.fileContents.acquire(key);
   }
 
   getFileDiff(filePath: string, target?: DiffTarget): Promise<Result<FileDiff, GitCommandError>> {
@@ -361,6 +376,7 @@ export class CheckoutResource {
     this.invalidate('status');
     this.invalidate('head');
     this.fileDiffs.bump('all', 'ref-changed');
+    this.fileContents.invalidate('all', 'refs');
   }
 
   applyRepositoryWatchEffects(effects: WorktreeWatchEffects): void {
@@ -368,6 +384,8 @@ export class CheckoutResource {
     if (effects.head) this.invalidate('head');
     if (effects.head) this.fileDiffs.bump('all', 'ref-changed');
     else if (effects.status) this.fileDiffs.bump('all', 'index-changed');
+    if (effects.head) this.fileContents.invalidate('all', 'refs');
+    if (effects.status) this.fileContents.invalidate('all', 'index');
   }
 
   async dispose(): Promise<void> {
@@ -377,6 +395,7 @@ export class CheckoutResource {
     await this.worktreeWatch.release();
     for (const state of Object.values(this.states)) state.dispose();
     this.fileDiffs.dispose();
+    this.fileContents.dispose();
   }
 
   private execute<T>(run: () => Promise<T>, objectTransfer = false): Promise<T> {
@@ -390,18 +409,20 @@ export class CheckoutResource {
       | CheckoutMutationContext<'unstage'>
       | CheckoutMutationContext<'stageAll'>
       | CheckoutMutationContext<'unstageAll'>,
-    paths: 'all' | readonly string[]
+    paths: 'all' | readonly PortableRelativePath[]
   ): Promise<void> {
     await context.settle('status', this.refresh('status', context.mutationId));
     this.fileDiffs.bump(paths, 'index-changed');
+    this.fileContents.invalidate(paths, 'index');
   }
 
-  private indexChanged(paths: 'all' | readonly string[]): void {
+  private indexChanged(paths: 'all' | readonly PortableRelativePath[]): void {
     this.invalidate('status');
     this.fileDiffs.bump(paths, 'index-changed');
+    this.fileContents.invalidate(paths, 'index');
   }
 
-  private contentChanged(paths: 'all' | readonly string[]): void {
+  private contentChanged(paths: 'all' | readonly PortableRelativePath[]): void {
     this.invalidate('status');
     this.fileDiffs.bump(paths, 'content-changed');
   }
@@ -410,6 +431,7 @@ export class CheckoutResource {
     this.invalidate('status');
     this.invalidate('head');
     this.fileDiffs.bump('all', 'ref-changed');
+    this.fileContents.invalidate('all', 'history');
     if (success) this.repository.invalidate('refs');
   }
 
@@ -420,6 +442,7 @@ export class CheckoutResource {
 
   private syncChanged(): void {
     this.invalidateRepositoryHistory();
+    this.fileContents.invalidate('all', 'history');
     this.repository.invalidate('refs');
   }
 
@@ -444,8 +467,13 @@ export class CheckoutResource {
     });
   }
 
-  private toRelativePath(filePath: string): string {
-    return path.relative(this.identity.checkoutRoot, filePath).replace(/\\/g, '/');
+  private toRelativePath(filePath: string): PortableRelativePath {
+    const relative = path.relative(this.identity.checkoutRoot, filePath).replace(/\\/g, '/');
+    const parsed = parsePortableRelativePath(relative, { unicodeNormalization: 'preserve' });
+    if (!parsed.success || !parsed.data) {
+      throw new Error(`Watcher path is outside checkout: ${filePath}`);
+    }
+    return parsed.data;
   }
 
   private assertActive(): void {

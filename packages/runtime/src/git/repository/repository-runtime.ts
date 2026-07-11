@@ -8,6 +8,7 @@ import {
   type PublishBranchJobInput,
   type RepositorySelector,
 } from '@emdash/core/git';
+import type { PortableRelativePath } from '@emdash/core/path';
 import { err, ok, type Result } from '@emdash/shared';
 import {
   createResourceLiveModelHost,
@@ -68,7 +69,7 @@ export class GitRepositoryRuntime {
     return this.read(input, (repository) => repository.getDefaultBranch(input.remote));
   }
 
-  readBlobAtRef(input: RepositorySelector & { ref: string; filePath: string }) {
+  readBlobAtRef(input: RepositorySelector & { ref: string; filePath: PortableRelativePath }) {
     return this.read(input, (repository) => repository.readBlobAtRef(input.ref, input.filePath));
   }
 

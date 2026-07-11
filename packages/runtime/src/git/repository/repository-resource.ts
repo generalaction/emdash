@@ -6,6 +6,7 @@ import {
   type GitWorktreesState,
 } from '@emdash/core/git';
 import type { KeyedMutex } from '@emdash/core/lib';
+import type { PortableRelativePath } from '@emdash/core/path';
 import type { IWatchService, WatchHandle } from '@emdash/core/services/fs-watch/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ComputedLiveState, type LiveSource, type ResourceMutationContext } from '@emdash/wire';
@@ -92,7 +93,7 @@ export class RepositoryResource {
     this.states[name].invalidate();
   }
 
-  readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
+  readBlobAtRef(ref: string, filePath: PortableRelativePath): Promise<string | null> {
     this.assertActive();
     return this.commands.readBlobAtRef(ref, filePath);
   }
@@ -272,7 +273,7 @@ export class RepositoryResource {
 
   private onCommonDirEvents(events: Parameters<typeof classifyGitWatchEvents>[0]): void {
     const classification = classifyGitWatchEvents(events, this.layout());
-    if (classification.repo.refs) this.invalidate('refs');
+    if (classification.repo.refs) this.refsChanged();
     if (classification.repo.remotes) this.invalidate('remotes');
     if (classification.repo.stashes) this.invalidate('stashes');
     if (classification.repo.worktrees) this.invalidate('worktrees');

@@ -1,12 +1,12 @@
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { gitPath } from '../testing/paths';
 import { FileDiffRegistry } from './file-diff-registry';
 
 describe('FileDiffRegistry', () => {
   it('keys staleness by file and normalized target', async () => {
-    const registry = new FileDiffRegistry({ checkoutRoot: path.join(path.sep, 'repo') });
+    const registry = new FileDiffRegistry({});
     const branch = registry.acquire({
-      filePath: 'src/a.ts',
+      filePath: gitPath('src/a.ts'),
       target: {
         kind: 'working-vs-ref',
         ref: {
@@ -16,7 +16,7 @@ describe('FileDiffRegistry', () => {
       },
     });
     const commit = registry.acquire({
-      filePath: 'src/a.ts',
+      filePath: gitPath('src/a.ts'),
       target: { kind: 'working-vs-ref', ref: { kind: 'commit', sha: 'a'.repeat(40) } },
     });
     const branchState = await branch.ready();
@@ -34,35 +34,24 @@ describe('FileDiffRegistry', () => {
   });
 
   it('invalidates only matching paths for content changes', async () => {
-    const registry = new FileDiffRegistry({ checkoutRoot: path.join(path.sep, 'repo') });
+    const registry = new FileDiffRegistry({});
     const first = registry.acquire({
-      filePath: 'a.ts',
+      filePath: gitPath('a.ts'),
       target: { kind: 'working-vs-head' },
     });
     const second = registry.acquire({
-      filePath: 'b.ts',
+      filePath: gitPath('b.ts'),
       target: { kind: 'working-vs-head' },
     });
     const firstState = await first.ready();
     const secondState = await second.ready();
 
-    registry.bump(['a.ts'], 'content-changed');
+    registry.bump([gitPath('a.ts')], 'content-changed');
 
     expect(await firstState.snapshot()).toMatchObject({ data: { revision: 1 } });
     expect(await secondState.snapshot()).toMatchObject({ data: { revision: 0 } });
     await first.release();
     await second.release();
-    registry.dispose();
-  });
-
-  it('rejects paths outside the checkout', () => {
-    const registry = new FileDiffRegistry({ checkoutRoot: path.join(path.sep, 'repo') });
-    expect(() =>
-      registry.acquire({
-        filePath: '../secret',
-        target: { kind: 'working-vs-head' },
-      })
-    ).toThrow('outside checkout');
     registry.dispose();
   });
 });

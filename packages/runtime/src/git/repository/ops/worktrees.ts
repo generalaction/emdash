@@ -1,8 +1,12 @@
 import type { WorktreeHeadSummary, WorktreeSummary } from '@emdash/core/git';
+import type { HostAbsolutePath } from '@emdash/core/path';
 
 const UNBORN_OID = /^0+$/;
 
-export function parseWorktreeList(stdout: string): WorktreeSummary[] {
+export function parseWorktreeList(
+  stdout: string,
+  parsePath: (filePath: string) => HostAbsolutePath
+): WorktreeSummary[] {
   const worktrees: WorktreeSummary[] = [];
   let current: Partial<{
     path: string;
@@ -16,7 +20,7 @@ export function parseWorktreeList(stdout: string): WorktreeSummary[] {
   const flush = () => {
     if (!current.path) return;
     worktrees.push({
-      worktreePath: current.path,
+      worktreePath: parsePath(current.path),
       isMain: worktrees.length === 0,
       head: toWorktreeHead(current),
       ...(current.locked ? { locked: true } : {}),

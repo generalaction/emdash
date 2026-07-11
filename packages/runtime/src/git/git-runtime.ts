@@ -16,6 +16,7 @@ export type GitRuntimeOptions = Readonly<{
   idleTtlMs?: number;
   aliasTtlMs?: number;
   maxFileDiffStates?: number;
+  maxFileContentStates?: number;
   onError?: (context: string, error: unknown) => void;
 }>;
 
@@ -45,6 +46,7 @@ export class GitRuntime {
       idleTtlMs: options.idleTtlMs,
       aliasTtlMs: options.aliasTtlMs,
       maxFileDiffStates: options.maxFileDiffStates,
+      maxFileContentStates: options.maxFileContentStates,
       onError,
     });
     this.repository = new GitRepositoryRuntime(this.allocations);

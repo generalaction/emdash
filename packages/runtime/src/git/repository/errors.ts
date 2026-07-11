@@ -6,6 +6,7 @@ import {
   type FetchError,
   type FetchPrForReviewError,
 } from '@emdash/core/git';
+import type { HostAbsolutePath } from '@emdash/core/path';
 import type { Err } from '@emdash/shared';
 import {
   commandFailure,
@@ -17,7 +18,7 @@ import {
 } from '../exec/errors';
 
 export const repositoryFailures = {
-  clone(error: unknown, targetPath: string): Err<CloneRepositoryError> {
+  clone(error: unknown, targetPath: HostAbsolutePath): Err<CloneRepositoryError> {
     const failure = gitFailure(error);
     const message = failure.message.toLowerCase();
     if (

@@ -1,19 +1,18 @@
-import path from 'node:path';
 import type {
   BoundFileDiffKey,
   FileDiffStalenessReason,
   NormalizedDiffTarget,
 } from '@emdash/core/git';
+import type { PortableRelativePath } from '@emdash/core/path';
 import type { PendingLease } from '@emdash/shared';
 import { LiveState, type LiveSource } from '@emdash/wire';
 
 export type FileDiffRegistryOptions = Readonly<{
-  checkoutRoot: string;
   maxEntries?: number;
 }>;
 
 type Entry = {
-  readonly relativePath: string;
+  readonly relativePath: PortableRelativePath;
   readonly target: NormalizedDiffTarget;
   readonly state: LiveState<{ revision: number; lastReason?: FileDiffStalenessReason }>;
   leases: number;
@@ -34,7 +33,7 @@ export class FileDiffRegistry {
 
   acquire(key: BoundFileDiffKey): PendingLease<LiveSource> {
     if (this.disposed) throw new Error('FileDiffRegistry is disposed');
-    const relativePath = this.toRelativePath(key.filePath);
+    const relativePath = key.filePath;
     const id = entryId(relativePath, key.target);
     let entry = this.entries.get(id);
     if (!entry) {
@@ -64,10 +63,9 @@ export class FileDiffRegistry {
     };
   }
 
-  bump(paths: 'all' | readonly string[], reason: FileDiffStalenessReason): void {
+  bump(paths: 'all' | readonly PortableRelativePath[], reason: FileDiffStalenessReason): void {
     if (this.disposed) return;
-    const selected =
-      paths === 'all' ? undefined : new Set(paths.map((filePath) => this.toRelativePath(filePath)));
+    const selected = paths === 'all' ? undefined : new Set(paths);
     for (const entry of this.entries.values()) {
       if (selected && !selected.has(entry.relativePath)) continue;
       if (reason === 'ref-changed' && !dependsOnMutableRef(entry.target)) continue;
@@ -85,19 +83,6 @@ export class FileDiffRegistry {
     this.entries.clear();
   }
 
-  private toRelativePath(filePath: string): string {
-    const absolutePath = path.resolve(this.options.checkoutRoot, filePath);
-    const relativePath = path.relative(this.options.checkoutRoot, absolutePath);
-    if (
-      relativePath === '..' ||
-      relativePath.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(relativePath)
-    ) {
-      throw new Error(`Path is outside checkout: ${filePath}`);
-    }
-    return relativePath.replace(/\\/g, '/');
-  }
-
   private evictIdleEntries(): void {
     if (this.entries.size <= this.maxEntries) return;
     const idle = [...this.entries.entries()]
@@ -111,7 +96,7 @@ export class FileDiffRegistry {
   }
 }
 
-function entryId(relativePath: string, target: NormalizedDiffTarget): string {
+function entryId(relativePath: PortableRelativePath, target: NormalizedDiffTarget): string {
   return JSON.stringify([relativePath, target]);
 }
 

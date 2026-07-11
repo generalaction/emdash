@@ -1,5 +1,6 @@
 import { resultSchema as result } from '@emdash/shared';
 import { z } from 'zod';
+import { hostAbsolutePathSchema, portableRelativePathSchema } from '../../path';
 
 const messageError = <Type extends string>(type: Type) =>
   z.object({ type: z.literal(type), message: z.string() });
@@ -13,7 +14,7 @@ export type GitExecError = z.infer<typeof gitExecErrorSchema>;
 
 export const gitResolutionErrorSchema = z.object({
   type: z.literal('resolution_failed'),
-  path: z.string(),
+  path: hostAbsolutePathSchema,
   message: z.string(),
 });
 export type GitResolutionError = z.infer<typeof gitResolutionErrorSchema>;
@@ -32,11 +33,15 @@ export const noUpstreamErrorSchema = messageError('no_upstream');
 export const conflictErrorSchema = z.object({
   type: z.literal('conflict'),
   message: z.string(),
-  conflictedFiles: z.array(z.string()).optional(),
+  conflictedFiles: z.array(portableRelativePathSchema).optional(),
 });
 
 export const cloneRepositoryErrorSchema = z.union([
-  z.object({ type: z.literal('target_exists'), path: z.string(), message: z.string() }),
+  z.object({
+    type: z.literal('target_exists'),
+    path: hostAbsolutePathSchema,
+    message: z.string(),
+  }),
   authRequiredErrorSchema,
   authFailedErrorSchema,
   messageError('remote_not_found'),
@@ -45,9 +50,17 @@ export const cloneRepositoryErrorSchema = z.union([
 export type CloneRepositoryError = z.infer<typeof cloneRepositoryErrorSchema>;
 
 export const ensureRepositoryErrorSchema = z.union([
-  z.object({ type: z.literal('not-repository'), path: z.string() }),
-  z.object({ type: z.literal('inspect-failed'), path: z.string(), message: z.string() }),
-  z.object({ type: z.literal('init-failed'), path: z.string(), message: z.string() }),
+  z.object({ type: z.literal('not-repository'), path: hostAbsolutePathSchema }),
+  z.object({
+    type: z.literal('inspect-failed'),
+    path: hostAbsolutePathSchema,
+    message: z.string(),
+  }),
+  z.object({
+    type: z.literal('init-failed'),
+    path: hostAbsolutePathSchema,
+    message: z.string(),
+  }),
 ]);
 export type EnsureRepositoryError = z.infer<typeof ensureRepositoryErrorSchema>;
 

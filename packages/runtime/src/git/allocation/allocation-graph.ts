@@ -27,6 +27,7 @@ export type GitAllocationGraphOptions = Readonly<{
   idleTtlMs?: number;
   aliasTtlMs?: number;
   maxFileDiffStates?: number;
+  maxFileContentStates?: number;
   onError?: (context: string, error: unknown) => void;
 }>;
 
@@ -94,6 +95,7 @@ export class GitAllocationGraph {
           repository,
           watcher: options.watcher,
           maxFileDiffStates: options.maxFileDiffStates,
+          maxFileContentStates: options.maxFileContentStates,
           onError,
         });
         scope.add(() => resource.dispose());
