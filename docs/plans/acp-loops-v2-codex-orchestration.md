@@ -1155,7 +1155,13 @@ fresh recreated green run becomes the final success report.
   lint/format, app typecheck, and the full seven-project workspace typecheck. The lead reran the
   same 23 focused tests, all 27 migration tests, fixture generation, and the full workspace
   typecheck after cherry-pick.
-- [ ] Complete, review, and merge Wave 1 lanes R/B/U.
+- [x] 2026-07-11: Completed and merged Wave 1 Lane R at `f94c1c9ed` (lane commit
+  `af7bff1d2`). Its TDD run moved from 21 failures/6 passes to 57/57 across nine focused and
+  compatibility suites. App/core typechecks and focused lint/format passed; the lead reran all 57
+  tests and both typechecks after cherry-pick. Local and SSH commands now share the existing
+  execution-context path with target retention, trusted task variables, quoted SSH executables,
+  early abort, timeout, bounded buffers, exit metadata, and cleanup.
+- [ ] Complete, review, and merge Wave 1 lanes B/U.
 - [ ] Complete, review, and merge Wave 2A lanes W/P.
 - [ ] Complete and merge Wave 2B lanes V/N, then Wave 2C Lane E.
 - [ ] Complete serial main-engine and final renderer integration.
