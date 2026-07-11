@@ -1,11 +1,11 @@
 import { z } from 'zod';
+import { hostRefSchema } from '../host';
 import { parseAbsolute, type ParseAbsoluteOptions } from './absolute';
 import type { PathError } from './errors';
 import { parsePortableRelativePath, type ParseRelativeOptions } from './relative';
-import { hostId } from './resource';
 import { decodeResourceUri } from './resource-uri';
 import { validateSegment } from './segments';
-import type { HostAbsolutePath, HostFileRef, ResourceKey, ResourceUri, ScopedPath } from './types';
+import type { HostAbsolutePath, HostFileRef, ResourceKey, ResourceUri } from './types';
 
 export function resultTransform<Input, Output>(
   parse: (input: Input) => { success: true; data: Output } | { success: false; error: PathError }
@@ -27,8 +27,6 @@ export function resultRefine<Input>(
     ctx.addIssue({ code: 'custom', message: result.error.message });
   };
 }
-
-export const hostIdSchema = z.string().transform(resultTransform(hostId));
 
 export function portableRelativePathInputSchema(options: ParseRelativeOptions = {}) {
   return z
@@ -89,17 +87,15 @@ export const hostAbsolutePathSchema = z
 
 export const hostFileRefSchema = z
   .object({
-    hostId: hostIdSchema,
+    host: hostRefSchema,
     path: hostAbsolutePathSchema,
   })
   .transform((ref) => ref as HostFileRef);
 
-export const scopedPathSchema = z
-  .object({
-    root: hostFileRefSchema,
-    relative: portableRelativePathSchema,
-  })
-  .transform((path) => path as ScopedPath);
+export const scopedPathSchema = z.object({
+  root: hostFileRefSchema,
+  relative: portableRelativePathSchema,
+});
 
 export const resourceUriSchema = z
   .string()
@@ -127,7 +123,7 @@ function addSegmentIssue(
   ctx: z.RefinementCtx
 ): void {
   const result = validateSegment(segment, segment, {
-    normalization: 'nfc',
+    normalization: 'preserve',
     allowBackslash,
   });
   if (result.success) return;

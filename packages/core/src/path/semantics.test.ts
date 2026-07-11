@@ -35,4 +35,13 @@ describe('path semantics', () => {
 
     expect(createPathSemantics({ style: 'win32' }).contains(root.data, child.data)).toBe(true);
   });
+
+  it('contains descendants of filesystem roots', () => {
+    const root = parseAbsolute('/', { profile: { style: 'posix' } });
+    const child = parseAbsolute('/repo/index.ts', { profile: { style: 'posix' } });
+    expect(root.success && child.success).toBe(true);
+    if (!root.success || !child.success) return;
+
+    expect(createPathSemantics({ style: 'posix' }).contains(root.data, child.data)).toBe(true);
+  });
 });

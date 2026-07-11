@@ -65,6 +65,10 @@
       "types": "./dist/path.d.mts",
       "default": "./dist/path.mjs"
     },
+    "./host": {
+      "types": "./dist/host.d.mts",
+      "default": "./dist/host.mjs"
+    },
     "./git": {
       "types": "./dist/git.d.mts",
       "default": "./dist/git.mjs"

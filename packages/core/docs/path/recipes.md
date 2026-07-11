@@ -19,18 +19,18 @@ const parsed = parseAbsolute('C:\\Users\\David\\repo\\src\\index.ts', {
 ## Build a Host File Ref
 
 ```ts
-const host = hostId('remote-1');
+const host = hostRef('remote', 'connection-1');
 const path = parseAbsolute('/repo/src/index.ts', { profile: { style: 'posix' } });
 
-if (host.success && path.success) {
-  const ref = hostFileRef(host.data, path.data);
+if (path.success) {
+  const ref = hostFileRef(host, path.data);
 }
 ```
 
 ## Use a Root-Scoped Path
 
 ```ts
-const root = hostFileRef(LOCAL_HOST_ID, rootPath);
+const root = hostFileRef(LOCAL_HOST_REF, rootPath);
 const relative = parsePortableRelativePath('src/index.ts');
 
 if (relative.success) {
@@ -69,7 +69,7 @@ modelsByResource.set(key, model);
 ## Convert an Event Under a Watched Root
 
 ```ts
-const changed = hostFileRef(root.hostId, changedAbsolutePath);
+const changed = hostFileRef(root.host, changedAbsolutePath);
 const relative = relativizeHostFileRef(root, changed);
 
 if (relative.success) {
@@ -96,11 +96,15 @@ compact:
 
 ```ts
 const treePathKeySchema = z.object({
-  root: hostFileRefSchema,
+  root: hostAbsolutePathSchema,
   path: portableRelativePathSchema,
   sessionId: z.string(),
 });
 ```
+
+This compact form is appropriate after a domain controller has already selected
+the host-bound runtime connection. Use `hostFileRefSchema` instead when the same
+payload must still be routed to a host.
 
 For durable UI state, use a resource URI:
 

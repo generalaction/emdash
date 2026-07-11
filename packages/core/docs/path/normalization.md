@@ -21,7 +21,7 @@ The parser:
 - rejects null bytes;
 - resolves `.` and `..` lexically;
 - rejects paths that escape their root;
-- normalizes Unicode to NFC by default;
+- preserves Unicode spelling by default and normalizes only when requested;
 - preserves path spelling and casing for display;
 - uppercases Windows drive letters in the structured root.
 

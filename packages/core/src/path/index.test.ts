@@ -11,7 +11,7 @@ describe('@emdash/core/path public exports', () => {
     expect(exported.parseAbsolute).toBeTypeOf('function');
     expect(exported.parsePortableRelativePath).toBeTypeOf('function');
     expect(exported.createPathSemantics).toBeTypeOf('function');
-    expect(exported.hostId).toBeTypeOf('function');
+    expect(exported.hostFileRef).toBeTypeOf('function');
     expect(exported.hostFileRef).toBeTypeOf('function');
     expect(exported.scopedPath).toBeTypeOf('function');
     expect(exported.encodeResourceUri).toBeTypeOf('function');

@@ -123,4 +123,15 @@ describe('absolute paths', () => {
       data: ['src', 'index.ts'],
     });
   });
+
+  it('preserves POSIX backslashes when joining tokenized path segments', () => {
+    const root = parseAbsolute('/repo', { profile: { style: 'posix' } });
+    expect(root.success).toBe(true);
+    if (!root.success) return;
+
+    expect(joinAbsolute(root.data, 'literal\\name')).toMatchObject({
+      success: true,
+      data: { segments: ['repo', 'literal\\name'] },
+    });
+  });
 });

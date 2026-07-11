@@ -49,7 +49,8 @@ export function createPathSemantics(options: CreatePathSemanticsOptions = {}): P
     contains(parent, child) {
       const parentKey = comparisonKeyForAbsolutePath(parent, profile);
       const childKey = comparisonKeyForAbsolutePath(child, profile);
-      return childKey === parentKey || childKey.startsWith(`${parentKey}/`);
+      const descendantPrefix = parentKey.endsWith('/') ? parentKey : `${parentKey}/`;
+      return childKey === parentKey || childKey.startsWith(descendantPrefix);
     },
   };
 }

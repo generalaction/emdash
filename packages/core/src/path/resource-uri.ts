@@ -1,17 +1,20 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { hostRef, type HostRef } from '../host';
 import { invalidUri, type PathError } from './errors';
-import { hostFileRef, hostId } from './resource';
+import { hostFileRef } from './resource';
 import { validateSegment } from './segments';
 import type { HostAbsolutePath, HostFileRef, HostPathRoot, ResourceUri } from './types';
 
 const URI_PREFIX = 'emdash-file://';
-const URI_VERSION = 'v1';
+const URI_VERSION = 'v2';
+const LEGACY_URI_VERSION = 'v1';
 
 export function encodeResourceUri(ref: HostFileRef): ResourceUri {
   const rootParts = rootUriParts(ref.path.root);
   const parts = [
-    encodeURIComponent(ref.hostId),
     URI_VERSION,
+    ref.host.type,
+    encodeURIComponent(ref.host.id),
     ...rootParts,
     ...ref.path.segments.map(encodeURIComponent),
   ];
@@ -25,20 +28,56 @@ export function decodeResourceUri(input: string): Result<HostFileRef, PathError>
   const parts = input.slice(URI_PREFIX.length).split('/');
   if (parts.length < 3) return err(invalidUri(input, 'Resource URI is incomplete'));
 
-  const decodedHost = decodeUriComponent(parts[0], input);
-  if (!decodedHost.success) return decodedHost;
-  const parsedHost = hostId(decodedHost.data);
-  if (!parsedHost.success) return parsedHost;
-
-  const [version, rootKind, ...rootAndSegments] = parts.slice(1);
-  if (version !== URI_VERSION) return err(invalidUri(input, 'Unsupported resource URI version'));
+  const parsed = parseUriHeader(parts, input);
+  if (!parsed.success) return parsed;
+  const { host, rootKind, rootAndSegments } = parsed.data;
 
   const decoded = decodeUriParts(rootAndSegments, input);
   if (!decoded.success) return decoded;
 
   const path = absoluteFromUriParts(rootKind, decoded.data, input);
   if (!path.success) return path;
-  return ok(hostFileRef(parsedHost.data, path.data));
+  return ok(hostFileRef(host, path.data));
+}
+
+function parseUriHeader(
+  parts: readonly string[],
+  input: string
+): Result<{ host: HostRef; rootKind: string; rootAndSegments: readonly string[] }, PathError> {
+  if (parts[0] === URI_VERSION) {
+    const [version, type, encodedId, rootKind, ...rootAndSegments] = parts;
+    if (
+      version !== URI_VERSION ||
+      (type !== 'local' && type !== 'remote') ||
+      !encodedId ||
+      !rootKind
+    ) {
+      return err(invalidUri(input, 'Resource URI has an invalid host header'));
+    }
+    const decodedId = decodeUriComponent(encodedId, input);
+    if (!decodedId.success) return decodedId;
+    try {
+      return ok({ host: hostRef(type, decodedId.data), rootKind, rootAndSegments });
+    } catch (error) {
+      return err(invalidUri(input, error instanceof Error ? error.message : String(error)));
+    }
+  }
+
+  const [encodedId, version, rootKind, ...rootAndSegments] = parts;
+  if (version !== LEGACY_URI_VERSION || !encodedId || !rootKind) {
+    return err(invalidUri(input, 'Unsupported resource URI version'));
+  }
+  const decodedId = decodeUriComponent(encodedId, input);
+  if (!decodedId.success) return decodedId;
+  try {
+    return ok({
+      host: hostRef(decodedId.data === 'local' ? 'local' : 'remote', decodedId.data),
+      rootKind,
+      rootAndSegments,
+    });
+  } catch (error) {
+    return err(invalidUri(input, error instanceof Error ? error.message : String(error)));
+  }
 }
 
 export function tryDecodeResourceUri(input: string): HostFileRef | null {
@@ -102,11 +141,14 @@ function uncPathFromParts(
   if (!server || !share)
     return err(invalidUri(input, 'UNC resource URI must include server and share'));
   const validServer = validateSegment(server, input, {
-    normalization: 'nfc',
+    normalization: 'preserve',
     allowBackslash: false,
   });
   if (!validServer.success) return validServer;
-  const validShare = validateSegment(share, input, { normalization: 'nfc', allowBackslash: false });
+  const validShare = validateSegment(share, input, {
+    normalization: 'preserve',
+    allowBackslash: false,
+  });
   if (!validShare.success) return validShare;
   return pathFromRoot(
     { kind: 'unc', server: validServer.data, share: validShare.data },
@@ -125,7 +167,7 @@ function pathFromRoot(
   const validated: string[] = [];
   for (const segment of segments) {
     const result = validateSegment(segment, input, {
-      normalization: 'nfc',
+      normalization: 'preserve',
       allowBackslash,
     });
     if (!result.success) return result;

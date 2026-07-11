@@ -1,6 +1,7 @@
+import type { HostRef } from '../host/types';
+
 export type Brand<T, Name extends string> = T & { readonly __brand: Name };
 
-export type HostId = Brand<string, 'HostId'>;
 export type PortableRelativePath = Brand<string, 'PortableRelativePath'>;
 export type ResourceUri = Brand<string, 'ResourceUri'>;
 export type ResourceKey = Brand<string, 'ResourceKey'>;
@@ -38,7 +39,7 @@ export type HostAbsolutePath = Readonly<{
 }>;
 
 export type HostFileRef = Readonly<{
-  hostId: HostId;
+  host: HostRef;
   path: HostAbsolutePath;
 }>;
 
@@ -48,5 +49,9 @@ export type ScopedPath = Readonly<{
 }>;
 
 export type ResourceKeyOptions = Readonly<{
+  profile?: Partial<PathProfile>;
+}>;
+
+export type HostFileRefComparisonOptions = Readonly<{
   profile?: Partial<PathProfile>;
 }>;

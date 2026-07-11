@@ -1,3 +1,4 @@
+import { hostRefKey } from '../host';
 import { resolveScopedPath } from './resource';
 import { comparisonKeyForAbsolutePath, createPathProfile } from './semantics';
 import type { HostFileRef, ResourceKey, ResourceKeyOptions, ScopedPath } from './types';
@@ -10,7 +11,7 @@ export function resourceKeyFromFileRef(
 ): ResourceKey {
   const profile = createPathProfile(options.profile);
   const pathKey = comparisonKeyForAbsolutePath(ref.path, profile);
-  return `${RESOURCE_KEY_VERSION}\0${ref.hostId}\0${pathKey}` as ResourceKey;
+  return `${RESOURCE_KEY_VERSION}\0${hostRefKey(ref.host)}\0${pathKey}` as ResourceKey;
 }
 
 export function resourceKeyFromScopedPath(

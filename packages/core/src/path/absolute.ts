@@ -18,7 +18,10 @@ export function parseAbsolute(
   options: ParseAbsoluteOptions = {}
 ): Result<HostAbsolutePath, PathError> {
   if (input.includes('\0')) return err(invalidPath(input, 'Path contains a null byte'));
-  const profile = createPathProfile(options.profile);
+  const profile = createPathProfile({
+    ...options.profile,
+    unicodeNormalization: options.profile?.unicodeNormalization ?? 'preserve',
+  });
   return profile.style === 'win32'
     ? parseWindowsAbsolute(input, profile)
     : parsePosixAbsolute(input, profile);
@@ -86,12 +89,13 @@ export function joinAbsolute(
   ...segments: string[]
 ): Result<HostAbsolutePath, PathError> {
   const input = segments.join('/');
+  const allowBackslash = base.root.kind === 'posix';
   const normalized = normalizeSegmentStack(
-    segments.flatMap((segment) => segment.split(/[\\/]/u)),
+    segments.flatMap((segment) => (allowBackslash ? segment.split('/') : segment.split(/[\\/]/u))),
     input,
     {
-      normalization: 'nfc',
-      allowBackslash: false,
+      normalization: 'preserve',
+      allowBackslash,
       allowRootEscape: false,
     }
   );

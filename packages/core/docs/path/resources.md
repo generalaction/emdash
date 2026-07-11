@@ -4,7 +4,7 @@
 
 ```ts
 type HostFileRef = {
-  hostId: HostId;
+  host: HostRef;
   path: HostAbsolutePath;
 };
 ```
@@ -12,12 +12,20 @@ type HostFileRef = {
 It identifies a logical path on a host. It is not an inode identity. Symlinks,
 hard links, and renames are handled by runtime-specific filesystem behavior.
 
-## Host IDs
+## Host References
 
-`HostId` is opaque and URL-safe. The local host uses `LOCAL_HOST_ID`.
+`HostRef` is defined by `@emdash/core/host`:
 
-Do not encode a transport detail such as an SSH connection ID into persistent
-resource identity unless a higher-level host registry has made that value stable.
+```ts
+type HostRef = {
+  type: 'local' | 'remote';
+  id: string;
+};
+```
+
+It is used by domain controllers to select a host-bound runtime connection. A
+runtime executes on the addressed host and therefore does not need `HostRef` in
+its own Git or Files keys.
 
 ## Absolute Roots
 
@@ -43,18 +51,18 @@ type ScopedPath = {
 };
 ```
 
-This is the preferred shape for Git paths, watcher events, tree entries, and
-batch operations. Resolve it into a `HostFileRef` only when the full address is
-needed.
+This is the preferred globally addressable shape for watcher events, tree
+entries, and batch operations. Host-local runtime contracts use the equivalent
+compact shape: a `HostAbsolutePath` root plus `PortableRelativePath` coordinates.
 
 ## Resource URIs
 
 `ResourceUri` is the stable string encoding:
 
 ```text
-emdash-file://local/v1/posix/home/david/repo/src/index.ts
-emdash-file://remote-1/v1/drive/c/Users/David/repo/src/index.ts
-emdash-file://remote-2/v1/unc/server/share/repo/src/index.ts
+emdash-file://v2/local/local/posix/home/david/repo/src/index.ts
+emdash-file://v2/remote/connection-1/drive/c/Users/David/repo/src/index.ts
+emdash-file://v2/remote/connection-2/unc/server/share/repo/src/index.ts
 ```
 
 Use it for serialization, persistence, Monaco model identity, and durable

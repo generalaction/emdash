@@ -3,19 +3,19 @@
 `@emdash/core/path` defines Emdash's portable file identity vocabulary. It is
 pure TypeScript, browser-safe, and does not perform filesystem I/O.
 
-Use this module when a path crosses a process, host, renderer, persistence, or
-Wire/RPC boundary. Runtime adapters remain responsible for converting structured
-refs into native strings immediately before filesystem, Git, watcher, or process
+Use this module when a path crosses a process, renderer, persistence, or Wire
+boundary. Runtime adapters remain responsible for converting structured paths
+into native strings immediately before filesystem, Git, watcher, or process
 spawn operations.
 
 ## Concepts
 
-- `HostId` identifies the host path space. It is opaque and URL-safe.
+- `HostRef` from `@emdash/core/host` selects a local or remote runtime host.
 - `HostAbsolutePath` is a structured absolute path with an explicit root:
   POSIX root, Windows drive, or UNC share.
 - `PortableRelativePath` is a normalized `/`-separated coordinate relative to a
   known root. The empty string represents the root.
-- `HostFileRef` combines `HostId` and `HostAbsolutePath` into a routeable file
+- `HostFileRef` combines `HostRef` and `HostAbsolutePath` into a routeable file
   address.
 - `ScopedPath` combines a root `HostFileRef` and `PortableRelativePath`.
 - `ResourceUri` is the versioned string form for serialization and persistence.
@@ -25,7 +25,6 @@ spawn operations.
 
 ```ts
 import {
-  LOCAL_HOST_ID,
   encodeResourceUri,
   hostFileRef,
   parseAbsolute,
@@ -33,21 +32,27 @@ import {
   resolveScopedPath,
   scopedPath,
 } from '@emdash/core/path';
+import { LOCAL_HOST_REF } from '@emdash/core/host';
 
 const rootPath = parseAbsolute('/repo', { profile: { style: 'posix' } });
 const relative = parsePortableRelativePath('src/index.ts');
 
 if (rootPath.success && relative.success) {
-  const root = hostFileRef(LOCAL_HOST_ID, rootPath.data);
+  const root = hostFileRef(LOCAL_HOST_REF, rootPath.data);
   const scoped = scopedPath(root, relative.data);
   const resolved = resolveScopedPath(scoped);
 
   if (resolved.success) {
     const uri = encodeResourceUri(resolved.data);
-    // emdash-file://local/v1/posix/repo/src/index.ts
+    // emdash-file://v2/local/local/posix/repo/src/index.ts
   }
 }
 ```
+
+`HostFileRef` belongs at routing, persistence, and renderer identity boundaries.
+Once a domain controller has selected a host-bound Wire connection, Git and Files
+runtime contracts carry `HostAbsolutePath` roots and `PortableRelativePath`
+coordinates without repeating `HostRef` in every request.
 
 ## Related Pages
 

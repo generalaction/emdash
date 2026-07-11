@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { hostRef, LOCAL_HOST_REF } from '../host';
 import {
   containsHostFileRef,
   decodeResourceUri,
   encodeResourceUri,
   hostFileRef,
   hostFileRefSchema,
-  hostId,
-  LOCAL_HOST_ID,
   parseAbsolute,
   parsePortableRelativePath,
   relativizeHostFileRef,
@@ -16,32 +15,20 @@ import {
 } from './index';
 
 describe('host file resources', () => {
-  it('validates URL-safe opaque host ids', () => {
-    expect(hostId('remote_1.example')).toMatchObject({ success: true });
-    expect(hostId('ssh:connection-1')).toMatchObject({
-      success: false,
-      error: { type: 'invalid-host-id' },
-    });
-    expect(hostId('')).toMatchObject({
-      success: false,
-      error: { type: 'invalid-host-id' },
-    });
-  });
-
   it('resolves and relativizes scoped paths', () => {
     const rootPath = parseAbsolute('/repo', { profile: { style: 'posix' } });
     const relative = parsePortableRelativePath('src/index.ts');
     expect(rootPath.success && relative.success).toBe(true);
     if (!rootPath.success || !relative.success) return;
 
-    const root = hostFileRef(LOCAL_HOST_ID, rootPath.data);
+    const root = hostFileRef(LOCAL_HOST_REF, rootPath.data);
     const scoped = scopedPath(root, relative.data);
     const resolved = resolveScopedPath(scoped);
 
     expect(resolved).toMatchObject({
       success: true,
       data: {
-        hostId: LOCAL_HOST_ID,
+        host: LOCAL_HOST_REF,
         path: { root: { kind: 'posix' }, segments: ['repo', 'src', 'index.ts'] },
       },
     });
@@ -59,11 +46,22 @@ describe('host file resources', () => {
     expect(path.success).toBe(true);
     if (!path.success) return;
 
-    const ref = hostFileRef(LOCAL_HOST_ID, path.data);
+    const ref = hostFileRef(LOCAL_HOST_REF, path.data);
     const uri = encodeResourceUri(ref);
 
-    expect(uri).toBe('emdash-file://local/v1/posix/repo/a%20b/%C3%A9.ts');
+    expect(uri).toBe('emdash-file://v2/local/local/posix/repo/a%20b/%C3%A9.ts');
     expect(decodeResourceUri(uri)).toEqual({ success: true, data: ref });
+  });
+
+  it('decodes legacy v1 resource URIs', () => {
+    const path = parseAbsolute('/repo/index.ts', { profile: { style: 'posix' } });
+    expect(path.success).toBe(true);
+    if (!path.success) return;
+
+    expect(decodeResourceUri('emdash-file://remote-1/v1/posix/repo/index.ts')).toEqual({
+      success: true,
+      data: hostFileRef(hostRef('remote', 'remote-1'), path.data),
+    });
   });
 
   it('encodes and decodes drive and UNC resource URIs', () => {
@@ -72,13 +70,13 @@ describe('host file resources', () => {
     expect(drive.success && unc.success).toBe(true);
     if (!drive.success || !unc.success) return;
 
-    expect(decodeResourceUri(encodeResourceUri(hostFileRef(LOCAL_HOST_ID, drive.data)))).toEqual({
+    expect(decodeResourceUri(encodeResourceUri(hostFileRef(LOCAL_HOST_REF, drive.data)))).toEqual({
       success: true,
-      data: hostFileRef(LOCAL_HOST_ID, drive.data),
+      data: hostFileRef(LOCAL_HOST_REF, drive.data),
     });
-    expect(decodeResourceUri(encodeResourceUri(hostFileRef(LOCAL_HOST_ID, unc.data)))).toEqual({
+    expect(decodeResourceUri(encodeResourceUri(hostFileRef(LOCAL_HOST_REF, unc.data)))).toEqual({
       success: true,
-      data: hostFileRef(LOCAL_HOST_ID, unc.data),
+      data: hostFileRef(LOCAL_HOST_REF, unc.data),
     });
   });
 
@@ -99,10 +97,10 @@ describe('host file resources', () => {
     expect(upper.success && lower.success).toBe(true);
     if (!upper.success || !lower.success) return;
 
-    const keyA = resourceKeyFromFileRef(hostFileRef(LOCAL_HOST_ID, upper.data), {
+    const keyA = resourceKeyFromFileRef(hostFileRef(LOCAL_HOST_REF, upper.data), {
       profile: { style: 'win32' },
     });
-    const keyB = resourceKeyFromFileRef(hostFileRef(LOCAL_HOST_ID, lower.data), {
+    const keyB = resourceKeyFromFileRef(hostFileRef(LOCAL_HOST_REF, lower.data), {
       profile: { style: 'win32' },
     });
     expect(keyA).toBe(keyB);
@@ -113,10 +111,10 @@ describe('host file resources', () => {
     expect(path.success).toBe(true);
     if (!path.success) return;
 
-    expect(hostFileRefSchema.safeParse(hostFileRef(LOCAL_HOST_ID, path.data)).success).toBe(true);
+    expect(hostFileRefSchema.safeParse(hostFileRef(LOCAL_HOST_REF, path.data)).success).toBe(true);
     expect(
       hostFileRefSchema.safeParse({
-        hostId: 'bad host',
+        host: { type: 'remote', id: '' },
         path: path.data,
       }).success
     ).toBe(false);

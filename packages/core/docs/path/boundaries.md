@@ -9,9 +9,10 @@ lifecycle, filesystem I/O, authorization, or persistence migrations.
 flowchart LR
   NativeInput[Native string] --> Parser[Path parser]
   Parser --> Ref[HostFileRef]
-  Ref --> Rpc[RPC or Wire]
-  Rpc --> Resolver[Host resolver]
-  Resolver --> NativeOutput[Native string]
+  Ref --> Controller[Domain controller]
+  Controller -->|select by HostRef| Wire[Host-bound Wire connection]
+  Wire --> Runtime[Runtime path key]
+  Runtime --> NativeOutput[Native string]
   NativeOutput --> Fs[Filesystem or Git]
 ```
 
@@ -19,9 +20,13 @@ Convert at these boundaries:
 
 - User input, picker output, SSH responses, and Git roots become structured refs
   at ingress.
-- Renderer, Wire, worker, and persistence payloads use `ResourceUri`,
-  `HostFileRef`, or `ScopedPath`, not raw native strings.
-- Host runtimes convert structured refs back to native strings immediately before
+- Renderer and persistence payloads use `ResourceUri`, `HostFileRef`, or
+  `ScopedPath`, not raw native strings.
+- Domain controllers use `HostRef` to select or relay to a host-bound Wire
+  connection. They do not inject host routing identity into the runtime.
+- Host-bound Wire payloads use `HostAbsolutePath` roots and
+  `PortableRelativePath` coordinates.
+- Host runtimes convert structured paths back to native strings immediately before
   filesystem, Git, watcher, or process-spawn calls.
 - Watcher and Git events should become `ScopedPath` values before crossing to
   renderer-facing models.
@@ -35,8 +40,10 @@ Recommended boundary shapes:
 
 - `hostFileRefSchema` for one-off global file resources.
 - `scopedPathSchema` for a single file under a known root.
-- `{ root: hostFileRefSchema, path: portableRelativePathSchema }` for compact
-  root-scoped APIs, tree keys, watcher events, and Git paths.
+- `{ root: hostAbsolutePathSchema, path: portableRelativePathSchema }` for
+  host-bound runtime APIs, tree keys, watcher events, and Git paths.
+- `{ root: hostFileRefSchema, path: portableRelativePathSchema }` while a payload
+  still needs host routing.
 - `resourceUriSchema` for persisted string identity.
 - `absolutePathInputSchema(profile)` for native/user/host input only.
 
@@ -59,7 +66,7 @@ access to a filesystem implementation.
 
 This module intentionally does not implement:
 
-- `HostRegistry` or mapping from `HostId` to a live runtime;
+- host connection ownership or mapping from `HostRef` to a live runtime;
 - SSH connection management;
 - workspace mount persistence;
 - `realpath()` or canonical inode checks;
@@ -72,15 +79,14 @@ This module intentionally does not implement:
 
 Existing consumers can migrate incrementally:
 
-- `packages/core/src/files/paths.ts` can delegate validation and lexical
-  containment to `@emdash/core/path`.
-- `packages/core/src/files/path-policy.ts` can be replaced by `ScopedPath`
-  helpers plus runtime-specific realpath checks.
+- Files contracts use `HostAbsolutePath` roots and `PortableRelativePath`
+  coordinates; runtime policy adds realpath-based mutation safety.
 - Desktop `RuntimePath` can become a thin native-format adapter around
   `PathSemantics`.
 - SSH path helpers can use POSIX parsing explicitly instead of app-local string
   utilities.
-- Git models can keep repo-relative paths as `PortableRelativePath`.
+- Git models use repository/worktree `HostAbsolutePath` roots and keep file paths
+  as `PortableRelativePath`.
 - fs-watch can emit root-scoped portable paths, then batch using `ResourceKey`.
 - workspace-server schemas can validate structured refs instead of documenting
   string conventions only.

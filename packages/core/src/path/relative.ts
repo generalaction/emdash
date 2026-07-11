@@ -20,7 +20,7 @@ export function parsePortableRelativePath(
     return err(invalidPath(input, 'Path must be relative'));
   }
 
-  const normalization = options.unicodeNormalization ?? 'nfc';
+  const normalization = options.unicodeNormalization ?? 'preserve';
   const segments = normalizeSegmentStack(splitPosixInput(input), input, {
     normalization,
     allowBackslash: true,

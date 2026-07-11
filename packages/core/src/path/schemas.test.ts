@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { hostRefSchema, LOCAL_HOST_REF } from '../host';
 import {
   absolutePathInputSchema,
   hostAbsolutePathSchema,
   hostFileRef,
   hostFileRefSchema,
-  hostIdSchema,
-  LOCAL_HOST_ID,
   parseAbsolute,
   portableRelativePathSchema,
   resourceRefFromUriSchema,
@@ -16,7 +15,10 @@ import {
 describe('path schemas', () => {
   it('canonicalizes string inputs through parser transforms', () => {
     expect(portableRelativePathSchema.parse('src/./components/../index.ts')).toBe('src/index.ts');
-    expect(hostIdSchema.parse('remote-1')).toBe('remote-1');
+    expect(hostRefSchema.parse({ type: 'remote', id: 'remote-1' })).toEqual({
+      type: 'remote',
+      id: 'remote-1',
+    });
   });
 
   it('preserves parser error messages in Zod issues', () => {
@@ -101,7 +103,7 @@ describe('path schemas', () => {
     expect(root.success).toBe(true);
     if (!root.success) return;
 
-    const ref = hostFileRef(LOCAL_HOST_ID, root.data);
+    const ref = hostFileRef(LOCAL_HOST_REF, root.data);
     expect(hostFileRefSchema.safeParse(ref).success).toBe(true);
     expect(scopedPathSchema.safeParse({ root: ref, relative: 'src/./index.ts' })).toMatchObject({
       success: true,
@@ -115,7 +117,7 @@ describe('path schemas', () => {
     expect(path.success).toBe(true);
     if (!path.success) return;
 
-    const ref = hostFileRef(LOCAL_HOST_ID, path.data);
+    const ref = hostFileRef(LOCAL_HOST_REF, path.data);
     const uri = 'emdash-file://local/v1/posix/repo/src/index.ts';
 
     expect(resourceUriSchema.parse(uri)).toBe(uri);
