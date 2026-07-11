@@ -11,6 +11,7 @@ export default defineConfig({
     files: 'src/files/index.ts',
     'files-node': 'src/files/node/index.ts',
     git: 'src/git/index.ts',
+    'git-node': 'src/git/node/index.ts',
   },
   format: ['esm'],
   dts: true,

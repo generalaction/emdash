@@ -41,6 +41,10 @@
       "types": "./dist/git.d.mts",
       "default": "./dist/git.mjs"
     },
+    "./git/node": {
+      "types": "./dist/git-node.d.mts",
+      "default": "./dist/git-node.mjs"
+    },
     "./files": {
       "types": "./dist/files.d.mts",
       "default": "./dist/files.mjs"
