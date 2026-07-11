@@ -1,4 +1,4 @@
-import type { ContentKey, FsError, TreeKey } from '@emdash/core/files';
+import type { ContentKey, FsError, RootKey, TreeKey } from '@emdash/core/files';
 import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
 import { createManagedSource, type ManagedSource } from '@emdash/wire/util';
@@ -79,21 +79,25 @@ export class FilesAllocationGraph {
   }
 
   acquireTree(key: TreeKey): PendingLease<TreeResource> {
-    return this.acquireResolved(resolveRootIdentity(key.rootPath), (root) =>
+    return this.acquireResolved(resolveRootIdentity(key.root), (root) =>
       this.trees.acquire(treeIdentity(root, key))
     );
   }
 
   acquireContent(key: ContentKey): PendingLease<ContentResource> {
-    return this.acquireResolved(resolveRootIdentity(key.rootPath), (root) =>
+    return this.acquireResolved(resolveRootIdentity(key.root), (root) =>
       this.contents.acquire(contentIdentity(root, key))
     );
   }
 
-  async useRoot<T>(rootPath: string, run: (root: RootResource) => Promise<T>): Promise<T> {
-    const lease = this.acquireResolved(resolveRootIdentity(rootPath), (identity) =>
+  acquireRoot(key: RootKey): PendingLease<RootResource> {
+    return this.acquireResolved(resolveRootIdentity(key.root), (identity) =>
       this.roots.acquire(identity)
     );
+  }
+
+  async useRoot<T>(key: RootKey, run: (root: RootResource) => Promise<T>): Promise<T> {
+    const lease = this.acquireRoot(key);
     try {
       return await run(await lease.ready());
     } finally {

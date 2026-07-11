@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { afterEach, describe, expect, it } from 'vitest';
+import { relativePath, runtimeRoot } from '../testing/paths';
 import { FilesAllocationGraph } from './allocation-graph';
 
 const roots: string[] = [];
@@ -29,10 +30,11 @@ describe('FilesAllocationGraph', () => {
       dispose: async () => {},
     };
     const graph = new FilesAllocationGraph({ watcher, idleTtlMs: 10_000 });
-    const treeA = graph.acquireTree({ rootPath: root, sessionId: 'a' });
-    const treeB = graph.acquireTree({ rootPath: root, sessionId: 'b' });
-    const contentA = graph.acquireContent({ rootPath: root, path: 'file.txt' });
-    const contentB = graph.acquireContent({ rootPath: root, path: 'file.txt' });
+    const rootRef = runtimeRoot(root);
+    const treeA = graph.acquireTree({ root: rootRef, sessionId: 'a' });
+    const treeB = graph.acquireTree({ root: rootRef, sessionId: 'b' });
+    const contentA = graph.acquireContent({ root: rootRef, relative: relativePath('file.txt') });
+    const contentB = graph.acquireContent({ root: rootRef, relative: relativePath('file.txt') });
 
     expect(await treeA.ready()).not.toBe(await treeB.ready());
     expect(await contentA.ready()).toBe(await contentB.ready());
@@ -59,11 +61,12 @@ describe('FilesAllocationGraph', () => {
       dispose: async () => {},
     };
     const graph = new FilesAllocationGraph({ watcher, idleTtlMs: 0 });
+    const rootRef = runtimeRoot(root);
 
-    await expect(graph.acquireTree({ rootPath: root, sessionId: 'one' }).ready()).rejects.toThrow(
+    await expect(graph.acquireTree({ root: rootRef, sessionId: 'one' }).ready()).rejects.toThrow(
       'watch failed'
     );
-    const retry = graph.acquireTree({ rootPath: root, sessionId: 'one' });
+    const retry = graph.acquireTree({ root: rootRef, sessionId: 'one' });
     await expect(retry.ready()).resolves.toMatchObject({ identity: { sessionId: 'one' } });
     await retry.release();
     await graph.dispose();

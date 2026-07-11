@@ -1,6 +1,13 @@
-import type { FileContentModel } from '@emdash/core/files';
-import { ComputedLiveState, type LiveCursor, type LiveSource } from '@emdash/wire';
+import { type FileContentModel, type FsError, type filesContract } from '@emdash/core/files';
+import { type Result } from '@emdash/shared';
+import {
+  ComputedLiveState,
+  type LiveCursor,
+  type LiveSource,
+  type ResourceMutationContext,
+} from '@emdash/wire';
 import type { ContentIdentity } from '../allocation/identity';
+import { writeFileContent } from '../fs/write-file';
 import type { RootChange, RootResource } from '../root/root-resource';
 import { ContentReader } from './content-reader';
 
@@ -18,11 +25,13 @@ export class ContentResource {
   readonly identity: ContentIdentity;
 
   private readonly computed: ComputedLiveState<FileContentModel>;
+  private readonly root: RootResource;
   private readonly unsubscribeRoot: () => void;
   private disposed = false;
 
   constructor(options: ContentResourceOptions) {
     this.identity = options.identity;
+    this.root = options.root;
     const reader = new ContentReader(options.root.paths, options.maxBytes);
     this.computed = new ComputedLiveState({
       compute: () => reader.read(options.identity.path),
@@ -44,6 +53,21 @@ export class ContentResource {
 
   refresh(options?: { mutationId?: string }): Promise<LiveCursor> {
     return this.computed.refresh(options);
+  }
+
+  async write(
+    context: ResourceMutationContext<typeof filesContract.content, ContentResource, 'write'>
+  ): Promise<Result<void, FsError>> {
+    this.assertActive();
+    const result = await writeFileContent(
+      this.root,
+      this.identity.path,
+      Buffer.from(context.input.content, 'utf8'),
+      context.input.precondition
+    );
+    if (result.success)
+      await context.settle('content', this.refresh({ mutationId: context.mutationId }));
+    return result;
   }
 
   dispose(): void {

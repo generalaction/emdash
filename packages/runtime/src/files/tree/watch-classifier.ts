@@ -1,10 +1,10 @@
-import path from 'node:path';
 import type { FileTreeModel } from '@emdash/core/files';
+import { portableRelativePathDirname, type PortableRelativePath } from '@emdash/core/path';
 import type { RootChange } from '../root/root-resource';
 
 export type TreeWatchEffects = {
   resync: boolean;
-  loadedParents: string[];
+  loadedParents: PortableRelativePath[];
 };
 
 export function classifyTreeChanges(model: FileTreeModel, changes: RootChange[]): TreeWatchEffects {
@@ -12,12 +12,11 @@ export function classifyTreeChanges(model: FileTreeModel, changes: RootChange[])
     return { resync: true, loadedParents: [] };
   }
 
-  const parents = new Set<string>();
+  const parents = new Set<PortableRelativePath>();
   for (const change of changes) {
     if (change.kind === 'resync') continue;
-    const parent = path.posix.dirname(change.path);
-    const parentPath = parent === '.' ? '' : parent;
-    if (model.entries[parentPath]?.childrenLoaded) parents.add(parentPath);
+    const parentPath = portableRelativePathDirname(change.path);
+    if (parentPath !== null && model.entries[parentPath]?.childrenLoaded) parents.add(parentPath);
     if (model.entries[change.path]?.childrenLoaded) parents.add(change.path);
   }
   return {
@@ -26,6 +25,6 @@ export function classifyTreeChanges(model: FileTreeModel, changes: RootChange[])
   };
 }
 
-function depth(entryPath: string): number {
+function depth(entryPath: PortableRelativePath): number {
   return entryPath === '' ? 0 : entryPath.split('/').length;
 }

@@ -1,8 +1,9 @@
 import { z } from 'zod';
+import { portableRelativePathSchema } from '../../path';
 import { fsErrorSchema } from '../api/errors';
 
 const fileContentBaseSchema = z.object({
-  path: z.string(),
+  path: portableRelativePathSchema,
   etag: z.string(),
   byteSize: z.number().int().nonnegative(),
   readonly: z.boolean(),
@@ -21,7 +22,7 @@ export const fileContentModelSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('unavailable'),
-    path: z.string(),
+    path: portableRelativePathSchema,
     error: fsErrorSchema,
   }),
 ]);

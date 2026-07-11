@@ -1,6 +1,7 @@
 import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { FileEnumerationOptions, FsError, PathBatch, PathList } from '@emdash/core/files';
+import { joinPortableRelativePath, type PortableRelativePath } from '@emdash/core/path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { LiveJobContext } from '@emdash/wire';
 import { toFsError } from '../api/errors';
@@ -11,7 +12,7 @@ const PROGRESS_BATCH_SIZE = 100;
 
 export async function enumerateFiles(
   root: RootResource,
-  entryPath: string,
+  entryPath: PortableRelativePath,
   options: FileEnumerationOptions,
   context: LiveJobContext<PathBatch>
 ): Promise<Result<PathList, FsError>> {
@@ -26,9 +27,9 @@ export async function enumerateFiles(
     const followed = await root.paths.resolveFollowed(entry.data.path);
     if (!followed.success) return followed;
 
-    const paths: string[] = [];
-    const pending: string[] = [];
-    const emit = (filePath: string) => {
+    const paths: PortableRelativePath[] = [];
+    const pending: PortableRelativePath[] = [];
+    const emit = (filePath: PortableRelativePath) => {
       paths.push(filePath);
       pending.push(filePath);
       if (pending.length >= PROGRESS_BATCH_SIZE) context.progress({ paths: pending.splice(0) });
@@ -60,10 +61,10 @@ export async function enumerateFiles(
 
 async function visitDirectory(
   absoluteDirectory: string,
-  relativeDirectory: string,
+  relativeDirectory: PortableRelativePath,
   visit: (
     absolutePath: string,
-    relativePath: string,
+    relativePath: PortableRelativePath,
     kind: 'file' | 'directory' | 'symlink'
   ) => Promise<boolean>
 ): Promise<boolean> {
@@ -71,7 +72,9 @@ async function visitDirectory(
   entries.sort((left, right) => left.name.localeCompare(right.name));
   for (const entry of entries) {
     const absolute = path.join(absoluteDirectory, entry.name);
-    const relative = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
+    const joined = joinPortableRelativePath(relativeDirectory, entry.name);
+    if (!joined.success) continue;
+    const relative = joined.data;
     if (entry.isDirectory()) {
       if (!(await visit(absolute, relative, 'directory'))) return false;
       if (!(await visitDirectory(absolute, relative, visit))) return false;

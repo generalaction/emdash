@@ -12,24 +12,20 @@ afterEach(async () => {
 });
 
 describe('RootPathPolicy', () => {
-  it('accepts normalized relative paths and rejects ambiguous path forms', () => {
+  it('normalizes safe relative paths and rejects root escapes and drive paths', () => {
     expect(normalizeRelativePath('src/index.ts')).toEqual({
       success: true,
       data: 'src/index.ts',
     });
-    for (const invalid of [
-      '/tmp/file',
-      '../file',
-      'src/../file',
-      'src\\file',
-      'src//file',
-      'C:relative',
-    ]) {
+    expect(normalizeRelativePath('src/../file')).toEqual({ success: true, data: 'file' });
+    expect(normalizeRelativePath('src//file')).toEqual({ success: true, data: 'src/file' });
+    for (const invalid of ['/tmp/file', '../file', 'C:relative']) {
       expect(normalizeRelativePath(invalid)).toMatchObject({
         success: false,
         error: { type: 'invalid-path' },
       });
     }
+    expect(normalizeRelativePath('src\\file').success).toBe(path.sep !== '\\');
   });
 
   it('rejects followed paths that escape through a symlink', async () => {
@@ -69,7 +65,11 @@ describe('RootPathPolicy', () => {
   });
 
   it('requires an absolute workspace root', async () => {
-    await expect(resolveRootIdentity('relative/root')).resolves.toMatchObject({
+    const incompatibleRoot =
+      path.sep === '\\'
+        ? { root: { kind: 'posix' as const }, segments: ['relative', 'root'] }
+        : { root: { kind: 'drive' as const, driveLetter: 'C' }, segments: ['relative', 'root'] };
+    await expect(resolveRootIdentity(incompatibleRoot)).resolves.toMatchObject({
       success: false,
       error: { type: 'invalid-path', path: '' },
     });

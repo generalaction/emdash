@@ -4,6 +4,7 @@ import path from 'node:path';
 import { isExpandableFileEntry } from '@emdash/core/files';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RootPathPolicy } from '../fs/path-policy';
+import { relativePath } from '../testing/paths';
 import { TreeDirectoryReader } from './directory-reader';
 
 const roots: string[] = [];
@@ -27,7 +28,9 @@ describe('TreeDirectoryReader', () => {
       return;
     }
 
-    const result = await new TreeDirectoryReader(new RootPathPolicy(root)).readChildren('');
+    const result = await new TreeDirectoryReader(new RootPathPolicy(root)).readChildren(
+      relativePath('')
+    );
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.map((entry) => entry.name)).toEqual([

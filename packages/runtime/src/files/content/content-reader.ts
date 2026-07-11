@@ -1,8 +1,14 @@
 import { constants } from 'node:fs';
 import { access, open } from 'node:fs/promises';
 import type { FileContentModel, FsError } from '@emdash/core/files';
+import type { PortableRelativePath } from '@emdash/core/path';
 import { toFsError } from '../api/errors';
-import { etagForStat, mimeTypeForPath, normalizeMaxBytes } from '../fs/metadata';
+import {
+  etagForStat,
+  mimeTypeForPath,
+  normalizeMaxBytes,
+  readStrongSnapshot,
+} from '../fs/metadata';
 import type { RootPathPolicy } from '../fs/path-policy';
 
 const BINARY_SAMPLE_BYTES = 8 * 1024;
@@ -13,7 +19,7 @@ export class ContentReader {
     private readonly maxBytes?: number
   ) {}
 
-  async read(entryPath: string): Promise<FileContentModel> {
+  async read(entryPath: PortableRelativePath): Promise<FileContentModel> {
     const resolved = await this.paths.resolveFollowed(entryPath);
     if (!resolved.success) return unavailable(entryPath, resolved.error);
 
@@ -37,12 +43,10 @@ export class ContentReader {
           }
           const limit = normalizeMaxBytes(this.maxBytes);
           const readSize = Math.min(before.size, limit);
-          const buffer = Buffer.alloc(readSize);
-          const { bytesRead } =
-            readSize === 0 ? { bytesRead: 0 } : await handle.read(buffer, 0, readSize, 0);
-          const bytes = buffer.subarray(0, bytesRead);
+          const snapshot = await readStrongSnapshot(handle, before.size, readSize);
+          const bytes = snapshot.bytes;
           const after = await handle.stat();
-          if (etagForStat(before) !== etagForStat(after)) {
+          if (etagForStat(before) !== etagForStat(after) || before.ctimeMs !== after.ctimeMs) {
             if (attempt === 0) continue;
             return unavailable(entryPath, {
               type: 'io',
@@ -53,24 +57,25 @@ export class ContentReader {
 
           const base = {
             path: entryPath,
-            etag: etagForStat(after),
+            etag: snapshot.etag,
             byteSize: after.size,
             readonly: !(await isWritable(resolved.data.realPath)),
           };
-          if (isBinary(bytes.subarray(0, BINARY_SAMPLE_BYTES))) {
+          const truncated = after.size > bytes.length;
+          const content = decodeUtf8(bytes, truncated);
+          if (isBinary(bytes.subarray(0, BINARY_SAMPLE_BYTES)) || content === null) {
             return {
               ...base,
               kind: 'binary',
               ...(mimeTypeForPath(entryPath) ? { mimeType: mimeTypeForPath(entryPath) } : {}),
             };
           }
-          const content = bytes.toString('utf8');
           return {
             ...base,
             kind: 'text',
             content,
             eol: content.includes('\r\n') ? 'crlf' : 'lf',
-            truncated: after.size > bytesRead,
+            truncated,
           };
         } finally {
           await handle.close();
@@ -90,6 +95,14 @@ function isBinary(sample: Uint8Array): boolean {
   return sample.includes(0);
 }
 
+function decodeUtf8(bytes: Uint8Array, truncated: boolean): string | null {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes, { stream: truncated });
+  } catch {
+    return null;
+  }
+}
+
 async function isWritable(filePath: string): Promise<boolean> {
   try {
     await access(filePath, constants.W_OK);
@@ -99,6 +112,6 @@ async function isWritable(filePath: string): Promise<boolean> {
   }
 }
 
-function unavailable(path: string, error: FsError): FileContentModel {
+function unavailable(path: PortableRelativePath, error: FsError): FileContentModel {
   return { kind: 'unavailable', path, error };
 }

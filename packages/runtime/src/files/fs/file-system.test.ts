@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FilesRuntime } from '../files-runtime';
+import { relativePath, runtimeRoot } from '../testing/paths';
 
 const roots: string[] = [];
 
@@ -14,60 +15,66 @@ afterEach(async () => {
 describe('FileSystemRuntime', () => {
   it('applies mutation overwrite, parent, rename, and deletion rules', async () => {
     const root = await makeRoot();
+    const rootRef = runtimeRoot(root);
     const runtime = new FilesRuntime({ watcher: noopWatcher(), idleTtlMs: 0 });
 
     try {
       await expect(
-        runtime.fs.createFile({ rootPath: root, path: 'missing/file.txt' })
+        runtime.fs.createFile({ root: rootRef, path: relativePath('missing/file.txt') })
       ).resolves.toMatchObject({ success: false, error: { type: 'not-found' } });
       await expect(
-        runtime.fs.createDirectory({ rootPath: root, path: 'source' })
+        runtime.fs.createDirectory({ root: rootRef, path: relativePath('source') })
       ).resolves.toMatchObject({ success: true });
       await expect(
-        runtime.fs.createFile({ rootPath: root, path: 'source/file.txt', content: 'one' })
+        runtime.fs.createFile({
+          root: rootRef,
+          path: relativePath('source/file.txt'),
+          content: 'one',
+        })
       ).resolves.toMatchObject({ success: true });
       await expect(
-        runtime.fs.createFile({ rootPath: root, path: 'source/file.txt' })
+        runtime.fs.createFile({ root: rootRef, path: relativePath('source/file.txt') })
       ).resolves.toMatchObject({ success: false, error: { type: 'already-exists' } });
       await expect(
         runtime.fs.writeFile({
-          rootPath: root,
-          path: 'source/file.txt',
+          root: rootRef,
+          path: relativePath('source/file.txt'),
           content: Buffer.from('two').toString('base64'),
           encoding: 'base64',
+          precondition: { kind: 'overwrite' },
         })
       ).resolves.toMatchObject({ success: true });
       await expect(readFile(path.join(root, 'source/file.txt'), 'utf8')).resolves.toBe('two');
 
       await expect(
-        runtime.fs.createDirectory({ rootPath: root, path: 'destination' })
+        runtime.fs.createDirectory({ root: rootRef, path: relativePath('destination') })
       ).resolves.toMatchObject({ success: true });
       await expect(
         runtime.fs.rename({
-          rootPath: root,
-          from: 'source/file.txt',
-          to: 'destination/file.txt',
+          root: rootRef,
+          from: relativePath('source/file.txt'),
+          to: relativePath('destination/file.txt'),
         })
       ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
       await expect(
         runtime.fs.copy({
-          rootPath: root,
-          from: 'source/file.txt',
-          to: 'destination/copied.txt',
+          root: rootRef,
+          from: relativePath('source/file.txt'),
+          to: relativePath('destination/copied.txt'),
         })
       ).resolves.toMatchObject({ success: true });
       await expect(
         runtime.fs.move({
-          rootPath: root,
-          from: 'source/file.txt',
-          to: 'destination/moved.txt',
+          root: rootRef,
+          from: relativePath('source/file.txt'),
+          to: relativePath('destination/moved.txt'),
         })
       ).resolves.toMatchObject({ success: true });
       await expect(
-        runtime.fs.delete({ rootPath: root, path: 'destination' })
+        runtime.fs.delete({ root: rootRef, path: relativePath('destination') })
       ).resolves.toMatchObject({ success: false, error: { type: 'io' } });
       await expect(
-        runtime.fs.delete({ rootPath: root, path: 'destination', recursive: true })
+        runtime.fs.delete({ root: rootRef, path: relativePath('destination'), recursive: true })
       ).resolves.toMatchObject({ success: true });
     } finally {
       await runtime.dispose();
@@ -76,6 +83,7 @@ describe('FileSystemRuntime', () => {
 
   it('does not mutate or enumerate entries reached through an outside-root symlink', async () => {
     const root = await makeRoot();
+    const rootRef = runtimeRoot(root);
     const outside = await makeRoot();
     await mkdir(path.join(outside, 'nested'));
     const outsideFile = path.join(outside, 'nested/outside.txt');
@@ -94,24 +102,68 @@ describe('FileSystemRuntime', () => {
 
     try {
       await expect(
-        runtime.fs.delete({ rootPath: root, path: 'linked/nested/outside.txt' })
-      ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
-      await expect(
-        runtime.fs.copy({
-          rootPath: root,
-          from: 'linked/nested/outside.txt',
-          to: 'copied.txt',
+        runtime.fs.delete({
+          root: rootRef,
+          path: relativePath('linked/nested/outside.txt'),
         })
       ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
       await expect(
-        runtime.fs.enumerate({ rootPath: root, path: 'linked/nested' }, context)
+        runtime.fs.copy({
+          root: rootRef,
+          from: relativePath('linked/nested/outside.txt'),
+          to: relativePath('copied.txt'),
+        })
+      ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
+      await expect(
+        runtime.fs.enumerate({ root: rootRef, relative: relativePath('linked/nested') }, context)
       ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
       await expect(readFile(outsideFile, 'utf8')).resolves.toBe('keep');
 
-      await expect(runtime.fs.delete({ rootPath: root, path: 'linked' })).resolves.toMatchObject({
-        success: true,
-      });
+      await expect(
+        runtime.fs.delete({ root: rootRef, path: relativePath('linked') })
+      ).resolves.toMatchObject({ success: true });
       await expect(readFile(outsideFile, 'utf8')).resolves.toBe('keep');
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('serializes conditional writes against the same ETag', async () => {
+    const root = await makeRoot();
+    const rootRef = runtimeRoot(root);
+    await writeFile(path.join(root, 'file.txt'), 'before');
+    const runtime = new FilesRuntime({ watcher: noopWatcher(), idleTtlMs: 0 });
+
+    try {
+      const read = await runtime.fs.readText({
+        root: rootRef,
+        relative: relativePath('file.txt'),
+      });
+      expect(read.success).toBe(true);
+      if (!read.success) throw read.error;
+
+      const writes = await Promise.all([
+        runtime.fs.writeFile({
+          root: rootRef,
+          path: relativePath('file.txt'),
+          content: 'first',
+          precondition: { kind: 'etag', etag: read.data.etag },
+        }),
+        runtime.fs.writeFile({
+          root: rootRef,
+          path: relativePath('file.txt'),
+          content: 'second',
+          precondition: { kind: 'etag', etag: read.data.etag },
+        }),
+      ]);
+
+      expect(writes.filter((result) => result.success)).toHaveLength(1);
+      expect(writes.filter((result) => !result.success)).toEqual([
+        expect.objectContaining({ error: expect.objectContaining({ type: 'etag-mismatch' }) }),
+      ]);
+      await expect(readFile(path.join(root, 'file.txt'), 'utf8')).resolves.toMatch(
+        /^(first|second)$/u
+      );
     } finally {
       await runtime.dispose();
     }

@@ -9,6 +9,7 @@ import {
   type ProcessRuntimePort,
 } from '@emdash/wire/util/process-runtime';
 import { describe, expect, it } from 'vitest';
+import { relativePath, runtimeRoot } from '../testing/paths';
 import { bootFilesRuntimeProcess } from './boot';
 
 describe('bootFilesRuntimeProcess', () => {
@@ -35,7 +36,9 @@ describe('bootFilesRuntimeProcess', () => {
     try {
       await ready;
       const api = client(parentContract.files, connect(portTransport(ports.parent)));
-      await expect(api.fs.readText({ rootPath: root, path: 'file.txt' })).resolves.toMatchObject({
+      await expect(
+        api.fs.readText({ root: runtimeRoot(root), relative: relativePath('file.txt') })
+      ).resolves.toMatchObject({
         success: true,
         data: { content: 'process' },
       });

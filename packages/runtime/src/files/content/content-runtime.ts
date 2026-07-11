@@ -22,7 +22,9 @@ export class FileContentRuntime {
       states: {
         content: ({ resource }) => resource.state(),
       },
-      mutations: {},
+      mutations: {
+        write: (context) => context.resource.write(context),
+      },
     });
     this.hosts.set(contract.id, host);
     return host;

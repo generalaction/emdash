@@ -6,6 +6,11 @@ import {
   type FsError,
   type filesContract,
 } from '@emdash/core/files';
+import {
+  parsePortableRelativePath,
+  ROOT_RELATIVE_PATH,
+  type PortableRelativePath,
+} from '@emdash/core/path';
 import { ok, type Result } from '@emdash/shared';
 import {
   LiveState,
@@ -46,7 +51,7 @@ export class TreeResource {
     this.identity = options.identity;
     this.reader = new TreeDirectoryReader(options.root.paths);
     this.onError = options.onError ?? (() => {});
-    this.state = new LiveState(initialTree(options.identity.root.rootPath));
+    this.state = new LiveState(initialTree(options.identity.root.root));
     this.unsubscribeRoot = options.root.subscribe((changes) => this.onRootChanges(changes));
   }
 
@@ -99,9 +104,10 @@ export class TreeResource {
       const target = validated.data.path;
       let cursor = this.state.cursor;
       const segments = target === '' ? [] : target.split('/');
-      const ancestors = [''];
+      const ancestors: PortableRelativePath[] = [ROOT_RELATIVE_PATH];
       for (let index = 1; index < segments.length; index += 1) {
-        ancestors.push(segments.slice(0, index).join('/'));
+        const ancestor = parsePortableRelativePath(segments.slice(0, index).join('/'));
+        if (ancestor.success) ancestors.push(ancestor.data);
       }
       for (const ancestor of ancestors) {
         const expanded = await this.expandPath(ancestor, context.mutationId);
@@ -125,7 +131,7 @@ export class TreeResource {
   }
 
   private async expandPath(
-    entryPath: string,
+    entryPath: PortableRelativePath,
     mutationId?: string
   ): Promise<Result<LiveCursor, FsError>> {
     const validated = this.options.root.paths.resolveEntry(entryPath);
@@ -183,7 +189,7 @@ export class TreeResource {
       .filter((entry) => entry.childrenLoaded)
       .map((entry) => entry.path)
       .sort((left, right) => depth(left) - depth(right));
-    const next = initialTree(this.identity.root.rootPath);
+    const next = initialTree(this.identity.root.root);
     for (const entryPath of loaded) {
       const entry = next.entries[entryPath];
       if (!entry || !isExpandableFileEntry(entry)) continue;
@@ -216,13 +222,14 @@ export class TreeResource {
   }
 }
 
-function initialTree(rootPath: string): FileTreeModel {
+function initialTree(root: FileTreeModel['root']): FileTreeModel {
+  const rootPath = root.segments.at(-1) ?? '';
   const name = path.basename(rootPath) || rootPath;
   return {
-    root: rootPath,
+    root,
     entries: {
       '': {
-        path: '',
+        path: ROOT_RELATIVE_PATH,
         name,
         parentPath: null,
         kind: 'directory',
@@ -233,7 +240,11 @@ function initialTree(rootPath: string): FileTreeModel {
   };
 }
 
-function reconcileDirectory(model: FileTreeModel, parentPath: string, incoming: FileEntry[]): void {
+function reconcileDirectory(
+  model: FileTreeModel,
+  parentPath: PortableRelativePath,
+  incoming: FileEntry[]
+): void {
   const parent = model.entries[parentPath];
   if (!parent) return;
   const incomingPaths = new Set(incoming.map((entry) => entry.path));
@@ -257,7 +268,7 @@ function reconcileDirectory(model: FileTreeModel, parentPath: string, incoming: 
   parent.hasChildren = incoming.length > 0;
 }
 
-function removeDescendants(model: FileTreeModel, parentPath: string): void {
+function removeDescendants(model: FileTreeModel, parentPath: PortableRelativePath): void {
   const prefix = parentPath === '' ? '' : `${parentPath}/`;
   for (const entryPath of Object.keys(model.entries)) {
     if (entryPath !== parentPath && (prefix === '' || entryPath.startsWith(prefix))) {
@@ -266,11 +277,11 @@ function removeDescendants(model: FileTreeModel, parentPath: string): void {
   }
 }
 
-function removeSubtree(model: FileTreeModel, entryPath: string): void {
+function removeSubtree(model: FileTreeModel, entryPath: PortableRelativePath): void {
   removeDescendants(model, entryPath);
   delete model.entries[entryPath];
 }
 
-function depth(entryPath: string): number {
+function depth(entryPath: PortableRelativePath): number {
   return entryPath === '' ? 0 : entryPath.split('/').length;
 }

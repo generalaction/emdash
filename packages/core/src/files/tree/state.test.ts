@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { fileTreeModelSchema, isExpandableFileEntry } from './state';
 
+const ROOT = { root: { kind: 'posix' as const }, segments: ['workspace'] };
+
 describe('file tree state', () => {
   it('round-trips as JSON and derives symlink expansion from target kind', () => {
     const model = {
-      root: '/workspace',
+      root: ROOT,
       entries: {
         '': {
           path: '',
@@ -35,7 +37,7 @@ describe('file tree state', () => {
   it('rejects inconsistent normalized records', () => {
     expect(() =>
       fileTreeModelSchema.parse({
-        root: '/workspace',
+        root: ROOT,
         entries: {
           '': {
             path: '',
@@ -61,7 +63,7 @@ describe('file tree state', () => {
   it('rejects children on files and symlinks without target classification', () => {
     expect(() =>
       fileTreeModelSchema.parse({
-        root: '/workspace',
+        root: ROOT,
         entries: {
           '': {
             path: '',
@@ -85,7 +87,7 @@ describe('file tree state', () => {
 
     expect(() =>
       fileTreeModelSchema.parse({
-        root: '/workspace',
+        root: ROOT,
         entries: {
           '': {
             path: '',

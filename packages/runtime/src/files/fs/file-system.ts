@@ -6,6 +6,7 @@ import type {
   CreateDirectoryInput,
   CreateFileInput,
   DeleteInput,
+  FileGlobOptions,
   FileStat,
   FsError,
   MoveInput,
@@ -16,8 +17,15 @@ import type {
   ReadFileOptions,
   ReadTextResult,
   RenameInput,
+  RootKey,
   WriteFileInput,
 } from '@emdash/core/files';
+import {
+  joinPortableRelativePath,
+  parseAbsolute,
+  type HostAbsolutePath,
+  type PortableRelativePath,
+} from '@emdash/core/path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { BlobSource, LiveJobContext } from '@emdash/wire';
 import { globIterate } from 'glob';
@@ -25,7 +33,8 @@ import type { FilesAllocationGraph } from '../allocation/allocation-graph';
 import { expectedFsError, toFsError } from '../api/errors';
 import type { RootResource } from '../root/root-resource';
 import { enumerateFiles } from './enumerate';
-import { etagForStat, mimeTypeForPath, normalizeMaxBytes } from './metadata';
+import { mimeTypeForPath, normalizeMaxBytes, readStrongSnapshot } from './metadata';
+import { writeFileContent } from './write-file';
 
 const STREAM_CHUNK_SIZE = 64 * 1024;
 const PROGRESS_BATCH_SIZE = 100;
@@ -34,8 +43,8 @@ export class FileSystemRuntime {
   constructor(private readonly allocations: FilesAllocationGraph) {}
 
   stat(input: PathKey): Promise<Result<FileStat, FsError>> {
-    return this.run(input.rootPath, async (root) => {
-      const resolved = await root.paths.resolveFollowed(input.path);
+    return this.run(input.root, async (root) => {
+      const resolved = await root.paths.resolveFollowed(input.relative);
       if (!resolved.success) return resolved;
       try {
         const metadata = await stat(resolved.data.realPath);
@@ -57,97 +66,128 @@ export class FileSystemRuntime {
   }
 
   exists(input: PathKey): Promise<Result<boolean, FsError>> {
-    return this.run(input.rootPath, async (root) => {
-      const resolved = await root.paths.resolveFollowed(input.path);
+    return this.run(input.root, async (root) => {
+      const resolved = await root.paths.resolveFollowed(input.relative);
       if (resolved.success) return ok(true);
       return resolved.error.type === 'not-found' ? ok(false) : resolved;
     });
   }
 
-  realPath(input: PathKey): Promise<Result<string, FsError>> {
-    return this.run(input.rootPath, async (root) => {
-      const resolved = await root.paths.resolveFollowed(input.path);
-      return resolved.success ? ok(resolved.data.realPath) : resolved;
+  realPath(input: PathKey): Promise<Result<HostAbsolutePath, FsError>> {
+    return this.run(input.root, async (root) => {
+      const resolved = await root.paths.resolveFollowed(input.relative);
+      if (!resolved.success) return resolved;
+      const parsed = parseAbsolute(resolved.data.realPath, {
+        profile: {
+          style: path.sep === '\\' ? 'win32' : 'posix',
+          unicodeNormalization: 'preserve',
+        },
+      });
+      return parsed.success
+        ? ok(parsed.data)
+        : err({ type: 'invalid-path', path: input.relative, message: parsed.error.message });
     });
   }
 
   readText(
     input: PathKey & { options?: ReadFileOptions }
   ): Promise<Result<ReadTextResult, FsError>> {
-    return this.run(input.rootPath, async (root) => {
-      const resolved = await root.paths.resolveFollowed(input.path);
+    return this.run(input.root, async (root) => {
+      const resolved = await root.paths.resolveFollowed(input.relative);
       if (!resolved.success) return resolved;
-      try {
-        const handle = await open(
-          resolved.data.realPath,
-          constants.O_RDONLY | constants.O_NONBLOCK
-        );
+      for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
-          const metadata = await handle.stat();
-          if (metadata.isDirectory()) return err({ type: 'is-a-directory', path: input.path });
-          if (!metadata.isFile()) return err(notRegularFile(input.path));
-          const readSize = Math.min(metadata.size, normalizeMaxBytes(input.options?.maxBytes));
-          const buffer = Buffer.alloc(readSize);
-          const { bytesRead } =
-            readSize === 0 ? { bytesRead: 0 } : await handle.read(buffer, 0, readSize, 0);
-          return ok({
-            content: buffer.subarray(0, bytesRead).toString('utf8'),
-            truncated: metadata.size > bytesRead,
-            totalSize: metadata.size,
-            etag: etagForStat(metadata),
-          });
-        } finally {
-          await handle.close();
+          const handle = await open(
+            resolved.data.realPath,
+            constants.O_RDONLY | constants.O_NONBLOCK
+          );
+          try {
+            const before = await handle.stat();
+            if (before.isDirectory()) return err({ type: 'is-a-directory', path: input.relative });
+            if (!before.isFile()) return err(notRegularFile(input.relative));
+            const readSize = Math.min(before.size, normalizeMaxBytes(input.options?.maxBytes));
+            const snapshot = await readStrongSnapshot(handle, before.size, readSize);
+            const after = await handle.stat();
+            if (!sameFileVersion(before, after)) {
+              if (attempt === 0) continue;
+              return err(changedWhileReading(input.relative));
+            }
+            return ok({
+              content: snapshot.bytes.toString('utf8'),
+              truncated: after.size > snapshot.bytes.length,
+              totalSize: after.size,
+              etag: snapshot.etag,
+            });
+          } finally {
+            await handle.close();
+          }
+        } catch (error) {
+          return err(toFsError(error, input.relative));
         }
-      } catch (error) {
-        return err(toFsError(error, input.path));
       }
+      throw new Error('readText exhausted its read attempts');
     });
   }
 
   readBytes(
     input: PathKey & { options?: ReadFileOptions }
   ): Promise<Result<{ meta: ReadBytesMeta; source: BlobSource }, FsError>> {
-    return this.run(input.rootPath, async (root) => {
-      const resolved = await root.paths.resolveFollowed(input.path);
+    return this.run(input.root, async (root) => {
+      const resolved = await root.paths.resolveFollowed(input.relative);
       if (!resolved.success) return resolved;
-      let handle;
-      try {
-        handle = await open(resolved.data.realPath, constants.O_RDONLY | constants.O_NONBLOCK);
-        const metadata = await handle.stat();
-        if (metadata.isDirectory()) {
-          await handle.close();
-          return err({ type: 'is-a-directory', path: input.path });
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const handle = await open(
+            resolved.data.realPath,
+            constants.O_RDONLY | constants.O_NONBLOCK
+          );
+          let result: { meta: ReadBytesMeta; source: BlobSource } | undefined;
+          try {
+            const before = await handle.stat();
+            if (before.isDirectory()) {
+              return err({ type: 'is-a-directory', path: input.relative });
+            }
+            if (!before.isFile()) return err(notRegularFile(input.relative));
+            const readSize = Math.min(before.size, normalizeMaxBytes(input.options?.maxBytes));
+            const snapshot = await readStrongSnapshot(handle, before.size, readSize);
+            const after = await handle.stat();
+            if (!sameFileVersion(before, after)) {
+              if (attempt === 0) continue;
+              return err(changedWhileReading(input.relative));
+            }
+            result = {
+              meta: {
+                name: path.basename(input.relative) || path.basename(resolved.data.realPath),
+                mimeType: mimeTypeForPath(input.relative) ?? 'application/octet-stream',
+                size: snapshot.bytes.length,
+                lastModified: after.mtimeMs,
+                truncated: after.size > snapshot.bytes.length,
+                totalSize: after.size,
+                etag: snapshot.etag,
+              },
+              source: bufferBlobSource(snapshot.bytes),
+            };
+          } finally {
+            await handle.close();
+          }
+          if (result) return ok(result);
+        } catch (error) {
+          return err(toFsError(error, input.relative));
         }
-        if (!metadata.isFile()) {
-          await handle.close();
-          return err(notRegularFile(input.path));
-        }
-        const readSize = Math.min(metadata.size, normalizeMaxBytes(input.options?.maxBytes));
-        return ok({
-          meta: {
-            name: path.basename(input.path) || path.basename(resolved.data.realPath),
-            mimeType: mimeTypeForPath(input.path) ?? 'application/octet-stream',
-            size: readSize,
-            lastModified: metadata.mtimeMs,
-            truncated: metadata.size > readSize,
-            totalSize: metadata.size,
-            etag: etagForStat(metadata),
-          },
-          source: fileBlobSource(handle, readSize),
-        });
-      } catch (error) {
-        await handle?.close().catch(() => {});
-        return err(toFsError(error, input.path));
       }
+      throw new Error('readBytes exhausted its read attempts');
     });
   }
 
   glob(
-    input: { rootPath: string; patterns: string[]; options: { cwd: string; dot?: boolean } },
+    input: {
+      root: RootKey['root'];
+      patterns: string[];
+      options: FileGlobOptions;
+    },
     context: LiveJobContext<PathBatch>
   ): Promise<Result<PathList, FsError>> {
-    return this.run(input.rootPath, async (root) => {
+    return this.run(input.root, async (root) => {
       if (input.patterns.length === 0) {
         return err({ type: 'invalid-path', path: '', message: 'At least one pattern is required' });
       }
@@ -166,8 +206,8 @@ export class FileSystemRuntime {
       if (!cwd.success) return cwd;
 
       try {
-        const paths: string[] = [];
-        const pending: string[] = [];
+        const paths: PortableRelativePath[] = [];
+        const pending: PortableRelativePath[] = [];
         for await (const match of globIterate(input.patterns, {
           absolute: false,
           cwd: cwd.data.realPath,
@@ -177,9 +217,10 @@ export class FileSystemRuntime {
           if (context.signal.aborted) break;
           if (typeof match !== 'string') continue;
           const matchPath = match.split(path.sep).join('/');
-          const relative = input.options.cwd ? `${input.options.cwd}/${matchPath}` : matchPath;
-          paths.push(relative);
-          pending.push(relative);
+          const relative = joinPortableRelativePath(input.options.cwd, matchPath);
+          if (!relative.success) continue;
+          paths.push(relative.data);
+          pending.push(relative.data);
           if (pending.length >= PROGRESS_BATCH_SIZE) {
             context.progress({ paths: pending.splice(0) });
           }
@@ -196,13 +237,13 @@ export class FileSystemRuntime {
     input: PathKey & { options?: { includeSymlinkFiles?: boolean } },
     context: LiveJobContext<PathBatch>
   ): Promise<Result<PathList, FsError>> {
-    return this.run(input.rootPath, (root) =>
-      enumerateFiles(root, input.path, input.options ?? {}, context)
+    return this.run(input.root, (root) =>
+      enumerateFiles(root, input.relative, input.options ?? {}, context)
     );
   }
 
   createFile(input: CreateFileInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.rootPath, async (root) => {
+    return this.mutate(input.root, async (root) => {
       const destination = await root.paths.resolveDestination(input.path);
       if (!destination.success) return destination;
       try {
@@ -221,7 +262,7 @@ export class FileSystemRuntime {
   }
 
   createDirectory(input: CreateDirectoryInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.rootPath, async (root) => {
+    return this.mutate(input.root, async (root) => {
       const destination = await root.paths.resolveDestination(input.path);
       if (!destination.success) return destination;
       try {
@@ -244,7 +285,7 @@ export class FileSystemRuntime {
   }
 
   move(input: MoveInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.rootPath, async (root) => {
+    return this.mutate(input.root, async (root) => {
       const source = await root.paths.resolveExistingEntry(input.from);
       if (!source.success) return source;
       if (source.data.path === '') {
@@ -275,7 +316,7 @@ export class FileSystemRuntime {
   }
 
   copy(input: CopyInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.rootPath, async (root) => {
+    return this.mutate(input.root, async (root) => {
       const source = await root.paths.resolveExistingEntry(input.from);
       if (!source.success) return source;
       if (source.data.path === '') {
@@ -309,7 +350,7 @@ export class FileSystemRuntime {
   }
 
   delete(input: DeleteInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.rootPath, async (root) => {
+    return this.mutate(input.root, async (root) => {
       const target = await root.paths.resolveExistingEntry(input.path);
       if (!target.success) return target;
       if (target.data.path === '') {
@@ -336,41 +377,28 @@ export class FileSystemRuntime {
   }
 
   writeFile(input: WriteFileInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.rootPath, async (root) => {
-      const target = await root.paths.resolveFollowed(input.path);
-      if (!target.success) return target;
-      try {
-        const metadata = await stat(target.data.realPath);
-        if (metadata.isDirectory()) return err({ type: 'is-a-directory', path: target.data.path });
-        if (!metadata.isFile()) return err(notRegularFile(target.data.path));
-        const handle = await open(target.data.realPath, constants.O_WRONLY | constants.O_NONBLOCK);
-        try {
-          if (!(await handle.stat()).isFile()) return err(notRegularFile(target.data.path));
-          await handle.truncate(0);
-          await handle.writeFile(Buffer.from(input.content, input.encoding ?? 'utf8'));
-        } finally {
-          await handle.close();
-        }
-        this.allocations.notifyActiveRoot(root, [{ kind: 'update', path: target.data.path }]);
-        return ok<void>();
-      } catch (error) {
-        return err(toFsError(error, target.data.path));
-      }
+    return this.mutate(input.root, async (root) => {
+      return writeFileContent(
+        root,
+        input.path,
+        Buffer.from(input.content, input.encoding ?? 'utf8'),
+        input.precondition
+      );
     });
   }
 
   private run<T>(
-    rootPath: string,
+    root: RootKey['root'],
     operation: (root: RootResource) => Promise<Result<T, FsError>>
   ): Promise<Result<T, FsError>> {
-    return this.withExpectedErrors(() => this.allocations.useRoot(rootPath, operation));
+    return this.withExpectedErrors(() => this.allocations.useRoot({ root }, operation));
   }
 
   private mutate(
-    rootPath: string,
+    root: RootKey['root'],
     operation: (root: RootResource) => Promise<Result<void, FsError>>
   ): Promise<Result<void, FsError>> {
-    return this.withExpectedErrors(() => this.allocations.useRoot(rootPath, operation));
+    return this.withExpectedErrors(() => this.allocations.useRoot({ root }, operation));
   }
 
   private async withExpectedErrors<T>(
@@ -386,47 +414,39 @@ export class FileSystemRuntime {
   }
 }
 
-function fileBlobSource(
-  handle: Awaited<ReturnType<typeof open>>,
-  totalBytes: number
-): AsyncIterable<Uint8Array> {
+function bufferBlobSource(bytes: Buffer): AsyncIterable<Uint8Array> {
   let position = 0;
-  let closed = false;
-  const close = async () => {
-    if (closed) return;
-    closed = true;
-    await handle.close();
-  };
   return {
     [Symbol.asyncIterator]() {
       return {
         async next(): Promise<IteratorResult<Uint8Array>> {
-          if (closed || position >= totalBytes) {
-            await close();
-            return { done: true, value: undefined };
-          }
-          const size = Math.min(STREAM_CHUNK_SIZE, totalBytes - position);
-          const buffer = Buffer.alloc(size);
-          let bytesRead: number;
-          try {
-            ({ bytesRead } = await handle.read(buffer, 0, size, position));
-          } catch (error) {
-            await close();
-            throw error;
-          }
-          position += bytesRead;
-          if (bytesRead === 0) {
-            await close();
-            return { done: true, value: undefined };
-          }
-          return { done: false, value: buffer.subarray(0, bytesRead) };
-        },
-        async return(): Promise<IteratorResult<Uint8Array>> {
-          await close();
-          return { done: true, value: undefined };
+          if (position >= bytes.length) return { done: true, value: undefined };
+          const end = Math.min(position + STREAM_CHUNK_SIZE, bytes.length);
+          const value = bytes.subarray(position, end);
+          position = end;
+          return { done: false, value };
         },
       };
     },
+  };
+}
+
+function sameFileVersion(
+  before: { size: number; mtimeMs: number; ctimeMs: number },
+  after: { size: number; mtimeMs: number; ctimeMs: number }
+): boolean {
+  return (
+    before.size === after.size &&
+    before.mtimeMs === after.mtimeMs &&
+    before.ctimeMs === after.ctimeMs
+  );
+}
+
+function changedWhileReading(entryPath: PortableRelativePath): FsError {
+  return {
+    type: 'io',
+    path: entryPath,
+    message: 'File changed repeatedly while it was being read',
   };
 }
 

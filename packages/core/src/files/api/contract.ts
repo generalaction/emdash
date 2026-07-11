@@ -8,6 +8,7 @@ import {
   mutation,
 } from '@emdash/wire';
 import { z } from 'zod';
+import { hostAbsolutePathSchema, portableRelativePathSchema } from '../../path';
 import { fileContentModelSchema } from '../content/state';
 import { fileTreeModelSchema } from '../tree/state';
 import { fsErrorSchema } from './errors';
@@ -30,6 +31,7 @@ import {
   renameInputSchema,
   rootKeySchema,
   treeKeySchema,
+  writeContentInputSchema,
   writeFileInputSchema,
 } from './schemas';
 
@@ -37,7 +39,11 @@ export const filesContract = defineContract({
   fs: defineContract({
     stat: fallible({ input: pathKeySchema, data: fileStatSchema, error: fsErrorSchema }),
     exists: fallible({ input: pathKeySchema, data: z.boolean(), error: fsErrorSchema }),
-    realPath: fallible({ input: pathKeySchema, data: z.string(), error: fsErrorSchema }),
+    realPath: fallible({
+      input: pathKeySchema,
+      data: hostAbsolutePathSchema,
+      error: fsErrorSchema,
+    }),
     readText: fallible({
       input: pathKeySchema.extend({ options: readFileOptionsSchema.optional() }),
       data: readTextResultSchema,
@@ -72,17 +78,17 @@ export const filesContract = defineContract({
       },
       mutations: {
         expand: mutation({
-          input: z.object({ path: z.string() }),
+          input: z.object({ path: portableRelativePathSchema }),
           data: z.void(),
           error: fsErrorSchema,
         }),
         collapse: mutation({
-          input: z.object({ path: z.string() }),
+          input: z.object({ path: portableRelativePathSchema }),
           data: z.void(),
           error: fsErrorSchema,
         }),
         reveal: mutation({
-          input: z.object({ path: z.string() }),
+          input: z.object({ path: portableRelativePathSchema }),
           data: z.void(),
           error: fsErrorSchema,
         }),
@@ -93,6 +99,9 @@ export const filesContract = defineContract({
     key: contentKeySchema,
     states: {
       content: liveState({ data: fileContentModelSchema }),
+    },
+    mutations: {
+      write: mutation({ input: writeContentInputSchema, data: z.void(), error: fsErrorSchema }),
     },
   }),
   mutations: defineContract({

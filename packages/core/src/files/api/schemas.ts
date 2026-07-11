@@ -1,12 +1,13 @@
 import { z } from 'zod';
+import { hostAbsolutePathSchema, portableRelativePathSchema } from '../../path';
 
-export const rootKeySchema = z.object({ rootPath: z.string() });
-export const pathKeySchema = rootKeySchema.extend({ path: z.string() });
+export const rootKeySchema = z.object({ root: hostAbsolutePathSchema });
+export const pathKeySchema = rootKeySchema.extend({ relative: portableRelativePathSchema });
 export const treeKeySchema = rootKeySchema.extend({ sessionId: z.string() });
 export const contentKeySchema = pathKeySchema;
 
 export const fileStatSchema = z.object({
-  path: z.string(),
+  path: portableRelativePathSchema,
   type: z.enum(['file', 'directory']),
   size: z.number().int().nonnegative(),
   mtimeMs: z.number(),
@@ -36,7 +37,7 @@ export const readBytesMetaSchema = z.object({
 });
 
 export const fileGlobOptionsSchema = z.object({
-  cwd: z.string(),
+  cwd: portableRelativePathSchema,
   dot: z.boolean().optional(),
 });
 
@@ -44,28 +45,41 @@ export const fileEnumerationOptionsSchema = z.object({
   includeSymlinkFiles: z.boolean().optional(),
 });
 
-export const pathBatchSchema = z.object({ paths: z.array(z.string()) });
-export const pathListSchema = z.object({ paths: z.array(z.string()) });
+export const pathBatchSchema = z.object({ paths: z.array(portableRelativePathSchema) });
+export const pathListSchema = z.object({ paths: z.array(portableRelativePathSchema) });
+
+export const writePreconditionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('etag'), etag: z.string().min(1) }),
+  z.object({ kind: z.literal('overwrite') }),
+]);
+
+export const writeContentInputSchema = z.object({
+  content: z.string(),
+  precondition: writePreconditionSchema,
+});
 
 export const createFileInputSchema = rootKeySchema.extend({
-  path: z.string(),
+  path: portableRelativePathSchema,
   content: z.string().optional(),
 });
-export const createDirectoryInputSchema = rootKeySchema.extend({ path: z.string() });
+export const createDirectoryInputSchema = rootKeySchema.extend({
+  path: portableRelativePathSchema,
+});
 export const renameInputSchema = rootKeySchema.extend({
-  from: z.string(),
-  to: z.string(),
+  from: portableRelativePathSchema,
+  to: portableRelativePathSchema,
 });
 export const moveInputSchema = renameInputSchema;
 export const copyInputSchema = renameInputSchema;
 export const deleteInputSchema = rootKeySchema.extend({
-  path: z.string(),
+  path: portableRelativePathSchema,
   recursive: z.boolean().optional(),
 });
 export const writeFileInputSchema = rootKeySchema.extend({
-  path: z.string(),
+  path: portableRelativePathSchema,
   content: z.string(),
   encoding: z.enum(['utf8', 'base64']).optional(),
+  precondition: writePreconditionSchema,
 });
 
 export type RootKey = z.infer<typeof rootKeySchema>;
@@ -80,6 +94,8 @@ export type FileGlobOptions = z.infer<typeof fileGlobOptionsSchema>;
 export type FileEnumerationOptions = z.infer<typeof fileEnumerationOptionsSchema>;
 export type PathBatch = z.infer<typeof pathBatchSchema>;
 export type PathList = z.infer<typeof pathListSchema>;
+export type WritePrecondition = z.infer<typeof writePreconditionSchema>;
+export type WriteContentInput = z.infer<typeof writeContentInputSchema>;
 export type CreateFileInput = z.infer<typeof createFileInputSchema>;
 export type CreateDirectoryInput = z.infer<typeof createDirectoryInputSchema>;
 export type RenameInput = z.infer<typeof renameInputSchema>;

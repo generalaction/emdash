@@ -1,3 +1,5 @@
+import { KeyedMutex } from '@emdash/core/lib';
+import type { PortableRelativePath } from '@emdash/core/path';
 import type { IWatchService, WatchHandle } from '@emdash/core/services/fs-watch/api';
 import type { Unsubscribe } from '@emdash/shared';
 import type { RootIdentity } from '../allocation/identity';
@@ -6,7 +8,7 @@ import { RootPathPolicy, normalizeRelativePath } from '../fs/path-policy';
 const WATCH_DEBOUNCE_MS = 50;
 
 export type RootChange =
-  | { kind: 'create' | 'update' | 'delete'; path: string }
+  | { kind: 'create' | 'update' | 'delete'; path: PortableRelativePath }
   | { kind: 'resync' };
 
 export type RootResourceOptions = {
@@ -19,6 +21,7 @@ export class RootResource {
   readonly paths: RootPathPolicy;
 
   private readonly listeners = new Set<(changes: RootChange[]) => void>();
+  private readonly mutationMutex = new KeyedMutex();
   private readonly watch: WatchHandle;
   private disposed = false;
 
@@ -64,6 +67,11 @@ export class RootResource {
       return normalizeRelativePath(change.path).success ? [change] : [];
     });
     this.emit(accepted);
+  }
+
+  runFileMutation<T>(resolvedPath: string, run: () => Promise<T>): Promise<T> {
+    if (this.disposed) throw new Error('RootResource is disposed');
+    return this.mutationMutex.runExclusive(resolvedPath, run);
   }
 
   async dispose(): Promise<void> {

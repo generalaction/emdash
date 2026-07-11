@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hostAbsolutePathSchema, portableRelativePathSchema } from '../../path';
 
 export const fileEntryKindSchema = z.enum(['file', 'directory', 'symlink']);
 export const symlinkTargetKindSchema = z.enum([
@@ -10,12 +11,12 @@ export const symlinkTargetKindSchema = z.enum([
 ]);
 
 export const fileEntrySchema = z.object({
-  path: z.string(),
+  path: portableRelativePathSchema,
   name: z.string(),
-  parentPath: z.string().nullable(),
+  parentPath: portableRelativePathSchema.nullable(),
   kind: fileEntryKindSchema,
   childrenLoaded: z.boolean(),
-  children: z.array(z.string()),
+  children: z.array(portableRelativePathSchema),
   hasChildren: z.boolean().optional(),
   etag: z.string().optional(),
   size: z.number().int().nonnegative().optional(),
@@ -26,7 +27,7 @@ export const fileEntrySchema = z.object({
 
 export const fileTreeModelSchema = z
   .object({
-    root: z.string(),
+    root: hostAbsolutePathSchema,
     entries: z.record(z.string(), fileEntrySchema),
   })
   .superRefine((model, context) => {
@@ -93,7 +94,7 @@ export const fileTreeModelSchema = z
       }
       if (entryPath !== '') {
         const parent = entry.parentPath === null ? undefined : model.entries[entry.parentPath];
-        if (!parent?.children.includes(entryPath)) {
+        if (!parent?.children.some((childPath) => childPath === entryPath)) {
           context.addIssue({
             code: 'custom',
             path: ['entries', entryPath, 'parentPath'],

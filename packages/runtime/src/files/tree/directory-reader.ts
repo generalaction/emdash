@@ -6,6 +6,11 @@ import {
   type FsError,
   type SymlinkTargetKind,
 } from '@emdash/core/files';
+import {
+  joinPortableRelativePath,
+  portableRelativePathParent,
+  type PortableRelativePath,
+} from '@emdash/core/path';
 import { err, ok, type Result } from '@emdash/shared';
 import { toFsError } from '../api/errors';
 import { etagForStat } from '../fs/metadata';
@@ -14,7 +19,7 @@ import { containsPath, type RootPathPolicy } from '../fs/path-policy';
 export class TreeDirectoryReader {
   constructor(private readonly paths: RootPathPolicy) {}
 
-  async readChildren(directoryPath: string): Promise<Result<FileEntry[], FsError>> {
+  async readChildren(directoryPath: PortableRelativePath): Promise<Result<FileEntry[], FsError>> {
     const resolved = await this.paths.resolveFollowed(directoryPath);
     if (!resolved.success) return resolved;
 
@@ -27,9 +32,10 @@ export class TreeDirectoryReader {
 
     const entries: FileEntry[] = [];
     for (const dirent of dirents) {
-      const childPath = directoryPath ? `${directoryPath}/${dirent.name}` : dirent.name;
+      const childPath = joinPortableRelativePath(directoryPath, dirent.name);
+      if (!childPath.success) continue;
       const classified = await this.readEntry(
-        childPath,
+        childPath.data,
         path.join(resolved.data.realPath, dirent.name)
       );
       if (classified.success) entries.push(classified.data);
@@ -39,7 +45,10 @@ export class TreeDirectoryReader {
     return ok(entries);
   }
 
-  async readEntry(entryPath: string, canonicalPath?: string): Promise<Result<FileEntry, FsError>> {
+  async readEntry(
+    entryPath: PortableRelativePath,
+    canonicalPath?: string
+  ): Promise<Result<FileEntry, FsError>> {
     const resolved = this.paths.resolveEntry(entryPath);
     if (!resolved.success) return resolved;
 
@@ -49,9 +58,9 @@ export class TreeDirectoryReader {
       const base = {
         path: resolved.data.path,
         name: path.basename(resolved.data.absolutePath),
-        parentPath: parentPath(resolved.data.path),
+        parentPath: portableRelativePathParent(resolved.data.path),
         childrenLoaded: false,
-        children: [] as string[],
+        children: [] as PortableRelativePath[],
         size: metadata.size,
         mtimeMs: metadata.mtimeMs,
       };
@@ -73,12 +82,6 @@ export class TreeDirectoryReader {
       return err(toFsError(error, resolved.data.path));
     }
   }
-}
-
-function parentPath(entryPath: string): string | null {
-  if (entryPath === '') return null;
-  const parent = path.posix.dirname(entryPath);
-  return parent === '.' ? '' : parent;
 }
 
 async function classifySymlink(

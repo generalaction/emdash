@@ -1,11 +1,16 @@
 import { lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { FsError } from '@emdash/core/files';
+import {
+  parsePortableRelativePath,
+  ROOT_RELATIVE_PATH,
+  type PortableRelativePath,
+} from '@emdash/core/path';
 import { err, ok, type Result } from '@emdash/shared';
 import { toFsError } from '../api/errors';
 
 export type ResolvedEntryPath = {
-  path: string;
+  path: PortableRelativePath;
   absolutePath: string;
 };
 
@@ -99,30 +104,27 @@ export class RootPathPolicy {
     }
   }
 
-  toRelative(absolutePath: string): string | null {
+  toRelative(absolutePath: string): PortableRelativePath | null {
     const relative = path.relative(this.rootPath, path.resolve(absolutePath));
-    if (relative === '') return '';
+    if (relative === '') return ROOT_RELATIVE_PATH;
     if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
       return null;
     }
-    return relative.split(path.sep).join('/');
+    const parsed = parsePortableRelativePath(relative.split(path.sep).join('/'));
+    return parsed.success ? parsed.data : null;
   }
 }
 
-export function normalizeRelativePath(input: string): Result<string, FsError> {
-  if (input.includes('\0')) return err(invalidPath(input, 'Path contains a NUL byte'));
-  if (input.includes('\\')) return err(invalidPath(input, 'Path must use POSIX separators'));
-  if (input.startsWith('/') || path.win32.isAbsolute(input) || /^[A-Za-z]:/.test(input)) {
+export function normalizeRelativePath(input: string): Result<PortableRelativePath, FsError> {
+  if (/^[A-Za-z]:/u.test(input)) {
     return err(invalidPath(input, 'Path must be relative to the workspace root'));
   }
-  if (input.endsWith('/')) return err(invalidPath(input, 'Path must not end with a separator'));
-
-  const segments = input.split('/');
-  if (segments.some((segment) => segment === '.' || segment === '..' || segment === '')) {
-    if (input === '') return ok('');
-    return err(invalidPath(input, 'Path contains an invalid segment'));
+  const parsed = parsePortableRelativePath(input, { unicodeNormalization: 'preserve' });
+  if (!parsed.success) return err(invalidPath(input, parsed.error.message));
+  if (path.sep === '\\' && parsed.data.includes('\\')) {
+    return err(invalidPath(input, 'A Windows path segment cannot contain a backslash'));
   }
-  return ok(input);
+  return ok(parsed.data);
 }
 
 export function containsPath(parent: string, child: string): boolean {

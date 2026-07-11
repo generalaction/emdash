@@ -20,6 +20,8 @@ export {
   rootKeySchema,
   treeKeySchema,
   writeFileInputSchema,
+  writeContentInputSchema,
+  writePreconditionSchema,
   type ContentKey,
   type CopyInput,
   type CreateDirectoryInput,
@@ -39,6 +41,8 @@ export {
   type RootKey,
   type TreeKey,
   type WriteFileInput,
+  type WriteContentInput,
+  type WritePrecondition,
 } from './api/schemas';
 export { fileContentModelSchema, type FileContentModel } from './content/state';
 export {
