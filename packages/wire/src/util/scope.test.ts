@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createStubLogger, deferred } from '../testing';
+import { ManualClock } from '../testing/manual-clock';
 import { createScope, describeScope } from './scope';
 
 describe('createScope', () => {
@@ -118,6 +119,20 @@ describe('createScope', () => {
     expect(describeScope(scope).runs).toEqual([]);
   });
 
+  it('registers runs before invoking their operation', async () => {
+    const scope = createScope({ label: 'root' });
+    const operation = vi.fn(async () => 'ok');
+
+    const run = scope.run('registered-first', operation);
+
+    expect(operation).not.toHaveBeenCalled();
+    expect(describeScope(scope).runs).toMatchObject([
+      { label: 'registered-first', startedAt: run.startedAt },
+    ]);
+
+    await expect(run.value()).resolves.toBe('ok');
+  });
+
   it('tracks failed run exits without rejecting exit', async () => {
     const error = new Error('boom');
     const { logger, calls } = createStubLogger();
@@ -229,6 +244,41 @@ describe('createScope', () => {
     await expect(second.exit).resolves.toEqual({ kind: 'success', value: undefined });
   });
 
+  it('reports cancellation when a run settles after its signal is aborted', async () => {
+    const scope = createScope();
+    const gate = deferred<string>();
+    const run = scope.run('race', async () => gate.promise);
+
+    run.cancel('stop');
+    gate.resolve('late success');
+
+    await expect(run.exit).resolves.toEqual({ kind: 'cancelled', reason: 'stop' });
+  });
+
+  it('drains cleanups added while the scope is closing', async () => {
+    const events: string[] = [];
+    const started = deferred<void>();
+    const gate = deferred<void>();
+    const scope = createScope();
+    scope.run('closing-work', async () => {
+      started.resolve();
+      scope.add(() => {
+        events.push('late cleanup');
+      });
+      await gate.promise;
+    });
+    scope.add(() => {
+      events.push('early cleanup');
+    });
+
+    await started.promise;
+    const dispose = scope.dispose();
+    gate.resolve();
+    await dispose;
+
+    expect(events).toEqual(['late cleanup', 'early cleanup']);
+  });
+
   it('runs cleanup immediately when added after disposal', async () => {
     const cleanup = vi.fn();
     const scope = createScope();
@@ -294,7 +344,8 @@ describe('createScope', () => {
   });
 
   it('describes active runs', async () => {
-    const scope = createScope({ label: 'parent' });
+    const clock = new ManualClock(1234);
+    const scope = createScope({ label: 'parent', clock });
     const gate = deferred<void>();
     const run = scope.run('long-running', async () => gate.promise);
 
@@ -302,7 +353,7 @@ describe('createScope', () => {
       runs: [
         {
           label: 'long-running',
-          startedAt: run.startedAt,
+          startedAt: 1234,
           cancelled: false,
         },
       ],
@@ -312,5 +363,17 @@ describe('createScope', () => {
     expect(describeScope(scope).runs[0]).toMatchObject({ cancelled: true });
     gate.resolve();
     await run.exit;
+  });
+
+  it('cancels clock sleeps owned by runs when the scope is disposed', async () => {
+    const clock = new ManualClock();
+    const scope = createScope({ clock });
+    const run = scope.run('sleep', (signal) => clock.sleep(100, { signal }));
+
+    const dispose = scope.dispose('done');
+    await clock.advanceBy(100);
+    await dispose;
+
+    await expect(run.exit).resolves.toEqual({ kind: 'cancelled', reason: 'done' });
   });
 });

@@ -1,3 +1,4 @@
+import { ManualClock } from '../../src/testing';
 import { createResourceCache } from '../../src/util';
 
 type Session = {
@@ -9,9 +10,11 @@ type Session = {
 async function main(): Promise<void> {
   let generation = 0;
   const stopped: string[] = [];
+  const clock = new ManualClock();
   const sessions = createResourceCache({
     key: (key: { id: string }) => key.id,
     idleTtlMs: 20,
+    clock,
     create: async ({ id }, scope): Promise<Session> => {
       generation += 1;
       const sessionGeneration = generation;
@@ -41,17 +44,13 @@ async function main(): Promise<void> {
   console.log('reused during idle ttl:', (await reused.ready()) === firstValue);
   await reused.release();
 
-  await delay(25);
+  await clock.advanceBy(25);
   console.log('stopped:', stopped);
 
   const recreated = sessions.acquire({ id: 'conversation-one' });
   console.log('recreated generation:', (await recreated.ready()).generation);
   await recreated.release();
   await sessions.dispose();
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 void main();

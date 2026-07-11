@@ -1,5 +1,6 @@
 import type { Lease, PendingLease, Result } from '@emdash/shared';
 import { err, ok, once } from '@emdash/shared';
+import { systemClock, type Clock, type TimerHandle } from '../scheduling';
 import { createScope, type Scope } from './scope';
 
 export interface ResourceCache<K, T> {
@@ -14,6 +15,7 @@ export type CreateResourceCacheOptions<K, T> = {
   scope?: Scope;
   label?: string;
   idleTtlMs?: number;
+  clock?: Clock;
   create: (key: K, scope: Scope) => Promise<T> | T;
   onError?: (error: unknown, key: string) => void;
 };
@@ -27,15 +29,16 @@ type Entry<K, T> = {
   value: T | undefined;
   createPromise: Promise<T> | undefined;
   disposePromise: Promise<void> | undefined;
-  idleTimer: ReturnType<typeof setTimeout> | undefined;
+  idleTimer: TimerHandle | undefined;
 };
 
 export function createResourceCache<K, T>(
   options: CreateResourceCacheOptions<K, T>
 ): ResourceCache<K, T> {
+  const clock = options.clock ?? systemClock;
   const cacheScope = options.scope
     ? options.scope.child(options.label ?? 'resource-cache')
-    : createScope({ label: options.label });
+    : createScope({ label: options.label, clock });
   const entries = new Map<string, Entry<K, T>>();
   const idleTtlMs = options.idleTtlMs ?? 0;
   let disposed = false;
@@ -180,11 +183,14 @@ export function createResourceCache<K, T>(
     if (idleTtlMs <= 0) {
       return disposeEntry(entry);
     }
-    entry.idleTimer = setTimeout(() => {
-      entry.idleTimer = undefined;
-      void disposeEntry(entry);
-    }, idleTtlMs);
-    entry.idleTimer.unref?.();
+    entry.idleTimer = clock.schedule(
+      idleTtlMs,
+      () => {
+        entry.idleTimer = undefined;
+        void disposeEntry(entry);
+      },
+      { unref: true }
+    );
     entry.scope.add(() => clearIdleTimer(entry));
     return Promise.resolve();
   }
@@ -200,7 +206,7 @@ export function createResourceCache<K, T>(
 
   function clearIdleTimer(entry: Entry<K, T>): void {
     if (!entry.idleTimer) return;
-    clearTimeout(entry.idleTimer);
+    entry.idleTimer.dispose();
     entry.idleTimer = undefined;
   }
 }

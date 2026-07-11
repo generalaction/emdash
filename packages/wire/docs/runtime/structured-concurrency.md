@@ -5,7 +5,7 @@ processes, timers, and other resources. Use it when work must not outlive the
 feature that started it.
 
 ```ts
-const scope = createScope({ label: 'session:abc', logger });
+const scope = createScope({ label: 'session:abc', logger, clock });
 
 const run = scope.run('load-history', async (signal) => {
   const history = await loadHistory({ signal });
@@ -66,6 +66,14 @@ immediately as best-effort cleanup.
 JavaScript cancellation is cooperative. A run that ignores its signal can keep
 `dispose()` pending. Pass the run signal into network calls, sleeps, process
 waits, and any helper that can observe cancellation.
+
+`Scope` accepts an optional `Clock`. Child scopes inherit it, and active-run
+diagnostics use `clock.now()` for deterministic timestamps in tests. Prefer
+`clock.sleep(ms, { signal })` for run-owned delays so disposal can interrupt the
+wait immediately.
+
+A run must not await disposal of its own owning scope. That creates a cycle:
+`dispose()` waits for the run, while the run waits for `dispose()`.
 
 ## When To Use It
 

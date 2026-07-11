@@ -29,6 +29,10 @@
       "types": "./dist/observability.d.mts",
       "default": "./dist/observability.mjs"
     },
+    "./scheduling": {
+      "types": "./dist/scheduling.d.mts",
+      "default": "./dist/scheduling.mjs"
+    },
     "./testing": {
       "types": "./dist/testing.d.mts",
       "default": "./dist/testing.mjs"

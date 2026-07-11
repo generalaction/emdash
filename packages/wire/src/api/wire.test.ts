@@ -397,7 +397,7 @@ describe('wire serve/connect', () => {
     });
     const controller = createController(slowContract, {
       slow: (_input, meta) =>
-        new Promise<string>((resolve, reject) => {
+        new Promise<string>((_resolve, reject) => {
           started = true;
           if (meta.signal?.aborted) {
             aborted = true;
@@ -408,7 +408,6 @@ describe('wire serve/connect', () => {
             aborted = true;
             reject(new Error('aborted'));
           });
-          setTimeout(() => resolve('late'), 10);
         }),
     });
     const serverEvents: unknown[] = [];
@@ -462,7 +461,7 @@ describe('wire serve/connect', () => {
     });
     const controller = createController(slowContract, {
       slow: (_input, meta) =>
-        new Promise<string>((resolve, reject) => {
+        new Promise<string>((_resolve, reject) => {
           started = true;
           if (meta.signal?.aborted) {
             aborted = true;
@@ -473,7 +472,6 @@ describe('wire serve/connect', () => {
             aborted = true;
             reject(new Error('aborted'));
           });
-          setTimeout(() => resolve('late'), 10);
         }),
     });
     serve(pair.right, controller);

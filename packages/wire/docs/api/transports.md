@@ -171,6 +171,15 @@ Use it for local debugging and integration diagnostics. For semantic request
 events, prefer instrumentation and `withLogging()`; see
 [observability](../observability.md).
 
+`reconnectingTransport()` accepts `clock` and `retrySchedule` options. The legacy
+`backoffMs` array is normalized to a repeat-last retry schedule. Closing the
+transport synchronously aborts pending reconnect sleeps and disposes late
+connections.
+
+Electron window exposure returns an async cleanup function. Await it when tearing
+down a runtime host so session hubs and controllers finish disposal before the
+worker or window bridge is replaced.
+
 `loggingTransport.close()` delegates to the wrapped transport, and
 `onReconnect()` is forwarded when the wrapped transport supports it.
 

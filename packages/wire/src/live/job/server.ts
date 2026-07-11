@@ -1,4 +1,5 @@
 import { toSerializedError, type Result } from '@emdash/shared';
+import { systemClock, type Clock, type TimerHandle } from '../../scheduling';
 import { createScope, type Run, type Scope } from '../../util';
 import type { LiveJobState, LiveSnapshot, LiveSource } from '../protocol';
 import { LiveState } from '../state';
@@ -29,7 +30,7 @@ export type LiveJobOptions<E = unknown> = {
   generation?: number;
   terminalRetainMs?: number;
   idFactory?: () => string;
-  clock?: () => number;
+  clock?: Clock | (() => number);
   toError?: (err: unknown) => E;
   onRunStarted?: (entry: LiveJobListEntry) => void;
   onRunChanged?: (entry: LiveJobListEntry) => void;
@@ -40,7 +41,7 @@ type LiveJobRun<P, R, E> = {
   scope: Scope;
   execution: Run<void>;
   model: LiveState<LiveJobState<P, R, E>>;
-  evictionTimer: ReturnType<typeof setTimeout> | undefined;
+  evictionTimer: TimerHandle | undefined;
 };
 
 /**
@@ -60,7 +61,7 @@ export class LiveJob<I, P, R, E> {
   private readonly generation: number | undefined;
   private readonly terminalRetainMs: number;
   private readonly idFactory: () => string;
-  private readonly clock: () => number;
+  private readonly clock: Clock;
   private disposePromise: Promise<void> | undefined;
 
   constructor(
@@ -73,7 +74,7 @@ export class LiveJob<I, P, R, E> {
     this.generation = options.generation;
     this.terminalRetainMs = Math.max(0, options.terminalRetainMs ?? LIVE_JOB_TERMINAL_RETAIN_MS);
     this.idFactory = options.idFactory ?? (() => crypto.randomUUID());
-    this.clock = options.clock ?? (() => Date.now());
+    this.clock = normalizeClock(options.clock);
     this.scope.add(() => {
       this.runs.clear();
     });
@@ -83,7 +84,7 @@ export class LiveJob<I, P, R, E> {
     if (this.scope.disposed) throw new Error('LiveJob is disposed');
     const jobId = this.idFactory();
     const jobScope = this.scope.child(`job:${jobId}`);
-    const now = this.clock();
+    const now = this.clock.now();
     const model = new LiveState<LiveJobState<P, R, E>>(
       {
         status: 'running',
@@ -181,7 +182,7 @@ export class LiveJob<I, P, R, E> {
       return {
         status: 'succeeded',
         startedAt: draft.startedAt,
-        finishedAt: this.clock(),
+        finishedAt: this.clock.now(),
         progress: [...draft.progress],
         result,
       };
@@ -195,7 +196,7 @@ export class LiveJob<I, P, R, E> {
       const failed: LiveJobState<P, R, E> = {
         status: 'failed',
         startedAt: draft.startedAt,
-        finishedAt: this.clock(),
+        finishedAt: this.clock.now(),
         progress: [...draft.progress],
       };
       if (thrown && mapped === undefined) failed.cause = toSerializedError(err);
@@ -210,7 +211,7 @@ export class LiveJob<I, P, R, E> {
       return {
         status: 'cancelled',
         startedAt: draft.startedAt,
-        finishedAt: this.clock(),
+        finishedAt: this.clock.now(),
         progress: [...draft.progress],
       };
     });
@@ -219,18 +220,20 @@ export class LiveJob<I, P, R, E> {
   private scheduleEviction(jobId: string, run: LiveJobRun<P, R, E>): void {
     if (this.runs.get(jobId) !== run) return;
     this.options.onRunChanged?.(this.toListEntry(jobId, run));
-    if (run.evictionTimer) clearTimeout(run.evictionTimer);
-    run.evictionTimer = setTimeout(() => {
-      if (this.runs.get(jobId) !== run) return;
-      this.runs.delete(jobId);
-      this.options.onRunEvicted?.(jobId);
-      void run.scope.dispose(new Error(`Live job '${jobId}' evicted`));
-    }, this.terminalRetainMs);
+    run.evictionTimer?.dispose();
+    run.evictionTimer = this.clock.schedule(
+      this.terminalRetainMs,
+      () => {
+        if (this.runs.get(jobId) !== run) return;
+        this.runs.delete(jobId);
+        this.options.onRunEvicted?.(jobId);
+        void run.scope.dispose(new Error(`Live job '${jobId}' evicted`));
+      },
+      { unref: true }
+    );
     run.scope.add(() => {
-      if (run.evictionTimer) {
-        clearTimeout(run.evictionTimer);
-        run.evictionTimer = undefined;
-      }
+      run.evictionTimer?.dispose();
+      run.evictionTimer = undefined;
     });
   }
 
@@ -247,4 +250,15 @@ export class LiveJob<I, P, R, E> {
       finishedAt: state.status === 'running' ? undefined : state.finishedAt,
     };
   }
+}
+
+function normalizeClock(clock: Clock | (() => number) | undefined): Clock {
+  if (!clock) return systemClock;
+  if (typeof clock === 'function') {
+    return {
+      ...systemClock,
+      now: clock,
+    };
+  }
+  return clock;
 }

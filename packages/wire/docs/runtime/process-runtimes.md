@@ -110,6 +110,11 @@ procedures is a caller decision because only the caller knows whether the
 operation is idempotent. Live model mutations already have retry support through
 their mutation IDs.
 
+`spawnRuntime()` accepts a `Clock` for deterministic ready deadlines. Runtime
+handle disposal is awaitable and joins process shutdown before returning. Worker
+process helpers register controller cleanup with the worker scope, so async
+`controller.dispose()` work is part of shutdown.
+
 ## When Not To Use It
 
 This helper assumes a restarted child can rebuild from durable or derivable

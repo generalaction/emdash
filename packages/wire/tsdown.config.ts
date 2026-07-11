@@ -6,6 +6,7 @@ export default defineConfig({
     live: 'src/live/index.ts',
     api: 'src/api/index.ts',
     observability: 'src/observability/index.ts',
+    scheduling: 'src/scheduling/index.ts',
     testing: 'src/testing/index.ts',
     util: 'src/util/index.ts',
     mobx: 'src/util/mobx/index.ts',

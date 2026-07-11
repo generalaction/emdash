@@ -1,9 +1,11 @@
 # Lifecycle Utilities
 
 `Scope` and the resource cache primitives are dependency-light lifecycle utilities exported
-from `@emdash/wire/util`.
+from `@emdash/wire/util`. Scheduling utilities are exported separately from
+`@emdash/wire/scheduling`.
 
 - `Scope` owns cleanup and async work for a tree of resources.
+- `Clock` owns sleeps, deadlines, retry backoff, and disposable timers.
 - `ResourceCache` turns keyed demand into retained resources with ref-counted leases.
 - `SharedResource` is the unkeyed form for one lazily created resource.
 - `AsyncCache` caches async values that do not have finalizers.
@@ -26,6 +28,7 @@ scope.add(() => detachLiveState());
 scope.add(() => removeWindowListener());
 scope.use({ dispose: () => runtime.dispose() });
 scope.run('refresh', async (signal) => {
+  await clock.sleep(250, { signal });
   await refreshVisibleState({ signal });
 });
 
@@ -100,6 +103,9 @@ console.log(describeScope(runtimeScope));
 
 The description contains labels, label paths, lifecycle state, active runs, and
 child descriptions. It does not expose cleanup callbacks.
+
+When `createScope({ clock })` is used, child scopes inherit the same clock and
+run diagnostics use deterministic timestamps.
 
 ## Scope Runs
 

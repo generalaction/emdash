@@ -150,6 +150,8 @@ await host.spawn({
 ```
 
 On dispose, the host sends the message, waits up to `graceMs`, then hard-kills if
-the child is still running.
+the child is still running. Restart backoff and graceful shutdown waits are
+clock-backed, so tests can inject `ManualClock` and scope disposal can interrupt
+in-flight waits.
 
 See [../../examples/process/client.ts](../../examples/process/client.ts).

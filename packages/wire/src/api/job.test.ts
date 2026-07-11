@@ -56,9 +56,8 @@ describe('contract jobs', () => {
   it('cancels a running job', async () => {
     const { client } = setup(
       async (_input, ctx) =>
-        new Promise((resolve, reject) => {
+        new Promise<BuildResult>((_resolve, reject) => {
           ctx.signal.addEventListener('abort', () => reject(new Error('aborted')));
-          setTimeout(() => resolve({ artifact: 'late.zip' }), 10);
         })
     );
 
@@ -97,9 +96,8 @@ describe('contract jobs', () => {
   it('cancels running jobs when the controller is disposed', async () => {
     const { client, controller } = setup(
       async (_input, ctx) =>
-        new Promise((resolve, reject) => {
+        new Promise<BuildResult>((_resolve, reject) => {
           ctx.signal.addEventListener('abort', () => reject(new Error('aborted')));
-          setTimeout(() => resolve({ artifact: 'late.zip' }), 10);
         })
     );
 

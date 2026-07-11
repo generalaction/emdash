@@ -29,7 +29,7 @@ const agentConfigWorker = lazyWorker(
 type AgentConfigRuntimeHandle = WorkerHandle<AgentConfigContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
 
-let rendererWireDispose: (() => void) | null = null;
+let rendererWireDispose: (() => Promise<void>) | null = null;
 
 export async function initializeAgentConfigRuntimeProcess(): Promise<AgentConfigRuntimeHandle> {
   return agentConfigWorker.get();
@@ -44,13 +44,13 @@ export async function getAgentConfigRuntimeClient(): Promise<AgentConfigRuntimeC
 }
 
 export async function disposeAgentConfigRuntimeProcess(): Promise<void> {
-  rendererWireDispose?.();
+  await rendererWireDispose?.();
   rendererWireDispose = null;
   await agentConfigWorker.dispose();
 }
 
-function installRendererWire(client: AgentConfigRuntimeClient): void {
-  rendererWireDispose?.();
+async function installRendererWire(client: AgentConfigRuntimeClient): Promise<void> {
+  await rendererWireDispose?.();
   const controller = withValidation(
     agentConfigContract,
     forwardController(agentConfigContract, client),

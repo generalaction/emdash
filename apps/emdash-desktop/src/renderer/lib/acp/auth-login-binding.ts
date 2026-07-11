@@ -6,7 +6,7 @@ import {
 } from '@emdash/core/workspace-server/agent-config';
 import type { Result } from '@emdash/shared';
 import { ReplicaLog, ReplicaState } from '@emdash/wire';
-import { createScope, type Scope } from '@emdash/wire/util';
+import { createScope, type Run, type Scope } from '@emdash/wire/util';
 import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 import type { Terminal } from '@xterm/xterm';
 import {
@@ -18,7 +18,7 @@ import { createXtermLogSink } from '../pty/xterm-log-sink';
 type AuthStatusHandle = {
   readonly ready: Promise<void>;
   current(): AuthStatusModelState;
-  dispose(): void;
+  dispose(): Promise<void>;
 };
 
 export class AcpAuthLoginBinding {
@@ -30,6 +30,8 @@ export class AcpAuthLoginBinding {
     private readonly cancellation: { cancelOnDispose: boolean }
   ) {}
 
+  private resizeRun: Run<unknown> | undefined;
+
   static async create(args: {
     providerId: string;
     methodId: string;
@@ -37,8 +39,8 @@ export class AcpAuthLoginBinding {
   }): Promise<AcpAuthLoginBinding> {
     const scope = createScope({ label: `auth-login:${args.providerId}` });
     const cancellation = { cancelOnDispose: true };
-    const client = await getAgentConfigRuntimeClient();
     try {
+      const client = await getAgentConfigRuntimeClient();
       const result = await client.startLogin(
         {
           providerId: args.providerId,
@@ -87,9 +89,14 @@ export class AcpAuthLoginBinding {
 
   resize(cols: number, rows: number): void {
     if (this.scope.disposed) return;
-    this.scope.run('resize-login', (signal) =>
+    this.resizeRun?.cancel(new Error('Login resize superseded'));
+    const run = this.scope.run('resize-login', (signal) =>
       this.client.resizeLogin({ providerId: this.providerId, cols, rows }, { signal })
     );
+    this.resizeRun = run;
+    void run.exit.then(() => {
+      if (this.resizeRun === run) this.resizeRun = undefined;
+    });
   }
 
   markUrlHandled(urlId: string): void {
@@ -113,8 +120,8 @@ function createAuthStatusHandle(
     ready: agents.ready,
     current: () =>
       agents.current()[providerId]?.auth ?? { status: { kind: 'unknown' }, login: null },
-    dispose: () => {
-      void agents.dispose();
+    dispose: async () => {
+      await agents.dispose();
     },
   };
 }

@@ -1,9 +1,13 @@
 import type { Unsubscribe } from '@emdash/shared';
+import { retrySchedules, systemClock, type Clock, type RetrySchedule } from '../../scheduling';
+import { createScope, type Scope } from '../../util';
 import { createBoundedBuffer } from '../../util/bounded-buffer';
 import type { WireMessage, WireTransport } from '../protocol';
 
 export type ReconnectingTransportOptions = {
   backoffMs?: number[];
+  clock?: Clock;
+  retrySchedule?: RetrySchedule;
   maxQueuedMessages?: number;
 };
 
@@ -16,10 +20,14 @@ export function reconnectingTransport(
   connectOnce: () => Promise<WireTransport>,
   options: ReconnectingTransportOptions = {}
 ): ReconnectingTransport {
+  const clock = options.clock ?? systemClock;
+  const scope: Scope = createScope({ label: 'reconnecting-transport', clock });
   const messageListeners = new Set<(message: WireMessage) => void>();
   const disconnectListeners = new Set<() => void>();
   const reconnectListeners = new Set<() => void>();
   const backoffMs = options.backoffMs ?? [100, 250, 500, 1000, 2000];
+  const retrySchedule =
+    options.retrySchedule ?? retrySchedules.sequence(backoffMs, { repeatLast: true });
   const maxQueuedMessages = Math.max(0, options.maxQueuedMessages ?? 1000);
   const queue = createBoundedBuffer<WireMessage>({
     capacity: maxQueuedMessages,
@@ -30,37 +38,63 @@ export function reconnectingTransport(
   let closed = false;
   let hasConnected = false;
   let cleanupInner: Unsubscribe[] = [];
-  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-  let resolveReconnectDelay: (() => void) | undefined;
+  let activeReconnect: symbol | undefined;
 
   void reconnect();
 
   async function reconnect(): Promise<void> {
     if (reconnecting || closed) return;
     reconnecting = true;
-    let attempt = 0;
-    while (!closed) {
-      try {
-        const next = await connectOnce();
-        if (closed) {
-          next.close?.();
-          break;
+    const reconnectToken = Symbol('reconnect');
+    activeReconnect = reconnectToken;
+    let nextAttempt: Promise<WireTransport> | undefined = startConnectAttempt();
+    nextAttempt.then(
+      (next) => {
+        if (closed) next.close?.();
+      },
+      () => {}
+    );
+    const run = scope.run('reconnect', async (signal) => {
+      let attempt = 0;
+      while (!closed && !signal.aborted) {
+        try {
+          const pending = nextAttempt ?? startConnectAttempt();
+          nextAttempt = undefined;
+          const next = await pending;
+          if (closed || signal.aborted) {
+            next.close?.();
+            break;
+          }
+          setInner(next);
+          const isReconnect = hasConnected;
+          hasConnected = true;
+          reconnecting = false;
+          activeReconnect = undefined;
+          flushQueue();
+          if (isReconnect && inner === next && !closed) notifyReconnect();
+          return;
+        } catch (error) {
+          if (closed || signal.aborted) break;
+          const delay = retrySchedule.delayFor(attempt);
+          if (delay === undefined) throw error;
+          attempt += 1;
+          await clock.sleep(delay, { signal, unref: true });
         }
-        setInner(next);
-        const isReconnect = hasConnected;
-        hasConnected = true;
-        reconnecting = false;
-        flushQueue();
-        if (isReconnect) notifyReconnect();
-        return;
-      } catch {
-        if (closed) break;
-        const delay = backoffMs[Math.min(attempt, backoffMs.length - 1)] ?? 1000;
-        attempt += 1;
-        await wait(delay);
       }
+    });
+    await run.exit;
+    if (activeReconnect === reconnectToken) {
+      reconnecting = false;
+      activeReconnect = undefined;
     }
-    reconnecting = false;
+  }
+
+  function startConnectAttempt(): Promise<WireTransport> {
+    try {
+      return Promise.resolve(connectOnce());
+    } catch (error) {
+      return Promise.reject(error);
+    }
   }
 
   function setInner(next: WireTransport): void {
@@ -108,17 +142,6 @@ export function reconnectingTransport(
     for (const listener of reconnectListeners) listener();
   }
 
-  function wait(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-      resolveReconnectDelay = resolve;
-      reconnectTimer = setTimeout(() => {
-        reconnectTimer = undefined;
-        resolveReconnectDelay = undefined;
-        resolve();
-      }, ms);
-    });
-  }
-
   return {
     post(message) {
       if (closed) throw new Error('Wire transport closed');
@@ -145,12 +168,7 @@ export function reconnectingTransport(
     close() {
       if (closed) return;
       closed = true;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = undefined;
-      }
-      resolveReconnectDelay?.();
-      resolveReconnectDelay = undefined;
+      void scope.dispose(new Error('Reconnecting transport closed'));
       for (const cleanup of cleanupInner.splice(0)) cleanup();
       inner?.close?.();
       inner = null;

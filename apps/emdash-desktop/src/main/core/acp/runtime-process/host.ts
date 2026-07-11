@@ -35,7 +35,7 @@ const acpWorker = lazyWorker(
   }
 );
 
-let rendererWireDispose: (() => void) | null = null;
+let rendererWireDispose: (() => Promise<void>) | null = null;
 
 export async function initializeAcpRuntimeProcess(): Promise<AcpRuntimeHandle> {
   return decorateAcpRuntimeHandle(await acpWorker.get());
@@ -46,7 +46,7 @@ export async function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
 }
 
 export async function disposeAcpRuntimeProcess(): Promise<void> {
-  rendererWireDispose?.();
+  await rendererWireDispose?.();
   rendererWireDispose = null;
   await acpWorker.dispose();
 }
@@ -85,8 +85,8 @@ async function persistReturnedSessionId(conversationId: string, sessionId: strin
   }
 }
 
-function installRendererWire(client: AcpRuntimeClient): void {
-  rendererWireDispose?.();
+async function installRendererWire(client: AcpRuntimeClient): Promise<void> {
+  await rendererWireDispose?.();
   const controller = withValidation(
     acpApiContract,
     forwardController(acpApiContract, client),

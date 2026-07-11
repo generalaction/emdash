@@ -9,6 +9,7 @@ import { serve, type ServeOptions } from '../../api/serve';
 import type { ValidatePolicy } from '../../api/with-validation';
 import type { WireInstrumentation } from '../../observability';
 import type { ManagedProcess, ProcessHost, ProcessSpec } from '../../process/types';
+import { systemClock, type Clock, type TimerHandle } from '../../scheduling';
 import { createScope, type Scope } from '../scope';
 
 const RUNTIME_SIGNAL_KIND = 'wire-runtime-signal';
@@ -33,6 +34,7 @@ export type SpawnRuntimeOptions<Defs extends ContractDefinitions> = {
   spec: ProcessSpec;
   scope?: Scope;
   readyTimeoutMs?: number;
+  clock?: Clock;
   instrumentation?: WireInstrumentation;
   onProcess?: (process: ManagedProcess) => void;
 };
@@ -73,10 +75,16 @@ export async function spawnRuntime<Defs extends ContractDefinitions>(
 ): Promise<RuntimeHandle<Defs>> {
   const spec = withDefaultGracefulShutdown(options.spec);
   const managed = await options.host.spawn(spec);
+  const clock = options.clock ?? systemClock;
   options.onProcess?.(managed);
 
   try {
-    await waitForReady(managed, options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS);
+    await waitForReady(
+      managed,
+      options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
+      clock,
+      options.scope?.signal
+    );
   } catch (error) {
     await managed.dispose();
     throw error;
@@ -280,12 +288,25 @@ function parseRuntimeLogLevel(value: unknown): LogLevel | null {
   return null;
 }
 
-function waitForReady(managed: ManagedProcess, timeoutMs: number): Promise<void> {
+function waitForReady(
+  managed: ManagedProcess,
+  timeoutMs: number,
+  clock: Clock,
+  signal?: AbortSignal
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
+    const onAbort = (): void => {
       cleanup();
-      reject(new Error(`Runtime did not become ready within ${timeoutMs}ms`));
-    }, timeoutMs);
+      reject(signal?.reason ?? new Error('Runtime ready wait aborted'));
+    };
+    const timer: TimerHandle = clock.schedule(
+      timeoutMs,
+      () => {
+        cleanup();
+        reject(new Error(`Runtime did not become ready within ${timeoutMs}ms`));
+      },
+      { unref: true }
+    );
 
     const unsubscribeMessage = managed.onMessage((message) => {
       if (!isRuntimeSignal(message, 'ready')) return;
@@ -297,11 +318,14 @@ function waitForReady(managed: ManagedProcess, timeoutMs: number): Promise<void>
       cleanup();
       reject(new Error(`Runtime exited before ready (code ${exit.code})`));
     });
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
 
     function cleanup(): void {
-      clearTimeout(timer);
+      timer?.dispose();
       unsubscribeMessage();
       unsubscribeExit();
+      signal?.removeEventListener('abort', onAbort);
     }
   });
 }

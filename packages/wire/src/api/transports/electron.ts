@@ -58,7 +58,7 @@ export function exposeWireToWindows(
   deps: { ipcMain: IpcMainLike; createMessageChannel: MessageChannelFactory },
   controller: Controller,
   options: ExposeWireOptions = {}
-): Unsubscribe {
+): () => Promise<void> {
   const channel = options.channel ?? 'wire';
   const connectChannel = `${channel}:connect`;
   const portChannel = `${channel}:port`;
@@ -86,11 +86,11 @@ export function exposeWireToWindows(
     return undefined;
   });
 
-  return () => {
+  return async () => {
     deps.ipcMain.removeHandler?.(connectChannel);
-    void hub.dispose();
     for (const record of ports.values()) record.disposeMapCleanup();
     ports.clear();
+    await hub.dispose();
   };
 }
 

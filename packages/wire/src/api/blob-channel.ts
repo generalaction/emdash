@@ -1,3 +1,4 @@
+import { systemClock, type Clock, type TimerHandle } from '../scheduling';
 import { createMailbox, MailboxClosedError } from '../util/mailbox';
 import { WireError, type WireFileMeta, type WireTransport } from './protocol';
 
@@ -73,17 +74,21 @@ export function createBlobProducer(options: {
   post: WireTransport['post'];
   onClose?: () => void;
   idleTimeoutMs?: number;
+  clock?: Clock;
 }): BlobProducer {
+  const clock = options.clock ?? systemClock;
   const iterator = normalizeSource(options.source);
   let closed = false;
   let credit = 0;
   let seq = 0;
   let pumping = false;
   let carry: Uint8Array | undefined;
-  const idleTimer =
+  const idleTimer: TimerHandle | undefined =
     options.idleTimeoutMs === 0
       ? undefined
-      : setTimeout(() => close(), options.idleTimeoutMs ?? BLOB_IDLE_TIMEOUT_MS);
+      : clock.schedule(options.idleTimeoutMs ?? BLOB_IDLE_TIMEOUT_MS, () => close(), {
+          unref: true,
+        });
 
   function safePost(message: Parameters<WireTransport['post']>[0]): void {
     try {
@@ -134,7 +139,7 @@ export function createBlobProducer(options: {
   }
 
   function clearIdle(): void {
-    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer?.dispose();
   }
 
   function closeWithoutReturn(): void {

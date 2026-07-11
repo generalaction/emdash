@@ -7,6 +7,7 @@ import {
   type LiveSnapshot,
   type LiveUpdate,
 } from '../../src/live/protocol/index';
+import { systemClock } from '../../src/scheduling';
 
 const inputSchema = z.object({ name: z.string() });
 const progressSchema = z.object({ step: z.string() });
@@ -22,13 +23,13 @@ export const jobStateSchema = liveJobStateSchema(progressSchema, resultSchema, e
 
 const successfulJobs = new LiveJob<Input, Progress, Result, ErrorState>(
   async (input, ctx) => {
-    await delay();
+    await delay(ctx.signal);
     ctx.progress({ step: 'checkout' });
-    await delay();
+    await delay(ctx.signal);
     ctx.progress({ step: 'build' });
     return ok({ message: `Finished ${input.name}` });
   },
-  { toError }
+  { toError, clock: systemClock }
 );
 
 const cancellableJobs = new LiveJob<Input, Progress, Result, ErrorState>(
@@ -40,7 +41,7 @@ const cancellableJobs = new LiveJob<Input, Progress, Result, ErrorState>(
     });
     return ok({ message: 'unreachable' });
   },
-  { toError }
+  { toError, clock: systemClock }
 );
 
 export function startSuccessfulJob(): string {
@@ -105,6 +106,6 @@ function toError(err: unknown): ErrorState {
   return { message: err instanceof Error ? err.message : String(err) };
 }
 
-function delay(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+function delay(signal: AbortSignal): Promise<void> {
+  return systemClock.sleep(0, { signal });
 }

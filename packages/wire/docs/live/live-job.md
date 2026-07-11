@@ -148,6 +148,11 @@ await jobs.dispose();
 `onProgress(cb)`, and `cancel()`. The `LiveJobReplica` manager owns ref counting,
 subscription sharing, and terminal-state retention.
 
+`LiveJob` accepts a `Clock` for deterministic start/finish timestamps and
+terminal retention eviction. Server disposal is awaitable: it cancels active job
+runs, waits for cooperative handlers to settle, and disposes retention timers
+before returning.
+
 Cancellation at the procedure/wire level is documented in
 [serving](../api/serving.md#cancellation). Job cancellation is domain-level:
 `ReplicaJob.cancel()` calls the generated `<path>.cancel` procedure, which calls

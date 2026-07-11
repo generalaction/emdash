@@ -88,7 +88,7 @@ export type Controller = {
   call(path: string, input: unknown, meta?: CallMeta): Promise<unknown>;
   resolveLive(topic: string): LiveSource | null;
   acquireLive(topic: string): PendingLease<LiveSource> | null;
-  dispose?(): void | Promise<void>;
+  dispose?(): Promise<void>;
 };
 
 type ProcedureImpl<Def extends EndpointDef> = (
@@ -178,7 +178,7 @@ export function createController<Defs extends ContractDefinitions>(
 ): Controller {
   const liveEntries = new Map<string, LiveEntry>();
   const procedureEntries = new Map<string, (input: unknown, meta: CallMeta) => Promise<unknown>>();
-  const jobServers: Array<{ dispose(): void | Promise<void> }> = [];
+  const jobServers: Array<{ dispose(): Promise<void> }> = [];
 
   collectContractEntries(contract, impl as Record<string, unknown>, []);
 

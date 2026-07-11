@@ -1,4 +1,5 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { retrySchedules, systemClock, type Clock } from '../scheduling';
 import { createScope, type Run, type Scope } from '../util';
 import type {
   ChildHandle,
@@ -18,9 +19,10 @@ type CurrentChild = {
 export async function createSupervisedProcess(
   spec: ProcessSpec,
   spawnChild: SpawnChild,
-  parentScope?: Scope
+  parentScope?: Scope,
+  options: { clock?: Clock } = {}
 ): Promise<ManagedProcess> {
-  const process = new SupervisedProcess(spec, spawnChild);
+  const process = new SupervisedProcess(spec, spawnChild, options.clock ?? systemClock);
   await process.start();
   parentScope?.use(process);
   return process;
@@ -39,9 +41,10 @@ class SupervisedProcess implements ManagedProcess {
 
   constructor(
     private readonly spec: ProcessSpec,
-    private readonly spawnChild: SpawnChild
+    private readonly spawnChild: SpawnChild,
+    private readonly clock: Clock
   ) {
-    this.scope = createScope({ label: `process:${spec.entry}` });
+    this.scope = createScope({ label: `process:${spec.entry}`, clock });
   }
 
   get pid(): number | undefined {
@@ -121,11 +124,12 @@ class SupervisedProcess implements ManagedProcess {
     const supervision = this.spec.supervision;
     if (!supervision || supervision.restart !== 'on-failure') return;
     const backoffMs = supervision.backoffMs ?? [0];
-    const delay = backoffMs[Math.min(this.restartAttempts, backoffMs.length - 1)] ?? 0;
+    const delay =
+      retrySchedules.sequence(backoffMs, { repeatLast: true }).delayFor(this.restartAttempts) ?? 0;
     this.restartAttempts += 1;
     this.restartRun?.cancel(new Error('Restart replaced'));
     this.restartRun = this.scope.run('restart-backoff', async (signal) => {
-      await waitForTimeout(delay, signal);
+      await this.clock.sleep(delay, { signal, unref: true });
       if (signal.aborted) return;
       this.restartRun = undefined;
       await this.spawnAttempt();
@@ -159,7 +163,7 @@ class SupervisedProcess implements ManagedProcess {
       try {
         handle.send(graceful.message);
       } catch {}
-      await waitForExitOrTimeout(exitPromise, graceful.graceMs);
+      await waitForExitOrTimeout(exitPromise, graceful.graceMs, this.clock, this.scope.signal);
     }
 
     if (this.current?.handle === handle) {
@@ -168,27 +172,12 @@ class SupervisedProcess implements ManagedProcess {
   }
 }
 
-async function waitForExitOrTimeout(exitPromise: Promise<void>, ms: number): Promise<void> {
+async function waitForExitOrTimeout(
+  exitPromise: Promise<void>,
+  ms: number,
+  clock: Clock,
+  signal: AbortSignal
+): Promise<void> {
   if (ms <= 0) return;
-  await Promise.race([
-    exitPromise,
-    new Promise<void>((resolve) => {
-      setTimeout(resolve, ms);
-    }),
-  ]);
-}
-
-function waitForTimeout(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted || ms <= 0) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    const timer = setTimeout(done, ms);
-    const onAbort = (): void => done();
-    signal.addEventListener('abort', onAbort, { once: true });
-
-    function done(): void {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', onAbort);
-      resolve();
-    }
-  });
+  await Promise.race([exitPromise, clock.sleep(ms, { signal, unref: true }).catch(() => {})]);
 }

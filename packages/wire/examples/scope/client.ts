@@ -1,9 +1,11 @@
+import { systemClock } from '../../src/scheduling';
 import { createScope, describeScope } from '../../src/util';
 
 async function main(): Promise<void> {
   const events: string[] = [];
   const root = createScope({
     label: 'root',
+    clock: systemClock,
     onCleanupError: (error, scope) => {
       console.log('cleanup error:', scope.label, error instanceof Error ? error.message : error);
     },
@@ -25,7 +27,7 @@ async function main(): Promise<void> {
     signal.addEventListener('abort', () => {
       events.push('run aborted');
     });
-    await delay(0);
+    await systemClock.sleep(0, { signal });
     if (signal.aborted) return;
     events.push('run completed');
   });
@@ -38,7 +40,7 @@ async function main(): Promise<void> {
     signal.addEventListener('abort', () => {
       events.push('slow run aborted');
     });
-    await delay(10);
+    await systemClock.sleep(10, { signal });
   });
   await Promise.resolve();
   const dispose = cancelled.dispose('example cancellation');
@@ -57,7 +59,3 @@ async function main(): Promise<void> {
 }
 
 void main();
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}

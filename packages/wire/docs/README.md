@@ -10,6 +10,7 @@ The package has four layers:
 flowchart TB
   subgraph runtime [Runtime utilities]
     scope[Scope and ResourceCache]
+    scheduling[Clock and RetrySchedule]
     mailbox[Mailbox]
     processHost[ProcessHost supervision]
   end
@@ -81,6 +82,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     `describeScope()`, and resource ownership.
   - [Structured concurrency](./runtime/structured-concurrency.md): `Scope.run()`,
     run cancellation, lifecycle invariants, and diagnostics.
+  - [Scheduling](./runtime/scheduling.md): `Clock`, `TimerHandle`,
+    `ManualClock`, retry schedules, abortable sleeps, and timer ownership.
   - [Resource caches](./runtime/resource-cache.md): `ResourceCache`,
     `SharedResource`, `AsyncCache`, identity rules, and lease behavior.
   - [Mailbox and Broadcast](./runtime/mailbox-and-broadcast.md): bounded local
@@ -113,6 +116,8 @@ Use narrower subpath exports at app boundaries:
 - `@emdash/wire/api`: contract definition, controller creation, client creation, and transports.
 - `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
   controller logging middleware.
+- `@emdash/wire/scheduling`: `Clock`, `systemClock`, `TimerHandle`,
+  `RetrySchedule`, retry schedule builders, and `retry()`.
 - `@emdash/wire/util`: dependency-free utilities: `Scope`, `Run`,
   `Mailbox`, `ResourceCache`, `SharedResource`, `AsyncCache`, deprecated
   `ManagedSource`, and `deduplicateRequests`.

@@ -1,4 +1,5 @@
 import type { PendingLease } from '@emdash/shared';
+import type { Clock } from '../scheduling';
 import { createResourceCache, type ResourceCache } from './resource-cache';
 import type { Scope } from './scope';
 
@@ -17,6 +18,7 @@ type CreateManagedSourceOptionsBase<K> = {
   scope?: Scope;
   label?: string;
   graceMs?: number;
+  clock?: Clock;
   onError?: (error: unknown, key: string) => void;
 };
 
@@ -56,6 +58,7 @@ export function createManagedSource<K, T, C = void>(
     scope: options.scope,
     label: options.label ?? 'managed-source',
     idleTtlMs: options.graceMs,
+    clock: options.clock,
     onError: options.onError,
     create: (key, scope) => {
       if (key.hasContext) {

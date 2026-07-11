@@ -286,6 +286,11 @@ Opening the same session id closes the previous transport. `close(id)` closes
 one session and calls `transport.close?.()` after disposing the serve loop.
 `dispose()` is async: it closes all sessions and awaits `controller.dispose?.()`.
 
+`Controller.dispose`, when present, returns `Promise<void>`. Wrappers such as
+validation, logging, session hubs, tests, process runtimes, and Electron exposure
+propagate that promise so LiveJob servers and resource hosts can finish shutdown
+before their owner reports disposed.
+
 See [../../examples/multi-window/client.ts](../../examples/multi-window/client.ts).
 
 ## Server-Side Call Helpers

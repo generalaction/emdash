@@ -1,5 +1,6 @@
 import type { IDisposable } from '@emdash/shared';
 import { log as ambientLog, type Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '../scheduling';
 
 export type ScopeCleanup = () => void | Promise<void>;
 export type ScopeState = 'open' | 'closing' | 'closed';
@@ -58,6 +59,7 @@ export interface Scope {
 export type CreateScopeOptions = {
   label?: string;
   logger?: Logger;
+  clock?: Clock;
   onCleanupError?: (error: unknown, scope: ScopeCleanupErrorContext) => void;
 };
 
@@ -78,6 +80,7 @@ type ScopeData = {
   children: Set<ScopeImpl>;
   runs: Set<RunImpl<unknown>>;
   onCleanupError: (error: unknown, scope: ScopeCleanupErrorContext) => void;
+  clock: Clock;
   controller: AbortController;
   state: ScopeState;
   disposePromise: Promise<void> | undefined;
@@ -93,6 +96,7 @@ export function createScope(options: CreateScopeOptions = {}): Scope {
     children: new Set(),
     runs: new Set(),
     onCleanupError: options.onCleanupError ?? defaultCleanupErrorHandler,
+    clock: options.clock ?? systemClock,
     controller: new AbortController(),
     state: 'open',
     disposePromise: undefined,
@@ -140,6 +144,7 @@ class ScopeImpl implements Scope {
       children: new Set(),
       runs: new Set(),
       onCleanupError: this.data.onCleanupError,
+      clock: this.data.clock,
       logger: createScopeLogger(this.data.logger, labelPath),
       controller: new AbortController(),
       state: 'open',
@@ -164,10 +169,19 @@ class ScopeImpl implements Scope {
     options: { onFailure?: 'report' | 'close-scope' } = {}
   ): Run<A> {
     if (this.data.state !== 'open') {
-      return cancelledRun(label, this.abortReason() ?? new Error('Scope is closed'));
+      return cancelledRun(
+        label,
+        this.data.clock.now(),
+        this.abortReason() ?? new Error('Scope is closed')
+      );
     }
 
-    const run = new RunImpl<A>(label, this.data.logger, options.onFailure ?? 'report');
+    const run = new RunImpl<A>(
+      label,
+      this.data.clock.now(),
+      this.data.logger,
+      options.onFailure ?? 'report'
+    );
     this.data.runs.add(run as RunImpl<unknown>);
     run.start(operation, (exit) => {
       this.data.runs.delete(run as RunImpl<unknown>);
@@ -230,13 +244,13 @@ class ScopeImpl implements Scope {
 }
 
 class RunImpl<A> implements Run<A> {
-  readonly startedAt = Date.now();
   readonly controller = new AbortController();
   private readonly exitPromise: Promise<RunExit<A>>;
   private resolveExit!: (exit: RunExit<A>) => void;
 
   constructor(
     readonly label: string,
+    readonly startedAt: number,
     private readonly logger: Logger,
     private readonly onFailure: 'report' | 'close-scope'
   ) {
@@ -307,13 +321,13 @@ class RunImpl<A> implements Run<A> {
   }
 }
 
-function cancelledRun<A>(label: string, reason: unknown): Run<A> {
+function cancelledRun<A>(label: string, startedAt: number, reason: unknown): Run<A> {
   const controller = new AbortController();
   controller.abort(reason);
   const exit: Promise<RunExit<A>> = Promise.resolve({ kind: 'cancelled', reason });
   return {
     label,
-    startedAt: Date.now(),
+    startedAt,
     signal: controller.signal,
     exit,
     cancel() {},
