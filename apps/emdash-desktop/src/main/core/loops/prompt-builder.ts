@@ -14,6 +14,11 @@ export const REVIEW_APPROVED_SENTINEL = '<<<LOOP:REVIEW_APPROVED>>>';
 export const REVIEW_CHANGES_PREFIX = '<<<LOOP:REVIEW_CHANGES';
 export const VERIFY_PASSED_SENTINEL = '<<<LOOP:VERIFY_PASSED>>>';
 export const VERIFY_FAILED_PREFIX = '<<<LOOP:VERIFY_FAILED';
+export const MAX_STRICT_LOOP_SENTINEL_DETAIL_LENGTH = 2_048;
+
+const unsafeStrictLoopSentinelDetailPattern = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]|\p{Cf}/u;
+const strictWorkSentinelPattern =
+  /<<<LOOP:PHASE_DONE>>>|<<<LOOP:PHASE_FAILED[ \t]+([^\r\n<>]+)>>>/gu;
 
 export type PhaseSentinel =
   | { kind: 'done' }
@@ -35,6 +40,8 @@ export type VerificationSentinel =
       kind: 'failed';
       reason: string;
     };
+
+export type WorkSentinel = PhaseSentinel;
 
 export type PhasePromptInput = {
   loop: Loop;
@@ -167,6 +174,34 @@ End the final response with exactly one sentinel on its own final line:
 - <<<LOOP:PHASE_FAILED exact reason>>>
 
 Use ${PHASE_DONE_SENTINEL} only after the phase goal, acceptance criteria, and focused unit-test layer are actually green.`;
+}
+
+export function isSafeLoopSentinelDetail(value: string): boolean {
+  if (value.length === 0 || value.length > MAX_STRICT_LOOP_SENTINEL_DETAIL_LENGTH) return false;
+  if (unsafeStrictLoopSentinelDetailPattern.test(value)) return false;
+  return value.trim().length > 0;
+}
+
+/** Strict v2 Work parsing. The permissive v1 parser below remains source-compatible. */
+export function parseWorkSentinel(text: string): WorkSentinel | null {
+  const rawCandidates = Array.from(text.matchAll(/<<<LOOP:PHASE/g));
+  if (rawCandidates.length !== 1) return null;
+
+  const matches = Array.from(text.matchAll(strictWorkSentinelPattern));
+  if (matches.length !== 1) return null;
+
+  const finalLine = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .at(-1);
+  if (finalLine !== matches[0]?.[0]) return null;
+
+  if (matches[0][0] === PHASE_DONE_SENTINEL) return { kind: 'done' };
+
+  const rawReason = matches[0][1] ?? '';
+  if (!isSafeLoopSentinelDetail(rawReason)) return null;
+  return { kind: 'failed', reason: rawReason.trim() };
 }
 
 export function buildPhasePrompt(input: PhasePromptInput): string {

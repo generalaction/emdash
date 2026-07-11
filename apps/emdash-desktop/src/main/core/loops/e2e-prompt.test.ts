@@ -85,7 +85,9 @@ describe('independent clean-room E2E prompt', () => {
     expect(prompt).toContain('Attempt 1 exposed a navigation defect.');
     expect(prompt).toContain('append-only');
     expect(prompt).toContain('destroyed and recreated from the frozen base');
-    expect(prompt).toContain('If you changed any tracked file during this attempt');
+    expect(prompt).toContain('If you made any repository mutation during this attempt');
+    expect(prompt).toContain('modified, added or untracked, or deleted files');
+    expect(prompt).toContain('created a correction checkpoint');
     expect(prompt).toContain(E2E_CORRECTION_READY_PREFIX);
     expect(prompt).toContain(E2E_PASSED_SENTINEL);
     expect(prompt).not.toContain('Agent Browser');
@@ -133,6 +135,21 @@ describe('independent clean-room E2E prompt', () => {
         `${E2E_CORRECTION_READY_PREFIX} ${'x'.repeat(2_049)}>>>\n${E2E_PASSED_SENTINEL}`
       )
     ).toBeNull();
+  });
+
+  it.each([
+    ['NUL', 'bad\u0000reason'],
+    ['vertical tab', 'bad\u000breason'],
+    ['ANSI escape', 'bad\u001b[31mreason'],
+    ['C1 control', 'bad\u0085reason'],
+    ['Unicode format control', 'bad\u200breason'],
+    ['Unicode bidi override', 'bad\u202ereason'],
+    ['Unicode bidi isolate', 'bad\u2066reason'],
+    ['Unicode line separator', 'bad\u2028reason'],
+    ['Unicode paragraph separator', 'bad\u2029reason'],
+  ])('rejects %s in strict E2E outcome details', (_label, reason) => {
+    expect(parseE2ESentinel(`${E2E_FAILED_PREFIX} ${reason}>>>`)).toBeNull();
+    expect(parseE2ESentinel(`${E2E_CORRECTION_READY_PREFIX} ${reason}>>>`)).toBeNull();
   });
 
   it('rejects invalid full commits and verification targets before rendering', () => {

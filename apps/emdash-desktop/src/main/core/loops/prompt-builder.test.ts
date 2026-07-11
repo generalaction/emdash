@@ -9,7 +9,9 @@ import {
   parsePhaseSentinel,
   parseReviewSentinel,
   parseVerificationSentinel,
+  parseWorkSentinel,
   PHASE_DONE_SENTINEL,
+  PHASE_FAILED_PREFIX,
 } from './prompt-builder';
 
 const loop: Loop = {
@@ -143,6 +145,41 @@ describe('loop prompt builder', () => {
     expect(() => buildWorkPrompt({ ...input, goal: 'x'.repeat(16_385) })).toThrow();
     expect(() => buildWorkPrompt({ ...input, acceptanceCriteria: ['x'.repeat(2_049)] })).toThrow();
     expect(() => buildWorkPrompt({ ...input, baseCommit: 'not-a-full-sha' })).toThrow();
+  });
+
+  it('strictly parses one bounded v2 Work sentinel on the final non-empty line', () => {
+    expect(parseWorkSentinel(`Work is green.\n${PHASE_DONE_SENTINEL}`)).toEqual({ kind: 'done' });
+    expect(parseWorkSentinel(`${PHASE_FAILED_PREFIX} focused tests failed>>>`)).toEqual({
+      kind: 'failed',
+      reason: 'focused tests failed',
+    });
+
+    expect(parseWorkSentinel(`${PHASE_DONE_SENTINEL}\nmore text`)).toBeNull();
+    expect(parseWorkSentinel(`${PHASE_DONE_SENTINEL}\n${PHASE_DONE_SENTINEL}`)).toBeNull();
+    expect(
+      parseWorkSentinel(`${PHASE_FAILED_PREFIX} blocked>>>\n${PHASE_DONE_SENTINEL}`)
+    ).toBeNull();
+    expect(parseWorkSentinel(`${PHASE_FAILED_PREFIX}>>>`)).toBeNull();
+    expect(parseWorkSentinel('<<<LOOP:PHASE_UNKNOWN>>>')).toBeNull();
+    expect(parseWorkSentinel(`<<<LOOP:PHASE_UNKNOWN>>>\n${PHASE_DONE_SENTINEL}`)).toBeNull();
+    expect(parseWorkSentinel(`${PHASE_FAILED_PREFIX} ${'x'.repeat(2_049)}>>>`)).toBeNull();
+    expect(
+      parseWorkSentinel(`${PHASE_FAILED_PREFIX} ${'x'.repeat(2_049)}>>>\n${PHASE_DONE_SENTINEL}`)
+    ).toBeNull();
+  });
+
+  it.each([
+    ['NUL', 'bad\u0000reason'],
+    ['vertical tab', 'bad\u000breason'],
+    ['ANSI escape', 'bad\u001b[31mreason'],
+    ['C1 control', 'bad\u0085reason'],
+    ['Unicode format control', 'bad\u200breason'],
+    ['Unicode bidi override', 'bad\u202ereason'],
+    ['Unicode bidi isolate', 'bad\u2066reason'],
+    ['Unicode line separator', 'bad\u2028reason'],
+    ['Unicode paragraph separator', 'bad\u2029reason'],
+  ])('rejects %s in strict v2 Work failure reasons', (_label, reason) => {
+    expect(parseWorkSentinel(`${PHASE_FAILED_PREFIX} ${reason}>>>`)).toBeNull();
   });
 
   it('builds a ralphex-style phase prompt', () => {

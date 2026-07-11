@@ -8,13 +8,13 @@ import {
   serializeLoopPromptContext,
   serializePromptJson,
 } from './handoff-builder';
+import { isSafeLoopSentinelDetail } from './prompt-builder';
 import { nativeBrowserActionPromptFragment } from './verifiers/native-browser-protocol';
 
 export const E2E_PASSED_SENTINEL = '<<<LOOP:E2E_PASSED>>>';
 export const E2E_CORRECTION_READY_PREFIX = '<<<LOOP:E2E_CORRECTION_READY';
 export const E2E_FAILED_PREFIX = '<<<LOOP:E2E_FAILED';
 
-const MAX_E2E_OUTCOME_LENGTH = 2_048;
 const e2ePromptInputSchema = loopPromptContextInputSchema
   .extend({
     verificationRunId: z.string().trim().min(1).max(256),
@@ -24,7 +24,7 @@ const e2ePromptInputSchema = loopPromptContextInputSchema
   })
   .strict();
 const e2eSentinelPattern =
-  /<<<LOOP:E2E_PASSED>>>|<<<LOOP:E2E_CORRECTION_READY[ \t]+([^\r\n<>]{1,2048})>>>|<<<LOOP:E2E_FAILED[ \t]+([^\r\n<>]{1,2048})>>>/g;
+  /<<<LOOP:E2E_PASSED>>>|<<<LOOP:E2E_CORRECTION_READY[ \t]+([^\r\n<>]+)>>>|<<<LOOP:E2E_FAILED[ \t]+([^\r\n<>]+)>>>/g;
 
 export type E2EPromptInput = z.infer<typeof e2ePromptInputSchema>;
 
@@ -85,7 +85,7 @@ Required workflow:
 2. Run the required unit, integration, and full checks honestly. Treat missing prerequisites, early server exit, console/network errors, and unobserved behavior as failures.
 3. Use the native browser action handshake below for preview behavior. Request one bounded action, wait for its observation, and never infer browser success from source code alone.
 4. If you find a product bug, you may fix it only in the bound verification workspace, add tests, rerun focused checks, and create a local correction checkpoint. Do not overwrite or discard earlier failure artifacts.
-5. If you changed any tracked file during this attempt, never use the pass sentinel. End with the correction-ready sentinel so the engine can validate and integrate the fix, retain the failure evidence, destroy this workspace, and recreate it from the frozen base.
+5. If you made any repository mutation during this attempt—including modified, added or untracked, or deleted files—or created a correction checkpoint, never use the pass sentinel. End with the correction-ready sentinel so the engine can validate and integrate the fix, retain the failure evidence, destroy this workspace, and recreate it from the frozen base.
 6. Use the pass sentinel only when this session started from a freshly destroyed and recreated workspace, replayed the complete reviewed checkpoint range, introduced no new correction in this attempt, and every required check is green.
 7. Never push, publish, deploy, release, open a pull request, expose secrets, or claim a check you did not perform.
 
@@ -115,13 +115,13 @@ export function parseE2ESentinel(text: string): E2ESentinel | null {
 
   if (matches[0][0] === E2E_PASSED_SENTINEL) return { kind: 'passed' };
 
-  const correctionSummary = matches[0][1]?.trim();
-  if (correctionSummary) {
-    if (correctionSummary.length > MAX_E2E_OUTCOME_LENGTH) return null;
-    return { kind: 'correction-ready', summary: correctionSummary };
+  const rawCorrectionSummary = matches[0][1];
+  if (rawCorrectionSummary !== undefined) {
+    if (!isSafeLoopSentinelDetail(rawCorrectionSummary)) return null;
+    return { kind: 'correction-ready', summary: rawCorrectionSummary.trim() };
   }
 
-  const reason = matches[0][2]?.trim() ?? '';
-  if (reason.length === 0 || reason.length > MAX_E2E_OUTCOME_LENGTH) return null;
-  return { kind: 'failed', reason };
+  const rawReason = matches[0][2] ?? '';
+  if (!isSafeLoopSentinelDetail(rawReason)) return null;
+  return { kind: 'failed', reason: rawReason.trim() };
 }

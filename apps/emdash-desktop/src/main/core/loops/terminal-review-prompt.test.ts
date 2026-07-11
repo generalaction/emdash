@@ -112,4 +112,18 @@ describe('terminal Review prompt', () => {
       )
     ).toBeNull();
   });
+
+  it.each([
+    ['NUL', 'bad\u0000reason'],
+    ['vertical tab', 'bad\u000breason'],
+    ['ANSI escape', 'bad\u001b[31mreason'],
+    ['C1 control', 'bad\u0085reason'],
+    ['Unicode format control', 'bad\u200breason'],
+    ['Unicode bidi override', 'bad\u202ereason'],
+    ['Unicode bidi isolate', 'bad\u2066reason'],
+    ['Unicode line separator', 'bad\u2028reason'],
+    ['Unicode paragraph separator', 'bad\u2029reason'],
+  ])('rejects %s in strict Review failure reasons', (_label, reason) => {
+    expect(parseTerminalReviewSentinel(`${TERMINAL_REVIEW_FAILED_PREFIX} ${reason}>>>`)).toBeNull();
+  });
 });

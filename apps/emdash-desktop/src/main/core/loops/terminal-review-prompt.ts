@@ -4,13 +4,13 @@ import {
   serializeLoopPromptContext,
   type LoopPromptContextInput,
 } from './handoff-builder';
+import { isSafeLoopSentinelDetail } from './prompt-builder';
 
 export const TERMINAL_REVIEW_PASSED_SENTINEL = '<<<LOOP:REVIEW_PASSED>>>';
 export const TERMINAL_REVIEW_FAILED_PREFIX = '<<<LOOP:REVIEW_FAILED';
 
-const MAX_TERMINAL_REASON_LENGTH = 2_048;
 const terminalReviewSentinelPattern =
-  /<<<LOOP:REVIEW_PASSED>>>|<<<LOOP:REVIEW_FAILED[ \t]+([^\r\n<>]{1,2048})>>>/g;
+  /<<<LOOP:REVIEW_PASSED>>>|<<<LOOP:REVIEW_FAILED[ \t]+([^\r\n<>]+)>>>/g;
 
 export type TerminalReviewPromptInput = LoopPromptContextInput;
 
@@ -66,7 +66,7 @@ export function parseTerminalReviewSentinel(text: string): TerminalReviewSentine
 
   if (matches[0][0] === TERMINAL_REVIEW_PASSED_SENTINEL) return { kind: 'passed' };
 
-  const reason = matches[0][1]?.trim() ?? '';
-  if (reason.length === 0 || reason.length > MAX_TERMINAL_REASON_LENGTH) return null;
-  return { kind: 'failed', reason };
+  const rawReason = matches[0][1] ?? '';
+  if (!isSafeLoopSentinelDetail(rawReason)) return null;
+  return { kind: 'failed', reason: rawReason.trim() };
 }
