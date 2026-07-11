@@ -1138,8 +1138,14 @@ fresh recreated green run becomes the final success report.
 - [x] 2026-07-11: Resolved product semantics and designed exclusive multi-agent ownership waves.
 - [x] 2026-07-11: Added the concise Codex handoff and completed blocker reviews of Emdash,
   verification, and Summario workstreams.
-- [ ] Preflight and record GPT-5.6 Sol model enforcement for root and every role.
-- [ ] Record integration base SHA and create isolated worktrees.
+- [x] 2026-07-11: Preflighted `gpt-5.6-sol` at `ultra` for the root from its
+  caller-side `turn_context`; a fresh forked child inherited the same model and effort in its own
+  caller-side `turn_context`. The resolved catalog ID is `gpt-5.6-sol`, and the active Codex
+  profile also sets `model = "gpt-5.6-sol"`.
+- [x] 2026-07-11: Fetched `fork/loops/acp-loops`, froze execution base
+  `9345a707521583a02e778718c0e94ebe863ec67d`, and created the clean lead worktree
+  `/tmp/emdash-loops-v2-integration` on `codex/loops-v2-integration`. The unrelated main and
+  settings-search worktrees remain untouched.
 - [ ] Complete and merge Wave 0 contracts.
 - [ ] Complete, review, and merge Wave 1 lanes R/B/U.
 - [ ] Complete, review, and merge Wave 2A lanes W/P.
