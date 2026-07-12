@@ -507,7 +507,7 @@ describe('TerminalReviewGate', () => {
         type: 'dirty-workspace',
         checkpointCommit: CORRECTION_COMMIT,
         observedHead: CORRECTION_COMMIT,
-        recoveryRequired: false,
+        recoveryRequired: true,
       },
     });
     expect(dependencies.checkpoint.validateCorrection).toHaveBeenCalledTimes(1);
@@ -653,7 +653,15 @@ describe('TerminalReviewGate', () => {
 
     const result = await gate.run(defaultInput);
 
-    expect(result).toMatchObject({ success: false, error: { type: 'dirty-workspace' } });
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'dirty-workspace',
+        checkpointCommit: CHECKPOINT_COMMIT,
+        observedHead: CHECKPOINT_COMMIT,
+        recoveryRequired: true,
+      },
+    });
   });
 
   it('rejects feature-head drift before Review starts', async () => {
@@ -692,7 +700,7 @@ describe('TerminalReviewGate', () => {
   );
 
   it('rejects checkpoint drift reported by the required gate', async () => {
-    const { gate } = makeHarness({
+    const { gate, dependencies } = makeHarness({
       requiredGateResult: {
         target: localTarget,
         checkpointCommit: OTHER_COMMIT,
@@ -702,7 +710,130 @@ describe('TerminalReviewGate', () => {
 
     const result = await gate.run(defaultInput);
 
-    expect(result).toMatchObject({ success: false, error: { type: 'checkpoint-drift' } });
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'checkpoint-drift',
+        observedHead: CHECKPOINT_COMMIT,
+        recoveryRequired: false,
+      },
+    });
+    expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(3);
+  });
+
+  it('marks recovery required when post-prompt authority inspection rejects', async () => {
+    const { gate, dependencies } = makeHarness();
+    vi.mocked(dependencies.checkpoint.inspectWorkspace)
+      .mockResolvedValueOnce(ok(snapshot(localTarget)))
+      .mockResolvedValueOnce(err(dependencyError('post-prompt inspection rejected')));
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'dependency-rejected',
+        stage: 'post-review',
+        recoveryRequired: true,
+      },
+    });
+    expect(result.success ? undefined : result.error).not.toHaveProperty('observedHead');
+  });
+
+  it.each([
+    ['target drift', snapshot(sshTarget, CORRECTION_COMMIT)],
+    ['invalid HEAD', snapshot(localTarget, 'short')],
+  ])('does not synthesize authority from post-prompt %s', async (_label, postSnapshot) => {
+    const { gate } = makeHarness({ snapshots: [snapshot(localTarget), postSnapshot] });
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { recoveryRequired: true },
+    });
+    expect(result.success ? undefined : result.error).not.toHaveProperty('observedHead');
+  });
+
+  it('marks recovery required when final authority inspection rejects after gate success', async () => {
+    const { gate, dependencies } = makeHarness();
+    vi.mocked(dependencies.checkpoint.inspectWorkspace)
+      .mockResolvedValueOnce(ok(snapshot(localTarget)))
+      .mockResolvedValueOnce(ok(snapshot(localTarget)))
+      .mockResolvedValueOnce(err(dependencyError('final inspection rejected')));
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'dependency-rejected',
+        stage: 'finalize',
+        recoveryRequired: true,
+      },
+    });
+    expect(result.success ? undefined : result.error).not.toHaveProperty('observedHead');
+  });
+
+  it('marks recovery required when authority inspection rejects after required-gate failure', async () => {
+    const { gate, dependencies } = makeHarness({
+      requiredGateFailure: dependencyError('required gate failed'),
+    });
+    vi.mocked(dependencies.checkpoint.inspectWorkspace)
+      .mockResolvedValueOnce(ok(snapshot(localTarget)))
+      .mockResolvedValueOnce(ok(snapshot(localTarget)))
+      .mockResolvedValueOnce(err(dependencyError('failure inspection rejected')));
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { recoveryRequired: true },
+    });
+    expect(result.success ? undefined : result.error).not.toHaveProperty('observedHead');
+  });
+
+  it.each([
+    ['changed HEAD', snapshot(localTarget, OTHER_COMMIT), 'checkpoint-drift', OTHER_COMMIT],
+    [
+      'dirty workspace',
+      snapshot(localTarget, CHECKPOINT_COMMIT, false),
+      'dirty-workspace',
+      CHECKPOINT_COMMIT,
+    ],
+  ] as const)(
+    'returns explicit recovery state for final %s',
+    async (_label, finalSnapshot, expectedType, observedHead) => {
+      const { gate } = makeHarness({
+        snapshots: [snapshot(localTarget), snapshot(localTarget), finalSnapshot],
+      });
+
+      const result = await gate.run(defaultInput);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          type: expectedType,
+          checkpointCommit: CHECKPOINT_COMMIT,
+          observedHead,
+          recoveryRequired: true,
+        },
+      });
+    }
+  );
+
+  it('omits observed HEAD for final target drift and requires recovery', async () => {
+    const { gate } = makeHarness({
+      snapshots: [snapshot(localTarget), snapshot(localTarget), snapshot(sshTarget, OTHER_COMMIT)],
+    });
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'target-drift', recoveryRequired: true },
+    });
+    expect(result.success ? undefined : result.error).not.toHaveProperty('observedHead');
   });
 
   it.each([
@@ -976,11 +1107,57 @@ describe('TerminalReviewGate', () => {
         type: 'cleanup-failed',
         stage: 'prompt',
         message: 'Review session quiescence failed: prompt did not quiesce',
+        checkpointCommit: CHECKPOINT_COMMIT,
+        recoveryRequired: true,
       },
     });
+    expect(result.success ? undefined : result.error).not.toHaveProperty('observedHead');
     expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1);
+    expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(1);
+    expect(dependencies.checkpoint.validateCorrection).not.toHaveBeenCalled();
     expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [
+      'dirty changed workspace',
+      {
+        snapshots: [snapshot(localTarget), snapshot(localTarget, CORRECTION_COMMIT, false)],
+      },
+    ],
+    [
+      'rejected correction attestation',
+      {
+        snapshots: [snapshot(localTarget), snapshot(localTarget, CORRECTION_COMMIT)],
+        correctionFailure: dependencyError('cannot attest correction'),
+      },
+    ],
+  ] as const)(
+    'does not downgrade cleanup failure using a later %s observation',
+    async (_label, options) => {
+      const { gate, dependencies } = makeHarness({
+        ...options,
+        promptFailure: dependencyError('prompt transport failed'),
+        cancellationFailure: dependencyError('prompt did not quiesce'),
+      });
+
+      const result = await gate.run(defaultInput);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          type: 'cleanup-failed',
+          stage: 'prompt',
+          checkpointCommit: CHECKPOINT_COMMIT,
+          recoveryRequired: true,
+        },
+      });
+      expect(result.success ? undefined : result.error).not.toHaveProperty('observedHead');
+      expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(1);
+      expect(dependencies.checkpoint.validateCorrection).not.toHaveBeenCalled();
+      expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
+    }
+  );
 
   it('rejects a quiescence acknowledgement bound to a different target', async () => {
     const { gate, dependencies } = makeHarness({
@@ -996,8 +1173,14 @@ describe('TerminalReviewGate', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'cleanup-failed', stage: 'prompt' },
+      error: {
+        type: 'cleanup-failed',
+        stage: 'prompt',
+        recoveryRequired: true,
+      },
     });
+    expect(result.success ? undefined : result.error).not.toHaveProperty('observedHead');
+    expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(1);
     expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1);
   });
 

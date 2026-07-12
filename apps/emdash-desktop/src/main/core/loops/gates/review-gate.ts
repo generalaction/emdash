@@ -98,7 +98,7 @@ export interface ReviewSessionPort {
   sendReviewPrompt(
     input: SendReviewPromptInput
   ): Promise<Result<{ finalText: string }, ReviewGateDependencyError>>;
-  /** Settles only after the prompt cannot mutate the workspace or emit another accepted result. */
+  /** A successful acknowledgement proves the prompt is quiescent; failures provide no authority. */
   cancelReviewSession(
     input: CancelReviewSessionInput
   ): Promise<Result<ReviewSessionCancellation, ReviewGateDependencyError>>;
@@ -233,6 +233,10 @@ type ReconciledReviewHead = {
   correctionApplied: boolean;
   observedHead: string;
   clean: boolean;
+};
+
+type ExactWorkspaceAuthority = {
+  observedHead: string;
 };
 
 export class TerminalReviewGate {
@@ -405,21 +409,28 @@ export class TerminalReviewGate {
     );
     if (!promptResult.success) {
       const quiesced = await this.quiesceSession(session, cancellation);
-      const failure = quiesced.success
-        ? this.dependencyFail(
-            promptResult.error,
-            'prompt',
-            acceptedCheckpoint,
-            session.conversationId
-          )
-        : this.dependencyFail(quiesced.error, 'prompt', acceptedCheckpoint, session.conversationId);
+      if (!quiesced.success) {
+        return this.withRecoveryRequired(
+          this.dependencyFail(quiesced.error, 'prompt', acceptedCheckpoint, session.conversationId)
+        );
+      }
+      const failure = this.dependencyFail(
+        promptResult.error,
+        'prompt',
+        acceptedCheckpoint,
+        session.conversationId
+      );
       const recoveryInput = { ...input, signal: undefined, deadlineAt: undefined };
       const postQuiescence = await this.inspectUncontrolled(
         recoveryInput,
         acceptedCheckpoint,
         'prompt'
       );
-      if (!postQuiescence.success) return quiesced.success ? postQuiescence : failure;
+      if (!postQuiescence.success) {
+        return this.withRecoveryRequired(
+          err(this.withConversation(postQuiescence.error, session.conversationId))
+        );
+      }
       const reconciled = await this.reconcileReviewHead(
         recoveryInput,
         postQuiescence.data,
@@ -439,7 +450,7 @@ export class TerminalReviewGate {
           ),
           acceptedCheckpoint,
           reconciled.data.observedHead,
-          false
+          true
         );
       }
       return this.withRecovery(failure, acceptedCheckpoint, reconciled.data.observedHead, false);
@@ -450,11 +461,13 @@ export class TerminalReviewGate {
       if (postReview.error.type === 'cancelled' || postReview.error.type === 'deadline-exceeded') {
         const quiesced = await this.quiesceSession(session, cancellation);
         if (!quiesced.success) {
-          return this.dependencyFail(
-            quiesced.error,
-            'post-review',
-            acceptedCheckpoint,
-            session.conversationId
+          return this.withRecoveryRequired(
+            this.dependencyFail(
+              quiesced.error,
+              'post-review',
+              acceptedCheckpoint,
+              session.conversationId
+            )
           );
         }
         const recoveryInput = { ...input, signal: undefined, deadlineAt: undefined };
@@ -463,7 +476,11 @@ export class TerminalReviewGate {
           acceptedCheckpoint,
           'post-review'
         );
-        if (!postQuiescence.success) return postQuiescence;
+        if (!postQuiescence.success) {
+          return this.withRecoveryRequired(
+            err(this.withConversation(postQuiescence.error, session.conversationId))
+          );
+        }
         const reconciled = await this.reconcileReviewHead(
           recoveryInput,
           postQuiescence.data,
@@ -483,7 +500,7 @@ export class TerminalReviewGate {
             ),
             acceptedCheckpoint,
             reconciled.data.observedHead,
-            false
+            true
           );
         }
         return this.withRecovery(
@@ -498,10 +515,12 @@ export class TerminalReviewGate {
           false
         );
       }
-      return err(
-        this.withConversation(
-          this.withCheckpoint(postReview.error, acceptedCheckpoint),
-          session.conversationId
+      return this.withRecoveryRequired(
+        err(
+          this.withConversation(
+            this.withCheckpoint(postReview.error, acceptedCheckpoint),
+            session.conversationId
+          )
         )
       );
     }
@@ -526,7 +545,7 @@ export class TerminalReviewGate {
         ),
         acceptedCheckpoint,
         reconciled.data.observedHead,
-        false
+        true
       );
     }
 
@@ -599,51 +618,36 @@ export class TerminalReviewGate {
               acceptedCheckpoint,
               session.conversationId
             );
-      const postQuiescence = await this.inspectUncontrolled(
+      if (requiredGate.error.type === 'cleanup-failed') {
+        return this.withRecoveryRequired(failure);
+      }
+      const exactAuthority = await this.inspectExactAuthority(
         input,
         acceptedCheckpoint,
-        'required-gate'
-      );
-      if (!postQuiescence.success) {
-        return requiredGate.error.type === 'cleanup-failed' ? failure : postQuiescence;
-      }
-      const observedHead = validCommit(postQuiescence.data.headCommit)
-        ? normalizeCommit(postQuiescence.data.headCommit)
-        : acceptedCheckpoint;
-      const postAuthority = validateSnapshot(
-        postQuiescence.data,
-        input.target,
-        acceptedCheckpoint,
-        true
-      );
-      if (postAuthority) {
-        return this.withRecovery(
-          this.fail(
-            postAuthority.type,
-            'required-gate',
-            postAuthority.message,
-            acceptedCheckpoint,
-            session.conversationId
-          ),
-          acceptedCheckpoint,
-          observedHead,
-          !sameCommit(observedHead, acceptedCheckpoint)
-        );
-      }
-      return this.withRecovery(failure, acceptedCheckpoint, observedHead, false);
-    }
-    const gateAuthority = validateRequiredGate(requiredGate.data, input.target, acceptedCheckpoint);
-    if (gateAuthority) {
-      return this.fail(
-        gateAuthority.type,
         'required-gate',
-        gateAuthority.message,
-        acceptedCheckpoint,
         session.conversationId
       );
+      if (!exactAuthority.success) return exactAuthority;
+      return this.withRecovery(
+        failure,
+        acceptedCheckpoint,
+        exactAuthority.data.observedHead,
+        false
+      );
     }
+    const gateAuthority = validateRequiredGate(requiredGate.data, input.target, acceptedCheckpoint);
+    const gateFailure = gateAuthority
+      ? this.fail(
+          gateAuthority.type,
+          'required-gate',
+          gateAuthority.message,
+          acceptedCheckpoint,
+          session.conversationId
+        )
+      : undefined;
 
     const finalWorkspace = await this.inspectWorkspace(input, acceptedCheckpoint, 'finalize');
+    let exactAuthority: Result<ExactWorkspaceAuthority, ReviewGateError>;
     if (!finalWorkspace.success) {
       if (
         finalWorkspace.error.type === 'cancelled' ||
@@ -651,74 +655,47 @@ export class TerminalReviewGate {
       ) {
         const quiesced = await this.quiesceSession(session, cancellation);
         if (!quiesced.success) {
-          return this.dependencyFail(
-            quiesced.error,
-            'finalize',
-            acceptedCheckpoint,
-            session.conversationId
-          );
-        }
-        const postQuiescence = await this.inspectUncontrolled(
-          input,
-          acceptedCheckpoint,
-          'finalize'
-        );
-        if (!postQuiescence.success) return postQuiescence;
-        const observedHead = validCommit(postQuiescence.data.headCommit)
-          ? normalizeCommit(postQuiescence.data.headCommit)
-          : acceptedCheckpoint;
-        const postAuthority = validateSnapshot(
-          postQuiescence.data,
-          input.target,
-          acceptedCheckpoint,
-          true
-        );
-        if (postAuthority) {
-          return this.withRecovery(
-            this.fail(
-              postAuthority.type,
+          return this.withRecoveryRequired(
+            this.dependencyFail(
+              quiesced.error,
               'finalize',
-              postAuthority.message,
               acceptedCheckpoint,
               session.conversationId
-            ),
-            acceptedCheckpoint,
-            observedHead,
-            !sameCommit(observedHead, acceptedCheckpoint)
+            )
           );
         }
-        return this.withRecovery(
+        exactAuthority = await this.inspectExactAuthority(
+          input,
+          acceptedCheckpoint,
+          'finalize',
+          session.conversationId
+        );
+      } else {
+        return this.withRecoveryRequired(
           err(
             this.withConversation(
               this.withCheckpoint(finalWorkspace.error, acceptedCheckpoint),
               session.conversationId
             )
-          ),
-          acceptedCheckpoint,
-          observedHead,
-          false
+          )
         );
       }
-      return err(
-        this.withConversation(
-          this.withCheckpoint(finalWorkspace.error, acceptedCheckpoint),
-          session.conversationId
-        )
+    } else {
+      exactAuthority = this.finalizeExactSnapshot(
+        input,
+        finalWorkspace.data,
+        acceptedCheckpoint,
+        'finalize',
+        session.conversationId
       );
     }
-    const finalAuthority = validateSnapshot(
-      finalWorkspace.data,
-      input.target,
-      acceptedCheckpoint,
-      true
-    );
-    if (finalAuthority) {
-      return this.fail(
-        finalAuthority.type,
-        'finalize',
-        finalAuthority.message,
+    if (!exactAuthority.success) return exactAuthority;
+    if (gateFailure) {
+      return this.withRecovery(
+        gateFailure,
         acceptedCheckpoint,
-        session.conversationId
+        exactAuthority.data.observedHead,
+        false
       );
     }
 
@@ -760,12 +737,14 @@ export class TerminalReviewGate {
   ): Promise<Result<ReconciledReviewHead, ReviewGateError>> {
     const snapshotAuthority = validateSnapshot(snapshot, input.target, undefined, false);
     if (snapshotAuthority) {
-      return this.fail(
-        snapshotAuthority.type,
-        'post-review',
-        snapshotAuthority.message,
-        checkpointCommit,
-        conversationId
+      return this.withRecoveryRequired(
+        this.fail(
+          snapshotAuthority.type,
+          'post-review',
+          snapshotAuthority.message,
+          checkpointCommit,
+          conversationId
+        )
       );
     }
 
@@ -820,6 +799,60 @@ export class TerminalReviewGate {
       observedHead,
       clean: snapshot.clean === true,
     });
+  }
+
+  private finalizeExactSnapshot(
+    input: NormalizedReviewGateInput,
+    snapshot: ReviewWorkspaceSnapshot,
+    checkpointCommit: string,
+    stage: ReviewGateStage,
+    conversationId: string
+  ): Result<ExactWorkspaceAuthority, ReviewGateError> {
+    const authority = validateSnapshot(snapshot, input.target, checkpointCommit, true);
+    const observedHead = trustedObservedHead(snapshot, input.target);
+    if (authority) {
+      const failure = this.fail(
+        authority.type,
+        stage,
+        authority.message,
+        checkpointCommit,
+        conversationId
+      );
+      return observedHead
+        ? this.withRecovery(failure, checkpointCommit, observedHead, true)
+        : this.withRecoveryRequired(failure);
+    }
+    if (!observedHead) {
+      return this.withRecoveryRequired(
+        this.fail(
+          'checkpoint-drift',
+          stage,
+          'Workspace authority could not attest a valid observed HEAD.',
+          checkpointCommit,
+          conversationId
+        )
+      );
+    }
+    return ok({ observedHead });
+  }
+
+  private async inspectExactAuthority(
+    input: NormalizedReviewGateInput,
+    checkpointCommit: string,
+    stage: ReviewGateStage,
+    conversationId: string
+  ): Promise<Result<ExactWorkspaceAuthority, ReviewGateError>> {
+    const inspected = await this.inspectUncontrolled(input, checkpointCommit, stage);
+    if (!inspected.success) {
+      return this.withRecoveryRequired(err(this.withConversation(inspected.error, conversationId)));
+    }
+    return this.finalizeExactSnapshot(
+      input,
+      inspected.data,
+      checkpointCommit,
+      stage,
+      conversationId
+    );
   }
 
   private async inspectWorkspace(
@@ -1058,6 +1091,13 @@ export class TerminalReviewGate {
       observedHead,
       recoveryRequired,
     });
+  }
+
+  private withRecoveryRequired<T>(result: Result<T, ReviewGateError>): Result<T, ReviewGateError> {
+    if (result.success) return result;
+    const error = { ...result.error, recoveryRequired: true };
+    delete error.observedHead;
+    return err(error);
   }
 }
 
@@ -1363,6 +1403,20 @@ function sameTarget(left: LoopSessionTarget | undefined, right: LoopSessionTarge
     ? rightTarget.machine.kind === 'local'
     : rightTarget.machine.kind === 'ssh' &&
         leftTarget.machine.connectionId === rightTarget.machine.connectionId;
+}
+
+function trustedObservedHead(
+  snapshot: ReviewWorkspaceSnapshot | undefined,
+  expectedTarget: LoopSessionTarget
+): string | undefined {
+  if (
+    !snapshot ||
+    !sameTarget(snapshot.target, expectedTarget) ||
+    !validCommit(snapshot.headCommit)
+  ) {
+    return undefined;
+  }
+  return normalizeCommit(snapshot.headCommit);
 }
 
 function copyTarget(target: LoopSessionTarget): LoopSessionTarget {
