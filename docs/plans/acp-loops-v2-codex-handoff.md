@@ -140,3 +140,37 @@ enforced, the project base is ambiguous, a dirty source worktree would be mutate
 same-machine worktrees are unsupported, required preserved files cannot be copied strictly,
 secret-safe authentication is unavailable, a fresh non-production backend cannot be created, or an
 independent clean-room replay cannot be proven.
+
+## 2026-07-12 governor checkpoint: resume Wave 2C only
+
+The usage governor stopped execution at the 80% dispatch boundary while Wave 2C Lane E was under
+final audit. Resume only that lane; do not start Wave 3 until the E2E gate is approved and merged.
+
+- Integration is paused on `codex/loops-v2-integration`; this checkpoint is documentation-only and
+  does not merge Lane E source.
+- The isolated E2E lane's validated source snapshot is `ab38b4f9b` on
+  `codex/loops-v2-e2e-gate`. Its source commits after the integration base are `f541c4f8b`,
+  `06242559d`, `7a22377e4`, `a43c1f501`, and `ab38b4f9b`. Temporary dependency symlinks were
+  removed. Nothing was pushed.
+- The original checkout at `/home/devuser/projects/emdash` remains dirty/user-owned and untouched.
+- Exact checkpoint verification: the focused E2E gate passed 42/42; desktop plus release
+  typecheck exited 0; focused lint/format and `git diff --check` exited 0. Earlier compatibility on
+  the pre-checkpoint range passed 424/424, but it must be repeated after the remaining fixes.
+- Contract audit session `019f56ae-0516-7230-be4e-b803da389789` and lifecycle audit session
+  `019f56ad-cdeb-73e1-a6bc-0a5671c848ad` both returned NOT APPROVED and made no edits.
+
+Required resume order:
+
+1. Add failing tests and close the P0s: make every clock use no-throw; treat untrusted acquire as
+   an unreleased/pending workspace; strictly validate every successful dependency payload; reject
+   canonical local/SSH target aliases; and scope collision-safe cancellation single-flight state
+   to one run/session.
+2. Close the P1 contract gaps: reconcile persisted v2 Codex/model/gates/base/checkpoint/session
+   authority; reject historical attempt and conversation reuse; require exact purpose/phase/full
+   session echoes; pass complete Loop/phase/criteria/validation-command context into required
+   checks; parse/clone only Lane W cleanup authority; reconcile final feature HEAD on all terminal
+   post-integration paths; and preserve any trustworthy outer/nested attempt evidence on malformed
+   responses.
+3. Run the focused E2E suite, desktop/release typecheck, focused lint/format, and the 424-test
+   compatibility matrix. Obtain a fresh Sol/ultra audit of the exact new range. Only an approved,
+   clean lane may be cherry-picked into integration and marked Wave 2C complete.
