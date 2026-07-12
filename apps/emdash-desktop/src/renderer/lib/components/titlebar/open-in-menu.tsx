@@ -184,7 +184,12 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
           ></TooltipTrigger>
           <TooltipContent side="bottom">Select open in app</TooltipContent>
         </Tooltip>
-        <SelectContent align="end" alignItemWithTrigger={false} sideOffset={6}>
+        <SelectContent
+          align="end"
+          alignItemWithTrigger={false}
+          sideOffset={6}
+          className="w-max"
+        >
           {menuApps.map((app) => {
             const isAvailable = loading
               ? availability[app.id] === true
