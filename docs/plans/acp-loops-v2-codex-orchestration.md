@@ -1223,6 +1223,19 @@ fresh recreated green run becomes the final success report.
   focused and compatibility files passed 254/254 with one worker; desktop and release typechecks,
   focused lint/format, and `git diff --check` passed. The isolated integration and lane worktrees
   were clean, temporary dependency links were removed, and no branch was pushed.
+- [ ] 2026-07-12: Paused Wave 2C at the usage-governor checkpoint before integration. Lane E is
+  durably checkpointed on `codex/loops-v2-e2e-gate` through `06242559d` (prompt correction
+  `f541c4f8b`): its two owned gate files pass 9/9 focused tests, desktop plus release typechecks,
+  focused lint/format, and diff checks. The lane and integration worktrees are clean and temporary
+  dependency links were removed. Do not merge this checkpoint yet: the adversarial
+  late-settlement, cancellation/quiescence, cleanup-precedence, mutation-history, nested-ledger,
+  and deadline matrix plus an independent final-range audit remain required. The stopped
+  Sol/ultra audit at session `019f55a5-b58d-74b3-bb5b-24429b097686` identified two concrete P0s:
+  raw late/thrown dependency paths can escape typed cleanup, and an unknown required-check status
+  can fall through to success. Its P1 handoff also requires terminal/exact nested-browser ledger
+  attestation, cleanup after invalid integration authority, ledger retention for invalid created
+  sessions, byte bounds on the six-key environment, and an uncontrolled final feature-authority
+  read after cleanup. Resume with failing tests for these findings before any integration audit.
 - [ ] Complete and merge Wave 2C Lane E.
 - [ ] Complete serial main-engine and final renderer integration.
 - [ ] Add and pass the automated Electron local/Docker-SSH harness.
@@ -1287,6 +1300,20 @@ fresh recreated green run becomes the final success report.
   Evidence: the native verifier and evidence store use a local fail-closed assignment guard that
   rejects cookie-bearing fills and redacts the bounded remainder after a structured cookie key,
   while standalone UI labels such as “Accept cookies” remain observable.
+- Observation: Lane W currently has only an in-memory cleanup journal for tests, while its pending
+  cleanup authority contains ownership, teardown, branch-head, feature-target, completed-step, and
+  CAS-revision data that LoopState v1 cannot represent losslessly.
+  Evidence: the stopped Wave 3A Sol/ultra preflight at session
+  `019f55a6-dccf-7d91-9560-20f74fa22e4f` traced every production composition seam. Before Wave 3A,
+  explicitly choose either a bounded LoopState v2 cleanup contract or an atomic private app-data
+  journal; never reconstruct cleanup authority after a crash.
+- Observation: the Wave 1 authoring draft supplies neither validation commands nor native-browser
+  acceptance criteria. The unit-test verifier treats an empty command list as a passing no-op,
+  while Lane N correctly rejects zero browser criteria.
+  Evidence: freeze a main/renderer input policy before Wave 3A/B. Generic project-command inference
+  is unsafe; the authoring contract must provide authoritative non-empty gate inputs or name an
+  equally explicit source. Production checkpoint authority and arbitrary clean-room target binding
+  also remain assigned Wave 3 seams, not Lane E responsibilities.
 
 ## Decision Log
 
