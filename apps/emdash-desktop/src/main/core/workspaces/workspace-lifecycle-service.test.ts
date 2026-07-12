@@ -61,13 +61,23 @@ function mockPlatform(platform: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { value: platform });
 }
 
+function deferred<T = void>(): { promise: Promise<T>; resolve(value: T): void } {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
 function makeTerminalProvider(shellFamily: TerminalShellFamily = 'windows-cmd'): {
   provider: TerminalProvider;
   spawned: FakePty[];
   requests: LifecycleScriptSpawnRequest[];
+  destroyAll: ReturnType<typeof vi.fn>;
 } {
   const spawned: FakePty[] = [];
   const requests: LifecycleScriptSpawnRequest[] = [];
+  const destroyAll = vi.fn(async () => {});
   const provider: TerminalProvider = {
     kind: 'local',
     async spawnTerminal() {},
@@ -84,16 +94,122 @@ function makeTerminalProvider(shellFamily: TerminalShellFamily = 'windows-cmd'):
       return shellFamily;
     },
     async killTerminal() {},
-    async destroyAll() {},
+    destroyAll,
     async detachAll() {},
   };
 
-  return { provider, spawned, requests };
+  return { provider, spawned, requests, destroyAll };
 }
 
 describe('WorkspaceLifecycleService', () => {
   afterEach(() => {
     if (originalPlatform) Object.defineProperty(process, 'platform', originalPlatform);
+  });
+
+  it.each(['setup', 'run'] as const)(
+    'quiesces a late required %s spawn without writing a command',
+    async (type) => {
+      const { provider, spawned, destroyAll } = makeTerminalProvider();
+      const spawn = provider.spawnLifecycleScript.bind(provider);
+      const gate = deferred();
+      provider.spawnLifecycleScript = async (request) => {
+        await gate.promise;
+        await spawn(request);
+      };
+      const service = new LifecycleScriptService({
+        projectId: `project-held-${type}`,
+        workspaceId: `loop-held-${type}`,
+        terminals: provider,
+      });
+      const receipt = service.startRequiredStartup({
+        [type]: { type, script: type === 'setup' ? 'pnpm install' : 'pnpm dev' },
+        deadlineAt: Date.now() + 20,
+      });
+      let settled = false;
+      void receipt.ready.then(() => {
+        settled = true;
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(settled).toBe(false);
+      gate.resolve();
+
+      await expect(receipt.ready).resolves.toMatchObject({
+        success: false,
+        error: { type: 'cancelled', stage: type },
+      });
+      expect(spawned).toHaveLength(1);
+      expect(spawned[0].writes).toEqual([]);
+      expect(spawned[0].killCalls).toBeGreaterThanOrEqual(1);
+      expect(destroyAll).toHaveBeenCalled();
+    }
+  );
+
+  it('caps a non-exiting setup by the absolute deadline and drains its PTY', async () => {
+    const { provider, spawned } = makeTerminalProvider();
+    const service = new LifecycleScriptService({
+      projectId: 'project-absolute-setup',
+      workspaceId: 'loop-absolute-setup',
+      terminals: provider,
+    });
+    const receipt = service.startRequiredStartup({
+      setup: { type: 'setup', script: 'pnpm install' },
+      setupTimeoutMs: 60_000,
+      deadlineAt: Date.now() + 20,
+    });
+    await expect.poll(() => spawned[0]?.writes).toEqual(['pnpm install; exit\n']);
+
+    await expect(receipt.ready).resolves.toMatchObject({
+      success: false,
+      error: { type: 'cancelled', stage: 'setup' },
+    });
+    expect(spawned[0].killCalls).toBeGreaterThanOrEqual(1);
+  });
+
+  it('cancels an ignored preview waiter at the absolute deadline and drains the run PTY', async () => {
+    const { provider, spawned } = makeTerminalProvider();
+    const service = new LifecycleScriptService({
+      projectId: 'project-absolute-preview',
+      workspaceId: 'loop-absolute-preview',
+      terminals: provider,
+    });
+    const receipt = service.startRequiredStartup({
+      run: { type: 'run', script: 'pnpm dev' },
+      deadlineAt: Date.now() + 20,
+      waitForPreview: async () => new Promise(() => {}),
+    });
+    await expect.poll(() => spawned[0]?.writes).toEqual(['pnpm dev; exit\n']);
+
+    await expect(receipt.ready).resolves.toMatchObject({
+      success: false,
+      error: { type: 'cancelled', stage: 'preview' },
+    });
+    expect(spawned[0].killCalls).toBeGreaterThanOrEqual(1);
+  });
+
+  it('disarms external creation controls after readiness while retaining receipt cancellation', async () => {
+    const { provider, spawned } = makeTerminalProvider();
+    const caller = new AbortController();
+    const service = new LifecycleScriptService({
+      projectId: 'project-deadline-disarm',
+      workspaceId: 'loop-deadline-disarm',
+      terminals: provider,
+    });
+    const receipt = service.startRequiredStartup({
+      run: { type: 'run', script: 'pnpm dev' },
+      signal: caller.signal,
+      deadlineAt: Date.now() + 30,
+      runStartupGraceMs: 1,
+    });
+
+    await expect(receipt.ready).resolves.toMatchObject({ success: true });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    caller.abort();
+    expect(spawned[0].killCalls).toBe(0);
+
+    receipt.cancel();
+    expect(spawned[0].killCalls).toBe(1);
+    await service.dispose();
   });
 
   it('returns a strict startup receipt after setup and preview readiness without waiting for run exit', async () => {

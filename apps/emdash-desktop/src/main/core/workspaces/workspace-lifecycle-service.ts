@@ -46,6 +46,7 @@ export type RequiredLifecycleStartup = {
   setup?: LifecycleScript;
   run?: LifecycleScript;
   signal?: AbortSignal;
+  deadlineAt?: number;
   setupTimeoutMs?: number;
   runStartupGraceMs?: number;
   waitForPreview?: (input: {
@@ -98,6 +99,7 @@ export class LifecycleScriptService implements IDisposable {
   private disposed = false;
   private requiredStartupReceipt: LifecycleStartupReceipt | undefined;
   private readonly requiredStartupLifetime = new AbortController();
+  private disposeOperation: Promise<void> | undefined;
 
   constructor({
     projectId,
@@ -188,12 +190,12 @@ export class LifecycleScriptService implements IDisposable {
   startRequiredStartup(input: RequiredLifecycleStartup): LifecycleStartupReceipt {
     if (this.requiredStartupReceipt) return this.requiredStartupReceipt;
 
-    const callerSignal = input.signal;
-    const signal = callerSignal
-      ? AbortSignal.any([callerSignal, this.requiredStartupLifetime.signal])
-      : this.requiredStartupLifetime.signal;
+    const external = createStartupExternalControl(input.signal, input.deadlineAt);
+    const signal = AbortSignal.any([external.signal, this.requiredStartupLifetime.signal]);
+    const ready = this.runRequiredStartup(input, signal);
+    void ready.then(external.detach, external.detach);
     const receipt: LifecycleStartupReceipt = {
-      ready: this.runRequiredStartup(input, signal),
+      ready,
       cancel: (reason) => {
         if (!this.requiredStartupLifetime.signal.aborted) {
           this.requiredStartupLifetime.abort(reason);
@@ -230,7 +232,9 @@ export class LifecycleScriptService implements IDisposable {
         const setupHandle = await this.startExitBackedScript(input.setup, signal);
         const setupOutcome = await Promise.race([
           setupHandle.completed.then((result) => ({ kind: 'completed' as const, result })),
-          timeout(input.setupTimeoutMs ?? DEFAULT_SETUP_TIMEOUT_MS).then(() => ({
+          timeout(
+            capLifecycleTimeout(input.setupTimeoutMs ?? DEFAULT_SETUP_TIMEOUT_MS, input.deadlineAt)
+          ).then(() => ({
             kind: 'timeout' as const,
           })),
           aborted(signal).then(() => ({ kind: 'aborted' as const })),
@@ -273,7 +277,7 @@ export class LifecycleScriptService implements IDisposable {
           ...(runHandle ? [runHandle.completed.then(() => ({ kind: 'run-exit' as const }))] : []),
           aborted(signal).then(() => ({ kind: 'aborted' as const })),
         ]);
-        if (first.kind === 'aborted') {
+        if (first.kind === 'aborted' || signal.aborted) {
           if (runHandle) await this.stopAndDrain(runHandle);
           return err(cancelledStartup('preview'));
         }
@@ -297,13 +301,13 @@ export class LifecycleScriptService implements IDisposable {
           return first.result;
         }
       } else if (runHandle) {
-        const graceMs = input.runStartupGraceMs ?? 100;
+        const graceMs = capLifecycleTimeout(input.runStartupGraceMs ?? 100, input.deadlineAt);
         const first = await Promise.race([
           timeout(graceMs).then(() => 'running' as const),
           runHandle.completed.then(() => 'exited' as const),
           aborted(signal).then(() => 'aborted' as const),
         ]);
-        if (first === 'aborted') {
+        if (first === 'aborted' || signal.aborted) {
           await this.stopAndDrain(runHandle);
           return err(cancelledStartup('run'));
         }
@@ -361,9 +365,7 @@ export class LifecycleScriptService implements IDisposable {
       timeout(STARTUP_CLEANUP_TIMEOUT_MS).then(() => false),
     ]);
     if (!drained) {
-      await Promise.race([this.terminals.destroyAll(), timeout(STARTUP_CLEANUP_TIMEOUT_MS)]).catch(
-        () => {}
-      );
+      await this.terminals.destroyAll();
     }
   }
 
@@ -377,9 +379,24 @@ export class LifecycleScriptService implements IDisposable {
     if (signal.aborted) throw abortError(signal);
     const { sessionId } = this.resolveIds(script);
     if (!ptySessionRegistry.get(sessionId)) {
-      await this.prepareLifecycleScript(script);
+      const preparation = this.prepareLifecycleScript(script);
+      try {
+        await preparation;
+      } catch (error) {
+        if (signal.aborted) {
+          await preparation.catch(() => {});
+          await this.terminals.destroyAll();
+          throw abortError(signal);
+        }
+        throw error;
+      }
     }
     const pty = ptySessionRegistry.get(sessionId);
+    if (signal.aborted) {
+      pty?.kill();
+      await this.terminals.destroyAll();
+      throw abortError(signal);
+    }
     if (!pty) {
       throw new Error(
         `Lifecycle script session unavailable for ${script.type} in workspace ${this.workspaceId}`
@@ -405,6 +422,11 @@ export class LifecycleScriptService implements IDisposable {
     };
     const onAbort = () => pty.kill();
     signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) {
+      onAbort();
+      await this.terminals.destroyAll();
+      throw abortError(signal);
+    }
     pty.onData((data) => {
       outputTail = appendOutputTail(outputTail, data);
     });
@@ -493,7 +515,17 @@ export class LifecycleScriptService implements IDisposable {
     }
   }
 
-  async dispose(): Promise<void> {
+  dispose(): Promise<void> {
+    if (this.disposeOperation) return this.disposeOperation;
+    const operation = this.disposeRequiredStartup();
+    this.disposeOperation = operation;
+    void operation.catch(() => {
+      if (this.disposeOperation === operation) this.disposeOperation = undefined;
+    });
+    return operation;
+  }
+
+  private async disposeRequiredStartup(): Promise<void> {
     this.disposed = true;
     if (!this.requiredStartupLifetime.signal.aborted) {
       this.requiredStartupLifetime.abort(new Error('Lifecycle service disposed'));
@@ -502,10 +534,7 @@ export class LifecycleScriptService implements IDisposable {
     this.sessionsWaitingForExit.clear();
     this.latestRespawnRequest.clear();
     if (this.requiredStartupReceipt) {
-      await Promise.race([
-        this.requiredStartupReceipt.ready,
-        timeout(STARTUP_CLEANUP_TIMEOUT_MS),
-      ]).catch(() => {});
+      await this.requiredStartupReceipt.ready.catch(() => {});
     }
     await this.terminals.destroyAll();
   }
@@ -546,4 +575,41 @@ function aborted(signal: AbortSignal): Promise<void> {
     }
     signal.addEventListener('abort', () => resolve(), { once: true });
   });
+}
+
+function createStartupExternalControl(
+  callerSignal: AbortSignal | undefined,
+  deadlineAt: number | undefined
+): { signal: AbortSignal; detach(): void } {
+  const controller = new AbortController();
+  let detached = false;
+  const abortFromCaller = () => {
+    if (!controller.signal.aborted) controller.abort(callerSignal?.reason);
+  };
+  const abortFromDeadline = () => {
+    if (!controller.signal.aborted) {
+      controller.abort(new DOMException('Workspace startup deadline exceeded.', 'TimeoutError'));
+    }
+  };
+  const remaining = deadlineAt === undefined ? undefined : Math.max(0, deadlineAt - Date.now());
+  const timer = remaining === undefined ? undefined : setTimeout(abortFromDeadline, remaining);
+  timer?.unref?.();
+  callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
+  if (callerSignal?.aborted) abortFromCaller();
+  if (deadlineAt !== undefined && deadlineAt <= Date.now()) abortFromDeadline();
+  return {
+    signal: controller.signal,
+    detach: () => {
+      if (detached) return;
+      detached = true;
+      if (timer) clearTimeout(timer);
+      callerSignal?.removeEventListener('abort', abortFromCaller);
+    },
+  };
+}
+
+function capLifecycleTimeout(timeoutMs: number, deadlineAt: number | undefined): number {
+  return deadlineAt === undefined
+    ? timeoutMs
+    : Math.max(1, Math.min(timeoutMs, deadlineAt - Date.now()));
 }
