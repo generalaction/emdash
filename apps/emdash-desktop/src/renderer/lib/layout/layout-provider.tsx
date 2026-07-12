@@ -35,7 +35,6 @@ export function useWorkspaceLayoutService() {
   const zenModeSnapshotRef = useRef<{
     leftOpen: boolean;
     rightCollapsed?: boolean;
-    setRightCollapsed?: (collapsed: boolean) => void;
   } | null>(null);
 
   const syncLeftOpenFromPanel = useCallback(() => {
@@ -71,8 +70,8 @@ export function useWorkspaceLayoutService() {
       const snapshot = zenModeSnapshotRef.current;
       if (snapshot) {
         setCollapsed('left', !snapshot.leftOpen);
-        if (snapshot.setRightCollapsed && snapshot.rightCollapsed !== undefined) {
-          snapshot.setRightCollapsed(snapshot.rightCollapsed);
+        if (rightSidebar && snapshot.rightCollapsed !== undefined) {
+          rightSidebar.setCollapsed(snapshot.rightCollapsed);
         }
         zenModeSnapshotRef.current = null;
         return;
@@ -81,7 +80,6 @@ export function useWorkspaceLayoutService() {
       zenModeSnapshotRef.current = {
         leftOpen: isLeftOpen,
         rightCollapsed: rightSidebar?.isCollapsed,
-        setRightCollapsed: rightSidebar?.setCollapsed,
       };
       setCollapsed('left', true);
       rightSidebar?.setCollapsed(true);

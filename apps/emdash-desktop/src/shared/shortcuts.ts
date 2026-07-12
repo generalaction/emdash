@@ -14,6 +14,7 @@ export interface AppShortcutDef {
   hideFromSettings?: boolean;
   conflictBehavior?: 'prevent' | 'allow';
   ignoreWhenMonacoFocused?: boolean;
+  ignoreWhenBrowserFocused?: boolean;
 }
 
 export type TabNavigationDirection = 'next' | 'previous';
@@ -131,6 +132,8 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'Zen Mode',
     description: 'Hide both sidebars',
     category: 'View',
+    ignoreWhenMonacoFocused: true,
+    ignoreWhenBrowserFocused: true,
   },
   closeModal: {
     defaultHotkey: 'Escape',
