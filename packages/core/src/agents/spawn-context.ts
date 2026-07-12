@@ -30,10 +30,13 @@ export function createSpawnContextResolver(
   const cliCache = new Map<string, string>();
   let generation = 0;
   const resolveCliOnce = compose(
-    async (input: {
-      providerId: string;
-      generation: number;
-    }, _context: { signal?: AbortSignal }): Promise<Result<string, SpawnContextError>> => {
+    async (
+      input: {
+        providerId: string;
+        generation: number;
+      },
+      _context: { signal?: AbortSignal }
+    ): Promise<Result<string, SpawnContextError>> => {
       try {
         const cli = await options.resolveCli(input.providerId);
         if (input.generation === generation) cliCache.set(input.providerId, cli);
