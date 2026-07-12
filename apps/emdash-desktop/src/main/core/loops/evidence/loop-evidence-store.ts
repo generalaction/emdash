@@ -19,7 +19,7 @@ const DEFAULT_MAX_SCREENSHOT_BYTES_PER_RUN = 50 * 1024 * 1024;
 const EVENTS_FILE = 'events.ndjson';
 const SCREENSHOTS_DIR = 'screenshots';
 const cookieAssignmentPattern =
-  /\b(?:cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid)\b(?:(?:\\?["'])|\s){0,8}[:=]\s*[^\r\n]*/giu;
+  /\b(?:cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid)\b[\\'"\s]*[:=][\s\S]*/giu;
 
 export type LoopEvidenceRunStatus = 'passed' | 'failed' | 'cancelled' | 'correction-required';
 

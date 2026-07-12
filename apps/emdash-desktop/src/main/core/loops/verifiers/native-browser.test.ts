@@ -1510,10 +1510,8 @@ describe('native browser verifier', () => {
             kind: 'accessibility-snapshot',
             snapshot:
               'token=super-secret file:///home/devuser/private data:text/plain,secret ' +
-              'javascript:alert(secret)\nSet-Cookie: sessionid=snapshot-cookie-secret\n' +
-              '{"cookie":"opaque-value-7319"}\n' +
-              '{\\"set-cookie\\":\\"opaque-value-8427\\"}\n' +
-              'Accept cookies to continue',
+              'javascript:alert(secret)\nAccept cookies to continue\n' +
+              'Set-Cookie: sessionid=snapshot-cookie-secret',
             truncated: false,
           },
         },
@@ -1530,6 +1528,29 @@ describe('native browser verifier', () => {
                 message:
                   'authorization=BearerSecret file:///etc/passwd\n' +
                   'cookie=diagnostic-cookie-secret',
+                redacted: true,
+              },
+              {
+                level: 'error',
+                source: 'network',
+                message:
+                  '{"cookies"         : [\n' +
+                  '"opaque-value-7319",\n' +
+                  '{"nested":"opaque-value-8427"}\n]}',
+                redacted: true,
+              },
+              {
+                level: 'error',
+                source: 'network',
+                message: String.raw`{\\"set-cookie\\"         : {
+\\"nested\\":\\"opaque-value-9538\\"
+}}`,
+                redacted: true,
+              },
+              {
+                level: 'info',
+                source: 'console',
+                message: 'Accept cookies to continue',
                 redacted: true,
               },
             ],
@@ -1562,6 +1583,7 @@ describe('native browser verifier', () => {
     expect(prompts).not.toContain('diagnostic-cookie-secret');
     expect(prompts).not.toContain('opaque-value-7319');
     expect(prompts).not.toContain('opaque-value-8427');
+    expect(prompts).not.toContain('opaque-value-9538');
     expect(prompts).toContain('Accept cookies to continue');
     expect(prompts).not.toContain('file:///');
     expect(prompts).not.toContain('data:text');
@@ -1576,6 +1598,7 @@ describe('native browser verifier', () => {
     expect(evidenceCalls).not.toContain('diagnostic-cookie-secret');
     expect(evidenceCalls).not.toContain('opaque-value-7319');
     expect(evidenceCalls).not.toContain('opaque-value-8427');
+    expect(evidenceCalls).not.toContain('opaque-value-9538');
     expect(evidenceCalls).toContain('Accept cookies to continue');
   });
 

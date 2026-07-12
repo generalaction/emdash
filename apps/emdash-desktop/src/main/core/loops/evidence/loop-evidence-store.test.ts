@@ -56,11 +56,30 @@ describe('LoopEvidenceStore', () => {
             {
               level: 'error',
               source: 'network',
+              message: 'Set-Cookie: sessionid=observed-cookie-secret; HttpOnly',
+              redacted: true,
+            },
+            {
+              level: 'error',
+              source: 'network',
               message:
-                'Set-Cookie: sessionid=observed-cookie-secret; HttpOnly\n' +
-                '{"cookie":"opaque-evidence-7319"}\n' +
-                '{\\"set-cookie\\":\\"opaque-evidence-8427\\"}\n' +
-                'Accept cookies to continue',
+                '{"cookies"         : [\n' +
+                '"opaque-evidence-7319",\n' +
+                '{"nested":"opaque-evidence-8427"}\n]}',
+              redacted: true,
+            },
+            {
+              level: 'error',
+              source: 'network',
+              message: String.raw`{\\"set-cookie\\"         : {
+\\"nested\\":\\"opaque-evidence-9538\\"
+}}`,
+              redacted: true,
+            },
+            {
+              level: 'info',
+              source: 'console',
+              message: 'Accept cookies to continue',
               redacted: true,
             },
           ],
@@ -88,6 +107,7 @@ describe('LoopEvidenceStore', () => {
     expect(events).not.toContain('observed-cookie-secret');
     expect(events).not.toContain('opaque-evidence-7319');
     expect(events).not.toContain('opaque-evidence-8427');
+    expect(events).not.toContain('opaque-evidence-9538');
     expect(events).toContain('Accept cookies to continue');
     expect(events).not.toContain('?token=');
     expect(events).not.toContain('#private');
