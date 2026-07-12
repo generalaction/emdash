@@ -137,14 +137,14 @@ class NativeBrowserRunControl {
   private readonly controller = new AbortController();
   private readonly timeout: ReturnType<typeof setTimeout>;
   private readonly callerSignal?: AbortSignal;
-  private timedOut = false;
-  private callerAborted = false;
+  private abortCause: 'timed-out' | 'aborted' | null = null;
 
   constructor(callerSignal: AbortSignal | undefined, timeoutMs: number) {
     this.signal = this.controller.signal;
     this.callerSignal = callerSignal;
     this.timeout = setTimeout(() => {
-      this.timedOut = true;
+      if (this.abortCause !== null) return;
+      this.abortCause = 'timed-out';
       this.controller.abort();
     }, timeoutMs);
     callerSignal?.addEventListener('abort', this.onCallerAbort, { once: true });
@@ -152,17 +152,17 @@ class NativeBrowserRunControl {
   }
 
   get abortKind(): 'timed-out' | 'aborted' {
-    return this.timedOut ? 'timed-out' : 'aborted';
+    return this.abortCause ?? 'aborted';
   }
 
   get abortMessage(): string {
-    return this.timedOut
+    return this.abortCause === 'timed-out'
       ? 'Native browser verification timed out'
       : 'Native browser verification was cancelled';
   }
 
   get wasAborted(): boolean {
-    return this.signal.aborted || this.callerAborted;
+    return this.signal.aborted;
   }
 
   assertActive(): void {
@@ -202,7 +202,9 @@ class NativeBrowserRunControl {
   }
 
   private readonly onCallerAbort = (): void => {
-    this.callerAborted = true;
+    if (this.abortCause !== null) return;
+    this.abortCause = 'aborted';
+    clearTimeout(this.timeout);
     this.controller.abort();
   };
 }
@@ -311,7 +313,7 @@ async function runNativeBrowserVerification(
         const lateStart = await settlePromise(browserStartPromise);
         if (lateStart.success && lateStart.value.success) {
           const lease = loopBrowserLeaseSchema.safeParse(lateStart.value.data?.lease);
-          if (lease.success) await dependencies.browser.close(lease.data, 'cancelled');
+          if (lease.success) leasesToClose.push(lease.data);
         }
       }
       throw error;
@@ -480,8 +482,10 @@ async function runNativeBrowserVerification(
         execution = await control.wait(actionPromise);
       } catch (error) {
         if (control.wasAborted) {
-          await dependencies.browser.close(activeSession.lease, 'cancelled');
-          await settlePromise(actionPromise);
+          await Promise.all([
+            settlePromise(dependencies.browser.close(activeSession.lease, 'cancelled')),
+            settlePromise(actionPromise),
+          ]);
         }
         throw error;
       }
@@ -502,8 +506,10 @@ async function runNativeBrowserVerification(
           reconciled = await control.wait(reconcilePromise);
         } catch (error) {
           if (control.wasAborted) {
-            await dependencies.browser.close(activeSession.lease, 'cancelled');
-            await settlePromise(reconcilePromise);
+            const lateReconcile = await settlePromise(reconcilePromise);
+            if (lateReconcile.success && lateReconcile.value.success) {
+              registerReconciledCandidate(lateReconcile.value.data, leasesToClose);
+            }
           }
           throw error;
         }
@@ -520,9 +526,12 @@ async function runNativeBrowserVerification(
           );
         }
         const previousSession = activeSession;
-        if (reconciled.data.kind === 'rotated') {
-          const candidateLease = loopBrowserLeaseSchema.safeParse(reconciled.data.session?.lease);
-          if (candidateLease.success) leasesToClose.push(candidateLease.data);
+        registerReconciledCandidate(reconciled.data, leasesToClose);
+        if (reconciled.data.kind !== 'resumed' && reconciled.data.kind !== 'rotated') {
+          throw new NativeBrowserVerifierFailure(
+            'command-failed',
+            'Native browser reconciliation returned an unknown session transition'
+          );
         }
         activeSession = validateReconciledSession(
           reconciled.data,
@@ -584,6 +593,43 @@ async function runNativeBrowserVerification(
     );
   }
 
+  const surfaceCleanupFailure = async (
+    kind: string,
+    message: string,
+    recordInEvidence = true
+  ): Promise<void> => {
+    const cleanupMessage = safeText(message, 'Native browser cleanup failed');
+    finalSummary = `${finalSummary}\nCleanup recovery required: ${cleanupMessage}`;
+    if (evidenceStatus === 'passed') evidenceStatus = 'failed';
+    result = err(
+      verifierFailure(
+        'execution-error',
+        finalSummary,
+        binding?.target.path ?? ctx.cwd,
+        Date.now() - startedAt,
+        command,
+        evidence?.directory
+      )
+    );
+    if (!recordInEvidence || !evidence) return;
+    try {
+      await evidence.appendIntermediateFailure({ kind, message: cleanupMessage });
+    } catch (appendError) {
+      const appendMessage = safeText(appendError, 'Failed to append cleanup recovery evidence');
+      finalSummary = `${finalSummary}\nCleanup recovery required: ${appendMessage}`;
+      result = err(
+        verifierFailure(
+          'execution-error',
+          finalSummary,
+          binding?.target.path ?? ctx.cwd,
+          Date.now() - startedAt,
+          command,
+          evidence.directory
+        )
+      );
+    }
+  };
+
   const closeReason =
     evidenceStatus === 'passed'
       ? 'completed'
@@ -596,45 +642,17 @@ async function runNativeBrowserVerification(
     closeReason
   );
   if (cleanupErrors.length > 0) {
-    const cleanupMessage = safeText(cleanupErrors.join('; '), 'Native browser cleanup failed');
-    if (result?.success) {
-      evidenceStatus = 'failed';
-      finalSummary = cleanupMessage;
-      result = err(
-        verifierFailure(
-          'execution-error',
-          cleanupMessage,
-          binding?.target.path ?? ctx.cwd,
-          Date.now() - startedAt,
-          command,
-          evidence?.directory
-        )
-      );
-    } else if (evidence) {
-      await evidence
-        .appendIntermediateFailure({ kind: 'cleanup', message: cleanupMessage })
-        .catch(() => {});
-    }
+    await surfaceCleanupFailure('browser-cleanup', cleanupErrors.join('; '));
   }
 
   if (nestedSession) {
     try {
       await restoreOuterConversation(ctx);
     } catch (error) {
-      if (result?.success) {
-        evidenceStatus = 'failed';
-        finalSummary = safeText(error, 'Failed to restore the Loop conversation');
-        result = err(
-          verifierFailure(
-            'execution-error',
-            finalSummary,
-            binding?.target.path ?? ctx.cwd,
-            Date.now() - startedAt,
-            command,
-            evidence?.directory
-          )
-        );
-      }
+      await surfaceCleanupFailure(
+        'conversation-restore',
+        safeText(error, 'Failed to restore the Loop conversation')
+      );
     }
   }
 
@@ -642,18 +660,11 @@ async function runNativeBrowserVerification(
     try {
       await evidence.finish({ status: evidenceStatus, summary: finalSummary });
     } catch (error) {
-      if (result?.success) {
-        result = err(
-          verifierFailure(
-            'execution-error',
-            safeText(error, 'Failed to finalize native browser evidence'),
-            binding?.target.path ?? ctx.cwd,
-            Date.now() - startedAt,
-            command,
-            evidence.directory
-          )
-        );
-      }
+      await surfaceCleanupFailure(
+        'evidence-finalize',
+        safeText(error, 'Failed to finalize native browser evidence'),
+        false
+      );
     }
   }
   control.dispose();
@@ -867,13 +878,19 @@ function validateTrustedBinding(
     );
   }
   const taskEnvironment = validateTrustedEnvironment(value.taskEnvironment);
-  if (ctx.executionTarget && !sameTarget(ctx.executionTarget, target.data)) {
+  if (!ctx.executionTarget) {
+    throw new NativeBrowserVerifierFailure(
+      'invalid-config',
+      'Native browser verification requires an authoritative execution target'
+    );
+  }
+  if (!sameTarget(ctx.executionTarget, target.data)) {
     throw new NativeBrowserVerifierFailure(
       'invalid-config',
       'Native browser target does not match the authoritative verifier execution target'
     );
   }
-  if (ctx.executionTarget && !sameStringRecord(ctx.executionTarget.taskEnv, taskEnvironment)) {
+  if (!sameStringRecord(ctx.executionTarget.taskEnv, taskEnvironment)) {
     throw new NativeBrowserVerifierFailure(
       'invalid-config',
       'Native browser task environment does not match the authoritative verifier environment'
@@ -1060,6 +1077,12 @@ function validateReconciledSession(
     }
     return next;
   }
+  if (reconciled.kind !== 'rotated') {
+    throw new NativeBrowserVerifierFailure(
+      'command-failed',
+      'Native browser reconciliation returned an unknown session transition'
+    );
+  }
   if (
     next.lease.verificationRunId === previous.lease.verificationRunId ||
     next.lease.browserId === previous.lease.browserId ||
@@ -1073,6 +1096,14 @@ function validateReconciledSession(
     );
   }
   return next;
+}
+
+function registerReconciledCandidate(value: unknown, leases: LoopBrowserLease[]): void {
+  if (typeof value !== 'object' || value === null || !('session' in value)) return;
+  const session = (value as { session?: unknown }).session;
+  if (typeof session !== 'object' || session === null || !('lease' in session)) return;
+  const lease = loopBrowserLeaseSchema.safeParse((session as { lease?: unknown }).lease);
+  if (lease.success) leases.push(lease.data);
 }
 
 function validateAction(action: LoopBrowserAction, lease: LoopBrowserLease): void {
@@ -1129,8 +1160,9 @@ async function validateAndStoreExecution(
     );
   }
   const result = sanitizeActionResult(parsed.data, lease.allowedPreviewOrigin);
-  if (action.kind === 'screenshot') {
-    if (!result.ok || result.observation.kind !== 'screenshot' || !execution.screenshot) {
+  if (result.ok) validateObservationKind(action, result.observation);
+  if (action.kind === 'screenshot' && result.ok) {
+    if (result.observation.kind !== 'screenshot' || !execution.screenshot) {
       throw new NativeBrowserVerifierFailure(
         'execution-error',
         'Native browser screenshot result omitted its sensitive artifact bytes'
@@ -1163,6 +1195,30 @@ async function validateAndStoreExecution(
     );
   }
   return result;
+}
+
+function validateObservationKind(
+  action: LoopBrowserAction,
+  observation: LoopBrowserObservation
+): void {
+  const expectedKind =
+    action.kind === 'navigate'
+      ? 'navigation'
+      : action.kind === 'accessibility-snapshot'
+        ? 'accessibility-snapshot'
+        : action.kind === 'accessibility-query'
+          ? 'accessibility-query'
+          : action.kind === 'diagnostics'
+            ? 'diagnostics'
+            : action.kind === 'screenshot'
+              ? 'screenshot'
+              : 'interaction';
+  if (observation.kind !== expectedKind) {
+    throw new NativeBrowserVerifierFailure(
+      'execution-error',
+      `Native browser returned ${observation.kind} evidence for ${action.kind}; expected ${expectedKind}`
+    );
+  }
 }
 
 function sanitizeActionResult(

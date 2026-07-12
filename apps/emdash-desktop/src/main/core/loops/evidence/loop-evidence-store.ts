@@ -1,15 +1,5 @@
 import { createHash } from 'node:crypto';
-import {
-  chmod,
-  constants,
-  lstat,
-  mkdir,
-  open,
-  readdir,
-  realpath,
-  rm,
-  stat,
-} from 'node:fs/promises';
+import { chmod, constants, lstat, mkdir, open, readdir, realpath, rm } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { redactAll } from '@emdash/shared/logger';
 import type {
@@ -94,6 +84,7 @@ type RetentionEntry = {
 };
 
 type LoopEvidenceRunOptions = {
+  rootDirectory: string;
   directory: string;
   now: () => Date;
   maxEvents: number;
@@ -185,10 +176,11 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
       }
       throw error;
     }
-    await chmod(directory, 0o700);
-    this.activeRuns.add(directory);
     try {
+      await assertPrivateContainedDirectory(this.rootDirectory, directory);
+      this.activeRuns.add(directory);
       const run = await LoopEvidenceRun.create({
+        rootDirectory: this.rootDirectory,
         directory,
         now: this.now,
         maxEvents: this.maxEventsPerRun,
@@ -196,16 +188,17 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
         maxScreenshots: this.maxScreenshotsPerRun,
         maxScreenshotBytes: this.maxScreenshotBytes,
         maxScreenshotBytesPerRun: this.maxScreenshotBytesPerRun,
-        onFinished: async () => {
+        onFinished: () => {
           this.activeRuns.delete(directory);
-          await this.cleanupExpired();
+          void this.cleanupExpired().catch(() => {});
+          return Promise.resolve();
         },
       });
       await run.appendStarted({ loopId, phaseId, verificationRunId });
       return run;
     } catch (error) {
       this.activeRuns.delete(directory);
-      await rm(directory, { recursive: true, force: true });
+      await removeCreatedRunDirectory(this.rootDirectory, directory);
       throw error;
     }
   }
@@ -222,7 +215,8 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
         continue;
       }
       if (this.activeRuns.has(entryPath)) continue;
-      const details = await stat(entryPath);
+      await assertPrivateContainedDirectory(this.rootDirectory, entryPath);
+      const details = await lstat(entryPath);
       retained.push({ name: entry.name, path: entryPath, mtimeMs: details.mtimeMs });
     }
 
@@ -260,6 +254,7 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
 
 class LoopEvidenceRun implements LoopEvidenceRunPort {
   readonly directory: string;
+  private readonly rootDirectory: string;
   private readonly eventPath: string;
   private readonly screenshotsPath: string;
   private readonly now: () => Date;
@@ -276,6 +271,7 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
   private operationTail: Promise<void> = Promise.resolve();
 
   private constructor(input: LoopEvidenceRunOptions) {
+    this.rootDirectory = input.rootDirectory;
     this.directory = input.directory;
     this.eventPath = join(input.directory, EVENTS_FILE);
     this.screenshotsPath = join(input.directory, SCREENSHOTS_DIR);
@@ -290,7 +286,9 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
 
   static async create(input: LoopEvidenceRunOptions): Promise<LoopEvidenceRun> {
     const run = new LoopEvidenceRun(input);
+    await run.assertDirectories(false);
     await ensurePrivateDirectory(run.screenshotsPath, false);
+    await run.assertDirectories();
     const eventHandle = await open(
       run.eventPath,
       constants.O_APPEND |
@@ -300,8 +298,11 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
         constants.O_NOFOLLOW,
       0o600
     );
-    await eventHandle.close();
-    await chmod(run.eventPath, 0o600);
+    try {
+      await eventHandle.chmod(0o600);
+    } finally {
+      await eventHandle.close();
+    }
     const screenshotUsage = await readScreenshotUsage(run.screenshotsPath);
     run.screenshotCount = screenshotUsage.count;
     run.screenshotBytes = screenshotUsage.bytes;
@@ -368,6 +369,7 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
   }): Promise<LoopEvidenceScreenshot> {
     return await this.enqueue(async () => {
       this.assertOpen();
+      await this.assertDirectories();
       const artifactId = boundedIdentifier(input.artifactId, 'artifactId');
       if (input.mimeType !== 'image/png' && input.mimeType !== 'image/jpeg') {
         throw new TypeError('Loop evidence only accepts PNG or JPEG screenshots');
@@ -387,33 +389,35 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
       const relativePath = join(SCREENSHOTS_DIR, fileName);
       const artifactPath = join(this.directory, relativePath);
       assertContainedPath(this.directory, artifactPath);
-      const handle = await open(
-        artifactPath,
-        constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
-        0o600
-      );
+      let handle: Awaited<ReturnType<typeof open>> | null = null;
+      let created = false;
       try {
+        handle = await open(
+          artifactPath,
+          constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+          0o600
+        );
+        created = true;
         await handle.writeFile(input.data);
-      } finally {
+        await handle.chmod(0o600);
         await handle.close();
-      }
-      await chmod(artifactPath, 0o600);
+        handle = null;
 
-      const artifact = {
-        artifactId: sanitizeText(artifactId, 256),
-        mimeType: input.mimeType,
-        byteLength: input.data.byteLength,
-        relativePath,
-      } satisfies LoopEvidenceScreenshot;
-      try {
+        const artifact = {
+          artifactId: sanitizeText(artifactId, 256),
+          mimeType: input.mimeType,
+          byteLength: input.data.byteLength,
+          relativePath,
+        } satisfies LoopEvidenceScreenshot;
         await this.appendUnlocked('screenshot', artifact);
+        this.screenshotCount += 1;
+        this.screenshotBytes += input.data.byteLength;
+        return artifact;
       } catch (error) {
-        await rm(artifactPath, { force: true });
+        if (handle) await handle.close().catch(() => {});
+        if (created) await rm(artifactPath, { force: true }).catch(() => {});
         throw error;
       }
-      this.screenshotCount += 1;
-      this.screenshotBytes += input.data.byteLength;
-      return artifact;
     });
   }
 
@@ -435,6 +439,7 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
 
   private async appendUnlocked(kind: string, data: unknown, terminal = false): Promise<void> {
     this.assertOpen();
+    await this.assertDirectories();
     const eventLimit = terminal ? this.maxEvents : this.maxEvents - 1;
     if (this.sequence >= eventLimit) {
       throw new RangeError('Loop evidence event limit was reached');
@@ -455,12 +460,19 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
       0o600
     );
     try {
+      await handle.chmod(0o600);
       await handle.writeFile(line, 'utf8');
     } finally {
       await handle.close();
     }
-    await chmod(this.eventPath, 0o600);
     this.sequence += 1;
+  }
+
+  private async assertDirectories(includeScreenshots = true): Promise<void> {
+    await assertPrivateContainedDirectory(this.rootDirectory, this.directory);
+    if (includeScreenshots) {
+      await assertPrivateContainedDirectory(this.directory, this.screenshotsPath);
+    }
   }
 
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -484,11 +496,11 @@ async function readScreenshotUsage(path: string): Promise<{ count: number; bytes
   for (const entry of entries) {
     const entryPath = join(path, entry.name);
     assertContainedPath(path, entryPath);
-    if (!entry.isFile()) {
+    const details = await lstat(entryPath);
+    if (!entry.isFile() || !details.isFile() || details.isSymbolicLink()) {
       await rm(entryPath, { recursive: true, force: true });
       continue;
     }
-    const details = await stat(entryPath);
     count += 1;
     bytes += details.size;
   }
@@ -631,6 +643,38 @@ async function ensurePrivateDirectory(path: string, allowExisting = true): Promi
     throw new Error('Loop evidence directory must not traverse symbolic links');
   }
   await chmod(path, 0o700);
+}
+
+async function assertPrivateContainedDirectory(parent: string, candidate: string): Promise<void> {
+  assertContainedPath(parent, candidate);
+  await assertCanonicalDirectory(parent);
+  await assertCanonicalDirectory(candidate);
+}
+
+async function assertCanonicalDirectory(path: string): Promise<void> {
+  const details = await lstat(path);
+  if (!details.isDirectory() || details.isSymbolicLink()) {
+    throw new Error('Loop evidence directory must not be a symbolic link');
+  }
+  const canonical = await realpath(path);
+  if (!sameFilesystemPath(canonical, resolve(path))) {
+    throw new Error('Loop evidence directory must not traverse symbolic links');
+  }
+}
+
+async function removeCreatedRunDirectory(root: string, directory: string): Promise<void> {
+  assertContainedPath(root, directory);
+  try {
+    const details = await lstat(directory);
+    if (details.isSymbolicLink() || !details.isDirectory()) {
+      await rm(directory, { force: true });
+      return;
+    }
+    await assertPrivateContainedDirectory(root, directory);
+    await rm(directory, { recursive: true, force: true });
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') return;
+  }
 }
 
 function sameFilesystemPath(left: string, right: string): boolean {

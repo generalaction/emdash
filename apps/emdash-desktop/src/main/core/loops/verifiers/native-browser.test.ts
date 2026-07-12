@@ -230,6 +230,7 @@ function makeHarness(options: HarnessOptions = {}) {
     criteria: phase.criteria!.criteria,
     validationCommands: [],
     sessionDriver: outerDriver,
+    executionTarget: fakeExecutionTarget(target, environment),
     promptTimeoutMs: 10_000,
     setActiveConversation,
     ...options.context,
@@ -471,6 +472,118 @@ describe('native browser verifier', () => {
     expect(harness.close).toHaveBeenCalledWith(invalidRotation.lease, 'failed');
   });
 
+  it('cleans a changed lease mislabeled as resumed', async () => {
+    const initial = makeBrowserSession(SSH_TARGET);
+    const candidate: NativeBrowserVerificationSession = {
+      lease: {
+        ...initial.lease,
+        verificationRunId: 'mislabeled-run',
+        browserId: 'mislabeled-browser',
+        partition: 'persist:emdash-browser-loop-verification-mislabeled',
+        allowedPreviewOrigin: 'http://127.0.0.1:49444',
+      },
+      previewServerId: initial.previewServerId,
+      previewUrl: 'http://127.0.0.1:49444/dashboard',
+    };
+    const harness = makeHarness({
+      target: SSH_TARGET,
+      browserSession: initial,
+      responses: [actionBlock({ kind: 'accessibility-snapshot' })],
+    });
+    harness.performAction.mockResolvedValue({
+      result: { ok: false, error: { kind: 'not-ready', message: 'reconnecting' } },
+    });
+    harness.reconcilePreview.mockResolvedValue({
+      success: true,
+      data: { kind: 'resumed', session: candidate },
+    });
+
+    const result = await harness.verifier.run(harness.ctx);
+
+    expect(result.success).toBe(false);
+    expect(harness.close).toHaveBeenCalledWith(candidate.lease, 'failed');
+    expect(harness.close).toHaveBeenCalledWith(initial.lease, 'failed');
+  });
+
+  it('rejects an unknown reconcile kind and cleans its schema-valid candidate', async () => {
+    const initial = makeBrowserSession(SSH_TARGET);
+    const candidate: NativeBrowserVerificationSession = {
+      lease: {
+        ...initial.lease,
+        verificationRunId: 'unknown-run',
+        browserId: 'unknown-browser',
+        partition: 'persist:emdash-browser-loop-verification-unknown',
+        allowedPreviewOrigin: 'http://127.0.0.1:49555',
+      },
+      previewServerId: initial.previewServerId,
+      previewUrl: 'http://127.0.0.1:49555/dashboard',
+    };
+    const harness = makeHarness({
+      target: SSH_TARGET,
+      browserSession: initial,
+      responses: [actionBlock({ kind: 'accessibility-snapshot' })],
+    });
+    harness.performAction.mockResolvedValue({
+      result: { ok: false, error: { kind: 'not-ready', message: 'reconnecting' } },
+    });
+    harness.reconcilePreview.mockResolvedValue({
+      success: true,
+      data: { kind: 'unknown', session: candidate },
+    } as unknown as Awaited<ReturnType<NativeBrowserVerificationService['reconcilePreview']>>);
+
+    const result = await harness.verifier.run(harness.ctx);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.message).toMatch(/unknown session transition/i);
+    expect(harness.close).toHaveBeenCalledWith(candidate.lease, 'failed');
+    expect(harness.close).toHaveBeenCalledWith(initial.lease, 'failed');
+  });
+
+  it('waits for a late rotated reconcile result and cleans both leases after abort', async () => {
+    const controller = new AbortController();
+    const initial = makeBrowserSession(SSH_TARGET);
+    const rotated: NativeBrowserVerificationSession = {
+      lease: {
+        ...initial.lease,
+        verificationRunId: 'late-rotated-run',
+        browserId: 'late-rotated-browser',
+        partition: 'persist:emdash-browser-loop-verification-late-rotated',
+        allowedPreviewOrigin: 'http://127.0.0.1:49666',
+      },
+      previewServerId: initial.previewServerId,
+      previewUrl: 'http://127.0.0.1:49666/dashboard',
+    };
+    const harness = makeHarness({
+      target: SSH_TARGET,
+      browserSession: initial,
+      context: { signal: controller.signal },
+      responses: [actionBlock({ kind: 'accessibility-snapshot' })],
+    });
+    const heldReconcile =
+      deferred<Awaited<ReturnType<NativeBrowserVerificationService['reconcilePreview']>>>();
+    harness.performAction.mockResolvedValue({
+      result: { ok: false, error: { kind: 'not-ready', message: 'reconnecting' } },
+    });
+    harness.reconcilePreview.mockReturnValue(heldReconcile.promise);
+
+    const runPromise = harness.verifier.run(harness.ctx);
+    let settled = false;
+    void runPromise.then(() => {
+      settled = true;
+    });
+    await waitForCall(harness.reconcilePreview);
+    controller.abort();
+    await flush();
+    expect(settled).toBe(false);
+    heldReconcile.resolve({ success: true, data: { kind: 'rotated', session: rotated } });
+    const result = await runPromise;
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.kind).toBe('aborted');
+    expect(harness.close).toHaveBeenCalledWith(rotated.lease, 'cancelled');
+    expect(harness.close).toHaveBeenCalledWith(initial.lease, 'cancelled');
+  });
+
   it.each([
     ['missing end marker', `${NATIVE_BROWSER_ACTION_BEGIN}\n{"kind":"diagnostics"}`],
     [
@@ -566,6 +679,18 @@ describe('native browser verifier', () => {
     if (!result.success)
       expect(result.error.message).toMatch(/authoritative verifier environment/i);
     expect(harness.start).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing authoritative execution target before evidence, browser, or ACP startup', async () => {
+    const harness = makeHarness({ context: { executionTarget: undefined } });
+
+    const result = await harness.verifier.run(harness.ctx);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.message).toMatch(/authoritative execution target/i);
+    expect(harness.dependencies.evidenceStore.beginRun).not.toHaveBeenCalled();
+    expect(harness.start).not.toHaveBeenCalled();
+    expect(harness.startVerificationSession).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -685,6 +810,29 @@ describe('native browser verifier', () => {
     expect(harness.evidenceRun.finish).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'cancelled' })
     );
+  });
+
+  it('latches caller cancellation while delayed quiescence crosses the timeout', async () => {
+    const controller = new AbortController();
+    const harness = makeHarness({
+      context: { signal: controller.signal, promptTimeoutMs: 5 },
+    });
+    const heldPrompt =
+      deferred<Result<{ finalText: string }, { kind: 'prompt-failed'; message: string }>>();
+    const heldCancellation = deferred<Result<void, { kind: 'cancel-failed'; message: string }>>();
+    harness.nestedDriver.sendPrompt = vi.fn(() => heldPrompt.promise);
+    harness.nestedDriver.cancelPrompt = vi.fn(() => heldCancellation.promise);
+
+    const runPromise = harness.verifier.run(harness.ctx);
+    await waitForCall(vi.mocked(harness.nestedDriver.sendPrompt));
+    controller.abort();
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    heldPrompt.resolve(err({ kind: 'prompt-failed', message: 'cancelled' }));
+    heldCancellation.resolve(ok(undefined));
+    const result = await runPromise;
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.kind).toBe('aborted');
   });
 
   it('times out a held prompt and performs the same deterministic cleanup', async () => {
@@ -818,6 +966,47 @@ describe('native browser verifier', () => {
     expect(result.success).toBe(false);
     expect(harness.close).toHaveBeenCalledWith(harness.browserSession.lease, 'cancelled');
   });
+
+  it.each(['incomplete', 'throw'] as const)(
+    'surfaces %s cleanup for a browser lease that starts after cancellation',
+    async (mode) => {
+      const controller = new AbortController();
+      const harness = makeHarness({ context: { signal: controller.signal } });
+      const heldStart = deferred<Awaited<ReturnType<NativeBrowserVerificationService['start']>>>();
+      harness.start.mockReturnValue(heldStart.promise);
+      if (mode === 'throw') {
+        harness.close.mockRejectedValue(new Error('late close threw'));
+      } else {
+        harness.close.mockImplementation(async (lease, reason) => ({
+          type: 'closed',
+          ...lease,
+          reason,
+          partitionDataCleared: false,
+          cleanupError: 'late partition remained',
+          closedAt: '2026-01-01T00:00:00.000Z',
+        }));
+      }
+
+      const runPromise = harness.verifier.run(harness.ctx);
+      await waitForCall(harness.start);
+      controller.abort();
+      heldStart.resolve({ success: true, data: harness.browserSession });
+      const result = await runPromise;
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.kind).toBe('execution-error');
+        expect(result.error.message).toContain('cancelled');
+        expect(result.error.message).toContain(
+          mode === 'throw' ? 'late close threw' : 'late partition remained'
+        );
+      }
+      expect(harness.evidenceRun.finish).toHaveBeenCalledWith({
+        status: 'cancelled',
+        summary: expect.stringContaining('Cleanup recovery required'),
+      });
+    }
+  );
 
   it('cancels a nested session that starts after cancellation', async () => {
     const controller = new AbortController();
@@ -1005,6 +1194,77 @@ describe('native browser verifier', () => {
     expect(prompts).not.toContain('screenshots/shot-1.png');
   });
 
+  it('returns an ordinary screenshot failure to ACP without requiring artifact bytes', async () => {
+    const harness = makeHarness({
+      responses: [
+        actionBlock({ kind: 'screenshot' }),
+        `${NATIVE_BROWSER_FAILED_PREFIX} screenshot capture failed>>>`,
+      ],
+    });
+    harness.performAction.mockResolvedValue({
+      result: {
+        ok: false,
+        error: { kind: 'artifact-failed', message: 'screenshot was empty' },
+      },
+    });
+
+    const result = await harness.verifier.run(harness.ctx);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.message).toBe('screenshot capture failed');
+    expect(harness.evidenceRun.writeScreenshot).not.toHaveBeenCalled();
+    expect(vi.mocked(harness.nestedDriver.sendPrompt).mock.calls[1]![1]).toContain(
+      'artifact-failed'
+    );
+  });
+
+  it('reconciles screenshot not-ready without bytes and rotates without replay', async () => {
+    const initial = makeBrowserSession(SSH_TARGET);
+    const rotated: NativeBrowserVerificationSession = {
+      lease: {
+        ...initial.lease,
+        verificationRunId: 'screenshot-rotated-run',
+        browserId: 'screenshot-rotated-browser',
+        partition: 'persist:emdash-browser-loop-verification-screenshot-rotated',
+        allowedPreviewOrigin: 'http://127.0.0.1:49777',
+      },
+      previewServerId: initial.previewServerId,
+      previewUrl: 'http://127.0.0.1:49777/dashboard',
+    };
+    const harness = makeHarness({
+      target: SSH_TARGET,
+      browserSession: initial,
+      responses: [
+        actionBlock({ kind: 'screenshot' }),
+        actionBlock({ kind: 'diagnostics', limit: 5 }),
+        NATIVE_BROWSER_PASSED_SENTINEL,
+      ],
+    });
+    harness.performAction
+      .mockResolvedValueOnce({
+        result: { ok: false, error: { kind: 'not-ready', message: 'reconnecting' } },
+      })
+      .mockResolvedValueOnce({
+        result: {
+          ok: true,
+          observation: { kind: 'diagnostics', entries: [], truncated: false },
+        },
+      });
+    harness.reconcilePreview.mockResolvedValue({
+      success: true,
+      data: { kind: 'rotated', session: rotated },
+    });
+
+    const result = await harness.verifier.run(harness.ctx);
+
+    expect(result.success).toBe(true);
+    expect(harness.evidenceRun.writeScreenshot).not.toHaveBeenCalled();
+    expect(harness.performAction).toHaveBeenCalledTimes(2);
+    expect(harness.performAction.mock.calls[0]![0].action.kind).toBe('screenshot');
+    expect(harness.performAction.mock.calls[1]![0].action.kind).toBe('diagnostics');
+    expect(harness.close).toHaveBeenCalledWith(rotated.lease, 'completed');
+  });
+
   it.each([
     ['query navigation', { kind: 'navigate', url: 'http://localhost:4173/path?token=secret' }],
     ['hash navigation', { kind: 'navigate', url: 'http://localhost:4173/path#secret' }],
@@ -1041,11 +1301,127 @@ describe('native browser verifier', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.kind).toBe('execution-error');
-      expect(result.error.message).toBe('partition cleanup failed');
+      expect(result.error.message).toContain('Native browser criteria passed');
+      expect(result.error.message).toContain('partition cleanup failed');
     }
     expect(harness.evidenceRun.finish).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'failed' })
     );
+  });
+
+  it('surfaces partition cleanup recovery alongside an ordinary verification failure', async () => {
+    const harness = makeHarness({
+      responses: [
+        actionBlock({ kind: 'accessibility-snapshot' }),
+        `${NATIVE_BROWSER_FAILED_PREFIX} dialog did not open>>>`,
+      ],
+    });
+    harness.close.mockImplementation(async (lease, reason) => ({
+      type: 'closed',
+      ...lease,
+      reason,
+      partitionDataCleared: false,
+      cleanupError: 'partition cleanup failed',
+      closedAt: '2026-01-01T00:00:00.000Z',
+    }));
+
+    const result = await harness.verifier.run(harness.ctx);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.kind).toBe('execution-error');
+      expect(result.error.message).toContain('dialog did not open');
+      expect(result.error.message).toContain('partition cleanup failed');
+    }
+    expect(harness.evidenceRun.finish).toHaveBeenCalledWith({
+      status: 'failed',
+      summary: expect.stringContaining('dialog did not open'),
+    });
+    expect(harness.evidenceRun.appendIntermediateFailure).toHaveBeenCalledWith({
+      kind: 'browser-cleanup',
+      message: 'partition cleanup failed',
+    });
+  });
+
+  it('preserves cancelled evidence status while surfacing partition cleanup recovery', async () => {
+    const controller = new AbortController();
+    const harness = makeHarness({ context: { signal: controller.signal } });
+    const heldPrompt =
+      deferred<Result<{ finalText: string }, { kind: 'prompt-failed'; message: string }>>();
+    harness.nestedDriver.sendPrompt = vi.fn(() => heldPrompt.promise);
+    harness.nestedDriver.cancelPrompt = vi.fn(async () => {
+      heldPrompt.resolve(err({ kind: 'prompt-failed', message: 'cancelled' }));
+      return ok(undefined);
+    });
+    harness.close.mockImplementation(async (lease, reason) => ({
+      type: 'closed',
+      ...lease,
+      reason,
+      partitionDataCleared: false,
+      cleanupError: 'cancel cleanup failed',
+      closedAt: '2026-01-01T00:00:00.000Z',
+    }));
+
+    const runPromise = harness.verifier.run(harness.ctx);
+    await waitForCall(vi.mocked(harness.nestedDriver.sendPrompt));
+    controller.abort();
+    const result = await runPromise;
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.kind).toBe('execution-error');
+      expect(result.error.message).toContain('cancelled');
+      expect(result.error.message).toContain('cancel cleanup failed');
+    }
+    expect(harness.evidenceRun.finish).toHaveBeenCalledWith({
+      status: 'cancelled',
+      summary: expect.stringContaining('cancel cleanup failed'),
+    });
+  });
+
+  it('surfaces outer-conversation restore and evidence-finalize recovery on failed runs', async () => {
+    const restoreHarness = makeHarness({
+      responses: [
+        actionBlock({ kind: 'accessibility-snapshot' }),
+        `${NATIVE_BROWSER_FAILED_PREFIX} observed product failure>>>`,
+      ],
+    });
+    restoreHarness.ctx.setActiveConversation = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('outer restore failed'));
+
+    const restoreResult = await restoreHarness.verifier.run(restoreHarness.ctx);
+
+    expect(restoreResult.success).toBe(false);
+    if (!restoreResult.success) {
+      expect(restoreResult.error.kind).toBe('execution-error');
+      expect(restoreResult.error.message).toContain('observed product failure');
+      expect(restoreResult.error.message).toContain('outer restore failed');
+    }
+    expect(restoreHarness.evidenceRun.appendIntermediateFailure).toHaveBeenCalledWith({
+      kind: 'conversation-restore',
+      message: 'outer restore failed',
+    });
+
+    const evidenceHarness = makeHarness({
+      responses: [
+        actionBlock({ kind: 'accessibility-snapshot' }),
+        `${NATIVE_BROWSER_FAILED_PREFIX} observed product failure>>>`,
+      ],
+    });
+    evidenceHarness.evidenceRun.finish = vi.fn(async () => {
+      throw new Error('evidence disk unavailable');
+    });
+
+    const evidenceResult = await evidenceHarness.verifier.run(evidenceHarness.ctx);
+
+    expect(evidenceResult.success).toBe(false);
+    if (!evidenceResult.success) {
+      expect(evidenceResult.error.kind).toBe('execution-error');
+      expect(evidenceResult.error.message).toContain('observed product failure');
+      expect(evidenceResult.error.message).toContain('evidence disk unavailable');
+    }
   });
 
   it.each([
@@ -1101,6 +1477,35 @@ describe('native browser verifier', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.kind).toBe('execution-error');
+  });
+
+  it.each([
+    ['navigate', { kind: 'navigate', url: 'http://localhost:4173/dashboard' }],
+    ['snapshot', { kind: 'accessibility-snapshot' }],
+    ['query', { kind: 'accessibility-query', target: { role: 'button', name: 'Save' }, limit: 5 }],
+    ['click', { kind: 'click', target: { role: 'button', name: 'Save' } }],
+    ['fill', { kind: 'fill', target: { role: 'textbox', name: 'Goal' }, value: 'safe value' }],
+    ['keypress', { kind: 'keypress', key: 'Tab' }],
+    ['screenshot', { kind: 'screenshot' }],
+    ['diagnostics', { kind: 'diagnostics', limit: 5 }],
+  ])('rejects mismatched successful observation evidence for %s', async (label, action) => {
+    const harness = makeHarness({ responses: [actionBlock(action)] });
+    const wrongObservation =
+      label === 'diagnostics'
+        ? { kind: 'accessibility-snapshot' as const, snapshot: 'stale', truncated: false }
+        : { kind: 'diagnostics' as const, entries: [], truncated: false };
+    harness.performAction.mockResolvedValue({
+      result: { ok: true, observation: wrongObservation },
+    });
+
+    const result = await harness.verifier.run(harness.ctx);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.kind).toBe('execution-error');
+      expect(result.error.message).toMatch(/evidence for|expected/i);
+    }
+    expect(harness.evidenceRun.appendObservation).not.toHaveBeenCalled();
   });
 
   it('rejects an evidence path inside either repository before opening a browser', async () => {

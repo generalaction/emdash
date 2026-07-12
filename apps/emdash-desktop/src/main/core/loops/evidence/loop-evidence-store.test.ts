@@ -5,6 +5,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  rename,
   rm,
   stat,
   symlink,
@@ -13,7 +14,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LoopEvidenceStore } from './loop-evidence-store';
 
 describe('LoopEvidenceStore', () => {
@@ -279,6 +280,7 @@ describe('LoopEvidenceStore', () => {
     });
     await third.finish({ status: 'passed', summary: 'third' });
     await utimes(third.directory, now, now);
+    await store.cleanupExpired();
 
     await expect(access(first.directory)).rejects.toThrow();
     await expect(access(second.directory)).resolves.toBeUndefined();
@@ -309,5 +311,84 @@ describe('LoopEvidenceStore', () => {
 
     await expect(access(link)).rejects.toThrow();
     expect(await readFile(victim, 'utf8')).toBe('retain me');
+  });
+
+  it('rejects a swapped run directory before appending events or screenshots', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'emdash-loop-evidence-run-swap-'));
+    tempDirs.push(root);
+    const store = new LoopEvidenceStore({ appDataPath: join(root, 'app-data') });
+    const run = await store.beginRun({
+      loopId: 'loop',
+      phaseId: 'phase',
+      verificationRunId: 'run',
+    });
+    const originalDirectory = `${run.directory}-original`;
+    const outside = join(root, 'outside');
+    await mkdir(outside);
+    await rename(run.directory, originalDirectory);
+    await symlink(outside, run.directory, 'dir');
+
+    await expect(
+      run.appendIntermediateFailure({ kind: 'swap', message: 'must stay inside app data' })
+    ).rejects.toThrow(/symbolic|traverse/i);
+    await expect(
+      run.writeScreenshot({
+        artifactId: 'swapped-shot',
+        mimeType: 'image/png',
+        data: Buffer.from('sensitive pixels'),
+      })
+    ).rejects.toThrow(/symbolic|traverse/i);
+    expect(await readdir(outside)).toEqual([]);
+
+    await rm(run.directory, { force: true });
+    await rename(originalDirectory, run.directory);
+    await run.finish({ status: 'failed', summary: 'swap rejected' });
+  });
+
+  it('rejects a swapped evidence root without writing through it', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'emdash-loop-evidence-root-swap-'));
+    tempDirs.push(root);
+    const store = new LoopEvidenceStore({ appDataPath: join(root, 'app-data') });
+    const run = await store.beginRun({
+      loopId: 'loop',
+      phaseId: 'phase',
+      verificationRunId: 'run',
+    });
+    await run.finish({ status: 'passed', summary: 'complete' });
+    const originalRoot = `${store.rootDirectory}-original`;
+    const outside = join(root, 'outside');
+    await mkdir(outside);
+    await rename(store.rootDirectory, originalRoot);
+    await symlink(outside, store.rootDirectory, 'dir');
+
+    await expect(store.cleanupExpired()).rejects.toThrow(/symbolic|traverse/i);
+    expect(await readdir(outside)).toEqual([]);
+
+    await rm(store.rootDirectory, { force: true });
+    await rename(originalRoot, store.rootDirectory);
+  });
+
+  it('keeps a durable terminal authoritative when best-effort retention cleanup fails', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'emdash-loop-evidence-retention-failure-'));
+    tempDirs.push(root);
+    const store = new LoopEvidenceStore({ appDataPath: join(root, 'app-data') });
+    const run = await store.beginRun({
+      loopId: 'loop',
+      phaseId: 'phase',
+      verificationRunId: 'run',
+    });
+    const cleanup = vi.spyOn(store, 'cleanupExpired').mockRejectedValueOnce(new Error('busy'));
+
+    await expect(
+      run.finish({ status: 'passed', summary: 'durable pass' })
+    ).resolves.toBeUndefined();
+
+    const records = (await readFile(join(run.directory, 'events.ndjson'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as { kind: string; data: { status?: string } });
+    expect(records.at(-1)).toMatchObject({ kind: 'terminal', data: { status: 'passed' } });
+    cleanup.mockRestore();
+    await expect(store.cleanupExpired()).resolves.toBeUndefined();
   });
 });
