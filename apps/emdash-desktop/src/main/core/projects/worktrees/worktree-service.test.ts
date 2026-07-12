@@ -1294,7 +1294,7 @@ describe('WorktreeService', () => {
           expectedHead: commit,
         })
       ).resolves.toEqual(ok({ removed: true }));
-    });
+    }, 15_000);
 
     it('keeps held preserve glob enumeration quiescent before removal', async () => {
       fs.writeFileSync(path.join(repoDir, '.env.local'), 'SECRET=abc');

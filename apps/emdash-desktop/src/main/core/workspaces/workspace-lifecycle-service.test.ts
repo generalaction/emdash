@@ -112,7 +112,9 @@ describe('WorkspaceLifecycleService', () => {
       const { provider, spawned, destroyAll } = makeTerminalProvider();
       const spawn = provider.spawnLifecycleScript.bind(provider);
       const gate = deferred();
+      const spawnStarted = deferred();
       provider.spawnLifecycleScript = async (request) => {
+        spawnStarted.resolve();
         await gate.promise;
         await spawn(request);
       };
@@ -121,27 +123,35 @@ describe('WorkspaceLifecycleService', () => {
         workspaceId: `loop-held-${type}`,
         terminals: provider,
       });
-      const receipt = service.startRequiredStartup({
-        [type]: { type, script: type === 'setup' ? 'pnpm install' : 'pnpm dev' },
-        deadlineAt: Date.now() + 20,
-      });
-      let settled = false;
-      void receipt.ready.then(() => {
-        settled = true;
-      });
+      vi.useFakeTimers();
+      try {
+        const receipt = service.startRequiredStartup({
+          [type]: { type, script: type === 'setup' ? 'pnpm install' : 'pnpm dev' },
+          deadlineAt: Date.now() + 60_000,
+        });
+        let settled = false;
+        void receipt.ready.then(() => {
+          settled = true;
+        });
 
-      await new Promise((resolve) => setTimeout(resolve, 30));
-      expect(settled).toBe(false);
-      gate.resolve();
+        await spawnStarted.promise;
+        await vi.advanceTimersByTimeAsync(60_001);
+        expect(settled).toBe(false);
 
-      await expect(receipt.ready).resolves.toMatchObject({
-        success: false,
-        error: { type: 'cancelled', stage: type },
-      });
-      expect(spawned).toHaveLength(1);
-      expect(spawned[0].writes).toEqual([]);
-      expect(spawned[0].killCalls).toBeGreaterThanOrEqual(1);
-      expect(destroyAll).toHaveBeenCalled();
+        gate.resolve();
+        await vi.advanceTimersByTimeAsync(0);
+        await expect(receipt.ready).resolves.toMatchObject({
+          success: false,
+          error: { type: 'cancelled', stage: type },
+        });
+        expect(spawned).toHaveLength(1);
+        expect(spawned[0].writes).toEqual([]);
+        expect(spawned[0].killCalls).toBeGreaterThanOrEqual(1);
+        expect(destroyAll).toHaveBeenCalled();
+      } finally {
+        gate.resolve();
+        vi.useRealTimers();
+      }
     }
   );
 
