@@ -1200,7 +1200,30 @@ fresh recreated green run becomes the final success report.
   files passed 336/336 with one worker; desktop and release typechecks passed; all 22 changed
   TypeScript files passed focused lint and formatting; `git diff --check` passed. The integration
   worktree was clean and no branch was pushed.
-- [ ] Complete and merge Wave 2B lanes V/N, then Wave 2C Lane E.
+- [x] 2026-07-12: Completed and merged Wave 2B Lane V through `ae308983c` (source head
+  `53800cb8d`). Terminal Review now validates the complete immutable checkpoint range, starts one
+  fresh target-bound Review session, reconciles every possible post-side-effect HEAD before exit,
+  preserves correction and cleanup recovery authority, and never returns before prompt/workspace
+  effects are quiescent. The full-range Sol/ultra audit at session
+  `019f54ca-6b4b-7ce3-b003-91003209934c` approved with no P1/P2; 97/97 focused and compatibility
+  tests, app/release typechecks, lint, format, and diff checks passed.
+- [x] 2026-07-12: Completed and merged Wave 2B Lane N through `addc70dc7` (source head
+  `5cad306c9`). The native verifier now requires the exact execution target and trusted task
+  environment; owns every initial, rejected, resumed, rotated, and late lease; quiesces ACP,
+  evidence, browser, and cancellation operations; resets pass authority across rotation; and
+  persists only generic verifier metadata while keeping bounded/redacted detail and screenshots in
+  app data. Evidence uses immutable filesystem identities, handle/path write fences, known-layout
+  non-recursive cleanup, explicit abandonment for bounded retention, and fail-closed structured
+  cookie redaction. Independent Sol/ultra audits at sessions
+  `019f54ed-0e0a-7310-9043-861f7b699d83` and
+  `019f553f-2089-77a0-8301-02bae052567d` approved the final four-file range with no P1/P2. Its
+  exact five-file gate passed 157/157, both typechecks and focused lint/format passed, and detached
+  old-source replays failed in the intended lifecycle, security, and redaction families.
+- [x] 2026-07-12: Passed the integrated Wave 2B gate at `addc70dc7`: eight Review/native browser
+  focused and compatibility files passed 254/254 with one worker; desktop and release typechecks,
+  focused lint/format, and `git diff --check` passed. The isolated integration and lane worktrees
+  were clean, temporary dependency links were removed, and no branch was pushed.
+- [ ] Complete and merge Wave 2C Lane E.
 - [ ] Complete serial main-engine and final renderer integration.
 - [ ] Add and pass the automated Electron local/Docker-SSH harness.
 - [ ] Complete independent review, local Electron proof, and Docker SSH proof.
@@ -1253,6 +1276,17 @@ fresh recreated green run becomes the final success report.
   Evidence: independent review reproduced a revoke/close-timeout path that could release session
   handlers while a pending guest survived; failing-first registry tests now cover pending and late
   attachments, cross-owner cleanup, action drain, concurrent start/reconcile, and credential URLs.
+- Observation: portable Node path APIs cannot provide an atomic `openat`/`unlinkat` boundary against
+  an actively oscillating same-user process; Windows also maps `O_NOFOLLOW`/`O_DIRECTORY` to no-op
+  flags and POSIX chmod is not a Windows ACL boundary.
+  Evidence: Wave 2N therefore treats app data as a private application boundary, persists canonical
+  path plus bigint device/inode authority, revalidates opened handles immediately before writes,
+  deletes only the fixed evidence layout with unlink/rmdir, and fails closed on identity drift.
+- Observation: shared log redaction does not recognize cookie/session-cookie assignments, and
+  line-oriented patterns miss quoted, escaped, multiline, array, and object values.
+  Evidence: the native verifier and evidence store use a local fail-closed assignment guard that
+  rejects cookie-bearing fills and redacts the bounded remainder after a structured cookie key,
+  while standalone UI labels such as “Accept cookies” remain observable.
 
 ## Decision Log
 
@@ -1287,12 +1321,18 @@ fresh recreated green run becomes the final success report.
   the plan's stable tie-breaker testable without weakening the no-hand-edit rule for generated
   structural migrations.
   Date/author: 2026-07-11, execution preflight.
+- Decision: Persist only generic native-verifier result metadata in Loop criterion JSON; retain
+  nested ACP prose, browser observations, and sensitive screenshots only in the bounded app-data
+  evidence authority.
+  Rationale: PhaseRunner serializes verifier summaries and tails, so returning nested free-form
+  browser prose would bypass the evidence retention and redaction boundary.
+  Date/author: 2026-07-12, Wave 2N security review.
 
 ## Outcomes & Retrospective
 
-Implementation is complete through the reviewed Wave 1 foundations on the isolated integration
-branch. Wave 2 clean-room/prompt work, terminal gates, serial engine/renderer wiring, native Electron
-harness, full independent review, and both Summario acceptance Loops remain. At each major merge
-wave, the lead records what shipped, proof obtained, deviations, and cleanup. At final completion,
-compare the observable result with `Purpose and observable outcome`, list exact validation evidence,
-and state any remaining blocker without claiming success for an unverified path.
+Implementation is complete through the independently reviewed Wave 2B foundations on the isolated
+integration branch. The clean-room E2E gate, serial engine/renderer wiring, native Electron harness,
+full independent review, and both Summario acceptance Loops remain. At each major merge wave, the
+lead records what shipped, proof obtained, deviations, and cleanup. At final completion, compare the
+observable result with `Purpose and observable outcome`, list exact validation evidence, and state
+any remaining blocker without claiming success for an unverified path.
