@@ -11,6 +11,7 @@ import {
 } from '@shared/core/loops/loop-state';
 import {
   loopProviderSchema,
+  loopTerminalGatesSchema,
   type Loop,
   type LoopPhase,
   type LoopProviderId,
@@ -1758,7 +1759,7 @@ export class CleanRoomE2EGate {
       ) {
         return err({ message: 'E2E cancellation returned invalid quiescence authority.' });
       }
-      return ok();
+      return ok(undefined);
     });
     this.cancellationPromises.set(key, promise);
     return promise;
@@ -2024,6 +2025,15 @@ function normalizeInput(
   }
   if (!loopProviderSchema.safeParse(input.provider).success) {
     return err({ type: 'invalid-input', message: 'Invalid E2E provider.' });
+  }
+  if (
+    !loopTerminalGatesSchema.safeParse(input.terminalGates).success ||
+    input.workPhaseResults.length > MAX_ATTEMPTS ||
+    input.workPhaseResults.some((result) => !loopStageResultSchema.safeParse(result).success) ||
+    (input.reviewStageResult !== undefined &&
+      !loopStageResultSchema.safeParse(input.reviewStageResult).success)
+  ) {
+    return err({ type: 'invalid-input', message: 'Invalid terminal-gate stage authority.' });
   }
   if (
     typeof input.model !== 'string' ||

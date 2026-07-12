@@ -505,6 +505,21 @@ describe('CleanRoomE2EGate', () => {
     }
   );
 
+  it('accepts E2E-only ordering when Review is disabled and no Review result exists', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+
+    const result = await harness.gate.run({
+      ...defaultInput,
+      terminalGates: { review: false, e2e: true },
+      reviewStageResult: undefined,
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { purpose: 'e2e', featureHead: FEATURE_COMMIT, attempts: 1 },
+    });
+  });
+
   it('retains an exact SSH machine through every port without local fallback', async () => {
     const sshProject = {
       ...project,
@@ -868,7 +883,7 @@ describe('CleanRoomE2EGate', () => {
       (result: E2ERequiredChecksResult) => ({
         ...result,
         sessionAttempts: [
-          { ...result.sessionAttempts[0]!, status: 'running', finishedAt: undefined },
+          { ...result.sessionAttempts[0]!, status: 'running' as const, finishedAt: undefined },
         ],
       }),
     ],
