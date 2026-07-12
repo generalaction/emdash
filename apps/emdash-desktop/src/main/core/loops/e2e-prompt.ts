@@ -9,7 +9,6 @@ import {
   serializePromptJson,
 } from './handoff-builder';
 import { isSafeLoopSentinelDetail } from './prompt-builder';
-import { nativeBrowserActionPromptFragment } from './verifiers/native-browser-protocol';
 
 export const E2E_PASSED_SENTINEL = '<<<LOOP:E2E_PASSED>>>';
 export const E2E_CORRECTION_READY_PREFIX = '<<<LOOP:E2E_CORRECTION_READY';
@@ -83,13 +82,13 @@ ${intermediateFailureData}
 Required workflow:
 1. Inspect the recreated base-to-checkpoint result independently and run every acceptance check on the bound verification workspace.
 2. Run the required unit, integration, and full checks honestly. Treat missing prerequisites, early server exit, console/network errors, and unobserved behavior as failures.
-3. Use the native browser action handshake below for preview behavior. Request one bounded action, wait for its observation, and never infer browser success from source code alone.
+3. Do not emit browser-action blocks. After this coding session returns a candidate outcome, the engine runs the full required checks plus exactly one authoritative native preview verifier bound to this same target. The coding-session sentinel is only a candidate outcome and is never final pass authority.
 4. If you find a product bug, you may fix it only in the bound verification workspace, add tests, rerun focused checks, and create a local correction checkpoint. Do not overwrite or discard earlier failure artifacts.
 5. If you made any repository mutation during this attempt—including modified, added or untracked, or deleted files—or created a correction checkpoint, never use the pass sentinel. End with the correction-ready sentinel so the engine can validate and integrate the fix, retain the failure evidence, destroy this workspace, and recreate it from the frozen base.
-6. Use the pass sentinel only when this session started from a freshly destroyed and recreated workspace, replayed the complete reviewed checkpoint range, introduced no new correction in this attempt, and every required check is green.
+6. Use the pass sentinel only as a candidate when this session started from a freshly destroyed and recreated workspace, replayed the complete reviewed checkpoint range, introduced no new correction in this attempt, and every check you ran is green. Final pass authority additionally requires the engine-owned full checks, native preview verifier, exact workspace inspection, and cleanup to pass.
 7. Never push, publish, deploy, release, open a pull request, expose secrets, or claim a check you did not perform.
 
-${nativeBrowserActionPromptFragment}
+If an engine-owned check finds a correctable defect, the engine retains only bounded sanitized artifact and handoff metadata, destroys this workspace, and supplies that failure to a fresh destroyed and recreated attempt. Only that later fresh coding session may commit the one-child correction.
 
 End the final response with exactly one sentinel on its own final line:
 - ${E2E_PASSED_SENTINEL}

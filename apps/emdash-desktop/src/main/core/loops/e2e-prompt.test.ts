@@ -8,7 +8,6 @@ import {
   parseE2ESentinel,
 } from './e2e-prompt';
 import { buildLoopPhaseHandoff } from './handoff-builder';
-import { nativeBrowserActionPromptFragment } from './verifiers/native-browser-protocol';
 
 function makeInput(target: LoopSessionTarget) {
   const failure = buildLoopPhaseHandoff({
@@ -72,7 +71,7 @@ describe('independent clean-room E2E prompt', () => {
     expect(prompt).toContain('Do not construct a separate SSH transport');
   });
 
-  it('uses the audited native action fragment and preserves failure evidence across recreation', () => {
+  it('delegates native verification to one authoritative engine check and preserves failures', () => {
     const prompt = buildE2EPrompt(
       makeInput({
         workspaceId: 'verification-local',
@@ -81,7 +80,11 @@ describe('independent clean-room E2E prompt', () => {
       })
     );
 
-    expect(prompt).toContain(nativeBrowserActionPromptFragment);
+    expect(prompt).toContain('exactly one authoritative native preview verifier');
+    expect(prompt).toContain('The coding-session sentinel is only a candidate outcome');
+    expect(prompt).toContain('fresh destroyed and recreated attempt');
+    expect(prompt).not.toContain('Request exactly one browser action');
+    expect(prompt).not.toContain('LOOP:NATIVE_BROWSER_ACTION');
     expect(prompt).toContain('Attempt 1 exposed a navigation defect.');
     expect(prompt).toContain('append-only');
     expect(prompt).toContain('destroyed and recreated from the frozen base');
