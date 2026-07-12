@@ -1,27 +1,18 @@
 import { Buffer } from 'node:buffer';
-import { redactAll } from '@emdash/shared/logger';
 import z from 'zod';
+import { getTaskEnvVars } from '@main/core/workspaces/workspace-env';
 import { err, ok, type Result } from '@main/lib/result';
-import {
-  loopPhaseStateInputSchema,
-  loopStageResultSchema,
-  type LoopStageResult,
-} from '@shared/core/loops/loop-phase-state';
+import { loopStageResultSchema, type LoopStageResult } from '@shared/core/loops/loop-phase-state';
 import {
   loopCommitSchema,
   loopSessionAttemptSchema,
   loopSessionTargetSchema,
-  loopStateV1Schema,
   type LoopSessionAttempt,
   type LoopSessionTarget,
   type LoopVerificationWorkspaceState,
 } from '@shared/core/loops/loop-state';
 import {
-  loopPhaseCriteriaV1Schema,
-  loopPhaseCriterionSchema,
   loopProviderSchema,
-  loopTerminalGatesSchema,
-  newLoopConfigV2Schema,
   type Loop,
   type LoopPhase,
   type LoopPhaseCriterion,
@@ -39,12 +30,41 @@ import {
 } from '../clean-room/cleanup-journal';
 import { buildE2EPrompt, parseE2ESentinel } from '../e2e-prompt';
 import {
-  loopPromptContextInputSchema,
   loopPromptHandoffSchema,
   type LoopPromptContextInput,
   type LoopPromptHandoff,
 } from '../handoff-builder';
 import type { LoopExecutionTarget } from '../runtime/loop-execution-target';
+import {
+  boundedSummary,
+  copyCriterion,
+  copyEnvironment,
+  copyPromptHandoff,
+  copyTarget,
+  hasCanonicalAttemptFields,
+  hasCanonicalAttemptTarget,
+  isCanonicalTarget,
+  redactPersistedText,
+  safeCopyPromptHandoffs,
+  sameCriteria,
+  sameEnvironment,
+  sameExecutionTargetIdentity,
+  sameMachine,
+  sameStringArray,
+  sameTarget,
+  stabilizePlainSuccess,
+  tryCopyPromptHandoff,
+  validCommit,
+  validId,
+} from './clean-room-e2e-boundary';
+import {
+  durableE2EVerificationRunIds,
+  e2eCriteriaSchema,
+  safeNormalizeInput,
+  terminalPrecondition,
+  validationCommandsSchema,
+  type NormalizedInput,
+} from './clean-room-e2e-input';
 import {
   copyE2EDurableProgress,
   reduceE2EProgress,
@@ -53,6 +73,23 @@ import {
   type E2EProgressPort,
   type E2EProgressTransition,
 } from './clean-room-e2e-progress';
+import {
+  copyAttempt,
+  freshAttemptIdentity,
+  hasUsableCancellationIdentity,
+  markNestedAttemptInterrupted,
+  markOuterAttempt,
+  sameSessionIdentity,
+  settlePreallocatedNestedAttempt,
+  tryMakeOuterAttempt,
+  validateBeginning,
+  validateCleanRoom,
+  validateCorrectionInspection,
+  validateFeature,
+  validateInspection,
+  validatePassInspection,
+  validatePostChecks,
+} from './clean-room-e2e-session-ledger';
 
 const MAX_ATTEMPTS = 64;
 const MAX_ID_LENGTH = 256;
@@ -60,13 +97,6 @@ const MAX_MODEL_LENGTH = 256;
 const MAX_SUMMARY_LENGTH = 16_384;
 const MAX_TASK_ENVIRONMENT_BYTES = 64 * 1024;
 const MAX_TASK_ENVIRONMENT_VALUE_LENGTH = 4_096;
-const MAX_VALIDATION_COMMANDS = 64;
-const MAX_VALIDATION_COMMAND_LENGTH = 4_096;
-const MAX_SESSION_ATTEMPTS = 1_024;
-const MAX_STABLE_SUCCESS_BYTES = 2 * 1024 * 1024;
-const MAX_SESSION_RECORDS_PER_E2E_ATTEMPT = 3;
-const cookieAssignmentPattern =
-  /\b(?:cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid)\b[\\'"\s]*[:=][\s\S]*/giu;
 const TRUSTED_TASK_ENVIRONMENT_KEYS = [
   'EMDASH_DEFAULT_BRANCH',
   'EMDASH_PORT',
@@ -76,20 +106,6 @@ const TRUSTED_TASK_ENVIRONMENT_KEYS = [
   'EMDASH_TASK_PATH',
 ] as const;
 const trustedTaskEnvironmentSchema = z.record(z.string(), z.string());
-const validationCommandsSchema = z
-  .array(z.string().trim().min(1).max(MAX_VALIDATION_COMMAND_LENGTH))
-  .min(1)
-  .max(MAX_VALIDATION_COMMANDS);
-const e2eCriteriaSchema = z
-  .array(loopPhaseCriterionSchema)
-  .min(1)
-  .max(64)
-  .refine(
-    (criteria) => criteria.some((criterion) => criterion.verifier === 'agent-browser'),
-    'E2E criteria must include native browser verification'
-  );
-const e2eLoopConfigSchema = newLoopConfigV2Schema.strict();
-const e2ePhaseCriteriaSchema = loopPhaseCriteriaV1Schema.strict();
 const e2eSessionInfoSchema = z
   .object({
     attemptId: z.string().trim().min(1).max(MAX_ID_LENGTH),
@@ -486,15 +502,7 @@ export type CleanRoomE2EGateError = {
   stageResult: LoopStageResult;
 };
 
-type NormalizedInput = RunCleanRoomE2EGateInput & {
-  featureTarget: LoopSessionTarget;
-  validationCommands: string[];
-  criteria: LoopPhaseCriterion[];
-  previousSessionAttempts: LoopSessionAttempt[];
-  progress: { current: E2EDurableProgress };
-};
-
-type ActiveAttempt = {
+export type ActiveAttempt = {
   number: number;
   verificationRunId: string;
   cleanRoom: CleanRoomWorkspace;
@@ -550,11 +558,17 @@ export class CleanRoomE2EGate {
     const normalized = safeNormalizeInput(rawInput);
     if (!normalized.success) {
       return err(
-        this.failure(rawInput, normalized.error.type, 'precondition', normalized.error.message, {
-          featureHead: validCommit(rawInput.checkpointCommit) ? rawInput.checkpointCommit : '',
-          attempt: 0,
-          sessionAttempts: [],
-        })
+        this.failure(
+          { intermediateFailures: [] },
+          normalized.error.type,
+          'precondition',
+          normalized.error.message,
+          {
+            featureHead: '',
+            attempt: 0,
+            sessionAttempts: [],
+          }
+        )
       );
     }
     let input = normalized.data;
@@ -570,14 +584,69 @@ export class CleanRoomE2EGate {
       );
     }
 
+    const defaultBranch = await this.callDependency(
+      'E2E project default branch authority',
+      async () => {
+        try {
+          return ok(await input.project.settings.getDefaultBranch());
+        } catch (cause) {
+          return err({ message: errorMessage(cause) });
+        }
+      },
+      stabilizePlainSuccess<string>
+    );
+    if (
+      !defaultBranch.success ||
+      typeof defaultBranch.data !== 'string' ||
+      defaultBranch.data !== defaultBranch.data.trim() ||
+      defaultBranch.data.length === 0 ||
+      defaultBranch.data.length > MAX_ID_LENGTH ||
+      redactPersistedText(defaultBranch.data) !== defaultBranch.data
+    ) {
+      const message = defaultBranch.success
+        ? 'Project default branch authority was invalid.'
+        : defaultBranch.error.message;
+      return err(
+        this.failure(input, 'dependency-rejected', 'execution', message, {
+          featureHead: input.checkpointCommit,
+          attempt: 0,
+          recoveryRequired: true,
+          sessionAttempts: [],
+        })
+      );
+    }
+    const effectiveDefaultBranch = defaultBranch.data;
+
     let featureHead = input.checkpointCommit;
-    let correctionCount = 0;
+    let correctionCount = input.intermediateFailures.filter(
+      (handoff) => handoff.source === 'Clean-room E2E correction'
+    ).length;
     const intermediateFailures = [...input.intermediateFailures];
     const sessionAttempts: LoopSessionAttempt[] = [];
-    const verificationRunIds: string[] = [];
+    const verificationRunIds = durableE2EVerificationRunIds(
+      input.previousSessionAttempts,
+      input.phase.id
+    );
     const cancellationPromises: CancellationRegistry = new Map();
 
-    for (let attempt = 1; attempt <= input.maxAttempts; attempt += 1) {
+    const consumedAttempts = verificationRunIds.length;
+    if (consumedAttempts >= input.maxAttempts) {
+      return err(
+        this.failure(
+          input,
+          'attempts-exhausted',
+          'finalize',
+          'The durable E2E attempt cap was already exhausted.',
+          {
+            featureHead,
+            attempt: consumedAttempts,
+            sessionAttempts,
+          }
+        )
+      );
+    }
+
+    for (let attempt = consumedAttempts + 1; attempt <= input.maxAttempts; attempt += 1) {
       if (lifecycle.integrationLinearized) lifecycle.finalAuthorityInspected = false;
       const stopped = controlFailure(input);
       if (stopped) {
@@ -762,7 +831,7 @@ export class CleanRoomE2EGate {
           attempt,
           sessionAttempts
         );
-        if (!destroyed.success && destroyed.error.type === 'cleanup-failed') return destroyed;
+        if (!destroyed.success) return destroyed;
         return ready;
       }
       const stoppedAfterCreate = controlFailure(input);
@@ -838,7 +907,12 @@ export class CleanRoomE2EGate {
         );
       }
       const binding = acquired.data;
-      const bindingError = validateBinding(binding, cleanRoom.target, input);
+      const bindingError = validateBinding(
+        binding,
+        cleanRoom.target,
+        input,
+        effectiveDefaultBranch
+      );
       if (bindingError) {
         if (!bindingError.safeToRelease) {
           return err(
@@ -1098,7 +1172,7 @@ export class CleanRoomE2EGate {
           attempt,
           sessionAttempts
         );
-        if (!cleanup.success && cleanup.error.type === 'cleanup-failed') return cleanup;
+        if (!cleanup.success) return cleanup;
         return runningWorkspaceProgress;
       }
       const expectedSession: E2ESessionInfo = {
@@ -1114,6 +1188,7 @@ export class CleanRoomE2EGate {
         taskEnvironment: copyEnvironment(binding.taskEnvironment),
       };
       let stoppedSession: E2ESessionInfo | undefined;
+      let stoppedActualLedgerIndex: number | undefined;
       const started = await this.callControlled(
         input,
         'Fresh E2E session start',
@@ -1136,6 +1211,7 @@ export class CleanRoomE2EGate {
         async (operation) => {
           const settled = await operation;
           const identities = [expectedSession];
+          let actualStartingError: CleanRoomE2EGateError | undefined;
           if (settled.value.success) {
             stoppedSession = settled.value.data;
             if (
@@ -1143,6 +1219,17 @@ export class CleanRoomE2EGate {
               !sameSessionIdentity(stoppedSession, expectedSession)
             ) {
               identities.push(stoppedSession);
+              const reserved = await this.reserveUnexpectedOuterAttempt(
+                input,
+                stoppedSession,
+                cleanRoom.target,
+                featureHead,
+                attempt,
+                startedAt,
+                sessionAttempts
+              );
+              stoppedActualLedgerIndex = reserved.index;
+              actualStartingError = reserved.error;
             }
           }
           for (const identity of identities) {
@@ -1152,15 +1239,57 @@ export class CleanRoomE2EGate {
               cancellationPromises
             );
             if (!cancelled.success) {
+              const startingPersisted = await this.retryUnexpectedStartingProgress(
+                input,
+                featureHead,
+                attempt,
+                sessionAttempts,
+                actualStartingError
+              );
+              if (!startingPersisted.success) {
+                return err({
+                  type: 'cleanup-failed',
+                  message: `${cancelled.error.message}; ${startingPersisted.error.message}`,
+                });
+              }
+              actualStartingError = undefined;
+              const ledgerIndex = sameSessionIdentity(identity, expectedSession)
+                ? preallocatedLedgerIndex
+                : stoppedActualLedgerIndex;
               markOuterAttempt(
                 sessionAttempts,
-                preallocatedLedgerIndex,
+                ledgerIndex ?? preallocatedLedgerIndex,
                 'interrupted',
                 safeDate(this.dependencies.now),
                 { error: cancelled.error.message }
               );
+              const persisted = await this.syncSessionProgress(
+                input,
+                featureHead,
+                attempt,
+                sessionAttempts
+              );
+              if (!persisted.success) {
+                return err({
+                  type: 'cleanup-failed',
+                  message: `${cancelled.error.message}; ${persisted.error.message}`,
+                });
+              }
               return cancelled;
             }
+          }
+          const startingPersisted = await this.retryUnexpectedStartingProgress(
+            input,
+            featureHead,
+            attempt,
+            sessionAttempts,
+            actualStartingError
+          );
+          if (!startingPersisted.success) {
+            return err({
+              type: 'cleanup-failed',
+              message: startingPersisted.error.message,
+            });
           }
           markOuterAttempt(
             sessionAttempts,
@@ -1169,11 +1298,116 @@ export class CleanRoomE2EGate {
             safeDate(this.dependencies.now),
             { error: 'E2E session was cancelled.' }
           );
+          if (stoppedActualLedgerIndex !== undefined) {
+            markOuterAttempt(
+              sessionAttempts,
+              stoppedActualLedgerIndex,
+              'cancelled',
+              safeDate(this.dependencies.now),
+              { error: 'E2E session was cancelled.' }
+            );
+          }
+          const terminalPersisted = await this.syncSessionProgress(
+            input,
+            featureHead,
+            attempt,
+            sessionAttempts
+          );
+          if (!terminalPersisted.success) {
+            return err({ type: 'cleanup-failed', message: terminalPersisted.error.message });
+          }
           return ok();
         },
         stabilizePlainSuccess<E2ESessionInfo>
       );
       if (!started.success) {
+        const identities = [expectedSession];
+        let lateStartingError: CleanRoomE2EGateError | undefined;
+        if (
+          stoppedSession &&
+          hasUsableCancellationIdentity(stoppedSession) &&
+          !sameSessionIdentity(stoppedSession, expectedSession)
+        ) {
+          identities.push(stoppedSession);
+          if (stoppedActualLedgerIndex === undefined) {
+            const reserved = await this.reserveUnexpectedOuterAttempt(
+              input,
+              stoppedSession,
+              cleanRoom.target,
+              featureHead,
+              attempt,
+              startedAt,
+              sessionAttempts
+            );
+            stoppedActualLedgerIndex = reserved.index;
+            lateStartingError = reserved.error;
+          }
+        }
+        for (const identity of identities) {
+          const cancelled = await this.cancelSession(
+            identity,
+            cleanRoom.target,
+            cancellationPromises
+          );
+          if (!cancelled.success) {
+            const ledgerIndex = sameSessionIdentity(identity, expectedSession)
+              ? preallocatedLedgerIndex
+              : stoppedActualLedgerIndex;
+            markOuterAttempt(
+              sessionAttempts,
+              ledgerIndex ?? preallocatedLedgerIndex,
+              'interrupted',
+              safeDate(this.dependencies.now),
+              { error: cancelled.error.message }
+            );
+            const persisted = await this.syncSessionProgress(
+              input,
+              featureHead,
+              attempt,
+              sessionAttempts
+            );
+            const failure = persisted.success
+              ? started.error.type === 'cleanup-failed'
+                ? started.error
+                : cancelled.error
+              : {
+                  type: 'cleanup-failed',
+                  message: `${cancelled.error.message}; ${persisted.error.message}`,
+                };
+            return err(
+              this.dependencyFailure(
+                input,
+                failure,
+                'quiescence',
+                featureHead,
+                attempt,
+                sessionAttempts,
+                {
+                  verificationRunId,
+                  ...(stoppedSession ? { conversationId: stoppedSession.conversationId } : {}),
+                  recoveryRequired: true,
+                  lastWorkspaceDestroyed: false,
+                  pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+                }
+              )
+            );
+          }
+        }
+        const lateStartingPersisted = await this.retryUnexpectedStartingProgress(
+          input,
+          featureHead,
+          attempt,
+          sessionAttempts,
+          lateStartingError
+        );
+        if (!lateStartingPersisted.success) {
+          return err({
+            ...lateStartingPersisted.error,
+            recoveryRequired: true,
+            lastWorkspaceDestroyed: false,
+            pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+          });
+        }
         markOuterAttempt(
           sessionAttempts,
           preallocatedLedgerIndex,
@@ -1185,26 +1419,17 @@ export class CleanRoomE2EGate {
           safeDate(this.dependencies.now),
           { error: started.error.message }
         );
-        if (
-          started.error.type === 'cleanup-failed' ||
-          started.error.type === 'untrusted-settlement'
-        ) {
-          return err(
-            this.dependencyFailure(
-              input,
-              started.error,
-              'quiescence',
-              featureHead,
-              attempt,
-              sessionAttempts,
-              {
-                verificationRunId,
-                ...(stoppedSession ? { conversationId: stoppedSession.conversationId } : {}),
-                recoveryRequired: true,
-                lastWorkspaceDestroyed: false,
-                pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
-              }
-            )
+        if (stoppedActualLedgerIndex !== undefined) {
+          markOuterAttempt(
+            sessionAttempts,
+            stoppedActualLedgerIndex,
+            started.error.type === 'cancelled'
+              ? 'cancelled'
+              : started.error.type === 'deadline-exceeded'
+                ? 'interrupted'
+                : 'failed',
+            safeDate(this.dependencies.now),
+            { error: started.error.message }
           );
         }
         const cleanup = await this.cleanup(
@@ -1245,7 +1470,53 @@ export class CleanRoomE2EGate {
       );
       const outerAttempt = tryMakeOuterAttempt(session, cleanRoom.target, featureHead, startedAt);
       if (!outerAttempt) {
-        if (!hasUsableCancellationIdentity(session)) {
+        const identities = [expectedSession];
+        const usableReturnedIdentity = hasUsableCancellationIdentity(session);
+        if (usableReturnedIdentity && !sameSessionIdentity(session, expectedSession)) {
+          identities.push(session);
+        }
+        for (const identity of identities) {
+          const cancelled = await this.cancelSession(
+            identity,
+            cleanRoom.target,
+            cancellationPromises
+          );
+          if (!cancelled.success) {
+            markOuterAttempt(
+              sessionAttempts,
+              preallocatedLedgerIndex,
+              'interrupted',
+              safeDate(this.dependencies.now),
+              { error: cancelled.error.message }
+            );
+            await this.syncSessionProgress(input, featureHead, attempt, sessionAttempts);
+            return err(
+              this.dependencyFailure(
+                input,
+                cancelled.error,
+                'quiescence',
+                featureHead,
+                attempt,
+                sessionAttempts,
+                {
+                  verificationRunId,
+                  recoveryRequired: true,
+                  lastWorkspaceDestroyed: false,
+                  pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+                }
+              )
+            );
+          }
+        }
+        if (!usableReturnedIdentity) {
+          markOuterAttempt(
+            sessionAttempts,
+            preallocatedLedgerIndex,
+            'interrupted',
+            safeDate(this.dependencies.now),
+            { error: 'Fresh E2E session returned no usable cancellation identity.' }
+          );
+          await this.syncSessionProgress(input, featureHead, attempt, sessionAttempts);
           return err(
             this.failure(
               input,
@@ -1264,25 +1535,13 @@ export class CleanRoomE2EGate {
             )
           );
         }
-        const cancelled = await this.cancelSession(session, cleanRoom.target, cancellationPromises);
-        if (!cancelled.success) {
-          return err(
-            this.dependencyFailure(
-              input,
-              cancelled.error,
-              'quiescence',
-              featureHead,
-              attempt,
-              sessionAttempts,
-              {
-                verificationRunId,
-                recoveryRequired: true,
-                lastWorkspaceDestroyed: false,
-                pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
-              }
-            )
-          );
-        }
+        markOuterAttempt(
+          sessionAttempts,
+          preallocatedLedgerIndex,
+          'failed',
+          safeDate(this.dependencies.now),
+          { error: 'Fresh E2E session identity cannot be represented in the durable ledger.' }
+        );
         const cleanup = await this.cleanup(
           input,
           cleanRoom,
@@ -1312,12 +1571,48 @@ export class CleanRoomE2EGate {
       if (!sessionError) sessionAttempts[preallocatedLedgerIndex] = outerAttempt;
       if (sessionError) {
         const returnedDifferentIdentity = !sameSessionIdentity(session, expectedSession);
-        const actualLedgerIndex =
-          returnedDifferentIdentity && freshAttemptIdentity(outerAttempt, input, sessionAttempts)
-            ? sessionAttempts.push(outerAttempt) - 1
-            : undefined;
-        const cancelled = await this.cancelSession(session, cleanRoom.target, cancellationPromises);
-        if (!cancelled.success) {
+        const reserved = returnedDifferentIdentity
+          ? await this.reserveUnexpectedOuterAttempt(
+              input,
+              session,
+              cleanRoom.target,
+              featureHead,
+              attempt,
+              startedAt,
+              sessionAttempts
+            )
+          : {};
+        const actualLedgerIndex = reserved.index;
+        const identities = returnedDifferentIdentity
+          ? [expectedSession, session]
+          : [expectedSession];
+        let cancellationFailure: E2EGateDependencyError | undefined;
+        for (const identity of identities) {
+          const cancelled = await this.cancelSession(
+            identity,
+            cleanRoom.target,
+            cancellationPromises
+          );
+          if (!cancelled.success && cancellationFailure === undefined) {
+            cancellationFailure = cancelled.error;
+          }
+        }
+        const actualStartingPersisted = await this.retryUnexpectedStartingProgress(
+          input,
+          featureHead,
+          attempt,
+          sessionAttempts,
+          reserved.error
+        );
+        if (!actualStartingPersisted.success) {
+          return err({
+            ...actualStartingPersisted.error,
+            recoveryRequired: true,
+            lastWorkspaceDestroyed: false,
+            pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+          });
+        }
+        if (cancellationFailure) {
           markOuterAttempt(
             sessionAttempts,
             outerLedgerIndex,
@@ -1331,13 +1626,25 @@ export class CleanRoomE2EGate {
               actualLedgerIndex,
               'interrupted',
               safeDate(this.dependencies.now),
-              { error: cancelled.error.message }
+              { error: cancellationFailure.message }
             );
           }
+          const terminalPersisted = await this.syncSessionProgress(
+            input,
+            featureHead,
+            attempt,
+            sessionAttempts
+          );
+          const failure = terminalPersisted.success
+            ? cancellationFailure
+            : {
+                type: 'cleanup-failed',
+                message: `${cancellationFailure.message}; ${terminalPersisted.error.message}`,
+              };
           return err(
             this.dependencyFailure(
               input,
-              cancelled.error,
+              failure,
               'quiescence',
               featureHead,
               attempt,
@@ -1460,7 +1767,7 @@ export class CleanRoomE2EGate {
           { error: runningProgress.error.message }
         );
         const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
-        if (!cleanup.success && cleanup.error.type === 'cleanup-failed') return cleanup;
+        if (!cleanup.success) return cleanup;
         return runningProgress;
       }
 
@@ -1838,6 +2145,45 @@ export class CleanRoomE2EGate {
             )
           );
         }
+        cleanRoom.replayedThroughCommit = inspected.data.headCommit;
+        const correctionHandoff = copyPromptHandoff({
+          source: 'Clean-room E2E correction',
+          handoff: {
+            summary: sentinel.summary,
+            risks: ['The integrated correction still requires a fresh clean-room replay.'],
+            remainingWork: [
+              'Recreate the clean room and independently re-run every required check.',
+            ],
+            artifacts: [],
+            createdAt: safeNow(this.dependencies.now),
+          },
+        });
+        intermediateFailures.push(correctionHandoff);
+        input = { ...input, intermediateFailures: [...intermediateFailures] };
+        lifecycle.input = input;
+        const correctionEvidenceProgress = await this.commitProgress(
+          input,
+          {
+            kind: 'retry-handoffs',
+            checkpointCommit: featureHead,
+            retryHandoffs: safeCopyPromptHandoffs(intermediateFailures),
+          },
+          featureHead,
+          attempt,
+          sessionAttempts
+        );
+        if (!correctionEvidenceProgress.success) {
+          markOuterAttempt(
+            sessionAttempts,
+            outerLedgerIndex,
+            'interrupted',
+            safeDate(this.dependencies.now),
+            { error: correctionEvidenceProgress.error.message }
+          );
+          const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
+          if (!cleanup.success) return cleanup;
+          return correctionEvidenceProgress;
+        }
         const previousFeatureHead = featureHead;
         const integratingProgress = await this.commitWorkspaceProgress(
           input,
@@ -1863,7 +2209,7 @@ export class CleanRoomE2EGate {
             { error: integratingProgress.error.message }
           );
           const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
-          if (!cleanup.success && cleanup.error.type === 'cleanup-failed') return cleanup;
+          if (!cleanup.success) return cleanup;
           return integratingProgress;
         }
         lifecycle.integrationLinearized = true;
@@ -2014,22 +2360,6 @@ export class CleanRoomE2EGate {
         }
         featureHead = integrated.data.featureHead;
         correctionCount += 1;
-        intermediateFailures.push(
-          copyPromptHandoff({
-            source: 'Clean-room E2E correction',
-            handoff: {
-              summary: sentinel.summary,
-              risks: ['The integrated correction still requires a fresh clean-room replay.'],
-              remainingWork: [
-                'Recreate the clean room and independently re-run every required check.',
-              ],
-              artifacts: [],
-              createdAt: safeNow(this.dependencies.now),
-            },
-          })
-        );
-        input = { ...input, intermediateFailures: [...intermediateFailures] };
-        lifecycle.input = input;
         markOuterAttempt(
           sessionAttempts,
           outerLedgerIndex,
@@ -2054,7 +2384,7 @@ export class CleanRoomE2EGate {
         );
         if (!checkpointProgress.success) {
           const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
-          if (!cleanup.success && cleanup.error.type === 'cleanup-failed') return cleanup;
+          if (!cleanup.success) return cleanup;
           return err({
             ...checkpointProgress.error,
             recoveryRequired: true,
@@ -2256,7 +2586,7 @@ export class CleanRoomE2EGate {
           { error: nestedStartingProgress.error.message }
         );
         const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
-        if (!cleanup.success && cleanup.error.type === 'cleanup-failed') return cleanup;
+        if (!cleanup.success) return cleanup;
         return nestedStartingProgress;
       }
 
@@ -2394,7 +2724,7 @@ export class CleanRoomE2EGate {
           { error: nestedTerminalProgress.error.message }
         );
         const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
-        if (!cleanup.success && cleanup.error.type === 'cleanup-failed') return cleanup;
+        if (!cleanup.success) return cleanup;
         return nestedTerminalProgress;
       }
 
@@ -2495,7 +2825,7 @@ export class CleanRoomE2EGate {
             { error: handoffProgress.error.message }
           );
           const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
-          if (!cleanup.success && cleanup.error.type === 'cleanup-failed') return cleanup;
+          if (!cleanup.success) return cleanup;
           return handoffProgress;
         }
       }
@@ -2736,11 +3066,9 @@ export class CleanRoomE2EGate {
       });
     }
     lifecycle.finalAuthorityInspected = true;
-    const terminalFeatureHead =
-      result.error.type === 'feature-head-drift' ? result.error.featureHead : reconciled.data;
     return err({
       ...result.error,
-      featureHead: terminalFeatureHead,
+      featureHead: reconciled.data,
       ...(reconciled.data !== featureHead ? { recoveryRequired: true } : {}),
     });
   }
@@ -2752,6 +3080,7 @@ export class CleanRoomE2EGate {
     if (
       !result.success &&
       (result.error.stage === 'precondition' ||
+        result.error.stage === 'progress' ||
         result.error.recoveryRequired ||
         result.error.lastWorkspaceDestroyed === false)
     ) {
@@ -2945,29 +3274,55 @@ export class CleanRoomE2EGate {
         }),
       stabilizeDurableProgress
     );
-    if (!committed.success) {
-      return err(
-        this.dependencyFailure(input, committed.error, 'progress', featureHead, attempt, [
-          ...sessionAttempts,
-        ])
+    let authoritative =
+      committed.success && sameE2EDurableProgress(committed.data, reduced.data)
+        ? committed.data
+        : undefined;
+    if (!authoritative) {
+      const readback = await this.callDependency(
+        'E2E durable progress readback',
+        () =>
+          this.dependencies.progress.read({
+            loopId: input.loop.id,
+            phaseId: input.phase.id,
+          }),
+        stabilizeDurableProgress
       );
-    }
-    if (!sameE2EDurableProgress(committed.data, reduced.data)) {
-      return err(
-        this.failure(
-          input,
-          'progress-authority-invalid',
-          'progress',
-          'Progress persistence returned stale or drifted durable authority.',
-          {
+      if (readback.success && sameE2EDurableProgress(readback.data, reduced.data)) {
+        authoritative = readback.data;
+      } else if (readback.success && sameE2EDurableProgress(readback.data, expected)) {
+        return err(
+          committed.success
+            ? this.failure(
+                input,
+                'progress-authority-invalid',
+                'progress',
+                'Progress persistence did not commit the requested exact transition.',
+                {
+                  featureHead,
+                  attempt,
+                  sessionAttempts: [...sessionAttempts],
+                }
+              )
+            : this.dependencyFailure(input, committed.error, 'progress', featureHead, attempt, [
+                ...sessionAttempts,
+              ])
+        );
+      } else {
+        const message = readback.success
+          ? 'Progress persistence/readback returned divergent durable authority.'
+          : `Progress persistence could not be reconciled: ${readback.error.message}`;
+        return err(
+          this.failure(input, 'progress-authority-invalid', 'progress', message, {
             featureHead,
             attempt,
+            recoveryRequired: true,
             sessionAttempts: [...sessionAttempts],
-          }
-        )
-      );
+          })
+        );
+      }
     }
-    input.progress.current = copyE2EDurableProgress(committed.data);
+    input.progress.current = copyE2EDurableProgress(authoritative);
     input.loop = { ...input.loop, state: input.progress.current.loopState };
     input.phase = { ...input.phase, state: input.progress.current.phaseState };
     return ok();
@@ -3012,6 +3367,33 @@ export class CleanRoomE2EGate {
       );
     }
     return ok();
+  }
+
+  private async reserveUnexpectedOuterAttempt(
+    input: NormalizedInput,
+    session: unknown,
+    target: LoopSessionTarget,
+    featureHead: string,
+    attempt: number,
+    startedAt: string,
+    sessionAttempts: LoopSessionAttempt[]
+  ): Promise<{ index?: number; error?: CleanRoomE2EGateError }> {
+    const starting = tryMakeOuterAttempt(session, target, featureHead, startedAt, 'starting');
+    if (!starting || !freshAttemptIdentity(starting, input, sessionAttempts)) return {};
+    const index = sessionAttempts.push(starting) - 1;
+    const persisted = await this.syncSessionProgress(input, featureHead, attempt, sessionAttempts);
+    return persisted.success ? { index } : { index, error: persisted.error };
+  }
+
+  private async retryUnexpectedStartingProgress(
+    input: NormalizedInput,
+    featureHead: string,
+    attempt: number,
+    sessionAttempts: LoopSessionAttempt[],
+    prior?: CleanRoomE2EGateError
+  ): Promise<Result<void, CleanRoomE2EGateError>> {
+    if (!prior) return ok();
+    return this.syncSessionProgress(input, featureHead, attempt, sessionAttempts);
   }
 
   private commitWorkspaceProgress(
@@ -3328,7 +3710,7 @@ export class CleanRoomE2EGate {
   }
 
   private failure(
-    input: Pick<RunCleanRoomE2EGateInput, 'signal' | 'intermediateFailures'>,
+    input: { intermediateFailures?: unknown },
     type: string,
     stage: CleanRoomE2EGateStage,
     message: string,
@@ -3380,311 +3762,11 @@ export class CleanRoomE2EGate {
   }
 }
 
-function safeNormalizeInput(
-  input: RunCleanRoomE2EGateInput
-): Result<NormalizedInput, { type: string; message: string }> {
-  try {
-    return normalizeInput(input);
-  } catch {
-    return err({
-      type: 'invalid-input',
-      message: 'Loop E2E input could not be read safely.',
-    });
-  }
-}
-
-function normalizeInput(
-  input: RunCleanRoomE2EGateInput
-): Result<NormalizedInput, { type: string; message: string }> {
-  if (
-    !loopPromptContextInputSchema.safeParse({
-      goal: input.goal,
-      acceptanceCriteria: input.acceptanceCriteria,
-      baseCommit: input.baseCommit,
-      checkpointCommit: input.checkpointCommit,
-      handoffs: input.handoffs,
-    }).success ||
-    !Array.isArray(input.handoffs) ||
-    input.handoffs.some((handoff) => !tryCopyPromptHandoff(handoff))
-  ) {
-    return err({ type: 'invalid-input', message: 'Invalid bounded E2E prompt context.' });
-  }
-  const target = loopSessionTargetSchema.safeParse(input.featureTarget);
-  if (!target.success || !isCanonicalTarget(input.featureTarget, target.data)) {
-    return err({ type: 'invalid-input', message: 'Invalid feature execution target.' });
-  }
-  if (!loopProviderSchema.safeParse(input.provider).success) {
-    return err({ type: 'invalid-input', message: 'Invalid E2E provider.' });
-  }
-  if (
-    !loopTerminalGatesSchema.safeParse(input.terminalGates).success ||
-    !Array.isArray(input.workPhaseResults) ||
-    input.workPhaseResults.length > MAX_ATTEMPTS ||
-    input.workPhaseResults.some((result) => !loopStageResultSchema.safeParse(result).success) ||
-    (input.reviewStageResult !== undefined &&
-      !loopStageResultSchema.safeParse(input.reviewStageResult).success)
-  ) {
-    return err({ type: 'invalid-input', message: 'Invalid terminal-gate stage authority.' });
-  }
-  if (
-    typeof input.model !== 'string' ||
-    input.model.trim().length === 0 ||
-    input.model.length > MAX_MODEL_LENGTH
-  ) {
-    return err({ type: 'invalid-input', message: 'Invalid E2E model.' });
-  }
-  if (
-    !Number.isInteger(input.maxAttempts) ||
-    input.maxAttempts < 1 ||
-    input.maxAttempts > MAX_ATTEMPTS
-  ) {
-    return err({ type: 'invalid-input', message: 'E2E maxAttempts must be between 1 and 64.' });
-  }
-  if (
-    !input.loop ||
-    typeof input.loop !== 'object' ||
-    !input.phase ||
-    typeof input.phase !== 'object' ||
-    !input.task ||
-    typeof input.task !== 'object' ||
-    !input.project ||
-    typeof input.project !== 'object'
-  ) {
-    return err({ type: 'invalid-input', message: 'Invalid Loop E2E authority.' });
-  }
-  const config = e2eLoopConfigSchema.safeParse(input.loop.config);
-  const state = loopStateV1Schema.safeParse(input.loop.state);
-  const phaseCriteria = e2ePhaseCriteriaSchema.safeParse(input.phase.criteria);
-  const phaseState =
-    input.phase.state === undefined || input.phase.state === null
-      ? { success: true as const, data: null }
-      : loopPhaseStateInputSchema.safeParse(input.phase.state);
-  if (
-    !config.success ||
-    !state.success ||
-    !phaseCriteria.success ||
-    !phaseState.success ||
-    !hasCanonicalPersistedLoopState(input.loop.state) ||
-    !hasCanonicalPhaseState(input.phase.state)
-  ) {
-    return err({
-      type: 'invalid-input',
-      message: 'Loop E2E requires current persisted config, state, and phase criteria authority.',
-    });
-  }
-  if (
-    state.data.sessionAttempts.length + input.maxAttempts * MAX_SESSION_RECORDS_PER_E2E_ATTEMPT >
-    MAX_SESSION_ATTEMPTS
-  ) {
-    return err({
-      type: 'invalid-input',
-      message: 'The durable session ledger lacks capacity for the bounded E2E attempt cap.',
-    });
-  }
-  const validationCommands = validationCommandsSchema.safeParse(config.data.validationCommands);
-  const criteria = e2eCriteriaSchema.safeParse(phaseCriteria.data.criteria);
-  if (!validationCommands.success || !criteria.success) {
-    return err({
-      type: 'invalid-input',
-      message: 'Loop E2E validation commands and criteria are invalid or unbounded.',
-    });
-  }
-  const normalizedModel = input.model.trim();
-  if (
-    input.provider !== 'codex' ||
-    config.data.provider !== input.provider ||
-    config.data.model !== normalizedModel ||
-    config.data.browserPreview.enabled !== true ||
-    config.data.reviewEnabled !== config.data.terminalGates.review ||
-    config.data.terminalGates.review !== input.terminalGates.review ||
-    config.data.terminalGates.e2e !== input.terminalGates.e2e ||
-    state.data.baseCommit !== input.baseCommit ||
-    state.data.expectedFeatureHead !== input.checkpointCommit ||
-    state.data.checkpointCommit !== input.checkpointCommit
-  ) {
-    return err({
-      type: 'invalid-input',
-      message: 'Caller E2E authority does not match the persisted Loop checkpoint contract.',
-    });
-  }
-  if (input.phase.kind !== 'e2e' || input.phase.loopId !== input.loop.id) {
-    return err({
-      type: 'invalid-input',
-      message: 'The selected phase is not this Loop E2E phase.',
-    });
-  }
-  if (input.task.id !== input.loop.taskId || input.project.projectId !== input.loop.projectId) {
-    return err({
-      type: 'invalid-input',
-      message: 'Loop, task, and project identities do not match.',
-    });
-  }
-  const copiedIntermediateFailures = safeCopyPromptHandoffs(input.intermediateFailures);
-  const persistedRetryHandoffs = phaseState.data?.retryHandoffs ?? [];
-  if (
-    !Array.isArray(input.intermediateFailures) ||
-    input.intermediateFailures.length > 64 ||
-    copiedIntermediateFailures.length !== input.intermediateFailures.length ||
-    JSON.stringify(copiedIntermediateFailures) !== JSON.stringify(persistedRetryHandoffs)
-  ) {
-    return err({ type: 'invalid-input', message: 'Invalid intermediate E2E failure handoff.' });
-  }
-  if (
-    input.deadlineAt !== undefined &&
-    (!Number.isFinite(input.deadlineAt) || input.deadlineAt < 0)
-  ) {
-    return err({ type: 'invalid-input', message: 'Invalid E2E deadline.' });
-  }
-  if (input.signal !== undefined && !validAbortSignal(input.signal)) {
-    return err({ type: 'invalid-input', message: 'Invalid E2E cancellation signal.' });
-  }
-  return ok({
-    ...input,
-    loop: {
-      ...input.loop,
-      config: { ...config.data, validationCommands: [...validationCommands.data] },
-      state: state.data,
-    },
-    phase: { ...input.phase, criteria: phaseCriteria.data, state: phaseState.data },
-    model: normalizedModel,
-    terminalGates: { ...input.terminalGates },
-    workPhaseResults: input.workPhaseResults.map((result) => loopStageResultSchema.parse(result)),
-    handoffs: safeCopyPromptHandoffs(input.handoffs),
-    intermediateFailures: persistedRetryHandoffs.map(copyPromptHandoff),
-    featureTarget: target.data,
-    validationCommands: [...validationCommands.data],
-    criteria: criteria.data.map(copyCriterion),
-    previousSessionAttempts: state.data.sessionAttempts.map(copyAttempt),
-    progress: {
-      current: copyE2EDurableProgress({
-        loopState: state.data,
-        phaseState: phaseState.data,
-      }),
-    },
-  });
-}
-
-function terminalPrecondition(
-  input: NormalizedInput
-): { type: string; message: string } | undefined {
-  const state = loopStateV1Schema.parse(input.loop.state);
-  const phaseState =
-    input.phase.state === null || input.phase.state === undefined
-      ? null
-      : loopPhaseStateInputSchema.parse(input.phase.state);
-  if (
-    input.loop.status !== 'running' ||
-    input.phase.status !== 'reviewing' ||
-    input.loop.currentPhaseIndex !== input.phase.idx
-  ) {
-    return {
-      type: 'phase-authority-invalid',
-      message: 'The E2E phase is not the current eligible running phase.',
-    };
-  }
-  if (
-    state.verification !== null ||
-    state.sessionAttempts.some(
-      (attempt) => attempt.status === 'starting' || attempt.status === 'running'
-    )
-  ) {
-    return {
-      type: 'recovery-required',
-      message: 'Interrupted verification authority must be quiesced and cleared before a new run.',
-    };
-  }
-  if (phaseState?.result) {
-    return {
-      type: 'phase-already-terminal',
-      message: 'A terminal E2E phase cannot be executed again.',
-    };
-  }
-  if (
-    phaseState !== null &&
-    phaseState.checkpointCommit !== null &&
-    phaseState.checkpointCommit !== input.checkpointCommit
-  ) {
-    return {
-      type: 'phase-authority-invalid',
-      message: 'The E2E phase checkpoint does not match current Loop authority.',
-    };
-  }
-  if (!input.terminalGates.e2e) {
-    return { type: 'e2e-disabled', message: 'The E2E terminal gate is disabled.' };
-  }
-  if (
-    input.workPhaseResults.length === 0 ||
-    input.workPhaseResults.some((result) => result.status !== 'passed')
-  ) {
-    return { type: 'work-phases-incomplete', message: 'Every work phase must pass before E2E.' };
-  }
-  if (input.terminalGates.review) {
-    if (input.reviewStageResult?.status !== 'passed') {
-      return {
-        type: 'review-incomplete',
-        message: 'Enabled terminal Review must pass before E2E.',
-      };
-    }
-  } else if (input.reviewStageResult !== undefined) {
-    return {
-      type: 'review-order-invalid',
-      message: 'A Review result cannot be supplied when terminal Review is disabled.',
-    };
-  }
-  return undefined;
-}
-
-function validateCleanRoom(
-  cleanRoom: CleanRoomWorkspace,
-  input: NormalizedInput,
-  verificationRunId: string,
-  attempt: number,
-  featureHead: string
-): { type: string; message: string } | undefined {
-  const parsedTarget = loopSessionTargetSchema.safeParse(
-    cleanRoom && typeof cleanRoom === 'object' ? cleanRoom.target : undefined
-  );
-  if (
-    !cleanRoom ||
-    typeof cleanRoom !== 'object' ||
-    cleanRoom.projectId !== input.project.projectId ||
-    cleanRoom.verificationRunId !== verificationRunId ||
-    cleanRoom.attempt !== attempt ||
-    cleanRoom.baseCommit !== input.baseCommit ||
-    cleanRoom.expectedFeatureHead !== featureHead ||
-    cleanRoom.replayedThroughCommit !== featureHead ||
-    !validId(cleanRoom.cleanupId) ||
-    !validId(cleanRoom.branchName) ||
-    !parsedTarget.success
-  ) {
-    return {
-      type: 'clean-room-authority-invalid',
-      message: 'Clean-room identity attestation is invalid.',
-    };
-  }
-  if (!isCanonicalTarget(cleanRoom.target, parsedTarget.data)) {
-    return {
-      type: 'target-drift',
-      message: 'Clean-room target authority is not canonical.',
-    };
-  }
-  if (
-    !sameMachine(parsedTarget.data, input.featureTarget) ||
-    parsedTarget.data.workspaceId === input.featureTarget.workspaceId ||
-    parsedTarget.data.path === input.featureTarget.path
-  ) {
-    return {
-      type: 'target-drift',
-      message: 'Clean room must be a distinct disposable workspace on the feature machine.',
-    };
-  }
-  return undefined;
-}
-
 function validateBinding(
   binding: E2EExecutionBinding,
   target: LoopSessionTarget,
-  input: NormalizedInput
+  input: NormalizedInput,
+  effectiveDefaultBranch: string
 ): { type: string; message: string; safeToRelease: boolean } | undefined {
   if (
     !binding ||
@@ -3695,7 +3777,7 @@ function validateBinding(
     !binding.executionTarget.executionContext ||
     typeof binding.executionTarget.executionContext !== 'object' ||
     !sameTarget(binding.target, target) ||
-    !sameTarget(binding.executionTarget, target)
+    !sameExecutionTargetIdentity(binding.executionTarget, target)
   ) {
     return {
       type: 'execution-target-drift',
@@ -3728,52 +3810,27 @@ function validateBinding(
         0
       )
     : Number.POSITIVE_INFINITY;
+  const expectedEnvironment = getTaskEnvVars({
+    taskId: input.task.id,
+    taskName: input.task.name,
+    taskPath: target.path,
+    projectPath: input.project.repoPath,
+    defaultBranch: effectiveDefaultBranch,
+    portSeed: target.path,
+  });
   if (
     keys.length !== TRUSTED_TASK_ENVIRONMENT_KEYS.length ||
     TRUSTED_TASK_ENVIRONMENT_KEYS.some((key) => !keys.includes(key)) ||
     !valuesAreBoundedStrings ||
     environmentBytes > MAX_TASK_ENVIRONMENT_BYTES ||
-    binding.taskEnvironment.EMDASH_TASK_ID !== input.task.id ||
-    binding.taskEnvironment.EMDASH_TASK_NAME !== input.task.name ||
-    binding.taskEnvironment.EMDASH_TASK_PATH !== target.path ||
-    binding.taskEnvironment.EMDASH_ROOT_PATH !== input.project.repoPath
+    !sameEnvironment(binding.taskEnvironment, expectedEnvironment) ||
+    !sameEnvironment(binding.executionTarget.taskEnv, expectedEnvironment)
   ) {
     return {
       type: 'task-environment-invalid',
       message: 'Trusted task environment is not the exact six-key overlay.',
       safeToRelease: true,
     };
-  }
-  return undefined;
-}
-
-function validateBeginning(
-  authority: E2EAttemptAuthority,
-  target: LoopSessionTarget,
-  featureHead: string
-): { type: string; message: string } | undefined {
-  if (
-    !authority ||
-    typeof authority !== 'object' ||
-    !sameTarget(authority.target, target) ||
-    !validId(authority.mutationBaseline) ||
-    !validCommit(authority.headCommit) ||
-    typeof authority.clean !== 'boolean' ||
-    typeof authority.branchAttached !== 'boolean'
-  ) {
-    return {
-      type: 'authority-invalid',
-      message: 'Attempt authority returned invalid target or baseline.',
-    };
-  }
-  if (authority.headCommit !== featureHead) {
-    return {
-      type: 'checkpoint-drift',
-      message: 'Fresh clean-room head does not match feature authority.',
-    };
-  }
-  if (!authority.clean || !authority.branchAttached) {
-    return { type: 'dirty-workspace', message: 'Fresh clean room is not clean and attached.' };
   }
   return undefined;
 }
@@ -3827,24 +3884,6 @@ function validateSession(
   return undefined;
 }
 
-function freshAttemptIdentity(
-  attempt: LoopSessionAttempt,
-  input: NormalizedInput,
-  currentAttempts: readonly LoopSessionAttempt[]
-): boolean {
-  return ![...input.previousSessionAttempts, ...currentAttempts].some(
-    (existing) =>
-      existing.attemptId === attempt.attemptId || existing.conversationId === attempt.conversationId
-  );
-}
-
-function sameSessionIdentity(
-  left: Pick<E2ESessionInfo, 'attemptId' | 'conversationId'>,
-  right: Pick<E2ESessionInfo, 'attemptId' | 'conversationId'>
-): boolean {
-  return left.attemptId === right.attemptId && left.conversationId === right.conversationId;
-}
-
 function validatePromptResult(
   value: {
     attemptId: string;
@@ -3879,161 +3918,6 @@ function validatePromptResult(
   return undefined;
 }
 
-function validateInspection(
-  inspection: E2EAttemptInspection,
-  target: LoopSessionTarget,
-  mutationBaseline: string
-): { type: string; message: string } | undefined {
-  if (
-    !inspection ||
-    typeof inspection !== 'object' ||
-    !sameTarget(inspection.target, target) ||
-    inspection.mutationBaseline !== mutationBaseline ||
-    !validCommit(inspection.headCommit) ||
-    typeof inspection.mutated !== 'boolean'
-  ) {
-    return { type: 'authority-invalid', message: 'Attempt inspection returned invalid authority.' };
-  }
-  if (!inspection.clean || !inspection.branchAttached) {
-    return { type: 'dirty-workspace', message: 'Attempt workspace is not clean and attached.' };
-  }
-  return undefined;
-}
-
-function validateCorrectionInspection(
-  inspection: E2EAttemptInspection,
-  featureHead: string
-): { type: string; message: string } | undefined {
-  if (!inspection.mutated || inspection.headCommit === featureHead) {
-    return {
-      type: 'correction-authority-invalid',
-      message: 'Correction-ready requires trusted mutation and one changed clean checkpoint.',
-    };
-  }
-  return undefined;
-}
-
-function validatePassInspection(
-  inspection: E2EAttemptInspection,
-  featureHead: string
-): { type: string; message: string } | undefined {
-  if (inspection.mutated) {
-    return {
-      type: 'mutation-concealed',
-      message: 'A mutated attempt cannot be a fresh pass candidate.',
-    };
-  }
-  if (inspection.headCommit !== featureHead) {
-    return {
-      type: 'checkpoint-drift',
-      message: 'Pass candidate changed the clean-room checkpoint.',
-    };
-  }
-  return undefined;
-}
-
-function settlePreallocatedNestedAttempt(
-  attempts: LoopSessionAttempt[],
-  index: number,
-  value: unknown,
-  active: ActiveAttempt,
-  featureHead: string,
-  input: NormalizedInput,
-  settledAt: string
-): void {
-  const starting = attempts[index];
-  if (!starting || starting.purpose !== 'browser-verification') return;
-  let candidates: unknown;
-  try {
-    candidates =
-      value && typeof value === 'object'
-        ? (value as { sessionAttempts?: unknown }).sessionAttempts
-        : undefined;
-  } catch {
-    candidates = undefined;
-  }
-  if (Array.isArray(candidates)) {
-    for (const candidate of candidates.slice(0, 3)) {
-      const adopted = normalizeNestedAttempt(
-        candidate,
-        starting,
-        active,
-        featureHead,
-        input,
-        settledAt
-      );
-      if (adopted) {
-        attempts[index] = adopted;
-        return;
-      }
-    }
-  }
-  markNestedAttemptInterrupted(
-    attempts,
-    index,
-    settledAt,
-    'Nested verification settled quiescently without exact terminal evidence.'
-  );
-}
-
-function normalizeNestedAttempt(
-  value: unknown,
-  starting: LoopSessionAttempt,
-  active: ActiveAttempt,
-  featureHead: string,
-  input: NormalizedInput,
-  settledAt: string
-): LoopSessionAttempt | undefined {
-  const parsed = loopSessionAttemptSchema.safeParse(value);
-  if (
-    !parsed.success ||
-    !hasCanonicalAttemptFields(value, parsed.data) ||
-    parsed.data.attemptId !== starting.attemptId ||
-    parsed.data.conversationId !== starting.conversationId ||
-    parsed.data.purpose !== 'browser-verification' ||
-    parsed.data.phaseId !== input.phase.id ||
-    parsed.data.verificationRunId !== active.verificationRunId ||
-    parsed.data.checkpointBefore !== featureHead ||
-    (parsed.data.checkpointAfter !== undefined && parsed.data.checkpointAfter !== featureHead) ||
-    parsed.data.conversationId === active.session.conversationId ||
-    !sameTarget(parsed.data.target, active.cleanRoom.target)
-  ) {
-    return undefined;
-  }
-  const terminal = ['completed', 'failed', 'cancelled', 'interrupted'].includes(parsed.data.status);
-  if (terminal && parsed.data.finishedAt === undefined) return undefined;
-  if (parsed.data.status === 'completed' && parsed.data.checkpointAfter !== featureHead) {
-    return undefined;
-  }
-  return copyAttempt({
-    ...parsed.data,
-    startedAt: starting.startedAt,
-    ...(terminal
-      ? {}
-      : {
-          status: 'interrupted',
-          finishedAt: settledAt,
-          error: 'Nested verification settled quiescently without terminal evidence.',
-        }),
-  });
-}
-
-function markNestedAttemptInterrupted(
-  attempts: LoopSessionAttempt[],
-  index: number,
-  finishedAt: string,
-  error: string
-): void {
-  const current = attempts[index];
-  if (!current) return;
-  attempts[index] = copyAttempt({
-    ...current,
-    status: 'interrupted',
-    finishedAt,
-    error,
-  });
-}
-
 function validateRequiredChecks(
   checks: E2ERequiredChecksResult,
   active: ActiveAttempt,
@@ -4042,6 +3926,17 @@ function validateRequiredChecks(
   existingAttempts: readonly LoopSessionAttempt[],
   preallocatedAttempt: LoopSessionAttempt
 ): { type: string; message: string } | undefined {
+  if (
+    checks &&
+    typeof checks === 'object' &&
+    checks.status === 'correctable' &&
+    (!checks.handoff || !tryCopyPromptHandoff(checks.handoff))
+  ) {
+    return {
+      type: 'unsafe-correction-handoff',
+      message: 'Correctable checks require one bounded safe handoff.',
+    };
+  }
   if (!e2eRequiredChecksResultSchema.safeParse(checks).success) {
     return {
       type: 'required-checks-authority-invalid',
@@ -4142,117 +4037,6 @@ function validateRequiredChecks(
   return undefined;
 }
 
-function validatePostChecks(
-  inspection: E2EAttemptInspection,
-  target: LoopSessionTarget,
-  mutationBaseline: string,
-  featureHead: string
-): { type: string; message: string } | undefined {
-  const common = validateInspection(inspection, target, mutationBaseline);
-  if (common) return common;
-  if (inspection.mutated || inspection.headCommit !== featureHead) {
-    return {
-      type: 'post-check-drift',
-      message: 'Required checks mutated or moved the clean-room checkpoint.',
-    };
-  }
-  return undefined;
-}
-
-function validateFeature(
-  feature: E2EFeatureInspection,
-  target: LoopSessionTarget,
-  featureHead: string
-): { type: string; message: string } | undefined {
-  if (
-    !feature ||
-    typeof feature !== 'object' ||
-    !loopSessionTargetSchema.safeParse(feature.target).success ||
-    !validCommit(feature.headCommit) ||
-    typeof feature.clean !== 'boolean' ||
-    typeof feature.branchAttached !== 'boolean'
-  ) {
-    return {
-      type: 'feature-authority-invalid',
-      message: 'Feature inspection returned malformed authority.',
-    };
-  }
-  if (!sameTarget(feature.target, target) || feature.headCommit !== featureHead) {
-    return {
-      type: 'feature-head-drift',
-      message: 'Feature authority drifted before E2E completion.',
-    };
-  }
-  if (!feature.clean || !feature.branchAttached) {
-    return { type: 'dirty-feature', message: 'Feature workspace is not clean and attached.' };
-  }
-  return undefined;
-}
-
-function tryMakeOuterAttempt(
-  session: unknown,
-  authoritativeTarget: LoopSessionTarget,
-  checkpoint: string,
-  startedAt: string
-): LoopSessionAttempt | undefined {
-  if (!session || typeof session !== 'object') return undefined;
-  const candidate = session as Partial<E2ESessionInfo>;
-  const parsed = loopSessionAttemptSchema.safeParse({
-    attemptId: candidate.attemptId,
-    conversationId: candidate.conversationId,
-    purpose: candidate.purpose,
-    phaseId: candidate.phaseId,
-    verificationRunId: candidate.verificationRunId,
-    target: copyTarget(authoritativeTarget),
-    status: 'running',
-    checkpointBefore: checkpoint,
-    startedAt,
-  });
-  return parsed.success ? parsed.data : undefined;
-}
-
-function hasUsableCancellationIdentity(value: unknown): value is E2ESessionInfo {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Partial<E2ESessionInfo>;
-  return (
-    validId(candidate.attemptId) &&
-    validId(candidate.conversationId) &&
-    candidate.purpose === 'e2e' &&
-    validId(candidate.phaseId) &&
-    validId(candidate.verificationRunId) &&
-    Number.isInteger(candidate.attempt) &&
-    (candidate.attempt ?? 0) > 0 &&
-    (candidate.attempt ?? 0) <= MAX_ATTEMPTS
-  );
-}
-
-function markOuterAttempt(
-  attempts: LoopSessionAttempt[],
-  index: number,
-  status: 'completed' | 'failed' | 'cancelled' | 'interrupted',
-  finishedAt: Date,
-  extra: { checkpointAfter?: string; error?: string } = {}
-): void {
-  const current = attempts[index];
-  if (!current) return;
-  attempts[index] = loopSessionAttemptSchema.parse({
-    ...current,
-    status,
-    finishedAt: finishedAt.toISOString(),
-    ...(extra.checkpointAfter ? { checkpointAfter: extra.checkpointAfter } : {}),
-    ...(extra.error ? { error: boundedSummary(extra.error, 'E2E attempt failed.') } : {}),
-  });
-}
-
-function copyAttempt(attempt: LoopSessionAttempt): LoopSessionAttempt {
-  return loopSessionAttemptSchema.parse({
-    ...attempt,
-    ...(attempt.error !== undefined
-      ? { error: boundedSummary(attempt.error, 'E2E attempt failed.') }
-      : {}),
-  });
-}
-
 function verificationProgress(input: {
   verificationRunId: string;
   attempt: number;
@@ -4270,7 +4054,7 @@ function verificationProgress(input: {
     status: input.status,
     ...(input.cleanRoom ? { target: copyTarget(input.cleanRoom.target) } : {}),
     baseCommit: input.baseCommit,
-    ...(input.cleanRoom ? { replayedThroughCommit: input.featureHead } : {}),
+    ...(input.cleanRoom ? { replayedThroughCommit: input.cleanRoom.replayedThroughCommit } : {}),
     expectedFeatureHead: input.featureHead,
     cleanup: {
       status: input.cleanupStatus ?? 'pending',
@@ -4280,91 +4064,6 @@ function verificationProgress(input: {
         : {}),
     },
   };
-}
-
-function copyCriterion(criterion: LoopPhaseCriterion): LoopPhaseCriterion {
-  return loopPhaseCriterionSchema.parse(criterion);
-}
-
-function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function sameCriteria(
-  left: readonly LoopPhaseCriterion[],
-  right: readonly LoopPhaseCriterion[]
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => {
-      const expected = right[index];
-      return (
-        !!expected &&
-        value.description === expected.description &&
-        value.verifier === expected.verifier &&
-        value.status === expected.status &&
-        value.evidence === expected.evidence
-      );
-    })
-  );
-}
-
-function copyPromptHandoff(handoff: LoopPromptHandoff): LoopPromptHandoff {
-  const parsed = loopPromptHandoffSchema.parse(handoff);
-  if (
-    !validId(parsed.source) ||
-    !validTimestamp(parsed.handoff.createdAt) ||
-    parsed.handoff.artifacts.some(
-      (artifact) => !validId(artifact.artifactId) || !validTimestamp(artifact.createdAt)
-    )
-  ) {
-    throw new TypeError('Prompt handoff contains non-canonical persisted authority.');
-  }
-  return loopPromptHandoffSchema.parse({
-    source: boundedSummary(parsed.source, 'Redacted handoff').slice(0, 256),
-    handoff: {
-      summary: boundedSummary(parsed.handoff.summary, 'Redacted handoff summary.'),
-      risks: parsed.handoff.risks.map((risk) =>
-        boundedSummary(risk, 'Redacted risk.').slice(0, 2_048)
-      ),
-      remainingWork: parsed.handoff.remainingWork.map((item) =>
-        boundedSummary(item, 'Redacted remaining work.').slice(0, 2_048)
-      ),
-      artifacts: parsed.handoff.artifacts.map((artifact) => ({
-        artifactId: artifact.artifactId,
-        kind: artifact.kind,
-        ...(artifact.label !== undefined
-          ? { label: boundedSummary(artifact.label, 'Redacted artifact.').slice(0, 256) }
-          : {}),
-        ...(artifact.mimeType !== undefined
-          ? {
-              mimeType: boundedSummary(artifact.mimeType, 'application/octet-stream').slice(0, 128),
-            }
-          : {}),
-        byteLength: artifact.byteLength,
-        createdAt: artifact.createdAt,
-      })),
-      createdAt: parsed.handoff.createdAt,
-    },
-  });
-}
-
-function tryCopyPromptHandoff(value: unknown): LoopPromptHandoff | undefined {
-  try {
-    return copyPromptHandoff(value as LoopPromptHandoff);
-  } catch {
-    return undefined;
-  }
-}
-
-function safeCopyPromptHandoffs(value: unknown): LoopPromptHandoff[] {
-  if (!Array.isArray(value)) return [];
-  const copied: LoopPromptHandoff[] = [];
-  for (const candidate of value.slice(0, 64)) {
-    const copy = tryCopyPromptHandoff(candidate);
-    if (copy) copied.push(copy);
-  }
-  return copied;
 }
 
 function safePendingCleanup(
@@ -4378,6 +4077,7 @@ function safePendingCleanup(
   if (!parsed.success) return undefined;
   const record = parsed.data;
   if (
+    !hasCanonicalPendingCleanupAuthority(record) ||
     record.projectId !== pendingWorkspace.projectId ||
     record.projectId !== input.project.projectId ||
     record.cleanupId !== pendingWorkspace.cleanupId ||
@@ -4408,6 +4108,7 @@ function safeCreatePendingCleanup(
   const parsed = parseCleanRoomPendingCleanup(value);
   if (!parsed.success) return undefined;
   const record = parsed.data;
+  if (!hasCanonicalPendingCleanupAuthority(record)) return undefined;
   const target: LoopSessionTarget = {
     workspaceId: record.workspaceId,
     path: record.target.path,
@@ -4427,6 +4128,31 @@ function safeCreatePendingCleanup(
     return undefined;
   }
   return clonePendingCleanup(record);
+}
+
+function hasCanonicalPendingCleanupAuthority(record: CleanRoomPendingCleanup): boolean {
+  const target: LoopSessionTarget = {
+    workspaceId: record.workspaceId,
+    path: record.target.path,
+    machine: record.target.machine,
+  };
+  const parsedTarget = loopSessionTargetSchema.safeParse(target);
+  const parsedFeature = loopSessionTargetSchema.safeParse(record.featureTarget);
+  return (
+    validId(record.cleanupId) &&
+    validId(record.verificationRunId) &&
+    validId(record.projectId) &&
+    validId(record.workspaceId) &&
+    parsedTarget.success &&
+    isCanonicalTarget(target, parsedTarget.data) &&
+    parsedFeature.success &&
+    isCanonicalTarget(record.featureTarget, parsedFeature.data) &&
+    record.branchName === record.branchName.trim() &&
+    redactPersistedText(record.branchName) === record.branchName &&
+    validCommit(record.baseCommit) &&
+    validCommit(record.expectedFeatureHead) &&
+    validCommit(record.branchHead)
+  );
 }
 
 function pendingWorkspaceFromCleanup(
@@ -4464,255 +4190,6 @@ function clonePendingWorkspace(
     ...authority,
     target: copyTarget(authority.target),
   };
-}
-
-function copyTarget(target: LoopSessionTarget): LoopSessionTarget {
-  return loopSessionTargetSchema.parse(target);
-}
-
-function isCanonicalTarget(value: unknown, canonical: LoopSessionTarget): boolean {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Partial<LoopSessionTarget>;
-  if (!candidate.machine || typeof candidate.machine !== 'object') return false;
-  return (
-    candidate.workspaceId === canonical.workspaceId &&
-    candidate.path === canonical.path &&
-    candidate.machine.kind === canonical.machine.kind &&
-    (canonical.machine.kind === 'local' ||
-      (candidate.machine.kind === 'ssh' &&
-        candidate.machine.connectionId === canonical.machine.connectionId))
-  );
-}
-
-function copyEnvironment(
-  environment: Readonly<Record<string, string>>
-): Readonly<Record<string, string>> {
-  return Object.freeze({ ...environment });
-}
-
-function sameEnvironment(left: unknown, right: unknown): boolean {
-  const parsedLeft = trustedTaskEnvironmentSchema.safeParse(left);
-  const parsedRight = trustedTaskEnvironmentSchema.safeParse(right);
-  if (!parsedLeft.success || !parsedRight.success) return false;
-  const leftEnvironment = parsedLeft.data;
-  const rightEnvironment = parsedRight.data;
-  const leftKeys = Object.keys(leftEnvironment).sort();
-  const rightKeys = Object.keys(rightEnvironment).sort();
-  return (
-    leftKeys.length === rightKeys.length &&
-    leftKeys.every(
-      (key, index) => key === rightKeys[index] && leftEnvironment[key] === rightEnvironment[key]
-    )
-  );
-}
-
-function sameTarget(left: unknown, right: unknown): boolean {
-  const parsedLeft = parseTargetLike(left);
-  const parsedRight = parseTargetLike(right);
-  if (
-    !parsedLeft.success ||
-    !parsedRight.success ||
-    !isCanonicalTarget(left, parsedLeft.data) ||
-    !isCanonicalTarget(right, parsedRight.data)
-  ) {
-    return false;
-  }
-  const leftTarget = parsedLeft.data;
-  const rightTarget = parsedRight.data;
-  return (
-    leftTarget.workspaceId === rightTarget.workspaceId &&
-    leftTarget.path === rightTarget.path &&
-    leftTarget.machine.kind === rightTarget.machine.kind &&
-    (leftTarget.machine.kind === 'local' ||
-      (rightTarget.machine.kind === 'ssh' &&
-        leftTarget.machine.connectionId === rightTarget.machine.connectionId))
-  );
-}
-
-function hasCanonicalAttemptTarget(candidate: unknown, expected: LoopSessionTarget): boolean {
-  try {
-    return (
-      !!candidate &&
-      typeof candidate === 'object' &&
-      sameTarget((candidate as { target?: unknown }).target, expected)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function hasCanonicalAttemptFields(candidate: unknown, parsed: LoopSessionAttempt): boolean {
-  try {
-    if (!candidate || typeof candidate !== 'object') return false;
-    const raw = candidate as Partial<LoopSessionAttempt>;
-    return (
-      validId(raw.attemptId) &&
-      validId(raw.conversationId) &&
-      (raw.phaseId === undefined || validId(raw.phaseId)) &&
-      (raw.verificationRunId === undefined || validId(raw.verificationRunId)) &&
-      validTimestamp(raw.startedAt) &&
-      (raw.finishedAt === undefined || validTimestamp(raw.finishedAt)) &&
-      raw.attemptId === parsed.attemptId &&
-      raw.conversationId === parsed.conversationId &&
-      raw.phaseId === parsed.phaseId &&
-      raw.verificationRunId === parsed.verificationRunId &&
-      raw.startedAt === parsed.startedAt &&
-      raw.finishedAt === parsed.finishedAt &&
-      hasCanonicalAttemptTarget(candidate, parsed.target)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function hasCanonicalPersistedLoopState(value: unknown): boolean {
-  try {
-    if (!value || typeof value !== 'object') return false;
-    const state = value as {
-      sessionAttempts?: unknown;
-      verification?: unknown;
-    };
-    if (
-      !Array.isArray(state.sessionAttempts) ||
-      state.sessionAttempts.some((attempt) => {
-        const parsed = loopSessionAttemptSchema.safeParse(attempt);
-        return !parsed.success || !hasCanonicalAttemptFields(attempt, parsed.data);
-      })
-    ) {
-      return false;
-    }
-    if (state.verification === null) return true;
-    if (!state.verification || typeof state.verification !== 'object') return false;
-    const verification = state.verification as {
-      verificationRunId?: unknown;
-      target?: unknown;
-      cleanup?: unknown;
-    };
-    if (!validId(verification.verificationRunId)) return false;
-    if (verification.target !== undefined) {
-      const target = loopSessionTargetSchema.safeParse(verification.target);
-      if (!target.success || !isCanonicalTarget(verification.target, target.data)) return false;
-    }
-    if (!verification.cleanup || typeof verification.cleanup !== 'object') return false;
-    const cleanup = verification.cleanup as { updatedAt?: unknown; error?: unknown };
-    return (
-      validTimestamp(cleanup.updatedAt) &&
-      (cleanup.error === undefined ||
-        (typeof cleanup.error === 'string' && redactPersistedText(cleanup.error) === cleanup.error))
-    );
-  } catch {
-    return false;
-  }
-}
-
-function hasCanonicalPhaseState(value: unknown): boolean {
-  try {
-    if (value === undefined || value === null) return true;
-    if (!value || typeof value !== 'object') return false;
-    const state = value as {
-      version?: unknown;
-      handoff?: unknown;
-      retryHandoffs?: unknown;
-      result?: unknown;
-    };
-    if (
-      state.handoff !== null &&
-      state.handoff !== undefined &&
-      !hasCanonicalPhaseHandoff(state.handoff)
-    ) {
-      return false;
-    }
-    if (state.version === '2') {
-      if (
-        !Array.isArray(state.retryHandoffs) ||
-        state.retryHandoffs.some((handoff) => !tryCopyPromptHandoff(handoff))
-      ) {
-        return false;
-      }
-    }
-    if (state.result !== null && state.result !== undefined) {
-      if (!state.result || typeof state.result !== 'object') return false;
-      if (!validTimestamp((state.result as { completedAt?: unknown }).completedAt)) return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function hasCanonicalPhaseHandoff(value: unknown): boolean {
-  try {
-    if (!value || typeof value !== 'object') return false;
-    const handoff = value as { artifacts?: unknown; createdAt?: unknown };
-    if (!validTimestamp(handoff.createdAt) || !Array.isArray(handoff.artifacts)) return false;
-    return handoff.artifacts.every((candidate) => {
-      if (!candidate || typeof candidate !== 'object') return false;
-      const artifact = candidate as { artifactId?: unknown; createdAt?: unknown };
-      return validId(artifact.artifactId) && validTimestamp(artifact.createdAt);
-    });
-  } catch {
-    return false;
-  }
-}
-
-function parseTargetLike(value: unknown): ReturnType<typeof loopSessionTargetSchema.safeParse> {
-  if (!value || typeof value !== 'object') return loopSessionTargetSchema.safeParse(value);
-  const candidate = value as Partial<LoopSessionTarget>;
-  return loopSessionTargetSchema.safeParse({
-    workspaceId: candidate.workspaceId,
-    path: candidate.path,
-    machine: candidate.machine,
-  });
-}
-
-function sameMachine(left: LoopSessionTarget, right: LoopSessionTarget): boolean {
-  return (
-    left.machine.kind === right.machine.kind &&
-    (left.machine.kind === 'local' ||
-      (right.machine.kind === 'ssh' && left.machine.connectionId === right.machine.connectionId))
-  );
-}
-
-function validId(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value === value.trim() &&
-    value.length > 0 &&
-    value.length <= MAX_ID_LENGTH &&
-    redactPersistedText(value) === value
-  );
-}
-
-function validCommit(value: unknown): value is string {
-  return loopCommitSchema.safeParse(value).success;
-}
-
-function validTimestamp(value: unknown): value is string {
-  if (
-    typeof value !== 'string' ||
-    value !== value.trim() ||
-    value.length === 0 ||
-    value.length > 64 ||
-    redactPersistedText(value) !== value
-  ) {
-    return false;
-  }
-  const parsed = new Date(value);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value;
-}
-
-function validAbortSignal(value: unknown): value is AbortSignal {
-  return typeof AbortSignal !== 'undefined' && value instanceof AbortSignal;
-}
-
-function boundedSummary(value: unknown, fallback: string): string {
-  const candidate = typeof value === 'string' ? value : fallback;
-  const redacted = redactPersistedText(candidate).trim();
-  return (redacted || redactPersistedText(fallback)).slice(0, MAX_SUMMARY_LENGTH);
-}
-
-function redactPersistedText(value: string): string {
-  return redactAll(value.replace(cookieAssignmentPattern, '[REDACTED_COOKIE]'));
 }
 
 function safeDate(now: () => Date): Date {
@@ -4787,49 +4264,42 @@ function normalizeDependencyResult<T>(
       data?: T;
       error?: E2EGateDependencyError & { sessionAttempts?: unknown };
     };
-    if (candidate.success === true && 'data' in candidate) {
+    const success = candidate.success;
+    if (success === true && Reflect.has(candidate, 'data')) {
       const data = candidate.data;
       if (!stabilizeSuccess) return ok(data as T);
       const stable = stabilizeSuccess(data);
       if (stable === undefined) throw new TypeError('Invalid success payload');
       return ok(stable);
     }
-    if (candidate.success !== false || !candidate.error || typeof candidate.error !== 'object') {
+    const dependencyError = candidate.error;
+    if (success !== false || !dependencyError || typeof dependencyError !== 'object') {
       throw new TypeError('Invalid result');
     }
-    const dependencyError = candidate.error;
-    if (typeof dependencyError.message !== 'string') throw new TypeError('Invalid error');
+    const message = dependencyError.message;
+    const type = dependencyError.type;
+    const kind = dependencyError.kind;
+    const rawPendingCleanup = Reflect.has(dependencyError, 'pendingCleanup')
+      ? dependencyError.pendingCleanup
+      : undefined;
+    const rawSessionAttempts = Reflect.has(dependencyError, 'sessionAttempts')
+      ? dependencyError.sessionAttempts
+      : undefined;
+    if (typeof message !== 'string') throw new TypeError('Invalid error');
+    const pendingCleanup = stabilizePlainSuccess<unknown>(rawPendingCleanup);
+    const sessionAttempts = stabilizePlainSuccess<unknown>(rawSessionAttempts);
     return err({
-      ...(typeof dependencyError.type === 'string' ? { type: dependencyError.type } : {}),
-      ...(typeof dependencyError.kind === 'string' ? { kind: dependencyError.kind } : {}),
-      message: dependencyError.message,
-      ...('pendingCleanup' in dependencyError
-        ? { pendingCleanup: dependencyError.pendingCleanup }
-        : {}),
-      ...('sessionAttempts' in dependencyError
-        ? { sessionAttempts: dependencyError.sessionAttempts }
-        : {}),
+      ...(typeof type === 'string' ? { type } : {}),
+      ...(typeof kind === 'string' ? { kind } : {}),
+      message,
+      ...(pendingCleanup !== undefined ? { pendingCleanup } : {}),
+      ...(sessionAttempts !== undefined ? { sessionAttempts } : {}),
     } as E2EGateDependencyError);
   } catch {
     return err({
       type: 'untrusted-settlement',
       message: `${label} returned an invalid result.`,
     });
-  }
-}
-
-function stabilizePlainSuccess<T>(value: unknown): T | undefined {
-  try {
-    const serialized = JSON.stringify(value);
-    if (
-      serialized === undefined ||
-      Buffer.byteLength(serialized, 'utf8') > MAX_STABLE_SUCCESS_BYTES
-    ) {
-      return undefined;
-    }
-    return JSON.parse(serialized) as T;
-  } catch {
-    return undefined;
   }
 }
 

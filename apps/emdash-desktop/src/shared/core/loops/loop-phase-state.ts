@@ -2,7 +2,28 @@ import z from 'zod';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 import { loopCommitSchema } from './loop-state';
 
-const timestampSchema = z.string().trim().min(1).max(64);
+export const MAX_LOOP_PHASE_RETRY_HANDOFF_BYTES = 512 * 1024;
+
+const canonicalIdSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .refine((value) => value === value.trim(), 'Expected a canonical identifier');
+const canonicalLabelSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .refine((value) => value === value.trim(), 'Expected canonical text');
+const canonicalMimeTypeSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .refine((value) => value === value.trim(), 'Expected a canonical MIME type');
+const timestampSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .refine(isCanonicalTimestamp, 'Expected a canonical ISO timestamp');
 
 export const LOOP_ARTIFACT_KINDS = [
   'test-report',
@@ -15,10 +36,10 @@ export const LOOP_ARTIFACT_KINDS = [
 /** Metadata only. Artifact contents remain in bounded app-data storage. */
 export const loopArtifactReferenceSchema = z
   .object({
-    artifactId: z.string().trim().min(1).max(256),
+    artifactId: canonicalIdSchema,
     kind: z.enum(LOOP_ARTIFACT_KINDS),
-    label: z.string().trim().min(1).max(256).optional(),
-    mimeType: z.string().trim().min(1).max(128).optional(),
+    label: canonicalLabelSchema.optional(),
+    mimeType: canonicalMimeTypeSchema.optional(),
     byteLength: z
       .number()
       .int()
@@ -40,10 +61,22 @@ export const loopPhaseHandoffSchema = z
 
 export const loopPhaseRetryHandoffSchema = z
   .object({
-    source: z.string().trim().min(1).max(256),
+    source: canonicalIdSchema,
     handoff: loopPhaseHandoffSchema,
   })
   .strict();
+
+const loopPhaseRetryHandoffsSchema = z
+  .array(loopPhaseRetryHandoffSchema)
+  .max(64)
+  .superRefine((handoffs, ctx) => {
+    if (serializedByteLength(handoffs) > MAX_LOOP_PHASE_RETRY_HANDOFF_BYTES) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Retry handoffs exceed the ${MAX_LOOP_PHASE_RETRY_HANDOFF_BYTES}-byte aggregate limit`,
+      });
+    }
+  });
 
 export const loopStageResultSchema = z
   .object({
@@ -67,7 +100,7 @@ export const loopPhaseStateV2Schema = z
     version: z.literal('2'),
     checkpointCommit: loopCommitSchema.nullable(),
     handoff: loopPhaseHandoffSchema.nullable(),
-    retryHandoffs: z.array(loopPhaseRetryHandoffSchema).max(64),
+    retryHandoffs: loopPhaseRetryHandoffsSchema,
     result: loopStageResultSchema.nullable(),
   })
   .strict();
@@ -101,3 +134,16 @@ export type LoopPhaseHandoff = z.infer<typeof loopPhaseHandoffSchema>;
 export type LoopPhaseRetryHandoff = z.infer<typeof loopPhaseRetryHandoffSchema>;
 export type LoopStageResult = z.infer<typeof loopStageResultSchema>;
 export type LoopPhaseState = typeof loopPhaseState.Type;
+
+function isCanonicalTimestamp(value: string): boolean {
+  const timestamp = new Date(value);
+  return Number.isFinite(timestamp.getTime()) && timestamp.toISOString() === value;
+}
+
+function serializedByteLength(value: unknown): number {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}

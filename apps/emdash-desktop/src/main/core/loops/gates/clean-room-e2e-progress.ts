@@ -63,6 +63,11 @@ export type E2EProgressTransition =
     };
 
 export type E2EProgressPort = {
+  /** Reads both durable values from one authoritative snapshot. */
+  read(input: {
+    loopId: string;
+    phaseId: string;
+  }): Promise<Result<E2EDurableProgress, E2EProgressError>>;
   /** Compare-and-swap both durable states in one transaction, then return the committed value. */
   commit(input: {
     loopId: string;
@@ -73,8 +78,12 @@ export type E2EProgressPort = {
 };
 
 export function copyE2EDurableProgress(progress: E2EDurableProgress): E2EDurableProgress {
+  const loopState = loopStateV1Schema.parse(progress.loopState);
+  if (!hasCanonicalLoopState(progress.loopState, loopState)) {
+    throw new TypeError('Loop progress contains non-canonical persisted authority.');
+  }
   return {
-    loopState: loopStateV1Schema.parse(progress.loopState),
+    loopState,
     phaseState:
       progress.phaseState === null ? null : loopPhaseStateInputSchema.parse(progress.phaseState),
   };
@@ -118,9 +127,17 @@ export function reduceE2EProgress(
       }
       case 'session-attempt': {
         const next = loopSessionAttemptSchema.parse(transition.next);
+        if (!hasCanonicalAttemptFields(transition.next, next) || !validAttemptState(next)) {
+          return invalid('Session attempt authority is non-canonical or internally inconsistent.');
+        }
         const attempts = [...current.loopState.sessionAttempts];
         if (transition.previous === undefined) {
           if (
+            next.status !== 'starting' ||
+            (next.purpose !== 'e2e' && next.purpose !== 'browser-verification') ||
+            next.phaseId === undefined ||
+            next.verificationRunId === undefined ||
+            next.checkpointBefore === undefined ||
             attempts.some(
               (attempt) =>
                 attempt.attemptId === next.attemptId ||
@@ -132,6 +149,12 @@ export function reduceE2EProgress(
           attempts.push(next);
         } else {
           const previous = loopSessionAttemptSchema.parse(transition.previous);
+          if (
+            !hasCanonicalAttemptFields(transition.previous, previous) ||
+            !validAttemptState(previous)
+          ) {
+            return invalid('Session attempt predecessor is non-canonical or inconsistent.');
+          }
           const index = attempts.findIndex(
             (attempt) =>
               attempt.attemptId === previous.attemptId &&
@@ -162,6 +185,12 @@ export function reduceE2EProgress(
           return invalid('Checkpoint advancement does not match current durable authority.');
         }
         const completed = loopSessionAttemptSchema.parse(transition.completedAttempt);
+        if (
+          !hasCanonicalAttemptFields(transition.completedAttempt, completed) ||
+          !validAttemptState(completed)
+        ) {
+          return invalid('Checkpoint advancement contains invalid completed-attempt authority.');
+        }
         const retryHandoffs = parseRetryHandoffs(transition.retryHandoffs);
         const verification = current.loopState.verification;
         if (
@@ -193,16 +222,7 @@ export function reduceE2EProgress(
             attempt.conversationId === completed.conversationId
         );
         if (index < 0) {
-          if (
-            attempts.some(
-              (attempt) =>
-                attempt.attemptId === completed.attemptId ||
-                attempt.conversationId === completed.conversationId
-            )
-          ) {
-            return invalid('Checkpoint advancement collided with durable session identity.');
-          }
-          attempts.push(completed);
+          return invalid('Checkpoint advancement cannot append absent session authority.');
         } else {
           const previous = attempts[index];
           if (!previous || !validAttemptReplacement(previous, completed, true)) {
@@ -257,6 +277,14 @@ export function reduceE2EProgress(
         ) {
           return invalid('Terminal progress does not match current checkpoint authority.');
         }
+        if (
+          current.loopState.verification !== null ||
+          current.loopState.sessionAttempts.some(
+            (attempt) => !isTerminalAttempt(attempt) || !validAttemptState(attempt)
+          )
+        ) {
+          return invalid('Terminal progress requires quiescent workspace and session authority.');
+        }
         const handoff =
           transition.handoff === null ? null : loopPhaseHandoffSchema.parse(transition.handoff);
         const result = loopStageResultSchema.parse(transition.result);
@@ -287,6 +315,9 @@ function parseProgress(progress: E2EDurableProgress): Result<E2EDurableProgress,
       : loopPhaseStateV2Schema.safeParse(progress.phaseState);
   if (!loopState.success || !phaseState.success) {
     return invalid('E2E progress transition produced invalid durable state.');
+  }
+  if (loopState.data.sessionAttempts.some((attempt) => !validAttemptState(attempt))) {
+    return invalid('Durable session attempt state is internally inconsistent.');
   }
   if (
     phaseState.data !== null &&
@@ -408,12 +439,19 @@ function validateWorkspaceTransition(
   } else if (next.target !== undefined && previous.status !== 'preparing') {
     return 'Workspace target authority can be established only while preparing the run.';
   }
+  const replayAuthorityChanged = previous.replayedThroughCommit !== next.replayedThroughCommit;
+  const establishingReplayAuthority =
+    previous.status === 'preparing' &&
+    next.status === 'ready' &&
+    previous.replayedThroughCommit === undefined &&
+    next.replayedThroughCommit !== undefined;
+  const enteringCorrectionIntegration =
+    previous.status === 'running' && next.status === 'integrating-fix';
   if (
-    previous.replayedThroughCommit !== undefined &&
-    next.replayedThroughCommit !== previous.replayedThroughCommit &&
-    !(previous.status === 'integrating-fix' && next.status === 'destroying')
+    (enteringCorrectionIntegration && !replayAuthorityChanged) ||
+    (!establishingReplayAuthority && !enteringCorrectionIntegration && replayAuthorityChanged)
   ) {
-    return 'Replayed checkpoint authority cannot change outside correction cleanup.';
+    return 'Replayed checkpoint authority changes exactly once on correction integration.';
   }
   return undefined;
 }
@@ -472,6 +510,7 @@ function validAttemptReplacement(
   next: LoopSessionAttempt,
   allowExactCompleted = false
 ): boolean {
+  if (!validAttemptState(previous) || !validAttemptState(next)) return false;
   if (
     previous.attemptId !== next.attemptId ||
     previous.conversationId !== next.conversationId ||
@@ -486,16 +525,139 @@ function validAttemptReplacement(
   }
   if (allowExactCompleted && JSON.stringify(previous) === JSON.stringify(next)) return true;
   if (previous.status !== 'starting' && previous.status !== 'running') return false;
-  if (previous.finishedAt !== undefined || previous.checkpointAfter !== undefined) return false;
   if (next.status === 'starting') return false;
   if (next.status === 'running') {
+    return true;
+  }
+  return isTerminalAttempt(next);
+}
+
+function validAttemptState(attempt: LoopSessionAttempt): boolean {
+  if (
+    !validCanonicalId(attempt.attemptId) ||
+    !validCanonicalId(attempt.conversationId) ||
+    (attempt.phaseId !== undefined && !validCanonicalId(attempt.phaseId)) ||
+    (attempt.verificationRunId !== undefined && !validCanonicalId(attempt.verificationRunId)) ||
+    !validCanonicalTimestamp(attempt.startedAt) ||
+    (attempt.finishedAt !== undefined &&
+      (!validCanonicalTimestamp(attempt.finishedAt) ||
+        Date.parse(attempt.finishedAt) < Date.parse(attempt.startedAt)))
+  ) {
+    return false;
+  }
+  if (attempt.status === 'starting' || attempt.status === 'running') {
     return (
-      next.finishedAt === undefined &&
-      next.checkpointAfter === undefined &&
-      next.error === undefined
+      attempt.finishedAt === undefined &&
+      attempt.checkpointAfter === undefined &&
+      attempt.error === undefined
     );
   }
-  return next.finishedAt !== undefined;
+  if (attempt.status === 'completed') {
+    return (
+      attempt.finishedAt !== undefined &&
+      attempt.checkpointAfter !== undefined &&
+      attempt.error === undefined
+    );
+  }
+  return (
+    attempt.finishedAt !== undefined &&
+    attempt.checkpointAfter === undefined &&
+    validCanonicalFreeText(attempt.error)
+  );
+}
+
+function isTerminalAttempt(attempt: LoopSessionAttempt): boolean {
+  return (
+    attempt.status === 'completed' ||
+    attempt.status === 'failed' ||
+    attempt.status === 'cancelled' ||
+    attempt.status === 'interrupted'
+  );
+}
+
+function hasCanonicalLoopState(value: unknown, parsed: LoopState): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const raw = value as { sessionAttempts?: unknown; verification?: unknown };
+  if (
+    !Array.isArray(raw.sessionAttempts) ||
+    raw.sessionAttempts.length !== parsed.sessionAttempts.length ||
+    raw.sessionAttempts.some((attempt, index) =>
+      hasCanonicalAttemptFields(attempt, parsed.sessionAttempts[index]!) ? false : true
+    )
+  ) {
+    return false;
+  }
+  if (parsed.verification === null) return raw.verification === null;
+  if (!raw.verification || typeof raw.verification !== 'object') return false;
+  const verification = raw.verification as {
+    verificationRunId?: unknown;
+    target?: unknown;
+    cleanup?: unknown;
+  };
+  if (
+    !validCanonicalId(verification.verificationRunId) ||
+    (parsed.verification.target !== undefined &&
+      !hasCanonicalTarget(verification.target, parsed.verification.target)) ||
+    !verification.cleanup ||
+    typeof verification.cleanup !== 'object'
+  ) {
+    return false;
+  }
+  const cleanup = verification.cleanup as { updatedAt?: unknown; error?: unknown };
+  return (
+    validCanonicalTimestamp(cleanup.updatedAt) &&
+    (cleanup.error === undefined || validCanonicalFreeText(cleanup.error))
+  );
+}
+
+function hasCanonicalAttemptFields(value: unknown, parsed: LoopSessionAttempt): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const raw = value as Partial<LoopSessionAttempt>;
+  return (
+    raw.attemptId === parsed.attemptId &&
+    raw.conversationId === parsed.conversationId &&
+    raw.phaseId === parsed.phaseId &&
+    raw.verificationRunId === parsed.verificationRunId &&
+    raw.startedAt === parsed.startedAt &&
+    raw.finishedAt === parsed.finishedAt &&
+    raw.error === parsed.error &&
+    hasCanonicalTarget(raw.target, parsed.target)
+  );
+}
+
+function hasCanonicalTarget(value: unknown, parsed: LoopSessionTarget): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const raw = value as Partial<LoopSessionTarget>;
+  if (!raw.machine || typeof raw.machine !== 'object') return false;
+  return (
+    raw.workspaceId === parsed.workspaceId &&
+    raw.path === parsed.path &&
+    raw.machine.kind === parsed.machine.kind &&
+    (parsed.machine.kind === 'local' ||
+      (raw.machine.kind === 'ssh' && raw.machine.connectionId === parsed.machine.connectionId))
+  );
+}
+
+function validCanonicalId(value: unknown): value is string {
+  return (
+    typeof value === 'string' && value.length > 0 && value.length <= 256 && value === value.trim()
+  );
+}
+
+function validCanonicalTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 64) return false;
+  const timestamp = new Date(value);
+  return Number.isFinite(timestamp.getTime()) && timestamp.toISOString() === value;
+}
+
+function validCanonicalFreeText(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 4_096 &&
+    value === value.trim() &&
+    !value.includes('\0')
+  );
 }
 
 function sameTarget(left: LoopSessionTarget, right: LoopSessionTarget): boolean {

@@ -84,6 +84,10 @@ function runningAttempt(overrides: Partial<LoopSessionAttempt> = {}): LoopSessio
   };
 }
 
+function startingAttempt(overrides: Partial<LoopSessionAttempt> = {}): LoopSessionAttempt {
+  return runningAttempt({ status: 'starting', ...overrides });
+}
+
 function unwrap(progress: ReturnType<typeof reduceE2EProgress>): E2EDurableProgress {
   expect(progress.success).toBe(true);
   if (!progress.success) throw new Error(progress.error.message);
@@ -102,12 +106,19 @@ function activeProgress(): E2EDurableProgress {
     reduceE2EProgress(progress, { kind: 'workspace', verification: workspace('running') })
   );
   progress = unwrap(
-    reduceE2EProgress(progress, { kind: 'session-attempt', next: runningAttempt() })
+    reduceE2EProgress(progress, { kind: 'session-attempt', next: startingAttempt() })
+  );
+  progress = unwrap(
+    reduceE2EProgress(progress, {
+      kind: 'session-attempt',
+      previous: startingAttempt(),
+      next: runningAttempt(),
+    })
   );
   return unwrap(
     reduceE2EProgress(progress, {
       kind: 'workspace',
-      verification: workspace('integrating-fix'),
+      verification: workspace('integrating-fix', { replayedThroughCommit: CORRECTION }),
     })
   );
 }
@@ -213,6 +224,48 @@ describe('clean-room E2E durable progress reducer', () => {
     ).toBe(false);
   });
 
+  it('changes replay authority only from running to integrating-fix and preserves it thereafter', () => {
+    let progress = baseProgress();
+    for (const status of ['preparing', 'ready', 'running'] as const) {
+      progress = unwrap(
+        reduceE2EProgress(progress, { kind: 'workspace', verification: workspace(status) })
+      );
+    }
+
+    expect(
+      reduceE2EProgress(progress, {
+        kind: 'workspace',
+        verification: workspace('running', { replayedThroughCommit: CORRECTION }),
+      }).success
+    ).toBe(false);
+    expect(
+      reduceE2EProgress(progress, {
+        kind: 'workspace',
+        verification: workspace('integrating-fix'),
+      }).success
+    ).toBe(false);
+
+    const integrating = unwrap(
+      reduceE2EProgress(progress, {
+        kind: 'workspace',
+        verification: workspace('integrating-fix', { replayedThroughCommit: CORRECTION }),
+      })
+    );
+    expect(integrating.loopState.verification?.replayedThroughCommit).toBe(CORRECTION);
+    expect(
+      reduceE2EProgress(integrating, {
+        kind: 'workspace',
+        verification: workspace('destroying'),
+      }).success
+    ).toBe(false);
+    expect(
+      reduceE2EProgress(integrating, {
+        kind: 'workspace',
+        verification: workspace('destroying', { replayedThroughCommit: CORRECTION }),
+      }).success
+    ).toBe(true);
+  });
+
   it('allows only the controlled same-run cleanup path to clear workspace authority', () => {
     let progress = baseProgress();
     progress = unwrap(
@@ -248,11 +301,18 @@ describe('clean-room E2E durable progress reducer', () => {
     const running = unwrap(
       reduceE2EProgress(baseProgress(), {
         kind: 'session-attempt',
+        next: startingAttempt(),
+      })
+    );
+    const started = unwrap(
+      reduceE2EProgress(running, {
+        kind: 'session-attempt',
+        previous: startingAttempt(),
         next: runningAttempt(),
       })
     );
     expect(
-      reduceE2EProgress(running, {
+      reduceE2EProgress(started, {
         kind: 'session-attempt',
         previous: runningAttempt({ startedAt: '2026-07-12T19:00:00.000Z' }),
         next: runningAttempt({ status: 'failed', finishedAt: NOW }),
@@ -270,6 +330,100 @@ describe('clean-room E2E durable progress reducer', () => {
           checkpointAfter: CORRECTION,
           finishedAt: NOW,
           startedAt: '2026-07-12T19:00:00.000Z',
+        }),
+        retryHandoffs: [retryHandoff],
+      }).success
+    ).toBe(false);
+  });
+
+  it('appends only an exact canonical starting attempt', () => {
+    expect(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'session-attempt',
+        next: runningAttempt(),
+      }).success
+    ).toBe(false);
+    expect(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'session-attempt',
+        next: startingAttempt({ attemptId: ' e2e-attempt-1' }),
+      }).success
+    ).toBe(false);
+    expect(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'session-attempt',
+        next: startingAttempt({ target: { ...target, path: ` ${target.path}` } }),
+      }).success
+    ).toBe(false);
+    expect(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'session-attempt',
+        next: startingAttempt({ startedAt: '2026-07-12T20:00:00Z' }),
+      }).success
+    ).toBe(false);
+    expect(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'session-attempt',
+        next: startingAttempt({ finishedAt: NOW }),
+      }).success
+    ).toBe(false);
+  });
+
+  it('requires strict status fields and chronological attempt replacement', () => {
+    const starting = unwrap(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'session-attempt',
+        next: startingAttempt(),
+      })
+    );
+    const invalidReplacements = [
+      runningAttempt({ status: 'completed', finishedAt: NOW }),
+      runningAttempt({
+        status: 'completed',
+        checkpointAfter: CHECKPOINT,
+        finishedAt: NOW,
+        error: 'A completed attempt cannot retain an error.',
+      }),
+      runningAttempt({
+        status: 'failed',
+        checkpointAfter: CHECKPOINT,
+        finishedAt: NOW,
+        error: 'Failed.',
+      }),
+      runningAttempt({ status: 'failed', finishedAt: NOW }),
+      runningAttempt({ status: 'failed', finishedAt: NOW, error: ' Failed. ' }),
+      runningAttempt({
+        status: 'failed',
+        startedAt: '2026-07-12T20:05:00.000Z',
+        finishedAt: NOW,
+        error: 'Finished before it started.',
+      }),
+    ];
+
+    for (const next of invalidReplacements) {
+      expect(
+        reduceE2EProgress(starting, {
+          kind: 'session-attempt',
+          previous: startingAttempt(),
+          next,
+        }).success
+      ).toBe(false);
+    }
+  });
+
+  it('cannot advance a checkpoint by appending an absent completed attempt', () => {
+    const activeWithoutAttempt = activeProgress();
+    activeWithoutAttempt.loopState.sessionAttempts = [];
+
+    expect(
+      reduceE2EProgress(activeWithoutAttempt, {
+        kind: 'checkpoint-advanced',
+        previousHead: CHECKPOINT,
+        featureHead: CORRECTION,
+        completedAttempt: runningAttempt({
+          status: 'completed',
+          checkpointAfter: CORRECTION,
+          finishedAt: '2026-07-12T20:05:00.000Z',
         }),
         retryHandoffs: [retryHandoff],
       }).success
@@ -343,6 +497,38 @@ describe('clean-room E2E durable progress reducer', () => {
       reduceE2EProgress(terminal, {
         kind: 'workspace',
         verification: workspace('preparing'),
+      }).success
+    ).toBe(false);
+  });
+
+  it('terminalizes only after workspace and every session are quiescent', () => {
+    const starting = unwrap(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'session-attempt',
+        next: startingAttempt(),
+      })
+    );
+    expect(
+      reduceE2EProgress(starting, {
+        kind: 'terminal',
+        checkpointCommit: CHECKPOINT,
+        handoff: null,
+        result: { status: 'failed', summary: 'Failed.', completedAt: NOW },
+      }).success
+    ).toBe(false);
+
+    const preparing = unwrap(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'workspace',
+        verification: workspace('preparing'),
+      })
+    );
+    expect(
+      reduceE2EProgress(preparing, {
+        kind: 'terminal',
+        checkpointCommit: CHECKPOINT,
+        handoff: null,
+        result: { status: 'failed', summary: 'Failed.', completedAt: NOW },
       }).success
     ).toBe(false);
   });

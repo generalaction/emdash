@@ -72,4 +72,89 @@ describe('Loop phase state v2', () => {
       }).success
     ).toBe(false);
   });
+
+  it('rejects non-canonical persisted IDs and timestamps', () => {
+    const state = {
+      version: '2' as const,
+      checkpointCommit: CHECKPOINT,
+      handoff: null,
+      retryHandoffs: [retryHandoff],
+      result: null,
+    };
+
+    expect(
+      loopPhaseStateV2Schema.safeParse({
+        ...state,
+        retryHandoffs: [{ ...retryHandoff, source: ` ${retryHandoff.source}` }],
+      }).success
+    ).toBe(false);
+    expect(
+      loopPhaseStateV2Schema.safeParse({
+        ...state,
+        retryHandoffs: [
+          {
+            ...retryHandoff,
+            handoff: {
+              ...retryHandoff.handoff,
+              createdAt: '2026-07-12T20:00:00Z',
+            },
+          },
+        ],
+      }).success
+    ).toBe(false);
+    expect(
+      loopPhaseStateV2Schema.safeParse({
+        ...state,
+        retryHandoffs: [
+          {
+            ...retryHandoff,
+            handoff: {
+              ...retryHandoff.handoff,
+              artifacts: [
+                {
+                  artifactId: ' artifact-1',
+                  kind: 'test-report',
+                  byteLength: 1,
+                  createdAt: '2026-07-12T20:00:00.000Z',
+                },
+              ],
+            },
+          },
+        ],
+      }).success
+    ).toBe(false);
+    expect(
+      loopPhaseStateV2Schema.safeParse({
+        ...state,
+        result: {
+          status: 'failed',
+          summary: 'Failed.',
+          completedAt: '2026-07-12T20:00:00Z',
+        },
+      }).success
+    ).toBe(false);
+  });
+
+  it('enforces an aggregate serialized retry-handoff byte bound', () => {
+    const largeHandoff: LoopPhaseRetryHandoff = {
+      ...retryHandoff,
+      handoff: {
+        ...retryHandoff.handoff,
+        summary: 'x'.repeat(16_384),
+      },
+    };
+
+    expect(
+      loopPhaseStateV2Schema.safeParse({
+        version: '2',
+        checkpointCommit: CHECKPOINT,
+        handoff: null,
+        retryHandoffs: Array.from({ length: 33 }, (_, index) => ({
+          ...largeHandoff,
+          source: `Clean-room E2E attempt ${index + 1}`,
+        })),
+        result: null,
+      }).success
+    ).toBe(false);
+  });
 });
