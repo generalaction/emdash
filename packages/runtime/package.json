@@ -43,7 +43,7 @@
     "dev": "tsdown --watch",
     "build": "tsdown",
     "test": "vitest run",
-    "lint": "oxlint --config ../../apps/emdash-desktop/.oxlintrc.json .",
+    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/runtime\"'",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit -p tsconfig.json"
