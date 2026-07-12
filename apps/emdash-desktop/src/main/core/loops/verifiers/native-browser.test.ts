@@ -940,6 +940,63 @@ describe('native browser verifier', () => {
     expect(harness.start).not.toHaveBeenCalled();
   });
 
+  it('retries transient late evidence finalization failure while preserving cancellation', async () => {
+    const controller = new AbortController();
+    const harness = makeHarness({ context: { signal: controller.signal } });
+    const lateEvidence = makeEvidenceRun('/app-data/loops/evidence/late-failure');
+    vi.mocked(lateEvidence.finish)
+      .mockRejectedValueOnce(new Error('late evidence finish failed'))
+      .mockResolvedValueOnce(undefined);
+    const heldEvidence = deferred<LoopEvidenceRunPort>();
+    const beginRun = vi.fn(() => heldEvidence.promise);
+    harness.dependencies.evidenceStore.beginRun = beginRun;
+    const verifier = createNativeBrowserVerifier(harness.dependencies);
+
+    const runPromise = verifier.run(harness.ctx);
+    await waitForCall(beginRun);
+    controller.abort();
+    heldEvidence.resolve(lateEvidence);
+    const result = await runPromise;
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.kind).toBe('aborted');
+      expect(result.error.message).toBe('Native browser verification was cancelled');
+    }
+    expect(lateEvidence.finish).toHaveBeenCalledTimes(2);
+    expect(lateEvidence.finish).toHaveBeenLastCalledWith({
+      status: 'cancelled',
+      summary: 'Native browser verification was cancelled',
+    });
+    expect(harness.start).not.toHaveBeenCalled();
+  });
+
+  it('surfaces persistent late evidence finalization failure as cleanup recovery', async () => {
+    const controller = new AbortController();
+    const harness = makeHarness({ context: { signal: controller.signal } });
+    const lateEvidence = makeEvidenceRun('/app-data/loops/evidence/late-persistent-failure');
+    vi.mocked(lateEvidence.finish).mockRejectedValue(new Error('evidence authority remained open'));
+    const heldEvidence = deferred<LoopEvidenceRunPort>();
+    const beginRun = vi.fn(() => heldEvidence.promise);
+    harness.dependencies.evidenceStore.beginRun = beginRun;
+    const verifier = createNativeBrowserVerifier(harness.dependencies);
+
+    const runPromise = verifier.run(harness.ctx);
+    await waitForCall(beginRun);
+    controller.abort();
+    heldEvidence.resolve(lateEvidence);
+    const result = await runPromise;
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.kind).toBe('execution-error');
+      expect(result.error.message).toContain('Native browser verification was cancelled');
+      expect(result.error.message).toContain('evidence authority remained open');
+    }
+    expect(lateEvidence.finish).toHaveBeenCalledTimes(2);
+    expect(harness.start).not.toHaveBeenCalled();
+  });
+
   it('closes a browser lease that starts after cancellation', async () => {
     const controller = new AbortController();
     const harness = makeHarness({ context: { signal: controller.signal } });
@@ -1046,6 +1103,56 @@ describe('native browser verifier', () => {
     expect(harness.nestedDriver.cancelPrompt).toHaveBeenCalledWith('late-conversation');
     expect(harness.close).toHaveBeenCalledWith(harness.browserSession.lease, 'cancelled');
   });
+
+  it.each(['typed-error', 'throw'] as const)(
+    'surfaces %s from late nested-session cancellation as cleanup recovery',
+    async (mode) => {
+      const controller = new AbortController();
+      const harness = makeHarness({ context: { signal: controller.signal } });
+      const heldSession =
+        deferred<
+          Awaited<ReturnType<NativeBrowserVerifierDependencies['startVerificationSession']>>
+        >();
+      harness.startVerificationSession.mockReturnValue(heldSession.promise);
+      if (mode === 'typed-error') {
+        harness.nestedDriver.cancelPrompt = vi.fn(async () =>
+          err({ kind: 'cancel-failed' as const, message: 'late cancellation refused' })
+        );
+      } else {
+        harness.nestedDriver.cancelPrompt = vi.fn(() => {
+          throw new Error('late cancellation threw');
+        });
+      }
+
+      const runPromise = harness.verifier.run(harness.ctx);
+      await waitForCall(harness.startVerificationSession);
+      controller.abort();
+      heldSession.resolve(
+        ok({
+          verificationRunId: 'verify-run',
+          target: LOCAL_TARGET,
+          conversationId: 'late-conversation',
+          title: 'late session',
+          driver: harness.nestedDriver,
+        })
+      );
+      const result = await runPromise;
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.kind).toBe('execution-error');
+        expect(result.error.message).toMatch(/cancel/i);
+        expect(result.error.message).toContain(
+          mode === 'typed-error' ? 'late cancellation refused' : 'late cancellation threw'
+        );
+      }
+      expect(harness.close).toHaveBeenCalledWith(harness.browserSession.lease, 'cancelled');
+      expect(harness.evidenceRun.finish).toHaveBeenCalledWith({
+        status: 'cancelled',
+        summary: expect.stringContaining('Cleanup recovery required'),
+      });
+    }
+  );
 
   it('compensates a late nested activation so the outer conversation remains authoritative', async () => {
     const controller = new AbortController();

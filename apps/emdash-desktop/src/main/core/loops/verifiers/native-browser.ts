@@ -286,10 +286,15 @@ async function runNativeBrowserVerification(
       if (control.wasAborted) {
         const lateEvidence = await settlePromise(evidencePromise);
         if (lateEvidence.success) {
-          await lateEvidence.value.finish({
-            status: 'cancelled',
-            summary: 'Verification cancelled before evidence start',
-          });
+          const finalized = await settlePromise(
+            lateEvidence.value.finish({
+              status: 'cancelled',
+              summary: 'Verification cancelled before evidence start',
+            })
+          );
+          if (!finalized.success) {
+            evidence = lateEvidence.value;
+          }
         }
       }
       throw error;
@@ -351,7 +356,26 @@ async function runNativeBrowserVerification(
           typeof lateSession.value.data?.conversationId === 'string' &&
           isLoopSessionDriver(lateSession.value.data.driver)
         ) {
-          await lateSession.value.data.driver.cancelPrompt(lateSession.value.data.conversationId);
+          const lateDriver = lateSession.value.data.driver;
+          const lateConversationId = lateSession.value.data.conversationId;
+          const cancellation = await settlePromise(
+            Promise.resolve().then(() => lateDriver.cancelPrompt(lateConversationId))
+          );
+          const cancellationError = !cancellation.success
+            ? cancellation.error
+            : !cancellation.value.success
+              ? cancellation.value.error.message
+              : null;
+          if (cancellationError !== null) {
+            throw new NativeBrowserVerifierFailure(
+              'execution-error',
+              `${control.abortMessage}\nCleanup recovery required: ${safeText(
+                cancellationError,
+                'Late native browser ACP cancellation was not acknowledged'
+              )}`,
+              'cancelled'
+            );
+          }
         }
       }
       throw error;

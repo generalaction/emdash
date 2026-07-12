@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { chmod, constants, lstat, mkdir, open, readdir, realpath, rm } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
+import { constants, lstat, mkdir, open, readdir, realpath, rmdir, unlink } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { redactAll } from '@emdash/shared/logger';
 import type {
@@ -68,6 +69,55 @@ export type LoopEvidenceStoreOptions = {
   maxScreenshotsPerRun?: number;
   maxScreenshotBytes?: number;
   maxScreenshotBytesPerRun?: number;
+  /** @internal Narrow seams for deterministic filesystem race and cleanup-failure tests. */
+  testHooks?: LoopEvidenceStoreTestHooks;
+};
+
+export type LoopEvidenceStoreTestHooks = {
+  afterRunDirectoryCreate?: (path: string) => Promise<void> | void;
+  beforeFileOpen?: (input: EvidenceFileHookInput) => Promise<void> | void;
+  afterFileOpen?: (input: EvidenceFileHookInput) => Promise<void> | void;
+  afterFileWrite?: (input: EvidenceFileHookInput) => Promise<void> | void;
+  closeFile?: (input: EvidenceCloseHookInput) => Promise<void>;
+  beforeRemove?: (input: EvidenceRemoveHookInput) => Promise<void> | void;
+  removeFile?: (path: string) => Promise<void>;
+  removeDirectory?: (path: string) => Promise<void>;
+};
+
+type EvidenceFileHookInput = {
+  kind: 'events' | 'screenshot';
+  operation: 'create' | 'append';
+  path: string;
+};
+
+type EvidenceRemoveHookInput = {
+  kind: 'file' | 'directory';
+  path: string;
+};
+
+type EvidenceCloseHookInput = EvidenceFileHookInput & { handle: FileHandle };
+
+type FilesystemIdentity = {
+  dev: bigint;
+  ino: bigint;
+};
+
+type DirectoryAuthority = {
+  path: string;
+  canonicalPath: string;
+  identity: FilesystemIdentity;
+  requirePrivate: boolean;
+};
+
+type EvidenceFilesystem = {
+  afterRunDirectoryCreate: (path: string) => Promise<void>;
+  beforeFileOpen: (input: EvidenceFileHookInput) => Promise<void>;
+  afterFileOpen: (input: EvidenceFileHookInput) => Promise<void>;
+  afterFileWrite: (input: EvidenceFileHookInput) => Promise<void>;
+  closeFile: (input: EvidenceCloseHookInput) => Promise<void>;
+  beforeRemove: (input: EvidenceRemoveHookInput) => Promise<void>;
+  removeFile: (path: string) => Promise<void>;
+  removeDirectory: (path: string) => Promise<void>;
 };
 
 type StoredEvent = {
@@ -79,13 +129,14 @@ type StoredEvent = {
 
 type RetentionEntry = {
   name: string;
-  path: string;
+  authority: DirectoryAuthority;
   mtimeMs: number;
 };
 
 type LoopEvidenceRunOptions = {
-  rootDirectory: string;
-  directory: string;
+  rootAuthority: DirectoryAuthority;
+  runAuthority: DirectoryAuthority;
+  filesystem: EvidenceFilesystem;
   now: () => Date;
   maxEvents: number;
   maxEventBytes: number;
@@ -99,6 +150,7 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
   private readonly appDataPath: string;
   private readonly requestedRootDirectory: string;
   private canonicalRootDirectory: string | null = null;
+  private rootAuthority: DirectoryAuthority | null = null;
   private readonly now: () => Date;
   private readonly maxRuns: number;
   private readonly maxAgeMs: number;
@@ -107,7 +159,9 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
   private readonly maxScreenshotsPerRun: number;
   private readonly maxScreenshotBytes: number;
   private readonly maxScreenshotBytesPerRun: number;
-  private readonly activeRuns = new Set<string>();
+  private readonly filesystem: EvidenceFilesystem;
+  private readonly activeRuns = new Map<string, number>();
+  private cleanupTail: Promise<void> = Promise.resolve();
 
   constructor(options: LoopEvidenceStoreOptions) {
     if (!isAbsolute(options.appDataPath)) {
@@ -148,6 +202,7 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
       DEFAULT_MAX_SCREENSHOT_BYTES_PER_RUN,
       'maxScreenshotBytesPerRun'
     );
+    this.filesystem = createEvidenceFilesystem(options.testHooks);
   }
 
   get rootDirectory(): string {
@@ -168,20 +223,25 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
     const runKey = digest(`${loopId}\u0000${phaseId}\u0000${verificationRunId}`);
     const directory = join(this.rootDirectory, runKey);
     assertContainedPath(this.rootDirectory, directory);
+    const rootAuthority = this.requireRootAuthority();
+    this.reserveRun(directory);
     try {
       await mkdir(directory, { recursive: false, mode: 0o700 });
+      await this.filesystem.afterRunDirectoryCreate(directory);
     } catch (error) {
+      this.releaseRun(directory);
       if (isNodeError(error) && error.code === 'EEXIST') {
         throw new Error('Loop evidence run identity already exists');
       }
       throw error;
     }
+    let runAuthority: DirectoryAuthority | null = null;
     try {
-      await assertPrivateContainedDirectory(this.rootDirectory, directory);
-      this.activeRuns.add(directory);
+      runAuthority = await captureDirectoryAuthority(directory, rootAuthority);
       const run = await LoopEvidenceRun.create({
-        rootDirectory: this.rootDirectory,
-        directory,
+        rootAuthority,
+        runAuthority,
+        filesystem: this.filesystem,
         now: this.now,
         maxEvents: this.maxEventsPerRun,
         maxEventBytes: this.maxEventBytes,
@@ -189,7 +249,7 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
         maxScreenshotBytes: this.maxScreenshotBytes,
         maxScreenshotBytesPerRun: this.maxScreenshotBytesPerRun,
         onFinished: () => {
-          this.activeRuns.delete(directory);
+          this.releaseRun(directory);
           void this.cleanupExpired().catch(() => {});
           return Promise.resolve();
         },
@@ -197,34 +257,61 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
       await run.appendStarted({ loopId, phaseId, verificationRunId });
       return run;
     } catch (error) {
-      this.activeRuns.delete(directory);
-      await removeCreatedRunDirectory(this.rootDirectory, directory);
+      let cleanupError: unknown = null;
+      if (runAuthority) {
+        try {
+          await removeKnownRunDirectory(rootAuthority, runAuthority, this.filesystem);
+        } catch (caughtCleanupError) {
+          cleanupError = caughtCleanupError;
+        }
+      }
+      this.releaseRun(directory);
+      if (cleanupError !== null) {
+        throw aggregateCleanupFailure(
+          error,
+          [cleanupError],
+          'Loop evidence initialization cleanup failed'
+        );
+      }
       throw error;
     }
   }
 
-  async cleanupExpired(): Promise<void> {
+  cleanupExpired(): Promise<void> {
+    const result = this.cleanupTail.then(
+      () => this.cleanupExpiredUnlocked(),
+      () => this.cleanupExpiredUnlocked()
+    );
+    this.cleanupTail = result.catch(() => undefined);
+    return result;
+  }
+
+  private async cleanupExpiredUnlocked(): Promise<void> {
     await this.ensureRoot();
-    const entries = await readdir(this.rootDirectory, { withFileTypes: true });
+    const rootAuthority = this.requireRootAuthority();
+    await assertDirectoryAuthority(rootAuthority);
+    const entries = await readdir(rootAuthority.path, { withFileTypes: true });
+    await assertDirectoryAuthority(rootAuthority);
     const retained: RetentionEntry[] = [];
     for (const entry of entries) {
-      const entryPath = join(this.rootDirectory, entry.name);
-      assertContainedPath(this.rootDirectory, entryPath);
+      const entryPath = join(rootAuthority.path, entry.name);
+      assertContainedPath(rootAuthority.path, entryPath);
       if (!entry.isDirectory()) {
-        await rm(entryPath, { recursive: true, force: true });
+        await removeVerifiedFile(rootAuthority, entryPath, this.filesystem, undefined, true, true);
         continue;
       }
       if (this.activeRuns.has(entryPath)) continue;
-      await assertPrivateContainedDirectory(this.rootDirectory, entryPath);
-      const details = await lstat(entryPath);
-      retained.push({ name: entry.name, path: entryPath, mtimeMs: details.mtimeMs });
+      const authority = await captureDirectoryAuthority(entryPath, rootAuthority);
+      const details = await lstat(entryPath, { bigint: true });
+      assertSameIdentity(authority.identity, identityFromStats(details), entryPath);
+      retained.push({ name: entry.name, authority, mtimeMs: Number(details.mtimeMs) });
     }
 
     const expiryThreshold = this.now().getTime() - this.maxAgeMs;
     const fresh: RetentionEntry[] = [];
     for (const entry of retained) {
       if (entry.mtimeMs < expiryThreshold) {
-        await rm(entry.path, { recursive: true, force: true });
+        await removeKnownRunDirectory(rootAuthority, entry.authority, this.filesystem);
       } else {
         fresh.push(entry);
       }
@@ -234,29 +321,60 @@ export class LoopEvidenceStore implements LoopEvidenceStorePort {
       (left, right) => right.mtimeMs - left.mtimeMs || left.name.localeCompare(right.name)
     );
     for (const entry of fresh.slice(this.maxRuns)) {
-      await rm(entry.path, { recursive: true, force: true });
+      await removeKnownRunDirectory(rootAuthority, entry.authority, this.filesystem);
     }
   }
 
   private async ensureRoot(): Promise<void> {
     await mkdir(this.appDataPath, { recursive: true, mode: 0o700 });
-    const canonicalAppDataPath = await realpath(this.appDataPath);
-    if (!sameFilesystemPath(canonicalAppDataPath, this.appDataPath)) {
-      throw new Error('Loop evidence app-data path must not traverse symbolic links');
-    }
-    const loopsDirectory = join(canonicalAppDataPath, 'loops');
+    const appDataAuthority = await captureDirectoryAuthority(this.appDataPath, undefined, false);
+    const loopsDirectory = join(appDataAuthority.canonicalPath, 'loops');
     const rootDirectory = join(loopsDirectory, 'evidence');
-    await ensurePrivateDirectory(loopsDirectory);
-    await ensurePrivateDirectory(rootDirectory);
-    this.canonicalRootDirectory = rootDirectory;
+    const loopsAuthority = await ensurePrivateDirectory(
+      loopsDirectory,
+      undefined,
+      appDataAuthority
+    );
+    const candidateRootAuthority = await ensurePrivateDirectory(
+      rootDirectory,
+      undefined,
+      loopsAuthority
+    );
+    if (this.rootAuthority) {
+      assertSameDirectoryAuthority(this.rootAuthority, candidateRootAuthority);
+      await assertDirectoryAuthority(this.rootAuthority);
+      return;
+    }
+    this.rootAuthority = candidateRootAuthority;
+    this.canonicalRootDirectory = candidateRootAuthority.canonicalPath;
+  }
+
+  private requireRootAuthority(): DirectoryAuthority {
+    if (!this.rootAuthority) throw new Error('Loop evidence root authority was not initialized');
+    return this.rootAuthority;
+  }
+
+  private reserveRun(directory: string): void {
+    this.activeRuns.set(directory, (this.activeRuns.get(directory) ?? 0) + 1);
+  }
+
+  private releaseRun(directory: string): void {
+    const count = this.activeRuns.get(directory);
+    if (count === undefined) return;
+    if (count === 1) this.activeRuns.delete(directory);
+    else this.activeRuns.set(directory, count - 1);
   }
 }
 
 class LoopEvidenceRun implements LoopEvidenceRunPort {
   readonly directory: string;
-  private readonly rootDirectory: string;
+  private readonly rootAuthority: DirectoryAuthority;
+  private readonly runAuthority: DirectoryAuthority;
+  private readonly screenshotsAuthority: DirectoryAuthority;
+  private eventIdentity: FilesystemIdentity | null = null;
   private readonly eventPath: string;
   private readonly screenshotsPath: string;
+  private readonly filesystem: EvidenceFilesystem;
   private readonly now: () => Date;
   private readonly maxEvents: number;
   private readonly maxEventBytes: number;
@@ -268,13 +386,17 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
   private screenshotCount = 0;
   private screenshotBytes = 0;
   private finished = false;
+  private eventStreamPoisoned = false;
   private operationTail: Promise<void> = Promise.resolve();
 
-  private constructor(input: LoopEvidenceRunOptions) {
-    this.rootDirectory = input.rootDirectory;
-    this.directory = input.directory;
-    this.eventPath = join(input.directory, EVENTS_FILE);
-    this.screenshotsPath = join(input.directory, SCREENSHOTS_DIR);
+  private constructor(input: LoopEvidenceRunOptions, screenshotsAuthority: DirectoryAuthority) {
+    this.rootAuthority = input.rootAuthority;
+    this.runAuthority = input.runAuthority;
+    this.screenshotsAuthority = screenshotsAuthority;
+    this.directory = input.runAuthority.path;
+    this.eventPath = join(this.directory, EVENTS_FILE);
+    this.screenshotsPath = screenshotsAuthority.path;
+    this.filesystem = input.filesystem;
     this.now = input.now;
     this.maxEvents = input.maxEvents;
     this.maxEventBytes = input.maxEventBytes;
@@ -285,27 +407,64 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
   }
 
   static async create(input: LoopEvidenceRunOptions): Promise<LoopEvidenceRun> {
-    const run = new LoopEvidenceRun(input);
-    await run.assertDirectories(false);
-    await ensurePrivateDirectory(run.screenshotsPath, false);
-    await run.assertDirectories();
-    const eventHandle = await open(
-      run.eventPath,
-      constants.O_APPEND |
-        constants.O_CREAT |
-        constants.O_EXCL |
-        constants.O_WRONLY |
-        constants.O_NOFOLLOW,
-      0o600
+    await assertDirectoryAuthority(input.rootAuthority);
+    await assertDirectoryAuthority(input.runAuthority);
+    const screenshotsPath = join(input.runAuthority.path, SCREENSHOTS_DIR);
+    const screenshotsAuthority = await ensurePrivateDirectory(
+      screenshotsPath,
+      false,
+      input.runAuthority
     );
+    const run = new LoopEvidenceRun(input, screenshotsAuthority);
+    await run.assertDirectories();
+    const hookInput = {
+      kind: 'events',
+      operation: 'create',
+      path: run.eventPath,
+    } satisfies EvidenceFileHookInput;
+    await run.filesystem.beforeFileOpen(hookInput);
+    let eventHandle: Awaited<ReturnType<typeof open>> | null = null;
+    let primaryError: unknown = null;
     try {
+      eventHandle = await open(
+        run.eventPath,
+        constants.O_APPEND |
+          constants.O_CREAT |
+          constants.O_EXCL |
+          constants.O_WRONLY |
+          constants.O_NOFOLLOW,
+        0o600
+      );
+      await run.filesystem.afterFileOpen(hookInput);
+      run.eventIdentity = await verifyOpenedFile(eventHandle, run.eventPath, run.runAuthority);
       await eventHandle.chmod(0o600);
-    } finally {
-      await eventHandle.close();
+      run.eventIdentity = await verifyOpenedFile(
+        eventHandle,
+        run.eventPath,
+        run.runAuthority,
+        run.eventIdentity
+      );
+    } catch (error) {
+      primaryError = error;
     }
-    const screenshotUsage = await readScreenshotUsage(run.screenshotsPath);
-    run.screenshotCount = screenshotUsage.count;
-    run.screenshotBytes = screenshotUsage.bytes;
+    if (eventHandle) {
+      try {
+        await run.filesystem.closeFile({ ...hookInput, handle: eventHandle });
+      } catch (closeError) {
+        if (primaryError !== null) {
+          throw aggregateCleanupFailure(
+            primaryError,
+            [closeError],
+            'Loop evidence event creation cleanup failed'
+          );
+        }
+        throw closeError;
+      }
+    }
+    if (primaryError !== null) throw primaryError;
+    if ((await readdir(run.screenshotsPath)).length > 0) {
+      throw new Error('Loop evidence screenshots directory was not empty after creation');
+    }
     return run;
   }
 
@@ -390,17 +549,32 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
       const artifactPath = join(this.directory, relativePath);
       assertContainedPath(this.directory, artifactPath);
       let handle: Awaited<ReturnType<typeof open>> | null = null;
-      let created = false;
+      let artifactIdentity: FilesystemIdentity | null = null;
+      const hookInput = {
+        kind: 'screenshot',
+        operation: 'create',
+        path: artifactPath,
+      } satisfies EvidenceFileHookInput;
       try {
+        await this.filesystem.beforeFileOpen(hookInput);
         handle = await open(
           artifactPath,
           constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
           0o600
         );
-        created = true;
-        await handle.writeFile(input.data);
+        await this.filesystem.afterFileOpen(hookInput);
+        artifactIdentity = await verifyOpenedFile(handle, artifactPath, this.screenshotsAuthority);
         await handle.chmod(0o600);
-        await handle.close();
+        artifactIdentity = await verifyOpenedFile(
+          handle,
+          artifactPath,
+          this.screenshotsAuthority,
+          artifactIdentity
+        );
+        await handle.writeFile(input.data);
+        await this.filesystem.afterFileWrite(hookInput);
+        await verifyOpenedFile(handle, artifactPath, this.screenshotsAuthority, artifactIdentity);
+        await this.filesystem.closeFile({ ...hookInput, handle });
         handle = null;
 
         const artifact = {
@@ -414,8 +588,33 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
         this.screenshotBytes += input.data.byteLength;
         return artifact;
       } catch (error) {
-        if (handle) await handle.close().catch(() => {});
-        if (created) await rm(artifactPath, { force: true }).catch(() => {});
+        const cleanupErrors: unknown[] = [];
+        if (handle) {
+          try {
+            await this.filesystem.closeFile({ ...hookInput, handle });
+          } catch (closeError) {
+            cleanupErrors.push(closeError);
+          }
+        }
+        if (artifactIdentity) {
+          try {
+            await removeVerifiedFile(
+              this.screenshotsAuthority,
+              artifactPath,
+              this.filesystem,
+              artifactIdentity
+            );
+          } catch (removeError) {
+            cleanupErrors.push(removeError);
+          }
+        }
+        if (cleanupErrors.length > 0) {
+          throw aggregateCleanupFailure(
+            error,
+            cleanupErrors,
+            'Loop evidence screenshot cleanup failed'
+          );
+        }
         throw error;
       }
     });
@@ -454,25 +653,56 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
     if (Buffer.byteLength(line, 'utf8') > this.maxEventBytes) {
       throw new RangeError('Loop evidence event exceeds its bounded size');
     }
+    if (!this.eventIdentity) throw new Error('Loop evidence event authority is unavailable');
+    const hookInput = {
+      kind: 'events',
+      operation: 'append',
+      path: this.eventPath,
+    } satisfies EvidenceFileHookInput;
+    await this.filesystem.beforeFileOpen(hookInput);
     const handle = await open(
       this.eventPath,
       constants.O_APPEND | constants.O_WRONLY | constants.O_NOFOLLOW,
       0o600
     );
+    let primaryError: unknown = null;
+    let writeStarted = false;
     try {
+      await this.filesystem.afterFileOpen(hookInput);
+      await verifyOpenedFile(handle, this.eventPath, this.runAuthority, this.eventIdentity);
       await handle.chmod(0o600);
+      await verifyOpenedFile(handle, this.eventPath, this.runAuthority, this.eventIdentity);
+      writeStarted = true;
       await handle.writeFile(line, 'utf8');
-    } finally {
-      await handle.close();
+      await this.filesystem.afterFileWrite(hookInput);
+      await verifyOpenedFile(handle, this.eventPath, this.runAuthority, this.eventIdentity);
+    } catch (error) {
+      primaryError = error;
+    }
+    try {
+      await this.filesystem.closeFile({ ...hookInput, handle });
+    } catch (closeError) {
+      if (writeStarted) this.eventStreamPoisoned = true;
+      if (primaryError !== null) {
+        throw aggregateCleanupFailure(
+          primaryError,
+          [closeError],
+          'Loop evidence event append cleanup failed'
+        );
+      }
+      throw closeError;
+    }
+    if (primaryError !== null) {
+      if (writeStarted) this.eventStreamPoisoned = true;
+      throw primaryError;
     }
     this.sequence += 1;
   }
 
-  private async assertDirectories(includeScreenshots = true): Promise<void> {
-    await assertPrivateContainedDirectory(this.rootDirectory, this.directory);
-    if (includeScreenshots) {
-      await assertPrivateContainedDirectory(this.directory, this.screenshotsPath);
-    }
+  private async assertDirectories(): Promise<void> {
+    await assertDirectoryAuthority(this.rootAuthority);
+    await assertDirectoryAuthority(this.runAuthority);
+    await assertDirectoryAuthority(this.screenshotsAuthority);
   }
 
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -486,25 +716,10 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
 
   private assertOpen(): void {
     if (this.finished) throw new Error('Loop evidence run is already finished');
-  }
-}
-
-async function readScreenshotUsage(path: string): Promise<{ count: number; bytes: number }> {
-  const entries = await readdir(path, { withFileTypes: true });
-  let count = 0;
-  let bytes = 0;
-  for (const entry of entries) {
-    const entryPath = join(path, entry.name);
-    assertContainedPath(path, entryPath);
-    const details = await lstat(entryPath);
-    if (!entry.isFile() || !details.isFile() || details.isSymbolicLink()) {
-      await rm(entryPath, { recursive: true, force: true });
-      continue;
+    if (this.eventStreamPoisoned) {
+      throw new Error('Loop evidence event stream is unavailable after an uncertain append');
     }
-    count += 1;
-    bytes += details.size;
   }
-  return { count, bytes };
 }
 
 function sanitizeActionResult(result: LoopBrowserActionResult): LoopBrowserActionResult {
@@ -628,53 +843,342 @@ function assertContainedPath(parent: string, candidate: string): void {
   throw new Error('Loop evidence path escaped its app-data root');
 }
 
-async function ensurePrivateDirectory(path: string, allowExisting = true): Promise<void> {
+function createEvidenceFilesystem(hooks: LoopEvidenceStoreTestHooks = {}): EvidenceFilesystem {
+  return {
+    afterRunDirectoryCreate: async (path) => {
+      await hooks.afterRunDirectoryCreate?.(path);
+    },
+    beforeFileOpen: async (input) => {
+      await hooks.beforeFileOpen?.(input);
+    },
+    afterFileOpen: async (input) => {
+      await hooks.afterFileOpen?.(input);
+    },
+    afterFileWrite: async (input) => {
+      await hooks.afterFileWrite?.(input);
+    },
+    closeFile: hooks.closeFile ?? (async ({ handle }) => await handle.close()),
+    beforeRemove: async (input) => {
+      await hooks.beforeRemove?.(input);
+    },
+    removeFile: hooks.removeFile ?? (async (path) => await unlink(path)),
+    removeDirectory: hooks.removeDirectory ?? (async (path) => await rmdir(path)),
+  };
+}
+
+async function ensurePrivateDirectory(
+  path: string,
+  allowExisting = true,
+  parent?: DirectoryAuthority
+): Promise<DirectoryAuthority> {
   try {
     await mkdir(path, { recursive: false, mode: 0o700 });
   } catch (error) {
     if (!allowExisting || !isNodeError(error) || error.code !== 'EEXIST') throw error;
   }
-  const details = await lstat(path);
-  if (!details.isDirectory() || details.isSymbolicLink()) {
-    throw new Error('Loop evidence directory must not be a symbolic link');
+  return await captureDirectoryAuthority(path, parent);
+}
+
+/**
+ * Pure Node has no portable openat-style API. These immutable identity and canonical-path
+ * checks are a fail-closed defense against swaps at every mutation boundary, not a claim that
+ * path APIs can defeat an actively oscillating same-user process. O_NOFOLLOW and chmod also do
+ * not provide equivalent Windows ACL guarantees, so unusable filesystem identities are rejected.
+ */
+async function captureDirectoryAuthority(
+  path: string,
+  parent?: DirectoryAuthority,
+  requirePrivate = true
+): Promise<DirectoryAuthority> {
+  if (parent) {
+    assertContainedPath(parent.path, path);
+    await assertDirectoryAuthority(parent);
   }
-  const canonical = await realpath(path);
-  if (!sameFilesystemPath(canonical, resolve(path))) {
+  const first = await lstat(path, { bigint: true });
+  assertDirectoryDetails(first, path, requirePrivate);
+  const firstIdentity = identityFromStats(first);
+  const canonicalPath = await realpath(path);
+  const second = await lstat(path, { bigint: true });
+  assertDirectoryDetails(second, path, requirePrivate);
+  assertSameIdentity(firstIdentity, identityFromStats(second), path);
+  if (!sameFilesystemPath(canonicalPath, resolve(path))) {
     throw new Error('Loop evidence directory must not traverse symbolic links');
   }
-  await chmod(path, 0o700);
-}
-
-async function assertPrivateContainedDirectory(parent: string, candidate: string): Promise<void> {
-  assertContainedPath(parent, candidate);
-  await assertCanonicalDirectory(parent);
-  await assertCanonicalDirectory(candidate);
-}
-
-async function assertCanonicalDirectory(path: string): Promise<void> {
-  const details = await lstat(path);
-  if (!details.isDirectory() || details.isSymbolicLink()) {
-    throw new Error('Loop evidence directory must not be a symbolic link');
+  if (parent) {
+    assertContainedPath(parent.canonicalPath, canonicalPath);
+    await assertDirectoryAuthority(parent);
   }
-  const canonical = await realpath(path);
-  if (!sameFilesystemPath(canonical, resolve(path))) {
+  return {
+    path: resolve(path),
+    canonicalPath,
+    identity: firstIdentity,
+    requirePrivate,
+  };
+}
+
+async function assertDirectoryAuthority(authority: DirectoryAuthority): Promise<void> {
+  const candidate = await captureDirectoryAuthority(
+    authority.path,
+    undefined,
+    authority.requirePrivate
+  );
+  assertSameDirectoryAuthority(authority, candidate);
+}
+
+function assertSameDirectoryAuthority(
+  expected: DirectoryAuthority,
+  candidate: DirectoryAuthority
+): void {
+  if (
+    !sameFilesystemPath(expected.path, candidate.path) ||
+    !sameFilesystemPath(expected.canonicalPath, candidate.canonicalPath)
+  ) {
+    throw new Error('Loop evidence directory authority changed');
+  }
+  assertSameIdentity(expected.identity, candidate.identity, expected.path);
+}
+
+function assertDirectoryDetails(
+  details: Awaited<ReturnType<typeof lstat>>,
+  path: string,
+  requirePrivate: boolean
+): void {
+  if (!details.isDirectory() || details.isSymbolicLink()) {
     throw new Error('Loop evidence directory must not traverse symbolic links');
   }
+  identityFromStats(details);
+  if (
+    requirePrivate &&
+    process.platform !== 'win32' &&
+    (BigInt(details.mode) & BigInt(0o077)) !== BigInt(0)
+  ) {
+    throw new Error(`Loop evidence directory permissions are not private: ${path}`);
+  }
 }
 
-async function removeCreatedRunDirectory(root: string, directory: string): Promise<void> {
-  assertContainedPath(root, directory);
+async function verifyOpenedFile(
+  handle: Awaited<ReturnType<typeof open>>,
+  path: string,
+  parent: DirectoryAuthority,
+  expectedIdentity?: FilesystemIdentity
+): Promise<FilesystemIdentity> {
+  assertContainedPath(parent.path, path);
+  await assertDirectoryAuthority(parent);
+  const firstHandleDetails = await handle.stat({ bigint: true });
+  if (!firstHandleDetails.isFile()) {
+    throw new Error('Loop evidence file handle must reference a regular file');
+  }
+  const handleIdentity = identityFromStats(firstHandleDetails);
+  if (expectedIdentity) assertSameIdentity(expectedIdentity, handleIdentity, path);
+
+  const firstPathDetails = await lstat(path, { bigint: true });
+  if (!firstPathDetails.isFile() || firstPathDetails.isSymbolicLink()) {
+    throw new Error('Loop evidence file path must reference the opened regular file');
+  }
+  const pathIdentity = identityFromStats(firstPathDetails);
+  assertSameIdentity(handleIdentity, pathIdentity, path);
+  const canonicalPath = await realpath(path);
+  if (!sameFilesystemPath(canonicalPath, resolve(path))) {
+    throw new Error('Loop evidence file must not traverse symbolic links');
+  }
+  assertContainedPath(parent.canonicalPath, canonicalPath);
+
+  await assertDirectoryAuthority(parent);
+  const secondPathDetails = await lstat(path, { bigint: true });
+  const secondHandleDetails = await handle.stat({ bigint: true });
+  if (
+    !secondPathDetails.isFile() ||
+    secondPathDetails.isSymbolicLink() ||
+    !secondHandleDetails.isFile()
+  ) {
+    throw new Error('Loop evidence file identity changed before mutation');
+  }
+  assertSameIdentity(handleIdentity, identityFromStats(secondPathDetails), path);
+  assertSameIdentity(handleIdentity, identityFromStats(secondHandleDetails), path);
+  return handleIdentity;
+}
+
+async function removeKnownRunDirectory(
+  root: DirectoryAuthority,
+  run: DirectoryAuthority,
+  filesystem: EvidenceFilesystem
+): Promise<void> {
+  await assertDirectoryAuthority(root);
+  let initialRunDetails: Awaited<ReturnType<typeof lstat>>;
   try {
-    const details = await lstat(directory);
-    if (details.isSymbolicLink() || !details.isDirectory()) {
-      await rm(directory, { force: true });
-      return;
-    }
-    await assertPrivateContainedDirectory(root, directory);
-    await rm(directory, { recursive: true, force: true });
+    initialRunDetails = await lstat(run.path, { bigint: true });
   } catch (error) {
     if (isNodeError(error) && error.code === 'ENOENT') return;
+    throw error;
   }
+  assertDirectoryDetails(initialRunDetails, run.path, run.requirePrivate);
+  assertSameIdentity(run.identity, identityFromStats(initialRunDetails), run.path);
+  await assertDirectoryAuthority(run);
+  assertContainedPath(root.path, run.path);
+  const entries = await readdir(run.path, { withFileTypes: true });
+  await assertDirectoryAuthority(run);
+  for (const entry of entries) {
+    const entryPath = join(run.path, entry.name);
+    if (entry.name === EVENTS_FILE) {
+      await removeVerifiedFile(run, entryPath, filesystem, undefined, true);
+      continue;
+    }
+    if (entry.name === SCREENSHOTS_DIR) {
+      const details = await lstat(entryPath, { bigint: true });
+      if (details.isSymbolicLink()) {
+        await removeVerifiedFile(run, entryPath, filesystem, undefined, true);
+        continue;
+      }
+      if (!details.isDirectory()) {
+        throw new Error('Loop evidence screenshots entry was not a directory');
+      }
+      const screenshots = await captureDirectoryAuthority(entryPath, run);
+      await removeKnownScreenshotsDirectory(run, screenshots, filesystem);
+      continue;
+    }
+    throw new Error('Loop evidence run contained an unexpected cleanup entry');
+  }
+  await removeEmptyDirectory(root, run, filesystem);
+}
+
+async function removeKnownScreenshotsDirectory(
+  run: DirectoryAuthority,
+  screenshots: DirectoryAuthority,
+  filesystem: EvidenceFilesystem
+): Promise<void> {
+  await assertDirectoryAuthority(run);
+  await assertDirectoryAuthority(screenshots);
+  const entries = await readdir(screenshots.path, { withFileTypes: true });
+  await assertDirectoryAuthority(screenshots);
+  for (const entry of entries) {
+    if (!isScreenshotFileName(entry.name)) {
+      throw new Error('Loop evidence screenshots contained an unexpected cleanup entry');
+    }
+    await removeVerifiedFile(
+      screenshots,
+      join(screenshots.path, entry.name),
+      filesystem,
+      undefined,
+      true
+    );
+  }
+  await removeEmptyDirectory(run, screenshots, filesystem);
+}
+
+async function removeVerifiedFile(
+  parent: DirectoryAuthority,
+  path: string,
+  filesystem: EvidenceFilesystem,
+  expectedIdentity?: FilesystemIdentity,
+  allowSymbolicLink = false,
+  allowMissing = false
+): Promise<void> {
+  assertContainedPath(parent.path, path);
+  await assertDirectoryAuthority(parent);
+  let first: Awaited<ReturnType<typeof lstat>>;
+  try {
+    first = await lstat(path, { bigint: true });
+  } catch (error) {
+    if (allowMissing && isNodeError(error) && error.code === 'ENOENT') return;
+    throw error;
+  }
+  if (first.isDirectory()) throw new Error('Loop evidence cleanup refused a directory entry');
+  if (
+    (!first.isFile() && !first.isSymbolicLink()) ||
+    (first.isSymbolicLink() && !allowSymbolicLink)
+  ) {
+    throw new Error('Loop evidence cleanup refused an unexpected file type');
+  }
+  const firstIdentity = identityFromStats(first);
+  if (expectedIdentity) assertSameIdentity(expectedIdentity, firstIdentity, path);
+  if (!first.isSymbolicLink()) {
+    const canonicalPath = await realpath(path);
+    if (!sameFilesystemPath(canonicalPath, resolve(path))) {
+      throw new Error('Loop evidence cleanup file must not traverse symbolic links');
+    }
+    assertContainedPath(parent.canonicalPath, canonicalPath);
+  }
+
+  await filesystem.beforeRemove({ kind: 'file', path });
+  await assertDirectoryAuthority(parent);
+  let second: Awaited<ReturnType<typeof lstat>>;
+  try {
+    second = await lstat(path, { bigint: true });
+  } catch (error) {
+    if (allowMissing && isNodeError(error) && error.code === 'ENOENT') return;
+    throw error;
+  }
+  if (
+    second.isDirectory() ||
+    (!second.isFile() && !second.isSymbolicLink()) ||
+    (second.isSymbolicLink() && !allowSymbolicLink)
+  ) {
+    throw new Error('Loop evidence cleanup file type changed before removal');
+  }
+  assertSameIdentity(firstIdentity, identityFromStats(second), path);
+  await filesystem.removeFile(path);
+  await assertDirectoryAuthority(parent);
+}
+
+async function removeEmptyDirectory(
+  parent: DirectoryAuthority,
+  directory: DirectoryAuthority,
+  filesystem: EvidenceFilesystem
+): Promise<void> {
+  await assertDirectoryAuthority(parent);
+  await assertDirectoryAuthority(directory);
+  await filesystem.beforeRemove({ kind: 'directory', path: directory.path });
+  await assertDirectoryAuthority(parent);
+  await assertDirectoryAuthority(directory);
+  if ((await readdir(directory.path)).length > 0) {
+    throw new Error('Loop evidence cleanup refused a non-empty directory');
+  }
+  await assertDirectoryAuthority(parent);
+  await assertDirectoryAuthority(directory);
+  await filesystem.removeDirectory(directory.path);
+  await assertDirectoryAuthority(parent);
+}
+
+function identityFromStats(details: {
+  dev: number | bigint;
+  ino: number | bigint;
+}): FilesystemIdentity {
+  const dev = BigInt(details.dev);
+  const ino = BigInt(details.ino);
+  if (dev < BigInt(0) || ino <= BigInt(0)) {
+    throw new Error('Loop evidence filesystem identity is unavailable');
+  }
+  return { dev, ino };
+}
+
+function assertSameIdentity(
+  expected: FilesystemIdentity,
+  candidate: FilesystemIdentity,
+  path: string
+): void {
+  if (expected.dev !== candidate.dev || expected.ino !== candidate.ino) {
+    throw new Error(`Loop evidence filesystem identity changed: ${path}`);
+  }
+}
+
+function isScreenshotFileName(name: string): boolean {
+  return /^[a-f0-9]{64}\.(?:jpg|png)$/u.test(name);
+}
+
+function aggregateCleanupFailure(
+  primaryError: unknown,
+  cleanupErrors: unknown[],
+  context: string
+): AggregateError {
+  const summary = cleanupErrors.map(describeError).join('; ');
+  return new AggregateError(
+    [primaryError, ...cleanupErrors],
+    `${context}: ${describeError(primaryError)}; cleanup failed: ${summary}`
+  );
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function sameFilesystemPath(left: string, right: string): boolean {
