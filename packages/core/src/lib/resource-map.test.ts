@@ -180,7 +180,7 @@ describe('ResourceMap', () => {
 
   it('dispose() does not free held leases — release is a precondition for dispose resolving', async () => {
     // This test encodes the critical shutdown ordering invariant:
-    // runtimeManager.dispose() (a ResourceMap.dispose()) only resolves after
+    // ResourceMap.dispose() only resolves after
     // all holders have explicitly called lease.release(). Callers must always
     // IReleasable.release() before relying on dispose() completing.
     let teardownCalled = false;
