@@ -1,11 +1,11 @@
-import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useNumberHotkeys } from '@renderer/lib/hooks/use-number-hotkeys';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
-import { resolveNumberFamilyBase, TAB_NAVIGATION_HOTKEYS } from '@shared/shortcuts';
+import { TAB_NAVIGATION_HOTKEYS } from '@shared/shortcuts';
 
 /**
  * Minimal interface required for tab navigation shortcuts.
@@ -112,12 +112,7 @@ export function useTabShortcuts(
     { enabled: enabled && tabRenameHotkey !== null, conflictBehavior: 'allow' }
   );
 
-  useNumberHotkeys(
-    resolveNumberFamilyBase('tabByNumber', keyboard?.tabByNumber) as Hotkey | null,
-    'tab',
-    enabled,
-    (index) => {
-      store?.setTabActiveIndex(index);
-    }
-  );
+  useNumberHotkeys('tab', keyboard, enabled, (index) => {
+    store?.setTabActiveIndex(index);
+  });
 }

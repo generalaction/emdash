@@ -1,4 +1,4 @@
-import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { useObserver } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -19,7 +19,6 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { numberShortcutChannel } from '@shared/events/appEvents';
-import { resolveNumberFamilyBase } from '@shared/shortcuts';
 
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
@@ -74,14 +73,9 @@ export function AppKeyboardShortcuts() {
   });
 
   // Jump to the Nth task in visual sidebar order (numberedTaskEntries).
-  useNumberHotkeys(
-    resolveNumberFamilyBase('taskByNumber', keyboard?.taskByNumber) as Hotkey | null,
-    'task',
-    true,
-    (index) => {
-      navigateToTaskByIndex(navigate, index);
-    }
-  );
+  useNumberHotkeys('task', keyboard, true, (index) => {
+    navigateToTaskByIndex(navigate, index);
+  });
 
   // Same shortcut pressed while an in-app browser webview has keyboard focus:
   // the main process forwards it since the renderer never sees those keys.

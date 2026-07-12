@@ -305,9 +305,9 @@ describe('BrowserWebContentsRegistry', () => {
     });
   });
 
-  it('respects rebinding and disabling of number families in webviews', () => {
+  it('respects rebinding and disabling of individual number shortcuts in webviews', () => {
     const registry = new BrowserWebContentsRegistry();
-    registry.setKeyboardSettings({ tabByNumber: 'Alt+1', taskByNumber: null });
+    registry.setKeyboardSettings({ tab7: 'Alt+7', task2: null });
     registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
 
     const webContents = fakeWebContents();

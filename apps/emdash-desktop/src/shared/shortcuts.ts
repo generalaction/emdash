@@ -14,27 +14,6 @@ export interface AppShortcutDef {
   hideFromSettings?: boolean;
   conflictBehavior?: 'prevent' | 'allow';
   ignoreWhenMonacoFocused?: boolean;
-  /**
-   * The configured hotkey is the "1" of a 1–9 family: the same modifiers are
-   * bound for every digit (see `getNumberHotkeys`).
-   */
-  numberFamily?: boolean;
-}
-
-export const NUMBER_HOTKEY_COUNT = 9;
-
-/**
- * Expands a number-family base hotkey (e.g. 'Control+1') into the bindings for
- * digits 1–9 with the same modifiers. Returns null when the base does not end
- * in a digit 1–9, which disables the family.
- */
-export function getNumberHotkeys(base: string): string[] | null {
-  const parts = base.split('+');
-  if (!/^[1-9]$/.test(parts[parts.length - 1])) return null;
-  const prefix = parts.slice(0, -1).join('+');
-  return Array.from({ length: NUMBER_HOTKEY_COUNT }, (_, i) =>
-    prefix ? `${prefix}+${i + 1}` : String(i + 1)
-  );
 }
 
 export function isMacLike(): boolean {
@@ -43,21 +22,29 @@ export function isMacLike(): boolean {
   return (globalThis as { process?: { platform?: string } }).process?.platform === 'darwin';
 }
 
-/**
- * Resolves the effective base hotkey for a number-family shortcut. A `null`
- * override disables the family. A configured base that cannot expand into a
- * digit family (no trailing 1-9) falls back to the default binding instead of
- * silently disabling the whole family.
- */
-export function resolveNumberFamilyBase(
-  key: ShortcutSettingsKey,
-  configured: string | null | undefined
-): string | null {
-  if (configured === null) return null;
-  const fallback = resolveDefaultHotkey(APP_SHORTCUTS[key]) ?? null;
-  const base = configured ?? fallback;
-  if (base && getNumberHotkeys(base)) return base;
-  return fallback && getNumberHotkeys(fallback) ? fallback : null;
+const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'] as const;
+
+function taskByNumberShortcut(digit: number): AppShortcutDef {
+  return {
+    defaultHotkey: `Mod+${digit}`,
+    label: `Jump to ${ORDINALS[digit - 1]} Task`,
+    description: `Switch to the ${ORDINALS[digit - 1]} task in the sidebar, top to bottom.`,
+    category: 'Task View',
+    conflictBehavior: 'allow',
+    ignoreWhenMonacoFocused: true,
+  };
+}
+
+function tabByNumberShortcut(digit: number): AppShortcutDef {
+  return {
+    // On Windows/Linux Mod is Ctrl, so Control+digit would collide with the
+    // task shortcuts there.
+    defaultHotkey: () => (isMacLike() ? `Control+${digit}` : `Alt+${digit}`),
+    label: `Jump to ${ORDINALS[digit - 1]} Tab`,
+    description: `Switch to the ${ORDINALS[digit - 1]} tab in the pane, left to right.`,
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  };
 }
 
 export type TabNavigationDirection = 'next' | 'previous';
@@ -254,26 +241,24 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Task View',
     ignoreWhenMonacoFocused: true,
   },
-  tabByNumber: {
-    // On Windows/Linux Mod is Ctrl, so Control+1 would collide with taskByNumber.
-    defaultHotkey: () => (isMacLike() ? 'Control+1' : 'Alt+1'),
-    label: 'Jump to Tab 1–9',
-    description:
-      'Switch to a tab by position, left to right. Record the shortcut for 1; digits 2–9 use the same modifiers.',
-    category: 'Tab Navigation',
-    conflictBehavior: 'allow',
-    numberFamily: true,
-  },
-  taskByNumber: {
-    defaultHotkey: 'Mod+1',
-    label: 'Jump to Task 1–9',
-    description:
-      'Switch to a task by its position in the sidebar, top to bottom. Record the shortcut for 1; digits 2–9 use the same modifiers.',
-    category: 'Task View',
-    conflictBehavior: 'allow',
-    ignoreWhenMonacoFocused: true,
-    numberFamily: true,
-  },
+  tab1: tabByNumberShortcut(1),
+  tab2: tabByNumberShortcut(2),
+  tab3: tabByNumberShortcut(3),
+  tab4: tabByNumberShortcut(4),
+  tab5: tabByNumberShortcut(5),
+  tab6: tabByNumberShortcut(6),
+  tab7: tabByNumberShortcut(7),
+  tab8: tabByNumberShortcut(8),
+  tab9: tabByNumberShortcut(9),
+  task1: taskByNumberShortcut(1),
+  task2: taskByNumberShortcut(2),
+  task3: taskByNumberShortcut(3),
+  task4: taskByNumberShortcut(4),
+  task5: taskByNumberShortcut(5),
+  task6: taskByNumberShortcut(6),
+  task7: taskByNumberShortcut(7),
+  task8: taskByNumberShortcut(8),
+  task9: taskByNumberShortcut(9),
   tabClose: {
     defaultHotkey: 'Mod+W',
     label: 'Close Tab',
@@ -359,3 +344,29 @@ export const APP_SHORTCUTS = defineShortcuts({
 });
 
 export type ShortcutSettingsKey = keyof typeof APP_SHORTCUTS;
+
+/** Digit-ordered settings keys for the jump-to-tab shortcuts (index 0 = 1st tab). */
+export const TAB_BY_NUMBER_KEYS = [
+  'tab1',
+  'tab2',
+  'tab3',
+  'tab4',
+  'tab5',
+  'tab6',
+  'tab7',
+  'tab8',
+  'tab9',
+] as const satisfies readonly ShortcutSettingsKey[];
+
+/** Digit-ordered settings keys for the jump-to-task shortcuts (index 0 = 1st task). */
+export const TASK_BY_NUMBER_KEYS = [
+  'task1',
+  'task2',
+  'task3',
+  'task4',
+  'task5',
+  'task6',
+  'task7',
+  'task8',
+  'task9',
+] as const satisfies readonly ShortcutSettingsKey[];
