@@ -38,6 +38,13 @@ export const loopPhaseHandoffSchema = z
   })
   .strict();
 
+export const loopPhaseRetryHandoffSchema = z
+  .object({
+    source: z.string().trim().min(1).max(256),
+    handoff: loopPhaseHandoffSchema,
+  })
+  .strict();
+
 export const loopStageResultSchema = z
   .object({
     status: z.enum(['passed', 'failed', 'cancelled', 'interrupted']),
@@ -55,10 +62,42 @@ export const loopPhaseStateV1Schema = z
   })
   .strict();
 
-export const loopPhaseState = defineVersionedSchema().initial('1', loopPhaseStateV1Schema).build();
+export const loopPhaseStateV2Schema = z
+  .object({
+    version: z.literal('2'),
+    checkpointCommit: loopCommitSchema.nullable(),
+    handoff: loopPhaseHandoffSchema.nullable(),
+    retryHandoffs: z.array(loopPhaseRetryHandoffSchema).max(64),
+    result: loopStageResultSchema.nullable(),
+  })
+  .strict();
+
+function upgradeLoopPhaseStateV1(
+  state: z.infer<typeof loopPhaseStateV1Schema>
+): z.infer<typeof loopPhaseStateV2Schema> {
+  return {
+    version: '2',
+    checkpointCommit: state.checkpointCommit,
+    handoff: state.handoff,
+    retryHandoffs: [],
+    result: state.result,
+  };
+}
+
+/** Strict persisted-input parser for boundaries that must accept and upgrade v1 at runtime. */
+export const loopPhaseStateInputSchema = z.union([
+  loopPhaseStateV2Schema,
+  loopPhaseStateV1Schema.transform(upgradeLoopPhaseStateV1),
+]);
+
+export const loopPhaseState = defineVersionedSchema()
+  .initial('1', loopPhaseStateV1Schema)
+  .version('2', loopPhaseStateV2Schema, upgradeLoopPhaseStateV1)
+  .build();
 export const loopPhaseStateSchema = loopPhaseState.schema;
 
 export type LoopArtifactReference = z.infer<typeof loopArtifactReferenceSchema>;
 export type LoopPhaseHandoff = z.infer<typeof loopPhaseHandoffSchema>;
+export type LoopPhaseRetryHandoff = z.infer<typeof loopPhaseRetryHandoffSchema>;
 export type LoopStageResult = z.infer<typeof loopStageResultSchema>;
 export type LoopPhaseState = typeof loopPhaseState.Type;
